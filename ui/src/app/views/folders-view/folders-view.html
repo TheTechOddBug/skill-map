@@ -57,12 +57,33 @@
         }
       </div>
     } @else {
-      <ul class="folders__tree" role="tree" data-testid="folders-tree">
-        @for (row of rows(); track row.type === 'folder' ? 'f:' + row.path : 'l:' + row.path) {
+      <p-table
+        [value]="rows()"
+        [paginator]="false"
+        [scrollable]="true"
+        scrollHeight="calc(100dvh - 280px)"
+        dataKey="path"
+        styleClass="p-datatable-sm folders__table"
+        data-testid="folders-table"
+      >
+        <ng-template pTemplate="header">
+          <tr>
+            <th class="folders__col-tree">{{ texts.columns.tree }}</th>
+            <th style="width: 120px">{{ listTexts.columns.kind }}</th>
+            <th class="folders__col-tags">{{ listTexts.columns.tags }}</th>
+            <th style="width: 70px" class="folders__col-num"
+                [pTooltip]="listTexts.linksInHeaderTooltip" tooltipPosition="top">{{ listTexts.columns.linksIn }}</th>
+            <th style="width: 70px" class="folders__col-num"
+                [pTooltip]="listTexts.linksOutHeaderTooltip" tooltipPosition="top">{{ listTexts.columns.linksOut }}</th>
+            <th style="width: 110px" class="folders__col-num">{{ listTexts.columns.tokens }}</th>
+            <th style="width: 140px">{{ listTexts.columns.stability }}</th>
+            <th style="width: 130px">{{ listTexts.columns.issues }}</th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-row>
           @if (row.type === 'folder') {
-            <li
+            <tr
               class="folders__row folders__row--folder"
-              role="treeitem"
               [attr.aria-expanded]="row.expanded"
               [attr.aria-level]="row.depth + 1"
               [attr.aria-label]="texts.folderAriaLabel(row.name, row.expanded)"
@@ -73,85 +94,117 @@
               (keydown.space)="$event.preventDefault(); toggleFolder(row)"
               [attr.data-testid]="'folders-folder-' + row.path"
             >
-              <span class="folders__indent" aria-hidden="true"></span>
-              <i
-                class="pi folders__chevron"
-                [class.pi-chevron-right]="!row.expanded"
-                [class.pi-chevron-down]="row.expanded"
-                aria-hidden="true"
-              ></i>
-              <i
-                class="pi folders__folder-icon"
-                [class.pi-folder]="!row.expanded"
-                [class.pi-folder-open]="row.expanded"
-                aria-hidden="true"
-              ></i>
-              <span class="folders__name folders__name--folder">{{ row.name }}</span>
-              <span class="folders__meta">
-                <span class="folders__count" [attr.aria-label]="row.nodeCount + ' nodes'">{{ texts.folderCount(row.nodeCount) }}</span>
-                @if (row.errors > 0) {
-                  <span class="folders__issue folders__issue--error" aria-label="errors in subtree">
-                    <i class="pi pi-times-circle" aria-hidden="true"></i>
-                    <span class="folders__issue-count">{{ row.errors }}</span>
-                  </span>
-                }
-                @if (row.warns > 0) {
-                  <span class="folders__issue folders__issue--warn" aria-label="warnings in subtree">
-                    <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
-                    <span class="folders__issue-count">{{ row.warns }}</span>
-                  </span>
-                }
-              </span>
-            </li>
+              <td class="folders__cell-tree">
+                <span class="folders__tree-inner">
+                  <span class="folders__indent" aria-hidden="true"></span>
+                  <i
+                    class="pi folders__chevron"
+                    [class.pi-chevron-right]="!row.expanded"
+                    [class.pi-chevron-down]="row.expanded"
+                    aria-hidden="true"
+                  ></i>
+                  <i
+                    class="pi folders__folder-icon"
+                    [class.pi-folder]="!row.expanded"
+                    [class.pi-folder-open]="row.expanded"
+                    aria-hidden="true"
+                  ></i>
+                  <span class="folders__name folders__name--folder">{{ row.name }}</span>
+                  <span class="folders__count" [attr.aria-label]="row.nodeCount + ' nodes'">{{ texts.folderCount(row.nodeCount) }}</span>
+                </span>
+              </td>
+              <td></td>
+              <td></td>
+              <td></td>
+              <td></td>
+              <td></td>
+              <td></td>
+              <td></td>
+            </tr>
           } @else {
-            <li
+            <tr
               class="folders__row folders__row--leaf"
-              role="treeitem"
-              [attr.aria-level]="row.depth + 1"
-              [attr.aria-label]="texts.leafAriaLabel(row.name)"
               tabindex="0"
+              [attr.aria-label]="texts.leafAriaLabel(row.name)"
               [style.--folder-depth]="row.depth"
               (click)="openLeaf(row)"
               (keydown.enter)="openLeaf(row)"
               (keydown.space)="$event.preventDefault(); openLeaf(row)"
               [attr.data-testid]="'folders-leaf-' + row.path"
             >
-              <span class="folders__indent" aria-hidden="true"></span>
-              <span class="folders__chevron-placeholder" aria-hidden="true"></span>
-              <p-tag class="folders__kind" [value]="row.kindLabel" [style]="row.kindStyle" />
-              <span class="folders__name folders__name--leaf">{{ row.name }}</span>
-              <span class="folders__meta">
+              <td class="folders__cell-tree">
+                <span class="folders__tree-inner">
+                  <span class="folders__indent" aria-hidden="true"></span>
+                  <span class="folders__chevron-placeholder" aria-hidden="true"></span>
+                  <i class="pi pi-file folders__leaf-icon" aria-hidden="true"></i>
+                  <span class="folders__name folders__name--leaf">{{ row.name }}</span>
+                </span>
+              </td>
+              <td>
+                <p-tag [value]="row.kindLabel" [style]="row.kindStyle" />
+              </td>
+              <td class="folders__cell-tags">
+                @if (row.tags.length || row.tagsOverflow > 0) {
+                  <span class="folders__chips" aria-label="tags">
+                    @for (chip of row.tags; track chip.source + ':' + chip.tag) {
+                      <span
+                        class="folders__chip"
+                        [class.folders__chip--author]="chip.source === 'author'"
+                        [class.folders__chip--user]="chip.source === 'user'"
+                      >{{ chip.tag }}</span>
+                    }
+                    @if (row.tagsOverflow > 0) {
+                      <span
+                        class="folders__chip-more"
+                        [pTooltip]="row.tagsOverflowTooltip"
+                        tooltipPosition="top"
+                        [attr.aria-label]="row.tagsOverflowTooltip"
+                      >{{ listTexts.tagsOverflow(row.tagsOverflow) }}</span>
+                    }
+                  </span>
+                }
+              </td>
+              <td class="folders__cell-num">{{ row.linksIn }}</td>
+              <td class="folders__cell-num">{{ row.linksOut }}</td>
+              <td class="folders__cell-num" [attr.title]="row.tokensRaw > 0 ? listTexts.tokensTooltip(row.tokensRaw) : null">{{ row.tokens }}</td>
+              <td>
                 <p-tag
-                  class="folders__stability"
                   [value]="row.stability"
                   [severity]="row.stabilitySeverity"
                   [rounded]="true"
                 />
-                @if (row.isStale) {
-                  <i
-                    class="pi pi-clock folders__stale-icon"
-                    [pTooltip]="row.staleTooltip"
-                    tooltipPosition="top"
-                    [attr.aria-label]="row.staleTooltip"
-                  ></i>
-                }
-                @if (row.errors > 0) {
-                  <span class="folders__issue folders__issue--error">
-                    <i class="pi pi-times-circle" aria-hidden="true"></i>
-                    <span class="folders__issue-count">{{ row.errors }}</span>
-                  </span>
-                }
-                @if (row.warns > 0) {
-                  <span class="folders__issue folders__issue--warn">
-                    <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
-                    <span class="folders__issue-count">{{ row.warns }}</span>
-                  </span>
-                }
-              </span>
-            </li>
+              </td>
+              <td class="folders__cell-issues">
+                <span class="folders__issues-row">
+                  @if (row.isStale) {
+                    <i
+                      class="pi pi-clock folders__stale-icon"
+                      [pTooltip]="row.staleTooltip"
+                      tooltipPosition="top"
+                      [attr.aria-label]="row.staleTooltip"
+                    ></i>
+                  }
+                  @if (row.errors > 0) {
+                    <span class="folders__issue folders__issue--error">
+                      <i class="pi pi-times-circle" aria-hidden="true"></i>
+                      <span class="folders__issue-count">{{ row.errors }}</span>
+                    </span>
+                  }
+                  @if (row.warns > 0) {
+                    <span class="folders__issue folders__issue--warn">
+                      <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+                      <span class="folders__issue-count">{{ row.warns }}</span>
+                    </span>
+                  }
+                  @if (!row.isStale && row.errors === 0 && row.warns === 0) {
+                    <span class="folders__cell-issues-empty" aria-hidden="true">{{ listTexts.missing }}</span>
+                  }
+                </span>
+              </td>
+            </tr>
           }
-        }
-      </ul>
+        </ng-template>
+      </p-table>
     }
   }
 </section>

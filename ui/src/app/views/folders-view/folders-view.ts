@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
+import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { MessageModule } from 'primeng/message';
@@ -7,6 +8,7 @@ import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { FOLDERS_VIEW_TEXTS } from '../../../i18n/folders-view.texts';
+import { LIST_VIEW_TEXTS } from '../../../i18n/list-view.texts';
 import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
@@ -15,9 +17,11 @@ import { KindRegistryService } from '../../../services/kind-registry';
 import { FilterBar } from '../../components/filter-bar/filter-bar';
 import { STABILITY_SEVERITY, type TTagSeverity } from '../../components/severity-map';
 import {
+  compactNumber,
   effectiveIsStale,
   effectiveStaleTooltip,
   effectiveStability,
+  effectiveUserTags,
 } from '../../../models/node-derived';
 import { pathBasenameForLink } from '../../../services/trigger-resolve';
 import type {
@@ -26,6 +30,12 @@ import type {
   TStability,
 } from '../../../models/node';
 import type { IIssueApi, TIssueSeverityApi } from '../../../models/api';
+import { readStoredCollapsed, writeStoredCollapsed } from './folders-view.storage';
+
+interface IFolderLeafTagChip {
+  tag: string;
+  source: 'author' | 'user';
+}
 
 interface IFolderLeaf {
   readonly type: 'leaf';
@@ -35,6 +45,13 @@ interface IFolderLeaf {
   readonly kind: TNodeKind;
   readonly kindLabel: string;
   readonly kindStyle: Readonly<Record<string, string>>;
+  readonly tags: readonly IFolderLeafTagChip[];
+  readonly tagsOverflow: number;
+  readonly tagsOverflowTooltip: string;
+  readonly linksIn: string;
+  readonly linksOut: string;
+  readonly tokens: string;
+  readonly tokensRaw: number;
   readonly errors: number;
   readonly warns: number;
   readonly isStale: boolean;
@@ -45,38 +62,31 @@ interface IFolderLeaf {
 
 interface IFolderRow {
   readonly type: 'folder';
-  /** Full folder path including trailing segment, used as expand-state key. */
   readonly path: string;
-  /** Last segment of the folder path (e.g. `guides` for `docs/guides`). */
   readonly name: string;
   readonly depth: number;
   readonly expanded: boolean;
-  /** Total leaves in the subtree (recursive). */
   readonly nodeCount: number;
-  /** Aggregate error / warn counts across the subtree. */
-  readonly errors: number;
-  readonly warns: number;
 }
 
 type TFolderViewRow = IFolderRow | IFolderLeaf;
 
-/**
- * Internal tree node used during the build pass. The `children` map keys
- * are the next path segment for a folder, and an array of node leaves.
- * Folders sort alphabetically before leaves at render time.
- */
 interface ITreeFolder {
-  /** Full path including any leading segments. Empty string for root. */
   readonly path: string;
   readonly name: string;
   readonly subfolders: Map<string, ITreeFolder>;
   readonly leaves: INodeView[];
 }
 
+interface IAggregate {
+  nodes: number;
+}
+
 @Component({
   selector: 'sm-folders-view',
   imports: [
     FilterBar,
+    TableModule,
     TagModule,
     ProgressSpinnerModule,
     MessageModule,
@@ -95,6 +105,7 @@ export class FoldersView implements OnInit {
   private readonly kindRegistry = inject(KindRegistryService);
 
   protected readonly texts = FOLDERS_VIEW_TEXTS;
+  protected readonly listTexts = LIST_VIEW_TEXTS;
 
   readonly loading = this.loader.loading;
   readonly error = this.loader.error;
@@ -102,29 +113,27 @@ export class FoldersView implements OnInit {
   readonly filtersActive = this.filters.isActive;
 
   /**
-   * Expand state for folders, keyed by the folder's full path. A folder
-   * is expanded iff its key is present in the set. Default is "all
-   * collapsed", except the root level is implicitly expanded (root
-   * folders always render as the top of the tree).
+   * Folders the user has explicitly COLLAPSED. The default state is
+   * "all expanded", so anything NOT in this set renders open. Seeded
+   * from `localStorage` on construction; an `effect` mirrors mutations
+   * back so the choice persists across reloads. Inverting the semantic
+   * (collapsed vs expanded) keeps new folders that appear after a
+   * future scan open out of the box, matching the "first time =
+   * expanded" UX.
    */
-  private readonly expanded = signal<ReadonlySet<string>>(new Set());
+  private readonly collapsed = signal<ReadonlySet<string>>(readStoredCollapsed());
 
-  /**
-   * Filtered node list, mirrors list-view. Built once per render so the
-   * tree-build pass and the visibility pass share the same projection.
-   */
+  constructor() {
+    effect(() => {
+      writeStoredCollapsed(this.collapsed());
+    });
+  }
+
   private readonly filteredNodes = computed<readonly INodeView[]>(() => {
     const severity = this.issuePaths.bySeverity();
     return this.filters.apply(this.loader.nodes(), severity);
   });
 
-  /**
-   * Tree projection: builds an ITreeFolder root from the filtered node
-   * list by splitting `node.path` on `/` and walking the segments.
-   * Folders are created lazily as paths require them. The root folder
-   * has `path === ''` and is not rendered itself, only its children
-   * (top-level folders and root-level leaves).
-   */
   private readonly tree = computed<ITreeFolder>(() => {
     const root: ITreeFolder = { path: '', name: '', subfolders: new Map(), leaves: [] };
     for (const node of this.filteredNodes()) {
@@ -136,8 +145,7 @@ export class FoldersView implements OnInit {
       for (const seg of segments) {
         if (!seg) continue;
         prefix.push(seg);
-        const key = seg;
-        let child = cursor.subfolders.get(key);
+        let child = cursor.subfolders.get(seg);
         if (!child) {
           child = {
             path: prefix.join('/'),
@@ -145,7 +153,7 @@ export class FoldersView implements OnInit {
             subfolders: new Map(),
             leaves: [],
           };
-          cursor.subfolders.set(key, child);
+          cursor.subfolders.set(seg, child);
         }
         cursor = child;
       }
@@ -154,58 +162,32 @@ export class FoldersView implements OnInit {
     return root;
   });
 
-  /**
-   * Aggregate counts per folder path, computed once from the tree.
-   * Used to render the chip next to each folder name. Issues are summed
-   * across every leaf in the subtree, so a parent folder reflects the
-   * total severity weight beneath it (matches VSCode's per-folder
-   * problem indicators in the file explorer).
-   */
-  private readonly aggregates = computed<ReadonlyMap<string, { nodes: number; errors: number; warns: number }>>(() => {
-    const errorCounts = countIssuesByPath(this.loader.scan()?.issues, 'error');
-    const warnCounts = countIssuesByPath(this.loader.scan()?.issues, 'warn');
-    const out = new Map<string, { nodes: number; errors: number; warns: number }>();
-    const visit = (folder: ITreeFolder): { nodes: number; errors: number; warns: number } => {
-      let nodes = 0;
-      let errors = 0;
-      let warns = 0;
-      for (const leaf of folder.leaves) {
-        nodes += 1;
-        errors += errorCounts.get(leaf.path) ?? 0;
-        warns += warnCounts.get(leaf.path) ?? 0;
-      }
+  private readonly aggregates = computed<ReadonlyMap<string, IAggregate>>(() => {
+    const out = new Map<string, IAggregate>();
+    const visit = (folder: ITreeFolder): IAggregate => {
+      let nodes = folder.leaves.length;
       for (const sub of folder.subfolders.values()) {
-        const inner = visit(sub);
-        nodes += inner.nodes;
-        errors += inner.errors;
-        warns += inner.warns;
+        nodes += visit(sub).nodes;
       }
-      out.set(folder.path, { nodes, errors, warns });
-      return { nodes, errors, warns };
+      const agg: IAggregate = { nodes };
+      out.set(folder.path, agg);
+      return agg;
     };
     visit(this.tree());
     return out;
   });
 
-  /**
-   * Flattened, depth-aware row list for rendering. DFS walk of the
-   * tree, emits a folder row for every folder (top-level folders always
-   * visible, deeper folders emitted only when their parent is
-   * expanded), followed by leaf rows for files in the current folder
-   * when that folder is expanded. Folders sort alphabetically before
-   * leaves at every level.
-   */
   readonly rows = computed<TFolderViewRow[]>(() => {
     const tree = this.tree();
-    const expanded = this.expanded();
+    const collapsed = this.collapsed();
     const aggregates = this.aggregates();
     const errorCounts = countIssuesByPath(this.loader.scan()?.issues, 'error');
     const warnCounts = countIssuesByPath(this.loader.scan()?.issues, 'warn');
     const rows: TFolderViewRow[] = [];
 
     const emitFolder = (folder: ITreeFolder, depth: number): void => {
-      const isExpanded = expanded.has(folder.path);
-      const agg = aggregates.get(folder.path) ?? { nodes: 0, errors: 0, warns: 0 };
+      const isExpanded = !collapsed.has(folder.path);
+      const agg = aggregates.get(folder.path) ?? { nodes: 0 };
       rows.push({
         type: 'folder',
         path: folder.path,
@@ -213,8 +195,6 @@ export class FoldersView implements OnInit {
         depth,
         expanded: isExpanded,
         nodeCount: agg.nodes,
-        errors: agg.errors,
-        warns: agg.warns,
       });
       if (!isExpanded) return;
       const subs = Array.from(folder.subfolders.values()).sort(byName);
@@ -240,24 +220,24 @@ export class FoldersView implements OnInit {
   }
 
   toggleFolder(row: IFolderRow): void {
-    const next = new Set(this.expanded());
+    const next = new Set(this.collapsed());
     if (next.has(row.path)) next.delete(row.path);
     else next.add(row.path);
-    this.expanded.set(next);
+    this.collapsed.set(next);
   }
 
   expandAll(): void {
+    this.collapsed.set(new Set());
+  }
+
+  collapseAll(): void {
     const all = new Set<string>();
     const visit = (folder: ITreeFolder): void => {
       if (folder.path) all.add(folder.path);
       for (const sub of folder.subfolders.values()) visit(sub);
     };
     visit(this.tree());
-    this.expanded.set(all);
-  }
-
-  collapseAll(): void {
-    this.expanded.set(new Set());
+    this.collapsed.set(all);
   }
 
   openLeaf(row: IFolderLeaf): void {
@@ -268,6 +248,11 @@ export class FoldersView implements OnInit {
     this.filters.reset();
   }
 
+  onRowClick(row: TFolderViewRow): void {
+    if (row.type === 'folder') this.toggleFolder(row);
+    else this.openLeaf(row);
+  }
+
   private makeLeafRow(
     node: INodeView,
     depth: number,
@@ -276,6 +261,9 @@ export class FoldersView implements OnInit {
   ): IFolderLeaf {
     const stability = rowStability(node);
     const isStale = effectiveIsStale(node);
+    const allChips = collectTagChips(node);
+    const tags = allChips.slice(0, TAG_CHIPS_CAP);
+    const hiddenChips = allChips.slice(TAG_CHIPS_CAP);
     return {
       type: 'leaf',
       path: node.path,
@@ -284,6 +272,13 @@ export class FoldersView implements OnInit {
       kind: node.kind,
       kindLabel: this.kindRegistry.labelOf(node.kind),
       kindStyle: kindStyleFor(node.kind),
+      tags,
+      tagsOverflow: hiddenChips.length,
+      tagsOverflowTooltip: hiddenChips.map((c) => c.tag).join('\n'),
+      linksIn: node.linksInCount !== undefined ? String(node.linksInCount) : LIST_VIEW_TEXTS.missing,
+      linksOut: node.linksOutCount !== undefined ? String(node.linksOutCount) : LIST_VIEW_TEXTS.missing,
+      tokens: node.tokensTotal !== undefined ? compactNumber(node.tokensTotal) : LIST_VIEW_TEXTS.missing,
+      tokensRaw: node.tokensTotal ?? 0,
       errors: errorCounts.get(node.path) ?? 0,
       warns: warnCounts.get(node.path) ?? 0,
       isStale,
@@ -294,11 +289,8 @@ export class FoldersView implements OnInit {
   }
 }
 
-/**
- * Display name for a leaf, mirrors `list-view.rowName`: prefer the
- * frontmatter `name` when present, otherwise derive a friendly basename
- * via `pathBasenameForLink` (honours `<dir>/<name>/SKILL.md`).
- */
+const TAG_CHIPS_CAP = 3;
+
 function leafName(n: INodeView): string {
   const fromFm = n.frontmatter.name?.trim();
   if (fromFm) return fromFm;
@@ -324,12 +316,19 @@ function kindStyleFor(kind: TNodeKind): Readonly<Record<string, string>> {
   };
 }
 
-/**
- * Per-node issue count keyed by `node.path`. Duplicated from list-view
- * intentionally, the function is small and the two views project the
- * same shape; promoting it to a shared util would create a single-call
- * dependency that adds indirection without payoff today.
- */
+function collectTagChips(n: INodeView): IFolderLeafTagChip[] {
+  const out: IFolderLeafTagChip[] = [];
+  const fm = n.frontmatter as Record<string, unknown>;
+  const author = fm['tags'];
+  if (Array.isArray(author)) {
+    for (const t of author) {
+      if (typeof t === 'string' && t.length > 0) out.push({ tag: t, source: 'author' });
+    }
+  }
+  for (const t of effectiveUserTags(n)) out.push({ tag: t, source: 'user' });
+  return out;
+}
+
 function countIssuesByPath(
   issues: readonly IIssueApi[] | undefined,
   severity: TIssueSeverityApi,

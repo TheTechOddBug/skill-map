@@ -15,6 +15,14 @@ export const FOLDERS_VIEW_TEXTS = {
     `${expanded ? 'Collapse' : 'Expand'} folder ${name}`,
   leafAriaLabel: (name: string) => `Inspect ${name}`,
   /**
+   * Header label for the structural (tree) column. The rest of the
+   * column headers are reused verbatim from `LIST_VIEW_TEXTS` so the
+   * two views stay tonally aligned.
+   */
+  columns: {
+    tree: 'Folder / Node',
+  },
+  /**
    * Counts shown next to a folder. `nodes` is the total leaf count in
    * the subtree (recursive). `errors` / `warns` are summed across all
    * leaves of the subtree; rendered only when > 0.
