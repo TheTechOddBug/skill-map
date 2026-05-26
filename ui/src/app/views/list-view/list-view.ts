@@ -48,6 +48,12 @@ interface IListRow {
   /** Tooltip text listing the overflowed tags (one per line). Empty
    *  string when no overflow so the binding can be unconditional. */
   tagsOverflowTooltip: string;
+  /** Incoming reference count display (raw integer or `·` when absent). */
+  linksIn: string;
+  linksInRaw: number;
+  /** Outgoing reference count display (raw integer or `·` when absent). */
+  linksOut: string;
+  linksOutRaw: number;
   tokens: string;
   /** Raw token count for sorting. `0` when `tokensTotal` is undefined
    *  (missing rows fall to the bottom on descending sort). */
@@ -104,6 +110,8 @@ export class ListView implements OnInit {
       const errors = errorCounts.get(node.path) ?? 0;
       const warns = warnCounts.get(node.path) ?? 0;
       const tokensRaw = node.tokensTotal ?? 0;
+      const linksInRaw = node.linksInCount ?? 0;
+      const linksOutRaw = node.linksOutCount ?? 0;
       const isStale = effectiveIsStale(node);
       const allChips = collectTagChips(node);
       const tags = allChips.slice(0, TAG_CHIPS_CAP);
@@ -119,6 +127,10 @@ export class ListView implements OnInit {
         tags,
         tagsOverflow,
         tagsOverflowTooltip,
+        linksIn: node.linksInCount !== undefined ? String(node.linksInCount) : LIST_VIEW_TEXTS.missing,
+        linksInRaw,
+        linksOut: node.linksOutCount !== undefined ? String(node.linksOutCount) : LIST_VIEW_TEXTS.missing,
+        linksOutRaw,
         tokens: node.tokensTotal !== undefined ? compactNumber(node.tokensTotal) : LIST_VIEW_TEXTS.missing,
         tokensRaw,
         stability,

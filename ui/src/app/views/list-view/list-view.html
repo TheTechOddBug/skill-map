@@ -50,16 +50,21 @@
           <th pSortableColumn="path" class="list__col-path">
             {{ texts.columns.path }} <p-sortIcon field="path" />
           </th>
-          <th pSortableColumn="tokensRaw" style="width: 110px" class="list__col-tokens">
+          <th pSortableColumn="linksInRaw" style="width: 70px" class="list__col-num"
+              [pTooltip]="texts.linksInHeaderTooltip" tooltipPosition="top">
+            {{ texts.columns.linksIn }} <p-sortIcon field="linksInRaw" />
+          </th>
+          <th pSortableColumn="linksOutRaw" style="width: 70px" class="list__col-num"
+              [pTooltip]="texts.linksOutHeaderTooltip" tooltipPosition="top">
+            {{ texts.columns.linksOut }} <p-sortIcon field="linksOutRaw" />
+          </th>
+          <th pSortableColumn="tokensRaw" style="width: 110px" class="list__col-num">
             {{ texts.columns.tokens }} <p-sortIcon field="tokensRaw" />
           </th>
           <th style="width: 140px">
             {{ texts.columns.stability }}
           </th>
-          <th style="width: 60px" class="list__col-stale">
-            <span [pTooltip]="texts.staleHeaderTooltip" tooltipPosition="top">{{ texts.columns.stale }}</span>
-          </th>
-          <th pSortableColumn="issuesRank" style="width: 110px">
+          <th pSortableColumn="issuesRank" style="width: 130px">
             {{ texts.columns.issues }} <p-sortIcon field="issuesRank" />
           </th>
         </tr>
@@ -101,7 +106,9 @@
             }
           </td>
           <td class="list__cell-path"><code [attr.title]="row.path">{{ row.path }}</code></td>
-          <td class="list__cell-tokens" [attr.title]="row.tokensRaw > 0 ? texts.tokensTooltip(row.tokensRaw) : null">{{ row.tokens }}</td>
+          <td class="list__cell-num">{{ row.linksIn }}</td>
+          <td class="list__cell-num">{{ row.linksOut }}</td>
+          <td class="list__cell-num" [attr.title]="row.tokensRaw > 0 ? texts.tokensTooltip(row.tokensRaw) : null">{{ row.tokens }}</td>
           <td>
             <p-tag
               [value]="row.stability"
@@ -109,18 +116,16 @@
               [rounded]="true"
             />
           </td>
-          <td class="list__cell-stale">
-            @if (row.isStale) {
-              <i
-                class="pi pi-clock list__stale-icon"
-                [pTooltip]="row.staleTooltip"
-                tooltipPosition="top"
-                [attr.aria-label]="row.staleTooltip"
-              ></i>
-            }
-          </td>
           <td class="list__cell-issues">
             <span class="list__issues-row">
+              @if (row.isStale) {
+                <i
+                  class="pi pi-clock list__stale-icon"
+                  [pTooltip]="row.staleTooltip"
+                  tooltipPosition="top"
+                  [attr.aria-label]="row.staleTooltip"
+                ></i>
+              }
               @if (row.errors > 0) {
                 <span class="list__issue list__issue--error">
                   <i class="pi pi-times-circle" aria-hidden="true"></i>
@@ -133,7 +138,7 @@
                   <span class="list__issue-count">{{ row.warns }}</span>
                 </span>
               }
-              @if (row.errors === 0 && row.warns === 0) {
+              @if (!row.isStale && row.errors === 0 && row.warns === 0) {
                 <span class="list__cell-issues-empty" aria-hidden="true">{{ texts.missing }}</span>
               }
             </span>
@@ -142,7 +147,7 @@
       </ng-template>
       <ng-template pTemplate="emptymessage">
         <tr>
-          <td colspan="8" class="list__empty">
+          <td colspan="9" class="list__empty">
             @if (filtersActive()) {
               <i class="pi pi-filter-slash list__empty-icon" aria-hidden="true"></i>
               <p data-testid="list-empty-filtered">{{ texts.emptyFiltered }}</p>

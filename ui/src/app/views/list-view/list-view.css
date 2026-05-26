@@ -189,35 +189,27 @@
   white-space: nowrap;
 }
 
-/* Tokens column: right-aligned numeric. Compact format (`12k`) keeps
-   the column narrow; the full value is exposed via the cell's `title`
-   attribute (native browser tooltip). Monospace ties it visually to
-   the path column above so numbers align across rows. */
-.list__col-tokens {
+/* Numeric columns (IN, OUT, Tokens): right-aligned, monospace, muted
+   so they read as data dust without competing with the prose
+   columns. Tokens uses `compactNumber` so values fit in a narrow
+   column; IN / OUT show raw counts. The full Tokens value lives on
+   the cell `title` attribute as a native tooltip. */
+.list__col-num {
   text-align: right;
 }
 
-.list__cell-tokens {
+.list__cell-num {
   text-align: right;
   font-family: var(--sm-font-mono);
   font-size: var(--list-fs-mono);
   color: var(--p-text-muted-color);
 }
 
-/* Stale column: deliberately the narrowest column in the table. Icon
-   appears only on rows whose sidecar overlay reports drift; fresh
-   rows leave the cell empty so the column reads as a quiet "tick
-   list" of items that need attention. The header itself stays short
-   so the column width can shrink to ~60px without truncation.
-   Colour: the project's `--sm-severity-warn` token (amber), same
-   palette as the warn count in the Issues column, so the two
-   "attention" signals harmonise without looking identical (clock
-   shape vs triangle-bang shape carries the distinction). */
-.list__col-stale,
-.list__cell-stale {
-  text-align: center;
-}
-
+/* Stale clock icon now lives INSIDE the Issues cell, prefixing the
+   error / warn counts. Same `--sm-severity-warn` token as the warn
+   count, but the shape (filled clock vs triangle-bang) keeps the two
+   signals visually distinct, and the tooltip carries the per-face
+   detail (body / frontmatter / both drift). */
 .list__stale-icon {
   font-size: var(--list-fs-sm);
   color: var(--sm-severity-warn);
