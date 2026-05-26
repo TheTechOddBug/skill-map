@@ -1,0 +1,157 @@
+<section class="folders" data-testid="folders-view">
+  <header class="folders__header">
+    <div class="folders__header-text">
+      <h2>{{ texts.title }}</h2>
+      <p class="folders__sub">
+        @if (filtersActive()) {
+          {{ texts.showingPrefix }} <strong>{{ visibleCount() }}</strong>{{ texts.showingSuffix(total()) }}
+        } @else {
+          {{ texts.subtitleDefault }}
+        }
+      </p>
+    </div>
+    <div class="folders__header-actions">
+      <p-button
+        [label]="texts.expandAll"
+        icon="pi pi-angle-double-down"
+        severity="secondary"
+        [text]="true"
+        size="small"
+        (onClick)="expandAll()"
+        data-testid="folders-expand-all"
+      />
+      <p-button
+        [label]="texts.collapseAll"
+        icon="pi pi-angle-double-up"
+        severity="secondary"
+        [text]="true"
+        size="small"
+        (onClick)="collapseAll()"
+        data-testid="folders-collapse-all"
+      />
+    </div>
+  </header>
+
+  <sm-filter-bar />
+
+  @if (error()) {
+    <p-message severity="error" [text]="error()!" />
+  }
+
+  @if (loading()) {
+    <div class="folders__loading" data-testid="folders-loading">
+      <p-progressSpinner strokeWidth="3" />
+      <span class="folders__loading-label">{{ texts.loading }}</span>
+    </div>
+  } @else if (!error()) {
+    @if (rows().length === 0) {
+      <div class="empty-state">
+        @if (filtersActive()) {
+          <i class="pi pi-filter-slash empty-state__icon" aria-hidden="true"></i>
+          <p class="empty-state__title" data-testid="folders-empty-filtered">{{ texts.emptyFiltered }}</p>
+          <p-button [label]="texts.resetFilters" [text]="true" size="small" (onClick)="resetFilters()" data-testid="folders-reset-filters" />
+        } @else {
+          <i class="pi pi-inbox empty-state__icon" aria-hidden="true"></i>
+          <p class="empty-state__title" data-testid="folders-empty-all">{{ texts.emptyAll }}</p>
+          <p class="empty-state__desc">{{ texts.emptyAllHint }}</p>
+        }
+      </div>
+    } @else {
+      <ul class="folders__tree" role="tree" data-testid="folders-tree">
+        @for (row of rows(); track row.type === 'folder' ? 'f:' + row.path : 'l:' + row.path) {
+          @if (row.type === 'folder') {
+            <li
+              class="folders__row folders__row--folder"
+              role="treeitem"
+              [attr.aria-expanded]="row.expanded"
+              [attr.aria-level]="row.depth + 1"
+              [attr.aria-label]="texts.folderAriaLabel(row.name, row.expanded)"
+              tabindex="0"
+              [style.--folder-depth]="row.depth"
+              (click)="toggleFolder(row)"
+              (keydown.enter)="toggleFolder(row)"
+              (keydown.space)="$event.preventDefault(); toggleFolder(row)"
+              [attr.data-testid]="'folders-folder-' + row.path"
+            >
+              <span class="folders__indent" aria-hidden="true"></span>
+              <i
+                class="pi folders__chevron"
+                [class.pi-chevron-right]="!row.expanded"
+                [class.pi-chevron-down]="row.expanded"
+                aria-hidden="true"
+              ></i>
+              <i
+                class="pi folders__folder-icon"
+                [class.pi-folder]="!row.expanded"
+                [class.pi-folder-open]="row.expanded"
+                aria-hidden="true"
+              ></i>
+              <span class="folders__name folders__name--folder">{{ row.name }}</span>
+              <span class="folders__meta">
+                <span class="folders__count" [attr.aria-label]="row.nodeCount + ' nodes'">{{ texts.folderCount(row.nodeCount) }}</span>
+                @if (row.errors > 0) {
+                  <span class="folders__issue folders__issue--error" aria-label="errors in subtree">
+                    <i class="pi pi-times-circle" aria-hidden="true"></i>
+                    <span class="folders__issue-count">{{ row.errors }}</span>
+                  </span>
+                }
+                @if (row.warns > 0) {
+                  <span class="folders__issue folders__issue--warn" aria-label="warnings in subtree">
+                    <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+                    <span class="folders__issue-count">{{ row.warns }}</span>
+                  </span>
+                }
+              </span>
+            </li>
+          } @else {
+            <li
+              class="folders__row folders__row--leaf"
+              role="treeitem"
+              [attr.aria-level]="row.depth + 1"
+              [attr.aria-label]="texts.leafAriaLabel(row.name)"
+              tabindex="0"
+              [style.--folder-depth]="row.depth"
+              (click)="openLeaf(row)"
+              (keydown.enter)="openLeaf(row)"
+              (keydown.space)="$event.preventDefault(); openLeaf(row)"
+              [attr.data-testid]="'folders-leaf-' + row.path"
+            >
+              <span class="folders__indent" aria-hidden="true"></span>
+              <span class="folders__chevron-placeholder" aria-hidden="true"></span>
+              <p-tag class="folders__kind" [value]="row.kindLabel" [style]="row.kindStyle" />
+              <span class="folders__name folders__name--leaf">{{ row.name }}</span>
+              <span class="folders__meta">
+                <p-tag
+                  class="folders__stability"
+                  [value]="row.stability"
+                  [severity]="row.stabilitySeverity"
+                  [rounded]="true"
+                />
+                @if (row.isStale) {
+                  <i
+                    class="pi pi-clock folders__stale-icon"
+                    [pTooltip]="row.staleTooltip"
+                    tooltipPosition="top"
+                    [attr.aria-label]="row.staleTooltip"
+                  ></i>
+                }
+                @if (row.errors > 0) {
+                  <span class="folders__issue folders__issue--error">
+                    <i class="pi pi-times-circle" aria-hidden="true"></i>
+                    <span class="folders__issue-count">{{ row.errors }}</span>
+                  </span>
+                }
+                @if (row.warns > 0) {
+                  <span class="folders__issue folders__issue--warn">
+                    <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+                    <span class="folders__issue-count">{{ row.warns }}</span>
+                  </span>
+                }
+              </span>
+            </li>
+          }
+        }
+      </ul>
+    }
+  }
+</section>
