@@ -12,6 +12,7 @@ import { SETTINGS_TEXTS } from '../i18n/settings.texts';
 import { THEME_TEXTS } from '../i18n/theme.texts';
 import { UPDATE_CHECK_TEXTS } from '../i18n/update-check.texts';
 import { CollectionLoaderService } from '../services/collection-loader';
+import { analyzeLinks } from './views/graph-view/graph-layout';
 import { ProjectInfoService } from './services/project-info';
 import { ScanTriggerService } from './services/scan-trigger';
 import { UpdateCheckService } from './services/update-check';
@@ -131,12 +132,23 @@ export class App {
    */
   protected readonly isDevBuild = this.projectInfo.dev;
   protected readonly count = this.loader.count;
-  protected readonly linkCount = computed(() => this.loader.scan()?.links?.length ?? 0);
+  /**
+   * Link reconciliation between `scan.links.length` (raw extractor
+   * output, same number the CLI prints) and the edges actually drawn
+   * on the graph canvas. The two diverge when a link points at a
+   * non-existent target, is a self-loop, or duplicates another link.
+   * The topbar tooltip shows the breakdown so the operator does not
+   * see "19 links" in the CLI and "13 edges" on the canvas as a bug.
+   */
+  protected readonly linkAnalysis = computed(() =>
+    analyzeLinks(this.loader.nodes(), this.loader.scan()),
+  );
+  protected readonly linkCount = computed(() => this.linkAnalysis().raw);
   protected readonly graphInfoTooltip = computed(() =>
-    APP_TEXTS.badge.graphInfo(this.count(), this.linkCount()),
+    APP_TEXTS.badge.graphInfo(this.count(), this.linkAnalysis()),
   );
   protected readonly graphInfoA11y = computed(() =>
-    APP_TEXTS.badge.graphInfoA11y(this.count(), this.linkCount()),
+    APP_TEXTS.badge.graphInfoA11y(this.count(), this.linkAnalysis()),
   );
   /**
    * Project path surfaced under the brand mark. Prefers `/api/health`'s

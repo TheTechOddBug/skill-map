@@ -175,6 +175,95 @@ export interface ILayoutPreferences {
 }
 
 /**
+ * Per-reason breakdown of why some raw `scan.links` entries do not
+ * become drawn graph edges. Used by the topbar to reconcile the
+ * "links found by the scan" count (`scan.links.length`) with the
+ * "edges visible on the canvas" count (`graph.edges.length`).
+ *
+ *   raw          = `scan.links.length`
+ *   drawn        = unique edges after resolution (same number Foblex
+ *                  renders, assuming no kind / visibility filters).
+ *   brokenSource = links whose `source` is not a loaded node (rare,
+ *                  the kernel guarantees the source is a real node).
+ *   brokenTarget = links whose `target` (after trigger / name
+ *                  resolution) is not a loaded node. The kernel-side
+ *                  `core/reference-broken` already flags these as
+ *                  issues, the graph just declines to draw a dangling
+ *                  arrow.
+ *   selfLoops    = links where `source === resolvedTarget`. Drawing
+ *                  them would either congest the layout (a tiny loop
+ *                  on top of the node) or render invisibly.
+ *   duplicates   = extra emissions collapsed by the `(kind, source,
+ *                  target)` dedupe. The MAX-confidence emission wins,
+ *                  the others contribute nothing visual.
+ */
+export interface ILinkAnalysis {
+  raw: number;
+  drawn: number;
+  brokenSource: number;
+  brokenTarget: number;
+  selfLoops: number;
+  duplicates: number;
+}
+
+/**
+ * Mirror of `resolveTopology`'s edge filtering, returning per-reason
+ * counts instead of the edge set. Kept as a sibling helper so the
+ * topbar can present the breakdown without recomputing the dedupe
+ * map twice (the graph view's `resolveTopology` already pays the same
+ * cost for its rendering pipeline, and Angular's `computed` memoises
+ * both calls per `(nodes, scan)` pair).
+ */
+export function analyzeLinks(
+  allNodes: INodeView[],
+  scan: IScanResultApi | null,
+): ILinkAnalysis {
+  const links: ILinkApi[] = scan?.links ?? [];
+  const validPaths = new Set(allNodes.map((n) => n.path));
+  const nameIndex = buildNameIndex(allNodes);
+  const seenEdgeIds = new Set<string>();
+  let brokenSource = 0;
+  let brokenTarget = 0;
+  let selfLoops = 0;
+  let duplicates = 0;
+  let drawn = 0;
+  for (const link of links) {
+    if (!validPaths.has(link.source)) {
+      brokenSource++;
+      continue;
+    }
+    const resolvedTarget = resolveTargetToPath(
+      link.target,
+      link.trigger?.normalizedTrigger ?? null,
+      nameIndex,
+    );
+    if (!validPaths.has(resolvedTarget)) {
+      brokenTarget++;
+      continue;
+    }
+    if (link.source === resolvedTarget) {
+      selfLoops++;
+      continue;
+    }
+    const id = edgeId(link.kind, link.source, resolvedTarget);
+    if (seenEdgeIds.has(id)) {
+      duplicates++;
+      continue;
+    }
+    seenEdgeIds.add(id);
+    drawn++;
+  }
+  return {
+    raw: links.length,
+    drawn,
+    brokenSource,
+    brokenTarget,
+    selfLoops,
+    duplicates,
+  };
+}
+
+/**
  * Compute a topology fingerprint from the resolved (filtered + deduped)
  * edge set and the full path list. Two inputs that produce the same
  * fingerprint are guaranteed to produce the same dagre layout, kind /
