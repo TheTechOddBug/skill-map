@@ -813,6 +813,16 @@ export class GraphView implements OnInit {
     this.closePanel();
   }
 
+  /**
+   * Clear every active filter, same affordance the list view exposes in
+   * its empty state. Wired to the "Reset filters" button rendered when
+   * `showEmptyState()` is true so the user can recover from an
+   * over-narrow filter combo without leaving the graph.
+   */
+  protected resetFilters(): void {
+    this.filters.reset();
+  }
+
   protected onPanelResizeStart(event: MouseEvent): void {
     this.panelResize.onPanelResizeStart(event);
   }

@@ -21,9 +21,15 @@
     </div>
   } @else if (showEmptyState()) {
     <div class="empty-state" data-testid="graph-empty">
-      <span class="empty-state__icon fa-solid fa-filter-circle-xmark"></span>
-      <p class="empty-state__title">{{ texts.emptyTitle }}</p>
-      <p class="empty-state__desc">{{ texts.emptyDesc }}</p>
+      <i class="pi pi-filter-slash empty-state__icon" aria-hidden="true"></i>
+      <p class="empty-state__title" data-testid="graph-empty-filtered">{{ texts.emptyTitle }}</p>
+      <p-button
+        [label]="texts.resetFilters"
+        [text]="true"
+        size="small"
+        (onClick)="resetFilters()"
+        data-testid="graph-reset-filters"
+      />
     </div>
   } @else {
     <div

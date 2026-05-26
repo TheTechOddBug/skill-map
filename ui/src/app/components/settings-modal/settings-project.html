@@ -6,7 +6,10 @@
   <h2 id="settings-project-heading" class="settings-project__title">
     {{ texts.project.heading }}
   </h2>
-  <p class="settings-project__intro">{{ texts.project.intro }}</p>
+  <p class="settings-project__intro">
+    {{ texts.project.introPrefix }}
+    <code class="settings-project__intro-path">{{ texts.project.introPath }}</code>{{ texts.project.introSuffix }}
+  </p>
 
   @if (activeProviderLoadError(); as err) {
     <p-message severity="error" [closable]="false" data-testid="settings-project-active-provider-load-error">
@@ -34,9 +37,6 @@
       </div>
       <div class="settings-project__row-meta">
         @switch (activeProviderSource()) {
-          @case ('config') {
-            <span class="settings-project__meta-line">{{ texts.project.activeProviderSourceConfig }}</span>
-          }
           @case ('autodetect') {
             <span class="settings-project__meta-line">{{ texts.project.activeProviderSourceAutodetect }}</span>
           }
@@ -54,17 +54,16 @@
       </div>
     </div>
     <div class="settings-project__add-row">
-      <select
+      <p-select
         class="settings-project__provider-select"
+        [options]="providerOptions"
+        optionLabel="label"
+        optionValue="id"
         [ngModel]="activeProviderValue()"
         (ngModelChange)="onActiveProviderChange($event)"
+        appendTo="body"
         data-testid="settings-project-active-provider-select"
-      >
-        <option value="">{{ texts.project.activeProviderEmptyOption }}</option>
-        @for (provider of knownProviders; track provider.id) {
-          <option [value]="provider.id">{{ provider.label }}</option>
-        }
-      </select>
+      />
     </div>
   </div>
 
@@ -141,7 +140,11 @@
     <div class="settings-project__row-text">
       <div class="settings-project__row-label">{{ texts.project.ignorePatternsLabel }}</div>
       <div class="settings-project__row-description">
-        {{ texts.project.ignorePatternsDescription }}
+        {{ texts.project.ignorePatternsDescriptionPrefix }}
+        <code class="settings-project__intro-path">{{ texts.project.ignorePatternsDescriptionFile }}</code>
+        {{ texts.project.ignorePatternsDescriptionMiddle }}
+        <code class="settings-project__intro-path">{{ texts.project.ignorePatternsDescriptionGitignore }}</code>
+        {{ texts.project.ignorePatternsDescriptionSuffix }}
       </div>
     </div>
     <ul class="settings-project__path-list" role="list">

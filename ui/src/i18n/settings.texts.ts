@@ -34,10 +34,7 @@ export const SETTINGS_TEXTS = {
    */
   general: {
     heading: 'General',
-    intro:
-      'Per-machine preferences. The update-check toggle is the only ' +
-      'setting that lives outside the project; it persists at ' +
-      '`~/.skill-map/settings.json` and follows you across projects.',
+    intro: 'Per-machine preferences.',
     loadErrorPrefix: 'Could not load preferences:',
     saveErrorPrefix: 'Could not save preferences:',
     /** Toggle catalogue, keyed by config dot-path. */
@@ -48,18 +45,6 @@ export const SETTINGS_TEXTS = {
       },
     },
     /**
-     * Local-only preferences subsection. These keys persist in
-     * `localStorage` (per-browser), so they don't sync across
-     * machines. Today: a single selectbutton for the graph edge
-     * shape; future overlay toggles (minimap, perf HUD) land here.
-     */
-    localPreferences: {
-      heading: 'This browser',
-      intro:
-        'Visual preferences saved in this browser only. They won\'t ' +
-        'sync to another machine.',
-    },
-    /**
      * Extra theme selector. Settings-only, overrides the topbar
      * dark/light toggle when set. Clicking the topbar toggle clears
      * it (advances the dark/light cycle one step in the same action),
@@ -68,8 +53,7 @@ export const SETTINGS_TEXTS = {
      */
     extraTheme: {
       label: 'Theme',
-      description:
-        'Pick a specialty theme. Overrides the topbar dark/light toggle while active; click that toggle to exit.',
+      description: 'Pick a specialty theme.',
       options: {
         none: {
           label: 'None',
@@ -81,6 +65,15 @@ export const SETTINGS_TEXTS = {
         },
       },
     },
+    /**
+     * Footnote rendered at the bottom of the General section, dimmed
+     * so it reads as ambient orientation rather than primary copy.
+     * Surfaces the storage locations referenced piecemeal above (home
+     * settings file + browser localStorage) so the user has one place
+     * to confirm where each preference lives.
+     */
+    storageHintLabel: 'Settings are stored in:',
+    storageHintPath: '~/.skill-map/settings.json',
   },
 
   /**
@@ -92,17 +85,16 @@ export const SETTINGS_TEXTS = {
    */
   project: {
     heading: 'Project',
-    intro:
-      'These settings apply only to this project and are saved in ' +
-      'its `.skill-map/settings.local.json` file.',
+    introPrefix: 'These settings apply only to this project and are saved in',
+    introPath: '.skill-map/settings.local.json',
+    introSuffix: '.',
     loadErrorPrefix: 'Could not load project settings:',
     saveErrorPrefix: 'Could not save project settings:',
     referencePathsLabel: 'Folders for link validation',
     referencePathsDescription:
-      'Folders checked only to validate links. Files here are not ' +
-      'indexed and do not appear in the graph, they just stop ' +
-      '"broken link" warnings when a link points to a real file ' +
-      'outside this project.',
+      'If your notes link to files outside this project, list those ' +
+      'folders here. Skill-map checks them only to confirm the links ' +
+      'work, nothing from these folders shows up in the graph.',
     referencePathsPlaceholder: '~/Documents/research',
     commaForbidden:
       'Add one path at a time, without commas.',
@@ -119,12 +111,12 @@ export const SETTINGS_TEXTS = {
      * preserved on write; the UI only manages active patterns.
      */
     ignorePatternsLabel: 'Ignored patterns',
-    ignorePatternsDescription:
-      'Patterns that exclude files and folders from the scan, stored ' +
-      'in `.skillmapignore` at the project root. Same syntax as ' +
-      '`.gitignore` (one pattern per line). Comments (`# ...`) and ' +
-      'blank lines in the file are preserved on save; the list below ' +
-      'only shows active patterns.',
+    ignorePatternsDescriptionPrefix:
+      'Patterns that exclude files and folders from the scan, stored in',
+    ignorePatternsDescriptionFile: '.skillmapignore',
+    ignorePatternsDescriptionMiddle: 'at the project root. Same syntax as',
+    ignorePatternsDescriptionGitignore: '.gitignore',
+    ignorePatternsDescriptionSuffix: '(one pattern per line).',
     ignorePatternsPlaceholder: 'secrets.md',
     ignorePatternEmpty:
       'Pattern cannot be empty or whitespace-only.',
@@ -146,15 +138,12 @@ export const SETTINGS_TEXTS = {
     activeProviderLabel: 'Active provider',
     activeProviderDescription:
       'Selects which provider sees this project. The graph reflects ' +
-      'how the chosen provider interprets your files. Switching ' +
-      'clears the persisted scan so the graph regenerates under the ' +
-      'new lens; jobs and history are kept.',
-    activeProviderSourceConfig: 'Set in settings.json.',
+      'how the chosen provider interprets your files.',
     activeProviderSourceAutodetect:
       'Auto-detected from your files (no value saved yet).',
     activeProviderSourceNone:
       'No provider detected. Install or enable a provider to start.',
-    activeProviderDetectedPrefix: 'Detected on disk:',
+    activeProviderDetectedPrefix: 'Detected:',
     activeProviderEmptyOption: '(none)',
     activeProviderConfirmHeader: 'Switch the active provider?',
     activeProviderConfirmIntro:

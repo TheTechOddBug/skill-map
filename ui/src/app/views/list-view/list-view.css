@@ -11,7 +11,6 @@
   --list-fs-sm: 0.875rem;    /* table body baseline, matches p-datatable-sm */
   --list-fs-md: 1rem;        /* (reserved, not used today) */
   --list-fs-lg: 1.25rem;     /* section title, needs to outrank filter inputs */
-  --list-fs-xl: 1.75rem;     /* empty-state hero icon */
 
   display: block;
   padding: 1.5rem;
@@ -282,27 +281,10 @@
   font-size: var(--list-fs-mono);
 }
 
-.list__empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 3rem 2rem;
-  text-align: center;
-  color: var(--p-text-muted-color);
-  font-size: var(--list-fs-sm);
-}
-
-.list__empty-icon {
-  font-size: var(--list-fs-xl);
-  color: var(--p-text-muted-color);
-  opacity: 0.55;
-  margin-bottom: 0.25rem;
-}
-
-.list__empty-hint {
-  margin: 0.25rem 0 0;
-  font-size: var(--list-fs-xs);
-  color: var(--p-text-muted-color);
-  opacity: 0.85;
+/* The `<td>` itself stays a regular table-cell so `colspan="9"` keeps
+ * spanning the whole row. The shared `.empty-state` column lives on the
+ * inner `<div>` (see `styles.css`), matching the graph / inspector
+ * views verbatim so every empty state in the app reads identical. */
+.list__empty-cell {
+  padding: 0;
 }

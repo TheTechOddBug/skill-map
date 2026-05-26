@@ -210,6 +210,100 @@ html.app-matrix .shell__update-chip:focus-visible {
   color: var(--sm-matrix-accent);
 }
 
+/* Companion npm-link icon next to the update chip, mirrors the chip
+   retint so both surfaces read as one matrix unit instead of an
+   accent pill next to a default-blue arrow. */
+html.app-matrix .shell__update-npm-link {
+  color: var(--sm-matrix-accent-dim);
+}
+
+html.app-matrix .shell__update-npm-link:hover,
+html.app-matrix .shell__update-npm-link:focus-visible {
+  color: var(--sm-matrix-accent);
+  background: color-mix(in srgb, var(--sm-matrix-accent) 14%, transparent);
+}
+
+/* === Form fields ===
+   The togglebutton / selectbutton + native `<select>` PrimeNG tokens
+   trace back to the global `surface.*` / `form.field.*` palette, which
+   matrix does NOT retint at `:root.app-matrix` (the surface scale is
+   shared across themes to keep contrast ratios deterministic). The
+   side-effect: the Theme picker (Settings → General) and the active
+   provider `<select>` (Settings → Project) keep the default greys and
+   read as foreign surfaces inside the matrix shell. These rules paint
+   them with matrix tokens explicitly.
+
+   Both controls use `--p-form-field-*` for chrome (border, surface,
+   color); `.p-togglebutton-checked` carries the selected-pill paint
+   for the selectbutton inner content. Scoped to `html.app-matrix` so
+   light / dark stay untouched. */
+html.app-matrix {
+  --p-form-field-background: var(--sm-bg-content);
+  --p-form-field-disabled-background: var(--sm-bg-content);
+  --p-form-field-filled-background: var(--sm-bg-content);
+  --p-form-field-filled-hover-background: var(--sm-bg-hover);
+  --p-form-field-filled-focus-background: var(--sm-bg-hover);
+  --p-form-field-border-color: var(--sm-matrix-border);
+  --p-form-field-hover-border-color: color-mix(in srgb, var(--sm-matrix-accent) 50%, transparent);
+  --p-form-field-focus-border-color: var(--sm-matrix-accent);
+  --p-form-field-color: var(--sm-matrix-accent-dim);
+  --p-form-field-disabled-color: var(--sm-matrix-muted);
+  --p-form-field-placeholder-color: var(--sm-matrix-muted);
+  --p-form-field-icon-color: var(--sm-matrix-accent-dim);
+  --p-form-field-float-label-color: var(--sm-matrix-muted);
+  --p-form-field-float-label-focus-color: var(--sm-matrix-accent);
+}
+
+/* Selectbutton selected pill. The togglebutton root uses surface.* by
+   default; the inner `.p-togglebutton-content` carries the
+   checked-state paint. Retint both layers so the selected option
+   reads as the matrix accent on a translucent accent fill instead of
+   a light-grey card. */
+html.app-matrix .p-togglebutton {
+  background: transparent;
+  border-color: var(--sm-matrix-border);
+  color: var(--sm-matrix-muted);
+}
+
+html.app-matrix .p-togglebutton:hover {
+  background: color-mix(in srgb, var(--sm-matrix-accent) 10%, transparent);
+  color: var(--sm-matrix-accent-dim);
+}
+
+html.app-matrix .p-togglebutton-checked {
+  background: color-mix(in srgb, var(--sm-matrix-accent) 18%, transparent);
+  border-color: var(--sm-matrix-accent);
+  color: var(--sm-matrix-accent);
+}
+
+html.app-matrix .p-togglebutton-checked .p-togglebutton-content {
+  background: transparent;
+  color: var(--sm-matrix-accent);
+  box-shadow: none;
+}
+
+/* Outlined secondary buttons (Project tab's "Remove" buttons on each
+   reference-path / ignore-pattern row). PrimeNG's aura preset wires
+   the outlined-secondary palette to `surface.*` tokens which matrix
+   does not retint, so the button reads as a default-grey card inside
+   the green shell. Retint border + label + hover to matrix muted. */
+html.app-matrix .p-button-outlined.p-button-secondary {
+  color: var(--sm-matrix-muted);
+  border-color: var(--sm-matrix-border);
+  background: transparent;
+}
+
+html.app-matrix .p-button-outlined.p-button-secondary:enabled:hover,
+html.app-matrix .p-button-outlined.p-button-secondary:enabled:focus-visible {
+  color: var(--sm-matrix-accent);
+  border-color: var(--sm-matrix-accent);
+  background: color-mix(in srgb, var(--sm-matrix-accent) 12%, transparent);
+}
+
+html.app-matrix .p-button-outlined.p-button-secondary:enabled:active {
+  background: color-mix(in srgb, var(--sm-matrix-accent) 20%, transparent);
+}
+
 /* === Graph view ===
    Foblex tokens overridden per the foblex-flow skill (rules 5 + 7):
    per-view tweaks set the stroke/background tokens at the wrap, no

@@ -206,47 +206,54 @@ a {
 }
 
 
-/* Shared empty-state pattern */
+/* Shared empty-state pattern. Sizes mirror the list view's compact
+   ladder (icon 1.75rem, title 0.875rem muted, desc 0.75rem) so every
+   empty state across views (graph, list, inspector) reads identical
+   without per-view overrides. */
 .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.5rem;
   padding: 3rem 2rem;
   text-align: center;
+  color: var(--p-text-muted-color);
 }
 
-.empty-state__icon {
-  font-size: 2rem;
+/* Descendant selector bumps specificity above `.pi` (PrimeIcons) and any
+   theme-level icon rule so the empty-state size always wins. */
+.empty-state .empty-state__icon {
+  font-size: 2.25rem;
   color: var(--p-text-muted-color);
-  opacity: 0.5;
+  opacity: 0.55;
+  margin-bottom: 0.25rem;
 }
 
 /* Severity-tinted icon variants for empty states that need to convey
    warning or error tone (e.g. "node not found", "graph failed to load").
    Removes the muted opacity so the tint reads at full saturation. */
-.empty-state__icon--warn {
+.empty-state .empty-state__icon--warn {
   color: var(--sm-severity-warn);
   opacity: 1;
 }
 
-.empty-state__icon--error {
+.empty-state .empty-state__icon--error {
   color: var(--sm-severity-error);
   opacity: 1;
 }
 
 .empty-state__title {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--p-text-color);
+  font-size: 0.875rem;
+  color: var(--p-text-muted-color);
   margin: 0;
 }
 
 .empty-state__desc {
-  font-size: 0.9rem;
+  font-size: 0.75rem;
   color: var(--p-text-muted-color);
+  opacity: 0.85;
   max-width: 40ch;
-  margin: 0;
+  margin: 0.25rem 0 0;
 }
 
 /* PrimeNG dialog masks render in a portal at <body>, so component-scoped

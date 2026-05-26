@@ -57,18 +57,29 @@
           }
           <span class="shell__alpha" [attr.aria-label]="texts.alpha">{{ texts.alpha }}</span>
           @if (updateCheck.isOutdated() && !isDevMode) {
-            <a
+            <button
+              type="button"
               class="shell__update-chip"
-              href="https://www.npmjs.com/package/@skill-map/cli"
-              target="_blank"
-              rel="noopener noreferrer"
               [attr.aria-label]="updateChipA11y()"
               [pTooltip]="updateChipTooltip()"
               tooltipPosition="bottom"
+              (click)="copyUpdateCommand()"
               data-testid="shell-update-chip"
             >
-              <i class="pi pi-download" aria-hidden="true"></i>
-              <span>{{ updateChipText }}</span>
+              <i [class]="updateChipIcon()" aria-hidden="true"></i>
+              <span>{{ updateChipText() }}</span>
+            </button>
+            <a
+              class="shell__update-npm-link"
+              [href]="npmLinkUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              [attr.aria-label]="npmLinkA11y"
+              [pTooltip]="npmLinkTooltip"
+              tooltipPosition="bottom"
+              data-testid="shell-update-npm-link"
+            >
+              <i class="pi pi-external-link" aria-hidden="true"></i>
             </a>
           }
         </h1>

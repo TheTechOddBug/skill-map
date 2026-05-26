@@ -19,6 +19,19 @@
   line-height: 1.5;
 }
 
+/* Inline code chip inside the intro paragraph: same monospace pill the
+ * General section uses for `~/.skill-map/settings.json` (subtle bg,
+ * thin border, project's mono token), so storage paths read as
+ * literal file references rather than prose. */
+.settings-project__intro-path {
+  font-family: var(--p-monospace-font-family);
+  font-size: 0.8rem;
+  padding: 0.05rem 0.3rem;
+  border-radius: 0.25rem;
+  background: var(--p-content-background);
+  border: 1px solid var(--p-content-border-color);
+}
+
 /* Spacing for the load / save error banners. Default `<p-message>`
  * has no outer margin, so without this the banner sits flush against
  * the first list-row below. Block display ensures `margin-bottom`
@@ -129,13 +142,15 @@
   line-height: 1.3;
 }
 
+/* `<p-select>` host: stretches inside `.settings-project__add-row`'s
+ * flex container so the dropdown fills the available width (matches
+ * the input + button pattern used by the other rows). PrimeNG owns
+ * the inner chrome (border, background, color, focus ring) via the
+ * `--p-form-field-*` token chain, so we only set layout here. */
 .settings-project__provider-select {
   flex: 1 1 auto;
-  font-family: var(--p-font-family);
-  font-size: 0.85rem;
-  padding: 0.4rem 0.6rem;
-  border-radius: 0.25rem;
-  border: 1px solid var(--p-form-field-border-color);
-  background: var(--p-form-field-background);
-  color: var(--p-form-field-color);
+}
+
+.settings-project__provider-select .p-select {
+  width: 100%;
 }

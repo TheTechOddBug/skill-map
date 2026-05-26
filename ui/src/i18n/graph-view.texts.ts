@@ -2,8 +2,8 @@
 export const GRAPH_VIEW_TEXTS = {
   loading: 'Loading collection',
   errorTitle: 'Failed to load',
-  emptyTitle: 'No nodes match',
-  emptyDesc: 'Adjust or reset the filters above.',
+  emptyTitle: 'No nodes match the current filters.',
+  resetFilters: 'Reset filters',
   a11y: {
     toolbar: 'Graph controls',
     panel: 'Selected node details',

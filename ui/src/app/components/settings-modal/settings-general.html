@@ -40,23 +40,9 @@
         />
       </li>
     }
-  </ul>
 
-  <!--
-    Local-only preferences, persisted in `localStorage` (per-browser).
-    Separated from the BFF-backed toggles above so the visual cue is
-    clear: these settings don't sync across machines.
-  -->
-  <h3 class="settings-general__subheading">
-    {{ texts.general.localPreferences.heading }}
-  </h3>
-  <p class="settings-general__intro">
-    {{ texts.general.localPreferences.intro }}
-  </p>
-
-  <ul class="settings-general__list" role="list">
     <li
-      class="settings-general__row settings-general__row--stacked"
+      class="settings-general__row"
       data-testid="settings-general-row-extra-theme"
     >
       <div class="settings-general__row-text">
@@ -84,4 +70,9 @@
       </p-selectbutton>
     </li>
   </ul>
+
+  <p class="settings-general__storage-hint" data-testid="settings-general-storage-hint">
+    {{ texts.general.storageHintLabel }}
+    <code class="settings-general__storage-hint-path">{{ texts.general.storageHintPath }}</code>
+  </p>
 </section>

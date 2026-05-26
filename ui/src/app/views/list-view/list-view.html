@@ -41,14 +41,14 @@
           <th pSortableColumn="kind" style="width: 120px">
             {{ texts.columns.kind }} <p-sortIcon field="kind" />
           </th>
+          <th pSortableColumn="path" class="list__col-path">
+            {{ texts.columns.path }} <p-sortIcon field="path" />
+          </th>
           <th pSortableColumn="name">
             {{ texts.columns.name }} <p-sortIcon field="name" />
           </th>
           <th class="list__col-tags">
             {{ texts.columns.tags }}
-          </th>
-          <th pSortableColumn="path" class="list__col-path">
-            {{ texts.columns.path }} <p-sortIcon field="path" />
           </th>
           <th pSortableColumn="linksInRaw" style="width: 70px" class="list__col-num"
               [pTooltip]="texts.linksInHeaderTooltip" tooltipPosition="top">
@@ -83,6 +83,7 @@
           <td>
             <p-tag [value]="row.kindLabel" [style]="row.kindStyle" />
           </td>
+          <td class="list__cell-path"><code [attr.title]="row.path">{{ row.path }}</code></td>
           <td class="list__cell-name">{{ row.name }}</td>
           <td class="list__cell-tags">
             @if (row.tags.length || row.tagsOverflow > 0) {
@@ -105,7 +106,6 @@
               </span>
             }
           </td>
-          <td class="list__cell-path"><code [attr.title]="row.path">{{ row.path }}</code></td>
           <td class="list__cell-num">{{ row.linksIn }}</td>
           <td class="list__cell-num">{{ row.linksOut }}</td>
           <td class="list__cell-num" [attr.title]="row.tokensRaw > 0 ? texts.tokensTooltip(row.tokensRaw) : null">{{ row.tokens }}</td>
@@ -147,16 +147,18 @@
       </ng-template>
       <ng-template pTemplate="emptymessage">
         <tr>
-          <td colspan="9" class="list__empty">
-            @if (filtersActive()) {
-              <i class="pi pi-filter-slash list__empty-icon" aria-hidden="true"></i>
-              <p data-testid="list-empty-filtered">{{ texts.emptyFiltered }}</p>
-              <p-button [label]="texts.resetFilters" [text]="true" size="small" (onClick)="resetFilters()" data-testid="list-reset-filters" />
-            } @else {
-              <i class="pi pi-inbox list__empty-icon" aria-hidden="true"></i>
-              <span data-testid="list-empty-all">{{ texts.emptyAll }}</span>
-              <p class="list__empty-hint">{{ texts.emptyAllHint }}</p>
-            }
+          <td colspan="9" class="list__empty-cell">
+            <div class="empty-state">
+              @if (filtersActive()) {
+                <i class="pi pi-filter-slash empty-state__icon" aria-hidden="true"></i>
+                <p class="empty-state__title" data-testid="list-empty-filtered">{{ texts.emptyFiltered }}</p>
+                <p-button [label]="texts.resetFilters" [text]="true" size="small" (onClick)="resetFilters()" data-testid="list-reset-filters" />
+              } @else {
+                <i class="pi pi-inbox empty-state__icon" aria-hidden="true"></i>
+                <p class="empty-state__title" data-testid="list-empty-all">{{ texts.emptyAll }}</p>
+                <p class="empty-state__desc">{{ texts.emptyAllHint }}</p>
+              }
+            </div>
           </td>
         </tr>
       </ng-template>

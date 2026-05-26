@@ -108,13 +108,47 @@ export class App {
   protected triggerScan(): Promise<void> {
     return this.scanTrigger.run();
   }
-  protected readonly updateChipText = UPDATE_CHECK_TEXTS.available;
+  /**
+   * Briefly `true` after the chip is clicked and the install command
+   * has been written to the clipboard. Drives the in-chip label + icon
+   * swap (and the tooltip swap as a secondary signal) so the user gets
+   * unambiguous feedback. Reverts ~2s later.
+   */
+  protected readonly updateChipCopied = signal(false);
+  protected readonly updateChipText = computed(() =>
+    this.updateChipCopied() ? UPDATE_CHECK_TEXTS.copiedLabel : UPDATE_CHECK_TEXTS.available,
+  );
+  protected readonly updateChipIcon = computed(() =>
+    this.updateChipCopied() ? 'pi pi-check' : 'pi pi-download',
+  );
   protected readonly updateChipTooltip = computed(() =>
-    UPDATE_CHECK_TEXTS.tooltip(this.updateCheck.latest() ?? ''),
+    this.updateChipCopied()
+      ? UPDATE_CHECK_TEXTS.copiedTooltip
+      : UPDATE_CHECK_TEXTS.tooltip(this.updateCheck.latest() ?? ''),
   );
   protected readonly updateChipA11y = computed(() =>
     UPDATE_CHECK_TEXTS.a11yLabel(this.updateCheck.latest() ?? ''),
   );
+  protected readonly npmLinkUrl = UPDATE_CHECK_TEXTS.npmLinkUrl;
+  protected readonly npmLinkTooltip = UPDATE_CHECK_TEXTS.npmLinkTooltip;
+  protected readonly npmLinkA11y = UPDATE_CHECK_TEXTS.npmLinkA11y;
+
+  /**
+   * Writes the npm install command (`npm i -g @skill-map/cli@latest`) to
+   * the clipboard and toggles the chip into its "Copied!" tooltip state
+   * for a couple of seconds. Errors are swallowed: the Clipboard API
+   * needs a secure context (https / localhost), so a failure here is
+   * non-actionable from the user's perspective.
+   */
+  protected async copyUpdateCommand(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(UPDATE_CHECK_TEXTS.copyCommand);
+      this.updateChipCopied.set(true);
+      setTimeout(() => this.updateChipCopied.set(false), 2000);
+    } catch {
+      // Clipboard write blocked (insecure context or denied permission). No-op.
+    }
+  }
   protected readonly versionLabel = computed(() =>
     UPDATE_CHECK_TEXTS.versionLabel(this.updateCheck.current() ?? ''),
   );

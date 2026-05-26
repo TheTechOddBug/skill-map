@@ -38,6 +38,7 @@ import { ConfirmationService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { MessageModule } from 'primeng/message';
+import { SelectModule } from 'primeng/select';
 
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
 import type {
@@ -84,6 +85,7 @@ const CONTROL_CHAR_RX = /[\n\r\x00-\x1F\x7F]/;
     ConfirmDialogModule,
     InputTextModule,
     MessageModule,
+    SelectModule,
   ],
   providers: [ConfirmationService],
   templateUrl: './settings-project.html',
@@ -129,6 +131,15 @@ export class SettingsProject {
   protected readonly activeProviderSaveError = signal<string | null>(null);
   protected readonly activeProviderSwitchAnnouncement = signal<string | null>(null);
   protected readonly knownProviders = KNOWN_PROVIDERS;
+  /**
+   * Options consumed by `<p-select>`. Prepends the "(none)" entry so
+   * the user can explicitly clear the lens; downstream `'' → null`
+   * conversion stays in `onActiveProviderChange()`.
+   */
+  protected readonly providerOptions: { id: string; label: string }[] = [
+    { id: '', label: SETTINGS_TEXTS.project.activeProviderEmptyOption },
+    ...KNOWN_PROVIDERS,
+  ];
 
   /** Current resolved value (from config or autodetect); `''` for "none". */
   protected readonly activeProviderValue = computed<string>(() => {

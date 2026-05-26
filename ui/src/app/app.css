@@ -164,6 +164,7 @@
      for the old FA outlined arrow, re-balance to `3px 8px` and let
      the per-glyph nudge below handle the icon's font-metric asymmetry. */
   padding: 3px 8px;
+  font-family: inherit;
   font-size: 11px;
   line-height: 1;
   font-weight: 600;
@@ -174,6 +175,7 @@
   border: 1px solid var(--p-primary-200);
   border-radius: var(--sm-radius-pill);
   text-decoration: none;
+  cursor: pointer;
   transition: background-color 120ms ease, color 120ms ease;
   vertical-align: middle;
 }
@@ -197,6 +199,43 @@
   color: var(--p-primary-300);
   background: rgba(255, 255, 255, 0.04);
   border-color: var(--p-primary-700);
+}
+
+/* Companion external-link icon next to `.shell__update-chip`. Same
+   primary ramp as the chip itself but icon-only and unbordered, so it
+   reads as a secondary action that takes the user out of the app. */
+.shell__update-npm-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 4px;
+  padding: 3px 4px;
+  color: var(--p-primary-color);
+  text-decoration: none;
+  border-radius: var(--sm-radius-pill);
+  transition: color 120ms ease, background-color 120ms ease;
+  vertical-align: middle;
+}
+
+.shell__update-npm-link:hover,
+.shell__update-npm-link:focus-visible {
+  color: var(--p-primary-700);
+  background: var(--p-primary-50);
+}
+
+.shell__update-npm-link i {
+  font-size: 12px;
+  transform: translateY(1px);
+}
+
+:host-context(.app-dark) .shell__update-npm-link {
+  color: var(--p-primary-300);
+}
+
+:host-context(.app-dark) .shell__update-npm-link:hover,
+:host-context(.app-dark) .shell__update-npm-link:focus-visible {
+  color: var(--p-primary-200);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .shell__tag {
