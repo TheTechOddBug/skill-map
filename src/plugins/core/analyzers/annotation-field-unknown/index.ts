@@ -31,7 +31,7 @@ import { createRequire } from 'node:module';
 
 import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
 
-import type { IAnalyzer, IAnalyzerContext } from '../../../../kernel/extensions/index.js';
+import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { IRegisteredAnnotationKey } from '../../../../kernel/types/annotation-catalog.js';
 import type { Issue } from '../../../../kernel/types.js';
 import { applyAjvFormats } from '../../../../kernel/util/ajv-interop.js';
@@ -48,11 +48,10 @@ const ID = 'annotation-field-unknown';
  */
 const RESERVED_ROOT_BLOCKS = new Set(['identity', 'annotations', 'settings', 'audit']);
 
-export const annotationFieldUnknownAnalyzer: IAnalyzer = {
+export const annotationFieldUnknownAnalyzer: IBuiltInManifest<IAnalyzer> = {
   id: ID,
   pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
-  version: '1.0.0',
   description:
     'Flags typos or unrecognized keys in sidecars (`.sm`).',
   mode: 'deterministic',

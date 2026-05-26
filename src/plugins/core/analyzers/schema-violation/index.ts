@@ -22,7 +22,7 @@
  * kernel's own `validateIssue()` already gates issues at emit time.
  */
 
-import type { IAnalyzer, IAnalyzerContext } from '../../../../kernel/extensions/index.js';
+import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { Issue, Link, Node } from '../../../../kernel/types.js';
 import { loadSchemaValidators, type ISchemaValidators } from '../../../../kernel/adapters/schema-validators.js';
 import { tx } from '../../../../kernel/util/tx.js';
@@ -31,11 +31,10 @@ import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'schema-violation';
 
-export const schemaViolationAnalyzer: IAnalyzer = {
+export const schemaViolationAnalyzer: IBuiltInManifest<IAnalyzer> = {
   id: ID,
   pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
-  version: '1.0.0',
   description: 'Flags nodes or links that violate the project schemas.',
   mode: 'deterministic',
 

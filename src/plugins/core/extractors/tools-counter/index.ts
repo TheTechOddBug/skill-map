@@ -20,7 +20,7 @@
  * tooltip now lists the actual tool names instead.
  */
 
-import type { IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
+import type { IBuiltInManifest, IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'tools-counter';
@@ -32,11 +32,10 @@ const ID = 'tools-counter';
  */
 const TOOLTIP_MAX = 255;
 
-export const toolsCounterExtractor: IExtractor = {
+export const toolsCounterExtractor: IBuiltInManifest<IExtractor> = {
   id: ID,
   pluginId: CORE_PLUGIN_ID,
   kind: 'extractor',
-  version: '1.0.0',
   description:
     'Counts the tools an agent declares in its frontmatter and shows the count on the agent card.',
   scope: 'frontmatter',

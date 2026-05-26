@@ -25,7 +25,7 @@
  * retired alongside it; the replacement TBD).
  */
 
-import type { IExtensionBase } from './base.js';
+import type { IExtensionBase, IBuiltInManifest } from './base.js';
 import type { IIgnoreFilter } from '../scan/ignore.js';
 import type { IParseIssue } from '../scan/parsers/types.js';
 import { walkContent } from '../scan/walk-content.js';
@@ -468,7 +468,13 @@ const DEFAULT_READ_CONFIG: IProviderReadConfig = Object.freeze({
  * is not silently injected into a Provider's runtime shape.
  */
 export function resolveProviderWalk(
-  provider: IProvider,
+  // Accepts both the fully-loaded shape and the codegen-input shape
+  // (`IBuiltInManifest<IProvider>` strips `version` since the codegen
+  // stamps it post-authoring). This function reads `walk` / `read` /
+  // `kinds` only, never `version`, so widening is structurally safe
+  // and keeps test files importing raw built-in manifests buildable
+  // without a runtime workaround.
+  provider: IBuiltInManifest<IProvider>,
 ): (
   roots: string[],
   options?: { ignoreFilter?: IIgnoreFilter },

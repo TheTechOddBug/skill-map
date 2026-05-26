@@ -36,7 +36,7 @@
 
 import { posix as pathPosix } from 'node:path';
 
-import type { IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
+import type { IBuiltInManifest, IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
 import { stripCodeBlocks } from '../../../../kernel/util/strip-code-blocks.js';
 import { computeLineStarts, lineFor } from '../../../../kernel/util/line-tracking.js';
 import { normalizeTrigger } from '../../../../kernel/trigger-normalize.js';
@@ -70,11 +70,10 @@ const FILE_EXT_RE = /\.(md|mdx|js|jsx|ts|tsx|json|yml|yaml|toml|txt|html|css|scs
  * reference). The decision mirrors what an LLM-driven runtime would
  * do when given the same prose.
  */
-export const atDirectiveExtractor: IExtractor = {
+export const atDirectiveExtractor: IBuiltInManifest<IExtractor> = {
   id: ID,
   pluginId: CLAUDE_PLUGIN_ID,
   kind: 'extractor',
-  version: '1.0.0',
   description: 'Detects `@<token>` directives in a node\'s body using Claude Code rules. A bare handle (e.g. `@team`) becomes a `mentions` link; a file-flavoured token (e.g. `@docs/api.md`, `@./readme.md`) becomes a `references` link.',
   scope: 'body',
   precondition: { provider: ['claude'] },

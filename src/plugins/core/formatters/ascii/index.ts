@@ -23,7 +23,7 @@
  *   - [warn] broken-ref: ...
  */
 
-import type { IFormatter, IFormatterContext } from '../../../../kernel/extensions/index.js';
+import type { IBuiltInManifest, IFormatter, IFormatterContext } from '../../../../kernel/extensions/index.js';
 import { sanitizeForTerminal } from '../../../../kernel/util/safe-text.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { ASCII_FORMATTER_TEXTS } from './text.js';
@@ -36,12 +36,11 @@ const ID = 'ascii';
 // no longer assumes the closed enum and the order stays deterministic.
 const KIND_ORDER: readonly string[] = ['agent', 'command', 'skill', 'markdown'];
 
-export const asciiFormatter: IFormatter = {
+export const asciiFormatter: IBuiltInManifest<IFormatter> = {
   id: ID,
   pluginId: CORE_PLUGIN_ID,
   kind: 'formatter',
   formatId: ID,
-  version: '1.0.0',
   description: 'Renders the scan as plain text in three sections: nodes (grouped by kind), arrows, and issues. Used by `sm scan --format ascii`.',
 
   // ASCII tree formatter, header + per-kind sections + per-issue

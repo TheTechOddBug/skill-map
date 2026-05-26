@@ -43,6 +43,14 @@ export interface IAnnotationContribution {
  * Runtime extension descriptor as seen by the registry / orchestrator.
  * Authors writing a manifest on disk do NOT declare `id`, `kind`, or
  * `pluginId`; the loader injects all three from the filesystem layout.
+ *
+ * `version` is the runtime invariant: every loaded extension carries a
+ * string. External plugins MUST declare it in their manifest (enforced
+ * by AJV via `spec/schemas/extensions/base.schema.json#/required`).
+ * Built-in extensions inside this repo OMIT `version` from the manifest
+ * file (see `IBuiltInManifest` below) because the codegen at
+ * `scripts/generate-built-ins.js` stamps the CLI version onto every
+ * built-in at build time, alongside the `pluginId` stamp.
  */
 export interface IExtensionBase {
   /**
@@ -93,3 +101,19 @@ export interface IExtensionBase {
   /** Runtime-only, absolute path of the extension entry file. */
   entry?: string;
 }
+
+/**
+ * Authoring type for built-in extension manifests under `src/plugins/`.
+ * Omits `version` because the codegen at
+ * `scripts/generate-built-ins.js` stamps the CLI version onto every
+ * built-in at build time (alongside the `pluginId` stamp), so authors
+ * never declare it. The resulting runtime object in
+ * `src/plugins/built-ins.ts` satisfies the full kind interface (e.g.
+ * `IAnalyzer`) and consumers continue to see `version: string`.
+ *
+ * External plugins (loaded from disk at runtime) do NOT use this type
+ * and MUST declare `version` per-extension as required by
+ * `spec/schemas/extensions/base.schema.json#/required` (enforced by
+ * AJV at load time).
+ */
+export type IBuiltInManifest<T extends IExtensionBase> = Omit<T, 'version'>;

@@ -22,7 +22,7 @@
  * action ships today.
  */
 
-import type { IAnalyzer, IAnalyzerContext } from '../../../../kernel/extensions/index.js';
+import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { Issue, Link, Node } from '../../../../kernel/types.js';
 import { RESERVED_TARGET_CONFIDENCE } from '../../../../kernel/orchestrator/lift-resolved-link-confidence.js';
 import { tx } from '../../../../kernel/util/tx.js';
@@ -31,11 +31,10 @@ import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'name-reserved';
 
-export const nameReservedAnalyzer: IAnalyzer = {
+export const nameReservedAnalyzer: IBuiltInManifest<IAnalyzer> = {
   id: ID,
   pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
-  version: '1.0.0',
   description:
     'Flags two kinds of reserved-name collision: a file whose name shadows a built-in command of the active runtime, and a link that resolves to one of those reserved names.',
   mode: 'deterministic',

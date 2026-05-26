@@ -49,7 +49,7 @@
 
 import { posix as pathPosix } from 'node:path';
 
-import type { IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
+import type { IBuiltInManifest, IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
 import { stripCodeBlocks } from '../../../../kernel/util/strip-code-blocks.js';
 import { computeLineStarts, lineFor } from '../../../../kernel/util/line-tracking.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
@@ -71,11 +71,10 @@ const LINK_RE = /(?<!!)\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
 // guaranteed-broken links. Matched case-insensitively.
 const URL_SCHEME_RE = /^[a-z][a-z0-9+.-]*:/i;
 
-export const markdownLinkExtractor: IExtractor = {
+export const markdownLinkExtractor: IBuiltInManifest<IExtractor> = {
   id: ID,
   pluginId: CORE_PLUGIN_ID,
   kind: 'extractor',
-  version: '1.0.0',
   description:
     'Turns markdown links (`[text](path)`) in a node\'s body into arrows between nodes in the graph.',
   scope: 'body',

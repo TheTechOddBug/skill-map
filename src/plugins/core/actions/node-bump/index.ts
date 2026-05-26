@@ -30,6 +30,7 @@ import type {
   IAction,
   IActionContext,
   IActionResult,
+  IBuiltInManifest,
   TActionWrite,
 } from '../../../../kernel/extensions/index.js';
 import { sidecarPathFor } from '../../../../kernel/sidecar/parse.js';
@@ -59,11 +60,10 @@ export interface INodeBumpReport {
 
 const ID = 'node-bump';
 
-export const nodeBumpAction: IAction = {
+export const nodeBumpAction: IBuiltInManifest<IAction> = {
   id: ID,
   pluginId: PLUGIN_ID,
   kind: 'action',
-  version: '1.0.0',
   description:
     'Marks a node as updated: bumps `annotations.version`, refreshes sidecar hashes, and records the timestamp.',
   mode: 'deterministic',

@@ -34,6 +34,26 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, '..');
 const PLUGINS_ROOT = resolve(REPO_ROOT, 'src', 'plugins');
 const OUTPUT = join(PLUGINS_ROOT, 'built-ins.ts');
+const CLI_PACKAGE_JSON = resolve(REPO_ROOT, 'src', 'package.json');
+
+/**
+ * Built-in extensions inherit the CLI version. Authors omit `version`
+ * from each `<plugin>/<kind>s/<name>/index.ts`; this codegen stamps the
+ * CLI version onto every built-in (alongside `pluginId`) when emitting
+ * `src/plugins/built-ins.ts`. The runtime objects therefore satisfy the
+ * full kind interface (e.g. `IAnalyzer`), and downstream consumers
+ * continue to see `ext.version` as a non-empty string. External plugins
+ * (loaded from disk at runtime) MUST still declare `version` per-
+ * extension; that contract is enforced by AJV at load time via
+ * `spec/schemas/extensions/base.schema.json#/required`.
+ */
+function readCliVersion() {
+  const raw = JSON.parse(readFileSync(CLI_PACKAGE_JSON, 'utf8'));
+  if (typeof raw.version !== 'string' || raw.version.length === 0) {
+    throw new Error(`Cannot read version from ${CLI_PACKAGE_JSON}`);
+  }
+  return raw.version;
+}
 
 /**
  * Canonical bundle order. Vendor providers FIRST so the kindRegistry
@@ -151,11 +171,17 @@ function render(bundles) {
   }
   lines.push('');
 
-  // Wrapped consts that inject pluginId from the bundle's plugin.json#/id.
+  // Wrapped consts that stamp `pluginId` (from the bundle directory
+  // name) and `version` (the CLI version, read once from
+  // `src/package.json`). Authors of built-in manifests omit `version`
+  // since they all ship inside the CLI bundle; the stamp here is what
+  // makes the resulting object satisfy the full kind interface (e.g.
+  // `IAnalyzer`) at the TypeScript level.
+  const cliVersion = readCliVersion();
   for (const { bundleId, extensions } of bundles) {
     for (const ext of extensions) {
       lines.push(
-        `const ${ext.exportName} = { ..._${ext.exportName}, pluginId: '${bundleId}' };`,
+        `const ${ext.exportName} = { ..._${ext.exportName}, pluginId: '${bundleId}', version: '${cliVersion}' };`,
       );
     }
   }

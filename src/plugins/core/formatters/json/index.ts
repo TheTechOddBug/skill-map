@@ -18,16 +18,15 @@
  * needs newline-terminated output (`cli/commands/graph.ts` does).
  */
 
-import type { IFormatter, IFormatterContext } from '../../../../kernel/extensions/index.js';
+import type { IBuiltInManifest, IFormatter, IFormatterContext } from '../../../../kernel/extensions/index.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'json';
 
-export const jsonFormatter: IFormatter = {
+export const jsonFormatter: IBuiltInManifest<IFormatter> = {
   id: ID,
   pluginId: CORE_PLUGIN_ID,
   kind: 'formatter',
-  version: '1.0.0',
   description:
     'Renders the persisted scan as JSON (conforms to `scan-result.schema.json`). Used by `sm graph --format json` and `GET /api/graph?format=json`.',
   formatId: ID,

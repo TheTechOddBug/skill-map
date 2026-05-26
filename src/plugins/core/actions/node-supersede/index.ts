@@ -42,6 +42,7 @@ import type {
   IAction,
   IActionContext,
   IActionResult,
+  IBuiltInManifest,
 } from '../../../../kernel/extensions/index.js';
 import { CORE_PLUGIN_ID as PLUGIN_ID } from '../../../ids.js';
 
@@ -68,11 +69,10 @@ export interface INodeSupersedeReport {
 
 const ID = 'node-supersede';
 
-export const nodeSupersedeAction: IAction = {
+export const nodeSupersedeAction: IBuiltInManifest<IAction> = {
   id: ID,
   pluginId: PLUGIN_ID,
   kind: 'action',
-  version: '0.0.0',
   description:
     'Declares the current node as superseded by another (writes `supersededBy` to the sidecar).',
   mode: 'deterministic',

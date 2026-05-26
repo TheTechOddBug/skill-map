@@ -36,7 +36,7 @@
  * `recommendedActions`.
  */
 
-import type { IAnalyzer, IAnalyzerContext } from '../../../../kernel/extensions/index.js';
+import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { Issue } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { JOB_FILE_ORPHAN_TEXTS } from './text.js';
@@ -44,11 +44,10 @@ import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'job-file-orphan';
 
-export const jobFileOrphanAnalyzer: IAnalyzer = {
+export const jobFileOrphanAnalyzer: IBuiltInManifest<IAnalyzer> = {
   id: ID,
   pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
-  version: '1.0.0',
   description:
     'Flags leftover job result files (no live job references them). Clean up via `sm job prune --orphan-files`.',
   mode: 'deterministic',

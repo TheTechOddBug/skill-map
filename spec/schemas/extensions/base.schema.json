@@ -8,7 +8,7 @@
   "properties": {
     "version": {
       "type": "string",
-      "description": "Extension semver. Bumped independently from the plugin version; frozen into `state_executions.extension_version` on every run for reproducibility."
+      "description": "Extension semver. REQUIRED for external (user-authored) plugins, the AJV check at load time rejects manifests missing it. Bumped independently from the plugin's bundle version; frozen into `state_executions.extension_version` on every run for reproducibility. The reference CLI's built-in extensions under `src/plugins/` use a different authoring path (type `IBuiltInManifest<I<Kind>>` = `Omit<I<Kind>, 'version'>`); the codegen at `scripts/generate-built-ins.js` stamps the CLI version onto every built-in at build time so the runtime shape still satisfies the full interface."
     },
     "description": {
       "type": "string",

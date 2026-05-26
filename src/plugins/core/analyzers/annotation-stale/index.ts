@@ -18,7 +18,7 @@
  * 9.6.4).
  */
 
-import type { IAnalyzer, IAnalyzerContext } from '../../../../kernel/extensions/index.js';
+import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { Issue, SidecarStatus } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { ANNOTATION_STALE_TEXTS } from './text.js';
@@ -26,11 +26,10 @@ import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'annotation-stale';
 
-export const annotationStaleAnalyzer: IAnalyzer = {
+export const annotationStaleAnalyzer: IBuiltInManifest<IAnalyzer> = {
   id: ID,
   pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
-  version: '1.0.0',
   description: 'Marks sidecars (`.sm`) that are out of date with their `.md`.',
   mode: 'deterministic',
   // The natural fix is to bump the node: refreshes `for` hashes,

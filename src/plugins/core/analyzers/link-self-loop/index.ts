@@ -24,7 +24,7 @@
  * heading wording).
  */
 
-import type { IAnalyzer, IAnalyzerContext } from '../../../../kernel/extensions/index.js';
+import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { Issue, Link } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { LINK_SELF_LOOP_TEXTS } from './text.js';
@@ -32,11 +32,10 @@ import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'link-self-loop';
 
-export const linkSelfLoopAnalyzer: IAnalyzer = {
+export const linkSelfLoopAnalyzer: IBuiltInManifest<IAnalyzer> = {
   id: ID,
   pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
-  version: '1.0.0',
   description:
     'Flags links whose source is also their own resolved target (e.g. a body heading like `# /deploy` inside the file that defines `/deploy`).',
   mode: 'deterministic',

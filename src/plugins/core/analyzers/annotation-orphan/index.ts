@@ -15,7 +15,7 @@
  * but never blocks.
  */
 
-import type { IAnalyzer, IAnalyzerContext } from '../../../../kernel/extensions/index.js';
+import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { Issue } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { ANNOTATION_ORPHAN_TEXTS } from './text.js';
@@ -23,11 +23,10 @@ import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'annotation-orphan';
 
-export const annotationOrphanAnalyzer: IAnalyzer = {
+export const annotationOrphanAnalyzer: IBuiltInManifest<IAnalyzer> = {
   id: ID,
   pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
-  version: '1.0.0',
   description: 'Flags sidecars (`.sm`) whose `.md` file no longer exists.',
   mode: 'deterministic',
 

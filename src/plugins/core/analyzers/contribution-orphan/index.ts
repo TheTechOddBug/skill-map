@@ -36,17 +36,16 @@
  * `recommendedActions`.
  */
 
-import type { IAnalyzer, IAnalyzerContext } from '../../../../kernel/extensions/index.js';
+import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { Issue } from '../../../../kernel/types.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'contribution-orphan';
 
-export const contributionOrphanAnalyzer: IAnalyzer = {
+export const contributionOrphanAnalyzer: IBuiltInManifest<IAnalyzer> = {
   id: ID,
   pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
-  version: '0.0.0',
   description:
     'Warns about plugin data referencing nodes renamed or deleted in the latest scan.',
   mode: 'deterministic',

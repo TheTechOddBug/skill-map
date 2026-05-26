@@ -30,7 +30,7 @@
  * if no node in the scan advertises that trigger.
  */
 
-import type { IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
+import type { IBuiltInManifest, IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
 import { stripCodeBlocks } from '../../../../kernel/util/strip-code-blocks.js';
 import { computeLineStarts, lineFor } from '../../../../kernel/util/line-tracking.js';
 import { normalizeTrigger } from '../../../../kernel/trigger-normalize.js';
@@ -68,11 +68,10 @@ const ID = 'slash-command';
 // command.
 const SLASH_RE = /(?<![A-Za-z0-9_/.:?#=&])(\/[a-z0-9][a-z0-9_-]*(?::[a-z0-9][a-z0-9_-]*)?)/gi;
 
-export const slashCommandExtractor: IExtractor = {
+export const slashCommandExtractor: IBuiltInManifest<IExtractor> = {
   id: ID,
   pluginId: CLAUDE_PLUGIN_ID,
   kind: 'extractor',
-  version: '1.0.0',
   description: 'Turns `/command` invocations in a node\'s body into arrows that point at the resolved slash command or skill, using Claude Code routing rules.',
   scope: 'body',
   precondition: { provider: ['claude'] },

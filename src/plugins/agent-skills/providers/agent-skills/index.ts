@@ -27,15 +27,14 @@
  * a node was sourced from.
  */
 
-import type { IProvider } from '../../../../kernel/extensions/index.js';
+import type { IBuiltInManifest, IProvider } from '../../../../kernel/extensions/index.js';
 import skillSchema from './schemas/skill.schema.json' with { type: 'json' };
 import { AGENT_SKILLS_PLUGIN_ID } from '../../../ids.js';
 
-export const agentSkillsProvider: IProvider = {
+export const agentSkillsProvider: IBuiltInManifest<IProvider> = {
   id: 'agent-skills',
   pluginId: AGENT_SKILLS_PLUGIN_ID,
   kind: 'provider',
-  version: '1.0.0',
   description: 'Classifies files under `.agents/skills/<name>/SKILL.md` as Agent Skills.',
 
   read: { extensions: ['.md'], parser: 'frontmatter-yaml' },

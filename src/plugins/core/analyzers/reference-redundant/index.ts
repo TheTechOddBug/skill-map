@@ -44,7 +44,7 @@
  * deliberately), no autofix ships today.
  */
 
-import type { IAnalyzer, IAnalyzerContext } from '../../../../kernel/extensions/index.js';
+import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { Issue, Link, Node } from '../../../../kernel/types.js';
 import { normalizeTrigger } from '../../../../kernel/trigger-normalize.js';
 import { tx } from '../../../../kernel/util/tx.js';
@@ -53,11 +53,10 @@ import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'reference-redundant';
 
-export const referenceRedundantAnalyzer: IAnalyzer = {
+export const referenceRedundantAnalyzer: IBuiltInManifest<IAnalyzer> = {
   id: ID,
   pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
-  version: '1.0.0',
   description:
     'Flags when one node references the same target through two or more different links (e.g. a markdown link plus a `references:` entry).',
   mode: 'deterministic',

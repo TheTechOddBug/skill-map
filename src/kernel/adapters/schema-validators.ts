@@ -33,7 +33,7 @@ import { createRequire } from 'node:module';
 
 import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
 
-import type { IProvider } from '../extensions/index.js';
+import type { IProvider, IBuiltInManifest } from '../extensions/index.js';
 import type { ExtensionKind } from '../registry.js';
 import { KNOWN_SLOT_NAMES } from '../types/view-catalog.js';
 import { applyAjvFormats } from '../util/ajv-interop.js';
@@ -268,7 +268,9 @@ export interface IProviderFrontmatterValidator {
    * directed `frontmatter-invalid` issue without crashing.
    */
   validate(
-    provider: IProvider,
+    // See `resolveProviderWalk` comment, accepts both the fully-loaded
+    // shape and the codegen-input shape; this method reads `id` only.
+    provider: IBuiltInManifest<IProvider>,
     kind: string,
     data: unknown,
   ): { ok: true } | { ok: false; errors: string };
@@ -285,7 +287,10 @@ export interface IProviderFrontmatterValidator {
  * collide.
  */
 export function buildProviderFrontmatterValidator(
-  providers: IProvider[],
+  // Same widening as `IProviderFrontmatterValidator.validate` above,
+  // this function only inspects each provider's `id`, `kinds`, and
+  // `schemas`; the version field is never read.
+  providers: ReadonlyArray<IBuiltInManifest<IProvider>>,
 ): IProviderFrontmatterValidator {
   const specRoot = resolveSpecRoot();
   const ajv: TAjv = new Ajv2020({
@@ -340,7 +345,10 @@ function formatError(err: { instancePath: string; message?: string; keyword: str
  * AJV resolves the cross-file `$ref` only after `addSchema` has registered
  * the auxiliary's `$id`.
  */
-function registerProviderAuxiliarySchemas(ajv: TAjv, providers: IProvider[]): void {
+function registerProviderAuxiliarySchemas(
+  ajv: TAjv,
+  providers: ReadonlyArray<IBuiltInManifest<IProvider>>,
+): void {
   for (const provider of providers) {
     if (!provider.schemas) continue;
     for (const aux of provider.schemas) {

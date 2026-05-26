@@ -24,7 +24,7 @@
 
 import { posix as pathPosix, resolve } from 'node:path';
 
-import type { IAnalyzer, IAnalyzerContext } from '../../../../kernel/extensions/index.js';
+import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { Issue, Link, Node } from '../../../../kernel/types.js';
 import { normalizeTrigger } from '../../../../kernel/trigger-normalize.js';
 import { tx } from '../../../../kernel/util/tx.js';
@@ -33,11 +33,10 @@ import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'reference-broken';
 
-export const referenceBrokenAnalyzer: IAnalyzer = {
+export const referenceBrokenAnalyzer: IBuiltInManifest<IAnalyzer> = {
   id: ID,
   pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
-  version: '1.0.0',
   description: 'Flags arrows pointing at a node not part of the current scan.',
   mode: 'deterministic',
 

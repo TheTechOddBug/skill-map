@@ -37,7 +37,7 @@
  * Codex agent still classifies as `agent`, not `toml`.
  */
 
-import type { IProvider } from '../../../../kernel/extensions/index.js';
+import type { IBuiltInManifest, IProvider } from '../../../../kernel/extensions/index.js';
 import type { NodeKind } from '../../../../kernel/types.js';
 import skillSchema from './schemas/skill.schema.json' with { type: 'json' };
 import skillBaseSchema from './schemas/skill-base.schema.json' with { type: 'json' };
@@ -45,11 +45,10 @@ import agentSchema from './schemas/agent.schema.json' with { type: 'json' };
 import commandSchema from './schemas/command.schema.json' with { type: 'json' };
 import { CLAUDE_PLUGIN_ID } from '../../../ids.js';
 
-export const claudeProvider: IProvider = {
+export const claudeProvider: IBuiltInManifest<IProvider> = {
   id: 'claude',
   pluginId: CLAUDE_PLUGIN_ID,
   kind: 'provider',
-  version: '1.0.0',
   description: 'Classifies files under `.claude/{agents,commands,skills}` as Claude Code agents, commands, and skills.',
 
   // Vendor provider: Claude Code only reads its own `.claude/` territory

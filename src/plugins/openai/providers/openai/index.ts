@@ -33,16 +33,15 @@
  * fallback's responsibility for now.
  */
 
-import type { IProvider } from '../../../../kernel/extensions/index.js';
+import type { IBuiltInManifest, IProvider } from '../../../../kernel/extensions/index.js';
 import type { NodeKind } from '../../../../kernel/types.js';
 import agentSchema from './schemas/agent.schema.json' with { type: 'json' };
 import { OPENAI_PLUGIN_ID } from '../../../ids.js';
 
-export const openaiProvider: IProvider = {
+export const openaiProvider: IBuiltInManifest<IProvider> = {
   id: 'openai',
   pluginId: OPENAI_PLUGIN_ID,
   kind: 'provider',
-  version: '1.0.0',
   description: 'Classifies files under `.codex/agents/*.toml` as OpenAI Codex CLI sub-agents.',
 
   // Vendor provider: Codex CLI only reads its own `.codex/` territory.

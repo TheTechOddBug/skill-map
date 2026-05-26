@@ -32,7 +32,7 @@
  * the user has to rename one or the other.
  */
 
-import type { IAnalyzer, IAnalyzerContext } from '../../../../kernel/extensions/index.js';
+import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import { normalizeTrigger } from '../../../../kernel/trigger-normalize.js';
 import type { Issue } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
@@ -79,12 +79,11 @@ interface IAdvertiserClaim {
 
 type TClaim = IInvocationClaim | IAdvertiserClaim;
 
-export const triggerCollisionAnalyzer: IAnalyzer = {
+export const triggerCollisionAnalyzer: IBuiltInManifest<IAnalyzer> = {
   id: ID,
   pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
   mode: 'deterministic',
-  version: '1.0.0',
   description:
     'Flags two or more nodes that claim the same `/command` or `@agent` name.',
 

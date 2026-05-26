@@ -24,7 +24,7 @@
  * would make the ordering declarative.
  */
 
-import type { IAnalyzer, IAnalyzerContext } from '../../../../kernel/extensions/index.js';
+import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { Issue } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { ISSUE_COUNTER_TEXTS as TEXTS } from './text.js';
@@ -70,11 +70,10 @@ function emitTierChips(
   }
 }
 
-export const issueCounterAnalyzer: IAnalyzer = {
+export const issueCounterAnalyzer: IBuiltInManifest<IAnalyzer> = {
   id: ID,
   pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
-  version: '1.0.0',
   description:
     'Emits one aggregate severity chip per node (error + warn counts) from the live issue accumulator.',
   mode: 'deterministic',

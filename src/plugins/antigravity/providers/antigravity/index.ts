@@ -47,14 +47,13 @@
  * (universal extractors keep running).
  */
 
-import type { IProvider } from '../../../../kernel/extensions/index.js';
+import type { IBuiltInManifest, IProvider } from '../../../../kernel/extensions/index.js';
 import { ANTIGRAVITY_PLUGIN_ID } from '../../../ids.js';
 
-export const antigravityProvider: IProvider = {
+export const antigravityProvider: IBuiltInManifest<IProvider> = {
   id: 'antigravity',
   pluginId: ANTIGRAVITY_PLUGIN_ID,
   kind: 'provider',
-  version: '1.0.0',
   description:
     'Declares the Google Antigravity runtime and its reserved built-in names.',
 

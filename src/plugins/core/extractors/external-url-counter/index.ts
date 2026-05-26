@@ -29,7 +29,7 @@
  * paths and queries. We roll our own URL normalization here.
  */
 
-import type { IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
+import type { IBuiltInManifest, IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
 import { stripCodeBlocks } from '../../../../kernel/util/strip-code-blocks.js';
 import { computeLineStarts, lineFor } from '../../../../kernel/util/line-tracking.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
@@ -44,11 +44,10 @@ const URL_RE = /https?:\/\/[^\s<>"'`)\]]+/g;
 
 const TRAILING_PUNCT = /[.,;:!?]+$/;
 
-export const externalUrlCounterExtractor: IExtractor = {
+export const externalUrlCounterExtractor: IBuiltInManifest<IExtractor> = {
   id: ID,
   pluginId: CORE_PLUGIN_ID,
   kind: 'extractor',
-  version: '1.0.0',
   description:
     'Counts the distinct external URLs in a node\'s body and shows the count on the card.',
   scope: 'body',

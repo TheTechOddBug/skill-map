@@ -33,15 +33,14 @@
  * territory and break the day a new Provider lands.
  */
 
-import type { IProvider } from '../../../../kernel/extensions/index.js';
+import type { IBuiltInManifest, IProvider } from '../../../../kernel/extensions/index.js';
 import markdownSchema from './schemas/markdown.schema.json' with { type: 'json' };
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
-export const coreMarkdownProvider: IProvider = {
+export const coreMarkdownProvider: IBuiltInManifest<IProvider> = {
   id: 'markdown',
   pluginId: CORE_PLUGIN_ID,
   kind: 'provider',
-  version: '1.0.0',
   description: 'Universal `.md` fallback. Claims any markdown file that no vendor-specific provider has classified.',
 
   read: { extensions: ['.md'], parser: 'frontmatter-yaml' },

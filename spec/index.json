@@ -223,7 +223,7 @@
       "schemas/execution-record.schema.json": "0d61e33f2dc1aaa4cc7337b5eac4ea8b9034022ce24bae9156c3c9f33204c250",
       "schemas/extensions/action.schema.json": "9f6c2427ce3f0d6fa329adf0f13129821116ab79a1d2a53f96464513ff044ebe",
       "schemas/extensions/analyzer.schema.json": "f9bed3ba1305b2b64da277dccfbe760f7c058c4bb62a2d845af9c75787f159f6",
-      "schemas/extensions/base.schema.json": "46fbec5d305673524d7298d6374c44ebd76273d86f46a930c568d4250caaf97d",
+      "schemas/extensions/base.schema.json": "679d256a317f5be7f80a80dd3ec0c9098ad7d2f7b20c99c70fc70d6a1eb738a6",
       "schemas/extensions/extractor.schema.json": "5994088bf669321d2a7b8262c07cc94e05e5e2f49a235ae5389b7c66ecc1b2e1",
       "schemas/extensions/formatter.schema.json": "d6d417df20260e5ddfe71f104b11a45873869706f86372c3c3c78c583e06e8d5",
       "schemas/extensions/hook.schema.json": "76bf2c07f9e689b3fd1c67cbad4516a4df10604f07103759e82670e5213ddcdf",

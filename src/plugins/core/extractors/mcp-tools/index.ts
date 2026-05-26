@@ -36,6 +36,7 @@
  */
 
 import type {
+  IBuiltInManifest,
   IExtractor,
   IExtractorContext,
 } from '../../../../kernel/extensions/index.js';
@@ -46,11 +47,10 @@ const ID = 'mcp-tools';
 /** Claude convention. Captures `<server>`; the tool name segment is unused. */
 const MCP_PATTERN = /^mcp__([a-z0-9][a-z0-9_-]*)__[a-z0-9_-]+$/i;
 
-export const mcpToolsExtractor: IExtractor = {
+export const mcpToolsExtractor: IBuiltInManifest<IExtractor> = {
   id: ID,
   pluginId: CORE_PLUGIN_ID,
   kind: 'extractor',
-  version: '1.0.0',
   description:
     'Turns `tools: [mcp__<server>__<tool>]` entries in a node\'s frontmatter into an MCP node per unique server and an arrow from the source to each one.',
   scope: 'frontmatter',

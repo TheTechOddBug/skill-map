@@ -43,7 +43,7 @@
  * `os.homedir()` directly per the documented exception).
  */
 
-import type { IHook, IHookContext } from '../../../../kernel/extensions/index.js';
+import type { IBuiltInManifest, IHook, IHookContext } from '../../../../kernel/extensions/index.js';
 import { maybeRunUpdateCheck } from '../../../../cli/util/update-check-banner.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
@@ -52,11 +52,10 @@ interface IBootPayload {
   noColorFlag?: boolean;
 }
 
-export const updateCheckHook: IHook = {
+export const updateCheckHook: IBuiltInManifest<IHook> = {
   id: 'update-check',
   pluginId: CORE_PLUGIN_ID,
   kind: 'hook',
-  version: '1.0.0',
   description:
     'Checks daily for a newer `skill-map` version on npm. Shows an `update available` banner when one is found.',
   triggers: ['boot'],

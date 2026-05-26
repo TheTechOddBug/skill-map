@@ -20,7 +20,7 @@
  * just is not the resolution of THIS analyzer's issues.
  */
 
-import type { IAnalyzer, IAnalyzerContext } from '../../../../kernel/extensions/index.js';
+import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { Issue, Node } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { NODE_SUPERSEDED_TEXTS } from './text.js';
@@ -28,11 +28,10 @@ import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'node-superseded';
 
-export const nodeSupersededAnalyzer: IAnalyzer = {
+export const nodeSupersededAnalyzer: IBuiltInManifest<IAnalyzer> = {
   id: ID,
   pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
-  version: '1.0.0',
   description: 'Marks nodes replaced by a newer one via `supersededBy`.',
   mode: 'deterministic',
 

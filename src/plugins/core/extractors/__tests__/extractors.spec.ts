@@ -6,7 +6,7 @@ import { slashCommandExtractor } from '../../../claude/extractors/slash-command/
 import { atDirectiveExtractor } from '../../../claude/extractors/at-directive/index.js';
 import { externalUrlCounterExtractor } from '../external-url-counter/index.js';
 import { markdownLinkExtractor } from '../markdown-link/index.js';
-import type { IExtractorContext, IExtractor } from '../../../../kernel/extensions/index.js';
+import type { IExtractorContext, IExtractor, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import { resolveSignals } from '../../../../kernel/orchestrator/resolver.js';
 import type { ISidecarOverlay, Link, Node, Signal } from '../../../../kernel/types.js';
 
@@ -79,7 +79,10 @@ function withAnnotations(annotations: Record<string, unknown>): ISidecarOverlay 
 // Links through the test's original `emitLink` callback. Tests that
 // assert on the final `links` array see the SAME shape regardless of
 // whether the extractor used `emitLink` directly or went through the IR.
-async function extract(extractor: IExtractor, context: IExtractorContext): Promise<void> {
+async function extract(
+  extractor: IBuiltInManifest<IExtractor>,
+  context: IExtractorContext,
+): Promise<void> {
   const captured: Signal[] = [];
   const originalEmitSignal = context.emitSignal;
   context.emitSignal = (s) => {

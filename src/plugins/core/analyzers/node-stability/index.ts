@@ -26,7 +26,7 @@
  * independent, it reads `effectiveStability(node)` directly.
  */
 
-import type { IAnalyzer, IAnalyzerContext } from '../../../../kernel/extensions/index.js';
+import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { Issue, Node } from '../../../../kernel/types.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
@@ -35,11 +35,10 @@ const ID = 'node-stability';
 const EXPERIMENTAL_TOOLTIP = 'Experimental: API may change';
 const DEPRECATED_TOOLTIP = 'Deprecated: avoid in new code';
 
-export const nodeStabilityAnalyzer: IAnalyzer = {
+export const nodeStabilityAnalyzer: IBuiltInManifest<IAnalyzer> = {
   id: ID,
   pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
-  version: '1.0.0',
   description:
     'Reports a node\'s stability stage (`experimental`, `deprecated`) on the card.',
   mode: 'deterministic',

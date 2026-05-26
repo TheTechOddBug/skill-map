@@ -13,16 +13,15 @@
  * the same path listed in both arrays only produces one edge.
  */
 
-import type { IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
+import type { IBuiltInManifest, IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'annotations';
 
-export const annotationsExtractor: IExtractor = {
+export const annotationsExtractor: IBuiltInManifest<IExtractor> = {
   id: ID,
   pluginId: CORE_PLUGIN_ID,
   kind: 'extractor',
-  version: '1.0.0',
   description:
     'Turns the `supersedes` and `supersededBy` entries from a node\'s `.sm` sidecar into arrows between nodes in the graph.',
   scope: 'frontmatter',
