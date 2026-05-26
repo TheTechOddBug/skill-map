@@ -1,216 +1,218 @@
 @if (hasAnyContent()) {
   <div class="vfm" data-testid="vendor-frontmatter">
-    <section class="vfm__section" data-testid="vendor-frontmatter-section">
-      <h4 class="vfm__section-toggle">
-        <button
-          type="button"
-          class="vfm__inline-toggle"
-          (click)="toggleSection()"
-          [attr.aria-expanded]="sectionExpanded()"
-          data-testid="vendor-frontmatter-section-toggle"
-        >
-          <i
-            class="pi"
-            [class.pi-chevron-right]="!sectionExpanded()"
-            [class.pi-chevron-down]="sectionExpanded()"
-            aria-hidden="true"
-          ></i>
-          {{ texts.providerSpecificHeader }}
-          <span class="vfm__count">({{ texts.fieldCount(populatedFieldCount()) }})</span>
-        </button>
-      </h4>
 
-      @if (sectionExpanded()) {
-        <div class="vfm__body" data-testid="vendor-frontmatter-section-body">
-          @if (isAgent()) {
-            <dl class="vfm__kv">
-              @if (model(); as m) {
-                <dt>{{ texts.fields.model }}</dt>
-                <dd><code>{{ m }}</code></dd>
-              }
-              @if (tools().length) {
-                <dt>{{ texts.fields.tools }}</dt>
-                <dd class="vfm__chips">
-                  @for (t of tools(); track t) {
-                    <p-chip [label]="t" />
-                  }
-                </dd>
-              }
-              @if (skills().length) {
-                <dt>{{ texts.fields.skills }}</dt>
-                <dd class="vfm__chips">
-                  @for (s of skills(); track s) {
-                    <p-chip
-                      [label]="s"
-                      [styleClass]="isSkillKnown(s) ? 'chip--link' : ''"
-                      (click)="onSkillChipClick(s)"
-                    />
-                  }
-                </dd>
-              }
-              @if (disallowedTools().length) {
-                <dt>{{ texts.fields.disallowedTools }}</dt>
-                <dd class="vfm__chips">
-                  @for (d of disallowedTools(); track d) {
-                    <p-chip [label]="d" styleClass="chip--danger" />
-                  }
-                </dd>
-              }
-              @if (permissionMode(); as pm) {
-                <dt>{{ texts.fields.permissionMode }}</dt>
-                <dd><code>{{ pm }}</code></dd>
-              }
-              @if (maxTurns() !== null) {
-                <dt>{{ texts.fields.maxTurns }}</dt>
-                <dd>{{ maxTurns() }}</dd>
-              }
-              @if (effort(); as ef) {
-                <dt>{{ texts.fields.effort }}</dt>
-                <dd><code>{{ ef }}</code></dd>
-              }
-              @if (memory(); as me) {
-                <dt>{{ texts.fields.memory }}</dt>
-                <dd><code>{{ me }}</code></dd>
-              }
-              @if (background()) {
-                <dt>{{ texts.fields.background }}</dt>
-                <dd><code>true</code></dd>
-              }
-              @if (isolation(); as iso) {
-                <dt>{{ texts.fields.isolation }}</dt>
-                <dd><code>{{ iso }}</code></dd>
-              }
-            </dl>
-
-            @if (initialPrompt(); as ip) {
-              <div class="vfm__row" data-testid="vendor-frontmatter-initial-prompt-row">
-                <h5 class="vfm__label">
-                  <button
-                    type="button"
-                    class="vfm__inline-toggle"
-                    (click)="toggleInitialPrompt()"
-                    [attr.aria-label]="texts.initialPromptToggle"
-                    data-testid="vendor-frontmatter-initial-prompt-toggle"
-                  >
-                    <i
-                      class="pi"
-                      [class.pi-chevron-right]="!initialPromptExpanded()"
-                      [class.pi-chevron-down]="initialPromptExpanded()"
-                      aria-hidden="true"
-                    ></i>
-                    {{ texts.fields.initialPrompt }}
-                  </button>
-                </h5>
-                @if (initialPromptExpanded()) {
-                  <blockquote class="vfm__quote" data-testid="vendor-frontmatter-initial-prompt">{{ ip }}</blockquote>
-                } @else {
-                  <p class="vfm__quote-collapsed">{{ ip.slice(0, 80) }}{{ ip.length > 80 ? '…' : '' }}</p>
-                }
-              </div>
-            }
-
-            @if (mcpServers().length) {
-              <div class="vfm__row">
-                <h5 class="vfm__label">{{ texts.fields.mcpServers }}</h5>
-                <ul class="vfm__list">
-                  @for (s of mcpServers(); track s.name) {
-                    <li class="vfm__list-row">
-                      <code class="vfm__list-key">{{ s.name }}</code>
-                      @if (s.command !== null) {
-                        <code class="vfm__list-cmd">{{ s.command }}</code>
-                      }
-                    </li>
-                  }
-                </ul>
-              </div>
-            }
-
-            @if (hooks().length) {
-              <div class="vfm__row">
-                <h5 class="vfm__label">{{ texts.fields.hooks }}</h5>
-                <ul class="vfm__list">
-                  @for (h of hooks(); track h.event) {
-                    <li class="vfm__list-row">
-                      <code class="vfm__list-key">{{ h.event }}</code>
-                      @if (h.keys.length) {
-                        <span class="vfm__list-keys">
-                          @for (k of h.keys; track k; let last = $last) {
-                            <code>{{ k }}</code>{{ last ? '' : ', ' }}
-                          }
-                        </span>
-                      }
-                    </li>
-                  }
-                </ul>
-              </div>
-            }
-          } @else if (isSkillOrCommand()) {
-            @let sb = skillBase();
-            <dl class="vfm__kv" data-testid="vendor-frontmatter-skill-base">
-              @if (sb.when_to_use !== null) {
-                <dt>when_to_use</dt>
-                <dd>{{ sb.when_to_use }}</dd>
-              }
-              @if (sb.argumentHint !== null) {
-                <dt>argument-hint</dt>
-                <dd><code>{{ sb.argumentHint }}</code></dd>
-              }
-              @if (sb.arguments.length) {
-                <dt>arguments</dt>
-                <dd class="vfm__chips">
-                  @for (a of sb.arguments; track a) {
-                    <p-chip [label]="a" />
-                  }
-                </dd>
-              }
-              @if (sb.allowedTools.length) {
-                <dt>allowed-tools</dt>
-                <dd class="vfm__chips">
-                  @for (t of sb.allowedTools; track t) {
-                    <p-chip [label]="t" />
-                  }
-                </dd>
-              }
-              @if (sb.model !== null) {
-                <dt>model</dt>
-                <dd><code>{{ sb.model }}</code></dd>
-              }
-              @if (sb.effort !== null) {
-                <dt>effort</dt>
-                <dd><code>{{ sb.effort }}</code></dd>
-              }
-              @if (sb.context !== null) {
-                <dt>context</dt>
-                <dd><code>{{ sb.context }}</code></dd>
-              }
-              @if (sb.agent !== null) {
-                <dt>agent</dt>
-                <dd><code>{{ sb.agent }}</code></dd>
-              }
-              @if (sb.shell !== null) {
-                <dt>shell</dt>
-                <dd><code>{{ sb.shell }}</code></dd>
-              }
-              @if (sb.paths.length) {
-                <dt>paths</dt>
-                <dd class="vfm__chips">
-                  @for (p of sb.paths; track p) {
-                    <p-chip [label]="p" />
-                  }
-                </dd>
-              }
-              @if (sb.disableModelInvocation) {
-                <dt>disable-model-invocation</dt>
-                <dd><code>true</code></dd>
-              }
-              @if (sb.userInvocable !== null) {
-                <dt>user-invocable</dt>
-                <dd><code>{{ sb.userInvocable }}</code></dd>
-              }
-            </dl>
+    @if (hasBehavior()) {
+      <section class="sm-section" data-testid="vendor-frontmatter-behavior">
+        <header class="sm-section__head">
+          <i class="pi pi-cog sm-section__icon" aria-hidden="true"></i>
+          <span class="sm-section__title">{{ texts.sections.behavior }}</span>
+          <span class="sm-section__rule" aria-hidden="true"></span>
+        </header>
+        <dl class="sm-section__kv">
+          @if (model(); as m) {
+            <dt>{{ texts.fields.model }}</dt>
+            <dd><code>{{ m }}</code></dd>
           }
-        </div>
-      }
-    </section>
+          @if (effort(); as ef) {
+            <dt>{{ texts.fields.effort }}</dt>
+            <dd class="vfm__effort">
+              <span
+                class="vfm__effort-bar"
+                [attr.data-level]="ef"
+                aria-hidden="true"
+              ></span>
+              <code>{{ ef }}</code>
+            </dd>
+          }
+          @if (permissionMode(); as pm) {
+            <dt>{{ texts.fields.permissionMode }}</dt>
+            <dd><code>{{ pm }}</code></dd>
+          }
+          @if (maxTurns() !== null) {
+            <dt>{{ texts.fields.maxTurns }}</dt>
+            <dd>{{ maxTurns() }}</dd>
+          }
+          @if (memory(); as me) {
+            <dt>{{ texts.fields.memory }}</dt>
+            <dd><code>{{ me }}</code></dd>
+          }
+          @if (background()) {
+            <dt>{{ texts.fields.background }}</dt>
+            <dd><code>true</code></dd>
+          }
+          @if (isolation(); as iso) {
+            <dt>{{ texts.fields.isolation }}</dt>
+            <dd><code>{{ iso }}</code></dd>
+          }
+        </dl>
+      </section>
+    }
+
+    @if (hasCapabilities()) {
+      <section class="sm-section" data-testid="vendor-frontmatter-capabilities">
+        <header class="sm-section__head">
+          <i class="pi pi-bolt sm-section__icon" aria-hidden="true"></i>
+          <span class="sm-section__title">{{ texts.sections.capabilities }}</span>
+          <span class="sm-section__rule" aria-hidden="true"></span>
+        </header>
+
+        @if (isAgent()) {
+          <dl class="sm-section__kv">
+            @if (tools().length) {
+              <dt>{{ texts.fields.tools }}</dt>
+              <dd class="vfm__chips">
+                @for (t of tools(); track t) {
+                  <p-chip [label]="t" />
+                }
+              </dd>
+            }
+            @if (disallowedTools().length) {
+              <dt>{{ texts.fields.disallowedTools }}</dt>
+              <dd class="vfm__chips">
+                @for (d of disallowedTools(); track d) {
+                  <p-chip
+                    [label]="d"
+                    icon="pi pi-ban"
+                    styleClass="chip--danger"
+                  />
+                }
+              </dd>
+            }
+            @if (skills().length) {
+              <dt>{{ texts.fields.skills }}</dt>
+              <dd class="vfm__chips">
+                @for (s of skills(); track s) {
+                  <p-chip
+                    [label]="s"
+                    icon="pi pi-arrow-up-right"
+                    [styleClass]="isSkillKnown(s) ? 'chip--link' : ''"
+                    (click)="onSkillChipClick(s)"
+                  />
+                }
+              </dd>
+            }
+          </dl>
+
+          @if (mcpServers().length) {
+            <div class="vfm__row">
+              <span class="vfm__row-label">{{ texts.fields.mcpServers }}</span>
+              <ul class="vfm__list">
+                @for (s of mcpServers(); track s.name) {
+                  <li class="vfm__list-row">
+                    <span class="vfm__list-bullet" aria-hidden="true">●</span>
+                    <code class="vfm__list-key">{{ s.name }}</code>
+                    @if (s.command !== null) {
+                      <code class="vfm__list-cmd">{{ s.command }}</code>
+                    }
+                    @if (s.argsCount > 0) {
+                      <span class="vfm__list-meta">· {{ s.argsCount }} arg{{ s.argsCount === 1 ? '' : 's' }}</span>
+                    } @else {
+                      <span class="vfm__list-meta">· no args</span>
+                    }
+                  </li>
+                }
+              </ul>
+            </div>
+          }
+
+          @if (hooks().length) {
+            <div class="vfm__row">
+              <span class="vfm__row-label">{{ texts.fields.hooks }}</span>
+              <ul class="vfm__list">
+                @for (h of hooks(); track h.event) {
+                  <li class="vfm__list-row">
+                    <code class="vfm__list-key">{{ h.event }}</code>
+                    @if (h.keys.length) {
+                      <span class="vfm__list-sep" aria-hidden="true">→</span>
+                      <span class="vfm__list-keys">
+                        @for (k of h.keys; track k; let last = $last) {
+                          <code>{{ k }}</code>{{ last ? '' : ', ' }}
+                        }
+                      </span>
+                    }
+                  </li>
+                }
+              </ul>
+            </div>
+          }
+        } @else if (isSkillOrCommand()) {
+          @let sb = skillBase();
+          <dl class="sm-section__kv" data-testid="vendor-frontmatter-skill-base">
+            @if (sb.when_to_use !== null) {
+              <dt>{{ texts.skillBaseFields.whenToUse }}</dt>
+              <dd>{{ sb.when_to_use }}</dd>
+            }
+            @if (sb.argumentHint !== null) {
+              <dt>{{ texts.skillBaseFields.argumentHint }}</dt>
+              <dd><code>{{ sb.argumentHint }}</code></dd>
+            }
+            @if (sb.arguments.length) {
+              <dt>{{ texts.skillBaseFields.arguments }}</dt>
+              <dd class="vfm__chips">
+                @for (a of sb.arguments; track a) {
+                  <p-chip [label]="a" />
+                }
+              </dd>
+            }
+            @if (sb.allowedTools.length) {
+              <dt>{{ texts.skillBaseFields.allowedTools }}</dt>
+              <dd class="vfm__chips">
+                @for (t of sb.allowedTools; track t) {
+                  <p-chip [label]="t" />
+                }
+              </dd>
+            }
+            @if (sb.model !== null) {
+              <dt>{{ texts.skillBaseFields.model }}</dt>
+              <dd><code>{{ sb.model }}</code></dd>
+            }
+            @if (sb.effort !== null) {
+              <dt>{{ texts.skillBaseFields.effort }}</dt>
+              <dd><code>{{ sb.effort }}</code></dd>
+            }
+            @if (sb.context !== null) {
+              <dt>{{ texts.skillBaseFields.context }}</dt>
+              <dd><code>{{ sb.context }}</code></dd>
+            }
+            @if (sb.agent !== null) {
+              <dt>{{ texts.skillBaseFields.agent }}</dt>
+              <dd><code>{{ sb.agent }}</code></dd>
+            }
+            @if (sb.shell !== null) {
+              <dt>{{ texts.skillBaseFields.shell }}</dt>
+              <dd><code>{{ sb.shell }}</code></dd>
+            }
+            @if (sb.paths.length) {
+              <dt>{{ texts.skillBaseFields.paths }}</dt>
+              <dd class="vfm__chips">
+                @for (p of sb.paths; track p) {
+                  <p-chip [label]="p" />
+                }
+              </dd>
+            }
+            @if (sb.disableModelInvocation) {
+              <dt>{{ texts.skillBaseFields.disableModelInvocation }}</dt>
+              <dd><code>disabled</code></dd>
+            }
+            @if (sb.userInvocable !== null) {
+              <dt>{{ texts.skillBaseFields.userInvocable }}</dt>
+              <dd><code>{{ sb.userInvocable }}</code></dd>
+            }
+          </dl>
+        }
+      </section>
+    }
+
+    @if (hasInitialPrompt()) {
+      <section class="sm-section" data-testid="vendor-frontmatter-initial-prompt">
+        <header class="sm-section__head">
+          <i class="pi pi-comment sm-section__icon" aria-hidden="true"></i>
+          <span class="sm-section__title">{{ texts.sections.initialPrompt }}</span>
+          <span class="sm-section__rule" aria-hidden="true"></span>
+        </header>
+        <blockquote class="vfm__quote" data-testid="vendor-frontmatter-initial-prompt-quote">{{ initialPrompt() }}</blockquote>
+      </section>
+    }
+
   </div>
 }

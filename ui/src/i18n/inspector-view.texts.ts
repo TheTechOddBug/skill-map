@@ -16,15 +16,18 @@ export const INSPECTOR_VIEW_TEXTS = {
   },
   backToList: '← back to list',
   /**
-   * Card headers used by the inspector view itself. Per-field labels
-   * for vendor frontmatter / annotations / debug / audit are owned by
-   * each sub-component's own i18n table, this surface only carries
-   * the two headers the inspector renders directly (the agent vendor
-   * card and the body card), plus the standalone annotations card
-   * header (`cardsAnnotations` below).
+   * Section headers the inspector body renders directly. Vendor-frontmatter
+   * sub-sections (Behavior / Capabilities / Initial prompt) own their own
+   * catalog so each renderer stays self-contained.
    */
-  cards: {
-    agent: 'Agent',
+  sections: {
+    annotations: 'Annotations',
+    connections: 'Connections',
+    findings: 'Findings',
+    audit: 'Audit',
+    plugins: 'Plugin contributions',
+    viewContributions: 'View contributions',
+    debug: 'Debug',
     body: 'Body',
   },
   body: {
@@ -34,15 +37,7 @@ export const INSPECTOR_VIEW_TEXTS = {
     renderError: 'Failed to render markdown body.',
     refreshLabel: 'Refresh body',
   },
-  /** Placeholder cards for v0.8.0 features (enrichment, summary, findings). */
-  placeholders: {
-    enrichmentTitle: 'Enrichment',
-    summaryTitle: 'Summary',
-    findingsTitle: 'Findings',
-    body: 'Available in v0.8.0',
-  },
-  /** Step 9.6.5, annotations card + bump button. */
-  cardsAnnotations: 'Annotations',
+  /** Step 9.6.5, bump button + consent dialog. */
   bump: {
     label: 'Bump version',
     tooltipEnabled: 'Increment the sidecar version and refresh hashes.',
@@ -51,15 +46,6 @@ export const INSPECTOR_VIEW_TEXTS = {
     errorFresh: 'This node is fresh; nothing to bump.',
     errorNotFound: 'Node not found on the server.',
     errorGeneric: 'Could not bump the sidecar.',
-    /**
-     * Consent dialog shown the first time the user triggers a `.sm`
-     * sidecar write in this project (Phase 6 of the consent gate). The
-     * BFF answers 412 `confirm-required` with `details.key ===
-     * "allowEditSmFiles"`; accepting flips the flag to `true` in
-     * `.skill-map/settings.local.json` and proceeds with the bump.
-     * The choice persists per-checkout (gitignored), so this dialog
-     * is shown at most once per project.
-     */
     consentHeader: 'Save extra info alongside your files?',
     consentMessage:
       'Skill-map can keep a small companion file (*.sm) next to each of your ' +
@@ -73,32 +59,24 @@ export const INSPECTOR_VIEW_TEXTS = {
     consentReject: 'Not now',
     consentDialogAriaLabel: 'Sidecar consent',
   },
-  /**
-   * Stats footer labels for the bytes / tokens / links card. Singular
-   * labels are used as `<dt>` text; the short directional suffixes
-   * (`out`, `in`, `ext`) decorate the link counters as inline pills.
-   */
+  /** Stats footer, single inline line under the body. */
   stats: {
-    bytes: 'Bytes',
-    tokens: 'Tokens',
-    links: 'Links',
+    bytes: 'bytes',
+    tokens: 'tokens',
     out: 'out',
     in: 'in',
-    ext: 'ext',
+    ext: 'external',
   },
-  /** Header for the collapsible Plugin contributions card. */
-  pluginsHeader: 'Plugin contributions',
   /** Findings list, fix hint label rendered before the per-issue summary. */
   findingHintLabel: 'Hint:',
   /** Aria label for the bump-error toast dismiss button. */
   bumpErrorDismissAriaLabel: 'Dismiss',
   /**
-   * Catalog curation (2026-05-07), collapsible section headers and the
-   * audit summary line. The audit header surfaces the most-recent
-   * activity inline so the user doesn't have to expand to see it.
+   * Catalog curation (2026-05-07), collapsible audit summary line. The
+   * header surfaces the most-recent activity inline so the user does not
+   * have to expand to see it.
    */
   audit: {
-    header: 'Audit',
     headerSummary: (rel: string, by: string) => `last bumped ${rel} by ${by}`,
     headerEmpty: 'never bumped',
     fields: {
@@ -108,19 +86,16 @@ export const INSPECTOR_VIEW_TEXTS = {
       createdBy: 'by',
     },
   },
-  /**
-   * Banner shown on the card when `annotations.supersededBy` is set,
-   * caps the marker phrase for the inspector header version line.
-   */
+  /** Banner shown when `annotations.supersededBy` is set. */
   supersededByBanner: (path: string) => `Superseded by ${path}`,
-  /** Aria + tooltip for the inline debug toggle button in the header. */
+  /** Aria + tooltip for the debug toggle that sits in the toolbar. */
   debugToggleAriaLabel: 'Toggle debug panel',
   debugToggleTooltip: 'Show diagnostic fields (hash diffs, resolved provider/kind, sidecar status enum).',
   /**
-   * TEMPORARY plugin-actions row mocks while the BFF surface for
-   * runnable verbs is being designed. The row is gated by the
-   * `inspector.actionMocks` setting (default OFF), but the labels
-   * still live in the catalog so the convention does not erode.
+   * TEMPORARY plugin-actions row mocks while the BFF surface for runnable
+   * verbs is being designed. Gated by the `inspector.actionMocks` setting
+   * (default OFF), the labels stay in the catalog so the convention does
+   * not erode.
    */
   actionMocks: {
     label: 'Actions',
@@ -128,12 +103,7 @@ export const INSPECTOR_VIEW_TEXTS = {
     audit: 'Run audit',
     validate: 'Validate',
   },
-  /**
-   * Embedded-mode close button. The inspector emits a generic `close`
-   * event; the host (graph-view) decides what closing means. Strings
-   * stay generic so a future host that mounts the inspector inside a
-   * different shell does not need to override them.
-   */
+  /** Embedded-mode close button. */
   close: {
     label: 'Close',
     tooltip: 'Close inspector',

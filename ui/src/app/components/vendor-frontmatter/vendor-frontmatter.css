@@ -5,44 +5,27 @@
 .vfm {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 1.1rem;
 }
 
-.vfm__section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.vfm__body {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
+/* Sections share the typographic-header pattern with `<sm-annotations-panel>`
+   and the inspector view itself. The matching `.sm-section*` declarations
+   in `inspector-view.css` (`:host ::ng-deep`) reach the headers rendered
+   below; the rules here only style content unique to this renderer. */
 
 .vfm__row {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.3rem;
+  margin-top: 0.4rem;
 }
 
-.vfm__kv {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  column-gap: 0.6rem;
-  row-gap: 0.25rem;
-  margin: 0;
-  font-size: 0.85rem;
-}
-
-.vfm__kv dt {
+.vfm__row-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: var(--sm-text-muted);
-  font-weight: 500;
-}
-
-.vfm__kv dd {
-  margin: 0;
-  word-break: break-word;
+  font-weight: 600;
 }
 
 .vfm__chips {
@@ -51,97 +34,163 @@
   gap: 0.3rem;
 }
 
-.vfm__label {
-  margin: 0.25rem 0;
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--sm-text-muted);
-  font-weight: 600;
-}
-
-.vfm__section-toggle {
-  margin: 0;
-}
-
-.vfm__inline-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  background: transparent;
-  border: none;
-  padding: 0;
-  font: inherit;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--p-text-color);
-  cursor: pointer;
-}
-
-.vfm__inline-toggle:hover {
-  color: var(--p-primary-color);
-}
-
-.vfm__count {
-  font-weight: 400;
-  color: var(--sm-text-muted);
-}
-
 .vfm__quote {
-  margin: 0.35rem 0 0 0;
-  padding: 0.5rem 0.75rem;
-  border-left: 3px solid var(--sm-border);
-  background: var(--sm-bg-hover);
+  margin: 0;
+  padding: 0.7rem 0.95rem;
+  border-left: 3px solid var(--p-primary-color);
+  background: var(--p-primary-50);
+  color: var(--p-text-color);
   font-style: italic;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  border-radius: 0 var(--sm-radius-md) var(--sm-radius-md) 0;
   white-space: pre-wrap;
-  border-radius: 0 4px 4px 0;
-}
-
-.vfm__quote-collapsed {
-  margin: 0.25rem 0 0 0;
-  font-size: 0.8rem;
-  color: var(--sm-text-muted);
-  font-style: italic;
 }
 
 .vfm__list {
-  margin: 0.25rem 0 0 0;
+  margin: 0;
   padding: 0;
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.25rem;
 }
 
 .vfm__list-row {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 0.4rem;
-  font-size: 0.8rem;
+  gap: 0.45rem;
+  font-size: 0.83rem;
+}
+
+.vfm__list-bullet {
+  color: var(--p-primary-color);
+  font-size: 0.75rem;
 }
 
 .vfm__list-key {
   font-family: var(--sm-font-mono);
   font-weight: 600;
   background: var(--sm-bg-hover);
-  padding: 0.05rem 0.35rem;
+  padding: 0.05rem 0.4rem;
   border-radius: var(--sm-radius-sm);
+  font-size: 0.78rem;
 }
 
 .vfm__list-cmd,
 .vfm__list-keys code {
   font-family: var(--sm-font-mono);
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   color: var(--sm-text-muted);
 }
 
-/* Disallowed-tool chip, danger variant. The variant class is merged
-   onto the `.p-chip` host (PrimeNG 21 contract, `host.class = cn(cx('root'),
-   styleClass)`), so target the merged host directly. A descendant
-   `.chip--danger .p-chip` selector matches nothing. */
+.vfm__list-sep {
+  color: var(--sm-text-muted);
+  font-size: 0.85rem;
+}
+
+.vfm__list-meta {
+  font-size: 0.75rem;
+  color: var(--p-text-muted-color);
+  font-style: italic;
+}
+
+/* Effort bar, three pips that light up based on the level keyword. */
+.vfm__effort {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.vfm__effort-bar {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.vfm__effort-bar::before,
+.vfm__effort-bar::after,
+.vfm__effort-bar {
+  --pip-on: var(--p-primary-color);
+  --pip-off: color-mix(in srgb, var(--p-primary-color) 25%, transparent);
+}
+
+.vfm__effort-bar {
+  position: relative;
+  width: 28px;
+  height: 8px;
+}
+
+.vfm__effort-bar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to right,
+      var(--pip-off) 0 33%,
+      transparent 33% 36%,
+      var(--pip-off) 36% 66%,
+      transparent 66% 69%,
+      var(--pip-off) 69% 100%
+    );
+  border-radius: 1px;
+}
+
+.vfm__effort-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to right,
+      var(--pip-on) 0 33%,
+      transparent 33% 100%
+    );
+  border-radius: 1px;
+}
+
+.vfm__effort-bar[data-level='medium']::after {
+  background:
+    linear-gradient(to right,
+      var(--pip-on) 0 33%,
+      transparent 33% 36%,
+      var(--pip-on) 36% 66%,
+      transparent 66% 100%
+    );
+}
+
+.vfm__effort-bar[data-level='high']::after,
+.vfm__effort-bar[data-level='max']::after {
+  background:
+    linear-gradient(to right,
+      var(--pip-on) 0 33%,
+      transparent 33% 36%,
+      var(--pip-on) 36% 66%,
+      transparent 66% 69%,
+      var(--pip-on) 69% 100%
+    );
+}
+
+/* Disallowed-tool chip, danger variant. PrimeNG 21 merges [styleClass]
+   onto the .p-chip host element, so target the merged host directly. */
 :host ::ng-deep .chip--danger {
   background: var(--sm-severity-error-bg);
   color: var(--sm-severity-error);
+}
+
+:host ::ng-deep .chip--danger .p-chip-icon {
+  color: var(--sm-severity-error);
+}
+
+/* Linkable skill chip. Mirrors the inspector-view rule so the chip stays
+   styled the same way regardless of whose template renders it. */
+:host ::ng-deep .chip--link {
+  cursor: pointer;
+  background: var(--p-primary-50);
+  color: var(--p-primary-color);
+  transition: background 0.15s ease;
+}
+
+:host ::ng-deep .chip--link:hover {
+  background: var(--p-primary-100);
 }

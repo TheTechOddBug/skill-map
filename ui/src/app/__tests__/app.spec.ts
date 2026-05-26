@@ -259,7 +259,9 @@ describe('App, update chip', () => {
     const chip = compiled.querySelector('[data-testid="shell-update-chip"]');
     expect(chip).not.toBeNull();
     expect(chip?.getAttribute('aria-label')).toContain('0.19.0');
-    expect(chip?.getAttribute('href')).toContain('npmjs.com/package/@skill-map/cli');
+    const npmLink = compiled.querySelector('[data-testid="shell-update-npm-link"]');
+    expect(npmLink).not.toBeNull();
+    expect(npmLink?.getAttribute('href')).toContain('npmjs.com/package/@skill-map/cli');
   });
 
   it('omits the chip in dev mode even when an update is available', async () => {

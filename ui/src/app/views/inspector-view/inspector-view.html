@@ -38,23 +38,34 @@
       (favoriteToggle)="onHeaderFavoriteToggle($event)"
     />
 
-    <!--
-      Action toolbar, bump + debug. Lives outside the header (below)
-      so the header itself stays a pure read-only mirror of the card.
-    -->
+    @if (fm.description) {
+      <div class="inspector__hero" data-testid="inspector-hero">
+        <p class="inspector__desc" data-testid="inspector-description">{{ fm.description }}</p>
+      </div>
+    }
+
+    @if (headerSupersededBy(); as sup) {
+      <div class="inspector__superseded" data-testid="inspector-superseded-banner">
+        <i class="pi pi-arrow-up-right" aria-hidden="true"></i>
+        <span>{{ texts.supersededByBanner(sup) }}</span>
+      </div>
+    }
+
+    @if (bumpError(); as err) {
+      <div class="inspector__bump-error" data-testid="inspector-bump-error">
+        <span>{{ err }}</span>
+        <button
+          type="button"
+          class="inspector__bump-error-dismiss"
+          (click)="dismissBumpError()"
+          [attr.aria-label]="texts.bumpErrorDismissAriaLabel"
+        >
+          <i class="pi pi-times" aria-hidden="true"></i>
+        </button>
+      </div>
+    }
+
     <div class="inspector__toolbar">
-      <button
-        type="button"
-        class="inspector__debug-toggle"
-        [class.inspector__debug-toggle--active]="debugVisible()"
-        [attr.aria-label]="texts.debugToggleAriaLabel"
-        [attr.aria-pressed]="debugVisible()"
-        [pTooltip]="texts.debugToggleTooltip"
-        (click)="toggleDebug()"
-        data-testid="inspector-debug-toggle"
-      >
-        <i class="pi pi-info-circle" aria-hidden="true"></i>
-      </button>
       <p-button
         [label]="texts.bump.label"
         icon="pi pi-arrow-up-right"
@@ -71,307 +82,248 @@
       }
     </div>
 
-    @if (headerSupersededBy(); as sup) {
-      <div class="inspector__superseded" data-testid="inspector-superseded-banner">
-        <i class="pi pi-arrow-up-right" aria-hidden="true"></i>
-        <span>{{ texts.supersededByBanner(sup) }}</span>
+    @if (hasVendorFrontmatter()) {
+      <div class="inspector__vendor" data-testid="inspector-card-vendor-frontmatter">
+        <sm-vendor-frontmatter
+          [frontmatter]="fm"
+          [kind]="n.kind"
+          [provider]="n.provider"
+          [knownPaths]="pathSet()"
+          [onSkillClick]="onSkillChip"
+        />
       </div>
     }
 
-    @if (bumpError(); as err) {
-      <div class="inspector__bump-error" data-testid="inspector-bump-error">
-        <span>{{ err }}</span>
-        <button type="button" class="inspector__bump-error-dismiss" (click)="dismissBumpError()" [attr.aria-label]="texts.bumpErrorDismissAriaLabel">
-          <i class="pi pi-times" aria-hidden="true"></i>
-        </button>
-      </div>
-    }
-
-    @if (fm.description) {
-      <p class="inspector__desc" data-testid="inspector-description">{{ fm.description }}</p>
-    }
-
-    <!-- Debug panel, hidden by default; toggled via the header button. -->
-    @if (debugVisible()) {
-      <div class="inspector__debug" data-testid="inspector-debug-section">
-        <sm-inspector-debug-panel
-          [node]="n"
-          [sidecarRoot]="sidecarRoot()"
+    @if (n.sidecar?.present || authorTags().length > 0) {
+      <section class="sm-section" data-testid="inspector-card-annotations">
+        <header class="sm-section__head">
+          <i class="pi pi-bookmark sm-section__icon" aria-hidden="true"></i>
+          <span class="sm-section__title">{{ texts.sections.annotations }}</span>
+          <span class="sm-section__rule" aria-hidden="true"></span>
+        </header>
+        <sm-annotations-panel
           [overlay]="n.sidecar"
+          [authorTags]="authorTags()"
+          [knownPaths]="pathSet()"
+          [activeTag]="activeTag()"
+          (openPath)="openPath($event)"
+          (tagClick)="tagSelect.emit($event)"
         />
-      </div>
+      </section>
     }
 
-    <div class="inspector__grid">
-      @if (mode() === 'standalone') {
-        <!-- v0.8.0 placeholder cards: enrichment / summary. The
-             findings slot below is the only one wired to real data
-             today; the other two stay as placeholders until their
-             plugin surfaces land. -->
-        <sm-empty-state
-          [title]="texts.placeholders.enrichmentTitle"
-          [body]="texts.placeholders.body"
-          icon="pi pi-sparkles"
-          testId="inspector-empty-enrichment"
-        />
-        <sm-empty-state
-          [title]="texts.placeholders.summaryTitle"
-          [body]="texts.placeholders.body"
-          icon="pi pi-file"
-          testId="inspector-empty-summary"
-        />
-      }
+    <section class="sm-section" data-testid="inspector-card-linked-nodes">
+      <header class="sm-section__head">
+        <i class="pi pi-share-alt sm-section__icon" aria-hidden="true"></i>
+        <span class="sm-section__title">{{ texts.sections.connections }}</span>
+        <span class="sm-section__rule" aria-hidden="true"></span>
+      </header>
+      <sm-linked-nodes-panel [path]="n.path" (openPath)="openPath($event)" />
+    </section>
 
-      <!-- Findings card, visible in both standalone and embedded modes
-           when the node has issues. Empty-state only in standalone (the
-           embedded panel keeps the layout tight by hiding zero-state
-           cards). -->
-      @if (issues().length > 0) {
-        <p-card data-testid="inspector-findings">
-          <ng-template pTemplate="header">
-            <div class="inspector__findings-header">
-              <i class="pi pi-search"></i>
-              <span>{{ texts.placeholders.findingsTitle }}</span>
-              <span class="inspector__findings-count">{{ issues().length }}</span>
-            </div>
-          </ng-template>
-          <ul class="inspector__findings-list">
-            @for (issue of issues(); track $index) {
-              <li
-                class="inspector__finding"
-                [attr.data-severity]="issue.severity"
-                data-testid="inspector-finding"
-              >
-                <div class="inspector__finding-head">
-                  <span
-                    class="inspector__finding-severity"
-                    [attr.data-severity]="issue.severity"
-                    >{{ issue.severity }}</span
-                  >
-                  <code class="inspector__finding-analyzer">{{ issue.analyzerId }}</code>
-                </div>
-                <p class="inspector__finding-message">{{ issue.message }}</p>
-                @if (issue.fix?.summary; as fixSummary) {
-                  <p class="inspector__finding-hint" data-testid="inspector-finding-hint">
-                    <strong>{{ texts.findingHintLabel }}</strong> {{ fixSummary }}
-                  </p>
-                }
-              </li>
-            }
-          </ul>
-        </p-card>
-      } @else if (mode() === 'standalone') {
-        <sm-empty-state
-          [title]="texts.placeholders.findingsTitle"
-          [body]="texts.placeholders.body"
-          icon="pi pi-search"
-          testId="inspector-empty-findings"
-        />
-      }
-
-      <!-- Annotations card (Step 9.6.5, catalog curation 2026-05-07).
-           Visible when a sidecar overlay is present OR when the
-           frontmatter declares author tags, author tags surface in
-           the Taxonomy section even without a sidecar so nodes like
-           GEMINI.md (frontmatter-only) still expose their tag set. -->
-      @if (n.sidecar?.present || authorTags().length > 0) {
-        <p-card
-          [header]="texts.cardsAnnotations"
-          styleClass="inspector__card inspector__card--full"
-          data-testid="inspector-card-annotations"
-        >
-          <sm-annotations-panel
-            [overlay]="n.sidecar"
-            [authorTags]="authorTags()"
-            [knownPaths]="pathSet()"
-            [activeTag]="activeTag()"
-            (openPath)="openPath($event)"
-            (tagClick)="tagSelect.emit($event)"
-          />
-        </p-card>
-      }
-
-      <!-- Vendor frontmatter card. Hidden when the per-kind schema
-           declares zero vendor-specific fields (notes today). -->
-      @if (hasVendorFrontmatter()) {
-        <p-card
-          [header]="texts.cards.agent"
-          styleClass="inspector__card inspector__card--full"
-          data-testid="inspector-card-vendor-frontmatter"
-        >
-          <sm-vendor-frontmatter
-            [frontmatter]="fm"
-            [kind]="n.kind"
-            [provider]="n.provider"
-            [knownPaths]="pathSet()"
-            [onSkillClick]="onSkillChip"
-          />
-        </p-card>
-      }
-
-      <!-- Linked-nodes panel, extractor-detected outgoing/incoming. -->
-      <div class="inspector__card inspector__card--full" data-testid="inspector-card-linked-nodes">
-        <sm-linked-nodes-panel [path]="n.path" (openPath)="openPath($event)" />
-      </div>
-
-      <!-- Stats footer, bytes / tokens / links totals. -->
-      <p-card
-        styleClass="inspector__card inspector__card--full inspector__card--stats"
-        data-testid="inspector-card-stats"
-      >
-        <dl class="kv">
-          @if (n.bytesTotal !== undefined) {
-            <dt>{{ texts.stats.bytes }}</dt>
-            <dd><code>{{ n.bytesTotal }}</code></dd>
-          }
-          @if (n.tokensTotal !== undefined) {
-            <dt>{{ texts.stats.tokens }}</dt>
-            <dd><code>{{ n.tokensTotal }}</code></dd>
-          }
-          <dt>{{ texts.stats.links }}</dt>
-          <dd>
-            <code>{{ n.linksOutCount ?? 0 }}</code> {{ texts.stats.out }} ·
-            <code>{{ n.linksInCount ?? 0 }}</code> {{ texts.stats.in }}
-            @if (n.externalRefsCount !== undefined && n.externalRefsCount > 0) {
-              · <code>{{ n.externalRefsCount }}</code> {{ texts.stats.ext }}
-            }
-          </dd>
-        </dl>
-      </p-card>
-
-      <!-- Audit section, collapsed by default. -->
-      <p-card
-        styleClass="inspector__card inspector__card--full inspector__card--collapsible"
-        data-testid="inspector-card-audit"
-      >
-        <ng-template pTemplate="header">
-          <button
-            type="button"
-            class="inspector__collapsible-header"
-            (click)="toggleAudit()"
-            [attr.aria-expanded]="auditExpanded()"
-            data-testid="inspector-audit-toggle"
-          >
-            <i
-              class="pi"
-              [class.pi-chevron-right]="!auditExpanded()"
-              [class.pi-chevron-down]="auditExpanded()"
-              aria-hidden="true"
-            ></i>
-            <span class="inspector__collapsible-title">{{ texts.audit.header }}</span>
-            <span class="inspector__collapsible-summary" data-testid="inspector-audit-summary">
-              · {{ auditSummary() }}
-            </span>
-          </button>
-        </ng-template>
-        @if (auditExpanded()) {
-          <sm-inspector-audit-panel [sidecarRoot]="sidecarRoot()" />
-        }
-      </p-card>
-
-      <!-- Plugin contributions section, collapsed by default. -->
-      @if (hasPluginContributions()) {
-        <p-card
-          styleClass="inspector__card inspector__card--full inspector__card--collapsible"
-          data-testid="inspector-card-plugins"
-        >
-          <ng-template pTemplate="header">
-            <button
-              type="button"
-              class="inspector__collapsible-header"
-              (click)="togglePlugins()"
-              [attr.aria-expanded]="pluginsExpanded()"
-              data-testid="inspector-plugins-toggle"
+    @if (issues().length > 0) {
+      <section class="sm-section" data-testid="inspector-findings">
+        <header class="sm-section__head">
+          <i class="pi pi-search sm-section__icon" aria-hidden="true"></i>
+          <span class="sm-section__title">{{ texts.sections.findings }}</span>
+          <span class="sm-section__count">{{ issues().length }}</span>
+          <span class="sm-section__rule" aria-hidden="true"></span>
+        </header>
+        <ul class="inspector__findings-list">
+          @for (issue of issues(); track $index) {
+            <li
+              class="inspector__finding"
+              [attr.data-severity]="issue.severity"
+              data-testid="inspector-finding"
             >
-              <i
-                class="pi"
-                [class.pi-chevron-right]="!pluginsExpanded()"
-                [class.pi-chevron-down]="pluginsExpanded()"
-                aria-hidden="true"
-              ></i>
-              <span class="inspector__collapsible-title">{{ texts.pluginsHeader }}</span>
-            </button>
-          </ng-template>
-          @if (pluginsExpanded()) {
-            <sm-plugin-contributions [sidecarRoot]="sidecarRoot()" />
+              <div class="inspector__finding-head">
+                <span
+                  class="inspector__finding-severity"
+                  [attr.data-severity]="issue.severity"
+                  >{{ issue.severity }}</span
+                >
+                <code class="inspector__finding-analyzer">{{ issue.analyzerId }}</code>
+              </div>
+              <p class="inspector__finding-message">{{ issue.message }}</p>
+              @if (issue.fix?.summary; as fixSummary) {
+                <p class="inspector__finding-hint" data-testid="inspector-finding-hint">
+                  <strong>{{ texts.findingHintLabel }}</strong> {{ fixSummary }}
+                </p>
+              }
+            </li>
           }
-        </p-card>
-      }
+        </ul>
+      </section>
+    }
 
-      <!--
-        View contribution system, inspector body panel sub-slots.
-        Plugin authors pick a `slot` directly; each sub-slot maps to
-        one payload shape + one renderer. The 6 hosts stack in
-        narrative order (chart → table → tree → list → markdown).
-        Each host renders only when its sub-slot has matching
-        contributions. Sibling to the sidecar-rooted
-        `<sm-plugin-contributions>` above; the two cover orthogonal
-        data sources (sidecar root keys vs per-node typed payloads).
-      -->
-      @if (hasViewContributions()) {
-        <p-card
-          styleClass="inspector__card inspector__card--full"
-          data-testid="inspector-card-view-contributions"
+    <section class="sm-section sm-section--collapsible" data-testid="inspector-card-audit">
+      <button
+        type="button"
+        class="sm-section__head sm-section__head--toggle"
+        (click)="toggleAudit()"
+        [attr.aria-expanded]="auditExpanded()"
+        data-testid="inspector-audit-toggle"
+      >
+        <i class="pi pi-history sm-section__icon" aria-hidden="true"></i>
+        <span class="sm-section__title">{{ texts.sections.audit }}</span>
+        <span class="sm-section__summary" data-testid="inspector-audit-summary">· {{ auditSummary() }}</span>
+        <span class="sm-section__rule" aria-hidden="true"></span>
+        <i
+          class="pi sm-section__chevron"
+          [class.pi-chevron-right]="!auditExpanded()"
+          [class.pi-chevron-down]="auditExpanded()"
+          aria-hidden="true"
+        ></i>
+      </button>
+      @if (auditExpanded()) {
+        <sm-inspector-audit-panel [sidecarRoot]="sidecarRoot()" />
+      }
+    </section>
+
+    @if (hasPluginContributions()) {
+      <section class="sm-section sm-section--collapsible" data-testid="inspector-card-plugins">
+        <button
+          type="button"
+          class="sm-section__head sm-section__head--toggle"
+          (click)="togglePlugins()"
+          [attr.aria-expanded]="pluginsExpanded()"
+          data-testid="inspector-plugins-toggle"
         >
-          <sm-inspector-slots-panel [node]="node()" />
-        </p-card>
-      }
-
-      <!-- Body, markdown rendered via MarkdownRenderer (lazy-loaded) -->
-      <p-card styleClass="inspector__card inspector__card--full inspector__body" data-testid="inspector-card-body">
-        <ng-template pTemplate="header">
-          <div class="inspector__body-header">
-            <h3 class="inspector__body-title">{{ texts.cards.body }}</h3>
-            <p-button
-              icon="pi pi-refresh"
-              [rounded]="true"
-              [text]="true"
-              severity="secondary"
-              [ariaLabel]="texts.body.refreshLabel"
-              [pTooltip]="texts.body.refreshLabel"
-              (onClick)="refreshBody()"
-              [disabled]="bodyState() === 'loading' || !path()"
-              [loading]="bodyState() === 'loading'"
-              data-testid="inspector-body-refresh"
-            />
-          </div>
-        </ng-template>
-        @switch (bodyState()) {
-          @case ('loading') {
-            <p class="inspector__body-status" data-testid="inspector-body-loading">{{ texts.body.loading }}</p>
-          }
-          @case ('empty') {
-            <p class="inspector__body-status" data-testid="inspector-body-empty">{{ texts.body.empty }}</p>
-          }
-          @case ('unavailable') {
-            <p class="inspector__body-status inspector__body-status--warn" data-testid="inspector-body-unavailable">{{ texts.body.unavailable }}</p>
-          }
-          @case ('error') {
-            <p class="inspector__body-status inspector__body-status--warn" data-testid="inspector-body-error">{{ texts.body.renderError }}</p>
-          }
-          @case ('ready') {
-            <!--
-              `[innerHTML]` is intentional here: `bodyHtml()` is the
-              `SafeHtml` output of `MarkdownRenderer.render()`, which
-              already runs two sanitization layers (`markdown-it` with
-              `html: false` + DOMPurify) over project-controlled
-              markdown bytes. The renderer-catalog ban on `[innerHTML]`
-              applies to plugin-payload data crossing the trust boundary;
-              node body bytes are first-party and do not.
-            -->
-            <div class="inspector__body-rendered" data-testid="inspector-body-rendered" [innerHTML]="bodyHtml()"></div>
-          }
+          <i class="pi pi-bolt sm-section__icon" aria-hidden="true"></i>
+          <span class="sm-section__title">{{ texts.sections.plugins }}</span>
+          <span class="sm-section__rule" aria-hidden="true"></span>
+          <i
+            class="pi sm-section__chevron"
+            [class.pi-chevron-right]="!pluginsExpanded()"
+            [class.pi-chevron-down]="pluginsExpanded()"
+            aria-hidden="true"
+          ></i>
+        </button>
+        @if (pluginsExpanded()) {
+          <sm-plugin-contributions [sidecarRoot]="sidecarRoot()" />
         }
-      </p-card>
-    </div>
+      </section>
+    }
+
+    @if (hasViewContributions()) {
+      <section class="sm-section" data-testid="inspector-card-view-contributions">
+        <header class="sm-section__head">
+          <i class="pi pi-th-large sm-section__icon" aria-hidden="true"></i>
+          <span class="sm-section__title">{{ texts.sections.viewContributions }}</span>
+          <span class="sm-section__rule" aria-hidden="true"></span>
+        </header>
+        <sm-inspector-slots-panel [node]="node()" />
+      </section>
+    }
+
+    <section class="sm-section sm-section--collapsible" data-testid="inspector-card-debug">
+      <button
+        type="button"
+        class="sm-section__head sm-section__head--toggle"
+        (click)="toggleDebug()"
+        [attr.aria-expanded]="debugVisible()"
+        [attr.aria-label]="texts.debugToggleAriaLabel"
+        [pTooltip]="texts.debugToggleTooltip"
+        data-testid="inspector-debug-toggle"
+      >
+        <i class="pi pi-info-circle sm-section__icon" aria-hidden="true"></i>
+        <span class="sm-section__title">{{ texts.sections.debug }}</span>
+        <span class="sm-section__rule" aria-hidden="true"></span>
+        <i
+          class="pi sm-section__chevron"
+          [class.pi-chevron-right]="!debugVisible()"
+          [class.pi-chevron-down]="debugVisible()"
+          aria-hidden="true"
+        ></i>
+      </button>
+      @if (debugVisible()) {
+        <div class="inspector__debug" data-testid="inspector-debug-section">
+          <sm-inspector-debug-panel
+            [node]="n"
+            [sidecarRoot]="sidecarRoot()"
+            [overlay]="n.sidecar"
+          />
+        </div>
+      }
+    </section>
+
+    <section class="sm-section inspector__body-section" data-testid="inspector-card-body">
+      <header class="sm-section__head">
+        <i class="pi pi-file sm-section__icon" aria-hidden="true"></i>
+        <span class="sm-section__title">{{ texts.sections.body }}</span>
+        <span class="sm-section__rule" aria-hidden="true"></span>
+        <p-button
+          icon="pi pi-refresh"
+          [rounded]="true"
+          [text]="true"
+          severity="secondary"
+          size="small"
+          [ariaLabel]="texts.body.refreshLabel"
+          [pTooltip]="texts.body.refreshLabel"
+          (onClick)="refreshBody()"
+          [disabled]="bodyState() === 'loading' || !path()"
+          [loading]="bodyState() === 'loading'"
+          data-testid="inspector-body-refresh"
+        />
+      </header>
+      @switch (bodyState()) {
+        @case ('loading') {
+          <p class="inspector__body-status" data-testid="inspector-body-loading">{{ texts.body.loading }}</p>
+        }
+        @case ('empty') {
+          <p class="inspector__body-status" data-testid="inspector-body-empty">{{ texts.body.empty }}</p>
+        }
+        @case ('unavailable') {
+          <p class="inspector__body-status inspector__body-status--warn" data-testid="inspector-body-unavailable">{{ texts.body.unavailable }}</p>
+        }
+        @case ('error') {
+          <p class="inspector__body-status inspector__body-status--warn" data-testid="inspector-body-error">{{ texts.body.renderError }}</p>
+        }
+        @case ('ready') {
+          <!--
+            `[innerHTML]` is intentional: `bodyHtml()` is the SafeHtml
+            output of `MarkdownRenderer.render()`, which already runs
+            two sanitization layers (`markdown-it` with `html: false` +
+            DOMPurify) over project-controlled markdown bytes. The
+            renderer-catalog ban on `[innerHTML]` applies to plugin
+            payloads crossing the trust boundary; first-party body
+            bytes do not.
+          -->
+          <div class="inspector__body-rendered" data-testid="inspector-body-rendered" [innerHTML]="bodyHtml()"></div>
+        }
+      }
+    </section>
+
+    <footer class="inspector__stats-footer" data-testid="inspector-stats-footer">
+      @if (n.bytesTotal !== undefined) {
+        <span><code>{{ n.bytesTotal }}</code> {{ texts.stats.bytes }}</span>
+        <span class="inspector__stats-sep" aria-hidden="true">·</span>
+      }
+      @if (n.tokensTotal !== undefined) {
+        <span><code>{{ n.tokensTotal }}</code> {{ texts.stats.tokens }}</span>
+        <span class="inspector__stats-sep" aria-hidden="true">·</span>
+      }
+      <span class="inspector__stats-links">
+        <code>{{ n.linksOutCount ?? 0 }}</code>
+        <i class="pi pi-arrow-up-right" aria-hidden="true"></i>
+        {{ texts.stats.out }}
+        <span class="inspector__stats-sep" aria-hidden="true">·</span>
+        <code>{{ n.linksInCount ?? 0 }}</code>
+        <i class="pi pi-arrow-down-left" aria-hidden="true"></i>
+        {{ texts.stats.in }}
+        @if (n.externalRefsCount !== undefined && n.externalRefsCount > 0) {
+          <span class="inspector__stats-sep" aria-hidden="true">·</span>
+          <code>{{ n.externalRefsCount }}</code>
+          <i class="pi pi-external-link" aria-hidden="true"></i>
+          {{ texts.stats.ext }}
+        }
+      </span>
+    </footer>
 
     <!--
       Phase 6 consent gate, first-time `.sm` sidecar write confirmation.
-      The dialog is opened imperatively from `onBumpClick()` when the
-      BFF answers 412 `confirm-required` with `details.key ===
-      "allowEditSmFiles"`. Accept retries the bump with `confirm: true`;
-      reject silently abandons. The dialog instance lives on the host
-      component because `ConfirmationService` is provided locally.
+      Opened imperatively from `onBumpClick()` when the BFF answers 412
+      `confirm-required` with `details.key === "allowEditSmFiles"`.
     -->
     <p-confirmdialog
       [ariaLabel]="texts.bump.consentDialogAriaLabel"

@@ -5,7 +5,7 @@
 .inspector {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.1rem;
 }
 
 .inspector--empty {
@@ -20,16 +20,34 @@
   font-size: 0.85rem;
 }
 
-/* Header rules live in `<sm-inspector-header>`, see
-   `components/inspector-header/inspector-header.css`. The host CSS
-   below covers the empty / not-found branches, the toolbar that wires
-   bump + debug, the cards grid, and embedded-mode tweaks. */
+/* Header rules live in `<sm-inspector-header>`. Inspector-view CSS only
+   styles the hero, toolbar, sections, body, and stats footer. */
 
-/* Toolbar holding bump + debug, sits below the header. */
+/* Hero block, description + author tag chips, rendered between the
+   header and the action toolbar. The font + spacing read as a
+   continuation of the header so the panel opens with one cohesive
+   identity block before the verbs and sections begin. */
+.inspector__hero {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.inspector__desc {
+  margin: 0;
+  color: var(--p-text-color);
+  font-size: 0.95rem;
+  line-height: 1.55;
+  max-width: 70ch;
+}
+
+/* Primary action toolbar (bump + back-to-list). Lives below the hero so
+   the first thing the user reads is identity, not verbs. */
 .inspector__toolbar {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .inspector__back {
@@ -37,49 +55,136 @@
   color: var(--p-primary-color);
 }
 
-.inspector__desc {
-  margin: 0;
-  color: var(--p-text-color);
-  font-size: 1rem;
-  line-height: 1.5;
-  max-width: 70ch;
+/* ---------------------------------------------------------------------
+   Section pattern (`.sm-section`).
+
+   Shared typographic-header pattern used by the inspector body and the
+   sub-components it embeds (`<sm-vendor-frontmatter>`,
+   `<sm-annotations-panel>`). The styles below reach descendants through
+   `::ng-deep` so the child components render their own `.sm-section`
+   markup without redefining the chrome.
+--------------------------------------------------------------------- */
+
+:host ::ng-deep .sm-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
 }
 
-.inspector__grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-}
-
-.inspector__card--full {
-  grid-column: 1 / -1;
-}
-
-/* PrimeNG 21 merges [styleClass] onto the .p-card host element
-   (`host.class = cn(cx('root'), styleClass)`), so the variant class
-   lands directly on the same node as `.p-card`. Target the merged
-   host directly; a descendant `.inspector__card--hero .p-card`
-   selector matches nothing. */
-:host ::ng-deep .inspector__card--hero {
-  border-left: 3px solid var(--p-primary-color);
-}
-
-.inspector__body {
-  display: block;
-}
-
-.inspector__body-header {
+:host ::ng-deep .sm-section__head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem 0;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  border: none;
+  text-align: left;
+  font: inherit;
+  color: var(--p-text-color);
 }
 
-.inspector__body-title {
-  margin: 0;
+:host ::ng-deep .sm-section__head--toggle {
+  cursor: pointer;
+}
+
+:host ::ng-deep .sm-section__head--toggle:hover .sm-section__title {
+  color: var(--p-primary-color);
+}
+
+:host ::ng-deep .sm-section__icon {
+  color: var(--p-primary-color);
   font-size: 0.95rem;
+}
+
+:host ::ng-deep .sm-section__title {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: var(--p-text-color);
+}
+
+:host ::ng-deep .sm-section__count {
+  font-size: 0.72rem;
   font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 0.05rem 0.45rem;
+  border-radius: var(--sm-radius-pill);
+  background: var(--p-primary-50);
+  color: var(--p-primary-color);
+}
+
+:host ::ng-deep .sm-section__summary {
+  font-size: 0.78rem;
+  color: var(--sm-text-muted);
+  font-style: italic;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+:host ::ng-deep .sm-section__rule {
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--sm-border);
+  margin-left: 0.15rem;
+}
+
+:host ::ng-deep .sm-section__chevron {
+  color: var(--sm-text-muted);
+  font-size: 0.78rem;
+}
+
+/* Two-column key/value grid used inside vendor-frontmatter, annotations,
+   and any future section that lists field name / field value pairs. */
+:host ::ng-deep .sm-section__kv {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 0.85rem;
+  row-gap: 0.35rem;
+  margin: 0;
+  font-size: 0.85rem;
+  align-items: center;
+}
+
+:host ::ng-deep .sm-section__kv dt {
+  color: var(--sm-text-muted);
+  font-weight: 500;
+  font-size: 0.82rem;
+}
+
+:host ::ng-deep .sm-section__kv dd {
+  margin: 0;
+  word-break: break-word;
+  color: var(--p-text-color);
+}
+
+:host ::ng-deep .sm-section__kv code {
+  background: var(--sm-bg-hover);
+  padding: 0.05rem 0.4rem;
+  border-radius: var(--sm-radius-sm);
+  font-size: 0.78rem;
+  font-family: var(--sm-font-mono);
+}
+
+/* ---------------------------------------------------------------------
+   Vendor card wrapper. Just a positioning hook for the data-testid that
+   downstream specs assert against; the visual chrome belongs to the
+   nested `<sm-vendor-frontmatter>` sections.
+--------------------------------------------------------------------- */
+.inspector__vendor {
+  display: contents;
+}
+
+/* ---------------------------------------------------------------------
+   Body section, larger reading affordance for the rendered markdown.
+--------------------------------------------------------------------- */
+.inspector__body-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
 }
 
 .inspector__body-status {
@@ -96,9 +201,10 @@
 
 .inspector__body-rendered {
   font-size: 0.9rem;
-  line-height: 1.55;
+  line-height: 1.6;
   max-height: 600px;
   overflow: auto;
+  padding: 0.25rem 0 0;
 }
 
 .inspector__body-rendered :first-child {
@@ -137,267 +243,67 @@
   border-radius: 0;
 }
 
-.kv {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 0.25rem 0.75rem;
-  margin: 0 0 0.5rem;
-  font-size: 0.9rem;
-}
-
-.kv dt {
-  color: var(--p-text-muted-color);
-  font-weight: 500;
-}
-
-.kv dd {
-  margin: 0;
-  word-break: break-word;
-}
-
-.kv code {
-  background: var(--sm-bg-hover);
-  padding: 0.1rem 0.35rem;
-  border-radius: var(--sm-radius-md);
-  font-size: 0.85rem;
-}
-
-.kv a {
-  color: var(--p-primary-color);
-  word-break: break-all;
-}
-
-h4 {
-  margin: 1rem 0 0.5rem;
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--p-text-muted-color);
-  font-weight: 600;
-}
-
-h4:first-child {
-  margin-top: 0;
-}
-
-.chips {
+/* ---------------------------------------------------------------------
+   Stats footer, one-line summary under the body.
+--------------------------------------------------------------------- */
+.inspector__stats-footer {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
-/* Chip variants, PrimeNG 21 merges [styleClass] onto the .p-chip
-   host element (`host.class = cn(cx('root'), styleClass)`), so the
-   variant class lands on the same node as `.p-chip`. Target the
-   merged host directly; a descendant `.chip--X .p-chip` selector
-   would silently miss every chip (the chip is the merged host, not
-   a child of it). Same applies to the sibling rules in
-   annotations-panel.css and vendor-frontmatter.css. */
-:host ::ng-deep .chip--link {
-  cursor: pointer;
-  background: var(--p-primary-50);
-  color: var(--p-primary-color);
-  transition: background 0.15s ease;
-}
-
-:host ::ng-deep .chip--link:hover {
-  background: var(--p-primary-100);
-}
-
-:host ::ng-deep .chip--warn {
-  background: var(--sm-kind-command-bg);
-  color: var(--sm-kind-command-fg);
-}
-
-/* Dead-link verify icon (Step 14.5.b, hybrid mode). Sits next to a
-   chip that the in-memory heuristic flagged as dead so the user can
-   ask the BFF for a definitive answer. The icon-only button stays
-   small + transparent so it doesn't compete with the chip itself. */
-.rel-chip {
-  display: inline-flex;
   align-items: center;
-  gap: 0.2rem;
-}
-
-.rel-chip__verify {
-  background: none;
-  border: none;
-  padding: 0.15rem;
-  cursor: pointer;
-  color: var(--p-text-muted-color);
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: color 0.15s ease, background 0.15s ease;
-}
-
-.rel-chip__verify:hover:not(:disabled) {
-  color: var(--p-primary-color);
-  background: var(--sm-bg-hover);
-}
-
-.rel-chip__verify:disabled {
-  cursor: wait;
-  opacity: 0.6;
-}
-
-.rel-chip__verify--confirmed {
-  color: var(--sm-severity-error);
-}
-
-.rel-chip__verify--confirmed:hover:not(:disabled) {
-  color: var(--sm-severity-error);
-}
-
-.args {
-  margin: 0;
-  padding-left: 1.25rem;
-  display: flex;
-  flex-direction: column;
   gap: 0.35rem;
-  font-size: 0.9rem;
-}
-
-.args code {
-  background: var(--sm-bg-hover);
-  padding: 0.1rem 0.35rem;
-  border-radius: var(--sm-radius-md);
-  font-size: 0.8rem;
-  font-weight: 500;
-}
-
-.args__type {
-  color: var(--p-text-muted-color);
-  font-style: italic;
-  margin-left: 0.25rem;
-}
-
-.args__req {
-  display: inline-block;
-  margin-left: 0.5rem;
-  padding: 0 0.4rem;
-  font-size: 0.7rem;
-  background: var(--sm-kind-command-bg);
-  color: var(--sm-kind-command-fg);
-  border-radius: var(--sm-radius-md);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-weight: 600;
-}
-
-.cond {
-  font-size: 0.8rem;
-  word-break: break-all;
-}
-
-@media (max-width: 1280px) {
-  .inspector__grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* Embedded mode, applied via the host class binding when the inspector
-   renders inside the graph view's slide-in panel. The component owns
-   these rules itself so the parent (graph-view) does NOT need to pierce
-   our encapsulation with `::ng-deep`.
-
-   Inspector-owned classes (`.inspector`, `.inspector__*`) are targeted
-   directly, host context reaches our own template. PrimeNG card
-   internals (`.p-card-body`, `.p-card-title`) remain `::ng-deep` from
-   here because that's their own emulated encapsulation, but at least
-   the rules now live in the component that owns the layout.
-
-   Card ordering reshuffles the grid for the panel context: a typical
-   user flow is "click a node, scan its kind / metadata first, then
-   relations, then the rendered body". Standalone mode keeps the
-   default DOM order (placeholders first). */
-:host(.inspector-view--embedded) .inspector {
-  padding: 1rem 1.1rem 1.25rem;
-  gap: 0.85rem;
-}
-
-/* Full-bleed: header eats the panel padding so the saturated band runs
-   edge-to-edge of the aside. The matching rule lives in
-   `<sm-inspector-header>` via `:host-context(.inspector-view--embedded)`
-   so view encapsulation doesn't block it. */
-
-:host(.inspector-view--embedded) .inspector__desc {
-  font-size: 0.9rem;
-  line-height: 1.45;
-  max-width: none;
-}
-
-:host(.inspector-view--embedded) .inspector__grid {
-  grid-template-columns: 1fr;
-  gap: 0.75rem;
-}
-
-/* Card order in embedded mode (catalog curation 2026-05-07):
-   annotations → vendor frontmatter → linked-nodes → stats → audit
-   (collapsed) → plugin-contributions (collapsed) → body. */
-:host(.inspector-view--embedded) [data-testid='inspector-card-annotations'] {
-  order: 1;
-}
-:host(.inspector-view--embedded) [data-testid='inspector-card-vendor-frontmatter'] {
-  order: 2;
-}
-:host(.inspector-view--embedded) [data-testid='inspector-card-linked-nodes'] {
-  order: 3;
-}
-:host(.inspector-view--embedded) [data-testid='inspector-card-stats'] {
-  order: 4;
-}
-:host(.inspector-view--embedded) [data-testid='inspector-card-audit'] {
-  order: 5;
-}
-:host(.inspector-view--embedded) [data-testid='inspector-card-plugins'] {
-  order: 6;
-}
-:host(.inspector-view--embedded) [data-testid='inspector-card-body'] {
-  order: 7;
-}
-
-/* PrimeNG card internals, these classes belong to PrimeNG's own
-   emulated encapsulation, so `::ng-deep` is the documented escape
-   hatch. Scoped under our own host class so the standalone mode is
-   unaffected. */
-:host(.inspector-view--embedded) ::ng-deep .inspector__card .p-card-body {
-  padding: 0.75rem 0.85rem;
-}
-:host(.inspector-view--embedded) ::ng-deep .inspector__card .p-card-title {
-  font-size: 0.9rem;
-  margin-bottom: 0.5rem;
-}
-:host(.inspector-view--embedded) .inspector__card h4 {
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--sm-border);
   font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--p-text-muted-color);
-  margin: 0.5rem 0 0.35rem;
-}
-:host(.inspector-view--embedded) .inspector__card .kv {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 0.25rem 0.65rem;
-  margin: 0;
-  font-size: 0.85rem;
-}
-:host(.inspector-view--embedded) .inspector__card .kv dt {
-  color: var(--p-text-muted-color);
-}
-:host(.inspector-view--embedded) .inspector__card .kv dd {
-  margin: 0;
-  word-break: break-word;
+  color: var(--sm-text-muted);
 }
 
-/* Step 9.6.5, bump button error banner. */
+.inspector__stats-footer code {
+  background: var(--sm-bg-hover);
+  padding: 0.05rem 0.35rem;
+  border-radius: var(--sm-radius-sm);
+  font-size: 0.78rem;
+  color: var(--p-text-color);
+}
+
+.inspector__stats-footer .pi {
+  font-size: 0.72rem;
+}
+
+.inspector__stats-sep {
+  color: var(--sm-border);
+  margin: 0 0.15rem;
+}
+
+.inspector__stats-links {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+/* ---------------------------------------------------------------------
+   Banner: yellow strip when annotations.supersededBy is set.
+--------------------------------------------------------------------- */
+.inspector__superseded {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.85rem;
+  background: var(--sm-severity-warn-bg);
+  color: var(--sm-severity-warn);
+  border-radius: var(--sm-radius-md);
+  font-size: 0.85rem;
+  font-family: var(--sm-font-mono);
+}
+
+/* ---------------------------------------------------------------------
+   Bump button error banner.
+--------------------------------------------------------------------- */
 .inspector__bump-error {
   display: flex;
   align-items: center;
   gap: 0.6rem;
   padding: 0.5rem 0.75rem;
-  margin: 0.5rem 0;
   background: var(--sm-severity-error-bg);
   color: var(--sm-severity-error);
   border-radius: var(--sm-radius-md);
@@ -415,95 +321,19 @@ h4:first-child {
   justify-content: center;
 }
 
-/* Catalog curation 2026-05-07 */
-
-.inspector__superseded {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.55rem 0.85rem;
-  background: var(--sm-severity-warn-bg);
-  color: var(--sm-severity-warn);
-  border-radius: var(--sm-radius-md);
-  font-size: 0.85rem;
-  font-family: var(--sm-font-mono);
-}
-
-.inspector__debug-toggle {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  border: 1px solid var(--sm-border);
-  background: transparent;
-  color: var(--sm-text-muted);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
-}
-
-.inspector__debug-toggle:hover {
-  color: var(--p-primary-color);
-  border-color: var(--p-primary-color);
-}
-
-.inspector__debug-toggle--active {
-  color: var(--p-primary-color);
-  border-color: var(--p-primary-color);
-  background: color-mix(in srgb, var(--p-primary-color) 10%, transparent);
-}
-
+/* ---------------------------------------------------------------------
+   Debug pane wrapper, visible only when the section is expanded.
+--------------------------------------------------------------------- */
 .inspector__debug {
-  padding: 0.6rem 0.85rem;
+  padding: 0.7rem 0.9rem;
   border: 1px solid var(--sm-border);
   border-radius: var(--sm-radius-md);
   background: var(--sm-bg-hover);
 }
 
-.inspector__collapsible-header {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.65rem 1rem;
-  background: transparent;
-  border: none;
-  text-align: left;
-  cursor: pointer;
-  font-size: 0.9rem;
-  color: var(--p-text-color);
-}
-
-.inspector__collapsible-header:hover {
-  background: var(--sm-bg-hover);
-}
-
-.inspector__collapsible-title {
-  font-weight: 600;
-}
-
-.inspector__collapsible-summary {
-  color: var(--sm-text-muted);
-  font-weight: 400;
-  font-size: 0.85rem;
-  font-style: italic;
-}
-
-.inspector__findings-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  font-weight: 600;
-}
-
-.inspector__findings-count {
-  margin-left: auto;
-  font-size: 0.85rem;
-  color: var(--p-text-muted-color);
-}
-
+/* ---------------------------------------------------------------------
+   Findings list, severity-tinted rows.
+--------------------------------------------------------------------- */
 .inspector__findings-list {
   list-style: none;
   margin: 0;
@@ -583,4 +413,30 @@ h4:first-child {
   background: var(--p-content-background);
   padding: 0.4rem 0.5rem;
   border-radius: var(--sm-radius-sm);
+}
+
+/* ---------------------------------------------------------------------
+   Embedded mode tightens spacing inside the slide-in panel host.
+--------------------------------------------------------------------- */
+:host(.inspector-view--embedded) .inspector {
+  padding: 1rem 1.1rem 1.25rem;
+  gap: 0.95rem;
+}
+
+:host(.inspector-view--embedded) .inspector__desc {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  max-width: none;
+}
+
+:host(.inspector-view--embedded) .inspector__body-rendered {
+  max-height: 480px;
+}
+
+/* PrimeNG `.p-chip` reused by `<sm-annotations-panel>` for tag chips
+   needs a slightly tighter padding inside the inspector, so the chip
+   rows do not blow up vertically next to the dense `dt`/`dd` grid. */
+:host ::ng-deep .ann-panel__chip--author,
+:host ::ng-deep .ann-panel__chip--user {
+  padding: 0.1rem 0.55rem;
 }

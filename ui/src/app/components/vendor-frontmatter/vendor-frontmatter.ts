@@ -1,26 +1,26 @@
 /**
- * `<sm-vendor-frontmatter>`, single collapsed "Provider-specific"
- * section for the per-kind vendor frontmatter the inspector embeds.
- * Catalog curation refinement (2026-05-07) consolidated the previous
- * T1–T4 tiering into one section, ordered for agents as:
+ * `<sm-vendor-frontmatter>`, three typographically separated sub-sections
+ * for the per-kind vendor frontmatter the inspector embeds. Replaces the
+ * collapsed "Provider-specific" wrapper in favour of always-visible
+ * sections that hide on their own when empty:
  *
- *   model · tools · skills · disallowedTools · permissionMode ·
- *   maxTurns · effort · memory · background (only when true) ·
- *   isolation · initialPrompt (collapsed quote-block) ·
- *   mcpServers (one row per server) · hooks (one row per event).
+ *   - `Behavior` (agent only): model, effort, permission mode, max
+ *     turns, memory, background (only when true), isolation.
+ *   - `Capabilities` (agent + skill + command): tools / allowed-tools,
+ *     skills, disallowed-tools, MCP servers, hooks; skill / command
+ *     base also includes when_to_use, argument-hint, arguments, model,
+ *     effort, context, agent, shell, paths, disable-model-invocation,
+ *     user-invocable.
+ *   - `Initial prompt` (agent only): the prompt callout, rendered as a
+ *     quote block (no longer collapsible).
  *
  * `name`, `description`, and `color` are intentionally NOT rendered
- * here. The inspector header already shows name + description; the
- * card border accent + inspector title shading consume `color`.
+ * here. The inspector header already shows name + description; the card
+ * border accent + inspector title shading consume `color`.
  *
- * For `skill` / `command` kinds the section follows the same pattern
- * over the skill-base schema. Notes have no vendor surface so the
- * section hides entirely.
- *
- * The header reads `Provider-specific (N fields)` and the section is
- * collapsed by default. When zero populated fields are present (or
- * the kind has no vendor surface) the whole renderer hides itself so
- * the inspector doesn't paint an empty card.
+ * Notes have no vendor surface so the renderer hides entirely. When
+ * every section is empty the whole component disappears so the
+ * inspector does not paint chrome around nothing.
  */
 
 import {
@@ -28,7 +28,6 @@ import {
   Component,
   computed,
   input,
-  signal,
 } from '@angular/core';
 import { ChipModule } from 'primeng/chip';
 import { TooltipModule } from 'primeng/tooltip';
@@ -36,21 +35,12 @@ import { TooltipModule } from 'primeng/tooltip';
 import { VENDOR_FRONTMATTER_TEXTS } from '../../../i18n/vendor-frontmatter.texts';
 import type { TFrontmatter, TNodeKind } from '../../../models/node';
 
-/**
- * MCP server row shape, we render `name + command` per the brief.
- * The Anthropic schema documents `mcpServers` as a free-form array of
- * objects, so we read defensively.
- */
 interface IMcpServerRow {
   name: string;
   command: string | null;
+  argsCount: number;
 }
 
-/**
- * Hooks event shape, Anthropic's `hooks:` block is `{ <eventName>:
- * <opaque value> }`. We render a list of event names with the raw
- * key list under each one (when the value is itself an object).
- */
 interface IHookRow {
   event: string;
   keys: readonly string[];
@@ -80,11 +70,8 @@ export class VendorFrontmatter {
 
   protected readonly texts = VENDOR_FRONTMATTER_TEXTS;
 
-  /** True when this kind has any vendor-specific surface to render. */
   protected readonly hasVendorSurface = computed<boolean>(() => {
     const k = this.kind();
-    // Skill, command, and agent all carry vendor-specific frontmatter
-    // (per the Anthropic schemas). Notes do not.
     return k === 'agent' || k === 'skill' || k === 'command';
   });
 
@@ -116,9 +103,6 @@ export class VendorFrontmatter {
     stringOrNull(this.fm()['initialPrompt']),
   );
 
-  /** initialPrompt quote-block expand state, collapsed by default. */
-  protected readonly initialPromptExpanded = signal<boolean>(false);
-
   protected readonly permissionMode = computed<string | null>(() =>
     stringOrNull(this.fm()['permissionMode']),
   );
@@ -131,7 +115,7 @@ export class VendorFrontmatter {
     stringOrNull(this.fm()['memory']),
   );
 
-  /** Background renders ONLY when true (the false case adds no signal). */
+  /** Background renders ONLY when true (false adds no signal). */
   protected readonly background = computed<boolean>(() => this.fm()['background'] === true);
 
   protected readonly effort = computed<string | null>(() =>
@@ -147,13 +131,18 @@ export class VendorFrontmatter {
     if (!Array.isArray(raw)) return [];
     return raw
       .filter((row): row is Record<string, unknown> => typeof row === 'object' && row !== null)
-      .map((row, idx) => ({
-        name:
-          typeof row['name'] === 'string' && row['name'].length > 0
-            ? row['name']
-            : `mcpServer[${idx}]`,
-        command: typeof row['command'] === 'string' ? row['command'] : null,
-      }));
+      .map((row, idx) => {
+        const args = row['args'];
+        const argsCount = Array.isArray(args) ? args.length : 0;
+        return {
+          name:
+            typeof row['name'] === 'string' && row['name'].length > 0
+              ? row['name']
+              : `mcpServer[${idx}]`,
+          command: typeof row['command'] === 'string' ? row['command'] : null,
+          argsCount,
+        };
+      });
   });
 
   protected readonly hooks = computed<readonly IHookRow[]>(() => {
@@ -203,66 +192,61 @@ export class VendorFrontmatter {
     };
   });
 
-  // ---- field count + section state ----
+  // ---- section visibility gates ----
 
-  /**
-   * Count of populated fields driving the `(N fields)` header suffix.
-   * Each row in the section counts as 1, arrays / objects collapse
-   * to one row even when the underlying schema declares many entries.
-   */
-  protected readonly populatedFieldCount = computed<number>(() => {
+  protected readonly hasBehavior = computed<boolean>(() => {
+    if (!this.isAgent()) return false;
+    return (
+      this.model() !== null ||
+      this.permissionMode() !== null ||
+      this.maxTurns() !== null ||
+      this.memory() !== null ||
+      this.background() ||
+      this.effort() !== null ||
+      this.isolation() !== null
+    );
+  });
+
+  protected readonly hasCapabilities = computed<boolean>(() => {
     if (this.isAgent()) {
-      let n = 0;
-      if (this.model() !== null) n++;
-      if (this.tools().length) n++;
-      if (this.skills().length) n++;
-      if (this.disallowedTools().length) n++;
-      if (this.permissionMode() !== null) n++;
-      if (this.maxTurns() !== null) n++;
-      if (this.effort() !== null) n++;
-      if (this.memory() !== null) n++;
-      if (this.background()) n++;
-      if (this.isolation() !== null) n++;
-      if (this.initialPrompt() !== null) n++;
-      if (this.mcpServers().length) n++;
-      if (this.hooks().length) n++;
-      return n;
+      return (
+        this.tools().length > 0 ||
+        this.disallowedTools().length > 0 ||
+        this.skills().length > 0 ||
+        this.mcpServers().length > 0 ||
+        this.hooks().length > 0
+      );
     }
     if (this.isSkillOrCommand()) {
       const sb = this.skillBase();
-      let n = 0;
-      if (sb.when_to_use !== null) n++;
-      if (sb.argumentHint !== null) n++;
-      if (sb.arguments.length) n++;
-      if (sb.allowedTools.length) n++;
-      if (sb.model !== null) n++;
-      if (sb.effort !== null) n++;
-      if (sb.context !== null) n++;
-      if (sb.agent !== null) n++;
-      if (sb.shell !== null) n++;
-      if (sb.paths.length) n++;
-      if (sb.disableModelInvocation) n++;
-      if (sb.userInvocable !== null) n++;
-      return n;
+      return (
+        sb.when_to_use !== null ||
+        sb.argumentHint !== null ||
+        sb.arguments.length > 0 ||
+        sb.allowedTools.length > 0 ||
+        sb.model !== null ||
+        sb.effort !== null ||
+        sb.context !== null ||
+        sb.agent !== null ||
+        sb.shell !== null ||
+        sb.paths.length > 0 ||
+        sb.disableModelInvocation ||
+        sb.userInvocable !== null
+      );
     }
-    return 0;
+    return false;
   });
 
-  /** Hide the renderer entirely when there's nothing to show. */
+  protected readonly hasInitialPrompt = computed<boolean>(() => {
+    return this.isAgent() && this.initialPrompt() !== null;
+  });
+
+  /** Hide the renderer entirely when every section is empty. */
   protected readonly hasAnyContent = computed<boolean>(
-    () => this.hasVendorSurface() && this.populatedFieldCount() > 0,
+    () =>
+      this.hasVendorSurface() &&
+      (this.hasBehavior() || this.hasCapabilities() || this.hasInitialPrompt()),
   );
-
-  /** Provider-specific section state, collapsed by default. */
-  protected readonly sectionExpanded = signal<boolean>(false);
-
-  protected toggleSection(): void {
-    this.sectionExpanded.update((v) => !v);
-  }
-
-  protected toggleInitialPrompt(): void {
-    this.initialPromptExpanded.update((v) => !v);
-  }
 
   protected onSkillChipClick(path: string): void {
     const handler = this.onSkillClick();

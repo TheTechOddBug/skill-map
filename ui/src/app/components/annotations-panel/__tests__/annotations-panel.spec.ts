@@ -122,7 +122,7 @@ describe('AnnotationsPanel, section rendering', () => {
     expect(a.rel).toContain('noopener');
   });
 
-  it('renders authors as a chip list (multi-author shape)', () => {
+  it('renders authors as inline meta tags (multi-author shape)', () => {
     const dom = bootstrap({
       present: true,
       status: 'fresh',
@@ -130,7 +130,14 @@ describe('AnnotationsPanel, section rendering', () => {
     });
     const sec = dom.querySelector('[data-testid="annotations-section-provenance"]');
     expect(sec).not.toBeNull();
-    expect(sec!.querySelectorAll('p-chip').length).toBe(2);
+    // Authors now render as `<span class="ann-panel__meta">` rows with a
+    // pi-user icon (mirrors how license / source / sourceVersion render in
+    // the same row). Locked to the count so multi-author shapes stay
+    // visually distinct.
+    const authors = sec!.querySelectorAll('.ann-panel__meta');
+    expect(authors.length).toBeGreaterThanOrEqual(2);
+    expect(sec!.textContent).toContain('alice');
+    expect(sec!.textContent).toContain('bob');
   });
 
   it('renders the taxonomy section with user tags from sidecar', () => {

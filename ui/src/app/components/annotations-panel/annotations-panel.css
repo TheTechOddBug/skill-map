@@ -9,66 +9,64 @@
   margin: 0;
 }
 
-.ann-panel__section {
+/* Rows share the `.sm-section__kv` grid declared in inspector-view.css
+   (`:host ::ng-deep .sm-section__kv`). The component-local rules below
+   tweak alignment for the inline dd content and stage the chip
+   variants used by the Taxonomy + Supersession rows. */
+
+.ann-panel__rows dd {
   display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  padding: 0.4rem 0;
+  align-items: center;
 }
 
-.ann-panel__section + .ann-panel__section {
-  border-top: 1px solid var(--sm-border);
-  padding-top: 0.6rem;
+.ann-panel__inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.65rem;
+  row-gap: 0.35rem;
 }
 
-.ann-panel__section-title {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--sm-text-muted);
-  margin: 0 0 0.2rem 0;
-  font-weight: 600;
-}
-
-.ann-panel__section h5 {
-  margin: 0.4rem 0 0.2rem 0;
-  font-size: 0.78rem;
-  font-weight: 600;
+.ann-panel__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.83rem;
   color: var(--p-text-color);
 }
 
-.ann-panel__kv {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  column-gap: 0.6rem;
-  row-gap: 0.2rem;
-  margin: 0;
+.ann-panel__meta .pi {
+  color: var(--p-text-muted-color);
   font-size: 0.85rem;
 }
 
-.ann-panel__kv dt {
-  color: var(--sm-text-muted);
-  font-weight: 500;
+.ann-panel__meta a {
+  color: var(--p-primary-color);
+  word-break: break-all;
 }
 
-.ann-panel__kv dd {
-  margin: 0;
-  color: var(--p-text-color);
-  word-break: break-word;
+.ann-panel__meta code {
+  background: var(--sm-bg-hover);
+  padding: 0.05rem 0.35rem;
+  border-radius: var(--sm-radius-sm);
+  font-size: 0.78rem;
 }
 
 .ann-panel__chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.ann-panel__chips-row {
   display: flex;
   flex-wrap: wrap;
   gap: 0.3rem;
 }
 
-/* Broken-ref chip, path is not resolvable in the local store. The
-   variant class is merged onto the `.p-chip` host (PrimeNG 21
-   contract, `host.class = cn(cx('root'), styleClass)`), so target
-   the merged host directly. A descendant `.chip--broken .p-chip`
-   selector matches nothing because the chip IS the merged host,
-   not a child of it. */
+/* Broken-ref chip, path is not resolvable in the local store. PrimeNG 21
+   merges [styleClass] onto `.p-chip` so the variant class lands on the
+   host. */
 :host ::ng-deep .chip--broken {
   background: var(--sm-bg-hover);
   color: var(--sm-text-muted);
@@ -76,15 +74,21 @@
   cursor: not-allowed;
 }
 
-/* Tags · dual-source, author chips render first with an outlined
-   style; user chips render after with the default filled style. The
-   distinction is intentional and explicit so the attribution stays
-   readable without resorting to two separate sections.
+:host ::ng-deep .chip--link {
+  cursor: pointer;
+  background: var(--p-primary-50);
+  color: var(--p-primary-color);
+  transition: background 0.15s ease;
+}
 
-   PrimeNG ≥ 21 merges `[styleClass]` onto the same element that
-   carries `.p-chip` (host class binding `cn(cx('root'), styleClass)`).
-   Selectors target the merged element directly, no descendant step
-   to a `.p-chip` child, that would silently miss every chip. */
+:host ::ng-deep .chip--link:hover {
+  background: var(--p-primary-100);
+}
+
+/* Tag chips · author chips render outlined, user chips render filled.
+   Click → host emits `tagClick`; graph view multi-selects matching
+   nodes via Foblex's `flow.select(matchingPaths, [])` (toggle: same
+   chip clears). */
 :host ::ng-deep .ann-panel__chip--author {
   background: transparent;
   border: 1px solid var(--p-primary-color);
@@ -92,17 +96,10 @@
 }
 
 :host ::ng-deep .ann-panel__chip--user {
-  /* PrimeNG default filled chip, explicit declaration kept for
-     symmetry with the author rule and to anchor the visual contract
-     in case the global default changes. */
   background: var(--p-chip-background);
   color: var(--p-chip-color);
 }
 
-/* Tag chips are interactive, pointer cursor + hover lift + focus
-   ring. Click → host emits `tagClick`, graph view uses Foblex's
-   `flow.select(matchingPaths, [])` to multi-select every node with
-   the tag (toggle: same chip again clears). */
 :host ::ng-deep .ann-panel__chip--author,
 :host ::ng-deep .ann-panel__chip--user {
   cursor: pointer;
@@ -118,11 +115,8 @@
   outline-offset: 1px;
 }
 
-/* Active state, the chip whose tag drives the current Foblex
-   selection. Solid primary fill overrides the source variant so the
-   active tag is unmistakable; both author and user variants of the
-   same tag light up because the click semantic is union by tag.
-   Source-variant rules return as soon as the selection clears. */
+/* Active state, the chip whose tag drives the current Foblex selection.
+   Solid primary fill overrides both source variants. */
 :host ::ng-deep .ann-panel__chip--active {
   background: var(--p-primary-color);
   color: var(--p-primary-color-text);

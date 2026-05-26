@@ -12,7 +12,6 @@ import type { OnInit } from '@angular/core';
 
 import type { IIssueApi } from '../../../models/api';
 import { Router, RouterLink } from '@angular/router';
-import { CardModule } from 'primeng/card';
 import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
 import { ConfirmationService } from 'primeng/api';
@@ -27,7 +26,6 @@ import {
 import { MarkdownRenderer } from '../../../services/markdown-renderer';
 import { SidecarService } from '../../../services/sidecar';
 import { AnnotationsPanel } from '../../components/annotations-panel/annotations-panel';
-import { EmptyState } from '../../components/empty-state/empty-state';
 import { LinkedNodesPanel } from '../../components/linked-nodes-panel/linked-nodes-panel';
 import { VendorFrontmatter } from '../../components/vendor-frontmatter/vendor-frontmatter';
 import { PluginContributions } from '../../components/plugin-contributions/plugin-contributions';
@@ -70,11 +68,9 @@ type TInspectorMode = 'standalone' | 'embedded';
   selector: 'sm-inspector-view',
   imports: [
     RouterLink,
-    CardModule,
     ButtonModule,
     TooltipModule,
     ConfirmDialogModule,
-    EmptyState,
     LinkedNodesPanel,
     AnnotationsPanel,
     VendorFrontmatter,

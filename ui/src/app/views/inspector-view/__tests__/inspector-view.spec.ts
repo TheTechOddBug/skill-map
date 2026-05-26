@@ -469,7 +469,7 @@ describe('InspectorView, body refresh (Step 14.5.c)', () => {
 });
 
 describe('InspectorView, mode (standalone vs embedded)', () => {
-  it("mode='standalone' (default) renders the back link and v0.8.0 placeholder cards", async () => {
+  it("mode='standalone' (default) renders the back link", async () => {
     const node = makeNode();
     const loader = makeStubLoader([node]);
     const dataSource = makeStubDataSource();
@@ -481,12 +481,9 @@ describe('InspectorView, mode (standalone vs embedded)', () => {
 
     const dom: HTMLElement = fixture.nativeElement;
     expect(dom.querySelector('[data-testid="inspector-back"]')).not.toBeNull();
-    expect(dom.querySelector('[data-testid="inspector-empty-enrichment"]')).not.toBeNull();
-    expect(dom.querySelector('[data-testid="inspector-empty-summary"]')).not.toBeNull();
-    expect(dom.querySelector('[data-testid="inspector-empty-findings"]')).not.toBeNull();
   });
 
-  it("mode='embedded' hides the back link and v0.8.0 placeholder cards", async () => {
+  it("mode='embedded' hides the back link", async () => {
     const node = makeNode();
     const loader = makeStubLoader([node]);
     const dataSource = makeStubDataSource();
@@ -499,9 +496,6 @@ describe('InspectorView, mode (standalone vs embedded)', () => {
 
     const dom: HTMLElement = fixture.nativeElement;
     expect(dom.querySelector('[data-testid="inspector-back"]')).toBeNull();
-    expect(dom.querySelector('[data-testid="inspector-empty-enrichment"]')).toBeNull();
-    expect(dom.querySelector('[data-testid="inspector-empty-summary"]')).toBeNull();
-    expect(dom.querySelector('[data-testid="inspector-empty-findings"]')).toBeNull();
   });
 });
 
