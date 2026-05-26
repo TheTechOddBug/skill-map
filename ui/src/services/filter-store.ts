@@ -18,7 +18,7 @@ import {
   type TStability,
 } from '../models/node';
 import type { TLinkKindApi } from '../models/api';
-import { effectiveStability, effectiveSupersededBy } from '../models/node-derived';
+import { effectiveStability, effectiveSupersededBy, effectiveUserTags } from '../models/node-derived';
 
 export const ALL_STABILITIES: readonly TStability[] = ['stable', 'experimental', 'deprecated'];
 
@@ -321,10 +321,16 @@ export class FilterStoreService {
 
     return nodes.filter((n) => {
       if (text) {
+        const fm = n.frontmatter as Record<string, unknown>;
+        const authorTagsArr = Array.isArray(fm['tags']) ? (fm['tags'] as unknown[]) : [];
+        const authorTags = authorTagsArr.filter((t): t is string => typeof t === 'string').join(' ');
+        const userTags = effectiveUserTags(n).join(' ');
         const haystack = [
           n.path,
           n.frontmatter.name ?? '',
           n.frontmatter.description ?? '',
+          authorTags,
+          userTags,
         ]
           .join(' ')
           .toLowerCase();

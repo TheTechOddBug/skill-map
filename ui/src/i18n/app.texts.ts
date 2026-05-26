@@ -24,8 +24,11 @@ export const APP_TEXTS = {
   nav: {
     graph: 'Graph',
     list: 'List',
-    searchLabel: 'Search nodes (coming soon)',
-    searchTooltip: 'Search (coming soon)',
+    searchLabel: 'Search nodes by name or tag',
+    searchTooltip: 'Search',
+    searchPlaceholder: 'Search by name or tag...',
+    searchAriaLabel: 'Search nodes by name or tag',
+    searchClearLabel: 'Clear search',
   },
   actions: {},
   badge: {
