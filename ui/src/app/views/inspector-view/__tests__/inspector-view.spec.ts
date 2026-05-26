@@ -589,7 +589,7 @@ describe('InspectorView, bump button (Step 9.6.5)', () => {
     expect(btn.disabled).toBe(false);
   });
 
-  it('enables the bump button when no sidecar overlay is present (first-time creation)', async () => {
+  it('disables the bump button when no sidecar overlay is present (creation now routes through the CLI)', async () => {
     const node = makeNodeWithSidecar(undefined);
     const loader = makeStubLoader([node]);
     const dataSource = makeStubDataSource();
@@ -600,7 +600,7 @@ describe('InspectorView, bump button (Step 9.6.5)', () => {
     const btn = fixture.nativeElement.querySelector(
       '[data-testid="inspector-bump"] button',
     ) as HTMLButtonElement;
-    expect(btn.disabled).toBe(false);
+    expect(btn.disabled).toBe(true);
   });
 
   it('invokes SidecarService.bump on click with the current node path (no `reason` arg)', async () => {

@@ -70,14 +70,13 @@
         <ng-template pTemplate="header">
           <tr>
             <th class="folders__col-tree">{{ texts.columns.tree }}</th>
-            <th class="folders__col-tags">{{ listTexts.columns.tags }}</th>
             <th style="width: 70px" class="folders__col-num"
-                [pTooltip]="listTexts.linksInHeaderTooltip" tooltipPosition="top">{{ listTexts.columns.linksIn }}</th>
+                [pTooltip]="texts.linksInHeaderTooltip" tooltipPosition="top">{{ texts.columns.linksIn }}</th>
             <th style="width: 70px" class="folders__col-num"
-                [pTooltip]="listTexts.linksOutHeaderTooltip" tooltipPosition="top">{{ listTexts.columns.linksOut }}</th>
-            <th style="width: 110px" class="folders__col-num">{{ listTexts.columns.tokens }}</th>
-            <th style="width: 140px">{{ listTexts.columns.stability }}</th>
-            <th style="width: 130px">{{ listTexts.columns.issues }}</th>
+                [pTooltip]="texts.linksOutHeaderTooltip" tooltipPosition="top">{{ texts.columns.linksOut }}</th>
+            <th style="width: 110px" class="folders__col-num">{{ texts.columns.tokens }}</th>
+            <th style="width: 140px">{{ texts.columns.stability }}</th>
+            <th style="width: 130px">{{ texts.columns.issues }}</th>
           </tr>
         </ng-template>
         <ng-template pTemplate="body" let-row>
@@ -118,7 +117,6 @@
               <td></td>
               <td></td>
               <td></td>
-              <td></td>
             </tr>
           } @else {
             <tr
@@ -153,30 +151,9 @@
                   </button>
                 </span>
               </td>
-              <td class="folders__cell-tags">
-                @if (row.tags.length || row.tagsOverflow > 0) {
-                  <span class="folders__chips" aria-label="tags">
-                    @for (chip of row.tags; track chip.source + ':' + chip.tag) {
-                      <span
-                        class="folders__chip"
-                        [class.folders__chip--author]="chip.source === 'author'"
-                        [class.folders__chip--user]="chip.source === 'user'"
-                      >{{ chip.tag }}</span>
-                    }
-                    @if (row.tagsOverflow > 0) {
-                      <span
-                        class="folders__chip-more"
-                        [pTooltip]="row.tagsOverflowTooltip"
-                        tooltipPosition="top"
-                        [attr.aria-label]="row.tagsOverflowTooltip"
-                      >{{ listTexts.tagsOverflow(row.tagsOverflow) }}</span>
-                    }
-                  </span>
-                }
-              </td>
               <td class="folders__cell-num">{{ row.linksIn }}</td>
               <td class="folders__cell-num">{{ row.linksOut }}</td>
-              <td class="folders__cell-num" [attr.title]="row.tokensRaw > 0 ? listTexts.tokensTooltip(row.tokensRaw) : null">{{ row.tokens }}</td>
+              <td class="folders__cell-num" [attr.title]="row.tokensRaw > 0 ? texts.tokensTooltip(row.tokensRaw) : null">{{ row.tokens }}</td>
               <td>
                 <p-tag
                   [value]="row.stability"
@@ -207,7 +184,7 @@
                     </span>
                   }
                   @if (!row.isStale && row.errors === 0 && row.warns === 0) {
-                    <span class="folders__cell-issues-empty" aria-hidden="true">{{ listTexts.missing }}</span>
+                    <span class="folders__cell-issues-empty" aria-hidden="true">{{ texts.missing }}</span>
                   }
                 </span>
               </td>
@@ -248,24 +225,6 @@
               </span>
             }
           </div>
-
-          @if (r.tags.length > 0 || r.tagsOverflow > 0) {
-            <section class="folders__preview-section">
-              <h4 class="folders__preview-h4">Tags</h4>
-              <div class="folders__preview-tags">
-                @for (chip of r.tags; track chip.source + ':' + chip.tag) {
-                  <span
-                    class="folders__chip"
-                    [class.folders__chip--author]="chip.source === 'author'"
-                    [class.folders__chip--user]="chip.source === 'user'"
-                  >{{ chip.tag }}</span>
-                }
-                @if (r.tagsOverflow > 0) {
-                  <span class="folders__chip-more">{{ listTexts.tagsOverflow(r.tagsOverflow) }}</span>
-                }
-              </div>
-            </section>
-          }
 
           <section class="folders__preview-section">
             <h4 class="folders__preview-h4">Stats</h4>

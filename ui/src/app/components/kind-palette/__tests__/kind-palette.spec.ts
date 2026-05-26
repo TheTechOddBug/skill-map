@@ -48,8 +48,10 @@ function makeFixture(opts: {
   const filters = {
     isKindActive: () => true,
     favoritesOnly: signal(false).asReadonly(),
+    searchText: signal('').asReadonly(),
     toggleKind: () => undefined,
     setFavoritesOnly: () => undefined,
+    setSearchText: () => undefined,
   };
 
   TestBed.resetTestingModule();

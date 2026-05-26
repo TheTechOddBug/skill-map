@@ -1,5 +1,4 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, effect, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
@@ -8,7 +7,6 @@ import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { FOLDERS_VIEW_TEXTS } from '../../../i18n/folders-view.texts';
-import { LIST_VIEW_TEXTS } from '../../../i18n/list-view.texts';
 import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
@@ -20,7 +18,6 @@ import {
   effectiveIsStale,
   effectiveStaleTooltip,
   effectiveStability,
-  effectiveUserTags,
 } from '../../../models/node-derived';
 import { pathBasenameForLink } from '../../../services/trigger-resolve';
 import type {
@@ -30,19 +27,11 @@ import type {
 import type { IIssueApi, TIssueSeverityApi } from '../../../models/api';
 import { readStoredCollapsed, writeStoredCollapsed } from './folders-view.storage';
 
-interface IFolderLeafTagChip {
-  tag: string;
-  source: 'author' | 'user';
-}
-
 interface IFolderLeaf {
   readonly type: 'leaf';
   readonly path: string;
   readonly name: string;
   readonly depth: number;
-  readonly tags: readonly IFolderLeafTagChip[];
-  readonly tagsOverflow: number;
-  readonly tagsOverflowTooltip: string;
   readonly linksIn: string;
   readonly linksOut: string;
   readonly tokens: string;
@@ -96,9 +85,7 @@ export class FoldersView implements OnInit {
   private readonly loader = inject(CollectionLoaderService);
   private readonly filters = inject(FilterStoreService);
   private readonly issuePaths = inject(IssuePathsService);
-  private readonly router = inject(Router);
   protected readonly texts = FOLDERS_VIEW_TEXTS;
-  protected readonly listTexts = LIST_VIEW_TEXTS;
 
   readonly loading = this.loader.loading;
   readonly error = this.loader.error;
@@ -234,12 +221,10 @@ export class FoldersView implements OnInit {
   }
 
   /**
-   * Mock preview slot, mirrors `<sm-list-view>`'s prototype: clicking a
-   * leaf row captures it in this signal so the right-hand `<aside>`
-   * re-renders against it. Folder rows still toggle expand / collapse
-   * via `toggleFolder`; only file rows feed the preview. No router
-   * navigation while the prototype lives, the existing /graph jump
-   * comes back once the design is settled.
+   * Mock preview slot, prototype only: clicking a leaf row captures
+   * it in this signal so the right-hand `<aside>` re-renders against
+   * the captured row. Folder rows still toggle expand / collapse via
+   * `toggleFolder`; only file rows feed the preview.
    */
   readonly previewRow = signal<IFolderLeaf | null>(null);
 
@@ -264,20 +249,14 @@ export class FoldersView implements OnInit {
   ): IFolderLeaf {
     const stability = rowStability(node);
     const isStale = effectiveIsStale(node);
-    const allChips = collectTagChips(node);
-    const tags = allChips.slice(0, TAG_CHIPS_CAP);
-    const hiddenChips = allChips.slice(TAG_CHIPS_CAP);
     return {
       type: 'leaf',
       path: node.path,
       name: leafName(node),
       depth,
-      tags,
-      tagsOverflow: hiddenChips.length,
-      tagsOverflowTooltip: hiddenChips.map((c) => c.tag).join('\n'),
-      linksIn: node.linksInCount !== undefined ? String(node.linksInCount) : LIST_VIEW_TEXTS.missing,
-      linksOut: node.linksOutCount !== undefined ? String(node.linksOutCount) : LIST_VIEW_TEXTS.missing,
-      tokens: node.tokensTotal !== undefined ? compactNumber(node.tokensTotal) : LIST_VIEW_TEXTS.missing,
+      linksIn: node.linksInCount !== undefined ? String(node.linksInCount) : FOLDERS_VIEW_TEXTS.missing,
+      linksOut: node.linksOutCount !== undefined ? String(node.linksOutCount) : FOLDERS_VIEW_TEXTS.missing,
+      tokens: node.tokensTotal !== undefined ? compactNumber(node.tokensTotal) : FOLDERS_VIEW_TEXTS.missing,
       tokensRaw: node.tokensTotal ?? 0,
       errors: errorCounts.get(node.path) ?? 0,
       warns: warnCounts.get(node.path) ?? 0,
@@ -288,8 +267,6 @@ export class FoldersView implements OnInit {
     };
   }
 }
-
-const TAG_CHIPS_CAP = 3;
 
 function leafName(n: INodeView): string {
   const fromFm = n.frontmatter.name?.trim();
@@ -307,19 +284,6 @@ function byName<T extends { name: string }>(a: T, b: T): number {
 
 function byNodePath(a: INodeView, b: INodeView): number {
   return a.path.localeCompare(b.path);
-}
-
-function collectTagChips(n: INodeView): IFolderLeafTagChip[] {
-  const out: IFolderLeafTagChip[] = [];
-  const fm = n.frontmatter as Record<string, unknown>;
-  const author = fm['tags'];
-  if (Array.isArray(author)) {
-    for (const t of author) {
-      if (typeof t === 'string' && t.length > 0) out.push({ tag: t, source: 'author' });
-    }
-  }
-  for (const t of effectiveUserTags(n)) out.push({ tag: t, source: 'user' });
-  return out;
 }
 
 function countIssuesByPath(

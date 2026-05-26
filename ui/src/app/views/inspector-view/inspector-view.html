@@ -5,7 +5,7 @@
       <p class="empty-state__title">{{ texts.emptyNoSelection.title }}</p>
       <p class="empty-state__desc">
         <span>{{ texts.emptyNoSelection.descPrefix }}</span>
-        <a routerLink="/list" class="inspector__back">{{ texts.emptyNoSelection.listLink }}</a>
+        <a routerLink="/folders" class="inspector__back">{{ texts.emptyNoSelection.listLink }}</a>
         <span>{{ texts.emptyNoSelection.descMiddle }}</span>
         <a routerLink="/graph" class="inspector__back">{{ texts.emptyNoSelection.graphLink }}</a>
         <span>{{ texts.emptyNoSelection.descSuffix }}</span>
@@ -20,7 +20,7 @@
       <p class="empty-state__desc">
         <code>{{ path() }}</code>
         <span>{{ texts.emptyNotFound.descSuffix }}</span>
-        <a routerLink="/list" class="inspector__back">{{ texts.emptyNotFound.backLink }}</a>
+        <a routerLink="/folders" class="inspector__back">{{ texts.emptyNotFound.backLink }}</a>
         <span>{{ texts.emptyNotFound.descAfterLink }}</span>
       </p>
     </div>
@@ -78,7 +78,7 @@
         data-testid="inspector-bump"
       />
       @if (mode() === 'standalone') {
-        <a routerLink="/list" class="inspector__back" data-testid="inspector-back">{{ texts.backToList }}</a>
+        <a routerLink="/folders" class="inspector__back" data-testid="inspector-back">{{ texts.backToList }}</a>
       }
     </div>
 

@@ -57,7 +57,7 @@ import { effectiveSupersededBy } from '../../../models/node-derived';
  *
  *   - `'standalone'` (default): full page rendered when the user
  *     navigates to a deep-linked path directly. Shows the back link
- *     to the list view and the v0.8.0 placeholder cards.
+ *     to the folders view and the v0.8.0 placeholder cards.
  *   - `'embedded'`: rendered inside the graph view's slide-in panel.
  *     The chrome and placeholder cards are hidden and the card grid
  *     compacts to a single column.
@@ -139,7 +139,7 @@ export class InspectorView implements OnInit {
    * frontmatter.tags / sidecar.annotations.tags carries the tag.
    * Toggle: clicking the chip whose tag is already the active
    * selection clears it. Standalone-mode hosts can ignore this output
-   * (no graph to mutate), or wire it into list-view filtering once
+   * (no graph to mutate), or wire it into folders-view filtering once
    * that surface gets a multi-select equivalent.
    */
   readonly tagSelect = output<string>();

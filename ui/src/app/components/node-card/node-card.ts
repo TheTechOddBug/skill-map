@@ -27,7 +27,7 @@ import { ViewContributionsHost } from '../view-contributions-host/view-contribut
 
 /**
  * Default selection state for the card when its host did not bind one
- * (list view, prototype harnesses). Three booleans rolled into one
+ * (folders view, prototype harnesses). Three booleans rolled into one
  * record per the `ISelectionView` contract.
  */
 const DEFAULT_SELECTION: ISelectionView = {
@@ -86,7 +86,7 @@ export class NodeCard {
    * `selectionState` helper. A single input avoids N × 3 function
    * calls per CD pass on dense graphs; the parent passes one Map
    * lookup result and the host bindings read three boolean fields off
-   * it. Defaults to all-`false` so list-view and prototype harnesses
+   * it. Defaults to all-`false` so folders-view and prototype harnesses
    * can mount the card without wiring selection state.
    */
   readonly selection = input<ISelectionView>(DEFAULT_SELECTION);

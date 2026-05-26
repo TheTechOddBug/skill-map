@@ -1,4 +1,4 @@
-/* Typographic scale, mirrors list-view: every size in the view traces
+/* Typographic scale, mirrors folders-view: every size in the view traces
    back to one ladder. When tweaking sizes, edit the tokens below, do
    NOT introduce a one-off literal. */
 :host {
@@ -14,7 +14,7 @@
 
   display: block;
   padding: 1.5rem;
-  max-width: 1800px;
+  max-width: 1440px;
   width: 100%;
   margin: 0 auto;
   box-sizing: border-box;
@@ -214,12 +214,6 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--p-text-muted-color);
-}
-
-.folders__preview-tags {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
 }
 
 .folders__preview-stats {
@@ -422,44 +416,7 @@
   background: color-mix(in srgb, var(--sm-bg-hover) 30%, transparent);
 }
 
-/* Tags column, same shape as list-view chips. */
-.folders__col-tags,
-.folders__cell-tags {
-  max-width: 240px;
-}
-
-.folders__chips {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-  font-weight: 400;
-  line-height: 1;
-}
-
-.folders__chip {
-  font-size: var(--folders-fs-xs);
-  font-family: var(--sm-font-mono);
-  padding: 0.05rem 0.35rem;
-  border-radius: var(--sm-radius-sm);
-  background: var(--sm-bg-hover);
-  color: var(--sm-text-muted);
-  line-height: 1.4;
-}
-
-.folders__chip--author {
-  background: transparent;
-  border: 1px solid var(--sm-text-muted);
-  padding: calc(0.05rem - 1px) calc(0.35rem - 1px);
-  color: var(--sm-text-muted);
-}
-
-.folders__chip-more {
-  font-size: var(--folders-fs-xs);
-  color: var(--p-text-muted-color);
-  align-self: center;
-}
-
-/* Numeric columns: right-aligned mono, same as list-view. */
+/* Numeric columns: right-aligned mono, same as folders-view. */
 .folders__col-num {
   text-align: right;
 }
@@ -471,7 +428,7 @@
   color: var(--p-text-muted-color);
 }
 
-/* Issues column, same dual-signal shape + hue as list-view. */
+/* Issues column, same dual-signal shape + hue as folders-view. */
 .folders__stale-icon {
   font-size: var(--folders-fs-sm);
   color: var(--sm-severity-warn);

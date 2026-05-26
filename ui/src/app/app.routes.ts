@@ -11,12 +11,6 @@ export const routes: Routes = [
     title: APP_TEXTS.nav.graph,
   },
   {
-    path: 'list',
-    loadComponent: () =>
-      import('./views/list-view/list-view').then((m) => m.ListView),
-    title: APP_TEXTS.nav.list,
-  },
-  {
     path: 'folders',
     loadComponent: () =>
       import('./views/folders-view/folders-view').then((m) => m.FoldersView),
