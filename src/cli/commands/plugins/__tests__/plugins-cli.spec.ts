@@ -620,9 +620,13 @@ describe('sm plugins show, extension visibility', () => {
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     // Header: qualified id + built-in source.
     assert.match(r.stdout, /✓\s+core\/node-superseded\s+built-in/);
-    // Field block: Kind / Version are always present.
+    // Field block: Kind is always present.
     assert.match(r.stdout, /Kind\s+analyzer/);
-    assert.match(r.stdout, /Version\s+1\.0\.0/);
+    // Version is intentionally omitted for built-ins (they inherit the
+    // CLI version, no per-extension semver is maintained). The field
+    // survives in `--json` for tooling consumers, see the JSON-shape
+    // test below.
+    assert.doesNotMatch(r.stdout, /^\s*Version\s/m);
     // Bundle counter ("24 extensions" / "N extensions") must NOT appear,
     // that's the bare-bundle header signature and would mean we fell
     // back to the old behavior.

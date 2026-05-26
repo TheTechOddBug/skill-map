@@ -135,7 +135,7 @@
               <div class="settings-plugins__row-headline">
                 <span class="settings-plugins__row-id">{{ plugin.id }}</span>
                 <span class="settings-plugins__row-source">{{ sourceLabel(plugin.source) }}</span>
-                @if (plugin.version) {
+                @if (plugin.source === 'project' && plugin.version) {
                   <span class="settings-plugins__row-version">v{{ plugin.version }}</span>
                 }
                 @if (plugin.locked) {
@@ -199,7 +199,9 @@
                         class="settings-plugins__subrow-kind"
                         [style.--kind-color]="kindTint(ext.kind)"
                       >{{ ext.kind }}</span>
-                      <span class="settings-plugins__subrow-version">v{{ ext.version }}</span>
+                      @if (plugin.source === 'project') {
+                        <span class="settings-plugins__subrow-version">v{{ ext.version }}</span>
+                      }
                       @if (ext.locked) {
                         <span
                           class="settings-plugins__row-locked"

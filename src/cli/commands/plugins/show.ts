@@ -219,7 +219,13 @@ interface IExtensionListItem {
   glyph: string;
   kind: string;
   name: string;
-  version: string;
+  /**
+   * Optional. Populated for user-plugin extensions so the bundle-detail
+   * block surfaces per-extension semver. Omitted for built-in extensions
+   * (`core`, `claude`, `antigravity`, `openai`, `agent-skills`), which
+   * inherit the CLI version and are not versioned independently.
+   */
+  version?: string;
 }
 
 /**
@@ -266,13 +272,15 @@ function renderBuiltInDetail(b: IBuiltInBundleRow, ansi: IAnsi): string {
     : ansi.red(PLUGINS_TEXTS.rowGlyphOff);
   const count = b.extensions.length;
   const sorted = sortExtensionsCanonical(b.extensions);
+  // Built-in extensions inherit the CLI version, no per-extension
+  // version is rendered. Per-extension versioning is reserved for
+  // user (external) plugins.
   const items: IExtensionListItem[] = sorted.map((ext) => ({
     glyph: ext.enabled
       ? ansi.green(PLUGINS_TEXTS.rowGlyphOk)
       : ansi.red(PLUGINS_TEXTS.rowGlyphOff),
     kind: ext.kind,
     name: `${b.id}/${ext.id}`,
-    version: ext.version,
   }));
   return (
     tx(PLUGINS_TEXTS.detailHeaderBuiltIn, {
@@ -389,17 +397,22 @@ function collectPluginExtensionItems(
 function renderExtensionItems(items: IExtensionListItem[]): string {
   if (items.length === 0) return '';
   const kindWidth = Math.max(...items.map((i) => i.kind.length));
-  const nameWidth = Math.max(...items.map((i) => i.name.length));
+  // `name` padding exists to align the `v<version>` column. When no
+  // item carries a version (built-in bundles, which inherit the CLI
+  // version), drop the padding so rows don't end in trailing spaces.
+  const anyVersion = items.some((i) => i.version !== undefined);
+  const nameWidth = anyVersion ? Math.max(...items.map((i) => i.name.length)) : 0;
   const out: string[] = [];
   for (const item of items) {
     const kind = item.kind.padEnd(kindWidth);
-    const name = item.name.padEnd(nameWidth);
+    const name = anyVersion ? item.name.padEnd(nameWidth) : item.name;
+    const versionSuffix = item.version ? `  v${item.version}` : '';
     out.push(
       tx(PLUGINS_TEXTS.detailExtensionRowGlyph, {
         glyph: item.glyph,
         kind,
         name,
-        version: item.version,
+        versionSuffix,
       }),
     );
   }
@@ -428,7 +441,9 @@ function renderBuiltInExtensionDetail(
     qualifiedId: sanitizeForTerminal(`${bundleId}/${ext.id}`),
     source: ansi.dim(PLUGINS_TEXTS.sourceBuiltIn),
   });
-  const meta: IExtensionFieldInput = { kind: ext.kind, version: ext.version };
+  // Built-in extensions inherit the CLI version, the Version field is
+  // intentionally omitted from human output (see also `renderBuiltInDetail`).
+  const meta: IExtensionFieldInput = { kind: ext.kind };
   if (ext.description) meta.description = ext.description;
   if (ext.entry !== undefined) meta.entry = ext.entry;
   return header + '\n' + renderExtensionFields(meta);
@@ -474,7 +489,12 @@ interface IExtensionMeta {
 
 interface IExtensionFieldInput {
   kind: string;
-  version: string;
+  /**
+   * Optional. Present for user-plugin extensions, omitted for
+   * built-in extensions (which inherit the CLI version and do not
+   * declare per-extension semver).
+   */
+  version?: string;
   stability?: string;
   description?: string;
   preconditions?: ReadonlyArray<string>;
@@ -498,7 +518,12 @@ function readInstanceMeta(instance: unknown): IExtensionMeta {
 function renderExtensionFields(meta: IExtensionFieldInput): string {
   const fields: Array<{ label: string; value: string }> = [];
   fields.push({ label: PLUGINS_TEXTS.detailFieldKind, value: sanitizeForTerminal(meta.kind) });
-  fields.push({ label: PLUGINS_TEXTS.detailFieldVersion, value: sanitizeForTerminal(meta.version) });
+  if (meta.version) {
+    fields.push({
+      label: PLUGINS_TEXTS.detailFieldVersion,
+      value: sanitizeForTerminal(meta.version),
+    });
+  }
   if (meta.stability) {
     fields.push({
       label: PLUGINS_TEXTS.detailFieldStability,

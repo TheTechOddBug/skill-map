@@ -192,9 +192,12 @@ export const PLUGINS_TEXTS = {
    * Extension row inside the bundle detail. Every extension is
    * independently toggle-able, so every row carries its own glyph
    * (✓ / ✕). Padding for {{kind}} and {{name}} is computed at render
-   * time so columns align inside the block.
+   * time so columns align inside the block. `{{versionSuffix}}` is
+   * either `  v<x.y.z>` (user plugins) or empty (built-in bundles,
+   * which inherit the CLI version and do not maintain per-extension
+   * versions of their own).
    */
-  detailExtensionRowGlyph: '    {{glyph}}  {{kind}}  {{name}}  v{{version}}\n',
+  detailExtensionRowGlyph: '    {{glyph}}  {{kind}}  {{name}}{{versionSuffix}}\n',
   detailVersionUnknown: '?',
   detailCompatUnknown: '?',
   /**
