@@ -1,0 +1,25 @@
+@if (visible()) {
+  <div
+    class="oversized-banner"
+    [attr.data-mode]="state().mode"
+    role="status"
+    data-testid="oversized-banner"
+  >
+    <span
+      class="oversized-banner__icon fa-solid fa-triangle-exclamation"
+      aria-hidden="true"
+    ></span>
+    <p class="oversized-banner__body" data-testid="oversized-banner-body">
+      {{ state().body }}
+    </p>
+    <button
+      type="button"
+      class="oversized-banner__cta"
+      [attr.aria-label]="texts.ctaAria"
+      (click)="onCta()"
+      data-testid="oversized-banner-cta"
+    >
+      {{ texts.cta }}
+    </button>
+  </div>
+}

@@ -37,6 +37,16 @@
       "description": "Provider ids that participated in classification. Empty if no Provider matched.",
       "items": { "type": "string" }
     },
+    "recommendedNodeLimit": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Effective recommended cap on the number of files the walker accepted during this scan (`scan.maxNodes` from settings, default 256). Reported so the UI can decide whether to raise the persistent 'oversized graph' banner: a scan is oversized when `stats.filesWalked >= recommendedNodeLimit`. Absent on synthetic fixtures."
+    },
+    "overrideMaxNodes": {
+      "type": ["integer", "null"],
+      "minimum": 1,
+      "description": "Override applied via `--max-nodes <N>` on the verb that ran the scan (`sm scan`, `sm refresh`, `sm watch`), or `null` when no override was passed and the value above came from the setting. The override is bidirectional: it can raise the cap above the recommended limit (the UI banner stays visible until a re-scan lands below the recommended limit) or lower it (the banner also fires if `filesWalked` reaches the lowered override). Absent on synthetic fixtures."
+    },
     "nodes": {
       "type": "array",
       "items": { "$ref": "node.schema.json" }

@@ -180,6 +180,9 @@ export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherS
     if (opts.debounceMsOverride !== undefined) {
       runtimeOpts.debounceMsOverride = opts.debounceMsOverride;
     }
+    if (opts.options.maxNodes !== undefined) {
+      runtimeOpts.maxNodesOverride = opts.options.maxNodes;
+    }
     return runtimeOpts;
   };
 

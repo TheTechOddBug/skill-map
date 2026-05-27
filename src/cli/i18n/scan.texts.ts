@@ -66,6 +66,28 @@ export const SCAN_TEXTS = {
   persistedTo: '     {{dbPath}}\n',
   /** Body line for dry-run mode, same indent, marker tail. */
   wouldPersist: '     would persist to {{dbPath}}  (dry-run)\n',
+  /**
+   * Cap-hit notice, printed when the walker stopped accepting nodes
+   * because `--max-nodes` (or the `scan.maxNodes` setting) was reached.
+   * `{{glyph}}` is the yellow warning glyph, `{{limit}}` the effective
+   * cap, `{{source}}` either `--max-nodes` or `scan.maxNodes`. The hint
+   * names both escape routes the user has: trimming `.skillmapignore`
+   * (preferred) or raising the cap with `--max-nodes <N>`.
+   */
+  scanCappedNotice:
+    '{{glyph}}  Scan capped at {{limit}} nodes ({{source}}).\n' +
+    '     {{hint}}\n',
+  scanCappedNoticeHint:
+    'Trim .skillmapignore to exclude noisy paths (preferred), or re-run with --max-nodes <N> to raise the cap. Past the recommended limit the graph is hard to read and analyzer signal drops.',
+  /**
+   * Validation message for an invalid `--max-nodes` value. Surfaced as a
+   * §3.1b two-line block.
+   */
+  maxNodesInvalid:
+    '{{glyph}}  --max-nodes must be an integer >= 1 (got `{{value}}`).\n' +
+    '   {{hint}}\n',
+  maxNodesInvalidHint:
+    'Pass a positive integer, e.g. --max-nodes 256.',
 
   // --- scan compare-with sub-verb --------------------------------------
   compareErrorPrefix: 'sm scan compare-with: {{message}}\n',

@@ -561,6 +561,22 @@ function metaToRow(result: ScanResult): Insertable<IScanMetaTable> {
     statsFilesWalked: result.stats.filesWalked,
     statsFilesSkipped: result.stats.filesSkipped,
     statsDurationMs: result.stats.durationMs,
+    ...projectNodeLimitColumns(result),
+  };
+}
+
+/**
+ * Project the node-cap envelope onto its `scan_meta` columns. Fallback
+ * to the design default (256) on synthetic fixtures that bypass the
+ * walker; the walker always sets `recommendedNodeLimit` for real scans
+ * (see `walkAndExtract`).
+ */
+function projectNodeLimitColumns(
+  result: ScanResult,
+): Pick<Insertable<IScanMetaTable>, 'recommendedNodeLimit' | 'overrideMaxNodes'> {
+  return {
+    recommendedNodeLimit: result.recommendedNodeLimit ?? 256,
+    overrideMaxNodes: result.overrideMaxNodes ?? null,
   };
 }
 

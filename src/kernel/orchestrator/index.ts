@@ -341,6 +341,22 @@ export interface RunScanOptions {
    *     pass `string | null` explicitly, never `undefined`.
    */
   activeProvider?: string | null;
+  /**
+   * Recommended cap on the number of nodes the walker classifies
+   * (mirror of `scan.maxNodes` in settings, default 256). Threaded
+   * through to `walkAndExtract` so the cap can fire and so
+   * `ScanResult.recommendedNodeLimit` is populated. Absent → the
+   * orchestrator falls back to 256 (the design default), keeping
+   * out-of-band callers and synthetic fixtures safe.
+   */
+  recommendedNodeLimit?: number;
+  /**
+   * Per-invocation override of the recommended cap (when `--max-nodes
+   * <N>` was passed). `null` (or absent) means no override; the
+   * recommended limit applies. Bidirectional: any positive integer
+   * replaces the recommended limit for the duration of this scan.
+   */
+  overrideMaxNodes?: number | null;
 }
 
 /**
@@ -415,6 +431,8 @@ async function runScanInternal(
     providerFrontmatter: setup.providerFrontmatter,
     pluginStores: options.pluginStores,
     activeProvider: activeProviderId,
+    recommendedNodeLimit: options.recommendedNodeLimit ?? 256,
+    overrideMaxNodes: options.overrideMaxNodes ?? null,
   });
 
   // Signal IR resolver phase. Consumes the `Signal[]` buffer produced by
@@ -788,6 +806,8 @@ function buildScanReturn(
       roots: options.roots,
       providers: setup.exts.providers.map((a) => a.id),
       scannedBy: SCANNED_BY,
+      recommendedNodeLimit: walked.recommendedNodeLimit,
+      overrideMaxNodes: walked.overrideMaxNodes,
       nodes: walked.nodes,
       links: walked.internalLinks,
       issues,

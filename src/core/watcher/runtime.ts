@@ -243,6 +243,14 @@ export interface ICreateWatcherRuntimeOpts {
    * field is plumbed through `composeScanExtensions` per batch.
    */
   killSwitches?: IConformanceKillSwitches;
+  /**
+   * Per-invocation override of `scan.maxNodes` (from the `--max-nodes
+   * <N>` flag on `sm watch` / `sm scan --watch`). `undefined` means
+   * "no override", every batch uses the recommended limit from
+   * `cfg.scan.maxNodes`. Bidirectional: any positive integer fully
+   * replaces the setting for the duration of the watcher session.
+   */
+  maxNodesOverride?: number | undefined;
 }
 
 /**
@@ -446,6 +454,8 @@ export function createWatcherRuntime(
         ignoreFilter,
         strict,
         emitter,
+        recommendedNodeLimit: cfg.scan.maxNodes,
+        overrideMaxNodes: opts.maxNodesOverride ?? null,
       };
       // Reference-paths escape hatch: mirror what `scan-runner.ts`
       // (the CLI path) does, walk the configured side-roots and pass

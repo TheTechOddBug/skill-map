@@ -108,12 +108,19 @@ export class ScanCommand extends SmCommand {
   yes = Option.Boolean('--yes', false, {
     description: 'Non-interactive mode for ambiguous activeProvider auto-detect. With `--yes`, multiple provider markers (.claude/, .codex/, AGENTS.md, .cursor/) under the scan tree exit non-zero instead of prompting the operator. Set the lens manually via `sm config set activeProvider <id>` and re-run.',
   });
+  maxNodes = Option.String('--max-nodes', {
+    required: false,
+    description: 'Per-invocation override of `scan.maxNodes` (default 256). Bidirectional: raises OR lowers the recommended cap on classified nodes. When the walker hits the cap, additional files are dropped and the scan is marked oversized in scan_meta (the UI raises a persistent banner pointing at the .skillmapignore editor in Settings → Project). Validation: integer >= 1.',
+  });
 
   // Each branch in the orchestrator maps to one validation gate
   // (--watch alias / --changed mutex / -g mutex / dispatch).
   // Splitting per branch scatters the gate from the value it gates.
    
   protected async run(): Promise<number> {
+    const parsedMaxNodes = this.parseMaxNodesFlag();
+    if (parsedMaxNodes.kind === 'error') return parsedMaxNodes.exit;
+
     if (this.watch) return this.runWatchAlias();
 
     // `--no-built-ins` zero-fills the pipeline; combining it with
@@ -160,11 +167,35 @@ export class ScanCommand extends SmCommand {
       colorEnabled,
       yes: this.yes,
       style,
+      ...(parsedMaxNodes.value !== undefined ? { maxNodes: parsedMaxNodes.value } : {}),
     });
 
     return outcome.kind === 'ok'
       ? this.renderOutcome(outcome.result, outcome.persistedTo, outcome.dbPath, outcome.strict)
       : this.renderFailure(outcome);
+  }
+
+  /**
+   * Parse `--max-nodes <N>`. Returns either the integer value (or
+   * `undefined` when the flag was omitted) or an error sentinel after
+   * printing the validation block. Invalid (non-integer, < 1) exits 2
+   * per spec/cli-contract.md §Node cap.
+   */
+  private parseMaxNodesFlag(): { kind: 'ok'; value: number | undefined } | { kind: 'error'; exit: number } {
+    if (this.maxNodes === undefined) return { kind: 'ok', value: undefined };
+    const n = Number(this.maxNodes);
+    if (!Number.isInteger(n) || n < 1) {
+      const ansi = this.ansiFor('stderr');
+      this.printer!.info(
+        tx(SCAN_TEXTS.maxNodesInvalid, {
+          glyph: ansi.red('✕'),
+          value: this.maxNodes,
+          hint: ansi.dim(SCAN_TEXTS.maxNodesInvalidHint),
+        }),
+      );
+      return { kind: 'error', exit: ExitCode.Error };
+    }
+    return { kind: 'ok', value: n };
   }
 
   /**
@@ -186,6 +217,9 @@ export class ScanCommand extends SmCommand {
     }
     this.emitElapsed = false;
     const roots = this.roots.length > 0 ? this.roots : ['.'];
+    // `--max-nodes` was already validated in `run()`; re-parse here is
+    // a cheap pass-through (Number coercion + integer check).
+    const parsedMaxNodes = this.parseMaxNodesFlag();
     return runWatchLoop({
       roots,
       json: this.json,
@@ -196,6 +230,9 @@ export class ScanCommand extends SmCommand {
       noPlugins: this.noPlugins,
       context: this.context,
       printer: this.printer!,
+      ...(parsedMaxNodes.kind === 'ok' && parsedMaxNodes.value !== undefined
+        ? { maxNodes: parsedMaxNodes.value }
+        : {}),
     });
   }
 
@@ -311,7 +348,35 @@ export class ScanCommand extends SmCommand {
         }),
       );
     }
+    this.maybePrintCapNotice(result, ansi);
     return exitCode;
+  }
+
+  /**
+   * Surface the §Node cap notice when the walker actually stopped
+   * accepting files because of the cap. Derivation: `filesWalked >
+   * effectiveLimit` means the walker incremented past the cap at least
+   * once (i.e. classified the (limit+1)-th raw before breaking). When
+   * the project has EXACTLY the cap many files the loop ends naturally
+   * without ever firing the break, so the notice stays silent.
+   */
+  private maybePrintCapNotice(
+    result: import('../../kernel/index.js').ScanResult,
+    ansi: IAnsi,
+  ): void {
+    const recommended = result.recommendedNodeLimit;
+    if (recommended === undefined) return;
+    const override = result.overrideMaxNodes ?? null;
+    const effectiveLimit = override ?? recommended;
+    if (result.stats.filesWalked <= effectiveLimit) return;
+    this.printer!.info(
+      tx(SCAN_TEXTS.scanCappedNotice, {
+        glyph: ansi.yellow('⚠'),
+        limit: String(effectiveLimit),
+        source: override !== null ? '--max-nodes' : 'scan.maxNodes',
+        hint: ansi.dim(SCAN_TEXTS.scanCappedNoticeHint),
+      }),
+    );
   }
 
   /**

@@ -130,6 +130,10 @@ export class ServeCommand extends SmCommand {
   // who want to tighten / relax the watcher's batching window without
   // editing settings.json. Hidden flag, the Usage block omits it.
   watcherDebounceMs = Option.String('--watcher-debounce-ms', { required: false, hidden: true });
+  maxNodes = Option.String('--max-nodes', {
+    required: false,
+    description: 'Per-invocation override of scan.maxNodes (default 256). Bidirectional: raises OR lowers the recommended cap on classified nodes. Applies to every scan the server runs (initial watcher pass, debounced batches, POST /api/scan, GET /api/scan?fresh=1). Same flag is honoured on the bare `sm` invocation, which routes to `sm serve`.',
+  });
 
   // Long-running daemon, `done in <…>` after a graceful shutdown is
   // noise. Mirrors `sm watch`'s opt-out.
@@ -235,6 +239,21 @@ export class ServeCommand extends SmCommand {
       return ExitCode.Error;
     }
 
+    // 3c. Parse --max-nodes. Same shape as the watcher-debounce parser:
+    //     omit → undefined (the runtime falls back to scan.maxNodes),
+    //     positive integer → honoured for every scan the server runs.
+    const maxNodesResult = parseMaxNodes(this.maxNodes);
+    if (!maxNodesResult.ok) {
+      this.printer!.info(
+        tx(SERVE_TEXTS.maxNodesInvalid, {
+          glyph: errGlyph,
+          value: sanitizeForTerminal(maxNodesResult.value),
+          hint: stderrAnsi.dim(SERVE_TEXTS.maxNodesInvalidHint),
+        }),
+      );
+      return ExitCode.Error;
+    }
+
     // 4. Validate the assembled options bag (loopback + dev-cors check,
     //    port range check). Errors map to the right SERVE_TEXTS template.
     const input: IServerOptionsInput = {
@@ -250,6 +269,7 @@ export class ServeCommand extends SmCommand {
     if (portResult.port !== undefined) input.port = portResult.port;
     if (this.host !== undefined) input.host = this.host;
     if (debounceResult.value !== undefined) input.watcherDebounceMs = debounceResult.value;
+    if (maxNodesResult.value !== undefined) input.maxNodes = maxNodesResult.value;
 
     const validation = validateServerOptions(input);
     if (!validation.ok) {
@@ -346,6 +366,16 @@ function parseDebounce(raw: string | undefined): IDebounceOk | IDebounceErr {
   return { ok: true, value: parsed };
 }
 
+interface IMaxNodesOk { ok: true; value: number | undefined; }
+interface IMaxNodesErr { ok: false; value: string; }
+
+function parseMaxNodes(raw: string | undefined): IMaxNodesOk | IMaxNodesErr {
+  if (raw === undefined) return { ok: true, value: undefined };
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1) return { ok: false, value: raw };
+  return { ok: true, value: n };
+}
+
 interface IUiDistOk { ok: true; uiDist: string | null; }
 interface IUiDistErr { ok: false; message: string; }
 
@@ -405,6 +435,12 @@ function formatValidationError(
         glyph: errGlyph,
         value: sanitizeForTerminal(err.value),
         hint: ansi.dim(SERVE_TEXTS.watcherDebounceInvalidHint),
+      });
+    case 'max-nodes-invalid':
+      return tx(SERVE_TEXTS.maxNodesInvalid, {
+        glyph: errGlyph,
+        value: sanitizeForTerminal(err.value),
+        hint: ansi.dim(SERVE_TEXTS.maxNodesInvalidHint),
       });
     case 'no-ui-conflicts-ui-dist':
       return tx(SERVE_TEXTS.noUiConflictsUiDist, {

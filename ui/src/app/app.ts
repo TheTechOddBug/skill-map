@@ -17,13 +17,14 @@ import { ScanTriggerService } from './services/scan-trigger';
 import { UpdateCheckService } from './services/update-check';
 import { ThemeService } from '../services/theme';
 import { DemoBanner } from './components/demo-banner/demo-banner';
+import { OversizedBanner } from './components/oversized-banner/oversized-banner';
 import { SettingsModal } from './components/settings-modal/settings-modal';
 /* DEBUG-SLOTS: remove with debug-slots.css. */
 import { ViewContributionsHost } from './components/view-contributions-host/view-contributions-host';
 
 @Component({
   selector: 'sm-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, ButtonModule, InputTextModule, TooltipModule, FormsModule, NgOptimizedImage, DemoBanner, SettingsModal, /* DEBUG-SLOTS */ ViewContributionsHost],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, ButtonModule, InputTextModule, TooltipModule, FormsModule, NgOptimizedImage, DemoBanner, OversizedBanner, SettingsModal, /* DEBUG-SLOTS */ ViewContributionsHost],
   templateUrl: './app.html',
   styleUrl: './app.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

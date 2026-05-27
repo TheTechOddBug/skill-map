@@ -101,6 +101,9 @@ describe('scan benchmark (500 MDs)', () => {
     const result = await runScan(kernel, {
       roots: [tempDir],
       extensions: builtIns(),
+      // Benchmark scans 500 fixture files end-to-end; lift the default
+      // node cap so the walker doesn't break out at the design limit.
+      recommendedNodeLimit: 1000,
     });
     const elapsedMs = Date.now() - t0;
 

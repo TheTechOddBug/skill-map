@@ -55,6 +55,11 @@
           "minimum": 1,
           "description": "Files larger than this are skipped with an `info`-level log entry. Default 1048576 (1 MiB). Protects against scanning accidental binary drops or generated artefacts."
         },
+        "maxNodes": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Hard cap on the number of files the scan accepts after `.skillmapignore` filtering, before extractors run. Default 256. When the walker reaches the cap, additional files are dropped in stable provider-walker order and the scan is marked oversized in `scan_meta` (the UI raises a persistent banner pointing at the `.skillmapignore` editor in Settings → Project). Override per invocation with `--max-nodes N` on `sm scan` / `sm watch`, bidirectional (raises OR lowers the limit, the flag is a full override of this setting)."
+        },
         "watch": {
           "type": "object",
           "additionalProperties": false,

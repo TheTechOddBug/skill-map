@@ -284,6 +284,14 @@ CREATE TABLE scan_meta (
   stats_files_walked INTEGER NOT NULL,
   stats_files_skipped INTEGER NOT NULL,
   stats_duration_ms INTEGER NOT NULL,
+  -- Node-cap envelope (see spec/cli-contract.md §Scan, `scan.maxNodes` setting
+  -- and `--max-nodes` flag). `recommended_node_limit` is the effective default
+  -- (from `scan.maxNodes`) that produced this scan; the UI raises a persistent
+  -- "oversized graph" banner when `stats_files_walked >= recommended_node_limit`.
+  -- `override_max_nodes` is the per-invocation override (when `--max-nodes <N>`
+  -- was passed) or NULL when the value above came from the setting.
+  recommended_node_limit INTEGER NOT NULL,
+  override_max_nodes INTEGER,
   CONSTRAINT ck_scan_meta_singleton CHECK (id = 1)
 );
 

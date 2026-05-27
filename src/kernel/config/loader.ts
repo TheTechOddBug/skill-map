@@ -80,6 +80,17 @@ export interface IScanConfig {
    */
   followSymlinks: boolean;
   maxFileSizeBytes: number;
+  /**
+   * Hard cap on the number of files the scan accepts after
+   * `.skillmapignore` filtering, before extractors run. Default 256.
+   * When the walker reaches the cap, extra files are dropped in stable
+   * provider-walker order and `scan_meta` records the limit + actual
+   * count so the UI can raise a persistent banner pointing at the
+   * `.skillmapignore` editor in Settings → Project. Override per
+   * invocation with `--max-nodes N` on `sm scan` / `sm watch`,
+   * bidirectional (raises OR lowers).
+   */
+  maxNodes: number;
   watch: IScanWatchConfig;
   /**
    * **Privacy-sensitive when entries point outside the project**

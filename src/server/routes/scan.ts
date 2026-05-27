@@ -117,6 +117,10 @@ async function runPersistedScan(c: Context, deps: IScanRouteDeps): Promise<Respo
         // the operator via the Settings UI (PATCH /api/active-provider)
         // before the scan, not via interactive prompt here.
         yes: true,
+        // `--max-nodes` from the `sm serve` invocation (or the bare
+        // `sm --max-nodes <N>` shortcut) flows through to every scan
+        // the BFF runs so the override is honoured end-to-end.
+        ...(deps.options.maxNodes !== undefined ? { maxNodes: deps.options.maxNodes } : {}),
       });
       if (outcome.kind !== 'ok') {
         throw new HTTPException(500, {
@@ -271,6 +275,9 @@ async function runFreshScan(deps: IRouteDeps): Promise<ScanResult> {
     // BFF has no TTY; ambiguous activeProvider is the operator's
     // problem to resolve via the Settings UI, not via prompt here.
     yes: true,
+    // Carry `--max-nodes` from `sm serve` into the fresh-scan path
+    // too so a UI-driven refresh honours the same cap as the watcher.
+    ...(deps.options.maxNodes !== undefined ? { maxNodes: deps.options.maxNodes } : {}),
   });
   if (outcome.kind !== 'ok') {
     throw new HTTPException(500, {
@@ -309,6 +316,12 @@ function emptyScanResult(): ScanResult {
     scannedAt: Date.now(),
     roots: ['.'],
     providers: [],
+    // Surface the design default so the SPA reads the same field shape
+    // on cold boot as on populated DBs. 256 mirrors `scan.maxNodes`
+    // from `src/config/defaults.json`; the temporary testing default
+    // (2) only applies after a real scan walks through the kernel.
+    recommendedNodeLimit: 256,
+    overrideMaxNodes: null,
     nodes: [],
     links: [],
     issues: [],

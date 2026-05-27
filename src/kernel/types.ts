@@ -660,6 +660,20 @@ export interface ScanResult {
   providers: string[];
   /** Implementation metadata. Populated by `runScan` for self-describing output. */
   scannedBy?: ScanScannedBy;
+  /**
+   * Effective recommended cap on the number of files the walker accepted
+   * during this scan (`scan.maxNodes` from settings, default 256). The UI
+   * raises the "oversized graph" banner when
+   * `stats.filesWalked >= recommendedNodeLimit`. Absent on synthetic fixtures
+   * that bypass the walker.
+   */
+  recommendedNodeLimit?: number;
+  /**
+   * Override applied via `--max-nodes <N>` on the verb that ran the scan, or
+   * `null` when no override was passed (the value above came from the
+   * setting). Bidirectional: can raise OR lower the recommended limit.
+   */
+  overrideMaxNodes?: number | null;
   nodes: Node[];
   links: Link[];
   issues: Issue[];

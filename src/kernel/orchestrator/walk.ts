@@ -91,6 +91,23 @@ export interface IWalkAndExtractOptions {
    * §Universal extractors and per-provider extractors).
    */
   activeProvider: string | null;
+  /**
+   * Recommended cap on the number of nodes the walker classifies into
+   * `accum.nodes`. Comes from `scan.maxNodes` in settings (default
+   * 256). The walker reports this value in the result envelope so the
+   * persistence layer can write it to
+   * `scan_meta.recommended_node_limit` and the UI can decide whether
+   * to raise the persistent oversized banner.
+   */
+  recommendedNodeLimit: number;
+  /**
+   * Per-invocation override (when `--max-nodes <N>` was passed) or
+   * `null` when no override was used. Bidirectional: raises OR lowers
+   * the cap that actually applies (`overrideMaxNodes ?? recommendedNodeLimit`).
+   * Reported back so `scan_meta.override_max_nodes` records the user's
+   * intent for this scan.
+   */
+  overrideMaxNodes: number | null;
 }
 
 export interface IWalkAndExtractResult {
@@ -124,6 +141,24 @@ export interface IWalkAndExtractResult {
    *  `nodesCount`; with future multi-Provider scans walking overlapping
    *  roots it can diverge. */
   filesWalked: number;
+  /**
+   * Effective recommended cap that produced this walk (mirror of
+   * `IWalkAndExtractOptions.recommendedNodeLimit`). Reported so callers
+   * can persist it into `scan_meta` and surface it to the UI banner
+   * without re-reading config.
+   */
+  recommendedNodeLimit: number;
+  /**
+   * Per-invocation override mirrored from `IWalkAndExtractOptions`, or
+   * `null` when no override was applied.
+   */
+  overrideMaxNodes: number | null;
+  /**
+   * `true` when the walker stopped accepting nodes because the cap
+   * (`overrideMaxNodes ?? recommendedNodeLimit`) was reached. Drives the
+   * CLI "scan capped" notice and the UI oversized banner.
+   */
+  capReached: boolean;
   /**
    * Spec § A.9, the rows the persistence layer writes into
    * `scan_extractor_runs`. Includes both freshly-run pairs (extractor
@@ -294,6 +329,16 @@ export async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWal
   let filesWalked = 0;
   let index = 0;
 
+  // Node cap, see `IWalkAndExtractOptions.recommendedNodeLimit`. The
+  // override (when present via `--max-nodes <N>`) fully replaces the
+  // setting; otherwise the recommended limit applies. Bidirectional:
+  // an override below the recommendation cuts deeper, an override above
+  // it relaxes the cap. Counted against `accum.nodes.length` (= classified
+  // nodes) so the spec field "256 nodes" lines up with the user mental
+  // model. When the cap is reached, both loops break out.
+  const effectiveMaxNodes = opts.overrideMaxNodes ?? opts.recommendedNodeLimit;
+  let capReached = false;
+
   // Active-lens scope filter. Vendor Providers declare
   // `gatedByActiveLens: true` and only participate in the walk when
   // their `id` equals `opts.activeProvider`. Universal Providers
@@ -309,12 +354,19 @@ export async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWal
     return provider.id === opts.activeProvider;
   });
 
-  for (const provider of activeProviders) {
+  const advance = async (raw: IRawNode, provider: IProvider): Promise<void> => {
+    const advanced = await processRawNode(raw, provider, wctx, accum, claimedPaths, index + 1);
+    if (advanced) index += 1;
+  };
+  outer: for (const provider of activeProviders) {
     for await (const raw of resolveProviderWalk(provider)(opts.roots, walkOptions)) {
       filesWalked += 1;
       if (claimedPaths.has(raw.path)) continue;
-      const advanced = await processRawNode(raw, provider, wctx, accum, claimedPaths, index + 1);
-      if (advanced) index += 1;
+      if (accum.nodes.length >= effectiveMaxNodes) {
+        capReached = true;
+        break outer;
+      }
+      await advance(raw, provider);
     }
   }
 
@@ -331,6 +383,9 @@ export async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWal
     cachedPaths: accum.cachedPaths,
     frontmatterIssues: accum.frontmatterIssues,
     filesWalked,
+    recommendedNodeLimit: opts.recommendedNodeLimit,
+    overrideMaxNodes: opts.overrideMaxNodes,
+    capReached,
     enrichments: [...accum.enrichmentBuffer.values()],
     extractorRuns: accum.extractorRuns,
     contributions: accum.contributionsBuffer,

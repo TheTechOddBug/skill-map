@@ -109,7 +109,13 @@ configureLogger(new Logger({ level: logLevel, stream: process.stderr }));
 // cwd; otherwise it prints a hint and exits with code 2 (operational,
 // no project to serve). `--help` / `-h` flags fall through to
 // RootHelpCommand and are NOT intercepted here.
-const bareArgs = args.length === 0 ? resolveBareDefault() : null;
+//
+// Extension: bare `sm --flag <value> ...` (no verb, first token is a
+// flag) also routes to `sm serve --flag <value> ...` so server-level
+// flags like `--max-nodes` work without typing `serve` explicitly.
+// `--help` / `-h` short-circuit through routeHelpArgs below, so a
+// `sm --help` invocation still reaches RootHelpCommand.
+const bareArgs = resolveBareInvocation(args);
 const routedArgs = routeHelpArgs(bareArgs ?? args, cli);
 
 // Spec § A.11, boot/shutdown hook dispatcher. Wired here at the CLI
@@ -194,9 +200,53 @@ await lifecycleDispatcher.dispatch(
 process.exit(exitCode);
 
 /**
- * Decide what bare `sm` should do. Returns `['serve']` if a project DB
- * is present in the cwd; prints the no-project hint and exits 2
- * otherwise. Never returns when no project is found.
+ * Decide whether `args` is a bare `sm` invocation that should fan out
+ * to `sm serve [...]`. Returns the rewritten argv when so, `null` when
+ * the user typed a real verb (Clipanion handles it directly).
+ *
+ * Two cases route to `serve`:
+ *
+ *   1. `sm` with no args → `['serve']` (historical bare default).
+ *   2. `sm --flag ...` (first token is a flag, no verb anywhere
+ *      before the first positional) → `['serve', ...args]`. Lets the
+ *      operator pass server-level flags like `--max-nodes 5` without
+ *      typing `serve`. `--help` / `-h` are NOT intercepted here, the
+ *      caller threads `args` through `routeHelpArgs` so root help
+ *      still wins.
+ *
+ * The "starts with `-`" test is intentionally cheap and avoids
+ * pre-parsing argv: Clipanion's own verb list is the source of truth
+ * for what is and isn't a verb; we only short-circuit when the first
+ * token unambiguously is NOT a verb (flags always start with `-`).
+ */
+function resolveBareInvocation(rawArgs: string[]): string[] | null {
+  if (rawArgs.length === 0) return resolveBareDefault();
+  const first = rawArgs[0];
+  // Inline the passthrough set: keeps the lookup local + avoids a
+  // top-level `const` whose temporal-dead-zone would trip the module
+  // initialiser (`bareArgs` is computed before this function body
+  // runs, but module-top `const`s declared below this point are
+  // uninitialised at that moment).
+  const passthrough = new Set(['--help', '-h', '--version', '-V', '-v']);
+  if (
+    first !== undefined &&
+    first.startsWith('-') &&
+    !passthrough.has(first)
+  ) {
+    if (existsSync(defaultProjectDbPath(defaultRuntimeContext()))) {
+      return ['serve', ...rawArgs];
+    }
+    // No DB in cwd, same "no project" failure as the no-args bare
+    // case. resolveBareDefault prints the hint + exits.
+    return resolveBareDefault();
+  }
+  return null;
+}
+
+/**
+ * Decide what bare `sm` (no args) should do. Returns `['serve']` if a
+ * project DB is present in the cwd; prints the no-project hint and
+ * exits 2 otherwise. Never returns when no project is found.
  */
 function resolveBareDefault(): string[] {
   const ctx = defaultRuntimeContext();

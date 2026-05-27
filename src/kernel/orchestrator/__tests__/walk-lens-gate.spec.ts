@@ -144,6 +144,10 @@ async function runWalk(opts: IWalkInvocation): Promise<void> {
     providerFrontmatter: buildProviderFrontmatterValidator(providers),
     pluginStores: undefined,
     activeProvider: opts.activeProvider,
+    // High enough that the cap never fires for this fixture, the test
+    // exercises lens-gating, not the node cap.
+    recommendedNodeLimit: 100000,
+    overrideMaxNodes: null,
   });
 }
 

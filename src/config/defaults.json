@@ -11,6 +11,7 @@
     "strict": false,
     "followSymlinks": false,
     "maxFileSizeBytes": 1048576,
+    "maxNodes": 256,
     "watch": {
       "debounceMs": 300
     },

@@ -249,6 +249,21 @@ export interface IScanResultApi {
   scannedBy?: { name?: string; version?: string; specVersion?: string } | null;
   roots: string[];
   providers?: string[];
+  /**
+   * Effective recommended cap on the number of classified nodes for
+   * this scan, mirror of `scan.maxNodes` (default 256). Used by the
+   * oversized banner to decide whether to surface the persistent
+   * "your graph exceeds the recommended limit" notice. Absent on
+   * legacy / synthetic envelopes.
+   */
+  recommendedNodeLimit?: number;
+  /**
+   * Per-invocation override applied via `--max-nodes <N>` on the verb
+   * that ran this scan, or `null` when no override was passed. The
+   * banner uses it to phrase the body copy ("running with `--max-nodes
+   * 1000`" vs "default `scan.maxNodes`").
+   */
+  overrideMaxNodes?: number | null;
   nodes: INodeApi[];
   links: ILinkApi[];
   issues: IIssueApi[];

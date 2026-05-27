@@ -245,6 +245,7 @@ describe('spec § Dry-run, every verb that exposes `--dry-run` is byte-equal bef
       cmd.allowEmpty = false;
       cmd.strict = false;
       cmd.watch = false;
+      cmd.maxNodes = undefined;
       cmd.context = cap.context;
       await cmd.execute();
 

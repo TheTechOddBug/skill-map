@@ -123,6 +123,8 @@ export async function loadScanResult(
       roots: parseJsonArray<string>(metaRow.rootsJson),
       providers: parseJsonArray<string>(metaRow.providersJson),
       scannedBy,
+      recommendedNodeLimit: metaRow.recommendedNodeLimit,
+      overrideMaxNodes: metaRow.overrideMaxNodes,
       nodes,
       links,
       issues,
@@ -149,6 +151,11 @@ export async function loadScanResult(
     scannedAt,
     roots: ['.'],
     providers: [],
+    // Synthetic envelope, default to the design cap (256) so SPA reads
+    // the same shape across cold-boot and pre-cap-aware DBs. A real
+    // scan overwrites scan_meta with the live values on next run.
+    recommendedNodeLimit: 256,
+    overrideMaxNodes: null,
     nodes,
     links,
     issues,

@@ -102,6 +102,17 @@ export interface IServerOptions {
    * users, surface via the hidden `--watcher-debounce-ms` CLI flag.
    */
   watcherDebounceMs?: number | undefined;
+
+  /**
+   * Per-invocation override of `scan.maxNodes` (default 256). Mirror
+   * of the `--max-nodes <N>` flag on `sm serve` (and the bare `sm`
+   * invocation, see `cli/entry.ts`). When set, every scan the server
+   * runs (boot watcher initial pass, debounced batches,
+   * `POST /api/scan`, `GET /api/scan?fresh=1`) is bound by the
+   * override. Bidirectional: any positive integer fully replaces the
+   * recommended limit for the duration of the server session.
+   */
+  maxNodes?: number | undefined;
 }
 
 export interface IServerOptionsInput {
@@ -116,6 +127,7 @@ export interface IServerOptionsInput {
   devCors?: boolean | undefined;
   noWatcher?: boolean | undefined;
   watcherDebounceMs?: number | undefined;
+  maxNodes?: number | undefined;
 }
 
 export type TServerOptionsErrorCode =
@@ -124,6 +136,7 @@ export type TServerOptionsErrorCode =
   | 'host-dev-cors-rejected'
   | 'watcher-requires-pipeline'
   | 'watcher-debounce-invalid'
+  | 'max-nodes-invalid'
   | 'no-ui-conflicts-ui-dist';
 
 export interface IServerOptionsError {
@@ -146,6 +159,11 @@ export function isLoopbackHost(host: string): boolean {
   return LOOPBACK_HOSTS.has(host.toLowerCase());
 }
 
+// CLI/server orchestrator with multi-field validation: each `if (error)
+// return` adds one cyclomatic point but splits per concern, keeping
+// the gate adjacent to the value it gates. Per AGENTS.md §Linting
+// category 1 ("CLI orchestrators with multi-flag handling").
+// eslint-disable-next-line complexity
 export function validateServerOptions(input: IServerOptionsInput): TServerOptionsResult {
   const filled = applyDefaults(input);
 
@@ -160,6 +178,9 @@ export function validateServerOptions(input: IServerOptionsInput): TServerOption
 
   const debounceError = validateWatcherDebounce(input.watcherDebounceMs);
   if (debounceError !== null) return { ok: false, error: debounceError };
+
+  const maxNodesError = validateMaxNodes(input.maxNodes);
+  if (maxNodesError !== null) return { ok: false, error: maxNodesError };
 
   const noUiError = validateNoUi(filled.noUi, filled.uiDist);
   if (noUiError !== null) return { ok: false, error: noUiError };
@@ -178,6 +199,9 @@ export function validateServerOptions(input: IServerOptionsInput): TServerOption
   };
   if (input.watcherDebounceMs !== undefined) {
     options.watcherDebounceMs = input.watcherDebounceMs;
+  }
+  if (input.maxNodes !== undefined) {
+    options.maxNodes = input.maxNodes;
   }
   return { ok: true, options };
 }
@@ -274,6 +298,18 @@ function validateWatcherDebounce(value: number | undefined): IServerOptionsError
     return {
       code: 'watcher-debounce-invalid',
       message: `--watcher-debounce-ms must be a non-negative integer (got ${value})`,
+      value: String(value),
+    };
+  }
+  return null;
+}
+
+function validateMaxNodes(value: number | undefined): IServerOptionsError | null {
+  if (value === undefined) return null;
+  if (!Number.isInteger(value) || value < 1) {
+    return {
+      code: 'max-nodes-invalid',
+      message: `--max-nodes must be an integer >= 1 (got ${value})`,
       value: String(value),
     };
   }

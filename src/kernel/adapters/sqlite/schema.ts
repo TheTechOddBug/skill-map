@@ -189,6 +189,8 @@ export interface IScanMetaTable {
   statsFilesWalked: number;
   statsFilesSkipped: number;
   statsDurationMs: number;
+  recommendedNodeLimit: number;
+  overrideMaxNodes: number | null;
 }
 
 /**

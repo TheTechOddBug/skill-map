@@ -101,6 +101,7 @@ function buildScan(opts: IBuildScanOpts = {}): ScanCommand {
   cmd.allowEmpty = false;
   cmd.strict = false;
   cmd.watch = false;
+  cmd.maxNodes = undefined;
   return cmd;
 }
 

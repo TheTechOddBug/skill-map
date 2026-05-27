@@ -165,6 +165,16 @@ export interface IScanRunOpts {
     errorGlyph?: string;
     dim?: (s: string) => string;
   };
+  /**
+   * Per-invocation override of `scan.maxNodes` (from the `--max-nodes
+   * <N>` flag on `sm scan` / `sm refresh` / `sm watch`). Bidirectional:
+   * any positive integer replaces the setting for this scan. Omit /
+   * `undefined` means "no override", the recommended limit from
+   * settings applies. The runner forwards both values to the
+   * orchestrator so `ScanResult.recommendedNodeLimit` and
+   * `ScanResult.overrideMaxNodes` are populated.
+   */
+  maxNodes?: number;
 }
 
 /**
@@ -237,6 +247,7 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<TScanRunRes
     referenceablePaths,
     ctx.cwd,
     activeProvider,
+    cfg.scan.maxNodes,
   );
 
   const willPersist = !opts.noBuiltIns && !opts.dryRun;
@@ -459,6 +470,7 @@ function makeScanRunner(
   referenceablePaths: ReadonlySet<string> | undefined,
   scanCwd: string,
   activeProvider: string | null,
+  recommendedNodeLimit: number,
 ) {
   return async (
     prior: ScanResult | null,
@@ -485,6 +497,7 @@ function makeScanRunner(
       cwd: scanCwd,
       prior,
       activeProvider,
+      recommendedNodeLimit,
       ...(priorExtractorRuns ? { priorExtractorRuns } : {}),
       ...(orphanJobFiles ? { orphanJobFiles } : {}),
     });
@@ -502,6 +515,7 @@ interface IBuildRunScanOptionsArgs {
   cwd: string;
   prior: ScanResult | null;
   activeProvider: string | null;
+  recommendedNodeLimit: number;
   priorExtractorRuns?: Map<string, Map<string, IPriorExtractorRun>>;
   orphanJobFiles?: readonly string[];
 }
@@ -520,17 +534,15 @@ function buildRunScanOptions(args: IBuildRunScanOptionsArgs): Parameters<typeof 
     tokenize: !opts.noTokens,
     ignoreFilter: args.ignoreFilter,
     strict: args.strict,
-    emitter: opts.emitterFactory
-      ? opts.emitterFactory()
-      : createStderrProgressEmitter(opts.stderr, {
-          colorEnabled: opts.colorEnabled === true,
-        }),
+    emitter: buildRunScanEmitter(opts),
     // Orphan job-file detection, empty list means "no orphans
     // visible from this caller" (legacy behaviour). The orchestrator
     // defaults to `[]` when the field is absent; we always pass the
     // array (possibly empty) to keep the wiring uniform.
     orphanJobFiles: orphanJobFiles ?? [],
     activeProvider: args.activeProvider,
+    recommendedNodeLimit: args.recommendedNodeLimit,
+    overrideMaxNodes: opts.maxNodes ?? null,
   };
   if (args.extensions) runOptions.extensions = args.extensions;
   if (prior) {
@@ -541,6 +553,19 @@ function buildRunScanOptions(args: IBuildRunScanOptionsArgs): Parameters<typeof 
   if (referenceablePaths?.size) runOptions.referenceablePaths = referenceablePaths;
   runOptions.cwd = args.cwd;
   return runOptions;
+}
+
+/**
+ * Pick the kernel progress emitter for one scan invocation. Falls
+ * through to the stderr emitter when the caller did not supply a
+ * factory (the CLI path); the BFF threads a broadcaster-bound emitter
+ * via `emitterFactory`.
+ */
+function buildRunScanEmitter(opts: IScanRunOpts) {
+  if (opts.emitterFactory) return opts.emitterFactory();
+  return createStderrProgressEmitter(opts.stderr, {
+    colorEnabled: opts.colorEnabled === true,
+  });
 }
 
 /**

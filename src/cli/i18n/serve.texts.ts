@@ -89,6 +89,15 @@ export const SERVE_TEXTS = {
     '   {{hint}}\n',
   watcherDebounceInvalidHint: 'Pass an integer >= 0 (e.g. 250).',
 
+  /**
+   * §3.1b error block for an invalid `--max-nodes <N>`. Same shape as
+   * the watcher-debounce template family.
+   */
+  maxNodesInvalid:
+    '{{glyph}}  sm serve: --max-nodes must be an integer >= 1 (got {{value}}).\n' +
+    '   {{hint}}\n',
+  maxNodesInvalidHint: 'Pass a positive integer, e.g. --max-nodes 256.',
+
   // --- --no-ui flag-validation failures (ExitCode.Error) ------------------
 
   /**

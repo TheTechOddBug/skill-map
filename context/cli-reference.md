@@ -1307,6 +1307,7 @@ extra roots positionally.
 - `--strict` `boolean`: Promote frontmatter-validation findings from warn to error (exit code 1 on any violation). Overrides scan.strict from config when both are set.
 - `--watch` `boolean`: Long-running mode: watch the roots and trigger an incremental scan after each debounced batch of filesystem events. Alias of `sm watch`.
 - `--yes` `boolean`: Non-interactive mode for ambiguous activeProvider auto-detect. With `--yes`, multiple provider markers (.claude/, .codex/, AGENTS.md, .cursor/) under the scan tree exit non-zero instead of prompting the operator. Set the lens manually via `sm config set activeProvider <id>` and re-run.
+- `--max-nodes` `string`: Per-invocation override of `scan.maxNodes` (default 256). Bidirectional: raises OR lowers the recommended cap on classified nodes. When the walker hits the cap, additional files are dropped and the scan is marked oversized in scan_meta (the UI raises a persistent banner pointing at the .skillmapignore editor in Settings → Project). Validation: integer >= 1.
 
 **Examples:**
 
@@ -1406,6 +1407,7 @@ Under --json, every batch emits one ScanResult as ndjson on stdout. Without
 - `--strict` `boolean`: Promote frontmatter-validation findings from warn to error inside each batch. Does not change the watcher exit code.
 - `--no-plugins` `boolean`: Skip drop-in plugin discovery for the watcher session.
 - `--max-consecutive-failures` `string`: Shut down with exit 2 after N consecutive batch failures (default 5; 0 disables the breaker).
+- `--max-nodes` `string`: Per-batch override of scan.maxNodes (default 256). Bidirectional: raises OR lowers the recommended cap on classified nodes. When a batch hits the cap, additional files are dropped and the UI surfaces the persistent oversized banner. Validation: integer >= 1.
 
 **Examples:**
 
@@ -1512,6 +1514,7 @@ SIGINT / SIGTERM trigger a graceful shutdown.
 - `--dev-cors` `boolean`: Enable permissive CORS for the Angular dev-server proxy workflow.
 - `--no-ui` `boolean`: Don't serve the Angular UI bundle. Use this when running the BFF alongside `ui:dev` (Angular dev server with HMR). The root `/` then renders an inline placeholder pointing the user at the dev server.
 - `--no-watcher` `boolean`: Disable the chokidar-fed scan-and-broadcast loop. Use only for CI / read-only deployments.
+- `--max-nodes` `string`: Per-invocation override of scan.maxNodes (default 256). Bidirectional: raises OR lowers the recommended cap on classified nodes. Applies to every scan the server runs (initial watcher pass, debounced batches, POST /api/scan, GET /api/scan?fresh=1). Same flag is honoured on the bare `sm` invocation, which routes to `sm serve`.
 
 **Examples:**
 
