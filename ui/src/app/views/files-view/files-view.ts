@@ -6,7 +6,7 @@ import { MessageModule } from 'primeng/message';
 import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
 
-import { FOLDERS_VIEW_TEXTS } from '../../../i18n/folders-view.texts';
+import { FILES_VIEW_TEXTS } from '../../../i18n/files-view.texts';
 import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
@@ -25,7 +25,7 @@ import type {
   TStability,
 } from '../../../models/node';
 import type { IIssueApi, TIssueSeverityApi } from '../../../models/api';
-import { readStoredCollapsed, writeStoredCollapsed } from './folders-view.storage';
+import { readStoredCollapsed, writeStoredCollapsed } from './files-view.storage';
 
 interface IFolderLeaf {
   readonly type: 'leaf';
@@ -67,7 +67,7 @@ interface IAggregate {
 }
 
 @Component({
-  selector: 'sm-folders-view',
+  selector: 'sm-files-view',
   imports: [
     FilterBar,
     TableModule,
@@ -77,15 +77,15 @@ interface IAggregate {
     ButtonModule,
     TooltipModule,
   ],
-  templateUrl: './folders-view.html',
-  styleUrl: './folders-view.css',
+  templateUrl: './files-view.html',
+  styleUrl: './files-view.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class FoldersView implements OnInit {
+export class FilesView implements OnInit {
   private readonly loader = inject(CollectionLoaderService);
   private readonly filters = inject(FilterStoreService);
   private readonly issuePaths = inject(IssuePathsService);
-  protected readonly texts = FOLDERS_VIEW_TEXTS;
+  protected readonly texts = FILES_VIEW_TEXTS;
 
   readonly loading = this.loader.loading;
   readonly error = this.loader.error;
@@ -254,9 +254,9 @@ export class FoldersView implements OnInit {
       path: node.path,
       name: leafName(node),
       depth,
-      linksIn: node.linksInCount !== undefined ? String(node.linksInCount) : FOLDERS_VIEW_TEXTS.missing,
-      linksOut: node.linksOutCount !== undefined ? String(node.linksOutCount) : FOLDERS_VIEW_TEXTS.missing,
-      tokens: node.tokensTotal !== undefined ? compactNumber(node.tokensTotal) : FOLDERS_VIEW_TEXTS.missing,
+      linksIn: node.linksInCount !== undefined ? String(node.linksInCount) : FILES_VIEW_TEXTS.missing,
+      linksOut: node.linksOutCount !== undefined ? String(node.linksOutCount) : FILES_VIEW_TEXTS.missing,
+      tokens: node.tokensTotal !== undefined ? compactNumber(node.tokensTotal) : FILES_VIEW_TEXTS.missing,
       tokensRaw: node.tokensTotal ?? 0,
       errors: errorCounts.get(node.path) ?? 0,
       warns: warnCounts.get(node.path) ?? 0,
@@ -271,7 +271,7 @@ export class FoldersView implements OnInit {
 function leafName(n: INodeView): string {
   const fromFm = n.frontmatter.name?.trim();
   if (fromFm) return fromFm;
-  return pathBasenameForLink(n.path) || FOLDERS_VIEW_TEXTS.missing;
+  return pathBasenameForLink(n.path) || FILES_VIEW_TEXTS.missing;
 }
 
 function rowStability(n: INodeView): TStability {

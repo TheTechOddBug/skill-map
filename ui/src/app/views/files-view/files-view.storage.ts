@@ -1,5 +1,5 @@
 /**
- * `localStorage` helpers for `<sm-folders-view>`. Same shape as
+ * `localStorage` helpers for `<sm-files-view>`. Same shape as
  * `settings-plugins.storage.ts`: `sm.<surface>.<facet>` plain string
  * key, JSON-encoded payload, every read defends against malformed
  * input so a corrupted entry resets to the default rather than

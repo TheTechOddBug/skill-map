@@ -1,16 +1,16 @@
-/* Typographic scale, mirrors folders-view: every size in the view traces
+/* Typographic scale, mirrors files-view: every size in the view traces
    back to one ladder. When tweaking sizes, edit the tokens below, do
    NOT introduce a one-off literal. */
 :host {
-  --folders-fs-xs: 0.75rem;     /* subtitle, hints, count chips */
-  --folders-fs-mono: 0.8rem;    /* leaf code paths, kind tag */
-  --folders-fs-sm: 0.875rem;    /* baseline body */
-  --folders-fs-lg: 1.25rem;     /* section title */
+  --files-fs-xs: 0.75rem;     /* subtitle, hints, count chips */
+  --files-fs-mono: 0.8rem;    /* leaf code paths, kind tag */
+  --files-fs-sm: 0.875rem;    /* baseline body */
+  --files-fs-lg: 1.25rem;     /* section title */
 
   /* Indentation step per depth level, mirrors VSCode's explorer
      density. The tree column reserves enough room for ~6 levels
      before the indent eats the name. */
-  --folders-indent: 1rem;
+  --files-indent: 1rem;
 
   display: block;
   padding: 1.5rem;
@@ -26,47 +26,47 @@
   }
 }
 
-.folders {
+.files {
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
 
-.folders__header h2 {
+.files__header h2 {
   margin: 0;
-  font-size: var(--folders-fs-lg);
+  font-size: var(--files-fs-lg);
   font-weight: 600;
 }
 
-.folders__sub {
+.files__sub {
   margin: 0.25rem 0 0;
   color: var(--p-text-muted-color);
-  font-size: var(--folders-fs-xs);
+  font-size: var(--files-fs-xs);
 }
 
 /* Toolbar row, filter bar grows to fill the available space and the
    expand / collapse buttons pin to the right. Wraps on narrow viewports
    so the buttons drop under the filters instead of overflowing. */
-.folders__toolbar {
+.files__toolbar {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
 }
 
-.folders__toolbar sm-filter-bar {
+.files__toolbar sm-filter-bar {
   flex: 1;
   min-width: 0;
 }
 
-.folders__toolbar-actions {
+.files__toolbar-actions {
   display: inline-flex;
   gap: 0.25rem;
   align-items: center;
   flex-shrink: 0;
 }
 
-.folders__loading {
+.files__loading {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -75,47 +75,47 @@
   color: var(--p-text-muted-color);
 }
 
-.folders__loading-label {
-  font-size: var(--folders-fs-sm);
+.files__loading-label {
+  font-size: var(--files-fs-sm);
 }
 
-.folders__table {
+.files__table {
   width: 100%;
 }
 
-:host ::ng-deep .folders__table .p-datatable-tbody td {
-  font-size: var(--folders-fs-sm);
+:host ::ng-deep .files__table .p-datatable-tbody td {
+  font-size: var(--files-fs-sm);
   vertical-align: middle;
 }
 
-.folders__row {
+.files__row {
   cursor: pointer;
 }
 
-.folders__row:hover {
+.files__row:hover {
   background: var(--sm-bg-hover);
 }
 
-.folders__row--selected,
-.folders__row--selected:hover {
+.files__row--selected,
+.files__row--selected:hover {
   background: color-mix(in srgb, var(--p-primary-color) 14%, transparent);
 }
 
 /* Split: table on the left, mock preview on the right. Each side
    scrolls independently. On narrow viewports the panel falls under
    the table. */
-.folders__split {
+.files__split {
   display: flex;
   gap: 1rem;
   align-items: flex-start;
 }
 
-.folders__split > p-table {
+.files__split > p-table {
   flex: 1 1 60%;
   min-width: 0;
 }
 
-.folders__preview {
+.files__preview {
   flex: 0 0 40%;
   max-width: 520px;
   align-self: stretch;
@@ -131,10 +131,10 @@
 }
 
 @media (max-width: 1080px) {
-  .folders__split {
+  .files__split {
     flex-direction: column;
   }
-  .folders__preview {
+  .files__preview {
     flex: 1 1 auto;
     max-width: none;
     width: 100%;
@@ -142,14 +142,14 @@
   }
 }
 
-.folders__preview-header {
+.files__preview-header {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 0.5rem;
 }
 
-.folders__preview-title {
+.files__preview-title {
   margin: 0;
   font-size: 1.05rem;
   font-weight: 600;
@@ -158,72 +158,72 @@
   min-width: 0;
 }
 
-.folders__preview-path {
+.files__preview-path {
   flex-basis: 100%;
   font-family: var(--sm-font-mono);
-  font-size: var(--folders-fs-mono);
+  font-size: var(--files-fs-mono);
   color: var(--p-text-muted-color);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.folders__preview-meta {
+.files__preview-meta {
   display: inline-flex;
   flex-wrap: wrap;
   gap: 0.45rem;
   align-items: center;
 }
 
-.folders__preview-chip {
+.files__preview-chip {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  font-size: var(--folders-fs-xs);
+  font-size: var(--files-fs-xs);
   font-weight: 600;
   padding: 0.1rem 0.4rem;
   border-radius: var(--sm-radius-sm);
   opacity: 0.85;
 }
 
-.folders__preview-chip--stale {
+.files__preview-chip--stale {
   color: var(--sm-severity-warn);
   background: color-mix(in srgb, var(--sm-severity-warn) 12%, transparent);
 }
 
-.folders__preview-chip--error {
+.files__preview-chip--error {
   color: var(--sm-severity-error);
   background: color-mix(in srgb, var(--sm-severity-error) 12%, transparent);
 }
 
-.folders__preview-chip--warn {
+.files__preview-chip--warn {
   color: var(--sm-severity-warn);
   background: color-mix(in srgb, var(--sm-severity-warn) 12%, transparent);
 }
 
-.folders__preview-section {
+.files__preview-section {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
 
-.folders__preview-h4 {
+.files__preview-h4 {
   margin: 0;
-  font-size: var(--folders-fs-xs);
+  font-size: var(--files-fs-xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--p-text-muted-color);
 }
 
-.folders__preview-stats {
+.files__preview-stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 0.5rem;
   margin: 0;
 }
 
-.folders__preview-stats > div {
+.files__preview-stats > div {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
@@ -232,40 +232,40 @@
   border-radius: var(--sm-radius-sm);
 }
 
-.folders__preview-stats dt {
+.files__preview-stats dt {
   margin: 0;
-  font-size: var(--folders-fs-xs);
+  font-size: var(--files-fs-xs);
   color: var(--p-text-muted-color);
   text-transform: lowercase;
 }
 
-.folders__preview-stats dd {
+.files__preview-stats dd {
   margin: 0;
   font-family: var(--sm-font-mono);
-  font-size: var(--folders-fs-sm);
+  font-size: var(--files-fs-sm);
   font-weight: 600;
   color: var(--p-text-color);
 }
 
-.folders__preview-lorem {
+.files__preview-lorem {
   margin: 0;
-  font-size: var(--folders-fs-sm);
+  font-size: var(--files-fs-sm);
   line-height: 1.55;
   color: var(--p-text-color);
   opacity: 0.85;
 }
 
-.folders__preview-findings {
+.files__preview-findings {
   margin: 0;
   padding-left: 1.1rem;
-  font-size: var(--folders-fs-sm);
+  font-size: var(--files-fs-sm);
   color: var(--p-text-color);
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
 }
 
-.folders__preview-empty {
+.files__preview-empty {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -273,11 +273,11 @@
   justify-content: center;
   gap: 0.5rem;
   color: var(--p-text-muted-color);
-  font-size: var(--folders-fs-sm);
+  font-size: var(--files-fs-sm);
   text-align: center;
 }
 
-.folders__preview-empty-icon {
+.files__preview-empty-icon {
   font-size: 1.5rem;
   opacity: 0.5;
 }
@@ -285,17 +285,17 @@
 /* The structural (tree) column. Width capped so right-side numeric
    columns stay aligned even with very deep paths. The inner span
    carries the indent + chevron + icon + name layout. */
-.folders__col-tree {
+.files__col-tree {
   min-width: 280px;
   max-width: 480px;
 }
 
-.folders__cell-tree {
+.files__cell-tree {
   min-width: 280px;
   max-width: 480px;
 }
 
-.folders__tree-inner {
+.files__tree-inner {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
@@ -303,56 +303,56 @@
   width: 100%;
 }
 
-.folders__indent {
+.files__indent {
   display: inline-block;
   flex-shrink: 0;
-  width: calc(var(--folder-depth, 0) * var(--folders-indent));
+  width: calc(var(--folder-depth, 0) * var(--files-indent));
 }
 
-.folders__chevron {
+.files__chevron {
   flex-shrink: 0;
-  font-size: var(--folders-fs-xs);
+  font-size: var(--files-fs-xs);
   color: var(--p-text-muted-color);
   width: 0.85rem;
   text-align: center;
 }
 
-.folders__chevron-placeholder {
+.files__chevron-placeholder {
   display: inline-block;
   flex-shrink: 0;
   width: 0.85rem;
 }
 
-.folders__folder-icon {
+.files__folder-icon {
   flex-shrink: 0;
-  font-size: var(--folders-fs-sm);
+  font-size: var(--files-fs-sm);
   color: var(--p-primary-color);
   width: 1rem;
   text-align: center;
 }
 
-.folders__leaf-icon {
+.files__leaf-icon {
   flex-shrink: 0;
-  font-size: var(--folders-fs-sm);
+  font-size: var(--files-fs-sm);
   color: var(--p-text-muted-color);
   width: 1rem;
   text-align: center;
   opacity: 0.7;
 }
 
-.folders__name {
+.files__name {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.folders__name--folder {
+.files__name--folder {
   font-weight: 600;
   color: var(--p-text-color);
 }
 
-.folders__name--leaf {
+.files__name--leaf {
   font-weight: 500;
   color: var(--p-text-color);
 }
@@ -360,7 +360,7 @@
 /* Per-leaf "open in graph" affordance. Sits inline after the file name
    so its action target (the file) is unambiguous. Discreet by default,
    lights up on row hover / focus and on its own focus-visible. */
-.folders__open-graph {
+.files__open-graph {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -377,26 +377,26 @@
   transition: opacity 120ms ease-out, background 120ms ease-out, color 120ms ease-out;
 }
 
-.folders__open-graph i {
-  font-size: var(--folders-fs-sm);
+.files__open-graph i {
+  font-size: var(--files-fs-sm);
   line-height: 1;
 }
 
-.folders__row--leaf:hover .folders__open-graph,
-.folders__row--leaf:focus-within .folders__open-graph {
+.files__row--leaf:hover .files__open-graph,
+.files__row--leaf:focus-within .files__open-graph {
   opacity: 0.85;
 }
 
-.folders__open-graph:hover,
-.folders__open-graph:focus-visible {
+.files__open-graph:hover,
+.files__open-graph:focus-visible {
   opacity: 1;
   background: var(--sm-bg-hover);
   color: var(--p-primary-color);
 }
 
-.folders__count {
+.files__count {
   flex-shrink: 0;
-  font-size: var(--folders-fs-xs);
+  font-size: var(--files-fs-xs);
   font-family: var(--sm-font-mono);
   color: var(--p-text-muted-color);
   padding: 0.05rem 0.4rem;
@@ -412,65 +412,65 @@
    background on every `<td>` for striping / hover, so the tint MUST
    sit on the cells themselves to win against that, applying it to
    `<tr>` alone gets overridden and reads as no change. */
-:host ::ng-deep .folders__table .p-datatable-tbody .folders__row--folder > td {
+:host ::ng-deep .files__table .p-datatable-tbody .files__row--folder > td {
   background: color-mix(in srgb, var(--sm-bg-hover) 30%, transparent);
 }
 
-/* Numeric columns: right-aligned mono, same as folders-view. */
-.folders__col-num {
+/* Numeric columns: right-aligned mono, same as files-view. */
+.files__col-num {
   text-align: right;
 }
 
-.folders__cell-num {
+.files__cell-num {
   text-align: right;
   font-family: var(--sm-font-mono);
-  font-size: var(--folders-fs-mono);
+  font-size: var(--files-fs-mono);
   color: var(--p-text-muted-color);
 }
 
-/* Issues column, same dual-signal shape + hue as folders-view. */
-.folders__stale-icon {
-  font-size: var(--folders-fs-sm);
+/* Issues column, same dual-signal shape + hue as files-view. */
+.files__stale-icon {
+  font-size: var(--files-fs-sm);
   color: var(--sm-severity-warn);
   line-height: 1;
   opacity: 0.65;
 }
 
-.folders__issues-row {
+.files__issues-row {
   display: inline-flex;
   align-items: center;
   gap: 0.6rem;
 }
 
-.folders__issue {
+.files__issue {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
   font-weight: 600;
-  font-size: var(--folders-fs-sm);
+  font-size: var(--files-fs-sm);
   line-height: 1;
   opacity: 0.65;
 }
 
-.folders__issue i {
-  font-size: var(--folders-fs-sm);
+.files__issue i {
+  font-size: var(--files-fs-sm);
   line-height: 1;
 }
 
-.folders__issue-count {
+.files__issue-count {
   font-variant-numeric: tabular-nums;
 }
 
-.folders__issue--error {
+.files__issue--error {
   color: var(--sm-severity-error);
 }
 
-.folders__issue--warn {
+.files__issue--warn {
   color: var(--sm-severity-warn);
 }
 
-.folders__cell-issues-empty {
+.files__cell-issues-empty {
   color: var(--p-text-muted-color);
   font-family: var(--sm-font-mono);
-  font-size: var(--folders-fs-mono);
+  font-size: var(--files-fs-mono);
 }

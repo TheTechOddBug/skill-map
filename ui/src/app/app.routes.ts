@@ -11,10 +11,10 @@ export const routes: Routes = [
     title: APP_TEXTS.nav.graph,
   },
   {
-    path: 'folders',
+    path: 'files',
     loadComponent: () =>
-      import('./views/folders-view/folders-view').then((m) => m.FoldersView),
-    title: APP_TEXTS.nav.folders,
+      import('./views/files-view/files-view').then((m) => m.FilesView),
+    title: APP_TEXTS.nav.files,
   },
   { path: '**', redirectTo: 'graph' },
 ];

@@ -1,6 +1,6 @@
-/** UI strings for the FoldersView. */
-export const FOLDERS_VIEW_TEXTS = {
-  title: 'Folders',
+/** UI strings for the FilesView. */
+export const FILES_VIEW_TEXTS = {
+  title: 'Files',
   subtitleDefault: 'Filesystem view of the collection, click a folder to expand or a node to inspect it on the graph.',
   showingPrefix: 'Showing',
   showingSuffix: (total: number) => ` of ${total} nodes.`,
@@ -19,7 +19,7 @@ export const FOLDERS_VIEW_TEXTS = {
   openInGraphAriaLabel: (name: string) => `Open ${name} in graph view`,
   /**
    * Column headers. The structural (tree) column is unique to the
-   * folders view; the rest mirror the prior list view shape so the
+   * files view; the rest mirror the prior list view shape so the
    * data table reads familiar.
    */
   columns: {

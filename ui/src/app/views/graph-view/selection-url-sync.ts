@@ -3,7 +3,7 @@
  * the URL `?path=…` query param.
  *
  *   - Reader: query param changes propagate to the selection (a deep
- *     link or a navigation from folders-view both land here).
+ *     link or a navigation from files-view both land here).
  *   - Writer: selection changes mirror back into the URL so the
  *     panel's open/closed state survives a refresh and is shareable.
  *

@@ -1,7 +1,7 @@
-<section class="folders" data-testid="folders-view">
-  <header class="folders__header">
+<section class="files" data-testid="files-view">
+  <header class="files__header">
     <h2>{{ texts.title }}</h2>
-    <p class="folders__sub">
+    <p class="files__sub">
       @if (filtersActive()) {
         {{ texts.showingPrefix }} <strong>{{ visibleCount() }}</strong>{{ texts.showingSuffix(total()) }}
       } @else {
@@ -10,9 +10,9 @@
     </p>
   </header>
 
-  <div class="folders__toolbar">
+  <div class="files__toolbar">
     <sm-filter-bar />
-    <div class="folders__toolbar-actions">
+    <div class="files__toolbar-actions">
       <p-button
         [label]="texts.expandAll"
         icon="pi pi-angle-double-down"
@@ -20,7 +20,7 @@
         [text]="true"
         size="small"
         (onClick)="expandAll()"
-        data-testid="folders-expand-all"
+        data-testid="files-expand-all"
       />
       <p-button
         [label]="texts.collapseAll"
@@ -29,7 +29,7 @@
         [text]="true"
         size="small"
         (onClick)="collapseAll()"
-        data-testid="folders-collapse-all"
+        data-testid="files-collapse-all"
       />
     </div>
   </div>
@@ -39,42 +39,42 @@
   }
 
   @if (loading()) {
-    <div class="folders__loading" data-testid="folders-loading">
+    <div class="files__loading" data-testid="files-loading">
       <p-progressSpinner strokeWidth="3" />
-      <span class="folders__loading-label">{{ texts.loading }}</span>
+      <span class="files__loading-label">{{ texts.loading }}</span>
     </div>
   } @else if (!error()) {
     @if (rows().length === 0) {
       <div class="empty-state">
         @if (filtersActive()) {
           <i class="pi pi-filter-slash empty-state__icon" aria-hidden="true"></i>
-          <p class="empty-state__title" data-testid="folders-empty-filtered">{{ texts.emptyFiltered }}</p>
-          <p-button [label]="texts.resetFilters" [text]="true" size="small" (onClick)="resetFilters()" data-testid="folders-reset-filters" />
+          <p class="empty-state__title" data-testid="files-empty-filtered">{{ texts.emptyFiltered }}</p>
+          <p-button [label]="texts.resetFilters" [text]="true" size="small" (onClick)="resetFilters()" data-testid="files-reset-filters" />
         } @else {
           <i class="pi pi-inbox empty-state__icon" aria-hidden="true"></i>
-          <p class="empty-state__title" data-testid="folders-empty-all">{{ texts.emptyAll }}</p>
+          <p class="empty-state__title" data-testid="files-empty-all">{{ texts.emptyAll }}</p>
           <p class="empty-state__desc">{{ texts.emptyAllHint }}</p>
         }
       </div>
     } @else {
-      <div class="folders__split">
+      <div class="files__split">
       <p-table
         [value]="rows()"
         [paginator]="false"
         [scrollable]="true"
         scrollHeight="calc(100dvh - 280px)"
         dataKey="path"
-        styleClass="p-datatable-sm folders__table"
-        data-testid="folders-table"
+        styleClass="p-datatable-sm files__table"
+        data-testid="files-table"
       >
         <ng-template pTemplate="header">
           <tr>
-            <th class="folders__col-tree">{{ texts.columns.tree }}</th>
-            <th style="width: 70px" class="folders__col-num"
+            <th class="files__col-tree">{{ texts.columns.tree }}</th>
+            <th style="width: 70px" class="files__col-num"
                 [pTooltip]="texts.linksInHeaderTooltip" tooltipPosition="top">{{ texts.columns.linksIn }}</th>
-            <th style="width: 70px" class="folders__col-num"
+            <th style="width: 70px" class="files__col-num"
                 [pTooltip]="texts.linksOutHeaderTooltip" tooltipPosition="top">{{ texts.columns.linksOut }}</th>
-            <th style="width: 110px" class="folders__col-num">{{ texts.columns.tokens }}</th>
+            <th style="width: 110px" class="files__col-num">{{ texts.columns.tokens }}</th>
             <th style="width: 140px">{{ texts.columns.stability }}</th>
             <th style="width: 130px">{{ texts.columns.issues }}</th>
           </tr>
@@ -82,7 +82,7 @@
         <ng-template pTemplate="body" let-row>
           @if (row.type === 'folder') {
             <tr
-              class="folders__row folders__row--folder"
+              class="files__row files__row--folder"
               [attr.aria-expanded]="row.expanded"
               [attr.aria-level]="row.depth + 1"
               [attr.aria-label]="texts.folderAriaLabel(row.name, row.expanded)"
@@ -91,25 +91,25 @@
               (click)="toggleFolder(row)"
               (keydown.enter)="toggleFolder(row)"
               (keydown.space)="$event.preventDefault(); toggleFolder(row)"
-              [attr.data-testid]="'folders-folder-' + row.path"
+              [attr.data-testid]="'files-folder-' + row.path"
             >
-              <td class="folders__cell-tree">
-                <span class="folders__tree-inner">
-                  <span class="folders__indent" aria-hidden="true"></span>
+              <td class="files__cell-tree">
+                <span class="files__tree-inner">
+                  <span class="files__indent" aria-hidden="true"></span>
                   <i
-                    class="pi folders__chevron"
+                    class="pi files__chevron"
                     [class.pi-chevron-right]="!row.expanded"
                     [class.pi-chevron-down]="row.expanded"
                     aria-hidden="true"
                   ></i>
                   <i
-                    class="pi folders__folder-icon"
+                    class="pi files__folder-icon"
                     [class.pi-folder]="!row.expanded"
                     [class.pi-folder-open]="row.expanded"
                     aria-hidden="true"
                   ></i>
-                  <span class="folders__name folders__name--folder">{{ row.name }}</span>
-                  <span class="folders__count" [attr.aria-label]="row.nodeCount + ' nodes'">{{ texts.folderCount(row.nodeCount) }}</span>
+                  <span class="files__name files__name--folder">{{ row.name }}</span>
+                  <span class="files__count" [attr.aria-label]="row.nodeCount + ' nodes'">{{ texts.folderCount(row.nodeCount) }}</span>
                 </span>
               </td>
               <td></td>
@@ -120,40 +120,40 @@
             </tr>
           } @else {
             <tr
-              class="folders__row folders__row--leaf"
-              [class.folders__row--selected]="previewRow()?.path === row.path"
+              class="files__row files__row--leaf"
+              [class.files__row--selected]="previewRow()?.path === row.path"
               tabindex="0"
               [attr.aria-label]="texts.leafAriaLabel(row.name)"
               [style.--folder-depth]="row.depth"
               (click)="openLeaf(row)"
               (keydown.enter)="openLeaf(row)"
               (keydown.space)="$event.preventDefault(); openLeaf(row)"
-              [attr.data-testid]="'folders-leaf-' + row.path"
+              [attr.data-testid]="'files-leaf-' + row.path"
             >
-              <td class="folders__cell-tree">
-                <span class="folders__tree-inner">
-                  <span class="folders__indent" aria-hidden="true"></span>
-                  <span class="folders__chevron-placeholder" aria-hidden="true"></span>
-                  <i class="pi pi-file folders__leaf-icon" aria-hidden="true"></i>
-                  <span class="folders__name folders__name--leaf">{{ row.name }}</span>
+              <td class="files__cell-tree">
+                <span class="files__tree-inner">
+                  <span class="files__indent" aria-hidden="true"></span>
+                  <span class="files__chevron-placeholder" aria-hidden="true"></span>
+                  <i class="pi pi-file files__leaf-icon" aria-hidden="true"></i>
+                  <span class="files__name files__name--leaf">{{ row.name }}</span>
                   <button
                     type="button"
-                    class="folders__open-graph"
+                    class="files__open-graph"
                     [pTooltip]="texts.openInGraphTooltip"
                     tooltipPosition="top"
                     [attr.aria-label]="texts.openInGraphAriaLabel(row.name)"
                     (click)="$event.stopPropagation(); openLeaf(row)"
                     (keydown.enter)="$event.stopPropagation(); openLeaf(row)"
                     (keydown.space)="$event.preventDefault(); $event.stopPropagation(); openLeaf(row)"
-                    [attr.data-testid]="'folders-leaf-graph-' + row.path"
+                    [attr.data-testid]="'files-leaf-graph-' + row.path"
                   >
                     <i class="pi pi-sitemap" aria-hidden="true"></i>
                   </button>
                 </span>
               </td>
-              <td class="folders__cell-num">{{ row.linksIn }}</td>
-              <td class="folders__cell-num">{{ row.linksOut }}</td>
-              <td class="folders__cell-num" [attr.title]="row.tokensRaw > 0 ? texts.tokensTooltip(row.tokensRaw) : null">{{ row.tokens }}</td>
+              <td class="files__cell-num">{{ row.linksIn }}</td>
+              <td class="files__cell-num">{{ row.linksOut }}</td>
+              <td class="files__cell-num" [attr.title]="row.tokensRaw > 0 ? texts.tokensTooltip(row.tokensRaw) : null">{{ row.tokens }}</td>
               <td>
                 <p-tag
                   [value]="row.stability"
@@ -161,30 +161,30 @@
                   [rounded]="true"
                 />
               </td>
-              <td class="folders__cell-issues">
-                <span class="folders__issues-row">
+              <td class="files__cell-issues">
+                <span class="files__issues-row">
                   @if (row.isStale) {
                     <i
-                      class="pi pi-clock folders__stale-icon"
+                      class="pi pi-clock files__stale-icon"
                       [pTooltip]="row.staleTooltip"
                       tooltipPosition="top"
                       [attr.aria-label]="row.staleTooltip"
                     ></i>
                   }
                   @if (row.errors > 0) {
-                    <span class="folders__issue folders__issue--error">
+                    <span class="files__issue files__issue--error">
                       <i class="pi pi-times-circle" aria-hidden="true"></i>
-                      <span class="folders__issue-count">{{ row.errors }}</span>
+                      <span class="files__issue-count">{{ row.errors }}</span>
                     </span>
                   }
                   @if (row.warns > 0) {
-                    <span class="folders__issue folders__issue--warn">
+                    <span class="files__issue files__issue--warn">
                       <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
-                      <span class="folders__issue-count">{{ row.warns }}</span>
+                      <span class="files__issue-count">{{ row.warns }}</span>
                     </span>
                   }
                   @if (!row.isStale && row.errors === 0 && row.warns === 0) {
-                    <span class="folders__cell-issues-empty" aria-hidden="true">{{ texts.missing }}</span>
+                    <span class="files__cell-issues-empty" aria-hidden="true">{{ texts.missing }}</span>
                   }
                 </span>
               </td>
@@ -193,42 +193,42 @@
         </ng-template>
       </p-table>
 
-      <aside class="folders__preview" data-testid="folders-preview">
+      <aside class="files__preview" data-testid="files-preview">
         @if (previewRow(); as r) {
-          <header class="folders__preview-header">
-            <h3 class="folders__preview-title">{{ r.name }}</h3>
-            <code class="folders__preview-path" [attr.title]="r.path">{{ r.path }}</code>
+          <header class="files__preview-header">
+            <h3 class="files__preview-title">{{ r.name }}</h3>
+            <code class="files__preview-path" [attr.title]="r.path">{{ r.path }}</code>
           </header>
 
-          <div class="folders__preview-meta">
+          <div class="files__preview-meta">
             <p-tag
               [value]="r.stability"
               [severity]="r.stabilitySeverity"
               [rounded]="true"
             />
             @if (r.isStale) {
-              <span class="folders__preview-chip folders__preview-chip--stale">
+              <span class="files__preview-chip files__preview-chip--stale">
                 <i class="pi pi-clock" aria-hidden="true"></i>
                 stale
               </span>
             }
             @if (r.errors > 0) {
-              <span class="folders__preview-chip folders__preview-chip--error">
+              <span class="files__preview-chip files__preview-chip--error">
                 <i class="pi pi-times-circle" aria-hidden="true"></i>
                 {{ r.errors }} error{{ r.errors === 1 ? '' : 's' }}
               </span>
             }
             @if (r.warns > 0) {
-              <span class="folders__preview-chip folders__preview-chip--warn">
+              <span class="files__preview-chip files__preview-chip--warn">
                 <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
                 {{ r.warns }} warning{{ r.warns === 1 ? '' : 's' }}
               </span>
             }
           </div>
 
-          <section class="folders__preview-section">
-            <h4 class="folders__preview-h4">Stats</h4>
-            <dl class="folders__preview-stats">
+          <section class="files__preview-section">
+            <h4 class="files__preview-h4">Stats</h4>
+            <dl class="files__preview-stats">
               <div>
                 <dt>in</dt>
                 <dd>{{ r.linksIn }}</dd>
@@ -244,16 +244,16 @@
             </dl>
           </section>
 
-          <section class="folders__preview-section">
-            <h4 class="folders__preview-h4">Body preview</h4>
-            <p class="folders__preview-lorem">
+          <section class="files__preview-section">
+            <h4 class="files__preview-h4">Body preview</h4>
+            <p class="files__preview-lorem">
               Lorem ipsum dolor sit amet, consectetur adipiscing elit. Suspendisse
               potenti. Maecenas ultricies, lectus eget tempor cursus, libero erat
               sodales lectus, vitae sodales nisl turpis vel mi. Donec faucibus,
               quam id pretium auctor, lorem nulla vehicula sapien, in scelerisque
               risus odio in odio.
             </p>
-            <p class="folders__preview-lorem">
+            <p class="files__preview-lorem">
               Curabitur eget convallis quam, in cursus sapien. Aenean lacinia,
               erat sed ultricies congue, lorem turpis efficitur magna, eget
               interdum lectus arcu sed ligula. Sed congue tellus eu mi dictum
@@ -262,16 +262,16 @@
             </p>
           </section>
 
-          <section class="folders__preview-section">
-            <h4 class="folders__preview-h4">Findings</h4>
-            <ul class="folders__preview-findings">
+          <section class="files__preview-section">
+            <h4 class="files__preview-h4">Findings</h4>
+            <ul class="files__preview-findings">
               <li>Mock finding · severity: <strong>warn</strong> · drift detected on body hash.</li>
               <li>Mock finding · severity: <strong>info</strong> · sidecar version is one behind.</li>
             </ul>
           </section>
         } @else {
-          <div class="folders__preview-empty">
-            <i class="pi pi-arrow-left folders__preview-empty-icon" aria-hidden="true"></i>
+          <div class="files__preview-empty">
+            <i class="pi pi-arrow-left files__preview-empty-icon" aria-hidden="true"></i>
             <p>Pick a file to preview it here.</p>
           </div>
         }

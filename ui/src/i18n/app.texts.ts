@@ -23,7 +23,7 @@ export const APP_TEXTS = {
   devChipA11y: 'Development build: BFF is running from a local checkout.',
   nav: {
     graph: 'Graph',
-    folders: 'Folders',
+    files: 'Files',
     searchLabel: 'Search nodes by name or tag',
     searchTooltip: 'Search',
     searchPlaceholder: 'Search by name or tag...',

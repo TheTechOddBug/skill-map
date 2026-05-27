@@ -47,7 +47,7 @@ export class SeverityPalette {
 
   /**
    * Visible node-path set, runs the SAME filter chain
-   * `<sm-graph-view>` / `<sm-folders-view>` use, so this palette's
+   * `<sm-graph-view>` / `<sm-files-view>` use, so this palette's
    * counts always match what the operator sees on the canvas.
    */
   private readonly visibleSet = computed<ReadonlySet<string>>(() => {

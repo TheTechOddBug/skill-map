@@ -1,7 +1,7 @@
 /**
  * Shared PrimeNG `severity` mappings reused by multiple panels:
  *
- *   - `STABILITY_SEVERITY`, annotations panel, inspector view, folders view
+ *   - `STABILITY_SEVERITY`, annotations panel, inspector view, files view
  *     (renders the stability tag chip).
  *   - `KIND_SEVERITY`, linked-nodes panel (renders the per-link kind tag).
  *   - `CONFIDENCE_SEVERITY`, linked-nodes panel (renders the per-link
@@ -9,7 +9,7 @@
  *
  * Hoisted out of the consumer files so a new severity-aware surface
  * imports one record instead of redeclaring the same map locally.
- * Surfaces that need additional sentinel keys (e.g. folders-view's `'·'`
+ * Surfaces that need additional sentinel keys (e.g. files-view's `'·'`
  * for missing stability) handle them inline at the call site.
  */
 

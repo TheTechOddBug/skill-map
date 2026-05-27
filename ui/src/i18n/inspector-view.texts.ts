@@ -3,7 +3,7 @@ export const INSPECTOR_VIEW_TEXTS = {
   emptyNoSelection: {
     title: 'No node selected',
     descPrefix: 'Pick a node from the ',
-    listLink: 'folders',
+    listLink: 'files',
     descMiddle: ' or ',
     graphLink: 'graph',
     descSuffix: '.',
@@ -11,10 +11,10 @@ export const INSPECTOR_VIEW_TEXTS = {
   emptyNotFound: {
     title: 'Node not found',
     descSuffix: ' does not exist in the collection. ',
-    backLink: 'Back to folders',
+    backLink: 'Back to files',
     descAfterLink: '.',
   },
-  backToList: '← back to folders',
+  backToList: '← back to files',
   /**
    * Section headers the inspector body renders directly. Vendor-frontmatter
    * sub-sections (Behavior / Capabilities / Initial prompt) own their own
