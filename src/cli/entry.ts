@@ -233,6 +233,15 @@ function resolveBareInvocation(rawArgs: string[]): string[] | null {
     first.startsWith('-') &&
     !passthrough.has(first)
   ) {
+    // Single-dash long form (`-version`, `-help`, `-foo`, length > 2,
+    // no `--`) is always a typo: never a real flag, no value passing,
+    // no chance Clipanion will accept it. Bypass routing so the
+    // parse-error handler surfaces the proper "Did you mean '--foo'?"
+    // diagnostic consistently regardless of project state (otherwise
+    // the same typo would print the no-project hint when run outside
+    // a project, masking the real fix).
+    const isSingleDashLong = !first.startsWith('--') && first.length > 2;
+    if (isSingleDashLong) return null;
     if (existsSync(defaultProjectDbPath(defaultRuntimeContext()))) {
       return ['serve', ...rawArgs];
     }
