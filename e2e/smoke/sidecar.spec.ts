@@ -30,12 +30,11 @@ import { expect, test } from '@playwright/test';
  */
 
 test.describe('sidecar UI surface (Step 9.6.5)', () => {
-  test('list view exposes the "Stale only" filter chip', async ({ page }) => {
+  test('files view exposes the "Stale only" filter chip', async ({ page }) => {
     await page.goto('./');
     await page.waitForLoadState('networkidle');
-    // List nav is disabled in the shell — drive the route via URL.
-    await page.goto('./list');
-    await expect(page).toHaveURL(/\/list/);
+    await page.goto('./files');
+    await expect(page).toHaveURL(/\/files/);
 
     const staleFilter = page.getByTestId('filter-stale-only');
     await expect(staleFilter).toBeVisible();
@@ -44,9 +43,8 @@ test.describe('sidecar UI surface (Step 9.6.5)', () => {
   test('toggling "Stale only" updates the URL filter param', async ({ page }) => {
     await page.goto('./');
     await page.waitForLoadState('networkidle');
-    // List nav is disabled in the shell — drive the route via URL.
-    await page.goto('./list');
-    await expect(page).toHaveURL(/\/list/);
+    await page.goto('./files');
+    await expect(page).toHaveURL(/\/files/);
 
     const staleFilter = page.getByTestId('filter-stale-only');
     await staleFilter.click();
@@ -59,17 +57,20 @@ test.describe('sidecar UI surface (Step 9.6.5)', () => {
     await page.goto('./');
     await page.waitForLoadState('networkidle');
 
-    // List nav is disabled in the shell — drive the route via URL.
-    await page.goto('./list');
-    await expect(page).toHaveURL(/\/list/);
-
-    const firstRow = page.locator('[data-testid^="list-row-"]').first();
+    // Pick the first leaf path from the files view, then deep-link into
+    // the map view with `?path=<path>` to open the inspector. The files
+    // view itself only renders an inline preview on row click; the
+    // inspector lives under `/map?path=`.
+    await page.goto('./files');
+    await expect(page).toHaveURL(/\/files/);
+    const firstRow = page.locator('[data-testid^="files-leaf-"]').first();
     if ((await firstRow.count()) === 0) {
       test.skip(true, 'demo bundle has no nodes to open');
       return;
     }
-    await firstRow.click();
-    await expect(page).toHaveURL(/\/graph/);
+    const firstPath = (await firstRow.getAttribute('data-testid'))!.replace(/^files-leaf-/, '');
+    await page.goto(`./map?path=${encodeURIComponent(firstPath)}`);
+    await expect(page).toHaveURL(/\/map/);
 
     // The bump button lives inside the inspector header. After the
     // Step 9.6 fixture migration, `.claude/**` demo nodes ship with
@@ -85,21 +86,12 @@ test.describe('sidecar UI surface (Step 9.6.5)', () => {
     await page.goto('./');
     await page.waitForLoadState('networkidle');
 
-    // List nav is disabled in the shell — drive the route via URL.
-    await page.goto('./list');
-    await expect(page).toHaveURL(/\/list/);
-
     // Post Step 9.6 fixture migration the demo bundle ships sidecars
     // for every `.claude/**` node; only the top-level `README.md` is
-    // left as the canonical "no sidecar overlay" case, so target it
-    // by path to deterministically exercise the gate.
-    const readmeRow = page.getByTestId('list-row-README.md');
-    if ((await readmeRow.count()) === 0) {
-      test.skip(true, 'demo bundle has no README.md row');
-      return;
-    }
-    await readmeRow.click();
-    await expect(page).toHaveURL(/\/graph/);
+    // left as the canonical "no sidecar overlay" case, so deep-link
+    // directly into the map view with the README path.
+    await page.goto('./map?path=README.md');
+    await expect(page).toHaveURL(/\/map/);
 
     // README has `sidecar.present === false` — annotations card MUST
     // collapse (it gates on `node.sidecar?.present`).

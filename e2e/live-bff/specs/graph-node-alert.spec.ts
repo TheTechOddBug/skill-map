@@ -36,7 +36,7 @@ test.describe('graph.node.alert (reserved slot, no built-in emitters)', () => {
 
     await expect(page.getByTestId('shell')).toBeVisible();
     await page.getByTestId('nav-graph').click();
-    await expect(page).toHaveURL(/\/graph/);
+    await expect(page).toHaveURL(/\/map/);
 
     // Confirm the fixture node mounted before asserting absence on a
     // dependent surface, otherwise a "no badges" pass could just mean

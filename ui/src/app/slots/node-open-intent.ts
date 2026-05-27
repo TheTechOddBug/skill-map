@@ -6,7 +6,7 @@
  * Slot renderers are part of the shell's closed catalog (not plugin
  * code), but they can be mounted in multiple hosts: today the graph
  * view, tomorrow side-panels, embedded inspectors, or non-graph
- * shells. Hardcoding `router.navigate(['/graph'], ...)` inside a
+ * shells. Hardcoding `router.navigate(['/map'], ...)` inside a
  * renderer (the pre-2026-05-13 shape) means a future host has to
  * either accept the wrong target or fork the renderer.
  *
@@ -15,8 +15,8 @@
  * an open-intent service is the lightest workaround that keeps the
  * renderer pure and lets hosts override the navigation target via DI.
  *
- * Default implementation navigates to `/graph?path=<path>`, the
- * canonical "open this node in the graph view" gesture. Hosts that
+ * Default implementation navigates to `/map?path=<path>`, the
+ * canonical "open this node in the map view" gesture. Hosts that
  * mount the renderer in non-graph contexts override the token with
  * their own implementation.
  */
@@ -33,7 +33,7 @@ export class DefaultNodeOpenIntent implements INodeOpenIntent {
   private readonly router = inject(Router);
 
   open(path: string): void {
-    void this.router.navigate(['/graph'], { queryParams: { path } });
+    void this.router.navigate(['/map'], { queryParams: { path } });
   }
 }
 

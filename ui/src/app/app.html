@@ -97,7 +97,7 @@
       <!-- DEBUG-SLOTS: host applies class+data-attr via host bindings
            when debug-slots is on (see view-contributions-host.ts). -->
       <sm-view-contributions-host slot="topbar.nav.start" [node]="null" />
-      <a routerLink="/graph" routerLinkActive="is-active" queryParamsHandling="preserve" data-testid="nav-graph">{{ texts.nav.graph }}</a>
+      <a routerLink="/map" routerLinkActive="is-active" queryParamsHandling="preserve" data-testid="nav-graph">{{ texts.nav.map }}</a>
       <a routerLink="/files" routerLinkActive="is-active" queryParamsHandling="preserve" data-testid="nav-files">{{ texts.nav.files }}</a>
     </nav>
 
@@ -106,8 +106,8 @@
         type="button"
         class="shell__refresh"
         [class.is-spinning]="scanning()"
-        [attr.aria-label]="graphInfoA11y()"
-        [pTooltip]="graphInfoTooltip()"
+        [attr.aria-label]="mapInfoA11y()"
+        [pTooltip]="mapInfoTooltip()"
         tooltipPosition="bottom"
         [disabled]="scanning()"
         (click)="triggerScan()"

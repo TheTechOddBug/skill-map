@@ -1,7 +1,7 @@
 /** UI strings for the FilesView. */
 export const FILES_VIEW_TEXTS = {
   title: 'Files',
-  subtitleDefault: 'Filesystem view of the collection, click a folder to expand or a node to inspect it on the graph.',
+  subtitleDefault: 'Filesystem view of the collection, click a folder to expand or a node to inspect it on the map.',
   showingPrefix: 'Showing',
   showingSuffix: (total: number) => ` of ${total} nodes.`,
   loading: 'Loading collection…',
@@ -14,9 +14,9 @@ export const FILES_VIEW_TEXTS = {
   folderAriaLabel: (name: string, expanded: boolean) =>
     `${expanded ? 'Collapse' : 'Expand'} folder ${name}`,
   leafAriaLabel: (name: string) => `Inspect ${name}`,
-  /** Per-leaf inline button that jumps to the graph view focused on the node. */
-  openInGraphTooltip: 'Open in graph',
-  openInGraphAriaLabel: (name: string) => `Open ${name} in graph view`,
+  /** Per-leaf inline button that jumps to the map view focused on the node. */
+  openInMapTooltip: 'Open in map',
+  openInMapAriaLabel: (name: string) => `Open ${name} in map view`,
   /**
    * Column headers. The structural (tree) column is unique to the
    * files view; the rest mirror the prior list view shape so the

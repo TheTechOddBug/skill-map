@@ -94,7 +94,7 @@ export const SETTINGS_TEXTS = {
     referencePathsDescription:
       'If your notes link to files outside this project, list those ' +
       'folders here. Skill-map checks them only to confirm the links ' +
-      'work, nothing from these folders shows up in the graph.',
+      'work, nothing from these folders shows up in the map.',
     referencePathsPlaceholder: '~/Documents/research',
     commaForbidden:
       'Add one path at a time, without commas.',
@@ -137,7 +137,7 @@ export const SETTINGS_TEXTS = {
      */
     activeProviderLabel: 'Active provider',
     activeProviderDescription:
-      'Selects which provider sees this project. The graph reflects ' +
+      'Selects which provider sees this project. The map reflects ' +
       'how the chosen provider interprets your files.',
     activeProviderSourceAutodetect:
       'Auto-detected from your files (no value saved yet).',
@@ -155,7 +155,7 @@ export const SETTINGS_TEXTS = {
     activeProviderSwitchedPrefix: 'Lens switched. Cleared',
     activeProviderSwitchedSuffix: 'scan table(s). Run `sm scan` to repopulate.',
     activeProviderSwitchedNoDb:
-      'Lens switched. Run `sm scan` to populate the graph under the new lens.',
+      'Lens switched. Run `sm scan` to populate the map under the new lens.',
   },
 
   /** Changelog section. */
@@ -263,7 +263,7 @@ export const SETTINGS_TEXTS = {
   discardChanges: 'Discard',
   applyAndClose: 'Apply',
   discardA11y: 'Discard pending plugin changes',
-  applyA11y: 'Apply pending plugin changes and refresh the graph',
+  applyA11y: 'Apply pending plugin changes and refresh the map',
 
   /**
    * Confirm dialog presented when the user tries to close the modal

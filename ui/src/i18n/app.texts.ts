@@ -22,7 +22,7 @@ export const APP_TEXTS = {
   devChipTooltip: 'BFF launched from a local checkout (not the npm install).',
   devChipA11y: 'Development build: BFF is running from a local checkout.',
   nav: {
-    graph: 'Graph',
+    map: 'Map',
     files: 'Files',
     searchLabel: 'Search nodes by name or tag',
     searchTooltip: 'Search',
@@ -43,7 +43,7 @@ export const APP_TEXTS = {
      * why the canvas shows fewer arrows than the CLI announced. PrimeNG's
      * `[pTooltip]` honours `\n` as a line break.
      */
-    graphInfo: (
+    mapInfo: (
       nodes: number,
       analysis: {
         raw: number;
@@ -63,14 +63,14 @@ export const APP_TEXTS = {
       if (analysis.duplicates > 0) parts.push(`${analysis.duplicates} duplicate${analysis.duplicates === 1 ? '' : 's'}`);
       return `${base}\n${analysis.drawn.toLocaleString()} drawn (${parts.join(', ')})`;
     },
-    graphInfoA11y: (
+    mapInfoA11y: (
       nodes: number,
       analysis: {
         raw: number;
         drawn: number;
       },
     ): string =>
-      `Graph contains ${nodes} nodes and ${analysis.raw} links; ${analysis.drawn} drawn on the canvas`,
+      `Map contains ${nodes} nodes and ${analysis.raw} links; ${analysis.drawn} drawn on the canvas`,
   },
   a11y: {
     viewSwitcher: 'View switcher',
@@ -78,7 +78,7 @@ export const APP_TEXTS = {
   viewportWarning: {
     title: "Looks like you're on a small screen",
     subtitle: 'skill-map is built for desktop',
-    body: 'The graph and inspector need room to breathe. Pop this open on a screen at least 768px wide. See you there.',
+    body: 'The map and inspector need room to breathe. Pop this open on a screen at least 768px wide. See you there.',
   },
   /**
    * `document.title` composer used by the custom `TitleStrategy`. Reads

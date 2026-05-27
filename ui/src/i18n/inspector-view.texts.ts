@@ -5,7 +5,7 @@ export const INSPECTOR_VIEW_TEXTS = {
     descPrefix: 'Pick a node from the ',
     listLink: 'files',
     descMiddle: ' or ',
-    graphLink: 'graph',
+    mapLink: 'map',
     descSuffix: '.',
   },
   emptyNotFound: {

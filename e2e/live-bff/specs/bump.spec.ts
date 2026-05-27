@@ -53,19 +53,20 @@ test.describe('live-BFF bump flow', () => {
     //     the only node in the fixture is the stale one; any badge on
     //     the page is THE badge.
     await page.getByTestId('nav-graph').click();
-    await expect(page).toHaveURL(/\/graph/);
+    await expect(page).toHaveURL(/\/map/);
     await expect(page.locator('[data-testid="node-card-stale-badge"]').first()).toBeVisible({ timeout: 10_000 });
 
-    // 2. Open the list view and locate the stale fixture row.
-    // List nav is disabled in the shell — drive the route via URL.
-    await page.goto('./list');
-    await expect(page).toHaveURL(/\/list/);
-    const row = page.getByTestId(`list-row-${STALE_PATH}`);
+    // 2. Confirm the stale fixture row is rendered in the files view, then
+    //    deep-link into the map view (the files view itself opens an
+    //    inline preview on click, the inspector lives under `/map?path=`).
+    await page.goto('./files');
+    await expect(page).toHaveURL(/\/files/);
+    const row = page.getByTestId(`files-leaf-${STALE_PATH}`);
     await expect(row).toBeVisible();
 
-    // 4. Open the inspector by clicking the row.
-    await row.click();
-    await expect(page).toHaveURL(/\/graph/);
+    // 4. Open the inspector via deep-link.
+    await page.goto(`./map?path=${encodeURIComponent(STALE_PATH)}`);
+    await expect(page).toHaveURL(/\/map/);
 
     // The inspector bump host is the `<p-button>` wrapper; the actual
     // <button> is a child. Same selector strategy as the unit tests
@@ -96,7 +97,7 @@ test.describe('live-BFF bump flow', () => {
     //    "not stale" → badge collapses. Switch back to the graph view
     //    (where the badge renders inside the node card) to confirm.
     await page.getByTestId('nav-graph').click();
-    await expect(page).toHaveURL(/\/graph/);
+    await expect(page).toHaveURL(/\/map/);
     await expect(page.locator('[data-testid="node-card-stale-badge"]')).toHaveCount(0);
   });
 });

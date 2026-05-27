@@ -136,11 +136,11 @@ export class App {
     analyzeLinks(this.loader.nodes(), this.loader.scan()),
   );
   protected readonly linkCount = computed(() => this.linkAnalysis().raw);
-  protected readonly graphInfoTooltip = computed(() =>
-    APP_TEXTS.badge.graphInfo(this.count(), this.linkAnalysis()),
+  protected readonly mapInfoTooltip = computed(() =>
+    APP_TEXTS.badge.mapInfo(this.count(), this.linkAnalysis()),
   );
-  protected readonly graphInfoA11y = computed(() =>
-    APP_TEXTS.badge.graphInfoA11y(this.count(), this.linkAnalysis()),
+  protected readonly mapInfoA11y = computed(() =>
+    APP_TEXTS.badge.mapInfoA11y(this.count(), this.linkAnalysis()),
   );
   /**
    * Project path surfaced under the brand mark. Prefers `/api/health`'s

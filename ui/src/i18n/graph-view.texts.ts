@@ -5,7 +5,7 @@ export const GRAPH_VIEW_TEXTS = {
   emptyTitle: 'No nodes match the current filters.',
   resetFilters: 'Reset filters',
   a11y: {
-    toolbar: 'Graph controls',
+    toolbar: 'Map controls',
     panel: 'Selected node details',
   },
   toolbar: {

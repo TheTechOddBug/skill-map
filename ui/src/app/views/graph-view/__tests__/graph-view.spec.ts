@@ -163,7 +163,7 @@ async function bootstrap(initialNodes: INodeView[]): Promise<{
     providers: [
       provideRouter([
         { path: '', component: BlankPage },
-        { path: 'graph', component: BlankPage },
+        { path: 'map', component: BlankPage },
       ]),
       { provide: CollectionLoaderService, useValue: loader },
       { provide: DATA_SOURCE, useValue: STUB_DATA_SOURCE },
@@ -198,7 +198,7 @@ async function bootstrap(initialNodes: INodeView[]): Promise<{
     agent: { primaryProviderId: 'claude', providers: { claude: { label: 'Agents', color: '#3b82f6' } } },
   });
   const router = TestBed.inject(Router);
-  await router.navigateByUrl('/graph');
+  await router.navigateByUrl('/map');
   const fixture = TestBed.createComponent(GraphView);
   // Construction wires the effects but DOES NOT detect changes, that
   // would render the Foblex template, which is not our concern. We
@@ -310,7 +310,7 @@ describe('GraphView, deep-link reader', () => {
       providers: [
         provideRouter([
           { path: '', component: BlankPage },
-          { path: 'graph', component: BlankPage },
+          { path: 'map', component: BlankPage },
         ]),
         { provide: CollectionLoaderService, useValue: loader },
         { provide: DATA_SOURCE, useValue: STUB_DATA_SOURCE },
@@ -324,7 +324,7 @@ describe('GraphView, deep-link reader', () => {
       agent: { primaryProviderId: 'claude', providers: { claude: { label: 'Agents', color: '#3b82f6' } } },
     });
     const router = TestBed.inject(Router);
-    await router.navigateByUrl(`/graph?path=${encodeURIComponent(node.path)}`);
+    await router.navigateByUrl(`/map?path=${encodeURIComponent(node.path)}`);
 
     const fixture = TestBed.createComponent(GraphView);
     const cmp = fixture.componentInstance;

@@ -139,9 +139,9 @@
                   <button
                     type="button"
                     class="files__open-graph"
-                    [pTooltip]="texts.openInGraphTooltip"
+                    [pTooltip]="texts.openInMapTooltip"
                     tooltipPosition="top"
-                    [attr.aria-label]="texts.openInGraphAriaLabel(row.name)"
+                    [attr.aria-label]="texts.openInMapAriaLabel(row.name)"
                     (click)="$event.stopPropagation(); openLeaf(row)"
                     (keydown.enter)="$event.stopPropagation(); openLeaf(row)"
                     (keydown.space)="$event.preventDefault(); $event.stopPropagation(); openLeaf(row)"

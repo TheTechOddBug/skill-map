@@ -255,7 +255,7 @@ export class InspectorView implements OnInit {
   }
 
   openPath(path: string): void {
-    void this.router.navigate(['/graph'], { queryParams: { path } });
+    void this.router.navigate(['/map'], { queryParams: { path } });
   }
 
   /**
