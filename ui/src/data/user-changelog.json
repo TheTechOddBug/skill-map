@@ -2,6 +2,26 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.41.0",
+      "date": "2026-05-27",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "New `--max-nodes <N>` on `sm scan` / `sm watch` / `sm serve` caps how many files the walker accepts (default 256, bidirectional). Past the limit, a persistent banner links to **Settings → Project** to trim `.skillmapignore`.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "`sm -version` and `sm -help` now suggest `--version` / `--help` consistently, even from a directory with no skill-map project.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.40.1",
       "date": "2026-05-26",
       "kind": "user-facing",
