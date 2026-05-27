@@ -182,6 +182,61 @@ describe('sm serve, flag validation', () => {
     );
   });
 
+  it('rejects --max-nodes 0 with exit 2 and a clear hint', async () => {
+    // The `--max-nodes` cap is `>= 1`. Zero is the canonical degenerate
+    // value: it would silently turn every scan into "drop everything",
+    // so we exit at parse time with a hint pointing at the right shape.
+    const cap = captureContext();
+    const cli = buildCli();
+    const exit = await cli.run(['serve', '--max-nodes', '0'], cap.context);
+    assert.equal(exit, ExitCode.Error);
+    assert.match(
+      cap.stderr(),
+      /sm serve: --max-nodes must be an integer >= 1 \(got 0\)/,
+      cap.stderr(),
+    );
+    assert.match(cap.stderr(), /Pass a positive integer/, cap.stderr());
+  });
+
+  it('rejects --max-nodes=-5 (negative integer) with exit 2', async () => {
+    // Clipanion reads a bare `-5` after a flag as a new short option,
+    // so the only way the user can deliver a negative value to the
+    // parser is via the `=` form, which is exactly what we test here.
+    const cap = captureContext();
+    const cli = buildCli();
+    const exit = await cli.run(['serve', '--max-nodes=-5'], cap.context);
+    assert.equal(exit, ExitCode.Error);
+    assert.match(
+      cap.stderr(),
+      /sm serve: --max-nodes must be an integer >= 1 \(got -5\)/,
+      cap.stderr(),
+    );
+  });
+
+  it('rejects --max-nodes 1.5 (non-integer) with exit 2', async () => {
+    const cap = captureContext();
+    const cli = buildCli();
+    const exit = await cli.run(['serve', '--max-nodes', '1.5'], cap.context);
+    assert.equal(exit, ExitCode.Error);
+    assert.match(
+      cap.stderr(),
+      /sm serve: --max-nodes must be an integer >= 1 \(got 1\.5\)/,
+      cap.stderr(),
+    );
+  });
+
+  it('rejects --max-nodes abc (non-numeric) with exit 2', async () => {
+    const cap = captureContext();
+    const cli = buildCli();
+    const exit = await cli.run(['serve', '--max-nodes', 'abc'], cap.context);
+    assert.equal(exit, ExitCode.Error);
+    assert.match(
+      cap.stderr(),
+      /sm serve: --max-nodes must be an integer >= 1 \(got abc\)/,
+      cap.stderr(),
+    );
+  });
+
   it('accepts --ui-dist when the directory contains index.html', async () => {
     // Build a minimal valid bundle so the validator + UI-dist resolver
     // both clear; we then immediately rely on flag-validation rejecting
