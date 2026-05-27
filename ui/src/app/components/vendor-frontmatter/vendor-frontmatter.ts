@@ -29,7 +29,6 @@ import {
   computed,
   input,
 } from '@angular/core';
-import { ChipModule } from 'primeng/chip';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { VENDOR_FRONTMATTER_TEXTS } from '../../../i18n/vendor-frontmatter.texts';
@@ -48,7 +47,7 @@ interface IHookRow {
 
 @Component({
   selector: 'sm-vendor-frontmatter',
-  imports: [ChipModule, TooltipModule],
+  imports: [TooltipModule],
   templateUrl: './vendor-frontmatter.html',
   styleUrl: './vendor-frontmatter.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

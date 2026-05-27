@@ -2,16 +2,11 @@
  * `<sm-inspector-header>`, hero band of the inspector view.
  *
  * Owns the visual fingerprint of the node currently in focus: kind
- * icon box + name + path, the right-edge actions cluster (favorite
- * star, stale clock, stability icon, version chip, header-badge
+ * icon box + name + subtitle (`kind · provider · stability`) + path +
+ * meta strip (bytes, tokens, links), plus the right-edge actions
+ * cluster (favorite star, stale clock, version chip, header-badge
  * slots, embedded-mode close button), the plugin-actions row (hidden
  * behind a feature flag), and the tools chip row.
- *
- * Lives outside `inspector-view.ts` so the 9-computed header surface,
- * the `inspector.header.badge.*` slot hosts, the close-button focus
- * dance, and 350 lines of CSS sit in one place. The host (the
- * inspector view) keeps the cards below and the toolbar that wires
- * bump / debug + the empty / not-found branches.
  *
  * Inputs are required: a non-null `node` is the precondition the host
  * already enforces before mounting the header (the `@else { ... }`
@@ -86,8 +81,8 @@ export class InspectorHeader {
   readonly close = output<void>();
 
   /**
-   * Emitted when the user clicks the heart. Carries the node path
-   * so the host can call `loader.toggleFavorite(path, !isFavorite)`
+   * Emitted when the user clicks the heart. Carries the node path so
+   * the host can call `loader.toggleFavorite(path, !isFavorite)`
    * without the header reaching into the loader itself.
    */
   readonly favoriteToggle = output<string>();
@@ -103,26 +98,21 @@ export class InspectorHeader {
    * `translateX` animation, so when this effect fires the X is
    * partially off-screen. A bare `.focus()` would call
    * `scrollIntoView` on a transforming element, forcing horizontal
-   * scroll on the document; with `overflow-y: auto` on `.shell__main`,
-   * the cascading reflow shifts the canvas-wrap laterally. Visible
-   * symptom: the graph "moves and then relocates" every time the
-   * panel opens.
+   * scroll on the document.
    */
   private readonly closeBtn = viewChild<ElementRef<HTMLButtonElement>>('closeBtn');
 
   constructor() {
     effect(() => {
       if (this.mode() !== 'embedded') return;
-      // Subscribe to node so the focus fires after a node-to-node
-      // change in embedded mode too (clicking a different graph card).
       this.node();
       queueMicrotask(() => this.closeBtn()?.nativeElement.focus({ preventScroll: true }));
     });
   }
 
   // ---------------------------------------------------------------------------
-  // Header computeds, all derived from `node()`. Effective values
-  // follow the sidecar-wins / legacy-fallback contract documented in
+  // Header computeds, all derived from `node()`. Effective values follow
+  // the sidecar-wins / legacy-fallback contract documented in
   // `models/node-derived.ts`.
   // ---------------------------------------------------------------------------
 
@@ -132,21 +122,6 @@ export class InspectorHeader {
     effectiveStability(this.node()),
   );
 
-  /**
-   * Catalog curation refinement (2026-05-07): the inspector title
-   * surfaces the vendor `frontmatter.color` as a subtle shading.
-   * Agents typically carry a Claude vendor color (`red`, `cyan`, …);
-   * non-agent kinds (or agents without a color) fall back to the
-   * kind-default palette token. The result feeds a CSS variable on
-   * the title element so the host stays theme-friendly.
-   *
-   * Only the whitelisted Claude vendor enum is forwarded raw. An
-   * arbitrary user-supplied string (e.g. `"3"`, `"#fff fff"`, or a CSS
-   * expression containing `var(...)`) would otherwise land in the
-   * `--node-color` CSS var and either fail silently or open a small
-   * CSS-injection surface; the fallback to the kind palette keeps the
-   * header readable in those cases.
-   */
   protected readonly headerTitleColor = computed<string | null>(() => {
     const n = this.node();
     const fm = n.frontmatter as Record<string, unknown>;
@@ -155,23 +130,12 @@ export class InspectorHeader {
     return `var(--sm-kind-${n.kind})`;
   });
 
-  /**
-   * Header tools, vendor frontmatter `tools` (agents) /
-   * `allowed-tools` (skills / commands) rendered as individual chips
-   * in the header.
-   */
   protected readonly headerTools = computed<readonly string[]>(() =>
     effectiveToolsList(this.node()),
   );
 
-  /**
-   * Stale flag for the header, drives the clock icon next to the
-   * stability / version cluster. Same source as the card via
-   * `effectiveIsStale`.
-   */
   protected readonly headerIsStale = computed<boolean>(() => effectiveIsStale(this.node()));
 
-  /** Drift status tooltip; mirrors the card's vocabulary. */
   protected readonly headerStaleTooltip = computed<string>(() =>
     effectiveStaleTooltip(this.node(), NODE_CARD_TEXTS.sidecar),
   );

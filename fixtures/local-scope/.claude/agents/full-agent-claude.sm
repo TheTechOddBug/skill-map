@@ -1,0 +1,37 @@
+# Reference Claude agent sidecar populating every documented field in
+# the curated 10-annotation catalog plus the full identity, audit, and
+# settings blocks. Companion to `full-agent-claude.md`; together they
+# render every UI affordance the inspector + node-card support.
+#
+# Hashes computed against the current .md content with the kernel's
+# canonical-form algorithm. Re-compute (or run `sm bump`) if the .md
+# changes; otherwise the annotation-stale analyzer fires.
+identity:
+  path: .claude/agents/full-agent-claude.md
+  bodyHash: 0d3a517420312d9490551663bb3fe1a9474c089f6b34cd2ebb57c81ebbbe85c3
+  frontmatterHash: 2f45accaa8f51c260d086ebbb64aa9378d5f2914ae63de30aa62972b0ec89c30
+  resolvedAs:
+    provider: claude
+    kind: agent
+annotations:
+  version: 7
+  stability: stable
+  authors:
+    - crystian
+    - reference-team
+  license: MIT
+  source: https://github.com/anthropic/agents/blob/main/full-agent-claude.md
+  sourceVersion: v2.4.1
+  tags:
+    - reference
+    - showcase
+    - canonical
+  docsUrl: https://docs.claude.com/agents/full-agent-claude
+  supersedes:
+    - .claude/agents/deprecated-agent.md
+settings: {}
+audit:
+  createdAt: '2026-04-01T10:00:00Z'
+  createdBy: cli
+  lastBumpedAt: '2026-05-26T16:45:00Z'
+  lastBumpedBy: cli

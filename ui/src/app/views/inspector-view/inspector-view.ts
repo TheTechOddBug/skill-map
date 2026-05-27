@@ -290,8 +290,8 @@ export class InspectorView implements OnInit {
   /**
    * Forwarded from `<sm-inspector-header (favoriteToggle)>`. The header
    * emits the path so we don't have to re-resolve `node()` here. The
-   * inspector is reachable from the deep-link route too, so the
-   * loader call lives here rather than on the parent graph view.
+   * inspector is reachable from the deep-link route too, so the loader
+   * call lives here rather than on the parent graph view.
    */
   protected onHeaderFavoriteToggle(path: string): void {
     const n = this.node();

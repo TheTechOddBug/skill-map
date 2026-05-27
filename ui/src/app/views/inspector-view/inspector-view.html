@@ -39,24 +39,23 @@
     />
 
     @if (fm.description) {
-      <div class="inspector__hero" data-testid="inspector-hero">
-        <p class="inspector__desc" data-testid="inspector-description">{{ fm.description }}</p>
-      </div>
+      <p class="inspector__desc" data-testid="inspector-description">{{ fm.description }}</p>
     }
 
     @if (headerSupersededBy(); as sup) {
-      <div class="inspector__superseded" data-testid="inspector-superseded-banner">
+      <div class="inspector__banner inspector__banner--warn" data-testid="inspector-superseded-banner">
         <i class="pi pi-arrow-up-right" aria-hidden="true"></i>
         <span>{{ texts.supersededByBanner(sup) }}</span>
       </div>
     }
 
     @if (bumpError(); as err) {
-      <div class="inspector__bump-error" data-testid="inspector-bump-error">
+      <div class="inspector__banner inspector__banner--error" data-testid="inspector-bump-error">
+        <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
         <span>{{ err }}</span>
         <button
           type="button"
-          class="inspector__bump-error-dismiss"
+          class="inspector__banner-dismiss"
           (click)="dismissBumpError()"
           [attr.aria-label]="texts.bumpErrorDismissAriaLabel"
         >
@@ -77,6 +76,18 @@
         (onClick)="onBumpClick()"
         data-testid="inspector-bump"
       />
+      <p-button
+        icon="pi pi-refresh"
+        [text]="true"
+        severity="secondary"
+        size="small"
+        [ariaLabel]="texts.body.refreshLabel"
+        [pTooltip]="texts.body.refreshLabel"
+        (onClick)="refreshBody()"
+        [disabled]="bodyState() === 'loading' || !path()"
+        [loading]="bodyState() === 'loading'"
+        data-testid="inspector-body-refresh"
+      />
       @if (mode() === 'standalone') {
         <a routerLink="/files" class="inspector__back" data-testid="inspector-back">{{ texts.backToList }}</a>
       }
@@ -95,12 +106,8 @@
     }
 
     @if (n.sidecar?.present || authorTags().length > 0) {
-      <section class="sm-section" data-testid="inspector-card-annotations">
-        <header class="sm-section__head">
-          <i class="pi pi-bookmark sm-section__icon" aria-hidden="true"></i>
-          <span class="sm-section__title">{{ texts.sections.annotations }}</span>
-          <span class="sm-section__rule" aria-hidden="true"></span>
-        </header>
+      <section class="sm-block" data-testid="inspector-card-annotations">
+        <h3 class="sm-block__title">{{ texts.sections.annotations }}</h3>
         <sm-annotations-panel
           [overlay]="n.sidecar"
           [authorTags]="authorTags()"
@@ -112,23 +119,17 @@
       </section>
     }
 
-    <section class="sm-section" data-testid="inspector-card-linked-nodes">
-      <header class="sm-section__head">
-        <i class="pi pi-share-alt sm-section__icon" aria-hidden="true"></i>
-        <span class="sm-section__title">{{ texts.sections.connections }}</span>
-        <span class="sm-section__rule" aria-hidden="true"></span>
-      </header>
+    <section class="sm-block" data-testid="inspector-card-linked-nodes">
+      <h3 class="sm-block__title">{{ texts.sections.connections }}</h3>
       <sm-linked-nodes-panel [path]="n.path" (openPath)="openPath($event)" />
     </section>
 
     @if (issues().length > 0) {
-      <section class="sm-section" data-testid="inspector-findings">
-        <header class="sm-section__head">
-          <i class="pi pi-search sm-section__icon" aria-hidden="true"></i>
-          <span class="sm-section__title">{{ texts.sections.findings }}</span>
-          <span class="sm-section__count">{{ issues().length }}</span>
-          <span class="sm-section__rule" aria-hidden="true"></span>
-        </header>
+      <section class="sm-block" data-testid="inspector-findings">
+        <h3 class="sm-block__title">
+          {{ texts.sections.findings }}
+          <span class="sm-block__count">({{ issues().length }})</span>
+        </h3>
         <ul class="inspector__findings-list">
           @for (issue of issues(); track $index) {
             <li
@@ -156,20 +157,18 @@
       </section>
     }
 
-    <section class="sm-section sm-section--collapsible" data-testid="inspector-card-audit">
+    <section class="sm-block sm-block--collapsible" data-testid="inspector-card-audit">
       <button
         type="button"
-        class="sm-section__head sm-section__head--toggle"
+        class="sm-block__row sm-block__row--toggle"
         (click)="toggleAudit()"
         [attr.aria-expanded]="auditExpanded()"
         data-testid="inspector-audit-toggle"
       >
-        <i class="pi pi-history sm-section__icon" aria-hidden="true"></i>
-        <span class="sm-section__title">{{ texts.sections.audit }}</span>
-        <span class="sm-section__summary" data-testid="inspector-audit-summary">· {{ auditSummary() }}</span>
-        <span class="sm-section__rule" aria-hidden="true"></span>
+        <span class="sm-block__title">{{ texts.sections.audit }}</span>
+        <span class="sm-block__summary" data-testid="inspector-audit-summary">{{ auditSummary() }}</span>
         <i
-          class="pi sm-section__chevron"
+          class="pi sm-block__chevron"
           [class.pi-chevron-right]="!auditExpanded()"
           [class.pi-chevron-down]="auditExpanded()"
           aria-hidden="true"
@@ -181,19 +180,17 @@
     </section>
 
     @if (hasPluginContributions()) {
-      <section class="sm-section sm-section--collapsible" data-testid="inspector-card-plugins">
+      <section class="sm-block sm-block--collapsible" data-testid="inspector-card-plugins">
         <button
           type="button"
-          class="sm-section__head sm-section__head--toggle"
+          class="sm-block__row sm-block__row--toggle"
           (click)="togglePlugins()"
           [attr.aria-expanded]="pluginsExpanded()"
           data-testid="inspector-plugins-toggle"
         >
-          <i class="pi pi-bolt sm-section__icon" aria-hidden="true"></i>
-          <span class="sm-section__title">{{ texts.sections.plugins }}</span>
-          <span class="sm-section__rule" aria-hidden="true"></span>
+          <span class="sm-block__title">{{ texts.sections.plugins }}</span>
           <i
-            class="pi sm-section__chevron"
+            class="pi sm-block__chevron"
             [class.pi-chevron-right]="!pluginsExpanded()"
             [class.pi-chevron-down]="pluginsExpanded()"
             aria-hidden="true"
@@ -206,31 +203,25 @@
     }
 
     @if (hasViewContributions()) {
-      <section class="sm-section" data-testid="inspector-card-view-contributions">
-        <header class="sm-section__head">
-          <i class="pi pi-th-large sm-section__icon" aria-hidden="true"></i>
-          <span class="sm-section__title">{{ texts.sections.viewContributions }}</span>
-          <span class="sm-section__rule" aria-hidden="true"></span>
-        </header>
+      <section class="sm-block" data-testid="inspector-card-view-contributions">
+        <h3 class="sm-block__title">{{ texts.sections.viewContributions }}</h3>
         <sm-inspector-slots-panel [node]="node()" />
       </section>
     }
 
-    <section class="sm-section sm-section--collapsible" data-testid="inspector-card-debug">
+    <section class="sm-block sm-block--collapsible" data-testid="inspector-card-debug">
       <button
         type="button"
-        class="sm-section__head sm-section__head--toggle"
+        class="sm-block__row sm-block__row--toggle"
         (click)="toggleDebug()"
         [attr.aria-expanded]="debugVisible()"
         [attr.aria-label]="texts.debugToggleAriaLabel"
         [pTooltip]="texts.debugToggleTooltip"
         data-testid="inspector-debug-toggle"
       >
-        <i class="pi pi-info-circle sm-section__icon" aria-hidden="true"></i>
-        <span class="sm-section__title">{{ texts.sections.debug }}</span>
-        <span class="sm-section__rule" aria-hidden="true"></span>
+        <span class="sm-block__title">{{ texts.sections.debug }}</span>
         <i
-          class="pi sm-section__chevron"
+          class="pi sm-block__chevron"
           [class.pi-chevron-right]="!debugVisible()"
           [class.pi-chevron-down]="debugVisible()"
           aria-hidden="true"
@@ -247,25 +238,8 @@
       }
     </section>
 
-    <section class="sm-section inspector__body-section" data-testid="inspector-card-body">
-      <header class="sm-section__head">
-        <i class="pi pi-file sm-section__icon" aria-hidden="true"></i>
-        <span class="sm-section__title">{{ texts.sections.body }}</span>
-        <span class="sm-section__rule" aria-hidden="true"></span>
-        <p-button
-          icon="pi pi-refresh"
-          [rounded]="true"
-          [text]="true"
-          severity="secondary"
-          size="small"
-          [ariaLabel]="texts.body.refreshLabel"
-          [pTooltip]="texts.body.refreshLabel"
-          (onClick)="refreshBody()"
-          [disabled]="bodyState() === 'loading' || !path()"
-          [loading]="bodyState() === 'loading'"
-          data-testid="inspector-body-refresh"
-        />
-      </header>
+    <section class="sm-block inspector__body-section" data-testid="inspector-card-body">
+      <h3 class="sm-block__title">{{ texts.sections.body }}</h3>
       @switch (bodyState()) {
         @case ('loading') {
           <p class="inspector__body-status" data-testid="inspector-body-loading">{{ texts.body.loading }}</p>
@@ -284,41 +258,12 @@
             `[innerHTML]` is intentional: `bodyHtml()` is the SafeHtml
             output of `MarkdownRenderer.render()`, which already runs
             two sanitization layers (`markdown-it` with `html: false` +
-            DOMPurify) over project-controlled markdown bytes. The
-            renderer-catalog ban on `[innerHTML]` applies to plugin
-            payloads crossing the trust boundary; first-party body
-            bytes do not.
+            DOMPurify) over project-controlled markdown bytes.
           -->
           <div class="inspector__body-rendered" data-testid="inspector-body-rendered" [innerHTML]="bodyHtml()"></div>
         }
       }
     </section>
-
-    <footer class="inspector__stats-footer" data-testid="inspector-stats-footer">
-      @if (n.bytesTotal !== undefined) {
-        <span><code>{{ n.bytesTotal }}</code> {{ texts.stats.bytes }}</span>
-        <span class="inspector__stats-sep" aria-hidden="true">·</span>
-      }
-      @if (n.tokensTotal !== undefined) {
-        <span><code>{{ n.tokensTotal }}</code> {{ texts.stats.tokens }}</span>
-        <span class="inspector__stats-sep" aria-hidden="true">·</span>
-      }
-      <span class="inspector__stats-links">
-        <code>{{ n.linksOutCount ?? 0 }}</code>
-        <i class="pi pi-arrow-up-right" aria-hidden="true"></i>
-        {{ texts.stats.out }}
-        <span class="inspector__stats-sep" aria-hidden="true">·</span>
-        <code>{{ n.linksInCount ?? 0 }}</code>
-        <i class="pi pi-arrow-down-left" aria-hidden="true"></i>
-        {{ texts.stats.in }}
-        @if (n.externalRefsCount !== undefined && n.externalRefsCount > 0) {
-          <span class="inspector__stats-sep" aria-hidden="true">·</span>
-          <code>{{ n.externalRefsCount }}</code>
-          <i class="pi pi-external-link" aria-hidden="true"></i>
-          {{ texts.stats.ext }}
-        }
-      </span>
-    </footer>
 
     <!--
       Phase 6 consent gate, first-time `.sm` sidecar write confirmation.

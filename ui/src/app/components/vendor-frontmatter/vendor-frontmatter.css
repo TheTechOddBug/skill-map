@@ -5,192 +5,104 @@
 .vfm {
   display: flex;
   flex-direction: column;
-  gap: 1.1rem;
+  gap: 0.95rem;
 }
 
-/* Sections share the typographic-header pattern with `<sm-annotations-panel>`
-   and the inspector view itself. The matching `.sm-section*` declarations
-   in `inspector-view.css` (`:host ::ng-deep`) reach the headers rendered
-   below; the rules here only style content unique to this renderer. */
+/* Sections inherit `.sm-block*` styles from the parent inspector-view
+   via `::ng-deep`. The rules here only style content unique to the
+   vendor renderer (inline lists, danger marker, link affordance, quote
+   block). */
 
-.vfm__row {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  margin-top: 0.4rem;
-}
-
-.vfm__row-label {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--sm-text-muted);
-  font-weight: 600;
-}
-
-.vfm__chips {
+.vfm__inline {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.3rem;
+  font-size: 0.83rem;
+}
+
+.vfm__inline code {
+  background: var(--sm-bg-hover);
+  padding: 0.05rem 0.4rem;
+  border-radius: var(--sm-radius-sm);
+  font-size: 0.78rem;
+  color: var(--p-text-color);
+  font-family: var(--sm-font-mono);
+}
+
+.vfm__sep {
+  color: var(--sm-border);
+  font-size: 0.75rem;
+}
+
+.vfm__sep-arrow {
+  color: var(--p-text-muted-color);
+  font-size: 0.78rem;
+  margin: 0 0.1rem;
+}
+
+.vfm__danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--sm-severity-error);
+}
+
+.vfm__danger code {
+  background: var(--sm-severity-error-bg);
+  color: var(--sm-severity-error);
+}
+
+.vfm__danger .pi {
+  font-size: 0.7rem;
+}
+
+.vfm__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--p-text-muted-color);
+  cursor: default;
+  text-decoration: none;
+  font-size: 0.83rem;
+}
+
+.vfm__link .pi {
+  font-size: 0.7rem;
+}
+
+.vfm__link--known {
+  color: var(--p-primary-color);
+  cursor: pointer;
+}
+
+.vfm__link--known:hover {
+  text-decoration: underline;
+}
+
+.vfm__hook {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.vfm__hook code {
+  background: var(--sm-bg-hover);
+  padding: 0.05rem 0.4rem;
+  border-radius: var(--sm-radius-sm);
+  font-size: 0.78rem;
+  font-family: var(--sm-font-mono);
 }
 
 .vfm__quote {
   margin: 0;
   padding: 0.7rem 0.95rem;
-  border-left: 3px solid var(--p-primary-color);
-  background: var(--p-primary-50);
+  border-left: 2px solid var(--sm-border);
+  background: var(--sm-bg-hover);
   color: var(--p-text-color);
   font-style: italic;
   font-size: 0.9rem;
   line-height: 1.55;
-  border-radius: 0 var(--sm-radius-md) var(--sm-radius-md) 0;
+  border-radius: 0 var(--sm-radius-sm) var(--sm-radius-sm) 0;
   white-space: pre-wrap;
-}
-
-.vfm__list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.vfm__list-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.45rem;
-  font-size: 0.83rem;
-}
-
-.vfm__list-bullet {
-  color: var(--p-primary-color);
-  font-size: 0.75rem;
-}
-
-.vfm__list-key {
-  font-family: var(--sm-font-mono);
-  font-weight: 600;
-  background: var(--sm-bg-hover);
-  padding: 0.05rem 0.4rem;
-  border-radius: var(--sm-radius-sm);
-  font-size: 0.78rem;
-}
-
-.vfm__list-cmd,
-.vfm__list-keys code {
-  font-family: var(--sm-font-mono);
-  font-size: 0.78rem;
-  color: var(--sm-text-muted);
-}
-
-.vfm__list-sep {
-  color: var(--sm-text-muted);
-  font-size: 0.85rem;
-}
-
-.vfm__list-meta {
-  font-size: 0.75rem;
-  color: var(--p-text-muted-color);
-  font-style: italic;
-}
-
-/* Effort bar, three pips that light up based on the level keyword. */
-.vfm__effort {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.vfm__effort-bar {
-  display: inline-flex;
-  gap: 2px;
-  align-items: center;
-}
-
-.vfm__effort-bar::before,
-.vfm__effort-bar::after,
-.vfm__effort-bar {
-  --pip-on: var(--p-primary-color);
-  --pip-off: color-mix(in srgb, var(--p-primary-color) 25%, transparent);
-}
-
-.vfm__effort-bar {
-  position: relative;
-  width: 28px;
-  height: 8px;
-}
-
-.vfm__effort-bar::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(to right,
-      var(--pip-off) 0 33%,
-      transparent 33% 36%,
-      var(--pip-off) 36% 66%,
-      transparent 66% 69%,
-      var(--pip-off) 69% 100%
-    );
-  border-radius: 1px;
-}
-
-.vfm__effort-bar::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(to right,
-      var(--pip-on) 0 33%,
-      transparent 33% 100%
-    );
-  border-radius: 1px;
-}
-
-.vfm__effort-bar[data-level='medium']::after {
-  background:
-    linear-gradient(to right,
-      var(--pip-on) 0 33%,
-      transparent 33% 36%,
-      var(--pip-on) 36% 66%,
-      transparent 66% 100%
-    );
-}
-
-.vfm__effort-bar[data-level='high']::after,
-.vfm__effort-bar[data-level='max']::after {
-  background:
-    linear-gradient(to right,
-      var(--pip-on) 0 33%,
-      transparent 33% 36%,
-      var(--pip-on) 36% 66%,
-      transparent 66% 69%,
-      var(--pip-on) 69% 100%
-    );
-}
-
-/* Disallowed-tool chip, danger variant. PrimeNG 21 merges [styleClass]
-   onto the .p-chip host element, so target the merged host directly. */
-:host ::ng-deep .chip--danger {
-  background: var(--sm-severity-error-bg);
-  color: var(--sm-severity-error);
-}
-
-:host ::ng-deep .chip--danger .p-chip-icon {
-  color: var(--sm-severity-error);
-}
-
-/* Linkable skill chip. Mirrors the inspector-view rule so the chip stays
-   styled the same way regardless of whose template renders it. */
-:host ::ng-deep .chip--link {
-  cursor: pointer;
-  background: var(--p-primary-50);
-  color: var(--p-primary-color);
-  transition: background 0.15s ease;
-}
-
-:host ::ng-deep .chip--link:hover {
-  background: var(--p-primary-100);
 }

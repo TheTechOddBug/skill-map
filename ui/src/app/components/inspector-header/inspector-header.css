@@ -1,43 +1,27 @@
 /* ---------------------------------------------------------------------------
- * Header, neutral surface identified by kind through three discrete
- * hooks:
- *
- *   1. `border-left: 4px solid var(--accent)`, the only chromatic
- *      contact with the kind color in the background area; everything
- *      else reads on the panel's own neutral surface so the header
- *      does not compete with the content below.
- *   2. Icon-box painted full-bleed with `var(--accent)`, white glyph
- *      on top so the kind hue lands on a single, prominent shape.
- *   3. Small uppercase chip ("AGENT" / "SKILL" / "COMMAND" / "MARKDOWN")
- *      tinted with a light variant of the kind color so the explicit
- *      label travels with the icon hue without resaturating the band.
- *
- * The previous saturated gradient hero band is gone; the typographic
- * surface inherits the theme's text + bg vocabulary, which keeps the
- * header readable across themes without per-kind tweaks. The path-code
- * and version chip drop the `--hero-*` translucent-white tokens for
- * the standard `--sm-bg-hover` / `--p-text-*` pair.
+ * Header, tool-style identity strip. The icon-box is the only chromatic
+ * anchor for the kind; everything else inherits the theme's neutral
+ * vocabulary. Compact subtitle (`kind · provider · stability`) under
+ * the name; meta strip (bytes / tokens / links) under the path so size
+ * + connectivity travel with the identity block.
  * ------------------------------------------------------------------------- */
 :host {
   display: block;
 }
 
 .inspector__header {
-  /* Default kind accent. Per-kind modifier classes below override; bare
-     `var(--accent)` downstream relies on this default being declared. */
   --accent: var(--sm-kind-markdown);
 
   position: relative;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   column-gap: 0.75rem;
-  row-gap: 0.25rem;
+  row-gap: 0.3rem;
   align-items: start;
-  padding: 0.85rem 1rem 0.85rem 0.85rem;
-  background: var(--sm-bg-content);
+  padding: 0 0 0.85rem 0;
+  background: transparent;
   color: var(--p-text-color);
-  border-left: 4px solid var(--accent);
-  border-radius: var(--sm-radius-md);
+  border-bottom: 1px solid var(--sm-border);
 }
 
 .inspector__header--skill { --accent: var(--sm-kind-skill); }
@@ -45,25 +29,17 @@
 .inspector__header--command { --accent: var(--sm-kind-command); }
 .inspector__header--markdown { --accent: var(--sm-kind-markdown); }
 
-/* Full-bleed: header eats the panel padding so the border-left + chip
-   sit flush against the aside edge. The negative margin matches
-   `.inspector` padding on the embedded host (1rem / 1.1rem). */
-:host-context(.inspector-view--embedded) .inspector__header {
-  margin: -1rem -1.1rem 0;
-  border-radius: 0;
-}
-
 .inspector__icon-box {
-  width: 42px;
-  height: 42px;
-  border-radius: var(--sm-radius-lg);
+  width: 40px;
+  height: 40px;
+  border-radius: var(--sm-radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--accent);
   color: #fff;
   flex: none;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   grid-row: 1 / span 3;
   align-self: center;
 }
@@ -73,36 +49,7 @@
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
-}
-
-/* Kind chip, light tint of the accent color used to label the node's
-   kind explicitly (AGENT / SKILL / COMMAND / MARKDOWN). The light bg
-   is computed with `color-mix` so we don't depend on a sibling
-   `--sm-kind-{kind}-bg` token being declared (the kind registry ships
-   the base hue, but the lighter variant naming was inconsistent across
-   themes). */
-.inspector__kind-chip {
-  display: inline-flex;
-  align-items: center;
-  align-self: flex-start;
-  padding: 0.08rem 0.55rem;
-  border-radius: var(--sm-radius-pill);
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-  color: var(--accent);
-  font-size: 0.62rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  line-height: 1.5;
-  margin-bottom: 0.1rem;
-}
-
-.inspector__name-row {
-  display: flex;
-  align-items: baseline;
-  gap: 0.35rem;
-  min-width: 0;
+  gap: 0.18rem;
 }
 
 .inspector__name {
@@ -113,8 +60,60 @@
   letter-spacing: -0.01em;
   word-break: break-word;
   color: var(--p-text-color);
-  flex: 0 1 auto;
-  min-width: 0;
+}
+
+/* Subtitle: kind · provider · stability, inline meta line under the
+   name. Reads as a compact, scannable identification strip. */
+.inspector__subtitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--p-text-muted-color);
+  line-height: 1.4;
+}
+
+.inspector__subtitle-kind {
+  color: var(--accent);
+  font-weight: 600;
+  text-transform: lowercase;
+}
+
+.inspector__subtitle-provider {
+  color: var(--p-text-muted-color);
+  text-transform: lowercase;
+}
+
+.inspector__subtitle-sep {
+  color: var(--sm-border);
+  font-size: 0.7rem;
+}
+
+.inspector__subtitle-stability {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-weight: 500;
+  text-transform: lowercase;
+  cursor: help;
+}
+
+.inspector__subtitle-dot {
+  font-size: 0.55rem;
+  line-height: 1;
+}
+
+.inspector__subtitle-stability[data-stability='stable'] {
+  color: var(--sm-severity-success);
+}
+
+.inspector__subtitle-stability[data-stability='experimental'] {
+  color: var(--sm-severity-info);
+}
+
+.inspector__subtitle-stability[data-stability='deprecated'] {
+  color: var(--sm-severity-warn);
 }
 
 .inspector__path-code {
@@ -127,10 +126,44 @@
   word-break: break-all;
   align-self: flex-start;
   max-width: 100%;
+  margin-top: 0.15rem;
 }
 
-/* Actions cluster, favorite star + stale clock + stability icon +
-   version chip, sitting at the right edge of the first row. */
+/* Metadata strip, dense inline stats (bytes / tokens / links) right
+   below the path so size + connectivity travel with the identity
+   block. Tight typography, neutral vocabulary. */
+.inspector__metastrip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.7rem;
+  margin-top: 0.35rem;
+  font-size: 0.72rem;
+  color: var(--p-text-muted-color);
+}
+
+.inspector__metaitem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.inspector__metaitem code {
+  background: var(--sm-bg-hover);
+  padding: 0.04rem 0.3rem;
+  border-radius: var(--sm-radius-sm);
+  font-size: 0.68rem;
+  color: var(--p-text-color);
+  font-family: var(--sm-font-mono);
+}
+
+.inspector__metaitem .pi {
+  font-size: 0.68rem;
+  color: var(--p-text-muted-color);
+}
+
+/* Actions cluster, favorite + stale + version + view-contribution
+   badges + close (embedded). Compact, theme-token vocabulary. */
 .inspector__actions-cluster {
   display: flex;
   align-items: center;
@@ -155,7 +188,7 @@
 }
 
 .inspector__favorite .pi {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   line-height: 1;
 }
 
@@ -173,23 +206,15 @@
   color: var(--p-primary-color);
 }
 
-.inspector__stability-icon,
 .inspector__stale-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--p-text-muted-color);
+  color: var(--sm-severity-warn);
   cursor: help;
 }
 
-.inspector__stale-icon {
-  color: var(--sm-severity-warn);
-}
-
-.inspector__stability-icon i,
-.inspector__stability-icon svg,
-.inspector__stale-icon i,
-.inspector__stale-icon svg {
+.inspector__stale-icon i {
   font-size: 0.78rem;
   width: 1em;
   height: 1em;
@@ -231,7 +256,7 @@
 
 .inspector__name-version {
   font-family: var(--sm-font-mono);
-  font-size: 0.68rem;
+  font-size: 0.7rem;
   color: var(--p-text-color);
   background: var(--sm-bg-hover);
   padding: 0.08rem 0.4rem;
@@ -241,9 +266,7 @@
 }
 
 /* ---------------------------------------------------------------------------
- * Plugin actions, prominent slot for plugin-contributed verbs (today
- * gated behind `inspector.actionMocks`). Pill buttons in the kind
- * accent color so the verbs feel "owned" by the node's kind.
+ * Plugin actions row (mocks behind a setting), full-width below identity.
  * ------------------------------------------------------------------------- */
 .inspector__plugin-actions {
   grid-column: 1 / -1;
@@ -251,15 +274,15 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.4rem;
-  margin-top: 0.6rem;
-  padding-top: 0.55rem;
+  margin-top: 0.55rem;
+  padding-top: 0.5rem;
   border-top: 1px solid var(--sm-border);
 }
 
 .inspector__plugin-actions-label {
   font-size: 0.6rem;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   font-weight: 600;
   color: var(--p-text-muted-color);
   margin-right: 0.15rem;
@@ -268,62 +291,53 @@
 .inspector__plugin-btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.35rem 0.7rem;
+  gap: 0.35rem;
+  padding: 0.3rem 0.65rem;
   border: 1px solid var(--sm-border);
-  border-radius: var(--sm-radius-pill);
+  border-radius: var(--sm-radius-md);
   background: var(--sm-bg-content);
   color: var(--p-text-color);
   font-size: 0.78rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background 120ms ease, border-color 120ms ease, color 120ms ease,
-    transform 120ms ease;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
   font-family: inherit;
 }
 
 .inspector__plugin-btn:hover {
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.inspector__plugin-btn:active {
-  transform: translateY(1px);
+  background: var(--sm-bg-hover);
+  border-color: var(--p-text-muted-color);
+  color: var(--p-text-color);
 }
 
 .inspector__plugin-btn i {
-  font-size: 0.85rem;
+  font-size: 0.82rem;
 }
 
-/*
- * Tools row, vendor `tools` / `allowed-tools` rendered as inline tags
- * across the bottom of the header. The neutral tag vocabulary already
- * reads on the panel surface (no more saturated gradient zone to fight
- * against), so the row stays simple: small mono pills inside a row
- * that separates from the identity cluster with a thin divider line.
- */
+/* ---------------------------------------------------------------------------
+ * Tools row, vendor tools / allowed-tools as inline mono tags.
+ * ------------------------------------------------------------------------- */
 .inspector__tools {
   grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.3rem;
-  margin-top: 0.6rem;
-  padding-top: 0.55rem;
+  margin-top: 0.55rem;
+  padding-top: 0.5rem;
   border-top: 1px solid var(--sm-border);
 }
 
 .inspector__tool-tag {
   display: inline-flex;
   align-items: center;
-  padding: 0.12rem 0.5rem;
+  padding: 0.1rem 0.5rem;
   border-radius: var(--sm-radius-sm);
   background: var(--sm-bg-hover);
   color: var(--p-text-color);
   font-family: var(--sm-font-mono);
   font-size: 0.7rem;
   font-weight: 500;
-  line-height: 1.3;
+  line-height: 1.35;
   flex: none;
 }

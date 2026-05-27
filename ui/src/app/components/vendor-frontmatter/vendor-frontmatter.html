@@ -2,27 +2,16 @@
   <div class="vfm" data-testid="vendor-frontmatter">
 
     @if (hasBehavior()) {
-      <section class="sm-section" data-testid="vendor-frontmatter-behavior">
-        <header class="sm-section__head">
-          <i class="pi pi-cog sm-section__icon" aria-hidden="true"></i>
-          <span class="sm-section__title">{{ texts.sections.behavior }}</span>
-          <span class="sm-section__rule" aria-hidden="true"></span>
-        </header>
-        <dl class="sm-section__kv">
+      <section class="sm-block" data-testid="vendor-frontmatter-behavior">
+        <h3 class="sm-block__title">{{ texts.sections.behavior }}</h3>
+        <dl class="sm-block__kv">
           @if (model(); as m) {
             <dt>{{ texts.fields.model }}</dt>
             <dd><code>{{ m }}</code></dd>
           }
           @if (effort(); as ef) {
             <dt>{{ texts.fields.effort }}</dt>
-            <dd class="vfm__effort">
-              <span
-                class="vfm__effort-bar"
-                [attr.data-level]="ef"
-                aria-hidden="true"
-              ></span>
-              <code>{{ ef }}</code>
-            </dd>
+            <dd>{{ ef }}</dd>
           }
           @if (permissionMode(); as pm) {
             <dt>{{ texts.fields.permissionMode }}</dt>
@@ -49,95 +38,66 @@
     }
 
     @if (hasCapabilities()) {
-      <section class="sm-section" data-testid="vendor-frontmatter-capabilities">
-        <header class="sm-section__head">
-          <i class="pi pi-bolt sm-section__icon" aria-hidden="true"></i>
-          <span class="sm-section__title">{{ texts.sections.capabilities }}</span>
-          <span class="sm-section__rule" aria-hidden="true"></span>
-        </header>
+      <section class="sm-block" data-testid="vendor-frontmatter-capabilities">
+        <h3 class="sm-block__title">{{ texts.sections.capabilities }}</h3>
 
         @if (isAgent()) {
-          <dl class="sm-section__kv">
+          <dl class="sm-block__kv">
             @if (tools().length) {
               <dt>{{ texts.fields.tools }}</dt>
-              <dd class="vfm__chips">
-                @for (t of tools(); track t) {
-                  <p-chip [label]="t" />
+              <dd class="vfm__inline">
+                @for (t of tools(); track t; let last = $last) {
+                  <code>{{ t }}</code>@if (!last) { <span class="vfm__sep" aria-hidden="true">·</span> }
                 }
               </dd>
             }
             @if (disallowedTools().length) {
               <dt>{{ texts.fields.disallowedTools }}</dt>
-              <dd class="vfm__chips">
-                @for (d of disallowedTools(); track d) {
-                  <p-chip
-                    [label]="d"
-                    icon="pi pi-ban"
-                    styleClass="chip--danger"
-                  />
+              <dd class="vfm__inline">
+                @for (d of disallowedTools(); track d; let last = $last) {
+                  <span class="vfm__danger"><i class="pi pi-ban" aria-hidden="true"></i> <code>{{ d }}</code></span>@if (!last) { <span class="vfm__sep" aria-hidden="true">·</span> }
                 }
               </dd>
             }
             @if (skills().length) {
               <dt>{{ texts.fields.skills }}</dt>
-              <dd class="vfm__chips">
-                @for (s of skills(); track s) {
-                  <p-chip
-                    [label]="s"
-                    icon="pi pi-arrow-up-right"
-                    [styleClass]="isSkillKnown(s) ? 'chip--link' : ''"
+              <dd class="vfm__inline">
+                @for (s of skills(); track s; let last = $last) {
+                  <a
+                    class="vfm__link"
+                    [class.vfm__link--known]="isSkillKnown(s)"
                     (click)="onSkillChipClick(s)"
-                  />
+                    role="button"
+                    tabindex="0"
+                    (keydown.enter)="onSkillChipClick(s)"
+                  >
+                    <i class="pi pi-arrow-up-right" aria-hidden="true"></i> {{ s }}
+                  </a>@if (!last) { <span class="vfm__sep" aria-hidden="true">·</span> }
+                }
+              </dd>
+            }
+            @if (mcpServers().length) {
+              <dt>{{ texts.fields.mcpServers }}</dt>
+              <dd class="vfm__inline">
+                @for (s of mcpServers(); track s.name; let last = $last) {
+                  <code [pTooltip]="s.command ?? ''">{{ s.name }}</code>@if (!last) { <span class="vfm__sep" aria-hidden="true">·</span> }
+                }
+              </dd>
+            }
+            @if (hooks().length) {
+              <dt>{{ texts.fields.hooks }}</dt>
+              <dd class="vfm__inline">
+                @for (h of hooks(); track h.event; let last = $last) {
+                  <span class="vfm__hook">
+                    <code>{{ h.event }}</code>@if (h.keys.length) { <span class="vfm__sep-arrow" aria-hidden="true">→</span> <code>{{ h.keys[0] }}</code> }
+                  </span>@if (!last) { <span class="vfm__sep" aria-hidden="true">·</span> }
                 }
               </dd>
             }
           </dl>
-
-          @if (mcpServers().length) {
-            <div class="vfm__row">
-              <span class="vfm__row-label">{{ texts.fields.mcpServers }}</span>
-              <ul class="vfm__list">
-                @for (s of mcpServers(); track s.name) {
-                  <li class="vfm__list-row">
-                    <span class="vfm__list-bullet" aria-hidden="true">●</span>
-                    <code class="vfm__list-key">{{ s.name }}</code>
-                    @if (s.command !== null) {
-                      <code class="vfm__list-cmd">{{ s.command }}</code>
-                    }
-                    @if (s.argsCount > 0) {
-                      <span class="vfm__list-meta">· {{ s.argsCount }} arg{{ s.argsCount === 1 ? '' : 's' }}</span>
-                    } @else {
-                      <span class="vfm__list-meta">· no args</span>
-                    }
-                  </li>
-                }
-              </ul>
-            </div>
-          }
-
-          @if (hooks().length) {
-            <div class="vfm__row">
-              <span class="vfm__row-label">{{ texts.fields.hooks }}</span>
-              <ul class="vfm__list">
-                @for (h of hooks(); track h.event) {
-                  <li class="vfm__list-row">
-                    <code class="vfm__list-key">{{ h.event }}</code>
-                    @if (h.keys.length) {
-                      <span class="vfm__list-sep" aria-hidden="true">→</span>
-                      <span class="vfm__list-keys">
-                        @for (k of h.keys; track k; let last = $last) {
-                          <code>{{ k }}</code>{{ last ? '' : ', ' }}
-                        }
-                      </span>
-                    }
-                  </li>
-                }
-              </ul>
-            </div>
-          }
         } @else if (isSkillOrCommand()) {
           @let sb = skillBase();
-          <dl class="sm-section__kv" data-testid="vendor-frontmatter-skill-base">
+          <dl class="sm-block__kv" data-testid="vendor-frontmatter-skill-base">
             @if (sb.when_to_use !== null) {
               <dt>{{ texts.skillBaseFields.whenToUse }}</dt>
               <dd>{{ sb.when_to_use }}</dd>
@@ -148,17 +108,17 @@
             }
             @if (sb.arguments.length) {
               <dt>{{ texts.skillBaseFields.arguments }}</dt>
-              <dd class="vfm__chips">
-                @for (a of sb.arguments; track a) {
-                  <p-chip [label]="a" />
+              <dd class="vfm__inline">
+                @for (a of sb.arguments; track a; let last = $last) {
+                  <code>{{ a }}</code>@if (!last) { <span class="vfm__sep" aria-hidden="true">·</span> }
                 }
               </dd>
             }
             @if (sb.allowedTools.length) {
               <dt>{{ texts.skillBaseFields.allowedTools }}</dt>
-              <dd class="vfm__chips">
-                @for (t of sb.allowedTools; track t) {
-                  <p-chip [label]="t" />
+              <dd class="vfm__inline">
+                @for (t of sb.allowedTools; track t; let last = $last) {
+                  <code>{{ t }}</code>@if (!last) { <span class="vfm__sep" aria-hidden="true">·</span> }
                 }
               </dd>
             }
@@ -168,7 +128,7 @@
             }
             @if (sb.effort !== null) {
               <dt>{{ texts.skillBaseFields.effort }}</dt>
-              <dd><code>{{ sb.effort }}</code></dd>
+              <dd>{{ sb.effort }}</dd>
             }
             @if (sb.context !== null) {
               <dt>{{ texts.skillBaseFields.context }}</dt>
@@ -184,9 +144,9 @@
             }
             @if (sb.paths.length) {
               <dt>{{ texts.skillBaseFields.paths }}</dt>
-              <dd class="vfm__chips">
-                @for (p of sb.paths; track p) {
-                  <p-chip [label]="p" />
+              <dd class="vfm__inline">
+                @for (p of sb.paths; track p; let last = $last) {
+                  <code>{{ p }}</code>@if (!last) { <span class="vfm__sep" aria-hidden="true">·</span> }
                 }
               </dd>
             }
@@ -204,12 +164,8 @@
     }
 
     @if (hasInitialPrompt()) {
-      <section class="sm-section" data-testid="vendor-frontmatter-initial-prompt">
-        <header class="sm-section__head">
-          <i class="pi pi-comment sm-section__icon" aria-hidden="true"></i>
-          <span class="sm-section__title">{{ texts.sections.initialPrompt }}</span>
-          <span class="sm-section__rule" aria-hidden="true"></span>
-        </header>
+      <section class="sm-block" data-testid="vendor-frontmatter-initial-prompt">
+        <h3 class="sm-block__title">{{ texts.sections.initialPrompt }}</h3>
         <blockquote class="vfm__quote" data-testid="vendor-frontmatter-initial-prompt-quote">{{ initialPrompt() }}</blockquote>
       </section>
     }

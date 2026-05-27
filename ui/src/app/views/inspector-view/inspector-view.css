@@ -2,10 +2,18 @@
   display: block;
 }
 
+/* ---------------------------------------------------------------------
+ * Inspector surface, tool-style: neutral background, dense typographic
+ * hierarchy, no decorative tints. Sections read top-to-bottom in a
+ * single column; chrome stays out of the way of the data.
+ * ------------------------------------------------------------------- */
 .inspector {
   display: flex;
   flex-direction: column;
-  gap: 1.1rem;
+  gap: 0.85rem;
+  padding: 1rem 1.1rem 1.25rem;
+  background: var(--sm-bg-content);
+  color: var(--p-text-color);
 }
 
 .inspector--empty {
@@ -13,155 +21,134 @@
   color: var(--p-text-muted-color);
 }
 
-.inspector--empty code {
-  background: var(--sm-bg-hover);
-  padding: 0.1rem 0.35rem;
-  border-radius: var(--sm-radius-md);
+.inspector__back {
   font-size: 0.85rem;
-}
-
-/* Header rules live in `<sm-inspector-header>`. Inspector-view CSS only
-   styles the hero, toolbar, sections, body, and stats footer. */
-
-/* Hero block, description + author tag chips, rendered between the
-   header and the action toolbar. The font + spacing read as a
-   continuation of the header so the panel opens with one cohesive
-   identity block before the verbs and sections begin. */
-.inspector__hero {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
+  color: var(--p-primary-color);
 }
 
 .inspector__desc {
   margin: 0;
   color: var(--p-text-color);
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   line-height: 1.55;
-  max-width: 70ch;
+  max-width: 72ch;
 }
 
-/* Primary action toolbar (bump + back-to-list). Lives below the hero so
-   the first thing the user reads is identity, not verbs. */
+/* Action toolbar, bump + refresh + back-to-files. Compact, no fill. */
 .inspector__toolbar {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
   flex-wrap: wrap;
 }
 
-.inspector__back {
-  font-size: 0.9rem;
-  color: var(--p-primary-color);
-}
-
 /* ---------------------------------------------------------------------
-   Section pattern (`.sm-section`).
+ * Section block (`.sm-block`).
+ *
+ * Tool-style section header: title-case bold, no uppercase, no icon, no
+ * separator rule. The header is a single line; the body sits below in
+ * normal spacing. Each `dt`/`dd` row inside a block reads as a row in a
+ * dense table.
+ *
+ * Children components (`<sm-vendor-frontmatter>`, `<sm-annotations-panel>`)
+ * inherit the typographic vocabulary via `::ng-deep` so they do not
+ * need to redeclare the chrome.
+ * ------------------------------------------------------------------- */
 
-   Shared typographic-header pattern used by the inspector body and the
-   sub-components it embeds (`<sm-vendor-frontmatter>`,
-   `<sm-annotations-panel>`). The styles below reach descendants through
-   `::ng-deep` so the child components render their own `.sm-section`
-   markup without redefining the chrome.
---------------------------------------------------------------------- */
-
-:host ::ng-deep .sm-section {
+:host ::ng-deep .sm-block {
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 0.4rem;
 }
 
-:host ::ng-deep .sm-section__head {
+:host ::ng-deep .sm-block__title {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--p-text-color);
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+:host ::ng-deep .sm-block__count {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--p-text-muted-color);
+}
+
+:host ::ng-deep .sm-block__sub {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--p-text-muted-color);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+:host ::ng-deep .sm-block__row {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
+  gap: 0.5rem;
   width: 100%;
-  padding: 0;
+  padding: 0.55rem 0;
   margin: 0;
   background: transparent;
   border: none;
+  border-top: 1px solid var(--sm-border);
   text-align: left;
   font: inherit;
   color: var(--p-text-color);
 }
 
-:host ::ng-deep .sm-section__head--toggle {
+:host ::ng-deep .sm-block__row--toggle {
   cursor: pointer;
 }
 
-:host ::ng-deep .sm-section__head--toggle:hover .sm-section__title {
+:host ::ng-deep .sm-block__row--toggle:hover .sm-block__title {
   color: var(--p-primary-color);
 }
 
-:host ::ng-deep .sm-section__icon {
-  color: var(--p-primary-color);
-  font-size: 0.95rem;
-}
-
-:host ::ng-deep .sm-section__title {
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 700;
-  color: var(--p-text-color);
-}
-
-:host ::ng-deep .sm-section__count {
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  padding: 0.05rem 0.45rem;
-  border-radius: var(--sm-radius-pill);
-  background: var(--p-primary-50);
-  color: var(--p-primary-color);
-}
-
-:host ::ng-deep .sm-section__summary {
+:host ::ng-deep .sm-block__summary {
   font-size: 0.78rem;
-  color: var(--sm-text-muted);
-  font-style: italic;
+  color: var(--p-text-muted-color);
   font-weight: 400;
-  text-transform: none;
-  letter-spacing: 0;
-}
-
-:host ::ng-deep .sm-section__rule {
   flex: 1 1 auto;
-  height: 1px;
-  background: var(--sm-border);
-  margin-left: 0.15rem;
+  margin-left: 0.3rem;
 }
 
-:host ::ng-deep .sm-section__chevron {
-  color: var(--sm-text-muted);
-  font-size: 0.78rem;
+:host ::ng-deep .sm-block__chevron {
+  color: var(--p-text-muted-color);
+  font-size: 0.75rem;
+  margin-left: auto;
 }
 
-/* Two-column key/value grid used inside vendor-frontmatter, annotations,
-   and any future section that lists field name / field value pairs. */
-:host ::ng-deep .sm-section__kv {
+/* Definition list, two-column grid with the label in muted small caps
+   and the value in the standard text color. */
+:host ::ng-deep .sm-block__kv {
   display: grid;
   grid-template-columns: max-content 1fr;
-  column-gap: 0.85rem;
+  column-gap: 1rem;
   row-gap: 0.35rem;
   margin: 0;
   font-size: 0.85rem;
-  align-items: center;
+  align-items: baseline;
 }
 
-:host ::ng-deep .sm-section__kv dt {
-  color: var(--sm-text-muted);
+:host ::ng-deep .sm-block__kv dt {
+  color: var(--p-text-muted-color);
   font-weight: 500;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
 }
 
-:host ::ng-deep .sm-section__kv dd {
+:host ::ng-deep .sm-block__kv dd {
   margin: 0;
   word-break: break-word;
   color: var(--p-text-color);
 }
 
-:host ::ng-deep .sm-section__kv code {
+:host ::ng-deep .sm-block__kv code {
   background: var(--sm-bg-hover);
   padding: 0.05rem 0.4rem;
   border-radius: var(--sm-radius-sm);
@@ -169,22 +156,17 @@
   font-family: var(--sm-font-mono);
 }
 
-/* ---------------------------------------------------------------------
-   Vendor card wrapper. Just a positioning hook for the data-testid that
-   downstream specs assert against; the visual chrome belongs to the
-   nested `<sm-vendor-frontmatter>` sections.
---------------------------------------------------------------------- */
+/* Vendor card wrapper, contents-only so the inner block flows in the
+   single column. */
 .inspector__vendor {
   display: contents;
 }
 
-/* ---------------------------------------------------------------------
-   Body section, larger reading affordance for the rendered markdown.
---------------------------------------------------------------------- */
+/* Body section, larger reading affordance for the rendered markdown. */
 .inspector__body-section {
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 0.6rem;
 }
 
 .inspector__body-status {
@@ -230,7 +212,7 @@
 }
 
 .inspector__body-rendered code {
-  background: var(--p-content-background);
+  background: var(--sm-bg-hover);
   padding: 0.1rem 0.3rem;
   border-radius: var(--sm-radius-sm);
   font-family: var(--sm-font-mono);
@@ -244,73 +226,32 @@
 }
 
 /* ---------------------------------------------------------------------
-   Stats footer, one-line summary under the body.
---------------------------------------------------------------------- */
-.inspector__stats-footer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.35rem;
-  padding-top: 0.6rem;
-  border-top: 1px solid var(--sm-border);
-  font-size: 0.78rem;
-  color: var(--sm-text-muted);
-}
-
-.inspector__stats-footer code {
-  background: var(--sm-bg-hover);
-  padding: 0.05rem 0.35rem;
-  border-radius: var(--sm-radius-sm);
-  font-size: 0.78rem;
-  color: var(--p-text-color);
-}
-
-.inspector__stats-footer .pi {
-  font-size: 0.72rem;
-}
-
-.inspector__stats-sep {
-  color: var(--sm-border);
-  margin: 0 0.15rem;
-}
-
-.inspector__stats-links {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  flex-wrap: wrap;
-}
-
-/* ---------------------------------------------------------------------
-   Banner: yellow strip when annotations.supersededBy is set.
---------------------------------------------------------------------- */
-.inspector__superseded {
+ * Banners (superseded, bump error). One-line callouts with a left icon
+ * and an optional dismiss button at the right.
+ * ------------------------------------------------------------------- */
+.inspector__banner {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.55rem 0.85rem;
+  gap: 0.55rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--sm-radius-md);
+  font-size: 0.85rem;
+  border: 1px solid transparent;
+}
+
+.inspector__banner--warn {
   background: var(--sm-severity-warn-bg);
   color: var(--sm-severity-warn);
-  border-radius: var(--sm-radius-md);
-  font-size: 0.85rem;
-  font-family: var(--sm-font-mono);
+  border-color: color-mix(in srgb, var(--sm-severity-warn) 30%, transparent);
 }
 
-/* ---------------------------------------------------------------------
-   Bump button error banner.
---------------------------------------------------------------------- */
-.inspector__bump-error {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.5rem 0.75rem;
+.inspector__banner--error {
   background: var(--sm-severity-error-bg);
   color: var(--sm-severity-error);
-  border-radius: var(--sm-radius-md);
-  font-size: 0.85rem;
+  border-color: color-mix(in srgb, var(--sm-severity-error) 30%, transparent);
 }
 
-.inspector__bump-error-dismiss {
+.inspector__banner-dismiss {
   margin-left: auto;
   background: transparent;
   border: none;
@@ -322,8 +263,8 @@
 }
 
 /* ---------------------------------------------------------------------
-   Debug pane wrapper, visible only when the section is expanded.
---------------------------------------------------------------------- */
+ * Debug wrapper, visible only when the section is expanded.
+ * ------------------------------------------------------------------- */
 .inspector__debug {
   padding: 0.7rem 0.9rem;
   border: 1px solid var(--sm-border);
@@ -332,22 +273,22 @@
 }
 
 /* ---------------------------------------------------------------------
-   Findings list, severity-tinted rows.
---------------------------------------------------------------------- */
+ * Findings list, severity-tinted rows.
+ * ------------------------------------------------------------------- */
 .inspector__findings-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.45rem;
 }
 
 .inspector__finding {
-  padding: 0.6rem 0.75rem;
+  padding: 0.55rem 0.7rem;
   border-left: 3px solid var(--p-content-border-color);
   background: var(--p-content-background);
-  border-radius: var(--sm-radius-md);
+  border-radius: var(--sm-radius-sm);
 }
 
 .inspector__finding[data-severity='error'] {
@@ -369,15 +310,15 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.2rem;
 }
 
 .inspector__finding-severity {
   text-transform: uppercase;
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
-  padding: 0.1rem 0.4rem;
+  letter-spacing: 0.05em;
+  padding: 0.05rem 0.4rem;
   border-radius: var(--sm-radius-sm);
   color: var(--p-content-background);
   background: var(--p-text-color);
@@ -396,35 +337,34 @@
 }
 
 .inspector__finding-analyzer {
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   color: var(--p-text-muted-color);
 }
 
 .inspector__finding-message {
   margin: 0;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   color: var(--p-text-color);
 }
 
 .inspector__finding-hint {
-  margin: 0.4rem 0 0 0;
-  font-size: 0.85rem;
+  margin: 0.35rem 0 0 0;
+  font-size: 0.82rem;
   color: var(--p-text-color);
   background: var(--p-content-background);
-  padding: 0.4rem 0.5rem;
+  padding: 0.35rem 0.5rem;
   border-radius: var(--sm-radius-sm);
 }
 
 /* ---------------------------------------------------------------------
-   Embedded mode tightens spacing inside the slide-in panel host.
---------------------------------------------------------------------- */
+ * Embedded mode tightens spacing inside the slide-in panel host.
+ * ------------------------------------------------------------------- */
 :host(.inspector-view--embedded) .inspector {
-  padding: 1rem 1.1rem 1.25rem;
-  gap: 0.95rem;
+  gap: 0.75rem;
 }
 
 :host(.inspector-view--embedded) .inspector__desc {
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   line-height: 1.5;
   max-width: none;
 }
@@ -433,9 +373,9 @@
   max-height: 480px;
 }
 
-/* PrimeNG `.p-chip` reused by `<sm-annotations-panel>` for tag chips
-   needs a slightly tighter padding inside the inspector, so the chip
-   rows do not blow up vertically next to the dense `dt`/`dd` grid. */
+/* PrimeNG chip padding inside the inspector, used by tag chips in the
+   annotations panel. Tighter horizontal padding so the chip rows stay
+   compact next to the dense `dt`/`dd` grid. */
 :host ::ng-deep .ann-panel__chip--author,
 :host ::ng-deep .ann-panel__chip--user {
   padding: 0.1rem 0.55rem;
