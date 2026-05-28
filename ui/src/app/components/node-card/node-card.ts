@@ -19,7 +19,7 @@ import {
   effectiveUserTags,
   effectiveVersion,
 } from '../../../models/node-derived';
-import { providerUi, type IProviderUi } from '../../../services/provider-ui';
+import { ProviderRegistryService, type IProviderUi } from '../../../services/provider-registry';
 import { pathBasenameForLink } from '../../../services/trigger-resolve';
 import type { ISelectionView } from '../../views/graph-view/selection-state';
 import { KindIcon } from '../kind-icon/kind-icon';
@@ -180,6 +180,7 @@ export class NodeCard {
   protected readonly nodeColor = computed<string | null>(() => this.agentVendorColor());
 
   private readonly kindRegistry = inject(KindRegistryService);
+  private readonly providerRegistry = inject(ProviderRegistryService);
 
   /**
    * Per-Provider accent override. Disabled, the node card always paints
@@ -200,11 +201,12 @@ export class NodeCard {
    * Provider identity chip, label + per-Provider color rendered in the
    * subtitle row, telling the user at a glance which platform a node
    * came from. Returns `null` for nodes without a provider (cold-start,
-   * demo data); unknown providers fall back to a neutral gray chip with
-   * the raw id as label (see `providerUi` in `services/provider-ui.ts`).
+   * demo data) and for Providers flagged `hideChip` (the universal
+   * `markdown` fallback); unknown providers fall back to a neutral gray
+   * chip with the raw id as label (see `ProviderRegistryService.cardChip`).
    */
   protected readonly providerChip = computed<IProviderUi | null>(() =>
-    providerUi(this.node().provider),
+    this.providerRegistry.cardChip(this.node().provider),
   );
 
   /** Pretty number formatting for bytes / tokens (e.g. 12420 → "12k"). */

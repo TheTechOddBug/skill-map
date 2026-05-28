@@ -44,6 +44,20 @@ export const openaiProvider: IBuiltInManifest<IProvider> = {
   kind: 'provider',
   description: 'Classifies files under `.codex/agents/*.toml` as OpenAI Codex CLI sub-agents.',
 
+  // Provider identity for the active-lens dropdown, the topbar lens chip,
+  // and the per-node provider chip. Codex green, distinct from the Claude
+  // palette so the chip reads at a glance.
+  presentation: {
+    label: 'OpenAI Codex',
+    color: '#22c55e',
+    colorDark: '#4ade80',
+  },
+
+  // Auto-detect markers: a `.codex/` directory or a root `AGENTS.md` marks
+  // a Codex CLI project. Provider-owned (replaces the old central
+  // detection table in `src/core/config/active-provider.ts`).
+  detect: { markers: ['.codex', 'AGENTS.md'] },
+
   // Vendor provider: Codex CLI only reads its own `.codex/` territory.
   // Gating the classifier behind the active lens keeps the walker from
   // claiming Codex agents under a `claude` (or any other) lens, where

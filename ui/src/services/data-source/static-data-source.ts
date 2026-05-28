@@ -61,6 +61,7 @@ import type {
 } from '../../models/api';
 import type { IWsEvent } from '../../models/ws-event';
 import { KindRegistryService } from '../kind-registry';
+import { ProviderRegistryService } from '../provider-registry';
 import {
   DataSourceError,
   type IDataSourcePort,
@@ -98,19 +99,21 @@ export class StaticDataSource implements IDataSourcePort {
   private metaPromise: Promise<IDemoMetaPayload> | null = null;
   private dataPromise: Promise<IScanResultApi> | null = null;
   private readonly kindRegistry: KindRegistryService;
+  private readonly providerRegistry: ProviderRegistryService;
 
   /**
-   * Optional fetch + KindRegistryService overrides, exposed so spec
-   * files can stub `fetch` and pass a synthetic registry service
-   * without depending on Angular DI. Production code leaves both
-   * undefined; the constructor falls back to the platform `fetch` and
-   * the DI singleton.
+   * Optional fetch + registry-service overrides, exposed so spec files
+   * can stub `fetch` and pass synthetic registry services without
+   * depending on Angular DI. Production code leaves them undefined; the
+   * constructor falls back to the platform `fetch` and the DI singletons.
    */
   constructor(
     private readonly fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis),
     kindRegistry?: KindRegistryService,
+    providerRegistry?: ProviderRegistryService,
   ) {
     this.kindRegistry = kindRegistry ?? inject(KindRegistryService);
+    this.providerRegistry = providerRegistry ?? inject(ProviderRegistryService);
   }
 
   async health(): Promise<IHealthResponseApi> {
@@ -127,6 +130,7 @@ export class StaticDataSource implements IDataSourcePort {
   async loadScan(): Promise<IScanResultApi> {
     const [scan, meta] = await Promise.all([this.loadData(), this.loadMeta()]);
     this.kindRegistry.ingest(meta.nodes.kindRegistry);
+    this.providerRegistry.ingest(meta.nodes.providerRegistry);
     return scan;
   }
 
@@ -134,6 +138,7 @@ export class StaticDataSource implements IDataSourcePort {
     const meta = await this.loadMeta();
     if (isEmptyNodesQuery(q)) {
       this.kindRegistry.ingest(meta.nodes.kindRegistry);
+      this.providerRegistry.ingest(meta.nodes.providerRegistry);
       return meta.nodes;
     }
     const scan = await this.loadData();
@@ -159,6 +164,7 @@ export class StaticDataSource implements IDataSourcePort {
     const limit = q.limit ?? 1000;
     const sliced = items.slice(offset, offset + limit);
     this.kindRegistry.ingest(meta.nodes.kindRegistry);
+    this.providerRegistry.ingest(meta.nodes.providerRegistry);
     return {
       schemaVersion: '1',
       kind: 'nodes',
@@ -174,6 +180,7 @@ export class StaticDataSource implements IDataSourcePort {
         page: { offset, limit },
       },
       kindRegistry: meta.nodes.kindRegistry,
+      providerRegistry: meta.nodes.providerRegistry,
     };
   }
 
@@ -194,6 +201,7 @@ export class StaticDataSource implements IDataSourcePort {
     const outgoing = scan.links.filter((l) => l.source === path);
     const issues = scan.issues.filter((i) => i.nodeIds.includes(path));
     this.kindRegistry.ingest(meta.nodes.kindRegistry);
+    this.providerRegistry.ingest(meta.nodes.providerRegistry);
     return {
       schemaVersion: '1',
       kind: 'node',
@@ -201,6 +209,7 @@ export class StaticDataSource implements IDataSourcePort {
       links: { incoming, outgoing },
       issues,
       kindRegistry: meta.nodes.kindRegistry,
+      providerRegistry: meta.nodes.providerRegistry,
     };
   }
 
@@ -208,6 +217,7 @@ export class StaticDataSource implements IDataSourcePort {
     const meta = await this.loadMeta();
     if (isEmptyLinksQuery(q)) {
       this.kindRegistry.ingest(meta.links.kindRegistry);
+      this.providerRegistry.ingest(meta.links.providerRegistry);
       return meta.links;
     }
     const scan = await this.loadData();
@@ -219,6 +229,7 @@ export class StaticDataSource implements IDataSourcePort {
     if (q.from) items = items.filter((l) => l.source === q.from);
     if (q.to) items = items.filter((l) => l.target === q.to);
     this.kindRegistry.ingest(meta.links.kindRegistry);
+    this.providerRegistry.ingest(meta.links.providerRegistry);
     return {
       schemaVersion: '1',
       kind: 'links',
@@ -226,6 +237,7 @@ export class StaticDataSource implements IDataSourcePort {
       filters: { kind: q.kind ?? null, from: q.from ?? null, to: q.to ?? null },
       counts: { total: items.length, returned: items.length },
       kindRegistry: meta.links.kindRegistry,
+      providerRegistry: meta.links.providerRegistry,
     };
   }
 
@@ -233,6 +245,7 @@ export class StaticDataSource implements IDataSourcePort {
     const meta = await this.loadMeta();
     if (isEmptyIssuesQuery(q)) {
       this.kindRegistry.ingest(meta.issues.kindRegistry);
+      this.providerRegistry.ingest(meta.issues.providerRegistry);
       return meta.issues;
     }
     const scan = await this.loadData();
@@ -245,6 +258,7 @@ export class StaticDataSource implements IDataSourcePort {
       items = items.filter((i) => i.nodeIds.some((n) => set.has(n)));
     }
     this.kindRegistry.ingest(meta.issues.kindRegistry);
+    this.providerRegistry.ingest(meta.issues.providerRegistry);
     return {
       schemaVersion: '1',
       kind: 'issues',
@@ -257,6 +271,7 @@ export class StaticDataSource implements IDataSourcePort {
       },
       counts: { total: items.length, returned: items.length },
       kindRegistry: meta.issues.kindRegistry,
+      providerRegistry: meta.issues.providerRegistry,
     };
   }
 
@@ -274,12 +289,14 @@ export class StaticDataSource implements IDataSourcePort {
   async loadConfig(): Promise<IProjectConfigApi> {
     const meta = await this.loadMeta();
     this.kindRegistry.ingest(meta.config.kindRegistry);
+    this.providerRegistry.ingest(meta.config.providerRegistry);
     return meta.config.value;
   }
 
   async listPlugins(): Promise<IListEnvelopeApi<TPluginItem>> {
     const meta = await this.loadMeta();
     this.kindRegistry.ingest(meta.plugins.kindRegistry);
+    this.providerRegistry.ingest(meta.plugins.providerRegistry);
     return meta.plugins;
   }
 

@@ -35,7 +35,20 @@ import {
   bootstrapActiveProvider,
   warnIfLensBundleDisabled,
 } from '../active-provider-bootstrap.js';
+import type { IProviderDetectInput } from '../../config/active-provider.js';
 import type { IPrinter } from '../printer.js';
+
+/**
+ * Detection markers for these tests. Provider-owned now: the bootstrap
+ * reads `detect.markers` off the provider list instead of a hardcoded
+ * table. Order is significant for the ambiguous-detection cases (first
+ * match is the default suggestion).
+ */
+const TEST_PROVIDERS: IProviderDetectInput[] = [
+  { id: 'claude', detect: { markers: ['.claude'] } },
+  { id: 'cursor', detect: { markers: ['.cursor'] } },
+  { id: 'openai', detect: { markers: ['.codex'] } },
+];
 
 interface ICapturedPrinter {
   printer: IPrinter;
@@ -87,6 +100,7 @@ describe('bootstrapActiveProvider: from settings', () => {
     const out = await bootstrapActiveProvider({
       cwd: tmpRoot,
       effectiveRoots: [tmpRoot],
+      providers: TEST_PROVIDERS,
       yes: false,
       stdin: inlineStdin(''),
       stderr: noopStderr(),
@@ -106,6 +120,7 @@ describe('bootstrapActiveProvider: no markers anywhere', () => {
     const out = await bootstrapActiveProvider({
       cwd: tmpRoot,
       effectiveRoots: [tmpRoot],
+      providers: TEST_PROVIDERS,
       yes: false,
       stdin: inlineStdin(''),
       stderr: noopStderr(),
@@ -126,6 +141,7 @@ describe('bootstrapActiveProvider: single marker', () => {
     const out = await bootstrapActiveProvider({
       cwd: tmpRoot,
       effectiveRoots: [tmpRoot],
+      providers: TEST_PROVIDERS,
       yes: false,
       stdin: inlineStdin(''),
       stderr: noopStderr(),
@@ -152,6 +168,7 @@ describe('bootstrapActiveProvider: single marker', () => {
     const out = await bootstrapActiveProvider({
       cwd: tmpRoot,
       effectiveRoots: [fixture],
+      providers: TEST_PROVIDERS,
       yes: false,
       stdin: inlineStdin(''),
       stderr: noopStderr(),
@@ -174,6 +191,7 @@ describe('bootstrapActiveProvider: ambiguous (multiple markers)', () => {
     const out = await bootstrapActiveProvider({
       cwd: tmpRoot,
       effectiveRoots: [tmpRoot],
+      providers: TEST_PROVIDERS,
       yes: true,
       stdin: inlineStdin(''),
       stderr: noopStderr(),
@@ -194,6 +212,7 @@ describe('bootstrapActiveProvider: ambiguous (multiple markers)', () => {
     const out = await bootstrapActiveProvider({
       cwd: tmpRoot,
       effectiveRoots: [tmpRoot],
+      providers: TEST_PROVIDERS,
       yes: false,
       // "2\n" picks the second detected provider, cursor.
       stdin: inlineStdin('2\n'),
@@ -219,6 +238,7 @@ describe('bootstrapActiveProvider: ambiguous (multiple markers)', () => {
     const out = await bootstrapActiveProvider({
       cwd: tmpRoot,
       effectiveRoots: [tmpRoot],
+      providers: TEST_PROVIDERS,
       yes: false,
       stdin: inlineStdin('Cursor\n'), // case-insensitive name match
       stderr: noopStderr(),
@@ -238,6 +258,7 @@ describe('bootstrapActiveProvider: ambiguous (multiple markers)', () => {
     const out = await bootstrapActiveProvider({
       cwd: tmpRoot,
       effectiveRoots: [tmpRoot],
+      providers: TEST_PROVIDERS,
       yes: false,
       stdin: inlineStdin('garbage\n'),
       stderr: noopStderr(),

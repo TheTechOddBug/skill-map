@@ -199,6 +199,7 @@ export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
         filters: {},
         total: items.length,
         kindRegistry: deps.kindRegistry,
+        providerRegistry: deps.providerRegistry,
         contributionsRegistry: deps.contributionsRegistry,
       }),
     );
@@ -603,6 +604,7 @@ function projectListResponse(
       filters: {},
       total: items.length,
       kindRegistry: deps.kindRegistry,
+      providerRegistry: deps.providerRegistry,
       contributionsRegistry: deps.contributionsRegistry,
     }),
   );

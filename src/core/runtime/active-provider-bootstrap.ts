@@ -47,7 +47,10 @@
 import { createInterface } from 'node:readline';
 import { isAbsolute, join } from 'node:path';
 
-import { resolveActiveProvider } from '../config/active-provider.js';
+import {
+  resolveActiveProvider,
+  type IProviderDetectInput,
+} from '../config/active-provider.js';
 import { readConfigValue, writeConfigValue } from '../config/helper.js';
 
 import { SCAN_RUNNER_TEXTS } from './i18n/scan-runner.texts.js';
@@ -57,6 +60,13 @@ import { tx } from '../../kernel/util/tx.js';
 export interface IBootstrapActiveProviderOpts {
   cwd: string;
   effectiveRoots: readonly string[];
+  /**
+   * Registered Providers, source of the `detect.markers` used for
+   * filesystem auto-detection. `IProvider` is assignable to the
+   * structural `IProviderDetectInput`, so the scan runner passes its
+   * composed provider list verbatim.
+   */
+  providers: readonly IProviderDetectInput[];
   /**
    * Non-interactive mode. When `true` and the detection is ambiguous,
    * the caller does NOT prompt; instead `outcome.kind === 'ambiguous'`
@@ -113,7 +123,7 @@ export type TBootstrapActiveProviderOutcome =
 export async function bootstrapActiveProvider(
   opts: IBootstrapActiveProviderOpts,
 ): Promise<TBootstrapActiveProviderOutcome> {
-  const fromCwd = resolveActiveProvider(opts.cwd);
+  const fromCwd = resolveActiveProvider(opts.cwd, opts.providers);
   if (fromCwd.source === 'config') {
     // Lens came from settings. Re-detect markers and diff against the
     // snapshot persisted alongside `activeProvider`. When the diff is
@@ -126,6 +136,7 @@ export async function bootstrapActiveProvider(
       opts.cwd,
       opts.effectiveRoots,
       fromCwd.detected,
+      opts.providers,
     );
     handleDrift(opts, fromCwd.resolved, currentMarkers);
     return { kind: 'ok', activeProvider: fromCwd.resolved, source: 'config' };
@@ -133,7 +144,12 @@ export async function bootstrapActiveProvider(
   // Settings absent. Aggregate detection across cwd + effective roots
   // so out-of-tree scans find markers in the scan tree even when cwd
   // is unrelated (tests, ad-hoc invocations).
-  const detected = aggregateDetected(opts.cwd, opts.effectiveRoots, fromCwd.detected);
+  const detected = aggregateDetected(
+    opts.cwd,
+    opts.effectiveRoots,
+    fromCwd.detected,
+    opts.providers,
+  );
   if (detected.length === 0) {
     const warnGlyph = opts.style?.warnGlyph ?? '⚠';
     const dim = opts.style?.dim ?? ((s: string) => s);
@@ -176,6 +192,7 @@ function aggregateDetected(
   cwd: string,
   effectiveRoots: readonly string[],
   cwdDetected: readonly string[],
+  providers: readonly IProviderDetectInput[],
 ): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
@@ -186,7 +203,7 @@ function aggregateDetected(
   }
   for (const root of effectiveRoots) {
     const absRoot = isAbsolute(root) ? root : join(cwd, root);
-    const r = resolveActiveProvider(absRoot);
+    const r = resolveActiveProvider(absRoot, providers);
     for (const id of r.detected) {
       if (seen.has(id)) continue;
       seen.add(id);

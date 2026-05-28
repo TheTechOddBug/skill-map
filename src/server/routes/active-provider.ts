@@ -77,7 +77,7 @@ export function registerActiveProviderRoute(app: Hono, deps: IRouteDeps): void {
 }
 
 function buildEnvelope(deps: IRouteDeps): IActiveProviderEnvelope {
-  const r = resolveActiveProvider(deps.runtimeContext.cwd);
+  const r = resolveActiveProvider(deps.runtimeContext.cwd, deps.providers);
   return {
     activeProvider: r.resolved,
     detected: r.detected,

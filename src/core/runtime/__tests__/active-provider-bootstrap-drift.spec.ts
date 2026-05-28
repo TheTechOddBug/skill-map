@@ -28,7 +28,19 @@ import { Readable, Writable } from 'node:stream';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import { bootstrapActiveProvider } from '../active-provider-bootstrap.js';
+import type { IProviderDetectInput } from '../../config/active-provider.js';
 import type { IPrinter } from '../printer.js';
+
+/**
+ * Detection markers for these drift tests. Provider-owned: the bootstrap
+ * reads `detect.markers` off this list. `.codex` maps to `openai` so the
+ * multi-marker drift case sees `openai` as the added id.
+ */
+const TEST_PROVIDERS: IProviderDetectInput[] = [
+  { id: 'claude', detect: { markers: ['.claude'] } },
+  { id: 'cursor', detect: { markers: ['.cursor'] } },
+  { id: 'openai', detect: { markers: ['.codex'] } },
+];
 
 interface ICapturedPrinter {
   printer: IPrinter;
@@ -90,6 +102,7 @@ describe('bootstrapActiveProvider: snapshot persistence on auto-detect', () => {
     const out = await bootstrapActiveProvider({
       cwd: tmpRoot,
       effectiveRoots: [tmpRoot],
+      providers: TEST_PROVIDERS,
       yes: false,
       stdin: inlineStdin(''),
       stderr: noopStderr(),
@@ -116,6 +129,7 @@ describe('bootstrapActiveProvider: snapshot persistence on auto-detect', () => {
     const out = await bootstrapActiveProvider({
       cwd: tmpRoot,
       effectiveRoots: [tmpRoot],
+      providers: TEST_PROVIDERS,
       yes: false,
       stdin: inlineStdin('2\n'), // pick cursor
       stderr: noopStderr(),
@@ -145,6 +159,7 @@ describe('bootstrapActiveProvider: drift detection from config', () => {
     const out = await bootstrapActiveProvider({
       cwd: tmpRoot,
       effectiveRoots: [tmpRoot],
+      providers: TEST_PROVIDERS,
       yes: false,
       stdin: inlineStdin(''),
       stderr: noopStderr(),
@@ -172,6 +187,7 @@ describe('bootstrapActiveProvider: drift detection from config', () => {
     const out = await bootstrapActiveProvider({
       cwd: tmpRoot,
       effectiveRoots: [tmpRoot],
+      providers: TEST_PROVIDERS,
       yes: false,
       stdin: inlineStdin(''),
       stderr: noopStderr(),
@@ -201,6 +217,7 @@ describe('bootstrapActiveProvider: drift detection from config', () => {
     const out = await bootstrapActiveProvider({
       cwd: tmpRoot,
       effectiveRoots: [tmpRoot],
+      providers: TEST_PROVIDERS,
       yes: false,
       stdin: inlineStdin(''),
       stderr: noopStderr(),
@@ -228,6 +245,7 @@ describe('bootstrapActiveProvider: drift detection from config', () => {
     await bootstrapActiveProvider({
       cwd: tmpRoot,
       effectiveRoots: [tmpRoot],
+      providers: TEST_PROVIDERS,
       yes: false,
       stdin: inlineStdin(''),
       stderr: noopStderr(),
@@ -248,6 +266,7 @@ describe('bootstrapActiveProvider: drift detection from config', () => {
     const out = await bootstrapActiveProvider({
       cwd: tmpRoot,
       effectiveRoots: [tmpRoot],
+      providers: TEST_PROVIDERS,
       yes: false,
       stdin: inlineStdin(''),
       stderr: noopStderr(),
@@ -273,6 +292,7 @@ describe('bootstrapActiveProvider: drift detection from config', () => {
     await bootstrapActiveProvider({
       cwd: tmpRoot,
       effectiveRoots: [tmpRoot],
+      providers: TEST_PROVIDERS,
       yes: false,
       stdin: inlineStdin(''),
       stderr: noopStderr(),
@@ -300,6 +320,7 @@ describe('bootstrapActiveProvider: drift detection from config', () => {
     await bootstrapActiveProvider({
       cwd: tmpRoot,
       effectiveRoots: [tmpRoot],
+      providers: TEST_PROVIDERS,
       yes: false,
       stdin: inlineStdin(''),
       stderr: noopStderr(),

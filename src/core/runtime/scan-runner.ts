@@ -39,6 +39,7 @@ import {
   bootstrapActiveProvider,
   warnIfLensBundleDisabled,
 } from './active-provider-bootstrap.js';
+import type { IProviderDetectInput } from '../config/active-provider.js';
 import { tryWithSqlite, withSqlite } from '../sqlite/with-sqlite.js';
 import {
   collectRegisteredContributionKeys,
@@ -234,7 +235,13 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<TScanRunRes
 
   const loadPrior = makePriorLoader(opts.noBuiltIns, strict);
   const jobsDir = defaultProjectJobsDir(ctx);
-  const lens = await resolveActiveLens(opts, ctx, effectiveRoots, pluginRuntime);
+  const lens = await resolveActiveLens(
+    opts,
+    ctx,
+    effectiveRoots,
+    pluginRuntime,
+    detectionProviders(extensions),
+  );
   if (lens.kind === 'ambiguous-provider') return lens;
   const activeProvider = lens.activeProvider;
   const runScanWith = makeScanRunner(
@@ -280,16 +287,31 @@ type TLensResolution =
   | { kind: 'ok'; activeProvider: string | null }
   | (TScanRunResult & { kind: 'ambiguous-provider' });
 
+/**
+ * Providers whose `detect.markers` drive active-lens auto-detection.
+ * `composeScanExtensions` returns `undefined` when no extension survived
+ * the enabled filter, an empty list then means "no auto-detect", and the
+ * lens falls back to the persisted config value alone. Extracted so the
+ * nullish branch stays out of `runScanForCommand`'s complexity budget.
+ */
+function detectionProviders(
+  extensions: ReturnType<typeof composeScanExtensions>,
+): readonly IProviderDetectInput[] {
+  return extensions?.providers ?? [];
+}
+
 // eslint-disable-next-line complexity
 async function resolveActiveLens(
   opts: IScanRunOpts,
   ctx: ReturnType<typeof defaultRuntimeContext>,
   effectiveRoots: readonly string[],
   pluginRuntime: Awaited<ReturnType<typeof preparePluginRuntime>>,
+  providers: readonly IProviderDetectInput[],
 ): Promise<TLensResolution> {
   const bootstrap = await bootstrapActiveProvider({
     cwd: ctx.cwd,
     effectiveRoots,
+    providers,
     yes: opts.yes ?? false,
     stdin: opts.stdin ?? process.stdin,
     stderr: opts.stderr,

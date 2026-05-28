@@ -65,6 +65,7 @@ import { WsBroadcaster } from './broadcaster.js';
 import { resolveSpecVersion } from './health.js';
 import { SERVER_TEXTS } from './i18n/server.texts.js';
 import { buildKindRegistry } from './kind-registry.js';
+import { buildProviderRegistry } from './provider-registry.js';
 import { buildContributionsRegistry } from './contributions-registry.js';
 import type { IServerOptions } from './options.js';
 import {
@@ -119,7 +120,8 @@ export async function createServer(
   const specVersion = await resolveSpecVersion();
   const runtimeContext = extra.runtimeContext ?? defaultRuntimeContext();
   const broadcaster = new WsBroadcaster();
-  const { pluginRuntime, kindRegistry } = await assemblePluginRuntime(options, runtimeContext);
+  const { pluginRuntime, kindRegistry, providerRegistry, providers } =
+    await assemblePluginRuntime(options, runtimeContext);
   const { kernel, contributionsRegistry } = assembleKernel(pluginRuntime, options.noBuiltIns);
 
   // Holder is created BEFORE `createApp` so route deps can capture a
@@ -133,6 +135,8 @@ export async function createServer(
     broadcaster,
     runtimeContext,
     kindRegistry,
+    providerRegistry,
+    providers,
     contributionsRegistry,
     pluginRuntime,
     watcherHolder,
@@ -237,6 +241,8 @@ async function assemblePluginRuntime(
 ): Promise<{
   pluginRuntime: IPluginRuntimeBundle;
   kindRegistry: ReturnType<typeof buildKindRegistry>;
+  providerRegistry: ReturnType<typeof buildProviderRegistry>;
+  providers: IProvider[];
 }> {
   // R14, thread the boot-time runtime context through to
   // `loadPluginRuntime` so plugin discovery walks the same `cwd`
@@ -267,11 +273,16 @@ async function assemblePluginRuntime(
   // (the `startsAsDisabled` exception documented in
   // `cli-contract.md §PATCH /api/plugins`).
   const builtInProviders = options.noBuiltIns ? [] : collectBuiltInProviders();
-  const kindRegistry = buildKindRegistry([
-    ...builtInProviders,
-    ...pluginRuntime.extensions.providers,
-  ]);
-  return { pluginRuntime, kindRegistry };
+  const allProviders = [...builtInProviders, ...pluginRuntime.extensions.providers];
+  const kindRegistry = buildKindRegistry(allProviders);
+  // Sibling of `kindRegistry`, same boot-time discipline: every
+  // registered Provider's identity, embedded into every payload-bearing
+  // envelope so the UI renders lens / chip surfaces from the real set.
+  const providerRegistry = buildProviderRegistry(allProviders);
+  // The raw provider list is also threaded to routes for active-lens
+  // auto-detection (`detect.markers` lives on the manifest, not on the
+  // wire `providerRegistry`).
+  return { pluginRuntime, kindRegistry, providerRegistry, providers: allProviders };
 }
 
 /**

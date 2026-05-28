@@ -415,7 +415,11 @@ async function runScanInternal(
   emitter.emit(scanStartedEvent);
   await hookDispatcher.dispatch('scan.started', scanStartedEvent);
 
-  const activeProviderId = resolveActiveProviderOption(options.activeProvider, options.roots);
+  const activeProviderId = resolveActiveProviderOption(
+    options.activeProvider,
+    options.roots,
+    exts.providers,
+  );
   const walked = await walkAndExtract({
     providers: exts.providers,
     extractors: exts.extractors,
@@ -867,12 +871,13 @@ function validateRoots(roots: string[]): void {
 function resolveActiveProviderOption(
   optionValue: string | null | undefined,
   roots: readonly string[],
+  providers: readonly IProvider[],
 ): string | null {
   if (optionValue !== undefined) return optionValue;
   for (const root of roots) {
     const absRoot = isAbsolute(root) ? root : resolve(root);
     if (!existsSync(absRoot)) continue;
-    const detected = resolveActiveProvider(absRoot).resolved;
+    const detected = resolveActiveProvider(absRoot, providers).resolved;
     if (detected !== null) return detected;
   }
   return null;

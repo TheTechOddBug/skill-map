@@ -12,10 +12,11 @@
  * `defaultRuntimeContext()` at boot.
  */
 
+import type { IProvider } from '../../kernel/extensions/index.js';
 import type { ConfigService } from '../../core/config/service.js';
 import type { IPluginRuntimeBundle } from '../../core/runtime/plugin-runtime.js';
 import type { IRuntimeContext } from '../../core/runtime/runtime-context.js';
-import type { TContributionsRegistry, TKindRegistry } from '../envelope.js';
+import type { TContributionsRegistry, TKindRegistry, TProviderRegistry } from '../envelope.js';
 import type { IServerOptions } from '../options.js';
 import type { IWatcherServiceHolder } from '../watcher.js';
 
@@ -44,6 +45,22 @@ export interface IRouteDeps {
    * on the wire either.
    */
   kindRegistry: TKindRegistry;
+  /**
+   * Registry of Providers active in the current scope (sibling of
+   * `kindRegistry`). Built once per server boot from every registered
+   * Provider's `ui` block and embedded into every payload-bearing
+   * envelope so the UI renders the active-lens dropdown and the per-node
+   * provider chip from the real Provider set. Sentinel routes (`health`,
+   * `scan`, `graph`) don't carry it on the wire either.
+   */
+  providerRegistry: TProviderRegistry;
+  /**
+   * Registered Providers (built-ins + drop-in user plugins). Source of
+   * `detect.markers` for active-lens auto-detection in the
+   * `/api/active-provider` route; the wire `providerRegistry` omits the
+   * markers, so the route reads them off these manifest objects.
+   */
+  providers: readonly IProvider[];
   /**
    * Phase 3 / View contribution system, registry of plugin-declared
    * view contributions. Built once per server boot from

@@ -10,6 +10,10 @@
 export default {
   version: '0.1.0',
   description: 'provider whose markdown kind is missing the ui block',
+  // Provider-level `presentation` is present and valid, so the loader
+  // gets past manifest validation and fails specifically on the KIND's
+  // missing `ui` block (the focus of this case).
+  presentation: { label: 'Bad', color: '#000000' },
   async *walk() {},
   classify() {
     return 'markdown';

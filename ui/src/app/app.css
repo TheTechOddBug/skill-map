@@ -153,7 +153,7 @@
    and names the platform whose extractors interpret the project.
    Mirrors the card provider badge one-for-one: the per-provider
    color arrives via `--provider-color` / `--provider-color-dark`
-   inline bindings (from `lensProviderUi`), and the surface recipe
+   inline bindings (from `ProviderRegistryService.lensChip`), and the surface recipe
    (full-color text on a 14% / 24% wash) matches `.sm-gnode__provider`
    in node-card.css so the lens reads identically up here and inside
    the map. */

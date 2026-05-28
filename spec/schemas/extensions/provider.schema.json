@@ -7,9 +7,87 @@
     { "$ref": "base.schema.json" }
   ],
   "type": "object",
-  "required": ["version", "description"],
+  "required": ["version", "description", "presentation"],
   "unevaluatedProperties": false,
   "properties": {
+    "presentation": {
+      "type": "object",
+      "required": ["label", "color"],
+      "additionalProperties": false,
+      "description": "Presentation metadata the UI uses to render this Provider's identity: the lens-switcher dropdown label, the topbar active-lens chip, and the per-node provider chip on cards. Required so the UI never hardcodes a closed provider list, it reads every registered Provider's identity from the `providerRegistry` field embedded in REST envelopes (`api/rest-envelope.schema.json`). Named `presentation` (NOT `ui`) because the shared extension `ui` key is the view-contributions map declared only by extractor / analyzer kinds. Mirrors the per-kind `provider-kind.schema.json#/ui` shape (label + base color, optional dark variant + emoji + icon) plus `hideChip` for fallback Providers that should not badge every node.",
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable Provider name shown in the active-lens dropdown, the topbar lens chip, and the per-node provider chip (e.g. `'Claude'`, `'OpenAI Codex'`, `'Antigravity'`, `'Open Skills'`, `'Markdown'`)."
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "description": "Base hex color (light theme) for the Provider chip. The UI derives any tints it needs from this value; declaring a single base keeps the manifest small. Deliberately distinct per Provider (unlike kind colors which normalise across Providers) so the chip tells the user at a glance which platform a node came from."
+        },
+        "colorDark": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "description": "Optional dark-theme variant of `color`. When absent, the UI falls back to `color`."
+        },
+        "emoji": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8,
+          "description": "Optional decorative emoji used as a fallback when `icon` is absent or fails to render. Bound to a small length so the UI can lay it out predictably alongside text."
+        },
+        "icon": {
+          "description": "Optional discriminated icon descriptor. The UI prefers `icon` over `emoji`; when both are absent, the UI falls back to the first letter of `label` colored with `color`.",
+          "oneOf": [
+            {
+              "type": "object",
+              "required": ["kind", "id"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": { "const": "pi" },
+                "id": {
+                  "type": "string",
+                  "pattern": "^pi-[a-z0-9]+(-[a-z0-9]+)*$",
+                  "description": "PrimeIcons identifier (e.g. `pi-cog`, `pi-bolt`). Matched verbatim against the `pi pi-<id>` class the UI emits."
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["kind", "path"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": { "const": "svg" },
+                "path": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Raw SVG path data (the `d` attribute of one or more `<path>` elements, joined). The UI wraps it in `<svg viewBox=\"0 0 24 24\"><path d=\"...\"/></svg>` and tints it with `currentColor`."
+                }
+              }
+            }
+          ]
+        },
+        "hideChip": {
+          "type": "boolean",
+          "description": "When `true`, the UI does NOT paint this Provider's chip on node cards. Reserved for the universal fallback Provider (`markdown`): the majority of nodes in any project carry it, so badging every generic `.md` would be visual noise and dilute the chip's purpose (signalling when a node came from a NON-default platform). The Provider still appears in the active-lens dropdown and the topbar lens chip; only the per-card badge is suppressed. Defaults to `false` (chip shown)."
+        }
+      }
+    },
+    "detect": {
+      "type": "object",
+      "required": ["markers"],
+      "additionalProperties": false,
+      "description": "Auto-detection markers for the active-provider lens. The lens resolver checks each marker path (relative to the scope root) and, when present, suggests this Provider as a candidate lens. Replaces the former hardcoded detection table: the set of detectable Providers now derives from the registered Providers themselves. Optional, a Provider with no `detect` block is never auto-suggested (it can still be selected manually). When several Providers match, the resolver returns the full candidate list in Provider iteration order and the first match is the default suggestion.",
+      "properties": {
+        "markers": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Paths relative to the scope root whose existence signals this Provider's presence (e.g. `['.claude']`, `['.codex', 'AGENTS.md']`). A directory or a file both count; existence is the only test.",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
     "roots": {
       "type": "array",
       "description": "Path globs (relative to scope root) that this Provider claims. **Enforcement-grade since structure-as-truth refactor**: a Provider declaring `roots` only receives files that match at least one entry of the array; a Provider without `roots` acts as a fallback and receives files unmatched by every other Provider's roots. Two Providers whose `roots` both match the same file produce a `provider-ambiguous` issue and the file stays unclassified. `sm plugins doctor` warns when no file matched a specific Provider's roots in the latest scan.",

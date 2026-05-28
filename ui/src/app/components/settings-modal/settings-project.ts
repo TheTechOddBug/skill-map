@@ -52,21 +52,7 @@ import {
   DATA_SOURCE,
   DataSourceError,
 } from '../../../services/data-source/data-source.port';
-
-/**
- * Catalog of provider ids the lens dropdown surfaces. Hardcoded for
- * now because the kernel does not yet expose a "list enabled
- * providers" endpoint. As Phase 4+ of the active-lens migration
- * lands per-provider plugin scaffolds (gemini, cursor, openai), this
- * list grows in lockstep. Eventually replaced by a runtime pull from
- * `kindRegistry` or a dedicated `/api/providers` route.
- */
-const KNOWN_PROVIDERS: readonly { id: string; label: string }[] = [
-  { id: 'claude', label: 'Claude Code' },
-  { id: 'gemini', label: 'Gemini CLI' },
-  { id: 'openai', label: 'OpenAI Codex' },
-  { id: 'cursor', label: 'Cursor' },
-];
+import { ProviderRegistryService } from '../../../services/provider-registry';
 
 /**
  * Single line, no ASCII control / DEL characters. Mirrors the BFF's
@@ -95,6 +81,7 @@ const CONTROL_CHAR_RX = /[\n\r\x00-\x1F\x7F]/;
 export class SettingsProject {
   private readonly dataSource = inject(DATA_SOURCE);
   private readonly confirmation = inject(ConfirmationService);
+  private readonly providerRegistry = inject(ProviderRegistryService);
 
   readonly visible = input.required<boolean>();
 
@@ -130,16 +117,18 @@ export class SettingsProject {
   protected readonly activeProviderLoadError = signal<string | null>(null);
   protected readonly activeProviderSaveError = signal<string | null>(null);
   protected readonly activeProviderSwitchAnnouncement = signal<string | null>(null);
-  protected readonly knownProviders = KNOWN_PROVIDERS;
   /**
-   * Options consumed by `<p-select>`. Prepends the "(none)" entry so
-   * the user can explicitly clear the lens; downstream `'' → null`
+   * Options consumed by `<p-select>`. Prepends the "(none)" entry so the
+   * user can explicitly clear the lens; the rest come from the runtime
+   * `ProviderRegistryService` (fed by the `providerRegistry` envelope
+   * field), so the dropdown lists exactly the Providers registered in
+   * this scope, never a hardcoded list. Downstream `'' → null`
    * conversion stays in `onActiveProviderChange()`.
    */
-  protected readonly providerOptions: { id: string; label: string }[] = [
+  protected readonly providerOptions = computed<{ id: string; label: string }[]>(() => [
     { id: '', label: SETTINGS_TEXTS.project.activeProviderEmptyOption },
-    ...KNOWN_PROVIDERS,
-  ];
+    ...this.providerRegistry.providers().map((p) => ({ id: p.id, label: p.label })),
+  ]);
 
   /** Current resolved value (from config or autodetect); `''` for "none". */
   protected readonly activeProviderValue = computed<string>(() => {

@@ -52,6 +52,7 @@ function makeProvider(opts?: { kindPriority?: readonly ('invokes' | 'references'
     kind: 'provider',
     description: 'test fixture',
     version: '1.0.0',
+    presentation: { label: 'Test', color: '#000000' },
     classify: () => null,
     kinds: {},
     ...(opts?.kindPriority ? { resolverRules: { kindPriority: opts.kindPriority } } : {}),

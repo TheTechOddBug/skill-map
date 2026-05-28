@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { KindRegistryService } from '../../kind-registry';
+import { ProviderRegistryService } from '../../provider-registry';
 import { DataSourceError } from '../data-source.port';
 import {
   StaticDataSource,
@@ -14,6 +15,10 @@ import {
  */
 function makeFakeRegistry(): KindRegistryService {
   return { ingest: vi.fn() } as unknown as KindRegistryService;
+}
+
+function makeFakeProviderRegistry(): ProviderRegistryService {
+  return { ingest: vi.fn() } as unknown as ProviderRegistryService;
 }
 
 const META_FIXTURE: IDemoMetaPayload = {
@@ -131,6 +136,7 @@ describe('StaticDataSource', () => {
     ds = new StaticDataSource(
       makeFetch({ 'data.meta.json': META_FIXTURE, 'data.json': SCAN_FIXTURE }),
       makeFakeRegistry(),
+      makeFakeProviderRegistry(),
     );
   });
 
@@ -241,7 +247,7 @@ describe('StaticDataSource', () => {
       }
       return new Response(JSON.stringify(SCAN_FIXTURE), { status: 200 });
     }) as unknown as typeof fetch;
-    const cached = new StaticDataSource(fetchSpy, makeFakeRegistry());
+    const cached = new StaticDataSource(fetchSpy, makeFakeRegistry(), makeFakeProviderRegistry());
     await cached.health();
     await cached.health();
     await cached.listPlugins();
@@ -251,7 +257,7 @@ describe('StaticDataSource', () => {
   });
 
   it('wraps a 404 on the asset fetch as a DataSourceError', async () => {
-    const broken = new StaticDataSource(makeFetch({}), makeFakeRegistry());
+    const broken = new StaticDataSource(makeFetch({}), makeFakeRegistry(), makeFakeProviderRegistry());
     await expect(broken.health()).rejects.toBeInstanceOf(DataSourceError);
   });
 
@@ -261,6 +267,7 @@ describe('StaticDataSource', () => {
         throw new Error('boom');
       }) as unknown as typeof fetch,
       makeFakeRegistry(),
+      makeFakeProviderRegistry(),
     );
     await expect(failing.health()).rejects.toMatchObject({
       name: 'DataSourceError',

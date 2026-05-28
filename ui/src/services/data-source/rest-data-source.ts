@@ -50,6 +50,7 @@ import type {
 } from '../../models/api';
 import type { IWsEvent } from '../../models/ws-event';
 import { KindRegistryService } from '../kind-registry';
+import { ProviderRegistryService } from '../provider-registry';
 import { ContributionsRegistryService } from '../../app/services/contributions-registry';
 import { WsEventStreamService } from '../ws-event-stream';
 import { encodeNodePath } from './path-codec';
@@ -71,6 +72,7 @@ export class RestDataSource implements IDataSourcePort {
   private readonly http: HttpClient;
   private readonly ws: WsEventStreamService;
   private readonly kindRegistry: KindRegistryService;
+  private readonly providerRegistry: ProviderRegistryService;
   private readonly contributionsRegistry: ContributionsRegistryService;
 
   constructor(
@@ -78,6 +80,7 @@ export class RestDataSource implements IDataSourcePort {
     ws?: WsEventStreamService,
     kindRegistry?: KindRegistryService,
     contributionsRegistry?: ContributionsRegistryService,
+    providerRegistry?: ProviderRegistryService,
   ) {
     // The factory passes `HttpClient` + `WsEventStreamService`
     // explicitly; the `@Injectable` path uses Angular DI. Both call
@@ -91,6 +94,7 @@ export class RestDataSource implements IDataSourcePort {
     this.kindRegistry = kindRegistry ?? inject(KindRegistryService);
     this.contributionsRegistry =
       contributionsRegistry ?? inject(ContributionsRegistryService);
+    this.providerRegistry = providerRegistry ?? inject(ProviderRegistryService);
   }
 
   async health(): Promise<IHealthResponseApi> {
@@ -124,6 +128,7 @@ export class RestDataSource implements IDataSourcePort {
     const envelope = await this.getJson<IListEnvelopeApi<INodeApi>>(`${BASE}/nodes${params}`);
     this.ingestRegistry(envelope.kindRegistry);
     this.ingestContributionsRegistry(envelope.contributionsRegistry);
+    this.ingestProviderRegistry(envelope.providerRegistry);
     return envelope;
   }
 
@@ -136,7 +141,8 @@ export class RestDataSource implements IDataSourcePort {
     try {
       const envelope = await this.getJson<INodeDetailApi>(`${BASE}/nodes/${encoded}${query}`);
       this.ingestRegistry(envelope.kindRegistry);
-    this.ingestContributionsRegistry(envelope.contributionsRegistry);
+      this.ingestContributionsRegistry(envelope.contributionsRegistry);
+      this.ingestProviderRegistry(envelope.providerRegistry);
       return envelope;
     } catch (err) {
       if (err instanceof DataSourceError && err.code === 'not-found') return null;
@@ -149,6 +155,7 @@ export class RestDataSource implements IDataSourcePort {
     const envelope = await this.getJson<IListEnvelopeApi<ILinkApi>>(`${BASE}/links${params}`);
     this.ingestRegistry(envelope.kindRegistry);
     this.ingestContributionsRegistry(envelope.contributionsRegistry);
+    this.ingestProviderRegistry(envelope.providerRegistry);
     return envelope;
   }
 
@@ -157,6 +164,7 @@ export class RestDataSource implements IDataSourcePort {
     const envelope = await this.getJson<IListEnvelopeApi<IIssueApi>>(`${BASE}/issues${params}`);
     this.ingestRegistry(envelope.kindRegistry);
     this.ingestContributionsRegistry(envelope.contributionsRegistry);
+    this.ingestProviderRegistry(envelope.providerRegistry);
     return envelope;
   }
 
@@ -177,6 +185,7 @@ export class RestDataSource implements IDataSourcePort {
     );
     this.ingestRegistry(envelope.kindRegistry);
     this.ingestContributionsRegistry(envelope.contributionsRegistry);
+    this.ingestProviderRegistry(envelope.providerRegistry);
     return envelope.value;
   }
 
@@ -184,6 +193,7 @@ export class RestDataSource implements IDataSourcePort {
     const envelope = await this.getJson<IListEnvelopeApi<TPluginItem>>(`${BASE}/plugins`);
     this.ingestRegistry(envelope.kindRegistry);
     this.ingestContributionsRegistry(envelope.contributionsRegistry);
+    this.ingestProviderRegistry(envelope.providerRegistry);
     return envelope;
   }
 
@@ -197,6 +207,7 @@ export class RestDataSource implements IDataSourcePort {
     );
     this.ingestRegistry(envelope.kindRegistry);
     this.ingestContributionsRegistry(envelope.contributionsRegistry);
+    this.ingestProviderRegistry(envelope.providerRegistry);
     return envelope;
   }
 
@@ -211,6 +222,7 @@ export class RestDataSource implements IDataSourcePort {
     );
     this.ingestRegistry(envelope.kindRegistry);
     this.ingestContributionsRegistry(envelope.contributionsRegistry);
+    this.ingestProviderRegistry(envelope.providerRegistry);
     return envelope;
   }
 
@@ -223,6 +235,7 @@ export class RestDataSource implements IDataSourcePort {
     );
     this.ingestRegistry(envelope.kindRegistry);
     this.ingestContributionsRegistry(envelope.contributionsRegistry);
+    this.ingestProviderRegistry(envelope.providerRegistry);
     return envelope;
   }
 
@@ -307,6 +320,18 @@ export class RestDataSource implements IDataSourcePort {
 
   private ingestRegistry(payload: IKindRegistryApi | undefined): void {
     if (payload) this.kindRegistry.ingest(payload);
+  }
+
+  /**
+   * Refresh the cached provider registry from any payload-bearing
+   * envelope. Sibling of `ingestRegistry` for the `providerRegistry`
+   * field. Sentinel / action-result / older envelopes carry `undefined`,
+   * which the service treats as a no-op.
+   */
+  private ingestProviderRegistry(
+    payload: import('../../models/api').IProviderRegistryApi | undefined,
+  ): void {
+    if (payload) this.providerRegistry.ingest(payload);
   }
 
   /**

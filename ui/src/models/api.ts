@@ -360,6 +360,28 @@ export interface IKindRegistryEntryApi {
 export type IKindRegistryApi = Record<string, IKindRegistryEntryApi>;
 
 /**
+ * Wire shape of one entry in the BFF's `providerRegistry`, keyed by
+ * Provider id. Mirrors
+ * `spec/schemas/api/rest-envelope.schema.json#/properties/providerRegistry/additionalProperties`.
+ * Carries the Provider's own identity (label, color, optional dark
+ * variant / emoji / icon, and `hideChip` for the universal `markdown`
+ * fallback). Distinct from `IKindRegistryProviderUiApi` (per-kind
+ * visuals); the UI's `ProviderRegistryService` enriches this with the
+ * Provider id from the parent map key.
+ */
+export interface IProviderRegistryEntryApi {
+  label: string;
+  color: string;
+  colorDark?: string;
+  emoji?: string;
+  icon?: TKindIconApi;
+  /** Suppress the per-card chip (universal `markdown` fallback). */
+  hideChip?: boolean;
+}
+
+export type IProviderRegistryApi = Record<string, IProviderRegistryEntryApi>;
+
+/**
  * Plugin row shape returned by `GET /api/plugins` and `PATCH /api/plugins/:id`.
  * Mirrors `IPluginListItem` in `src/server/routes/plugins.ts`. Status / source /
  * granularity values are documented in `spec/cli-contract.md` §`GET /api/plugins`.
@@ -425,6 +447,7 @@ export interface IListEnvelopeApi<TItem> {
   filters: Record<string, unknown>;
   counts: IEnvelopeCountsApi;
   kindRegistry: IKindRegistryApi;
+  providerRegistry?: IProviderRegistryApi;
   contributionsRegistry?: IContributionsRegistryApi;
 }
 
@@ -433,6 +456,7 @@ export interface ISingleEnvelopeApi<TItem> {
   kind: TEnvelopeKindApi;
   item: TItem;
   kindRegistry: IKindRegistryApi;
+  providerRegistry?: IProviderRegistryApi;
   contributionsRegistry?: IContributionsRegistryApi;
 }
 
@@ -441,6 +465,7 @@ export interface IValueEnvelopeApi<TValue> {
   kind: TEnvelopeKindApi;
   value: TValue;
   kindRegistry: IKindRegistryApi;
+  providerRegistry?: IProviderRegistryApi;
   contributionsRegistry?: IContributionsRegistryApi;
 }
 
@@ -485,6 +510,7 @@ export interface INodeDetailApi {
   links: { incoming: ILinkApi[]; outgoing: ILinkApi[] };
   issues: IIssueApi[];
   kindRegistry: IKindRegistryApi;
+  providerRegistry?: IProviderRegistryApi;
   contributionsRegistry?: IContributionsRegistryApi;
 }
 

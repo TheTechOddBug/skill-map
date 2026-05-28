@@ -16,7 +16,7 @@ import { ProjectInfoService } from './services/project-info';
 import { ScanTriggerService } from './services/scan-trigger';
 import { UpdateCheckService } from './services/update-check';
 import { ThemeService } from '../services/theme';
-import { lensProviderUi, type IProviderUi } from '../services/provider-ui';
+import { ProviderRegistryService, type IProviderUi } from '../services/provider-registry';
 import { DemoBanner } from './components/demo-banner/demo-banner';
 import { OversizedBanner } from './components/oversized-banner/oversized-banner';
 import { SettingsModal } from './components/settings-modal/settings-modal';
@@ -34,6 +34,7 @@ export class App {
   private readonly loader = inject(CollectionLoaderService);
   private readonly theme = inject(ThemeService);
   private readonly projectInfo = inject(ProjectInfoService);
+  private readonly providerRegistry = inject(ProviderRegistryService);
   private readonly scanTrigger = inject(ScanTriggerService);
   // `FilterUrlSyncService` and `DebugSlotsService` are eagerly
   // instantiated via `provideAppInitializer` in `app.config.ts`. They
@@ -138,12 +139,12 @@ export class App {
 
   /**
    * Active-lens chip for the topbar. Mirrors the card provider badge's
-   * colors (`lensProviderUi` reuses the same registry) so the lens the
-   * user is viewing through reads identically up top and inside the
+   * colors (`ProviderRegistryService` is the single source) so the lens
+   * the user is viewing through reads identically up top and inside the
    * cards. `null` (chip hidden) when no lens is active.
    */
   protected readonly lensChip = computed<IProviderUi | null>(() =>
-    lensProviderUi(this.projectInfo.activeProvider()),
+    this.providerRegistry.lensChip(this.projectInfo.activeProvider()),
   );
   protected readonly count = this.loader.count;
   /**

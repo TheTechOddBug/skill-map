@@ -56,6 +56,7 @@ export function registerIssuesRoute(app: Hono, deps: IRouteDeps): void {
         total: result?.total ?? 0,
         page: { offset: inputs.filter.offset, limit: inputs.filter.limit },
         kindRegistry: deps.kindRegistry,
+        providerRegistry: deps.providerRegistry,
         contributionsRegistry: deps.contributionsRegistry,
       }),
     );

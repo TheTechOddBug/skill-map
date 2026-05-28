@@ -24,9 +24,11 @@
 
 export type {
   IProvider,
+  IProviderDetect,
   IProviderKind,
   IProviderKindUi,
   IProviderReadConfig,
+  IProviderUi,
   IRawNode,
   TIdentifierSource,
   TProviderKindIcon,

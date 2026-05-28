@@ -59,6 +59,7 @@ function makeMarkdownProvider(): IProvider {
     kind: 'provider',
     version: '1.0.0',
     description: 'test stub',
+    presentation: { label: 'Markdown', color: '#000000' },
     read: { extensions: ['.md'], parser: 'frontmatter-yaml' },
     kinds: {
       note: {

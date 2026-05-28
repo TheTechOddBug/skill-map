@@ -51,6 +51,21 @@ export const claudeProvider: IBuiltInManifest<IProvider> = {
   kind: 'provider',
   description: 'Classifies files under `.claude/{agents,commands,skills}` as Claude Code agents, commands, and skills.',
 
+  // Provider identity for the active-lens dropdown, the topbar lens chip,
+  // and the per-node provider chip. Anthropic brand terracotta; the dark
+  // variant lifts luminosity for dark mode. Verbatim from the previous
+  // static UI catalog (`ui/src/services/provider-ui.ts`).
+  presentation: {
+    label: 'Claude',
+    color: '#cc785c',
+    colorDark: '#e89270',
+  },
+
+  // Auto-detect marker: a `.claude/` directory under the scope root marks
+  // a Claude Code project. Provider-owned (replaces the old central
+  // detection table in `src/core/config/active-provider.ts`).
+  detect: { markers: ['.claude'] },
+
   // Vendor provider: Claude Code only reads its own `.claude/` territory
   // and ignores `.codex/` / Antigravity layouts at runtime. Gating the
   // classifier behind the active lens prevents the walker from inventing

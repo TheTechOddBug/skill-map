@@ -12,6 +12,7 @@ function fakeProvider(id: string, kinds: IProvider['kinds']): IProvider {
     kind: 'provider',
     version: '1.0.0',
     description: 'test',
+    presentation: { label: id, color: '#000000' },
     kinds,
     classify: () => 'unknown',
   };

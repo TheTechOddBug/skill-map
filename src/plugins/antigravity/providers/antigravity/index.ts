@@ -39,12 +39,12 @@
  *   - Agent Skills standard: https://agentskill.sh/antigravity
  *
  * **Lens auto-detect note**: Antigravity has no vendor-specific
- * workspace marker (no `.antigravity/` directory), so the filesystem
- * heuristic in `src/core/config/active-provider.ts` does NOT detect it.
- * Operators select the lens manually via
+ * workspace marker (no `.antigravity/` directory), so its manifest
+ * declares no `detect` block and the provider-owned lens heuristic never
+ * auto-suggests it. Operators select the lens manually via
  * `sm config set activeProvider antigravity`; otherwise a project with
- * `.agents/` and no other vendor markers resolves to a `null` lens
- * (universal extractors keep running).
+ * `.agents/` auto-detects as the universal `agent-skills` lens (which
+ * owns that marker) and Antigravity's universal extractors keep running.
  */
 
 import type { IBuiltInManifest, IProvider } from '../../../../kernel/extensions/index.js';
@@ -56,6 +56,20 @@ export const antigravityProvider: IBuiltInManifest<IProvider> = {
   kind: 'provider',
   description:
     'Declares the Google Antigravity runtime and its reserved built-in names.',
+
+  // Provider identity for the active-lens dropdown, the topbar lens chip,
+  // and the per-node provider chip. Antigravity violet, distinct from the
+  // other vendor palettes.
+  presentation: {
+    label: 'Antigravity',
+    color: '#7c3aed',
+    colorDark: '#a78bfa',
+  },
+
+  // No `detect` block: Antigravity has no vendor-specific workspace marker
+  // (it adopted the open-standard `.agents/`, owned by `agent-skills`), so
+  // it is never auto-suggested. The lens is set manually via
+  // `sm config set activeProvider antigravity`.
 
   // Vendor provider: marked gated for the day Antigravity grows its own
   // on-disk kind beyond the open standard. Today `kinds: {}` and

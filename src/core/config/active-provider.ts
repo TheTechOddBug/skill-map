@@ -30,29 +30,18 @@ import { join } from 'node:path';
 import { readConfigValue } from './helper.js';
 
 /**
- * Detection heuristic, kept declarative so the same table can drive
- * the UI's "we detected X" hint and the CLI's prompt list. The order
- * is significant: when multiple signals are present the first match
- * wins as the default suggestion, but the full list of matched
- * provider ids is also returned for prompting.
+ * Structural subset of a Provider this module needs for auto-detection.
+ * `IProvider` (kernel) is assignable to it, so callers pass their
+ * provider list directly without a conversion step AND without this
+ * module importing the kernel `IProvider` type (which would make the
+ * existing kernel -> core/config dependency bidirectional). The marker
+ * set is provider-owned: each Provider declares its own `detect.markers`
+ * in its manifest, replacing the former hardcoded detection table.
  */
-const DETECTION_RULES: ReadonlyArray<{
-  providerId: string;
-  /** Relative path under `cwd` that signals this provider's presence. */
-  marker: string;
-}> = [
-  { providerId: 'claude', marker: '.claude' },
-  // `gemini` retired 2026-05-22: Google replaced the Gemini CLI with the
-  // Antigravity CLI (released 2026-05-19; Gemini CLI sunsets 2026-06-18).
-  // Antigravity adopted the open-standard `.agents/` instead of a
-  // vendor-specific directory, so detection of a Google CLI project
-  // falls through to the universal `agent-skills` lens (`.agents/`
-  // already classifies via that neutral provider). The lens can still
-  // be set manually via `sm config set activeProvider antigravity`.
-  { providerId: 'openai', marker: '.codex' },
-  { providerId: 'openai', marker: 'AGENTS.md' },
-  { providerId: 'cursor', marker: '.cursor' },
-];
+export interface IProviderDetectInput {
+  id: string;
+  detect?: { markers?: readonly string[] };
+}
 
 export interface IActiveProviderResolution {
   /**
@@ -77,12 +66,22 @@ export interface IActiveProviderResolution {
 
 /**
  * Read `activeProvider` from project config, falling back to a
- * filesystem auto-detect heuristic. See `IActiveProviderResolution`
- * for the return shape. Pure-ish: reads config + checks `existsSync`
- * for marker paths; no writes, no prompts.
+ * filesystem auto-detect heuristic driven by the Providers' own
+ * `detect.markers`. See `IActiveProviderResolution` for the return
+ * shape. Pure-ish: reads config + checks `existsSync` for marker paths;
+ * no writes, no prompts.
+ *
+ * `providers` supplies the detection markers. When omitted (empty),
+ * auto-detect yields no candidates and resolution falls back to the
+ * config value alone, so callers that only need the persisted
+ * `activeProvider` can skip passing it; callers that want auto-detect
+ * pass their registered provider list (built-ins + user plugins).
  */
-export function resolveActiveProvider(cwd: string): IActiveProviderResolution {
-  const detected = detectProvidersFromFilesystem(cwd);
+export function resolveActiveProvider(
+  cwd: string,
+  providers: ReadonlyArray<IProviderDetectInput> = [],
+): IActiveProviderResolution {
+  const detected = detectProvidersFromFilesystem(cwd, providers);
   const fromConfig = readConfigValue('activeProvider', { cwd });
   if (typeof fromConfig === 'string' && fromConfig.length > 0) {
     return { resolved: fromConfig, source: 'config', detected };
@@ -94,20 +93,27 @@ export function resolveActiveProvider(cwd: string): IActiveProviderResolution {
 }
 
 /**
- * Walk the detection rules and return the unique provider ids whose
- * marker exists under `cwd`. Multiple rules may map to the same
- * provider (Codex matches both `.codex/` and root `AGENTS.md`); the
- * result deduplicates while preserving rule order, so the first
- * triggering marker per provider determines its position.
+ * Walk each Provider's `detect.markers` and return the unique provider
+ * ids whose marker exists under `cwd`. A Provider may declare several
+ * markers (Codex matches both `.codex/` and root `AGENTS.md`); the
+ * result deduplicates by provider id while preserving Provider
+ * iteration order, so the first matching Provider determines the
+ * default suggestion. Providers with no `detect` block are never
+ * auto-suggested.
  */
-function detectProvidersFromFilesystem(cwd: string): string[] {
+function detectProvidersFromFilesystem(
+  cwd: string,
+  providers: ReadonlyArray<IProviderDetectInput>,
+): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
-  for (const rule of DETECTION_RULES) {
-    if (seen.has(rule.providerId)) continue;
-    if (!existsSync(join(cwd, rule.marker))) continue;
-    seen.add(rule.providerId);
-    out.push(rule.providerId);
+  for (const provider of providers) {
+    if (seen.has(provider.id)) continue;
+    const markers = provider.detect?.markers;
+    if (!markers || markers.length === 0) continue;
+    if (!markers.some((marker) => existsSync(join(cwd, marker)))) continue;
+    seen.add(provider.id);
+    out.push(provider.id);
   }
   return out;
 }

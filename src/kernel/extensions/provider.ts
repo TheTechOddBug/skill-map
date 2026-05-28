@@ -179,9 +179,84 @@ export type TProviderKindIcon =
   | { kind: 'pi'; id: string }
   | { kind: 'svg'; path: string };
 
+/**
+ * Presentation contract for the Provider's OWN identity, distinct from
+ * its per-kind visuals (`IProviderKindUi`). Drives the active-lens
+ * dropdown label, the topbar lens chip, and the per-node provider chip
+ * on cards. Reaches the UI via the `providerRegistry` field embedded in
+ * REST envelopes (sibling of `kindRegistry`). Unlike kind colors
+ * (normalised across Providers so every `agent` paints the same),
+ * Provider colors are deliberately distinct so the chip tells the user
+ * at a glance which platform a node came from. Mirrors
+ * `spec/schemas/extensions/provider.schema.json#/properties/ui`.
+ */
+export interface IProviderUi {
+  /**
+   * Human-readable Provider name shown in the lens dropdown, the topbar
+   * lens chip, and the per-node provider chip (e.g. `'Claude'`,
+   * `'OpenAI Codex'`, `'Antigravity'`, `'Open Skills'`, `'Markdown'`).
+   */
+  label: string;
+  /** Base hex color (`#RRGGBB`) for the light-theme provider chip. */
+  color: string;
+  /** Optional dark-theme variant of `color`. Falls back to `color`. */
+  colorDark?: string;
+  /** Optional decorative emoji fallback when `icon` is absent. */
+  emoji?: string;
+  /** Optional discriminated icon descriptor (preferred over `emoji`). */
+  icon?: TProviderKindIcon;
+  /**
+   * When `true`, the UI does NOT paint this Provider's chip on node
+   * cards. Reserved for the universal `markdown` fallback (carried by
+   * the majority of nodes, so badging every generic `.md` would be
+   * noise). The Provider still appears in the lens dropdown and the
+   * topbar lens chip; only the per-card badge is suppressed.
+   */
+  hideChip?: boolean;
+}
+
+/**
+ * Auto-detection markers for the active-provider lens. The lens resolver
+ * checks each marker path (relative to the scope root) and, when present,
+ * suggests this Provider as a candidate lens. Replaces the former
+ * hardcoded detection table: the detectable set now derives from the
+ * registered Providers. Mirrors
+ * `spec/schemas/extensions/provider.schema.json#/properties/detect`.
+ */
+export interface IProviderDetect {
+  /**
+   * Paths relative to the scope root whose existence signals this
+   * Provider's presence (e.g. `['.claude']`, `['.codex', 'AGENTS.md']`).
+   * A directory or a file both count; existence is the only test.
+   */
+  markers: string[];
+}
+
 export interface IProvider extends IExtensionBase {
   /** Discriminant injected by the loader from the folder structure. */
   kind: 'provider';
+
+  /**
+   * Presentation metadata for the Provider's own identity (lens dropdown
+   * label, topbar lens chip, per-node provider chip). Required so the UI
+   * never hardcodes a closed provider list: it reads every registered
+   * Provider's identity from the `providerRegistry` envelope field.
+   * Distinct from `kinds[*].ui` (per-kind node visuals).
+   *
+   * Named `presentation`, NOT `ui`: the base `IExtensionBase.ui` field is
+   * the view-contributions map (`Record<string, IViewContribution>`,
+   * declared only by `extractor` / `analyzer` kinds). Providers leave that
+   * inherited field undefined and carry their identity here instead.
+   */
+  presentation: IProviderUi;
+
+  /**
+   * Optional auto-detection markers for the active-provider lens. When
+   * present, the lens resolver auto-suggests this Provider if any marker
+   * path exists under the scope root. Absent means the Provider is never
+   * auto-suggested (it can still be selected manually).
+   */
+  detect?: IProviderDetect;
 
   /**
    * Catalog of node kinds this Provider emits. Populated by the loader

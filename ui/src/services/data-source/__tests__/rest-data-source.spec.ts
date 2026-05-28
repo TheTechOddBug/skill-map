@@ -12,12 +12,17 @@ import { DataSourceError } from '../data-source.port';
 import { RestDataSource, __testHooks } from '../rest-data-source';
 import { encodeNodePath } from '../path-codec';
 import { KindRegistryService } from '../../kind-registry';
+import { ProviderRegistryService } from '../../provider-registry';
 import { ContributionsRegistryService } from '../../../app/services/contributions-registry';
 import { WsEventStreamService } from '../../ws-event-stream';
 import type { IWsEvent } from '../../../models/ws-event';
 
 function makeFakeRegistry(): KindRegistryService {
   return { ingest: vi.fn() } as unknown as KindRegistryService;
+}
+
+function makeFakeProviderRegistry(): ProviderRegistryService {
+  return { ingest: vi.fn() } as unknown as ProviderRegistryService;
 }
 
 const HEALTH_FIXTURE = {
@@ -87,6 +92,7 @@ describe('RestDataSource', () => {
       fakeWs,
       makeFakeRegistry(),
       new ContributionsRegistryService(),
+      makeFakeProviderRegistry(),
     );
   });
 

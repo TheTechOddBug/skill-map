@@ -125,7 +125,7 @@ function suggestConfigKey(effective: unknown, typed: string, ansi: IAnsi): strin
  * additions land here as the auto-detect surface grows.
  */
 const KNOWN_DEFAULTLESS_KEY_RESOLVERS: Record<string, (cwd: string) => unknown> = {
-  activeProvider: (cwd) => resolveActiveProvider(cwd).resolved,
+  activeProvider: (cwd) => resolveActiveProvider(cwd, builtIns().providers).resolved,
 };
 
 function parseCliValue(raw: string): unknown {
@@ -674,7 +674,7 @@ export class ConfigSetCommand extends SmCommand {
       // failure here leaves a valid file with just the lens set,
       // identical to the pre-snapshot legacy state.
       if (this.key === 'activeProvider' && typeof value === 'string') {
-        const detected = resolveActiveProvider(ctx.cwd).detected;
+        const detected = resolveActiveProvider(ctx.cwd, builtIns().providers).detected;
         writeConfigValue('activeProviderMarkers', [...detected], {
           target,
           cwd: ctx.cwd,

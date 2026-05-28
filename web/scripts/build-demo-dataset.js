@@ -219,6 +219,21 @@ const DEMO_KIND_REGISTRY = {
   },
 };
 
+/**
+ * Pre-baked providerRegistry mirroring the built-in Providers'
+ * `presentation` blocks (sibling of `DEMO_KIND_REGISTRY`). Tracks the
+ * provider manifests under `src/plugins`; the demo never boots the
+ * kernel, so the values are kept in deliberate sync. `markdown` carries
+ * `hideChip` so the demo cards don't badge every generic note.
+ */
+const DEMO_PROVIDER_REGISTRY = {
+  claude: { label: 'Claude', color: '#cc785c', colorDark: '#e89270' },
+  antigravity: { label: 'Antigravity', color: '#7c3aed', colorDark: '#a78bfa' },
+  openai: { label: 'OpenAI Codex', color: '#22c55e', colorDark: '#4ade80' },
+  'agent-skills': { label: 'Open Skills', color: '#64748b', colorDark: '#94a3b8' },
+  markdown: { label: 'Markdown', color: '#9ca3af', colorDark: '#6b7280', hideChip: true },
+};
+
 function buildNodesEnvelope(scan) {
   const items = scan.nodes ?? [];
   const total = items.length;
@@ -229,6 +244,7 @@ function buildNodesEnvelope(scan) {
     filters: { kind: null, hasIssues: null, path: null },
     counts: { total, returned: total, page: { offset: 0, limit: 1000 } },
     kindRegistry: DEMO_KIND_REGISTRY,
+    providerRegistry: DEMO_PROVIDER_REGISTRY,
   };
 }
 
@@ -242,6 +258,7 @@ function buildLinksEnvelope(scan) {
     filters: { kind: null, from: null, to: null },
     counts: { total, returned: total },
     kindRegistry: DEMO_KIND_REGISTRY,
+    providerRegistry: DEMO_PROVIDER_REGISTRY,
   };
 }
 
@@ -255,6 +272,7 @@ function buildIssuesEnvelope(scan) {
     filters: { severity: null, analyzerId: null, node: null },
     counts: { total, returned: total },
     kindRegistry: DEMO_KIND_REGISTRY,
+    providerRegistry: DEMO_PROVIDER_REGISTRY,
   };
 }
 
@@ -273,6 +291,7 @@ function buildConfigEnvelope() {
       ignore: [],
     },
     kindRegistry: DEMO_KIND_REGISTRY,
+    providerRegistry: DEMO_PROVIDER_REGISTRY,
   };
 }
 
@@ -305,6 +324,7 @@ function buildPluginsEnvelope() {
     filters: {},
     counts: { total: items.length, returned: items.length },
     kindRegistry: DEMO_KIND_REGISTRY,
+    providerRegistry: DEMO_PROVIDER_REGISTRY,
   };
 }
 

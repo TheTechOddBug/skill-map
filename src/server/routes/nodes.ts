@@ -140,6 +140,7 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
       links: { incoming: bundle.linksIn, outgoing: bundle.linksOut },
       issues: bundle.issues,
       kindRegistry: deps.kindRegistry,
+      providerRegistry: deps.providerRegistry,
       contributionsRegistry: deps.contributionsRegistry,
     });
   });
@@ -236,6 +237,7 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
         total,
         page: { offset, limit },
         kindRegistry: deps.kindRegistry,
+        providerRegistry: deps.providerRegistry,
         contributionsRegistry: deps.contributionsRegistry,
       }),
     );

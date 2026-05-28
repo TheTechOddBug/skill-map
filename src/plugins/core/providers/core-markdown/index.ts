@@ -43,6 +43,22 @@ export const coreMarkdownProvider: IBuiltInManifest<IProvider> = {
   kind: 'provider',
   description: 'Universal `.md` fallback. Claims any markdown file that no vendor-specific provider has classified.',
 
+  // Provider identity. `hideChip: true` suppresses the per-card provider
+  // chip: this fallback carries the majority of nodes in any project, so
+  // badging every generic `.md` would be noise and dilute the chip's
+  // purpose (signalling a NON-default platform). The Provider still shows
+  // in the active-lens dropdown and the topbar lens chip with this label.
+  presentation: {
+    label: 'Markdown',
+    color: '#9ca3af',
+    colorDark: '#6b7280',
+    hideChip: true,
+  },
+
+  // No `detect` block: the universal fallback is never auto-suggested as a
+  // lens (selecting it would gate out every vendor Provider). Operators
+  // pick it manually if they want an open-standard-only view.
+
   read: { extensions: ['.md'], parser: 'frontmatter-yaml' },
 
   // Per spec § A.6, defaultRefreshAction values MUST be qualified

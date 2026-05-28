@@ -37,6 +37,22 @@ export const agentSkillsProvider: IBuiltInManifest<IProvider> = {
   kind: 'provider',
   description: 'Classifies files under `.agents/skills/<name>/SKILL.md` as Agent Skills.',
 
+  // Provider identity for the active-lens dropdown, the topbar lens chip,
+  // and the per-node provider chip. Neutral slate (this is the
+  // vendor-agnostic open-standard Provider, not a brand). Verbatim from
+  // the previous static UI catalog (`ui/src/services/provider-ui.ts`).
+  presentation: {
+    label: 'Open Skills',
+    color: '#64748b',
+    colorDark: '#94a3b8',
+  },
+
+  // Auto-detect marker: a `.agents/` directory marks an open-standard
+  // project. This is also the marker a Google/Antigravity project carries
+  // (Antigravity adopted the open standard), so such projects auto-detect
+  // as this universal lens. Provider-owned.
+  detect: { markers: ['.agents'] },
+
   read: { extensions: ['.md'], parser: 'frontmatter-yaml' },
 
   kinds: {

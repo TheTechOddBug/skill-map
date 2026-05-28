@@ -70,7 +70,8 @@ import { log } from '../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../kernel/util/safe-text.js';
 import { tx } from '../kernel/util/tx.js';
 import type { WsBroadcaster } from './broadcaster.js';
-import type { TContributionsRegistry, TKindRegistry } from './envelope.js';
+import type { TContributionsRegistry, TKindRegistry, TProviderRegistry } from './envelope.js';
+import type { IProvider } from '../kernel/extensions/index.js';
 import type { IWatcherServiceHolder } from './watcher.js';
 import { SERVER_TEXTS } from './i18n/server.texts.js';
 import { createLoopbackGate } from './loopback-gate.js';
@@ -225,6 +226,22 @@ export interface IAppDeps {
    */
   kindRegistry: TKindRegistry;
   /**
+   * Registry of Providers active in the current scope (sibling of
+   * `kindRegistry`). Composition root builds it once at boot from every
+   * registered Provider's `ui` block via `buildProviderRegistry`; every
+   * payload-bearing envelope embeds it so the UI renders the active-lens
+   * dropdown and the per-node provider chip from the real Provider set.
+   * Sentinel envelopes (`health`, `scan`, `graph`) stay exempt.
+   */
+  providerRegistry: TProviderRegistry;
+  /**
+   * Registered Providers (built-ins + drop-in user plugins), the source
+   * of `detect.markers` for active-lens auto-detection. Threaded to the
+   * active-provider route; the wire `providerRegistry` omits detection
+   * markers, so the route reads them off these manifest objects.
+   */
+  providers: readonly IProvider[];
+  /**
    * Phase 3 / View contribution system, registry of plugin-declared
    * view contributions. Built once at boot via
    * `buildContributionsRegistry(kernel)`; every payload-bearing
@@ -345,6 +362,8 @@ export function createApp(deps: IAppDeps): Hono {
     options: deps.options,
     runtimeContext: deps.runtimeContext,
     kindRegistry: deps.kindRegistry,
+    providerRegistry: deps.providerRegistry,
+    providers: deps.providers,
     contributionsRegistry: deps.contributionsRegistry,
     pluginRuntime: deps.pluginRuntime,
     configService,

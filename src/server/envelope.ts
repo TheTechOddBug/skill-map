@@ -98,6 +98,34 @@ export interface IKindRegistryEntry {
 export type TKindRegistry = Record<string, IKindRegistryEntry>;
 
 /**
+ * One entry in the providerRegistry, keyed by Provider id. Carries the
+ * Provider's OWN identity (distinct from its kinds' visuals). Mirrors
+ * the wire shape from
+ * `spec/schemas/api/rest-envelope.schema.json#/properties/providerRegistry/additionalProperties`.
+ */
+export interface IProviderRegistryEntry {
+  label: string;
+  color: string;
+  colorDark?: string;
+  emoji?: string;
+  icon?: TProviderKindIcon;
+  /** Suppress the per-card chip (universal `markdown` fallback). */
+  hideChip?: boolean;
+}
+
+/**
+ * Catalog of Providers registered in the current scope, keyed by
+ * Provider id. Sibling to `TKindRegistry`. Built once per server boot
+ * from every registered Provider's `ui` block and embedded into every
+ * payload-bearing envelope so the UI renders the active-lens dropdown,
+ * the topbar lens chip, and the per-node provider chip from the real
+ * Provider set instead of a hardcoded list. The dynamic active lens
+ * (current value + filesystem-detected candidates) is served separately
+ * by `GET /api/active-provider`.
+ */
+export type TProviderRegistry = Record<string, IProviderRegistryEntry>;
+
+/**
  * Phase 3 / View contribution system, sibling to `TKindRegistry`. Every
  * payload-bearing envelope embeds it; the UI consumes it once at boot
  * to build its slot host. Keyed by qualified id
@@ -138,6 +166,7 @@ export interface IListEnvelope<TItem> {
   filters: Record<string, unknown>;
   counts: IEnvelopeCounts;
   kindRegistry: TKindRegistry;
+  providerRegistry: TProviderRegistry;
   contributionsRegistry: TContributionsRegistry;
 }
 
@@ -146,6 +175,7 @@ export interface ISingleEnvelope<TItem> {
   kind: TEnvelopeKind;
   item: TItem;
   kindRegistry: TKindRegistry;
+  providerRegistry: TProviderRegistry;
   contributionsRegistry: TContributionsRegistry;
 }
 
@@ -154,6 +184,7 @@ export interface IValueEnvelope<TValue> {
   kind: TEnvelopeKind;
   value: TValue;
   kindRegistry: TKindRegistry;
+  providerRegistry: TProviderRegistry;
   contributionsRegistry: TContributionsRegistry;
 }
 
@@ -171,6 +202,8 @@ export interface IBuildListEnvelopeOpts<TItem> {
   page?: IPageInfo;
   /** Active kindRegistry, every payload-bearing envelope embeds it. */
   kindRegistry: TKindRegistry;
+  /** Active providerRegistry, every payload-bearing envelope embeds it. */
+  providerRegistry: TProviderRegistry;
   /** Active contributionsRegistry, every payload-bearing envelope embeds it. */
   contributionsRegistry: TContributionsRegistry;
 }
@@ -193,6 +226,7 @@ export function buildListEnvelope<TItem>(opts: IBuildListEnvelopeOpts<TItem>): I
     filters: opts.filters,
     counts,
     kindRegistry: opts.kindRegistry,
+    providerRegistry: opts.providerRegistry,
     contributionsRegistry: opts.contributionsRegistry,
   };
 }
@@ -205,6 +239,7 @@ export function buildSingleEnvelope<TItem>(
   kind: TEnvelopeKind,
   item: TItem,
   kindRegistry: TKindRegistry,
+  providerRegistry: TProviderRegistry,
   contributionsRegistry: TContributionsRegistry,
 ): ISingleEnvelope<TItem> {
   return {
@@ -212,6 +247,7 @@ export function buildSingleEnvelope<TItem>(
     kind,
     item,
     kindRegistry,
+    providerRegistry,
     contributionsRegistry,
   };
 }
@@ -224,6 +260,7 @@ export function buildValueEnvelope<TValue>(
   kind: TEnvelopeKind,
   value: TValue,
   kindRegistry: TKindRegistry,
+  providerRegistry: TProviderRegistry,
   contributionsRegistry: TContributionsRegistry,
 ): IValueEnvelope<TValue> {
   return {
@@ -231,6 +268,7 @@ export function buildValueEnvelope<TValue>(
     kind,
     value,
     kindRegistry,
+    providerRegistry,
     contributionsRegistry,
   };
 }

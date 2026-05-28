@@ -62,6 +62,7 @@ function recordingProvider(over: {
     kind: 'provider',
     version: '1.0.0',
     description: 'recording stub',
+    presentation: { label: 'Stub', color: '#000000' },
     read: { extensions: ['.md'], parser: 'frontmatter-yaml' },
     ...(over.gatedByActiveLens !== undefined
       ? { gatedByActiveLens: over.gatedByActiveLens }

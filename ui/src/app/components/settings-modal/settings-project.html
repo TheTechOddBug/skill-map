@@ -56,7 +56,7 @@
     <div class="settings-project__add-row">
       <p-select
         class="settings-project__provider-select"
-        [options]="providerOptions"
+        [options]="providerOptions()"
         optionLabel="label"
         optionValue="id"
         [ngModel]="activeProviderValue()"
