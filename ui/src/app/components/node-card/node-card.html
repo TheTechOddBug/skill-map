@@ -46,15 +46,6 @@
           [pTooltip]="texts.stats.bytes(st.bytesTotal!)"
         ><span class="sm-gnode__sub-key">B</span>{{ bytesShort() }}</span>
       }
-      @if (providerChip(); as pc) {
-        <span
-          class="sm-gnode__provider"
-          [style.--provider-color]="pc.color"
-          [style.--provider-color-dark]="pc.colorDark ?? pc.color"
-          [pTooltip]="n.provider"
-          data-testid="node-card-provider"
-        >{{ pc.label }}</span>
-      }
       <button
         type="button"
         class="sm-gnode__favorite"

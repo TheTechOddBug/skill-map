@@ -5,7 +5,9 @@
 .vfm {
   display: flex;
   flex-direction: column;
-  gap: 0.95rem;
+  /* Matches the inspector's inter-card gap so vendor sub-cards align with
+     the rest of the single-column rhythm (each `.sm-block` is a card). */
+  gap: 0.7rem;
 }
 
 /* Sections inherit `.sm-block*` styles from the parent inspector-view

@@ -1,9 +1,9 @@
 /* ---------------------------------------------------------------------------
- * Header, tool-style identity strip. The icon-box is the only chromatic
- * anchor for the kind; everything else inherits the theme's neutral
- * vocabulary. Compact subtitle (`kind · provider · stability`) under
- * the name; meta strip (bytes / tokens / links) under the path so size
- * + connectivity travel with the identity block.
+ * Header, hero card. The icon-box anchors the kind and a faint diagonal
+ * wash of the same accent lifts the card; everything else inherits the
+ * theme's neutral vocabulary. Compact subtitle (`kind · provider ·
+ * stability`) under the name; meta strip (bytes / tokens / links) under
+ * the path so size + connectivity travel with the identity block.
  * ------------------------------------------------------------------------- */
 :host {
   display: block;
@@ -18,10 +18,19 @@
   column-gap: 0.75rem;
   row-gap: 0.3rem;
   align-items: start;
-  padding: 0 0 0.85rem 0;
-  background: transparent;
+  padding: 0.9rem 1rem;
+  /* Hero wash: a faint diagonal tint of the kind accent fading into the
+     content surface gives the identity block presence without painting a
+     loud colour. The accent is the only hue; the rest stays neutral. */
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 8%, var(--sm-bg-content)) 0%,
+    var(--sm-bg-content) 55%
+  );
   color: var(--p-text-color);
-  border-bottom: 1px solid var(--sm-border);
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-lg);
+  box-shadow: var(--sm-shadow-card);
 }
 
 .inspector__header--skill { --accent: var(--sm-kind-skill); }
@@ -42,6 +51,9 @@
   font-size: 1.05rem;
   grid-row: 1 / span 3;
   align-self: center;
+  /* Soft accent-tinted lift so the kind chip reads as the hero focal
+     point on the wash. Reuses the accent already on screen, no new hue. */
+  box-shadow: 0 2px 5px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
 .inspector__content {

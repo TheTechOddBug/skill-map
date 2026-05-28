@@ -3,16 +3,19 @@
 }
 
 /* ---------------------------------------------------------------------
- * Inspector surface, tool-style: neutral background, dense typographic
- * hierarchy, no decorative tints. Sections read top-to-bottom in a
- * single column; chrome stays out of the way of the data.
+ * Inspector surface, carded layout: a calm `--sm-bg-page` canvas hosts a
+ * single column of lifted section cards (`.sm-block`). Typographic
+ * hierarchy stays dense and neutral; depth comes from elevation and a
+ * faint kind wash on the hero, never from decorative colour.
  * ------------------------------------------------------------------- */
 .inspector {
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
+  gap: 0.7rem;
   padding: 1rem 1.1rem 1.25rem;
-  background: var(--sm-bg-content);
+  /* Canvas sits one tone below the section cards (`--sm-bg-content`) so
+     each `.sm-block` reads as a lifted surface on a quiet backdrop. */
+  background: var(--sm-bg-page);
   color: var(--p-text-color);
 }
 
@@ -43,22 +46,38 @@
 }
 
 /* ---------------------------------------------------------------------
- * Section block (`.sm-block`).
+ * Section block (`.sm-block`), rendered as a lifted card.
  *
- * Tool-style section header: title-case bold, no uppercase, no icon, no
- * separator rule. The header is a single line; the body sits below in
- * normal spacing. Each `dt`/`dd` row inside a block reads as a row in a
- * dense table.
+ * Each section is a card: `--sm-bg-content` fill on the page canvas, a
+ * 1px border, `lg` radius and the shared `--sm-shadow-card` elevation.
+ * The title is title-case bold, no uppercase, no icon. The body sits
+ * below in normal spacing; each `dt`/`dd` row reads as a dense table row.
  *
  * Children components (`<sm-vendor-frontmatter>`, `<sm-annotations-panel>`)
- * inherit the typographic vocabulary via `::ng-deep` so they do not
- * need to redeclare the chrome.
+ * inherit the typographic vocabulary via `::ng-deep` so they do not need
+ * to redeclare the chrome. The vendor renderer emits its own `.sm-block`
+ * sections, so they pick up the card chrome automatically.
  * ------------------------------------------------------------------- */
 
 :host ::ng-deep .sm-block {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.55rem;
+  padding: 0.8rem 0.95rem;
+  background: var(--sm-bg-content);
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-lg);
+  box-shadow: var(--sm-shadow-card);
+}
+
+/* Collapsible cards advertise their interactivity with a gentle lift on
+   hover; the toggle row itself recolours the title (rule below). */
+:host ::ng-deep .sm-block--collapsible {
+  transition: box-shadow 140ms ease;
+}
+
+:host ::ng-deep .sm-block--collapsible:hover {
+  box-shadow: var(--sm-shadow-card-hover);
 }
 
 :host ::ng-deep .sm-block__title {
@@ -92,11 +111,10 @@
   align-items: center;
   gap: 0.5rem;
   width: 100%;
-  padding: 0.55rem 0;
+  padding: 0;
   margin: 0;
   background: transparent;
   border: none;
-  border-top: 1px solid var(--sm-border);
   text-align: left;
   font: inherit;
   color: var(--p-text-color);
@@ -104,6 +122,15 @@
 
 :host ::ng-deep .sm-block__row--toggle {
   cursor: pointer;
+}
+
+/* Expanded collapsible body, separated from the header row by a hairline.
+   `.inspector__debug` carries its own divider (it needs different inner
+   padding for the recessed debug grid), so it is excluded here. */
+:host ::ng-deep .sm-block--collapsible > .sm-block__row--toggle + :not(.inspector__debug) {
+  margin-top: 0.5rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--sm-border);
 }
 
 :host ::ng-deep .sm-block__row--toggle:hover .sm-block__title {
@@ -263,13 +290,15 @@
 }
 
 /* ---------------------------------------------------------------------
- * Debug wrapper, visible only when the section is expanded.
+ * Debug body, visible only when the section is expanded. Divided from
+ * the toggle row by the same hairline as the other collapsibles; the
+ * debug grid carries its own recessed code cells so no boxed wrapper is
+ * needed inside the card.
  * ------------------------------------------------------------------- */
 .inspector__debug {
-  padding: 0.7rem 0.9rem;
-  border: 1px solid var(--sm-border);
-  border-radius: var(--sm-radius-md);
-  background: var(--sm-bg-hover);
+  margin-top: 0.5rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--sm-border);
 }
 
 /* ---------------------------------------------------------------------
@@ -360,7 +389,8 @@
  * Embedded mode tightens spacing inside the slide-in panel host.
  * ------------------------------------------------------------------- */
 :host(.inspector-view--embedded) .inspector {
-  gap: 0.75rem;
+  gap: 0.6rem;
+  padding: 0.85rem 0.85rem 1.1rem;
 }
 
 :host(.inspector-view--embedded) .inspector__desc {

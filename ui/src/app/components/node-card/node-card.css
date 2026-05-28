@@ -297,30 +297,6 @@
 .sm-gnode__sub-stat--tokens { background: var(--sm-stat-tokens-bg); }
 .sm-gnode__sub-stat--bytes { background: var(--sm-stat-bytes-bg); }
 
-/* Provider identity chip. Mirrors the `.sm-gnode__sub-stat` pattern
-   (subtle tinted background + colored text), with the tint and text
-   color both derived from the Provider's saturated hex set inline via
-   `--provider-color` / `--provider-color-dark`. Reads as a small colored
-   splash next to the physical stats rather than a solid block. */
-.sm-gnode__provider {
-  padding: 0.08rem 0.4rem;
-  border-radius: var(--sm-radius-sm);
-  font-family: var(--sm-font-mono);
-  font-size: 0.6rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--provider-color);
-  background: color-mix(in srgb, var(--provider-color) 14%, transparent);
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-}
-
-:host-context(.app-dark) .sm-gnode__provider {
-  color: var(--provider-color-dark);
-  background: color-mix(in srgb, var(--provider-color-dark) 24%, transparent);
-}
-
 .sm-gnode__panel { display: none; border-top: 1px solid var(--sm-border); }
 :host(.sm-gnode--expanded) .sm-gnode__panel { display: block; }
 

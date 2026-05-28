@@ -19,7 +19,6 @@ import {
   effectiveUserTags,
   effectiveVersion,
 } from '../../../models/node-derived';
-import { ProviderRegistryService, type IProviderUi } from '../../../services/provider-registry';
 import { pathBasenameForLink } from '../../../services/trigger-resolve';
 import type { ISelectionView } from '../../views/graph-view/selection-state';
 import { KindIcon } from '../kind-icon/kind-icon';
@@ -180,34 +179,19 @@ export class NodeCard {
   protected readonly nodeColor = computed<string | null>(() => this.agentVendorColor());
 
   private readonly kindRegistry = inject(KindRegistryService);
-  private readonly providerRegistry = inject(ProviderRegistryService);
 
   /**
    * Per-Provider accent override. Disabled, the node card always paints
    * with the KIND's primary colour (via the `--sm-kind-<kind>` CSS var
-   * the kind-class rule sets). Per the design directive
-   * [[feedback_no_em_dashes_anywhere]] sibling rule: kind dictates the
-   * visual, provider identity surfaces via the subtitle chip / label
-   * (not via icon tinting). A Codex agent reads as "an agent" first;
-   * the operator finds out it came from Codex by reading the chip, not
-   * by interpreting a colour they would otherwise associate with Codex
-   * skills, Codex commands, etc. Returning `null` unconditionally keeps
-   * the `[style.--accent]` binding inert and lets the CSS cascade pick
-   * up the kind primary.
+   * the kind-class rule sets): kind dictates the visual. A Codex agent
+   * reads as "an agent" first, not as a Codex-tinted card. Provider
+   * identity is conveyed by the kind-icon's provider glyph (icon-box)
+   * and surfaced in the chrome above the list, so the card no longer
+   * carries a separate provider chip. Returning `null` unconditionally
+   * keeps the `[style.--accent]` binding inert and lets the CSS cascade
+   * pick up the kind primary.
    */
   protected readonly providerAccent = computed<string | null>(() => null);
-
-  /**
-   * Provider identity chip, label + per-Provider color rendered in the
-   * subtitle row, telling the user at a glance which platform a node
-   * came from. Returns `null` for nodes without a provider (cold-start,
-   * demo data) and for Providers flagged `hideChip` (the universal
-   * `markdown` fallback); unknown providers fall back to a neutral gray
-   * chip with the raw id as label (see `ProviderRegistryService.cardChip`).
-   */
-  protected readonly providerChip = computed<IProviderUi | null>(() =>
-    this.providerRegistry.cardChip(this.node().provider),
-  );
 
   /** Pretty number formatting for bytes / tokens (e.g. 12420 → "12k"). */
   protected readonly bytesShort = computed<string | null>(() => {
