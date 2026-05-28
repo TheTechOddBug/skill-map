@@ -16,6 +16,7 @@ import { ProjectInfoService } from './services/project-info';
 import { ScanTriggerService } from './services/scan-trigger';
 import { UpdateCheckService } from './services/update-check';
 import { ThemeService } from '../services/theme';
+import { lensProviderUi, type IProviderUi } from '../services/provider-ui';
 import { DemoBanner } from './components/demo-banner/demo-banner';
 import { OversizedBanner } from './components/oversized-banner/oversized-banner';
 import { SettingsModal } from './components/settings-modal/settings-modal';
@@ -52,6 +53,16 @@ export class App {
 
   protected openSettings(): void {
     this.settingsOpen.set(true);
+  }
+
+  /**
+   * Settings modal visibility handler. On close, re-probe the active
+   * provider lens so the topbar chip reflects a lens switch made in
+   * the Project section without needing a full page reload.
+   */
+  protected onSettingsVisibleChange(open: boolean): void {
+    this.settingsOpen.set(open);
+    if (!open) void this.projectInfo.reloadActiveProvider();
   }
 
   /**
@@ -124,6 +135,16 @@ export class App {
    * health resolves so the chip never flickers in.
    */
   protected readonly isDevBuild = this.projectInfo.dev;
+
+  /**
+   * Active-lens chip for the topbar. Mirrors the card provider badge's
+   * colors (`lensProviderUi` reuses the same registry) so the lens the
+   * user is viewing through reads identically up top and inside the
+   * cards. `null` (chip hidden) when no lens is active.
+   */
+  protected readonly lensChip = computed<IProviderUi | null>(() =>
+    lensProviderUi(this.projectInfo.activeProvider()),
+  );
   protected readonly count = this.loader.count;
   /**
    * Link reconciliation between `scan.links.length` (raw extractor

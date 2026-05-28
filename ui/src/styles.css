@@ -1,4 +1,18 @@
-/* Global base styles. PrimeNG's Aura preset is registered in app.config.ts. */
+/* Global base styles. Theme palettes (light, dark, matrix) live under
+ * `src/themes/*.css` and are wired into the build via `angular.json`'s
+ * `styles` array; this file holds the cross-theme foundations:
+ *   - System tokens that do NOT modulate per theme (fonts, radii,
+ *     violet ramp shared with the public site).
+ *   - Global resets (html/body, box-sizing, anchor).
+ *   - Cross-cutting patterns rendered outside any component scope
+ *     (empty-state, dialog mask, consent-dialog white-space, custom
+ *     scrollbars, PrimeNG tooltip white-space).
+ *
+ * PrimeNG's Aura preset is registered in `app.config.ts` with
+ * `darkModeSelector: '.app-dark'`, so the class toggled by the
+ * `ThemeService` swaps both our `--sm-*` palette (via `themes/dark.css`)
+ * and PrimeNG's `--p-*` palette in one beat.
+ */
 
 /* DEBUG-SLOTS: temporary visual aid for view-contribution slot mapping. Remove. */
 @import './app/debug-slots.css';
@@ -31,20 +45,6 @@
   --sm-radius-lg: 0.5rem;
   --sm-radius-pill: 999px;
 
-  /* Surface, dark-mode-aware background/border vars */
-  --sm-bg-page: #f8fafc;
-  --sm-bg-content: #ffffff;
-  --sm-bg-hover: #f1f5f9;
-  --sm-border: #e2e8f0;
-  --sm-nav-active-bg: #eff6ff;
-
-  /* Kind accent (`--sm-kind-<id>`, `-bg`, `-fg`, light + dark) lives at
-     runtime now, `KindRegistryService.applyCssVars()` (Step 14.5.d)
-     injects a `<style id="sm-kind-vars">` block in `<head>` populated
-     from every enabled Provider's `kinds[*].ui`. Single source of truth
-     is the Provider manifest; the BFF surfaces the catalog via the
-     `kindRegistry` field embedded in every payload-bearing envelope. */
-
   /* Violet ramp, mirrors the `web/styles.css` palette so the public
      site, the marketing pages, and the Angular shell stay in lock-step.
      Consumed today by the topbar (app.css) and available for any other
@@ -61,114 +61,6 @@
   --sm-violet-700: #6D28D9;
   --sm-violet-800: #4C1D95;
   --sm-violet-900: #2E1065;
-
-  /* Edge colors, one per spec link kind (invokes / references /
-     mentions / supersedes). The four kinds describe how a node refers
-     to another: execution (invokes), formal citation (references),
-     plain-text mention (mentions), or lifecycle replacement (supersedes).
-     Saturation tuned down from the original Tailwind-500 hues so the
-     graph reads as a calm reference network, not a Saturday-morning
-     cartoon, kind hue stays recognisable, but the line/marker no
-     longer competes with the node cards for visual weight.
-
-     `*-active` is the full-saturation counterpart used when the user
-     selects an edge (`.f-conn--<kind>.f-selected`), same hue, no
-     desaturation, so the picked edge pops without changing colour
-     family. `references` uses Tailwind emerald-500 (`#10b981`);
-     `mentions` uses sky-500 (`#0ea5e9`). Both have muted siblings
-     at idle so the canvas reads calm and the active state pops on
-     hover / selection. */
-  --sm-edge-invokes: #b8843a;
-  --sm-edge-invokes-active: #f59e0b;
-  --sm-edge-references: #7daa90;
-  --sm-edge-references-active: #10b981;
-  --sm-edge-mentions: #6fa2c0;
-  --sm-edge-mentions-active: #0ea5e9;
-  --sm-edge-supersedes: #9ca3af;
-  --sm-edge-supersedes-active: #4b5563;
-
-  /* Link badge, in / out */
-  --sm-link-in-bg: #e0e7ff;
-  --sm-link-in-fg: #3730a3;
-  --sm-link-out-bg: #fef3c7;
-  --sm-link-out-fg: #92400e;
-
-  /* Severity, foreground */
-  --sm-severity-info: #1e3a8a;
-  --sm-severity-success: #065f46;
-  /* Yellow-600 (gold), clearly yellow on the light theme, slightly
-     darker than yellow-500 #eab308 for a touch more contrast against
-     white surfaces while staying well separated from the error red
-     `#991b1b`. */
-  --sm-severity-warn: #ca8a04;
-  --sm-severity-error: #991b1b;
-
-  /* Severity, row tint */
-  --sm-severity-info-bg: rgba(219, 234, 254, 0.35);
-  --sm-severity-success-bg: rgba(209, 250, 229, 0.35);
-  --sm-severity-warn-bg: rgba(254, 243, 199, 0.35);
-  --sm-severity-error-bg: rgba(254, 226, 226, 0.35);
-
-  /* Physical-stat chip tints, used by the card subtitle row to give
-     tokens / bytes / date three distinct subtle backgrounds. These are
-     intentionally NOT tied to the kind palette (`--sm-kind-*`) because
-     physical metadata is plugin-independent: a node has bytes regardless
-     of whether the `agent` / `command` / `skill` kinds are contributed
-     by an active provider. */
-  --sm-stat-tokens-bg: rgba(59, 130, 246, 0.14);
-  --sm-stat-bytes-bg: rgba(245, 158, 11, 0.16);
-
-  /* Surface elevation, adapt per theme so dark-mode panels keep their lift */
-  --sm-shadow-topbar: 0 1px 2px rgba(0, 0, 0, 0.03);
-  --sm-shadow-eventlog: 0 -4px 16px rgba(0, 0, 0, 0.08);
-  --sm-shadow-floating: 0 4px 14px rgba(0, 0, 0, 0.08);
-  --sm-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --sm-shadow-card-hover: 0 3px 12px rgba(0, 0, 0, 0.12);
-}
-
-.app-dark {
-  --sm-bg-page: #09090b;
-  --sm-bg-content: #18181b;
-  --sm-bg-hover: #27272a;
-  --sm-border: #3f3f46;
-  --sm-nav-active-bg: rgba(96, 165, 250, 0.15);
-
-  /* Kind accent dark-mode overrides also live at runtime via
-     `KindRegistryService.applyCssVars()` (`.app-dark { … }` block). */
-
-  --sm-edge-invokes: #c9a062;
-  --sm-edge-invokes-active: #fbbf24;
-  --sm-edge-references: #9ec8af;
-  --sm-edge-references-active: #34d399;
-  --sm-edge-mentions: #8ec2db;
-  --sm-edge-mentions-active: #38bdf8;
-  --sm-edge-supersedes: #6b7280;
-  --sm-edge-supersedes-active: #d1d5db;
-
-  --sm-link-in-bg: #312e81;
-  --sm-link-in-fg: #a5b4fc;
-  --sm-link-out-bg: #78350f;
-  --sm-link-out-fg: #fcd34d;
-
-  --sm-severity-info: #93c5fd;
-  --sm-severity-success: #6ee7b7;
-  --sm-severity-warn: #fcd34d;
-  --sm-severity-error: #fca5a5;
-
-  --sm-severity-info-bg: rgba(30, 58, 138, 0.25);
-  --sm-severity-success-bg: rgba(6, 78, 59, 0.25);
-  --sm-severity-warn-bg: rgba(120, 53, 15, 0.2);
-  --sm-severity-error-bg: rgba(127, 29, 29, 0.2);
-
-  --sm-stat-tokens-bg: rgba(96, 165, 250, 0.24);
-  --sm-stat-bytes-bg: rgba(251, 191, 36, 0.24);
-
-  /* Stronger shadows on dark surfaces so panels still read as elevated */
-  --sm-shadow-topbar: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --sm-shadow-eventlog: 0 -4px 16px rgba(0, 0, 0, 0.5);
-  --sm-shadow-floating: 0 4px 14px rgba(0, 0, 0, 0.5);
-  --sm-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --sm-shadow-card-hover: 0 4px 14px rgba(0, 0, 0, 0.55);
 }
 
 html,

@@ -1,8 +1,8 @@
 /**
  * Theme service, tri-state (`auto` | `light` | `dark`) with live system-pref
- * detection, plus an orthogonal `extraTheme` slot (today: `matrix`) that
- * overrides the tri-state when active. Persists both pieces to localStorage
- * and toggles classes on the document root in sync with `resolved()`:
+ * detection, plus an orthogonal `extraTheme` slot driven by the registry
+ * at `themes/registry.ts`. Persists both pieces to localStorage and
+ * toggles classes on the document root in sync with `resolved()`:
  *
  * - `.app-dark`: registered as Aura's `darkModeSelector` in `app.config.ts`
  *   so PrimeNG swaps its palette.
@@ -10,46 +10,42 @@
  *   `@foblex/flow/styles/tokens/_semantic.scss` (`.dark, [data-theme='dark']`).
  *   Without it the graph stays on the light palette regardless of the rest
  *   of the app.
- * - `.app-matrix`: active when `extraTheme === 'matrix'`. Sits on top of
- *   the dark classes (matrix builds on PrimeNG's dark palette and retints
- *   it green) so we keep the dark classes set in matrix mode too.
+ * - One class per registered extra theme (e.g. `.app-matrix`), toggled
+ *   based on the active id. Themes with `forcesDark: true` (today:
+ *   matrix) also force the two dark classes above so their retint sits
+ *   on a dark base rather than the light palette.
  *
  * In `auto` mode the resolved theme follows the OS via the
  * `(prefers-color-scheme: dark)` media query and reacts live to changes.
  *
  * `extraTheme` is settings-only: there is no header affordance to enable
  * it. The header dark/light toggle CLEARS it (and advances the mode one
- * step) so the user gets an immediate visual exit from matrix without
- * needing to open Settings again.
+ * step) so the user gets an immediate visual exit from extra themes
+ * without needing to open Settings again.
  */
 
 import { DOCUMENT } from '@angular/common';
 import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
 
+import {
+  EXTRA_THEMES,
+  findExtraTheme,
+  type IExtraThemeDescriptor,
+  type TExtraThemeId,
+} from '../themes/registry';
+
 export type TThemeMode = 'auto' | 'light' | 'dark';
 export type TResolvedTheme = 'light' | 'dark';
-export type TExtraTheme = 'matrix' | null;
+/** Re-exported for consumers that already imported the old name. */
+export type TExtraTheme = TExtraThemeId;
 
 const STORAGE_KEY = 'skill-map.ui.theme';
 const EXTRA_STORAGE_KEY = 'skill-map.ui.extra-theme';
 const PRIMENG_DARK_CLASS = 'app-dark';
 const FOBLEX_DARK_CLASS = 'dark';
-const MATRIX_CLASS = 'app-matrix';
 const SYSTEM_DARK_QUERY = '(prefers-color-scheme: dark)';
 const FAVICON_DEFAULT = 'favicon.svg';
-const FAVICON_MATRIX = 'favicon-matrix.svg';
 const FAVICON_SELECTOR = 'link[rel="icon"][type="image/svg+xml"]';
-
-/**
- * Matrix-theme font (JetBrains Mono) URL. Injected lazily into <head>
- * the first time the user activates matrix mode so non-matrix users
- * pay neither the stylesheet fetch nor the preconnect handshake. The
- * link element is left in place after first injection (it's tiny and
- * subsequent activations skip the work) so toggling matrix on/off
- * does not thrash the DOM.
- */
-const MATRIX_FONT_HREF = 'https://fonts.googleapis.com/css2?family=JetBrains+Mono&display=swap';
-const MATRIX_FONT_LINK_ID = 'sm-matrix-font';
 
 @Injectable({ providedIn: 'root' })
 export class ThemeService {
@@ -57,14 +53,14 @@ export class ThemeService {
   private readonly destroyRef = inject(DestroyRef);
 
   readonly mode = signal<TThemeMode>(this.readInitialMode());
-  readonly extraTheme = signal<TExtraTheme>(this.readInitialExtra());
+  readonly extraTheme = signal<TExtraThemeId>(this.readInitialExtra());
   private readonly systemPrefersDark = signal<boolean>(this.readSystemPref());
 
   /**
    * Resolved tri-state (`light` | `dark`). Independent of `extraTheme`,
-   * matrix builds on top of the dark palette rather than replacing the
-   * tri-state. Consumers that need to know whether matrix is on read
-   * the `extraTheme` signal directly.
+   * extra themes build on top of the dark / light palette rather than
+   * replacing the tri-state. Consumers that need to know which extra
+   * theme is on read the `extraTheme` signal directly.
    */
   readonly resolved = computed<TResolvedTheme>(() => {
     const m = this.mode();
@@ -76,28 +72,34 @@ export class ThemeService {
     this.subscribeToSystemPref();
 
     effect(() => {
-      const extra = this.extraTheme();
+      const extraId = this.extraTheme();
+      const activeExtra = findExtraTheme(extraId);
       const baseDark = this.resolved() === 'dark';
-      // Matrix is dark-flavored, force the PrimeNG / Foblex dark classes
-      // whenever it is active so the retint sits on top of a dark base
-      // rather than the light palette.
-      const isDark = baseDark || extra === 'matrix';
+      // Extra themes that piggyback on the dark palette (today:
+      // matrix) force the PrimeNG / Foblex dark classes whenever
+      // they're active so the retint sits on a dark base rather than
+      // the light palette.
+      const isDark = baseDark || activeExtra?.forcesDark === true;
       const root = this.doc.documentElement;
       root.classList.toggle(PRIMENG_DARK_CLASS, isDark);
       root.classList.toggle(FOBLEX_DARK_CLASS, isDark);
-      root.classList.toggle(MATRIX_CLASS, extra === 'matrix');
-      // Swap the SVG favicon so the browser tab carries the matrix
-      // green mark while the theme is active. The default favicon is
-      // self-adaptive via `prefers-color-scheme`, so the non-matrix
-      // path leaves it untouched and the dark / light auto behavior
-      // keeps working as before.
-      this.applyFavicon(extra === 'matrix' ? FAVICON_MATRIX : FAVICON_DEFAULT);
-      if (extra === 'matrix') this.ensureMatrixFont();
+      // Toggle every registered extra-theme class so a switch from
+      // one extra theme to another (future: matrix → solarized)
+      // cleanly removes the previous class instead of stacking them.
+      for (const theme of EXTRA_THEMES) {
+        root.classList.toggle(theme.htmlClass, activeExtra?.id === theme.id);
+      }
+      // Swap the SVG favicon to the one declared by the active
+      // extra theme (if any). The default favicon is self-adaptive
+      // via `prefers-color-scheme`, so the non-extra path leaves it
+      // untouched and the dark / light auto behavior keeps working.
+      this.applyFavicon(activeExtra?.favicon ?? FAVICON_DEFAULT);
+      if (activeExtra) this.ensureExtraThemeFont(activeExtra);
       try {
         const ls = this.doc.defaultView?.localStorage;
         ls?.setItem(STORAGE_KEY, this.mode());
-        if (extra === null) ls?.removeItem(EXTRA_STORAGE_KEY);
-        else ls?.setItem(EXTRA_STORAGE_KEY, extra);
+        if (activeExtra === null) ls?.removeItem(EXTRA_STORAGE_KEY);
+        else ls?.setItem(EXTRA_STORAGE_KEY, activeExtra.id);
       } catch {
         // Storage may be unavailable (privacy mode); tolerate silently.
       }
@@ -107,8 +109,8 @@ export class ThemeService {
   /**
    * Header button handler. Clears the extra theme (if any) AND advances
    * the tri-state one step, so a single click always produces a visible
-   * change: from matrix the user lands on the next mode in the cycle
-   * (`auto` → `light` → `dark` → `auto`).
+   * change: from an extra theme the user lands on the next mode in the
+   * cycle (`auto` → `light` → `dark` → `auto`).
    */
   toggle(): void {
     if (this.extraTheme() !== null) this.extraTheme.set(null);
@@ -119,8 +121,11 @@ export class ThemeService {
     this.mode.set(mode);
   }
 
-  setExtraTheme(theme: TExtraTheme): void {
-    this.extraTheme.set(theme);
+  setExtraTheme(theme: TExtraThemeId): void {
+    // Validate against the registry so callers passing an arbitrary
+    // string get a graceful no-op instead of an invalid class on
+    // `<html>`. `null` clears the slot.
+    this.extraTheme.set(findExtraTheme(theme)?.id ?? null);
   }
 
   private readInitialMode(): TThemeMode {
@@ -133,14 +138,13 @@ export class ThemeService {
     return 'auto';
   }
 
-  private readInitialExtra(): TExtraTheme {
+  private readInitialExtra(): TExtraThemeId {
     try {
       const stored = this.doc.defaultView?.localStorage.getItem(EXTRA_STORAGE_KEY);
-      if (stored === 'matrix') return stored;
+      return findExtraTheme(stored)?.id ?? null;
     } catch {
-      // ignore
+      return null;
     }
-    return null;
   }
 
   private readSystemPref(): boolean {
@@ -152,20 +156,22 @@ export class ThemeService {
   }
 
   /**
-   * Lazy-injects the JetBrains Mono stylesheet the first time matrix
+   * Lazy-injects an extra theme's font stylesheet the first time the
    * theme activates. Pure DOM-presence check, the browser dedupes the
    * stylesheet request itself so a second injection would be a no-op,
    * but skipping the second `<link>` keeps `<head>` tidy. Left in place
-   * after first inject so subsequent matrix toggles are zero-cost.
+   * after first inject so subsequent reactivations are zero-cost.
+   * No-op for themes that don't declare a `fontHref`.
    */
-  private ensureMatrixFont(): void {
-    if (this.doc.getElementById(MATRIX_FONT_LINK_ID)) return;
+  private ensureExtraThemeFont(theme: IExtraThemeDescriptor): void {
+    if (!theme.fontHref || !theme.fontLinkId) return;
+    if (this.doc.getElementById(theme.fontLinkId)) return;
     const head = this.doc.head;
     if (!head) return;
     const link = this.doc.createElement('link');
-    link.id = MATRIX_FONT_LINK_ID;
+    link.id = theme.fontLinkId;
     link.rel = 'stylesheet';
-    link.href = MATRIX_FONT_HREF;
+    link.href = theme.fontHref;
     head.appendChild(link);
   }
 

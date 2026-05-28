@@ -37,6 +37,7 @@ import {
   DataSourceError,
 } from '../../../services/data-source/data-source.port';
 import { ThemeService, type TExtraTheme } from '../../../services/theme';
+import { EXTRA_THEMES } from '../../../themes/registry';
 
 /**
  * Declarative catalogue of toggles rendered in the General section.
@@ -69,30 +70,28 @@ const GENERAL_TOGGLES: ReadonlyArray<IGeneralToggleDef> = [
 ];
 
 /**
- * Extra-theme selectbutton catalog. Wire values are the string keys
- * (`none` | `matrix`) rather than `TExtraTheme` (`matrix | null`)
- * because PrimeNG's selectbutton does not bind cleanly to `null`
- * option values, the `[allowEmpty]=false` path treats null as
- * "deselected" and breaks the ngModel round-trip.
+ * Sentinel id reserved for the "no extra theme" option. Distinct from
+ * `null` because PrimeNG's selectbutton does not bind cleanly to
+ * `null` option values (the `[allowEmpty]=false` path treats `null`
+ * as "deselected" and breaks the ngModel round-trip), so the wire
+ * layer uses the literal `'none'` string and the service layer maps
+ * it back to `null` at the boundary.
  */
-type TExtraThemeOptionValue = 'none' | 'matrix';
+const EXTRA_THEME_NONE = 'none' as const;
+type TExtraThemeWire = typeof EXTRA_THEME_NONE | (typeof EXTRA_THEMES)[number]['id'];
 
 interface IExtraThemeOption {
-  value: TExtraThemeOptionValue;
-  labelKey: TExtraThemeOptionValue;
+  value: TExtraThemeWire;
+  label: string;
+  description: string;
 }
 
-const EXTRA_THEME_OPTIONS: IExtraThemeOption[] = [
-  { value: 'none', labelKey: 'none' },
-  { value: 'matrix', labelKey: 'matrix' },
-];
-
-function toExtraThemeWire(value: TExtraTheme): TExtraThemeOptionValue {
-  return value === 'matrix' ? 'matrix' : 'none';
+function toExtraThemeWire(value: TExtraTheme): TExtraThemeWire {
+  return value === null ? EXTRA_THEME_NONE : value;
 }
 
-function fromExtraThemeWire(value: TExtraThemeOptionValue): TExtraTheme {
-  return value === 'matrix' ? 'matrix' : null;
+function fromExtraThemeWire(value: TExtraThemeWire): TExtraTheme {
+  return value === EXTRA_THEME_NONE ? null : value;
 }
 
 @Component({
@@ -117,13 +116,30 @@ export class SettingsGeneral {
 
   protected readonly texts = SETTINGS_TEXTS;
   protected readonly toggles = GENERAL_TOGGLES;
-  protected readonly extraThemeOptions = EXTRA_THEME_OPTIONS;
   /**
-   * Wire-shape (`'none' | 'matrix'`) projection of the extra theme.
-   * Computed so the topbar toggle (which clears `extraTheme` back to
-   * `null`) reflects in the selectbutton without a manual refresh.
+   * Extra-theme select options. The `none` entry comes from the i18n
+   * catalog (sentinel, not a theme); the rest map straight from the
+   * registry at `themes/registry.ts`, so sumar un theme new = one
+   * entry there + one CSS file.
    */
-  protected readonly extraThemeWire = computed<TExtraThemeOptionValue>(() =>
+  protected readonly extraThemeOptions: IExtraThemeOption[] = [
+    {
+      value: EXTRA_THEME_NONE,
+      label: SETTINGS_TEXTS.general.extraTheme.options.none.label,
+      description: SETTINGS_TEXTS.general.extraTheme.options.none.description,
+    },
+    ...EXTRA_THEMES.map((theme) => ({
+      value: theme.id,
+      label: theme.label,
+      description: theme.description,
+    })),
+  ];
+  /**
+   * Wire-shape projection of the extra theme. Computed so the topbar
+   * toggle (which clears `extraTheme` back to `null`) reflects in the
+   * selectbutton without a manual refresh.
+   */
+  protected readonly extraThemeWire = computed<TExtraThemeWire>(() =>
     toExtraThemeWire(this.themeService.extraTheme()),
   );
   protected readonly loading = signal(false);
@@ -171,17 +187,13 @@ export class SettingsGeneral {
   }
 
   /**
-   * Extra-theme change handler. Mirrors `onConnectionTypeChange`: the
-   * catalog is mandatory (`[allowEmpty]=false`), so a null collapse
-   * from PrimeNG falls back to `'none'` rather than crashing the
-   * mapping into `TExtraTheme`.
+   * Extra-theme change handler. The catalog is mandatory
+   * (`[allowEmpty]=false`), so a null collapse from PrimeNG falls
+   * back to the `none` sentinel rather than crashing the mapping
+   * into `TExtraTheme`.
    */
-  protected onExtraThemeChange(next: TExtraThemeOptionValue | null): void {
-    this.themeService.setExtraTheme(fromExtraThemeWire(next ?? 'none'));
-  }
-
-  protected extraThemeLabel(key: TExtraThemeOptionValue): string {
-    return SETTINGS_TEXTS.general.extraTheme.options[key].label;
+  protected onExtraThemeChange(next: TExtraThemeWire | null): void {
+    this.themeService.setExtraTheme(fromExtraThemeWire(next ?? EXTRA_THEME_NONE));
   }
 
   /** Fetch (or re-fetch) the envelope. Errors surface in `loadError`. */

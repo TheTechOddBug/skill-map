@@ -41,16 +41,6 @@ html.app-matrix body {
   --p-font-family-mono: 'JetBrains Mono', 'Courier New', ui-monospace, monospace;
 }
 
-/* Perf-hud and event-log hardcode their mono stack inline rather than
-   going through a var, override per-component so they join the matrix
-   font sweep. Both already get palette tweaks in matrix blocks below,
-   keep the font rule grouped here so the entire font story is in one
-   place. */
-html.app-matrix sm-perf-hud .perf-hud,
-html.app-matrix sm-event-log .eventlog__body {
-  font-family: 'JetBrains Mono', 'Courier New', ui-monospace, monospace;
-}
-
 /* === Base palette, SM tokens + PrimeNG retint + shadows === */
 :root.app-matrix {
   --sm-matrix-accent: #39ff14;
@@ -68,9 +58,9 @@ html.app-matrix sm-event-log .eventlog__body {
      green (`invokes`, strongest), so the four kinds read as a gradient
      instead of four bright greens that compete with each other. Active
      variants share the same interpolation between brighter endpoints. */
-  --sm-edge-supersedes: #6b7280;
-  --sm-edge-mentions: color-mix(in srgb, var(--sm-matrix-accent-dim) 33%, #6b7280);
-  --sm-edge-references: color-mix(in srgb, var(--sm-matrix-accent-dim) 67%, #6b7280);
+  --sm-edge-supersedes: var(--sm-edge-neutral);
+  --sm-edge-mentions: color-mix(in srgb, var(--sm-matrix-accent-dim) 33%, var(--sm-edge-neutral));
+  --sm-edge-references: color-mix(in srgb, var(--sm-matrix-accent-dim) 67%, var(--sm-edge-neutral));
   --sm-edge-invokes: var(--sm-matrix-accent-dim);
   --sm-edge-supersedes-active: #9ca3af;
   --sm-edge-mentions-active: color-mix(in srgb, #4ade80 33%, #9ca3af);
@@ -434,3 +424,96 @@ html.app-matrix .graph__filter-stack .link-kind-palette {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
+
+/* Calm the corner. The filter stack + perf-hud cluster reads as
+   "too lit" when the active items inherit the full neon accent
+   (`--p-text-color` resolves to `--sm-matrix-accent` = `#39ff14`)
+   AND the link-kind icons sit on the brighter `*-active` ramp
+   (which uses `#4ade80` as its seed). The cluster is auxiliary
+   navigation, not the primary signal, so drop both two notches
+   down to `--sm-matrix-muted` (`#6ee7b7`, pastel green) and erase
+   the checked-pill backdrop entirely so the active item reads as
+   "a colour shift" rather than "a lit pill". Scoped to
+   `.graph__filter-stack` and the perf HUD so canvas edges,
+   toolbar, and topbar keep their original chroma. */
+/* Filter cluster + perf-hud chrome.
+   - Idle items: light border so they read as "deliberately off"
+     instead of "invisible".
+   - Active items: backdrop wash + stronger border so the active
+     state is the clear signal.
+   The token chain (`--p-togglebutton-*`) is re-defined locally
+   inside each palette button, so we paint `background` and
+   `border-color` directly with high-specificity selectors. */
+html.app-matrix .graph__filter-stack .kind-palette__btn,
+html.app-matrix .graph__filter-stack .link-kind-palette__btn,
+html.app-matrix .graph__filter-stack .severity-palette__btn {
+  border-color: color-mix(in srgb, var(--sm-matrix-accent-dim) 14%, transparent);
+}
+
+html.app-matrix .graph__filter-stack .kind-palette__btn[aria-pressed='true'],
+html.app-matrix .graph__filter-stack .link-kind-palette__btn[aria-pressed='true'],
+html.app-matrix .graph__filter-stack .severity-palette__btn[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--sm-matrix-accent-dim) 12%, transparent);
+  border-color: color-mix(in srgb, var(--sm-matrix-accent-dim) 55%, transparent);
+}
+
+/* Perf HUD widget chrome. The widget reports diagnostic numbers
+   (FPS, mem, longTasks), it's not an active-state pill so it should
+   sit well under the active palette items.
+   - Backdrop + border: faint accent-dim wash close to void.
+   - Foreground: every readout (FPS header, frame time, mem, dom
+     nodes, long tasks, nodes, links) shares one dark green so the
+     panel reads as a single calm block. The cells flow through
+     several different tokens (`--p-text-color` for the FPS rule,
+     `--p-togglebutton-*-color` for the rest, `currentColor` for
+     the sparkline canvas), so we pin every one to a shared local
+     var (`--perf-fg`) and ditto for `color` so the sparkline picks
+     it up via `currentColor`. */
+html.app-matrix sm-perf-hud .perf-hud {
+  --perf-fg: color-mix(in oklab, var(--sm-matrix-accent-dim) 70%, #000000);
+  background: color-mix(in srgb, #000000 50%, transparent);
+  border-color: color-mix(in srgb, var(--sm-matrix-accent-dim) 22%, transparent);
+  color: var(--perf-fg);
+  --p-text-color: var(--perf-fg);
+  --p-text-muted-color: var(--perf-fg);
+  --p-togglebutton-color: var(--perf-fg);
+  --p-togglebutton-checked-color: var(--perf-fg);
+  --p-togglebutton-hover-color: var(--perf-fg);
+}
+
+/* Every readout cell to the shared `--perf-fg`. Inheritance through
+   the PrimeNG togglebutton text color leaves the non-FPS cells on a
+   different tone than the FPS header (which has its own
+   `.perf-hud--expanded .perf-hud__cell--fps` rule at specificity
+   (0,4,0) via Angular's `[_ngcontent]`). The two branches below
+   land at (0,4,2), beating that rule so the FPS header AND every
+   other cell share one colour. */
+html.app-matrix sm-perf-hud .perf-hud .perf-hud__header .perf-hud__cell,
+html.app-matrix sm-perf-hud .perf-hud .perf-hud__expandable-inner .perf-hud__cell {
+  color: var(--perf-fg);
+}
+
+/* Severity palette runs an "inverted" pattern vs the rest: idle
+   already paints in the severity tint (`color-mix(severity 55%, muted)`)
+   and active pumps to full saturation. In matrix, `--sm-severity-error` /
+   `-warn` are retinted to the matrix accent / accent-dim, so the
+   idle + active states end up indistinguishable (both bright green)
+   and the active item reads as the loudest piece of the corner.
+   Scope-down here: idle drops to `--sm-matrix-muted` (calm pastel),
+   active sits on `--sm-matrix-accent-dim` (one notch above idle).
+   The override walks the same selector chain the component uses so
+   no specificity surprises. */
+html.app-matrix .severity-palette__btn--error .severity-palette__glyph,
+html.app-matrix .severity-palette__btn--error .severity-palette__count,
+html.app-matrix .severity-palette__btn--warn .severity-palette__glyph,
+html.app-matrix .severity-palette__btn--warn .severity-palette__count {
+  color: var(--sm-matrix-muted);
+}
+
+html.app-matrix .severity-palette__btn--error[aria-pressed='true'] .severity-palette__glyph,
+html.app-matrix .severity-palette__btn--error[aria-pressed='true'] .severity-palette__count,
+html.app-matrix .severity-palette__btn--warn[aria-pressed='true'] .severity-palette__glyph,
+html.app-matrix .severity-palette__btn--warn[aria-pressed='true'] .severity-palette__count {
+  color: var(--sm-matrix-accent-dim);
+}
+

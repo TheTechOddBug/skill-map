@@ -21,6 +21,14 @@ export const APP_TEXTS = {
   devChip: 'dev',
   devChipTooltip: 'BFF launched from a local checkout (not the npm install).',
   devChipA11y: 'Development build: BFF is running from a local checkout.',
+  /**
+   * Topbar chip naming the active provider lens (the platform whose
+   * extractors and rules interpret the project). Reuses the per-provider
+   * colors of the card provider badge so the lens reads consistently
+   * top and inside the map.
+   */
+  lensChipTooltip: (lens: string): string => `Active lens: ${lens}. The map reflects how ${lens} interprets your files.`,
+  lensChipA11y: (lens: string): string => `Active provider lens: ${lens}.`,
   nav: {
     map: 'Map',
     files: 'Files',

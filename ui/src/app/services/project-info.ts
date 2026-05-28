@@ -36,6 +36,15 @@ export class ProjectInfoService {
    */
   readonly dev = computed<boolean>(() => this.status()?.dev === true);
 
+  /**
+   * Active provider lens id (`claude`, `gemini`, `markdown`, …) or
+   * `null` when no lens is detected / configured. Drives the topbar
+   * lens chip. Loaded alongside `/api/health` in `load()`; failure is
+   * silent (the chip just stays hidden).
+   */
+  private readonly activeProviderState = signal<string | null>(null);
+  readonly activeProvider = computed<string | null>(() => this.activeProviderState());
+
   async load(): Promise<void> {
     try {
       const payload = await this.dataSource.health();
@@ -43,6 +52,23 @@ export class ProjectInfoService {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.warn(PROJECT_INFO_TEXTS.healthFailed(msg));
+    }
+    await this.reloadActiveProvider();
+  }
+
+  /**
+   * Re-probe the active provider lens. Called at boot (via `load()`)
+   * and again when the Settings modal closes, so a lens switch in the
+   * Project section reflects in the topbar chip without a page reload.
+   * Best-effort: a failure leaves the previous value (and the chip)
+   * untouched.
+   */
+  async reloadActiveProvider(): Promise<void> {
+    try {
+      const lens = await this.dataSource.getActiveProvider();
+      this.activeProviderState.set(lens.activeProvider);
+    } catch {
+      // Lens probe is best-effort; a failure leaves the chip as-is.
     }
   }
 }

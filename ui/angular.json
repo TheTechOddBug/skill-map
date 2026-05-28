@@ -29,6 +29,8 @@
               "node_modules/primeicons/primeicons.css",
               "node_modules/@fortawesome/fontawesome-free/css/all.min.css",
               "src/styles.css",
+              "src/themes/light.css",
+              "src/themes/dark.css",
               "src/themes/matrix.css"
             ],
             "allowedCommonJsDependencies": ["dagre"]

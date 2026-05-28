@@ -1,0 +1,108 @@
+/* skill-map light theme. Active by default when no theme class is
+ * set on `<html>`; the `ThemeService` toggles `.app-dark` to swap to
+ * `themes/dark.css`, and a specialty theme (today: matrix) sits on
+ * top via its own dedicated class.
+ *
+ * Token catalog mirrored exactly across the three theme files
+ * (`light.css`, `dark.css`, `matrix.css`) so opening any of them
+ * reveals the same sections in the same order. Tokens that are
+ * NOT colour palette (fonts, radii, violet ramp) live in
+ * `ui/src/styles.css`; they don't modulate per theme.
+ *
+ * Selector: bare `:root` (no class). This makes light the implicit
+ * default, so the very first paint before Angular hydrates carries
+ * the right palette and no FOUC.
+ */
+
+:root {
+  /* === Surface palette === */
+  --sm-bg-page: #f8fafc;
+  --sm-bg-content: #ffffff;
+  --sm-bg-hover: #f1f5f9;
+  --sm-border: #e2e8f0;
+  --sm-nav-active-bg: #eff6ff;
+
+  /* Kind accent (`--sm-kind-<id>`, `-bg`, `-fg`, light + dark) lives at
+     runtime now, `KindRegistryService.applyCssVars()` (Step 14.5.d)
+     injects a `<style id="sm-kind-vars">` block in `<head>` populated
+     from every enabled Provider's `kinds[*].ui`. Single source of truth
+     is the Provider manifest; the BFF surfaces the catalog via the
+     `kindRegistry` field embedded in every payload-bearing envelope. */
+
+  /* === Edge palette (graph link kinds) ===
+     One pair per spec link kind (invokes / references / mentions /
+     supersedes). The four kinds describe how a node refers to another:
+     execution (invokes), formal citation (references), plain-text
+     mention (mentions), or lifecycle replacement (supersedes).
+     Saturation tuned down from the original Tailwind-500 hues so the
+     graph reads as a calm reference network, not a Saturday-morning
+     cartoon, kind hue stays recognisable, but the line/marker no
+     longer competes with the node cards for visual weight.
+
+     `*-active` is the full-saturation counterpart used when the user
+     selects an edge (`.f-conn--<kind>.f-selected`), same hue, no
+     desaturation, so the picked edge pops without changing colour
+     family. `references` uses Tailwind emerald-500 (`#10b981`);
+     `mentions` uses sky-500 (`#0ea5e9`). Both have muted siblings
+     at idle so the canvas reads calm and the active state pops on
+     hover / selection. */
+  --sm-edge-invokes: #b8843a;
+  --sm-edge-invokes-active: #f59e0b;
+  --sm-edge-references: #7daa90;
+  --sm-edge-references-active: #10b981;
+  --sm-edge-mentions: #6fa2c0;
+  --sm-edge-mentions-active: #0ea5e9;
+  --sm-edge-supersedes: #9ca3af;
+  --sm-edge-supersedes-active: #4b5563;
+
+  /* Neutral grey used by edge mixes (matrix interpolates against this)
+     and by per-component muted strokes. Centralising it here keeps the
+     three themes from drifting on the same hex literal. */
+  --sm-edge-neutral: #6b7280;
+
+  /* === Link badge palette (linked-nodes panel) === */
+  --sm-link-in-bg: #e0e7ff;
+  --sm-link-in-fg: #3730a3;
+  --sm-link-out-bg: #fef3c7;
+  --sm-link-out-fg: #92400e;
+
+  /* === Severity, foreground === */
+  --sm-severity-info: #1e3a8a;
+  --sm-severity-success: #065f46;
+  /* Yellow-600 (gold), clearly yellow on the light theme, slightly
+     darker than yellow-500 #eab308 for a touch more contrast against
+     white surfaces while staying well separated from the error red
+     `#991b1b`. */
+  --sm-severity-warn: #ca8a04;
+  --sm-severity-error: #991b1b;
+
+  /* === Severity, row tint === */
+  --sm-severity-info-bg: rgba(219, 234, 254, 0.35);
+  --sm-severity-success-bg: rgba(209, 250, 229, 0.35);
+  --sm-severity-warn-bg: rgba(254, 243, 199, 0.35);
+  --sm-severity-error-bg: rgba(254, 226, 226, 0.35);
+
+  /* === Physical-stat chip tints ===
+     Used by the card subtitle row to give tokens / bytes / date three
+     distinct subtle backgrounds. Intentionally NOT tied to the kind
+     palette (`--sm-kind-*`) because physical metadata is plugin-
+     independent: a node has bytes regardless of whether the `agent` /
+     `command` / `skill` kinds are contributed by an active provider. */
+  --sm-stat-tokens-bg: rgba(59, 130, 246, 0.14);
+  --sm-stat-bytes-bg: rgba(245, 158, 11, 0.16);
+
+  /* === Accent foreground ===
+     Text colour used by surfaces that paint a kind-coloured backdrop
+     (e.g. inspector-header's icon box). White in both light and dark
+     today, kept as a token so a future contrast-aware switch (color-mix
+     against the active accent) can land without touching consumers. */
+  --sm-accent-fg: #ffffff;
+
+  /* === Elevation shadows ===
+     Adapt per theme so dark-mode panels keep their lift. */
+  --sm-shadow-topbar: 0 1px 2px rgba(0, 0, 0, 0.03);
+  --sm-shadow-eventlog: 0 -4px 16px rgba(0, 0, 0, 0.08);
+  --sm-shadow-floating: 0 4px 14px rgba(0, 0, 0, 0.08);
+  --sm-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --sm-shadow-card-hover: 0 3px 12px rgba(0, 0, 0, 0.12);
+}

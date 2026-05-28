@@ -81,3 +81,29 @@ export function providerUi(providerId: string | null | undefined): IProviderUi |
   if (known) return known;
   return { ...FALLBACK, label: providerId };
 }
+
+/**
+ * Lens labels for providers absent from `REGISTRY` (which only carries
+ * the vendor-specific chips). `markdown` is the universal fallback
+ * Provider, hidden from card chips but surfaced as the active lens in
+ * the topbar, so it needs a readable label.
+ */
+const LENS_LABELS: Record<string, string> = {
+  markdown: 'Markdown',
+};
+
+/**
+ * Variant of `providerUi` for the topbar active-lens chip. Unlike the
+ * card chip it shows EVERY active provider, including `markdown` (the
+ * universal fallback), because the user explicitly chose / detected
+ * that lens and wants to see which one is active. Reuses the same
+ * `REGISTRY` colors so the lens chip matches the card provider badge
+ * one-for-one (`color` light, `colorDark` dark). Returns `null` only
+ * when there is no active lens at all.
+ */
+export function lensProviderUi(providerId: string | null | undefined): IProviderUi | null {
+  if (!providerId) return null;
+  const known = REGISTRY[providerId];
+  if (known) return known;
+  return { ...FALLBACK, label: LENS_LABELS[providerId] ?? providerId };
+}

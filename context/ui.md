@@ -143,3 +143,94 @@ Two unrelated escape-hatches also live under `::ng-deep`, neither targets a Prim
 - **Foblex Flow internals** in `graph-view.css` (2 blocks, `.f-connection-drag-handle` and `.f-conn--supersedes .f-connection-path`), intentional per the `foblex-flow` skill Rule 6, library elements styled in read-only graph contexts.
 - **Rendered markdown DOM** in `settings-changelog.css` (5 blocks, `<p>` / `<code>` / `<a>` / `<strong>` under `.settings-changelog__highlight-body`), the markdown is injected via `[innerHTML]` so component encapsulation does not reach it.
 - **Custom-element children** in `kind-palette.css` (the `<sm-kind-icon>` tints and PrimeIcon `.pi` rules), styling a project-owned custom element from its parent, again outside Angular encapsulation.
+
+## Themes
+
+The UI ships three themes today: **light** (default), **dark** (system pref or explicit), and **matrix** (extra theme). They live as **sibling files** under `ui/src/themes/` with the same shape, so a fourth theme is one file plus one registry entry plus one `angular.json` line.
+
+### File layout
+
+```
+ui/src/
+├── styles.css                   <-- cross-theme foundations (fonts, radii, violet ramp, resets, scrollbars, empty-state)
+├── themes/
+│   ├── light.css                <-- :root { --sm-bg-*, --sm-edge-*, --sm-link-*, --sm-severity-*, --sm-stat-*, --sm-accent-fg, --sm-shadow-* }
+│   ├── dark.css                 <-- .app-dark { same tokens, dark values }
+│   ├── matrix.css               <-- :root.app-matrix + html.app-matrix .X (palette + per-element retints)
+│   └── registry.ts              <-- EXTRA_THEMES catalog consumed by ThemeService + Settings UI
+```
+
+**Authority**: opening `light.css`, `dark.css`, or `matrix.css` reveals the **same sections in the same order** (`Surface palette` → `Edge palette` → `Link badge palette` → `Severity, foreground` → `Severity, row tint` → `Physical-stat chip tints` → `Accent foreground` → `Elevation shadows`). Keep that symmetry when extending: a token added to one theme must land in the same section across all three.
+
+### Selector strategy
+
+- **`light.css`**: bare `:root { ... }` (no class). Light is the implicit default so the first paint before Angular hydrates carries the right palette and there is no FOUC.
+- **`dark.css`**: `.app-dark { ... }`. The `ThemeService` toggles `.app-dark` on `<html>` when the user picks `dark` or `auto` resolves to dark via `prefers-color-scheme`. PrimeNG's Aura preset reads the same class (`darkModeSelector: '.app-dark'` in `app.config.ts`).
+- **`matrix.css`** and any future extra theme: `:root.<htmlClass> { ... }` for the palette (beats PrimeNG's runtime `:root,:host` injection) plus `html.<htmlClass> .<element> { ... }` for per-element retints (beats Angular's emulated-encapsulation rewrite of component CSS, which lands later in the source order).
+
+### Bundle order (critical)
+
+The cascade depends on the `styles` array order in `ui/angular.json`. The canonical order is:
+
+```
+node_modules/@foblex/flow/styles/default.scss
+node_modules/primeicons/primeicons.css
+node_modules/@fortawesome/fontawesome-free/css/all.min.css
+src/styles.css            <-- cross-theme foundations
+src/themes/light.css      <-- :root palette
+src/themes/dark.css       <-- .app-dark overrides
+src/themes/matrix.css     <-- specialty theme, last so it beats everything
+```
+
+Every new specialty theme appends **after** `dark.css` so the bare `:root` and `.app-dark` palettes resolve first, then the specialty class wins on activation.
+
+### Adding a new specialty theme
+
+Five touchpoints, all of them small:
+
+1. **CSS file**: create `ui/src/themes/<id>.css`. Mirror `matrix.css` shape: a `:root.<htmlClass>` block defines the palette (override every token from `light.css` / `dark.css` you want different), then `html.<htmlClass> .<element>` blocks for per-element retints that tokens cannot reach. Open `matrix.css` and follow its section order; comment each block with the **why** (what visual story drives this override), not just the what.
+2. **Bundle entry**: add `"src/themes/<id>.css"` to `ui/angular.json` `styles[]` after the existing themes.
+3. **Registry entry**: add a `IExtraThemeDescriptor` to `EXTRA_THEMES` in `ui/src/themes/registry.ts`. Required fields: `id`, `htmlClass`, `forcesDark`, `label`, `description`. Optional: `favicon`, `fontHref` + `fontLinkId` (pair: declare both or neither, the service lazy-injects the stylesheet on first activation).
+4. **Favicon (optional)**: drop `ui/public/favicon-<id>.svg` next to `favicon.svg`. The service swaps the SVG `<link rel="icon">` href while the theme is active.
+5. **Smoke**: `pnpm --filter ui build && cd ui && npx ng test --watch=false`. No edits needed in `ThemeService`, `SettingsGeneral`, or `settings.texts.ts`, those consume the registry directly.
+
+### When to add `:host-context(.app-dark)` per-component
+
+The default is **token-driven**: components read `var(--sm-*)`, `var(--p-*)`, `var(--ff-*)` and the active theme's palette block resolves them. Per-component dark branching is reserved for cases the token system cannot express:
+
+- The component reads a **runtime-injected variable** (e.g. `--kind-color`, `--provider-color-dark`, `--star-accent`, `--chip-accent`) whose `color-mix()` opacities legitimately differ between light and dark (lower alpha on light backgrounds, higher on dark for the same perceived contrast).
+- The component owns a **one-off brand-adjacent hex literal** (alpha chip red, dev chip amber) that doesn't belong in the global palette and only varies for the dark surface.
+- The component sets **local CSS variables** (e.g. `--shell-topbar-*`) that route through theme-specific stops of the global violet ramp.
+
+If the override is a plain colour swap on a generic element and you can express it as "swap token X in dark", **promote the token to `themes/dark.css` and delete the local block**. Audit candidate: a `:host-context(.app-dark) .foo { background: var(--sm-y); }` block is almost always a token leak; the right fix is to add `--sm-y` to both `light.css` and `dark.css`.
+
+### When `::ng-deep` is acceptable
+
+Three contexts where the project accepts `::ng-deep`:
+
+1. **PrimeNG host-merge contracts** (Class B) and **deep internals** (Class D), documented in the PrimeNG section above.
+2. **`[pt]` slot classes**: when a child slot lands a custom class via `[pt]="{ content: { class: 'foo' } }"`, the slot DOM is outside Angular's view encapsulation and `::ng-deep` is the only path to the class. Targets the project-owned class, not the PrimeNG internal.
+3. **Custom child components**: `<sm-kind-icon>` and similar wrap SVGs whose internal currentColor needs retinting from the parent. Per-kind colour assignments via `::ng-deep .sm-kind-icon` are the canonical pattern.
+
+**Never acceptable**: `::ng-deep` to override a token that already exists in the theme palette (use the token), or to apply a one-off hex when the same effect resolves through `--sm-*` tokens.
+
+### Smell signals to fix at the source
+
+The `[no patch mindset]` rule in `AGENTS.md` applies hard here. Specifically for themes:
+
+- **Hardcoded hex in a component** instead of `var(--sm-*)`: tokenize at the palette level. A new token in `light.css` + `dark.css` + (matching value in) `matrix.css` is cheaper than three components diverging.
+- **Per-component font stack literal** (`font-family: ui-monospace, ...`): use `var(--sm-font-mono)`. The matrix theme overrides this token globally, so the component leak forced a matrix.css per-component override block. Wire through the token and the per-component matrix block disappears.
+- **Duplicated hex literal across themes** (`#6b7280` repeated in light + dark + matrix): introduce a neutral token (e.g. `--sm-edge-neutral`) defined once per theme and consumed by `color-mix()` expressions everywhere else.
+- **`:host-context(.app-dark)` that only swaps a colour**: promote to a token in `dark.css`. The audit pass that found 12 such blocks in this codebase determined all of them legitimately depend on runtime vars or one-off brand hex, so they stayed. New blocks should clear that bar before landing.
+
+### Theme service contract (`ui/src/services/theme.ts`)
+
+The service is **registry-driven**: it does not hardcode any theme id. Iterates `EXTRA_THEMES` on every effect tick:
+
+- Toggles every registered `htmlClass` on `<html>` based on `extraTheme() === theme.id`.
+- Computes `forcesDark`: if the active theme declares `forcesDark: true`, the `.app-dark` + `.dark` classes are forced regardless of the tri-state mode (so the specialty retint sits on a dark base).
+- Calls `ensureExtraThemeFont(activeTheme)` to lazy-inject `fontHref` into `<head>` (no-op when the theme declares no font).
+- Calls `applyFavicon(activeTheme?.favicon ?? FAVICON_DEFAULT)`.
+- Persists `mode` to `localStorage['skill-map.ui.theme']` and the active extra-theme id to `localStorage['skill-map.ui.extra-theme']`. Unknown values in storage (e.g. a stale id from an older build) fall back to `null` via `findExtraTheme()`.
+
+**Do not add theme-specific branches to the service.** Anything theme-specific (font, favicon, force-dark behaviour) goes in the descriptor.

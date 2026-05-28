@@ -56,6 +56,17 @@
               data-testid="shell-version"
             >{{ versionLabel() }}</span>
           }
+          @if (lensChip(); as lens) {
+            <span
+              class="shell__lens"
+              [style.--provider-color]="lens.color"
+              [style.--provider-color-dark]="lens.colorDark ?? lens.color"
+              [attr.aria-label]="texts.lensChipA11y(lens.label)"
+              [pTooltip]="texts.lensChipTooltip(lens.label)"
+              tooltipPosition="bottom"
+              data-testid="shell-lens"
+            >{{ lens.label }}</span>
+          }
           <span class="shell__alpha" [attr.aria-label]="texts.alpha">{{ texts.alpha }}</span>
           @if (updateCheck.isOutdated() && !isDevMode) {
             <button
@@ -152,7 +163,7 @@
   @defer (when settingsOpen()) {
     <sm-settings-modal
       [visible]="settingsOpen()"
-      (visibleChange)="settingsOpen.set($event)"
+      (visibleChange)="onSettingsVisibleChange($event)"
     />
   }
 </div>

@@ -57,14 +57,14 @@
         [options]="extraThemeOptions"
         [ngModel]="extraThemeWire()"
         (ngModelChange)="onExtraThemeChange($event)"
-        optionLabel="labelKey"
+        optionLabel="label"
         optionValue="value"
         [allowEmpty]="false"
         data-testid="settings-general-extra-theme"
       >
         <ng-template let-option pTemplate="item">
           <span data-testid="settings-general-extra-theme-option">
-            {{ extraThemeLabel(option.labelKey) }}
+            {{ option.label }}
           </span>
         </ng-template>
       </p-selectbutton>

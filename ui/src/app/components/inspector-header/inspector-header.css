@@ -37,7 +37,7 @@
   align-items: center;
   justify-content: center;
   background: var(--accent);
-  color: #fff;
+  color: var(--sm-accent-fg);
   flex: none;
   font-size: 1.05rem;
   grid-row: 1 / span 3;

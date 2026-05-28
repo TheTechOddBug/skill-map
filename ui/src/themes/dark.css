@@ -1,0 +1,78 @@
+/* skill-map dark theme. Active when the `ThemeService` toggles
+ * `.app-dark` on `<html>` (either because the user picked it
+ * explicitly or because `auto` mode resolved to dark via the
+ * `prefers-color-scheme` media query). The same class is what
+ * PrimeNG's Aura preset reads (`darkModeSelector: '.app-dark'`)
+ * to swap its own palette in lock-step.
+ *
+ * Token catalog mirrored exactly across the three theme files
+ * (`light.css`, `dark.css`, `matrix.css`) so opening any of them
+ * reveals the same sections in the same order.
+ *
+ * Selector: `.app-dark` (not `:root.app-dark`). The class lands on
+ * `<html>` so the specificity is the same as `:root`, and PrimeNG's
+ * own dark-mode injection uses the bare class form too.
+ */
+
+.app-dark {
+  /* === Surface palette === */
+  --sm-bg-page: #09090b;
+  --sm-bg-content: #18181b;
+  --sm-bg-hover: #27272a;
+  --sm-border: #3f3f46;
+  --sm-nav-active-bg: rgba(96, 165, 250, 0.15);
+
+  /* Kind accent dark-mode overrides also live at runtime via
+     `KindRegistryService.applyCssVars()` (`.app-dark { … }` block). */
+
+  /* === Edge palette (graph link kinds) === */
+  --sm-edge-invokes: #c9a062;
+  --sm-edge-invokes-active: #fbbf24;
+  --sm-edge-references: #9ec8af;
+  --sm-edge-references-active: #34d399;
+  --sm-edge-mentions: #8ec2db;
+  --sm-edge-mentions-active: #38bdf8;
+  --sm-edge-supersedes: #6b7280;
+  --sm-edge-supersedes-active: #d1d5db;
+
+  /* Neutral grey used by edge mixes; same hex as light today (the
+     mid-grey reads the same on both surfaces) but kept here so the
+     three themes share one source of truth for the token. */
+  --sm-edge-neutral: #6b7280;
+
+  /* === Link badge palette (linked-nodes panel) === */
+  --sm-link-in-bg: #312e81;
+  --sm-link-in-fg: #a5b4fc;
+  --sm-link-out-bg: #78350f;
+  --sm-link-out-fg: #fcd34d;
+
+  /* === Severity, foreground === */
+  --sm-severity-info: #93c5fd;
+  --sm-severity-success: #6ee7b7;
+  --sm-severity-warn: #fcd34d;
+  --sm-severity-error: #fca5a5;
+
+  /* === Severity, row tint === */
+  --sm-severity-info-bg: rgba(30, 58, 138, 0.25);
+  --sm-severity-success-bg: rgba(6, 78, 59, 0.25);
+  --sm-severity-warn-bg: rgba(120, 53, 15, 0.2);
+  --sm-severity-error-bg: rgba(127, 29, 29, 0.2);
+
+  /* === Physical-stat chip tints === */
+  --sm-stat-tokens-bg: rgba(96, 165, 250, 0.24);
+  --sm-stat-bytes-bg: rgba(251, 191, 36, 0.24);
+
+  /* === Accent foreground ===
+     Same value as light today; reserved so a future contrast-aware
+     switch can land per-theme without touching the consumers. */
+  --sm-accent-fg: #ffffff;
+
+  /* === Elevation shadows ===
+     Stronger rgba opacities so panels still read as elevated on the
+     darker surface. */
+  --sm-shadow-topbar: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --sm-shadow-eventlog: 0 -4px 16px rgba(0, 0, 0, 0.5);
+  --sm-shadow-floating: 0 4px 14px rgba(0, 0, 0, 0.5);
+  --sm-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --sm-shadow-card-hover: 0 4px 14px rgba(0, 0, 0, 0.55);
+}

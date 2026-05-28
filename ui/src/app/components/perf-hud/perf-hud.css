@@ -30,7 +30,7 @@
   --p-togglebutton-checked-color: var(--p-text-muted-color);
 
   box-shadow: var(--sm-shadow-floating);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--sm-font-mono);
   font-size: 0.7rem;
   font-weight: 500;
   /* Match the original collapsed pill's height (14px). The expanded

@@ -50,6 +50,12 @@ export const SETTINGS_TEXTS = {
      * it (advances the dark/light cycle one step in the same action),
      * so the user always has a one-click path back out of the
      * specialty themes.
+     *
+     * The select options are sourced from the registry at
+     * `ui/src/themes/registry.ts` (one entry per specialty theme,
+     * carries its own `label` + `description`); only the `none`
+     * sentinel lives in this catalog because it does not correspond
+     * to a registered theme.
      */
     extraTheme: {
       label: 'Theme',
@@ -58,10 +64,6 @@ export const SETTINGS_TEXTS = {
         none: {
           label: 'None',
           description: 'Use the topbar dark/light toggle.',
-        },
-        matrix: {
-          label: 'Matrix',
-          description: 'Cyber-green retint on the dark palette.',
         },
       },
     },

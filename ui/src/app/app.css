@@ -149,6 +149,34 @@
   background: rgba(214, 158, 46, 0.22);
 }
 
+/* Active provider lens chip. Sits next to the dev / version marker
+   and names the platform whose extractors interpret the project.
+   Mirrors the card provider badge one-for-one: the per-provider
+   color arrives via `--provider-color` / `--provider-color-dark`
+   inline bindings (from `lensProviderUi`), and the surface recipe
+   (full-color text on a 14% / 24% wash) matches `.sm-gnode__provider`
+   in node-card.css so the lens reads identically up here and inside
+   the map. */
+.shell__lens {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: var(--sm-radius-sm);
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--provider-color);
+  background: color-mix(in srgb, var(--provider-color) 14%, transparent);
+  vertical-align: middle;
+  user-select: none;
+}
+
+:host-context(.app-dark) .shell__lens {
+  color: var(--provider-color-dark);
+  background: color-mix(in srgb, var(--provider-color-dark) 24%, transparent);
+}
+
 /* "Update available" chip, appears immediately after the Alpha stamp
    when the BFF reports `/api/update-status -> isOutdated: true`. The
    anchor opens npm in a new tab so the user can read release notes
