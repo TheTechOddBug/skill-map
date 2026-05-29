@@ -10,7 +10,7 @@
     "test:ui": "pnpm test:ci",
     "test:smoke": "playwright test --project=smoke",
     "test:live-bff": "playwright test --project=live-bff",
-    "install:browsers": "playwright install chromium",
+    "install:browsers": "playwright install chromium-headless-shell",
     "prevalidate:test": "pnpm install:browsers && pnpm --filter @skill-map/web demo:build",
     "validate": "pnpm validate:test",
     "validate:test": "pnpm test:ci"

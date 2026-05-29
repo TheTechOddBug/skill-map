@@ -97,28 +97,31 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # Cache the Playwright browser binaries so the e2e smoke does not
-      # re-download ~170MB from cdn.playwright.dev on every run. The key
-      # tracks e2e/package.json, where @playwright/test is pinned exactly;
-      # a browser revision only changes when that version bumps, so the
-      # cache invalidates precisely when it must (no restore-keys: a stale
-      # revision is useless and must force a fresh download).
+      # re-download from cdn.playwright.dev on every run. The key tracks
+      # e2e/package.json, where @playwright/test is pinned exactly AND
+      # `install:browsers` names the artifact; a browser revision only
+      # changes when that file bumps, so the cache invalidates precisely
+      # when it must (no restore-keys: a stale revision is useless and must
+      # force a fresh download).
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('e2e/package.json') }}
 
-      # Install Chromium up front with a per-attempt ceiling and a few
-      # retries. On a cache hit Playwright finds the binary and returns
-      # instantly; on a miss `timeout` caps each attempt so a CDN stall
-      # cannot hang the job. The e2e `prevalidate:test` hook re-runs
-      # `playwright install chromium` during `pnpm validate`, but it finds
-      # the browser already present here and skips the download.
+      # Install the browser up front with a per-attempt ceiling and a
+      # retry. On a cache hit Playwright returns instantly; on a miss
+      # `timeout` caps each attempt so a CDN stall cannot hang the job. The
+      # e2e `prevalidate:test` hook re-runs `install:browsers` during `pnpm
+      # validate` but finds the browser already present here.
       #
-      # 300s/attempt: the ~170MB download has finished at 100% on a slow
-      # CDN day right around 180s, only to be SIGTERM'd by the old ceiling
-      # before extraction completed, so the job never produced a cacheable
-      # browser and re-downloaded forever. 300s clears that with margin.
+      # `install:browsers` fetches `chromium-headless-shell` (~85MB), NOT
+      # the full Chrome (~170MB): every e2e project runs headless, and
+      # Playwright uses the headless shell for headless runs. The old full
+      # `playwright install chromium` pulled Chrome + headless-shell +
+      # ffmpeg (~250MB); the SIGTERM hit the second download on a slow CDN,
+      # so the job never cached a browser and re-downloaded forever. 300s
+      # is generous margin for the smaller artifact.
       - name: Install Playwright browsers (retried)
         run: |
           for attempt in 1 2; do
