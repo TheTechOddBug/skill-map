@@ -72,11 +72,16 @@ jobs:
   build-test:
     name: build + test
     runs-on: ubuntu-latest
-    # Bound the job so a stalled Playwright download (the CDN occasionally
-    # hangs mid-fetch) fails fast instead of burning the GitHub default 6h
-    # timeout. The browser install below is capped at 2x300s = 10 min on a
-    # cold cache, leaving the rest for `pnpm validate`. Once the cache is
-    # warm the install is instant and the job runs well under this.
+    # Run inside the official Playwright image: Chromium + the headless
+    # shell ship preinstalled at /ms-playwright (the image exports
+    # PLAYWRIGHT_BROWSERS_PATH), so the e2e smoke never touches the flaky
+    # cdn.playwright.dev, which kept SIGTERM-ing mid-download. The tag MUST
+    # track @playwright/test in e2e/package.json (1.59.1) so the bundled
+    # browser revision matches; on a mismatch the `prevalidate:test` hook
+    # would fall back to a CDN download. Bump both together.
+    container: mcr.microsoft.com/playwright:v1.59.1-noble
+    # Generous bound: image pull + install + full validate. No browser
+    # download left to stall on.
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -87,6 +92,9 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
 
+      # The Playwright image ships its own Node, but the repo targets Node
+      # 24 (sm's `>=24` guard + node:sqlite); setup-node installs it into
+      # the container and puts it first on PATH.
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
@@ -96,46 +104,10 @@ jobs:
       - name: Install deps
         run: pnpm install --frozen-lockfile
 
-      # Cache the Playwright browser binaries so the e2e smoke does not
-      # re-download from cdn.playwright.dev on every run. The key tracks
-      # e2e/package.json, where @playwright/test is pinned exactly AND
-      # `install:browsers` names the artifact; a browser revision only
-      # changes when that file bumps, so the cache invalidates precisely
-      # when it must (no restore-keys: a stale revision is useless and must
-      # force a fresh download).
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('e2e/package.json') }}
-
-      # Install the browser up front with a per-attempt ceiling and a
-      # retry. On a cache hit Playwright returns instantly; on a miss
-      # `timeout` caps each attempt so a CDN stall cannot hang the job. The
-      # e2e `prevalidate:test` hook re-runs `install:browsers` during `pnpm
-      # validate` but finds the browser already present here.
-      #
-      # `install:browsers` fetches `chromium-headless-shell` (~85MB), NOT
-      # the full Chrome (~170MB): every e2e project runs headless, and
-      # Playwright uses the headless shell for headless runs. The old full
-      # `playwright install chromium` pulled Chrome + headless-shell +
-      # ffmpeg (~250MB); the SIGTERM hit the second download on a slow CDN,
-      # so the job never cached a browser and re-downloaded forever. 300s
-      # is generous margin for the smaller artifact.
-      - name: Install Playwright browsers (retried)
-        run: |
-          for attempt in 1 2; do
-            if timeout 300 pnpm --filter skill-map-e2e run install:browsers; then
-              break
-            fi
-            if [ "$attempt" = "2" ]; then
-              echo "playwright install stalled or failed after 2 attempts"
-              exit 1
-            fi
-            echo "attempt $attempt failed (likely a CDN stall); retrying in 5s"
-            sleep 5
-          done
-
+      # No browser-install step: the container already has them at
+      # /ms-playwright. The e2e `prevalidate:test` hook still runs
+      # `playwright install chromium-headless-shell`, but it finds the
+      # matching revision present and skips the download.
       - name: Validate (typecheck + lint + build + test for every workspace)
         run: pnpm validate
 
