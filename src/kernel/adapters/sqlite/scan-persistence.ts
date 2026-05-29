@@ -99,12 +99,11 @@ export async function persistScanResult(
       freshlyRunTuples,
     );
 
-    // Tags · dual-source, `scan_node_tags`. Replace-all per scan;
-    // projected from BOTH `frontmatter.tags` (source='author') and
-    // `sidecar.annotations.tags` (source='user') for every live node.
-    // Cached nodes' tag rows are projected the same way (the cached
-    // Node still carries frontmatter + sidecar in memory), so the
-    // table stays consistent regardless of cache hit / miss.
+    // Tags · single-source, `scan_node_tags`. Replace-all per scan;
+    // projected from `sidecar.annotations.tags` (the only tag source)
+    // for every live node. Cached nodes' tag rows are projected the
+    // same way (the cached Node still carries its sidecar in memory),
+    // so the table stays consistent regardless of cache hit / miss.
     const tagRecords = nodesToTagRecords(result.nodes);
     await replaceAllScanTags(trx, tagRecords, livePathsForContrib);
 
@@ -477,35 +476,27 @@ function pickIntegerVersion(v: unknown): number | null {
 }
 
 /**
- * Project tag rows for every live node. One row per `(node_path, tag,
- * source)` triple, gathered from BOTH `frontmatter.tags` (with
- * `source='author'`) and `sidecar.annotations.tags` (with
- * `source='user'`). Per-node intra-source dedup (same tag string twice
- * in the same array = one row); the same tag MAY appear under both
- * sources for the same node (the PK accepts the pair).
+ * Project tag rows for every live node. One row per `(node_path, tag)`
+ * pair, gathered from the node's `sidecar.annotations.tags` (the only
+ * tag source). Per-node dedup (same tag string twice in the same array
+ * = one row).
  */
 function nodesToTagRecords(nodes: readonly Node[]): ITagRecord[] {
   const records: ITagRecord[] = [];
   for (const node of nodes) {
-    pushTagRecords(records, node.path, node.frontmatter?.['tags'], 'author');
-    pushTagRecords(records, node.path, node.sidecar?.annotations?.['tags'], 'user');
+    pushTagRecords(records, node.path, node.sidecar?.annotations?.['tags']);
   }
   return records;
 }
 
-function pushTagRecords(
-  out: ITagRecord[],
-  nodePath: string,
-  raw: unknown,
-  source: 'author' | 'user',
-): void {
+function pushTagRecords(out: ITagRecord[], nodePath: string, raw: unknown): void {
   if (!Array.isArray(raw)) return;
   const seen = new Set<string>();
   for (const item of raw) {
     if (typeof item !== 'string' || item.length === 0) continue;
     if (seen.has(item)) continue;
     seen.add(item);
-    out.push({ nodePath, tag: item, source });
+    out.push({ nodePath, tag: item });
   }
 }
 

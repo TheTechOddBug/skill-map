@@ -1,42 +1,44 @@
 /* ---------------------------------------------------------------------------
- * Header, hero card. The icon-box anchors the kind and a faint diagonal
- * wash of the same accent lifts the card; everything else inherits the
- * theme's neutral vocabulary. Compact subtitle (`kind · provider ·
+ * Header, flat identity strip with a left accent rail. The kind colour
+ * runs as a 3px left rail (the hero leads the rail that repeats on every
+ * section below) and a bottom hairline separates the strip from the
+ * description. The icon-box stays the chromatic chip; everything else
+ * inherits the theme's neutral vocabulary. `--accent` is inherited from
+ * the `.inspector` root, so the kind->colour mapping lives in one place
+ * and covers plugin-contributed kinds too. Compact subtitle (`kind ·
  * stability`) under the name; meta strip (bytes / tokens / links) under
- * the path so size + connectivity travel with the identity block.
+ * the path so size + connectivity travel with the block.
  * ------------------------------------------------------------------------- */
 :host {
   display: block;
 }
 
 .inspector__header {
-  --accent: var(--sm-kind-markdown);
-
   position: relative;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   column-gap: 0.75rem;
   row-gap: 0.3rem;
   align-items: start;
-  padding: 0.9rem 1rem;
-  /* Hero wash: a faint diagonal tint of the kind accent fading into the
-     content surface gives the identity block presence without painting a
-     loud colour. The accent is the only hue; the rest stays neutral. */
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--accent) 8%, var(--sm-bg-content)) 0%,
-    var(--sm-bg-content) 55%
-  );
+  padding: 0 0 0.85rem 0.85rem;
+  background: transparent;
   color: var(--p-text-color);
-  border: 1px solid var(--sm-border);
-  border-radius: var(--sm-radius-lg);
-  box-shadow: var(--sm-shadow-card);
+  border-left: 3px solid var(--accent);
+  border-bottom: 1px solid var(--sm-border);
 }
 
-.inspector__header--skill { --accent: var(--sm-kind-skill); }
-.inspector__header--agent { --accent: var(--sm-kind-agent); }
-.inspector__header--command { --accent: var(--sm-kind-command); }
-.inspector__header--markdown { --accent: var(--sm-kind-markdown); }
+/* Kind eyebrow: small kicker on the top row, above the icon. Same size
+   as the old subtitle kind so it leads by position, not weight. Spans
+   the full width and stays left-aligned over the icon. */
+.inspector__kind-eyebrow {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: lowercase;
+  line-height: 1.2;
+}
 
 .inspector__icon-box {
   width: 40px;
@@ -49,11 +51,9 @@
   color: var(--sm-accent-fg);
   flex: none;
   font-size: 1.05rem;
-  grid-row: 1 / span 3;
-  align-self: center;
-  /* Soft accent-tinted lift so the kind chip reads as the hero focal
-     point on the wash. Reuses the accent already on screen, no new hue. */
-  box-shadow: 0 2px 5px color-mix(in srgb, var(--accent) 30%, transparent);
+  grid-column: 1;
+  grid-row: 2;
+  align-self: start;
 }
 
 .inspector__content {
@@ -62,6 +62,17 @@
   display: flex;
   flex-direction: column;
   gap: 0.18rem;
+}
+
+/* Name row: the title with the version chip sitting right after it,
+   baseline-aligned. Wraps the version under the name only when the title
+   is too long to share the line. */
+.inspector__name-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
 }
 
 .inspector__name {
@@ -74,57 +85,35 @@
   color: var(--p-text-color);
 }
 
-/* Subtitle: kind · provider · stability, inline meta line under the
-   name. Reads as a compact, scannable identification strip. */
-.inspector__subtitle {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.35rem;
+/* Stability tag: sits in the name row right after the version chip
+   (`● <level>`), coloured by severity. Small, lowercase, no box. */
+/* Kept inline (not inline-flex) on purpose: as a flex item of the name
+   row its baseline must be the TEXT baseline so it lines up with the name
+   and version. An inline-flex would expose the dot's baseline instead and
+   sit misaligned. The dot rides along centered via `vertical-align`. */
+.inspector__stability {
   font-size: 0.78rem;
-  color: var(--p-text-muted-color);
-  line-height: 1.4;
-}
-
-.inspector__subtitle-kind {
-  color: var(--accent);
-  font-weight: 600;
-  text-transform: lowercase;
-}
-
-.inspector__subtitle-provider {
-  color: var(--p-text-muted-color);
-  text-transform: lowercase;
-}
-
-.inspector__subtitle-sep {
-  color: var(--sm-border);
-  font-size: 0.7rem;
-}
-
-.inspector__subtitle-stability {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
   font-weight: 500;
   text-transform: lowercase;
   cursor: help;
+  white-space: nowrap;
 }
 
-.inspector__subtitle-dot {
+.inspector__stability-dot {
+  margin-right: 0.25rem;
   font-size: 0.55rem;
-  line-height: 1;
+  vertical-align: middle;
 }
 
-.inspector__subtitle-stability[data-stability='stable'] {
+.inspector__stability[data-stability='stable'] {
   color: var(--sm-severity-success);
 }
 
-.inspector__subtitle-stability[data-stability='experimental'] {
+.inspector__stability[data-stability='experimental'] {
   color: var(--sm-severity-info);
 }
 
-.inspector__subtitle-stability[data-stability='deprecated'] {
+.inspector__stability[data-stability='deprecated'] {
   color: var(--sm-severity-warn);
 }
 
@@ -180,7 +169,7 @@
   display: flex;
   align-items: center;
   gap: 0.3rem;
-  align-self: center;
+  align-self: start;
 }
 
 .inspector__favorite {
@@ -231,39 +220,6 @@
   width: 1em;
   height: 1em;
   line-height: 1;
-}
-
-.inspector__close {
-  width: 24px;
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: 1px solid var(--sm-border);
-  border-radius: var(--sm-radius-md);
-  padding: 0;
-  margin-left: 0.25rem;
-  color: var(--p-text-muted-color);
-  cursor: pointer;
-  flex: none;
-  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
-}
-
-.inspector__close .pi {
-  font-size: 0.78rem;
-  line-height: 1;
-}
-
-.inspector__close:hover {
-  background: var(--sm-bg-hover);
-  color: var(--p-text-color);
-  border-color: var(--p-text-muted-color);
-}
-
-.inspector__close:focus-visible {
-  outline: 2px solid var(--p-primary-color);
-  outline-offset: 1px;
 }
 
 .inspector__name-version {

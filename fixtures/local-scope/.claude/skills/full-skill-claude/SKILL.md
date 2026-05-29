@@ -1,27 +1,26 @@
 ---
 name: full-skill-claude
-description: Reference Claude skill populating every documented frontmatter field on the shared skill-base. The 13 vendor-specific fields plus the universal `name`/`description` are all set, so reviewers can eyeball "what does a fully-annotated Claude skill look like?" in one shot.
-tags:
-  - fixture
-  - reference
-  - full
-  - claude
-  - skill
+description: Reference Claude skill populating every documented frontmatter field on the shared skill-base. The 14 vendor-specific fields plus the universal `name`/`description` are all set, so reviewers can eyeball "what does a fully-annotated Claude skill look like?" in one shot.
 when_to_use: When a reference frontmatter shape is needed for documentation, screenshots, or conformance regressions.
 argument-hint: "[scope]"
 arguments:
-  - scope
+  - scopes
   - mode
 disable-model-invocation: false
 user-invocable: true
+otra: lala
 allowed-tools:
   - Read
   - Grep
+  - aa
   - Bash(sm sidecar refresh *)
   - Bash(npm run validate*)
+disallowed-tools:
+  - Bash(rm *)
+  - AskUserQuestion
 model: sonnet
 effort: medium
-context: fork
+context: forks
 agent: Explore
 hooks:
   PreToolUse:

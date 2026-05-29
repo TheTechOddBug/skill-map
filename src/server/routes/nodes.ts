@@ -102,7 +102,7 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
             bundle: null,
             isFavorite: false,
             contributions: [],
-            tags: { byAuthor: [], byUser: [] },
+            tags: [] as string[],
           } as const;
         }
         const favSet = await adapter.favorites.listPaths();
@@ -115,14 +115,14 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
           bundle: b,
           isFavorite: favSet.has(b.node.path),
           contributions,
-          tags: groupTagsBySource(tagRows),
+          tags: tagRows.map((r) => r.tag),
         } as const;
       },
     );
     const bundle = result?.bundle ?? null;
     const isFavorite = result?.isFavorite ?? false;
     const contributions = result?.contributions ?? [];
-    const tags = result?.tags ?? { byAuthor: [], byUser: [] };
+    const tags = result?.tags ?? [];
     if (!bundle) {
       throw new HTTPException(404, {
         message: tx(SERVER_TEXTS.nodeNotFound, { path: nodePath }),
@@ -209,20 +209,20 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
             : await groupContributionsByPath(
                 await adapter.contributions.listForPaths(pagePaths),
               );
-          const tagByPath = await groupTagsByPath(
+          const tagByPath = groupTagsByPath(
             await adapter.tags.listForPaths(pagePaths),
           );
           return { contributionsByPath: contribByPath, tagsByPath: tagByPath };
         },
       )) ?? {
         contributionsByPath: new Map<string, IPersistedContribution[]>(),
-        tagsByPath: new Map<string, ReturnType<typeof groupTagsBySource>>(),
+        tagsByPath: new Map<string, string[]>(),
       };
     const items = pageNodes.map((n) => ({
       ...n,
       isFavorite: favSet.has(n.path),
       contributions: contributionsByPath.get(n.path) ?? [],
-      tags: tagsByPath.get(n.path) ?? { byAuthor: [], byUser: [] },
+      tags: tagsByPath.get(n.path) ?? [],
     }));
 
     return c.json(
@@ -256,41 +256,24 @@ function parseIncludes(raw: string | undefined): ReadonlySet<string> {
 }
 
 /**
- * Group a flat tag-row list by `(byAuthor, byUser)` for one node's
- * payload. Both arrays are deduplicated within each source (the PK
- * already prevents same-source duplicates at the DB layer; the dedup
- * here is defensive against legacy callers that might bypass the
- * persistence projection). Order: ascending tag name.
+ * Group bulk tag rows by node path into a flat `string[]` per node.
+ * Used by the bulk `/api/nodes` route to attach `tags` to every page
+ * item without one query per node. Tags are deduplicated per node (the
+ * PK already prevents duplicates at the DB layer; the dedup here is
+ * defensive against legacy callers that bypass the persistence
+ * projection) and sorted ascending.
  */
-function groupTagsBySource(rows: readonly { tag: string; source: 'author' | 'user' }[]): {
-  byAuthor: string[];
-  byUser: string[];
-} {
-  const byAuthor = new Set<string>();
-  const byUser = new Set<string>();
-  for (const r of rows) (r.source === 'author' ? byAuthor : byUser).add(r.tag);
-  return {
-    byAuthor: [...byAuthor].sort(),
-    byUser: [...byUser].sort(),
-  };
-}
-
-/**
- * Group bulk tag rows by node path, then group each node's rows by
- * source. Used by the bulk `/api/nodes` route to attach `tags` to
- * every page item without one query per node.
- */
-async function groupTagsByPath(
-  rows: readonly { nodePath: string; tag: string; source: 'author' | 'user' }[],
-): Promise<Map<string, { byAuthor: string[]; byUser: string[] }>> {
-  const buckets = new Map<string, { tag: string; source: 'author' | 'user' }[]>();
+function groupTagsByPath(
+  rows: readonly { nodePath: string; tag: string }[],
+): Map<string, string[]> {
+  const buckets = new Map<string, Set<string>>();
   for (const r of rows) {
-    const list = buckets.get(r.nodePath);
-    if (list) list.push({ tag: r.tag, source: r.source });
-    else buckets.set(r.nodePath, [{ tag: r.tag, source: r.source }]);
+    const set = buckets.get(r.nodePath);
+    if (set) set.add(r.tag);
+    else buckets.set(r.nodePath, new Set([r.tag]));
   }
-  const out = new Map<string, { byAuthor: string[]; byUser: string[] }>();
-  for (const [path, entries] of buckets) out.set(path, groupTagsBySource(entries));
+  const out = new Map<string, string[]>();
+  for (const [path, set] of buckets) out.set(path, [...set].sort());
   return out;
 }
 

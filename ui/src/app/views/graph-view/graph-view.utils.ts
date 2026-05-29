@@ -7,25 +7,19 @@
  */
 
 import type { INodeView } from '../../../models/node';
+import { effectiveUserTags } from '../../../models/node-derived';
 import type { IPoint } from './graph-layout';
 import type { IStoredViewport } from './graph-view.storage';
 
 /**
- * `true` when a node carries `tag` in EITHER source, author tags
- * (`frontmatter.tags`) or user tags (`sidecar.annotations.tags`).
- * Tag click on the inspector panel filters by union (the chip's
- * `--author` / `--user` variant is purely visual attribution; the
- * filter semantic does not narrow). Defensive against malformed
- * arrays, non-string entries are silently skipped.
+ * `true` when a node carries `tag`. Tags are single-source: the `.sm`
+ * sidecar `annotations.tags` (with the legacy
+ * `frontmatter.metadata.tags` fallback for un-migrated `.md`), via
+ * `effectiveUserTags`. Faceted search is single-source, the former
+ * author source (`frontmatter.tags`) was retired.
  */
 export function nodeHasTag(node: INodeView, tag: string): boolean {
-  const fm = node.frontmatter as Record<string, unknown>;
-  const author = fm['tags'];
-  if (Array.isArray(author) && author.includes(tag)) return true;
-  const ann = node.sidecar?.annotations;
-  const user = ann?.['tags'];
-  if (Array.isArray(user) && user.includes(tag)) return true;
-  return false;
+  return effectiveUserTags(node).includes(tag);
 }
 
 /** Shape guard for `{ x, y }` payloads parsed out of localStorage. */

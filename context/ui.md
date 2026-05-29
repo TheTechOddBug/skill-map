@@ -141,7 +141,7 @@ The same split applies to `ui/src/i18n/` (single folder, but every catalog file 
 Two unrelated escape-hatches also live under `::ng-deep`, neither targets a PrimeNG internal so neither is part of the M1 sweep. Recorded here so future audits do not lump them in:
 
 - **Foblex Flow internals** in `graph-view.css` (2 blocks, `.f-connection-drag-handle` and `.f-conn--supersedes .f-connection-path`), intentional per the `foblex-flow` skill Rule 6, library elements styled in read-only graph contexts.
-- **Rendered markdown DOM** in `settings-changelog.css` (5 blocks, `<p>` / `<code>` / `<a>` / `<strong>` under `.settings-changelog__highlight-body`), the markdown is injected via `[innerHTML]` so component encapsulation does not reach it.
+- **Rendered markdown DOM** injected via `[innerHTML]`, so component encapsulation does not reach it and child styles go through `::ng-deep`: `settings-changelog.css` (5 blocks under `.settings-changelog__highlight-body`), plus the inline-markdown description fields in `inspector-view.css` (`.inspector__desc` `code` / `a`) and `node-card.css` (`.sm-gnode__desc` `code` / `a`). The description `a` rules also restore link affordance over the global `a` reset.
 - **Custom-element children** in `kind-palette.css` (the `<sm-kind-icon>` tints and PrimeIcon `.pi` rules), styling a project-owned custom element from its parent, again outside Angular encapsulation.
 
 ## Themes

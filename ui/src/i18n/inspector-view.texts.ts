@@ -102,9 +102,4 @@ export const INSPECTOR_VIEW_TEXTS = {
     audit: 'Run audit',
     validate: 'Validate',
   },
-  /** Embedded-mode close button. */
-  close: {
-    label: 'Close',
-    tooltip: 'Close inspector',
-  },
 } as const;

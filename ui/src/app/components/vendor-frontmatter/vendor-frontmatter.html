@@ -122,6 +122,14 @@
                 }
               </dd>
             }
+            @if (sb.disallowedTools.length) {
+              <dt>{{ texts.skillBaseFields.disallowedTools }}</dt>
+              <dd class="vfm__inline">
+                @for (d of sb.disallowedTools; track d; let last = $last) {
+                  <span class="vfm__danger"><i class="pi pi-ban" aria-hidden="true"></i> <code>{{ d }}</code></span>@if (!last) { <span class="vfm__sep" aria-hidden="true">·</span> }
+                }
+              </dd>
+            }
             @if (sb.model !== null) {
               <dt>{{ texts.skillBaseFields.model }}</dt>
               <dd><code>{{ sb.model }}</code></dd>

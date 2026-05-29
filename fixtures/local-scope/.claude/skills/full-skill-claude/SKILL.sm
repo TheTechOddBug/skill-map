@@ -4,7 +4,7 @@
 identity:
   path: .claude/skills/full-skill-claude/SKILL.md
   bodyHash: 025191a8ebb014e56333736f639a66c326a39e6102c84822ede70978d0a2384b
-  frontmatterHash: 6902e70c36e1c582c2a25ff9135bb5afeb597482a1c65b009661a45a8e109c11
+  frontmatterHash: d0b670476872d2d4f94fd6055db21e5e6923f2454e569bc0433c0a09367e5d2f
   resolvedAs:
     provider: claude
     kind: skill

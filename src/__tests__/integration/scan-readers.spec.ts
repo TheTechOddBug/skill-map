@@ -221,7 +221,6 @@ interface IListOverrides {
   limit?: string | undefined;
   json?: boolean;
   tag?: string | undefined;
-  tagSource?: 'author' | 'user' | undefined;
 }
 
 function buildList(overrides: IListOverrides = {}): ListCommand {
@@ -233,7 +232,6 @@ function buildList(overrides: IListOverrides = {}): ListCommand {
   cmd.limit = overrides.limit;
   cmd.json = overrides.json ?? false;
   cmd.tag = overrides.tag;
-  cmd.tagSource = overrides.tagSource;
   return cmd;
 }
 

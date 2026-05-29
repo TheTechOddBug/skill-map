@@ -2,11 +2,11 @@
  * `<sm-inspector-header>`, hero band of the inspector view.
  *
  * Owns the visual fingerprint of the node currently in focus: kind
- * icon box + name + subtitle (`kind · provider · stability`) + path +
- * meta strip (bytes, tokens, links), plus the right-edge actions
- * cluster (favorite star, stale clock, version chip, header-badge
- * slots, embedded-mode close button), the plugin-actions row (hidden
- * behind a feature flag), and the tools chip row.
+ * eyebrow + icon box + name (with version chip and stability tag) +
+ * path + meta strip (bytes, tokens, links), plus the right-edge actions
+ * cluster (favorite star, stale clock, header-badge slots), the
+ * plugin-actions row (hidden behind a feature flag), and the tools
+ * chip row.
  *
  * Inputs are required: a non-null `node` is the precondition the host
  * already enforces before mounting the header (the `@else { ... }`
@@ -16,12 +16,9 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  ElementRef,
   computed,
-  effect,
   input,
   output,
-  viewChild,
 } from '@angular/core';
 import { TooltipModule } from 'primeng/tooltip';
 
@@ -37,9 +34,6 @@ import {
 } from '../../../models/node-derived';
 import { KindIcon } from '../kind-icon/kind-icon';
 import { ViewContributionsHost } from '../view-contributions-host/view-contributions-host';
-
-/** Mirrors the parent's inspector mode, kept local to avoid a circular import. */
-type TInspectorMode = 'standalone' | 'embedded';
 
 /**
  * Closed enum of Claude vendor `color` values from the agent
@@ -66,19 +60,11 @@ const CLAUDE_VENDOR_COLORS: ReadonlySet<string> = new Set([
 })
 export class InspectorHeader {
   readonly node = input.required<INodeView>();
-  readonly mode = input<TInspectorMode>('standalone');
   /**
    * Mirrors `DEFAULT_SETTINGS.inspector.actionMocks`. When false the
    * Actions row is hidden, see inspector-view.ts for the source.
    */
   readonly showActionMocks = input<boolean>(false);
-
-  /**
-   * Emitted by the X button (embedded mode only). The host (the
-   * inspector view) decides what "close" means, its own `close`
-   * output bubbles up to the graph view, which clears its selection.
-   */
-  readonly close = output<void>();
 
   /**
    * Emitted when the user clicks the heart. Carries the node path so
@@ -90,25 +76,6 @@ export class InspectorHeader {
   protected readonly texts = INSPECTOR_VIEW_TEXTS;
   /** Reused so the card and the inspector header speak the same language. */
   protected readonly cardTexts = NODE_CARD_TEXTS;
-
-  /**
-   * Close button host element, focused on every path transition into
-   * embedded mode so keyboard users land on a meaningful target.
-   * `preventScroll: true` is mandatory: the panel uses a 220ms
-   * `translateX` animation, so when this effect fires the X is
-   * partially off-screen. A bare `.focus()` would call
-   * `scrollIntoView` on a transforming element, forcing horizontal
-   * scroll on the document.
-   */
-  private readonly closeBtn = viewChild<ElementRef<HTMLButtonElement>>('closeBtn');
-
-  constructor() {
-    effect(() => {
-      if (this.mode() !== 'embedded') return;
-      this.node();
-      queueMicrotask(() => this.closeBtn()?.nativeElement.focus({ preventScroll: true }));
-    });
-  }
 
   // ---------------------------------------------------------------------------
   // Header computeds, all derived from `node()`. Effective values follow
@@ -139,11 +106,6 @@ export class InspectorHeader {
   protected readonly headerStaleTooltip = computed<string>(() =>
     effectiveStaleTooltip(this.node(), NODE_CARD_TEXTS.sidecar),
   );
-
-  protected onCloseClick(event: MouseEvent): void {
-    event.stopPropagation();
-    this.close.emit();
-  }
 
   protected onFavoriteClick(event: MouseEvent): void {
     event.stopPropagation();

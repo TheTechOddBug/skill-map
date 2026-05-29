@@ -67,6 +67,48 @@ describe('agent-skills provider', () => {
     ok(result.ok, `skill frontmatter must validate`);
   });
 
+  it('skill schema accepts the open-standard optional fields', async () => {
+    const { buildProviderFrontmatterValidator } = await import(
+      '../../../../../kernel/adapters/schema-validators.js'
+    );
+    const validator = buildProviderFrontmatterValidator([agentSkillsProvider]);
+    const result = validator.validate(agentSkillsProvider, 'skill', {
+      name: 'x',
+      description: 'y',
+      license: 'Apache-2.0',
+      compatibility: 'Requires git, docker, and node 20+',
+      metadata: { author: 'example-org', version: '1.0' },
+      'allowed-tools': 'Bash(git:*) Read',
+    });
+    ok(result.ok, `optional standard fields must validate: ${result.ok ? '' : result.errors}`);
+  });
+
+  it('skill schema accepts compatibility at the 500-char boundary', async () => {
+    const { buildProviderFrontmatterValidator } = await import(
+      '../../../../../kernel/adapters/schema-validators.js'
+    );
+    const validator = buildProviderFrontmatterValidator([agentSkillsProvider]);
+    const result = validator.validate(agentSkillsProvider, 'skill', {
+      name: 'x',
+      description: 'y',
+      compatibility: 'a'.repeat(500),
+    });
+    ok(result.ok, 'compatibility of exactly 500 chars must validate');
+  });
+
+  it('skill schema rejects compatibility over 500 chars (maxLength constraint)', async () => {
+    const { buildProviderFrontmatterValidator } = await import(
+      '../../../../../kernel/adapters/schema-validators.js'
+    );
+    const validator = buildProviderFrontmatterValidator([agentSkillsProvider]);
+    const result = validator.validate(agentSkillsProvider, 'skill', {
+      name: 'x',
+      description: 'y',
+      compatibility: 'a'.repeat(501),
+    });
+    strictEqual(result.ok, false, 'compatibility over 500 chars must be rejected');
+  });
+
   it('declares normalised UI presentation (mirrors Claude for the `skill` kind)', () => {
     const skillUi = agentSkillsProvider.kinds['skill']!.ui;
     strictEqual(skillUi.label, 'Skills');

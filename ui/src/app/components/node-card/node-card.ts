@@ -2,6 +2,8 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, model, out
 import { TooltipModule } from 'primeng/tooltip';
 
 import { KindRegistryService } from '../../../services/kind-registry';
+import { MarkdownRenderer } from '../../../services/markdown-renderer';
+import { setupInlineMarkdown } from '../../../services/markdown-inline-signal';
 import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
 import {
   type IFrontmatterAgent,
@@ -179,6 +181,7 @@ export class NodeCard {
   protected readonly nodeColor = computed<string | null>(() => this.agentVendorColor());
 
   private readonly kindRegistry = inject(KindRegistryService);
+  private readonly markdown = inject(MarkdownRenderer);
 
   /**
    * Per-Provider accent override. Disabled, the node card always paints
@@ -216,31 +219,13 @@ export class NodeCard {
   protected readonly stability = computed(() => effectiveStability(this.node()));
 
   /**
-   * Tags · dual-source, author tags (`frontmatter.tags`) render first
-   * with the outlined `--author` variant, user tags
-   * (`sidecar.annotations.tags`) render second with the filled
-   * `--user` variant. Mirrors the inspector annotations panel
-   * attribution so the visual vocabulary stays consistent across
-   * both surfaces. Legacy `frontmatter.metadata.tags` is treated as
-   * user-side (the historical curation home) so old `.md` files
-   * without the new `frontmatter.tags` field keep rendering.
+   * Tags · single-source. Tags come from the `.sm` sidecar
+   * (`annotations.tags`) only; legacy `frontmatter.metadata.tags` is
+   * the fallback for un-migrated `.md` files (see `effectiveUserTags`).
+   * The former author source (`frontmatter.tags`) was retired, so the
+   * card renders one chip style with no source discriminator.
    */
-  protected readonly tagChips = computed<readonly { tag: string; source: 'author' | 'user' }[]>(() => {
-    const node = this.node();
-    const out: { tag: string; source: 'author' | 'user' }[] = [];
-
-    const fm = node.frontmatter as Record<string, unknown>;
-    const author = fm['tags'];
-    if (Array.isArray(author)) {
-      for (const t of author) {
-        if (typeof t === 'string' && t.length > 0) out.push({ tag: t, source: 'author' });
-      }
-    }
-
-    for (const t of effectiveUserTags(node)) out.push({ tag: t, source: 'user' });
-
-    return out;
-  });
+  protected readonly tagChips = computed<readonly string[]>(() => effectiveUserTags(this.node()));
 
   /** Top-3 chips rendered on the card. */
   protected readonly visibleTagChips = computed(() => this.tagChips().slice(0, 3));
@@ -280,6 +265,9 @@ export class NodeCard {
   protected readonly description = computed<string>(() => {
     return this.node().frontmatter.description ?? '';
   });
+
+  /** Description rendered as inline markdown (emphasis / code spans / links). */
+  protected readonly descriptionHtml = setupInlineMarkdown(this.description, this.markdown);
 
   protected toggleExpanded(event: MouseEvent): void {
     // Stop propagation so the parent [fNode] doesn't treat this as a

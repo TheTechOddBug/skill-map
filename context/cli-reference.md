@@ -347,8 +347,7 @@ Reads from the persisted scan snapshot (scan_nodes). Filters: --kind <k>
 restricts to one node kind; --issue keeps only nodes
 
 that touch at least one current issue; --tag <name> keeps only nodes carrying 
-that tag (matches the union of frontmatter.tags and sidecar.annotations.tags by 
-default; --tag-source author|user narrows to one side).
+that tag in their `.sm` sidecar (`annotations.tags`).
 
 --sort-by accepts: path, kind, tokens_total, links_out_count,
 
@@ -383,13 +382,9 @@ Run `sm scan` first to populate the DB.
   ```
   sm list --issue --json
   ```
-- Filter by tag (author or user surfaces)
+- Filter by tag
   ```
   sm list --tag urgent
-  ```
-- Filter by user-only tag
-  ```
-  sm list --tag wip --tag-source user
   ```
 
 ### `sm orphans`

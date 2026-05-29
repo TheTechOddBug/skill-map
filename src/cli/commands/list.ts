@@ -56,7 +56,6 @@ interface IValidFlags {
   sortColumn: string;
   sortDirection: 'asc' | 'desc';
   limitValue: number | undefined;
-  tagSourceValue: 'author' | 'user' | undefined;
 }
 
 type IParsedFlags = IValidFlags | { ok: false; exit: number };
@@ -70,9 +69,8 @@ export class ListCommand extends SmCommand {
       Reads from the persisted scan snapshot (scan_nodes). Filters:
       --kind <k> restricts to one node kind; --issue keeps only nodes
       that touch at least one current issue; --tag <name> keeps only
-      nodes carrying that tag (matches the union of frontmatter.tags
-      and sidecar.annotations.tags by default; --tag-source author|user
-      narrows to one side).
+      nodes carrying that tag in their \`.sm\` sidecar
+      (\`annotations.tags\`).
 
       --sort-by accepts: path, kind, tokens_total, links_out_count,
       links_in_count, external_refs_count. Default: path. --limit N caps
@@ -85,8 +83,7 @@ export class ListCommand extends SmCommand {
       ['List only agents', '$0 list --kind agent'],
       ['Top 5 by total tokens', '$0 list --sort-by tokens_total --limit 5'],
       ['Only nodes with issues, machine-readable', '$0 list --issue --json'],
-      ['Filter by tag (author or user surfaces)', '$0 list --tag urgent'],
-      ['Filter by user-only tag', '$0 list --tag wip --tag-source user'],
+      ['Filter by tag', '$0 list --tag urgent'],
     ],
   });
 
@@ -95,7 +92,6 @@ export class ListCommand extends SmCommand {
   sortBy = Option.String('--sort-by', { required: false });
   limit = Option.String('--limit', { required: false });
   tag = Option.String('--tag', { required: false });
-  tagSource = Option.String('--tag-source', { required: false });
 
   protected async run(): Promise<number> {
     const stderrAnsi = this.ansiFor('stderr');
@@ -117,7 +113,6 @@ export class ListCommand extends SmCommand {
    * resolved values or a precomputed exit code (already printed
    * directed errors before returning).
    */
-  // eslint-disable-next-line complexity
   #parseFlags(stderrAnsi: IAnsi): IParsedFlags {
     let sortColumn = 'path';
     let sortDirection: 'asc' | 'desc' = 'asc';
@@ -146,31 +141,7 @@ export class ListCommand extends SmCommand {
       limitValue = parsed;
     }
 
-    let tagSourceValue: 'author' | 'user' | undefined;
-    if (this.tagSource !== undefined) {
-      if (this.tag === undefined) {
-        this.printer!.error(
-          tx(LIST_TEXTS.tagSourceWithoutTag, {
-            glyph: stderrAnsi.red('✕'),
-            hint: stderrAnsi.dim(LIST_TEXTS.tagSourceWithoutTagHint),
-          }),
-        );
-        return { ok: false, exit: ExitCode.Error };
-      }
-      if (this.tagSource !== 'author' && this.tagSource !== 'user') {
-        this.printer!.error(
-          tx(LIST_TEXTS.invalidTagSource, {
-            glyph: stderrAnsi.red('✕'),
-            value: this.tagSource,
-            hint: stderrAnsi.dim(LIST_TEXTS.invalidTagSourceHint),
-          }),
-        );
-        return { ok: false, exit: ExitCode.Error };
-      }
-      tagSourceValue = this.tagSource;
-    }
-
-    return { ok: true, sortColumn, sortDirection, limitValue, tagSourceValue };
+    return { ok: true, sortColumn, sortDirection, limitValue };
   }
 
   /**
@@ -179,7 +150,7 @@ export class ListCommand extends SmCommand {
    * out so `run()` reads as a thin orchestrator.
    */
   async #runQuery(adapter: StoragePort, flags: IValidFlags): Promise<number> {
-    const tagAllowList = await this.#resolveTagAllowList(adapter, flags);
+    const tagAllowList = await this.#resolveTagAllowList(adapter);
     if (tagAllowList === 'no-match') return this.#renderEmpty();
 
     const filter = this.#buildFindNodesFilter(flags);
@@ -201,8 +172,7 @@ export class ListCommand extends SmCommand {
   }
 
   /**
-   * Resolve `--tag` (and the optional `--tag-source` filter) into a
-   * path allow-list. Returns:
+   * Resolve `--tag` into a path allow-list. Returns:
    *   - `null` when `--tag` was not supplied (no narrowing).
    *   - `'no-match'` when the tag matched zero nodes (caller renders
    *     the empty surface and exits).
@@ -210,10 +180,9 @@ export class ListCommand extends SmCommand {
    */
   async #resolveTagAllowList(
     adapter: StoragePort,
-    flags: IValidFlags,
   ): Promise<ReadonlySet<string> | 'no-match' | null> {
     if (this.tag === undefined) return null;
-    const matchingPaths = await adapter.tags.findNodes(this.tag, flags.tagSourceValue);
+    const matchingPaths = await adapter.tags.findNodes(this.tag);
     if (matchingPaths.length === 0) return 'no-match';
     return new Set(matchingPaths);
   }

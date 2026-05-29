@@ -246,19 +246,18 @@ NOT analogous to `state_plugin_kvs` (which is plugin-managed). Belongs to the `s
 
 ### `scan_node_tags`
 
-Tags · dual-source. One row per `(node_path, tag, source)` triple, projected at persist time from BOTH `frontmatter.tags` (with `source='author'`) and `sidecar.annotations.tags` (with `source='user'`). Drives `sm list --tag <name>` and the UI's tag-faceted search; the `(tag)` index keeps "find all nodes with tag X" `O(log n)`.
+Tags. One row per `(node_path, tag)` pair, projected at persist time from `sidecar.annotations.tags`. Tags are a skill-map concept (no vendor carries `tags` in frontmatter), so the sidecar is the single source. Drives `sm list --tag <name>` and the UI's tag-faceted search; the `(tag)` index keeps "find all nodes with tag X" `O(log n)`.
 
 | Column | Type | Constraint |
 |---|---|---|
 | `node_path` | TEXT | NOT NULL | FK semantically to `scan_nodes.path`; orphan-swept on persist when the parent node disappears. |
 | `tag` | TEXT | NOT NULL | Free-form; case-preserving. Empty strings rejected upstream by the schema's `minLength: 1` on each item. |
-| `source` | TEXT | NOT NULL CHECK (source IN ('author','user')) | Hard split: `'author'` = `frontmatter.tags`, `'user'` = `sidecar.annotations.tags`. The same tag string MAY appear under both sources for the same node (the PK accepts the pair); `sm list --tag X` returns the node once via DISTINCT, the UI renders both chips with their attribution. |
 
-Primary key: `(node_path, tag, source)`. Indexes: `ix_scan_node_tags_tag` (search by tag), `ix_scan_node_tags_node_path` (per-node lookup, e.g. inspector projection).
+Primary key: `(node_path, tag)`. Indexes: `ix_scan_node_tags_tag` (search by tag), `ix_scan_node_tags_node_path` (per-node lookup, e.g. inspector projection).
 
-**Persistence, replace-all per scan.** Every persisted scan rebuilds the table for the live node set: rows whose `node_path` is NOT in `livePaths` are dropped (orphan sweep, same as the contributions table); rows for nodes in the live set are wiped and re-inserted from the projected source state. Cached nodes' tag rows are projected from the cached `node.frontmatter.tags` / `node.sidecar.annotations.tags` (both already in memory), so the rebuild is cheap regardless of cache hit / miss. Storage is small, a 50-node project with avg 3 tags/node is ~150 rows ≈ 7.5 KB.
+**Persistence, replace-all per scan.** Every persisted scan rebuilds the table for the live node set: rows whose `node_path` is NOT in `livePaths` are dropped (orphan sweep, same as the contributions table); rows for nodes in the live set are wiped and re-inserted from the projected sidecar state. Cached nodes' tag rows are projected from the cached `node.sidecar.annotations.tags` (already in memory), so the rebuild is cheap regardless of cache hit / miss. Storage is small, a 50-node project with avg 3 tags/node is ~150 rows ≈ 7.5 KB.
 
-The wire shape on `/api/nodes` joins this table to project `node.tags = { byAuthor: string[], byUser: string[] }`. The kernel `Node` interface (TypeScript) does NOT carry `tags`, consumers walking the canonical sources read `node.frontmatter.tags` and `node.sidecar.annotations.tags` directly (consistent with the post-decision-#2 posture).
+The wire shape on `/api/nodes` joins this table to project `node.tags = string[]`. The kernel `Node` interface (TypeScript) does NOT carry `tags`, consumers walking the canonical source read `node.sidecar.annotations.tags` directly (consistent with the post-decision-#2 posture).
 
 ---
 

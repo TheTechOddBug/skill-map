@@ -64,9 +64,7 @@ interface IProvenanceSection {
 }
 
 interface ITaxonomySection {
-  /** Tags written into `frontmatter.tags` by the file's author. Rendered first. */
-  authorTags: readonly string[];
-  /** Tags written into `sidecar.annotations.tags` by the curator. Rendered after author tags. */
+  /** Tags written into `sidecar.annotations.tags` by the curator. */
   userTags: readonly string[];
 }
 
@@ -85,14 +83,6 @@ export class AnnotationsPanel {
   readonly overlay = input<ISidecarOverlay | null | undefined>(undefined);
 
   /**
-   * Author tags from `frontmatter.tags`. The panel renders them in the
-   * Taxonomy section alongside user tags (from sidecar annotations),
-   * ordered author-first with distinct chip styling so the
-   * dual-source attribution stays explicit. Default: empty array.
-   */
-  readonly authorTags = input<readonly string[]>([]);
-
-  /**
    * Set of node paths that exist in the local store. The panel uses it
    * to mark broken-ref chips (paths that don't resolve to a known
    * node). Empty / absent → all chips render in the live state and the
@@ -108,9 +98,7 @@ export class AnnotationsPanel {
   readonly openPath = output<string>();
 
   /**
-   * Emitted when the user clicks a tag chip (author or user, the
-   * source distinction is purely visual on the chip variant; the
-   * click semantic is union by tag string). The host forwards this
+   * Emitted when the user clicks a tag chip. The host forwards this
    * to the graph view, which uses Foblex Flow's native selection API
    * (`flow.select(matchingPaths, [])`) to multi-select every node
    * carrying the tag. Toggle: clicking the chip whose tag is already
@@ -120,11 +108,8 @@ export class AnnotationsPanel {
 
   /**
    * Currently-active tag selection from the graph view, projected
-   * down through the inspector. When set, the matching chip(s)
-   * render in the "active" visual state (solid primary fill). A
-   * tag present in BOTH author and user sources lights up BOTH
-   * chip variants, they share the same tag string and the click
-   * semantic is union by tag.
+   * down through the inspector. When set, the matching chip renders
+   * in the "active" visual state (solid primary fill).
    */
   readonly activeTag = input<string | null>(null);
 
@@ -147,12 +132,11 @@ export class AnnotationsPanel {
   });
 
   /**
-   * `true` when at least one section has data to render, either a
-   * sidecar overlay with annotations, OR author tags from the
-   * frontmatter (which feed the Taxonomy section regardless of the
-   * sidecar). Drives the empty-state branches at the top of the
-   * template: when this is false we render the "no sidecar" /
-   * "no annotations" placeholder; otherwise we render the sections.
+   * `true` when at least one section has data to render from the
+   * sidecar overlay's annotations. Drives the empty-state branches at
+   * the top of the template: when this is false we render the "no
+   * sidecar" / "no annotations" placeholder; otherwise we render the
+   * sections.
    */
   protected readonly hasAnyContent = computed<boolean>(
     () =>
@@ -201,13 +185,12 @@ export class AnnotationsPanel {
   protected readonly taxonomy = computed<ITaxonomySection>(() => {
     const a = this.annotations() ?? {};
     return {
-      authorTags: this.authorTags(),
       userTags: stringArray(a['tags']),
     };
   });
   protected readonly hasTaxonomy = computed<boolean>(() => {
     const tx = this.taxonomy();
-    return tx.authorTags.length > 0 || tx.userTags.length > 0;
+    return tx.userTags.length > 0;
   });
 
   protected readonly docs = computed<IDocsSection>(() => {

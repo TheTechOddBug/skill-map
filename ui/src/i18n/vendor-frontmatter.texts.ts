@@ -38,6 +38,7 @@ export const VENDOR_FRONTMATTER_TEXTS = {
     argumentHint: 'Argument hint',
     arguments: 'Arguments',
     allowedTools: 'Allowed tools',
+    disallowedTools: 'Disallowed tools',
     model: 'Model',
     effort: 'Effort',
     context: 'Context',

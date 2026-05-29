@@ -29,17 +29,24 @@
   @let n = node()!;
   @let fm = n.frontmatter;
 
-  <section class="inspector" data-testid="inspector-view">
+  <!--
+    The node's kind colour is bound onto `--accent` here so the hero and
+    every `.sm-block` section rail inherit one hue per node. Falls back to
+    the markdown kind var for kinds without a dedicated colour.
+  -->
+  <section
+    class="inspector"
+    [style.--accent]="'var(--sm-kind-' + n.kind + ', var(--sm-kind-markdown))'"
+    data-testid="inspector-view"
+  >
     <sm-inspector-header
       [node]="n"
-      [mode]="mode()"
       [showActionMocks]="showActionMocks"
-      (close)="onHeaderClose()"
       (favoriteToggle)="onHeaderFavoriteToggle($event)"
     />
 
     @if (fm.description) {
-      <p class="inspector__desc" data-testid="inspector-description">{{ fm.description }}</p>
+      <p class="inspector__desc" data-testid="inspector-description" [innerHTML]="descriptionHtml()"></p>
     }
 
     @if (headerSupersededBy(); as sup) {
@@ -105,12 +112,11 @@
       </div>
     }
 
-    @if (n.sidecar?.present || authorTags().length > 0) {
+    @if (n.sidecar?.present) {
       <section class="sm-block" data-testid="inspector-card-annotations">
         <h3 class="sm-block__title">{{ texts.sections.annotations }}</h3>
         <sm-annotations-panel
           [overlay]="n.sidecar"
-          [authorTags]="authorTags()"
           [knownPaths]="pathSet()"
           [activeTag]="activeTag()"
           (openPath)="openPath($event)"

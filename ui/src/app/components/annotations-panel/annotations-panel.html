@@ -96,21 +96,6 @@
       <dt>{{ texts.fields.tags }}</dt>
       <dd class="ann-panel__chips" data-testid="annotations-section-taxonomy">
         <div class="ann-panel__chips-row" data-testid="annotations-tags">
-          @for (t of tx.authorTags; track 'a:' + t) {
-            <p-chip
-              [label]="t"
-              [styleClass]="
-                'ann-panel__chip ann-panel__chip--author' +
-                (isActiveTag(t) ? ' ann-panel__chip--active' : '')
-              "
-              data-tag-source="author"
-              role="button"
-              tabindex="0"
-              (click)="tagClick.emit(t)"
-              (keydown.enter)="tagClick.emit(t)"
-              (keydown.space)="tagClick.emit(t); $event.preventDefault()"
-            />
-          }
           @for (t of tx.userTags; track 'u:' + t) {
             <p-chip
               [label]="t"

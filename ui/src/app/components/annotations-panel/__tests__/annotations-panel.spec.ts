@@ -16,19 +16,10 @@ function bootstrap(
   overlay?: ISidecarOverlay | null,
   knownPaths?: ReadonlySet<string>,
 ): HTMLElement {
-  return bootstrapWithAuthorTags(overlay ?? null, [], knownPaths);
-}
-
-function bootstrapWithAuthorTags(
-  overlay: ISidecarOverlay | null,
-  authorTags: readonly string[],
-  knownPaths?: ReadonlySet<string>,
-): HTMLElement {
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({});
   const fixture = TestBed.createComponent(AnnotationsPanel);
-  fixture.componentRef.setInput('overlay', overlay);
-  fixture.componentRef.setInput('authorTags', authorTags);
+  fixture.componentRef.setInput('overlay', overlay ?? null);
   if (knownPaths) fixture.componentRef.setInput('knownPaths', knownPaths);
   fixture.detectChanges();
   return fixture.nativeElement as HTMLElement;
@@ -154,30 +145,22 @@ describe('AnnotationsPanel, section rendering', () => {
     expect(dom.querySelectorAll('[data-tag-source="author"]').length).toBe(0);
   });
 
-  it('renders author tags first, then user tags, with distinct attribution', () => {
-    const dom = bootstrapWithAuthorTags(
-      {
-        present: true,
-        status: 'fresh',
-        annotations: { tags: ['user-a', 'user-b'] },
-      },
-      ['author-1', 'author-2'],
-    );
+  it('renders user tags from the sidecar (single-source)', () => {
+    const dom = bootstrap({
+      present: true,
+      status: 'fresh',
+      annotations: { tags: ['user-a', 'user-b'] },
+    });
     expect(dom.querySelector('[data-testid="annotations-section-taxonomy"]')).not.toBeNull();
     const chips = Array.from(dom.querySelectorAll('[data-testid="annotations-tags"] > p-chip'));
-    expect(chips.length).toBe(4);
-    // Author chips render first; user chips after.
-    expect(chips[0]?.getAttribute('data-tag-source')).toBe('author');
-    expect(chips[1]?.getAttribute('data-tag-source')).toBe('author');
-    expect(chips[2]?.getAttribute('data-tag-source')).toBe('user');
-    expect(chips[3]?.getAttribute('data-tag-source')).toBe('user');
+    expect(chips.length).toBe(2);
+    expect(chips.every((c) => c.getAttribute('data-tag-source') === 'user')).toBe(true);
+    // The retired author source no longer renders any chips.
+    expect(dom.querySelectorAll('[data-tag-source="author"]').length).toBe(0);
   });
 
-  it('does not render the taxonomy section when neither source has tags', () => {
-    const dom = bootstrapWithAuthorTags(
-      { present: true, status: 'fresh', annotations: {} },
-      [],
-    );
+  it('does not render the taxonomy section when the sidecar has no tags', () => {
+    const dom = bootstrap({ present: true, status: 'fresh', annotations: {} });
     expect(dom.querySelector('[data-testid="annotations-section-taxonomy"]')).toBeNull();
   });
 

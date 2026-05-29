@@ -24,7 +24,7 @@
  * Provider claimed.
  *
  * **Step 9.5.** The per-kind schemas absorbed Anthropic's documented
- * frontmatter verbatim (https://code.claude.com/docs/en/agents.md and
+ * frontmatter verbatim (https://code.claude.com/docs/en/sub-agents.md and
  * https://code.claude.com/docs/en/skills.md). `agent.schema.json`
  * carries the 14 vendor-specific agent fields; `skill` and `command`
  * extend a shared `skill-base.schema.json` that mirrors Anthropic's
@@ -111,7 +111,7 @@ export const claudeProvider: IBuiltInManifest<IProvider> = {
         icon: { kind: 'pi', id: 'pi-user' },
       },
       // `frontmatter.name` is the documented canonical identifier
-      // (https://code.claude.com/docs/en/agents.md); `filename-basename`
+      // (https://code.claude.com/docs/en/sub-agents.md); `filename-basename`
       // is a graceful fallback for agents authored without an explicit
       // `name:` field, the file at `.claude/agents/<id>.md` resolves
       // `@<id>` even when frontmatter is partial.

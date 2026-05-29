@@ -24,6 +24,7 @@ import {
   type IDataSourcePort,
 } from '../../../services/data-source/data-source.port';
 import { MarkdownRenderer } from '../../../services/markdown-renderer';
+import { setupInlineMarkdown } from '../../../services/markdown-inline-signal';
 import { SidecarService } from '../../../services/sidecar';
 import { AnnotationsPanel } from '../../components/annotations-panel/annotations-panel';
 import { LinkedNodesPanel } from '../../components/linked-nodes-panel/linked-nodes-panel';
@@ -124,15 +125,6 @@ export class InspectorView implements OnInit {
   readonly activeTag = input<string | null>(null);
 
   /**
-   * Generic "user wants this inspector closed" intent. Emitted by the
-   * X button in the header (rendered only in embedded mode). The host
-   * decides what closing means: graph-view clears its `selectedNodeId`
-   * to slide the panel out; a future host with a different shell could
-   * route, focus elsewhere, etc.
-   */
-  readonly close = output<void>();
-
-  /**
    * Emitted when the user clicks a tag chip in the annotations panel.
    * The host (graph view in embedded mode) uses Foblex Flow's native
    * `flow.select(matchingPaths, [])` to multi-select every node whose
@@ -157,21 +149,6 @@ export class InspectorView implements OnInit {
     return set;
   });
 
-  /**
-   * Author tags projected from `node.frontmatter.tags`. Passed into
-   * `<sm-annotations-panel>` so the Taxonomy section can render them
-   * alongside user tags (from sidecar annotations) with explicit
-   * attribution. Sorted ascending; defensive against stringy /
-   * malformed inputs (non-strings filtered out at projection time).
-   */
-  protected readonly authorTags = computed<readonly string[]>(() => {
-    const fm = (this.node()?.frontmatter ?? {}) as Record<string, unknown>;
-    const raw = fm['tags'];
-    if (!Array.isArray(raw)) return [];
-    const tags = raw.filter((t): t is string => typeof t === 'string' && t.length > 0);
-    return [...new Set(tags)].sort();
-  });
-
   /** Banner: yellow strip when annotations.supersededBy is set. */
   protected readonly headerSupersededBy = computed<string | null>(() =>
     effectiveSupersededBy(this.node()),
@@ -191,6 +168,12 @@ export class InspectorView implements OnInit {
   });
   protected readonly bodyState = this.bodyHandle.bodyState;
   protected readonly bodyHtml = this.bodyHandle.bodyHtml;
+
+  /** Active node's description rendered as inline markdown (emphasis / code / links). */
+  protected readonly descriptionHtml = setupInlineMarkdown(
+    () => this.node()?.frontmatter.description ?? '',
+    this.markdown,
+  );
 
   // Dead-link verification cache + verify round-trip. Owned by the
   // extracted controller; the inspector template binds through the
@@ -297,11 +280,6 @@ export class InspectorView implements OnInit {
     const n = this.node();
     if (!n || n.path !== path) return;
     void this.loader.toggleFavorite(path, !n.isFavorite);
-  }
-
-  /** Forwarded from `<sm-inspector-header (close)>`, re-emits to the host. */
-  protected onHeaderClose(): void {
-    this.close.emit();
   }
 
   protected toggleAudit(): void {

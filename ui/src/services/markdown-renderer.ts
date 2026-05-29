@@ -62,6 +62,20 @@ export class MarkdownRenderer {
   }
 
   /**
+   * Render a markdown source string as INLINE HTML, no block wrapper
+   * (`renderInline` skips paragraph / heading / list tokens). For short
+   * fields like node and inspector descriptions where only inline marks
+   * (emphasis, code spans, links) should apply. Same two sanitization
+   * lines as `render`.
+   */
+  async renderInline(src: string): Promise<SafeHtml> {
+    const renderer = await this.loadLibs();
+    const rendered = renderer.md.renderInline(src);
+    const clean = renderer.purify.sanitize(rendered);
+    return this.sanitizer.bypassSecurityTrustHtml(clean);
+  }
+
+  /**
    * Render to a sanitised HTML string (no `bypassSecurityTrustHtml`
    * wrap). Useful for tests, server-side rendering, or any caller that
    * wants the raw string instead of an Angular `SafeHtml`.
@@ -81,7 +95,7 @@ export class MarkdownRenderer {
 }
 
 interface IRenderer {
-  md: { render(src: string): string };
+  md: { render(src: string): string; renderInline(src: string): string };
   purify: { sanitize(html: string): string };
 }
 
@@ -111,7 +125,7 @@ async function importRenderer(): Promise<IRenderer> {
   ]);
   // markdown-it ships its constructor on the default export. The
   // `.default` access works for both ESM and Vite's CJS interop.
-  const MarkdownIt = (mdMod as unknown as { default: new (opts: unknown) => { render: (src: string) => string } }).default;
+  const MarkdownIt = (mdMod as unknown as { default: new (opts: unknown) => { render: (src: string) => string; renderInline: (src: string) => string } }).default;
   const md = new MarkdownIt({ html: false, linkify: true });
   // DOMPurify's default export IS the singleton DOMPurify instance,
   // calling `.sanitize()` on it directly uses the current `window`

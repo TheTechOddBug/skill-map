@@ -321,16 +321,15 @@ export class FilterStoreService {
 
     return nodes.filter((n) => {
       if (text) {
-        const fm = n.frontmatter as Record<string, unknown>;
-        const authorTagsArr = Array.isArray(fm['tags']) ? (fm['tags'] as unknown[]) : [];
-        const authorTags = authorTagsArr.filter((t): t is string => typeof t === 'string').join(' ');
-        const userTags = effectiveUserTags(n).join(' ');
+        // Tags are single-source (sidecar `annotations.tags`, via
+        // `effectiveUserTags`); the former author source
+        // (`frontmatter.tags`) was retired.
+        const tags = effectiveUserTags(n).join(' ');
         const haystack = [
           n.path,
           n.frontmatter.name ?? '',
           n.frontmatter.description ?? '',
-          authorTags,
-          userTags,
+          tags,
         ]
           .join(' ')
           .toLowerCase();

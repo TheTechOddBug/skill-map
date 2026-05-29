@@ -39,6 +39,13 @@
       ],
       "description": "Tools pre-approved for this skill (no per-use permission prompt). Argument-scoped patterns supported (`Bash(git add *)`)."
     },
+    "disallowed-tools": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "array", "items": { "type": "string" } }
+      ],
+      "description": "Denylist sibling of `allowed-tools`: tools removed from the available pool while this skill / command is active (the restriction clears on the next user message). Accepts a space- or comma-separated string or a YAML list. Source: https://code.claude.com/docs/en/skills.md."
+    },
     "model": {
       "type": "string",
       "description": "Model alias (`sonnet`, `opus`, `haiku`), full Claude id, or the literal `inherit` to defer to the parent session's model."

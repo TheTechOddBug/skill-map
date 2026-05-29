@@ -94,6 +94,7 @@ export interface IFrontmatterSkillBase extends IFrontmatterBase {
   'disable-model-invocation'?: boolean;
   'user-invocable'?: boolean;
   'allowed-tools'?: string | string[];
+  'disallowed-tools'?: string | string[];
   model?: string;
   effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
   context?: 'fork';

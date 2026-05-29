@@ -143,11 +143,11 @@ export function effectiveSupersededBy(node: INodeView | null | undefined): strin
 }
 
 /**
- * Effective USER tag list (sidecar-curated). Mirrors the precedence
- * the card uses: sidecar `annotations.tags` wins; legacy
+ * Effective tag list (sidecar-curated). Tags are single-source: the
+ * `.sm` sidecar `annotations.tags` is the canonical home; legacy
  * `frontmatter.metadata.tags` is the fallback for un-migrated `.md`
- * files. Author tags (`frontmatter.tags`) are NOT included here, they
- * are a separate attribution surface (see `effectiveAuthorTags`).
+ * files. The former author source (`frontmatter.tags`) was retired,
+ * tags now come from the curator only.
  */
 export function effectiveUserTags(node: INodeView | null | undefined): string[] {
   if (!node) return [];

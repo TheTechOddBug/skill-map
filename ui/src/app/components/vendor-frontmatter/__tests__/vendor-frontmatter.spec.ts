@@ -209,6 +209,38 @@ describe('VendorFrontmatter, skill / command kinds', () => {
     expect(dom.querySelector('[data-testid="vendor-frontmatter"]')).toBeNull();
   });
 
+  it('renders disallowed-tools for a skill (danger span with ban icon)', () => {
+    const fm = {
+      name: 'a',
+      description: 'd',
+      metadata: { version: '' },
+      'allowed-tools': ['Read', 'Edit'],
+      'disallowed-tools': ['Bash', 'WebFetch'],
+    } as unknown as TFrontmatter;
+    const { dom } = bootstrap(fm, 'skill');
+    const base = dom.querySelector('[data-testid="vendor-frontmatter-skill-base"]');
+    expect(base).not.toBeNull();
+    const danger = base!.querySelectorAll('.vfm__danger');
+    expect(danger.length).toBe(2);
+    expect(base!.querySelector('.vfm__danger .pi-ban')).not.toBeNull();
+    expect(base!.textContent).toContain('Bash');
+    expect(base!.textContent).toContain('WebFetch');
+  });
+
+  it('accepts a single-string disallowed-tools for a command', () => {
+    const fm = {
+      name: 'a',
+      description: 'd',
+      metadata: { version: '' },
+      'disallowed-tools': 'Bash',
+    } as unknown as TFrontmatter;
+    const { dom } = bootstrap(fm, 'command');
+    const base = dom.querySelector('[data-testid="vendor-frontmatter-skill-base"]');
+    expect(base).not.toBeNull();
+    expect(base!.querySelectorAll('.vfm__danger').length).toBe(1);
+    expect(base!.textContent).toContain('Bash');
+  });
+
   it('does NOT render the Behavior or Initial prompt sections for skill / command', () => {
     const fm = {
       name: 'a',

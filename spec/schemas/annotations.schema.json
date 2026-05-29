@@ -49,7 +49,7 @@
     "tags": {
       "type": "array",
       "items": { "type": "string", "minLength": 1 },
-      "description": "**User-supplied** taxonomy tags. Skill-map's tag system is dual-source: this field carries the user's post-hoc tags (curator's view of the node from the `.sm` sidecar); `frontmatter.tags` carries the author's tags (intrinsic categories written in the `.md`). Both surfaces are first-class, `sm list --tag <name>` and UI faceted search match the union and the UI distinguishes them visually (`sm list --tag-source author|user` filters one source). Empty array and missing field are equivalent."
+      "description": "Taxonomy tags for this node. Tags are a **skill-map concept**, not a vendor field: no agent format carries `tags` in frontmatter, so they live here in the `.sm` sidecar. Written by whoever curates the project. `sm list --tag <name>` and the UI's faceted search match this field; the UI renders them as chips on the node card and inspector. Empty array and missing field are equivalent."
     },
     "docsUrl": {
       "type": "string",

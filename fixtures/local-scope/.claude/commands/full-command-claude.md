@@ -1,12 +1,6 @@
 ---
 name: full-command-claude
 description: Reference Claude command populating every documented frontmatter field on the shared skill-base. Both Claude `skill` and `command` use the same `skill-base.schema.json`, so the field catalog mirrors #full-skill-claude.
-tags:
-  - fixture
-  - reference
-  - full
-  - claude
-  - command
 when_to_use: When a reference command frontmatter shape is needed.
 argument-hint: "<env>"
 arguments:
@@ -16,6 +10,7 @@ user-invocable: true
 allowed-tools:
   - Bash(npm run release*)
   - Bash(git tag *)
+disallowed-tools: Bash(rm *) AskUserQuestion
 model: claude-opus-4-7
 effort: high
 context: fork

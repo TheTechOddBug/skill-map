@@ -124,6 +124,7 @@ describe('spec § Elapsed time, every read-side verb emits `done in <…>` on st
       cmd.issue = false;
       cmd.sortBy = undefined;
       cmd.limit = undefined;
+      cmd.tag = undefined;
     });
     await c.cmd.execute();
     assert.match(c.capture.stderr(), ELAPSED_REGEX, c.capture.stderr());
@@ -203,6 +204,7 @@ describe('spec § Elapsed time, every read-side verb emits `done in <…>` on st
       cmd.issue = false;
       cmd.sortBy = undefined;
       cmd.limit = undefined;
+      cmd.tag = undefined;
       cmd.quiet = true;
     });
     await c.cmd.execute();

@@ -8,9 +8,9 @@
  *     turns, memory, background (only when true), isolation.
  *   - `Capabilities` (agent + skill + command): tools / allowed-tools,
  *     skills, disallowed-tools, MCP servers, hooks; skill / command
- *     base also includes when_to_use, argument-hint, arguments, model,
- *     effort, context, agent, shell, paths, disable-model-invocation,
- *     user-invocable.
+ *     base also includes when_to_use, argument-hint, arguments,
+ *     disallowed-tools, model, effort, context, agent, shell, paths,
+ *     disable-model-invocation, user-invocable.
  *   - `Initial prompt` (agent only): the prompt callout, rendered as a
  *     quote block (no longer collapsible).
  *
@@ -167,6 +167,7 @@ export class VendorFrontmatter {
     disableModelInvocation: boolean;
     userInvocable: boolean | null;
     allowedTools: readonly string[];
+    disallowedTools: readonly string[];
     model: string | null;
     effort: string | null;
     context: string | null;
@@ -182,6 +183,7 @@ export class VendorFrontmatter {
       disableModelInvocation: fm['disable-model-invocation'] === true,
       userInvocable: typeof fm['user-invocable'] === 'boolean' ? (fm['user-invocable'] as boolean) : null,
       allowedTools: oneOrManyStrings(fm['allowed-tools']),
+      disallowedTools: oneOrManyStrings(fm['disallowed-tools']),
       model: stringOrNull(fm['model']),
       effort: stringOrNull(fm['effort']),
       context: stringOrNull(fm['context']),
@@ -223,6 +225,7 @@ export class VendorFrontmatter {
         sb.argumentHint !== null ||
         sb.arguments.length > 0 ||
         sb.allowedTools.length > 0 ||
+        sb.disallowedTools.length > 0 ||
         sb.model !== null ||
         sb.effort !== null ||
         sb.context !== null ||

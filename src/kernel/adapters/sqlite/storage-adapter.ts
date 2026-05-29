@@ -286,7 +286,7 @@ export class SqliteStorageAdapter implements StoragePort {
     this.tags = {
       listForNode: (nodePath) => loadTagsForNode(this.db, nodePath),
       listForPaths: (paths) => loadTagsForPaths(this.db, paths),
-      findNodes: (tag, source) => findNodesByTag(this.db, tag, source),
+      findNodes: (tag) => findNodesByTag(this.db, tag),
     };
 
     this.issues = {

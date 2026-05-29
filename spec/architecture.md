@@ -654,22 +654,17 @@ Two columns on `scan_nodes` source from the sidecar's `annotations:` block when 
 
 A `scan_nodes.annotations_json` column carries the full parsed `annotations:` block; `sidecar_present` and `sidecar_status` carry the drift-detection state. The full sidecar overlay (parsed `annotations`, `status`, `present`) is exposed on `Node.sidecar` so REST and UI consumers see it as part of the canonical wire shape.
 
-### Tags · dual-source
+### Tags
 
-Skill-map's tag system is **dual-source** by design:
+Tags are a **skill-map concept**, not a vendor field: no agent format (Claude, Cursor, Obsidian, the Agent Skills open standard, …) carries `tags` in its frontmatter, so skill-map keeps them where it owns the surface, the `.sm` sidecar.
 
-- **Author tags** live in `frontmatter.tags` (in the `.md`). Universal optional field declared on [`schemas/frontmatter/base.schema.json`](./schemas/frontmatter/base.schema.json) so every Provider's per-kind schema accepts it without each having to redeclare. These represent intrinsic categories the file's author wrote into the frontmatter (vendor-supplied or your own writing).
-- **User tags** live in `sidecar.annotations.tags` (in the `.sm`). Curated annotation field declared on [`schemas/annotations.schema.json`](./schemas/annotations.schema.json). These represent the post-hoc tags whoever curates the project assigned to the node from their sidecar.
+- **Tags** live in `sidecar.annotations.tags` (in the `.sm`). Curated annotation field declared on [`schemas/annotations.schema.json`](./schemas/annotations.schema.json). These are the tags whoever curates the project assigned to the node from their sidecar.
 
-The two surfaces are **not aliases**. They capture different intent layers and both are first-class:
+Search and listings (`sm list --tag <name>`, UI faceted search) match this field: a hit returns the node. The UI renders them as chips on the node card and in the inspector.
 
-- Search and listings (`sm list --tag <name>`, UI faceted search) match the **union**: a hit on either source returns the node.
-- The optional `--tag-source author|user` flag filters one source.
-- The UI distinguishes them visually so the attribution stays explicit (different chip style; author chips render first, user chips after).
+Persistence layer projects rows into a normalized [`scan_node_tags`](./db-schema.md#scan_node_tags) table at write time, one row per `(node_path, tag)` pair, so SQL queries can index on `(tag)` for `O(log n)` lookup. Replace-all per scan keeps the table in sync with the live sidecar state; deleting a tag from a sidecar removes its row on the next scan.
 
-Persistence layer projects rows into a normalized [`scan_node_tags`](./db-schema.md#scan_node_tags) table at write time, one row per `(node_path, tag, source)` triple, so SQL queries can index on `(tag)` for `O(log n)` lookup. Replace-all per scan keeps the table in sync with the live frontmatter + sidecar state; deleting a tag from either source removes its row on the next scan.
-
-The wire shape (`/api/nodes` and `/api/nodes/:pathB64`) projects `node.tags = { byAuthor: string[], byUser: string[] }` so consumers see the split with attribution. The kernel `Node` interface (TypeScript) does NOT carry `tags`, consumers that walk the canonical sources read `node.frontmatter.tags` and `node.sidecar.annotations.tags` directly (consistent with the post-decision-#2 posture of "no Node-level denormalisations").
+The wire shape (`/api/nodes` and `/api/nodes/:pathB64`) projects `node.tags = string[]`. The kernel `Node` interface (TypeScript) does NOT carry `tags`, consumers that walk the canonical source read `node.sidecar.annotations.tags` directly (consistent with the post-decision-#2 posture of "no Node-level denormalisations").
 
 ### Stability
 

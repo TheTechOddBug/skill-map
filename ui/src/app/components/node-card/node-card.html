@@ -71,19 +71,14 @@
   </div>
 
   <!-- Tag chips (top 3 + "N more" overflow). Hidden when no tags.
-       Author chips (outlined) render first, user chips (filled)
-       second, same attribution vocabulary as the inspector
-       annotations panel. Click handling lives on the inspector
-       chip, not here: card chips are read-only at this surface. -->
+       Tags are single-source (sidecar `annotations.tags`); the card
+       renders one neutral chip style. Click handling lives on the
+       inspector chip, not here: card chips are read-only at this
+       surface. -->
   @if (tagsList.length) {
     <div class="sm-gnode__tagrow" data-testid="node-card-tags">
-      @for (chip of tagsList; track chip.source + ':' + chip.tag) {
-        <span
-          class="sm-gnode__tag-chip"
-          [class.sm-gnode__tag-chip--author]="chip.source === 'author'"
-          [class.sm-gnode__tag-chip--user]="chip.source === 'user'"
-          [attr.data-tag-source]="chip.source"
-        >{{ chip.tag }}</span>
+      @for (tag of tagsList; track tag) {
+        <span class="sm-gnode__tag-chip">{{ tag }}</span>
       }
       @if (moreTags > 0) {
         <span class="sm-gnode__tag-more" data-testid="node-card-tags-more">{{ texts.tagOverflow(moreTags) }}</span>
@@ -207,7 +202,7 @@
     }
 
     @if (description()) {
-      <div class="sm-gnode__desc">{{ description() }}</div>
+      <div class="sm-gnode__desc" [innerHTML]="descriptionHtml()"></div>
     }
 
     <!-- Kind-specific meta block. Only renders rows that actually have a value. -->

@@ -408,20 +408,15 @@ CREATE TABLE scan_contributions (
 CREATE INDEX ix_scan_contributions_node_path ON scan_contributions(node_path);
 CREATE INDEX ix_scan_contributions_plugin_id ON scan_contributions(plugin_id);
 
--- scan_node_tags: dual-source tag system (Phase 2 — `tags` decision).
--- One row per (node_path, tag, source) triple. Projected at persist
--- time from `frontmatter.tags` (source='author') and
--- `sidecar.annotations.tags` (source='user'). Drives `sm list --tag`
--- and the UI's tag-faceted search; the (tag) index keeps lookups
--- O(log n). The same tag string MAY appear under both sources for the
--- same node (the PK accepts the pair); search returns the node once
--- via DISTINCT, the UI renders both chips with their attribution.
+-- scan_node_tags: tag system. One row per (node_path, tag) pair.
+-- Projected at persist time from `sidecar.annotations.tags`. Tags are
+-- a skill-map concept (no vendor carries `tags` in frontmatter), so the
+-- sidecar is the single source. Drives `sm list --tag` and the UI's
+-- tag-faceted search; the (tag) index keeps lookups O(log n).
 CREATE TABLE scan_node_tags (
   node_path TEXT NOT NULL,
   tag TEXT NOT NULL,
-  source TEXT NOT NULL,
-  PRIMARY KEY (node_path, tag, source),
-  CONSTRAINT ck_scan_node_tags_source CHECK (source IN ('author','user'))
+  PRIMARY KEY (node_path, tag)
 );
 CREATE INDEX ix_scan_node_tags_tag ON scan_node_tags(tag);
 CREATE INDEX ix_scan_node_tags_node_path ON scan_node_tags(node_path);

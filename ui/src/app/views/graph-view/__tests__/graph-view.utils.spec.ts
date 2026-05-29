@@ -38,10 +38,7 @@ describe('graph-view.utils, isAnyPrimengOverlayOpen', () => {
 });
 
 describe('graph-view.utils, nodeHasTag', () => {
-  function makeNode(input: {
-    authorTags?: unknown;
-    userTags?: unknown;
-  }): INodeView {
+  function makeNode(input: { tags?: unknown }): INodeView {
     return {
       path: 'agents/a.md',
       kind: 'agent',
@@ -49,25 +46,24 @@ describe('graph-view.utils, nodeHasTag', () => {
         name: 'a',
         description: '',
         metadata: { version: '1.0.0' },
-        ...(input.authorTags !== undefined ? { tags: input.authorTags } : {}),
       } as INodeView['frontmatter'],
       sidecar:
-        input.userTags !== undefined
-          ? { annotations: { tags: input.userTags } as Record<string, unknown> }
+        input.tags !== undefined
+          ? { present: true, annotations: { tags: input.tags } as Record<string, unknown> }
           : undefined,
     } as INodeView;
   }
 
-  it('matches author tags from frontmatter', () => {
-    expect(nodeHasTag(makeNode({ authorTags: ['planning', 'review'] }), 'planning')).toBe(true);
+  it('matches tags from sidecar annotations', () => {
+    expect(nodeHasTag(makeNode({ tags: ['planning', 'review'] }), 'planning')).toBe(true);
   });
 
-  it('matches user tags from sidecar annotations', () => {
-    expect(nodeHasTag(makeNode({ userTags: ['custom'] }), 'custom')).toBe(true);
+  it('returns false when the sidecar does not carry the tag', () => {
+    expect(nodeHasTag(makeNode({ tags: ['planning'] }), 'review')).toBe(false);
   });
 
-  it('returns false when neither source carries the tag', () => {
-    expect(nodeHasTag(makeNode({ authorTags: ['planning'] }), 'review')).toBe(false);
+  it('returns false when the node has no sidecar tags', () => {
+    expect(nodeHasTag(makeNode({}), 'planning')).toBe(false);
   });
 });
 

@@ -179,13 +179,8 @@ async function loadPersistedScan(deps: IRouteDeps): Promise<ScanResult> {
         if (list) list.push(r);
         else byPath.set(r.nodePath, [r]);
       }
-      const tagBuckets = new Map<string, { tag: string; source: 'author' | 'user' }[]>();
-      for (const r of tagRows) {
-        const list = tagBuckets.get(r.nodePath);
-        if (list) list.push({ tag: r.tag, source: r.source });
-        else tagBuckets.set(r.nodePath, [{ tag: r.tag, source: r.source }]);
-      }
-      return { loaded, favSet, contribByPath: byPath, tagBuckets };
+      const tagsByPath = groupTagsByPath(tagRows);
+      return { loaded, favSet, contribByPath: byPath, tagsByPath };
     },
   );
   if (opened === null) {
@@ -194,8 +189,8 @@ async function loadPersistedScan(deps: IRouteDeps): Promise<ScanResult> {
     return emptyScanResult();
   }
   // Decorate every node with `isFavorite` from the favorites Set AND
-  // `contributions[]` AND `tags` (dual-source projection), mirror of
-  // the per-route decorator on `/api/nodes`. The SPA's
+  // `contributions[]` AND `tags` (flat `string[]` from the sidecar),
+  // mirror of the per-route decorator on `/api/nodes`. The SPA's
   // `CollectionLoaderService` reads `/api/scan` as the canonical
   // node corpus, so this is the load-time path that the F5 / cold
   // boot uses; without it, refreshing the page silently drops the
@@ -206,27 +201,28 @@ async function loadPersistedScan(deps: IRouteDeps): Promise<ScanResult> {
       ...n,
       isFavorite: opened.favSet.has(n.path),
       contributions: opened.contribByPath.get(n.path) ?? [],
-      tags: groupTagsBySource(opened.tagBuckets.get(n.path) ?? []),
+      tags: opened.tagsByPath.get(n.path) ?? [],
     })),
   };
 }
 
 /**
- * Group a node's tag rows into the wire-shape `{ byAuthor, byUser }`.
- * Sorted ascending within each source, deduped (defensive against
- * legacy callers that bypass the PK constraint).
+ * Group bulk tag rows by node path into a flat `string[]` per node.
+ * Tags are deduplicated per node (defensive against legacy callers
+ * that bypass the PK constraint) and sorted ascending.
  */
-function groupTagsBySource(rows: readonly { tag: string; source: 'author' | 'user' }[]): {
-  byAuthor: string[];
-  byUser: string[];
-} {
-  const byAuthor = new Set<string>();
-  const byUser = new Set<string>();
-  for (const r of rows) (r.source === 'author' ? byAuthor : byUser).add(r.tag);
-  return {
-    byAuthor: [...byAuthor].sort(),
-    byUser: [...byUser].sort(),
-  };
+function groupTagsByPath(
+  rows: readonly { nodePath: string; tag: string }[],
+): Map<string, string[]> {
+  const buckets = new Map<string, Set<string>>();
+  for (const r of rows) {
+    const set = buckets.get(r.nodePath);
+    if (set) set.add(r.tag);
+    else buckets.set(r.nodePath, new Set([r.tag]));
+  }
+  const out = new Map<string, string[]>();
+  for (const [path, set] of buckets) out.set(path, [...set].sort());
+  return out;
 }
 
 async function runFreshScan(deps: IRouteDeps): Promise<ScanResult> {
