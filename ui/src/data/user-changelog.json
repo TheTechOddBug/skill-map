@@ -2,6 +2,35 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.43.0",
+      "date": "2026-05-29",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "The skill-map website and in-app links (Settings, About and the demo banner) now point to **skill-map.ai** (previously skill-map.dev). Spec schema URLs are now `https://skill-map.ai/spec/v0/...`.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec",
+            "@skill-map/web"
+          ]
+        },
+        {
+          "body": "Claude skills and commands now show their `disallowed-tools` in the inspector. Tags come only from `.sm` sidecars now: the `sm list --tag-source` flag is removed and cards show a single tag style. Agent Skills `license` / `compatibility` / `metadata` fields are recognized.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "After updating skill-map, the next `sm scan` rebuilds the local database when it was created by an older version (your `.sm` sidecar files are never touched). On a terminal it asks first; pass `--yes` to skip the prompt.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.42.0",
       "date": "2026-05-28",
       "kind": "user-facing",
