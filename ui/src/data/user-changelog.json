@@ -2,6 +2,20 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.42.0",
+      "date": "2026-05-28",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "The lens picker in **Settings → Project** now lists exactly the providers installed in your project. The phantom **Gemini** and **Cursor** options are gone, and **OpenAI Codex** / **Antigravity** now show their correct name and colour on node cards.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.41.0",
       "date": "2026-05-27",
       "kind": "user-facing",
