@@ -13,6 +13,12 @@
     root * /usr/share/caddy
     encode gzip
 
+    # Permanent redirect of the legacy .dev domain to the canonical .ai.
+    # Railway terminates TLS and forwards the original Host, so the matcher
+    # fires on the inbound hostname; {uri} preserves path + query string.
+    @legacy host skill-map.dev www.skill-map.dev
+    redir @legacy https://skill-map.ai{uri} permanent
+
     # Machine-readable schemas: advertise the JSON Schema media type and allow CORS
     # so browser-based validators can fetch them.
     @schemas path *.schema.json
