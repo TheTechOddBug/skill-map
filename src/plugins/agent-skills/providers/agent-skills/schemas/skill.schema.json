@@ -1,10 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.dev/providers/agent-skills/v1/frontmatter/skill.schema.json",
+  "$id": "https://skill-map.ai/providers/agent-skills/v1/frontmatter/skill.schema.json",
   "title": "FrontmatterAgentSkillsSkill",
   "description": "Frontmatter shape for nodes classified as `skill` by the neutral `agent-skills` Provider, Agent Skills delivered as `SKILL.md` files at the open-standard path `.agents/skills/<name>/SKILL.md`. Jointly adopted by Anthropic, OpenAI (Codex), and Google (Gemini); the path is vendor-neutral so no single Provider should own it. Required fields are `name` and `description` (from spec base). The standard's optional frontmatter fields are declared below, mirrored verbatim from https://agentskills.io/specification: `license`, `compatibility`, `metadata`, and the experimental `allowed-tools`. `additionalProperties: true` so any future standard field flows through unchanged until this schema catches up.",
   "allOf": [
-    { "$ref": "https://skill-map.dev/spec/v0/frontmatter/base.schema.json" }
+    { "$ref": "https://skill-map.ai/spec/v0/frontmatter/base.schema.json" }
   ],
   "type": "object",
   "additionalProperties": true,

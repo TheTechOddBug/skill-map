@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.dev/spec/v0/history-stats.schema.json",
+  "$id": "https://skill-map.ai/spec/v0/history-stats.schema.json",
   "title": "HistoryStats",
   "description": "Machine-readable output of `sm history stats --json`. Aggregates over `state_executions` within a time window. camelCase keys throughout. The `elapsedMs` top-level field is the command's own wall-clock (see `cli-contract.md` §Elapsed time), distinct from `totals.durationMsTotal`, which is the sum of every execution record's duration.",
   "type": "object",

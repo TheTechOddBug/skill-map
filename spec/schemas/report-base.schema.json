@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.dev/spec/v0/report-base.schema.json",
+  "$id": "https://skill-map.ai/spec/v0/report-base.schema.json",
   "title": "ReportBase",
   "description": "Base shape for any probabilistic report produced by an LLM-backed action (summarizers, `sm what`, `sm cluster-triggers`, etc.). All per-kind summary schemas under `summaries/` extend this. Kernel validates the `confidence` and `safety` fields regardless of action-specific extensions.",
   "type": "object",

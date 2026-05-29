@@ -17,7 +17,7 @@ annotations:
     - docs
     - onboarding
     - reference
-  docsUrl: https://skill-map.dev/docs/local-scope
+  docsUrl: https://skill-map.ai/docs/local-scope
   supersedes: []
 settings: {}
 audit:

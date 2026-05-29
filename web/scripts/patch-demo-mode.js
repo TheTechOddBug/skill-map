@@ -9,7 +9,7 @@
  *   - `<meta name="skill-map-mode" content="live">` → `content="demo"`
  *     (the factory at `data-source.factory.ts` keys off this).
  *   - `<base href="/">` → `<base href="/demo/">` (the deploy target on
- *     `skill-map.dev`).
+ *     `skill-map.ai`).
  *
  * **Target**: defaults to `web/demo/index.html` for the local
  * `npm run demo:build` flow (which copies the Angular dist into

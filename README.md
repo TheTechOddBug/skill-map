@@ -16,7 +16,7 @@
 
 From chaotic ecosystem to predictable agents, the missing map for your Markdown-based generative-AI ecosystem (Claude Code, Codex, Antigravity, Copilot, and others). Detects collisions, orphans, semantic duplicates, and bloated skills on a single graph, with static and optional semantic (LLM) analysis.
 
-![skill-map UI](https://skill-map.dev/img/screenshot-1.png)
+![skill-map UI](https://skill-map.ai/img/screenshot-1.png)
 
 ## The problem it solves
 
@@ -44,7 +44,7 @@ No official tool (Anthropic, Cursor, GitHub, skills.sh) covers this. `skill-map`
 1. **Deterministic scanner** walks files, parses frontmatter, detects references, and emits structured graph data (nodes, links, issues).
 2. **Optional LLM layer** consumes that data and adds semantic intelligence: validates ambiguous references, clusters equivalent triggers, compares nodes, answers questions.
 3. **`sm` CLI** is the primary surface, every operation reachable from the command line. Bare `sm` opens the Web UI directly.
-4. **Web UI**, bundled with the CLI, launched in one command. The graph updates live as you edit any `.md` file. A standalone [demo](https://skill-map.dev/demo/) runs in-browser without installing anything.
+4. **Web UI**, bundled with the CLI, launched in one command. The graph updates live as you edit any `.md` file. A standalone [demo](https://skill-map.ai/demo/) runs in-browser without installing anything.
 5. **Plugin system** (drop-in, kernel + extensions) lets third parties add Providers, Extractors, Analyzers, Actions, Formatters, or Hooks without touching the kernel.
 
 ## Two execution modes
@@ -73,7 +73,7 @@ sm
 
 That last `sm` opens the Web UI on `http://127.0.0.1:4242` with the watcher running. Edit any `.md` file in the project and the graph updates live in your browser.
 
-Want to try it without installing? Open the [live demo](https://skill-map.dev/demo/).
+Want to try it without installing? Open the [live demo](https://skill-map.ai/demo/).
 
 ## Sidecar `.sm` files (don't be alarmed when they appear)
 
@@ -119,7 +119,7 @@ Same hands-on style as the basic tutorial, but with a deeper focus on extensibil
 
 The spec is the source of truth and lives in [`spec/`](./spec/), separated from the reference implementation since day zero, so third parties can build alternative implementations using only `spec/`.
 
-- Canonical URL: **[skill-map.dev](https://skill-map.dev)** (schemas at `https://skill-map.dev/spec/v0/<path>.schema.json`).
+- Canonical URL: **[skill-map.ai](https://skill-map.ai)** (schemas at `https://skill-map.ai/spec/v0/<path>.schema.json`).
 - npm package: [`@skill-map/spec`](https://www.npmjs.com/package/@skill-map/spec).
 - Contents: JSON Schemas (draft 2020-12) + prose contracts + conformance suite. Full inventory in [`spec/README.md`](./spec/README.md).
 
@@ -130,7 +130,7 @@ skill-map/                     pnpm workspaces root (private)
 ├── spec/                      specification, published as @skill-map/spec
 ├── src/                       reference implementation, published as @skill-map/cli (bins: sm, skill-map)
 ├── ui/                        Angular SPA (graph, list, inspector), bundled into @skill-map/cli
-├── web/                       public site (skill-map.dev), hosts the demo bundle
+├── web/                       public site (skill-map.ai), hosts the demo bundle
 ├── scripts/                   build & validation scripts (spec index, CLI reference, demo dataset, …)
 ├── ...
 ├── AGENTS.md                  agent operating manual
@@ -139,7 +139,7 @@ skill-map/                     pnpm workspaces root (private)
 
 ## Links
 
-- Website: [skill-map.dev](https://skill-map.dev/)
+- Website: [skill-map.ai](https://skill-map.ai/)
 - Full design and roadmap: [ROADMAP.md](./ROADMAP.md)
 - Contribution guide: [CONTRIBUTING.md](./CONTRIBUTING.md)
 - Spec overview: [spec/README.md](./spec/README.md)

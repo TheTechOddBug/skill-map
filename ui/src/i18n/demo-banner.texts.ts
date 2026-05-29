@@ -1,7 +1,7 @@
 /**
  * UI strings for the demo-mode banner. Visible only when the SPA boots
  * with `<meta name="skill-map-mode" content="demo">` (i.e. on the
- * static demo bundle deployed at skill-map.dev/demo/).
+ * static demo bundle deployed at skill-map.ai/demo/).
  *
  * Single-string surface today; structured as an object so future
  * additions (link copy, dismiss aria-label variants) drop in without a
@@ -11,7 +11,7 @@
 export const DEMO_BANNER_TEXTS = {
   body: "You are viewing a static demo of skill-map's UI. Install it:",
   installCommand: 'npm i -g @skill-map/cli',
-  homeCta: '← Back to skill-map.dev',
+  homeCta: '← Back to skill-map.ai',
   homeHref: '/',
   dismissAria: 'Dismiss demo banner',
 } as const;

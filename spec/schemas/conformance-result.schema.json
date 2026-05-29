@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.dev/spec/v0/conformance-result.schema.json",
+  "$id": "https://skill-map.ai/spec/v0/conformance-result.schema.json",
   "title": "ConformanceResult",
   "description": "Machine-readable output of `sm conformance run --json`. Aggregates pass / fail totals across the selected scope set plus per-scope and per-case breakdowns. The `elapsedMs` top-level field is the command's own wall-clock (see `cli-contract.md` §Elapsed time).",
   "type": "object",

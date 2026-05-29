@@ -84,7 +84,7 @@ A `.js` in root `scripts/` is justified only if **it is genuinely cross-workspac
 
 ## Railway deploy with paths filter
 
-The public site (`skill-map.dev`) runs on Railway via Docker. The standard GitHub ↔ Railway integration deploys on every push to `main`, which generates unnecessary deploys when the commit doesn't touch what the site exposes (changes to `src/`, `e2e/`, etc. don't alter the deployed output).
+The public site (`skill-map.ai`) runs on Railway via Docker. The standard GitHub ↔ Railway integration deploys on every push to `main`, which generates unnecessary deploys when the commit doesn't touch what the site exposes (changes to `src/`, `e2e/`, etc. don't alter the deployed output).
 
 The policy: **deploy only when something the site actually publishes changes**. Implemented in `.github/workflows/deploy-web.yml` with a GitHub Actions `paths:` filter. If no file in the filter changes, the workflow doesn't fire and Railway receives nothing.
 
@@ -105,7 +105,7 @@ A broad filter (e.g. `web/**`) caused **two deploys per change**: one on the fea
 
 ### Accepted edge cases
 
-- In-flight changes to landing, UI, schemas, fixtures, etc. are not visible at `skill-map.dev` until the next release. Use `pnpm web:dev` locally to preview.
+- In-flight changes to landing, UI, schemas, fixtures, etc. are not visible at `skill-map.ai` until the next release. Use `pnpm web:dev` locally to preview.
 - Changes to root `package.json` / `pnpm-lock.yaml` do not trigger a deploy. If a new root-level dep changes the Docker build behavior, the next bump captures it (deps adjustments to a workspace come with a changeset that bumps that workspace, which falls under the filter).
 
 ### One-time manual setup

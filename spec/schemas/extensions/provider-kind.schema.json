@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.dev/spec/v0/extensions/provider-kind.schema.json",
+  "$id": "https://skill-map.ai/spec/v0/extensions/provider-kind.schema.json",
   "title": "ProviderKindMetadata",
   "description": "Per-kind UI metadata written as `<plugin>/kinds/<kindName>/kind.json`. Lives next to the kind's frontmatter `schema.json` under the kind folder; together they are the structure-as-truth replacement for the old `kinds` map inside the Provider manifest. Reaches the UI via the `kindRegistry` field embedded in REST envelopes (`api/rest-envelope.schema.json`). The kind name is the folder name; it is NOT repeated as a field here.",
   "type": "object",

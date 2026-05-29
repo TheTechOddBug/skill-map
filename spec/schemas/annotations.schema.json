@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.dev/spec/v0/annotations.schema.json",
+  "$id": "https://skill-map.ai/spec/v0/annotations.schema.json",
   "title": "Annotations",
   "description": "Catalog of conventional annotation fields skill-map ships out of the box, written into the `annotations:` block of a sidecar (`<basename>.sm`). Every field is OPTIONAL, a sidecar with an empty `annotations: {}` is valid. Schema is `additionalProperties: true` so users / plugins can add custom keys without coordination; the built-in `unknown-field` analyzer emits a warning on unrecognized keys (typo guard). The curated catalog is the load-bearing 10 fields below, versioning + supersession (`version`, `stability`, `supersedes`, `supersededBy`), provenance (`authors`, `license`, `source`, `sourceVersion`), taxonomy (`tags`), docs (`docsUrl`). The activity timestamp lives in the reserved `audit:` block (`audit.lastBumpedAt`), not in `annotations:`. Plugins that want first-class custom keys with their own validation declare `annotationContributions` in their manifest (see Step 9.6.6).",
   "type": "object",

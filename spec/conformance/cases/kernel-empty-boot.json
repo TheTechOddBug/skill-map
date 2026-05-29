@@ -1,5 +1,5 @@
 {
-  "$schema": "https://skill-map.dev/spec/v0/conformance-case.schema.json",
+  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
   "id": "kernel-empty-boot",
   "description": "With every Provider, extractor, and analyzer disabled, scanning an empty scope MUST return a valid, zero-filled ScanResult. Enforces the kernel boot invariant from architecture.md.",
   "setup": {

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.dev/spec/v0/summaries/skill.schema.json",
+  "$id": "https://skill-map.ai/spec/v0/summaries/skill.schema.json",
   "title": "SummarySkill",
   "description": "Report produced by `skill-summarizer` for a single `skill` node. Extends `report-base.schema.json`. Stability: experimental, field set may tighten as real summarizer output stabilizes.",
   "allOf": [

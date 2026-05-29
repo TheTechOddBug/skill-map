@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.dev/spec/v0/plugins-registry.schema.json",
+  "$id": "https://skill-map.ai/spec/v0/plugins-registry.schema.json",
   "title": "PluginsRegistry",
   "description": "Two shapes in one file: (1) the per-plugin manifest that authors ship as `plugin.json` (see `$defs/PluginManifest`); (2) the aggregate registry the implementation produces on disk (`<cwd>/.skill-map/plugins.json`), which lists all discovered plugins with their compat status. Both shapes are normative. camelCase keys throughout.",
   "type": "object",

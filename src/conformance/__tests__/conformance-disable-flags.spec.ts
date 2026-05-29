@@ -63,7 +63,7 @@ function writeCase(toggles: IDisableToggles): string {
   writeFileSync(
     casePath,
     JSON.stringify({
-      $schema: 'https://skill-map.dev/spec/v0/conformance-case.schema.json',
+      $schema: 'https://skill-map.ai/spec/v0/conformance-case.schema.json',
       id: 'populated-fixture-disabled',
       description: 'Synthetic case covering the disableAll* env-var pipeline.',
       fixture: 'minimal-claude',

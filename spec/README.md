@@ -140,7 +140,7 @@ import nodeSchema from '@skill-map/spec/schemas/node.schema.json' with { type: '
 console.log(specIndex.specPackageVersion);  // → "0.2.0" (npm package version; source of truth for `spec` in `sm version`)
 console.log(specIndex.indexPayloadVersion); // → "0.0.1" (payload shape of `index.json` itself; bumps only when this manifest's structure changes)
 console.log(specIndex.integrity.algorithm); // → "sha256"
-console.log(nodeSchema.$id);                // → "https://skill-map.dev/spec/v0/node.schema.json"
+console.log(nodeSchema.$id);                // → "https://skill-map.ai/spec/v0/node.schema.json"
 ```
 
 Every JSON Schema is exported individually via `@skill-map/spec/schemas/*.json`. Prose documents ship in the tarball for reference but are not `exports`-surfaced.
@@ -161,7 +161,7 @@ console.log(actual === index.integrity.files[file] ? 'ok' : 'drift');
 
 ### JSON Schema Store
 
-The schemas will be registered on JSON Schema Store once the canonical URLs under `skill-map.dev/spec/v0/` are stable (Step 14).
+The schemas will be registered on JSON Schema Store once the canonical URLs under `skill-map.ai/spec/v0/` are stable (Step 14).
 
 ## License
 

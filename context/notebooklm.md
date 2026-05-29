@@ -31,7 +31,7 @@ Skill-map gives you **three views** over the same dataset:
 
 The graph updates **live**: you run `sm watch`, edit a file in your editor, and the changes travel over WebSocket to the browser and reflect instantly. No refresh needed.
 
-If you want to try it without installing anything, there's a **free demo at `skill-map.dev/demo/`** that runs entirely in the browser, on synthetic data.
+If you want to try it without installing anything, there's a **free demo at `skill-map.ai/demo/`** that runs entirely in the browser, on synthetic data.
 
 ---
 
@@ -134,8 +134,8 @@ And because the spec is **public and separable** from the reference implementati
 
 ## Resources
 
-- Official site: <https://skill-map.dev>
-- Live demo in the browser, no install: <https://skill-map.dev/demo/>
+- Official site: <https://skill-map.ai>
+- Live demo in the browser, no install: <https://skill-map.ai/demo/>
 - GitHub repository: <https://github.com/crystian/skill-map>
 - npm packages: `@skill-map/spec`, `@skill-map/cli`
 - License: MIT (Apache accepted on skill contributions)

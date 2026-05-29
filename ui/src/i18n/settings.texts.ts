@@ -198,7 +198,7 @@ export const SETTINGS_TEXTS = {
   /** Canonical project URLs, surfaced in About and used as the
    *  authoritative externals (e.g. CLI's update-check banner already
    *  points to npm; these are the human-readable surfaces). */
-  aboutWebsiteUrl: 'https://skill-map.dev/',
+  aboutWebsiteUrl: 'https://skill-map.ai/',
   aboutGithubUrl: 'https://github.com/crystian/skill-map',
 
   /** GitHub-star callout, friendly nudge under the version list. */

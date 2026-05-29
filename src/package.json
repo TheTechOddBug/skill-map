@@ -4,7 +4,7 @@
   "description": "skill-map reference implementation — kernel + CLI + adapters.",
   "license": "MIT",
   "type": "module",
-  "homepage": "https://skill-map.dev",
+  "homepage": "https://skill-map.ai",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/crystian/skill-map.git",

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.dev/spec/v0/sidecar.schema.json",
+  "$id": "https://skill-map.ai/spec/v0/sidecar.schema.json",
   "title": "Sidecar",
   "description": "Root shape of a co-located YAML sidecar (`<basename>.sm` next to `<basename>.md`). The `.sm` file IS the annotations file, every key under it is, conceptually, an annotation on the node. The YAML root organizes those annotations into structural blocks: `identity` (anchor + drift-detection hashes), `annotations` (the curated catalog of conventional fields), `audit` (timestamps), `settings` (reserved), and arbitrary `<plugin-id>:` namespaces for plugin-contributed data. Vendor file (`<basename>.md`) stays untouched. Schema is `additionalProperties: true` so plugins can add namespaces without coordination; the built-in `unknown-field` analyzer warns on truly unrecognized root keys (typo guard). Format is YAML, comments via `#`, multiline strings via `|` / `>`, permissive types per the YAML 1.2 spec. See `architecture.md` §Annotation system and ROADMAP §Step 9.6 for the design rationale.",
   "type": "object",

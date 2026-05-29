@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.dev/spec/v0/extensions/analyzer.schema.json",
+  "$id": "https://skill-map.ai/spec/v0/extensions/analyzer.schema.json",
   "title": "ExtensionAnalyzer",
   "description": "Manifest shape for an `Analyzer` extension. An analyzer consumes the full graph (nodes + links) after all extractors have run, emits `Issue[]`, and MAY emit view contributions to project findings into the UI. Analyzers are dual-mode: `deterministic` analyzers MUST be byte-for-byte reproducible (same graph in → same issues out; time, random, and network are forbidden) and run synchronously inside `sm check` / `sm scan`; `probabilistic` analyzers invoke an LLM through the kernel's `RunnerPort` and execute only as queued jobs (`sm job submit analyzer:<id>`); their output MAY vary across runs and they NEVER participate in `sm scan`. Each issue emitted is tagged with `analyzer_id = <plugin-id>/<extension-id>` by default (the extension's qualified id, derived from structure); analyzers that need to discriminate sub-types append `:<sub-id>` at emit time. Severity is set per-emit (no manifest-level default).",
   "allOf": [

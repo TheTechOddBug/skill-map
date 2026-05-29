@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.dev/spec/v0/summaries/agent.schema.json",
+  "$id": "https://skill-map.ai/spec/v0/summaries/agent.schema.json",
   "title": "SummaryAgent",
   "description": "Report produced by `agent-summarizer` for a single `agent` node. Extends `report-base.schema.json`. Stability: experimental.",
   "allOf": [

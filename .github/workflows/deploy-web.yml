@@ -1,6 +1,6 @@
 name: deploy-web
 
-# Deploy the public site (skill-map.dev) to Railway only when a
+# Deploy the public site (skill-map.ai) to Railway only when a
 # versioned bump or infra change occurs:
 #
 #   - web/package.json    bump of @skill-map/web (landing/demo source)

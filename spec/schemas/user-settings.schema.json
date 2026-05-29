@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.dev/spec/v0/user-settings.schema.json",
+  "$id": "https://skill-map.ai/spec/v0/user-settings.schema.json",
   "title": "UserSettings",
   "description": "Per-user, per-machine settings file persisted at `~/.skill-map/settings.json`. Holds the small set of preferences that genuinely belong to the operator (not to a project) plus the bookkeeping each one needs. The file is NOT part of the project config layer system (no merge, no PROJECT_LOCAL_ONLY_KEYS interaction); it is read directly by the few modules that own a user-scope feature. See `spec/cli-contract.md` §Scope is always project-local for the broader principle: skill-map never reads `$HOME` by default, this file is the narrow, documented exception. There is intentionally no `.local` partner; values here are already per-machine, so the project / project-local split would have no meaning.",
   "type": "object",

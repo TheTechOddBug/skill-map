@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.dev/spec/v0/conformance-case.schema.json",
+  "$id": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
   "title": "ConformanceCase",
   "description": "Shape of a single declarative test case under `spec/conformance/cases/<id>.json`. Consumed by language-neutral conformance runners. See `spec/conformance/README.md` for the runner contract.",
   "type": "object",

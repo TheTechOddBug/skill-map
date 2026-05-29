@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # ------------ ui build stage ------------
-# Builds the Angular prototype that ships under /demo/ on skill-map.dev.
+# Builds the Angular prototype that ships under /demo/ on skill-map.ai.
 # --base-href=/demo/ makes Angular emit <base href="/demo/"> and prefix
 # every asset URL with /demo/, so the SPA works correctly when served
 # from a sub-path. The mock-collection (~132 KB of placeholder skills /
@@ -37,7 +37,7 @@ COPY ui/ ./ui/
 RUN pnpm --filter ui build --base-href=/demo/
 # Patch the built index.html to flip <meta name="skill-map-mode"> from
 # `live` (Angular default) to `demo`. Without this the SPA boots in
-# live mode at skill-map.dev/demo/, hits /api/scan against the static
+# live mode at skill-map.ai/demo/, hits /api/scan against the static
 # host, and 404s. The script is shared with `pnpm demo:build` so the
 # Docker deploy and the local snapshot stay in lockstep.
 COPY web/scripts/patch-demo-mode.js ./web/scripts/patch-demo-mode.js

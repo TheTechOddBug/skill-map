@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.dev/spec/v0/summaries/command.schema.json",
+  "$id": "https://skill-map.ai/spec/v0/summaries/command.schema.json",
   "title": "SummaryCommand",
   "description": "Report produced by `command-summarizer` for a single `command` node. Extends `report-base.schema.json`. Stability: experimental.",
   "allOf": [

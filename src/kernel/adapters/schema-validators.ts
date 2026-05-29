@@ -184,7 +184,7 @@ function buildSchemaValidators(): ISchemaValidators {
   // plugins-registry.schema.json, so callers don't have to hand-filter
   // against the combined schema.
   const pluginManifestValidator = ajv.compile({
-    $ref: 'https://skill-map.dev/spec/v0/plugins-registry.schema.json#/$defs/PluginManifest',
+    $ref: 'https://skill-map.ai/spec/v0/plugins-registry.schema.json#/$defs/PluginManifest',
   });
 
   // Per-slot payload validators for `ctx.emitContribution`. Compiled
@@ -200,7 +200,7 @@ function buildSchemaValidators(): ISchemaValidators {
   // NOT slot ids; querying them would compile but is meaningless at the
   // public API.
   const contributionValidators = new Map<string, ValidateFunction>();
-  const VIEW_SLOTS_ID = 'https://skill-map.dev/spec/v0/view-slots.schema.json';
+  const VIEW_SLOTS_ID = 'https://skill-map.ai/spec/v0/view-slots.schema.json';
 
   function getContributionValidator(slot: string): ValidateFunction | null {
     if (!KNOWN_SLOT_NAMES.has(slot)) return null;
@@ -301,7 +301,7 @@ export function buildProviderFrontmatterValidator(
   applyAjvFormats(ajv);
 
   // Register spec's frontmatter/base.schema.json so per-kind schemas can
-  // resolve `$ref: 'https://skill-map.dev/spec/v0/frontmatter/base.schema.json'`.
+  // resolve `$ref: 'https://skill-map.ai/spec/v0/frontmatter/base.schema.json'`.
   const baseFile = resolve(specRoot, 'schemas/frontmatter/base.schema.json');
   const baseSchema = JSON.parse(readFileSync(baseFile, 'utf8'));
   ajv.addSchema(baseSchema);

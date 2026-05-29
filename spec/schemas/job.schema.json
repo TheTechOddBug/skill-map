@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.dev/spec/v0/job.schema.json",
+  "$id": "https://skill-map.ai/spec/v0/job.schema.json",
   "title": "Job",
   "description": "Row in `state_jobs`. Non-terminal state until it reaches `completed` or `failed`, at which point an `ExecutionRecord` is also written.",
   "type": "object",

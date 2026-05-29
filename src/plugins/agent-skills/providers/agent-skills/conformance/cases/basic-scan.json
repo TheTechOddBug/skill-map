@@ -1,5 +1,5 @@
 {
-  "$schema": "https://skill-map.dev/spec/v0/conformance-case.schema.json",
+  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
   "id": "basic-scan",
   "description": "Scanning the minimal-agent-skills fixture detects exactly one `skill` node at the open-standard path `.agents/skills/<name>/SKILL.md` with no issues.",
   "fixture": "minimal-agent-skills",

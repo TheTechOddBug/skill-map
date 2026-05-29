@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.dev/spec/v0/frontmatter/base.schema.json",
+  "$id": "https://skill-map.ai/spec/v0/frontmatter/base.schema.json",
   "title": "FrontmatterBase",
   "description": "Universal frontmatter shape every Provider's per-kind schema extends via `allOf` + `$ref` to this `$id`. `name` and `description` are the only universal fields, confirmed by cross-vendor research: `description` is the single field every format carries, and `name` is universal among formats with explicit identifiers. Everything else is vendor idiosyncrasy and lives on the per-vendor per-kind schema, NOT here. (Taxonomy `tags`, for example, is a skill-map concept with no vendor frontmatter analog, so it lives in the `.sm` sidecar `annotations.tags`, not here.) Per-vendor schemas (Anthropic Claude, Cursor, Obsidian, the Agent Skills open standard, …) declare their own fields on top via the per-kind extension. `additionalProperties: true` is intentional: skill-map AGGREGATES vendor specs, it does not curate them. Vendor-specific fields (`tools`, `allowedTools`, `model`, etc.) flow through validation silently because the per-kind extension declares them.",
   "type": "object",

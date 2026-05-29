@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.dev/spec/v0/execution-record.schema.json",
+  "$id": "https://skill-map.ai/spec/v0/execution-record.schema.json",
   "title": "ExecutionRecord",
   "description": "A single row in the execution history (`state_executions`). One record per action invocation, regardless of whether the runner was CLI, Skill, or in-process.",
   "type": "object",

@@ -3,7 +3,7 @@
   "version": "0.1.11",
   "private": true,
   "type": "module",
-  "description": "skill-map.dev public site source. Static HTML + i18n; deployed via Caddy/Docker.",
+  "description": "skill-map.ai public site source. Static HTML + i18n; deployed via Caddy/Docker.",
   "scripts": {
     "dev": "node scripts/dev-server.js",
     "predemo:build": "rm -rf ../fixtures/demo-scope/.skill-map",

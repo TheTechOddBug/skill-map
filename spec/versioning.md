@@ -87,8 +87,8 @@ The first stable commitment is `spec-v1.0.0`. In the current reference roadmap, 
 Once the domain is live, schemas resolve at stable URLs:
 
 ```
-https://skill-map.dev/spec/v1/node.schema.json
-https://skill-map.dev/spec/v1.2/node.schema.json
+https://skill-map.ai/spec/v1/node.schema.json
+https://skill-map.ai/spec/v1.2/node.schema.json
 ```
 
 Major version is always present in the path. Implementations MUST NOT rely on `latest`.

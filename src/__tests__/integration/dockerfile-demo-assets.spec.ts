@@ -1,7 +1,7 @@
 /**
  * Regression test for the production demo deploy.
  *
- * Bug history: the Dockerfile that ships skill-map.dev was missing two
+ * Bug history: the Dockerfile that ships skill-map.ai was missing two
  * required steps for demo mode:
  *   1. `node web/scripts/patch-demo-mode.js`, flips `<meta name="skill-map-mode">`
  *      from `live` to `demo`. Without it the SPA boots in live mode and

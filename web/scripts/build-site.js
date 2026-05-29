@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Builds the public site served at skill-map.dev.
+ * Builds the public site served at skill-map.ai.
  *
  * - Copies web/ → .tmp/site/ (the editable landing).
  * - Substitutes {{SPEC_VERSION}} placeholders in .tmp/site/index.html.
@@ -27,7 +27,7 @@ const SCHEMA_DST = resolve(REPO_ROOT, '.tmp/site/spec/v0');
 const I18N_SRC = resolve(REPO_ROOT, 'web/i18n.json');
 const LANDING_PATH = join(SITE_DST, 'index.html');
 
-const DOMAIN = 'https://skill-map.dev';
+const DOMAIN = 'https://skill-map.ai';
 const MAJOR = 'v0';
 const SPEC_URL = `${DOMAIN}/spec/${MAJOR}`;
 

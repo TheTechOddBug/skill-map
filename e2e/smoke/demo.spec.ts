@@ -4,7 +4,7 @@ import { expect, test } from '@playwright/test';
  * Demo bundle smoke test (ROADMAP §Step 14.7).
  *
  * The demo bundle is a static deployable that ships under `web/demo/`
- * and is served via the public site (skill-map.dev/demo/). It MUST work
+ * and is served via the public site (skill-map.ai/demo/). It MUST work
  * standalone — no `sm` install, no kernel server, no /api/ traffic.
  *
  * The hard guarantee this suite enforces: a regression that re-introduces

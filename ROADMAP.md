@@ -191,7 +191,7 @@ The full normative contract lives in [`spec/architecture.md`](./spec/architectur
 
 ## Visual roadmap
 
-Mirrors the interactive timeline on `skill-map.dev` (driven by `web/app.js` `PHASES`). Five phases (0 / A / B / C / D); 0 ships highlights, A/B/C ship numbered steps, D ships sketches.
+Mirrors the interactive timeline on `skill-map.ai` (driven by `web/app.js` `PHASES`). Five phases (0 / A / B / C / D); 0 ships highlights, A/B/C ship numbered steps, D ships sketches.
 
 ```text
 ═══════════════════════════════════════════════════════════════════════════
@@ -259,7 +259,7 @@ Mirrors the interactive timeline on `skill-map.dev` (driven by `web/app.js` `PHA
 ○  14c  Web UI: polish & budgets     URL-synced filter state · responsive scope · bundle budget · dark mode tri-state · Foblex types reassessment
 ○  17   UI: LLM surfaces v2          Verbs as flows (what · dedupe · cluster-triggers · impact-of · recommend-optimization) · queue inspector · findings management · cost dashboard · settings + plugins page · WCAG AA pass
 ○  15a  Single package distrib       @skill-map/cli with UI bundled · sm + skill-map binary aliases · sm ui sub-command · settings loader + runtime-settings schema
-○  15b  Documentation site           Astro Starlight · plugin API reference (JSDoc → Starlight) · llms.txt + llms-full.txt · skill-map.dev launch · context7
+○  15b  Documentation site           Astro Starlight · plugin API reference (JSDoc → Starlight) · llms.txt + llms-full.txt · skill-map.ai launch · context7
 ○  15c  Release infrastructure       GH Actions release + changelog · telemetry opt-in · compatibility matrix · breaking-changes policy · sm doctor diagnostics · Claude Code wrapper
   ────────────────────────────────────────────────────────────────────────
    ▶ target: v1.0.0, full distributable
@@ -351,7 +351,7 @@ skill-map/
 ### Distribution
 
 - Publish schemas to JSON Schema Store (deferred until the `v0 → v1` stable release; current `v0` URLs are live but pre-stable).
-- Canonical URLs: `https://skill-map.dev/spec/v0/<path>.schema.json` (live today via Railway-deployed Caddy; DNS at Vercel). Scheme bumps to `v1` at the first stable release.
+- Canonical URLs: `https://skill-map.ai/spec/v0/<path>.schema.json` (live today via Railway-deployed Caddy; DNS at Vercel). Scheme bumps to `v1` at the first stable release.
 - npm package `@skill-map/spec`, schemas + conformance tests.
 - Spec semver separate from CLI semver; the current reference roadmap stabilizes both tracks at `v1.0.0`, but future versions can diverge.
 
@@ -1780,10 +1780,10 @@ Acceptance: every CLI verb shipped at Step 11 has a UI flow that does not requir
 - **`spec/runtime-settings.schema.json`**: formalises the UI-side contract. Replaces the manual TS type guards with AJV validation. Decouples the UI bundle version from the CLI bundle version: as long as both adhere to the schema, mixing minor versions across them is safe.
 - **No hot reload** in the v1.0 surface. Editing settings requires a restart of `sm ui`. SSE / WebSocket reload is a separate decision, deferred until a real use case appears.
 - **Publishing workflow**: GitHub Actions for release automation + changelog generation + conventional commits. **Carry-over from 14.7**: the same workflow wires `pnpm --filter skill-map-e2e validate` (Playwright + Chromium against the demo bundle in `web/demo/`) into the release pipeline so a regression that activates the live-mode `RestDataSource` under demo never reaches the public site. Chromium install in CI uses Playwright's official action with cache on `~/.cache/ms-playwright/` keyed by the resolved `@playwright/test` version pinned in `e2e/package.json`.
-- **Public-site `web/demo/` deploy** (carry-over from 14.7): wire the existing `pnpm web:build` (which already chains `pnpm demo:build` per Step 14.3) into the release pipeline so the deployed site at `skill-map.dev/demo/` ships the latest demo bundle on every release. The demo bundle already passes through the e2e smoke gate above before publish.
+- **Public-site `web/demo/` deploy** (carry-over from 14.7): wire the existing `pnpm web:build` (which already chains `pnpm demo:build` per Step 14.3) into the release pipeline so the deployed site at `skill-map.ai/demo/` ships the latest demo bundle on every release. The demo bundle already passes through the e2e smoke gate above before publish.
 - **Documentation site**: **Astro Starlight** (static, minimal infra, good DX).
 - **Plugin API reference**: JSDoc → Starlight auto-generated.
-- **LLM-discoverable docs surface** (Decision #89): generate `/llms.txt` and `/llms-full.txt` at the root of `skill-map.dev` following the [llmstxt.org](https://llmstxt.org) standard. The short file lists curated entry points (README, spec contracts, CLI reference, plugin author guide); the full file inlines the same content for one-shot ingestion. Both are emitted by `web/scripts/build-site.js` from authoritative sources (`spec/`, `context/cli-reference.md`, `ROADMAP.md`) so they cannot drift. Once the spec freezes at `v1.0.0`, register the project on [context7](https://context7.com), it indexes public repos with a usable `llms.txt` and serves them through the `context7` MCP that AI agents already consume. Net effect: any LLM-driven workflow (Claude Code, Cursor, ChatGPT browse, etc.) finds skill-map docs without scraping the schemas. Pre-`v1.0.0` is intentionally too early, the spec is still moving and we'd be teaching context7 a stale shape.
+- **LLM-discoverable docs surface** (Decision #89): generate `/llms.txt` and `/llms-full.txt` at the root of `skill-map.ai` following the [llmstxt.org](https://llmstxt.org) standard. The short file lists curated entry points (README, spec contracts, CLI reference, plugin author guide); the full file inlines the same content for one-shot ingestion. Both are emitted by `web/scripts/build-site.js` from authoritative sources (`spec/`, `context/cli-reference.md`, `ROADMAP.md`) so they cannot drift. Once the spec freezes at `v1.0.0`, register the project on [context7](https://context7.com), it indexes public repos with a usable `llms.txt` and serves them through the `context7` MCP that AI agents already consume. Net effect: any LLM-driven workflow (Claude Code, Cursor, ChatGPT browse, etc.) finds skill-map docs without scraping the schemas. Pre-`v1.0.0` is intentionally too early, the spec is still moving and we'd be teaching context7 a stale shape.
 - `mia-marketplace` entry.
 - Claude Code plugin wrapper, a skill that invokes `sm` from inside Claude Code (`skill-optimizer` is the canonical dual-surface example: exists as a Claude Code skill AND as a skill-map Action via invocation-template mode).
 - Telemetry opt-in.
@@ -1791,7 +1791,7 @@ Acceptance: every CLI verb shipped at Step 11 has a UI flow that does not requir
 - Compatibility matrix (kernel ↔ plugin API ↔ spec).
 - Breaking-changes / deprecation policy.
 - `sm doctor` diagnostics for user installs (verifies the install, reads the merged settings, confirms each hierarchy layer is parseable).
-- **Launch polish on `skill-map.dev`**: the domain is live (Railway-deployed Caddy + DNS at Vercel, serving `/spec/v0/**` schemas). The landing source lives in `web/` (editable HTML/CSS/JS, copied into `site/` by `web/scripts/build-site.js`). The build performs (a) i18n via `data-i18n` markers, content rendered once into `/index.html` (en) and `/es/index.html` (es), `web/i18n.json` itself excluded from the build output, (b) per-language `{{CANONICAL_URL}}` substitution, (c) generation of `robots.txt` and `sitemap.xml` (with `xhtml:link hreflang` alternates) at the site root. SEO surface in place: per-language `<title>` + `<meta name="description">`, `<link rel="canonical">`, full Open Graph (title / description / url / image / locale + locale:alternate), Twitter cards (`summary_large_image`, `@crystian` as site/creator), JSON-LD `SoftwareApplication` with translated `description`, `theme-color`, `color-scheme`. The 1200×630 OG image asset (`web/img/og-image.png`) is in place and copied verbatim into the site at build time, so social previews render with the proper card. Step 15 still adds HTTP redirects, Astro Starlight docs, and registration on JSON Schema Store once `v0 → v1` ships.
+- **Launch polish on `skill-map.ai`**: the domain is live (Railway-deployed Caddy + DNS at Vercel, serving `/spec/v0/**` schemas). The landing source lives in `web/` (editable HTML/CSS/JS, copied into `site/` by `web/scripts/build-site.js`). The build performs (a) i18n via `data-i18n` markers, content rendered once into `/index.html` (en) and `/es/index.html` (es), `web/i18n.json` itself excluded from the build output, (b) per-language `{{CANONICAL_URL}}` substitution, (c) generation of `robots.txt` and `sitemap.xml` (with `xhtml:link hreflang` alternates) at the site root. SEO surface in place: per-language `<title>` + `<meta name="description">`, `<link rel="canonical">`, full Open Graph (title / description / url / image / locale + locale:alternate), Twitter cards (`summary_large_image`, `@crystian` as site/creator), JSON-LD `SoftwareApplication` with translated `description`, `theme-color`, `color-scheme`. The 1200×630 OG image asset (`web/img/og-image.png`) is in place and copied verbatim into the site at build time, so social previews render with the proper card. Step 15 still adds HTTP redirects, Astro Starlight docs, and registration on JSON Schema Store once `v0 → v1` ships.
 
 #### Distribution flow (end-to-end)
 

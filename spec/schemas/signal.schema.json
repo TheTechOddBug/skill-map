@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.dev/spec/v0/signal.schema.json",
+  "$id": "https://skill-map.ai/spec/v0/signal.schema.json",
   "title": "Signal",
   "description": "Intermediate Representation (IR) emitted by extractors during a scan. A Signal is a *candidate* detection: zero, one, or many interpretations of the same piece of source text or structured data. The kernel's resolver phase consumes `Signal[]` and produces final `Link[]` by selecting a winning candidate per Signal (or rejecting all and emitting none) using the active Provider's resolution rules. Opt-in for plugin authors: an extractor MAY emit `Signal`s via `ctx.emitSignal()` when the detection carries genuine ambiguity (multiple plausible kinds, multiple plausible targets, byte-range awareness for collision detection), OR continue calling `ctx.emitLink()` directly when its detection is unambiguous. The two paths coexist; resolved Link rows look identical regardless of origin. Stability: experimental.",
   "type": "object",

@@ -1,5 +1,5 @@
 {
-  "$schema": "https://skill-map.dev/spec/v0/conformance-case.schema.json",
+  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
   "id": "no-global-scope",
   "description": "Skill-map operates exclusively on the project scope. Implementations MUST NOT expose a `-g/--global` flag (the historical opt-in for a global / user scope) on any verb. Passing the flag to any verb MUST be rejected as an unknown option (exit `2`, usage error) without writing any state. Guards the principle declared in `cli-contract.md` §Scope is always project-local.",
   "invoke": {

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.dev/spec/v0/node.schema.json",
+  "$id": "https://skill-map.ai/spec/v0/node.schema.json",
   "title": "Node",
   "description": "A single entity in the graph. Typically a file on disk (a markdown skill, an agent, a TOML sub-agent definition, a plain-markdown note), but MAY also be a **virtual / derived** entity that lives only in memory and is reconstructed from one or more source files on every scan (e.g. an MCP server node derived from `settings.json` / `mcp.json` / `config.toml`). Virtual nodes carry `virtual: true` and use a synthetic `path` scheme (`mcp://<name>`, etc.). The `kind` is whatever the classifying Provider declares, open by design; the **built-in Claude Provider** emits `skill` / `agent` / `command` / `markdown` today, but external Providers (Cursor, Obsidian, …) MAY emit their own. Format-named kinds (`markdown`, future `toml`, future `json`) are reserved for the generic fallback only, when a file matches a specific role (agent / command / skill) that classification prevails over format naming.",
   "type": "object",

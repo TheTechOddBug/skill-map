@@ -1,7 +1,7 @@
 # Sample sidecar matching agent-example.md.
 # Validates against:
-#   - https://skill-map.dev/spec/v0/sidecar.schema.json (root shape)
-#   - https://skill-map.dev/spec/v0/annotations.schema.json (annotations block)
+#   - https://skill-map.ai/spec/v0/sidecar.schema.json (root shape)
+#   - https://skill-map.ai/spec/v0/annotations.schema.json (annotations block)
 # Hashes are sha256 over the kernel's canonical forms (body bytes; canonical YAML
 # of the frontmatter via `js-yaml` dump with sortKeys+noCompatMode). Regenerate
 # when agent-example.md changes (the fixture is meant to be drift-free).
@@ -31,7 +31,7 @@ annotations:
     - typescript
     - quality
   hidden: false
-  docsUrl: https://skill-map.dev/examples/code-reviewer
+  docsUrl: https://skill-map.ai/examples/code-reviewer
 
 settings: {}
 

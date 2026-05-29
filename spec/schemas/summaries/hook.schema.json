@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.dev/spec/v0/summaries/hook.schema.json",
+  "$id": "https://skill-map.ai/spec/v0/summaries/hook.schema.json",
   "title": "SummaryHook",
   "description": "Report produced by `hook-summarizer` for a single `hook` node. Extends `report-base.schema.json`. Stability: experimental.",
   "allOf": [

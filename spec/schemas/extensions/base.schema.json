@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.dev/spec/v0/extensions/base.schema.json",
+  "$id": "https://skill-map.ai/spec/v0/extensions/base.schema.json",
   "title": "ExtensionBase",
   "description": "Base manifest shape common to every extension kind. Kind-specific schemas (`provider`, `extractor`, `analyzer`, `action`, `formatter`, `hook`) extend this via `allOf` and add a kind-specific shape. Both `id` and `kind` are derived from the filesystem structure (`<plugin>/<kind-plural>/<id>/index.ts`, where the parent folder dictates the kind and the leaf folder dictates the id), so they are NOT manifest fields. Manifests carrying `id` or `kind` are rejected as `invalid-manifest`. Closed-content enforcement (unknown keys = bug) lives on the kind schemas via `unevaluatedProperties: false`; those see base's evaluated keys through the `allOf` composition.",
   "type": "object",

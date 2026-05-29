@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.dev/spec/v0/summaries/markdown.schema.json",
+  "$id": "https://skill-map.ai/spec/v0/summaries/markdown.schema.json",
   "title": "SummaryMarkdown",
   "description": "Report produced by `markdown-summarizer` for a single `markdown` node (the format-named generic fallback owned by the built-in `core/markdown` Provider, see `architecture.md` §Provider · dispatch order). Extends `report-base.schema.json`. Stability: experimental.",
   "allOf": [
