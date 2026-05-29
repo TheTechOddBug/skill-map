@@ -3,7 +3,7 @@
 
 # skill-map
 
-> El mapa que le faltaba a tu ecosistema de IA generativa, descubre lo que tus Markdown intentan decirte.
+> Del caos multiagente a agentes y skills predecibles, el mapa que le faltaba a tu harness de IA generativa.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/crystian/skill-map/ci.yml?branch=main&logo=github&label=CI)](https://github.com/crystian/skill-map/actions/workflows/ci.yml)
 [![npm: @skill-map/cli](https://img.shields.io/npm/v/@skill-map/cli?color=7C3AED&logo=npm&label=%40skill-map%2Fcli)](https://www.npmjs.com/package/@skill-map/cli)
@@ -14,7 +14,7 @@
 
 ## En una frase
 
-De ecosistema caótico a agentes predecibles, el mapa que le faltaba a tu ecosistema de IA generativa basado en Markdown (Claude Code, Codex, Antigravity, Copilot y otros). Detecta colisiones, huérfanos, duplicados semánticos y skills obesas sobre un mismo grafo, con análisis estático y semántico (LLM) opcional.
+Del caos multiagente a agentes y skills predecibles, el mapa que le faltaba a tu harness de IA generativa basado en Markdown (Claude Code, Codex, Antigravity, Copilot y otros). Detecta colisiones, huérfanos, duplicados semánticos y skills obesas sobre un mismo grafo, con análisis determinístico y semántico (LLM) opcional.
 
 ![Interfaz de skill-map](https://skill-map.ai/img/screenshot-1.png)
 

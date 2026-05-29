@@ -3,7 +3,7 @@
 
 # skill-map
 
-> The missing map for your generative-AI ecosystem, discover what your Markdown is trying to tell you.
+> From multi-agent chaos to predictable agents and skills, the missing map for your generative-AI harness.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/crystian/skill-map/ci.yml?branch=main&logo=github&label=CI)](https://github.com/crystian/skill-map/actions/workflows/ci.yml)
 [![npm: @skill-map/cli](https://img.shields.io/npm/v/@skill-map/cli?color=7C3AED&logo=npm&label=%40skill-map%2Fcli)](https://www.npmjs.com/package/@skill-map/cli)
@@ -14,7 +14,7 @@
 
 ## In a sentence
 
-From chaotic ecosystem to predictable agents, the missing map for your Markdown-based generative-AI ecosystem (Claude Code, Codex, Antigravity, Copilot, and others). Detects collisions, orphans, semantic duplicates, and bloated skills on a single graph, with static and optional semantic (LLM) analysis.
+From multi-agent chaos to predictable agents and skills, the missing map for your Markdown-based generative-AI harness (Claude Code, Codex, Antigravity, Copilot, and others). Detects collisions, orphans, semantic duplicates, and bloated skills on a single graph, with deterministic and optional semantic (LLM) analysis.
 
 ![skill-map UI](https://skill-map.ai/img/screenshot-1.png)
 
