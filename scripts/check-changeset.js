@@ -16,6 +16,9 @@
  *  - The Version Packages PR opened by `changesets/action`
  *    (branch `changeset-release/*`) is exempt — it consumes changesets
  *    rather than adding them.
+ *  - Edits to a workspace's own `CHANGELOG.md` are exempt: a changelog
+ *    is release notes, not a releasable change, so reformatting or
+ *    trimming history must not demand a changeset of its own.
  *  - PRs that touch only tooling / docs outside workspaces pass.
  */
 
@@ -75,6 +78,9 @@ function touchesWorkspace(files, roots) {
   return files.some((f) => roots.some((r) => f === r || f.startsWith(`${r}/`)));
 }
 
+/** A workspace's own CHANGELOG.md, anywhere in the tree. */
+const RELEASE_NOTE_FILE = /(^|\/)CHANGELOG\.md$/;
+
 const branch = currentBranch();
 if (branch.startsWith('changeset-release/')) {
   console.log('Version Packages PR — changeset check skipped.');
@@ -87,9 +93,15 @@ if (files.length === 0) {
   process.exit(0);
 }
 
+// Changelog edits are release notes, not releasable changes: drop them
+// before deciding whether a versioned workspace was actually touched.
+const sourceFiles = files.filter((f) => !RELEASE_NOTE_FILE.test(f));
+
 const roots = workspacePaths();
-if (!touchesWorkspace(files, roots)) {
-  console.log(`No workspace files touched (${roots.join(', ')}). Changeset not required.`);
+if (!touchesWorkspace(sourceFiles, roots)) {
+  console.log(
+    `No versioned workspace source touched (${roots.join(', ')}); CHANGELOG.md edits are exempt. Changeset not required.`,
+  );
   process.exit(0);
 }
 
