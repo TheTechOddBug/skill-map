@@ -83,7 +83,7 @@ function parseChangeset(content) {
   }
 
   const userFacing = extractUserFacing(body);
-  return { packages, userFacing };
+  return { packages, userFacing, body };
 }
 
 /**
@@ -128,6 +128,64 @@ export function truncateToCap(text, cap = MAX_HIGHLIGHT_CHARS) {
     return `${candidate.slice(0, lastSentenceEnd + 1)}…`;
   }
   return `${candidate.trimEnd()}…`;
+}
+
+/**
+ * Maximum length of a changeset's TECHNICAL body (the markdown before
+ * any `## User-facing` heading). This is the text `changeset version`
+ * publishes verbatim into the workspace `CHANGELOG.md`, so the cap (plus
+ * the structural rules in `validateTechnicalBody`) keeps the published
+ * changelogs scannable instead of letting per-changeset essays creep
+ * back in. The deep design narrative belongs in the PR description.
+ */
+export const MAX_TECHNICAL_BODY_CHARS = 500;
+
+/**
+ * Return the technical body of a changeset: everything BEFORE the first
+ * `## User-facing` heading (case-insensitive), trimmed. When there is no
+ * such heading, the whole body is the technical body.
+ */
+export function technicalBody(body) {
+  const lines = body.split(/\r?\n/);
+  let end = lines.length;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^##\s+user-facing\s*$/i.test(lines[i])) {
+      end = i;
+      break;
+    }
+  }
+  return lines.slice(0, end).join('\n').trim();
+}
+
+/**
+ * Enforce the "one short paragraph" changeset-body contract. The body
+ * that feeds `CHANGELOG.md` must read like a real semver entry, not a
+ * design doc: a single paragraph, no tables, no sub-headings, no
+ * sub-bullets, under `MAX_TECHNICAL_BODY_CHARS`. Throws with a precise
+ * diagnostic on the first violation so the author fixes it at commit
+ * time (the pre-commit hook runs this via `--check`) instead of in the
+ * release workflow. The `## User-facing` section is exempt, it has its
+ * own cap (`MAX_HIGHLIGHT_CHARS`) and is checked separately.
+ */
+export function validateTechnicalBody(file, body) {
+  const tech = technicalBody(body);
+  const problems = [];
+  if (/^\s*\|/m.test(tech)) problems.push('a markdown table');
+  if (/^\s*#{1,6}\s/m.test(tech)) problems.push('a sub-heading');
+  if (/^\s*[-*]\s/m.test(tech)) problems.push('a sub-bullet / list');
+  if (/\n[ \t]*\n/.test(tech)) problems.push('more than one paragraph (blank line)');
+  if (tech.length > MAX_TECHNICAL_BODY_CHARS) {
+    problems.push(`${tech.length} chars (max ${MAX_TECHNICAL_BODY_CHARS})`);
+  }
+  if (problems.length > 0) {
+    const preview = tech.slice(0, 80);
+    throw new Error(
+      `build-user-changelog: ${file}'s changeset body must be ONE short paragraph, found ${problems.join(', ')}. ` +
+        `Keep it to a single paragraph (what changed, where a reader notices it); ` +
+        `put the deep why / how / which-files detail in the PR description. ` +
+        `Preview: "${preview}${tech.length > 80 ? '…' : ''}"`,
+    );
+  }
 }
 
 /**
@@ -240,6 +298,10 @@ function main() {
     const content = readFileSync(file, 'utf8');
     const parsed = parseChangeset(content);
     if (!parsed) continue;
+    // Enforce the one-short-paragraph body contract on every changeset
+    // (it feeds the published CHANGELOG.md verbatim). Runs in both the
+    // `--check` path (pre-commit) and the release path.
+    validateTechnicalBody(file, parsed.body);
     const cliBump = parsed.packages[CLI_PACKAGE_NAME];
     const specRelatedBumped = Object.keys(parsed.packages).some((p) =>
       SPEC_RELATED_PACKAGES.has(p),
