@@ -201,11 +201,12 @@ changeset body you write in step 6. Never add entries by hand, that is
 exactly what re-bloated `src/CHANGELOG.md` past 10k lines historically.
 The changeset is the single source.
 
-The private workspaces ship no changelog at all: `release:version`
-prunes `ui/CHANGELOG.md` / `web/CHANGELOG.md` via
-`scripts/prune-private-changelogs.js`. Editing any `CHANGELOG.md` by
-hand is release-notes maintenance, not a releasable change, so it never
-needs a changeset (the gate filters `CHANGELOG.md` out).
+The private workspaces ship no changelog at all: `ui/CHANGELOG.md` /
+`web/CHANGELOG.md` are gitignored, so although `changeset version`
+regenerates `web/CHANGELOG.md` transiently (the changesets action reads
+it for the PR body), it never lands in a commit. Editing any
+`CHANGELOG.md` by hand is release-notes maintenance, not a releasable
+change, so it never needs a changeset (the gate filters `CHANGELOG.md` out).
 
 ### 6. Write the changeset
 

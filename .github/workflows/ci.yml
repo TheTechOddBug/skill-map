@@ -74,10 +74,10 @@ jobs:
     runs-on: ubuntu-latest
     # Bound the job so a stalled Playwright download (the CDN occasionally
     # hangs mid-fetch) fails fast instead of burning the GitHub default 6h
-    # timeout. Tight on purpose: the browser install below is capped at ~6
-    # min, leaving the rest for `pnpm validate`. Bump if a cold-cache run
-    # legitimately needs more.
-    timeout-minutes: 10
+    # timeout. The browser install below is capped at 2x300s = 10 min on a
+    # cold cache, leaving the rest for `pnpm validate`. Once the cache is
+    # warm the install is instant and the job runs well under this.
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -114,10 +114,15 @@ jobs:
       # cannot hang the job. The e2e `prevalidate:test` hook re-runs
       # `playwright install chromium` during `pnpm validate`, but it finds
       # the browser already present here and skips the download.
+      #
+      # 300s/attempt: the ~170MB download has finished at 100% on a slow
+      # CDN day right around 180s, only to be SIGTERM'd by the old ceiling
+      # before extraction completed, so the job never produced a cacheable
+      # browser and re-downloaded forever. 300s clears that with margin.
       - name: Install Playwright browsers (retried)
         run: |
           for attempt in 1 2; do
-            if timeout 180 pnpm --filter skill-map-e2e run install:browsers; then
+            if timeout 300 pnpm --filter skill-map-e2e run install:browsers; then
               break
             fi
             if [ "$attempt" = "2" ]; then

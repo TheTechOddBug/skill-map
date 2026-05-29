@@ -32,7 +32,7 @@
     "validate:compile": "pnpm --filter @skill-map/spec validate:compile && pnpm --filter @skill-map/cli validate:compile && pnpm --filter ui validate:compile && pnpm --filter @skill-map/web validate:compile",
     "validate:test": "pnpm --filter @skill-map/cli validate:test && pnpm --filter ui validate:test && pnpm --filter skill-map-e2e validate:test",
     "release:changeset": "changeset",
-    "release:version": "node scripts/build-user-changelog.js && changeset version && node scripts/prune-private-changelogs.js && pnpm install --lockfile-only && pnpm --filter @skill-map/spec pin && pnpm --filter @skill-map/spec spec && pnpm --filter @skill-map/cli reference",
+    "release:version": "node scripts/build-user-changelog.js && changeset version && pnpm install --lockfile-only && pnpm --filter @skill-map/spec pin && pnpm --filter @skill-map/spec spec && pnpm --filter @skill-map/cli reference",
     "release:publish": "changeset publish",
     "prepare": "[ -d .git ] && git config core.hooksPath .githooks || true"
   },

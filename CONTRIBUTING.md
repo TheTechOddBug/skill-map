@@ -44,7 +44,7 @@ pnpm release:changeset
 
 Pick the affected package(s), the bump type, and write a **one short paragraph** summary. That single paragraph is the exact text published to the package `CHANGELOG.md`, so keep it terse (what changed, where a reader notices it) and put the deep design detail (why, how, which files) in the PR description, not the changeset. This is enforced: a pre-commit guard rejects a changeset body that has a table, a sub-heading, a sub-bullet, more than one paragraph, or exceeds 500 chars. Commit the generated `.changeset/*.md` with your change.
 
-Editing a workspace's own `CHANGELOG.md` is release notes, not a releasable change, so it does **not** require a changeset of its own (the gate filters `CHANGELOG.md` out). Private workspaces (`ui/`, `web/`) ship no `CHANGELOG.md`: `ui/` gets no changeset, `web/` still bumps (its version tags the deploy) but the release pipeline prunes its changelog via `scripts/prune-private-changelogs.js`, since nobody installs or reads the private packages.
+Editing a workspace's own `CHANGELOG.md` is release notes, not a releasable change, so it does **not** require a changeset of its own (the gate filters `CHANGELOG.md` out). Private workspaces (`ui/`, `web/`) ship no `CHANGELOG.md`: `ui/` gets no changeset, `web/` still bumps (its version tags the deploy) but `web/CHANGELOG.md` (and `ui/CHANGELOG.md`) are gitignored, so `changeset version` regenerates `web/CHANGELOG.md` only transiently (the changesets action reads it for the "Version Packages" PR body) and it never lands in a commit, since nobody installs or reads the private packages.
 
 ### Bump policy
 

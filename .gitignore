@@ -12,6 +12,15 @@ build/
 # built fresh from `ui/` + `ui/fixtures/demo-scope/` on every site:build run.
 web/demo/
 
+# Private-workspace changelogs. `changeset version` regenerates a CHANGELOG.md
+# for every bumped package, but ui/ and web/ are private (never published), so
+# theirs is generated noise we keep out of the repo. The file still exists on
+# disk transiently during `release:version` so changesets/action can read it
+# for the "Version Packages" PR body; the broad `git add` it commits with skips
+# ignored paths, so it never lands in a commit.
+ui/CHANGELOG.md
+web/CHANGELOG.md
+
 # Test / coverage
 coverage/
 .nyc_output/
