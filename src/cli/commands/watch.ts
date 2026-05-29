@@ -27,6 +27,7 @@
 import { Command, Option } from 'clipanion';
 
 import { createWatcherRuntime, type ICreateWatcherRuntimeOpts } from '../../core/watcher/runtime.js';
+import { DB_DRIFT_TEXTS } from '../../core/sqlite/i18n/db-drift.texts.js';
 import { tx } from '../../kernel/util/tx.js';
 import { WATCH_TEXTS } from '../i18n/watch.texts.js';
 import { ansiFor } from '../util/ansi.js';
@@ -198,6 +199,19 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
         // (the formatter is the plugin runtime's `formatWarning`,
         // no extra framing needed).
         printer.warn(`${message}\n`);
+      },
+      onDriftReset: (info) => {
+        // Pre-1.0 schema-drift rebuild ran on watcher boot. Surface the
+        // receipt so the silent wipe is visible. See spec/db-schema.md
+        // §Schema drift (pre-1.0).
+        context.stderr.write(
+          tx(DB_DRIFT_TEXTS.driftReset, {
+            glyph: stderrAnsi.yellow('⚠'),
+            dbVersion: info.dbVersion,
+            currentVersion: info.currentVersion,
+            hint: stderrAnsi.dim(DB_DRIFT_TEXTS.driftResetHint),
+          }),
+        );
       },
       onConfigLoaded: ({ debounceMs }) => {
         if (opts.json) return;

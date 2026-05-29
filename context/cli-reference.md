@@ -1301,7 +1301,7 @@ extra roots positionally.
 - `--allow-empty` `boolean`: Allow a zero-result scan to wipe an already-populated DB (replace-all replace by zero rows). Off by default to avoid the typo-trap where an invalid root silently clears your data.
 - `--strict` `boolean`: Promote frontmatter-validation findings from warn to error (exit code 1 on any violation). Overrides scan.strict from config when both are set.
 - `--watch` `boolean`: Long-running mode: watch the roots and trigger an incremental scan after each debounced batch of filesystem events. Alias of `sm watch`.
-- `--yes` `boolean`: Non-interactive mode for ambiguous activeProvider auto-detect. With `--yes`, multiple provider markers (.claude/, .codex/, AGENTS.md, .cursor/) under the scan tree exit non-zero instead of prompting the operator. Set the lens manually via `sm config set activeProvider <id>` and re-run.
+- `--yes` `boolean`: Non-interactive mode. For ambiguous activeProvider auto-detect, multiple provider markers (.claude/, .codex/, AGENTS.md, .cursor/) under the scan tree exit non-zero instead of prompting; set the lens manually via `sm config set activeProvider <id>` and re-run. Also auto-confirms the pre-1.0 schema-drift rebuild (when the DB was written by a different skill-map major.minor it is deleted and regenerated) instead of prompting.
 - `--max-nodes` `string`: Per-invocation override of `scan.maxNodes` (default 256). Bidirectional: raises OR lowers the recommended cap on classified nodes. When the walker hits the cap, additional files are dropped and the scan is marked oversized in scan_meta (the UI raises a persistent banner pointing at the .skillmapignore editor in Settings → Project). Validation: integer >= 1.
 
 **Examples:**

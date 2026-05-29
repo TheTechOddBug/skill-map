@@ -106,7 +106,7 @@ export class ScanCommand extends SmCommand {
     description: 'Long-running mode: watch the roots and trigger an incremental scan after each debounced batch of filesystem events. Alias of `sm watch`.',
   });
   yes = Option.Boolean('--yes', false, {
-    description: 'Non-interactive mode for ambiguous activeProvider auto-detect. With `--yes`, multiple provider markers (.claude/, .codex/, AGENTS.md, .cursor/) under the scan tree exit non-zero instead of prompting the operator. Set the lens manually via `sm config set activeProvider <id>` and re-run.',
+    description: 'Non-interactive mode. For ambiguous activeProvider auto-detect, multiple provider markers (.claude/, .codex/, AGENTS.md, .cursor/) under the scan tree exit non-zero instead of prompting; set the lens manually via `sm config set activeProvider <id>` and re-run. Also auto-confirms the pre-1.0 schema-drift rebuild (when the DB was written by a different skill-map major.minor it is deleted and regenerated) instead of prompting.',
   });
   maxNodes = Option.String('--max-nodes', {
     required: false,

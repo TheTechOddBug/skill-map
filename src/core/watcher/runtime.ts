@@ -87,6 +87,8 @@ import {
 } from '../runtime/plugin-runtime.js';
 import type { IRuntimeContext } from '../runtime/runtime-context.js';
 import { tryWithSqlite, withSqlite } from '../sqlite/with-sqlite.js';
+import { maybeResetOnDrift } from '../sqlite/db-drift-reset.js';
+import { VERSION } from '../../version.js';
 import { RUNTIME_TEXTS } from './i18n/runtime.texts.js';
 
 // -----------------------------------------------------------------------------
@@ -130,6 +132,15 @@ export interface IWatcherEvents {
    * their own surfaces (CLI `printer.warn`, BFF `log.warn`).
    */
   onPluginWarning?: (message: string) => void;
+  /**
+   * Called once, before the first batch persists, when the pre-1.0
+   * schema-drift check deleted and recreated the DB (the on-disk cache
+   * was written by a different `major.minor`). Adapters surface it on
+   * their own channel (CLI `printer.warn`, BFF `log.warn`) so the
+   * silent rebuild is visible. See `spec/db-schema.md` §Schema drift
+   * (pre-1.0).
+   */
+  onDriftReset?: (info: { dbVersion: string; currentVersion: string }) => void;
   /**
    * Called once both chokidar instances have reported `ready` AND the
    * runtime has run its initial batch (when enabled). `roots` is the
@@ -291,6 +302,23 @@ const DEFAULT_RUN_INITIAL_BATCH = true;
  * Construct the watcher runtime. Pure factory, every dependency
  * comes through the options bag.
  */
+/**
+ * Run the pre-1.0 schema-drift rebuild for a watcher session. Wipes a
+ * DB written by a different `major.minor` before the watcher's first DB
+ * open and reports the rebuild via `events.onDriftReset`. The watcher
+ * never prompts (`assumeYes`); see `spec/db-schema.md` §Schema drift
+ * (pre-1.0).
+ */
+async function rebuildWatcherDbOnDrift(
+  dbPath: string,
+  events: IWatcherEvents,
+): Promise<void> {
+  const drift = await maybeResetOnDrift(dbPath, { currentVersion: VERSION, assumeYes: true });
+  if (drift.kind === 'reset') {
+    events.onDriftReset?.({ dbVersion: drift.dbVersion, currentVersion: drift.currentVersion });
+  }
+}
+
 export function createWatcherRuntime(
   opts: ICreateWatcherRuntimeOpts,
 ): IWatcherRuntimeHandle {
@@ -358,6 +386,13 @@ export function createWatcherRuntime(
   let handleBatch: (() => Promise<void>) | null = null;
 
   const start = async (): Promise<void> => {
+    // Pre-1.0 schema-drift rebuild, once before any DB open: if the
+    // on-disk DB predates a schema change (different major.minor), wipe
+    // it so the first prior read + persist see a freshly-created
+    // schema. The watcher has no operator at a prompt, so it always
+    // rebuilds and surfaces the result via `events.onDriftReset`.
+    await rebuildWatcherDbOnDrift(opts.dbPath, events);
+
     cfg = loadEffectiveConfig();
     ignoreFilter = composeIgnoreFilter(cfg, readIgnoreFileText(cwd));
     applyConfigDerivedState(cfg);

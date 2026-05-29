@@ -41,6 +41,9 @@ import {
 } from './active-provider-bootstrap.js';
 import type { IProviderDetectInput } from '../config/active-provider.js';
 import { tryWithSqlite, withSqlite } from '../sqlite/with-sqlite.js';
+import { maybeResetOnDrift } from '../sqlite/db-drift-reset.js';
+import { DB_DRIFT_TEXTS } from '../sqlite/i18n/db-drift.texts.js';
+import { VERSION } from '../../version.js';
 import {
   collectRegisteredContributionKeys,
   composeScanExtensions,
@@ -591,6 +594,37 @@ function buildRunScanEmitter(opts: IScanRunOpts) {
 }
 
 /**
+ * Pre-1.0 schema-drift rebuild for the persist path. Wipes a DB written
+ * by a different `major.minor` before it is opened (see
+ * `spec/db-schema.md` §Schema drift (pre-1.0)). Returns a `scan-error`
+ * outcome when the operator declines the interactive rebuild, or `null`
+ * to proceed (no drift, or the cache was rebuilt).
+ */
+async function rebuildOnDrift(
+  opts: IScanRunOpts,
+  dbPath: string,
+): Promise<{ kind: 'scan-error'; message: string } | null> {
+  const drift = await maybeResetOnDrift(dbPath, {
+    currentVersion: VERSION,
+    assumeYes: opts.yes ?? false,
+    stdin: opts.stdin ?? process.stdin,
+    stderr: opts.stderr,
+    printer: opts.printer,
+    ...(opts.style ? { style: opts.style } : {}),
+  });
+  if (drift.kind !== 'aborted') return null;
+  const dim = opts.style?.dim ?? ((s: string) => s);
+  return {
+    kind: 'scan-error',
+    message: tx(DB_DRIFT_TEXTS.driftAborted, {
+      dbVersion: drift.dbVersion,
+      currentVersion: drift.currentVersion,
+      hint: dim(DB_DRIFT_TEXTS.driftAbortedHint),
+    }),
+  };
+}
+
+/**
  * Persist branch, single `withSqlite` open: read prior, scan, guard,
  * persist. The guard refuses to wipe a populated DB with a zero-result
  * scan unless `--allow-empty` is set.
@@ -626,6 +660,14 @@ async function runPersistPath(
       }
     | { kind: 'scan-error'; message: string }
     | { kind: 'guard'; existing: number };
+
+  // Pre-1.0 schema-drift rebuild: if the on-disk DB was written by a
+  // different major.minor, wipe it before opening so the adapter
+  // recreates the current schema and this scan repopulates it. Runs
+  // before any open (read prior + persist happen inside one withSqlite
+  // below), so a wiped DB is seen fresh by both.
+  const driftError = await rebuildOnDrift(opts, dbPath);
+  if (driftError) return driftError;
 
   let outcome: IPersistOutcome;
   try {

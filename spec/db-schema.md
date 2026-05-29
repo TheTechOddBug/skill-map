@@ -463,6 +463,21 @@ The kernel ALSO maintains `PRAGMA user_version` (or the engine equivalent) as a 
 
 ---
 
+## Schema drift (pre-1.0)
+
+The project DB is a derived cache: every `scan_*` row is regenerable, and the operator's authored data lives in `.sm` sidecars, not in the DB. While the kernel stays in `0.Y.Z` (see [`versioning.md` §Pre-1.0](./versioning.md#pre-10)) it does NOT ship incremental migrations to carry an existing DB across a schema change. Instead, a write-side open (`sm scan`, `sm watch`, and the BFF watcher) compares `scan_meta.scanned_by_version` against the running CLI version:
+
+- **Same `major.minor`** (patch differences ignored): the cache is compatible. The open proceeds untouched.
+- **Any minor or major difference**: the on-disk schema is treated as drifted. The entire DB file (plus its `-wal` / `-shm` sidecars) is deleted and recreated from the current `001_initial.sql`; the scan then repopulates it. No backup is written (the cache is derived). `state_*` and `config_*` are wiped along with `scan_*`; pre-1.0 they are accepted as transient. `.sm` sidecars are never touched.
+
+The rebuild is confirmed interactively on a TTY `sm scan` unless `--yes` is passed; non-interactive callers (piped stdin, CI, the BFF scan route, the watcher) rebuild without prompting. Declining the prompt aborts the scan (exit `2`) without deleting anything.
+
+Read-side verbs (`sm check`, `sm list`, `sm show`, ...) do NOT rebuild. They keep the version-skew advisory (warn on an older DB, refuse on a newer or different-major DB) so a read never silently discards the cache.
+
+This is a pre-1.0 affordance. The first `1.0.0` replaces it with real up-only migrations (see §Migrations): drift detection by version becomes drift repair by migration, and `state_*` / `config_*` stop being disposable.
+
+---
+
 ## Plugin storage
 
 Two modes declared in `plugin.json` (see [`schemas/plugins-registry.schema.json`](./schemas/plugins-registry.schema.json)).

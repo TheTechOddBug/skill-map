@@ -164,6 +164,17 @@ export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherS
           // listening; no advisory broadcast.
           log.warn(sanitizeForTerminal(message));
         },
+        onDriftReset: (info) => {
+          // Pre-1.0 schema-drift rebuild ran on watcher boot. Surface
+          // it on the log channel so the silent wipe is visible in the
+          // server pane; no broadcast (boot-time, no client yet).
+          log.warn(
+            tx(SERVER_TEXTS.watcherDriftReset, {
+              dbVersion: info.dbVersion,
+              currentVersion: info.currentVersion,
+            }),
+          );
+        },
         onReady: (info) => {
           opts.broadcaster.broadcast(
             buildWatcherStartedEvent({ roots: info.roots, debounceMs: info.debounceMs }),

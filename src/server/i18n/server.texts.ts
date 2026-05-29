@@ -127,6 +127,13 @@ export const SERVER_TEXTS = {
   watcherBatchFailed:
     'skill-map server: watcher batch failed ({{message}}).\n',
 
+  // Logged once when the pre-1.0 schema-drift check rebuilt the DB on
+  // watcher boot (the on-disk cache was written by a different
+  // major.minor). The scan that follows repopulates it; .sm sidecars
+  // are untouched. See spec/db-schema.md §Schema drift (pre-1.0).
+  watcherDriftReset:
+    'skill-map server: local cache rebuilt (was {{dbVersion}}, now on {{currentVersion}}); .sm sidecars untouched.\n',
+
   // chokidar surfaced an error. The watcher stays open per IFsWatcher's
   // contract; the BFF also broadcasts a `watcher.error` advisory so the
   // SPA can surface it in the live event log.

@@ -5,7 +5,6 @@
  * previews without touching anything.
  */
 
-import { rm } from 'node:fs/promises';
 import { DatabaseSync } from 'node:sqlite';
 
 import { Command, Option } from 'clipanion';
@@ -17,7 +16,8 @@ import { DB_TEXTS } from '../../i18n/db.texts.js';
 import { requireDbOrExit, resolveDbPath } from '../../util/db-path.js';
 import { defaultRuntimeContext } from '../../util/runtime-context.js';
 import { ExitCode } from '../../util/exit-codes.js';
-import { pathExists, statOrNull } from '../../util/fs.js';
+import { removeDbFiles } from '../../../core/sqlite/db-files.js';
+import { statOrNull } from '../../util/fs.js';
 import { SmCommand } from '../../util/sm-command.js';
 import { assertSafeIdentifier } from './shared.js';
 
@@ -86,10 +86,7 @@ export class DbResetCommand extends SmCommand {
           return ExitCode.Error;
         }
       }
-      for (const suffix of ['', '-wal', '-shm']) {
-        const p = `${path}${suffix}`;
-        if (await pathExists(p)) await rm(p);
-      }
+      await removeDbFiles(path);
       const ansiHard = this.ansiFor('stdout');
       this.printer!.data(
         tx(DB_TEXTS.resetHardDeleted, {
