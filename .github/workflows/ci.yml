@@ -72,6 +72,12 @@ jobs:
   build-test:
     name: build + test
     runs-on: ubuntu-latest
+    # Bound the job so a stalled Playwright download (the CDN occasionally
+    # hangs mid-fetch) fails fast instead of burning the GitHub default 6h
+    # timeout. Tight on purpose: the browser install below is capped at ~6
+    # min, leaving the rest for `pnpm validate`. Bump if a cold-cache run
+    # legitimately needs more.
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -89,6 +95,38 @@ jobs:
 
       - name: Install deps
         run: pnpm install --frozen-lockfile
+
+      # Cache the Playwright browser binaries so the e2e smoke does not
+      # re-download ~170MB from cdn.playwright.dev on every run. The key
+      # tracks e2e/package.json, where @playwright/test is pinned exactly;
+      # a browser revision only changes when that version bumps, so the
+      # cache invalidates precisely when it must (no restore-keys: a stale
+      # revision is useless and must force a fresh download).
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('e2e/package.json') }}
+
+      # Install Chromium up front with a per-attempt ceiling and a few
+      # retries. On a cache hit Playwright finds the binary and returns
+      # instantly; on a miss `timeout` caps each attempt so a CDN stall
+      # cannot hang the job. The e2e `prevalidate:test` hook re-runs
+      # `playwright install chromium` during `pnpm validate`, but it finds
+      # the browser already present here and skips the download.
+      - name: Install Playwright browsers (retried)
+        run: |
+          for attempt in 1 2; do
+            if timeout 180 pnpm --filter skill-map-e2e run install:browsers; then
+              break
+            fi
+            if [ "$attempt" = "2" ]; then
+              echo "playwright install stalled or failed after 2 attempts"
+              exit 1
+            fi
+            echo "attempt $attempt failed (likely a CDN stall); retrying in 5s"
+            sleep 5
+          done
 
       - name: Validate (typecheck + lint + build + test for every workspace)
         run: pnpm validate
