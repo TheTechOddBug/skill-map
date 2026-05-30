@@ -282,7 +282,7 @@ export class ServeCommand extends SmCommand {
     // the server stays env-free) and only here: the `serve` verb is skipped
     // by the CLI-side init in entry.ts so the two Sentry clients never
     // clobber each other. No-op while the DSN placeholder is empty.
-    initSentryBff(VERSION);
+    await initSentryBff(VERSION);
     let handle: IServerHandle;
     try {
       handle = await createServer(validation.options);

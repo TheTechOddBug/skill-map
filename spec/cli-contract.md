@@ -98,8 +98,8 @@ skill-map sends nothing off the machine by default. Opt-in, anonymous
 - **No `sm config` key.** The flag is per-machine, so it lives in the
   user-settings file, not in project config. `sm config` writes project-local
   settings only and MUST NOT surface this key. Consent is changed after the
-  first run through the Settings UI (Privacy section, persisted via the BFF),
-  mirroring how the update-check toggle works. A future `sm telemetry` verb
+  first run through the Settings UI (persisted via the BFF), mirroring how
+  the update-check toggle works. A future `sm telemetry` verb
   family MAY expose CLI status / toggling; it is not part of this level.
 
 ### Active provider lens

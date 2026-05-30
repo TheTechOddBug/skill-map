@@ -133,7 +133,7 @@ const routedArgs = routeHelpArgs(bareArgs ?? args, cli);
 const telemetryVerb = routedArgs[0];
 await maybeRunFirstRunPrompt();
 if (telemetryVerb !== 'serve') {
-  initSentryCli(VERSION);
+  await initSentryCli(VERSION);
   setTelemetryVerbTag(telemetryVerb);
 }
 

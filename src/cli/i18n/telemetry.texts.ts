@@ -23,11 +23,11 @@ export const TELEMETRY_PROMPT_TEXTS = {
     '  - File contents, file names, frontmatter, annotations.',
     '  - Absolute paths, hostname, OS username, IP address.',
     '  - Your settings values.',
-    'You can change this anytime in Settings (Privacy), or force it OFF',
+    'You can change this anytime in Settings, or force it OFF',
     'with SKILL_MAP_TELEMETRY=0.',
     '',
   ].join('\n'),
 
-  enabled: 'Error reporting enabled. Thank you. Disable anytime in Settings (Privacy).\n',
-  disabled: 'Error reporting stays off. You can enable it later in Settings (Privacy).\n',
+  enabled: 'Error reporting enabled. Thank you. Disable anytime in Settings.\n',
+  disabled: 'Error reporting stays off. You can enable it later in Settings.\n',
 } as const;

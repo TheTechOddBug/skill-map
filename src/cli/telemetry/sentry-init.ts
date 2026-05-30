@@ -1,13 +1,14 @@
 /**
  * CLI-side Sentry wiring for opt-in error reporting (`spec/telemetry.md`).
  *
- * Everything here is **inert by default**. `initSentryCli` is a no-op
- * unless ALL of the following hold (see `isTelemetryActive`):
+ * Everything here is **inert by default**, and `@sentry/node` is not even
+ * imported unless telemetry is actually active (see the lazy `sdk` below).
+ * `initSentryCli` is a no-op unless ALL of the following hold (see
+ * `isTelemetryActive`):
  *
  *   1. The kill switch `SKILL_MAP_TELEMETRY=0` is NOT set.
- *   2. A real DSN is configured (the placeholder below is empty, so the
- *      whole surface stays dormant until the `skill-map-cli` sentry.io
- *      project exists and its DSN is filled in).
+ *   2. A real DSN is configured (set the constant to `''` to force the
+ *      whole surface dormant).
  *   3. The operator has explicitly opted in
  *      (`telemetry.errorsEnabled === true` in `~/.skill-map/settings.json`).
  *
@@ -22,8 +23,6 @@
  * per-extension `plugin_id` / `extension_kind` scope tags are a follow-up;
  * Level 1 captures the process-fatal crashes that today leave no signal.
  */
-
-import * as Sentry from '@sentry/node';
 
 import { scrubEvent } from '../../core/telemetry/scrub.js';
 import { isErrorTelemetryEnabled } from '../util/user-settings-store.js';
@@ -43,7 +42,15 @@ const CLI_SENTRY_DSN: string = 'https://8b73dbb2563da4b77def12ce5ee46e75@o451147
 /** Environment variable kill switch. `=0` forces telemetry OFF everywhere. */
 const KILL_SWITCH_ENV = 'SKILL_MAP_TELEMETRY';
 
-let initialised = false;
+/**
+ * The dynamically-loaded `@sentry/node` namespace, captured once init runs;
+ * `null` while dormant. `@sentry/node` drags in OpenTelemetry instrumentation
+ * that calls `module.register()` at import time (a non-trivial startup cost,
+ * and a `DEP0205` DeprecationWarning on Node >= 26). Importing it lazily, only
+ * when telemetry is genuinely active, keeps that cost and that warning off
+ * every normal `sm` invocation.
+ */
+let sdk: typeof import('@sentry/node') | null = null;
 
 /**
  * `true` when a real CLI DSN has been configured. While the placeholder is
@@ -73,13 +80,15 @@ export function isTelemetryActive(dsn: string): boolean {
 }
 
 /**
- * Initialise the CLI Sentry client when (and only when) telemetry is
- * active. Idempotent: a second call after a successful init is a no-op.
- * `version` becomes the release tag.
+ * Initialise the CLI Sentry client when (and only when) telemetry is active.
+ * Idempotent: a second call after a successful init is a no-op. `@sentry/node`
+ * is dynamic-imported here, so a dormant boot never loads it. `version`
+ * becomes the release tag.
  */
-export function initSentryCli(version: string): void {
-  if (initialised) return;
+export async function initSentryCli(version: string): Promise<void> {
+  if (sdk) return;
   if (!isTelemetryActive(CLI_SENTRY_DSN)) return;
+  const Sentry = await import('@sentry/node');
   Sentry.init({
     dsn: CLI_SENTRY_DSN,
     release: `@skill-map/cli@${version}`,
@@ -87,6 +96,12 @@ export function initSentryCli(version: string): void {
     // CLI and BFF share one Sentry project; the `surface` tag tells their
     // events apart in the shared issue stream.
     initialScope: { tags: { surface: 'cli' } },
+    // Errors only: do NOT register the OpenTelemetry ESM loader hooks. We
+    // run no tracing / auto-instrumentation, and the hook calls the
+    // deprecated `module.register()` (a `DEP0205` warning on Node >= 26 that
+    // would print on every telemetry-on invocation). Disabling it keeps
+    // stderr clean and skips the loader's startup cost.
+    registerEsmLoaderHooks: false,
     defaultIntegrations: false,
     integrations: [
       Sentry.onUncaughtExceptionIntegration(),
@@ -96,7 +111,7 @@ export function initSentryCli(version: string): void {
     sendDefaultPii: false,
     beforeSend: (event) => scrubEvent(event),
   });
-  initialised = true;
+  sdk = Sentry;
 }
 
 /**
@@ -104,8 +119,8 @@ export function initSentryCli(version: string): void {
  * captured crash can be attributed. No-op when telemetry is inactive.
  */
 export function setTelemetryVerbTag(verb: string | undefined): void {
-  if (!initialised || verb === undefined || verb === '') return;
-  Sentry.setTag('verb', verb);
+  if (!sdk || verb === undefined || verb === '') return;
+  sdk.setTag('verb', verb);
 }
 
 /**
@@ -114,9 +129,9 @@ export function setTelemetryVerbTag(verb: string | undefined): void {
  * telemetry was never initialised.
  */
 export async function closeSentryCli(timeoutMs = 2000): Promise<void> {
-  if (!initialised) return;
+  if (!sdk) return;
   try {
-    await Sentry.close(timeoutMs);
+    await sdk.close(timeoutMs);
   } catch {
     // Shutdown flush is best-effort; never let it alter the exit path.
   }

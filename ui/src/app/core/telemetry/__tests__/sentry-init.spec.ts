@@ -3,42 +3,36 @@ import { describe, expect, it } from 'vitest';
 import { captureUiException, initUiSentry, isUiDsnConfigured } from '../sentry-init';
 
 /**
- * Locks the DORMANT-BY-DEFAULT contract (`spec/telemetry.md`). The UI
- * DSN placeholder is empty today, so:
- *   - `isUiDsnConfigured()` reports false.
- *   - `initUiSentry` is a hard no-op regardless of the consent flag: it
- *     returns without throwing and, crucially, never dynamic-imports the
+ * Locks the DORMANT-UNLESS-CONSENT contract (`spec/telemetry.md`). A real
+ * UI DSN now ships, so dormancy is gated by consent alone:
+ *   - `isUiDsnConfigured()` reports true (the DSN is configured).
+ *   - `initUiSentry` is a hard no-op when consent is OFF: it returns
+ *     without throwing and, crucially, never dynamic-imports the
  *     `@sentry/angular` SDK on that path (the chunk stays out of the
- *     dormant runtime entirely). This is the guarantee that the feature
- *     ships fully inert with no sentry.io account.
+ *     dormant runtime entirely).
  *   - `captureUiException` is a no-op while the SDK was never initialised,
  *     so the unconditional ErrorHandler forward is harmless.
  *
- * We deliberately do NOT spy on the `@sentry/angular` module: its ESM
- * exports are non-configurable in this runner, and the dormant path
- * never imports the module anyway, so the meaningful assertion is the
- * observable behaviour (resolves, does not throw, no-op). When the real
- * DSN lands, the `isUiDsnConfigured()` assertion below is the canary
- * that forces a deliberate update of this contract test.
+ * We deliberately do NOT exercise the consent-ON path here: it would load
+ * the real `@sentry/angular` SDK and call `Sentry.init` inside jsdom (a
+ * side effect with global handlers). The active path is covered manually
+ * against a live Sentry project, not in this unit test. We also do NOT spy
+ * on the SDK module (its ESM exports are non-configurable in this runner);
+ * the dormant path never imports it, so observable behaviour (resolves,
+ * does not throw, no-op) is the meaningful assertion.
  */
 
-describe('sentry-init (dormant by default)', () => {
-  it('reports the UI DSN as not configured while the placeholder is empty', () => {
-    expect(isUiDsnConfigured()).toBe(false);
+describe('sentry-init (dormant unless consent)', () => {
+  it('reports the UI DSN as configured (a real DSN ships)', () => {
+    expect(isUiDsnConfigured()).toBe(true);
   });
 
-  it('initUiSentry resolves to a no-op when consent is OFF (dormant)', async () => {
+  it('initUiSentry is a no-op when consent is OFF, even with a configured DSN (dormant)', async () => {
     await expect(
       initUiSentry({ consentEnabled: false, release: '1.2.3' }),
     ).resolves.toBeUndefined();
-  });
-
-  it('initUiSentry resolves to a no-op even when consent is ON, because the DSN is empty', async () => {
     await expect(
-      initUiSentry({ consentEnabled: true, release: '1.2.3' }),
-    ).resolves.toBeUndefined();
-    await expect(
-      initUiSentry({ consentEnabled: true, release: null }),
+      initUiSentry({ consentEnabled: false, release: null }),
     ).resolves.toBeUndefined();
   });
 

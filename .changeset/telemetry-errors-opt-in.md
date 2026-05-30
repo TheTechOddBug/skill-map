@@ -7,4 +7,4 @@ Add opt-in, anonymous error reporting (Sentry) across the CLI, BFF, and UI, OFF 
 
 ## User-facing
 
-skill-map can now report crashes anonymously to help fix bugs, and it is OFF by default. Turn it on or off in Settings under Privacy, or set `SKILL_MAP_TELEMETRY=0` to force it off. File contents, paths, and your settings are never sent.
+skill-map can now report crashes anonymously to help fix bugs, and it is OFF by default. Turn it on or off in Settings, or set `SKILL_MAP_TELEMETRY=0` to force it off. File contents, paths, and your settings are never sent.

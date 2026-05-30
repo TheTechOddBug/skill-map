@@ -19,7 +19,6 @@ export const SETTINGS_TEXTS = {
     plugins: 'Plugins',
     general: 'General',
     project: 'Project',
-    privacy: 'Privacy',
     changelog: 'Changelog',
     about: 'About',
   },
@@ -43,6 +42,10 @@ export const SETTINGS_TEXTS = {
       'updateCheck.enabled': {
         label: 'Check for updates',
         description: 'Check npm for newer @skill-map/cli releases.',
+      },
+      'telemetry.errorsEnabled': {
+        label: 'Send anonymous error reports',
+        description: 'Report uncaught errors to help fix crashes. No file contents or paths.',
       },
     },
     /**
@@ -76,46 +79,6 @@ export const SETTINGS_TEXTS = {
      * to confirm where each preference lives.
      */
     storageHintLabel: 'Settings are stored in:',
-    storageHintPath: '~/.skill-map/settings.json',
-  },
-
-  /**
-   * Privacy section, opt-in anonymous error reporting persisted at
-   * `~/.skill-map/settings.json` under `telemetry.errorsEnabled` (the
-   * documented home-reads exception, see `spec/telemetry.md`). OFF by
-   * default. The toggle is built around a declarative catalogue (one
-   * entry today) so a future privacy preference is one entry plus one
-   * i18n string. No em dashes anywhere below (lint-enforced, AGENTS.md).
-   */
-  privacy: {
-    heading: 'Privacy',
-    intro:
-      'Error reporting is OFF by default. When you turn it on, skill-map ' +
-      'sends anonymous crash reports so the maintainers can find and fix ' +
-      'bugs in installations they cannot see. It never sends file ' +
-      'contents, file names, frontmatter, or your folder paths. Stack ' +
-      'traces are scrubbed in your browser before anything leaves it: ' +
-      'your home directory is replaced with a placeholder and your ' +
-      'hostname and username are removed.',
-    loadErrorPrefix: 'Could not load preferences:',
-    saveErrorPrefix: 'Could not save preferences:',
-    /** Toggle catalogue, keyed by config dot-path. */
-    toggles: {
-      'telemetry.errorsEnabled': {
-        label: 'Send anonymous error reports',
-        description:
-          'Report uncaught errors (only) to help fix crashes. No tracking, ' +
-          'no analytics, no file contents or paths.',
-      },
-    },
-    /**
-     * Footnote at the bottom of the section. Surfaces the storage
-     * location and the kill switch so the operator knows where the
-     * setting lives and how to force it off regardless of the toggle.
-     */
-    killSwitchLabel: 'Force off on this machine with the environment variable',
-    killSwitchEnv: 'SKILL_MAP_TELEMETRY=0',
-    storageHintLabel: 'This setting is stored in:',
     storageHintPath: '~/.skill-map/settings.json',
   },
 

@@ -59,8 +59,8 @@ Rules:
    OFF on every surface regardless of the persisted setting. It is a kill
    switch, not a toggle: there is no value of the variable that forces ON.
 5. **Toggle surfaces.** After the first run, the operator changes consent
-   through the Settings UI (Privacy section, persisted via the BFF), the same
-   way the update-check toggle works today. There is intentionally no
+   through the Settings UI (persisted via the BFF), the same way the
+   update-check toggle works today. There is intentionally no
    dedicated `sm config` key, because `sm config` writes project-local
    settings and this flag is per-machine. A future `sm telemetry` verb family
    MAY expose status and toggling from the CLI; it is not part of this level.
