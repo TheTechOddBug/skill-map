@@ -423,47 +423,7 @@ isEdgeHighlighted(e)      { /* one endpoint matches selected */ }
 isEdgeDimmed(e)           { /* selected exists, neither endpoint matches */ }
 ```
 
-**Template** (one click handler per node, deselect on canvas-empty click):
-
-```html
-<f-flow … >
-  <f-canvas … >
-    <ng-container ngProjectAs="[fConnections]">
-      @for (edge of graph().edges; track edge.id) {
-        <f-connection
-          …
-          [class.f-conn--highlighted]="isEdgeHighlighted(edge)"
-          [class.f-conn--dimmed]="isEdgeDimmed(edge)"
-        > … </f-connection>
-      }
-    </ng-container>
-
-    <ng-container ngProjectAs="[fNodes]">
-      @for (node of graph().nodes; track node.id) {
-        <div fNode
-             [class.sm-gnode--selected]="isSelected(node.id)"
-             [class.sm-gnode--highlighted]="isHighlighted(node.id)"
-             [class.sm-gnode--dimmed]="isDimmed(node.id)"
-             (click)="selectNode(node, $event)"
-             (dblclick)="openNode(node)">
-          …
-        </div>
-      }
-    </ng-container>
-  </f-canvas>
-</f-flow>
-```
-
-```css
-.sm-gnode--selected   { border-color: var(--p-primary-color); box-shadow: …, 0 0 0 2px var(--p-primary-color); }
-.sm-gnode--highlighted { border-color: var(--p-primary-color); }
-.sm-gnode--dimmed     { opacity: 0.25; }
-
-/* Edges — declared AFTER per-kind selectors so width override wins
-   (both are single-class specificity, source order decides). */
-.f-conn--highlighted { --ff-connection-width: 3px; }
-.f-conn--dimmed      { opacity: 0.15; }
-```
+**Template**: project edges and nodes through `ngProjectAs="[fConnections]"` / `ngProjectAs="[fNodes]"`, bind `isSelected` / `isHighlighted` / `isDimmed` to `sm-gnode--*` classes on each `<div fNode>` (plus `(click)="selectNode(...)"` / `(dblclick)="openNode(...)"`) and `isEdgeHighlighted` / `isEdgeDimmed` to `f-conn--*` classes on each `<f-connection>`. Style: `--selected` / `--highlighted` via `border-color` + `box-shadow`; `--dimmed` via host `opacity` (cascades to the SVG path, no `::ng-deep`); `.f-conn--highlighted { --ff-connection-width: 3px }` declared after the per-kind selectors so source order wins.
 
 Notes:
 
@@ -495,20 +455,7 @@ Drop `<f-background>` + a pattern component as a sibling of `<f-canvas>` inside 
 }
 ```
 
-`<f-flow>` keeps its colour as the "paper" layer behind the grid; node cards keep their own opaque fills. The grid is now visible across the whole pannable surface.
-
-**Theming the grid for a custom palette**. With `--ff-canvas-background-color: transparent` already set (gotcha above), the visible grid is the pair `<f-flow>` paint + `<f-rect-pattern>` strokes. To retint both for an alternate theme, override the two source tokens at your wrap:
-
-```css
-.app-matrix .graph__canvas-wrap {
-  background: #000000;                          /* wrap fallback if f-flow has gaps */
-  --ff-flow-background-color: #000000;          /* the grid surface */
-  --ff-background-line-color: color-mix(        /* the grid strokes */
-    in srgb, var(--theme-accent) 20%, #000000);
-}
-```
-
-Both tokens cascade into Foblex's internal SVG via inheritance (no `::ng-deep` needed). `<f-rect-pattern>` also accepts `[vColor]` / `[hColor]` inputs as a per-instance alternative when you don't want a CSS variable. Choose the inputs when the colour is data-driven (e.g. user picks it from a colour picker), the tokens when it's theme-driven.
+`<f-flow>` keeps its colour as the "paper" layer behind the grid; node cards keep their own opaque fills. The grid is now visible across the whole pannable surface. To retint it for an alternate theme, override `--ff-flow-background-color` (the surface) and `--ff-background-line-color` (the strokes) at your wrap, both cascade into the SVG without `::ng-deep`; `<f-rect-pattern>` also accepts `[vColor]` / `[hColor]` inputs for data-driven colours.
 
 ### Smooth wheel zoom
 
@@ -540,7 +487,7 @@ These are not non-negotiables — they are canonical shapes that repeat across `
      ```
      `*fVirtualFor` does NOT support a `track` clause — it has its own `fVirtualForTrackBy` input if you need it.
 
-  **Trap when supporting both branches (virtualization on/off)**: do NOT extract the `<div fNode>` body into a shared `<ng-template>` and reuse it via `<ng-container *ngTemplateOutlet>`. Foblex's `[fNode]` directive resolves `fNodeInput` / `fNodeOutput` / connectors via Angular **content queries** on direct view children. `*ngTemplateOutlet` renders the template into an *embedded view* that lives outside the host's content tree, so the queries return empty: the node has no inputs/outputs, geometry never resolves, and every node piles at `(0,0)` in a constant redraw loop. Symptoms: stack of cards at the canvas origin, blank canvas with shadows only, browser tab spinning. **Fix**: duplicate the full `<div fNode>...</div>` markup inline in each branch. The official stress-test does the same — it does NOT factor out the inner DOM.
+  **Trap**: do NOT extract the `<div fNode>` body into a shared `<ng-template>` + `*ngTemplateOutlet` for DRY across the virtualization on/off branches, Foblex's content queries don't reach embedded views so connectors vanish and every node piles at `(0,0)` in a redraw loop (full symptoms in the antipattern checklist + troubleshooting #10). Duplicate the markup inline in each branch.
   Skill-map wires these three behind `ui/src/app/views/graph-view/graph-view.config.ts` (`GRAPH_PERF_FLAGS`). The perf HUD bottom-left in the canvas (FPS, frame time, heap, cache age) is the feedback loop for deciding when to flip them.
 
 ## Full API reference
