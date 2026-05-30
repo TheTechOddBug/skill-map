@@ -32,9 +32,16 @@ import { SettingsBufferService } from './settings-buffer.service';
 import { SettingsChangelog } from './settings-changelog';
 import { SettingsGeneral } from './settings-general';
 import { SettingsPlugins } from './settings-plugins';
+import { SettingsPrivacy } from './settings-privacy';
 import { SettingsProject } from './settings-project';
 
-export type TSettingsSection = 'plugins' | 'general' | 'project' | 'changelog' | 'about';
+export type TSettingsSection =
+  | 'plugins'
+  | 'general'
+  | 'project'
+  | 'privacy'
+  | 'changelog'
+  | 'about';
 
 interface ISettingsSection {
   id: TSettingsSection;
@@ -44,6 +51,7 @@ interface ISettingsSection {
 const SETTINGS_SECTIONS: readonly ISettingsSection[] = [
   { id: 'general', label: SETTINGS_TEXTS.sections.general },
   { id: 'project', label: SETTINGS_TEXTS.sections.project },
+  { id: 'privacy', label: SETTINGS_TEXTS.sections.privacy },
   { id: 'plugins', label: SETTINGS_TEXTS.sections.plugins },
   { id: 'changelog', label: SETTINGS_TEXTS.sections.changelog },
   { id: 'about', label: SETTINGS_TEXTS.sections.about },
@@ -59,6 +67,7 @@ const SETTINGS_SECTIONS: readonly ISettingsSection[] = [
     SettingsChangelog,
     SettingsGeneral,
     SettingsPlugins,
+    SettingsPrivacy,
     SettingsProject,
   ],
   providers: [ConfirmationService],
@@ -96,6 +105,9 @@ export class SettingsModal {
   );
   protected readonly projectVisible = computed(
     () => this.visible() && this.activeSection() === 'project',
+  );
+  protected readonly privacyVisible = computed(
+    () => this.visible() && this.activeSection() === 'privacy',
   );
   protected readonly aboutVisible = computed(
     () => this.visible() && this.activeSection() === 'about',

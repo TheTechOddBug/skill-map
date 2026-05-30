@@ -50,6 +50,9 @@
         @case ('project') {
           <sm-settings-project [visible]="projectVisible()" />
         }
+        @case ('privacy') {
+          <sm-settings-privacy [visible]="privacyVisible()" />
+        }
         @case ('about') {
           <sm-settings-about [visible]="aboutVisible()" />
         }

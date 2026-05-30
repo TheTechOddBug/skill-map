@@ -77,6 +77,7 @@ import { SERVER_TEXTS } from './i18n/server.texts.js';
 import { createLoopbackGate } from './loopback-gate.js';
 import type { IServerOptions } from './options.js';
 import { createSecurityHeaders } from './security-headers.js';
+import { createSentryRequestCapture } from './telemetry/sentry.js';
 import { registerAnnotationsRoute } from './routes/annotations.js';
 import { registerContributionsRoutes } from './routes/contributions.js';
 import { registerConfigRoute } from './routes/config.js';
@@ -298,6 +299,14 @@ export function createApp(deps: IAppDeps): Hono {
   const configService = new ConfigService({
     cwd: deps.runtimeContext.cwd,
   });
+
+  // Outermost middleware: capture unhandled request-path errors for
+  // opt-in telemetry, then re-throw so `app.onError` still formats the
+  // response. Mounted first so it observes every downstream throw. A
+  // no-op unless the BFF Sentry client was initialised (it is not while
+  // the DSN placeholder is empty / consent is OFF). See
+  // `server/telemetry/sentry.ts` and `spec/telemetry.md`.
+  app.use('*', createSentryRequestCapture());
 
   // DNS rebinding + cross-origin defence, runs BEFORE every route
   // (including the CORS preflight handler below) so a hostile `Host`

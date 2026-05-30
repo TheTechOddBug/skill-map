@@ -301,6 +301,10 @@ export const SERVER_TEXTS = {
     '`updateCheck` must be an object (e.g. `{"updateCheck": {"enabled": false}}`).',
   preferencesUpdateCheckEnabledNotBoolean:
     '`updateCheck.enabled` must be a boolean.',
+  preferencesTelemetryNotObject:
+    '`telemetry` must be an object (e.g. `{"telemetry": {"errorsEnabled": true}}`).',
+  preferencesTelemetryErrorsEnabledNotBoolean:
+    '`telemetry.errorsEnabled` must be a boolean.',
   preferencesPersistFailed:
     'Could not persist preferences: {{message}}',
 

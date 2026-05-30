@@ -353,9 +353,12 @@ export class StaticDataSource implements IDataSourcePort {
 
   async getPreferences(): Promise<IPreferencesApi> {
     // Demo bundle is read-only, surface the shipped defaults so the
-    // Settings UI renders the toggle in its happy state. Writes still
+    // Settings UI renders the toggles in their happy state. Writes still
     // reject with `demo-readonly` so the UI surfaces a clear note.
-    return { updateCheck: { enabled: true } };
+    // Telemetry stays OFF in the demo (matching the default-OFF contract
+    // in spec/telemetry.md), and the demo never initialises the SDK
+    // because the UI DSN placeholder is empty.
+    return { updateCheck: { enabled: true }, telemetry: { errorsEnabled: false } };
   }
 
   async setPreferences(_patch: IPreferencesPatchApi): Promise<IPreferencesApi> {

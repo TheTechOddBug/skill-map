@@ -542,15 +542,23 @@ export interface IUpdateStatusResponseApi {
 
 /**
  * Per-machine preferences envelope returned by `GET /api/preferences`
- * and persisted via `PATCH /api/preferences`. Today carries a single
- * sub-key (`updateCheck.enabled`, the documented `$HOME`-reads
- * exception) but the wire shape is intentionally extensible: new
+ * and persisted via `PATCH /api/preferences`. Both sub-keys live in
+ * `~/.skill-map/settings.json` (the documented `$HOME`-reads
+ * exception); the wire shape is intentionally extensible, new
  * per-machine settings (locale, theme) land as additional optional
  * sub-keys under their own namespace.
+ *
+ *   - `updateCheck.enabled`: npm update-check toggle.
+ *   - `telemetry.errorsEnabled`: opt-in anonymous error reporting
+ *     (`spec/telemetry.md`). OFF by default; the only consent surface
+ *     after first run is the Settings Privacy section.
  */
 export interface IPreferencesApi {
   updateCheck: {
     enabled: boolean;
+  };
+  telemetry: {
+    errorsEnabled: boolean;
   };
 }
 
@@ -563,6 +571,9 @@ export interface IPreferencesApi {
 export interface IPreferencesPatchApi {
   updateCheck?: {
     enabled?: boolean;
+  };
+  telemetry?: {
+    errorsEnabled?: boolean;
   };
 }
 

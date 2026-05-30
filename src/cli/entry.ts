@@ -32,6 +32,12 @@ import { defaultProjectDbPath } from './util/db-path.js';
 import { ExitCode } from './util/exit-codes.js';
 import { formatParseError, isClipanionParseError } from './util/parse-error.js';
 import { defaultRuntimeContext } from './util/runtime-context.js';
+import { maybeRunFirstRunPrompt } from './telemetry/first-run-prompt.js';
+import {
+  closeSentryCli,
+  initSentryCli,
+  setTelemetryVerbTag,
+} from './telemetry/sentry-init.js';
 import { BUMP_COMMANDS } from './commands/bump.js';
 import { CheckCommand } from './commands/check.js';
 import { CONFIG_COMMANDS } from './commands/config.js';
@@ -118,6 +124,19 @@ configureLogger(new Logger({ level: logLevel, stream: process.stderr }));
 const bareArgs = resolveBareInvocation(args);
 const routedArgs = routeHelpArgs(bareArgs ?? args, cli);
 
+// Telemetry (opt-in, default OFF; dormant until a real DSN is configured,
+// see spec/telemetry.md). The one-time consent prompt runs first so the
+// persisted choice is in place before init reads it. `sm serve` is skipped
+// here on purpose: the BFF owns that process's Sentry client (initSentryBff
+// in src/server/index.ts), and one global client must not overwrite the
+// other. All of this is a no-op while the DSN placeholder is empty.
+const telemetryVerb = routedArgs[0];
+await maybeRunFirstRunPrompt();
+if (telemetryVerb !== 'serve') {
+  initSentryCli(VERSION);
+  setTelemetryVerbTag(telemetryVerb);
+}
+
 // Spec § A.11, boot/shutdown hook dispatcher. Wired here at the CLI
 // entry (the kernel only dispatches the eight pipeline-driven
 // triggers from inside `runScan`). Built-in hooks are loaded
@@ -196,6 +215,10 @@ await lifecycleDispatcher.dispatch(
   'shutdown',
   makeEvent('shutdown', { exitCode }),
 );
+
+// Flush any buffered telemetry before the process exits, bounded so a slow
+// network cannot hang shutdown. No-op when telemetry was never initialised.
+await closeSentryCli();
 
 process.exit(exitCode);
 

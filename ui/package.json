@@ -33,6 +33,7 @@
     "@foblex/utils": "1.1.1",
     "@fortawesome/fontawesome-free": "7.2.0",
     "@primeuix/themes": "2.0.3",
+    "@sentry/angular": "10.55.0",
     "@types/d3-force": "3.0.10",
     "d3-force": "3.0.0",
     "dompurify": "3.4.5",

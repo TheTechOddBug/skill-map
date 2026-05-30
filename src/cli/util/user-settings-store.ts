@@ -51,6 +51,19 @@ export interface IUserSettingsUpdateCheck {
 }
 
 /**
+ * Telemetry consent sub-object. Mirrors
+ * `user-settings.schema.json#/properties/telemetry`. Default is OFF: the
+ * SDK only initialises once `errorsEnabled` is explicitly `true`. See
+ * `spec/telemetry.md` §Consent contract.
+ */
+export interface IUserSettingsTelemetry {
+  /** Operator opt-in for error reporting. Absent or `false` means OFF. */
+  errorsEnabled?: boolean;
+  /** Unix ms of the first-run consent prompt. `null` when never prompted. */
+  promptedAt?: number | null;
+}
+
+/**
  * Whole-file envelope. Mirrors `user-settings.schema.json`. Future
  * user-scope features (locale, theme) extend the root, not
  * `updateCheck`.
@@ -58,6 +71,7 @@ export interface IUserSettingsUpdateCheck {
 export interface IUserSettings {
   schemaVersion: 1;
   updateCheck?: IUserSettingsUpdateCheck;
+  telemetry?: IUserSettingsTelemetry;
 }
 
 /** Absolute path to `~/.skill-map/settings.json`. */
@@ -71,7 +85,7 @@ export function userSettingsFilePath(): string {
  * about without try / catch boilerplate.
  */
 function defaultSettings(): IUserSettings {
-  return { schemaVersion: SCHEMA_VERSION, updateCheck: {} };
+  return { schemaVersion: SCHEMA_VERSION, updateCheck: {}, telemetry: {} };
 }
 
 /**
@@ -83,7 +97,7 @@ export function readUserSettings(): IUserSettings {
   const parsed = readParsedFile();
   if (parsed === null) return defaultSettings();
   const validated = validateOrDefault(parsed);
-  return backfillUpdateCheck(validated);
+  return backfillSubObjects(validated);
 }
 
 /**
@@ -120,15 +134,16 @@ function validateOrDefault(parsed: Record<string, unknown>): IUserSettings {
 }
 
 /**
- * Backfill `updateCheck: {}` so callers can dereference without an
- * existence check. AJV will not have added it because the schema
- * makes the sub-object optional.
+ * Backfill the optional sub-objects (`updateCheck: {}`, `telemetry: {}`)
+ * so callers can dereference without an existence check. AJV will not
+ * have added them because the schema makes each one optional.
  */
-function backfillUpdateCheck(settings: IUserSettings): IUserSettings {
-  if (settings.updateCheck === undefined) {
-    return { ...settings, updateCheck: {} };
-  }
-  return settings;
+function backfillSubObjects(settings: IUserSettings): IUserSettings {
+  return {
+    ...settings,
+    updateCheck: settings.updateCheck ?? {},
+    telemetry: settings.telemetry ?? {},
+  };
 }
 
 /**
@@ -184,6 +199,30 @@ export function isUpdateCheckEnabled(): boolean {
   return settings.updateCheck?.enabled !== false;
 }
 
+/**
+ * `true` only when the operator has explicitly opted in to error
+ * reporting (`telemetry.errorsEnabled === true`). Unlike the update
+ * check, telemetry is **OFF by default**: absent or `false` both mean
+ * disabled. The flag lives in `~/.skill-map/settings.json` under
+ * `telemetry.errorsEnabled` and is NOT part of the project config layer
+ * system; `sm config` does not surface it (see `spec/telemetry.md`).
+ */
+export function isErrorTelemetryEnabled(): boolean {
+  const settings = readUserSettings();
+  return settings.telemetry?.errorsEnabled === true;
+}
+
+/**
+ * `true` when the first-run consent prompt has already been shown
+ * (`telemetry.promptedAt` is a number). Callers use this to decide
+ * whether to surface the one-time prompt; once shown, the persisted
+ * `errorsEnabled` is authoritative and the prompt is never repeated.
+ */
+export function hasTelemetryPromptBeenShown(): boolean {
+  const settings = readUserSettings();
+  return typeof settings.telemetry?.promptedAt === 'number';
+}
+
 // ---------------------------------------------------------------------------
 // Internals
 // ---------------------------------------------------------------------------
@@ -202,9 +241,13 @@ function mergeSettings(
   const merged: IUserSettings = {
     schemaVersion: SCHEMA_VERSION,
     updateCheck: { ...(current.updateCheck ?? {}) },
+    telemetry: { ...(current.telemetry ?? {}) },
   };
   if (patch.updateCheck) {
     merged.updateCheck = { ...merged.updateCheck, ...patch.updateCheck };
+  }
+  if (patch.telemetry) {
+    merged.telemetry = { ...merged.telemetry, ...patch.telemetry };
   }
   return merged;
 }

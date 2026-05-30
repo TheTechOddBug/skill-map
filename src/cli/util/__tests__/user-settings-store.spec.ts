@@ -19,6 +19,8 @@ import { join } from 'node:path';
 import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
 
 import {
+  hasTelemetryPromptBeenShown,
+  isErrorTelemetryEnabled,
   isUpdateCheckEnabled,
   readUserSettings,
   userSettingsFilePath,
@@ -57,7 +59,7 @@ afterEach(() => {
 describe('readUserSettings', () => {
   it('returns the defaulted envelope when the file is missing', () => {
     const got = readUserSettings();
-    assert.deepEqual(got, { schemaVersion: 1, updateCheck: {} });
+    assert.deepEqual(got, { schemaVersion: 1, updateCheck: {}, telemetry: {} });
   });
 
   it('returns the defaulted envelope when the file is unparseable JSON', () => {
@@ -65,7 +67,7 @@ describe('readUserSettings', () => {
     mkdirSync(settingsDir, { recursive: true });
     writeFileSync(join(settingsDir, 'settings.json'), '{not json');
     const got = readUserSettings();
-    assert.deepEqual(got, { schemaVersion: 1, updateCheck: {} });
+    assert.deepEqual(got, { schemaVersion: 1, updateCheck: {}, telemetry: {} });
   });
 
   it('round-trips a valid envelope', () => {
@@ -82,7 +84,9 @@ describe('readUserSettings', () => {
     };
     writeFileSync(join(settingsDir, 'settings.json'), JSON.stringify(onDisk));
     const got = readUserSettings();
-    assert.deepEqual(got, onDisk);
+    // `telemetry: {}` is backfilled on read so callers can dereference
+    // both sub-objects without an existence check.
+    assert.deepEqual(got, { ...onDisk, telemetry: {} });
   });
 
   it('silently defaults a payload whose schemaVersion is wrong', () => {
@@ -93,7 +97,7 @@ describe('readUserSettings', () => {
       JSON.stringify({ schemaVersion: 2, updateCheck: { enabled: true } }),
     );
     const got = readUserSettings();
-    assert.deepEqual(got, { schemaVersion: 1, updateCheck: {} });
+    assert.deepEqual(got, { schemaVersion: 1, updateCheck: {}, telemetry: {} });
   });
 
   it('silently defaults a payload whose updateCheck.enabled is the wrong type', () => {
@@ -104,7 +108,7 @@ describe('readUserSettings', () => {
       JSON.stringify({ schemaVersion: 1, updateCheck: { enabled: 'yes' } }),
     );
     const got = readUserSettings();
-    assert.deepEqual(got, { schemaVersion: 1, updateCheck: {} });
+    assert.deepEqual(got, { schemaVersion: 1, updateCheck: {}, telemetry: {} });
   });
 
   it('silently defaults a payload that carries an unknown top-level key', () => {
@@ -115,7 +119,7 @@ describe('readUserSettings', () => {
       JSON.stringify({ schemaVersion: 1, locale: 'es' }),
     );
     const got = readUserSettings();
-    assert.deepEqual(got, { schemaVersion: 1, updateCheck: {} });
+    assert.deepEqual(got, { schemaVersion: 1, updateCheck: {}, telemetry: {} });
   });
 
   it('returns the defaulted envelope when the JSON root is not an object', () => {
@@ -123,7 +127,7 @@ describe('readUserSettings', () => {
     mkdirSync(settingsDir, { recursive: true });
     writeFileSync(join(settingsDir, 'settings.json'), JSON.stringify(['array']));
     const got = readUserSettings();
-    assert.deepEqual(got, { schemaVersion: 1, updateCheck: {} });
+    assert.deepEqual(got, { schemaVersion: 1, updateCheck: {}, telemetry: {} });
   });
 });
 
@@ -153,6 +157,48 @@ describe('isUpdateCheckEnabled', () => {
   });
 });
 
+describe('isErrorTelemetryEnabled', () => {
+  it('returns false when the file is missing (opt-OUT default)', () => {
+    assert.equal(isErrorTelemetryEnabled(), false);
+  });
+
+  it('returns false when telemetry is present but errorsEnabled is absent', () => {
+    const settingsDir = join(homeRoot, '.skill-map');
+    mkdirSync(settingsDir, { recursive: true });
+    writeFileSync(
+      join(settingsDir, 'settings.json'),
+      JSON.stringify({ schemaVersion: 1, telemetry: { promptedAt: 1 } }),
+    );
+    assert.equal(isErrorTelemetryEnabled(), false);
+  });
+
+  it('returns true only when errorsEnabled is explicitly true', () => {
+    const settingsDir = join(homeRoot, '.skill-map');
+    mkdirSync(settingsDir, { recursive: true });
+    writeFileSync(
+      join(settingsDir, 'settings.json'),
+      JSON.stringify({ schemaVersion: 1, telemetry: { errorsEnabled: true } }),
+    );
+    assert.equal(isErrorTelemetryEnabled(), true);
+  });
+});
+
+describe('hasTelemetryPromptBeenShown', () => {
+  it('returns false when the file is missing', () => {
+    assert.equal(hasTelemetryPromptBeenShown(), false);
+  });
+
+  it('returns true once promptedAt is a number', () => {
+    const settingsDir = join(homeRoot, '.skill-map');
+    mkdirSync(settingsDir, { recursive: true });
+    writeFileSync(
+      join(settingsDir, 'settings.json'),
+      JSON.stringify({ schemaVersion: 1, telemetry: { promptedAt: 1_700_000_000_000 } }),
+    );
+    assert.equal(hasTelemetryPromptBeenShown(), true);
+  });
+});
+
 describe('writeUserSettings', () => {
   it('creates `~/.skill-map/settings.json` on first write', () => {
     writeUserSettings({ updateCheck: { enabled: false } });
@@ -174,6 +220,7 @@ describe('writeUserSettings', () => {
         checkedAt: 1_700_000_000_000,
         enabled: false,
       },
+      telemetry: {},
     });
   });
 
@@ -188,6 +235,27 @@ describe('writeUserSettings', () => {
     });
     const after = readFileSync(userSettingsFilePath(), 'utf8');
     assert.equal(after, before, 'file content must be untouched');
+  });
+
+  it('merges a telemetry patch independently of updateCheck', () => {
+    writeUserSettings({ updateCheck: { enabled: false } });
+    writeUserSettings({ telemetry: { errorsEnabled: true, promptedAt: 1_700_000_000_000 } });
+    const onDisk = JSON.parse(readFileSync(userSettingsFilePath(), 'utf8'));
+    assert.deepEqual(onDisk, {
+      schemaVersion: 1,
+      updateCheck: { enabled: false },
+      telemetry: { errorsEnabled: true, promptedAt: 1_700_000_000_000 },
+    });
+  });
+
+  it('refuses to corrupt the file with an off-shape telemetry patch', () => {
+    writeUserSettings({ telemetry: { errorsEnabled: true } });
+    const before = readFileSync(userSettingsFilePath(), 'utf8');
+    writeUserSettings({
+      telemetry: { errorsEnabled: 'yes' as unknown as boolean },
+    });
+    const after = readFileSync(userSettingsFilePath(), 'utf8');
+    assert.equal(after, before, 'off-shape telemetry patch must be a no-op');
   });
 
   it('refuses to corrupt the file with an unknown top-level key in the patch', () => {

@@ -46,10 +46,38 @@ jobs:
         # serves the bundle from there in installed mode; without this
         # step the published tarball would ship without any UI and
         # `sm` would render the placeholder forever.
-        run: pnpm --filter ui build
+        #
+        # When Sentry telemetry is wired (auth token + org present), build
+        # with the `release-sourcemaps` configuration instead: identical
+        # minified output plus HIDDEN `.map` files (no sourceMappingURL
+        # comment, so nothing changes for the shipped JS). The maps are
+        # stripped from the tarball below and uploaded post-publish. The
+        # maps MUST come from this exact build, a separate rebuild produces
+        # different content hashes and would not match the shipped bundle.
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+        run: |
+          if [ -n "$SENTRY_AUTH_TOKEN" ] && [ -n "$SENTRY_ORG" ]; then
+            echo "Building UI with hidden sourcemaps (Sentry upload enabled)"
+            pnpm --filter ui exec ng build --configuration release-sourcemaps
+          else
+            pnpm --filter ui build
+          fi
 
       - name: Build CLI
         run: pnpm --filter @skill-map/cli build
+
+      - name: Strip UI sourcemaps from the published bundle
+        # The `.map` files stay under `ui/dist/` for the post-publish upload,
+        # but must NEVER ship inside the npm tarball (they would expose the
+        # original TypeScript source). Scoped to `src/dist/ui` so the CLI's
+        # own dist maps are untouched. No-op when the UI was built without
+        # sourcemaps (no token / org).
+        run: |
+          before=$(find src/dist/ui -name '*.map' 2>/dev/null | wc -l)
+          find src/dist/ui -name '*.map' -delete 2>/dev/null || true
+          echo "Removed ${before} UI sourcemap(s) from the published bundle."
 
       - name: Verify spec index is up to date
         run: pnpm --filter @skill-map/spec spec:check
@@ -124,3 +152,46 @@ jobs:
           sm --version
           skill-map --version
           sm --help > /dev/null
+
+      - name: Upload UI sourcemaps to Sentry (post-publish)
+        # Only on an actual publish, and only when the operator has wired
+        # the Sentry secret + org. Self-skips (exit 0) otherwise, so a repo
+        # without telemetry configured releases exactly as before. This
+        # never touches the already-published bundle: it rebuilds the UI
+        # with HIDDEN sourcemaps (identical JS + content hashes as the
+        # shipped production build, plus the `.map` files) purely to upload
+        # them. Sentry matches events to these maps via the `release` tag
+        # the SDK sets (`@skill-map/cli@<version>`) plus the `~/` url-prefix.
+        if: steps.changesets.outputs.published == 'true'
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: skill-map-ui
+          PUBLISHED: ${{ steps.changesets.outputs.publishedPackages }}
+        run: |
+          if [ -z "$SENTRY_AUTH_TOKEN" ] || [ -z "$SENTRY_ORG" ]; then
+            echo "SENTRY_AUTH_TOKEN secret or SENTRY_ORG variable not set; skipping sourcemap upload."
+            exit 0
+          fi
+          cli_version=$(node -e '
+            const pkgs = JSON.parse(process.env.PUBLISHED || "[]");
+            const cli = pkgs.find((p) => p.name === "@skill-map/cli");
+            if (cli) process.stdout.write(cli.version);
+          ')
+          if [ -z "$cli_version" ]; then
+            echo "@skill-map/cli not in this release; skipping sourcemap upload."
+            exit 0
+          fi
+          if [ -z "$(find ui/dist/ui/browser -name '*.map' -print -quit 2>/dev/null)" ]; then
+            echo "No UI sourcemaps on disk (UI built without them); skipping upload."
+            exit 0
+          fi
+          release="@skill-map/cli@${cli_version}"
+          echo "Uploading UI sourcemaps for release ${release}"
+          # Maps come from the same 'release-sourcemaps' build that produced
+          # the shipped JS, so they match the bundle by filename. Sentry ties
+          # them to events via the SDK's `release` tag + the `~/` url-prefix.
+          npx @sentry/cli@2 sourcemaps upload \
+            --release "${release}" \
+            --url-prefix '~/' \
+            ui/dist/ui/browser

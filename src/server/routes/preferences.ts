@@ -1,20 +1,22 @@
 /**
- * Preferences route, read + write the update-check toggle.
+ * Preferences route, read + write the per-machine user settings.
  *
  *   GET   /api/preferences        → current envelope
  *   PATCH /api/preferences        → mutate one or more sub-keys
  *
- * Today the envelope carries a single sub-key (`updateCheck.enabled`)
- * but the shape is intentionally extensible. New per-machine settings
- * land as additional optional sub-keys under their own namespace.
+ * The envelope carries the update-check toggle (`updateCheck.enabled`)
+ * and the telemetry consent flag (`telemetry.errorsEnabled`). The shape
+ * is intentionally extensible: new per-machine settings land as
+ * additional optional sub-keys under their own namespace (a future
+ * `telemetry.usageEnabled`, locale, theme).
  *
  * Persistence funnels through `cli/util/user-settings-store.ts`, the
- * single legitimate `os.homedir()` reader. The toggle lives at
- * `~/.skill-map/settings.json` under `updateCheck.*` alongside the
- * throttle cache, per `spec/cli-contract.md` §Scope is always
- * project-local: this is the documented exception to the
- * no-`$HOME`-reads principle. No project config layer participates;
- * `sm config` does not surface `updateCheck.enabled`.
+ * single legitimate `os.homedir()` reader. The flags live at
+ * `~/.skill-map/settings.json` under `updateCheck.*` / `telemetry.*`,
+ * per `spec/cli-contract.md` §Scope is always project-local: this is the
+ * documented exception to the no-`$HOME`-reads principle. No project
+ * config layer participates; `sm config` does not surface these keys
+ * (see `spec/telemetry.md` for the consent contract).
  *
  * Body validation goes through `server/util/parse-body.ts` (AJV-backed
  * factory). Errors flow through `app.onError` via `HTTPException`.
@@ -25,6 +27,7 @@ import type { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 
 import {
+  isErrorTelemetryEnabled,
   isUpdateCheckEnabled,
   writeUserSettings,
 } from '../../cli/util/user-settings-store.js';
@@ -38,11 +41,17 @@ export interface IPreferencesEnvelope {
   updateCheck: {
     enabled: boolean;
   };
+  telemetry: {
+    errorsEnabled: boolean;
+  };
 }
 
 interface IPatchBody {
   updateCheck?: {
     enabled?: boolean;
+  };
+  telemetry?: {
+    errorsEnabled?: boolean;
   };
 }
 
@@ -67,6 +76,7 @@ export function registerPreferencesRoute(app: Hono, _deps: IRouteDeps): void {
 function buildEnvelope(): IPreferencesEnvelope {
   return {
     updateCheck: { enabled: isUpdateCheckEnabled() },
+    telemetry: { errorsEnabled: isErrorTelemetryEnabled() },
   };
 }
 
@@ -76,16 +86,19 @@ function buildEnvelope(): IPreferencesEnvelope {
  * permission denied / disk full surfaces predictably.
  */
 function applyPatch(body: IPatchBody): void {
-  if (body.updateCheck && typeof body.updateCheck.enabled === 'boolean') {
-    try {
+  try {
+    if (body.updateCheck && typeof body.updateCheck.enabled === 'boolean') {
       writeUserSettings({ updateCheck: { enabled: body.updateCheck.enabled } });
-    } catch (err) {
-      throw new HTTPException(400, {
-        message: tx(SERVER_TEXTS.preferencesPersistFailed, {
-          message: formatErrorMessage(err),
-        }),
-      });
     }
+    if (body.telemetry && typeof body.telemetry.errorsEnabled === 'boolean') {
+      writeUserSettings({ telemetry: { errorsEnabled: body.telemetry.errorsEnabled } });
+    }
+  } catch (err) {
+    throw new HTTPException(400, {
+      message: tx(SERVER_TEXTS.preferencesPersistFailed, {
+        message: formatErrorMessage(err),
+      }),
+    });
   }
 }
 
@@ -108,6 +121,13 @@ const PATCH_BODY_SCHEMA = {
         enabled: { type: 'boolean' },
       },
     },
+    telemetry: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        errorsEnabled: { type: 'boolean' },
+      },
+    },
   },
 } as const;
 
@@ -119,5 +139,7 @@ const parsePatchBody = makeBodyValidator<IPatchBody>(PATCH_BODY_SCHEMA, {
     ':minProperties': SERVER_TEXTS.preferencesBodyEmpty,
     '/updateCheck:type:object': SERVER_TEXTS.preferencesUpdateCheckNotObject,
     '/updateCheck/enabled:type:boolean': SERVER_TEXTS.preferencesUpdateCheckEnabledNotBoolean,
+    '/telemetry:type:object': SERVER_TEXTS.preferencesTelemetryNotObject,
+    '/telemetry/errorsEnabled:type:boolean': SERVER_TEXTS.preferencesTelemetryErrorsEnabledNotBoolean,
   },
 });

@@ -56,8 +56,8 @@ Genuinely per-user, per-machine preferences live in a **single file**
 at `~/.skill-map/settings.json`, validated against
 [`user-settings.schema.json`](./schemas/user-settings.schema.json).
 The file holds preferences that have no project meaning (the update-
-check toggle + its throttle bookkeeping today; future locale, theme,
-etc.). Constraints:
+check toggle + its throttle bookkeeping, and the telemetry consent
+flag today; future locale, theme, etc.). Constraints:
 
 - **One file, no `.local` partner**: values here are already
   per-machine, so the project / project-local split has no meaning.
@@ -69,12 +69,38 @@ etc.). Constraints:
   (only preferences whose value is meaningless inside a project).
   Anything that belongs to a project goes in
   `<cwd>/.skill-map/settings.json` instead.
-- **Closed list of writers**: today only the update-check store
-  (`src/cli/util/update-check-store.ts` in the reference impl)
-  reads and writes the file. New user-scope features extend that
-  module rather than opening new home access points.
+- **Closed list of writers**: a single user-settings store module
+  (`src/cli/util/user-settings-store.ts` in the reference impl) is the
+  only reader / writer of the file. Every user-scope feature (the
+  update-check toggle, the telemetry consent flag) goes through it
+  rather than opening new home access points.
 
 Everything else under `$HOME` MUST NOT be touched.
+
+### Telemetry consent
+
+skill-map sends nothing off the machine by default. Opt-in, anonymous
+**error reporting** is the one documented exception, governed in full by
+[`telemetry.md`](./telemetry.md). The operator-facing contract:
+
+- **Default OFF.** The `telemetry.errorsEnabled` flag in
+  `~/.skill-map/settings.json` is absent until the operator decides. Absent
+  or `false` means no telemetry SDK is loaded and nothing is sent, on every
+  surface (CLI, BFF, UI), with zero added latency.
+- **First-run prompt (interactive terminals only).** The first time a verb
+  runs before the operator has been asked, the CLI MAY show a one-time
+  consent prompt (yes / no, default no / details). The choice is persisted
+  and the prompt is never shown again (`telemetry.promptedAt` stamps it).
+  When stdout is not a TTY (CI, pipes), the prompt is skipped and the state
+  stays OFF.
+- **Kill switch.** `SKILL_MAP_TELEMETRY=0` forces OFF everywhere regardless
+  of the persisted flag. There is no env value that forces ON.
+- **No `sm config` key.** The flag is per-machine, so it lives in the
+  user-settings file, not in project config. `sm config` writes project-local
+  settings only and MUST NOT surface this key. Consent is changed after the
+  first run through the Settings UI (Privacy section, persisted via the BFF),
+  mirroring how the update-check toggle works. A future `sm telemetry` verb
+  family MAY expose CLI status / toggling; it is not part of this level.
 
 ### Active provider lens
 

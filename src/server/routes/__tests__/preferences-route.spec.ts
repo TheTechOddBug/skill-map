@@ -11,8 +11,8 @@
  * write is sandboxed.
  *
  * Confirms:
- *   - GET returns `{ updateCheck: { enabled: true } }` by default.
- *   - PATCH writes through to the update-check file under HOME.
+ *   - GET returns the default envelope (update-check ON, telemetry OFF).
+ *   - PATCH writes update-check / telemetry through to the file under HOME.
  *   - PATCH then GET round-trips the new value.
  *   - Empty body, malformed shape, and wrong type yield 400 with a
  *     directed `bad-query` envelope.
@@ -22,7 +22,7 @@ import { strict as assert } from 'node:assert';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { after, before, describe, it } from 'node:test';
+import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
 
 import {
   createServer,
@@ -32,6 +32,7 @@ import {
 
 interface IPreferencesEnvelopeWire {
   updateCheck: { enabled: boolean };
+  telemetry: { errorsEnabled: boolean };
 }
 
 interface IErrorEnvelopeWire {
@@ -64,6 +65,16 @@ after(() => {
   rmSync(tmp, { recursive: true, force: true });
   rmSync(cwd, { recursive: true, force: true });
   rmSync(homedir, { recursive: true, force: true });
+});
+
+// Reset `~/.skill-map/` between tests so each starts from the shipped
+// defaults; the settings file is shared across tests via the pinned HOME.
+beforeEach(() => {
+  rmSync(join(homedir, '.skill-map'), { recursive: true, force: true });
+});
+
+afterEach(() => {
+  rmSync(join(homedir, '.skill-map'), { recursive: true, force: true });
 });
 
 function defaultOptions(): IServerOptions {
@@ -104,7 +115,10 @@ describe('GET /api/preferences', () => {
       const res = await fetch(url(handle, '/api/preferences'));
       assert.equal(res.status, 200);
       const env = (await res.json()) as IPreferencesEnvelopeWire;
-      assert.deepEqual(env, { updateCheck: { enabled: true } });
+      assert.deepEqual(env, {
+        updateCheck: { enabled: true },
+        telemetry: { errorsEnabled: false },
+      });
     });
   });
 });
@@ -119,7 +133,10 @@ describe('PATCH /api/preferences', () => {
       });
       assert.equal(res.status, 200);
       const env = (await res.json()) as IPreferencesEnvelopeWire;
-      assert.deepEqual(env, { updateCheck: { enabled: false } });
+      assert.deepEqual(env, {
+        updateCheck: { enabled: false },
+        telemetry: { errorsEnabled: false },
+      });
 
       // Sanity: the file landed under HOME (the documented exception),
       // not under CWD. The store writes to ~/.skill-map/settings.json
@@ -138,7 +155,47 @@ describe('PATCH /api/preferences', () => {
       const re = await fetch(url(handle, '/api/preferences'));
       assert.equal(re.status, 200);
       const reEnv = (await re.json()) as IPreferencesEnvelopeWire;
-      assert.deepEqual(reEnv, { updateCheck: { enabled: false } });
+      assert.deepEqual(reEnv, {
+        updateCheck: { enabled: false },
+        telemetry: { errorsEnabled: false },
+      });
+    });
+  });
+
+  it('persists telemetry.errorsEnabled=true to ~/.skill-map/settings.json', async () => {
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ telemetry: { errorsEnabled: true } }),
+      });
+      assert.equal(res.status, 200);
+      const env = (await res.json()) as IPreferencesEnvelopeWire;
+      assert.equal(env.telemetry.errorsEnabled, true);
+      // A telemetry-only patch leaves the update-check default untouched.
+      assert.equal(env.updateCheck.enabled, true);
+
+      const filePath = join(homedir, '.skill-map/settings.json');
+      const persisted = JSON.parse(readFileSync(filePath, 'utf8'));
+      assert.equal(persisted.telemetry.errorsEnabled, true);
+
+      const re = await fetch(url(handle, '/api/preferences'));
+      const reEnv = (await re.json()) as IPreferencesEnvelopeWire;
+      assert.equal(reEnv.telemetry.errorsEnabled, true);
+    });
+  });
+
+  it('400 bad-query when telemetry.errorsEnabled is not a boolean', async () => {
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ telemetry: { errorsEnabled: 'yes' } }),
+      });
+      assert.equal(res.status, 400);
+      const env = (await res.json()) as IErrorEnvelopeWire;
+      assert.equal(env.error.code, 'bad-query');
+      assert.match(env.error.message, /errorsEnabled.*boolean/i);
     });
   });
 

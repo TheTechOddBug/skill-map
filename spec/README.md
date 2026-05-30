@@ -60,6 +60,7 @@ spec/                              ← published as @skill-map/spec
 ├── [db-schema.md](./db-schema.md)            ← table catalog (kernel-owned)
 ├── [plugin-kv-api.md](./plugin-kv-api.md)    ← ctx.store contract for storage mode A
 ├── [job-lifecycle.md](./job-lifecycle.md)     ← queued → running → completed | failed
+├── [telemetry.md](./telemetry.md)            ← opt-in error reporting (default OFF)
 │
 ├── schemas/                       ← JSON Schemas, draft 2020-12, camelCase keys (authoritative list + sha256 in index.json)
 │   ├── node.schema.json                     ┐

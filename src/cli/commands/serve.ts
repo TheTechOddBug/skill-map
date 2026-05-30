@@ -49,6 +49,7 @@ import {
   type IServerOptionsInput,
   type IServerHandle,
 } from '../../server/index.js';
+import { initSentryBff } from '../../server/telemetry/sentry.js';
 import { SERVE_TEXTS } from '../i18n/serve.texts.js';
 import { resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -277,7 +278,11 @@ export class ServeCommand extends SmCommand {
       return ExitCode.Error;
     }
 
-    // 5. Boot.
+    // 5. Boot. Initialise BFF telemetry here (the CLI verb owns env reads,
+    // the server stays env-free) and only here: the `serve` verb is skipped
+    // by the CLI-side init in entry.ts so the two Sentry clients never
+    // clobber each other. No-op while the DSN placeholder is empty.
+    initSentryBff(VERSION);
     let handle: IServerHandle;
     try {
       handle = await createServer(validation.options);

@@ -34,6 +34,21 @@
           "description": "Unix milliseconds of the last banner emission to stderr. `null` (or absent) when never shown. Used so a single probe does not re-emit the banner across back-to-back `sm` invocations."
         }
       }
+    },
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "User consent + prompt bookkeeping for opt-in, anonymous error reporting (see `spec/telemetry.md`). Default is OFF: error reporting only runs once the operator has explicitly opted in. Same shape as `updateCheck`: a real preference (`errorsEnabled`) plus opaque bookkeeping (`promptedAt`) the CLI maintains so it does not re-prompt.",
+      "properties": {
+        "errorsEnabled": {
+          "type": "boolean",
+          "description": "Operator opt-in toggle for error reporting. **Default OFF**: when absent or `false`, no telemetry SDK is initialised and no event leaves the machine. Set to `true` only after explicit consent (first-run prompt or Settings UI). The `SKILL_MAP_TELEMETRY=0` env var forces OFF regardless of this value."
+        },
+        "promptedAt": {
+          "type": ["integer", "null"],
+          "description": "Unix milliseconds of the moment the first-run consent prompt was shown. `null` (or absent) when the user has never been prompted. Once set, the prompt is never shown again, the persisted `errorsEnabled` (true or false) is authoritative."
+        }
+      }
     }
   }
 }
