@@ -109,9 +109,9 @@ Mark `settings-2-local: done`.
 
 ## Step `settings-6-contributions` — watch contributions land (~2 min)
 
-> Last step. Let's see a contribution land in the inspector
-> live. The fixture's `master-agent` declares `tools: [Read,
-> Bash, Edit]`, which the `core/tools-counter` extractor picks up.
+> Last step. Let's watch a contribution land on a node card live.
+> The fixture's `master-agent` declares `tools: [Read, Bash,
+> Edit]`, which the `core/tools-counter` extractor picks up.
 
 If the tester does not have `sm` running, ask them to launch it
 in their second terminal (same drill as the basic tutorial:
@@ -124,14 +124,14 @@ sm
 
 Once the UI is open, ask the tester to:
 
-> Click the `master-agent` node. The inspector opens on the
-> right side. Look at the **header badge cluster** (just under
-> the title): you should see a small chip from `tools-counter`
-> showing the value `3`.
+> Find the `master-agent` card in the graph. Look at its **left
+> footer** (the bottom-left corner of the card): you should see a
+> small wrench chip from `tools-counter` labelled `tools` showing
+> the value `3`. Hover it to see the tool names.
 >
 > That chip is a plugin contribution. It landed in the slot
-> `inspector.header.badge.counter`, the renderer is `NodeCounter`
-> (same one your scaffold uses), the payload was `{ value: 3 }`.
+> `card.footer.left`, the renderer is `NodeCounter` (same one your
+> scaffold uses), the payload was `{ value: 3 }`.
 
 If the `demo-highlight` plugin from the earlier authoring steps
 of this tour is still installed, point the tester at the
@@ -147,8 +147,8 @@ remove one tool), save, and watch the chip refresh.
 > Same flow as the basic tutorial's live UI: edit the markdown,
 > watch the UI refresh. The difference is that the value flowed
 > through a plugin (`core/tools-counter`) and landed in a specific
-> slot (`inspector.header.badge.counter`). You now know the full
-> path from `.md` to UI chip.
+> slot (`card.footer.left`). You now know the full path from `.md`
+> to UI chip.
 
 Have them Ctrl+C the server when done.
 

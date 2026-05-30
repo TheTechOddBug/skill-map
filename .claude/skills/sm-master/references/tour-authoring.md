@@ -66,14 +66,10 @@ with you. They DO NOT edit anything yet.
 
 Then narrate, one file at a time:
 
-> **`plugin.json`**: the manifest
+> **`plugin.json`**: the bundle manifest
 >
-> The contract the CLI validates at load.
->
-> **Key fields:**
->
-> - `id`: the kebab-case id you typed. Must match the bundle folder
->   name.
+> The contract the CLI validates at load. It is deliberately lean,
+> four keys:
 >
 > - `version`: starts at `0.1.0`; you bump it yourself, the CLI
 >   does not touch it.
@@ -81,34 +77,37 @@ Then narrate, one file at a time:
 > - `specCompat` / `catalogCompat`: which `sm` and plugin catalog
 >   version your plugin targets.
 >
-> - `settings`: user-configurable knobs. The scaffold ships
->   `keywords`, a `string-list` defaulting to `["TODO", "FIXME"]`.
->   Browse other input types with `sm plugins slots list`.
+> - `description`: the one-liner shown in `sm plugins list`.
 >
-> There is no `extensions` field. The kernel discovers each
-> extension by walking `<plugin-dir>/<kind>s/<name>/index.js`;
-> the folder layout IS the contract.
+> Notice what is NOT here. There is no `id`: the bundle id is the
+> folder name (`demo-highlight`). There is no `extensions` list: the
+> kernel discovers each extension by walking
+> `<plugin-dir>/<kind>s/<name>/index.js`. And there is no `settings`
+> block: settings live per-extension, inside the extractor's
+> `index.js` (you'll see them next). The folder layout IS the
+> contract, that's the "structure-as-truth" idea.
 
 > **`extractors/demo-highlight-extractor/index.js`**: the code
 >
 > Plain JavaScript with a default export. **Structure-as-truth**:
-> the loader derives `id`, `kind`, and `pluginId` from the folder
-> path; the manifest itself never declares them.
+> the loader derives the extension `id` and its `pluginId` from the
+> folder path, so the export never repeats them. It does declare its
+> `kind` (`extractor`), which the loader cross-checks against the
+> parent folder (`extractors/`); a mismatch is rejected at load.
 >
 > **What the loader reads:**
 >
 > - The folder layout tells the loader this is an extractor named
 >   `demo-highlight-extractor` (`extractors/<id>/index.js`).
 >
-> - `ui`: which slots the extension emits to (renamed from
->   `viewContributions` with the structure-as-truth refactor). The
->   scaffold declares `count`, targeting `card.footer.left` (the
->   chip in the bottom-left of every node card). The slot pins
->   both the renderer (`NodeCounter`) and the payload shape.
+> - `ui`: which slots the extension emits to. The scaffold declares
+>   `count`, targeting `card.footer.left` (the chip in the
+>   bottom-left of every node card). The slot pins both the renderer
+>   (`NodeCounter`) and the payload shape.
 >
-> - `settings`: per-extension user-configurable knobs (moved here
->   from `plugin.json` with the same refactor). Exposed at runtime
->   via `ctx.settings.<settingId>`.
+> - `settings`: the per-extension user-configurable knobs, this is
+>   where the `keywords` list lives. Exposed at runtime via
+>   `ctx.settings.<settingId>`.
 >
 > - `extract(ctx)`: the function the kernel runs per node.
 >   `ctx.body` is the markdown body, `ctx.settings` carries what
@@ -158,28 +157,24 @@ content, not configuration). Append at the end:
 - [ ] XXX revisit naming.
 ```
 
-Now re-scan and confirm the extractor picks them up:
+Now re-scan so the extractor re-reads its settings and re-counts:
 
 ```bash
 sm scan
-sm show notes/ideas.md
 ```
 
-`sm show` prints the node's persisted contributions. Look for a
-`count` contribution with `value: 3` (one match per keyword). The
-exact JSON shape is in the body of the `show` output under a
-`contributions` key.
+The scan re-emits the contribution with the new count. To actually
+see it we open the UI: `sm show` covers a node's frontmatter, links,
+and issues, but not plugin contributions. Ask the tester to run `sm`
+in the second terminal, open the browser, click `notes/ideas`, and
+spot the chip in the **left footer** of the card (or the bottom-left
+badge in the inspector). It reads `🔍 kw 3`, one match per keyword,
+the icon and label come from the manifest's `ui.count`.
 
-> Three matches. The setting flowed from `plugin.json` through
-> `ctx.settings.keywords` into the extractor, the extractor
-> counted them, the kernel persisted the contribution, `sm show`
-> reads it back. That's the whole loop.
-
-If the tester wants to see it in the UI: ask them to run `sm` in
-the second terminal, open the browser, click `notes/ideas`, and
-spot the new chip in the **left footer** of the card (or the
-bottom-left badge in the inspector). The chip says `🔍 kw 3` (icon
-and label from the manifest's `ui.count`).
+> Three matches. The setting flowed from the extension's `settings`
+> through `ctx.settings.keywords` into the extractor, the extractor
+> counted them, the kernel persisted the contribution, and the UI
+> rendered it. That's the whole loop.
 
 Mark `authoring-3-edit-setting: done`.
 

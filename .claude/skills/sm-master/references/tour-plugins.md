@@ -139,8 +139,9 @@ the change persists.
 sm plugins show core/external-url-counter
 ```
 
-Expected: a focused detail block for that one extension (header,
-Kind, Version, Stability, Description, Preconditions, Entry).
+Expected: a focused detail block for that one extension, the header
+line (`✓ core/external-url-counter built-in`) plus its Kind
+(`extractor`) and Description.
 
 > Now run the diagnostic. The `doctor` verb reports every plugin
 > and extension status in one go: enabled, disabled, load errors,
