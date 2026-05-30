@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "node scripts/dev-server.js",
     "predemo:build": "rm -rf ../fixtures/demo-scope/.skill-map",
-    "demo:build": "pnpm --filter ui build && node scripts/build-demo-dataset.js && cp -R ../ui/dist/ui/browser/. demo/ && node scripts/patch-demo-mode.js",
+    "demo:build": "node scripts/ensure-ui-build.js && node scripts/build-demo-dataset.js && cp -R ../ui/dist/ui/browser/. demo/ && node scripts/patch-demo-mode.js",
     "demo:serve": "node scripts/serve-demo.js",
     "build": "pnpm demo:build && node scripts/build-site.js",
     "docker:build": "docker build -t skill-map-test ..",
