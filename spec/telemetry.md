@@ -38,21 +38,28 @@ narrow `$HOME` exception in [`cli-contract.md`](./cli-contract.md) §User-settin
 
 - `telemetry.errorsEnabled` (boolean). Absent or `false` MUST be treated as
   OFF. `true` is the only value that enables reporting.
+- `telemetry.firstRunAt` (integer milliseconds, or null). Records the first
+  run on which the prompt was eligible, so the prompt can be deferred to the
+  next eligible run.
 - `telemetry.promptedAt` (integer milliseconds, or null). Records when the
-  first-run prompt was shown so it is never shown twice.
+  consent prompt was shown so it is never shown twice.
 
 Rules:
 
 1. **Default OFF.** When `errorsEnabled` is absent or `false`, no telemetry
    SDK is initialised, no DSN is contacted, and there is zero added latency
    to any verb. This MUST hold on every surface (CLI, BFF, UI).
-2. **First-run prompt, TTY only.** The first time a verb runs while
-   `telemetry` has never been set (`promptedAt` absent), the CLI MAY show an
-   interactive consent prompt on an interactive terminal. The prompt offers
-   yes, no (default), and a details view. The decision is persisted and
-   `promptedAt` is stamped. The prompt MUST be skipped when
-   `process.stdout.isTTY` is false (CI, pipes, scripted use); in that case
-   the state stays OFF and the operator opts in explicitly later.
+2. **Consent prompt, TTY only, deferred to the second eligible run.** A run
+   is "eligible" when the prompt could appear: an interactive terminal
+   (`process.stdout.isTTY` true), a DSN configured, the kill switch unset,
+   and `promptedAt` absent. The CLI MUST NOT prompt on the FIRST eligible
+   run, it only stamps `firstRunAt` and stays silent, so the operator's
+   first `sm` invocation is not asked two things at once (a first `sm scan`
+   may already prompt for the provider lens). The NEXT eligible run shows the
+   interactive prompt (yes / no, default no / details), persists the choice,
+   and stamps `promptedAt`. On a non-eligible run (non-TTY CI, pipes) nothing
+   is asked or recorded and the state stays OFF; the operator opts in
+   explicitly later.
 3. **Asked once.** Once `promptedAt` is set, the prompt MUST NOT be shown
    again. The persisted `errorsEnabled` is authoritative thereafter.
 4. **Env override.** The `SKILL_MAP_TELEMETRY=0` environment variable forces

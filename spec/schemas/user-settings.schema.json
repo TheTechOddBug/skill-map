@@ -38,15 +38,19 @@
     "telemetry": {
       "type": "object",
       "additionalProperties": false,
-      "description": "User consent + prompt bookkeeping for opt-in, anonymous error reporting (see `spec/telemetry.md`). Default is OFF: error reporting only runs once the operator has explicitly opted in. Same shape as `updateCheck`: a real preference (`errorsEnabled`) plus opaque bookkeeping (`promptedAt`) the CLI maintains so it does not re-prompt.",
+      "description": "User consent + prompt bookkeeping for opt-in, anonymous error reporting (see `spec/telemetry.md`). Default is OFF: error reporting only runs once the operator has explicitly opted in. A real preference (`errorsEnabled`) plus opaque bookkeeping (`firstRunAt`, `promptedAt`) the CLI maintains so it asks at the right time and never re-prompts.",
       "properties": {
         "errorsEnabled": {
           "type": "boolean",
-          "description": "Operator opt-in toggle for error reporting. **Default OFF**: when absent or `false`, no telemetry SDK is initialised and no event leaves the machine. Set to `true` only after explicit consent (first-run prompt or Settings UI). The `SKILL_MAP_TELEMETRY=0` env var forces OFF regardless of this value."
+          "description": "Operator opt-in toggle for error reporting. **Default OFF**: when absent or `false`, no telemetry SDK is initialised and no event leaves the machine. Set to `true` only after explicit consent (the consent prompt or Settings UI). The `SKILL_MAP_TELEMETRY=0` env var forces OFF regardless of this value."
+        },
+        "firstRunAt": {
+          "type": ["integer", "null"],
+          "description": "Unix milliseconds of the first run on which the consent prompt was eligible to appear (interactive TTY, DSN configured, not opted-out by env, not yet answered). The prompt is intentionally deferred to the NEXT eligible run so it does not stack on top of the first-run provider-lens prompt. `null` (or absent) before any eligible run."
         },
         "promptedAt": {
           "type": ["integer", "null"],
-          "description": "Unix milliseconds of the moment the first-run consent prompt was shown. `null` (or absent) when the user has never been prompted. Once set, the prompt is never shown again, the persisted `errorsEnabled` (true or false) is authoritative."
+          "description": "Unix milliseconds of the moment the consent prompt was shown. `null` (or absent) when the user has never been prompted. Once set, the prompt is never shown again, the persisted `errorsEnabled` (true or false) is authoritative."
         }
       }
     }

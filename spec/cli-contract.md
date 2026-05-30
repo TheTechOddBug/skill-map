@@ -87,12 +87,14 @@ skill-map sends nothing off the machine by default. Opt-in, anonymous
   `~/.skill-map/settings.json` is absent until the operator decides. Absent
   or `false` means no telemetry SDK is loaded and nothing is sent, on every
   surface (CLI, BFF, UI), with zero added latency.
-- **First-run prompt (interactive terminals only).** The first time a verb
-  runs before the operator has been asked, the CLI MAY show a one-time
-  consent prompt (yes / no, default no / details). The choice is persisted
-  and the prompt is never shown again (`telemetry.promptedAt` stamps it).
-  When stdout is not a TTY (CI, pipes), the prompt is skipped and the state
-  stays OFF.
+- **Consent prompt (interactive terminals only, second eligible run).** The
+  CLI MAY show a one-time consent prompt (yes / no, default no / details),
+  but NOT on the operator's first eligible run: that run only records
+  `telemetry.firstRunAt` and stays silent so the prompt does not stack on
+  the first-`sm scan` provider-lens prompt. The next eligible run shows it,
+  persists the choice, and stamps `telemetry.promptedAt` (so it is never
+  shown again). When stdout is not a TTY (CI, pipes), nothing is asked or
+  recorded and the state stays OFF.
 - **Kill switch.** `SKILL_MAP_TELEMETRY=0` forces OFF everywhere regardless
   of the persisted flag. There is no env value that forces ON.
 - **No `sm config` key.** The flag is per-machine, so it lives in the

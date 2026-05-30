@@ -1,23 +1,28 @@
 /**
- * First-run telemetry consent prompt (`spec/telemetry.md` §Consent
- * contract). Shown at most once, only on an interactive terminal, only
- * when a real DSN is configured. The operator's choice is persisted to
- * `~/.skill-map/settings.json`; once `promptedAt` is stamped the prompt
- * never appears again.
+ * Telemetry consent prompt (`spec/telemetry.md` §Consent contract). Shown at
+ * most once, only on an interactive terminal, only when a real DSN is
+ * configured, and only from the SECOND eligible run onward. The choice is
+ * persisted to `~/.skill-map/settings.json`; once `promptedAt` is stamped
+ * the prompt never appears again.
  *
- * While the CLI DSN is the empty placeholder, `shouldPromptForConsent`
- * returns false (`dsnConfigured` is false), so this whole surface is
- * dormant until the sentry.io project exists.
+ * Second-run deferral: the first run on which the prompt would be eligible
+ * stamps `telemetry.firstRunAt` and stays silent, so the operator's very
+ * first `sm` invocation is not asked two things at once (a first `sm scan`
+ * may already prompt for the provider lens). The NEXT eligible run asks.
  *
- * The decision logic (`shouldPromptForConsent`, `interpretConsentAnswer`)
- * is pure and unit-tested; the interactive read is the only side effect
- * and runs solely when the gate opens.
+ * While the CLI DSN is the empty placeholder, `isPromptEligible` returns
+ * false (`dsnConfigured` is false), so this whole surface is dormant.
+ *
+ * The decision logic (`isPromptEligible`, `shouldPromptForConsent`,
+ * `interpretConsentAnswer`) is pure and unit-tested; the interactive read is
+ * the only side effect and runs solely when the gate opens.
  */
 
 import { createInterface } from 'node:readline/promises';
 
 import { TELEMETRY_PROMPT_TEXTS } from '../i18n/telemetry.texts.js';
 import {
+  hasSeenFirstRun,
   hasTelemetryPromptBeenShown,
   writeUserSettings,
 } from '../util/user-settings-store.js';
@@ -25,6 +30,15 @@ import { isCliDsnConfigured, isTelemetryForcedOff } from './sentry-init.js';
 
 /** Parsed intent of a raw consent answer. */
 export type TConsentAnswer = 'yes' | 'no' | 'details';
+
+/** The environment signals the prompt gate reads. */
+export interface IPromptGateInputs {
+  dsnConfigured: boolean;
+  isTTY: boolean;
+  isCI: boolean;
+  forcedOff: boolean;
+  alreadyPrompted: boolean;
+}
 
 /**
  * Interpret a raw prompt answer. `y` / `yes` opt in; `d` / `details` ask
@@ -39,17 +53,12 @@ export function interpretConsentAnswer(raw: string): TConsentAnswer {
 }
 
 /**
- * Pure gate: show the prompt only when a real DSN is configured, we are on
- * an interactive TTY, not in CI, the kill switch is unset, and the operator
- * has not been asked before.
+ * Pure gate: a run is eligible to either record the first-run marker or show
+ * the prompt when a real DSN is configured, we are on an interactive TTY,
+ * not in CI, the kill switch is unset, and the operator has not been asked
+ * before.
  */
-export function shouldPromptForConsent(opts: {
-  dsnConfigured: boolean;
-  isTTY: boolean;
-  isCI: boolean;
-  forcedOff: boolean;
-  alreadyPrompted: boolean;
-}): boolean {
+export function isPromptEligible(opts: IPromptGateInputs): boolean {
   return (
     opts.dsnConfigured &&
     opts.isTTY &&
@@ -59,15 +68,26 @@ export function shouldPromptForConsent(opts: {
   );
 }
 
-/** Live evaluation of the consent gate against the current environment. */
-function consentGateOpen(stdout: { isTTY?: boolean }): boolean {
-  return shouldPromptForConsent({
+/**
+ * Pure gate: actually show the prompt this run. True only when the run is
+ * eligible AND an earlier eligible run has already been seen (`firstRunSeen`),
+ * i.e. this is the second-or-later eligible run.
+ */
+export function shouldPromptForConsent(
+  opts: IPromptGateInputs & { firstRunSeen: boolean },
+): boolean {
+  return isPromptEligible(opts) && opts.firstRunSeen;
+}
+
+/** Snapshot the live environment signals for the gate. */
+function liveGateInputs(stdout: { isTTY?: boolean }): IPromptGateInputs {
+  return {
     dsnConfigured: isCliDsnConfigured(),
     isTTY: stdout.isTTY === true,
     isCI: Boolean(process.env['CI']),
     forcedOff: isTelemetryForcedOff(),
     alreadyPrompted: hasTelemetryPromptBeenShown(),
-  });
+  };
 }
 
 /**
@@ -111,16 +131,27 @@ async function runConsentPrompt(
 }
 
 /**
- * Run the one-time consent prompt if the gate opens, persisting the choice.
- * No-op (and never blocks) when the gate is closed. `nowMs` is injectable so
- * callers/tests control the `promptedAt` stamp.
+ * On an eligible run, either defer (the first one) or show the prompt (the
+ * second onward), persisting the choice. No-op (and never blocks) when the
+ * run is not eligible. `nowMs` is injectable so callers/tests control the
+ * timestamps.
  */
-export async function maybeRunFirstRunPrompt(opts?: {
+export async function maybeRunFirstRunPrompt({
+  stdin = process.stdin,
+  stdout = process.stdout,
+  nowMs = Date.now(),
+}: {
   stdin?: NodeJS.ReadableStream;
   stdout?: NodeJS.WritableStream & { isTTY?: boolean };
   nowMs?: number;
-}): Promise<void> {
-  const stdout = opts?.stdout ?? process.stdout;
-  if (!consentGateOpen(stdout)) return;
-  await runConsentPrompt(opts?.stdin ?? process.stdin, stdout, opts?.nowMs ?? Date.now());
+} = {}): Promise<void> {
+  if (!isPromptEligible(liveGateInputs(stdout))) return;
+  if (!hasSeenFirstRun()) {
+    // First eligible run: record it and stay silent so the telemetry prompt
+    // does not stack on top of the first-run provider-lens prompt. The next
+    // eligible run is the one that asks.
+    writeUserSettings({ telemetry: { firstRunAt: nowMs } });
+    return;
+  }
+  await runConsentPrompt(stdin, stdout, nowMs);
 }

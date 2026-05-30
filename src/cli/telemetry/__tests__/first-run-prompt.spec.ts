@@ -1,7 +1,7 @@
 /**
- * Unit tests for the pure decision helpers of the first-run consent prompt
+ * Unit tests for the pure decision helpers of the consent prompt
  * (`cli/telemetry/first-run-prompt.ts`). The interactive read is not
- * exercised here; the gate and the answer parser are what guard against
+ * exercised here; the gates and the answer parser are what guard against
  * prompting in the wrong context or misreading the operator's choice.
  */
 
@@ -10,10 +10,12 @@ import { describe, it } from 'node:test';
 
 import {
   interpretConsentAnswer,
+  isPromptEligible,
   shouldPromptForConsent,
 } from '../first-run-prompt.js';
 
-const OPEN = {
+/** Environment signals for a run that COULD prompt (TTY, DSN, not answered). */
+const ELIGIBLE = {
   dsnConfigured: true,
   isTTY: true,
   isCI: false,
@@ -40,28 +42,43 @@ describe('interpretConsentAnswer', () => {
   });
 });
 
-describe('shouldPromptForConsent', () => {
-  it('opens only when every condition holds', () => {
-    assert.equal(shouldPromptForConsent(OPEN), true);
+describe('isPromptEligible', () => {
+  it('is eligible when every environment condition holds', () => {
+    assert.equal(isPromptEligible(ELIGIBLE), true);
   });
 
-  it('stays closed when no real DSN is configured (dormant placeholder)', () => {
-    assert.equal(shouldPromptForConsent({ ...OPEN, dsnConfigured: false }), false);
+  it('not eligible when no real DSN is configured (dormant placeholder)', () => {
+    assert.equal(isPromptEligible({ ...ELIGIBLE, dsnConfigured: false }), false);
   });
 
-  it('stays closed when not a TTY (CI, pipes, scripts)', () => {
-    assert.equal(shouldPromptForConsent({ ...OPEN, isTTY: false }), false);
+  it('not eligible when not a TTY (CI, pipes, scripts)', () => {
+    assert.equal(isPromptEligible({ ...ELIGIBLE, isTTY: false }), false);
   });
 
-  it('stays closed under CI', () => {
-    assert.equal(shouldPromptForConsent({ ...OPEN, isCI: true }), false);
+  it('not eligible under CI', () => {
+    assert.equal(isPromptEligible({ ...ELIGIBLE, isCI: true }), false);
   });
 
-  it('stays closed when the kill switch forced telemetry off', () => {
-    assert.equal(shouldPromptForConsent({ ...OPEN, forcedOff: true }), false);
+  it('not eligible when the kill switch forced telemetry off', () => {
+    assert.equal(isPromptEligible({ ...ELIGIBLE, forcedOff: true }), false);
   });
 
-  it('stays closed when the operator was already prompted', () => {
-    assert.equal(shouldPromptForConsent({ ...OPEN, alreadyPrompted: true }), false);
+  it('not eligible when the operator was already prompted', () => {
+    assert.equal(isPromptEligible({ ...ELIGIBLE, alreadyPrompted: true }), false);
+  });
+});
+
+describe('shouldPromptForConsent (second-run deferral)', () => {
+  it('does NOT prompt on the first eligible run (firstRunSeen false)', () => {
+    assert.equal(shouldPromptForConsent({ ...ELIGIBLE, firstRunSeen: false }), false);
+  });
+
+  it('prompts on the second eligible run (firstRunSeen true)', () => {
+    assert.equal(shouldPromptForConsent({ ...ELIGIBLE, firstRunSeen: true }), true);
+  });
+
+  it('never prompts when the run is not eligible, regardless of firstRunSeen', () => {
+    assert.equal(shouldPromptForConsent({ ...ELIGIBLE, isTTY: false, firstRunSeen: true }), false);
+    assert.equal(shouldPromptForConsent({ ...ELIGIBLE, alreadyPrompted: true, firstRunSeen: true }), false);
   });
 });

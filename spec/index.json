@@ -181,7 +181,7 @@
       "CHANGELOG.md": "b35f22892674f41bb828648cc52d04d9e6774abfc85a898311a200e43dae4085",
       "README.md": "15c79c2eace18866a06a67f493aef7c73b2dfcd8e43b782fc1ae07668ee4e495",
       "architecture.md": "870446e462a0c06162528bbd496a2095f6d7e6aec620427a76648337dd524003",
-      "cli-contract.md": "8f0ae773c35dffa69cef3006323c2e313fadfc6a35904c58be7fb8b83972cb41",
+      "cli-contract.md": "3317c6b252632b64c8308eca7e6e68b592d57bf0d9d8908c95fb5030d7b810e4",
       "conformance/README.md": "6871dde25b5770ed945284c9e0f749e0768ec3f5ba4966bdb215985789e43887",
       "conformance/cases/extractor-emits-signal.json": "34b4808c232d66a0eea0f5db7632a746681432b4f0995b6bf39e8d675538451c",
       "conformance/cases/kernel-empty-boot.json": "2a5be9c93143d07a16d998df09dcc8fa4ea2d2f9a0bff6417573ed5a770352c1",
@@ -250,9 +250,9 @@
       "schemas/summaries/hook.schema.json": "58420ec485e152fdd21fa3d87337ad74b0d81a48d3b83dd072d4a2d196f78573",
       "schemas/summaries/markdown.schema.json": "f7b2b5ae9e4836c94bb6a84edc730412f19296a6ef13552016690d7ba6f5391d",
       "schemas/summaries/skill.schema.json": "a2e23e35fe1545fb7bb8a6bb87dcad2248afa5a0f23aebc089eb5464201f4654",
-      "schemas/user-settings.schema.json": "41c7fc9e12b524adec67c169f6f15729f2b6e2d1870908af527d27a0bbe9c05f",
+      "schemas/user-settings.schema.json": "0cf34ea8233dd4c65a7d45d52c1e0a7ce90eca05f4ad475a7f48a1cc389dcf5c",
       "schemas/view-slots.schema.json": "b151740016585ab2ba6cde376b071fc79ef1a1b484032216d841afeb593d06fd",
-      "telemetry.md": "085fb61a8c3c29831ae6b363e5603dffc597977d4f45663bdc5f6506e554a455",
+      "telemetry.md": "3155b5a42e46908a15a775a40abd6ba8df701016b59bea2e462cb9966a0efcd3",
       "versioning.md": "bab36cda6deb3edc29d7d40d97399ea4a213551257b0dd3321ddf95e2a60bff2"
     }
   }

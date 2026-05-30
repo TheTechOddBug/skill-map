@@ -59,7 +59,9 @@ export interface IUserSettingsUpdateCheck {
 export interface IUserSettingsTelemetry {
   /** Operator opt-in for error reporting. Absent or `false` means OFF. */
   errorsEnabled?: boolean;
-  /** Unix ms of the first-run consent prompt. `null` when never prompted. */
+  /** Unix ms of the first run where the consent prompt was eligible. `null` before any. */
+  firstRunAt?: number | null;
+  /** Unix ms of the consent prompt. `null` when never prompted. */
   promptedAt?: number | null;
 }
 
@@ -221,6 +223,17 @@ export function isErrorTelemetryEnabled(): boolean {
 export function hasTelemetryPromptBeenShown(): boolean {
   const settings = readUserSettings();
   return typeof settings.telemetry?.promptedAt === 'number';
+}
+
+/**
+ * `true` once an eligible run has already been seen (`telemetry.firstRunAt`
+ * is a number). The consent prompt is deferred to the SECOND eligible run
+ * (so it does not stack on the first-run provider-lens prompt): the first
+ * eligible run stamps `firstRunAt` and stays silent, the next one prompts.
+ */
+export function hasSeenFirstRun(): boolean {
+  const settings = readUserSettings();
+  return typeof settings.telemetry?.firstRunAt === 'number';
 }
 
 // ---------------------------------------------------------------------------

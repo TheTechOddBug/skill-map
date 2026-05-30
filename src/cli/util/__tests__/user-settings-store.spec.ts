@@ -19,6 +19,7 @@ import { join } from 'node:path';
 import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
 
 import {
+  hasSeenFirstRun,
   hasTelemetryPromptBeenShown,
   isErrorTelemetryEnabled,
   isUpdateCheckEnabled,
@@ -196,6 +197,32 @@ describe('hasTelemetryPromptBeenShown', () => {
       JSON.stringify({ schemaVersion: 1, telemetry: { promptedAt: 1_700_000_000_000 } }),
     );
     assert.equal(hasTelemetryPromptBeenShown(), true);
+  });
+});
+
+describe('hasSeenFirstRun', () => {
+  it('returns false when the file is missing', () => {
+    assert.equal(hasSeenFirstRun(), false);
+  });
+
+  it('returns true once firstRunAt is a number', () => {
+    const settingsDir = join(homeRoot, '.skill-map');
+    mkdirSync(settingsDir, { recursive: true });
+    writeFileSync(
+      join(settingsDir, 'settings.json'),
+      JSON.stringify({ schemaVersion: 1, telemetry: { firstRunAt: 1_700_000_000_000 } }),
+    );
+    assert.equal(hasSeenFirstRun(), true);
+  });
+
+  it('a firstRunAt patch merges without clobbering errorsEnabled', () => {
+    writeUserSettings({ telemetry: { errorsEnabled: true } });
+    writeUserSettings({ telemetry: { firstRunAt: 1_700_000_000_000 } });
+    const onDisk = JSON.parse(readFileSync(userSettingsFilePath(), 'utf8'));
+    assert.deepEqual(onDisk.telemetry, {
+      errorsEnabled: true,
+      firstRunAt: 1_700_000_000_000,
+    });
   });
 });
 

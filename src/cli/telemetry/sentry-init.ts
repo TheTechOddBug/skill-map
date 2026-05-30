@@ -24,20 +24,16 @@
  * Level 1 captures the process-fatal crashes that today leave no signal.
  */
 
+import { SENTRY_DSN_NODE } from '../../public-config.js';
 import { scrubEvent } from '../../core/telemetry/scrub.js';
 import { isErrorTelemetryEnabled } from '../util/user-settings-store.js';
 
 /**
- * DSN for the shared Node Sentry project. CLI and BFF intentionally report
- * to the SAME project (`BFF_SENTRY_DSN` in `src/server/telemetry/sentry.ts`
- * carries the identical value), distinguished by the `surface` tag (`cli`
- * vs `bff`). Public by design (a DSN identifies an ingest endpoint, it is
- * not a secret), so it is safe to hardcode in the published bundle.
- *
- * Typed `string` (not the literal) so the `=== ''` dormancy gate stays a
- * valid comparison. Set it to `''` to force the whole surface dormant.
+ * The CLI reports to the shared Node Sentry project (`SENTRY_DSN_NODE` in
+ * `src/public-config.ts`, also used by the BFF; the per-event `surface` tag,
+ * `cli` vs `bff`, separates their events). Set that constant to `''` to force
+ * the whole Node telemetry surface dormant.
  */
-const CLI_SENTRY_DSN: string = 'https://8b73dbb2563da4b77def12ce5ee46e75@o4511475590037504.ingest.de.sentry.io/4511475708002384';
 
 /** Environment variable kill switch. `=0` forces telemetry OFF everywhere. */
 const KILL_SWITCH_ENV = 'SKILL_MAP_TELEMETRY';
@@ -53,13 +49,20 @@ const KILL_SWITCH_ENV = 'SKILL_MAP_TELEMETRY';
 let sdk: typeof import('@sentry/node') | null = null;
 
 /**
+ * Loads the `@sentry/node` namespace. The default does the real dynamic
+ * import; tests inject a fake so they can assert on `init` / capture without
+ * a network call or the SDK's heavy load.
+ */
+type TSentryNodeLoader = () => Promise<typeof import('@sentry/node')>;
+
+/**
  * `true` when a real CLI DSN has been configured. While the placeholder is
  * empty the entire telemetry surface (init AND the first-run prompt) stays
  * dormant, so this gates the consent prompt: there is no point asking the
  * operator to opt in to a sink that does not exist yet.
  */
 export function isCliDsnConfigured(): boolean {
-  return CLI_SENTRY_DSN !== '';
+  return SENTRY_DSN_NODE !== '';
 }
 
 /** `true` when the `SKILL_MAP_TELEMETRY=0` kill switch is set. */
@@ -81,16 +84,20 @@ export function isTelemetryActive(dsn: string): boolean {
 
 /**
  * Initialise the CLI Sentry client when (and only when) telemetry is active.
- * Idempotent: a second call after a successful init is a no-op. `@sentry/node`
- * is dynamic-imported here, so a dormant boot never loads it. `version`
- * becomes the release tag.
+ * Idempotent: a second call after a successful init is a no-op. The SDK is
+ * loaded through `loadSdk` (defaults to a dynamic `import('@sentry/node')`,
+ * so a dormant boot never loads it; tests inject a fake). `version` becomes
+ * the release tag.
  */
-export async function initSentryCli(version: string): Promise<void> {
+export async function initSentryCli(
+  version: string,
+  loadSdk: TSentryNodeLoader = () => import('@sentry/node'),
+): Promise<void> {
   if (sdk) return;
-  if (!isTelemetryActive(CLI_SENTRY_DSN)) return;
-  const Sentry = await import('@sentry/node');
+  if (!isTelemetryActive(SENTRY_DSN_NODE)) return;
+  const Sentry = await loadSdk();
   Sentry.init({
-    dsn: CLI_SENTRY_DSN,
+    dsn: SENTRY_DSN_NODE,
     release: `@skill-map/cli@${version}`,
     environment: 'production',
     // CLI and BFF share one Sentry project; the `surface` tag tells their
@@ -135,4 +142,12 @@ export async function closeSentryCli(timeoutMs = 2000): Promise<void> {
   } catch {
     // Shutdown flush is best-effort; never let it alter the exit path.
   }
+}
+
+/**
+ * Test seam: drop the cached client so a spec can re-run `initSentryCli`
+ * with a fresh injected loader. Never called in production.
+ */
+export function resetCliTelemetryForTests(): void {
+  sdk = null;
 }

@@ -23,21 +23,16 @@ import type { Context, Next } from 'hono';
 // eslint-disable-next-line import-x/extensions
 import { HTTPException } from 'hono/http-exception';
 
+import { SENTRY_DSN_NODE } from '../../public-config.js';
 import { scrubEvent } from '../../core/telemetry/scrub.js';
 import { isTelemetryActive } from '../../cli/telemetry/sentry-init.js';
 
 /**
- * DSN for the BFF. Intentionally the SAME value as `CLI_SENTRY_DSN`
- * (`src/cli/telemetry/sentry-init.ts`): the CLI and the BFF report to one
- * shared Node Sentry project, told apart by the `surface` tag (`cli` vs
- * `bff`) plus the per-event `verb` / `route` / `method` tags. Public by
- * design.
- *
- * Typed `string` so the `=== ''` dormancy gate stays a valid comparison.
- * Set to `''` to force the surface dormant. Keep this in sync with
- * `CLI_SENTRY_DSN` (same project = same DSN).
+ * The BFF reports to the shared Node Sentry project (`SENTRY_DSN_NODE` in
+ * `src/public-config.ts`, the same DSN the CLI uses): one project, told apart
+ * by the `surface` tag (`cli` vs `bff`) plus the per-event `route` / `method`
+ * tags. Set that constant to `''` to force the surface dormant.
  */
-const BFF_SENTRY_DSN: string = 'https://8b73dbb2563da4b77def12ce5ee46e75@o4511475590037504.ingest.de.sentry.io/4511475708002384';
 
 /**
  * Lazily-loaded `@sentry/node` namespace; `null` while dormant. Imported
@@ -48,16 +43,26 @@ const BFF_SENTRY_DSN: string = 'https://8b73dbb2563da4b77def12ce5ee46e75@o451147
 let sdk: typeof import('@sentry/node') | null = null;
 
 /**
- * Initialise the BFF Sentry client when telemetry is active. Idempotent.
- * `@sentry/node` is dynamic-imported here, so a dormant server never loads
- * it. `version` becomes the release tag.
+ * Loads the `@sentry/node` namespace. The default does the real dynamic
+ * import; tests inject a fake to assert on capture without a network call.
  */
-export async function initSentryBff(version: string): Promise<void> {
+type TSentryNodeLoader = () => Promise<typeof import('@sentry/node')>;
+
+/**
+ * Initialise the BFF Sentry client when telemetry is active. Idempotent. The
+ * SDK is loaded through `loadSdk` (defaults to a dynamic `import`, so a
+ * dormant server never loads it; tests inject a fake). `version` becomes the
+ * release tag.
+ */
+export async function initSentryBff(
+  version: string,
+  loadSdk: TSentryNodeLoader = () => import('@sentry/node'),
+): Promise<void> {
   if (sdk) return;
-  if (!isTelemetryActive(BFF_SENTRY_DSN)) return;
-  const Sentry = await import('@sentry/node');
+  if (!isTelemetryActive(SENTRY_DSN_NODE)) return;
+  const Sentry = await loadSdk();
   Sentry.init({
-    dsn: BFF_SENTRY_DSN,
+    dsn: SENTRY_DSN_NODE,
     release: `@skill-map/cli@${version}`,
     environment: 'production',
     // Shared project with the CLI; the `surface` tag separates the two.
@@ -112,4 +117,12 @@ export function createSentryRequestCapture() {
       throw err;
     }
   };
+}
+
+/**
+ * Test seam: drop the cached client so a spec can re-run `initSentryBff`
+ * with a fresh injected loader. Never called in production.
+ */
+export function resetBffTelemetryForTests(): void {
+  sdk = null;
 }
