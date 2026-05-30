@@ -16,7 +16,9 @@
  *     the published changelog (the consolidated root `CHANGELOG.md`
  *     already maps each CLI release to its spec release explicitly).
  *
- * Wired via `.changeset/config.json` `"changelog": "./scripts/changeset-changelog.cjs"`.
+ * Wired via `.changeset/config.json` `"changelog": "../scripts/changeset-changelog.cjs"`
+ * (the path is resolved relative to `.changeset/`, not the repo root, so it
+ * climbs one level out before reaching `scripts/`).
  * Only affects FUTURE `changeset version` output; existing history in
  * `src/CHANGELOG.md` / `spec/CHANGELOG.md` is a generated artefact and
  * is not retro-rewritten.
