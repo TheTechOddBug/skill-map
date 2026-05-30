@@ -33,7 +33,8 @@
               "src/themes/dark.css",
               "src/themes/matrix.css"
             ],
-            "allowedCommonJsDependencies": ["dagre"]
+            "allowedCommonJsDependencies": ["dagre"],
+            "progress": false
           },
           "configurations": {
             "production": {
@@ -119,7 +120,8 @@
         "test": {
           "builder": "@angular/build:unit-test",
           "options": {
-            "setupFiles": ["src/test-setup.ts"]
+            "setupFiles": ["src/test-setup.ts"],
+            "runnerConfig": "vitest.config.ts"
           }
         }
       }

@@ -24,7 +24,11 @@
  *     verbose tree when debugging.
  */
 
-const useColor = Boolean(process.stdout.isTTY) && !process.env['NO_COLOR'];
+// Colour when attached to a TTY or when FORCE_COLOR is set (the `test:ci`
+// script sets it so `pnpm validate` stays green even though pnpm pipes the
+// child's stdout); NO_COLOR always wins.
+const useColor =
+  !process.env['NO_COLOR'] && (Boolean(process.stdout.isTTY) || Boolean(process.env['FORCE_COLOR']));
 const paint = (code, s) => (useColor ? `\x1b[${code}m${s}\x1b[0m` : s);
 const red = (s) => paint('31', s);
 const green = (s) => paint('32', s);
@@ -98,7 +102,7 @@ export default async function* quietReporter(source) {
   const tail = duration ? ` ${sep} ${duration}` : '';
 
   if (failed === 0) {
-    yield `${green('✓')} ${tests} tests passed ${sep} ${filesLabel}${tail}\n`;
+    yield `${green(`✓ ${tests} tests passed`)} ${sep} ${filesLabel}${tail}\n`;
   } else {
     yield `\n${red(`${tests} tests ${sep} ${failed} failed`)}${tail}\n`;
   }

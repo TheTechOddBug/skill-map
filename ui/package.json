@@ -9,7 +9,7 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "test:ci": "ng test --watch=false",
+    "test:ci": "FORCE_COLOR=1 node scripts/quiet-test.mjs",
     "bundle-analyze": "pnpm build --configuration=analyze && source-map-explorer dist/ui/browser/*.js --no-border-checks",
     "validate": "pnpm validate:compile && pnpm validate:test",
     "validate:compile": "pnpm build",

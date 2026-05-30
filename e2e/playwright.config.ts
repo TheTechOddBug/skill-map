@@ -22,7 +22,10 @@ export default defineConfig({
   timeout: 30_000,
   globalTimeout: 5 * 60_000,
   retries: isCI ? 1 : 0,
-  reporter: isCI ? 'html' : 'list',
+  // `PW_QUIET=1` (set by the `test:ci` script, the path `pnpm validate` takes)
+  // collapses the local run to the compact `dot` reporter. CI keeps `html`,
+  // standalone `test`/`test:smoke` keep the verbose `list`.
+  reporter: isCI ? 'html' : process.env['PW_QUIET'] === '1' ? 'dot' : 'list',
   fullyParallel: false,
   workers: 1,
 

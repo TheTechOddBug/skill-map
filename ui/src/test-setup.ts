@@ -50,8 +50,15 @@ class InMemoryStorage implements Storage {
 function installShim(target: unknown, prop: 'localStorage' | 'sessionStorage'): void {
   if (typeof target !== 'object' || target === null) return;
   const obj = target as Record<string, unknown>;
-  const current = obj[prop];
-  if (current && typeof (current as Storage).clear === 'function') return;
+  // Inspect via the property descriptor, never a bare `obj[prop]` read: that
+  // read would invoke Node's experimental Web Storage getter, which prints
+  // `ExperimentalWarning: localStorage is not available because
+  // --localstorage-file was not provided` once per test process.
+  // `getOwnPropertyDescriptor` never calls the getter.
+  const descriptor = Object.getOwnPropertyDescriptor(obj, prop);
+  const existing =
+    descriptor && 'value' in descriptor ? (descriptor.value as Storage | undefined) : undefined;
+  if (existing && typeof existing.clear === 'function') return;
   Object.defineProperty(obj, prop, {
     value: new InMemoryStorage(),
     writable: true,
@@ -95,4 +102,54 @@ function installResizeObserver(target: unknown): void {
 }
 for (const t of targets) {
   installResizeObserver(t);
+}
+
+/**
+ * `HTMLCanvasElement.prototype.getContext` stub. JSDOM does not implement
+ * canvas rendering without the native `canvas` npm package, so any spec that
+ * mounts a canvas-backed component (today `<sm-perf-hud>`, which draws a
+ * sparkline) trips JSDOM's `Not implemented: HTMLCanvasElement's getContext()`
+ * console error. Returning a no-op 2D context lets the draw path run silently;
+ * production keeps the real browser context. The Proxy answers every method
+ * with a no-op and remembers assigned properties (`strokeStyle`, `lineWidth`,
+ * ...), so callers neither throw nor read back garbage.
+ */
+function createNoop2dContext(): CanvasRenderingContext2D {
+  const props = new Map<PropertyKey, unknown>();
+  const noop = (): undefined => undefined;
+  return new Proxy(
+    {},
+    {
+      get(_target, prop) {
+        if (prop === 'measureText') return () => ({ width: 0 });
+        if (prop === 'getImageData' || prop === 'createImageData') {
+          return () => ({ data: new Uint8ClampedArray(0), width: 0, height: 0 });
+        }
+        return props.has(prop) ? props.get(prop) : noop;
+      },
+      set(_target, prop, value) {
+        props.set(prop, value);
+        return true;
+      },
+    },
+  ) as unknown as CanvasRenderingContext2D;
+}
+
+function installCanvasContextStub(target: unknown): void {
+  if (typeof target !== 'object' || target === null) return;
+  const ctor = (target as Record<string, unknown>)['HTMLCanvasElement'] as
+    | { prototype?: Record<string, unknown> }
+    | undefined;
+  const proto = ctor?.prototype;
+  if (!proto) return;
+  const current = Object.getOwnPropertyDescriptor(proto, 'getContext')?.value as
+    | { __smStub?: boolean }
+    | undefined;
+  if (current?.__smStub) return;
+  const stub = (): CanvasRenderingContext2D => createNoop2dContext();
+  (stub as { __smStub?: boolean }).__smStub = true;
+  proto['getContext'] = stub;
+}
+for (const t of targets) {
+  installCanvasContextStub(t);
 }
