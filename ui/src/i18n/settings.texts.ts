@@ -46,7 +46,7 @@ export const SETTINGS_TEXTS = {
       telemetry: {
         label: 'Send anonymous error & usage reports',
         description: 'Report crashes and which features you use. No file contents or paths.',
-        hint: 'Reload the page to apply in-app changes.',
+        hint: 'Restart sm for this to take effect.',
       },
     },
     /**
