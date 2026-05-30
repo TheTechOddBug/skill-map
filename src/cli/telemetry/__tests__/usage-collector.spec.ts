@@ -10,8 +10,9 @@ import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
 import {
+  buildCliVerbProperties,
   buildScanExtensionSet,
-  buildVerbUsageProps,
+  cliVerbEventName,
   envUsageProps,
   extractFlagNames,
   qualifyExtensionForUsage,
@@ -59,12 +60,33 @@ describe('buildScanExtensionSet', () => {
   });
 });
 
-describe('buildVerbUsageProps', () => {
-  it('keeps the verb and sorted/deduped flag NAMES only', () => {
-    assert.deepEqual(buildVerbUsageProps('scan', ['json', 'changed', 'json']), {
-      verb: 'scan',
+describe('cliVerbEventName', () => {
+  const known = new Set(['scan', 'check', 'db', 'plugins']);
+
+  it('names the event after a registered verb', () => {
+    assert.equal(cliVerbEventName('scan', known), 'cli.scan');
+    assert.equal(cliVerbEventName('check', known), 'cli.check');
+    assert.equal(cliVerbEventName('db', known), 'cli.db');
+  });
+
+  it('collapses an unknown verb / typo to cli.unknown (bounded catalog)', () => {
+    assert.equal(cliVerbEventName('asdfgh', known), 'cli.unknown');
+    assert.equal(cliVerbEventName('', known), 'cli.unknown');
+  });
+});
+
+describe('buildCliVerbProperties', () => {
+  it('carries sorted/deduped flag NAMES and omits extensions for a non-scan', () => {
+    assert.deepEqual(buildCliVerbProperties(['json', 'changed', 'json'], null), {
       flags: ['changed', 'json'],
     });
+  });
+
+  it('folds the extractor set in on a scan (no verb property; it is in the name)', () => {
+    assert.deepEqual(
+      buildCliVerbProperties(['changed'], ['claude/at-directive', 'core/markdown-link']),
+      { flags: ['changed'], extensions: ['claude/at-directive', 'core/markdown-link'] },
+    );
   });
 });
 

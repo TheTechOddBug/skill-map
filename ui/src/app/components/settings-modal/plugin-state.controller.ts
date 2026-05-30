@@ -24,6 +24,8 @@ import type {
 } from '../../../models/api';
 import type { IDataSourcePort } from '../../../services/data-source/data-source.port';
 import type { ScanTriggerService } from '../../services/scan-trigger';
+import { captureUiUsage } from '../../core/telemetry/posthog-init';
+import { buildPluginUsageSet } from '../../core/telemetry/usage-collector';
 
 import {
   buildStateFromPlugins,
@@ -189,6 +191,15 @@ export function setupPluginState(deps: IPluginStateDeps): IPluginStateHandle {
       toggleError.set(formatErr(err));
     } finally {
       applying.set(false);
+    }
+    if (success) {
+      // Usage analytics (opt-in, no-op unless active): which plugins this
+      // Apply enabled / disabled. Built-in ids pass through, third-party
+      // collapse to `external_plugin`. See spec/telemetry.md.
+      captureUiUsage('plugin.apply', {
+        enabled: buildPluginUsageSet(changes.filter((c) => c.enabled).map((c) => c.id)),
+        disabled: buildPluginUsageSet(changes.filter((c) => !c.enabled).map((c) => c.id)),
+      });
     }
     return { ok: success };
   };

@@ -14,8 +14,9 @@
  *   3. The operator has explicitly opted in to CLI usage
  *      (`telemetry.usageCliEnabled === true` in `~/.skill-map/settings.json`).
  *
- * When active, only the allow-listed events (`cli.verb`, `cli.scan`) are
- * sent, keyed by the shared anonymous `distinct_id`. Every event is run
+ * When active, only the allow-listed `cli.<verb>` event (one per invocation,
+ * carrying the executed-extractor set on a scan) is sent, keyed by the shared
+ * anonymous `distinct_id`. Every event is run
  * through the pure `scrubEvent` scrubber in `before_send` before it leaves
  * the machine, and client IP / geo enrichment is disabled.
  */
@@ -29,7 +30,11 @@ import {
   isUsageCliTelemetryEnabled,
   readAnonymousId,
 } from '../util/user-settings-store.js';
-import { envUsageProps } from './usage-collector.js';
+import {
+  buildCliVerbProperties,
+  cliVerbEventName,
+  envUsageProps,
+} from './usage-collector.js';
 import { isTelemetryForcedOff } from './sentry-init.js';
 
 /**
@@ -116,6 +121,41 @@ export function captureUsage(event: string, properties: Record<string, unknown>)
 }
 
 /**
+ * The executed built-in extractor set from the in-flight scan, stashed so the
+ * single per-invocation `cli.<verb>` event can carry it. `null` for any verb
+ * that is not a scan. Module state because the scan verb (which has the set)
+ * and the entry point (which emits the one event after the verb returns) are
+ * different call sites.
+ */
+let pendingScanExtensions: readonly string[] | null = null;
+
+/**
+ * Record the executed-extractor set for the current scan so the `cli.<verb>`
+ * event folds it in as `extensions`. Called from the scan verb; the entry
+ * point reads and clears it when it emits.
+ */
+export function setScanExtensions(extensions: readonly string[]): void {
+  pendingScanExtensions = extensions;
+}
+
+/**
+ * Emit the single usage event for this invocation: the event name is
+ * `cli.<verb>` (guarded against the registered closed set, unknown collapses
+ * to `cli.unknown`), and the properties carry the flag names plus, on a scan,
+ * the executed-extractor set (read + cleared here so it never bleeds into a
+ * later verb). No-op while the surface is dormant.
+ */
+export function captureCliInvocation(
+  verb: string,
+  flagNames: Iterable<string>,
+  knownVerbs: ReadonlySet<string>,
+): void {
+  const extensions = pendingScanExtensions;
+  pendingScanExtensions = null;
+  captureUsage(cliVerbEventName(verb, knownVerbs), buildCliVerbProperties(flagNames, extensions));
+}
+
+/**
  * Flush buffered events and stop the client, bounded by `timeoutMs` so a
  * slow network never hangs CLI shutdown. Best-effort and a no-op when the
  * usage surface was never initialised.
@@ -135,4 +175,5 @@ export async function flushUsageCli(timeoutMs = 2000): Promise<void> {
  */
 export function resetUsageTelemetryForTests(): void {
   client = null;
+  pendingScanExtensions = null;
 }

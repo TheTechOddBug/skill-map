@@ -47,6 +47,12 @@
   min-width: 0;
 }
 
+/* Keep the switch at its intrinsic size: a long label / description on the
+   left must never squash it (the text column owns all the flexible space). */
+.settings-general__row p-toggleswitch {
+  flex-shrink: 0;
+}
+
 .settings-general__row-label {
   font-size: 0.9rem;
   font-weight: 600;
@@ -57,6 +63,15 @@
   font-size: 0.8rem;
   color: var(--sm-text-muted);
   line-height: 1.45;
+}
+
+/* Per-toggle hint (e.g. "reload to apply"): smaller + italic so it reads as
+   an aside under the description, not part of it. */
+.settings-general__row-hint {
+  margin-top: 0.2rem;
+  font-size: 0.75rem;
+  font-style: italic;
+  color: var(--sm-text-muted);
 }
 
 /* Ambient footnote at the bottom of the section: smaller, dimmer, and

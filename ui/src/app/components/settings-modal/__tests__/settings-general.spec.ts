@@ -35,14 +35,21 @@ import type { IPreferencesApi, IPreferencesPatchApi } from '../../../../models/a
  * jsdom `DOCUMENT`, so no extra provider is needed.
  */
 
-function prefs(updateCheck: boolean, errorsEnabled: boolean): IPreferencesApi {
+// `telemetryOn` drives all three fields at once: the UI exposes one
+// consolidated telemetry switch, ON only when every field is on.
+function prefs(updateCheck: boolean, telemetryOn: boolean): IPreferencesApi {
   return {
     updateCheck: { enabled: updateCheck },
-    telemetry: { errorsEnabled, usageCliEnabled: false, usageUiEnabled: false, anonymousId: null },
+    telemetry: {
+      errorsEnabled: telemetryOn,
+      usageCliEnabled: telemetryOn,
+      usageUiEnabled: telemetryOn,
+      anonymousId: null,
+    },
   };
 }
 
-type TToggleKey = 'updateCheck.enabled' | 'telemetry.errorsEnabled';
+type TToggleKey = 'updateCheck.enabled' | 'telemetry';
 
 interface IGeneralToggleDefLike {
   key: TToggleKey;
@@ -105,7 +112,7 @@ describe('SettingsGeneral', () => {
 
     expect(getPreferences).toHaveBeenCalledTimes(1);
     expect(proto.valueOf(defByKey(proto, 'updateCheck.enabled'))).toBe(true);
-    expect(proto.valueOf(defByKey(proto, 'telemetry.errorsEnabled'))).toBe(false);
+    expect(proto.valueOf(defByKey(proto, 'telemetry'))).toBe(false);
   });
 
   it('reflects telemetry.errorsEnabled=true from the envelope into the toggle value', async () => {
@@ -117,7 +124,7 @@ describe('SettingsGeneral', () => {
     fixture.detectChanges();
     await flushAsync();
 
-    expect(proto.valueOf(defByKey(proto, 'telemetry.errorsEnabled'))).toBe(true);
+    expect(proto.valueOf(defByKey(proto, 'telemetry'))).toBe(true);
   });
 
   it('PATCHes telemetry.errorsEnabled on toggle and adopts the response', async () => {
@@ -128,12 +135,14 @@ describe('SettingsGeneral', () => {
     fixture.detectChanges();
     await flushAsync();
 
-    proto.onToggle(defByKey(proto, 'telemetry.errorsEnabled'), true);
+    proto.onToggle(defByKey(proto, 'telemetry'), true);
     await flushAsync();
 
     expect(setPreferences).toHaveBeenCalledTimes(1);
-    expect(setPreferences).toHaveBeenCalledWith({ telemetry: { errorsEnabled: true } });
-    expect(proto.valueOf(defByKey(proto, 'telemetry.errorsEnabled'))).toBe(true);
+    expect(setPreferences).toHaveBeenCalledWith({
+      telemetry: { errorsEnabled: true, usageCliEnabled: true, usageUiEnabled: true },
+    });
+    expect(proto.valueOf(defByKey(proto, 'telemetry'))).toBe(true);
   });
 
   it('PATCHes updateCheck.enabled on toggle and adopts the response', async () => {
@@ -162,13 +171,13 @@ describe('SettingsGeneral', () => {
     fixture.detectChanges();
     await flushAsync();
 
-    proto.onToggle(defByKey(proto, 'telemetry.errorsEnabled'), true);
+    proto.onToggle(defByKey(proto, 'telemetry'), true);
     await flushAsync();
 
     expect(proto.saveError()).toBe('nope');
     // The optimistic value never sticks on failure: state stays at the
     // last good envelope (errorsEnabled=false).
-    expect(proto.valueOf(defByKey(proto, 'telemetry.errorsEnabled'))).toBe(false);
+    expect(proto.valueOf(defByKey(proto, 'telemetry'))).toBe(false);
   });
 
   it('surfaces a failed load through loadError', async () => {

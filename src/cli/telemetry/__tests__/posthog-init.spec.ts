@@ -126,7 +126,7 @@ describe('initUsageCli (dormant unless opted in)', () => {
 
 describe('captureUsage', () => {
   it('is a safe no-op when the surface is dormant', () => {
-    assert.doesNotThrow(() => captureUsage('cli.verb', { verb: 'scan', flags: [] }));
+    assert.doesNotThrow(() => captureUsage('cli.scan', { flags: [] }));
   });
 });
 
@@ -137,7 +137,7 @@ describe('scrubUsageEvent', () => {
 
   it('strips an absolute home path planted in a property', () => {
     const event = {
-      event: 'cli.verb',
+      event: 'cli.scan',
       properties: { note: '/home/alice/projects/secret/file.md' },
     } as unknown as Parameters<typeof scrubUsageEvent>[0];
     const scrubbed = scrubUsageEvent(event) as unknown as { properties: { note: string } };

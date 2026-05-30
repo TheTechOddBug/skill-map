@@ -198,7 +198,7 @@ export type TScanRunResult =
        * Qualified ids (`<pluginId>/<id>`, with duplicates) of the
        * extractors that actually ran during this scan walk. Plain data the
        * CLI usage surface (`spec/telemetry.md`) collapses + dedupes into the
-       * `cli.scan` event; the kernel and runner stay telemetry-agnostic.
+       * `cli.<verb>` event; the kernel and runner stay telemetry-agnostic.
        * Cached extractors (incremental scans) do not appear, only
        * freshly-run ones.
        */

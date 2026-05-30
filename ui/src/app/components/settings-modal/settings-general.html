@@ -31,6 +31,9 @@
           <div class="settings-general__row-description">
             {{ toggleDescription(def.key) }}
           </div>
+          @if (toggleHint(def.key); as hint) {
+            <div class="settings-general__row-hint">{{ hint }}</div>
+          }
         </div>
         <p-toggleswitch
           [ngModel]="valueOf(def)"

@@ -128,6 +128,10 @@ export const appConfig: ApplicationConfig = {
     // normally: a broken /api call must never block the shell.
     provideAppInitializer(async () => {
       const dataSource = inject(DATA_SOURCE);
+      // Synchronous inject (before any await) per the NG0203 rule. Constructs
+      // the tracker (router + theme wiring) and lets us register the initial
+      // theme super-property once the SDK activates below.
+      const usageTracker = inject(UsageTrackerService);
       try {
         const [preferences, health] = await Promise.all([
           dataSource.getPreferences(),
@@ -147,6 +151,9 @@ export const appConfig: ApplicationConfig = {
             distinctId: preferences.telemetry.anonymousId,
           }),
         ]);
+        // The SDK is now active (or not); register the boot theme so every
+        // event carries it from the first capture, not only after a change.
+        usageTracker.syncTheme();
       } catch {
         // Consent / version probe is best-effort. A failure means
         // telemetry stays OFF; the app must still boot.

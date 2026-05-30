@@ -134,6 +134,11 @@ identify an ingest endpoint, they are not secrets) and are safe to ship in
 the published artifact. The BFF MUST NOT emit usage events; it reports only
 unhandled errors in the request path.
 
+The error surfaces send **no proactive beacons**: no release-health sessions,
+no transactions, no performance traces. An event leaves the machine ONLY when
+an error is captured. In particular the browser SDK MUST drop the default
+session integration so no session is sent on page load or route change.
+
 ### Error wire format
 
 An error event MAY carry:
@@ -182,14 +187,17 @@ Usage collection is **deny by default**: only the events and properties named
 here may be sent. Every event carries `distinct_id = telemetry.anonymousId`
 and the common environment facts (`cli_version`, `node_major`, `os`, `arch`;
 the UI additionally carries browser family/version where the SDK provides
-it). No other identity property is ever attached.
+it). The UI also attaches the active theme as super-properties on every event:
+`theme_base` (`light` / `dark`) and `theme_extra` (the active extra theme id,
+or `none`); future extra themes flow through by value with no spec change. No
+other identity property is ever attached.
 
 | Event | Surface | Properties |
 |---|---|---|
-| `cli.verb` | CLI | `verb` (name), `flags` (array of flag NAMES that were set). One per invocation. |
-| `cli.scan` | CLI | `extensions` (deduped, sorted set of built-in extractor ids that ran during the scan walk). Emitted alongside `cli.verb` on a scan, carrying the extra extractor dimension. |
-| `ui.view` | UI | `surface` in `graph` / `files` |
-| `ui.feature` | UI | `surface` in `inspector` / `settings` |
+| `cli.<verb>` | CLI | `flags` (array of flag NAMES that were set), and on a scan, `extensions` (deduped, sorted set of built-in extractor ids that ran in the walk). One event per invocation; the event NAME is the verb (`cli.scan`, `cli.check`, ...), restricted to the registered closed verb set so an unknown command collapses to `cli.unknown` (a typo never mints a junk event name). |
+| `ui.view.<view>` | UI | the opened view is the event name (`ui.view.map`, `ui.view.files`), from a closed route set. No properties beyond the common env facts. One per route change. |
+| `ui.feature.<feature>` | UI | the opened feature is the event name (`ui.feature.inspector`, `ui.feature.settings`), from a closed set. |
+| `plugin.apply` | CLI + UI | `enabled` / `disabled`: deduped, sorted sets of the plugin / extension ids toggled (built-in ids pass through, third-party collapse to `external_plugin`). Emitted on `sm plugins enable` / `disable` and on the Settings plugins Apply. |
 
 Rules:
 
@@ -204,8 +212,8 @@ Rules:
   built-in (`claude`, `antigravity`, `openai`, `agent-skills`, `core`) MUST be
   replaced with the literal `external_plugin` before the event leaves the
   machine.
-- **No node paths, titles, or content** in any UI event; only the `surface`
-  enum.
+- **No node paths, titles, or content** in any UI event; the view / feature is
+  the event name, drawn from a closed set, and nothing else is attached.
 
 ## Scrubbing rules (shared)
 

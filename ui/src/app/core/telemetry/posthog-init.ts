@@ -79,7 +79,18 @@ export async function initUiUsage(opts: {
  * initialised the SDK (i.e. always, while dormant), so view-tracking callers
  * can fire unconditionally without importing the SDK themselves.
  */
-export function captureUiUsage(event: string, properties: Record<string, unknown>): void {
+export function captureUiUsage(event: string, properties: Record<string, unknown> = {}): void {
   if (client === null) return;
   client.capture(event, properties);
+}
+
+/**
+ * Register super-properties: values attached to EVERY subsequent UI event
+ * until they change (used for the active theme, so any metric can be broken
+ * down by it). No-op while the surface is dormant; re-register to update a
+ * value mid-session.
+ */
+export function registerUsageSuperProps(properties: Record<string, unknown>): void {
+  if (client === null) return;
+  client.register(properties);
 }

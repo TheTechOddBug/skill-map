@@ -99,11 +99,14 @@ export async function initUiSentry(opts: {
     dsn: SENTRY_DSN_UI,
     release: opts.release ?? undefined,
     environment: 'production',
-    // Errors only: no browserTracingIntegration, no replayIntegration,
-    // no feedbackIntegration. The SDK's default browser global-error
-    // and unhandled-rejection handlers are sufficient alongside the
-    // Angular ErrorHandler.
-    integrations: [],
+    // Errors only: drop the default `browserSessionIntegration` so NO
+    // release-health session beacon is sent on page load / route change.
+    // The error surface MUST stay silent until a real error
+    // (`spec/telemetry.md` §Surface: Errors); a proactive session POST on
+    // every load contradicts that. Filter rather than replace so the
+    // remaining defaults (global error + unhandled-rejection handlers,
+    // breadcrumbs) stay. No browserTracing / replay / feedback added.
+    integrations: (defaults) => defaults.filter((integration) => integration.name !== 'BrowserSession'),
     tracesSampleRate: 0,
     sendDefaultPii: false,
     // Loopback-only reporting: the UI is only ever served from

@@ -39,6 +39,8 @@ import type { IDiscoveredPlugin } from '../../../kernel/types/plugin.js';
 import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
 import { tx } from '../../../kernel/util/tx.js';
 import { PLUGINS_TEXTS } from '../../i18n/plugins.texts.js';
+import { captureUsage } from '../../telemetry/posthog-init.js';
+import { buildScanExtensionSet } from '../../telemetry/usage-collector.js';
 import type { IAnsi } from '../../util/ansi.js';
 import { confirm } from '../../util/confirm.js';
 import { resolveDbPath } from '../../util/db-path.js';
@@ -103,6 +105,11 @@ abstract class TogglePluginsBase extends SmCommand {
 
     const keys = expandToKeys(targets);
     await this.#persistKeys(keys, enabled);
+    // Usage analytics (opt-in, default OFF; no-op unless active): record which
+    // plugins were enabled / disabled. Built-in qualified ids pass through,
+    // third-party collapse to `external_plugin`. See spec/telemetry.md.
+    const set = buildScanExtensionSet(keys);
+    captureUsage('plugin.apply', enabled ? { enabled: set, disabled: [] } : { enabled: [], disabled: set });
     this.#renderSuccess(keys, enabled);
     return ExitCode.Ok;
   }

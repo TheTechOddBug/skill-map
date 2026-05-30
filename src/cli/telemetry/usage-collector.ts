@@ -42,10 +42,10 @@ export function qualifyExtensionForUsage(qualifiedId: string): string {
 }
 
 /**
- * Build the `extensions` property for a `cli.scan` event: every executed
- * extension id mapped through {@link qualifyExtensionForUsage}, deduped and
- * sorted into a stable set. Presence only; the result never encodes how
- * many times an extension ran or how large the project is.
+ * Build the `extensions` property the `cli.<verb>` event carries on a scan:
+ * every executed extension id mapped through {@link qualifyExtensionForUsage},
+ * deduped and sorted into a stable set. Presence only; the result never
+ * encodes how many times an extension ran or how large the project is.
  */
 export function buildScanExtensionSet(executedExtensionIds: Iterable<string>): string[] {
   const out = new Set<string>();
@@ -72,19 +72,29 @@ export function extractFlagNames(args: Iterable<string>): string[] {
   return [...out].sort();
 }
 
-/** Properties shared by `cli.verb` and `cli.scan` events. */
-export interface IVerbUsageProps {
-  verb: string;
-  flags: string[];
+/**
+ * The PostHog event name for a CLI invocation: `cli.<verb>` when the verb is a
+ * registered command, `cli.unknown` otherwise. The closed-set guard keeps the
+ * event catalog bounded (verbs are a low-cardinality closed set), so a
+ * `sm <typo>` or an unknown command never mints a junk event definition from
+ * arbitrary user input.
+ */
+export function cliVerbEventName(verb: string, knownVerbs: ReadonlySet<string>): string {
+  return `cli.${knownVerbs.has(verb) ? verb : 'unknown'}`;
 }
 
 /**
- * Assemble the verb-usage properties: the verb name plus the sorted, deduped
- * NAMES of the flags that were set. Never carries flag values.
+ * Build the properties for a `cli.<verb>` event: the sorted, deduped NAMES of
+ * the flags that were set (never their values), plus the executed-extractor
+ * set folded in ONLY when the invocation was a scan (`extensions` is omitted
+ * otherwise). The verb itself lives in the event name, not a property.
  */
-export function buildVerbUsageProps(verb: string, flagNames: Iterable<string>): IVerbUsageProps {
+export function buildCliVerbProperties(
+  flagNames: Iterable<string>,
+  extensions: readonly string[] | null,
+): Record<string, unknown> {
   const flags = [...new Set(flagNames)].sort();
-  return { verb, flags };
+  return extensions ? { flags, extensions } : { flags };
 }
 
 /** Environment facts attached to every usage event. */

@@ -54,11 +54,7 @@ import { EXTRA_THEMES } from '../../../themes/registry';
  */
 interface IGeneralToggleDef {
   /** Stable dot-path; doubles as the i18n catalog key. */
-  key:
-    | 'updateCheck.enabled'
-    | 'telemetry.errorsEnabled'
-    | 'telemetry.usageCliEnabled'
-    | 'telemetry.usageUiEnabled';
+  key: 'updateCheck.enabled' | 'telemetry';
   /** Read the current value from a fetched envelope. */
   read(envelope: IPreferencesApi): boolean;
   /** Build the patch body for the new value. */
@@ -72,19 +68,17 @@ const GENERAL_TOGGLES: ReadonlyArray<IGeneralToggleDef> = [
     patch: (value) => ({ updateCheck: { enabled: value } }),
   },
   {
-    key: 'telemetry.errorsEnabled',
-    read: (envelope) => envelope.telemetry.errorsEnabled,
-    patch: (value) => ({ telemetry: { errorsEnabled: value } }),
-  },
-  {
-    key: 'telemetry.usageCliEnabled',
-    read: (envelope) => envelope.telemetry.usageCliEnabled,
-    patch: (value) => ({ telemetry: { usageCliEnabled: value } }),
-  },
-  {
-    key: 'telemetry.usageUiEnabled',
-    read: (envelope) => envelope.telemetry.usageUiEnabled,
-    patch: (value) => ({ telemetry: { usageUiEnabled: value } }),
+    // One consolidated telemetry switch. The settings.json keeps three
+    // independent fields (`errorsEnabled` / `usageCliEnabled` /
+    // `usageUiEnabled`) for power users who edit the file by hand, but the UI
+    // is all-or-nothing: ON only when all three are on, and applying it stamps
+    // the same value onto all three (overwriting any hand-edited mix).
+    key: 'telemetry',
+    read: (e) =>
+      e.telemetry.errorsEnabled && e.telemetry.usageCliEnabled && e.telemetry.usageUiEnabled,
+    patch: (value) => ({
+      telemetry: { errorsEnabled: value, usageCliEnabled: value, usageUiEnabled: value },
+    }),
   },
 ];
 
@@ -182,6 +176,12 @@ export class SettingsGeneral {
 
   protected toggleDescription(key: IGeneralToggleDef['key']): string {
     return SETTINGS_TEXTS.general.toggles[key].description;
+  }
+
+  /** Optional per-toggle hint (e.g. "reload to apply"); `null` when absent. */
+  protected toggleHint(key: IGeneralToggleDef['key']): string | null {
+    const entry = SETTINGS_TEXTS.general.toggles[key];
+    return 'hint' in entry ? entry.hint : null;
   }
 
   /**

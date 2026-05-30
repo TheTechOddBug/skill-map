@@ -38,8 +38,8 @@ import {
   initSentryCli,
   setTelemetryVerbTag,
 } from './telemetry/sentry-init.js';
-import { captureUsage, flushUsageCli, initUsageCli } from './telemetry/posthog-init.js';
-import { buildVerbUsageProps, extractFlagNames } from './telemetry/usage-collector.js';
+import { captureCliInvocation, flushUsageCli, initUsageCli } from './telemetry/posthog-init.js';
+import { extractFlagNames } from './telemetry/usage-collector.js';
 import { BUMP_COMMANDS } from './commands/bump.js';
 import { CheckCommand } from './commands/check.js';
 import { CONFIG_COMMANDS } from './commands/config.js';
@@ -56,6 +56,7 @@ import { ListCommand } from './commands/list.js';
 import { ORPHANS_COMMANDS } from './commands/orphans.js';
 import { PLUGIN_COMMANDS } from './commands/plugins.js';
 import { REFRESH_COMMANDS } from './commands/refresh.js';
+import { IntentionalFailCommand } from './commands/intentional-fail.js';
 import { ScanCommand } from './commands/scan.js';
 import { ScanCompareCommand } from './commands/scan-compare.js';
 import { ServeCommand } from './commands/serve.js';
@@ -79,6 +80,10 @@ cli.register(RootHelpCommand);
 cli.register(HelpCommand);
 cli.register(InitCommand);
 cli.register(TutorialCommand);
+// Hidden Sentry self-test verb. Registered so it runs, but invisible in
+// every help / reference surface (it declares no `static usage`). See
+// commands/intentional-fail.ts.
+cli.register(IntentionalFailCommand);
 cli.register(ScanCommand);
 cli.register(ScanCompareCommand);
 cli.register(ServeCommand);
@@ -205,15 +210,19 @@ const exitCode = await cli.run(routedArgs, {
 });
 
 // Usage analytics (opt-in, default OFF; no-op unless the PostHog surface is
-// active, see spec/telemetry.md §Usage event taxonomy). One `cli.verb` event
-// per invocation carries the verb name and the NAMES of the flags it was
-// given (never their values). `sm serve` never armed a usage client, so this
-// is a no-op for it. The `cli.scan` event with the executed-extractor set is
-// emitted from the scan verb, which has the scan outcome.
+// active, see spec/telemetry.md §Usage event taxonomy). One event per
+// invocation, named `cli.<verb>` (guarded against the registered closed set
+// so a typo cannot mint a junk event), carrying the NAMES of the flags it was
+// given (never their values) and, on a scan, the executed-extractor set the
+// scan verb stashed via `setScanExtensions`. `sm serve` never armed a usage
+// client, so this is a no-op for it.
 if (telemetryVerb !== undefined && telemetryVerb !== '') {
-  captureUsage('cli.verb', {
-    ...buildVerbUsageProps(telemetryVerb, extractFlagNames(routedArgs.slice(1))),
-  });
+  const knownVerbs = new Set(
+    registeredVerbPaths(cli)
+      .map((path) => path[0])
+      .filter((token): token is string => token !== undefined),
+  );
+  captureCliInvocation(telemetryVerb, extractFlagNames(routedArgs.slice(1)), knownVerbs);
 }
 
 // Spec § A.11, `shutdown` Hook dispatch. Awaits subscribed hooks so

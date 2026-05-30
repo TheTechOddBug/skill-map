@@ -29,6 +29,6 @@ describe('UI usage surface (dormant unless consent)', () => {
   });
 
   it('captureUiUsage never throws while dormant', () => {
-    expect(() => captureUiUsage('ui.view', { surface: 'graph' })).not.toThrow();
+    expect(() => captureUiUsage('ui.view.map')).not.toThrow();
   });
 });

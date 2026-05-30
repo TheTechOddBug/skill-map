@@ -1,25 +1,26 @@
 import { describe, expect, it } from 'vitest';
 
-import { viewSurfaceFor } from '../usage-tracker';
+import { viewNameFor } from '../usage-tracker';
 
 /**
- * `viewSurfaceFor` is the pure route -> `ui.view` surface mapping. It reads
- * the path prefix only (never the query string), so no filter state can leak
- * into a usage event.
+ * `viewNameFor` is the pure route -> `ui.view.<view>` name-suffix mapping. It
+ * reads the path prefix only (never the query string), so no filter state can
+ * leak into a usage event, and the suffix is a closed set so the PostHog event
+ * catalog stays bounded.
  */
-describe('viewSurfaceFor', () => {
-  it('maps the map route (and root redirect) to graph', () => {
-    expect(viewSurfaceFor('/map')).toBe('graph');
-    expect(viewSurfaceFor('/map?tag=foo&kind=skill')).toBe('graph');
-    expect(viewSurfaceFor('/')).toBe('graph');
+describe('viewNameFor', () => {
+  it('maps the map route (and root redirect) to map', () => {
+    expect(viewNameFor('/map')).toBe('map');
+    expect(viewNameFor('/map?tag=foo&kind=skill')).toBe('map');
+    expect(viewNameFor('/')).toBe('map');
   });
 
   it('maps the files route to files', () => {
-    expect(viewSurfaceFor('/files')).toBe('files');
-    expect(viewSurfaceFor('/files?q=x')).toBe('files');
+    expect(viewNameFor('/files')).toBe('files');
+    expect(viewNameFor('/files?q=x')).toBe('files');
   });
 
   it('returns null for untracked routes', () => {
-    expect(viewSurfaceFor('/something-else')).toBeNull();
+    expect(viewNameFor('/something-else')).toBeNull();
   });
 });

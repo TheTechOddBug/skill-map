@@ -43,17 +43,10 @@ export const SETTINGS_TEXTS = {
         label: 'Check for updates',
         description: 'Check npm for newer @skill-map/cli releases.',
       },
-      'telemetry.errorsEnabled': {
-        label: 'Send anonymous error reports',
-        description: 'Report uncaught errors to help fix crashes. No file contents or paths.',
-      },
-      'telemetry.usageCliEnabled': {
-        label: 'Send anonymous CLI usage',
-        description: 'Report which commands and built-in extractors you use. No file contents or paths.',
-      },
-      'telemetry.usageUiEnabled': {
-        label: 'Send anonymous UI usage',
-        description: 'Report which views you open in this app. No file contents or paths.',
+      telemetry: {
+        label: 'Send anonymous error & usage reports',
+        description: 'Report crashes and which features you use. No file contents or paths.',
+        hint: 'Reload the page to apply in-app changes.',
       },
     },
     /**
