@@ -61,7 +61,7 @@ spec/                              ← published as @skill-map/spec
 ├── [plugin-kv-api.md](./plugin-kv-api.md)    ← ctx.store contract for storage mode A
 ├── [job-lifecycle.md](./job-lifecycle.md)     ← queued → running → completed | failed
 │
-├── schemas/                       ← 29 JSON Schemas, draft 2020-12, camelCase keys
+├── schemas/                       ← JSON Schemas, draft 2020-12, camelCase keys (authoritative list + sha256 in index.json)
 │   ├── node.schema.json                     ┐
 │   ├── link.schema.json                     │
 │   ├── issue.schema.json                    │
@@ -74,13 +74,9 @@ spec/                              ← published as @skill-map/spec
 │   ├── conformance-case.schema.json         │
 │   ├── history-stats.schema.json            ┘
 │   │
-│   ├── extensions/                          ← one per extension kind; validated at plugin load
-│   │   ├── base.schema.json                 ┐
-│   │   ├── provider.schema.json             │
-│   │   ├── extractor.schema.json            │ 6 extension schemas
-│   │   ├── analyzer.schema.json                 │ (base + 5 kinds)
-│   │   ├── action.schema.json               │
-│   │   └── formatter.schema.json            ┘
+│   ├── extensions/                          ← base + one per kind (provider, extractor,
+│   │                                            analyzer, action, formatter, hook) +
+│   │                                            provider-kind.schema.json; validated at plugin load
 │   │
 │   ├── frontmatter/                         ← user-authored; additionalProperties: true
 │   │   └── base.schema.json                  ← universal shape; per-kind schemas live with
@@ -137,7 +133,7 @@ npm i @skill-map/spec
 import specIndex from '@skill-map/spec';
 import nodeSchema from '@skill-map/spec/schemas/node.schema.json' with { type: 'json' };
 
-console.log(specIndex.specPackageVersion);  // → "0.2.0" (npm package version; source of truth for `spec` in `sm version`)
+console.log(specIndex.specPackageVersion);  // npm package version; source of truth for `spec` in `sm version`
 console.log(specIndex.indexPayloadVersion); // → "0.0.1" (payload shape of `index.json` itself; bumps only when this manifest's structure changes)
 console.log(specIndex.integrity.algorithm); // → "sha256"
 console.log(nodeSchema.$id);                // → "https://skill-map.ai/spec/v0/node.schema.json"

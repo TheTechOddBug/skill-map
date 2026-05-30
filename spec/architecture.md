@@ -8,30 +8,57 @@ Any conforming implementation, reference or third-party, MUST respect these boun
 
 ## Layering
 
+```mermaid
+flowchart TB
+    subgraph DRIVERS["Driving adapters (primary)"]
+        direction LR
+        CLI["CLI<br/><i>sm command</i>"]
+        SERVER["Server<br/><i>Hono BFF (src/server/)</i>"]
+        SKILL["Skill<br/><i>agent / IDE</i>"]
+    end
+
+    UI["UI · Angular SPA<br/><i>(ui/)</i>"]:::ui
+    UI -.->|"HTTP / WS"| SERVER
+
+    subgraph KERNEL["Kernel (domain-pure, hexagonal)"]
+        direction LR
+        REG["Registry"]
+        ORCH["Orchestrator"]
+        UC["Use cases<br/><i>scan · refresh · action · watch</i>"]
+        CONFIG["Config layering<br/><i>defaults → project → project-local → override</i>"]
+    end
+
+    CLI ==>|"ports"| KERNEL
+    SERVER ==>|"ports"| KERNEL
+    SKILL ==>|"ports"| KERNEL
+
+    subgraph DRIVEN["Driven adapters (secondary)"]
+        direction LR
+        STORAGE["Storage<br/><i>SQLite</i>"]
+        FS["FS<br/><i>walker · watcher (chokidar)</i>"]
+        subgraph PLUGINS["Plugins (closed catalog, 6 kinds)"]
+            direction TB
+            EXT["extractors"]
+            ANA["analyzers"]
+            ACT["actions"]
+            HOOK["hooks"]
+            FMT["formatters"]
+            PROV["providers"]
+        end
+    end
+
+    KERNEL ==> STORAGE
+    KERNEL ==> FS
+    KERNEL ==> PLUGINS
+
+    classDef ui fill:#bac8ff,stroke:#3b5bdb,stroke-width:1px,color:#000,stroke-dasharray: 5 3
+    class CLI,SERVER,SKILL driver
+    class REG,ORCH,UC,CONFIG kernel
+    class STORAGE,FS adapter
+    class EXT,ANA,ACT,HOOK,FMT,PROV plugin
 ```
-                    Driving adapters (primary)
-                          │
-   ┌─────────┐       ┌─────────┐       ┌──────┐
-   │   CLI   │       │ Server  │       │Skill │
-   └────┬────┘       └────┬────┘       └───┬──┘
-        │                 │                │
-        └─────────────────┼────────────────┘
-                          ▼
-                   ┌──────────────┐
-                   │    Kernel    │  ← domain core
-                   │              │
-                   │  Registry    │
-                   │  Orchestrator│
-                   │  Use cases   │
-                   └──┬───┬───┬───┘
-                      │   │   │
-        ┌─────────────┘   │   └──────────────┐
-        ▼                 ▼                  ▼
-   ┌────────┐        ┌─────────┐        ┌─────────┐
-   │ Storage│        │   FS    │        │ Plugins │
-   └────────┘        └─────────┘        └─────────┘
-                Driven adapters (secondary)
-```
+
+The UI is **not** a driving adapter; it is an HTTP/WS client of the Server. Exactly one Provider is active per project (see §Active Provider Lens), and config layering is always project-scoped (see §Config layering).
 
 - **Driving adapters** call into the kernel. The spec defines three: `CLI`, `Server`, `Skill`. A fourth driving adapter MAY be built by third parties (IDE extension, VSCode command palette, TUI) without spec changes.
 - **Driven adapters** implement ports the kernel declares. An implementation MUST ship adapters for every port, no port may be left unimplemented at runtime.
@@ -343,7 +370,7 @@ Default `undefined` ≡ empty map ≡ no reserved names. Path matches against no
 
 The `Extractor` runtime contract is `extract(ctx) → void`. The extractor emits its work through three callbacks the kernel binds onto `ctx`:
 
-- `ctx.emitLink(link)`, append a `Link` to the kernel's `links` table. The kernel validates the link against the extractor's declared `emitsLinkKinds` before persistence; off-contract links are dropped and surface as `extension.error` events. URL-shaped targets (`http(s)://…`) are partitioned out into `node.externalRefsCount` and never persisted.
+- `ctx.emitLink(link)`, append a `Link` to the kernel's `links` table. The kernel validates `link.kind` against the **global closed enum** of link kinds (`invokes`, `references`, `mentions`, `supersedes`) before persistence; off-enum links are dropped and surface as `extension.error` events (the per-extractor `emitsLinkKinds` allowlist was retired with the structure-as-truth refactor; confidence is declared per emit, default `'medium'`). URL-shaped targets (`http(s)://…`) are partitioned out into `node.externalRefsCount` and never persisted.
 - `ctx.enrichNode(partial)`, merge canonical, kernel-curated properties onto the current node's enrichment layer (persisted into [`node_enrichments`](./db-schema.md#node_enrichments)). **Strictly separate from the author-supplied frontmatter** (the latter remains immutable across scans). The enrichment layer is the right home for kernel-derived facts (computed titles, summaries, signals an Extractor inferred from the body) without polluting what the user wrote on disk. See §Enrichment layer below for the full lifecycle (per-extractor attribution, refresh verbs).
 - `ctx.store`, plugin-scoped persistence. Optional, present only when the plugin declares `storage.mode` in `plugin.json`. Shape depends on the mode (`KvStore` for mode A, scoped `Database` for mode B). See [`plugin-kv-api.md`](./plugin-kv-api.md). The plugin author MAY opt into shape validation for their own writes by declaring `storage.schema` (Mode A) or `storage.schemas` (Mode B) in the manifest, JSON Schemas the kernel AJV-compiles at load time and runs against every `ctx.store.set(key, value)` / `ctx.store.write(table, row)` call. Absent = permissive (status quo). `emitLink` and `enrichNode` keep their universal validation against `link.schema.json` / `node.schema.json` regardless of this opt-in. See [`plugin-author-guide.md` §`outputSchema`](./plugin-author-guide.md#outputschema--opt-in-correctness-for-custom-storage-writes).
 
@@ -385,9 +412,9 @@ Analyzers / `sm check` / `sm export` consume `node.frontmatter` directly (determ
 
 Refresh verbs (`sm refresh <node>` and `sm refresh --stale`) re-run the Extractor pipeline against a node or the stale set and upsert fresh enrichment rows, see [`cli-contract.md` §Scan](./cli-contract.md#scan). With Extractors deterministic-only, `--stale` is a no-op today (no rows are stale-flagged); it remains in the contract for the future Action-prob enrichment revision noted above.
 
-### Extractor · `applicableKinds` filter
+### Extractor · `precondition` filter
 
-Extractors MAY declare an optional `applicableKinds: string[]` on their manifest. When declared, the kernel filters fail-fast: `extract()` is invoked **only** for nodes whose `kind` appears in the list. The skip happens BEFORE the extractor context is built so the extractor wastes zero CPU on inapplicable nodes. Absent (`undefined`) is the default and means "applies to every kind"; there is no wildcard syntax. An empty array (`[]`) is invalid (`minItems: 1` in the schema). Unknown kinds (no installed Provider declares them in its `kinds` catalog) are non-blocking: the extractor keeps `loaded` status and `sm plugins doctor` surfaces an informational warning so the author sees typos and missing-Provider cases, but the doctor's exit code is NOT promoted by this warning. See [`plugin-author-guide.md` §Extractor `applicableKinds`](./plugin-author-guide.md#extractor-applicablekinds--narrow-the-pipeline) for the full author-side contract.
+Extractors MAY declare an optional `precondition` block (`{ kind?: string[]; provider?: string[] }`, the same shape Analyzers and Actions share). When declared, the kernel filters fail-fast: `extract()` is invoked **only** for nodes that satisfy every declared sub-filter (`kind` lists qualified `<plugin>/<kindName>` ids; `provider` lists plugin ids; both apply as AND). The skip happens BEFORE the extractor context is built so the extractor wastes zero CPU on inapplicable nodes. Absent (`undefined`) is the default and means "applies to every kind"; there is no wildcard syntax. Unknown qualified kinds (no installed Provider declares them) are non-blocking: the extractor keeps `loaded` status and `sm plugins doctor` surfaces an informational `precondition-kind-unknown` warning so the author sees typos and missing-Provider cases, but the doctor's exit code is NOT promoted by this warning. See [`plugin-author-guide.md` §`precondition`](./plugin-author-guide.md#extractor--analyzer--action-precondition-narrow-the-pipeline) for the full author-side contract.
 
 ### Extractor · fine-grained scan cache
 
@@ -438,16 +465,11 @@ Characters outside the separator set that are not letters or digits (e.g. `/`, `
 | `@FooExtractor` | `@fooextractor` |
 | `skill-map:explore` | `skill map:explore` |
 
-### Analyzer · `recommendedActions` hint
+### Analyzer ↔ Action relationship (Modelo B)
 
-An Analyzer MAY declare `recommendedActions: string[]` in its manifest, listing the qualified ids (`<plugin-id>/<extension-id>`) of the per-node Actions that resolve its findings. The UI surfaces matching Actions in the node inspector under "Recommended for issues" whenever the analyzer emitted against the focused node, alongside the always-applicable list driven by the Action's own precondition (see [`schemas/extensions/action.schema.json`](./schemas/extensions/action.schema.json)).
+The "which Action resolves this analyzer's findings?" relationship is declared from the **Action** side, not the Analyzer side (the `Analyzer.recommendedActions` map was retired with the structure-as-truth refactor). An Action's `precondition.analyzerIds: string[]` lists the qualified ids of the analyzers whose findings it is intended to resolve. The UI joins on this field: when an analyzer emitted against the focused node, the inspector surfaces every Action whose `precondition.analyzerIds` includes that analyzer, under "Recommended for issues", alongside the always-applicable list driven by the rest of the Action's `precondition`.
 
-The two surfaces are deliberately split:
-
-- **`Action.precondition`**, declared on the Action side. Answers "which nodes does this Action apply to?". Evaluated continuously against the node the inspector is focused on, regardless of any issue.
-- **`Analyzer.recommendedActions`**, declared on the Analyzer side. Answers "when this analyzer fires, which Actions are the natural fix?". Surfaces only on nodes the analyzer emitted against.
-
-Each `recommendedActions` entry MUST be the qualified id of a registered Action. The kernel logs an `extension.error` event with `kind: 'recommended-action-missing'` when a referenced action is not loaded; the analyzer stays registered and continues emitting issues, only the recommendation hint is dropped. Project-level cleanup verbs (orphan file prune, contribution relink) are CLI commands, not Actions, and are NOT linked through this field. Analyzers whose issues surface deliberate user declarations rather than fixable problems (e.g. `core/node-superseded`) omit the field.
+The two surfaces stay distinct: the `kind` / `provider` sub-filters answer "which nodes does this Action apply to?" (evaluated continuously against the focused node); `analyzerIds` answers "when which analyzer fires is this Action the natural fix?" (surfaces only on nodes the named analyzer emitted against). Project-level cleanup verbs (orphan file prune, contribution relink) are CLI commands, not Actions, and are NOT linked through this field. Actions resolving deliberate user declarations rather than fixable problems omit `analyzerIds`.
 
 ### Hook · curated trigger set
 
@@ -462,7 +484,8 @@ Hooks subscribe declaratively to a curated set of kernel lifecycle events and re
 | `analyzer.completed` | Once per Analyzer, after every issue has been validated. | `analyzerId: string` (qualified). | Per-Analyzer alerting, downstream tooling. |
 | `action.completed` | Once per Action invocation, after the report has been recorded. | `actionId: string` (qualified), `node`, `jobResult`. | Per-Action notification, integration glue. |
 | `job.spawning` | Pre-spawn of a runner subprocess (job subsystem; Step 10). | `jobId`, `actionId`, spawn metadata. | Pre-flight checks, audit logging. |
-| `job.spawning`, `job.completed`, `job.failed` | The three job-lifecycle hookables; same payload shapes as the [`job-events.md`](./job-events.md) entries of the same name. | See [`job-events.md` §Event catalog](./job-events.md#event-catalog). | Most common Hook surface (notifications, retries, billing). |
+| `job.completed` | Once per job that finishes successfully (job subsystem; Step 10). Same payload shape as the [`job-events.md`](./job-events.md) entry of the same name. | See [`job-events.md` §Event catalog](./job-events.md#event-catalog). | Most common Hook surface (notifications, retries, billing). |
+| `job.failed` | Once per job that fails (job subsystem; Step 10). Same payload shape as the [`job-events.md`](./job-events.md) entry of the same name. | See [`job-events.md` §Event catalog](./job-events.md#event-catalog). | Alerting, retry triggers. |
 | `shutdown` | Once per CLI process invocation, AFTER the verb returns its exit code and BEFORE `process.exit`. The dispatcher awaits subscribed hooks so they finish before the process terminates, but every hook MUST be fast (the user already saw the verb's output and is waiting for the prompt back). The dispatcher catches every hook error so a buggy hook never alters the verb's exit code; it can only delay the exit. | `exitCode: number` (the verb's resolved exit code, `0..5`). | Cleanup, post-run telemetry, the `core/update-check` banner. |
 
 A hook MAY narrow further with an optional declarative `filter` map: keys are payload field paths (top-level only in v0.x); values are the literal expected match. The dispatcher walks `event.data` for each declared key and short-circuits the invocation when any value disagrees. Examples:
@@ -643,9 +666,9 @@ The flag lives in `project-local` (gitignored) so each collaborator consents ind
 
 ### Plugin contributions
 
-Plugins extend the annotation surface via the `annotationContributions` manifest field, a map of contributed key → `{ schema, ownership, location }`. Inline JSON Schema (no `$ref` to external files). Two location modes:
+Plugins extend the annotation surface via the optional `annotation` block on an extension manifest (`{ schema, ownership?, location? }`, inline JSON Schema, no `$ref` to external files). It is a **single** declaration per extension and **the contributed key is the extension's id** (its folder name); an extension that needs several keys splits into several extensions, one per key. Two location modes:
 
-- `location: 'namespaced'` (default), writes go to the plugin's `<plugin-id>:` block at the sidecar root. Default `ownership: 'shared'`. Plugins write to their own namespace without coordination; AJV validates contributed keys against the plugin's declared schema.
+- `location: 'namespaced'` (default), writes go to the plugin's `<plugin-id>:` block at the sidecar root. Default `ownership: 'shared'`. Plugins write to their own namespace without coordination; AJV validates the contributed value against the extension's declared schema.
 - `location: 'root'`, writes go to a top-level key of the sidecar (alongside `identity` / `annotations` / `settings` / `audit`). Requires `ownership: 'exclusive'` (claiming a root key is elevated trust). Two plugins claiming the same root key with `exclusive` is a **hard fatal** at orchestrator startup, the kernel refuses to boot rather than route writes ambiguously.
 
 The kernel exposes a runtime catalog (`Kernel.getRegisteredAnnotationKeys()`) listing every plugin-contributed key with its `pluginId`, `location`, `ownership`, and `schema`, consumed by the BFF (`GET /api/annotations/registered`) for UI autocomplete.
@@ -760,7 +783,7 @@ ctx.emitContribution(contributionId, payload);
 ctx.emitContribution(nodePath, contributionId, payload);
 ```
 
-Parallel to `ctx.emitLink(link)`. The kernel buffers the emission, validates the payload against the slot's payload schema in `$defs/payloads/<slot>` (AJV-compiled at boot), and persists the row to `scan_contributions` during `persistScanResult`. Off-shape payloads emit an `extension.error` event and drop silently, same posture as `emitLink` rejecting off-`emitsLinkKinds` links. Both Extractor and Analyzer emissions land in the same `scan_contributions` rows; the row's `extension_id` records which kind of extension produced it.
+Parallel to `ctx.emitLink(link)`. The kernel buffers the emission, validates the payload against the slot's payload schema in `$defs/payloads/<slot>` (AJV-compiled at boot), and persists the row to `scan_contributions` during `persistScanResult`. Off-shape payloads emit an `extension.error` event and drop silently, same posture as `emitLink` rejecting off-enum link kinds. Both Extractor and Analyzer emissions land in the same `scan_contributions` rows; the row's `extension_id` records which kind of extension produced it.
 
 The Extractor-emit signature binds `nodePath` implicitly (the extractor runs per-node, with `ctx.node.path` available as the only sensible target). The Analyzer-emit signature requires the analyzer to declare the target node explicitly because Analyzers see the full graph at once and may emit for any subset of nodes, the canonical use case is a analyzer that derives per-node values from cross-graph aggregations (`core/link-counter` projects `linksOutCount` / `linksInCount` this way).
 

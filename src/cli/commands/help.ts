@@ -8,9 +8,9 @@
  *
  * `human` delegates to Clipanion's own Cli.usage() for overview and
  * Cli.usage(command) for a specific verb so we match the built-in
- * formatting exactly. `md` emits canonical markdown grouped by category;
- * `context/cli-reference.md` is regenerated from this and diffed in CI.
- * `json` emits the structured surface dump.
+ * formatting exactly. `md` emits canonical markdown grouped by category
+ * (generated on demand for documentation). `json` emits the structured
+ * surface dump.
  */
 
 import { readFileSync } from 'node:fs';
@@ -98,8 +98,7 @@ export class HelpCommand extends Command {
 
       Formats:
         human (default): pretty terminal output.
-        md             : canonical markdown. context/cli-reference.md is
-                         regenerated from this and CI fails on drift.
+        md             : canonical markdown for documentation.
         json           : structured surface dump per spec/cli-contract.md.
     `,
   });

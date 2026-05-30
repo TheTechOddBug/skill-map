@@ -3,8 +3,7 @@
  * real implementation yet. Each stub:
  *
  * 1. Registers the same paths as the final command will (so `sm help` sees
- *    the full surface today, and the CI drift check against
- *    `context/cli-reference.md` works).
+ *    the full surface today).
  * 2. Advertises its future home via the `category` / `description` /
  *    `details` in the Usage block, this is what the Step 1c
  *    introspection layer serialises to json / md. Every stub
@@ -156,9 +155,8 @@ export class ActionsShowCommand extends StubCommand {
 //
 // Every job verb below ships in ROADMAP.md § Execution plan, Step 10
 // ("Queue infrastructure" + "LLM runner"). They are wired as stubs
-// today so `sm help` advertises the full surface and the CI drift
-// check against `context/cli-reference.md` works against the final
-// command catalogue. The real implementations land in `cli/commands/jobs.ts`
+// today so `sm help` advertises the full command surface. The real
+// implementations land in `cli/commands/jobs.ts`
 // (which already hosts `sm job prune`).
 
 export class JobSubmitCommand extends StubCommand {

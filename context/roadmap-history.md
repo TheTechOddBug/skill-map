@@ -8,7 +8,7 @@ Archive of historical material extracted from `ROADMAP.md` to keep the roadmap f
 
 Authority order is unchanged: `spec/` > `ROADMAP.md` > `AGENTS.md` (and its `context/*.md` annexes, same level as AGENTS.md). This annex is reference material, not normative.
 
-For shipped Step landing prose see `context/execution-history.md`. For the forward-looking plan see `ROADMAP.md`.
+For shipped Step landing prose see the git history and the per-package changelogs. For the forward-looking plan see `ROADMAP.md`.
 
 ---
 

@@ -26,7 +26,7 @@ Root orchestrates the two phases globally: **every workspace's compile phase run
 | Workspace | `validate:compile` | `validate:test` |
 |---|---|---|
 | `@skill-map/spec` | `spec:check` (index + coverage) + `pin:check` |, |
-| `@skill-map/cli` | `typecheck` + `lint` + `build` + `reference:check` | `test:ci` |
+| `@skill-map/cli` | `typecheck` + `lint` + `build` + `built-ins:check` | `test:ci` |
 | `ui` | `build` | `test:ci` |
 | `@skill-map/web` | `build` |, |
 | `skill-map-e2e` |, | `test:ci` (with `prevalidate:test` that prepares demo + browsers) |
@@ -75,7 +75,7 @@ A `.js` in root `scripts/` is justified only if **it is genuinely cross-workspac
 | Script | Natural home |
 |---|---|
 | `build-spec-index.js`, `sync-spec-pin.js`, `check-coverage.js` | `spec/` |
-| `build-cli-reference.js`, `dev-serve.js` | `src/` (CLI) |
+| `dev-serve.js` | `src/` (CLI) |
 | `dev-server.js`, `build-site.js`, `build-demo-dataset.js`, `patch-demo-mode.js`, `serve-demo.js` | `web/` (site + demo) |
 | `open-sqlite-browser.js` | disappears when `sqlite` migrates to a CLI sub-command |
 | `check-changeset.js` | cross-cutting utility (CI-only); stays at root |
@@ -150,7 +150,7 @@ Three tags in the footer, with two distinct policies depending on what each vers
 
 The hook hooks itself in automatically: the root `package.json` `prepare` script runs `git config core.hooksPath .githooks` every time someone runs `pnpm install`. No manual setup per contributor. The script is guarded with `[ -d .git ]` so `pnpm install --frozen-lockfile` inside Docker (where the `.git/` directory isn't copied into the build context) silently no-ops instead of failing on a missing `git` binary.
 
-To add other checks to the hook (e.g. cli-reference when the CLI changes), add the matching branch in `.githooks/pre-commit` following the existing pattern.
+To add other checks to the hook, add the matching branch in `.githooks/pre-commit` following the existing pattern.
 
 ## When to add / move / remove
 

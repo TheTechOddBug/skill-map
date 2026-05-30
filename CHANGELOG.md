@@ -3,7 +3,6 @@
 > Consolidated release history for skill-map, newest first. Each entry lists what shipped in the CLI (`@skill-map/cli`, the `sm` binary you install) and in the spec (`@skill-map/spec`). This file is generated at release time, do not hand-edit it.
 >
 > Per-package npm changelogs: [`src/CHANGELOG.md`](./src/CHANGELOG.md), [`spec/CHANGELOG.md`](./spec/CHANGELOG.md).
-> Step-by-step execution narrative: [`context/execution-history.md`](./context/execution-history.md).
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>

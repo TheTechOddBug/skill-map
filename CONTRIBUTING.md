@@ -61,7 +61,7 @@ Editing a workspace's own `CHANGELOG.md` is release notes, not a releasable chan
 
 ### Changelogs
 
-The repo root `CHANGELOG.md` is the **generated consolidated release changelog**: one collapsible `<details>` per CLI release, newest first, with the CLI version + ISO `YYYY-MM-DD` date in the summary and `### CLI Minor` / `### CLI Patch` / `### Spec Minor (x.y.z)` / `### Spec Patch (x.y.z)` sections inside (no commit hashes, no dependency-update noise, one short bullet per changeset). It is generated at release time by `scripts/build-changelog.js`, wired into `release:version` right after `build-user-changelog.js` and before `changeset version`; do not hand-edit it. The per-package npm changelogs (`src/CHANGELOG.md`, `spec/CHANGELOG.md`) drop the commit-hash prefix and the `Updated dependencies` blocks going forward via the custom changesets module `scripts/changeset-changelog.cjs` (`.changeset/config.json` points `changelog` at it); they are also generated, not hand-edited. The Step-by-step execution narrative lives in [`context/execution-history.md`](./context/execution-history.md).
+The repo root `CHANGELOG.md` is the **generated consolidated release changelog**: one collapsible `<details>` per CLI release, newest first, with the CLI version + ISO `YYYY-MM-DD` date in the summary and `### CLI Minor` / `### CLI Patch` / `### Spec Minor (x.y.z)` / `### Spec Patch (x.y.z)` sections inside (no commit hashes, no dependency-update noise, one short bullet per changeset). It is generated at release time by `scripts/build-changelog.js`, wired into `release:version` right after `build-user-changelog.js` and before `changeset version`; do not hand-edit it. The per-package npm changelogs (`src/CHANGELOG.md`, `spec/CHANGELOG.md`) drop the commit-hash prefix and the `Updated dependencies` blocks going forward via the custom changesets module `scripts/changeset-changelog.cjs` (`.changeset/config.json` points `changelog` at it); they are also generated, not hand-edited.
 
 ### Bump policy
 
@@ -73,7 +73,7 @@ The repo root `CHANGELOG.md` is the **generated consolidated release changelog**
 
 ### What happens on merge
 
-1. PR to `main` → CI checks changeset presence + `spec/index.json` integrity + `context/cli-reference.md` integrity + lint + build + tests.
+1. PR to `main` → CI checks changeset presence + `spec/index.json` integrity + lint + build + tests.
 2. Merge to `main` → `release` workflow opens (or updates) a **"Version Packages"** PR that bumps `package.json` files, consumes the changesets, and updates CHANGELOGs.
 3. Merge the Version Packages PR → publishes to npm and creates a git tag.
 
@@ -90,12 +90,7 @@ pnpm --filter @skill-map/spec spec:check    # verify (used by CI via root valida
 
 The orchestrator (`pnpm validate`) runs `spec:check` for every PR through the spec workspace's `validate`. Drift → red build. A pre-commit hook (`.githooks/pre-commit`, wired automatically by `pnpm install` via the root `prepare` script that sets `core.hooksPath`) also runs the spec workspace's `validate` whenever a commit touches `spec/`, so an out-of-sync `index.json` fails locally before reaching CI.
 
-Same discipline applies to the auto-generated CLI reference at `context/cli-reference.md`:
-
-```bash
-pnpm --filter @skill-map/cli reference         # regenerate from `sm help --format md`
-pnpm --filter @skill-map/cli reference:check   # verify (used by CI via root validate)
-```
+CLI documentation is not a committed artifact: `sm help --format md` emits canonical markdown for the full command surface on demand, so there is nothing to keep in sync.
 
 ### Version Packages PR exception
 

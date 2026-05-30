@@ -12,6 +12,6 @@
 - [ ] `.changeset/*.md` added for any versioned workspace touched (`spec/`, `src/`, `web/`), one short paragraph.
 - [ ] `## User-facing` section added to the changeset when an operator who installed `sm` notices the change.
 - [ ] Tests added or updated; `pnpm validate` is green.
-- [ ] `spec/index.json` and `context/cli-reference.md` regenerated if affected.
+- [ ] `spec/index.json` regenerated if affected.
 - [ ] ROADMAP.md kept in sync (execution plan, decision log, completeness marker).
 - [ ] English only, no em dashes in artifacts.

@@ -1466,7 +1466,7 @@ See [Persistence](#persistence).
 ### Introspection
 
 - `sm help --format json`, structured surface dump.
-- `sm help --format md`, canonical markdown for `context/cli-reference.md` (CI-enforced sync).
+- `sm help --format md`, canonical markdown for documentation, generated on demand (not a committed artifact).
 - Consumers: docs generator, shell completion, Web UI form generation, IDE extensions, test harness, the `sm-cli` skill (agent integration).
 
 ---
@@ -1778,7 +1778,7 @@ Acceptance: every CLI verb shipped at Step 11 has a UI flow that does not requir
 - **Public-site `web/demo/` deploy** (carry-over from 14.7): wire the existing `pnpm web:build` (which already chains `pnpm demo:build` per Step 14.3) into the release pipeline so the deployed site at `skill-map.ai/demo/` ships the latest demo bundle on every release. The demo bundle already passes through the e2e smoke gate above before publish.
 - **Documentation site**: **Astro Starlight** (static, minimal infra, good DX).
 - **Plugin API reference**: JSDoc → Starlight auto-generated.
-- **LLM-discoverable docs surface** (Decision #89): generate `/llms.txt` and `/llms-full.txt` at the root of `skill-map.ai` following the [llmstxt.org](https://llmstxt.org) standard. The short file lists curated entry points (README, spec contracts, CLI reference, plugin author guide); the full file inlines the same content for one-shot ingestion. Both are emitted by `web/scripts/build-site.js` from authoritative sources (`spec/`, `context/cli-reference.md`, `ROADMAP.md`) so they cannot drift. Once the spec freezes at `v1.0.0`, register the project on [context7](https://context7.com), it indexes public repos with a usable `llms.txt` and serves them through the `context7` MCP that AI agents already consume. Net effect: any LLM-driven workflow (Claude Code, Cursor, ChatGPT browse, etc.) finds skill-map docs without scraping the schemas. Pre-`v1.0.0` is intentionally too early, the spec is still moving and we'd be teaching context7 a stale shape.
+- **LLM-discoverable docs surface** (Decision #89): generate `/llms.txt` and `/llms-full.txt` at the root of `skill-map.ai` following the [llmstxt.org](https://llmstxt.org) standard. The short file lists curated entry points (README, spec contracts, CLI reference, plugin author guide); the full file inlines the same content for one-shot ingestion. Both are emitted by `web/scripts/build-site.js` from authoritative sources (`spec/`, `sm help --format md`, `ROADMAP.md`) so they cannot drift. Once the spec freezes at `v1.0.0`, register the project on [context7](https://context7.com), it indexes public repos with a usable `llms.txt` and serves them through the `context7` MCP that AI agents already consume. Net effect: any LLM-driven workflow (Claude Code, Cursor, ChatGPT browse, etc.) finds skill-map docs without scraping the schemas. Pre-`v1.0.0` is intentionally too early, the spec is still moving and we'd be teaching context7 a stale shape.
 - `mia-marketplace` entry.
 - Claude Code plugin wrapper, a skill that invokes `sm` from inside Claude Code (`skill-optimizer` is the canonical dual-surface example: exists as a Claude Code skill AND as a skill-map Action via invocation-template mode).
 - Telemetry opt-in.

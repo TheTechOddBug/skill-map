@@ -19,7 +19,7 @@ The plugin author **picks a slot**. The slot fixes both the renderer (which Angu
 
 ## Slot catalog
 
-15 slots, listed in `spec/schemas/view-slots.schema.json#/$defs/SlotName` and mirrored in `src/kernel/types/view-catalog.ts#TSlotName`. To add a new slot:
+14 slots, listed in `spec/schemas/view-slots.schema.json#/$defs/SlotName` and mirrored in `src/kernel/types/view-catalog.ts#TSlotName`. To add a new slot:
 
 1. **Spec first** (per `AGENTS.md`): add the slot id to the closed enum in `view-slots.schema.json`, add a `$defs.payloads.<slot>` schema (or `$ref` to a shared shape), regenerate `spec/index.json`.
 2. Mirror the type in `src/kernel/types/view-catalog.ts#TSlotName`.
@@ -95,8 +95,8 @@ The two channels are decoupled by design: an analyzer chooses what to emit on ea
 |---|---|---|---|---|---|
 | **Surface a problem AND count it** | yes | yes | `error` or `warn` | `danger` (matches `error`) or `warn` (matches `warn`) | Chip in footer + adds to the aggregated stat |
 | **Show an attribute without counting** (e.g. `experimental` flag, `stale` marker) | no, or `info` | yes | `info` (or none) | `info` / `success` / none (neutral) | Chip in footer only, no stat impact |
-| **Count without a dedicated chip** | yes | no | `error` or `warn` | — | Aggregated stat + entry in the expanded issues list |
-| **No surface** | no | no | — | — | nothing |
+| **Count without a dedicated chip** | yes | no | `error` or `warn` | (none) | Aggregated stat + entry in the expanded issues list |
+| **No surface** | no | no | (none) | (none) | nothing |
 
 ### Color rule (chip color implies counting)
 

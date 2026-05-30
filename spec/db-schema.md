@@ -161,7 +161,7 @@ No indexes (single row).
 
 Fine-grained cache breadcrumbs for the incremental scan path. One row per `(node_path, extractor_id)` recording the body hash the Extractor saw the last time it ran against that node. Replace-all on every `sm scan` so rows for Extractors that were uninstalled since the last scan disappear automatically.
 
-The orchestrator consults this table on `sm scan --changed`: a node-level cache hit (body+frontmatter unchanged) is upgraded to a full skip ONLY when every currently-registered Extractor (filtered by `applicableKinds`) has a row matching the prior body hash. A new Extractor registered between scans is detected by the absence of its row and runs over the cached node WITHOUT requiring a full cache invalidation. Without this table the cache silently bypassed any Extractor newly registered between scans, leaving its emissions missing on the next `--changed` pass; the same machinery is what a future Action-issued probabilistic enrichment revision will leverage to reuse paid LLM output across unchanged bodies.
+The orchestrator consults this table on `sm scan --changed`: a node-level cache hit (body+frontmatter unchanged) is upgraded to a full skip ONLY when every currently-registered Extractor (filtered by its `precondition`) has a row matching the prior body hash. A new Extractor registered between scans is detected by the absence of its row and runs over the cached node WITHOUT requiring a full cache invalidation. Without this table the cache silently bypassed any Extractor newly registered between scans, leaving its emissions missing on the next `--changed` pass; the same machinery is what a future Action-issued probabilistic enrichment revision will leverage to reuse paid LLM output across unchanged bodies.
 
 | Column | Type | Constraint |
 |---|---|---|
@@ -222,7 +222,7 @@ Phase 3 / View contribution system. Per-node typed payloads emitted by extractor
 | `plugin_id` | TEXT | NOT NULL | Owning plugin namespace per spec § A.6. |
 | `extension_id` | TEXT | NOT NULL | Extension id within the plugin. |
 | `node_path` | TEXT | NOT NULL | FK semantically to `scan_nodes.path`; orphan-swept on persist when the parent node disappears. |
-| `contribution_id` | TEXT | NOT NULL | Manifest Record key under `extension.viewContributions[<contributionId>]`. |
+| `contribution_id` | TEXT | NOT NULL | Manifest Record key under `extension.ui[<contributionId>]` (the runtime catalog keeps the historical name `viewContributions`). |
 | `slot` | TEXT | NOT NULL | Closed-enum-by-spec slot name; mirror of `view-slots.schema.json#/$defs/SlotName`. Kept open at the SQL layer (no CHECK) so catalog evolution does not need a DDL migration; `sm plugins upgrade` handles renames at the manifest layer. |
 | `payload_json` | TEXT | NOT NULL | JSON-serialised payload, already validated against the slot's payload schema (`view-slots.schema.json#/$defs/payloads/<slot>`) at emit time. Off-shape payloads emit `extension.error` and drop silently. |
 | `emitted_at` | INTEGER | NOT NULL | Unix milliseconds. |
