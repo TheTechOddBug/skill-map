@@ -161,7 +161,7 @@ jobs:
         # with HIDDEN sourcemaps (identical JS + content hashes as the
         # shipped production build, plus the `.map` files) purely to upload
         # them. Sentry matches events to these maps via the `release` tag
-        # the SDK sets (`@skill-map/cli@<version>`) plus the `~/` url-prefix.
+        # the SDK sets (`skill-map-cli@<version>`) plus the `~/` url-prefix.
         if: steps.changesets.outputs.published == 'true'
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
@@ -186,7 +186,7 @@ jobs:
             echo "No UI sourcemaps on disk (UI built without them); skipping upload."
             exit 0
           fi
-          release="@skill-map/cli@${cli_version}"
+          release="skill-map-cli@${cli_version}"
           echo "Uploading UI sourcemaps for release ${release}"
           # Maps come from the same 'release-sourcemaps' build that produced
           # the shipped JS, so they match the bundle by filename. Sentry ties

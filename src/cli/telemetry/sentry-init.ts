@@ -87,8 +87,9 @@ export function isTelemetryActive(dsn: string): boolean {
  * Initialise the CLI Sentry client when (and only when) telemetry is active.
  * Idempotent: a second call after a successful init is a no-op. The SDK is
  * loaded through `loadSdk` (defaults to a dynamic `import('@sentry/node')`,
- * so a dormant boot never loads it; tests inject a fake). `version` becomes
- * the release tag.
+ * so a dormant boot never loads it; tests inject a fake). `version` is
+ * folded into the release tag `skill-map-cli@<version>` (slash-free per
+ * Sentry's release-name rules; a `/` is rejected).
  */
 export async function initSentryCli(
   version: string,
@@ -99,7 +100,7 @@ export async function initSentryCli(
   const Sentry = await loadSdk();
   Sentry.init({
     dsn: SENTRY_DSN_NODE,
-    release: `@skill-map/cli@${version}`,
+    release: `skill-map-cli@${version}`,
     environment: resolveTelemetryEnv(),
     // CLI and BFF share one Sentry project; the `surface` tag tells their
     // events apart in the shared issue stream.

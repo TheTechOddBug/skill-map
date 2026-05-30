@@ -120,7 +120,8 @@ export const appConfig: ApplicationConfig = {
     // arming error capture ahead of the cold-start data probes below. It
     // fetches the per-machine consent flag (`/api/preferences` →
     // `telemetry.errorsEnabled`) and the running impl version
-    // (`/api/health` → `implVersion`, the Sentry release tag), then calls
+    // (`/api/health` → `implVersion`, the base of the `skill-map-cli@<version>`
+    // Sentry release tag), then calls
     // `initUiSentry`. The init is a hard no-op while the UI DSN
     // placeholder is empty (dormant by default) AND while consent is OFF,
     // so today this never touches the Sentry network. The whole fetch is
@@ -140,7 +141,7 @@ export const appConfig: ApplicationConfig = {
         await Promise.all([
           initUiSentry({
             consentEnabled: preferences.telemetry.errorsEnabled,
-            release: health.implVersion ?? null,
+            release: health.implVersion ? `skill-map-cli@${health.implVersion}` : null,
             environment: preferences.telemetry.environment,
           }),
           // Usage analytics (PostHog) shares the same consent probe. The CLI

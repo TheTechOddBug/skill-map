@@ -157,7 +157,7 @@ describe('initSentryCli (SDK spy, no network)', () => {
     assert.equal(fake.init.mock.callCount(), 1);
     const opts = fake.init.mock.calls[0]?.arguments[0];
     assert.ok(opts);
-    assert.equal(opts.release, '@skill-map/cli@9.9.9');
+    assert.equal(opts.release, 'skill-map-cli@9.9.9');
     assert.equal(opts.tracesSampleRate, 0);
     assert.equal(opts.sendDefaultPii, false);
     assert.equal(opts.registerEsmLoaderHooks, false);
