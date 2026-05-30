@@ -38,15 +38,21 @@ function smIn(cwd: string, args: string[]): IRun {
   const r = spawnSync(process.execPath, [BIN, ...args], {
     cwd,
     encoding: 'utf8',
-    env: { ...process.env, NO_COLOR: '1' },
+    // Isolate HOME so the spawned binary reads an empty
+    // `~/.skill-map/settings.json` (no telemetry opt-in → the usage
+    // surface stays dormant), so running this spec never emits a PostHog
+    // event.
+    env: { ...process.env, HOME: homeDir, USERPROFILE: homeDir, NO_COLOR: '1' },
   });
   return { status: r.status ?? 0, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 }
 
 let tmpProject: string;
+let homeDir: string;
 
 before(() => {
   tmpProject = mkdtempSync(join(tmpdir(), 'skill-map-bare-routing-'));
+  homeDir = mkdtempSync(join(tmpdir(), 'skill-map-bare-routing-home-'));
   // Plant a fake project DB. Routing only checks `existsSync`, so a
   // zero-byte file is enough; the validation we trigger below exits
   // before any sqlite open would happen.
@@ -56,6 +62,7 @@ before(() => {
 
 after(() => {
   rmSync(tmpProject, { recursive: true, force: true });
+  rmSync(homeDir, { recursive: true, force: true });
 });
 
 describe('bare `sm`, flag-first invocation', () => {

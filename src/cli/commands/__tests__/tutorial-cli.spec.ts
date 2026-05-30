@@ -5,19 +5,18 @@
  * Spec contract under test (spec/cli-contract.md § `sm tutorial`):
  *
  *   - `sm tutorial`                  → writes <cwd>/.claude/skills/sm-tutorial/, exit 0.
- *                                      (non-interactive stdin → default provider: claude.)
- *   - `sm tutorial` (clobber)        → exits 2, does NOT overwrite.
- *   - `sm tutorial --force`          → overwrites existing dir, exit 0.
+ *                                      (empty cwd; non-interactive stdin → default provider: claude.)
+ *   - `sm tutorial` (non-empty cwd)  → exits 2, writes nothing.
+ *   - `sm tutorial --force` (non-empty) → seeds anyway, exit 0, leaves unrelated content.
  *   - `sm tutorial master`           → writes <cwd>/.claude/skills/sm-master/, exit 0.
  *   - `sm tutorial master`           → also ships the references/ sub-folder.
- *   - `sm tutorial master` (clobber) → exits 2, does NOT overwrite.
+ *   - `sm tutorial master` (non-empty cwd) → exits 2, writes nothing.
  *   - `sm tutorial master --force`   → overwrites existing dir, exit 0.
  *   - `sm tutorial garbage`          → exits 2, emits `invalidVariant`.
  *   - `sm tutorial --for agent-skills` → writes <cwd>/.agents/skills/sm-tutorial/, exit 0.
  *   - `sm tutorial --for claude master` → writes <cwd>/.claude/skills/sm-master/, exit 0.
  *   - `sm tutorial --for garbage`    → exits 2, emits `forUnknown`.
- *   - `sm tutorial` with .agents/ present → detects agent-skills (non-interactive default).
- *   - `sm tutorial` with no marker   → falls back to Claude.
+ *   - `sm tutorial` (empty cwd, no marker) → defaults to Claude.
  *   - SKILL.md and references/* match the canonical sources byte-for-byte.
  *   - No `.skill-map/` is required (verb runs in a virgin dir).
  */
@@ -66,13 +65,23 @@ let counter = 0;
 
 interface IScope {
   cwd: string;
+  home: string;
 }
 
+// `cwd` and `home` are siblings under a per-test parent so the cwd stays
+// empty (the verb requires it) while `home` isolates the spawned binary
+// from the developer's real `~/.skill-map/settings.json`. Without the
+// isolation the binary reads the developer's telemetry opt-in and the
+// entry point fires a PostHog usage event per invocation, matching the
+// other CLI spawn-specs (init / list / config).
 function freshScope(label: string): IScope {
   counter += 1;
-  const cwd = join(root, `${label}-${counter}`);
+  const dir = join(root, `${label}-${counter}`);
+  const cwd = join(dir, 'cwd');
+  const home = join(dir, 'home');
   mkdirSync(cwd, { recursive: true });
-  return { cwd };
+  mkdirSync(home, { recursive: true });
+  return { cwd, home };
 }
 
 function sm(
@@ -82,7 +91,10 @@ function sm(
   const r = spawnSync(process.execPath, [BIN, ...args], {
     encoding: 'utf8',
     cwd: scope.cwd,
-    env: { ...process.env, NO_COLOR: '1' },
+    // Isolate HOME so the spawned binary reads an empty
+    // `~/.skill-map/settings.json` (no telemetry opt-in → the usage
+    // surface stays dormant), regardless of how the spec is invoked.
+    env: { ...process.env, HOME: scope.home, USERPROFILE: scope.home, NO_COLOR: '1' },
   });
   return { status: r.status ?? 0, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 }
@@ -199,8 +211,25 @@ describe('sm tutorial, happy path', () => {
   });
 });
 
-describe('sm tutorial, clobber protection', () => {
-  it('exits 2 when the skill directory already exists and --force is not passed', () => {
+describe('sm tutorial, empty-directory guard', () => {
+  it('exits 2 and writes nothing when the cwd holds unrelated user content', () => {
+    const scope = freshScope('not-empty-blocked');
+    const userFile = join(scope.cwd, 'my-notes.md');
+    const userBody = '# my own work, must NOT be touched\n';
+    writeFileSync(userFile, userBody);
+
+    const r = sm(['tutorial'], scope);
+
+    assert.equal(r.status, 2, `stderr: ${r.stderr}`);
+    assert.match(r.stderr, /not empty/);
+    assert.match(r.stderr, /--force/);
+
+    // Nothing scaffolded, user content untouched.
+    assert.equal(existsSync(join(scope.cwd, '.claude')), false);
+    assert.equal(readFileSync(userFile, 'utf8'), userBody);
+  });
+
+  it('exits 2 when the skill directory already exists (subsumed by the empty guard)', () => {
     const scope = freshScope('clobber-blocked');
     const target = join(scope.cwd, '.claude', 'skills', 'sm-tutorial');
     mkdirSync(target, { recursive: true });
@@ -211,22 +240,24 @@ describe('sm tutorial, clobber protection', () => {
     const r = sm(['tutorial'], scope);
 
     assert.equal(r.status, 2, `stderr: ${r.stderr}`);
-    assert.match(r.stderr, /already exists/);
+    assert.match(r.stderr, /not empty/);
     assert.match(r.stderr, /--force/);
 
-    // File untouched.
+    // File untouched (the guard fires before any write).
     assert.equal(readFileSync(sentinel, 'utf8'), sentinelBody);
   });
 
-  it('--force overwrites an existing skill directory and exits 0', () => {
+  it('--force seeds into a non-empty cwd, overwrites the target, leaves other content', () => {
     const scope = freshScope('clobber-force');
     const target = join(scope.cwd, '.claude', 'skills', 'sm-tutorial');
     mkdirSync(target, { recursive: true });
     writeFileSync(join(target, 'SKILL.md'), '# stale content\n');
-    // Also drop a sentinel file that's NOT part of the canonical skill;
-    // it must be wiped by --force so the result matches the source
-    // folder byte-for-byte (no leftovers from the previous payload).
+    // A sentinel NOT part of the canonical skill: --force must wipe it so
+    // the target matches the source byte-for-byte (no payload leftovers).
     writeFileSync(join(target, 'stale-leftover.md'), '# stale\n');
+    // Unrelated user content at the cwd top level: --force must NOT touch it.
+    const userFile = join(scope.cwd, 'my-notes.md');
+    writeFileSync(userFile, '# keep me\n');
 
     const r = sm(['tutorial', '--force'], scope);
 
@@ -237,6 +268,8 @@ describe('sm tutorial, clobber protection', () => {
       false,
       '--force must wipe leftovers from the prior payload',
     );
+    // Unrelated content survives: --force only wipes the target skill dir.
+    assert.equal(readFileSync(userFile, 'utf8'), '# keep me\n');
   });
 });
 
@@ -283,8 +316,8 @@ describe('sm tutorial master, happy path', () => {
   });
 });
 
-describe('sm tutorial master, clobber protection', () => {
-  it('exits 2 when the sm-master directory already exists and --force is not passed', () => {
+describe('sm tutorial master, empty-directory guard', () => {
+  it('exits 2 when the cwd is not empty (sm-master dir present) and --force is not passed', () => {
     const scope = freshScope('master-clobber-blocked');
     const target = join(scope.cwd, '.claude', 'skills', 'sm-master');
     mkdirSync(target, { recursive: true });
@@ -295,7 +328,7 @@ describe('sm tutorial master, clobber protection', () => {
     const r = sm(['tutorial', 'master'], scope);
 
     assert.equal(r.status, 2, `stderr: ${r.stderr}`);
-    assert.match(r.stderr, /already exists/);
+    assert.match(r.stderr, /not empty/);
     assert.match(r.stderr, /--force/);
 
     // File untouched.
@@ -385,31 +418,26 @@ describe('sm tutorial, --for provider selection', () => {
   });
 });
 
-describe('sm tutorial, marker detection (no --for, non-interactive)', () => {
-  it('a present .agents/ marker pre-selects agent-skills as the default', () => {
-    const scope = freshScope('detect-agents');
-    // A bare `.agents/` directory marks an open-standard project.
-    mkdirSync(join(scope.cwd, '.agents'), { recursive: true });
-
-    // Non-interactive stdin (spawnSync, no TTY): the verb takes the
-    // detected default without prompting.
-    const r = sm(['tutorial'], scope);
-
-    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    assert.ok(
-      existsSync(join(scope.cwd, '.agents', 'skills', 'sm-tutorial', 'SKILL.md')),
-      'skill must land under the detected .agents/skills/ territory',
-    );
-    // Claude territory must NOT be created when .agents/ was detected.
-    assert.equal(existsSync(join(scope.cwd, '.claude')), false);
-  });
-
-  it('falls back to Claude when no marker is present', () => {
-    const scope = freshScope('detect-none');
+describe('sm tutorial, default provider (no --for, non-interactive)', () => {
+  it('defaults to Claude in an empty cwd (no marker detection)', () => {
+    const scope = freshScope('default-claude');
     const r = sm(['tutorial'], scope);
 
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     assert.ok(existsSync(join(scope.cwd, '.claude', 'skills', 'sm-tutorial', 'SKILL.md')));
     assert.equal(existsSync(join(scope.cwd, '.agents')), false);
+  });
+
+  it('--force in a dir whose only content is .agents/ still targets the default (Claude)', () => {
+    const scope = freshScope('force-no-detect');
+    // A bare `.agents/` no longer pre-selects agent-skills: detection is
+    // gone, and a non-empty cwd needs --force. The destination is still
+    // the default (Claude), not the marker's provider.
+    mkdirSync(join(scope.cwd, '.agents'), { recursive: true });
+
+    const r = sm(['tutorial', '--force'], scope);
+
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.ok(existsSync(join(scope.cwd, '.claude', 'skills', 'sm-tutorial', 'SKILL.md')));
   });
 });

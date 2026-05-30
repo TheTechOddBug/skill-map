@@ -15,9 +15,11 @@
 
 import { strict as assert } from 'node:assert';
 import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
-import { describe, it } from 'node:test';
+import { dirname, join, resolve } from 'node:path';
+import { after, before, describe, it } from 'node:test';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BIN = resolve(HERE, '..', '..', 'bin', 'sm.js');
@@ -28,10 +30,23 @@ interface IRun {
   stderr: string;
 }
 
+// Isolate HOME so the spawned binary reads an empty
+// `~/.skill-map/settings.json` (no telemetry opt-in → the usage surface
+// stays dormant), so running this spec never emits a PostHog event.
+let homeDir: string;
+
+before(() => {
+  homeDir = mkdtempSync(join(tmpdir(), 'skill-map-parse-errors-home-'));
+});
+
+after(() => {
+  rmSync(homeDir, { recursive: true, force: true });
+});
+
 function sm(args: string[]): IRun {
   const r = spawnSync(process.execPath, [BIN, ...args], {
     encoding: 'utf8',
-    env: { ...process.env, NO_COLOR: '1' },
+    env: { ...process.env, HOME: homeDir, USERPROFILE: homeDir, NO_COLOR: '1' },
   });
   return { status: r.status ?? 0, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 }
