@@ -560,9 +560,11 @@ async function runScanInternal(
  *     under the `claude` lens follows claude's `resolution.mentions`,
  *     the resolver authority matches the extractor authority.
  *   - `reservedNodePaths`: paths of nodes whose normalised identifier(s)
- *     intersect their Provider's `reservedNames[kind]` catalog (e.g. a
- *     user-authored `.claude/commands/help.md` whose name normalises
- *     to `help`, shadowed by the Claude runtime's built-in `/help`).
+ *     intersect a reserved-names catalog under self scope (the node's own
+ *     Provider, e.g. `.claude/commands/help.md` shadowed by Claude's
+ *     built-in `/help`) OR lens scope (the active lens lending its catalog
+ *     to the universal `agent-skills` skill nodes it consumes, e.g.
+ *     `.agents/skills/goal/SKILL.md` shadowed by Antigravity's `/goal`).
  *     The post-walk transform downgrades any link resolving to a node
  *     in this set; the `core/name-reserved` analyzer reads the same
  *     set to emit its warn issue.
@@ -587,6 +589,7 @@ function buildPostWalkTransformCtx(
     nodes,
     kindRegistry,
     reservedNamesByProviderKind,
+    activeProvider,
   );
   return { kindRegistry, providerResolution, activeProvider, reservedNodePaths };
 }
@@ -638,27 +641,47 @@ function indexReservedNames(
 }
 
 /**
- * Intersect each node's normalised identifiers with the reserved list
- * for its provider + kind. Nodes that hit at least one entry land in
- * the returned set; both `liftResolvedLinkConfidence` (transform) and
- * `core/name-reserved` (analyzer) consume the same set.
+ * Intersect each node's normalised identifiers with the reserved names
+ * that apply to it under TWO scopes (spec/architecture.md §Provider ·
+ * reservedNames):
+ *
+ *   - **Self scope**: `reservedNames[node.kind]` of the node's own
+ *     Provider (Claude flags `.claude/commands/help.md`).
+ *   - **Lens scope**: when the active lens classifies nothing itself but
+ *     adopts the open standard (Antigravity), its catalog still applies
+ *     to the universal `agent-skills` skill nodes its runtime consumes,
+ *     matched by kind. Skipped when the lens IS the node's provider (it
+ *     would duplicate self scope) or when no lens is resolved.
+ *
+ * Identifiers are derived once from the node's OWN kind contract; only
+ * the reserved-set lookup widens. Both `liftResolvedLinkConfidence`
+ * (transform) and `core/name-reserved` (analyzer) consume the same set.
  */
 function buildReservedNodePaths(
   nodes: readonly Node[],
   kindRegistry: ReadonlyMap<string, IProviderKind>,
   reservedNamesByProviderKind: ReadonlyMap<string, ReadonlySet<string>>,
+  activeProvider: string | null,
 ): Set<string> {
   const out = new Set<string>();
   for (const node of nodes) {
-    const key = `${node.provider}/${node.kind}`;
-    const reservedSet = reservedNamesByProviderKind.get(key);
-    if (!reservedSet || reservedSet.size === 0) continue;
-    const ids = deriveNodeIdentifiers(node, kindRegistry.get(key));
-    if (ids.some((id) => reservedSet.has(id))) {
+    const selfKey = `${node.provider}/${node.kind}`;
+    const selfReserved = reservedNamesByProviderKind.get(selfKey);
+    const lensReserved =
+      activeProvider && activeProvider !== node.provider
+        ? reservedNamesByProviderKind.get(`${activeProvider}/${node.kind}`)
+        : undefined;
+    if (!hasEntries(selfReserved) && !hasEntries(lensReserved)) continue;
+    const ids = deriveNodeIdentifiers(node, kindRegistry.get(selfKey));
+    if (ids.some((id) => selfReserved?.has(id) === true || lensReserved?.has(id) === true)) {
       out.add(node.path);
     }
   }
   return out;
+}
+
+function hasEntries(set: ReadonlySet<string> | undefined): boolean {
+  return set !== undefined && set.size > 0;
 }
 
 interface IScanSetup {

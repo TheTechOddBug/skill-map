@@ -23,20 +23,25 @@
  *     Provider grows `classify()` + per-kind schemas (and the kinds
  *     map becomes non-empty).
  *
- *   - **`reservedNames` seed catalog**: lists the Antigravity TUI's
- *     built-in slash commands so user files that match get flagged by
- *     the `core/name-reserved` analyzer (and downgraded by the
- *     post-walk confidence lift). The catalog is INACTIVE today
- *     because the analyzer keys on `node.provider`, and no node is
- *     classified under `antigravity`; the seed lives here so when
- *     Antigravity emits its own kind or the analyzer generalises to
- *     key on the active lens, the catalog is already in place.
+ *   - **`reservedNames` catalog (under `skill`)**: lists `agy`'s built-in
+ *     slash commands so a user skill that shadows one gets flagged by the
+ *     `core/name-reserved` analyzer (and downgraded by the post-walk
+ *     confidence lift). It is declared under the `skill` kind, not
+ *     `command`, because Antigravity delivers user slash-commands AS
+ *     skills (`.agents/skills/<name>/SKILL.md`), so the invocable a
+ *     reserved name shadows is a skill file. The catalog is ACTIVE under
+ *     the **lens scope** added in spec/architecture.md §Provider ·
+ *     reservedNames: even though this Provider classifies nothing (the
+ *     skills are owned by the universal `agent-skills` Provider), when
+ *     `activeProvider === 'antigravity'` the orchestrator lends this
+ *     catalog to those `agent-skills` skill nodes, matched by kind.
  *
  * Resources:
  *
  *   - Transition blog: https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/
  *   - Migration guide: https://antigravity.google/docs/gcli-migration
- *   - Agent Skills standard: https://agentskill.sh/antigravity
+ *   - CLI command reference: https://antigravity.google/docs/cli-using
+ *   - Agent Skills standard: https://agentskills.io/specification
  *
  * **Lens auto-detect note**: Antigravity has no vendor-specific
  * workspace marker (no `.antigravity/` directory), so its manifest
@@ -91,75 +96,77 @@ export const antigravityProvider: IBuiltInManifest<IProvider> = {
     return null;
   },
 
-  // Seed catalog, PROVISIONAL, derived from the Gemini CLI slash-command
-  // surface. The Google Developers Blog post that announced the Antigravity
-  // CLI rollout on 2026-05-19 states verbatim: "The Antigravity CLI fully
-  // replaces the Gemini CLI ... preserves the most critical Gemini CLI
-  // features: Agent Skills, Hooks, Subagents, and Extensions (now rebranded
-  // as Antigravity plugins) ... shares the same agent harness as Antigravity
-  // 2.0, the new Antigravity desktop application." Since the four feature
-  // pillars carry over 1:1 and the agent harness is shared, the operator's
-  // built-in slash-command vocabulary is overwhelmingly likely to be
-  // Gemini CLI's. We mirror the full 38-verb Gemini CLI catalog (plus its
-  // four documented aliases: `dir`, `?`, `exit`, `bashes`) so a user file
-  // that names a skill / command `help`, `clear`, `mcp`, etc. is flagged
-  // immediately by `core/name-reserved` once the lens activates the catalog.
+  // Built-in slash-command catalog, captured verbatim from `agy /help`
+  // (Antigravity CLI v1.0.3). This REPLACES the earlier provisional list
+  // that mirrored Gemini CLI's verbs: `agy` ships its own surface. It
+  // DROPPED Gemini-only verbs (`vim`, `theme`, `terminal-setup`,
+  // `setup-github`, `bashes`, `shells`, `policies`, `extensions`, `about`,
+  // `auth`, `bug`, `chat`, `compress`, `docs`, `editor`, `ide`, `init`,
+  // `memory`, `restore`, `stats`, `tools`, `upgrade`, `?`, `dir`) and
+  // ADDED agent-first ones (`goal`, `grill-me`, `schedule`, `fast`, `btw`,
+  // `artifact`, `context`, `diff`, `fork`, `tasks`, `add-dir`, `credits`,
+  // `feedback`, `logout`, `open`, `planning`, `rename`, `statusline`,
+  // `title`, `usage`). Both the 35 primary verbs and the 8 documented
+  // aliases (`new`, `settings`, `quit`, `branch`, `switch`, `conversation`,
+  // `undo`, `quota`) are reserved: a user skill named after either is
+  // silently shadowed by the built-in once the catalog activates.
   //
-  // The catalog is INACTIVE today: the analyzer keys on `node.provider`
-  // and this Provider's `classify()` returns `null` for every path, so
-  // no node carries `provider: 'antigravity'`. The seed lives here so
-  // the day Antigravity grows its own on-disk kind (e.g. a vendor-specific
-  // `.antigravity/commands/` directory beyond the open-standard
-  // `.agents/skills/`) the catalog is already in place with no migration.
+  // Declared under the `skill` kind (NOT `command`): Antigravity has no
+  // vendor-specific command directory, its user slash-commands are skills
+  // (`.agents/skills/<name>/SKILL.md`, owned by the universal `agent-skills`
+  // Provider). The catalog is ACTIVE via the LENS SCOPE in
+  // `buildReservedNodePaths` (spec/architecture.md §Provider ·
+  // reservedNames): when `activeProvider === 'antigravity'` the orchestrator
+  // lends this `skill` catalog to `agent-skills` skill nodes, so a user
+  // `.agents/skills/goal/SKILL.md` is flagged because `/goal` is built-in.
   //
-  // **Reconciliation marker**: the day Google's docs at
-  // antigravity.google/docs publishes the authoritative slash-command
-  // reference, replace this comment + array with the official list (and
-  // bump the file's leading docblock to cite the new source URL).
+  // **Reconciliation marker**: re-capture from `agy /help` on each major
+  // Antigravity CLI release and bump the cited version above.
   reservedNames: {
-    command: [
-      '?',
-      'about',
+    skill: [
+      'add-dir',
       'agents',
-      'auth',
-      'bashes',
-      'bug',
-      'chat',
+      'artifact',
+      'branch',
+      'btw',
+      'changelog',
       'clear',
-      'commands',
-      'compress',
+      'config',
+      'context',
+      'conversation',
       'copy',
-      'dir',
-      'directory',
-      'docs',
-      'editor',
+      'credits',
+      'diff',
       'exit',
-      'extensions',
+      'fast',
+      'feedback',
+      'fork',
+      'goal',
+      'grill-me',
       'help',
       'hooks',
-      'ide',
-      'init',
+      'keybindings',
+      'logout',
       'mcp',
-      'memory',
       'model',
+      'new',
+      'open',
       'permissions',
-      'plan',
-      'policies',
-      'privacy',
+      'planning',
       'quit',
-      'restore',
+      'quota',
+      'rename',
       'resume',
       'rewind',
+      'schedule',
       'settings',
-      'setup-github',
-      'shells',
       'skills',
-      'stats',
-      'terminal-setup',
-      'theme',
-      'tools',
-      'upgrade',
-      'vim',
+      'statusline',
+      'switch',
+      'tasks',
+      'title',
+      'undo',
+      'usage',
     ],
   },
 };

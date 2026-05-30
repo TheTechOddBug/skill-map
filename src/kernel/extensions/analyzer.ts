@@ -106,12 +106,14 @@ export interface IAnalyzerContext {
    */
   referenceablePaths?: ReadonlySet<string>;
   /**
-   * Paths of nodes whose normalised identifier(s) intersect their
-   * Provider's `reservedNames[kind]` catalog (e.g. a user-authored
-   * `.claude/commands/help.md` whose name normalises to `help`,
-   * shadowed by Claude's built-in `/help` command). The set is
-   * computed once per scan by the orchestrator (mirroring the same
-   * set threaded to the post-walk confidence-lift transform), so
+   * Paths of nodes whose normalised identifier(s) intersect a
+   * `reservedNames[kind]` catalog under self scope (the node's own
+   * Provider, e.g. `.claude/commands/help.md` shadowed by Claude's
+   * built-in `/help`) or lens scope (the active lens lending its catalog
+   * to the universal `agent-skills` skill nodes it consumes, e.g.
+   * `.agents/skills/goal/SKILL.md` shadowed by Antigravity's `/goal`).
+   * The set is computed once per scan by the orchestrator (mirroring the
+   * same set threaded to the post-walk confidence-lift transform), so
    * analyzers consume it without re-deriving every node's
    * identifiers. The single consumer today is `core/name-reserved`,
    * which projects one warn issue per entry; future analyzers MAY
