@@ -28,7 +28,7 @@ export const INIT_TEXTS = {
    */
   removedPriorDb: '{{glyph}}  Removed prior DB at {{path}} (--force reset)\n',
 
-  runningFirstScan: 'Running first scan...\n',
+  runningFirstScan: '\nRunning first scan...\n',
 
   configLoadFailure: '{{glyph}}  sm init: {{message}}\n',
 

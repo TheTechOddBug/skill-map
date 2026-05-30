@@ -78,7 +78,7 @@ export const SCAN_RUNNER_TEXTS = {
    * one marker and persisted the detected id to project settings.
    */
   activeProviderAutodetected:
-    'Auto-detected activeProvider = {{id}} from filesystem markers; persisted to .skill-map/settings.json.',
+    'Auto-detected activeProvider = {{id}} from filesystem markers; persisted to .skill-map/settings.json.\n',
 
   /**
    * Active-provider bootstrap: persistence of the auto-detected id
@@ -87,7 +87,7 @@ export const SCAN_RUNNER_TEXTS = {
    */
   activeProviderPersistFailed:
     'Auto-detected activeProvider = {{id}}, but persisting to .skill-map/settings.json failed: {{message}}. ' +
-    'Run `sm config set activeProvider {{id}}` manually to make the choice sticky.',
+    'Run `sm config set activeProvider {{id}}` manually to make the choice sticky.\n',
 
   /**
    * Active-provider bootstrap: ambiguous detection (2+ markers
