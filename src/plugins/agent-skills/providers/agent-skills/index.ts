@@ -53,6 +53,14 @@ export const agentSkillsProvider: IBuiltInManifest<IProvider> = {
   // as this universal lens. Provider-owned.
   detect: { markers: ['.agents'] },
 
+  // Authoring target for `sm tutorial`: the open standard discovers skills
+  // under `.agents/skills/<name>/SKILL.md`. The same path is consumed by
+  // Antigravity (adopted the standard rather than a `.gemini/` layout) and
+  // OpenAI Codex (skills mirror the open standard), so `aka` surfaces both
+  // names in the destination prompt to orient testers on those agents.
+  // `aka` is display-only, `--for` still matches the `agent-skills` id.
+  scaffold: { skillDir: '.agents/skills', aka: ['Antigravity', 'OpenAI Codex'] },
+
   read: { extensions: ['.md'], parser: 'frontmatter-yaml' },
 
   kinds: {

@@ -5,6 +5,7 @@
  * Spec contract under test (spec/cli-contract.md § `sm tutorial`):
  *
  *   - `sm tutorial`                  → writes <cwd>/.claude/skills/sm-tutorial/, exit 0.
+ *                                      (non-interactive stdin → default provider: claude.)
  *   - `sm tutorial` (clobber)        → exits 2, does NOT overwrite.
  *   - `sm tutorial --force`          → overwrites existing dir, exit 0.
  *   - `sm tutorial master`           → writes <cwd>/.claude/skills/sm-master/, exit 0.
@@ -12,6 +13,11 @@
  *   - `sm tutorial master` (clobber) → exits 2, does NOT overwrite.
  *   - `sm tutorial master --force`   → overwrites existing dir, exit 0.
  *   - `sm tutorial garbage`          → exits 2, emits `invalidVariant`.
+ *   - `sm tutorial --for agent-skills` → writes <cwd>/.agents/skills/sm-tutorial/, exit 0.
+ *   - `sm tutorial --for claude master` → writes <cwd>/.claude/skills/sm-master/, exit 0.
+ *   - `sm tutorial --for garbage`    → exits 2, emits `forUnknown`.
+ *   - `sm tutorial` with .agents/ present → detects agent-skills (non-interactive default).
+ *   - `sm tutorial` with no marker   → falls back to Claude.
  *   - SKILL.md and references/* match the canonical sources byte-for-byte.
  *   - No `.skill-map/` is required (verb runs in a virgin dir).
  */
@@ -146,7 +152,7 @@ describe('sm tutorial, happy path', () => {
     // Success message mentions the skill slug and the relative path.
     assert.match(r.stdout, /Skill `sm-tutorial`/);
     assert.match(r.stdout, /\.claude\/skills\/sm-tutorial\//);
-    assert.match(r.stdout, /Open Claude Code/);
+    assert.match(r.stdout, /Open your coding agent/);
   });
 
   it('content matches the canonical sm-tutorial folder byte-for-byte', () => {
@@ -250,7 +256,7 @@ describe('sm tutorial master, happy path', () => {
     // Success message points the tester at the master skill.
     assert.match(r.stdout, /Skill `sm-master`/);
     assert.match(r.stdout, /\.claude\/skills\/sm-master\//);
-    assert.match(r.stdout, /Open Claude Code/);
+    assert.match(r.stdout, /Open your coding agent/);
   });
 
   it('ships the references/ sub-folder (the core of this fix)', () => {
@@ -322,5 +328,88 @@ describe('sm tutorial, invalid variant', () => {
     assert.equal(existsSync(join(scope.cwd, '.claude')), false);
     assert.equal(existsSync(join(scope.cwd, 'sm-tutorial.md')), false);
     assert.equal(existsSync(join(scope.cwd, 'sm-master.md')), false);
+  });
+});
+
+describe('sm tutorial, --for provider selection', () => {
+  it('writes under the open-standard territory with --for agent-skills', () => {
+    const scope = freshScope('for-agent-skills');
+    const r = sm(['tutorial', '--for', 'agent-skills'], scope);
+
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    const target = join(scope.cwd, '.agents', 'skills', 'sm-tutorial');
+    assert.ok(existsSync(join(target, 'SKILL.md')), 'skill must land under .agents/skills/');
+    assertDirsEqual(SKILL_SOURCE_TUTORIAL, target);
+    // The claude territory must NOT be touched when another provider is picked.
+    assert.equal(existsSync(join(scope.cwd, '.claude')), false);
+    // Success line names the relative path and the provider.
+    assert.match(r.stdout, /\.agents\/skills\/sm-tutorial\//);
+  });
+
+  it('combines --for with the master variant', () => {
+    const scope = freshScope('for-master');
+    const r = sm(['tutorial', '--for', 'agent-skills', 'master'], scope);
+
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    const target = join(scope.cwd, '.agents', 'skills', 'sm-master');
+    assertDirsEqual(SKILL_SOURCE_MASTER, target);
+  });
+
+  it('--for claude is explicit and matches the default', () => {
+    const scope = freshScope('for-claude');
+    const r = sm(['tutorial', '--for', 'claude'], scope);
+
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assertDirsEqual(SKILL_SOURCE_TUTORIAL, join(scope.cwd, '.claude', 'skills', 'sm-tutorial'));
+  });
+
+  it('exits 2 and emits forUnknown for a provider that does not scaffold', () => {
+    const scope = freshScope('for-unknown');
+    const r = sm(['tutorial', '--for', 'garbage'], scope);
+
+    assert.equal(r.status, 2, `stderr: ${r.stderr}`);
+    assert.match(r.stderr, /unknown provider 'garbage' for --for/);
+    assert.match(r.stderr, /Valid providers:/);
+    // Defensive: nothing written.
+    assert.equal(existsSync(join(scope.cwd, '.claude')), false);
+    assert.equal(existsSync(join(scope.cwd, '.agents')), false);
+  });
+
+  it('exits 2 for a provider that exists but declares no scaffold (openai)', () => {
+    const scope = freshScope('for-no-scaffold');
+    const r = sm(['tutorial', '--for', 'openai'], scope);
+
+    assert.equal(r.status, 2, `stderr: ${r.stderr}`);
+    assert.match(r.stderr, /unknown provider 'openai' for --for/);
+    assert.equal(existsSync(join(scope.cwd, '.codex')), false);
+  });
+});
+
+describe('sm tutorial, marker detection (no --for, non-interactive)', () => {
+  it('a present .agents/ marker pre-selects agent-skills as the default', () => {
+    const scope = freshScope('detect-agents');
+    // A bare `.agents/` directory marks an open-standard project.
+    mkdirSync(join(scope.cwd, '.agents'), { recursive: true });
+
+    // Non-interactive stdin (spawnSync, no TTY): the verb takes the
+    // detected default without prompting.
+    const r = sm(['tutorial'], scope);
+
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.ok(
+      existsSync(join(scope.cwd, '.agents', 'skills', 'sm-tutorial', 'SKILL.md')),
+      'skill must land under the detected .agents/skills/ territory',
+    );
+    // Claude territory must NOT be created when .agents/ was detected.
+    assert.equal(existsSync(join(scope.cwd, '.claude')), false);
+  });
+
+  it('falls back to Claude when no marker is present', () => {
+    const scope = freshScope('detect-none');
+    const r = sm(['tutorial'], scope);
+
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.ok(existsSync(join(scope.cwd, '.claude', 'skills', 'sm-tutorial', 'SKILL.md')));
+    assert.equal(existsSync(join(scope.cwd, '.agents')), false);
   });
 });

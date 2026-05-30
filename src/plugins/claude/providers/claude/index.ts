@@ -66,6 +66,12 @@ export const claudeProvider: IBuiltInManifest<IProvider> = {
   // detection table in `src/core/config/active-provider.ts`).
   detect: { markers: ['.claude'] },
 
+  // Authoring target for `sm tutorial`: Claude Code discovers skills under
+  // `.claude/skills/<name>/SKILL.md`, so a materialised tutorial folder
+  // lands there. This is the WRITE side of the territory the `classify`
+  // below READS.
+  scaffold: { skillDir: '.claude/skills' },
+
   // Vendor provider: Claude Code only reads its own `.claude/` territory
   // and ignores `.codex/` / Antigravity layouts at runtime. Gating the
   // classifier behind the active lens prevents the walker from inventing

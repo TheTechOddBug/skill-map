@@ -232,6 +232,32 @@ export interface IProviderDetect {
   markers: string[];
 }
 
+/**
+ * Authoring targets for verbs that MATERIALISE files into this
+ * Provider's on-disk territory (today only `sm tutorial`). The WRITE
+ * counterpart to `detect` (which READS markers to suggest a lens) and
+ * `classify` (which READS paths during a scan). Mirrors
+ * `spec/schemas/extensions/provider.schema.json#/properties/scaffold`.
+ */
+export interface IProviderScaffold {
+  /**
+   * Directory (relative to the scope root) under which a materialising
+   * verb writes a skill folder, e.g. `.claude/skills` for Claude,
+   * `.agents/skills` for the open standard. The verb appends
+   * `/<skillName>/SKILL.md`. Relative, no leading slash, no `..`
+   * traversal; the consuming verb joins it onto the cwd.
+   */
+  skillDir: string;
+  /**
+   * Display-only hints naming the agents that consume this scaffold
+   * territory, rendered in parentheses next to the Provider label in the
+   * `sm tutorial` destination prompt (e.g. `.agents/skills` is read by
+   * Antigravity and OpenAI Codex). Purely presentational: NOT matched by
+   * `--for` (only registered Provider ids are) and has no runtime effect.
+   */
+  aka?: readonly string[];
+}
+
 export interface IProvider extends IExtensionBase {
   /** Discriminant injected by the loader from the folder structure. */
   kind: 'provider';
@@ -257,6 +283,17 @@ export interface IProvider extends IExtensionBase {
    * auto-suggested (it can still be selected manually).
    */
   detect?: IProviderDetect;
+
+  /**
+   * Optional authoring targets for materialising verbs (`sm tutorial`).
+   * When present, the Provider is offered as a destination for newly
+   * generated content (a skill folder dropped under `scaffold.skillDir`).
+   * Absent means a materialising verb never offers this Provider, e.g.
+   * `openai` until Codex skills land, `antigravity` (skills live under
+   * the open-standard `agent-skills` territory), `core/markdown` (owns
+   * no authoring convention).
+   */
+  scaffold?: IProviderScaffold;
 
   /**
    * Catalog of node kinds this Provider emits. Populated by the loader

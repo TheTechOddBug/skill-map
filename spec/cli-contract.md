@@ -182,22 +182,30 @@ Exit: 0 on success, 2 on failure.
 
 #### `sm tutorial [variant]`
 
-Materialize an interactive tester tutorial as a single `.md` file in the current working directory. Companion to the `sm-tutorial` and `sm-master` Claude Code skills: a tester drops into an empty directory, runs `sm tutorial` (or `sm tutorial master`) to seed the tutorial source, then opens Claude Code there and triggers the skill (which reads the file as its onboarding payload).
+Materialize an interactive tester tutorial as a skill folder under the chosen agent's on-disk territory. Companion to the `sm-tutorial` and `sm-master` skills: a tester drops into an empty directory, runs `sm tutorial` (or `sm tutorial master`) to seed the skill, then opens their agent there and triggers it by speaking one of its trigger phrases (the agent auto-discovers `<skillDir>/<slug>/SKILL.md` on boot).
 
 The optional positional `variant` argument selects which skill gets materialised. Valid values are:
 
-- `tutorial` (default, also the behaviour when no argument is passed): writes `<cwd>/sm-tutorial.md`, the basic onboarding walkthrough.
-- `master`: writes `<cwd>/sm-master.md`, the advanced walkthrough (plugin tour, plugin authoring, settings + view-slots).
+- `tutorial` (default, also the behaviour when no argument is passed): the basic onboarding walkthrough, slug `sm-tutorial`.
+- `master`: the advanced walkthrough (plugin tour, plugin authoring, settings + view-slots), slug `sm-master`, includes the `references/` sub-folder.
+
+The destination directory is the selected Provider's `scaffold.skillDir` (e.g. `.claude/skills` for Claude, `.agents/skills` for the open standard adopted by Antigravity); the verb writes `<cwd>/<skillDir>/<slug>/`. Provider selection:
+
+- `--for <provider-id>` selects the destination Provider explicitly (e.g. `--for claude`, `--for agent-skills`). The id MUST be a registered Provider that declares `scaffold.skillDir`; any other value is a usage error.
+- Without `--for`, the default Provider is the first scaffold-capable Provider in catalog order (Claude). The verb requires an empty cwd (see below), so there is no marker to detect: provider auto-detection does not apply.
+- Without `--for`, on an interactive stdin the verb prompts with a numbered list of the Providers that declare `scaffold.skillDir`, marking the default option (Claude); an empty answer accepts it. Each option shows the Provider label plus any `scaffold.aka` agents in parentheses (e.g. the open standard lists Antigravity and OpenAI Codex). The `aka` strings are display-only and are NOT accepted by `--for`.
+- Without `--for`, on a non-interactive stdin (pipes, CI) the verb selects the default Provider without prompting, so the verb stays scriptable.
 
 Common behaviour for both variants:
 
-- Writes the chosen file at the top level (single file, no subdirectory).
-- Content is the canonical `SKILL.md` shipped with the implementation. Any conforming implementation MUST embed equivalent tutorial sources (the prose itself is informative; what is normative is that the verb produces a single readable file at the chosen path that a Claude Code skill can consume).
-- Does NOT require an initialized project, runs in any directory, including empty ones, and never reads or writes `.skill-map/`.
+- Writes the full skill folder (`SKILL.md` plus any `references/` sub-folder) under the resolved `<skillDir>/<slug>/`.
+- Content is the canonical skill shipped with the implementation. The `SKILL.md` payload is host-agnostic; only the destination directory varies per Provider. Any conforming implementation MUST embed equivalent tutorial sources (the prose itself is informative; what is normative is that the verb produces a readable skill folder a compatible agent can consume).
+- Requires the cwd to be empty (a directory listing including dotfiles returns nothing). The tutorial seeds a self-contained scenario and the skill later lays its fixtures and `.skill-map/` directly in the cwd, so the tester can delete the whole directory afterwards without losing prior work; that guarantee only holds when the directory started empty. A non-empty cwd is refused (exit 2) unless `--force` is passed.
+- Does NOT require an initialized project and never reads or writes `.skill-map/`. It is a pre-bootstrap helper: Provider selection reads the built-in Provider catalog directly, not project config.
 
-Flags: `--force` (overwrite the existing target file, whichever variant was selected, without prompting).
+Flags: `--for <provider-id>` (destination Provider, skips the prompt); `--force` (proceed even when the cwd is not empty, overwriting any existing target folder, without prompting).
 
-Exit: `0` on success; `2` if the target file already exists and `--force` was not passed (operational error, refusing to clobber); `2` if the positional `variant` is set to a value other than `tutorial` or `master`; `2` on any I/O failure.
+Exit: `0` on success; `2` if the cwd is not empty and `--force` was not passed (operational error, refusing to seed the tutorial into a directory that already holds content); `2` if the positional `variant` is set to a value other than `tutorial` or `master`; `2` if `--for` names a Provider that does not exist or declares no `scaffold.skillDir`; `2` on any I/O failure.
 
 #### `sm version`
 
