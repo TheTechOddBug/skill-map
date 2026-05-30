@@ -214,7 +214,7 @@ its own on-disk convention:
 | Provider       | Base dir              | Kinds it claims                | Detect via env var(s)                          |
 |----------------|-----------------------|--------------------------------|------------------------------------------------|
 | `claude`       | `.claude/`            | `agent`, `command`, `skill`    | `CLAUDECODE=1` OR `AI_AGENT` starts with `claude-code` |
-| `antigravity`  | none (metadata-only)  | none — Antigravity adopted the open standard, skills land under `.agents/skills/` and route through `agent-skills` | no formal env detection yet; Antigravity CLI replaced Gemini CLI on 2026-05-19 and reuses the open-standard layout, so detection collapses into the `agent-skills` row |
+| `antigravity`  | none (metadata-only)  | none, Antigravity adopted the open standard, skills land under `.agents/skills/` and route through `agent-skills` | no formal env detection yet; Antigravity CLI replaced Gemini CLI on 2026-05-19 and reuses the open-standard layout, so detection collapses into the `agent-skills` row |
 | `openai`       | `.codex/`             | `agent` (`.codex/agents/*.toml`) | no formal env detection yet; the OpenAI Codex CLI does not host this tutorial today (this SKILL.md lives under `.claude/skills/`), so the row is informational. Add when `.codex/skills/<name>/SKILL.md` mirroring lands. |
 | `agent-skills` | `.agents/skills/`     | `skill` only (vendor-neutral, also the on-disk home for Antigravity skills) | no formal env yet; treat as opt-in if the tester says so |
 
@@ -288,7 +288,9 @@ user content, they're internal infrastructure of the skill itself):
   when the harness starts, has nothing to do with the tester.
   Ignore whether it exists or not.
 - `SKILL.md`: a loose copy of the skill.
-- `sm-tutorial.md`: the skill copy materialised by `sm tutorial`.
+- `sm-tutorial.md`: legacy loose copy from older `sm tutorial`
+  runs; today the verb scaffolds `.claude/skills/sm-tutorial/`
+  (already covered by the `.claude` entry above).
 - `tutorial-state.yml`: resume mode (see §Resume / restart).
 
 The whitelist is **internal**: do NOT enumerate it to the tester.
@@ -348,7 +350,7 @@ Do not advance until the tester confirms they're in an empty dir.
 3. Even when the cwd looks filter-empty, `<provider_dir>/` may
    already contain `.md` files from a previous tutorial run, an
    experimental hook, or any other agent runtime. `sm scan` will
-   pick them up as graph nodes and break the "exactly one node"
+   pick them up as nodes in the map and break the "exactly one node"
    promise of Step 2 (and the running node count of every
    subsequent step). Run, substituting `<provider_dir>` for the
    detected base dir:
@@ -368,7 +370,7 @@ Do not advance until the tester confirms they're in an empty dir.
 > <paste the find output verbatim>
 > ```
 >
-> Those will register as graph nodes the moment `sm scan` runs,
+> Those will register as nodes in the map the moment `sm scan` runs,
 > which means the tutorial's "exactly one node" assertion in Step
 > 2 (and every running count after it) won't match what you see.
 > Two ways out:
@@ -424,7 +426,7 @@ information. Only break the silence if something actually fails.
 
 If `sm` isn't installed, tell the tester:
 
-> You don't have `sm` yet. You'll need Node 20+ and then run
+> You don't have `sm` yet. You'll need Node 24+ and then run
 > `npm install -g @skill-map/cli`. Tell me "ready" when it
 > finishes.
 
@@ -447,7 +449,7 @@ later when they're relevant. Keep it to a single short sentence:
 Then proceed straight to the writes below, no pause, no "ready?"
 prompt.
 
-The tutorial builds the graph **progressively** across Steps 2-6
+The tutorial builds the map **progressively** across Steps 2-6
 (the live UI block). Right now, in pre-flight, you only create
 **one file**: a single agent, so the tester's first look at the
 UI shows exactly one node. The other three nodes (skill, command,
@@ -557,7 +559,7 @@ dump.sql
 # Step 14 spawns a self-contained sub-project under link-validation/hijoA
 # with its own .skill-map/. Excluded here so that, if the tester
 # relaunches `sm` from the tutorial root after Step 14, the nested
-# project does not leak into the main demo graph.
+# project does not leak into the main demo map.
 link-validation/
 ```
 
@@ -738,8 +740,8 @@ Before launching, ask the tester to set up a **side-by-side view** so
 they can watch the magic happen without alt-tabbing every step.
 Tell the tester:
 
-> Now arrange your screen so the **browser** (where the graph will
-> update in real time) and **this chat** are both visible at once
+> Now arrange your screen so the **browser** (where the **Map**
+> updates in real time) and **this chat** are both visible at once
 >, typical layout is browser on the left half, chat on the right
 > (or any split that lets you see both). The terminal running
 > `sm` can stay off to the side; it just prints scan progress
@@ -759,15 +761,16 @@ truth (it logs the bound `http://host:port` after listen):
 
 Wait for confirmation that the page loaded. Then tell the tester:
 
-> You'll see exactly **one node** in the graph: `demo-agent` (kind
-> `agent`). That's our starting point.
+> You'll see exactly **one node** in the **Map**: `demo-agent`
+> (kind `agent`). That's our starting point.
 >
-> Walk the 3 views before we go on:
-> 1. **Graph**: the single agent node.
-> 2. **List**: one row, with path / kind / metadata.
-> 3. **Inspector**: click the node to see its frontmatter (the
->    YAML block at the top of every `.md`, between the two `---`
->    lines) and links.
+> Walk the two views before we go on:
+> 1. **Map**: the single agent node on the canvas.
+> 2. **Files**: one row, with path / kind / metadata.
+>
+> Then, back in **Map**, click the node: the **Inspector** panel
+> slides out with its frontmatter (the YAML block at the top of
+> every `.md`, between the two `---` lines) and its links.
 >
 > Did the node show up?
 
@@ -797,7 +800,7 @@ list shown to the tester in the sample below accordingly:
    name: demo-skill
    description: |
      Example skill that walks a file and returns a Markdown report.
-     Showcases the `skill` kind in the demo graph.
+     Showcases the `skill` kind in the demo map.
    inputs:
      - name: target
        type: path
@@ -908,7 +911,7 @@ Up to here you've been watching the agent write files. Now hand
 the keyboard over: the lesson is that the watcher reacts to
 **any** `.md` edit under the cwd, not just to files the agent
 authors. After this beat, the tester has the muscle memory for
-"save → graph updates", which Step 6 (`.skillmapignore`) reuses
+"save → map updates", which Step 6 (`.skillmapignore`) reuses
 verbatim.
 
 Tell the tester:
@@ -919,10 +922,10 @@ Tell the tester:
 > the field you'll edit next, so leave the card open and the
 > change will be obvious.
 >
-> ⚠ Heads-up: the inspector header shows a few action buttons
-> (Bump, Close, etc). **Don't click any of them yet** , some of
-> them write files to your project and we cover that flow
-> deliberately in step 13. For now, just look.
+> ⚠ Heads-up: the inspector header shows a couple of action
+> buttons (**Bump version**, **Refresh body**). **Don't click
+> them yet**, they write files to your project and we cover that
+> flow deliberately in step 13. For now, just look.
 >
 > Now open `.claude/agents/demo-agent.md` in your editor of
 > choice. In the **frontmatter** at the top of the file, change
@@ -1002,8 +1005,9 @@ Tell the tester:
 > confianza, ahora que el target existe) se ve sólido, mientras que
 > un `@handle` que no resuelve a ningún nodo se queda en 0.5
 > (ambiguo) y se ve translúcido. La opacidad cuenta esa historia de
-> un vistazo: cuanto más sólido, más confiable es la inferencia, y
-> el badge numérico arriba del conector lo dice explícito.
+> un vistazo: cuanto más sólido, más confiable es la inferencia. El
+> valor numérico exacto no va sobre el conector; lo ves dentro del
+> Inspector del nodo (lo abrimos en el próximo beat).
 >
 > Confirm. If a connector is missing, refresh the browser and tell
 > me.
@@ -1012,34 +1016,43 @@ Wait for confirmation of the connectors before moving on to Beat 2.
 If a connector is missing, do not advance, the chips below depend
 on the same hub edit having landed.
 
-**Beat 2, the ↑/↓ chips on every card.**
+**Beat 2, the per-link detail in the Inspector.**
 
-The same edit also lit up a per-node link counter on each card.
-Call it out explicitly so the tester registers the surface before
-Step 6 changes topology, easier to notice the chips going up and
-down later if they saw the baseline now.
+The connector opacity tells the confidence story at a glance; the
+exact per-link breakdown lives in the Inspector. Call it out so the
+tester registers the surface before Step 6 changes topology.
 
-> 🆕 Mirá también las cards de los nodos: ahora cada nodo muestra
-> dos pequeñas chips abajo a la izquierda, ↑ y ↓, que cuentan los
-> links entrantes y salientes. `notes/todo` ahora marca 0↑ / 4↓
-> (es el hub que apunta a cuatro nodos), y los cuatro nodos
-> apuntados muestran 1↑ cada uno. Pasale el mouse a una chip y se
-> abre un tooltip con el desglose por kind (`mentions`, `invokes`,
-> `references`). Es la misma info que el grafo, resumida en la
-> card por si trabajás desde la list view.
+> 🆕 Abrí el Inspector de `notes/todo` (clic en el nodo en el mapa).
+> Bajá hasta el panel **Linked nodes**: tiene dos secciones,
+> **Outgoing** e **Incoming**. `notes/todo` lista 4 links en
+> Outgoing (es el hub que apunta a cuatro nodos) y 0 en Incoming;
+> si abrís el Inspector de cualquiera de los cuatro nodos apuntados,
+> ves 1 en Incoming. Cada fila muestra el kind del link (`mentions`,
+> `invokes`, `references`) y un tag con su confianza: el valor
+> numérico (`1.00`, `0.50`, …) y, al pasar el mouse, el tier
+> (`high` / `medium` / `low`). Es el detalle exacto que la opacidad
+> del conector resume en el mapa.
 >
-> Confirm cuando las veas en las cinco cards.
+> Confirmá cuando lo veas.
+
+After both beats land, drop this tip:
+
+> 💡 Tip: si tras tantos cambios los nodos quedaron amontonados,
+> en la toolbar del mapa tenés el botón **Reset layout**:
+> reorganiza todo con el auto-layout para que se vea mejor. Te pide
+> confirmación porque descarta las posiciones que hayas movido a
+> mano.
 
 Wait for confirmation. **Do NOT move on to Step 6** until both
-beats are confirmed, Step 6 reuses the same live UI session and
-the chip counts are the baseline the tester will watch change
+beats are confirmed, Step 6 reuses the same live UI session and the
+connector topology is the baseline the tester will watch change
 when the private node disappears. Mark `5-live-connectors: done`.
 
 ### Step 6: Live UI: silence a private file via `.skillmapignore` (~2 min)
 
 Steps 2-5 showed the watcher picking up new files and edits (yours
 and theirs). Step 6 flips the direction: a file the tester DOES NOT
-want in the graph (a draft, a scratch file, a secret) gets hidden by
+want in the map (a draft, a scratch file, a secret) gets hidden by
 a single line in `.skillmapignore`. Same live mechanism, no restart.
 
 `sm init` already wrote a starter `.skillmapignore` at the scope
@@ -1047,15 +1060,15 @@ root. The flow has three beats:
 
 **Beat 1, you create one new fixture file (the agent does this).**
 
-`Write` `notes/private-credentials.md`, kind `note`, simulates a
-file the tester would never want surfacing publicly:
+`Write` `notes/private-credentials.md`, kind `markdown`, simulates
+a file the tester would never want surfacing publicly:
 
 ```markdown
 ---
 name: private-credentials
 description: |
   Personal API tokens, exists in the repo but should not show
-  up in the skill-map graph. Demonstrates the .skillmapignore
+  up in skill-map's map. Demonstrates the .skillmapignore
   flow.
 ---
 
@@ -1064,7 +1077,7 @@ description: |
 API_TOKEN: example-not-real
 ```
 
-Confirm the file appears in the graph as a sixth node
+Confirm the file appears in the map as a sixth node
 (`notes/private-credentials`). The watcher sees it like any
 other `.md`, that's the point of the demo.
 
@@ -1084,14 +1097,15 @@ sees what their cwd holds:
 ├── .claude/
 │   ├── agents/demo-agent.md
 │   ├── commands/demo-command.md
-│   └── skills/demo-skill/SKILL.md
+│   └── skills/
+│       ├── demo-skill/SKILL.md
+│       └── sm-tutorial/SKILL.md   ← the tutorial you loaded
 ├── .skill-map/              ← project DB + settings (managed)
 ├── .skillmapignore          ← the file we're about to edit
-├── notes/
-│   ├── todo.md
-│   ├── demo-guideline.md
-│   └── private-credentials.md   ← what we want to hide
-└── sm-tutorial.md           ← the tutorial file you loaded
+└── notes/
+    ├── todo.md
+    ├── demo-guideline.md
+    └── private-credentials.md   ← what we want to hide
 ```
 
 > The `.skillmapignore` at the root is the file we'll touch
@@ -1118,7 +1132,7 @@ your `Edit` tool. Tell the tester to do it from their editor:
 >
 > Watch the browser when you save. The
 > `notes/private-credentials` node should disappear from the
-> graph in real time, without restarting anything. Six nodes
+> **Map** in real time, without restarting anything. Six nodes
 > back to five.
 >
 > Did the node vanish?
@@ -1133,76 +1147,38 @@ Mark `6-live-ignore: done`.
 
 ### Step 7: Wrap-up of the demo and offer to keep going (30 s)
 
-> All set! That's the heart of skill-map: you edit a `.md` and the
-> UI sees it instantly. In **~10 minutes** you've already seen the
-> full flow.
->
-> ⚠️ **`.sm` files (heads-up for later)**: every `.md` skill-map
-> tracks has a sibling `.sm` file (e.g. `demo-agent.sm` next to
-> `demo-agent.md`) that carries **all of the tool's metadata
-> about that markdown, so your `.md` stays clean and uncluttered**.
-> Version, history, tags, annotations, anything that does not
-> belong in the human-authored body lives in the `.sm`. You write
-> the `.md` for Claude or for humans, the tool writes the `.sm`.
-> Each `sm bump` and each `sm sidecar annotate` creates or
-> refreshes one, so you'll see them often as you use skill-map
-> day to day. Commit them to git like any other source file.
->
-> 🔀 **Multi-provider**: this demo ran with the
-> `<provider>` provider (base dir `<provider_dir>`). Skill-map
-> walks three other built-in conventions with identical mechanics:
-> the open agent-skills standard (also used by Google's Antigravity
-> CLI, which retired Gemini CLI in May 2026) lives under
-> `.agents/skills/` (kind: skill), OpenAI Codex lives under
-> `.codex/agents/*.toml` (TOML sub-agents), and the `antigravity`
-> lens is metadata-only (no kinds of its own; selecting it just
-> tags the project as Antigravity-flavoured). Drop a `.md` (or
-> `.toml` for Codex) in any of those and the same watcher picks it
-> up, the same connectors light up, the same rules run.
->
-> 💡 **Tip avanzado (no toques si no querés rescanear)**: en
-> Settings → Project hay un dropdown **Active provider** que
-> selecciona qué lente aplica a TODO el grafo (Claude / Antigravity
-> / Codex / Cursor / agent-skills). Cambiarlo limpia el scan
-> persistido y rearma el grafo desde cero bajo el nuevo lente, así
-> que sirve cuando tu proyecto migra de runtime. Por default
-> skill-map autodetecta el lente correcto al primer scan (en este
-> caso, `claude` porque hay `.claude/`); si tu repo tiene markers
-> ambiguos (`.claude/` + `.codex/` al mismo tiempo) `sm scan` te
-> pregunta cuál usar, o aborta con exit 2 si pasás `--yes` y todavía
-> está ambiguo. El lente `antigravity` no se auto-detecta (Google
-> adoptó el open standard sin marker propio); seleccionarlo es
-> manual.
->
-> 🛡️ **Red de seguridad**: si en algún momento desactivás el bundle
-> al que apunta el lente activo (por ejemplo `sm plugins disable
-> claude` con `activeProvider: claude`), el próximo `sm scan` te
-> avisa con un warning explícito ("the active lens points at a
-> disabled bundle") y te ofrece los dos arreglos: reactivar el
-> bundle o cambiar el lente. Lo mismo si la DB local quedó vieja
-> respecto del binario, el open de SQLite detecta el skew de
-> versiones y te dice qué correr para refrescarla. Tip: si ves uno
-> de esos warnings durante el tutorial, NO los ignores, son la
-> señal de que el grafo no refleja lo que vos esperás.
->
-> If you want, **we can keep going deeper**: I'll walk you through
-> the CLI verbs and flags (`list`, `graph`, `export`, `orphans`,
-> `plugins`, `db ops`, etc.). About ~20-30 min more, pausable
-> whenever.
->
-> 1. **Yes, let's continue**
-> 2. **No, we wrap here**: give me the summary and tell me how to
->    delete the dir
+Keep this short: one closing line, then a single decision. Do NOT
+dump feature notes here (no `.sm` files, multi-provider, active
+provider, or safety-net asides; those land in their own steps or in
+day-to-day use). One closing line, then ask.
 
-If they say **2**:
+Closing line (tester-facing):
+
+> All set! That's the heart of skill-map: you edit a `.md` and the
+> UI reflects it instantly. In ~10 minutes you've seen the full
+> flow.
+
+Then ask with the **`AskUserQuestion`** tool (not a numbered list),
+translating the labels to the tester's language. One question,
+header `Tutorial`, prompt "Keep going or wrap up here?", two
+options:
+
+- **Go deeper**: the rest of the CLI, verbs and flags (`list`,
+  `export`, `plugins`, `db`, ...), about 20-30 min, pausable
+  anytime.
+- **Wrap up here**: summary plus how to delete the dir.
+
+(If the host lacks `AskUserQuestion`, fall back to a numbered list.)
+
+On **Go deeper**:
+- Mark `route.short.status: done`, `route.long.status: in_progress`.
+- Move to the next phase without announcing it: a short "Dale,
+  seguimos" (tester-language equivalent), then the level question
+  of the next block.
+
+On **Wrap up here**:
 - Mark `route.short.status: done`, `route.long.status: declined`.
 - Generate the final summary (see §Final wrap-up).
-
-If they say **1**:
-- Mark `route.short.status: done`, `route.long.status: in_progress`.
-- Move on to the next phase (without announcing it, just say
-  "Cool, keep going" and start with the level question of the next
-  block).
 
 ---
 
@@ -1232,7 +1208,7 @@ Save into `tester.level` and modulate:
 
 **Context**: Step 4 had the tester edit a scalar (`description`)
 and watch the inspector card refresh. Step 8 raises the bar: edit
-a Markdown link and watch the GRAPH TOPOLOGY change (a connector
+a Markdown link and watch the MAP TOPOLOGY change (a connector
 disappears). Same watcher, different surface.
 
 This step needs the server running. **Check first** before asking
@@ -1249,7 +1225,7 @@ process trying to bind the same port and confusing the tester.
 >
 > Expected: the `notes/todo → demo-agent` connector (kind:
 > `mentions`) disappears in real time. The two nodes stay in the
-> graph; only the edge goes.
+> **Map**; only the edge goes.
 
 You verify by reading `notes/todo.md` to confirm the change was
 applied. (On `agent-skills`, where the `@demo-agent` bullet was
@@ -1300,7 +1276,7 @@ captures the notes folder regardless of the catch-all kind.
 
 `reference-broken` is one of the deterministic rules `sm check` runs.
 We'll plant one and watch it surface, that's the easiest way to
-internalise that it is an **issue** on a node, NOT a graph
+internalise that it is an **issue** on a node, NOT a
 connector and NOT the same thing as an "orphan".
 
 > ℹ️ `reference-broken` is one of ~16 built-in rules. Others surface
@@ -1449,7 +1425,7 @@ If the tester asks about `sm bump` vs `sm sidecar annotate` vs
 
 ### Step 14: Validate links to folders outside the scan scope (~4 min)
 
-**Context**: until now the graph saw only files inside the cwd. In
+**Context**: until now the map saw only files inside the cwd. In
 real projects a repo often links to files in a sibling repo (a specs
 project, a sibling package in a monorepo). Skill-map only scans from
 its cwd downwards, so a link to `../sibling/file.md` shows up as
@@ -1457,7 +1433,7 @@ broken. The fix is to declare the external folders in
 `scan.referencePaths`, which lets the `reference-broken` analyzer
 validate path-style links against those extra roots **without
 indexing their files as nodes**. The folders are checked, not walked
-as part of the graph.
+as part of the map.
 
 **Setup (you, silent)**: write the fixture under the tutorial cwd
 so both sub-projects are siblings of each other but children of the
@@ -1552,7 +1528,7 @@ After they confirm the broken-ref warning, present the fix:
 > `hijoA/`, agregas `../hijoB` al setting `scan.referencePaths`.
 > Le dice al analyzer "si un link path-style cae acá, valídalo
 > también contra estas carpetas extra". Los archivos NO se
-> agregan al grafo (no aparecen como nodos), solo se consultan
+> agregan al mapa (no aparecen como nodos), solo se consultan
 > para resolver referencias salientes desde `hijoA/`.
 >
 > En tu segundo terminal (todavía dentro de `link-validation/hijoA/`):
@@ -1568,7 +1544,7 @@ sm check
 > root, así que pide tu OK explícito. Sin `--yes` el verb se aborta
 > y te pregunta en interactivo. Después del scan, `sm check`
 > debería imprimir `✓ No issues`: el warning desapareció y `hijoB/`
-> sigue sin entrar al grafo como nodo.
+> sigue sin entrar al mapa como nodo.
 >
 > Pásame la salida y vemos cómo quedó persistido.
 
@@ -1702,7 +1678,7 @@ agent reservations like `general-purpose`), `sm check` surfaces a
 files that shadow its built-ins, so the warning is not a bug,
 it's skill-map telling the operator "Claude will never invoke this
 file; pick another name". Incoming links to the shadowed file
-resolve at confidence `0.1` instead of `1.0`, so the graph also
+resolve at confidence `0.1` instead of `1.0`, so the **Map** also
 visually de-emphasises them. Rename the file and the warning
 clears on the next scan.
 
@@ -1737,9 +1713,10 @@ sm-master pointer + cleanup):
 sm tutorial master
 ```
 
-> That drops `sm-master.md` in the cwd. Then load it from your
-> agent (e.g. `ejecutá @sm-master.md` in Claude Code, or the
-> equivalent `@`-mention in Antigravity CLI) and the deep-dive starts.
+> That scaffolds the skill under `.claude/skills/sm-master/`. Claude
+> Code auto-discovers it the next time it boots in that directory,
+> so you launch the deep-dive just by asking for it by name (say
+> "sm-master" or "tutorial avanzado"), no file to `@`-mention.
 
 **Cleanup, choose ONE of the two paths**. Decide programmatically
 before showing the closing message: list the cwd (`ls -A <cwd>`)
@@ -1867,7 +1844,7 @@ anything**:
 
 ## Edge cases
 
-- **Tester doesn't have Node 20+** → guide them to `nvm` or
+- **Tester doesn't have Node 24+** → guide them to `nvm` or
   nodejs.org. Don't try to install Node for them.
 - **Port 4242 in use** → bare `sm` doesn't accept flags (it's a
   shorthand for `sm serve` with defaults). Tell the tester to
