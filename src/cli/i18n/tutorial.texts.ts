@@ -78,7 +78,7 @@ export const TUTORIAL_TEXTS = {
     'sm tutorial seeds a self-contained scenario; run it in a fresh empty directory, or pass `--force` to use this one anyway.',
 
   // Invalid `variant` positional argument. Goes to stderr, exit code 2.
-  // Mirrors `alreadyExists`: glyph + headline + dim hint enumerating the
+  // Mirrors the error shape: glyph + headline + dim hint enumerating the
   // valid values.
   invalidVariant:
     "{{glyph}}  sm tutorial: unknown variant '{{variant}}'\n" +

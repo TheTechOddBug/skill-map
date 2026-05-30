@@ -439,8 +439,8 @@ Before you lay anything down, give the tester a one-shot heads-up.
 **This is not interactive**: do NOT wait for a confirmation, do
 NOT ask permission per file, do NOT enumerate the files. The
 tester just needs to know scaffolding is starting so they're not
-surprised when files appear; details (file list, cleanup) come
-later when they're relevant. Keep it to a single short sentence:
+surprised when files appear; the specifics come later when
+they're relevant. Keep it to a single short sentence:
 
 > Quick heads-up before we start: I'm about to set up the
 > tutorial scenario in this directory, that means creating a
@@ -757,10 +757,9 @@ them to launch the server and open the link it prints, without
 hardcoding the URL here, since the verb itself is the source of
 truth (it logs the bound `http://host:port` after listen):
 
-> In the terminal you opened for `sm`, run the command above. After
-> a couple of seconds it will print a line with the URL where the
-> UI is listening, copy that link and open it in the browser you
-> just arranged. Tell me when you see the page load.
+> Run `sm`. After a couple of seconds it will print a line with the
+> URL where the UI is listening, copy that link and open it in the
+> browser you just arranged. Tell me when you see the page load.
 
 Wait for confirmation that the page loaded. Then tell the tester:
 
@@ -995,23 +994,16 @@ Tell the tester:
 > colours on the canvas (the two `invokes` share a colour, as you
 > would expect).
 >
-> Observa también que los conectores tienen distinta transparencia.
-> Skill-map estima qué tan seguro está de cada conexión: un
-> `[text](file.md)` que apunta a un archivo concreto (1.00 de
-> confianza, ahora que el target existe) se ve sólido, mientras que
-> un `@handle` que no resuelve a ningún nodo se queda en 0.5
-> (ambiguo) y se ve translúcido. La opacidad cuenta esa historia de
-> un vistazo: cuanto más sólido, más confiable es la inferencia.
+> Notice too that the connectors have different transparency.
+> Skill-map estimates how sure it is of each connection: a
+> `[text](file.md)` that points at a real file (confidence 1.00,
+> now that the target exists) looks solid, while an `@handle` that
+> resolves to no node sits at 0.5 (ambiguous) and looks
+> translucent. The opacity tells that story at a glance: the more
+> solid the arrow, the more reliable the inference.
 >
-> Confirma. Si falta algún conector, refresca el browser y avísame.
-
-After the tester confirms the connectors, drop this tip:
-
-> 💡 Tip: si tras tantos cambios los nodos quedaron amontonados, en
-> la barra de herramientas del mapa tienes el botón **Reset
-> layout**: reorganiza todo con el auto-layout para que se vea
-> mejor. Te pide confirmación porque descarta las posiciones que
-> hayas movido a mano.
+> Confirm when you see it. If a connector is missing, refresh the
+> browser and let me know.
 
 If a connector is missing, do not advance, the next step inspects
 the same hub edit. Mark `5-live-connectors: done`.
@@ -1022,16 +1014,23 @@ The connector opacity tells the confidence story at a glance; the
 exact per-link breakdown lives in the Inspector. Open it on the hub
 so the tester registers the surface before Step 7 changes topology.
 
-> 🆕 Abre el Inspector de `notes/todo` (clic en el nodo en el
-> mapa). Baja hasta el panel **Linked nodes**: tiene dos secciones,
-> **Outgoing** e **Incoming**. `notes/todo` lista 4 enlaces en
-> Outgoing (es el hub que apunta a cuatro nodos) y 0 en Incoming;
-> si abres el Inspector de cualquiera de los cuatro nodos
-> apuntados, ves 1 en Incoming. Cada fila muestra el tipo del
-> enlace (`mentions`, `invokes`, `references`) y una etiqueta con
-> su confianza: el valor numérico (`1.00`, `0.50`, …).
+> 🆕 Open the Inspector for `notes/todo` (click the node on the
+> map). Scroll down to the **Linked nodes** panel: it has two
+> sections, **Outgoing** and **Incoming**. `notes/todo` lists 4
+> links under Outgoing (it's the hub pointing at four nodes) and 0
+> under Incoming; if you open the Inspector for any of the four
+> targeted nodes, you'll see 1 under Incoming. Each row shows the
+> link kind (`mentions`, `invokes`, `references`) and a badge with
+> its confidence: the numeric value (`1.00`, `0.50`, …).
 >
-> Confírmame cuando lo veas.
+> Let me know when you see it.
+
+After the tester confirms, drop this tip:
+
+> 💡 Tip: if all these changes left the nodes crowded together,
+> the map toolbar has a **Reset layout** button: it re-runs the
+> auto-layout so everything reads better. It asks for confirmation
+> because it discards any positions you moved by hand.
 
 Wait for confirmation. Mark `6-live-inspector: done`.
 
@@ -1290,7 +1289,7 @@ sm check --analyzers reference-broken
 sm check --json
 ```
 
-Expected: the warning surfaces the dangling link from
+Expected: the error surfaces the dangling link from
 `notes/todo.md` to the non-existent `missing-page.md`. The
 `--analyzers` filter lets you focus on a single issue type; `--json`
 emits the structured payload (useful for CI / scripting). When
@@ -1342,9 +1341,8 @@ sm plugins show core   # confirm it shows as disabled
 sm plugins enable core/external-url-counter
 ```
 
-If the tester asks about `plugins doctor` warnings, `plugins show`
-behavior, or which id format `disable` / `enable` accept, see
-§Scope clarifications.
+If the tester asks about `plugins doctor` warnings or `plugins show`
+behavior, see §Scope clarifications.
 
 If `plugins list` shows zero entries (depends on the build), tell
 the tester no plugins are installed yet and offer to skip.
@@ -1460,23 +1458,23 @@ Anything that hijoA points at lives here.
 
 Once the files are in place, tell the tester:
 
-> Acabo de dejar dos carpetas hermanas dentro del cwd del tutorial:
+> I just dropped two sibling folders inside the tutorial cwd:
 >
 > ```
 > link-validation/
 > ├── hijoA/
-> │   └── note-with-external-link.md   ← contiene [spec](../hijoB/spec.md)
+> │   └── note-with-external-link.md   ← contains [spec](../hijoB/spec.md)
 > └── hijoB/
->     └── spec.md                      ← el archivo target real
+>     └── spec.md                      ← the real target file
 > ```
 >
-> Para este paso vas a cambiar de carpeta momentáneamente, así `sm`
-> trata a `hijoA/` como un proyecto separado (cwd nuevo, scope
-> acotado al subárbol). Al final del paso te indico cómo volver.
+> For this step you'll switch folders for a moment, so `sm` treats
+> `hijoA/` as a separate project (new cwd, scope limited to that
+> subtree). At the end of the step I'll tell you how to come back.
 >
-> Si quedó algún `sm` corriendo de un paso anterior, ciérralo con
-> Ctrl+C así el puerto queda libre para el de este paso. Después,
-> en tu segundo terminal:
+> If an `sm` from an earlier step is still running, close it with
+> Ctrl+C so the port is free for this one. Then, in your second
+> terminal:
 
 ```bash
 cd link-validation/hijoA
@@ -1484,15 +1482,14 @@ sm init
 sm check
 ```
 
-> Vas a ver un error del analyzer (regla que detecta problemas)
-> `reference-broken` apuntando al link `../hijoB/spec.md`. Para
-> skill-map ese archivo no existe, porque `hijoB/` queda afuera
-> del scope (alcance) que `sm` está escaneando desde `hijoA/`:
-> cada proyecto tiene su propio `.skill-map/` y solo recorre
-> desde su cwd hacia abajo, nunca para "arriba" ni hacia carpetas
-> hermanas.
+> You'll see an error from the `reference-broken` analyzer (a rule
+> that flags problems) pointing at the link `../hijoB/spec.md`. As
+> far as skill-map is concerned that file doesn't exist, because
+> `hijoB/` sits outside the scope `sm` is scanning from `hijoA/`:
+> each project has its own `.skill-map/` and only walks from its
+> cwd downwards, never "up" and never into sibling folders.
 >
-> Pásame la salida (o un OK) y seguimos con el fix.
+> Paste me the output (or just an OK) and we'll move on to the fix.
 
 Wait for confirmation before showing the fix. Mark the error
 landed as expected; if the tester reports `✓ No issues` instead,
@@ -1503,14 +1500,14 @@ Have them re-check that the cwd of their second terminal is
 
 After they confirm the broken-ref error, present the fix:
 
-> Para resolver el link sin tener que mover `hijoB/` dentro de
-> `hijoA/`, agregas `../hijoB` al setting `scan.referencePaths`.
-> Le dice al analyzer "si un link path-style cae acá, valídalo
-> también contra estas carpetas extra". Los archivos NO se
-> agregan al mapa (no aparecen como nodos), solo se consultan
-> para resolver referencias salientes desde `hijoA/`.
+> To resolve the link without moving `hijoB/` inside `hijoA/`, you
+> add `../hijoB` to the `scan.referencePaths` setting. It tells the
+> analyzer "if a path-style link lands here, validate it against
+> these extra folders too". The files are NOT added to the map
+> (they don't show up as nodes), they're only consulted to resolve
+> outgoing references from `hijoA/`.
 >
-> En tu segundo terminal (todavía dentro de `link-validation/hijoA/`):
+> In your second terminal (still inside `link-validation/hijoA/`):
 
 ```bash
 sm config set scan.referencePaths '["../hijoB"]' --yes
@@ -1518,25 +1515,25 @@ sm scan
 sm check
 ```
 
-> El flag `--yes` confirma el privacy gate (control de privacidad):
-> estás autorizando que skill-map lea archivos fuera del project
-> root, así que pide tu OK explícito. Sin `--yes` el verb se aborta
-> y te pide reintentar con `--yes` (no abre un prompt interactivo).
-> Después del scan, `sm check` debería imprimir `✓ No issues`: el
-> error desapareció y `hijoB/` sigue sin entrar al mapa como nodo.
+> The `--yes` flag confirms the privacy gate: you're authorizing
+> skill-map to read files outside the project root, so it asks for
+> your explicit OK. Without `--yes` the verb aborts and asks you to
+> retry with `--yes` (it does not open an interactive prompt).
+> After the scan, `sm check` should print `✓ No issues`: the error
+> is gone and `hijoB/` still hasn't entered the map as a node.
 >
-> Pásame la salida y vemos cómo quedó persistido.
+> Paste me the output and let's see how it got persisted.
 
 Wait for confirmation. After they paste the clean `sm check`
 output, show where the value lives on disk:
 
-> Mira cómo quedó guardado el cambio:
+> Look at how the change got saved:
 
 ```bash
 cat .skill-map/settings.local.json
 ```
 
-> Vas a ver algo así:
+> You'll see something like this:
 >
 > ```json
 > {
@@ -1546,32 +1543,32 @@ cat .skill-map/settings.local.json
 > }
 > ```
 >
-> Vive en `settings.local.json` (gitignored, no viaja por git),
-> NO en el `settings.json` que sí se commitea. La razón: los
-> paths a carpetas hermanas suelen depender del layout local de
-> tu máquina (no todos los contribuidores tienen el mismo árbol
-> de proyectos en disco), por eso skill-map fuerza este setting
-> al layer local.
+> It lives in `settings.local.json` (gitignored, doesn't travel
+> through git), NOT in the `settings.json` that does get committed.
+> The reason: paths to sibling folders usually depend on your
+> machine's local layout (not every contributor has the same
+> project tree on disk), so skill-map forces this setting into the
+> local layer.
 
 Now the UI half. The tester needs `sm` running with `hijoA/` as
 cwd to see the matching panel:
 
-> Lo mismo desde la UI. En el mismo terminal, levanta el servidor
-> desde `hijoA/`:
+> Now the same thing from the UI. In the same terminal, start the
+> server from `hijoA/`:
 
 ```bash
 sm
 ```
 
-> Abre la URL que imprime el comando en el browser. Arriba a la
-> derecha está el icono ⚙ (gear), haz clic ahí, en el modal ve al
-> tab **Project** y baja hasta la sección **Folders for link
-> validation**. Vas a ver `../hijoB` listado, con botones para
-> agregar o sacar paths. La CLI y la UI escriben al mismo archivo:
-> si agregas uno desde la UI, aparece en el JSON, y viceversa.
+> Open the URL the command prints in the browser. Top right there's
+> the **sliders** icon (hover shows "Settings"), click it, in the
+> modal go to the **Project** tab and scroll down to the **Folders
+> for link validation** section. You'll see `../hijoB` listed, with buttons to add or
+> remove paths. The CLI and the UI write to the same file: if you
+> add one from the UI, it shows up in the JSON, and vice versa.
 >
-> Cuando termines de mirar, Ctrl+C en el terminal para cerrar el
-> servidor.
+> When you're done looking, Ctrl+C in the terminal to close the
+> server.
 
 Wait for confirmation that they saw the panel and closed the
 server. If the `sm` launch fails with a port-in-use error, an old
@@ -1615,23 +1612,6 @@ extension table to spot the one you queried.
 
 ### IDs for `plugins disable` / `plugins enable`
 
-Those verbs accept either a **qualified extension id**
-`<bundle>/<ext-id>` (e.g. `core/external-url-counter`,
-`claude/at-directive`) or a **bare bundle id** (e.g. `claude`,
-`core`) which the CLI treats as a macro that fans the toggle out
-across every extension inside the bundle. `plugins show <bundle>`
-lists each extension as `<kind>  <bundle>/<ext-id>` (e.g.
-`extractor  core/external-url-counter`); the leading kind is just a
-readability column, pass only the `<bundle>/<ext-id>` part to
-`disable` / `enable`.
-
-Single-extension bundles (`openai`, `antigravity`,
-`agent-skills`) flip without prompting because the macro is a
-1-1 mapping. Multi-extension bundles (`claude`, `core`,
-multi-extension user plugins) need `--yes` OR an interactive TTY
-confirm; pipe / CI contexts always need `--yes` to avoid an
-accidental cascade.
-
 **Multiple ids in one call**: both verbs accept any number of ids
 in a single invocation, e.g. `sm plugins disable antigravity openai
 agent-skills` or `sm plugins enable claude/at-directive core/external-url-counter`.
@@ -1668,7 +1648,7 @@ clears on the next scan.
 
 When everything is done (demo only, or demo + deep-dive), show the
 closing block: a "that's a wrap" line, the sm-master pointer, the
-return-to-root line (deep-dive only), then a one-line cleanup.
+return-to-root line (deep-dive only), and a guilt-free cleanup line.
 
 > Thanks! That's a wrap, you went through the whole tutorial.
 >
@@ -1695,18 +1675,15 @@ they stopped at the demo** (they never left the root).
 cd ../..
 ```
 
-Then close with the thanks plus a one-line cleanup. **Keep it to a
-single line, never a file inventory.** Pick the shape from
-`ls -A <cwd>`: if every entry is tutorial-owned the cwd is
-dedicated and `rm -rf` is safe; otherwise point only at the
-tutorial-owned paths. **Never recommend `rm -rf <cwd>` when the
-cwd holds anything skill-map did not create** (testers often run
-this inside their real work dir).
+Then close with the thanks, a guilt-free cleanup line, and the
+findings reminder. The cleanup is safe to state plainly: `sm
+tutorial` only seeds into an empty directory, so everything in the
+cwd is tutorial-created and a whole-folder delete loses nothing of
+the tester's. Substitute `<dir>` with the actual directory name.
 
-> Thanks for testing skill-map! To clean up: a throwaway dir is
-> just `cd ~ && rm -rf <cwd>`; if it lives inside your own work,
-> delete only what the tutorial created (`.skill-map/`, the fixture
-> `.md` / `.sm` files, and `link-validation/`) and leave the rest.
+> Thanks for testing skill-map! You started in an empty directory, so
+> everything here was created by the tutorial: when you're done you
+> can delete the whole folder guilt-free with `cd .. && rm -rf <dir>`.
 > If anything felt off in any step, tell me and I'll log it in
 > `findings.md` before you close.
 
