@@ -8,8 +8,26 @@ import { provideRouter } from '@angular/router';
 import { App } from '../app';
 import { DATA_SOURCE, type IDataSourcePort } from '../../services/data-source/data-source.port';
 import { SKILL_MAP_MODE } from '../../services/data-source/runtime-mode';
+import { WS_SOCKET_FACTORY, type TWsSocketFactory, type IWsLike } from '../../services/ws-event-stream';
 import { UpdateCheckService } from '../services/update-check';
 import { EMPTY } from 'rxjs';
+
+/**
+ * Inert WebSocket. The App shell test runs in `'live'` mode (so
+ * <sm-demo-banner> resolves SKILL_MAP_MODE), which would otherwise make
+ * WsEventStreamService open a real socket that fails under the test rig
+ * and spams `[ws] socket error` / `[ws] closed` into the console. This
+ * fake never invokes its handlers, so the service stays silent.
+ * (Production resolves WS_SOCKET_FACTORY to `(url) => new WebSocket(url)`.)
+ */
+const inertWsSocketFactory: TWsSocketFactory = (): IWsLike => ({
+  readyState: 0,
+  close: () => undefined,
+  onopen: null,
+  onclose: null,
+  onmessage: null,
+  onerror: null,
+});
 
 const STUB_DATA_SOURCE: IDataSourcePort = {
   health: () =>
@@ -204,6 +222,9 @@ async function configure(updateStub: UpdateCheckService): Promise<void> {
       // SKILL_MAP_MODE on construction. Provide a default so the
       // boot test doesn't hit the missing-token path.
       { provide: SKILL_MAP_MODE, useValue: 'live' },
+      // Keep the live-mode WS service from opening a real socket (see
+      // inertWsSocketFactory): without this it logs connection failures.
+      { provide: WS_SOCKET_FACTORY, useValue: inertWsSocketFactory },
       { provide: UpdateCheckService, useValue: updateStub },
     ],
   }).compileComponents();
