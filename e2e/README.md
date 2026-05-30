@@ -10,7 +10,7 @@ End-to-end / smoke tests for skill-map. Private workspace, never published to np
 - `smoke/`, Playwright specs for the static demo path. Asserts the bundle never calls `/api/` and the two views render.
 - `live-bff/`, harness + specs for the live-BFF path:
   - `fixture.ts`, materialises a kernel scope under `<repoRoot>/.tmp/e2e-live-bff-<ts>/` (a single agent `.md` + a `.sm` with a deliberately stale `for.bodyHash`).
-  - `server.ts`, picks a free port, spawns `sm serve --no-open --port <free>` in one-shot mode (no `--watch`; see AGENTS.md §"Smoke-testing live servers from an agent"), polls `/api/health` until 200.
+  - `server.ts`, picks a free port, spawns `sm serve --no-open --port <free>` in one-shot mode (no `--watch`; see AGENTS.md §Operating rules, Agent execution), polls `/api/health` until 200.
   - `global-setup.ts` / `global-teardown.ts`, Playwright lifecycle hooks. Stash the dynamic base URL on `process.env.LIVE_BFF_URL`. Tear the kernel down + remove the tempdir on exit.
   - `specs/`, the live-only test directory. `bump.spec.ts` is the happy-path bump flow today.
 

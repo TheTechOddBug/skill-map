@@ -161,7 +161,7 @@ export function isLoopbackHost(host: string): boolean {
 
 // CLI/server orchestrator with multi-field validation: each `if (error)
 // return` adds one cyclomatic point but splits per concern, keeping
-// the gate adjacent to the value it gates. Per AGENTS.md §Linting
+// the gate adjacent to the value it gates. Per context/lint.md
 // category 1 ("CLI orchestrators with multi-flag handling").
 // eslint-disable-next-line complexity
 export function validateServerOptions(input: IServerOptionsInput): TServerOptionsResult {
@@ -220,9 +220,9 @@ interface IFilledInput {
 
 /**
  * Pure column-mapping fold over the input bag, every field's default is
- * read once, with no branching beyond the per-field `??`. Per AGENTS.md
- * §Linting category 5 ("Pure column mappers, object literals where every
- * `??` adds a cyclomatic branch despite there being zero control flow").
+ * read once, with no branching beyond the per-field `??`. Per
+ * context/lint.md category 5 ("Pure column mappers, object literals where
+ * every `??` adds a cyclomatic branch despite there being zero control flow").
  */
 // eslint-disable-next-line complexity
 function applyDefaults(input: IServerOptionsInput): IFilledInput {

@@ -2,9 +2,6 @@
 
 > Design document and execution plan for `skill-map`. Architecture, decisions, phases, deferred items, and open questions. Target: distributable product (not personal tool). Versioning policy, plugin security, i18n, onboarding docs, and compatibility matrix all apply.
 
-**Last updated**: 2026-05-29 (pre-1.0 schema-drift rebuild: `sm scan` / `sm watch` / the BFF watcher delete and recreate the project DB when `scan_meta.scanned_by_version` differs by `major.minor` from the running CLI, since the DB is a derived cache and `.sm` sidecars hold the real authored data; interactive `sm scan` confirms unless `--yes`, non-interactive callers rebuild silently, patch differences stay compatible, read verbs keep the version-skew advisory; new `core/sqlite/db-drift-reset.ts` + shared `removeDbFiles`, documented in `spec/db-schema.md` §Schema drift (pre-1.0)). Prior (2026-05-29): Claude + Agent Skills frontmatter coverage pass: Claude `skill-base` gains `disallowed-tools` (now 14 fields); the neutral `agent-skills` Provider schema gains the open-standard optionals `license` / `compatibility` / `metadata` / `allowed-tools`; `base.schema.json` is trimmed back to `name` + `description`, its only universal fields; `tags` reverts from dual-source to a single skill-map sidecar concept, removing the `frontmatter.tags` author source, the `scan_node_tags.source` column, the `node.tags` object wire shape (now a flat `string[]`), the `sm list --tag-source` flag, and the UI author-tag chip; Claude agent schema/doc links corrected from `agents.md` to `sub-agents.md`). Prior (2026-05-28): provider registry as single source of truth: Providers now declare a required `presentation` block (label / color / `hideChip`) plus optional `detect.markers`; the BFF embeds a `providerRegistry` sibling of `kindRegistry` on every payload-bearing envelope; the SPA's `ProviderRegistryService` feeds the active-lens dropdown, the topbar lens chip, and the per-node provider chip from the real registered-Provider set instead of four divergent hardcoded lists (phantom `gemini` / `cursor` options removed, real `antigravity` / `agent-skills` surfaced); active-lens auto-detect markers are now provider-owned and the central `DETECTION_RULES` table is gone. Prior (2026-05-27): node cap on `sm scan` / `sm watch` / `sm serve` and the bare `sm` shortcut: new `scan.maxNodes` setting (default 256) plus `--max-nodes <N>` flag with bidirectional override; `scan_meta` and the `ScanResult` envelope carry `recommendedNodeLimit` + `overrideMaxNodes`; new `<sm-oversized-banner>` in the SPA with three modes (capped / overLimit / atLimit) and a CTA into Settings → Project for trimming `.skillmapignore`. Post-Phase-6 polish: observable link analysis / `core/link-counts` chips, reserved-name analyzer + confidence downgrade, lens-drift warning on stale `activeProvider` markers, db-version skew detection at sqlite open, Antigravity Provider onboarding, Gemini Provider retired, vendor provider classification gated by active lens, active-provider auto-detect at first scan). Editorial / structural change history for this file lives in `context/roadmap-history.md` and `CHANGELOG.md` §Document changelog.
-
-
 ## Project overview
 
 The project description, problem statement, target audience, and philosophy live in the README. Both language variants carry the same content:
@@ -14,13 +11,11 @@ The project description, problem statement, target audience, and philosophy live
 
 Each README also ships a short essentials-only glossary with a pointer back to the full [§Glossary](#glossary) below. This document (`ROADMAP.md`) is the design narrative, architecture decisions, execution plan, decision log, and deferred work, and sits beneath the READMEs; it is maintained in English only.
 
-**Status**: `v0.6.0` shipped (deterministic kernel + CLI + Web UI), then iterated through the active-lens migration (Phases 1–6, 2026-05-19 onwards): active-provider lens, Signal IR scaffold, numeric `Confidence`, MCP virtual nodes, OpenAI Codex provider, Antigravity onboarded, Gemini retired, lens-only extractor gating, provider-aware confidence bump, reserved-name catalog, observable link analysis (`core/link-counts` chips), lens-drift + db-skew safety nets. The deterministic surface is feature-complete; the only post-Phase-6 deliverable that gates v1.0 is the Codex body extractor (TOML `instructions` field, §Step 13). **Next**: `v0.8.0`, wave 2 (Steps 10–11, 16). Per-Step landing prose for closed work lives in `CHANGELOG.md`.
-
 ---
 
 ## Table of contents
 
-1. [Project overview](#project-overview), status, language variants, document scope.
+1. [Project overview](#project-overview), language variants, document scope.
 2. [Glossary](#glossary), canonical vocabulary (domain, extensions, modes, architecture, jobs, states, plugins, refresh, safety, enrichment, scope, CLI/UI).
 3. [Visual roadmap](#visual-roadmap), ASCII timeline of every Step.
 4. [Spec as a standard](#spec-as-a-standard), repo layout, properties, distribution.
@@ -1150,13 +1145,13 @@ Skill-map's own annotation layer (lifecycle, supersession, provenance, taxonomy,
 **Spec artifacts** (Step 9.6.1, 2026-05):
 
 - `spec/schemas/sidecar.schema.json`, root shape with reserved blocks `for` (identity link: `path` + `bodyHash` + `frontmatterHash`, optional `resolvedAs` for ambiguous classification overrides), `annotations`, `settings`, `audit`. `additionalProperties: true` at every level so plugins write to their own `<plugin-id>:` namespace without coordination.
-- `spec/schemas/annotations.schema.json`, curated catalog of 10 conventional fields (trimmed from 31 on 2026-05-07 after UX review; `released` dropped 2026-05-07, then `requires`/`conflictsWith`/`related` dropped on 2026-05-15 because the three collapsed into the same `references` edge kind and added no extra graph semantics, see `CHANGELOG.md` §Step 9.6 → 9.6.7). Versioning + supersession: `version` (single integer monotonic, orthogonal to `stability`), `stability`, `supersedes`, `supersededBy`. Provenance: `authors`, `license`, `source`, `sourceVersion`. Taxonomy: `tags`. Docs: `docsUrl`. The activity timestamp lives in the reserved `audit:` block (`audit.lastBumpedAt`), not in `annotations:`. All optional; an empty `annotations: {}` is valid. Additional fields ride on `additionalProperties: true`; the built-in `unknown-field` analyzer warns on truly unrecognized keys (typo guard, also catches the three dropped keys in legacy sidecars). Plugins that want first-class custom keys with their own validation declare `annotationContributions` in their manifest (Step 9.6.6). Path-style `references` edges in the graph now come exclusively from `core/markdown-link` (over `[text](path)` syntax in the body), not from sidecar annotations.
+- `spec/schemas/annotations.schema.json`, curated catalog of 10 conventional fields (trimmed from 31 on 2026-05-07 after UX review; `released` dropped 2026-05-07, then `requires`/`conflictsWith`/`related` dropped on 2026-05-15 because the three collapsed into the same `references` edge kind and added no extra graph semantics, see `context/execution-history.md` §Step 9.6 → 9.6.7). Versioning + supersession: `version` (single integer monotonic, orthogonal to `stability`), `stability`, `supersedes`, `supersededBy`. Provenance: `authors`, `license`, `source`, `sourceVersion`. Taxonomy: `tags`. Docs: `docsUrl`. The activity timestamp lives in the reserved `audit:` block (`audit.lastBumpedAt`), not in `annotations:`. All optional; an empty `annotations: {}` is valid. Additional fields ride on `additionalProperties: true`; the built-in `unknown-field` analyzer warns on truly unrecognized keys (typo guard, also catches the three dropped keys in legacy sidecars). Plugins that want first-class custom keys with their own validation declare `annotationContributions` in their manifest (Step 9.6.6). Path-style `references` edges in the graph now come exclusively from `core/markdown-link` (over `[text](path)` syntax in the body), not from sidecar annotations.
 
 **Identity + drift detection** (Step 9.6.2): `for.path` matches the canonical Node identifier; `for.bodyHash` and `for.frontmatterHash` carry the sha256 captured the last time the sidecar was bumped. The kernel computes the current hashes at scan time; mismatch in either emits the built-in `annotation-stale` warning (soft mode, never blocking). Stale state is **derived**, never stored, pure function over existing data, no flag drift risk.
 
 **Bump model** (Step 9.6.3 onward): version increments via the built-in deterministic `bump` Action, kernel materializes the sidecar write through a new `SidecarStore` port (mirrors `StoragePort`, writes YAML files in the repo). Triggers: manual UI button gated by drift (lands in 9.6.5), `sm bump <node-path>` CLI for single-node bumps and `sm bump --pending [--staged]` for batch (shipped in 9.6.4), opt-in pre-commit hook installed via `sm hooks install pre-commit-bump` (shipped in 9.6.4) that auto-bumps staged drift on commit. Watch mode never auto-bumps.
 
-**Migration**: greenfield, no automatic port of pre-9.6 `metadata: {}` blocks (per project policy; no released consumers depend on the prior shape). Optional CLI helper to import legacy `metadata: {}` blocks deferred, flagged in `CHANGELOG.md` §Step 9.6 → "Deferred (post-Step 9.6)" with rationale "no released consumer demands it; ship when first user asks".
+**Migration**: greenfield, no automatic port of pre-9.6 `metadata: {}` blocks (per project policy; no released consumers depend on the prior shape). Optional CLI helper to import legacy `metadata: {}` blocks deferred, flagged in `context/execution-history.md` §Step 9.6 → "Deferred (post-Step 9.6)" with rationale "no released consumer demands it; ship when first user asks".
 
 **DB denormalization** carries forward unchanged: `scan_nodes.{stability, version, author}` columns are now sourced from `annotations.{stability, version, author}` of the matching sidecar (when present); fall-through to `frontmatter.metadata.{...}` until pre-9.6 fixtures exit the conformance suite.
 
@@ -1329,7 +1324,7 @@ All declared in `spec/schemas/project-config.schema.json`. Defaults shown.
 - `plugins: { <id>: { enabled, config } }`, per-plugin enable/disable overrides and plugin-specific config passed to extensions at load time. Keys are plugin ids; absent means the plugin's installed default (enabled) applies.
 - `scan.tokenize: true`, `scan.strict: false`, `scan.followSymlinks: false`.
 - `scan.maxFileSizeBytes: 1048576`, 1 MiB floor; oversized files are skipped with an `info` log.
-- `history.share: false`, experimental. When `true`, `./.skill-map/skill-map.db` is expected to be committed (team removes it from `.gitignore`). No GC policy for `state_executions` through `v1.0`, the table is append-only (see `CHANGELOG.md` §Step 7). When demand appears post-`v1.0`, a `history.retention.*` block lands in a later minor bump with concrete defaults and enforcement semantics.
+- `history.share: false`, experimental. When `true`, `./.skill-map/skill-map.db` is expected to be committed (team removes it from `.gitignore`). No GC policy for `state_executions` through `v1.0`, the table is append-only (see `context/execution-history.md` §Step 7). When demand appears post-`v1.0`, a `history.retention.*` block lands in a later minor bump with concrete defaults and enforcement semantics.
 - `jobs.ttlSeconds: 3600`, base duration used when an action manifest omits `expectedDurationSeconds`. Fed into the formula `computed = max(base × graceMultiplier, minimumTtlSeconds)`. Typical for `mode: local` actions where the duration hint is advisory.
 - `jobs.graceMultiplier: 3`, multiplier applied to the base duration before the floor check.
 - `jobs.minimumTtlSeconds: 60`, TTL floor (never a default). Guarantees no job is claimed with a sub-minute deadline.
@@ -1578,7 +1573,7 @@ Every extension in `src/extensions/` ships a sibling `*.test.ts`. Missing test �
 - **HTTP server**: **Hono** (lightweight, ESM-native). Acts as the BFF for the Angular UI and any future client.
 - **WebSocket**: server side uses the official `upgradeWebSocket` re-exported from `@hono/node-server@2.x` paired with the canonical `ws` Node WebSocket library (`ws@8.20.0`); both share the single Hono listener, single-port mandate. Client side uses the browser-native `WebSocket` (browser) or the Node 24 global `WebSocket` (Node-side tests and consumers, no extra dep needed beyond the server-side `ws`).
 - **Single-port mandate**: `sm serve` exposes SPA + BFF + WS under one listener. Dev uses Angular dev server + proxy; prod uses Hono + `serveStatic`.
-- **UI framework**: **Angular ≥ 21** (standalone components). Scaffolded at `^21.0.0`, later pinned to an exact version per the dependency-pinning policy, see §Analyzers for agents working in this repo in `AGENTS.md`.
+- **UI framework**: **Angular ≥ 21** (standalone components). Scaffolded at `^21.0.0`, later pinned to an exact version per the dependency-pinning policy, see §Operating rules in `AGENTS.md`.
 - **Dependency versioning policy**: every dependency in `package.json` at root, `ui/`, and `src/` is pinned to an exact version (no `^` / `~`). `spec/` has no dependencies. Reproducibility takes priority over automatic patch drift; upgrades are explicit edits. Revisit if `src/` ever flips to public, published libs may want caret ranges so consumers can dedupe transitive deps.
 - **Node-based UI library**: **Foblex Flow**.
 - **Component library**: **PrimeNG** + `@primeuix/themes` for theming. The legacy `@primeng/themes` package is deprecated upstream (the registry marks it as `Deprecated. Please migrate to @primeuix/themes`) and is intentionally NOT used.
@@ -1620,17 +1615,17 @@ Sequential build path. Each step ships green tests before the next begins.
 
 ### Step inventory at a glance
 
-Closed Steps, green checkmark = "ships green tests, lives in the released code path". Per-step landing prose lives in `CHANGELOG.md`.
+Closed Steps, green checkmark = "ships green tests, lives in the released code path". Per-step landing prose lives in `context/execution-history.md`.
 
 Phase A, `v0.5.0` (deterministic kernel + CLI):
 
-- ✅ **0a / 0b / 0c**, Spec bootstrap, implementation bootstrap, UI prototype (Flavor A). See `CHANGELOG.md` §v0.5.0.
+- ✅ **0a / 0b / 0c**, Spec bootstrap, implementation bootstrap, UI prototype (Flavor A). See `context/execution-history.md` §v0.5.0.
 - ✅ **1a / 1b / 1c**, Storage + migrations / Plugin loader / Orchestrator + CLI dispatcher.
 - ✅ **2 / 3 / 4 / 5 / 6 / 7 / 8 / 9**, First extensions, UI design refinement, scan end-to-end, history + orphans, config + onboarding, robustness, diff + export, plugin author UX (9.1–9.4).
 
 Phase A → v0.6.0 (Web UI):
 
-- ✅ **9.5**, Spec base cleanup: absorb provider verbatim. Pre-wave-2 prerequisite. See `CHANGELOG.md` §v0.6.0.
+- ✅ **9.5**, Spec base cleanup: absorb provider verbatim. Pre-wave-2 prerequisite. See `context/execution-history.md` §v0.6.0.
 - ✅ **9.6**, Annotation system (sidecar `.sm` files). Sub-steps 9.6.1–9.6.7, review queue R1–R15 closed.
 - ✅ **14.1–14.7**, Full Web UI (Hono BFF, REST, WS broadcaster, inspector polish, Foblex strict types + dark-mode tri-state, bundle hard cut + responsive scope + demo smoke).
 - ✅ **Active-lens migration, Phases 1–6** (2026-05-19 → 2026-05-23), post-v0.6.0 deterministic polish that lands the multi-runtime story end-to-end:

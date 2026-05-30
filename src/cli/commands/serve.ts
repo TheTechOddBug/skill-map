@@ -141,7 +141,7 @@ export class ServeCommand extends SmCommand {
 
   // CLI orchestrator with multi-flag handling, each `if (this.flag)`
   // branch is one cyclomatic point. Splitting per branch scatters the
-  // validation away from the flag it gates. Per AGENTS.md §Linting
+  // validation away from the flag it gates. Per context/lint.md
   // category 1 ("CLI orchestrators with multi-flag handling").
   // eslint-disable-next-line complexity
   protected async run(): Promise<number> {

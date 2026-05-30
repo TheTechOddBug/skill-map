@@ -246,7 +246,7 @@ export class SqliteStorageAdapter implements StoragePort {
   /**
    * Access the underlying Kysely instance.
    *
-   * Test-only escape hatch (per AGENTS.md § Kernel boundaries, tests
+   * Test-only escape hatch (per context/kernel.md §Kernel boundaries, tests
    * are the documented exception). CLI commands MUST consume the
    * adapter through the namespaced port surfaces (`port.<namespace>.*`
    * or `port.transaction(...)`); reaching for this getter from a

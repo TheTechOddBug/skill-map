@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Roadmap and design decisions
+    url: https://github.com/crystian/skill-map/blob/main/ROADMAP.md
+    about: Read the decision log before proposing something that may already have been considered or deferred.
+  - name: Contribution policy (pre-1.0)
+    url: https://github.com/crystian/skill-map/blob/main/CONTRIBUTING.md
+    about: External pull requests are paused until v1.0. Feature requests and bug reports are always welcome.

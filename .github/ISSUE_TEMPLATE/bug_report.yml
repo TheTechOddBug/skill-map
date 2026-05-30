@@ -1,0 +1,57 @@
+name: Bug report
+description: Report something in skill-map that does not work as expected.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Bug reports are welcome even though external pull requests are paused until v1.0. A clear report helps us fix it fast.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Describe the bug and what you expected to happen instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps, including the exact command(s) you ran.
+      placeholder: |
+        1. Run `sm scan`
+        2. Open the UI
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: sm-version
+    attributes:
+      label: skill-map version
+      description: Output of `sm --version`.
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: OS and Node version (`node --version`).
+      placeholder: Ubuntu 24.04, Node 24.3.0
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or output
+      description: Relevant CLI output. The output of `sm scan --json` or the error text helps. Rendered as code, no backticks needed.
+      render: shell
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true

@@ -2,6 +2,19 @@
 
 Thanks for your interest in `skill-map`. The project is in active pre-1.0 development, Steps 0a–9 are complete, Step 14 (Full Web UI) is in progress, and wave 2 (job subsystem + LLM verbs) follows. See [ROADMAP.md](./ROADMAP.md) for the full design narrative, decision log, and the canonical completeness marker.
 
+## Project status: pre-1.0, external code contributions paused
+
+skill-map is still under construction toward its first stable release (`v1.0`). The spec, kernel APIs, and internal architecture move week to week, so reviewing and merging outside code against a moving target costs more than it gives, for both sides.
+
+**Until `v1.0` ships, external pull requests are not accepted.** PRs from outside the core team will be closed with a pointer to open a feature request instead. This is deliberate, not a judgement on the contribution.
+
+What is open right now, and genuinely wanted:
+
+- **Feature requests / new functionality**: [open a feature request](https://github.com/crystian/skill-map/issues/new/choose). These feed the roadmap directly.
+- **Bug reports**: [open a bug report](https://github.com/crystian/skill-map/issues/new/choose).
+
+Once `v1.0` lands this policy relaxes and the normal pull-request flow described below applies.
+
 ## Before contributing
 
 - Read [ROADMAP.md](./ROADMAP.md) end-to-end. It captures the architectural non-negotiables (kernel-first, spec as public standard, deterministic by default, CLI-first, tests from commit 1).
@@ -10,8 +23,8 @@ Thanks for your interest in `skill-map`. The project is in active pre-1.0 develo
 
 ## Contribution channels
 
-- **Bug reports + feature proposals**: [GitHub Issues](https://github.com/crystian/skill-map/issues). For non-trivial proposals, open an issue first to align on shape before writing code.
-- **Pull requests**: against `main`, with a `.changeset/*.md` describing the bump (see below).
+- **Bug reports + feature requests**: [GitHub Issues](https://github.com/crystian/skill-map/issues/new/choose). Pick the matching template. These are open and welcome at any time, including pre-1.0.
+- **Pull requests**: **paused until `v1.0`** for external contributors (see Project status above). The flow below (changesets, bump policy, merge pipeline) documents how internal PRs work and how external PRs will work once the project opens up.
 
 ## Code standards
 
@@ -45,6 +58,10 @@ pnpm release:changeset
 Pick the affected package(s), the bump type, and write a **one short paragraph** summary. That single paragraph is the exact text published to the package `CHANGELOG.md`, so keep it terse (what changed, where a reader notices it) and put the deep design detail (why, how, which files) in the PR description, not the changeset. This is enforced: a pre-commit guard rejects a changeset body that has a table, a sub-heading, a sub-bullet, more than one paragraph, or exceeds 500 chars. Commit the generated `.changeset/*.md` with your change.
 
 Editing a workspace's own `CHANGELOG.md` is release notes, not a releasable change, so it does **not** require a changeset of its own (the gate filters `CHANGELOG.md` out). Private workspaces (`ui/`, `web/`) ship no `CHANGELOG.md`: `ui/` gets no changeset, `web/` still bumps (its version tags the deploy) but `web/CHANGELOG.md` (and `ui/CHANGELOG.md`) are gitignored, so `changeset version` regenerates `web/CHANGELOG.md` only transiently (the changesets action reads it for the "Version Packages" PR body) and it never lands in a commit, since nobody installs or reads the private packages.
+
+### Changelogs
+
+The repo root `CHANGELOG.md` is the **generated consolidated release changelog**: one collapsible `<details>` per CLI release, newest first, with the CLI version + ISO `YYYY-MM-DD` date in the summary and `### CLI Minor` / `### CLI Patch` / `### Spec Minor (x.y.z)` / `### Spec Patch (x.y.z)` sections inside (no commit hashes, no dependency-update noise, one short bullet per changeset). It is generated at release time by `scripts/build-changelog.js`, wired into `release:version` right after `build-user-changelog.js` and before `changeset version`; do not hand-edit it. The per-package npm changelogs (`src/CHANGELOG.md`, `spec/CHANGELOG.md`) drop the commit-hash prefix and the `Updated dependencies` blocks going forward via the custom changesets module `scripts/changeset-changelog.cjs` (`.changeset/config.json` points `changelog` at it); they are also generated, not hand-edited. The Step-by-step execution narrative lives in [`context/execution-history.md`](./context/execution-history.md).
 
 ### Bump policy
 

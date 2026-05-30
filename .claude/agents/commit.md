@@ -347,9 +347,9 @@ any of the changes warrant a touch in `ROADMAP.md`:
 - New normative spec field → mention under the relevant section.
 - Configuration / CLI surface change → §Configuration or §CLI surface.
 
-If yes, edit ROADMAP and stage. Update `Last updated:` in the header to
-today's date if the change is non-trivial. If the change is purely
-cosmetic to ROADMAP itself, no header bump is needed.
+If yes, edit ROADMAP and stage. The ROADMAP no longer carries a
+`Last updated:` header line, so there is nothing to bump there; the
+edit history lives in `context/roadmap-history.md` and git log.
 
 ### 9. Stage explicitly
 

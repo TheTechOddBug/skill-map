@@ -1,0 +1,55 @@
+name: Feature request
+description: Suggest a new feature or capability for skill-map.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping shape skill-map. The project is pre-1.0, so external pull requests are paused until v1.0, but feature requests are always welcome and feed the roadmap directly.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or motivation
+      description: What are you trying to do that skill-map does not let you do today?
+      placeholder: I want to ...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the feature. A CLI verb, a UI surface, a spec change, a plugin, whatever fits.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      multiple: true
+      options:
+        - CLI (sm verbs)
+        - Web UI
+        - Spec / schemas
+        - Plugins
+        - Providers (lenses)
+        - Docs
+        - Other / not sure
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you thought about, and why this one is better.
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: I checked the decision log in ROADMAP.md in case this was already considered or deferred.
+          required: true

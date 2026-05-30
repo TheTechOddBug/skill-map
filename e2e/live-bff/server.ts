@@ -2,8 +2,8 @@
  * Live-BFF process lifecycle — spawn `sm serve` against the fixture
  * tempdir and tear it down cleanly. Closes the spawn half of R10.
  *
- * Spawn pattern (per AGENTS.md §"Smoke-testing live servers from an
- * agent — NO `--watch`, free ports with `fuser`"):
+ * Spawn pattern (per AGENTS.md §Operating rules, Agent execution: NO
+ * `--watch` from an agent, free ports with `fuser`):
  *
  *   - One-shot `node --import tsx src/cli/entry.ts serve --no-open
  *     --port <free> --no-watcher=false`. NO `--watch` wrapper — that

@@ -18,7 +18,7 @@
  *      close code 1001 + reason `'server shutdown'`.
  *
  * The class is a TS-only public surface, name has no `I*` prefix per
- * AGENTS.md §Type naming convention category 4 grandfathering.
+ * context/kernel.md §Type naming convention (category 4 grandfathering).
  *
  * Backpressure: each `broadcast` call inspects every client's
  * `bufferedAmount`. A client whose buffer exceeds `MAX_BUFFERED_BYTES`
@@ -127,7 +127,7 @@ export class WsBroadcaster {
    * stop the rest from receiving the event. A failing socket is closed
    * + unregistered so the next broadcast doesn't waste cycles on it.
    *
-   * Backpressure check (per AGENTS.md §Watcher integration): if a
+   * Backpressure check (per context/kernel.md §Kernel boundaries): if a
    * client's `bufferedAmount` exceeds `MAX_BUFFERED_BYTES`, it's evicted
    * with close code 1009. The check runs BEFORE `send` so the threshold
    * acts as an admission gate, not a post-mortem.

@@ -5,7 +5,7 @@
  * single source of truth without depending on the SQLite adapter's
  * internal types.
  *
- * Naming bucket: category 4 (internal shapes) per `AGENTS.md` § Type
+ * Naming bucket: category 4 (internal shapes) per `context/kernel.md` §Type
  * naming convention. Every name carries the `I*` prefix.
  */
 

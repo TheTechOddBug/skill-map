@@ -2,7 +2,7 @@
 
 > Angular-native node-based UI library for building node editors, workflow builders, and interactive graph interfaces.
 
-Curated API reference for `@foblex/flow`, the graph visualization layer used by the [`ui/`](../ui/) workspace. This file is maintained because upstream documentation is sparse. See [`AGENTS.md`](../AGENTS.md) §UI library reference for when to consult this file. The graph-view component that consumes this API lives at [`ui/src/app/views/graph-view/`](../ui/src/app/views/graph-view/).
+Curated API reference for `@foblex/flow`, the graph visualization layer used by the [`ui/`](../ui/) workspace. This file is maintained because upstream documentation is sparse. See [`AGENTS.md`](../AGENTS.md) §Operating rules (Code quality, "No hacks, read the official docs first") for when to consult this file. The graph-view component that consumes this API lives at [`ui/src/app/views/graph-view/`](../ui/src/app/views/graph-view/).
 
 Foblex Flow is an Angular-first library that provides rendering, connectors, interactions, selection, zoom, and connection drawing for graph-based UIs. Your application owns the graph state — Foblex Flow handles the visual layer and user interactions.
 
