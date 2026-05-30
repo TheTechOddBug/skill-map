@@ -423,7 +423,12 @@ When in doubt, copy the closest analogue:
   have to know about it.
 - **Interactive prompts** (confirms on `db reset / restore`,
   `orphans undo-rename`). Format stays plain "Question?", they're
-  read by humans during the verb's flow, not as result output.
+  read by humans during the verb's flow, not as result output. The one
+  exception is the **first-run telemetry consent prompt**
+  (`cli/telemetry/first-run-prompt.ts`): a one-time onboarding block that
+  DOES adopt the verb-output style (cyan `ℹ` header, sectioned `[d]etails`
+  with `→` / `✕` rows, `✓` / `ℹ` confirmation), composed through `IAnsi`
+  like any verb renderer. Strings live in `cli/i18n/telemetry.texts.ts`.
 - **Migration progress** when the kernel auto-migrates on first
   open. That's a one-shot pre-flight emitted by `withSqlite`, not a
   verb-owned render.

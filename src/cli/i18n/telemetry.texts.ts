@@ -2,32 +2,43 @@
  * Externalised strings for the first-run telemetry consent prompt
  * (`cli/telemetry/first-run-prompt.ts`). English-only, per the project
  * i18n convention. No em dashes (lint-enforced in `*.texts.ts`).
+ *
+ * Strings are color-free; the prompt renderer wraps glyphs / emphasis with
+ * `IAnsi` at the call site so a `NO_COLOR` run reads the same bytes (per the
+ * CLI output-style guide). This is the one interactive prompt that adopts
+ * the verb-output style (glyphs + sections) instead of staying plain, see
+ * `context/cli-output-style.md` §11.
  */
 
 export const TELEMETRY_PROMPT_TEXTS = {
-  // The one-time consent question shown on an interactive terminal.
-  question: [
-    'skill-map can report crashes anonymously to help fix bugs you hit.',
-    'This is OFF by default and only sends scrubbed error reports, never',
-    'your file contents, paths, or settings. Enable error reporting?',
-    '  [y]es  [N]o  [d]etails: ',
-  ].join('\n'),
+  // Header + body of the one-time question (glyph `ℹ` added by the renderer).
+  title: 'Anonymous error reporting',
+  intro: [
+    'skill-map can send anonymous crash reports to help fix bugs you hit.',
+    'No personal information is ever sent: not your files or their contents,',
+    'not your folder or home paths, not your settings. Only the error itself.',
+  ],
+  question: 'Enable error reporting?',
+  answerYes: '[Y]es',
+  answerNo: '[n]o',
+  answerDetails: '[d]etails',
 
-  // Shown when the operator asks for [d]etails, then the question repeats.
-  details: [
-    'What WOULD be sent (only after you opt in):',
-    '  - Stack traces with home paths scrubbed to <HOME>.',
-    '  - CLI version, Node major, OS, and the verb that crashed.',
-    '  - Error name, code, and a scrubbed message.',
-    'What is NEVER sent:',
-    '  - File contents, file names, frontmatter, annotations.',
-    '  - Absolute paths, hostname, OS username, IP address.',
-    '  - Your settings values.',
-    'You can change this anytime in Settings, or force it OFF',
-    'with SKILL_MAP_TELEMETRY=0.',
-    '',
-  ].join('\n'),
+  // Disclosure shown on `[d]etails`, then the question is re-asked.
+  detailsSentTitle: 'Sent, only if you turn this on',
+  detailsSent: [
+    'the error name, code, and message',
+    'the stack trace, with your home folder hidden as <HOME>',
+    'cli version, node major, os, and the verb that crashed',
+  ],
+  detailsNeverTitle: 'Never sent',
+  detailsNever: [
+    'your files, their contents, frontmatter, annotations',
+    'absolute paths, hostname, your username, ip address',
+    'your settings values',
+  ],
+  detailsHint: 'Change it anytime in Settings, or turn it off with SKILL_MAP_TELEMETRY=0.',
 
-  enabled: 'Error reporting enabled. Thank you. Disable anytime in Settings.\n',
-  disabled: 'Error reporting stays off. You can enable it later in Settings.\n',
+  // Confirmation lines (glyph added by the renderer).
+  enabled: 'Error reporting on. Thanks, you can turn it off anytime in Settings.',
+  disabled: 'Error reporting off. You can turn it on later in Settings.',
 } as const;

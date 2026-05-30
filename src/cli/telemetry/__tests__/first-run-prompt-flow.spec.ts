@@ -109,17 +109,18 @@ describe('maybeRunFirstRunPrompt (second-run deferral)', () => {
     assert.deepEqual(readTelemetry(), { firstRunAt: 111, errorsEnabled: true, promptedAt: 222 });
   });
 
-  it('second eligible run: persists opt-OUT on "n" (and on empty)', async () => {
+  it('second eligible run: persists opt-OUT on "n"', async () => {
     seed({ firstRunAt: 111 });
-    const a = makeStreams(['n']);
-    await maybeRunFirstRunPrompt({ stdin: a.stdin, stdout: a.stdout, nowMs: 222 });
+    const { stdin, stdout } = makeStreams(['n']);
+    await maybeRunFirstRunPrompt({ stdin, stdout, nowMs: 222 });
     assert.equal(readTelemetry().errorsEnabled, false);
+  });
 
-    rmSync(join(homeRoot, '.skill-map'), { recursive: true, force: true });
+  it('second eligible run: empty Enter takes the [Y]es default (opt-in)', async () => {
     seed({ firstRunAt: 111 });
-    const b = makeStreams(['']);
-    await maybeRunFirstRunPrompt({ stdin: b.stdin, stdout: b.stdout, nowMs: 333 });
-    assert.equal(readTelemetry().errorsEnabled, false);
+    const { stdin, stdout } = makeStreams(['']);
+    await maybeRunFirstRunPrompt({ stdin, stdout, nowMs: 333 });
+    assert.equal(readTelemetry().errorsEnabled, true);
   });
 
   it('never prompts again once promptedAt is set', async () => {

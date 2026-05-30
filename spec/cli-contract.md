@@ -88,7 +88,7 @@ skill-map sends nothing off the machine by default. Opt-in, anonymous
   or `false` means no telemetry SDK is loaded and nothing is sent, on every
   surface (CLI, BFF, UI), with zero added latency.
 - **Consent prompt (interactive terminals only, second eligible run).** The
-  CLI MAY show a one-time consent prompt (yes / no, default no / details),
+  CLI MAY show a one-time consent prompt (yes (default) / no / details),
   but NOT on the operator's first eligible run: that run only records
   `telemetry.firstRunAt` and stays silent so the prompt does not stack on
   the first-`sm scan` provider-lens prompt. The next eligible run shows it,

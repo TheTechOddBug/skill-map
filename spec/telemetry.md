@@ -56,7 +56,7 @@ Rules:
    run, it only stamps `firstRunAt` and stays silent, so the operator's
    first `sm` invocation is not asked two things at once (a first `sm scan`
    may already prompt for the provider lens). The NEXT eligible run shows the
-   interactive prompt (yes / no, default no / details), persists the choice,
+   interactive prompt (yes (default) / no / details), persists the choice,
    and stamps `promptedAt`. On a non-eligible run (non-TTY CI, pipes) nothing
    is asked or recorded and the state stays OFF; the operator opts in
    explicitly later.

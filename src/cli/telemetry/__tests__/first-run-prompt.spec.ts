@@ -34,11 +34,15 @@ describe('interpretConsentAnswer', () => {
     assert.equal(interpretConsentAnswer('Details'), 'details');
   });
 
-  it('treats empty / n / anything else as opt-out (safe default)', () => {
-    assert.equal(interpretConsentAnswer(''), 'no');
+  it('treats n / no (any case, padded) as opt-out', () => {
     assert.equal(interpretConsentAnswer('n'), 'no');
-    assert.equal(interpretConsentAnswer('nope'), 'no');
-    assert.equal(interpretConsentAnswer('whatever'), 'no');
+    assert.equal(interpretConsentAnswer('  NO '), 'no');
+  });
+
+  it('treats empty (Enter) and anything else as opt-in, the [Y]es default', () => {
+    assert.equal(interpretConsentAnswer(''), 'yes');
+    assert.equal(interpretConsentAnswer('nope'), 'yes');
+    assert.equal(interpretConsentAnswer('whatever'), 'yes');
   });
 });
 

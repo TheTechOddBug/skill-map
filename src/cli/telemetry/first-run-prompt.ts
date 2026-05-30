@@ -21,6 +21,7 @@
 import { createInterface } from 'node:readline/promises';
 
 import { TELEMETRY_PROMPT_TEXTS } from '../i18n/telemetry.texts.js';
+import { ansiFor, type IAnsi } from '../util/ansi.js';
 import {
   hasSeenFirstRun,
   hasTelemetryPromptBeenShown,
@@ -41,15 +42,16 @@ export interface IPromptGateInputs {
 }
 
 /**
- * Interpret a raw prompt answer. `y` / `yes` opt in; `d` / `details` ask
- * for the disclosure; anything else (including the empty default) opts
- * out. Case- and whitespace-insensitive.
+ * Interpret a raw prompt answer, `[Y]es` default convention. `n` / `no` opt
+ * out; `d` / `details` ask for the disclosure; everything else (the empty
+ * Enter default, `y` / `yes`, or any other text) opts in. Case- and
+ * whitespace-insensitive.
  */
 export function interpretConsentAnswer(raw: string): TConsentAnswer {
   const value = raw.trim().toLowerCase();
-  if (value === 'y' || value === 'yes') return 'yes';
+  if (value === 'n' || value === 'no') return 'no';
   if (value === 'd' || value === 'details') return 'details';
-  return 'no';
+  return 'yes';
 }
 
 /**
@@ -90,18 +92,61 @@ function liveGateInputs(stdout: { isTTY?: boolean }): IPromptGateInputs {
   };
 }
 
+/** The styled, ready-to-write strings for one prompt run. */
+interface IRenderedPrompt {
+  question: string;
+  reprompt: string;
+  details: string;
+  enabled: string;
+  disabled: string;
+}
+
+/**
+ * Compose the prompt in the skill-map verb-output style (cyan `ℹ` header,
+ * sectioned details, `✓` / `ℹ` confirmation), wrapping glyphs / emphasis
+ * through `IAnsi` so a `NO_COLOR` / non-TTY run keeps the same bytes minus
+ * the escapes. See `context/cli-output-style.md`.
+ */
+function renderConsent(ansi: IAnsi): IRenderedPrompt {
+  const t = TELEMETRY_PROMPT_TEXTS;
+  const answerLine = `     ${t.question}  ${ansi.bold(t.answerYes)}  ${t.answerNo}  ${ansi.dim(t.answerDetails)} `;
+  return {
+    question: [
+      `  ${ansi.cyan('ℹ')}  ${ansi.bold(t.title)}`,
+      ...t.intro.map((line) => `     ${line}`),
+      '',
+      answerLine,
+    ].join('\n'),
+    reprompt: answerLine,
+    details: [
+      '',
+      `     ${t.detailsSentTitle}`,
+      ...t.detailsSent.map((line) => `       ${ansi.dim('→')}  ${line}`),
+      `     ${t.detailsNeverTitle}`,
+      ...t.detailsNever.map((line) => `       ${ansi.red('✕')}  ${line}`),
+      '',
+      `     ${ansi.dim(t.detailsHint)}`,
+      '',
+    ].join('\n'),
+    enabled: `  ${ansi.green('✓')}  ${t.enabled}\n`,
+    disabled: `  ${ansi.cyan('ℹ')}  ${t.disabled}\n`,
+  };
+}
+
 /**
  * Ask the consent question, looping while the operator requests details,
- * and resolve to the opt-in boolean. The only place the prompt blocks.
+ * and resolve to the opt-in boolean. The only place the prompt blocks. The
+ * re-ask after details uses the short answer line (no repeated header).
  */
 async function readConsentDecision(
   rl: { question: (q: string) => Promise<string> },
   stdout: NodeJS.WritableStream,
+  rendered: IRenderedPrompt,
 ): Promise<boolean> {
-  let answer = interpretConsentAnswer(await rl.question(TELEMETRY_PROMPT_TEXTS.question));
+  let answer = interpretConsentAnswer(await rl.question(rendered.question));
   while (answer === 'details') {
-    stdout.write(TELEMETRY_PROMPT_TEXTS.details);
-    answer = interpretConsentAnswer(await rl.question(TELEMETRY_PROMPT_TEXTS.question));
+    stdout.write(rendered.details);
+    answer = interpretConsentAnswer(await rl.question(rendered.reprompt));
   }
   return answer === 'yes';
 }
@@ -113,16 +158,17 @@ async function readConsentDecision(
  */
 async function runConsentPrompt(
   stdin: NodeJS.ReadableStream,
-  stdout: NodeJS.WritableStream,
+  stdout: NodeJS.WritableStream & { isTTY?: boolean },
   nowMs: number,
 ): Promise<void> {
+  const rendered = renderConsent(
+    ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: false }),
+  );
   const rl = createInterface({ input: stdin, output: stdout });
   try {
-    const errorsEnabled = await readConsentDecision(rl, stdout);
+    const errorsEnabled = await readConsentDecision(rl, stdout, rendered);
     writeUserSettings({ telemetry: { errorsEnabled, promptedAt: nowMs } });
-    stdout.write(
-      errorsEnabled ? TELEMETRY_PROMPT_TEXTS.enabled : TELEMETRY_PROMPT_TEXTS.disabled,
-    );
+    stdout.write(errorsEnabled ? rendered.enabled : rendered.disabled);
   } catch {
     // Prompt IO is best-effort. Leave consent untouched (OFF) on failure.
   } finally {
