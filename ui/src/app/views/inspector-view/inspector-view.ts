@@ -231,6 +231,16 @@ export class InspectorView implements OnInit {
       });
   });
 
+  /**
+   * True when the active node has a `frontmatter-parse-error` finding,
+   * i.e. its YAML frontmatter failed to parse. Forwarded to the header
+   * so it shows the filename fallback title + the "invalid frontmatter"
+   * badge instead of rendering a blank `<h2>`.
+   */
+  protected readonly frontmatterInvalid = computed<boolean>(() =>
+    this.issues().some((i) => i.analyzerId === 'frontmatter-parse-error'),
+  );
+
   ngOnInit(): void {
     if (this.loader.nodes().length === 0 && !this.loader.loading()) {
       void this.loader.load();

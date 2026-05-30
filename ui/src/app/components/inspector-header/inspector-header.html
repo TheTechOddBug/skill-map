@@ -21,7 +21,17 @@
 
   <div class="inspector__content">
     <div class="inspector__name-row">
-      <h2 class="inspector__name" data-testid="inspector-title-text">{{ n.frontmatter.name }}</h2>
+      <h2 class="inspector__name" data-testid="inspector-title-text">{{ headerName() }}</h2>
+      @if (frontmatterInvalid()) {
+        <span
+          class="inspector__fm-invalid"
+          [pTooltip]="texts.header.invalidFrontmatterTooltip"
+          data-testid="inspector-fm-invalid"
+        >
+          <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+          {{ texts.header.invalidFrontmatter }}
+        </span>
+      }
       @if (headerVersion(); as v) {
         <span class="inspector__name-version" data-testid="inspector-version">{{ v }}</span>
       }
@@ -38,24 +48,6 @@
       }
     </div>
     <code class="inspector__path-code" data-testid="inspector-path">{{ n.path }}</code>
-    <div class="inspector__metastrip" data-testid="inspector-metastrip">
-      @if (n.bytesTotal !== undefined) {
-        <span class="inspector__metaitem"><code>{{ n.bytesTotal }}</code> {{ texts.stats.bytes }}</span>
-      }
-      @if (n.tokensTotal !== undefined) {
-        <span class="inspector__metaitem"><code>{{ n.tokensTotal }}</code> {{ texts.stats.tokens }}</span>
-      }
-      <span class="inspector__metaitem">
-        <code>{{ n.linksOutCount ?? 0 }}</code>
-        <i class="pi pi-arrow-up-right" aria-hidden="true"></i>
-        <code>{{ n.linksInCount ?? 0 }}</code>
-        <i class="pi pi-arrow-down-left" aria-hidden="true"></i>
-        @if (n.externalRefsCount !== undefined && n.externalRefsCount > 0) {
-          <code>{{ n.externalRefsCount }}</code>
-          <i class="pi pi-external-link" aria-hidden="true"></i>
-        }
-      </span>
-    </div>
   </div>
 
   <div class="inspector__actions-cluster">

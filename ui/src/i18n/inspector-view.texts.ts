@@ -16,6 +16,17 @@ export const INSPECTOR_VIEW_TEXTS = {
   },
   backToList: '← back to files',
   /**
+   * Header badge shown when a node's frontmatter failed to parse (the
+   * `frontmatter-parse-error` analyzer fired). The title falls back to
+   * the file name and this badge explains why name / description /
+   * metadata are missing.
+   */
+  header: {
+    invalidFrontmatter: 'invalid frontmatter',
+    invalidFrontmatterTooltip:
+      'The YAML frontmatter could not be parsed, so name, description and other metadata are unavailable. Check the Findings section for the parser error.',
+  },
+  /**
    * Section headers the inspector body renders directly. Vendor-frontmatter
    * sub-sections (Behavior / Capabilities / Initial prompt) own their own
    * catalog so each renderer stays self-contained.
@@ -57,14 +68,6 @@ export const INSPECTOR_VIEW_TEXTS = {
     consentAccept: 'Yes, allow',
     consentReject: 'Not now',
     consentDialogAriaLabel: 'Sidecar consent',
-  },
-  /** Stats footer, single inline line under the body. */
-  stats: {
-    bytes: 'bytes',
-    tokens: 'tokens',
-    out: 'out',
-    in: 'in',
-    ext: 'external',
   },
   /** Findings list, fix hint label rendered before the per-issue summary. */
   findingHintLabel: 'Hint:',

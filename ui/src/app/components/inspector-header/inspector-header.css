@@ -21,7 +21,7 @@
   row-gap: 0.3rem;
   align-items: start;
   padding: 0 0 0.85rem 0.85rem;
-  background: transparent;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
   color: var(--p-text-color);
   border-left: 3px solid var(--accent);
   border-bottom: 1px solid var(--sm-border);
@@ -85,6 +85,29 @@
   color: var(--p-text-color);
 }
 
+/* Invalid-frontmatter badge: warn-tinted pill sitting in the name row
+   when the title is the filename fallback (frontmatter failed to
+   parse). Boxed so it reads as an alert, not an inline word. */
+.inspector__fm-invalid {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: var(--sm-radius-sm);
+  font-size: 0.7rem;
+  font-weight: 500;
+  text-transform: lowercase;
+  white-space: nowrap;
+  cursor: help;
+  color: var(--sm-severity-warn);
+  background: color-mix(in srgb, var(--sm-severity-warn) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--sm-severity-warn) 35%, transparent);
+}
+
+.inspector__fm-invalid .pi {
+  font-size: 0.68rem;
+}
+
 /* Stability tag: sits in the name row right after the version chip
    (`● <level>`), coloured by severity. Small, lowercase, no box. */
 /* Kept inline (not inline-flex) on purpose: as a flex item of the name
@@ -128,39 +151,6 @@
   align-self: flex-start;
   max-width: 100%;
   margin-top: 0.15rem;
-}
-
-/* Metadata strip, dense inline stats (bytes / tokens / links) right
-   below the path so size + connectivity travel with the identity
-   block. Tight typography, neutral vocabulary. */
-.inspector__metastrip {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.7rem;
-  margin-top: 0.35rem;
-  font-size: 0.72rem;
-  color: var(--p-text-muted-color);
-}
-
-.inspector__metaitem {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.inspector__metaitem code {
-  background: var(--sm-bg-hover);
-  padding: 0.04rem 0.3rem;
-  border-radius: var(--sm-radius-sm);
-  font-size: 0.68rem;
-  color: var(--p-text-color);
-  font-family: var(--sm-font-mono);
-}
-
-.inspector__metaitem .pi {
-  font-size: 0.68rem;
-  color: var(--p-text-muted-color);
 }
 
 /* Actions cluster, favorite + stale + version + view-contribution

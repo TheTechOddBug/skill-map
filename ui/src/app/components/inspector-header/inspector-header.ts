@@ -3,7 +3,7 @@
  *
  * Owns the visual fingerprint of the node currently in focus: kind
  * eyebrow + icon box + name (with version chip and stability tag) +
- * path + meta strip (bytes, tokens, links), plus the right-edge actions
+ * path + meta strip (bytes), plus the right-edge actions
  * cluster (favorite star, stale clock, header-badge slots), the
  * plugin-actions row (hidden behind a feature flag), and the tools
  * chip row.
@@ -65,6 +65,13 @@ export class InspectorHeader {
    * Actions row is hidden, see inspector-view.ts for the source.
    */
   readonly showActionMocks = input<boolean>(false);
+  /**
+   * True when the node carries a `frontmatter-parse-error` issue, i.e.
+   * its YAML frontmatter failed to parse and `frontmatter` came back
+   * empty. Drives the "invalid frontmatter" badge and means the title
+   * is showing the filename fallback rather than `frontmatter.name`.
+   */
+  readonly frontmatterInvalid = input<boolean>(false);
 
   /**
    * Emitted when the user clicks the heart. Carries the node path so
@@ -82,6 +89,18 @@ export class InspectorHeader {
   // the sidecar-wins / legacy-fallback contract documented in
   // `models/node-derived.ts`.
   // ---------------------------------------------------------------------------
+
+  /**
+   * Title shown in the hero. Prefers `frontmatter.name`; falls back to
+   * the file's basename when the name is missing (e.g. frontmatter
+   * failed to parse, so `frontmatter` is empty). Never renders blank.
+   */
+  protected readonly headerName = computed<string>(() => {
+    const n = this.node();
+    const name = n.frontmatter.name;
+    if (typeof name === 'string' && name.trim().length > 0) return name;
+    return n.path.split('/').pop() ?? n.path;
+  });
 
   protected readonly headerVersion = computed<string | null>(() => effectiveVersion(this.node()));
 
