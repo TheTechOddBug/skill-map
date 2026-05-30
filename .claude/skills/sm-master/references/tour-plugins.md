@@ -23,7 +23,7 @@ restore the files.") and stop.
 ## Step `tour-1-intro` — how plugins work (~4 min)
 
 **Context**: A short tour of what a plugin is, how they're
-packaged into bundles, and a peek at the four bundles that ship
+packaged into bundles, and a peek at the five bundles that ship
 pre-installed.
 
 > Plugins are how skill-map gets extended. A **plugin** groups one
@@ -55,7 +55,7 @@ pre-installed.
 sm plugins list
 ```
 
-> There are the four bundles. The next step zooms into the six
+> There are the five bundles. The next step zooms into the six
 > kinds of extension that bundles can carry, you'll see at least
 > one of each living inside `core`.
 
@@ -75,19 +75,19 @@ Mark `tour-1-intro: done`.
 > 🔍 **extractor**
 >    Reads a node's body and emits structured findings (links,
 >    counts, annotations).
->    Example: `markdown-link`, `external-url-counter`, `tools-count`.
+>    Example: `markdown-link`, `external-url-counter`, `tools-counter`.
 >
 > 🩺 **analyzer**
 >    Cross-checks the scan and emits issues plus various
 >    detections (errors, warnings, informational signals: broken
 >    refs, stale annotations, schema drift, and more).
->    Example: `broken-ref`, `stability`, `unknown-field`.
+>    Example: `reference-broken`, `node-stability`, `annotation-field-unknown`.
 >
 > ⚡ **action**
 >    Performs a write operation on a node, the graph, or the
 >    filesystem. May modify your `.md` files (frontmatter, body)
 >    ONLY with your explicit permission.
->    Examples: `bump`, `mark-superseded`.
+>    Examples: `node-bump`, `node-supersede`.
 >
 > 🎨 **formatter**
 >    Renders a result in a specific shape (`sm export --format md`
@@ -118,9 +118,10 @@ Mark `tour-1-intro: done`.
 sm plugins show core
 ```
 
-Expected: a table with 24 rows, each carrying `kind/id@version`.
-You can spot at least one of each of the six kinds you just read
-about, all packed into a single bundle.
+Expected: the 28 extensions grouped by kind, each row showing its
+kind and qualified id (e.g. `extractor  core/markdown-link`). You
+can spot at least one of each of the six kinds you just read about,
+all packed into a single bundle.
 
 Mark `tour-2-kinds: done`.
 
@@ -149,7 +150,7 @@ Kind, Version, Stability, Description, Preconditions, Entry).
 sm plugins doctor
 ```
 
-Expected on a clean machine: `27 enabled · 0 issues · 0 warnings`.
+Expected on a clean machine: `34 enabled extensions · 0 issues · 0 warnings`.
 If any plugin reports a load error, manifest validity issue, or
 spec-compatibility mismatch, `doctor` is the verb that flags it.
 

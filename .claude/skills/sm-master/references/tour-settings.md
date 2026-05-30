@@ -111,7 +111,7 @@ Mark `settings-2-local: done`.
 
 > Last step. Let's see a contribution land in the inspector
 > live. The fixture's `master-agent` declares `tools: [Read,
-> Bash, Edit]`, which the `core/tools-count` extractor picks up.
+> Bash, Edit]`, which the `core/tools-counter` extractor picks up.
 
 If the tester does not have `sm` running, ask them to launch it
 in their second terminal (same drill as the basic tutorial:
@@ -126,7 +126,7 @@ Once the UI is open, ask the tester to:
 
 > Click the `master-agent` node. The inspector opens on the
 > right side. Look at the **header badge cluster** (just under
-> the title): you should see a small chip from `tools-count`
+> the title): you should see a small chip from `tools-counter`
 > showing the value `3`.
 >
 > That chip is a plugin contribution. It landed in the slot
@@ -146,7 +146,7 @@ remove one tool), save, and watch the chip refresh.
 
 > Same flow as the basic tutorial's live UI: edit the markdown,
 > watch the UI refresh. The difference is that the value flowed
-> through a plugin (`core/tools-count`) and landed in a specific
+> through a plugin (`core/tools-counter`) and landed in a specific
 > slot (`inspector.header.badge.counter`). You now know the full
 > path from `.md` to UI chip.
 
@@ -165,6 +165,6 @@ Not for the tester unless they ask. Cheat sheet for the agent:
   binding).
 - **Input-types catalogue (normative)**: `spec/input-types.md`.
 - **Plugin manifest schema**:
-  `spec/schemas/plugin-manifest.schema.json`.
+  `spec/schemas/plugins-registry.schema.json` (`$defs/PluginManifest`).
 - **Author tutorial**: `spec/plugin-author-guide.md`.
 - **Slot annex for agents**: `context/view-slots.md`.

@@ -46,7 +46,7 @@ keys, identifiers, and link targets in English.
 name: master-agent
 description: |
   Example agent used by the advanced tutorial. Has a couple of
-  tools so the `core/tools-count` extractor emits a count.
+  tools so the `core/tools-counter` extractor emits a count.
 tools: [Read, Bash, Edit]
 model: sonnet
 metadata:

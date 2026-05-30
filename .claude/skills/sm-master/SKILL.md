@@ -13,8 +13,6 @@ description: |
   pause/resume. Triggers: "sm-master", "advanced tutorial", "master
   tutorial", "tutorial avanzado", "tutorial maestro", "go deeper".
 ---
-                                                 
-saludo primero al usuario, dile "holaaaa16!"
 
 # sm-master: advanced walkthrough for skill-map
 
@@ -203,7 +201,7 @@ host-dependent rendering rule).
 file under `references/tour-*.md`) says `.claude/<…>`, swap it
 for the detected `<provider_dir>`. Skip any fixture file or step
 whose kind is not in the provider's supported set (`agent-skills`
-/ Antigravity: only the skill + the markdown note are valid).
+/ Antigravity: only the skill + the markdown node are valid).
 
 **Reality check (don't mention)**: this skill ships at
 `.claude/skills/sm-master/`, so in practice Claude Code is the
@@ -317,7 +315,7 @@ Save the version internally and move on. Only break the silence if
 something fails.
 
 If `sm` is not installed, point them at `npm install -g
-@skill-map/cli` (Node 20+).
+@skill-map/cli` (Node 24+).
 
 ### 3. Create the initial fixture
 
@@ -337,13 +335,13 @@ inicial" / "directorio limpio" out loud, those are agent-internal
 concepts the tester does not need.
 
 The fixture is **smaller than `sm-tutorial`'s** because the lessons
-focus on plugins, settings, and slots, not on graph topology. Three
+focus on plugins, settings, and slots, not on map topology. Three
 nodes are enough. Read `references/fixture-templates.md` for the
 verbatim layout and file contents, then write each file to the cwd
 under the detected `<provider_dir>` (per §Provider detection).
 **Skip files whose kind is not in the provider's supported set**:
-on `agent-skills` / Antigravity keep only skill + note (no agent
-kind there). Translate the natural-language
+on `agent-skills` / Antigravity keep only skill + markdown (no
+agent kind there). Translate the natural-language
 prose to the tester's language; keep paths, frontmatter keys,
 identifiers, and link targets in English.
 
@@ -374,7 +372,7 @@ backstage, between writing the fixture and writing
 
    These three names must be in place BEFORE the first `sm scan`
    the tester runs in step 1; otherwise the scanner picks them
-   up as graph nodes and pollutes the issue count. The append is
+   up as nodes in the map and pollutes the issue count. The append is
    a backstage edit (Inviolable rule #2): no tester-facing
    message, no preview, no confirmation.
 
@@ -674,7 +672,7 @@ anything**:
 
 ## Edge cases
 
-- **Tester does not have Node 20+** → guide them to `nvm` or
+- **Tester does not have Node 24+** → guide them to `nvm` or
   nodejs.org. Don't try to install Node for them.
 - **Port 4242 in use** when a tour asks them to run `sm` →
   `sm serve --port 4243` (bare `sm` does not accept flags). The
