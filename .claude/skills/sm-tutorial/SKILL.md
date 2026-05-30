@@ -30,7 +30,7 @@ optional second phase (~20-30 min) covering the rest of the CLI.
 > "short path", "long path", "route", "phase 1" / "phase 2", or
 > "let's start the short one" in messages to the tester. The internal
 > split exists so YOU know what comes next; for the tester you only
-> talk about the current step and, at the end of step 7 (wrap-up),
+> talk about the current step and, at the end of step 9 (wrap-up),
 > offer "if you want, we can keep going deeper" without labelling it.
 
 ## Tone
@@ -177,7 +177,7 @@ optional second phase (~20-30 min) covering the rest of the CLI.
      calls for a change to `.skillmapignore`,
      `.skill-map/settings.json`,
      `.skill-map/settings.local.json`, or `.gitignore` AS PART
-     OF A LESSON (e.g. Step 6 hides a private node by appending
+     OF A LESSON (e.g. Step 8 hides a private node by appending
      a pattern), you describe the edit in a tester-facing
      message and the tester applies it in their own editor. The pedagogical point
      is that those files belong to the user, they need to
@@ -204,7 +204,7 @@ optional second phase (~20-30 min) covering the rest of the CLI.
     command blocks assume the second terminal is anchored to the
     tutorial folder.
 11. **Never skip the level question when entering the deep-dive.**
-    The level drives modulation of every Step 8+ instruction.
+    The level drives modulation of every Step 10+ instruction.
 
 ## Provider detection
 
@@ -556,9 +556,9 @@ tutorial-state.yml
 export.*
 dump.sql
 
-# Step 14 spawns a self-contained sub-project under link-validation/hijoA
+# Step 15 spawns a self-contained sub-project under link-validation/hijoA
 # with its own .skill-map/. Excluded here so that, if the tester
-# relaunches `sm` from the tutorial root after Step 14, the nested
+# relaunches `sm` from the tutorial root after Step 15, the nested
 # project does not leak into the main demo map.
 link-validation/
 ```
@@ -599,40 +599,43 @@ short_steps:
   - id: "5-live-connectors"
     title: "⭐ Live UI: the connectors light up"
     status: "pending"
-  - id: "6-live-ignore"
+  - id: "6-live-inspector"
+    title: "⭐ Live UI: the Inspector and linked nodes"
+    status: "pending"
+  - id: "7-live-edit"
+    title: "⭐ Live UI: edit a link and watch the topology change"
+    status: "pending"
+  - id: "8-live-ignore"
     title: "⭐ Live UI: silence via .skillmapignore"
     status: "pending"
-  - id: "7-handoff"
+  - id: "9-handoff"
     title: "Wrap-up of the demo and offer to keep going"
     status: "pending"
 long_steps:
-  - id: "8-tester-edits"
-    title: "Tester edits live (extends the UI demo)"
-    status: "pending"
-  - id: "9-cli-browse"
+  - id: "10-cli-browse"
     title: "Browse CLI: list / show / check"
     status: "pending"
     verbs: ["sm list", "sm show", "sm check"]
-  - id: "10-ascii"
+  - id: "11-ascii"
     title: "ASCII: graph + export"
     status: "pending"
     verbs: ["sm graph", "sm export"]
-  - id: "11-issues"
+  - id: "12-issues"
     title: "Issues: broken refs"
     status: "pending"
     verbs: ["sm check", "sm check --analyzers reference-broken",
             "sm check --json"]
-  - id: "12-plugins"
+  - id: "13-plugins"
     title: "Plugins"
     status: "pending"
     verbs: ["sm plugins list", "sm plugins show",
             "sm plugins doctor", "sm plugins enable",
             "sm plugins disable"]
-  - id: "13-annotations"
+  - id: "14-annotations"
     title: "Annotations and the .sm consent prompt"
     status: "pending"
     verbs: ["sm sidecar annotate"]
-  - id: "14-reference-paths"
+  - id: "15-reference-paths"
     title: "Validate links to folders outside the scan scope"
     status: "pending"
     verbs: ["sm config set scan.referencePaths", "sm scan", "sm check"]
@@ -727,8 +730,8 @@ of `sm serve` with all defaults; the moment you need any flag
 you write `sm serve --flag ...` explicitly). One process, one
 terminal: it boots the server, scans the `.md` files, detects
 changes, and pushes events over WebSocket to the live UI. The next
-five steps (2-6) all run against the same `sm` session, you boot
-it here and keep it alive through Step 6.
+seven steps (2-8) all run against the same `sm` session, you boot
+it here and keep it alive through Step 8.
 
 **Command** (one terminal):
 
@@ -911,7 +914,7 @@ Up to here you've been watching the agent write files. Now hand
 the keyboard over: the lesson is that the watcher reacts to
 **any** `.md` edit under the cwd, not just to files the agent
 authors. After this beat, the tester has the muscle memory for
-"save → map updates", which Step 6 (`.skillmapignore`) reuses
+"save → map updates", which Step 8 (`.skillmapignore`) reuses
 verbatim.
 
 Tell the tester:
@@ -925,7 +928,7 @@ Tell the tester:
 > ⚠ Heads-up: the inspector header shows a couple of action
 > buttons (**Bump version**, **Refresh body**). **Don't click
 > them yet**, they write files to your project and we cover that
-> flow deliberately in step 13. For now, just look.
+> flow deliberately in step 14. For now, just look.
 >
 > Now open `.claude/agents/demo-agent.md` in your editor of
 > choice. In the **frontmatter** at the top of the file, change
@@ -945,13 +948,6 @@ to verify the change landed (read-only, allowed under Inviolable
 rule #1) before moving on. Mark `4-live-edit: done`.
 
 ### Step 5: Live UI: the connectors light up (~2 min)
-
-Two beats. Beat 1 wires up the connectors (the arrows and their
-kinds). Beat 2 calls out the per-node ↑/↓ chips that the same hub
-edit lit up on every card. Each beat gets its own confirm so the
-tester slows down on each surface instead of conflating them.
-
-**Beat 1, connectors (the arrows themselves).**
 
 You edit `notes/todo.md` so it becomes the **hub** that points
 to each of the other four nodes. Each bullet uses a syntax that
@@ -999,59 +995,75 @@ Tell the tester:
 > colours on the canvas (the two `invokes` share a colour, as you
 > would expect).
 >
-> Fijate también que los conectores tienen distinta transparencia.
+> Observa también que los conectores tienen distinta transparencia.
 > Skill-map estima qué tan seguro está de cada conexión: un
 > `[text](file.md)` que apunta a un archivo concreto (1.00 de
 > confianza, ahora que el target existe) se ve sólido, mientras que
 > un `@handle` que no resuelve a ningún nodo se queda en 0.5
 > (ambiguo) y se ve translúcido. La opacidad cuenta esa historia de
-> un vistazo: cuanto más sólido, más confiable es la inferencia. El
-> valor numérico exacto no va sobre el conector; lo ves dentro del
-> Inspector del nodo (lo abrimos en el próximo beat).
+> un vistazo: cuanto más sólido, más confiable es la inferencia.
 >
-> Confirm. If a connector is missing, refresh the browser and tell
-> me.
+> Confirma. Si falta algún conector, refresca el browser y avísame.
 
-Wait for confirmation of the connectors before moving on to Beat 2.
-If a connector is missing, do not advance, the chips below depend
-on the same hub edit having landed.
+After the tester confirms the connectors, drop this tip:
 
-**Beat 2, the per-link detail in the Inspector.**
+> 💡 Tip: si tras tantos cambios los nodos quedaron amontonados, en
+> la barra de herramientas del mapa tienes el botón **Reset
+> layout**: reorganiza todo con el auto-layout para que se vea
+> mejor. Te pide confirmación porque descarta las posiciones que
+> hayas movido a mano.
+
+If a connector is missing, do not advance, the next step inspects
+the same hub edit. Mark `5-live-connectors: done`.
+
+### Step 6: Live UI: the Inspector and linked nodes (~1 min)
 
 The connector opacity tells the confidence story at a glance; the
-exact per-link breakdown lives in the Inspector. Call it out so the
-tester registers the surface before Step 6 changes topology.
+exact per-link breakdown lives in the Inspector. Open it on the hub
+so the tester registers the surface before Step 7 changes topology.
 
-> 🆕 Abrí el Inspector de `notes/todo` (clic en el nodo en el mapa).
-> Bajá hasta el panel **Linked nodes**: tiene dos secciones,
-> **Outgoing** e **Incoming**. `notes/todo` lista 4 links en
+> 🆕 Abre el Inspector de `notes/todo` (clic en el nodo en el
+> mapa). Baja hasta el panel **Linked nodes**: tiene dos secciones,
+> **Outgoing** e **Incoming**. `notes/todo` lista 4 enlaces en
 > Outgoing (es el hub que apunta a cuatro nodos) y 0 en Incoming;
-> si abrís el Inspector de cualquiera de los cuatro nodos apuntados,
-> ves 1 en Incoming. Cada fila muestra el kind del link (`mentions`,
-> `invokes`, `references`) y un tag con su confianza: el valor
-> numérico (`1.00`, `0.50`, …) y, al pasar el mouse, el tier
-> (`high` / `medium` / `low`). Es el detalle exacto que la opacidad
-> del conector resume en el mapa.
+> si abres el Inspector de cualquiera de los cuatro nodos
+> apuntados, ves 1 en Incoming. Cada fila muestra el tipo del
+> enlace (`mentions`, `invokes`, `references`) y una etiqueta con
+> su confianza: el valor numérico (`1.00`, `0.50`, …).
 >
-> Confirmá cuando lo veas.
+> Confírmame cuando lo veas.
 
-After both beats land, drop this tip:
+Wait for confirmation. Mark `6-live-inspector: done`.
 
-> 💡 Tip: si tras tantos cambios los nodos quedaron amontonados,
-> en la toolbar del mapa tenés el botón **Reset layout**:
-> reorganiza todo con el auto-layout para que se vea mejor. Te pide
-> confirmación porque descarta las posiciones que hayas movido a
-> mano.
+### Step 7: Live UI: edit a link and watch the topology change (~3 min)
 
-Wait for confirmation. **Do NOT move on to Step 6** until both
-beats are confirmed, Step 6 reuses the same live UI session and the
-connector topology is the baseline the tester will watch change
-when the private node disappears. Mark `5-live-connectors: done`.
+**Context**: Step 4 had the tester edit a scalar (`description`)
+and watch the inspector card refresh. Step 7 raises the bar: edit
+a Markdown link and watch the MAP TOPOLOGY change (a connector
+disappears). Same watcher, different surface.
 
-### Step 6: Live UI: silence a private file via `.skillmapignore` (~2 min)
+The server has been live since Step 2, leave it running; this step
+and the next one (`.skillmapignore`) both reuse it.
+
+> Your turn. Edit `notes/todo.md` with your editor of choice and
+> delete the bullet that contains `@demo-agent`. Save. Watch the
+> UI.
+>
+> Expected: the `notes/todo → demo-agent` connector (kind:
+> `mentions`) disappears in real time. The two nodes stay in the
+> **Map**; only the edge goes.
+
+You verify by reading `notes/todo.md` to confirm the change was
+applied. (On `agent-skills`, where the `@demo-agent` bullet was
+never created in Step 5, ask the tester to remove the only bullet
+they did add and watch THAT connector vanish, the lesson is the
+same.) Once they confirm, leave the server running, the next step
+reuses it. Mark `7-live-edit: done`.
+
+### Step 8: Live UI: silence a private file via `.skillmapignore` (~2 min)
 
 Steps 2-5 showed the watcher picking up new files and edits (yours
-and theirs). Step 6 flips the direction: a file the tester DOES NOT
+and theirs). Step 8 flips the direction: a file the tester DOES NOT
 want in the map (a draft, a scratch file, a secret) gets hidden by
 a single line in `.skillmapignore`. Same live mechanism, no restart.
 
@@ -1143,9 +1155,9 @@ verify the appended pattern landed correctly (in case
 allowed. Once confirmed, ask them to stop the server with
 **Ctrl+C** in the terminal before continuing.
 
-Mark `6-live-ignore: done`.
+Mark `8-live-ignore: done`.
 
-### Step 7: Wrap-up of the demo and offer to keep going (30 s)
+### Step 9: Wrap-up of the demo and offer to keep going (30 s)
 
 Keep this short: one closing line, then a single decision. Do NOT
 dump feature notes here (no `.sm` files, multi-provider, active
@@ -1204,36 +1216,7 @@ Save into `tester.level` and modulate:
 - **Level 3**: dense blocks, flags included, no explanations of
   basic concepts.
 
-### Step 8: Tester edits live (~3 min)
-
-**Context**: Step 4 had the tester edit a scalar (`description`)
-and watch the inspector card refresh. Step 8 raises the bar: edit
-a Markdown link and watch the MAP TOPOLOGY change (a connector
-disappears). Same watcher, different surface.
-
-This step needs the server running. **Check first** before asking
-them to launch it: many testers leave it running from Step 2 and
-the demo wraps without an explicit Ctrl+C. Word the prompt as a
-conditional, e.g. "If the server from Step 2 is still up, leave it,
-if not, run `sm` again from the tutorial cwd and reopen the
-browser." Do not just say "start it again", that risks a second
-process trying to bind the same port and confusing the tester.
-
-> Your turn. Edit `notes/todo.md` with your editor of choice and
-> delete the bullet that contains `@demo-agent`. Save. Watch the
-> UI.
->
-> Expected: the `notes/todo → demo-agent` connector (kind:
-> `mentions`) disappears in real time. The two nodes stay in the
-> **Map**; only the edge goes.
-
-You verify by reading `notes/todo.md` to confirm the change was
-applied. (On `agent-skills`, where the `@demo-agent` bullet was
-never created in Step 5, ask the tester to remove the only bullet
-they did add and watch THAT connector vanish, the lesson is the
-same.) Once they confirm, ask them to **Ctrl+C** the server.
-
-### Step 9: Browse CLI: list / show / check (~3 min)
+### Step 10: Browse CLI: list / show / check (~3 min)
 
 ```bash
 sm list
@@ -1252,9 +1235,9 @@ target of the hub's `references` link). `check` reads the persisted
 `scan_issues` table, it does NOT re-walk the filesystem. The
 fixture is clean (Steps 2-6 captured the latest state before
 Ctrl+C), so the verb prints `✓ No issues`. We will plant one in
-Step 11 and watch the rule catch it after a fresh `sm scan`.
+Step 12 and watch the rule catch it after a fresh `sm scan`.
 
-### Step 10: ASCII: graph + export (~3 min)
+### Step 11: ASCII: graph + export (~3 min)
 
 ```bash
 sm graph
@@ -1272,7 +1255,7 @@ within a key, AND across keys) and a `--format` of `md` or
 segment, `**` spans segments) so `path=notes/**` cleanly
 captures the notes folder regardless of the catch-all kind.
 
-### Step 11: Issues: broken refs (~3 min)
+### Step 12: Issues: broken refs (~3 min)
 
 `reference-broken` is one of the deterministic rules `sm check` runs.
 We'll plant one and watch it surface, that's the easiest way to
@@ -1317,7 +1300,7 @@ rest of the deep-dive doesn't depend on it.
 If the tester asks about `sm orphans` vs `sm check`, see
 §Scope clarifications.
 
-### Step 12: Plugins (~3 min)
+### Step 13: Plugins (~3 min)
 
 **Context, present plugins to the tester before any command runs.**
 This is the official welcome to the plugin world; many testers will
@@ -1328,15 +1311,13 @@ standard rules):
 
 > Plugins are how skill-map gets extended. The kernel ships with a
 > small set of built-in plugins out of the box, but anyone can
-> write their own and drop them into the project, `sm plugins
-> create` scaffolds a manifest and the stubs, so there is no
-> handwritten boilerplate to start from.
+> write their own and drop them into the project.
 >
 > The kernel exposes **six** plugin types you can implement:
 >
 > - **extractors**: find links and references inside markdown.
-> - **analyzers**: rules that surface issues on a node.
-> - **actions**: verbs the user can run on a node (e.g. `bump`).
+> - **analyzers**: rules that detect issues on a node.
+> - **actions**: operations the user runs on a node.
 > - **hooks**: fire on lifecycle events (scan started, finished,
 >   …).
 > - **formatters**: render outputs in different shapes (text,
@@ -1344,12 +1325,9 @@ standard rules):
 > - **providers**: declare new node kinds and where to look for
 >   them.
 >
-> Heads up: the same plugin management is in the UI too. From any
-> `sm serve` session, open the **gear icon → Plugins** tab to
-> browse and toggle plugins, CLI and UI hit the same store so a
-> change in one is reflected in the other. We'll use the CLI here
-> because it shows the full surface in a few lines, but knowing
-> the UI panel exists is useful for day-to-day work.
+> Heads up: plugins can be managed from the UI as well as the CLI.
+> We'll use the CLI here because it shows the full surface in a few
+> lines.
 >
 > Let's look at what's installed right now.
 
@@ -1360,7 +1338,7 @@ sm plugins list
 sm plugins doctor
 sm plugins show core
 sm plugins disable core/external-url-counter
-sm plugins list   # confirm it shows as disabled
+sm plugins show core   # confirm it shows as disabled
 sm plugins enable core/external-url-counter
 ```
 
@@ -1371,7 +1349,7 @@ behavior, or which id format `disable` / `enable` accept, see
 If `plugins list` shows zero entries (depends on the build), tell
 the tester no plugins are installed yet and offer to skip.
 
-### Step 13: Annotations and the `.sm` consent prompt (~3 min)
+### Step 14: Annotations and the `.sm` consent prompt (~3 min)
 
 **Context**: every `.md` skill-map tracks gets a sibling
 **companion file** with extension `.sm` that carries **all of
@@ -1386,8 +1364,9 @@ the project.
 
 The first time skill-map wants to write one in a new project it
 asks for your consent, it never touches your filesystem without
-permission. After you say yes, the choice persists per-checkout
-(gitignored) and the prompt never appears again.
+permission. After you say yes, the choice is saved to the
+project's `settings.local.json` (part of your project config,
+gitignored) and the prompt never appears again.
 
 We'll demonstrate by creating an empty annotation scaffold for
 `notes/todo.md`. **Reset any prior consent state first** so the
@@ -1423,7 +1402,7 @@ goes through silently). On a CI / non-interactive session, pass
 If the tester asks about `sm bump` vs `sm sidecar annotate` vs
 `sm sidecar refresh`, see §Scope clarifications.
 
-### Step 14: Validate links to folders outside the scan scope (~4 min)
+### Step 15: Validate links to folders outside the scan scope (~4 min)
 
 **Context**: until now the map saw only files inside the cwd. In
 real projects a repo often links to files in a sibling repo (a specs
@@ -1505,7 +1484,7 @@ sm init
 sm check
 ```
 
-> Vas a ver un warning del analyzer (regla que detecta problemas)
+> Vas a ver un error del analyzer (regla que detecta problemas)
 > `reference-broken` apuntando al link `../hijoB/spec.md`. Para
 > skill-map ese archivo no existe, porque `hijoB/` queda afuera
 > del scope (alcance) que `sm` está escaneando desde `hijoA/`:
@@ -1515,14 +1494,14 @@ sm check
 >
 > Pásame la salida (o un OK) y seguimos con el fix.
 
-Wait for confirmation before showing the fix. Mark the warning
+Wait for confirmation before showing the fix. Mark the error
 landed as expected; if the tester reports `✓ No issues` instead,
 the most likely cause is that they ran `sm check` from the
 tutorial root by mistake (the root scan still sees both folders).
 Have them re-check that the cwd of their second terminal is
 `link-validation/hijoA/` (`pwd`) and rerun.
 
-After they confirm the broken-ref warning, present the fix:
+After they confirm the broken-ref error, present the fix:
 
 > Para resolver el link sin tener que mover `hijoB/` dentro de
 > `hijoA/`, agregas `../hijoB` al setting `scan.referencePaths`.
@@ -1542,9 +1521,9 @@ sm check
 > El flag `--yes` confirma el privacy gate (control de privacidad):
 > estás autorizando que skill-map lea archivos fuera del project
 > root, así que pide tu OK explícito. Sin `--yes` el verb se aborta
-> y te pregunta en interactivo. Después del scan, `sm check`
-> debería imprimir `✓ No issues`: el warning desapareció y `hijoB/`
-> sigue sin entrar al mapa como nodo.
+> y te pide reintentar con `--yes` (no abre un prompt interactivo).
+> Después del scan, `sm check` debería imprimir `✓ No issues`: el
+> error desapareció y `hijoB/` sigue sin entrar al mapa como nodo.
 >
 > Pásame la salida y vemos cómo quedó persistido.
 
@@ -1599,18 +1578,10 @@ server. If the `sm` launch fails with a port-in-use error, an old
 `sm` is still bound to the default port from an earlier step;
 follow the §Edge cases recipe (`sm serve --port 4243`).
 
-Finally, return the tester to the tutorial root so any wrap-up
-work runs against the original cwd:
-
-> Último detalle: vuelve al cwd raíz del tutorial:
-
-```bash
-cd ../..
-```
-
-> Confirma cuando estés de vuelta.
-
-Mark `14-reference-paths: done`.
+The tester is still inside `link-validation/hijoA/` at this point.
+Do NOT send them back here; the return-to-root `cd ../..` now lives
+in §Final wrap-up, right before the cleanup line. Mark
+`15-reference-paths: done`.
 
 ---
 
@@ -1648,11 +1619,11 @@ Those verbs accept either a **qualified extension id**
 `<bundle>/<ext-id>` (e.g. `core/external-url-counter`,
 `claude/at-directive`) or a **bare bundle id** (e.g. `claude`,
 `core`) which the CLI treats as a macro that fans the toggle out
-across every extension inside the bundle. The display format you
-see in `plugins list`
-(`extractor:core/external-url-counter@1.0.0`) includes the kind
-prefix and the version for readability, strip both when passing
-the id to `disable` / `enable`.
+across every extension inside the bundle. `plugins show <bundle>`
+lists each extension as `<kind>  <bundle>/<ext-id>` (e.g.
+`extractor  core/external-url-counter`); the leading kind is just a
+readability column, pass only the `<bundle>/<ext-id>` part to
+`disable` / `enable`.
 
 Single-extension bundles (`openai`, `antigravity`,
 `agent-skills`) flip without prompting because the macro is a
@@ -1696,10 +1667,10 @@ clears on the next scan.
 ## Final wrap-up
 
 When everything is done (demo only, or demo + deep-dive), show the
-closing block (open with a "thanks, that's a wrap" line, then the
-sm-master pointer + cleanup):
+closing block: a "that's a wrap" line, the sm-master pointer, the
+return-to-root line (deep-dive only), then a one-line cleanup.
 
-> Thanks! That's a wrap.
+> Thanks! That's a wrap, you went through the whole tutorial.
 >
 > One more thing before you go: there's a companion skill called
 > **sm-master** that picks up where this tutorial leaves off. It's
@@ -1713,62 +1684,31 @@ sm-master pointer + cleanup):
 sm tutorial master
 ```
 
-> That scaffolds the skill under `.claude/skills/sm-master/`. Claude
-> Code auto-discovers it the next time it boots in that directory,
-> so you launch the deep-dive just by asking for it by name (say
-> "sm-master" or "tutorial avanzado"), no file to `@`-mention.
+If the deep-dive ran, the tester's second terminal is still inside
+`link-validation/hijoA/` from Step 15; send them back to the
+tutorial root before the cleanup line. **Skip this whole block if
+they stopped at the demo** (they never left the root).
 
-**Cleanup, choose ONE of the two paths**. Decide programmatically
-before showing the closing message: list the cwd (`ls -A <cwd>`)
-and compare against the set of paths this tutorial owns. If the
-ONLY entries are tutorial-owned, the cwd looks dedicated and the
-bulk path is safe. If there are unrelated entries (git repo,
-unrelated source, the tester's day-to-day work), use the per-file
-path instead. **Never recommend `rm -rf <cwd>` when the cwd
-contains any path skill-map did not put there**, the tester might
-be running the tutorial inside their actual work dir (a frequent
-finding from real sessions).
+> Last thing, go back to the tutorial root:
 
-If the cwd is dedicated, render:
+```bash
+cd ../..
+```
 
-> To delete everything THIS tutorial left behind:
->
->     cd ~ && rm -rf <cwd>
->
-> Thanks for testing skill-map!
+Then close with the thanks plus a one-line cleanup. **Keep it to a
+single line, never a file inventory.** Pick the shape from
+`ls -A <cwd>`: if every entry is tutorial-owned the cwd is
+dedicated and `rm -rf` is safe; otherwise point only at the
+tutorial-owned paths. **Never recommend `rm -rf <cwd>` when the
+cwd holds anything skill-map did not create** (testers often run
+this inside their real work dir).
 
-If the cwd is NOT dedicated, render the exact per-file list
-(substituting `<provider_dir>` per the saved `tutorial.provider`
-and dropping rows the provider did not create, same shape as
-the "start over" branch below):
-
-> Your cwd has unrelated files, so removing it would also delete
-> work that is not mine. To delete only what THIS tutorial left
-> behind, remove these specific paths from `<cwd>`:
->
-> ```
-> tutorial-state.yml
-> findings.md
-> .skillmapignore
-> .skill-map/
-> <provider_dir>/agents/demo-agent.md          (claude only)
-> <provider_dir>/commands/demo-command.md      (claude only)
-> <provider_dir>/skills/demo-skill/            (both providers)
-> notes/todo.md
-> notes/demo-guideline.md
-> notes/private-credentials.md
-> link-validation/                             (if Step 14 ran)
-> export.*                (if present)
-> dump.sql                (if present)
-> ```
->
-> Do NOT `rm -rf <provider_dir>/` or `notes/` as directories,
-> remove only the tutorial-owned files inside in case you have
-> unrelated files there. `link-validation/` IS safe to remove as
-> a whole directory, the agent created it from scratch in Step 14
-> and nothing else lives inside it.
->
-> Thanks for testing skill-map!
+> Thanks for testing skill-map! To clean up: a throwaway dir is
+> just `cd ~ && rm -rf <cwd>`; if it lives inside your own work,
+> delete only what the tutorial created (`.skill-map/`, the fixture
+> `.md` / `.sm` files, and `link-validation/`) and leave the rest.
+> If anything felt off in any step, tell me and I'll log it in
+> `findings.md` before you close.
 
 ## Resume / restart
 
@@ -1777,9 +1717,9 @@ the cwd, start like this (do NOT repeat pre-flight from scratch):
 
 > I see you already started the tutorial.
 >
-> You're at step <N> of 7 (or "you've already completed the demo
-> (steps 1-7) and you're on step <M> of 6 of the deep-dive (steps
-> 8-13)", depending on the yaml state).
+> You're at step <N> of 9 (or "you've already completed the demo
+> (steps 1-9) and you're on step <M> of 6 of the deep-dive (steps
+> 10-15)", depending on the yaml state).
 >
 > 1. **Continue** from where you left off
 > 2. **Start over**: wipes all the tutorial content in this dir
@@ -1818,7 +1758,7 @@ anything**:
    > notes/todo.md
    > notes/demo-guideline.md
    > notes/private-credentials.md
-   > link-validation/                             (if Step 14 ran)
+   > link-validation/                             (if Step 15 ran)
    > export.*                (if present)
    > dump.sql                (if present)
    > ```
@@ -1839,7 +1779,7 @@ anything**:
    `<provider_dir>/skills`), then `notes/` and `<provider_dir>/`,
    each one only if empty (silent failure if not). `link-validation/`
    IS safe to remove recursively when present, the agent created it
-   from scratch in Step 14 and nothing else lives inside it. Then
+   from scratch in Step 15 and nothing else lives inside it. Then
    start everything from pre-flight.
 
 ## Edge cases
