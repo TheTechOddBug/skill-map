@@ -377,11 +377,10 @@ skill-map/
 
 (ProgressEmitterPort exists alongside the four shown; its adapters are terminal sinks, `pretty` / `stream-output` / `--json`, and do not participate in the kernel-owning diagram.)
 
-- Kernel accepts **ports** (interfaces) for `StoragePort`, `FilesystemPort`, `PluginLoaderPort`, `RunnerPort`, `ProgressEmitterPort`.
-- Kernel never imports SQLite, fs, or subprocess directly.
-- Each adapter swappable: `InMemoryStorageAdapter` for tests, real `SqliteStorageAdapter` in production; `MockRunner` for tests, real `ClaudeCliRunner` in production.
-- Test pyramid collapses cleanly: unit tests inject mocks into kernel; integration tests wire real adapters.
-- CLI-first principle reinterpreted: CLI and UI are **peers** consuming the same kernel API, neither depends on the other.
+The kernel accepts ports (`StoragePort`, `FilesystemPort`, `PluginLoaderPort`, `RunnerPort`, `ProgressEmitterPort`) and never imports SQLite, fs, or subprocess directly. The normative port contract and IO discipline live in [`spec/architecture.md`](./spec/architecture.md) (§Ports, §Layering). Design consequences worth restating here:
+
+- Each adapter is swappable: `InMemoryStorageAdapter` / `MockRunner` in tests, `SqliteStorageAdapter` / `ClaudeCliRunner` in production. The test pyramid collapses cleanly, unit tests inject mocks into the kernel, integration tests wire real adapters.
+- CLI and UI are **peers** consuming the same kernel API; neither depends on the other.
 
 ### Package layout
 
@@ -433,69 +432,15 @@ The kernel never imports Angular; `ui/` never imports `src/` internals. The sole
 
 ## Persistence
 
-### Two scopes, symmetric
+SQLite at `<cwd>/.skill-map/skill-map.db`, **gitignored by default** because it carries per-developer state (job runs, summaries, plugin KV) most teams do not want to diff in PRs; a team opts into sharing audit history via the experimental `history.share` flag (then removes the DB from its `.gitignore`). There is no global / user scope: the CLI never reads `$HOME` by default, and the only way to extend the scan beyond `<cwd>` is passing positional roots to `sm scan` (per-invocation, never persisted). The one documented `$HOME` exception is `~/.skill-map/settings.json` (per-machine preferences, read directly, never merged into the project layers). Scope principle: [`spec/cli-contract.md`](./spec/cli-contract.md) §Scope is always project-local.
 
-| Scope | Scans | DB location |
-|---|---|---|
-| **project** (the only scope) | current repo (skills, agents, CLAUDE.md under cwd); positional roots on `sm scan [roots...]` extend the scan per-invocation | `<cwd>/.skill-map/skill-map.db` |
+The full table catalog, column conventions, and migration rules are normative in [`spec/db-schema.md`](./spec/db-schema.md). Design shape worth restating:
 
-There is no global / user scope, see `spec/cli-contract.md` §Scope is always project-local. The CLI never reads `$HOME` by default; the only way to extend the scan beyond `<cwd>` is passing positional roots to `sm scan` (per-invocation, never persisted). The narrow documented exception is `~/.skill-map/settings.json` (validated by `user-settings.schema.json`), a single file that holds genuinely per-machine preferences (today: the update-check toggle + its throttle bookkeeping; future: locale, theme). It is read directly by the module that owns the feature and never merged into the project config layers.
+- **Three zones**: `scan_*` (last scan result, truncated and repopulated by `sm scan`), `state_*` (persistent operational data: jobs, executions, summaries, enrichments, plugin KV), `config_*` (user-owned config). Backups preserve `state_*` + `config_*`; `scan_*` regenerates on demand.
 
-Project DB is **gitignored by default**. A team that wants to share audit history across contributors opts in explicitly via the `history.share` config flag (`spec/schemas/project-config.schema.json`, marked `Stability: experimental`); when set to `true`, the project is expected to remove `./.skill-map/skill-map.db` from its `.gitignore`. The default stays conservative because the DB carries per-developer state (job runs, summaries, plugin KV) that most teams do not want to diff in PRs.
-
-### Three zones
-
-| Zone | Nature | Regenerable | Examples |
-|---|---|---|---|
-| `scan_*` | last scan result | yes, `sm scan` truncates and repopulates | `scan_nodes`, `scan_links`, `scan_issues` |
-| `state_*` | persistent operational data | no, must back up | `state_jobs`, `state_executions`, `state_summaries`, `state_enrichments`, `state_plugin_kvs` |
-| `config_*` | user-owned configuration | no | `config_plugins`, `config_preferences`, `config_schema_versions` |
-
-Backups preserve `state_*` + `config_*`. `scan_*` regenerated on demand.
-
-### Naming conventions
-
-- Tables: `snake_case`, **plural** (`scan_nodes`, `state_jobs`). Zone prefix required.
-- Plugin tables: `plugin_<normalized_id>_<table>` where normalization = lowercase + `[^a-z0-9]` → `_` + collapse runs + strip leading/trailing. Collisions after normalization = load-time error.
-- Columns: `snake_case`. PK = `id`. FK = `<referenced_table_singular>_id`.
-- Timestamps: suffix `_at`, type **INTEGER** (Unix milliseconds).
-- Durations: suffix `_seconds` or `_ms`.
-- Booleans: prefix `is_` or `has_`.
-- Hashes: suffix `_hash`, TEXT (hex).
-- JSON blobs: suffix `_json`, TEXT.
-- Counts: suffix `_count`, INTEGER.
-- Enums: plain column + CHECK constraint, values kebab-case lowercase. No lookup tables.
-- Indexes: `ix_<table>_<cols>`. Constraints: `fk_`, `uq_`, `ck_` prefixes.
-- SQL keywords UPPERCASE, identifiers lowercase.
-
-### Data-access layer
-
-- **Kysely + CamelCasePlugin** inside the SQLite adapter.
-- Kernel / CLI / Server / Skill consume typed repos exposing `camelCase` domain types. Never see SQL.
-- Mapping `snake_case ↔ camelCase` is handled automatically inside the adapter.
-- Full ORMs (Prisma, Drizzle, TypeORM) rejected, incompatible with hand-written `.sql` migrations.
-
-### Migrations
-
-- Format: `.sql` files only. Naming: `NNN_snake_case.sql` (3-digit sequential padded).
-- Version tracking: `PRAGMA user_version` (fast check) + `config_schema_versions(scope, version, description, applied_at)` multi-scope.
-- Direction: up-only. Rollback via `sm db restore <backup>`.
-- Kernel auto-wraps each migration in `BEGIN` / `COMMIT`. Files contain only DDL.
-- Strict versioning, no idempotency required.
-- Location: `src/migrations/` (kernel), `<plugin-dir>/migrations/` (plugins).
-- Auto-apply on startup with auto-backup (`.skill-map/backups/skill-map-pre-migrate-v<N>.db`). Config flag `autoMigrate: true` default.
-- **Schema drift (pre-1.0)**: while the kernel stays in `0.Y.Z` there are no incremental kernel migrations across a schema change. A write-side open (`sm scan`, `sm watch`, the BFF watcher) compares `scan_meta.scanned_by_version` against the running CLI; any `major.minor` difference deletes the DB (cache is derived, `.sm` sidecars hold the real data) and recreates it from `001_initial.sql`, then the scan repopulates it. Patch differences are compatible. Interactive `sm scan` confirms unless `--yes`; non-interactive callers rebuild silently. Read verbs keep the version-skew advisory. Replaced by real up-only migrations at `1.0.0`. See `spec/db-schema.md` §Schema drift (pre-1.0).
-
-### DB management commands
-
-- `sm db reset`, drop `scan_*` only. Keeps `state_*` (history, jobs, summaries, enrichment) and `config_*`. Non-destructive; equivalent to asking for a fresh scan. No prompt.
-- `sm db reset --state`, also drop `state_*` and every `plugin_<normalized_id>_*` table (mode B) and `state_plugin_kvs` (mode A). Keeps `config_*`. Destructive to operational history; requires interactive confirmation unless `--yes`.
-- `sm db reset --hard`, delete the DB file entirely. Keeps the plugins folder on disk so the next boot re-discovers them. Destructive; requires interactive confirmation unless `--yes`.
-- `sm db backup [--out <path>]`, WAL checkpoint + copy.
-- `sm db restore <path>`, swap DB.
-- `sm db shell`, interactive sqlite3.
-- `sm db dump [--tables ...]`, SQL dump.
-- `sm db migrate [--dry-run | --status | --to <n> | --kernel-only | --plugin <id> | --no-backup]`.
+- **Data access**: Kysely + CamelCasePlugin inside the SQLite adapter; the kernel and adapters consume typed `camelCase` repos and never see SQL (the `snake_case ↔ camelCase` mapping is automatic). Full ORMs (Prisma, Drizzle, TypeORM) were rejected as incompatible with hand-written `.sql` migrations. Table / column / index naming conventions are in [`spec/db-schema.md`](./spec/db-schema.md).
+- **Migrations**: up-only `.sql` files, auto-applied on startup with auto-backup. **Pre-1.0 schema drift**: while the kernel is in `0.Y.Z` there are no incremental kernel migrations; a write-side open compares `scan_meta.scanned_by_version` against the running CLI and any `major.minor` mismatch deletes and rebuilds the DB from `001_initial.sql` (the cache is derived; `.sm` sidecars hold the real data), then the scan repopulates it. Real up-only migrations land at `1.0.0`. See [`spec/db-schema.md`](./spec/db-schema.md) §Schema drift (pre-1.0).
+- **`sm db` verbs** (`reset` / `reset --state` / `reset --hard` / `backup` / `restore` / `shell` / `dump` / `migrate`) are specified in [`spec/cli-contract.md`](./spec/cli-contract.md).
 
 ---
 
@@ -503,10 +448,8 @@ Backups preserve `state_*` + `config_*`. `scan_*` regenerated on demand.
 
 ### Core model
 
-- **Job** = runtime instance of an Action applied to one or more Nodes. Lives in `state_jobs`.
-- **Job file** = MD at `.skill-map/jobs/<id>.md` with rendered prompt + callback instruction. Kernel-generated. Ephemeral (pruned after retention).
-- **ID formats**: base shape `<prefix>-YYYYMMDD-HHMMSS-XXXX` (UTC timestamp + 4 lowercase hex chars), with one optional `<mode>` segment on runs. Prefixes: `d-` for jobs, `e-` for execution records, and `r-[<mode>-]` for runs, carried in `runId` on progress events so parallel per-runner streams stay demuxable. Canonical `<mode>` values today: `ext` (external Skill claims), `scan` (scan runs), `check` (standalone issue recomputations). Without `<mode>`, runs are the CLI runner's own loop. Human-readable, sortable, collision-resistant for single-writer. Full analyzer in Decision #88.
-- **No maildir**. State lives in DB (`state_jobs.status`); file is content only. Flat folder.
+- **Job** = runtime instance of an Action applied to one or more Nodes, in `state_jobs`. The **job file** (`.skill-map/jobs/<id>.md`) holds the rendered prompt + callback instruction; it is kernel-generated, ephemeral, and content-only (state lives in `state_jobs.status`, no maildir, flat folder).
+- **ID formats**: base shape `<prefix>-YYYYMMDD-HHMMSS-XXXX` (UTC + 4 hex); prefixes `d-` jobs, `e-` execution records, `r-[<mode>-]` runs (modes `ext` / `scan` / `check`), carried in `runId` so parallel runner streams stay demuxable. Full analyzer in Decision #88.
 
 ### Lifecycle
 
@@ -528,45 +471,17 @@ Backups preserve `state_*` + `config_*`. `scan_*` regenerated on demand.
         └────────┘                    └──────────────────┘
 ```
 
-Terminal states: `completed`, `failed`. `queued → failed` is only reachable via `sm job cancel` (reason `user-cancelled`). Full transition table in `spec/job-lifecycle.md`.
+Terminal states `completed` / `failed`; `queued → failed` is reachable only via `sm job cancel`. Two mechanisms make multiple runners safe to race, both normative in [`spec/job-lifecycle.md`](./spec/job-lifecycle.md): the **atomic claim** (`UPDATE ... WHERE status='queued' ... RETURNING id`, single-row, priority then FIFO) and the start-of-run **auto-reap** (TTL-expired `running` rows flipped to `failed`, reason `abandoned`).
 
-- Atomic claim: `UPDATE state_jobs SET status='running' WHERE id=(SELECT id FROM state_jobs WHERE status='queued' ORDER BY priority DESC, created_at ASC LIMIT 1) AND status='queued' RETURNING id`.
-- Auto-reap at start of every `sm job run`: marks `running` rows with `claimed_at + ttl_seconds * 1000 < now` as failed (reason `abandoned`).
-
-### TTL per action
-
-Resolved at submit time in three steps; the outcome is frozen on `state_jobs.ttlSeconds` and never changes for the life of the job.
-
-1. **Base duration** (seconds):
-   - `action.expectedDurationSeconds` from the manifest, if declared.
-   - Else `config.jobs.ttlSeconds` (default `3600`). Used for `mode: local` actions and any manifest that omits the hint.
-2. **Computed TTL**:
-   - `computed = max(base × config.jobs.graceMultiplier, config.jobs.minimumTtlSeconds)`.
-   - Defaults: `graceMultiplier = 3`, `minimumTtlSeconds = 60` (acts as a floor, never a default).
-3. **User overrides** (later wins):
-   - `config.jobs.perActionTtl.<actionId>`, replaces steps 1+2 entirely.
-   - `sm job submit --ttl <seconds>`, replaces everything.
-
-Normative contract lives in `spec/job-lifecycle.md §TTL resolution`.
-
-### Duplicate prevention
-
-- On submit, check for active `(actionId, actionVersion, nodeId, contentHash)` in status `queued|running`. If exists: refuse with exit code 3 and display existing job-id.
-- `--force` override bypasses the check.
-- `contentHash = sha256(actionId + actionVersion + bodyHash + frontmatterHash + promptTemplateHash)`.
-- Post-completion: no check; re-submit always allowed.
+**TTL** is resolved at submit time and frozen on `state_jobs.ttlSeconds`: `action.expectedDurationSeconds` (else `config.jobs.ttlSeconds`, default 3600) times `graceMultiplier` (3), floored at `minimumTtlSeconds` (60), with `config.jobs.perActionTtl.<id>` or `--ttl` overriding. **Duplicate prevention**: a submit matching an active `(actionId, actionVersion, nodeId, contentHash)` in `queued|running` is refused with exit 3 unless `--force`.
 
 ### Runners
 
-Three execution paths, matching the three values the `runner` field in `job.schema.json` can take (`cli` / `skill` / `in-process`):
+Three execution paths, matching the `runner` field in `job.schema.json` (`cli` / `skill` / `in-process`):
 
-| Path | Role | `RunnerPort` impl | Execution engine | Isolation | Use case |
-|---|---|---|---|---|---|
-| **CLI runner loop** (`sm job run`, `runner: cli`) | Driving command that claims, invokes a `RunnerPort` impl, and records | `ClaudeCliRunner` (the driven adapter the loop uses in prod; `MockRunner` in tests) | `claude -p < jobfile.md` subprocess per item | Context-free (clean) | CI, cron, batch |
-| **Skill agent** (`/skill-map:run-queue`, `runner: skill`) | Driving adapter that consumes `sm job claim` + `sm record` from inside an LLM session | **None**, the agent IS the execution; it does not cross `RunnerPort` | Agent executes in-session using its own LLM + tools | Context bleeds between items | Interactive |
-| **In-process** (`mode: local` actions, `runner: in-process`) | Kernel-internal path for actions that do not need an LLM at all | **None**, the action's own code produces the report; no job file, no subprocess | Action function executes in the submitting process; kernel validates the returned report against `reportSchemaRef` and transitions the job straight to `completed` or `failed` | Same process as the submitter | Deterministic enrichment (`github-enrichment`), cheap aggregations, analyzer-like actions |
-
-The `RunnerPort` interface is implemented by `ClaudeCliRunner` (plus `MockRunner` for tests). `sm job run` is the command loop that uses it, not the port impl itself. The **Skill agent** is a peer driving adapter to CLI / Server: it calls `sm job claim` + `sm record` as any other user of the binary would, and never crosses `RunnerPort`. The name "runner" applied to the skill path is descriptive, not structural. The **in-process** path skips the job file entirely: `sm job submit <local-action>` computes the report synchronously, writes the execution record, and returns. `sm job submit --run` and `sm job run` are no-ops for `mode: local` actions, they already ran.
+- **CLI runner loop** (`sm job run`, `runner: cli`): claims, invokes a `RunnerPort` impl (`ClaudeCliRunner` in prod, `MockRunner` in tests) as a `claude -p < jobfile.md` subprocess per item, then records. Context-free; for CI / cron / batch.
+- **Skill agent** (`/skill-map:run-queue`, `runner: skill`): a peer driving adapter (to CLI / Server) that consumes `sm job claim` + `sm record` from inside an LLM session, the agent IS the execution and never crosses `RunnerPort` (the "runner" label here is descriptive, not structural). Context bleeds between items; for interactive use.
+- **In-process** (`mode: local`, `runner: in-process`): the action's own code produces the report synchronously, no job file, no subprocess; the kernel validates it against the action's report schema and transitions straight to terminal. `--run` / `sm job run` are no-ops (it already ran). For deterministic enrichment and cheap aggregations.
 
 Skill agent flow:
 ```
@@ -580,26 +495,15 @@ loop:
 
 ### Nonce + callback auth
 
-- Each job MD has unique `nonce` in frontmatter.
-- `sm record` requires `--id <job-id> --nonce <nonce>`, mismatch rejects.
-- Prevents forged callback closing someone else's pending dispatch.
+Each job MD carries a unique `nonce` in frontmatter; `sm record` requires a matching `--id` + `--nonce`, so a forged callback cannot close someone else's pending dispatch.
 
 ### Prompt injection mitigation
 
-Two kernel-enforced layers:
-
-1. **User-content delimiters**: all interpolated node content wrapped in `<user-content id="<node.path>">...</user-content>`. Kernel escapes any literal occurrence of the closing tag inside the content by inserting a zero-width space before the `>`: `</user-content>` → `</user-content&#x200B;>` (U+200B). The substitution is reversed **only for display**, never when computing `bodyHash`, `frontmatterHash`, `contentHash`, or the `promptTemplateHash` fed into the job's content hash. Nesting of `<user-content>` blocks is forbidden; an action template that needs multiple nodes emits one top-level block per node. An action template that interpolates user text outside a `<user-content>` block is rejected at registration time. Full contract in `spec/prompt-preamble.md`.
-2. **Canonical preamble**: kernel auto-prepends `spec/prompt-preamble.md` text before any action template. Action templates cannot modify, omit, or precede it. The preamble instructs the model: user-content is data, never instructions; detected injections must be noted in `safety` field of the report.
+Two kernel-enforced layers, normative in [`spec/prompt-preamble.md`](./spec/prompt-preamble.md): (1) every interpolated node body is wrapped in `<user-content id="...">...</user-content>` delimiters (the kernel escapes any literal closing tag with a zero-width space, reversed only for display, never for hashing; nesting is forbidden, one block per node; a template interpolating user text outside a block is rejected at registration); (2) the canonical preamble is auto-prepended before every action template (templates cannot modify, omit, or precede it) and instructs the model to treat user-content as data and record detected injections in the report's `safety` field.
 
 ### Atomicity edge cases
 
-| Scenario | Handling |
-|---|---|
-| DB `queued`/`running` but MD file missing | Mark `failed` with `error: job-file-missing`. `sm doctor` reports proactively. |
-| MD file with no DB row | Reported by `sm doctor`. User runs `sm job prune --orphan-files`. Never auto-deleted. |
-| User edited MD file before run | By design: runner uses current content. User owns the consequences. |
-| `completed` + file present | Normal. Retention policy (`sm job prune`) eventually cleans. |
-| Runner crash between claim and read | Covered by auto-reap; TTL expires → `failed` with `abandoned`. |
+Orphan-file / missing-file / mid-run-crash handling (DB row with no MD file → `failed: job-file-missing`; MD file with no DB row → `sm job prune --orphan-files`, never auto-deleted; crash between claim and read → covered by auto-reap) is specified in [`spec/job-lifecycle.md`](./spec/job-lifecycle.md). A user who edits a job MD before it runs owns the consequences: the runner uses current content by design.
 
 ### Concurrency
 
@@ -611,40 +515,11 @@ The event schema carries `runId` + `jobId` so parallel per-runner sequences can 
 
 ### Progress events
 
-Canonical event stream (`spec/job-events.md`):
-
-- **Job family (stable)**: `run.started`, `run.reap.started`, `run.reap.completed`, `job.claimed`, `job.skipped`, `job.spawning`, `model.delta`, `job.callback.received`, `job.completed`, `job.failed`, `run.summary`, plus the synthetic `emitter.error`.
-- **Non-job families (experimental, v0.x)**: `scan.*` (`scan.started`, `scan.progress`, `scan.completed`) and `issue.*` (`issue.added`, `issue.resolved`). Shipped at Step 14 with the WebSocket broadcaster; shapes lock when promoted to `stable` in a later minor bump.
-
-All events share the envelope `{ type, timestamp, runId, jobId, data }`. Non-job events use synthetic runs: scans run under `r-scan-…`, standalone issue recomputations under `r-check-…` (same `r-<mode>-…` pattern as `r-ext-…` for external Skill claims).
-
-Emitted via `ProgressEmitterPort`. Three output adapters:
-- **pretty** (default TTY): line progress, colored.
-- **`--stream-output`**: pretty + model tokens inline (debug).
-- **`--json`**: ndjson canonical.
-
-Server re-emits the same events via **WebSocket**. Task UI integration (Claude Code's `TaskCreate` and any future host primitive) lives as a host-specific skill (`sm-cli-run-queue`), not as a CLI output mode. Cursor is explicitly out of scope (see §Discarded).
+Emitted via `ProgressEmitterPort` (adapters: `pretty` default TTY, `--stream-output` adds model tokens for debug, `--json` ndjson) and re-emitted over **WebSocket** by the server. The canonical event catalog, the `{ type, timestamp, runId, jobId, data }` envelope, and the synthetic-run pattern (`r-scan-…` / `r-check-…`) are in [`spec/job-events.md`](./spec/job-events.md): the **job family** is stable, the **`scan.*` / `issue.*`** families are experimental until promoted. Task-UI integration (Claude Code's `TaskCreate`, future host primitives) lives as a host-specific skill (`sm-cli-run-queue`), not a CLI output mode; Cursor is out of scope (see §Discarded).
 
 ### `sm job` CLI surface
 
-| Command | Purpose |
-|---|---|
-| `sm job submit <action> -n <id>` | Enqueue (or run inline for local mode). |
-| `sm job submit <action> -n <id> --run` | Submit + spawn subprocess immediately. |
-| `sm job submit <action> --all` | Apply to every node matching action's precondition. |
-| `sm job submit ... --force` | Bypass duplicate check. |
-| `sm job submit ... --ttl <seconds>` | Override computed TTL. |
-| `sm job submit ... --priority <n>` | Override job priority (Decision #40). Integer; higher runs first; default `0`; negatives permitted. Frozen on `state_jobs.priority` at submit. |
-| `sm job list [--status ...]` | List jobs. |
-| `sm job show <id>` | Detail (includes TTL remaining for running). |
-| `sm job preview <id>` | Render the MD (no execution). |
-| `sm job claim [--filter <action>]` | Atomic primitive. Returns next queued id. |
-| `sm job run` | CLI runner loop: claim + spawn + record. One job. |
-| `sm job run --all \| --max N` | Drain the queue. |
-| `sm job status [<id>]` | Counts or single-job status. |
-| `sm job cancel <id> \| --all` | Force one or every queued/running job to `failed`. |
-| `sm job prune` | Retention GC. |
-| `sm job prune --orphan-files` | Clean orphan MD files. |
+The verb surface (`submit` / `list` / `show` / `preview` / `claim` / `run` / `status` / `cancel` / `prune`, with `--run` / `--all` / `--force` / `--ttl` / `--priority` / `--orphan-files`) is specified in [`spec/cli-contract.md`](./spec/cli-contract.md).
 
 ---
 
