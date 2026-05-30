@@ -74,16 +74,24 @@ Rules:
 
 ## Surfaces and carrier
 
-Three surfaces report independently, to three logically separate Sentry
-projects, so a crash can be attributed to the right layer:
+Three surfaces report independently so a crash can be attributed to the right
+layer. They report to **two** Sentry projects: the two Node surfaces (CLI and
+BFF) share one project and are told apart by a `surface` tag, the browser UI
+reports to its own project.
 
-| Surface | Runtime | Project |
-|---|---|---|
-| `sm <verb>` | Node (CLI) | `skill-map-cli` |
-| `sm serve` BFF | Node (Hono) | `skill-map-bff` |
-| UI | Browser (Angular) | `skill-map-ui` |
+| Surface | Runtime | Discriminator | Project |
+|---|---|---|---|
+| `sm <verb>` | Node (CLI) | `surface: cli` tag | shared Node project |
+| `sm serve` BFF | Node (Hono) | `surface: bff` tag | shared Node project |
+| UI | Browser (Angular) | own project | `skill-map-ui` |
 
-Each surface carries a hardcoded DSN. Sentry DSNs are public by design (they
+The two Node surfaces share one project because they are the same workspace
+code in the same runtime; the `surface` tag, plus the per-event `route` /
+`method` tags, separate a CLI crash from a BFF request-path crash. The UI has
+its own project, so it needs no `surface` tag. Each project carries a
+hardcoded DSN (`SENTRY_DSN_NODE` for the shared Node project, `SENTRY_DSN_UI`
+for the UI), centralized in `src/public-config.ts` and
+`ui/src/app/core/public-config.ts`. Sentry DSNs are public by design (they
 identify an ingest endpoint, they are not secrets) and are safe to ship in
 the published artifact. The BFF MUST NOT emit usage events; it reports only
 unhandled errors in the request path.
@@ -96,8 +104,9 @@ An event MAY carry:
   the path scrubber (below).
 - Environment facts: `cli_version`, `node_major`, `os`, `arch`, and, for the
   UI, browser family and version.
-- The fixed tag set: `verb`, `phase`, `plugin_id` (built-in ids only),
-  `extension_kind`, `route` (BFF), `method`, `status`.
+- The fixed tag set: `surface` (`cli` / `bff` on the shared Node project),
+  `verb`, `phase`, `plugin_id` (built-in ids only), `extension_kind`,
+  `route` (BFF), `method`, `status`.
 - The error name, error code, and a scrubbed message.
 - Breadcrumbs (a bounded recent-event trail) with each message scrubbed.
 
