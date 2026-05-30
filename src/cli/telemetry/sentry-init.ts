@@ -27,6 +27,7 @@
 import { SENTRY_DSN_NODE } from '../../public-config.js';
 import { scrubEvent } from '../../core/telemetry/scrub.js';
 import { isErrorTelemetryEnabled } from '../util/user-settings-store.js';
+import { resolveTelemetryEnv } from './telemetry-env.js';
 
 /**
  * The CLI reports to the shared Node Sentry project (`SENTRY_DSN_NODE` in
@@ -99,7 +100,7 @@ export async function initSentryCli(
   Sentry.init({
     dsn: SENTRY_DSN_NODE,
     release: `@skill-map/cli@${version}`,
-    environment: 'production',
+    environment: resolveTelemetryEnv(),
     // CLI and BFF share one Sentry project; the `surface` tag tells their
     // events apart in the shared issue stream.
     initialScope: { tags: { surface: 'cli' } },

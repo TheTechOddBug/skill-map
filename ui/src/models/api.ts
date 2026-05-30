@@ -565,6 +565,8 @@ export interface IPreferencesApi {
     usageCliEnabled: boolean;
     usageUiEnabled: boolean;
     anonymousId: string | null;
+    /** `dev` for dev / dogfooding runs, `prod` otherwise. */
+    environment: 'dev' | 'prod';
   };
 }
 

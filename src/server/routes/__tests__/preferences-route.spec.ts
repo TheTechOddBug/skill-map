@@ -37,15 +37,21 @@ interface IPreferencesEnvelopeWire {
     usageCliEnabled: boolean;
     usageUiEnabled: boolean;
     anonymousId: string | null;
+    environment: string;
   };
 }
 
-/** The telemetry sub-envelope when nothing is opted in (every default). */
+/**
+ * The telemetry sub-envelope when nothing is opted in (every default).
+ * `environment` is `prod` because the before-hook unsets
+ * `SKILL_MAP_TELEMETRY_ENV` for deterministic assertions.
+ */
 const TELEMETRY_DEFAULT = {
   errorsEnabled: false,
   usageCliEnabled: false,
   usageUiEnabled: false,
   anonymousId: null,
+  environment: 'prod',
 } as const;
 
 interface IErrorEnvelopeWire {
@@ -58,6 +64,7 @@ let dbPath: string;
 let cwd: string;
 let homedir: string;
 let originalHome: string | undefined;
+let originalEnv: string | undefined;
 
 before(() => {
   tmp = mkdtempSync(join(tmpdir(), 'skill-map-prefs-route-'));
@@ -70,11 +77,17 @@ before(() => {
   // threading a context override.
   originalHome = process.env['HOME'];
   process.env['HOME'] = homedir;
+  // Unset the environment marker so the exposed `environment` is
+  // deterministically `production` regardless of the dev's shell.
+  originalEnv = process.env['SKILL_MAP_TELEMETRY_ENV'];
+  delete process.env['SKILL_MAP_TELEMETRY_ENV'];
 });
 
 after(() => {
   if (originalHome === undefined) delete process.env['HOME'];
   else process.env['HOME'] = originalHome;
+  if (originalEnv === undefined) delete process.env['SKILL_MAP_TELEMETRY_ENV'];
+  else process.env['SKILL_MAP_TELEMETRY_ENV'] = originalEnv;
   rmSync(tmp, { recursive: true, force: true });
   rmSync(cwd, { recursive: true, force: true });
   rmSync(homedir, { recursive: true, force: true });

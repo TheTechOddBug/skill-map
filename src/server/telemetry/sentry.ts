@@ -26,6 +26,7 @@ import { HTTPException } from 'hono/http-exception';
 import { SENTRY_DSN_NODE } from '../../public-config.js';
 import { scrubEvent } from '../../core/telemetry/scrub.js';
 import { isTelemetryActive } from '../../cli/telemetry/sentry-init.js';
+import { resolveTelemetryEnv } from '../../cli/telemetry/telemetry-env.js';
 
 /**
  * The BFF reports to the shared Node Sentry project (`SENTRY_DSN_NODE` in
@@ -64,7 +65,7 @@ export async function initSentryBff(
   Sentry.init({
     dsn: SENTRY_DSN_NODE,
     release: `@skill-map/cli@${version}`,
-    environment: 'production',
+    environment: resolveTelemetryEnv(),
     // Shared project with the CLI; the `surface` tag separates the two.
     initialScope: { tags: { surface: 'bff' } },
     // Errors only: skip the OpenTelemetry ESM loader hooks (we run no

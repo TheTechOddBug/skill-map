@@ -29,10 +29,10 @@ describe('sentry-init (dormant unless consent)', () => {
 
   it('initUiSentry is a no-op when consent is OFF, even with a configured DSN (dormant)', async () => {
     await expect(
-      initUiSentry({ consentEnabled: false, release: '1.2.3' }),
+      initUiSentry({ consentEnabled: false, release: '1.2.3', environment: 'prod' }),
     ).resolves.toBeUndefined();
     await expect(
-      initUiSentry({ consentEnabled: false, release: null }),
+      initUiSentry({ consentEnabled: false, release: null, environment: 'dev' }),
     ).resolves.toBeUndefined();
   });
 

@@ -116,13 +116,13 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     .fn()
     .mockResolvedValue({
       updateCheck: { enabled: true },
-      telemetry: { errorsEnabled: false, usageCliEnabled: false, usageUiEnabled: false, anonymousId: null },
+      telemetry: { errorsEnabled: false, usageCliEnabled: false, usageUiEnabled: false, anonymousId: null, environment: 'prod' },
     }),
   setPreferences: vi
     .fn()
     .mockResolvedValue({
       updateCheck: { enabled: true },
-      telemetry: { errorsEnabled: false, usageCliEnabled: false, usageUiEnabled: false, anonymousId: null },
+      telemetry: { errorsEnabled: false, usageCliEnabled: false, usageUiEnabled: false, anonymousId: null, environment: 'prod' },
     }),
   getProjectPreferences: vi
     .fn()

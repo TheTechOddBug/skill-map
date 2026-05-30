@@ -184,13 +184,23 @@ client IP / geo-IP enrichment are all disabled.
 ## Usage event taxonomy
 
 Usage collection is **deny by default**: only the events and properties named
-here may be sent. Every event carries `distinct_id = telemetry.anonymousId`
-and the common environment facts (`cli_version`, `node_major`, `os`, `arch`;
-the UI additionally carries browser family/version where the SDK provides
-it). The UI also attaches the active theme as super-properties on every event:
-`theme_base` (`light` / `dark`) and `theme_extra` (the active extra theme id,
-or `none`); future extra themes flow through by value with no spec change. No
-other identity property is ever attached.
+here may be sent. Every event carries `distinct_id = telemetry.anonymousId`,
+the common environment facts (`cli_version`, `node_major`, `os`, `arch`; the UI
+additionally carries browser family/version where the SDK provides it), and
+`environment` (`dev` / `prod`, see below). The UI also attaches
+the active theme as super-properties on every event: `theme_base` (`light` /
+`dark`) and `theme_extra` (the active extra theme id, or `none`); future extra
+themes flow through by value with no spec change. No other identity property is
+ever attached.
+
+The `environment` tag lets the maintainers filter their own dogfooding out of
+the real-world data. It is `dev` when the `SKILL_MAP_TELEMETRY_ENV` environment
+variable is set to any non-empty value other than a production marker
+(`prod` / `production`); the dev tooling sets it. It is `prod` when the
+variable is absent, empty, or a production marker. It is NOT a kill switch (it
+never disables telemetry, only labels the source) and rides on both surfaces:
+usage events as above, and Sentry's native `environment` field on error
+events.
 
 | Event | Surface | Properties |
 |---|---|---|

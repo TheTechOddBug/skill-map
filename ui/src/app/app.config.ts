@@ -20,7 +20,7 @@ import { ProjectInfoService } from './services/project-info';
 import { SmTitleStrategy } from './services/title-strategy';
 import { UpdateCheckService } from './services/update-check';
 import { initUiSentry } from './core/telemetry/sentry-init';
-import { initUiUsage } from './core/telemetry/posthog-init';
+import { initUiUsage, registerUsageSuperProps } from './core/telemetry/posthog-init';
 import { SentryUiErrorHandler } from './core/telemetry/sentry-error-handler';
 import { UsageTrackerService } from './services/usage-tracker';
 
@@ -141,6 +141,7 @@ export const appConfig: ApplicationConfig = {
           initUiSentry({
             consentEnabled: preferences.telemetry.errorsEnabled,
             release: health.implVersion ?? null,
+            environment: preferences.telemetry.environment,
           }),
           // Usage analytics (PostHog) shares the same consent probe. The CLI
           // and UI reuse one anonymous id (`telemetry.anonymousId`) so they
@@ -151,8 +152,10 @@ export const appConfig: ApplicationConfig = {
             distinctId: preferences.telemetry.anonymousId,
           }),
         ]);
-        // The SDK is now active (or not); register the boot theme so every
-        // event carries it from the first capture, not only after a change.
+        // The SDK is now active (or not); register the session super-props so
+        // every event carries them from the first capture: the environment
+        // (dev / production, from the BFF) and the boot theme.
+        registerUsageSuperProps({ environment: preferences.telemetry.environment });
         usageTracker.syncTheme();
       } catch {
         // Consent / version probe is best-effort. A failure means

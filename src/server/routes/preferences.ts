@@ -38,6 +38,7 @@ import {
   readAnonymousId,
   writeUserSettings,
 } from '../../cli/util/user-settings-store.js';
+import { resolveTelemetryEnv, type TTelemetryEnv } from '../../cli/telemetry/telemetry-env.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
@@ -57,6 +58,10 @@ export interface IPreferencesEnvelope {
     // accepted in a PATCH body (the schema's `additionalProperties: false`
     // rejects it). `null` until usage is first enabled.
     anonymousId: string | null;
+    // Read-only: `dev` for dev / dogfooding runs (the dev tooling sets
+    // `SKILL_MAP_TELEMETRY_ENV`), `prod` otherwise. The browser tags its
+    // telemetry with it so the maintainers can filter their own runs out.
+    environment: TTelemetryEnv;
   };
 }
 
@@ -97,6 +102,7 @@ function buildEnvelope(): IPreferencesEnvelope {
       usageCliEnabled: isUsageCliTelemetryEnabled(),
       usageUiEnabled: isUsageUiTelemetryEnabled(),
       anonymousId: readAnonymousId(),
+      environment: resolveTelemetryEnv(),
     },
   };
 }

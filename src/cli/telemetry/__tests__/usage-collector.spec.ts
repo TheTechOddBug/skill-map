@@ -118,5 +118,6 @@ describe('envUsageProps', () => {
     assert.equal(env.node_major, Number.parseInt(process.versions.node.split('.')[0] ?? '0', 10));
     assert.equal(env.os, process.platform);
     assert.equal(env.arch, process.arch);
+    assert.ok(env.environment === 'dev' || env.environment === 'prod');
   });
 });

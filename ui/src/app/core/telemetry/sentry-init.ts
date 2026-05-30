@@ -87,6 +87,7 @@ export function isUiDsnConfigured(): boolean {
 export async function initUiSentry(opts: {
   consentEnabled: boolean;
   release: string | null;
+  environment: 'dev' | 'prod';
 }): Promise<void> {
   if (initialised) return;
   // DSN gate first: keeps the whole surface a no-op while the
@@ -98,7 +99,7 @@ export async function initUiSentry(opts: {
   Sentry.init({
     dsn: SENTRY_DSN_UI,
     release: opts.release ?? undefined,
-    environment: 'production',
+    environment: opts.environment,
     // Errors only: drop the default `browserSessionIntegration` so NO
     // release-health session beacon is sent on page load / route change.
     // The error surface MUST stay silent until a real error

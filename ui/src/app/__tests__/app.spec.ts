@@ -102,12 +102,12 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
   getPreferences: () =>
     Promise.resolve({
       updateCheck: { enabled: true },
-      telemetry: { errorsEnabled: false, usageCliEnabled: false, usageUiEnabled: false, anonymousId: null },
+      telemetry: { errorsEnabled: false, usageCliEnabled: false, usageUiEnabled: false, anonymousId: null, environment: 'prod' },
     }),
   setPreferences: () =>
     Promise.resolve({
       updateCheck: { enabled: true },
-      telemetry: { errorsEnabled: false, usageCliEnabled: false, usageUiEnabled: false, anonymousId: null },
+      telemetry: { errorsEnabled: false, usageCliEnabled: false, usageUiEnabled: false, anonymousId: null, environment: 'prod' },
     }),
   getProjectPreferences: () =>
     Promise.resolve({ scan: { referencePaths: [] } }),

@@ -11,6 +11,8 @@
  * before it can leave the machine.
  */
 
+import { resolveTelemetryEnv, type TTelemetryEnv } from './telemetry-env.js';
+
 /**
  * The closed set of built-in plugin ids (the first segment of a qualified
  * extension id `<pluginId>/<id>`). Mirrors the hardcoded `pluginId` stamps
@@ -103,6 +105,8 @@ export interface IEnvUsageProps {
   node_major: number;
   os: NodeJS.Platform;
   arch: string;
+  /** `dev` for dev / dogfooding runs, `prod` otherwise. */
+  environment: TTelemetryEnv;
 }
 
 /**
@@ -116,5 +120,6 @@ export function envUsageProps(cliVersion: string): IEnvUsageProps {
     node_major: Number.parseInt(process.versions.node.split('.')[0] ?? '0', 10),
     os: process.platform,
     arch: process.arch,
+    environment: resolveTelemetryEnv(),
   };
 }

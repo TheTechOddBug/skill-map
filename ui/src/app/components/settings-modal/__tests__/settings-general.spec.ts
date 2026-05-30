@@ -45,6 +45,7 @@ function prefs(updateCheck: boolean, telemetryOn: boolean): IPreferencesApi {
       usageCliEnabled: telemetryOn,
       usageUiEnabled: telemetryOn,
       anonymousId: null,
+      environment: 'prod',
     },
   };
 }

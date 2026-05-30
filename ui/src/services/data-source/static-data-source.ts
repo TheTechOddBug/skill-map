@@ -365,6 +365,7 @@ export class StaticDataSource implements IDataSourcePort {
         usageCliEnabled: false,
         usageUiEnabled: false,
         anonymousId: null,
+        environment: 'prod',
       },
     };
   }
