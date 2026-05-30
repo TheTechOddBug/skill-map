@@ -36,7 +36,10 @@ import type { IPreferencesApi, IPreferencesPatchApi } from '../../../../models/a
  */
 
 function prefs(updateCheck: boolean, errorsEnabled: boolean): IPreferencesApi {
-  return { updateCheck: { enabled: updateCheck }, telemetry: { errorsEnabled } };
+  return {
+    updateCheck: { enabled: updateCheck },
+    telemetry: { errorsEnabled, usageCliEnabled: false, usageUiEnabled: false, anonymousId: null },
+  };
 }
 
 type TToggleKey = 'updateCheck.enabled' | 'telemetry.errorsEnabled';

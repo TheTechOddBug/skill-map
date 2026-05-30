@@ -35,3 +35,9 @@ allowBuilds:
   # Rust-based module resolver shipped by unimport / oxc. Optional
   # acceleration; the default JS resolver works for this monorepo.
   unrs-resolver: false
+
+  # Pulled in transitively by posthog (usage telemetry). core-js's
+  # postinstall only prints a funding banner; protobufjs's only generates
+  # its `pbjs`/`pbts` CLI helpers, which we never invoke. Skip both.
+  core-js: false
+  protobufjs: false

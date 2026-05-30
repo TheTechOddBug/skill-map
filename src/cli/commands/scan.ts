@@ -10,6 +10,8 @@ import { readConformanceKillSwitches } from '../util/conformance-env.js';
 import { relativeIfBelow } from '../util/path-display.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { runScanForCommand } from '../util/scan-runner.js';
+import { captureUsage } from '../telemetry/posthog-init.js';
+import { buildScanExtensionSet } from '../telemetry/usage-collector.js';
 import { runWatchLoop } from './watch.js';
 
 /**
@@ -170,9 +172,16 @@ export class ScanCommand extends SmCommand {
       ...(parsedMaxNodes.value !== undefined ? { maxNodes: parsedMaxNodes.value } : {}),
     });
 
-    return outcome.kind === 'ok'
-      ? this.renderOutcome(outcome.result, outcome.persistedTo, outcome.dbPath, outcome.strict)
-      : this.renderFailure(outcome);
+    if (outcome.kind === 'ok') {
+      // Usage analytics (opt-in, default OFF; no-op unless active). The set
+      // of built-in extractors that ran, third-party ids collapsed to
+      // `external_plugin`. Presence only, see spec/telemetry.md.
+      captureUsage('cli.scan', {
+        extensions: buildScanExtensionSet(outcome.executedExtensionIds),
+      });
+      return this.renderOutcome(outcome.result, outcome.persistedTo, outcome.dbPath, outcome.strict);
+    }
+    return this.renderFailure(outcome);
   }
 
   /**

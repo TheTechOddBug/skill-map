@@ -19,10 +19,14 @@ import { join } from 'node:path';
 import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
 
 import {
+  ensureAnonymousId,
   hasSeenFirstRun,
   hasTelemetryPromptBeenShown,
   isErrorTelemetryEnabled,
   isUpdateCheckEnabled,
+  isUsageCliTelemetryEnabled,
+  isUsageUiTelemetryEnabled,
+  readAnonymousId,
   readUserSettings,
   userSettingsFilePath,
   writeUserSettings,
@@ -301,5 +305,50 @@ describe('userSettingsFilePath', () => {
   it('points to `<home>/.skill-map/settings.json`', () => {
     const got = userSettingsFilePath();
     assert.equal(got, join(homeRoot, '.skill-map', 'settings.json'));
+  });
+});
+
+describe('usage telemetry readers', () => {
+  function seed(telemetry: Record<string, unknown>): void {
+    mkdirSync(join(homeRoot, '.skill-map'), { recursive: true });
+    writeFileSync(
+      join(homeRoot, '.skill-map', 'settings.json'),
+      JSON.stringify({ schemaVersion: 1, telemetry }),
+    );
+  }
+
+  it('isUsageCliTelemetryEnabled / isUsageUiTelemetryEnabled are OFF by default', () => {
+    assert.equal(isUsageCliTelemetryEnabled(), false);
+    assert.equal(isUsageUiTelemetryEnabled(), false);
+  });
+
+  it('each usage toggle reads independently', () => {
+    seed({ usageCliEnabled: true, usageUiEnabled: false });
+    assert.equal(isUsageCliTelemetryEnabled(), true);
+    assert.equal(isUsageUiTelemetryEnabled(), false);
+  });
+
+  it('readAnonymousId returns null until one is minted', () => {
+    assert.equal(readAnonymousId(), null);
+    seed({ anonymousId: 'abc-123' });
+    assert.equal(readAnonymousId(), 'abc-123');
+  });
+});
+
+describe('ensureAnonymousId', () => {
+  it('mints + persists an id on first call, returns it unchanged thereafter', () => {
+    let calls = 0;
+    const generate = (): string => {
+      calls += 1;
+      return `minted-${calls}`;
+    };
+    const first = ensureAnonymousId(generate);
+    assert.equal(first, 'minted-1');
+    assert.equal(readAnonymousId(), 'minted-1', 'persisted to disk');
+
+    // A second call must NOT rotate the id (no new generation, no rewrite).
+    const second = ensureAnonymousId(generate);
+    assert.equal(second, 'minted-1');
+    assert.equal(calls, 1, 'generator is invoked exactly once');
   });
 });

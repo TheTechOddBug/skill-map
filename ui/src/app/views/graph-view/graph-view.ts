@@ -49,6 +49,7 @@ import { PerfHud } from '../../components/perf-hud/perf-hud';
 /* DEBUG-SLOTS: remove with debug-slots.css. */
 import { ViewContributionsHost } from '../../components/view-contributions-host/view-contributions-host';
 import { DebugPerfService } from '../../services/debug-perf';
+import { UsageTrackerService } from '../../services/usage-tracker';
 import { InspectorView } from '../inspector-view/inspector-view';
 import { MiddleMousePanDirective } from './middle-mouse-pan';
 import {
@@ -160,6 +161,7 @@ export class GraphView implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly dagreLayout = inject(DagreLayoutEngine);
   private readonly injector = inject(Injector);
+  private readonly usageTracker = inject(UsageTrackerService);
 
   private readonly flow = viewChild(FFlowComponent);
   // Protected: template binds `[smMiddleMousePan]="canvas()"` to feed
@@ -769,6 +771,9 @@ export class GraphView implements OnInit {
   selectNode(node: IGraphNode, event: MouseEvent): void {
     if (!this.nodeDrag.isClickWithoutDrag(event)) return;
     this.selectedNodeId.set(node.id);
+    // Opening the node inspector is a tracked feature usage (no node id,
+    // path, or title is ever sent, only the `inspector` surface enum).
+    this.usageTracker.trackFeature('inspector');
   }
 
   // Tag-selection state machine (active tag, viewport snapshot, fit /

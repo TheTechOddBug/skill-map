@@ -305,6 +305,10 @@ export const SERVER_TEXTS = {
     '`telemetry` must be an object (e.g. `{"telemetry": {"errorsEnabled": true}}`).',
   preferencesTelemetryErrorsEnabledNotBoolean:
     '`telemetry.errorsEnabled` must be a boolean.',
+  preferencesTelemetryUsageCliEnabledNotBoolean:
+    '`telemetry.usageCliEnabled` must be a boolean.',
+  preferencesTelemetryUsageUiEnabledNotBoolean:
+    '`telemetry.usageUiEnabled` must be a boolean.',
   preferencesPersistFailed:
     'Could not persist preferences: {{message}}',
 

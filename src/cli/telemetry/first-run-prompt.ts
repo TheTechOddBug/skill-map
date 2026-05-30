@@ -1,16 +1,20 @@
 /**
- * Telemetry consent prompt (`spec/telemetry.md` §Consent contract). Shown at
- * most once, only on an interactive terminal, only when a real DSN is
- * configured, and only from the SECOND eligible run onward. The choice is
- * persisted to `~/.skill-map/settings.json`; once `promptedAt` is stamped
- * the prompt never appears again.
+ * Shared telemetry consent prompt (`spec/telemetry.md` §Consent contract).
+ * Shown at most once, only on an interactive terminal, only when at least
+ * one carrier is configured (the Sentry DSN OR the PostHog key), and only
+ * from the SECOND eligible run onward. A single answer consents to (or
+ * declines) every surface at once: a `yes` enables error reporting plus both
+ * usage toggles and mints the anonymous usage id; a `no` leaves all of them
+ * OFF. Each toggle stays independently changeable from Settings afterward.
+ * The choice is persisted to `~/.skill-map/settings.json`; once `promptedAt`
+ * is stamped the prompt never appears again.
  *
  * Second-run deferral: the first run on which the prompt would be eligible
  * stamps `telemetry.firstRunAt` and stays silent, so the operator's very
  * first `sm` invocation is not asked two things at once (a first `sm scan`
  * may already prompt for the provider lens). The NEXT eligible run asks.
  *
- * While the CLI DSN is the empty placeholder, `isPromptEligible` returns
+ * While both carrier placeholders are empty, `isPromptEligible` returns
  * false (`dsnConfigured` is false), so this whole surface is dormant.
  *
  * The decision logic (`isPromptEligible`, `shouldPromptForConsent`,
@@ -23,11 +27,13 @@ import { createInterface } from 'node:readline/promises';
 import { TELEMETRY_PROMPT_TEXTS } from '../i18n/telemetry.texts.js';
 import { ansiFor, type IAnsi } from '../util/ansi.js';
 import {
+  ensureAnonymousId,
   hasSeenFirstRun,
   hasTelemetryPromptBeenShown,
   writeUserSettings,
 } from '../util/user-settings-store.js';
 import { isCliDsnConfigured, isTelemetryForcedOff } from './sentry-init.js';
+import { isUsageKeyConfigured } from './posthog-init.js';
 
 /** Parsed intent of a raw consent answer. */
 export type TConsentAnswer = 'yes' | 'no' | 'details';
@@ -81,10 +87,15 @@ export function shouldPromptForConsent(
   return isPromptEligible(opts) && opts.firstRunSeen;
 }
 
-/** Snapshot the live environment signals for the gate. */
+/**
+ * Snapshot the live environment signals for the gate. The shared prompt
+ * covers both surfaces, so `dsnConfigured` means "at least one carrier is
+ * configured" (the Sentry DSN OR the PostHog key): asking is worthwhile as
+ * soon as either sink exists.
+ */
 function liveGateInputs(stdout: { isTTY?: boolean }): IPromptGateInputs {
   return {
-    dsnConfigured: isCliDsnConfigured(),
+    dsnConfigured: isCliDsnConfigured() || isUsageKeyConfigured(),
     isTTY: stdout.isTTY === true,
     isCI: Boolean(process.env['CI']),
     forcedOff: isTelemetryForcedOff(),
@@ -166,9 +177,20 @@ async function runConsentPrompt(
   );
   const rl = createInterface({ input: stdin, output: stdout });
   try {
-    const errorsEnabled = await readConsentDecision(rl, stdout, rendered);
-    writeUserSettings({ telemetry: { errorsEnabled, promptedAt: nowMs } });
-    stdout.write(errorsEnabled ? rendered.enabled : rendered.disabled);
+    // One answer consents to (or declines) every surface. Each toggle stays
+    // independently changeable from Settings afterward; the anonymous usage
+    // id is minted only on opt-in (there is no distinct_id to create on a no).
+    const consented = await readConsentDecision(rl, stdout, rendered);
+    writeUserSettings({
+      telemetry: {
+        errorsEnabled: consented,
+        usageCliEnabled: consented,
+        usageUiEnabled: consented,
+        promptedAt: nowMs,
+      },
+    });
+    if (consented) ensureAnonymousId();
+    stdout.write(consented ? rendered.enabled : rendered.disabled);
   } catch {
     // Prompt IO is best-effort. Leave consent untouched (OFF) on failure.
   } finally {

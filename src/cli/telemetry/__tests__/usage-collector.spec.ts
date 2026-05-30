@@ -1,0 +1,100 @@
+/**
+ * Unit tests for the pure usage-collector helpers
+ * (`cli/telemetry/usage-collector.ts`). These shape what may leave the
+ * machine, so they are tested against hostile inputs (third-party ids,
+ * malformed ids, flag values that must never be captured) with no SDK or
+ * network in play.
+ */
+
+import { strict as assert } from 'node:assert';
+import { describe, it } from 'node:test';
+
+import {
+  buildScanExtensionSet,
+  buildVerbUsageProps,
+  envUsageProps,
+  extractFlagNames,
+  qualifyExtensionForUsage,
+} from '../usage-collector.js';
+
+describe('qualifyExtensionForUsage', () => {
+  it('passes built-in ids through unchanged', () => {
+    assert.equal(qualifyExtensionForUsage('core/markdown-link'), 'core/markdown-link');
+    assert.equal(qualifyExtensionForUsage('claude/at-directive'), 'claude/at-directive');
+    assert.equal(qualifyExtensionForUsage('openai/codex'), 'openai/codex');
+    assert.equal(qualifyExtensionForUsage('antigravity/x'), 'antigravity/x');
+    assert.equal(qualifyExtensionForUsage('agent-skills/y'), 'agent-skills/y');
+  });
+
+  it('collapses third-party ids to external_plugin', () => {
+    assert.equal(qualifyExtensionForUsage('my-org/secret-detector'), 'external_plugin');
+    assert.equal(qualifyExtensionForUsage('acme/anything'), 'external_plugin');
+  });
+
+  it('treats malformed ids (no slash / empty plugin) as third-party', () => {
+    assert.equal(qualifyExtensionForUsage('nope'), 'external_plugin');
+    assert.equal(qualifyExtensionForUsage('/leading-slash'), 'external_plugin');
+    assert.equal(qualifyExtensionForUsage(''), 'external_plugin');
+  });
+});
+
+describe('buildScanExtensionSet', () => {
+  it('dedupes, sorts, and collapses third-party ids', () => {
+    const out = buildScanExtensionSet([
+      'core/markdown-link',
+      'core/markdown-link',
+      'claude/at-directive',
+      'vendor/private',
+      'other-vendor/also-private',
+    ]);
+    assert.deepEqual(out, [
+      'claude/at-directive',
+      'core/markdown-link',
+      'external_plugin',
+    ]);
+  });
+
+  it('returns an empty array for no executions', () => {
+    assert.deepEqual(buildScanExtensionSet([]), []);
+  });
+});
+
+describe('buildVerbUsageProps', () => {
+  it('keeps the verb and sorted/deduped flag NAMES only', () => {
+    assert.deepEqual(buildVerbUsageProps('scan', ['json', 'changed', 'json']), {
+      verb: 'scan',
+      flags: ['changed', 'json'],
+    });
+  });
+});
+
+describe('extractFlagNames', () => {
+  it('extracts flag names, never their values', () => {
+    assert.deepEqual(extractFlagNames(['--json', '--max-nodes', '500', '-q']), [
+      'json',
+      'max-nodes',
+      'q',
+    ]);
+  });
+
+  it('strips an =value suffix and ignores positionals', () => {
+    assert.deepEqual(extractFlagNames(['scan', '--max-nodes=500', './some/path', '--db', '/abs/path']), [
+      'db',
+      'max-nodes',
+    ]);
+  });
+
+  it('returns empty for no flags', () => {
+    assert.deepEqual(extractFlagNames(['scan', 'roots']), []);
+  });
+});
+
+describe('envUsageProps', () => {
+  it('reports cli version, node major, os, and arch (no secrets)', () => {
+    const env = envUsageProps('1.2.3');
+    assert.equal(env.cli_version, '1.2.3');
+    assert.equal(env.node_major, Number.parseInt(process.versions.node.split('.')[0] ?? '0', 10));
+    assert.equal(env.os, process.platform);
+    assert.equal(env.arch, process.arch);
+  });
+});

@@ -358,7 +358,15 @@ export class StaticDataSource implements IDataSourcePort {
     // Telemetry stays OFF in the demo (matching the default-OFF contract
     // in spec/telemetry.md), and the demo never initialises the SDK
     // because the UI DSN placeholder is empty.
-    return { updateCheck: { enabled: true }, telemetry: { errorsEnabled: false } };
+    return {
+      updateCheck: { enabled: true },
+      telemetry: {
+        errorsEnabled: false,
+        usageCliEnabled: false,
+        usageUiEnabled: false,
+        anonymousId: null,
+      },
+    };
   }
 
   async setPreferences(_patch: IPreferencesPatchApi): Promise<IPreferencesApi> {

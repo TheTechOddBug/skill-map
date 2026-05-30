@@ -114,10 +114,16 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
   unsetFavorite: vi.fn().mockResolvedValue(undefined),
   getPreferences: vi
     .fn()
-    .mockResolvedValue({ updateCheck: { enabled: true }, telemetry: { errorsEnabled: false } }),
+    .mockResolvedValue({
+      updateCheck: { enabled: true },
+      telemetry: { errorsEnabled: false, usageCliEnabled: false, usageUiEnabled: false, anonymousId: null },
+    }),
   setPreferences: vi
     .fn()
-    .mockResolvedValue({ updateCheck: { enabled: true }, telemetry: { errorsEnabled: false } }),
+    .mockResolvedValue({
+      updateCheck: { enabled: true },
+      telemetry: { errorsEnabled: false, usageCliEnabled: false, usageUiEnabled: false, anonymousId: null },
+    }),
   getProjectPreferences: vi
     .fn()
     .mockResolvedValue({ scan: { referencePaths: [] } }),

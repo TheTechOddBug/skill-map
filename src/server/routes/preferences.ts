@@ -4,11 +4,14 @@
  *   GET   /api/preferences        → current envelope
  *   PATCH /api/preferences        → mutate one or more sub-keys
  *
- * The envelope carries the update-check toggle (`updateCheck.enabled`)
- * and the telemetry consent flag (`telemetry.errorsEnabled`). The shape
- * is intentionally extensible: new per-machine settings land as
- * additional optional sub-keys under their own namespace (a future
- * `telemetry.usageEnabled`, locale, theme).
+ * The envelope carries the update-check toggle (`updateCheck.enabled`) and
+ * the three telemetry consent flags (`telemetry.errorsEnabled`,
+ * `telemetry.usageCliEnabled`, `telemetry.usageUiEnabled`) plus the
+ * read-only anonymous usage id (`telemetry.anonymousId`, the PostHog
+ * `distinct_id` the browser reuses). PATCH accepts the three toggles; the id
+ * is never writable over the wire. The shape is intentionally extensible:
+ * new per-machine settings land as additional optional sub-keys (locale,
+ * theme).
  *
  * Persistence funnels through `cli/util/user-settings-store.ts`, the
  * single legitimate `os.homedir()` reader. The flags live at
@@ -27,8 +30,12 @@ import type { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 
 import {
+  ensureAnonymousId,
   isErrorTelemetryEnabled,
   isUpdateCheckEnabled,
+  isUsageCliTelemetryEnabled,
+  isUsageUiTelemetryEnabled,
+  readAnonymousId,
   writeUserSettings,
 } from '../../cli/util/user-settings-store.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
@@ -43,6 +50,13 @@ export interface IPreferencesEnvelope {
   };
   telemetry: {
     errorsEnabled: boolean;
+    usageCliEnabled: boolean;
+    usageUiEnabled: boolean;
+    // Read-only on the wire: the browser uses it as the PostHog
+    // `distinct_id` so CLI + UI usage share one anonymous install id. Never
+    // accepted in a PATCH body (the schema's `additionalProperties: false`
+    // rejects it). `null` until usage is first enabled.
+    anonymousId: string | null;
   };
 }
 
@@ -52,6 +66,8 @@ interface IPatchBody {
   };
   telemetry?: {
     errorsEnabled?: boolean;
+    usageCliEnabled?: boolean;
+    usageUiEnabled?: boolean;
   };
 }
 
@@ -76,7 +92,12 @@ export function registerPreferencesRoute(app: Hono, _deps: IRouteDeps): void {
 function buildEnvelope(): IPreferencesEnvelope {
   return {
     updateCheck: { enabled: isUpdateCheckEnabled() },
-    telemetry: { errorsEnabled: isErrorTelemetryEnabled() },
+    telemetry: {
+      errorsEnabled: isErrorTelemetryEnabled(),
+      usageCliEnabled: isUsageCliTelemetryEnabled(),
+      usageUiEnabled: isUsageUiTelemetryEnabled(),
+      anonymousId: readAnonymousId(),
+    },
   };
 }
 
@@ -90,8 +111,8 @@ function applyPatch(body: IPatchBody): void {
     if (body.updateCheck && typeof body.updateCheck.enabled === 'boolean') {
       writeUserSettings({ updateCheck: { enabled: body.updateCheck.enabled } });
     }
-    if (body.telemetry && typeof body.telemetry.errorsEnabled === 'boolean') {
-      writeUserSettings({ telemetry: { errorsEnabled: body.telemetry.errorsEnabled } });
+    if (body.telemetry) {
+      applyTelemetryPatch(body.telemetry);
     }
   } catch (err) {
     throw new HTTPException(400, {
@@ -99,6 +120,26 @@ function applyPatch(body: IPatchBody): void {
         message: formatErrorMessage(err),
       }),
     });
+  }
+}
+
+/**
+ * Persist the telemetry sub-keys. Each toggle is independent. When a usage
+ * toggle is turned ON and no anonymous id exists yet, mint one so the very
+ * first usage event (CLI or UI) already carries a stable `distinct_id`;
+ * `ensureAnonymousId` is idempotent, so re-enabling never rotates it.
+ */
+function applyTelemetryPatch(t: NonNullable<IPatchBody['telemetry']>): void {
+  if (typeof t.errorsEnabled === 'boolean') {
+    writeUserSettings({ telemetry: { errorsEnabled: t.errorsEnabled } });
+  }
+  if (typeof t.usageCliEnabled === 'boolean') {
+    writeUserSettings({ telemetry: { usageCliEnabled: t.usageCliEnabled } });
+    if (t.usageCliEnabled) ensureAnonymousId();
+  }
+  if (typeof t.usageUiEnabled === 'boolean') {
+    writeUserSettings({ telemetry: { usageUiEnabled: t.usageUiEnabled } });
+    if (t.usageUiEnabled) ensureAnonymousId();
   }
 }
 
@@ -126,6 +167,8 @@ const PATCH_BODY_SCHEMA = {
       additionalProperties: false,
       properties: {
         errorsEnabled: { type: 'boolean' },
+        usageCliEnabled: { type: 'boolean' },
+        usageUiEnabled: { type: 'boolean' },
       },
     },
   },
@@ -141,5 +184,7 @@ const parsePatchBody = makeBodyValidator<IPatchBody>(PATCH_BODY_SCHEMA, {
     '/updateCheck/enabled:type:boolean': SERVER_TEXTS.preferencesUpdateCheckEnabledNotBoolean,
     '/telemetry:type:object': SERVER_TEXTS.preferencesTelemetryNotObject,
     '/telemetry/errorsEnabled:type:boolean': SERVER_TEXTS.preferencesTelemetryErrorsEnabledNotBoolean,
+    '/telemetry/usageCliEnabled:type:boolean': SERVER_TEXTS.preferencesTelemetryUsageCliEnabledNotBoolean,
+    '/telemetry/usageUiEnabled:type:boolean': SERVER_TEXTS.preferencesTelemetryUsageUiEnabledNotBoolean,
   },
 });

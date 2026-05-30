@@ -20,7 +20,9 @@ import { ProjectInfoService } from './services/project-info';
 import { SmTitleStrategy } from './services/title-strategy';
 import { UpdateCheckService } from './services/update-check';
 import { initUiSentry } from './core/telemetry/sentry-init';
+import { initUiUsage } from './core/telemetry/posthog-init';
 import { SentryUiErrorHandler } from './core/telemetry/sentry-error-handler';
+import { UsageTrackerService } from './services/usage-tracker';
 
 /**
  * Fire-and-forget kickoff for cold-start data probes. Each loader is
@@ -131,10 +133,20 @@ export const appConfig: ApplicationConfig = {
           dataSource.getPreferences(),
           dataSource.health(),
         ]);
-        await initUiSentry({
-          consentEnabled: preferences.telemetry.errorsEnabled,
-          release: health.implVersion ?? null,
-        });
+        await Promise.all([
+          initUiSentry({
+            consentEnabled: preferences.telemetry.errorsEnabled,
+            release: health.implVersion ?? null,
+          }),
+          // Usage analytics (PostHog) shares the same consent probe. The CLI
+          // and UI reuse one anonymous id (`telemetry.anonymousId`) so they
+          // are attributed to one install. Hard no-op while the UI key
+          // placeholder is empty AND while UI usage consent is OFF.
+          initUiUsage({
+            consentEnabled: preferences.telemetry.usageUiEnabled,
+            distinctId: preferences.telemetry.anonymousId,
+          }),
+        ]);
       } catch {
         // Consent / version probe is best-effort. A failure means
         // telemetry stays OFF; the app must still boot.
@@ -162,6 +174,9 @@ export const appConfig: ApplicationConfig = {
     provideAppInitializer(() => {
       inject(FilterUrlSyncService);
       inject(DebugSlotsService);
+      // Maps route changes to `ui.view` usage events (no-op until UI usage
+      // consent activates the PostHog surface). Self-wires on construct.
+      inject(UsageTrackerService);
     }),
   ],
 };

@@ -32,8 +32,21 @@ import {
 
 interface IPreferencesEnvelopeWire {
   updateCheck: { enabled: boolean };
-  telemetry: { errorsEnabled: boolean };
+  telemetry: {
+    errorsEnabled: boolean;
+    usageCliEnabled: boolean;
+    usageUiEnabled: boolean;
+    anonymousId: string | null;
+  };
 }
+
+/** The telemetry sub-envelope when nothing is opted in (every default). */
+const TELEMETRY_DEFAULT = {
+  errorsEnabled: false,
+  usageCliEnabled: false,
+  usageUiEnabled: false,
+  anonymousId: null,
+} as const;
 
 interface IErrorEnvelopeWire {
   ok: false;
@@ -117,7 +130,7 @@ describe('GET /api/preferences', () => {
       const env = (await res.json()) as IPreferencesEnvelopeWire;
       assert.deepEqual(env, {
         updateCheck: { enabled: true },
-        telemetry: { errorsEnabled: false },
+        telemetry: { ...TELEMETRY_DEFAULT },
       });
     });
   });
@@ -135,7 +148,7 @@ describe('PATCH /api/preferences', () => {
       const env = (await res.json()) as IPreferencesEnvelopeWire;
       assert.deepEqual(env, {
         updateCheck: { enabled: false },
-        telemetry: { errorsEnabled: false },
+        telemetry: { ...TELEMETRY_DEFAULT },
       });
 
       // Sanity: the file landed under HOME (the documented exception),
@@ -157,7 +170,7 @@ describe('PATCH /api/preferences', () => {
       const reEnv = (await re.json()) as IPreferencesEnvelopeWire;
       assert.deepEqual(reEnv, {
         updateCheck: { enabled: false },
-        telemetry: { errorsEnabled: false },
+        telemetry: { ...TELEMETRY_DEFAULT },
       });
     });
   });
@@ -182,6 +195,61 @@ describe('PATCH /api/preferences', () => {
       const re = await fetch(url(handle, '/api/preferences'));
       const reEnv = (await re.json()) as IPreferencesEnvelopeWire;
       assert.equal(reEnv.telemetry.errorsEnabled, true);
+    });
+  });
+
+  it('enabling usageCliEnabled mints an anonymousId and exposes it read-only', async () => {
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ telemetry: { usageCliEnabled: true } }),
+      });
+      assert.equal(res.status, 200);
+      const env = (await res.json()) as IPreferencesEnvelopeWire;
+      assert.equal(env.telemetry.usageCliEnabled, true);
+      assert.equal(env.telemetry.usageUiEnabled, false, 'the UI toggle is independent');
+      // The shared anonymous distinct_id is minted on first usage opt-in.
+      assert.equal(typeof env.telemetry.anonymousId, 'string');
+      assert.ok((env.telemetry.anonymousId ?? '').length > 0);
+
+      // Enabling UI usage too must NOT rotate the already-minted id.
+      const res2 = await fetch(url(handle, '/api/preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ telemetry: { usageUiEnabled: true } }),
+      });
+      const env2 = (await res2.json()) as IPreferencesEnvelopeWire;
+      assert.equal(env2.telemetry.anonymousId, env.telemetry.anonymousId);
+      assert.equal(env2.telemetry.usageUiEnabled, true);
+    });
+  });
+
+  it('400 bad-query when the patch tries to write anonymousId (read-only)', async () => {
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ telemetry: { anonymousId: 'forged-id' } }),
+      });
+      // `additionalProperties: false` on the telemetry patch shape rejects it.
+      assert.equal(res.status, 400);
+      const env = (await res.json()) as IErrorEnvelopeWire;
+      assert.equal(env.error.code, 'bad-query');
+    });
+  });
+
+  it('400 bad-query when telemetry.usageUiEnabled is not a boolean', async () => {
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ telemetry: { usageUiEnabled: 'yes' } }),
+      });
+      assert.equal(res.status, 400);
+      const env = (await res.json()) as IErrorEnvelopeWire;
+      assert.equal(env.error.code, 'bad-query');
+      assert.match(env.error.message, /usageUiEnabled.*boolean/i);
     });
   });
 

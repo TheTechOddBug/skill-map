@@ -38,6 +38,8 @@ import {
   initSentryCli,
   setTelemetryVerbTag,
 } from './telemetry/sentry-init.js';
+import { captureUsage, flushUsageCli, initUsageCli } from './telemetry/posthog-init.js';
+import { buildVerbUsageProps, extractFlagNames } from './telemetry/usage-collector.js';
 import { BUMP_COMMANDS } from './commands/bump.js';
 import { CheckCommand } from './commands/check.js';
 import { CONFIG_COMMANDS } from './commands/config.js';
@@ -124,17 +126,19 @@ configureLogger(new Logger({ level: logLevel, stream: process.stderr }));
 const bareArgs = resolveBareInvocation(args);
 const routedArgs = routeHelpArgs(bareArgs ?? args, cli);
 
-// Telemetry (opt-in, default OFF; dormant until a real DSN is configured,
-// see spec/telemetry.md). The one-time consent prompt runs first so the
-// persisted choice is in place before init reads it. `sm serve` is skipped
-// here on purpose: the BFF owns that process's Sentry client (initSentryBff
-// in src/server/index.ts), and one global client must not overwrite the
-// other. All of this is a no-op while the DSN placeholder is empty.
+// Telemetry (opt-in, default OFF; each surface dormant until its carrier
+// key is configured, see spec/telemetry.md). The one shared consent prompt
+// runs first so the persisted choice is in place before init reads it.
+// `sm serve` is skipped here on purpose: the BFF owns that process's Sentry
+// client (initSentryBff in src/server/index.ts) and MUST NOT emit usage
+// events, so neither the Sentry nor the PostHog CLI client is armed for it.
+// All of this is a no-op while the carrier placeholders are empty.
 const telemetryVerb = routedArgs[0];
 await maybeRunFirstRunPrompt();
 if (telemetryVerb !== 'serve') {
   await initSentryCli(VERSION);
   setTelemetryVerbTag(telemetryVerb);
+  await initUsageCli();
 }
 
 // Spec § A.11, boot/shutdown hook dispatcher. Wired here at the CLI
@@ -200,6 +204,18 @@ const exitCode = await cli.run(routedArgs, {
   stderr: process.stderr,
 });
 
+// Usage analytics (opt-in, default OFF; no-op unless the PostHog surface is
+// active, see spec/telemetry.md §Usage event taxonomy). One `cli.verb` event
+// per invocation carries the verb name and the NAMES of the flags it was
+// given (never their values). `sm serve` never armed a usage client, so this
+// is a no-op for it. The `cli.scan` event with the executed-extractor set is
+// emitted from the scan verb, which has the scan outcome.
+if (telemetryVerb !== undefined && telemetryVerb !== '') {
+  captureUsage('cli.verb', {
+    ...buildVerbUsageProps(telemetryVerb, extractFlagNames(routedArgs.slice(1))),
+  });
+}
+
 // Spec § A.11, `shutdown` Hook dispatch. Awaits subscribed hooks so
 // they finish before `process.exit` returns control to the shell, but
 // every hook is expected to be fast (the user already saw the verb's
@@ -219,6 +235,7 @@ await lifecycleDispatcher.dispatch(
 // Flush any buffered telemetry before the process exits, bounded so a slow
 // network cannot hang shutdown. No-op when telemetry was never initialised.
 await closeSentryCli();
+await flushUsageCli();
 
 process.exit(exitCode);
 

@@ -194,6 +194,15 @@ export type TScanRunResult =
       persistedTo: string | null;
       dbPath: string;
       strict: boolean;
+      /**
+       * Qualified ids (`<pluginId>/<id>`, with duplicates) of the
+       * extractors that actually ran during this scan walk. Plain data the
+       * CLI usage surface (`spec/telemetry.md`) collapses + dedupes into the
+       * `cli.scan` event; the kernel and runner stay telemetry-agnostic.
+       * Cached extractors (incremental scans) do not appear, only
+       * freshly-run ones.
+       */
+      executedExtensionIds: readonly string[];
     }
   | { kind: 'config-error'; message: string }
   | { kind: 'scan-error'; message: string }
@@ -717,6 +726,7 @@ async function runPersistPath(
     persistedTo: dbPath,
     dbPath,
     strict,
+    executedExtensionIds: outcome.extractorRuns.map((run) => run.extractorId),
   };
 }
 
@@ -756,6 +766,7 @@ async function runEphemeralPath(
       persistedTo: null,
       dbPath,
       strict,
+      executedExtensionIds: scanned.extractorRuns.map((run) => run.extractorId),
     };
   } catch (err) {
     return { kind: 'scan-error', message: formatErrorMessage(err) };

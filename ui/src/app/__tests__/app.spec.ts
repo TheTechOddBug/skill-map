@@ -100,9 +100,15 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
   setFavorite: () => Promise.resolve(),
   unsetFavorite: () => Promise.resolve(),
   getPreferences: () =>
-    Promise.resolve({ updateCheck: { enabled: true }, telemetry: { errorsEnabled: false } }),
+    Promise.resolve({
+      updateCheck: { enabled: true },
+      telemetry: { errorsEnabled: false, usageCliEnabled: false, usageUiEnabled: false, anonymousId: null },
+    }),
   setPreferences: () =>
-    Promise.resolve({ updateCheck: { enabled: true }, telemetry: { errorsEnabled: false } }),
+    Promise.resolve({
+      updateCheck: { enabled: true },
+      telemetry: { errorsEnabled: false, usageCliEnabled: false, usageUiEnabled: false, anonymousId: null },
+    }),
   getProjectPreferences: () =>
     Promise.resolve({ scan: { referencePaths: [] } }),
   setProjectPreferences: () =>

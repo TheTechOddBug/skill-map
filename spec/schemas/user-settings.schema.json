@@ -38,19 +38,31 @@
     "telemetry": {
       "type": "object",
       "additionalProperties": false,
-      "description": "User consent + prompt bookkeeping for opt-in, anonymous error reporting (see `spec/telemetry.md`). Default is OFF: error reporting only runs once the operator has explicitly opted in. A real preference (`errorsEnabled`) plus opaque bookkeeping (`firstRunAt`, `promptedAt`) the CLI maintains so it asks at the right time and never re-prompts.",
+      "description": "User consent + prompt bookkeeping for the opt-in, anonymous telemetry surfaces (see `spec/telemetry.md`). All surfaces default OFF and run only after explicit consent. Three independent toggles (`errorsEnabled` for Sentry error reporting, `usageCliEnabled` / `usageUiEnabled` for PostHog usage analytics) plus the usage `distinct_id` (`anonymousId`) and the shared prompt bookkeeping (`firstRunAt`, `promptedAt`) the CLI maintains so it asks once, at the right time.",
       "properties": {
         "errorsEnabled": {
           "type": "boolean",
-          "description": "Operator opt-in toggle for error reporting. **Default OFF**: when absent or `false`, no telemetry SDK is initialised and no event leaves the machine. Set to `true` only after explicit consent (the consent prompt or Settings UI). The `SKILL_MAP_TELEMETRY=0` env var forces OFF regardless of this value."
+          "description": "Operator opt-in toggle for error reporting (Sentry). **Default OFF**: when absent or `false`, no Sentry SDK is initialised and no event leaves the machine. Set to `true` only after explicit consent (the consent prompt or Settings UI). The `SKILL_MAP_TELEMETRY=0` env var forces OFF regardless of this value."
+        },
+        "usageCliEnabled": {
+          "type": "boolean",
+          "description": "Operator opt-in toggle for CLI usage analytics (PostHog). **Default OFF**: when absent or `false`, no PostHog SDK is initialised in the CLI and no usage event leaves the machine. Independent of `errorsEnabled` and `usageUiEnabled`; the `SKILL_MAP_TELEMETRY=0` env var forces OFF regardless."
+        },
+        "usageUiEnabled": {
+          "type": "boolean",
+          "description": "Operator opt-in toggle for UI usage analytics (PostHog). **Default OFF**: when absent or `false`, the browser never loads the PostHog SDK. Independent of `errorsEnabled` and `usageCliEnabled`; the `SKILL_MAP_TELEMETRY=0` env var forces OFF regardless."
+        },
+        "anonymousId": {
+          "type": ["string", "null"],
+          "description": "Random UUID v4 used as the PostHog `distinct_id` for the usage surface, shared by the CLI and UI so both are attributed to one install. Carries no personal data. Minted exactly once, the first time any usage toggle becomes `true`, and never regenerated. The single anonymous correlation id the contract permits, scoped to usage only; the BFF exposes it read-only and it is never writable over the wire. `null` (or absent) until usage is first enabled."
         },
         "firstRunAt": {
           "type": ["integer", "null"],
-          "description": "Unix milliseconds of the first run on which the consent prompt was eligible to appear (interactive TTY, DSN configured, not opted-out by env, not yet answered). The prompt is intentionally deferred to the NEXT eligible run so it does not stack on top of the first-run provider-lens prompt. `null` (or absent) before any eligible run."
+          "description": "Unix milliseconds of the first run on which the consent prompt was eligible to appear (interactive TTY, at least one carrier configured, not opted-out by env, not yet answered). The prompt is intentionally deferred to the NEXT eligible run so it does not stack on top of the first-run provider-lens prompt. `null` (or absent) before any eligible run."
         },
         "promptedAt": {
           "type": ["integer", "null"],
-          "description": "Unix milliseconds of the moment the consent prompt was shown. `null` (or absent) when the user has never been prompted. Once set, the prompt is never shown again, the persisted `errorsEnabled` (true or false) is authoritative."
+          "description": "Unix milliseconds of the moment the shared consent prompt was shown. `null` (or absent) when the user has never been prompted. Once set, the prompt is never shown again, the persisted toggles are authoritative."
         }
       }
     }

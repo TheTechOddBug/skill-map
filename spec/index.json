@@ -250,9 +250,9 @@
       "schemas/summaries/hook.schema.json": "6a1ceecda7a7173dfcd8b5f705d84be1792c4bb5a2269ff666088128c02c888a",
       "schemas/summaries/markdown.schema.json": "369d75a18710eb6c7ee4220b2899767ddbc07dada24f81b611827fe2e3a2977a",
       "schemas/summaries/skill.schema.json": "85d68056054bade62391948cc038fcfa70cdcf465e2b295f69cd520bbdba0134",
-      "schemas/user-settings.schema.json": "16d96efe491b9eb928dbe6ba337e713268d8ecce67ef107818c70f01fbbd3cea",
+      "schemas/user-settings.schema.json": "d155552ffca9c7dd4c6e31398aff4950dd9721d2a1f4b308cf0fe33000ca31b5",
       "schemas/view-slots.schema.json": "f78d0c5f0414f01dc045680b655b3d636373048eae4b75cc9dbd0fe0babd60bc",
-      "telemetry.md": "505ef05113a764400257ebfd1f7c9ea6cb7d0813d0c4b0f7c30d98ca9ed7f8a9",
+      "telemetry.md": "2d9c5750d488e6610685d967955afea3306cf5bbfcd5ccab449b91b52c92a9ae",
       "versioning.md": "28a13f165f837921fe5066f4bfce61012cd9f1b7c451f88eeb67252e39a0981a"
     }
   }

@@ -47,6 +47,14 @@ export const SETTINGS_TEXTS = {
         label: 'Send anonymous error reports',
         description: 'Report uncaught errors to help fix crashes. No file contents or paths.',
       },
+      'telemetry.usageCliEnabled': {
+        label: 'Send anonymous CLI usage',
+        description: 'Report which commands and built-in extractors you use. No file contents or paths.',
+      },
+      'telemetry.usageUiEnabled': {
+        label: 'Send anonymous UI usage',
+        description: 'Report which views you open in this app. No file contents or paths.',
+      },
     },
     /**
      * Extra theme selector. Settings-only, overrides the topbar

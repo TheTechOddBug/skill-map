@@ -54,7 +54,11 @@ import { EXTRA_THEMES } from '../../../themes/registry';
  */
 interface IGeneralToggleDef {
   /** Stable dot-path; doubles as the i18n catalog key. */
-  key: 'updateCheck.enabled' | 'telemetry.errorsEnabled';
+  key:
+    | 'updateCheck.enabled'
+    | 'telemetry.errorsEnabled'
+    | 'telemetry.usageCliEnabled'
+    | 'telemetry.usageUiEnabled';
   /** Read the current value from a fetched envelope. */
   read(envelope: IPreferencesApi): boolean;
   /** Build the patch body for the new value. */
@@ -71,6 +75,16 @@ const GENERAL_TOGGLES: ReadonlyArray<IGeneralToggleDef> = [
     key: 'telemetry.errorsEnabled',
     read: (envelope) => envelope.telemetry.errorsEnabled,
     patch: (value) => ({ telemetry: { errorsEnabled: value } }),
+  },
+  {
+    key: 'telemetry.usageCliEnabled',
+    read: (envelope) => envelope.telemetry.usageCliEnabled,
+    patch: (value) => ({ telemetry: { usageCliEnabled: value } }),
+  },
+  {
+    key: 'telemetry.usageUiEnabled',
+    read: (envelope) => envelope.telemetry.usageUiEnabled,
+    patch: (value) => ({ telemetry: { usageUiEnabled: value } }),
   },
 ];
 

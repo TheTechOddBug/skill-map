@@ -52,7 +52,14 @@ function seed(telemetry: Record<string, unknown>): void {
   writeFileSync(SETTINGS(), JSON.stringify({ schemaVersion: 1, telemetry }));
 }
 
-function readTelemetry(): { errorsEnabled?: boolean; promptedAt?: number; firstRunAt?: number } {
+function readTelemetry(): {
+  errorsEnabled?: boolean;
+  usageCliEnabled?: boolean;
+  usageUiEnabled?: boolean;
+  anonymousId?: string;
+  promptedAt?: number;
+  firstRunAt?: number;
+} {
   return JSON.parse(readFileSync(SETTINGS(), 'utf8')).telemetry;
 }
 
@@ -101,26 +108,43 @@ describe('maybeRunFirstRunPrompt (second-run deferral)', () => {
     assert.deepEqual(readTelemetry(), { firstRunAt: 111 });
   });
 
-  it('second eligible run: prompts and persists opt-in on "y"', async () => {
+  it('second eligible run: prompts and persists opt-in (all three toggles + id) on "y"', async () => {
     seed({ firstRunAt: 111 });
     const { stdin, stdout, out } = makeStreams(['y']);
     await maybeRunFirstRunPrompt({ stdin, stdout, nowMs: 222 });
-    assert.match(out(), /Enable error reporting/);
-    assert.deepEqual(readTelemetry(), { firstRunAt: 111, errorsEnabled: true, promptedAt: 222 });
+    assert.match(out(), /Enable anonymous error and usage reporting/);
+    const t = readTelemetry();
+    // One answer consents to every surface and mints the anonymous usage id
+    // (a random UUID, so asserted by type rather than value).
+    assert.equal(t.firstRunAt, 111);
+    assert.equal(t.promptedAt, 222);
+    assert.equal(t.errorsEnabled, true);
+    assert.equal(t.usageCliEnabled, true);
+    assert.equal(t.usageUiEnabled, true);
+    assert.equal(typeof t.anonymousId, 'string');
+    assert.ok((t.anonymousId ?? '').length > 0);
   });
 
-  it('second eligible run: persists opt-OUT on "n"', async () => {
+  it('second eligible run: persists opt-OUT on all surfaces (no id minted) on "n"', async () => {
     seed({ firstRunAt: 111 });
     const { stdin, stdout } = makeStreams(['n']);
     await maybeRunFirstRunPrompt({ stdin, stdout, nowMs: 222 });
-    assert.equal(readTelemetry().errorsEnabled, false);
+    const t = readTelemetry();
+    assert.equal(t.errorsEnabled, false);
+    assert.equal(t.usageCliEnabled, false);
+    assert.equal(t.usageUiEnabled, false);
+    assert.equal(t.anonymousId, undefined, 'no distinct_id is minted on a decline');
   });
 
-  it('second eligible run: empty Enter takes the [Y]es default (opt-in)', async () => {
+  it('second eligible run: empty Enter takes the [Y]es default (opt-in everywhere)', async () => {
     seed({ firstRunAt: 111 });
     const { stdin, stdout } = makeStreams(['']);
     await maybeRunFirstRunPrompt({ stdin, stdout, nowMs: 333 });
-    assert.equal(readTelemetry().errorsEnabled, true);
+    const t = readTelemetry();
+    assert.equal(t.errorsEnabled, true);
+    assert.equal(t.usageCliEnabled, true);
+    assert.equal(t.usageUiEnabled, true);
+    assert.equal(typeof t.anonymousId, 'string');
   });
 
   it('never prompts again once promptedAt is set', async () => {

@@ -549,9 +549,12 @@ export interface IUpdateStatusResponseApi {
  * sub-keys under their own namespace.
  *
  *   - `updateCheck.enabled`: npm update-check toggle.
- *   - `telemetry.errorsEnabled`: opt-in anonymous error reporting
- *     (`spec/telemetry.md`). OFF by default; the only consent surface
- *     after first run is the Settings Privacy section.
+ *   - `telemetry.errorsEnabled` / `usageCliEnabled` / `usageUiEnabled`:
+ *     the three opt-in telemetry toggles (`spec/telemetry.md`). All OFF by
+ *     default; each is independently togglable in the Settings General
+ *     section after first run.
+ *   - `telemetry.anonymousId`: read-only PostHog `distinct_id` shared by CLI
+ *     and UI usage. `null` until usage is first enabled; never patchable.
  */
 export interface IPreferencesApi {
   updateCheck: {
@@ -559,6 +562,9 @@ export interface IPreferencesApi {
   };
   telemetry: {
     errorsEnabled: boolean;
+    usageCliEnabled: boolean;
+    usageUiEnabled: boolean;
+    anonymousId: string | null;
   };
 }
 
@@ -574,6 +580,8 @@ export interface IPreferencesPatchApi {
   };
   telemetry?: {
     errorsEnabled?: boolean;
+    usageCliEnabled?: boolean;
+    usageUiEnabled?: boolean;
   };
 }
 

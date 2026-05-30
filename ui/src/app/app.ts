@@ -15,6 +15,7 @@ import { analyzeLinks } from './views/graph-view/graph-layout';
 import { ProjectInfoService } from './services/project-info';
 import { ScanTriggerService } from './services/scan-trigger';
 import { UpdateCheckService } from './services/update-check';
+import { UsageTrackerService } from './services/usage-tracker';
 import { ThemeService } from '../services/theme';
 import { ProviderRegistryService, type IProviderUi } from '../services/provider-registry';
 import { DemoBanner } from './components/demo-banner/demo-banner';
@@ -36,6 +37,7 @@ export class App {
   private readonly projectInfo = inject(ProjectInfoService);
   private readonly providerRegistry = inject(ProviderRegistryService);
   private readonly scanTrigger = inject(ScanTriggerService);
+  private readonly usageTracker = inject(UsageTrackerService);
   // `FilterUrlSyncService` and `DebugSlotsService` are eagerly
   // instantiated via `provideAppInitializer` in `app.config.ts`. They
   // self-wire on construction; the App component does not need to
@@ -54,6 +56,7 @@ export class App {
 
   protected openSettings(): void {
     this.settingsOpen.set(true);
+    this.usageTracker.trackFeature('settings');
   }
 
   /**

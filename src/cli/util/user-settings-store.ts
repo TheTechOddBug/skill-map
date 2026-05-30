@@ -24,6 +24,7 @@
  * the operator can fix the file if they care.
  */
 
+import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -52,13 +53,23 @@ export interface IUserSettingsUpdateCheck {
 
 /**
  * Telemetry consent sub-object. Mirrors
- * `user-settings.schema.json#/properties/telemetry`. Default is OFF: the
- * SDK only initialises once `errorsEnabled` is explicitly `true`. See
- * `spec/telemetry.md` §Consent contract.
+ * `user-settings.schema.json#/properties/telemetry`. Every surface is OFF
+ * by default: a surface initialises only once its toggle is explicitly
+ * `true`. See `spec/telemetry.md` §Consent contract.
  */
 export interface IUserSettingsTelemetry {
-  /** Operator opt-in for error reporting. Absent or `false` means OFF. */
+  /** Operator opt-in for error reporting (Sentry). Absent or `false` means OFF. */
   errorsEnabled?: boolean;
+  /** Operator opt-in for CLI usage analytics (PostHog). Absent or `false` means OFF. */
+  usageCliEnabled?: boolean;
+  /** Operator opt-in for UI usage analytics (PostHog). Absent or `false` means OFF. */
+  usageUiEnabled?: boolean;
+  /**
+   * Random UUID v4 used as the PostHog `distinct_id` for the usage
+   * surface, shared by CLI + UI. Minted once when any usage toggle first
+   * becomes `true`; never regenerated. `null` (or absent) until then.
+   */
+  anonymousId?: string | null;
   /** Unix ms of the first run where the consent prompt was eligible. `null` before any. */
   firstRunAt?: number | null;
   /** Unix ms of the consent prompt. `null` when never prompted. */
@@ -212,6 +223,55 @@ export function isUpdateCheckEnabled(): boolean {
 export function isErrorTelemetryEnabled(): boolean {
   const settings = readUserSettings();
   return settings.telemetry?.errorsEnabled === true;
+}
+
+/**
+ * `true` only when the operator has explicitly opted in to CLI usage
+ * analytics (`telemetry.usageCliEnabled === true`). OFF by default;
+ * independent of `errorsEnabled` and `usageUiEnabled`. Read fresh on every
+ * `sm` invocation, so a Settings-UI toggle is honoured on the next run.
+ */
+export function isUsageCliTelemetryEnabled(): boolean {
+  const settings = readUserSettings();
+  return settings.telemetry?.usageCliEnabled === true;
+}
+
+/**
+ * `true` only when the operator has explicitly opted in to UI usage
+ * analytics (`telemetry.usageUiEnabled === true`). OFF by default;
+ * independent of the other two toggles. Surfaced to the browser through
+ * `GET /api/preferences`.
+ */
+export function isUsageUiTelemetryEnabled(): boolean {
+  const settings = readUserSettings();
+  return settings.telemetry?.usageUiEnabled === true;
+}
+
+/**
+ * The persisted anonymous usage `distinct_id`, or `null` when usage has
+ * never been enabled. Read-only accessor; minting happens in
+ * `ensureAnonymousId`. Surfaced read-only to the browser so the UI shares
+ * the CLI's id.
+ */
+export function readAnonymousId(): string | null {
+  const settings = readUserSettings();
+  return settings.telemetry?.anonymousId ?? null;
+}
+
+/**
+ * Return the install's anonymous usage id, minting + persisting one on
+ * first call. Idempotent: once a non-empty id exists it is returned
+ * unchanged (no rewrite), so re-enabling usage never rotates the id. The
+ * `generate` parameter is injectable for deterministic tests. Best-effort
+ * persistence (via `writeUserSettings`); the returned id is always valid
+ * even if the write is swallowed.
+ */
+export function ensureAnonymousId(generate: () => string = () => randomUUID()): string {
+  const existing = readAnonymousId();
+  if (existing !== null && existing !== '') return existing;
+  const id = generate();
+  writeUserSettings({ telemetry: { anonymousId: id } });
+  return id;
 }
 
 /**
