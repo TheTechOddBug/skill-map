@@ -11,9 +11,13 @@
  *     on `Dirent.isFile()` returning false for symlinks, which is an
  *     implementation detail of node's `withFileTypes`. The explicit
  *     skip is both self-documenting and resilient to future Dirent API
- *     changes. The `followSymlinks?: false` option is reserved for a
- *     future implementation that adds cycle detection + `realpath`-
- *     resolved containment; until then the type forbids `true`.
+ *     changes. DECISION (2026-05-31): there is deliberately NO
+ *     follow-symlinks option. A `scan.followSymlinks` config key plus a
+ *     reserved walker option once existed but were removed as unused
+ *     chrome (symlinks have always been hard-skipped, the knob never did
+ *     anything). Re-add a follow path ONLY when a user actually asks for
+ *     it, and ONLY with cycle detection + realpath-resolved containment,
+ *     never a bare `true`.
  *   - **TOCTOU race (audit M7 / H1)**, `readdir` reports a regular file →
  *     `lstat()` re-verifies before the read. Closes the window where the
  *     entry could be swapped for a symlink between the two calls.
@@ -65,12 +69,6 @@ export interface IWalkContentOptions {
    * (the orchestrator) always pass a fully-composed filter.
    */
   ignoreFilter?: IIgnoreFilter;
-  /**
-   * Reserved escape hatch for a future symlink-follow implementation.
-   * Today the walker hard-skips symlinks per audit M7. The type forbids
-   * `true` until the audit-cleared follow path is actually built.
-   */
-  followSymlinks?: false;
 }
 
 export class UnknownParserError extends Error {

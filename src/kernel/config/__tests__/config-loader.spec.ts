@@ -51,18 +51,15 @@ describe('config loader, defaults', () => {
 
     strictEqual(warnings.length, 0);
     strictEqual(effective.schemaVersion, 1);
-    strictEqual(effective.autoMigrate, true);
     strictEqual(effective.tokenizer, 'cl100k_base');
     strictEqual(effective.scan.tokenize, true);
     strictEqual(effective.scan.maxFileSizeBytes, 1048576);
     strictEqual(effective.jobs.minimumTtlSeconds, 60);
     strictEqual(effective.jobs.retention.completed, 2592000);
     strictEqual(effective.jobs.retention.failed, null);
-    strictEqual(effective.history.share, false);
-    strictEqual(effective.i18n.locale, 'en');
 
     // Every key tracked back to defaults.
-    strictEqual(sources.get('autoMigrate'), 'defaults');
+    strictEqual(sources.get('tokenizer'), 'defaults');
     strictEqual(sources.get('scan.tokenize'), 'defaults');
     strictEqual(sources.get('jobs.retention.completed'), 'defaults');
     strictEqual(sources.get('jobs.retention.failed'), 'defaults');
@@ -76,7 +73,7 @@ describe('config loader, layer precedence', () => {
     const { effective, sources } = loadConfig({ cwd });
     strictEqual(effective.tokenizer, 'gpt-4');
     strictEqual(sources.get('tokenizer'), 'project');
-    strictEqual(sources.get('autoMigrate'), 'defaults');
+    strictEqual(sources.get('scan.tokenize'), 'defaults');
   });
 
   it('project-local overrides project', () => {
@@ -108,10 +105,10 @@ describe('config loader, deep merge semantics', () => {
     const { effective, sources } = loadConfig({ cwd });
     strictEqual(effective.scan.tokenize, false);  // from project
     strictEqual(effective.scan.strict, true);     // from project-local
-    strictEqual(effective.scan.followSymlinks, false); // from defaults
+    strictEqual(effective.scan.maxFileSizeBytes, 1048576); // from defaults
     strictEqual(sources.get('scan.tokenize'), 'project');
     strictEqual(sources.get('scan.strict'), 'project-local');
-    strictEqual(sources.get('scan.followSymlinks'), 'defaults');
+    strictEqual(sources.get('scan.maxFileSizeBytes'), 'defaults');
   });
 
   it('replaces arrays whole-cloth (no element-wise merge)', () => {
@@ -156,20 +153,20 @@ describe('config loader, resilience', () => {
 
   it('strips type-mismatched values', () => {
     const { cwd } = freshScope('type-mismatch');
-    writeSettings(cwd, 'settings', { autoMigrate: 'yes-please' }); // should be boolean
+    writeSettings(cwd, 'settings', { scan: { tokenize: 'yes-please' } }); // should be boolean
     const { effective, warnings } = loadConfig({ cwd });
-    strictEqual(effective.autoMigrate, true); // default kept
+    strictEqual(effective.scan.tokenize, true); // default kept
     strictEqual(warnings.length, 1);
     match(warnings[0]!, /invalid value/);
-    match(warnings[0]!, /autoMigrate/);
+    match(warnings[0]!, /scan/);
   });
 
   it('continues past one bad key to apply the rest of the file', () => {
     const { cwd } = freshScope('partial-bad');
-    writeSettings(cwd, 'settings', { tokenizer: 'gpt-4', autoMigrate: 'string-not-bool' });
+    writeSettings(cwd, 'settings', { tokenizer: 'gpt-4', scan: { tokenize: 'string-not-bool' } });
     const { effective, warnings } = loadConfig({ cwd });
     strictEqual(effective.tokenizer, 'gpt-4');     // good key applied
-    strictEqual(effective.autoMigrate, true);       // bad key dropped, default kept
+    strictEqual(effective.scan.tokenize, true);     // bad key dropped, default kept
     strictEqual(warnings.length, 1);
   });
 
@@ -196,7 +193,7 @@ describe('config loader, strict mode', () => {
 
   it('throws on schema violation', () => {
     const { cwd } = freshScope('strict-schema');
-    writeSettings(cwd, 'settings', { autoMigrate: 42 });
+    writeSettings(cwd, 'settings', { scan: { tokenize: 42 } });
     throws(
       () => loadConfig({ cwd, strict: true }),
       /invalid value/,
@@ -254,56 +251,5 @@ describe('config loader, project-local-only locality', () => {
       () => loadConfig({ cwd, strict: true }),
       /project-local only/,
     );
-  });
-});
-
-describe('config loader, prototype pollution defence (audit H1)', () => {
-  it('skips __proto__ inside plugins[*].config (additionalProperties:true subtree)', () => {
-    const { cwd } = freshScope('proto-plugins');
-    writeSettings(cwd, 'settings', {
-      plugins: {
-        evil: {
-          config: { __proto__: { polluted: 'yes' }, legitimate: 1 },
-        },
-      },
-    });
-    const { effective } = loadConfig({ cwd });
-    // The legitimate sibling key still merges through.
-    strictEqual(
-      (effective.plugins['evil']?.config as Record<string, unknown>)?.['legitimate'],
-      1,
-    );
-    // Nothing was written via the __proto__ setter on the merged config
-    // or on Object.prototype itself.
-    strictEqual(({} as Record<string, unknown>)['polluted'], undefined);
-    strictEqual(
-      Object.getPrototypeOf(effective.plugins['evil']?.config),
-      Object.prototype,
-    );
-  });
-
-  it('skips constructor / prototype keys', () => {
-    const { cwd } = freshScope('proto-constructor');
-    writeSettings(cwd, 'settings', {
-      plugins: {
-        evil: {
-          config: { constructor: { polluted: 'no' }, prototype: { also: 'no' }, ok: 2 },
-        },
-      },
-    });
-    const { effective } = loadConfig({ cwd });
-    const merged = effective.plugins['evil']?.config as Record<string, unknown>;
-    strictEqual(merged['ok'], 2);
-    ok(!Object.prototype.hasOwnProperty.call(merged, 'constructor'));
-    ok(!Object.prototype.hasOwnProperty.call(merged, 'prototype'));
-  });
-
-  it('does not pollute Object.prototype across multiple loads', () => {
-    const { cwd } = freshScope('proto-no-bleed');
-    writeSettings(cwd, 'settings', {
-      plugins: { x: { config: { __proto__: { leaked: true } } } },
-    });
-    loadConfig({ cwd });
-    strictEqual(({} as Record<string, unknown>)['leaked'], undefined);
   });
 });

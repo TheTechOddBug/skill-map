@@ -277,15 +277,14 @@ interface ISectionDef {
 const SECTION_DEFS: ISectionDef[] = [
   {
     title: CONFIG_TEXTS.listSectionGeneral,
-    exactKeys: ['autoMigrate', 'schemaVersion', 'tokenizer', 'i18n.locale'],
+    exactKeys: ['schemaVersion', 'tokenizer'],
   },
   { title: CONFIG_TEXTS.listSectionScan, prefix: 'scan.', stripPrefix: true },
   { title: CONFIG_TEXTS.listSectionJobs, prefix: 'jobs.', stripPrefix: true },
   {
     title: CONFIG_TEXTS.listSectionRootsAndPlugins,
-    exactKeys: ['roots', 'providers', 'plugins', 'ignore'],
+    exactKeys: ['roots', 'plugins', 'ignore'],
   },
-  { title: CONFIG_TEXTS.listSectionHistory, prefix: 'history.', stripPrefix: true },
 ];
 
 /**

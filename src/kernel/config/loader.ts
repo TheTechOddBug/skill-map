@@ -59,7 +59,6 @@ export interface IJobsConfig {
 
 export interface IPluginConfigEntry {
   enabled?: boolean;
-  config?: Record<string, unknown>;
 }
 
 export interface IScanWatchConfig {
@@ -69,16 +68,6 @@ export interface IScanWatchConfig {
 export interface IScanConfig {
   tokenize: boolean;
   strict: boolean;
-  /**
-   * Reserved for a future implementation. The walker (built-in `claude`
-   * Provider, `walkMarkdown`) currently always skips symlinks, regardless
-   * of this flag's value. Following a symlink also requires cycle detection
-   * and a `realpath`-resolved containment check, which is out of scope for
-   * the current security pass, see audit M7. The schema field stays so
-   * a settings.json that already opts in keeps validating; flipping it
-   * to `true` is a no-op until the walker is extended.
-   */
-  followSymlinks: boolean;
   maxFileSizeBytes: number;
   /**
    * Hard cap on the number of files the scan accepts after
@@ -107,7 +96,6 @@ export interface IScanConfig {
 
 export interface IEffectiveConfig {
   schemaVersion: 1;
-  autoMigrate: boolean;
   /**
    * **Project-local only** (per `PROJECT_LOCAL_ONLY_KEYS`). Grants this
    * project permission to create / modify `.sm` annotation sidecars
@@ -123,14 +111,11 @@ export interface IEffectiveConfig {
    */
   allowEditSmFiles: boolean;
   tokenizer: string;
-  providers: string[];
   roots: string[];
   ignore: string[];
   scan: IScanConfig;
   plugins: Record<string, IPluginConfigEntry>;
-  history: { share: boolean };
   jobs: IJobsConfig;
-  i18n: { locale: string };
 }
 
 /**

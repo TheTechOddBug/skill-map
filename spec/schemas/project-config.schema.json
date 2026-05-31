@@ -11,22 +11,13 @@
       "const": 1,
       "description": "Config file shape version. Bumped on breaking changes to this schema."
     },
-    "autoMigrate": {
-      "type": "boolean",
-      "description": "Apply pending kernel and plugin migrations automatically at startup, after auto-backing-up the DB. Default true. When false, startup fails with exit 2 if migrations are pending; the user runs `sm db migrate` manually."
-    },
     "tokenizer": {
       "type": "string",
       "description": "Name of the offline tokenizer used to compute per-node token counts during scan. Default `cl100k_base`. Stored alongside each token count in `scan_nodes` so consumers know which encoder produced the numbers. Changing this invalidates prior counts on next scan."
     },
-    "providers": {
-      "type": "array",
-      "description": "Provider ids to enable, in priority order when multiple match. Empty/absent = use all registered. Note: the `activeProvider` field selects ONE of these as the project's active lens; the rest stay enabled-but-inactive until the user switches.",
-      "items": { "type": "string" }
-    },
     "activeProvider": {
       "type": "string",
-      "description": "The active provider lens for this project. Exactly one provider id (from the enabled `providers` list) sees the project at any time. All extractors, classifiers, and resolution rules belonging to other providers are skipped during scan. Changing this triggers an atomic drop of the `scan_*` DB zone followed by a fresh scan under the new lens; `state_*` and `config_*` zones survive the switch. When absent on a fresh project, the kernel auto-detects from filesystem (presence of `.claude/`, `.codex/`, AGENTS.md, `.cursor/`, etc.) and prompts via the CLI / UI if the heuristic is ambiguous. Google's Antigravity CLI has no vendor-specific marker and is selected manually. Stability: experimental."
+      "description": "The active provider lens for this project. Exactly one provider id (from the registered providers) sees the project at any time. All extractors, classifiers, and resolution rules belonging to other providers are skipped during scan. Changing this triggers an atomic drop of the `scan_*` DB zone followed by a fresh scan under the new lens; `state_*` and `config_*` zones survive the switch. When absent on a fresh project, the kernel auto-detects from filesystem (presence of `.claude/`, `.codex/`, AGENTS.md, `.cursor/`, etc.) and prompts via the CLI / UI if the heuristic is ambiguous. Google's Antigravity CLI has no vendor-specific marker and is selected manually. Stability: experimental."
     },
     "activeProviderMarkers": {
       "type": "array",
@@ -49,7 +40,6 @@
       "properties": {
         "tokenize": { "type": "boolean", "description": "Whether to compute token counts. Default true." },
         "strict": { "type": "boolean", "description": "Promote frontmatter warnings to errors. Default false." },
-        "followSymlinks": { "type": "boolean", "description": "Default false." },
         "maxFileSizeBytes": {
           "type": "integer",
           "minimum": 1,
@@ -86,29 +76,7 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "enabled": { "type": "boolean" },
-          "config": { "type": "object", "description": "Plugin-specific config passed to extensions at load time. Shape defined by the plugin.", "additionalProperties": true },
-          "extensions": {
-            "type": "object",
-            "description": "Per-extension enable/disable overrides within this plugin. Keys are extension ids (the `id` declared by the extractor / analyzer / etc. inside the plugin). Absent = use the extension's manifest default (enabled). Allows a user to keep a provider plugin active but disable an individual extractor whose output is noisy in their project, without disabling the whole bundle.",
-            "additionalProperties": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "enabled": { "type": "boolean" }
-              }
-            }
-          }
-        }
-      }
-    },
-    "history": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "share": {
-          "type": "boolean",
-          "description": "When true, `./.skill-map/skill-map.db` is expected to be committed, teams remove it from `.gitignore` so the execution log becomes a shared artefact. Stability: experimental. Default false."
+          "enabled": { "type": "boolean" }
         }
       }
     },
@@ -150,14 +118,6 @@
             }
           }
         }
-      }
-    },
-    "i18n": {
-      "type": "object",
-      "description": "Stability: experimental.",
-      "additionalProperties": false,
-      "properties": {
-        "locale": { "type": "string", "description": "BCP-47 tag. Default `en`." }
       }
     },
     "allowEditSmFiles": {

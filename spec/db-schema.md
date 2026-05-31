@@ -18,7 +18,7 @@ One scope. Skill-map operates on the project scope only (`<cwd>/.skill-map/`). T
 |---|---|---|
 | `project` | `<cwd>/.skill-map/skill-map.db` | The current repository, plus any paths the user added to `scan.extraFolders`. |
 
-The project DB is gitignored by default. Teams MAY opt in to sharing it by setting `history.share: true` in `.skill-map/settings.json`, the file is then committed and the execution log becomes a team artifact.
+The project DB is gitignored by default (`sm init` adds the entry). Teams MAY opt in to sharing it by removing that `.gitignore` entry, the file is then committed and the execution log becomes a team artifact.
 
 The `--db <path>` CLI flag overrides the DB location as an escape hatch (debugging, custom layouts).
 
@@ -415,7 +415,7 @@ Persists user-toggled enable/disable overrides. Discovery is still filesystem-ba
 
 **Effective enable/disable resolution.** A plugin is enabled iff the highest-precedence layer that mentions it says so. Order from highest to lowest:
 
-1. `config_plugins.enabled` for the row whose `plugin_id` matches, written by `sm plugins enable/disable`. Local-machine user override; never committed (the DB is gitignored unless `history.share: true`).
+1. `config_plugins.enabled` for the row whose `plugin_id` matches, written by `sm plugins enable/disable`. Local-machine user override; never committed (the DB is gitignored unless the team removes the `.gitignore` entry).
 2. `.skill-map/settings.json#/plugins/<id>/enabled`, committed team-shared baseline.
 3. Installed default, every discovered plugin is enabled until told otherwise.
 
@@ -456,7 +456,7 @@ The kernel ALSO maintains `PRAGMA user_version` (or the engine equivalent) as a 
 - **Location**: kernel migrations in `src/migrations/` (reference impl); plugin migrations in `<plugin-dir>/migrations/`.
 - **Wrapping**: the kernel wraps each file in `BEGIN; ... ; COMMIT;`. Files contain DDL only.
 - **Strict versioning**: no idempotency is required. `CREATE TABLE IF NOT EXISTS` is DISCOURAGED in kernel migrations (but permitted in plugin migrations, at the plugin author's discretion).
-- **Auto-apply**: on startup, unless `autoMigrate: false` in config. A backup is written to `.skill-map/backups/skill-map-pre-migrate-v<N>.db` before applying.
+- **Auto-apply**: on startup. A backup is written to `.skill-map/backups/skill-map-pre-migrate-v<N>.db` before applying. The `sm db migrate` / `sm db backup` verbs open the DB with auto-apply suppressed so the operator drives migrations manually.
 - **Plugin migration order**: plugins are migrated after kernel migrations and in stable alphabetical order by plugin id. A failing plugin migration disables only that plugin; other plugins and the kernel continue.
 
 `sm db migrate` controls migration flow manually: `--dry-run`, `--status`, `--to <n>`, `--kernel-only`, `--plugin <id>`, `--no-backup`.

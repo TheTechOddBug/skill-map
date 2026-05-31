@@ -1,15 +1,12 @@
 {
   "schemaVersion": 1,
-  "autoMigrate": true,
   "allowEditSmFiles": false,
   "tokenizer": "cl100k_base",
-  "providers": [],
   "roots": [],
   "ignore": [],
   "scan": {
     "tokenize": true,
     "strict": false,
-    "followSymlinks": false,
     "maxFileSizeBytes": 1048576,
     "maxNodes": 256,
     "watch": {
@@ -18,9 +15,6 @@
     "referencePaths": []
   },
   "plugins": {},
-  "history": {
-    "share": false
-  },
   "jobs": {
     "ttlSeconds": 3600,
     "graceMultiplier": 3,
@@ -31,8 +25,5 @@
       "completed": 2592000,
       "failed": null
     }
-  },
-  "i18n": {
-    "locale": "en"
   }
 }

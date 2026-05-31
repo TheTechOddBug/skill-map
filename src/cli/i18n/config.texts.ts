@@ -112,6 +112,5 @@ export const CONFIG_TEXTS = {
   listSectionScan: 'Scan',
   listSectionJobs: 'Jobs',
   listSectionRootsAndPlugins: 'Roots & plugins',
-  listSectionHistory: 'History',
   listSectionOther: 'Other',
 } as const;

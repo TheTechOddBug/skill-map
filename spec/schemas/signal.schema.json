@@ -135,7 +135,7 @@
         },
         "extractorDisabled": {
           "type": "object",
-          "description": "Reserved for Phase 4+: populated when every candidate of this Signal came from an extractor that the operator has disabled via `plugins.<id>.extensions.<extId>.enabled`. Today the resolver never sets this; the field is documented so the analyzer / UI surface can be built once the filter lands.",
+          "description": "Reserved for Phase 4+: populated when every candidate of this Signal came from an extractor the operator has disabled. The config surface that toggles individual extensions is not defined yet (the earlier `plugins.<id>.extensions.<extId>.enabled` placeholder was removed); it will be specified when the filter lands. Today the resolver never sets this; the field is documented so the analyzer / UI surface can be built once the filter lands.",
           "required": ["extractorId"],
           "additionalProperties": false,
           "properties": {

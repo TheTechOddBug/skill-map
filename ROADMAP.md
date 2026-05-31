@@ -731,7 +731,7 @@ This is the only path by which UI-side keys reach the browser. There is no build
 
 ### Commands and keys
 
-The `sm config` verbs (`list` / `get` / `set` / `reset` / `show --source`, where `set` targets project-local for `PROJECT_LOCAL_ONLY_KEYS`) are specified in [`spec/cli-contract.md`](./spec/cli-contract.md), and every key with its default is normative in [`spec/schemas/project-config.schema.json`](./spec/schemas/project-config.schema.json): `schemaVersion`, `autoMigrate`, `tokenizer`, `roots` / `ignore`, `plugins.<id>.{enabled,config}`, the `scan.*` block (`tokenize` / `strict` / `followSymlinks` / `maxFileSizeBytes`), the `jobs.*` block (the TTL formula `max(base × graceMultiplier, minimumTtlSeconds)` plus `perActionTtl` / `perActionPriority` / `retention`), and the experimental `history.share` (opt-in committed DB). The generated `.skillmapignore` is editable directly and through the Settings → Project CRUD (BFF route `/api/project-ignore`, comments preserved).
+The `sm config` verbs (`list` / `get` / `set` / `reset` / `show --source`, where `set` targets project-local for `PROJECT_LOCAL_ONLY_KEYS`) are specified in [`spec/cli-contract.md`](./spec/cli-contract.md), and every key with its default is normative in [`spec/schemas/project-config.schema.json`](./spec/schemas/project-config.schema.json): `schemaVersion`, `tokenizer`, `roots` / `ignore`, `plugins.<id>.enabled`, the `scan.*` block (`tokenize` / `strict` / `maxFileSizeBytes`), and the `jobs.*` block (the TTL formula `max(base × graceMultiplier, minimumTtlSeconds)` plus `perActionTtl` / `perActionPriority` / `retention`). The generated `.skillmapignore` is editable directly and through the Settings → Project CRUD (BFF route `/api/project-ignore`, comments preserved).
 
 ### UI-side keys
 
@@ -1011,7 +1011,7 @@ What landed:
 
 Deferred to a future Step (the rest of the spec's resolver pipeline, NOT blocking v1.0):
 
-- Phase 4+ per-extension enable filter inside the resolver (`plugins.<id>.extensions.<extId>.enabled` predicate). The Signal's `resolution.extractorDisabled` field exists for it; the analyzer's message template is in place.
+- Phase 4+ per-extension enable filter inside the resolver. The Signal's `resolution.extractorDisabled` field exists for it; the analyzer's message template is in place. The config surface that would toggle individual extensions (`plugins.<id>.extensions.<extId>.enabled`) was removed during the unused-config-key cleanup and can be re-added to `project-config.schema.json` when this filter is actually built.
 - Phase 4+ confidence floor (drop a Signal whose top candidate falls below a threshold). Same posture: data shape + analyzer message ready, predicate not wired.
 - Phase 5+ fragmentation detection (adjacent Signals representing a single authored intent). A different analyzer surface; the IR already supports it via the shared `source` + `range` fields.
 

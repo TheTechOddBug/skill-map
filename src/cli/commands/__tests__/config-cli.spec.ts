@@ -88,7 +88,7 @@ describe('sm config list', () => {
     // key. The match regexes target key + value with whitespace
     // tolerance so column padding does not couple the test to the
     // current widths.
-    assert.match(r.stdout, /^\s+autoMigrate\s+true\s*$/m);
+    assert.match(r.stdout, /^\s+schemaVersion\s+1\s*$/m);
     assert.match(r.stdout, /^\s+tokenizer\s+gpt-4\s*$/m);
     // `scan.tokenize` displays as bare `tokenize` under the `Scan`
     // header (the dotted form remains valid for `sm config get/set`).
@@ -225,11 +225,11 @@ describe('sm config show', () => {
 describe('sm config set', () => {
   it('writes to project file by default and coerces JSON-like values', () => {
     const scope = freshScope('set-project');
-    const r = sm(['config', 'set', 'autoMigrate', 'false'], scope);
+    const r = sm(['config', 'set', 'scan.tokenize', 'false'], scope);
     assert.equal(r.status, 0);
     const path = join(scope.cwd, '.skill-map', 'settings.json');
     const written = JSON.parse(readFileSync(path, 'utf8'));
-    assert.equal(written.autoMigrate, false); // boolean, not string
+    assert.equal(written.scan.tokenize, false); // boolean, not string
   });
 
   it('-g is rejected as unknown option (no global scope post-cleanup)', () => {
@@ -255,7 +255,7 @@ describe('sm config set', () => {
 
   it('rejects schema-violating values without writing the file', () => {
     const scope = freshScope('set-invalid');
-    const r = sm(['config', 'set', 'autoMigrate', 'maybe'], scope);
+    const r = sm(['config', 'set', 'scan.tokenize', 'maybe'], scope);
     assert.equal(r.status, 2);
     assert.match(r.stderr, /Invalid config/);
     assert.equal(existsSync(join(scope.cwd, '.skill-map', 'settings.json')), false);
@@ -264,13 +264,13 @@ describe('sm config set', () => {
   it('preserves unrelated keys when setting a new one', () => {
     const scope = freshScope('set-preserve');
     writeSettings(scope.cwd, { tokenizer: 'gpt-4' });
-    const r = sm(['config', 'set', 'autoMigrate', 'false'], scope);
+    const r = sm(['config', 'set', 'scan.tokenize', 'false'], scope);
     assert.equal(r.status, 0);
     const written = JSON.parse(
       readFileSync(join(scope.cwd, '.skill-map', 'settings.json'), 'utf8'),
     );
     assert.equal(written.tokenizer, 'gpt-4');
-    assert.equal(written.autoMigrate, false);
+    assert.equal(written.scan.tokenize, false);
   });
 
   it('emits done-in stderr (set is in-scope per cli-contract)', () => {
@@ -346,13 +346,13 @@ describe('sm config set', () => {
 describe('sm config reset', () => {
   it('removes a previously-set key from the project file', () => {
     const scope = freshScope('reset-basic');
-    writeSettings(scope.cwd, { tokenizer: 'gpt-4', autoMigrate: false });
-    const r = sm(['config', 'reset', 'autoMigrate'], scope);
+    writeSettings(scope.cwd, { tokenizer: 'gpt-4', scan: { tokenize: false } });
+    const r = sm(['config', 'reset', 'scan.tokenize'], scope);
     assert.equal(r.status, 0);
     const written = JSON.parse(
       readFileSync(join(scope.cwd, '.skill-map', 'settings.json'), 'utf8'),
     );
-    assert.equal('autoMigrate' in written, false);
+    assert.equal('scan' in written, false);
     assert.equal(written.tokenizer, 'gpt-4');
   });
 
@@ -395,8 +395,8 @@ describe('sm config, --strict UX', () => {
     const r = sm(['config', 'list'], scope);
     assert.equal(r.status, 0);
     assert.match(r.stderr, /unknown key bogus_key/);
-    // Sectioned layout: indented `autoMigrate  true` under `General`.
-    assert.match(r.stdout, /^\s+autoMigrate\s+true\s*$/m);
+    // Sectioned layout: indented `schemaVersion  1` under `General`.
+    assert.match(r.stdout, /^\s+schemaVersion\s+1\s*$/m);
   });
 
   it('--strict: clean stderr message + exit 2 (no Clipanion stack trace)', () => {
@@ -413,8 +413,8 @@ describe('sm config, --strict UX', () => {
 
   it('--strict also wraps `config get`', () => {
     const scope = freshScope('strict-get');
-    writeSettings(scope.cwd, { autoMigrate: 'not-a-bool' });
-    const r = sm(['config', 'get', 'autoMigrate', '--strict'], scope);
+    writeSettings(scope.cwd, { scan: { tokenize: 'not-a-bool' } });
+    const r = sm(['config', 'get', 'scan.tokenize', '--strict'], scope);
     assert.equal(r.status, 2);
     assert.match(r.stderr, /sm config: /);
     assert.ok(!r.stderr.includes('Internal Error'));
@@ -422,8 +422,8 @@ describe('sm config, --strict UX', () => {
 
   it('--strict also wraps `config show`', () => {
     const scope = freshScope('strict-show');
-    writeSettings(scope.cwd, { autoMigrate: 42 });
-    const r = sm(['config', 'show', 'autoMigrate', '--strict'], scope);
+    writeSettings(scope.cwd, { scan: { tokenize: 42 } });
+    const r = sm(['config', 'show', 'scan.tokenize', '--strict'], scope);
     assert.equal(r.status, 2);
     assert.match(r.stderr, /sm config: /);
     assert.ok(!r.stderr.includes('Internal Error'));
@@ -470,7 +470,7 @@ describe('sm config, prototype-pollution defence (audit H2)', () => {
 
     it(`config reset rejects "${segment}" segment`, () => {
       const scope = freshScope(`reset-${segment}`);
-      writeSettings(scope.cwd, { autoMigrate: false });
+      writeSettings(scope.cwd, { scan: { tokenize: false } });
       const r = sm(['config', 'reset', `${segment}.x`], scope);
       assert.equal(r.status, 2);
       assert.match(r.stderr, /forbidden key segment/);
@@ -478,7 +478,7 @@ describe('sm config, prototype-pollution defence (audit H2)', () => {
       const written = JSON.parse(
         readFileSync(join(scope.cwd, '.skill-map', 'settings.json'), 'utf8'),
       ) as Record<string, unknown>;
-      assert.equal(written['autoMigrate'], false);
+      assert.equal((written['scan'] as Record<string, unknown>)['tokenize'], false);
     });
   }
 });

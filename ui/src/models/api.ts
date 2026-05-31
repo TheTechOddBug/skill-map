@@ -268,9 +268,7 @@ export interface IScanResultApi {
  */
 export interface IProjectConfigApi {
   schemaVersion?: number;
-  autoMigrate?: boolean;
   tokenizer?: string;
-  providers?: string[];
   roots?: string[];
   ignore?: string[];
   scan?: Record<string, unknown>;

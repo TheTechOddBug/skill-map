@@ -91,13 +91,14 @@ describe('readConfigValue', () => {
   });
 
   it('falls back to opts.default when the key is absent everywhere', () => {
-    const value = readConfigValue<string>('i18n.locale', {
+    // `jobs.perActionTtl` defaults to an empty map, so no layer writes a
+    // value for an arbitrary action id and the `default` arg is what
+    // surfaces.
+    const value = readConfigValue<number>('jobs.perActionTtl.some-action', {
       cwd,
-      default: 'en',
+      default: 999,
     });
-    // i18n.locale defaults to 'en' in the schema, so the merged value
-    // wins over our `default` arg. Assert the merged value:
-    assert.equal(value, 'en');
+    assert.equal(value, 999);
   });
 });
 
@@ -169,10 +170,10 @@ describe('getValueSource', () => {
   });
 
   it('returns undefined when the key is absent', () => {
-    const layer = getValueSource('autoMigrate', {
+    const layer = getValueSource('tokenizer', {
       cwd,
     });
-    // `autoMigrate` IS in defaults.json, so the source is `defaults`,
+    // `tokenizer` IS in defaults.json, so the source is `defaults`,
     // not undefined. Assert that.
     assert.equal(layer, 'defaults');
   });

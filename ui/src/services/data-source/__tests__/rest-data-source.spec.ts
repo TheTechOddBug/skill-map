@@ -208,11 +208,11 @@ describe('RestDataSource', () => {
     req.flush({
       schemaVersion: '1',
       kind: 'config',
-      value: { tokenizer: 'cl100k_base', autoMigrate: true },
+      value: { tokenizer: 'cl100k_base', schemaVersion: 1 },
     });
     await expect(promise).resolves.toEqual({
       tokenizer: 'cl100k_base',
-      autoMigrate: true,
+      schemaVersion: 1,
     });
   });
 
