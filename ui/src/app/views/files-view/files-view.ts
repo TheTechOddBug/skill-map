@@ -20,6 +20,7 @@ import {
   effectiveStability,
 } from '../../../models/node-derived';
 import { pathBasenameForLink } from '../../../services/trigger-resolve';
+import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
 import type {
   INodeView,
   TStability,
@@ -31,6 +32,12 @@ interface IFolderLeaf {
   readonly type: 'leaf';
   readonly path: string;
   readonly name: string;
+  /**
+   * Collapsed folder chain shown dimmed before the name when a
+   * single-child branch folds down to one file (e.g. `docs/guides/`).
+   * Empty for ordinary leaves that render under a folder row.
+   */
+  readonly prefix: string;
   readonly depth: number;
   readonly linksIn: string;
   readonly linksOut: string;
@@ -85,6 +92,7 @@ export class FilesView implements OnInit {
   private readonly loader = inject(CollectionLoaderService);
   private readonly filters = inject(FilterStoreService);
   private readonly issuePaths = inject(IssuePathsService);
+  private readonly nodeOpenIntent = inject(NODE_OPEN_INTENT);
   protected readonly texts = FILES_VIEW_TEXTS;
 
   readonly loading = this.loader.loading;
@@ -165,21 +173,42 @@ export class FilesView implements OnInit {
     const warnCounts = countIssuesByPath(this.loader.scan()?.issues, 'warn');
     const rows: TFolderViewRow[] = [];
 
+    // Compact single-child folder chains into one row (VS Code
+    // "compact folders"): while a folder holds exactly one subfolder
+    // and no files of its own, fold the child's name into the chain.
+    // When the chain bottoms out at a folder with a single file and no
+    // subfolders, the file folds in too, so a branch leading to a lone
+    // file is one line (`docs/guides/intro.md`) instead of a nested
+    // arrowhead.
     const emitFolder = (folder: ITreeFolder, depth: number): void => {
-      const isExpanded = !collapsed.has(folder.path);
-      const agg = aggregates.get(folder.path) ?? { nodes: 0 };
+      const chain = [folder.name];
+      let terminal = folder;
+      while (terminal.subfolders.size === 1 && terminal.leaves.length === 0) {
+        const [only] = terminal.subfolders.values();
+        chain.push(only.name);
+        terminal = only;
+      }
+      const chainName = chain.join('/');
+
+      if (terminal.subfolders.size === 0 && terminal.leaves.length === 1) {
+        rows.push(this.makeLeafRow(terminal.leaves[0], depth, errorCounts, warnCounts, `${chainName}/`));
+        return;
+      }
+
+      const isExpanded = !collapsed.has(terminal.path);
+      const agg = aggregates.get(terminal.path) ?? { nodes: 0 };
       rows.push({
         type: 'folder',
-        path: folder.path,
-        name: folder.name,
+        path: terminal.path,
+        name: chainName,
         depth,
         expanded: isExpanded,
         nodeCount: agg.nodes,
       });
       if (!isExpanded) return;
-      const subs = Array.from(folder.subfolders.values()).sort(byName);
+      const subs = Array.from(terminal.subfolders.values()).sort(byName);
       for (const sub of subs) emitFolder(sub, depth + 1);
-      const leaves = [...folder.leaves].sort(byNodePath);
+      const leaves = [...terminal.leaves].sort(byNodePath);
       for (const leaf of leaves) rows.push(this.makeLeafRow(leaf, depth + 1, errorCounts, warnCounts));
     };
 
@@ -232,6 +261,17 @@ export class FilesView implements OnInit {
     this.previewRow.set(row);
   }
 
+  /**
+   * "Open in Map" affordance: navigate to the graph route focused on
+   * this node (`/map?path=<path>`), via the shared `NODE_OPEN_INTENT`
+   * the inspector uses. Distinct from `openLeaf`, which only feeds the
+   * local preview aside, so the row click and the button do different
+   * things.
+   */
+  openInMap(row: IFolderLeaf): void {
+    this.nodeOpenIntent.open(row.path);
+  }
+
   resetFilters(): void {
     this.filters.reset();
   }
@@ -246,6 +286,7 @@ export class FilesView implements OnInit {
     depth: number,
     errorCounts: ReadonlyMap<string, number>,
     warnCounts: ReadonlyMap<string, number>,
+    prefix = '',
   ): IFolderLeaf {
     const stability = rowStability(node);
     const isStale = effectiveIsStale(node);
@@ -253,6 +294,7 @@ export class FilesView implements OnInit {
       type: 'leaf',
       path: node.path,
       name: leafName(node),
+      prefix,
       depth,
       linksIn: node.linksInCount !== undefined ? String(node.linksInCount) : FILES_VIEW_TEXTS.missing,
       linksOut: node.linksOutCount !== undefined ? String(node.linksOutCount) : FILES_VIEW_TEXTS.missing,

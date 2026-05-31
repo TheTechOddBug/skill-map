@@ -30,7 +30,6 @@ export const FILES_VIEW_TEXTS = {
     /** Outgoing references (count of edges this node emits). */
     linksOut: 'out',
     tokens: 'Tokens',
-    stability: 'Stability',
     issues: 'Issues',
   },
   linksInHeaderTooltip: 'Incoming references: how many other nodes link to this one.',

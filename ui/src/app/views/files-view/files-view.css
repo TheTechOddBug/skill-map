@@ -357,6 +357,14 @@
   color: var(--p-text-color);
 }
 
+/* Collapsed folder chain shown before a folded single-file leaf
+   (`docs/guides/`intro.md). Dimmed and lighter so the file name still
+   reads as the row's subject. */
+.files__name-prefix {
+  color: var(--p-text-muted-color);
+  font-weight: 400;
+}
+
 /* Per-leaf "open in graph" affordance. Sits inline after the file name
    so its action target (the file) is unambiguous. Discreet by default,
    lights up on row hover / focus and on its own focus-visible. */
