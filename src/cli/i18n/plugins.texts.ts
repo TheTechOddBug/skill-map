@@ -232,6 +232,14 @@ export const PLUGINS_TEXTS = {
   createInvalidIdHint:
     'Use a-z, 0-9, and hyphens between segments (e.g. `my-plugin`, `kw-counter`).',
   /**
+   * §3.1b two-line block. Rejected when the `<kind>` positional is not one
+   * of the closed extension-kind catalog; the hint lists the valid kinds.
+   */
+  createInvalidKind:
+    '{{glyph}}  Unknown extension kind (got: {{kind}}).\n' +
+    '   {{hint}}\n',
+  createInvalidKindHint: 'Use one of: {{kinds}}.',
+  /**
    * §3.1b two-line block. Target directory exists and `--force` was not
    * passed; the hint surfaces the override flag.
    */
@@ -240,15 +248,15 @@ export const PLUGINS_TEXTS = {
     '   {{hint}}\n',
   createRefuseOverwriteHint: 'Pass --force to overwrite the existing directory.',
   /**
-   * Success block printed after scaffolding. Follows the no-em-dash rule
-   * across every line.
+   * Success block printed after scaffolding. Kind-agnostic (the main stub
+   * path is interpolated). Follows the no-em-dash rule across every line.
    */
   createSuccess:
     'Created {{targetDir}}\n' +
     'Next:\n' +
-    '  - Edit {{pluginId}}/extractors/{{pluginId}}-extractor/index.js (the extract() body)\n' +
-    '  - Run sm scan to see the contribution surface\n' +
-    '  - sm plugins slots list: browse other slots\n',
+    '  - Edit {{mainFile}}\n' +
+    '  - Run sm plugins doctor to confirm it loads\n' +
+    '  - sm plugins slots list: browse slots and input-types\n',
 
   // --- slots list verb -------------------------------------------------
   /** Section header for the view-slots catalogue. */

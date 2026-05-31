@@ -712,10 +712,10 @@ Analyzers take a `ctx` with `nodes`, `links`, and (if you assert on view contrib
 Hand-writing the manifest is supported (the spec is the source of truth) but discouraged. Run:
 
 ```sh
-sm plugins create
+sm plugins create <kind> <plugin-id>
 ```
 
-The scaffolder walks you through the closed catalogs (settings + view slots) and emits a complete plugin directory with manifest, extension stub, test scaffold, and README; it catches invalid slot picks at author time, while a hand-written manifest only fails at load. Companion verbs:
+`<kind>` (the first positional, required) is one of the six extension kinds (`provider`, `extractor`, `analyzer`, `action`, `formatter`, `hook`). The scaffolder emits a loader-clean plugin directory: a lean `plugin.json`, a per-kind extension stub at `<kind>s/<id>-<kind>/index.js` (plus any sibling files the kind needs, e.g. an action's `report.schema.json`, or a provider skeleton you extend with a `kinds/` folder), and a `README.md`. The extractor stub pre-fills one setting (`string-list`) and one view contribution (slot `card.footer.left`), both pulled from the generated catalog so they cannot drift. Browse the closed catalogs with `sm plugins slots list` (the scaffolder does not walk them interactively). Companion verbs:
 
 - `sm plugins doctor`, surfaces `incompatible-catalog`, `invalid-manifest`, deprecated-slot usage.
 - `sm plugins upgrade <id>`, applies catalog migrations.

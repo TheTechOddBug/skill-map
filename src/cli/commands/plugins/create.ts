@@ -1,24 +1,29 @@
 /**
- * `sm plugins create <plugin-id>`, scaffold a new plugin directory.
+ * `sm plugins create <kind> <plugin-id>`, scaffold a new plugin.
  *
- * Non-interactive Phase 5 minimum: emit a lean `plugin.json` (plugin
- * manifest only, no `id` / `settings` at the root, both are
- * structure-as-truth or per-extension now) plus a placeholder
- * extractor under `extractors/<id>/index.js` that declares its own
- * `settings` (`string-list`) and one `ui` view contribution (slot
- * `card.footer.left`), and a `README.md`. The author edits to taste.
+ * `<kind>` (the first positional) is one of the six extension kinds and is
+ * required; `<plugin-id>` is the second positional. Emits a lean
+ * `plugin.json` (plugin manifest only, no `id` / `settings` at the root,
+ * both are structure-as-truth or per-extension now) plus a per-kind
+ * extension stub (and any sibling files the kind needs, e.g. an action's
+ * `report.schema.json`) and a `README.md`. The author edits to taste.
  *
- * Lands the plugin under `<scope>/.skill-map/plugins/<plugin-id>/`
- * (per `AGENTS.md`, "Plugins are scaffolded, not hand-written", the
- * canonical drop-in location). Use `--at <path>` to override.
+ * Lands the plugin under `<scope>/.skill-map/plugins/<plugin-id>/` (per
+ * `AGENTS.md`, "Plugins are scaffolded, not hand-written", the canonical
+ * drop-in location). Use `--at <path>` to override.
+ *
+ * The kind → generator registry, the stubs, and the shared manifest /
+ * README builders live under `./scaffold/`. This command only validates
+ * the inputs, resolves the target directory, and writes the file list.
  */
 
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 import { Command, Option } from 'clipanion';
 
 import { installedSpecVersion } from '../../../kernel/adapters/plugin-loader.js';
+import { EXTENSION_KINDS, type ExtensionKind } from '../../../kernel/registry.js';
 import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
 import { tx } from '../../../kernel/util/tx.js';
 import { PLUGINS_TEXTS } from '../../i18n/plugins.texts.js';
@@ -26,6 +31,7 @@ import { defaultProjectPluginsDir } from '../../util/db-path.js';
 import { ExitCode } from '../../util/exit-codes.js';
 import { defaultRuntimeContext } from '../../util/runtime-context.js';
 import { SmCommand } from '../../util/sm-command.js';
+import { generateScaffold } from './scaffold/index.js';
 
 export class PluginsCreateCommand extends SmCommand {
   static override paths = [['plugins', 'create']];
@@ -33,9 +39,17 @@ export class PluginsCreateCommand extends SmCommand {
     category: 'Plugins',
     description: 'Scaffold a new plugin directory.',
     details:
-      'Emits plugin.json + extension stub + README. Pre-filled with one view contribution (slot `card.footer.left`) and one setting (`string-list`); edit to taste. Use `sm plugins slots list` to see other options.',
+      'Emits plugin.json + a per-kind extension stub + README. `<kind>` is one of: provider, extractor, analyzer, action, formatter, hook. The extractor stub ships one view contribution (slot `card.footer.left`) and one setting (`string-list`); edit to taste. Use `sm plugins slots list` to browse the slot / input-type catalog.',
+    examples: [
+      ['Scaffold an extractor', '$0 plugins create extractor kw-counter'],
+      ['Scaffold an analyzer', '$0 plugins create analyzer my-linter'],
+      ['Scaffold a provider', '$0 plugins create provider my-vendor'],
+    ],
   });
 
+  // First positional: the extension kind (required). Declared before
+  // `pluginId` so clipanion assigns it the first positional slot.
+  kind = Option.String({ required: true, name: 'kind' });
   pluginId = Option.String({ required: true, name: 'plugin-id' });
   at = Option.String('--at', { required: false });
   force = Option.Boolean('--force', false);
@@ -43,6 +57,18 @@ export class PluginsCreateCommand extends SmCommand {
   protected async run(): Promise<number> {
     const ansi = this.ansiFor('stderr');
     const errGlyph = ansi.red('✕');
+    if (!EXTENSION_KINDS.includes(this.kind as ExtensionKind)) {
+      this.printer!.error(
+        tx(PLUGINS_TEXTS.createInvalidKind, {
+          glyph: errGlyph,
+          kind: sanitizeForTerminal(this.kind),
+          hint: ansi.dim(
+            tx(PLUGINS_TEXTS.createInvalidKindHint, { kinds: EXTENSION_KINDS.join(', ') }),
+          ),
+        }),
+      );
+      return ExitCode.Error;
+    }
     if (!/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/.test(this.pluginId)) {
       this.printer!.error(
         tx(PLUGINS_TEXTS.createInvalidId, {
@@ -53,6 +79,7 @@ export class PluginsCreateCommand extends SmCommand {
       );
       return ExitCode.Error;
     }
+    const kind = this.kind as ExtensionKind;
     const ctx = defaultRuntimeContext();
     const baseDir = defaultProjectPluginsDir(ctx);
     const targetDir = this.at ? resolve(this.at) : join(baseDir, this.pluginId);
@@ -66,124 +93,22 @@ export class PluginsCreateCommand extends SmCommand {
       );
       return ExitCode.Error;
     }
-    const extractorName = `${this.pluginId}-extractor`;
-    mkdirSync(join(targetDir, 'extractors', extractorName), { recursive: true });
 
     const specVersion = installedSpecVersion();
-    // Plugin manifest only. `id` is derived from the folder name and
-    // `settings` live per-extension (in the extension's index.js) since
-    // the structure-as-truth refactor; both are rejected at the root by
-    // `plugins-registry.schema.json#/$defs/PluginManifest`
-    // (`additionalProperties: false`).
-    const manifest = {
-      version: '0.1.0',
-      specCompat: `^${specVersion}`,
-      catalogCompat: '^1.0.0',
-      description: 'Generated by `sm plugins create`. Edit to taste.',
-    };
-    writeFileSync(
-      join(targetDir, 'plugin.json'),
-      JSON.stringify(manifest, null, 2) + '\n',
-    );
-
-    writeFileSync(
-      join(targetDir, 'extractors', extractorName, 'index.js'),
-      scaffolderExtractorStub(extractorName),
-    );
-    writeFileSync(join(targetDir, 'README.md'), scaffolderReadme(this.pluginId));
+    const files = generateScaffold(kind, this.pluginId, specVersion);
+    for (const file of files) {
+      const abs = join(targetDir, file.relPath);
+      mkdirSync(dirname(abs), { recursive: true });
+      writeFileSync(abs, file.contents);
+    }
+    const mainFile = `${kind}s/${this.pluginId}-${kind}/index.js`;
 
     this.printer!.data(
       tx(PLUGINS_TEXTS.createSuccess, {
         targetDir: sanitizeForTerminal(targetDir),
-        pluginId: this.pluginId,
+        mainFile,
       }),
     );
     return ExitCode.Ok;
   }
-}
-
-function scaffolderExtractorStub(extractorId: string): string {
-  return `/**
- * Generated by \`sm plugins create\`. Edit the extract() body.
- *
- * Loader contract: the plugin loader resolves the extension via the
- * MODULE'S DEFAULT EXPORT (\`export default { ... }\`). It must be an
- * object literal; renaming or splitting into a named export surfaces as
- * a \`load-error\`.
- *
- * Folder convention: this file lives at
- * \`extractors/${extractorId}/index.js\`. The folder layout is the
- * source of truth (structure-as-truth): the loader derives \`kind\`
- * (\`extractor\`) from the parent folder and the id (\`${extractorId}\`)
- * from the leaf folder, and injects \`pluginId\` from the plugin, so none
- * of them are declared here. Re-declaring \`kind\` / \`id\` is rejected as
- * \`invalid-manifest\`.
- *
- * Declared view contributions (\`ui\`):
- *   - 'count' → slot \`card.footer.left\` (renders as a chip
- *     in the left footer of the node card)
- *
- * Declared settings (\`settings\`):
- *   - 'keywords' (string-list) → exposed as ctx.settings.keywords
- *
- * See: spec/plugin-author-guide.md §View contributions
- *      spec/view-slots.md
- */
-export default {
-  version: '0.1.0',
-  description: 'Counts configured keywords per node.',
-  scope: 'body',
-
-  settings: {
-    keywords: {
-      type: 'string-list',
-      label: 'Keywords to track',
-      description: 'Words counted across each scanned node body.',
-      default: ['TODO', 'FIXME'],
-      min: 1,
-    },
-  },
-
-  ui: {
-    count: {
-      slot: 'card.footer.left',
-      icon: '🔍',
-      label: 'kw',
-      emitWhenEmpty: false,
-    },
-  },
-
-  extract(ctx) {
-    const keywords = (ctx.settings && ctx.settings.keywords) || ['TODO', 'FIXME'];
-    let total = 0;
-    for (const kw of keywords) {
-      const re = new RegExp('\\\\b' + kw.replace(/[.*+?^\${}()|[\\]\\\\]/g, '\\\\$&') + '\\\\b', 'gi');
-      total += (ctx.body.match(re) || []).length;
-    }
-    if (total > 0) {
-      ctx.emitContribution('count', { value: total });
-    }
-  },
-};
-`;
-}
-
-function scaffolderReadme(pluginId: string): string {
-  return `# ${pluginId}
-
-Generated by \`sm plugins create\`. Edit \`extractors/${pluginId}-extractor/index.js\` to taste.
-
-## Verbs
-
-- \`sm plugins show ${pluginId}\`: manifest + load status
-- \`sm plugins doctor\`: full plugin diagnostic
-- \`sm scan\`: re-emit contributions
-
-## Resources
-
-- \`spec/plugin-author-guide.md\` §View contributions
-- \`spec/view-slots.md\`: the closed catalog of slots
-- \`spec/input-types.md\`: the closed catalog of input-types for settings
-- \`sm plugins slots list\`: browse the catalog from the CLI
-`;
 }

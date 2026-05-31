@@ -212,7 +212,7 @@
       "interfaces/security-scanner.md": "e8049712b9cf7a07c786bf19f8f775f8ef9638f063f7fba5c7a8b1431b92f38e",
       "job-events.md": "9d5b35d4c451a7f8eef9915d85316d924ac52f1c026a316cdda5f1099d496854",
       "job-lifecycle.md": "9c429121f98a07c8795f8979ed1abc5e5334e3f89db51585a8da55c527ef855b",
-      "plugin-author-guide.md": "6af14aa45d2778a57a485b3fbf66411355a578581b326468efbaaf10dffdde40",
+      "plugin-author-guide.md": "b0c510529eb660c753cedfa6397fbf0520135f83f6c8e3cb3816fbfa1c9537a9",
       "plugin-kv-api.md": "1acc69ed82433a74e35ada61d63a6d7379fb61046ff83de1e0facbe884c64704",
       "prompt-preamble.md": "9dd4f6d1bc6a425f8782fcee10cbe75909e8d64e28781fda56c2fae909b02f40",
       "schemas/annotations.schema.json": "8c639b149cad675fdd4e7d6be2b47e920cfdd24087b41361d6e1b8280f646322",
@@ -231,7 +231,7 @@
       "schemas/extensions/provider.schema.json": "75a565b8be6f1a08f0dbfec34e10c5d4d7c990489842bf338519a7d4b97dfe8f",
       "schemas/frontmatter/base.schema.json": "cff81510ed94824dfd12ab8b30ce9fbac65e42d61ae0edf3fbb6bbb6bb8bcb8c",
       "schemas/history-stats.schema.json": "436aa0ffe744bdb699000447e86b45724fbd2cc4642781074eb1527522b9058c",
-      "schemas/input-types.schema.json": "cc9739aedcfdc72c1fa1285547e1392f9582169d578d72737918099acc721de0",
+      "schemas/input-types.schema.json": "1c81704783627c5e89dd40cb20368d9e9aa94a15f32c2f929964e392cf2a12b6",
       "schemas/issue.schema.json": "d173aa5c5312b3d2a2cd249f55c10943c8f3cd5799e4645ae3c66316221e12d1",
       "schemas/job.schema.json": "dbcedf137de03fde38f74686f594e600c627bf808f2aad23511a26617a663a02",
       "schemas/link.schema.json": "10f700feb3e23d89453d4d11cbe559bcc0b31f6edf08fffbe9e6773e58120512",
@@ -251,7 +251,7 @@
       "schemas/summaries/markdown.schema.json": "369d75a18710eb6c7ee4220b2899767ddbc07dada24f81b611827fe2e3a2977a",
       "schemas/summaries/skill.schema.json": "85d68056054bade62391948cc038fcfa70cdcf465e2b295f69cd520bbdba0134",
       "schemas/user-settings.schema.json": "d155552ffca9c7dd4c6e31398aff4950dd9721d2a1f4b308cf0fe33000ca31b5",
-      "schemas/view-slots.schema.json": "f78d0c5f0414f01dc045680b655b3d636373048eae4b75cc9dbd0fe0babd60bc",
+      "schemas/view-slots.schema.json": "4623cf8d774f44435f960b1dd3ad4c8b241e37b234ce8eab5b390b9ae8a2acb1",
       "telemetry.md": "fa659b47c59e692f50c7a091470888d5e7c98dcf858978fa549af25b2562803f",
       "versioning.md": "28a13f165f837921fe5066f4bfce61012cd9f1b7c451f88eeb67252e39a0981a"
     }

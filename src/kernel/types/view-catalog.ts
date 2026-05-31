@@ -12,98 +12,35 @@
  * storage or routing, see `architecture.md` §View contribution system
  * for the comparison table.
  *
- * **Closed catalog by design.** Both `TSlotName` and `TInputTypeName`
- * mirror the closed enums in `spec/schemas/view-slots.schema.json`
- * and `spec/schemas/input-types.schema.json`. Adding a member is a
- * coordinated kernel + spec + UI + scaffolder change. The closed-enum
- * shape lets TypeScript surface unknown slots at author time
- * (in plugin authors' editors when their plugin imports `@skill-map/cli`)
- * AND lets the runtime exhaustively dispatch slot → renderer in the
- * UI without `default:` fallbacks.
+ * **Closed catalog by design, generated from the spec.** Both `TSlotName`
+ * and `TInputTypeName` are generated (in `view-catalog.generated.ts`) from
+ * the closed `oneOf` const lists in `spec/schemas/view-slots.schema.json`
+ * and `spec/schemas/input-types.schema.json`. Adding a member means editing
+ * the spec and running `pnpm --filter @skill-map/cli view-catalog`; the
+ * `view-catalog:check` drift guard fails the build if any mirror (this
+ * kernel one, the CLI `slots-catalog.ts`, the UI `TSlotId` union) goes
+ * stale. The closed-enum shape lets TypeScript surface unknown slots at
+ * author time (in plugin authors' editors when their plugin imports
+ * `@skill-map/cli`) AND lets the runtime exhaustively dispatch slot →
+ * renderer in the UI without `default:` fallbacks.
  */
 
-/**
- * Closed enum of view slot names. Mirror of
- * `spec/schemas/view-slots.schema.json#/$defs/SlotName`.
- *
- * Plugins pick one of these by name in their extension manifest's
- * `viewContributions[<contributionId>].slot` field. The kernel
- * validates each pick at load time (`invalid-manifest` on miss); the
- * slot fixes both the renderer and the payload shape.
- */
-export type TSlotName =
-  | 'card.title.right'
-  | 'card.subtitle.left'
-  | 'card.footer.left'
-  | 'card.footer.right'
-  | 'graph.node.alert'
-  | 'inspector.header.badge.counter'
-  | 'inspector.header.badge.tag'
-  | 'inspector.body.panel.breakdown'
-  | 'inspector.body.panel.records'
-  | 'inspector.body.panel.tree'
-  | 'inspector.body.panel.key-values'
-  | 'inspector.body.panel.link-list'
-  | 'inspector.body.panel.markdown'
-  | 'topbar.nav.start';
+// The slot / input-type NAME catalog is generated from the spec
+// (`scripts/generate-view-catalog.js` reads the `oneOf` const lists in
+// `view-slots.schema.json` / `input-types.schema.json`). These re-exports
+// are the single import surface the rest of the kernel uses; a drift guard
+// (`view-catalog:check`) fails the build if the generated file goes stale.
+// The interfaces below (contribution + settings shapes) stay hand-authored,
+// they are not derivable from the catalog of names.
+import {
+  ALL_INPUT_TYPE_NAMES,
+  ALL_SLOT_NAMES,
+  KNOWN_SLOT_NAMES,
+} from './view-catalog.generated.js';
+import type { TInputTypeName, TSlotName } from './view-catalog.generated.js';
 
-/**
- * Runtime mirror of `TSlotName`. Single source of truth for every
- * consumer that needs to compare a string against the closed catalog
- * at runtime (manifest validation, `sm plugins doctor` drift checks,
- * `ctx.emitContribution` payload routing). Keep aligned with
- * `TSlotName` and `spec/schemas/view-slots.schema.json#/$defs/SlotName`
- * (the spec stays the formal source of truth; this list is the
- * TS / JS runtime mirror, no narrower).
- */
-export const ALL_SLOT_NAMES: ReadonlyArray<TSlotName> = [
-  'card.title.right',
-  'card.subtitle.left',
-  'card.footer.left',
-  'card.footer.right',
-  'graph.node.alert',
-  'inspector.header.badge.counter',
-  'inspector.header.badge.tag',
-  'inspector.body.panel.breakdown',
-  'inspector.body.panel.records',
-  'inspector.body.panel.tree',
-  'inspector.body.panel.key-values',
-  'inspector.body.panel.link-list',
-  'inspector.body.panel.markdown',
-  'topbar.nav.start',
-];
-
-/**
- * Set form of `ALL_SLOT_NAMES` for O(1) membership checks. Typed as
- * `ReadonlySet<string>` (not `ReadonlySet<TSlotName>`) because every
- * consumer feeds it untrusted strings pulled from plugin manifests
- * (`getContributionValidator`, `sm plugins doctor`'s slot-drift walk),
- * and TS `Set<T>.has(value: T)` would otherwise reject the call site.
- * The element values are still all `TSlotName` literals; the wider
- * key type only relaxes the `.has()` parameter.
- */
-export const KNOWN_SLOT_NAMES: ReadonlySet<string> = new Set(ALL_SLOT_NAMES);
-
-/**
- * Closed enum of input-type names for plugin settings. Mirror of
- * `spec/schemas/input-types.schema.json#/$defs/InputTypeName`.
- *
- * Plugins pick one of these by name in their plugin manifest's
- * `settings[<settingId>].type` field. The kernel exposes the resolved
- * value via `ctx.settings.<settingId>` typed per the input-type's
- * value-type promise.
- */
-export type TInputTypeName =
-  | 'string-list'
-  | 'single-string'
-  | 'boolean-flag'
-  | 'integer'
-  | 'enum-pick'
-  | 'enum-multipick'
-  | 'path-glob'
-  | 'regex'
-  | 'secret'
-  | 'key-value-list';
+export { ALL_INPUT_TYPE_NAMES, ALL_SLOT_NAMES, KNOWN_SLOT_NAMES };
+export type { TInputTypeName, TSlotName };
 
 /** Closed severity palette aligned with PrimeNG `<p-tag>` / `<p-message>`. */
 export type TSeverity = 'info' | 'warn' | 'success' | 'danger';

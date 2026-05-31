@@ -7,19 +7,19 @@
   "$defs": {
     "InputTypeName": {
       "type": "string",
-      "enum": [
-        "string-list",
-        "single-string",
-        "boolean-flag",
-        "integer",
-        "enum-pick",
-        "enum-multipick",
-        "path-glob",
-        "regex",
-        "secret",
-        "key-value-list"
+      "oneOf": [
+        { "const": "string-list", "description": "Array of free-form strings." },
+        { "const": "single-string", "description": "Single text input." },
+        { "const": "boolean-flag", "description": "On/off toggle." },
+        { "const": "integer", "description": "Integer with optional bounds." },
+        { "const": "enum-pick", "description": "Pick one from a closed set." },
+        { "const": "enum-multipick", "description": "Pick zero or more from a closed set." },
+        { "const": "path-glob", "description": "Glob pattern (single or multiple)." },
+        { "const": "regex", "description": "ECMAScript regex pattern body." },
+        { "const": "secret", "description": "Sensitive string (encrypted at rest)." },
+        { "const": "key-value-list", "description": "Editable mapping of strings to strings." }
       ],
-      "description": "Closed enum of input-type identifiers. Adding an entry requires the full spec/UI/CLI/tests round-trip. Removing or renaming an entry is a catalog-major-bump and triggers `sm plugins upgrade` migration."
+      "description": "Closed enum of input-type identifiers. Adding an entry requires the full spec/UI/CLI/tests round-trip. Removing or renaming an entry is a catalog-major-bump and triggers `sm plugins upgrade` migration. Each member's `description` is the catalog summary surfaced by `sm plugins slots list` and is the single source of truth for the generated kernel + CLI mirrors (see `scripts/generate-view-catalog.js`)."
     },
     "ISettingDeclaration": {
       "description": "Manifest-side declaration of a single setting, keyed in `IPluginManifest.settings[<settingId>]`. Discriminated by `type`; per-type parameters live in the `oneOf` branches below. The plugin author NEVER writes JSON Schema, `type` is a name from `InputTypeName`, the kernel validates the user-supplied value against the per-type value schema.",

@@ -7,23 +7,23 @@
   "$defs": {
     "SlotName": {
       "type": "string",
-      "enum": [
-        "card.title.right",
-        "card.subtitle.left",
-        "card.footer.left",
-        "card.footer.right",
-        "graph.node.alert",
-        "inspector.header.badge.counter",
-        "inspector.header.badge.tag",
-        "inspector.body.panel.breakdown",
-        "inspector.body.panel.records",
-        "inspector.body.panel.tree",
-        "inspector.body.panel.key-values",
-        "inspector.body.panel.link-list",
-        "inspector.body.panel.markdown",
-        "topbar.nav.start"
+      "oneOf": [
+        { "const": "card.title.right", "description": "Small icon marker next to the card title (language flag, platform glyph)." },
+        { "const": "card.subtitle.left", "description": "Single non-negative integer in the card subtitle row." },
+        { "const": "card.footer.left", "description": "Counter chip in the left footer of the card." },
+        { "const": "card.footer.right", "description": "Counter chip in the right footer of the card." },
+        { "const": "graph.node.alert", "description": "Reserved corner badge on the graph node, special-case signals only. No core analyzer emits here; routine \"this node has a problem\" findings belong in `card.footer.right`." },
+        { "const": "inspector.header.badge.counter", "description": "Counter chip in the inspector header badge cluster." },
+        { "const": "inspector.header.badge.tag", "description": "Qualitative tag chip in the inspector header badge cluster." },
+        { "const": "inspector.body.panel.breakdown", "description": "Top-N labeled values rendered as a bar chart in the inspector body." },
+        { "const": "inspector.body.panel.records", "description": "Tabular data (rows × columns ≤ 50 × 6) in the inspector body." },
+        { "const": "inspector.body.panel.tree", "description": "Recursive label/children hierarchy (depth ≤ 6, total ≤ 200) in the inspector body." },
+        { "const": "inspector.body.panel.key-values", "description": "Flat key/value pairs (≤ 50) in the inspector body." },
+        { "const": "inspector.body.panel.link-list", "description": "Clickable scope-relative paths (≤ 100) in the inspector body." },
+        { "const": "inspector.body.panel.markdown", "description": "Sanitized markdown text (≤ 4096 chars) in the inspector body." },
+        { "const": "topbar.nav.start", "description": "Scope-wide indicator chip at the start of the topbar nav (before the view-switcher links)." }
       ],
-      "description": "Closed enum of slot identifiers. Adding an entry requires the full spec/UI/scaffolder/conformance round-trip per ROADMAP.md §UI contribution system. Removing or renaming an entry is a catalog-major-bump and triggers `sm plugins upgrade` migration. Slots that share a payload shape (e.g. `card.subtitle.left`, `card.footer.right`, and `card.footer.left` all carry a counter) reference the same payload schema in `$defs.payloads`."
+      "description": "Closed catalog of slot identifiers. Adding an entry requires the full spec/UI/scaffolder/conformance round-trip per ROADMAP.md §UI contribution system. Removing or renaming an entry is a catalog-major-bump and triggers `sm plugins upgrade` migration. Slots that share a payload shape (e.g. `card.subtitle.left`, `card.footer.right`, and `card.footer.left` all carry a counter) reference the same payload schema in `$defs.payloads`. Each member's `description` is the catalog summary surfaced by `sm plugins slots list` and is the single source of truth for the generated kernel + CLI mirrors (see `scripts/generate-view-catalog.js`)."
     },
     "Severity": {
       "type": "string",

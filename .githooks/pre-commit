@@ -29,3 +29,12 @@ if echo "$STAGED" | grep -Eq '^\.changeset/.*\.md$'; then
   echo "[pre-commit] .changeset/ touched, running build-user-changelog --check"
   node scripts/build-user-changelog.js --check
 fi
+
+# When any view-catalog mirror source is staged (the spec `oneOf` lists, the
+# generated kernel mirror, the CLI catalog, or the UI slot union), run the
+# drift guard so a half-updated catalog fails at commit time instead of
+# silently shipping a stale mirror.
+if echo "$STAGED" | grep -Eq '^(spec/schemas/(view-slots|input-types)\.schema\.json|src/kernel/types/view-catalog(\.generated)?\.ts|src/cli/commands/plugins/slots-catalog\.ts|ui/src/app/slots/slot-config\.ts)$'; then
+  echo "[pre-commit] view-catalog source touched, running view-catalog drift guard"
+  node scripts/generate-view-catalog.js --check
+fi
