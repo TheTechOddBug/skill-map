@@ -6,6 +6,21 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>0.48.0</b> · 2026-05-31</summary>
+
+### CLI Minor
+- `sm plugins create <kind> <plugin-id>` now takes the extension kind as a required first positional and scaffolds a loader-clean stub for each of the six kinds (provider, extractor, analyzer, action, formatter, hook). The slot / input-type catalog gains a single source of truth: the spec enums become `oneOf` const+description, and the kernel + CLI mirrors are generated from it by `scripts/generate-view-catalog.js`, guarded by `view-catalog:check` in `validate:compile`.
+
+### CLI Patch
+- Restore the left-to-right order of the `card.footer.right` chip cluster that the `core/issue-counter` aggregate had displaced: the stability badge leads (priority 10), then the stale-drift clock chip (priority 20), then the warning and error counters anchor the right edge. A reader notices it as the card-footer status icons returning to lifecycle, stale, warnings, errors order.
+- The phrase `sm tutorial` surfaces to start each walkthrough now matches the website and READMEs: the basic tutorial trigger is `run the tutorial` / `ejecuta el tutorial` (was `start the tutorial` / `arranquemos el tutorial`) and the master tutorial trigger is `run the master tutorial` / `ejecuta el tutorial maestro`. The two SKILL.md trigger lists pick up the new phrases.
+
+### Spec Minor (0.45.0)
+- `sm plugins create <kind> <plugin-id>` now takes the extension kind as a required first positional and scaffolds a loader-clean stub for each of the six kinds (provider, extractor, analyzer, action, formatter, hook). The slot / input-type catalog gains a single source of truth: the spec enums become `oneOf` const+description, and the kernel + CLI mirrors are generated from it by `scripts/generate-view-catalog.js`, guarded by `view-catalog:check` in `validate:compile`.
+
+</details>
+
+<details>
 <summary><b>0.47.1</b> · 2026-05-31</summary>
 
 ### CLI Patch
