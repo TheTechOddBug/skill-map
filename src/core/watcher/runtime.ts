@@ -486,6 +486,7 @@ export function createWatcherRuntime(
       const runOptions: Parameters<typeof runScanWithRenames>[1] = {
         roots: opts.roots,
         tokenize,
+        tokenizer: cfg.tokenizer,
         ignoreFilter,
         strict,
         emitter,

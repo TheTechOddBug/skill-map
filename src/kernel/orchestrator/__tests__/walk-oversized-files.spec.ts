@@ -80,6 +80,7 @@ async function runWalk(maxFileSizeBytes: number | undefined) {
     encoder: null,
     strict: false,
     enableCache: false,
+    tokenizerChanged: false,
     prior: null,
     priorIndex: {
       priorNodesByPath: new Map(),

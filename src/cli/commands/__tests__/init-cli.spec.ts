@@ -145,7 +145,7 @@ describe('sm init, project scope', () => {
     // Mutate settings.json to detect overwrite.
     writeFileSync(
       join(scope.cwd, '.skill-map', 'settings.json'),
-      JSON.stringify({ schemaVersion: 1, tokenizer: 'gpt-4' }, null, 2) + '\n',
+      JSON.stringify({ schemaVersion: 1, tokenizer: 'o200k_base' }, null, 2) + '\n',
     );
     const r = sm(['init', '--no-scan', '--force'], scope);
     assert.equal(r.status, 0);

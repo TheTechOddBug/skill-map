@@ -152,6 +152,7 @@ Single-row table holding the metadata of the last persisted scan. Lets `loadScan
 | `stats_files_walked` | INTEGER | NOT NULL |
 | `stats_files_skipped` | INTEGER | NOT NULL |
 | `stats_duration_ms` | INTEGER | NOT NULL |
+| `tokenizer` | TEXT | NULL | Resolved offline encoder that produced this scan's per-node token counts (closed enum `cl100k_base` / `o200k_base`, see `project-config.md` / `project-config.schema.json` §tokenizer). Carried on the `ScanResult.tokenizer` wire field. NULL on a pre-feature DB or a scan run with tokenization disabled. On `sm scan --changed` the orchestrator compares this against the freshly-resolved encoder and, when they differ (or the stored value is NULL), bypasses the cached per-node token reuse so `buildNode` recomputes counts with the current encoder. Changing the tokenizer therefore invalidates prior counts on the next scan. |
 | `schema_fingerprint` | TEXT | NULL | sha256 (hex) of the migration DDL the schema was built from, written at persist time. NULL on a DB created by a pre-fingerprint CLI; a NULL (or mismatching) value is read as schema drift (see §Schema drift). Internal DB metadata, NOT carried on the `ScanResult` wire shape. |
 
 The `scope` column was removed pre-1.0 along with the `-g/--global` flag (see `cli-contract.md` §Scope is always project-local); every persisted scan is project-scoped so the column never carried any information worth round-tripping. Older DBs are not migrated, the column drop is a greenfield change and a fresh `sm init` regenerates the schema.

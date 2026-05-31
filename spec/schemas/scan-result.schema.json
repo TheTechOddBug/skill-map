@@ -37,6 +37,10 @@
       "description": "Provider ids that participated in classification. Empty if no Provider matched.",
       "items": { "type": "string" }
     },
+    "tokenizer": {
+      "type": "string",
+      "description": "Resolved offline tokenizer (encoder) that produced the per-node token counts in this scan, one of the closed allow-list in `project-config.schema.json#/properties/tokenizer` (`cl100k_base` default, `o200k_base`). Mirrors `scan_meta.tokenizer`. Reported so consumers know which encoder the counts came from; the incremental scan compares the persisted value against the resolved one and force-recomputes counts when they differ. Absent on synthetic fixtures and when tokenization was disabled."
+    },
     "recommendedNodeLimit": {
       "type": "integer",
       "minimum": 1,

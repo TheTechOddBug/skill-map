@@ -21,9 +21,9 @@
  * new / modified nodes from a fresh extractor pass.
  *
  * Meta envelope: the `scan_meta` table persists `roots` /
- * `scannedAt` / `scannedBy` / `providers` / `stats.filesWalked` /
- * `stats.filesSkipped` / `stats.filesOversized` / `stats.durationMs` /
- * `oversizedFiles`. When the row exists, those fields come back
+ * `scannedAt` / `scannedBy` / `tokenizer` / `providers` /
+ * `stats.filesWalked` / `stats.filesSkipped` / `stats.filesOversized` /
+ * `stats.durationMs` / `oversizedFiles`. When the row exists, those fields come back
  * authoritatively. When it does not (DB
  * freshly migrated but never scanned, or a legacy DB never
  * re-persisted), the loader degrades to a synthetic envelope:
@@ -130,6 +130,12 @@ export async function loadScanResult(
       roots: parseJsonArray<string>(metaRow.rootsJson),
       providers: parseJsonArray<string>(metaRow.providersJson),
       scannedBy,
+      // Resolved encoder of the prior scan (see project-config.schema.json
+      // §tokenizer). NULL column → `undefined` domain field; the
+      // orchestrator's tokenizer-change check compares this against the
+      // freshly-resolved encoder and treats a missing prior value as a
+      // change (forcing a token recompute).
+      ...(metaRow.tokenizer !== null ? { tokenizer: metaRow.tokenizer } : {}),
       recommendedNodeLimit: metaRow.recommendedNodeLimit,
       overrideMaxNodes: metaRow.overrideMaxNodes,
       oversizedFiles,

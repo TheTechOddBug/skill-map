@@ -134,6 +134,7 @@ async function runWalk(opts: IWalkInvocation): Promise<void> {
     encoder: null,
     strict: false,
     enableCache: false,
+    tokenizerChanged: false,
     prior: null,
     priorIndex: {
       priorNodesByPath: new Map(),

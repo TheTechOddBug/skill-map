@@ -80,7 +80,8 @@ describe('sm config list', () => {
 
   it('reads project layer and prints sorted dot-paths in human mode', () => {
     const scope = freshScope('list-human');
-    writeSettings(scope.cwd, { tokenizer: 'gpt-4' });
+    // `tokenizer` is a closed enum; o200k_base is the non-default member.
+    writeSettings(scope.cwd, { tokenizer: 'o200k_base' });
     const r = sm(['config', 'list'], scope);
     assert.equal(r.status, 0);
     // New layout: keys grouped under section headers (`General`,
@@ -89,7 +90,7 @@ describe('sm config list', () => {
     // tolerance so column padding does not couple the test to the
     // current widths.
     assert.match(r.stdout, /^\s+schemaVersion\s+1\s*$/m);
-    assert.match(r.stdout, /^\s+tokenizer\s+gpt-4\s*$/m);
+    assert.match(r.stdout, /^\s+tokenizer\s+o200k_base\s*$/m);
     // `scan.tokenize` displays as bare `tokenize` under the `Scan`
     // header (the dotted form remains valid for `sm config get/set`).
     assert.match(r.stdout, /^\s+tokenize\s+true\s*$/m);
@@ -109,10 +110,10 @@ describe('sm config list', () => {
 describe('sm config get', () => {
   it('returns a leaf value', () => {
     const scope = freshScope('get-leaf');
-    writeSettings(scope.cwd, { tokenizer: 'gpt-4' });
+    writeSettings(scope.cwd, { tokenizer: 'o200k_base' });
     const r = sm(['config', 'get', 'tokenizer'], scope);
     assert.equal(r.status, 0);
-    assert.equal(r.stdout.trim(), 'gpt-4');
+    assert.equal(r.stdout.trim(), 'o200k_base');
   });
 
   it('returns a nested object as JSON in human mode', () => {
@@ -189,10 +190,10 @@ describe('sm config get', () => {
 describe('sm config show', () => {
   it('--source surfaces the winning layer', () => {
     const scope = freshScope('show-source');
-    writeSettings(scope.cwd, { tokenizer: 'p50k_base' });
+    writeSettings(scope.cwd, { tokenizer: 'o200k_base' });
     const r = sm(['config', 'show', 'tokenizer', '--source'], scope);
     assert.equal(r.status, 0);
-    assert.match(r.stdout, /p50k_base\s+\(from project\)/);
+    assert.match(r.stdout, /o200k_base\s+\(from project\)/);
   });
 
   it('--source on a nested object reports the highest-precedence descendant', () => {
@@ -206,11 +207,11 @@ describe('sm config show', () => {
 
   it('--source --json emits { value, source }', () => {
     const scope = freshScope('show-json');
-    writeSettings(scope.cwd, { tokenizer: 'gpt-4' });
+    writeSettings(scope.cwd, { tokenizer: 'o200k_base' });
     const r = sm(['config', 'show', 'tokenizer', '--source', '--json'], scope);
     assert.equal(r.status, 0);
     const payload = JSON.parse(r.stdout);
-    assert.equal(payload.value, 'gpt-4');
+    assert.equal(payload.value, 'o200k_base');
     assert.equal(payload.source, 'project');
   });
 
@@ -234,7 +235,7 @@ describe('sm config set', () => {
 
   it('-g is rejected as unknown option (no global scope post-cleanup)', () => {
     const scope = freshScope('set-rejects-g');
-    const r = sm(['config', 'set', 'tokenizer', 'gpt-4', '-g'], scope);
+    const r = sm(['config', 'set', 'tokenizer', 'o200k_base', '-g'], scope);
     // Clipanion exits 2 ("usage error") on an unknown option.
     assert.equal(r.status, 2);
     // Nothing was written, neither in cwd nor in HOME.
@@ -263,19 +264,21 @@ describe('sm config set', () => {
 
   it('preserves unrelated keys when setting a new one', () => {
     const scope = freshScope('set-preserve');
-    writeSettings(scope.cwd, { tokenizer: 'gpt-4' });
+    // `tokenizer` is a closed enum; o200k_base is a valid non-default
+    // member so the read-modify-write revalidation accepts it.
+    writeSettings(scope.cwd, { tokenizer: 'o200k_base' });
     const r = sm(['config', 'set', 'scan.tokenize', 'false'], scope);
     assert.equal(r.status, 0);
     const written = JSON.parse(
       readFileSync(join(scope.cwd, '.skill-map', 'settings.json'), 'utf8'),
     );
-    assert.equal(written.tokenizer, 'gpt-4');
+    assert.equal(written.tokenizer, 'o200k_base');
     assert.equal(written.scan.tokenize, false);
   });
 
   it('emits done-in stderr (set is in-scope per cli-contract)', () => {
     const scope = freshScope('set-elapsed');
-    const r = sm(['config', 'set', 'tokenizer', 'gpt-4'], scope);
+    const r = sm(['config', 'set', 'tokenizer', 'o200k_base'], scope);
     assert.equal(r.status, 0);
     assert.match(r.stderr, /^done in /m);
   });
@@ -290,11 +293,11 @@ describe('sm config set', () => {
   // pins the surface guarantee.
   it('atomic write: leaves no <settings>.tmp.<pid> sibling after a successful set', () => {
     const scope = freshScope('set-atomic');
-    const r = sm(['config', 'set', 'tokenizer', 'gpt-4'], scope);
+    const r = sm(['config', 'set', 'tokenizer', 'o200k_base'], scope);
     assert.equal(r.status, 0);
     const dir = join(scope.cwd, '.skill-map');
     const written = JSON.parse(readFileSync(join(dir, 'settings.json'), 'utf8'));
-    assert.equal(written.tokenizer, 'gpt-4', 'main settings file is updated');
+    assert.equal(written.tokenizer, 'o200k_base', 'main settings file is updated');
     // No `settings.json.tmp.<pid>` sibling lingers after the rename,
     // the atomic-write helper either renames into place (success) or
     // unlinks the staged file in its `catch` (failure).
@@ -346,14 +349,14 @@ describe('sm config set', () => {
 describe('sm config reset', () => {
   it('removes a previously-set key from the project file', () => {
     const scope = freshScope('reset-basic');
-    writeSettings(scope.cwd, { tokenizer: 'gpt-4', scan: { tokenize: false } });
+    writeSettings(scope.cwd, { tokenizer: 'o200k_base', scan: { tokenize: false } });
     const r = sm(['config', 'reset', 'scan.tokenize'], scope);
     assert.equal(r.status, 0);
     const written = JSON.parse(
       readFileSync(join(scope.cwd, '.skill-map', 'settings.json'), 'utf8'),
     );
     assert.equal('scan' in written, false);
-    assert.equal(written.tokenizer, 'gpt-4');
+    assert.equal(written.tokenizer, 'o200k_base');
   });
 
   it('idempotent on absent key (exit 0, no write)', () => {
@@ -366,14 +369,14 @@ describe('sm config reset', () => {
   it('-g is rejected as unknown option (no global scope post-cleanup)', () => {
     const scope = freshScope('reset-rejects-g');
     // Plant a user file; the verb MUST not touch it because -g is rejected.
-    writeSettings(scope.home, { tokenizer: 'gpt-4' });
+    writeSettings(scope.home, { tokenizer: 'o200k_base' });
     const r = sm(['config', 'reset', 'tokenizer', '-g'], scope);
     assert.equal(r.status, 2);
     // User file untouched.
     const written = JSON.parse(
       readFileSync(join(scope.home, '.skill-map', 'settings.json'), 'utf8'),
     );
-    assert.equal(written.tokenizer, 'gpt-4');
+    assert.equal(written.tokenizer, 'o200k_base');
   });
 
   it('prunes empty parent objects after deleting nested key', () => {

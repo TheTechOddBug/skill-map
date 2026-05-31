@@ -558,6 +558,12 @@ function metaToRow(result: ScanResult): Insertable<IScanMetaTable> {
     statsFilesWalked: result.stats.filesWalked,
     statsFilesSkipped: result.stats.filesSkipped,
     statsDurationMs: result.stats.durationMs,
+    // Resolved encoder that produced the token counts (see
+    // project-config.schema.json §tokenizer). NULL on synthetic results
+    // that bypass the orchestrator / skip tokenization; a real scan always
+    // carries it. The next incremental scan reads this back to detect an
+    // encoder switch and force a token recompute.
+    tokenizer: result.tokenizer ?? null,
     ...projectNodeLimitColumns(result),
     ...projectOversizedColumns(result),
   };

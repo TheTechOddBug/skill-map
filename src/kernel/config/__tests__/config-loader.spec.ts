@@ -67,32 +67,35 @@ describe('config loader, defaults', () => {
 });
 
 describe('config loader, layer precedence', () => {
+  // `tokenizer` is a closed enum (cl100k_base / o200k_base), so these
+  // precedence cases use real enum members; the default is cl100k_base,
+  // so o200k_base is the visible "override" value.
   it('project overrides defaults', () => {
     const { cwd } = freshScope('project');
-    writeSettings(cwd, 'settings', { tokenizer: 'gpt-4' });
+    writeSettings(cwd, 'settings', { tokenizer: 'o200k_base' });
     const { effective, sources } = loadConfig({ cwd });
-    strictEqual(effective.tokenizer, 'gpt-4');
+    strictEqual(effective.tokenizer, 'o200k_base');
     strictEqual(sources.get('tokenizer'), 'project');
     strictEqual(sources.get('scan.tokenize'), 'defaults');
   });
 
   it('project-local overrides project', () => {
     const { cwd } = freshScope('project-local');
-    writeSettings(cwd, 'settings', { tokenizer: 'p50k_base' });
-    writeSettings(cwd, 'settings.local', { tokenizer: 'r50k_base' });
+    writeSettings(cwd, 'settings', { tokenizer: 'cl100k_base' });
+    writeSettings(cwd, 'settings.local', { tokenizer: 'o200k_base' });
     const { effective, sources } = loadConfig({ cwd });
-    strictEqual(effective.tokenizer, 'r50k_base');
+    strictEqual(effective.tokenizer, 'o200k_base');
     strictEqual(sources.get('tokenizer'), 'project-local');
   });
 
   it('overrides layer wins over every file layer', () => {
     const { cwd } = freshScope('override');
-    writeSettings(cwd, 'settings.local', { tokenizer: 'r50k_base' });
+    writeSettings(cwd, 'settings.local', { tokenizer: 'cl100k_base' });
     const { effective, sources } = loadConfig({
       cwd,
-      overrides: { tokenizer: 'override-value' },
+      overrides: { tokenizer: 'o200k_base' },
     });
-    strictEqual(effective.tokenizer, 'override-value');
+    strictEqual(effective.tokenizer, 'o200k_base');
     strictEqual(sources.get('tokenizer'), 'override');
   });
 });
@@ -142,9 +145,9 @@ describe('config loader, resilience', () => {
 
   it('strips unknown keys (additionalProperties: false)', () => {
     const { cwd } = freshScope('unknown-key');
-    writeSettings(cwd, 'settings', { tokenizer: 'gpt-4', bogus: 'nope' });
+    writeSettings(cwd, 'settings', { tokenizer: 'o200k_base', bogus: 'nope' });
     const { effective, warnings } = loadConfig({ cwd });
-    strictEqual(effective.tokenizer, 'gpt-4'); // valid key preserved
+    strictEqual(effective.tokenizer, 'o200k_base'); // valid key preserved
     ok(!('bogus' in (effective as unknown as Record<string, unknown>)));
     strictEqual(warnings.length, 1);
     match(warnings[0]!, /unknown key/);
@@ -161,11 +164,27 @@ describe('config loader, resilience', () => {
     match(warnings[0]!, /scan/);
   });
 
+  it('drops an out-of-enum tokenizer with a warning and keeps the default', () => {
+    // `tokenizer` is a closed enum (cl100k_base / o200k_base). An
+    // unknown encoder is rejected by the AJV enum check: the key is
+    // stripped, a warning is pushed, and the merged value falls back to
+    // the default. No bespoke scan-time validation, this is the loader's
+    // generic invalid-value path.
+    const { cwd } = freshScope('tokenizer-enum');
+    writeSettings(cwd, 'settings', { tokenizer: 'p50k_base' });
+    const { effective, sources, warnings } = loadConfig({ cwd });
+    strictEqual(effective.tokenizer, 'cl100k_base'); // default kept
+    strictEqual(sources.get('tokenizer'), 'defaults'); // stripped key never recorded as project
+    strictEqual(warnings.length, 1);
+    match(warnings[0]!, /invalid value/);
+    match(warnings[0]!, /tokenizer/);
+  });
+
   it('continues past one bad key to apply the rest of the file', () => {
     const { cwd } = freshScope('partial-bad');
-    writeSettings(cwd, 'settings', { tokenizer: 'gpt-4', scan: { tokenize: 'string-not-bool' } });
+    writeSettings(cwd, 'settings', { tokenizer: 'o200k_base', scan: { tokenize: 'string-not-bool' } });
     const { effective, warnings } = loadConfig({ cwd });
-    strictEqual(effective.tokenizer, 'gpt-4');     // good key applied
+    strictEqual(effective.tokenizer, 'o200k_base'); // good key applied
     strictEqual(effective.scan.tokenize, true);     // bad key dropped, default kept
     strictEqual(warnings.length, 1);
   });

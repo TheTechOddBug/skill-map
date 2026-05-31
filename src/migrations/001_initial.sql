@@ -299,6 +299,14 @@ CREATE TABLE scan_meta (
   -- serve terminal warns on and the UI banner lists. NULL when no file was skipped.
   files_oversized INTEGER NOT NULL DEFAULT 0,
   oversized_files_json TEXT,
+  -- Resolved offline tokenizer (encoder) that produced this scan's per-node
+  -- token counts (see project-config.schema.json §tokenizer, closed enum
+  -- `cl100k_base` / `o200k_base`). Recorded so the next incremental scan can
+  -- compare the persisted encoder against the resolved one and force a token
+  -- recompute when they differ (changing the tokenizer invalidates prior
+  -- counts). NULL on a pre-feature DB / never-tokenized scan; a NULL prior is
+  -- treated as "different encoder" so the next scan recomputes.
+  tokenizer TEXT,
   -- Schema-drift fingerprint (see spec/db-schema.md §Schema drift (pre-1.0)).
   -- sha256 (hex) of the concatenated migration DDL the schema was built from,
   -- written at persist time. NULL on a DB created by a pre-fingerprint CLI; a

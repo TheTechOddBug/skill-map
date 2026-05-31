@@ -278,6 +278,7 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<TScanRunRes
     activeProvider,
     cfg.scan.maxNodes,
     cfg.scan.maxFileSizeBytes,
+    cfg.tokenizer,
   );
 
   const willPersist = !opts.noBuiltIns && !opts.dryRun;
@@ -530,6 +531,7 @@ function makeScanRunner(
   activeProvider: string | null,
   recommendedNodeLimit: number,
   maxFileSizeBytes: number,
+  tokenizer: string,
 ) {
   return async (
     prior: ScanResult | null,
@@ -558,6 +560,7 @@ function makeScanRunner(
       activeProvider,
       recommendedNodeLimit,
       maxFileSizeBytes,
+      tokenizer,
       ...(priorExtractorRuns ? { priorExtractorRuns } : {}),
       ...(orphanJobFiles ? { orphanJobFiles } : {}),
     });
@@ -577,6 +580,7 @@ interface IBuildRunScanOptionsArgs {
   activeProvider: string | null;
   recommendedNodeLimit: number;
   maxFileSizeBytes: number;
+  tokenizer: string;
   priorExtractorRuns?: Map<string, Map<string, IPriorExtractorRun>>;
   orphanJobFiles?: readonly string[];
 }
@@ -593,6 +597,7 @@ function buildRunScanOptions(args: IBuildRunScanOptionsArgs): Parameters<typeof 
   const runOptions: Parameters<typeof runScan>[1] = {
     roots: args.effectiveRoots.slice(),
     tokenize: !opts.noTokens,
+    tokenizer: args.tokenizer,
     ignoreFilter: args.ignoreFilter,
     strict: args.strict,
     emitter: buildRunScanEmitter(opts),

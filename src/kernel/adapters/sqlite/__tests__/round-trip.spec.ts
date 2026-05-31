@@ -305,4 +305,40 @@ describe('persistence round-trip for the file-size skip envelope', () => {
       await adapter.close();
     }
   });
+
+  it('round-trips the resolved `tokenizer` name through scan_meta', async () => {
+    const path = freshDbPath('scan-meta-tokenizer');
+    const adapter = new SqliteStorageAdapter({ databasePath: path });
+    await adapter.init();
+    try {
+      const node = baseNode({ path: 'a.md' });
+      const result = makeScanResult([node], []);
+      result.tokenizer = 'o200k_base';
+      await adapter.scans.persist(result);
+
+      const loaded = await adapter.scans.load();
+      ok(loaded);
+      strictEqual(loaded.tokenizer, 'o200k_base');
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('leaves `tokenizer` undefined when the source result omits it (NULL column)', async () => {
+    const path = freshDbPath('scan-meta-tokenizer-absent');
+    const adapter = new SqliteStorageAdapter({ databasePath: path });
+    await adapter.init();
+    try {
+      const node = baseNode({ path: 'a.md' });
+      // `makeScanResult` does not set `tokenizer`; metaToRow writes NULL,
+      // and the loader maps NULL back to an absent domain field.
+      await adapter.scans.persist(makeScanResult([node], []));
+
+      const loaded = await adapter.scans.load();
+      ok(loaded);
+      strictEqual(loaded.tokenizer, undefined);
+    } finally {
+      await adapter.close();
+    }
+  });
 });

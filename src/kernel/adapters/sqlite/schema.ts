@@ -201,6 +201,15 @@ export interface IScanMetaTable {
   filesOversized: Generated<number>;
   oversizedFilesJson: string | null;
   /**
+   * Resolved offline tokenizer (encoder) that produced this scan's
+   * per-node token counts (see `project-config.schema.json` §tokenizer,
+   * closed enum `cl100k_base` / `o200k_base`). Mirrors
+   * `ScanResult.tokenizer`. NULL on a pre-feature DB / never-tokenized
+   * scan; the incremental path reads it back and treats a NULL or
+   * mismatching value as an encoder change that forces a token recompute.
+   */
+  tokenizer: string | null;
+  /**
    * Schema-drift fingerprint (see `spec/db-schema.md` §Schema drift
    * (pre-1.0)). sha256 (hex) of the concatenated migration DDL the
    * schema was built from, written by `metaToRow` at persist time. NULL

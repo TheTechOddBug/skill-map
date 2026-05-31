@@ -58,8 +58,8 @@ describe('ConfigService', () => {
     // First read, defaults.
     const first = svc.effective();
     assert.equal(first.tokenizer, 'cl100k_base');
-    // Mutate disk.
-    writeProject({ tokenizer: 'gpt-4' });
+    // Mutate disk (valid enum member; the point is the cache ignores it).
+    writeProject({ tokenizer: 'o200k_base' });
     // Second read, still cached → still defaults.
     const second = svc.effective();
     assert.equal(second.tokenizer, 'cl100k_base');
@@ -78,9 +78,11 @@ describe('ConfigService', () => {
     const svc = new ConfigService({ cwd });
     // Should not throw.
     svc.reload();
-    writeProject({ tokenizer: 'p50k_base' });
+    // `tokenizer` is a closed enum (cl100k_base / o200k_base); use a
+    // valid member so this test exercises lazy init, not enum dropping.
+    writeProject({ tokenizer: 'o200k_base' });
     const loaded = svc.effective();
-    assert.equal(loaded.tokenizer, 'p50k_base');
+    assert.equal(loaded.tokenizer, 'o200k_base');
   });
 
   it('effective() exposes the same object as get().effective', () => {

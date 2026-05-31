@@ -668,6 +668,17 @@ export interface ScanResult {
   /** Implementation metadata. Populated by `runScan` for self-describing output. */
   scannedBy?: ScanScannedBy;
   /**
+   * Resolved offline tokenizer (encoder) that produced the per-node token
+   * counts in this scan. One of the closed allow-list in
+   * `project-config.schema.json#/properties/tokenizer` (`cl100k_base`
+   * default, `o200k_base`). Mirrors `scan_meta.tokenizer`. Populated by
+   * `runScan` from the resolved `RunScanOptions.tokenizer`; the
+   * incremental path compares the persisted value against the resolved
+   * one and force-recomputes counts when they differ. Absent on synthetic
+   * fixtures / loaders that predate the field.
+   */
+  tokenizer?: string;
+  /**
    * Effective recommended cap on the number of files the walker accepted
    * during this scan (`scan.maxNodes` from settings, default 256). The UI
    * raises the "oversized graph" banner when

@@ -64,6 +64,19 @@ export interface IWalkAndExtractOptions {
   encoder: Tiktoken | null;
   strict: boolean;
   enableCache: boolean;
+  /**
+   * Tokenizer-change invalidation flag (see
+   * `project-config.schema.json` §tokenizer). When `true`, the prior
+   * snapshot's per-node `tokens` were produced by a DIFFERENT encoder
+   * than the one resolved for this scan, so cache reuse of token counts
+   * is unsafe. The walker forces every node down the fresh-build path
+   * (`nodeHashCacheEligible = false`) so `buildNode` recomputes `tokens`
+   * with the current encoder. Computed by `runScanInternal`; only ever
+   * `true` when `enableCache` is on, a prior exists, and tokenization is
+   * active. `false` for fresh scans (nothing to invalidate) and when the
+   * encoder is unchanged.
+   */
+  tokenizerChanged: boolean;
   prior: ScanResult | null;
   priorIndex: IPriorIndex;
   /**
@@ -515,6 +528,11 @@ async function processRawNode(
   // uses `prior` independently of `enableCache`.
   const nodeHashCacheEligible =
     wctx.opts.enableCache &&
+    // Tokenizer-change invalidation: when the resolved encoder differs
+    // from the one that produced the prior snapshot's counts, no node is
+    // cache-eligible, every node rebuilds so `buildNode` re-tokenizes
+    // with the current encoder. See `tokenizerChanged` on the options.
+    !wctx.opts.tokenizerChanged &&
     wctx.opts.prior !== null &&
     priorNode !== undefined &&
     priorNode.bodyHash === bodyHash &&

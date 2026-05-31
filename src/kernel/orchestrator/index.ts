@@ -57,8 +57,12 @@ import { isAbsolute, resolve } from 'node:path';
 // dual-package CJS subpath exports.
 // eslint-disable-next-line import-x/extensions
 import { Tiktoken } from 'js-tiktoken/lite';
-// eslint-disable-next-line import-x/extensions
-import cl100k_base from 'js-tiktoken/ranks/cl100k_base';
+// Rank tables are loaded lazily and per-encoder in `buildScanSetup` via
+// explicit literal dynamic imports (see `loadTokenizerRanks`), so only
+// the chosen encoder's BPE table is pulled into the bundle / runtime.
+// A static `import cl100k_base from 'js-tiktoken/ranks/cl100k_base'`
+// would force-load that table on every scan, even when tokenization is
+// off or the operator selected `o200k_base`.
 
 import pkg from '../../package.json' with { type: 'json' };
 
@@ -146,6 +150,45 @@ function resolveSpecVersionSafe(): string {
   }
 }
 
+/**
+ * Default offline tokenizer. Mirrors `defaults.json#/tokenizer` and the
+ * `project-config.schema.json` enum default. The single source of the
+ * "fall back to this" decision in the orchestrator.
+ */
+const DEFAULT_TOKENIZER = 'cl100k_base';
+
+/**
+ * Closed allow-list of supported encoders, byte-aligned with
+ * `project-config.schema.json#/properties/tokenizer/enum`.
+ */
+type TTokenizerName = 'cl100k_base' | 'o200k_base';
+
+/**
+ * Belt-and-suspenders guard over the override layer. The config schema's
+ * AJV `enum` already rejects out-of-set values for the config layers
+ * (dropped-with-warning, falls back to the default), but the `override`
+ * layer and out-of-band callers reach `runScan` without that gate, so
+ * any unrecognised name resolves to the default here.
+ */
+function resolveTokenizerName(name: string | undefined): TTokenizerName {
+  return name === 'o200k_base' ? 'o200k_base' : DEFAULT_TOKENIZER;
+}
+
+/**
+ * Load only the chosen encoder's BPE rank table. The two specifiers are
+ * explicit string literals (NOT a template-literal `js-tiktoken/ranks/${name}`)
+ * so tsup can statically see both subpaths and bundle them; the ternary
+ * means exactly one table is loaded at runtime.
+ */
+async function loadTokenizerRanks(name: TTokenizerName): Promise<ConstructorParameters<typeof Tiktoken>[0]> {
+  if (name === 'o200k_base') {
+    // eslint-disable-next-line import-x/extensions
+    return (await import('js-tiktoken/ranks/o200k_base')).default;
+  }
+  // eslint-disable-next-line import-x/extensions
+  return (await import('js-tiktoken/ranks/cl100k_base')).default;
+}
+
 export interface IScanExtensions {
   providers: IProvider[];
   extractors: IExtractor[];
@@ -202,11 +245,25 @@ export interface RunScanOptions {
   viewContributions?: readonly IRegisteredViewContribution[];
   /**
    * Compute per-node token counts (frontmatter / body / total) using the
-   * cl100k_base BPE (the modern OpenAI tokenizer used by GPT-4 / GPT-3.5).
-   * Defaults to true. Set false to skip tokenization; `node.tokens` is
-   * left undefined (spec-valid: the field is optional).
+   * encoder named by `tokenizer` (default `cl100k_base`). Defaults to
+   * true. Set false to skip tokenization; `node.tokens` is left undefined
+   * (spec-valid: the field is optional).
    */
   tokenize?: boolean;
+  /**
+   * Offline tokenizer (encoder) used to build the per-node token counts.
+   * Closed allow-list mirroring `project-config.schema.json#/properties/tokenizer`:
+   * `cl100k_base` (default) or `o200k_base`. Threaded from `cfg.tokenizer`
+   * by the driving adapters (scan-runner, watcher). Absent → `cl100k_base`.
+   * The orchestrator guards the override layer: any value that is neither
+   * allow-list member falls back to `cl100k_base` (the AJV enum on the
+   * config schema already guarantees this for the config layers, the
+   * guard covers out-of-band callers and the `override` layer). The
+   * resolved value is carried onto `ScanResult.tokenizer` so the
+   * persistence layer can record which encoder produced the counts and
+   * the incremental path can detect an encoder switch.
+   */
+  tokenizer?: string;
   /**
    * Prior snapshot for two purposes (decoupled by design):
    *
@@ -416,7 +473,7 @@ async function runScanInternal(
 }> {
   validateRoots(options.roots);
 
-  const setup = buildScanSetup(options);
+  const setup = await buildScanSetup(options);
   const { emitter, exts, hookDispatcher, encoder, prior, start } = setup;
 
   const scanStartedEvent = makeEvent('scan.started', { roots: options.roots });
@@ -428,6 +485,18 @@ async function runScanInternal(
     options.roots,
     exts.providers,
   );
+  // Tokenizer-change invalidation (project-config.schema.json
+  // §tokenizer "Changing this invalidates prior counts on next scan").
+  // The incremental cache reuses per-node `tokens` from the prior
+  // snapshot; those counts were produced by whatever encoder the prior
+  // scan recorded in `scan_meta.tokenizer`. When the resolved encoder
+  // for THIS scan differs (or the prior never recorded one), the cached
+  // counts are stale and the walker must take the fresh-build path so
+  // `buildNode` recomputes `tokens` with the current encoder. Full
+  // scans already recompute (no prior reuse); this only matters when
+  // `enableCache` is on and tokenization is active.
+  const tokenizerChanged =
+    encoder !== null && prior !== null && prior.tokenizer !== setup.tokenizer;
   const walked = await walkAndExtract({
     providers: exts.providers,
     extractors: exts.extractors,
@@ -437,6 +506,7 @@ async function runScanInternal(
     encoder,
     strict: setup.strict,
     enableCache: setup.enableCache,
+    tokenizerChanged,
     prior,
     priorIndex: setup.priorIndex,
     priorExtractorRuns: setup.priorExtractorRuns,
@@ -702,6 +772,14 @@ interface IScanSetup {
   exts: NonNullable<RunScanOptions['extensions']>;
   hookDispatcher: IHookDispatcher;
   encoder: Tiktoken | null;
+  /**
+   * Resolved encoder name that built `encoder` (default `cl100k_base`).
+   * Carried onto `ScanResult.tokenizer` and persisted into `scan_meta`
+   * so the next incremental scan can detect an encoder switch. Set even
+   * when `encoder === null` (tokenization off), so the persisted name
+   * still reflects the operator's configured intent.
+   */
+  tokenizer: TTokenizerName;
   prior: ScanResult | null;
   priorIndex: IPriorIndex;
   priorExtractorRuns: Map<string, Map<string, IPriorExtractorRun>> | undefined;
@@ -722,15 +800,19 @@ interface IScanSetup {
  * / frontmatter hash check is sufficient. Passing an explicit
  * (possibly empty) Map opts the caller into the fine-grained path.
  */
-function buildScanSetup(options: RunScanOptions): IScanSetup {
+async function buildScanSetup(options: RunScanOptions): Promise<IScanSetup> {
   const start = Date.now();
   const emitter = options.emitter ?? new InMemoryProgressEmitter();
   const exts = options.extensions ?? { providers: [], extractors: [], analyzers: [] };
   const hookDispatcher = makeHookDispatcher(exts.hooks ?? [], emitter);
   const tokenize = options.tokenize !== false;
-  // Encoder is heavyweight to construct (loads the cl100k_base BPE
-  // table once); reuse a single instance across the whole scan.
-  const encoder = tokenize ? new Tiktoken(cl100k_base) : null;
+  // Resolve the encoder name (guarding the override layer) and lazily
+  // load only that rank table. The encoder is heavyweight to construct
+  // (loads the BPE table once); reuse a single instance across the whole
+  // scan. `tokenizer` is resolved even when tokenization is off so the
+  // persisted `scan_meta.tokenizer` still records the configured intent.
+  const tokenizer = resolveTokenizerName(options.tokenizer);
+  const encoder = tokenize ? new Tiktoken(await loadTokenizerRanks(tokenizer)) : null;
   const prior = options.priorSnapshot ?? null;
   const priorIndex = indexPriorSnapshot(prior);
   // Spec 0.8.0: each Provider owns its per-kind frontmatter schemas.
@@ -744,6 +826,7 @@ function buildScanSetup(options: RunScanOptions): IScanSetup {
     exts,
     hookDispatcher,
     encoder,
+    tokenizer,
     prior,
     priorIndex,
     priorExtractorRuns: options.priorExtractorRuns,
@@ -845,6 +928,7 @@ function buildScanReturn(
       roots: options.roots,
       providers: setup.exts.providers.map((a) => a.id),
       scannedBy: SCANNED_BY,
+      tokenizer: setup.tokenizer,
       recommendedNodeLimit: walked.recommendedNodeLimit,
       overrideMaxNodes: walked.overrideMaxNodes,
       oversizedFiles: walked.oversizedFiles,

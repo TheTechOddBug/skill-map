@@ -89,6 +89,7 @@ async function runCapWalk(args: ICapRunArgs) {
     encoder: null,
     strict: false,
     enableCache: false,
+    tokenizerChanged: false,
     prior: null,
     priorIndex: {
       priorNodesByPath: new Map(),
