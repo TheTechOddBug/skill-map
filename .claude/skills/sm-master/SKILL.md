@@ -401,7 +401,7 @@ All set up! Pick your tour, you can come back for the others
 later.
 
 **1. Settings** (~10 min)
-> How `sm` resolves settings across its config layers (`settings.json` vs `settings.local.json` and the defaults under them), the `sm config` verbs to read, set, and reset them, and the active provider lens that decides how the project is read. The `.sm` consent gate lives in the basic tutorial.
+> Config layers, the `sm config` verbs, and the active provider lens that decides how the project is read.
 
 **2. Built-in plugins** (~13 min)
 > The six extension kinds, what comes pre-installed, how to inspect and toggle them.
