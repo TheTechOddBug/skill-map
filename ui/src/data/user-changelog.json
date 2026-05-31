@@ -2,6 +2,39 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.47.0",
+      "date": "2026-05-31",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "skill-map now notices when your local DB schema is out of date (not just an older version): `sm scan` and `sm serve` offer to rebuild the cache, and read commands warn instead of failing with a confusing database error.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Settings → Plugins now has a unified filter bar (All, then Built-in / Project, then the kinds), so you can quickly isolate your project's own plugins and extensions from the built-ins.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Pick your tokenizer.** `tokenizer` in settings.json now selects the encoder for token counts: `cl100k_base` (default, GPT-4) or `o200k_base` (GPT-4o). Any other value is ignored with a warning. Changing it recomputes counts on the next scan.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "When the dev server stops, the UI now shows a \"connection lost\" banner with a Reconnect button instead of failing silently, and it refreshes automatically once the connection is back.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.46.0",
       "date": "2026-05-31",
       "kind": "user-facing",
