@@ -10,8 +10,9 @@ description: |
   `sm plugins create` / `sm plugins upgrade`, and (3) settings and
   view-slots at depth. The skill is invoked from an empty directory,
   lays its own fixture, and tracks progress in `master-state.yml` for
-  pause/resume. Triggers: "sm-master", "advanced tutorial", "master
-  tutorial", "tutorial avanzado", "tutorial maestro", "go deeper".
+  pause/resume. Triggers: "sm-master", "advanced tutorial", "run the
+  master tutorial", "tutorial avanzado", "ejecuta el tutorial maestro",
+  "go deeper".
 ---
 
 # sm-master: advanced walkthrough for skill-map

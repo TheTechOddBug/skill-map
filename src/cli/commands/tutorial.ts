@@ -108,14 +108,14 @@ const VARIANT_SPECS: Record<TutorialVariant, VariantSpec> = {
   tutorial: {
     slug: 'sm-tutorial',
     sourceDir: '.claude/skills/sm-tutorial',
-    triggerEn: 'start the tutorial',
-    triggerEs: 'arranquemos el tutorial',
+    triggerEn: 'run the tutorial',
+    triggerEs: 'ejecuta el tutorial',
   },
   master: {
     slug: 'sm-master',
     sourceDir: '.claude/skills/sm-master',
-    triggerEn: 'advanced tutorial',
-    triggerEs: 'tutorial maestro',
+    triggerEn: 'run the master tutorial',
+    triggerEs: 'ejecuta el tutorial maestro',
   },
 };
 

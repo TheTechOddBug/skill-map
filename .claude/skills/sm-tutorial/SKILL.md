@@ -10,8 +10,8 @@ description: |
   advanced verbs. The skill is invoked from an empty directory and
   lays the fixture and tutorial files there directly (no wrapper).
   State persists in `tutorial-state.yml` for pause/resume. Triggers:
-  "tutorial", "sm-tutorial", "tutorial me", "start the tutorial",
-  "test skill-map".
+  "tutorial", "sm-tutorial", "tutorial me", "run the tutorial",
+  "ejecuta el tutorial", "test skill-map".
 ---
 
 # sm-tutorial: interactive walkthrough for skill-map
