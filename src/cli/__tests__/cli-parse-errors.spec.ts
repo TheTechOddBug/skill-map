@@ -119,6 +119,9 @@ describe('CLI parse-error handler', () => {
     assert.equal(r.stdout, '');
     assert.match(r.stderr, /incomplete command 'db'/);
     assert.match(r.stderr, /Available subcommands: 'db backup'/);
+    // Footer points at the namespace overview (full subcommand list),
+    // not the generic full-command-list pointer.
+    assert.match(r.stderr, /Run 'sm help db' to see all subcommands\./);
   });
 
   it('still serves --version (Clipanion built-in)', () => {

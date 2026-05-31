@@ -99,7 +99,11 @@ export function formatParseError(params: IFormatParseErrorParams): string {
     const suggestion = tx(ENTRY_TEXTS.parseErrorSubcommandList, {
       suggestions: formatSuggestionList(subcommands),
     });
-    return renderError(headline, suggestion);
+    // The suggestion lists at most three subcommands; point at the
+    // namespace overview (`sm help plugins`) for the full set rather than
+    // the generic full-command-list footer.
+    const footer = tx(ENTRY_TEXTS.parseErrorNamespaceHelpHint, { name: firstToken });
+    return renderError(headline, suggestion, footer);
   }
 
   const candidates = closestVerbs(firstToken, verbPaths);
@@ -165,11 +169,20 @@ function matchedVerbPrefix(args: string[], verbPaths: string[][]): string {
   return best.join(' ');
 }
 
-/** Compose the final two-or-three-line message with the trailing help footer. */
-function renderError(headline: string, suggestion: string | null): string {
+/**
+ * Compose the final two-or-three-line message with a trailing help
+ * footer. `footer` defaults to the generic full-command-list pointer;
+ * callers override it when a more targeted hint fits (e.g. the
+ * incomplete-namespace case points at that namespace's overview).
+ */
+function renderError(
+  headline: string,
+  suggestion: string | null,
+  footer: string = ENTRY_TEXTS.parseErrorFooter,
+): string {
   const lines = [tx(ENTRY_TEXTS.parseErrorHeadline, { message: headline })];
   if (suggestion) lines.push(suggestion);
-  lines.push(ENTRY_TEXTS.parseErrorFooter);
+  lines.push(footer);
   return lines.join('\n') + '\n';
 }
 

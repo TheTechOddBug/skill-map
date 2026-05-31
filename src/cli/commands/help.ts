@@ -23,7 +23,7 @@ import { ansiFor } from '../util/ansi.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { BINARY_LABEL, VERSION } from '../version.js';
 import { tx } from '../../kernel/util/tx.js';
-import { HELP_TEXTS } from '../i18n/help.texts.js';
+import { HELP_TEXTS, HELP_GROUPS } from '../i18n/help.texts.js';
 
 type THelpFormat = 'human' | 'md' | 'json';
 
@@ -134,18 +134,26 @@ export class HelpCommand extends Command {
     const verb = this.verbParts.join(' ').trim();
     if (verb) {
       const target = verbs.find((v) => v.name === verb);
-      if (!target) {
-        this.context.stderr.write(
-          tx(HELP_TEXTS.unknownVerb, {
-            glyph: errGlyph,
-            verb,
-            hint: ansi.dim(HELP_TEXTS.unknownVerbHint),
-          }),
-        );
-        return ExitCode.NotFound;
+      if (target) {
+        this.context.stdout.write(renderSingle(target, format));
+        return ExitCode.Ok;
       }
-      this.context.stdout.write(renderSingle(target, format));
-      return ExitCode.Ok;
+      // Not a runnable verb: it may still be a namespace prefix that owns
+      // subcommands (`plugins`, `db`, `plugins slots`). Render the group
+      // overview instead of the unknown-verb error.
+      const subcommands = verbs.filter((v) => v.name.startsWith(verb + ' '));
+      if (subcommands.length > 0) {
+        this.context.stdout.write(renderGroup(verb, subcommands, format));
+        return ExitCode.Ok;
+      }
+      this.context.stderr.write(
+        tx(HELP_TEXTS.unknownVerb, {
+          glyph: errGlyph,
+          verb,
+          hint: ansi.dim(HELP_TEXTS.unknownVerbHint),
+        }),
+      );
+      return ExitCode.NotFound;
     }
 
     if (format === 'human') {
@@ -413,6 +421,65 @@ function renderSingle(verb: IHelpVerb, format: THelpFormat): string {
   return renderSingleHuman(verb);
 }
 
+/**
+ * Render the overview for a command namespace (`sm plugins --help`,
+ * `sm help db`). The namespace is a verb-path prefix that owns
+ * subcommands but is not itself runnable. `md` / `json` reuse the
+ * per-verb renderers over the filtered subcommand set; `human` gets the
+ * dedicated namespace layout (header, USAGE, optional DESCRIPTION,
+ * COMMANDS list, footer).
+ */
+function renderGroup(group: string, subcommands: IHelpVerb[], format: THelpFormat): string {
+  if (format === 'json' || format === 'md') {
+    const doc: IHelpDocument = {
+      cliVersion: VERSION,
+      specVersion: resolveSpecVersion(),
+      globalFlags: [],
+      verbs: subcommands,
+    };
+    return format === 'json' ? JSON.stringify(doc, null, 2) + '\n' : renderMarkdown(doc);
+  }
+  return renderGroupHuman(group, subcommands);
+}
+
+function renderGroupHuman(group: string, subcommands: IHelpVerb[]): string {
+  const meta = HELP_GROUPS[group];
+  const description =
+    meta?.description ??
+    tx(HELP_TEXTS.groupFallbackDescription, { category: subcommands[0]?.category ?? 'Other' });
+  const out: string[] = [];
+  out.push(tx(HELP_TEXTS.humanVerbHeader, { name: group, description }));
+  out.push('');
+  out.push(HELP_TEXTS.humanUsageHeading);
+  out.push(tx(HELP_TEXTS.humanGroupUsageRow, { name: group }));
+  if (meta?.details) out.push(...renderHumanDescription(meta.details));
+  out.push(...renderGroupCommands(group, subcommands));
+  out.push('');
+  out.push(tx(HELP_TEXTS.humanGroupFooter, { name: group }));
+  return out.join('\n') + '\n';
+}
+
+/** Aligned COMMANDS block; each row strips the namespace prefix off the verb name. */
+function renderGroupCommands(group: string, subcommands: IHelpVerb[]): string[] {
+  const out: string[] = ['', HELP_TEXTS.humanCommandsHeading];
+  const sorted = [...subcommands].sort((a, b) => a.name.localeCompare(b.name));
+  const labels = sorted.map((v) => v.name.slice(group.length + 1));
+  const width = Math.max(...labels.map((l) => l.length));
+  for (let i = 0; i < sorted.length; i++) {
+    const verb = sorted[i]!;
+    const label = labels[i]!;
+    const { isStub, clean } = classifyDescription(verb.description);
+    const description = (isStub ? HELP_TEXTS.compactStubMarker : '') + firstSentence(clean);
+    const row = tx(HELP_TEXTS.humanCommandRow, {
+      name: label,
+      padding: padRight('', width - label.length),
+      description,
+    });
+    out.push(truncate(row, COMPACT_ROW_MAX));
+  }
+  return out;
+}
+
 function renderSingleHuman(verb: IHelpVerb): string {
   const out: string[] = [];
   out.push(buildHumanHeader(verb));
@@ -630,7 +697,7 @@ export function routeHelpArgs(args: string[], cli: Cli): string[] {
   if (!shouldRouteHelp(args)) return args;
   const leading = leadingPositionals(args);
   if (leading.length === 0) return args;
-  const verbPath = longestVerbPrefix(leading, registeredVerbPaths(cli));
+  const verbPath = longestVerbOrGroupPrefix(leading, registeredVerbPaths(cli));
   if (verbPath.length === 0) return args;
   return ['help', ...verbPath];
 }
@@ -655,15 +722,23 @@ function leadingPositionals(args: string[]): string[] {
   return out;
 }
 
-/** Return the longest registered verb path that is a prefix of `positionals`, or `[]` if none match. */
-function longestVerbPrefix(positionals: string[], verbPaths: string[][]): string[] {
-  let best: string[] = [];
-  for (const path of verbPaths) {
-    if (path.length > positionals.length) continue;
-    const matches = path.every((tok, i) => positionals[i] === tok);
-    if (matches && path.length > best.length) best = path;
+/**
+ * Return the longest leading-positional prefix that names a registered
+ * verb OR a namespace that owns subcommands, or `[]` if none match. A
+ * complete verb (`scan`, `plugins list`) resolves to its single-verb
+ * help; a namespace prefix (`plugins`, `plugins slots`) resolves to the
+ * group overview, both served by `sm help <prefix>`. Returning `[]`
+ * leaves the args untouched so Clipanion reports the unknown command.
+ */
+function longestVerbOrGroupPrefix(positionals: string[], verbPaths: string[][]): string[] {
+  for (let len = positionals.length; len >= 1; len--) {
+    const prefix = positionals.slice(0, len);
+    const matches = verbPaths.some(
+      (path) => path.length >= len && prefix.every((tok, i) => path[i] === tok),
+    );
+    if (matches) return prefix;
   }
-  return best;
+  return [];
 }
 
 /**

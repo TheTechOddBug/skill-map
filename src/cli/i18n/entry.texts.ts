@@ -35,5 +35,7 @@ export const ENTRY_TEXTS = {
   parseErrorFlagSuggestion: 'Did you mean \'{{suggestion}}\'?',
   parseErrorVerbSuggestion: 'Did you mean {{suggestions}}?',
   parseErrorVerbHelpHint: 'Run \'sm help {{verb}}\' for usage.',
+  /** Footer for the incomplete-namespace error, points at that namespace's overview. */
+  parseErrorNamespaceHelpHint: 'Run \'sm help {{name}}\' to see all subcommands.',
   parseErrorFooter: 'Run \'sm help\' to see the full command list.',
 } as const;

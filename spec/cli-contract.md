@@ -239,8 +239,8 @@ Exit: 0 if all green, 1 if warnings, 2 if any `error`-level problem.
 
 Self-describing introspection.
 
-- `human` (default): pretty terminal output.
-- `md`: canonical markdown for documentation sites. Implementations MUST NOT hand-maintain equivalent markdown; it is generated on demand from this output.
+- `human` (default): pretty terminal output. With no argument: the compact overview of every verb grouped by category. With a verb (`sm help scan`, `sm scan --help`): that verb's detail view. With a **command namespace** (a prefix that owns subcommands but is not itself runnable, e.g. `sm help plugins`, `sm plugins --help`, `sm plugins slots --help`): a namespace overview, header line, USAGE, optional DESCRIPTION, then a COMMANDS list of the subcommands. An argument that is neither a verb nor a namespace exits `5` with an unknown-verb message.
+- `md`: canonical markdown for documentation sites. Implementations MUST NOT hand-maintain equivalent markdown; it is generated on demand from this output. With a verb or namespace argument, the output is scoped to that verb (or the namespace's subcommands).
 - `json`: structured surface dump. Shape:
 
 ```json

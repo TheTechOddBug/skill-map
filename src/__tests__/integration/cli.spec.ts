@@ -127,6 +127,47 @@ describe('CLI binary', () => {
     assert.match(r.stdout, /sm scan/);
   });
 
+  it('renders a namespace overview for `sm plugins --help` instead of the Clipanion list', () => {
+    // Regression: a command namespace (prefix that owns subcommands but is
+    // not itself runnable) used to fall through to Clipanion's terse
+    // "Multiple commands match" listing. It now gets the same rich layout
+    // shape as a leaf verb: header, USAGE, COMMANDS list, footer.
+    const r = sm(['plugins', '--help']);
+    assert.equal(r.status, 0);
+    assert.doesNotMatch(r.stdout, /Multiple commands match/);
+    assert.match(r.stdout, /^sm plugins:\s+Discover, inspect, and toggle plugins/m);
+    assert.match(r.stdout, /USAGE\n\s+sm plugins <command> \[options\]/);
+    assert.match(r.stdout, /COMMANDS/);
+    // Subcommand rows are listed by their namespace-relative name.
+    assert.match(r.stdout, /\n\s+list\s+List discovered plugins/);
+    assert.match(r.stdout, /\n\s+doctor\s+Run the full load pass/);
+    assert.match(r.stdout, /Run `sm plugins <command> --help` for flags and arguments\./);
+  });
+
+  it('`sm help <namespace>` matches `sm <namespace> --help`', () => {
+    const viaHelp = sm(['help', 'db']);
+    const viaFlag = sm(['db', '--help']);
+    assert.equal(viaHelp.status, 0);
+    assert.equal(viaFlag.status, 0);
+    assert.equal(viaHelp.stdout, viaFlag.stdout);
+    assert.match(viaHelp.stdout, /^sm db:/m);
+    assert.match(viaHelp.stdout, /COMMANDS/);
+  });
+
+  it('still renders a leaf verb (not the group overview) for an exact subcommand', () => {
+    const r = sm(['plugins', 'list', '--help']);
+    assert.equal(r.status, 0);
+    assert.match(r.stdout, /^sm plugins list:/m);
+    assert.match(r.stdout, /FLAGS/);
+    assert.doesNotMatch(r.stdout, /^COMMANDS$/m);
+  });
+
+  it('exits 5 with an unknown-verb message for a name that is neither verb nor namespace', () => {
+    const r = sm(['help', 'definitely-not-a-verb']);
+    assert.equal(r.status, 5);
+    assert.match(r.stderr, /unknown verb "definitely-not-a-verb"/);
+  });
+
   it('bare `sm` in a dir without `.skill-map/` prints a hint to stderr and exits 2', () => {
     // Spec contract §Binary: bare invocation MUST point the user at
     // `sm init` and `sm --help` when no project exists in cwd, instead
