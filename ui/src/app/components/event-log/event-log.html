@@ -20,11 +20,6 @@
 
   @if (expanded()) {
     <div class="eventlog__body">
-      @if (streamError(); as err) {
-        <div class="eventlog__row eventlog__row--error" data-testid="event-log-stream-error">
-          <span class="msg">{{ texts.streamError(err) }}</span>
-        </div>
-      }
       @if (events().length === 0) {
         <div class="eventlog__empty-state" data-testid="event-log-empty">
           <span class="fa-solid fa-inbox"></span>

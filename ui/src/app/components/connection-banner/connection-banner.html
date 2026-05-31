@@ -1,0 +1,16 @@
+@if (visible()) {
+  <div class="connection-banner" role="alert" data-testid="connection-banner">
+    <span class="connection-banner__icon fa-solid fa-plug-circle-xmark" aria-hidden="true"></span>
+    <p class="connection-banner__body">{{ texts.body }}</p>
+    <button
+      type="button"
+      class="connection-banner__cta"
+      [attr.aria-label]="texts.reconnectAria"
+      (click)="reconnect()"
+      data-testid="connection-banner-reconnect"
+    >
+      <span class="fa-solid fa-rotate-right" aria-hidden="true"></span>
+      {{ texts.reconnectCta }}
+    </button>
+  </div>
+}

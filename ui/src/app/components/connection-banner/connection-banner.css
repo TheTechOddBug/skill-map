@@ -1,0 +1,66 @@
+/*
+ * Top-of-shell banner shown when the live WS connection to `sm serve`
+ * is lost (reconnect loop exhausted). Uses the SM severity-error tokens
+ * (not raw `--p-red-*`) so the matrix theme retints it automatically,
+ * the same approach as `oversized-banner.css`. Bare provider tokens, no
+ * hardcoded fallbacks.
+ */
+:host {
+  display: block;
+}
+
+.connection-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--p-content-border-color);
+  background: var(--sm-severity-error-bg);
+  color: var(--sm-severity-error);
+  font-size: 0.875rem;
+}
+
+.connection-banner__icon {
+  font-size: 1.1rem;
+  color: var(--sm-severity-error);
+}
+
+.connection-banner__body {
+  flex: 1 1 auto;
+  margin: 0;
+  line-height: 1.4;
+}
+
+/*
+ * Inline CTA. `currentColor` is the banner's error foreground, so the
+ * button matches the banner without per-theme rules (matrix retints the
+ * SM severity tokens and the button rides along). Plain `<button>` over
+ * `<p-button>` because PrimeNG's secondary chrome doesn't track the SM
+ * tokens, see `oversized-banner.css` for the same call.
+ */
+.connection-banner__cta {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: transparent;
+  color: inherit;
+  border: 1px solid currentColor;
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--p-border-radius);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.connection-banner__cta:hover,
+.connection-banner__cta:focus-visible {
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.connection-banner__cta:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}

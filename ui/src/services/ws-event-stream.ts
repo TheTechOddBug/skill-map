@@ -19,12 +19,26 @@
  *   - On any other close, INCLUDING 1001 ('going away') that the server
  *     issues during shutdown, we reconnect with exponential backoff:
  *     1s, 2s, 4s, 8s, 16s, capped at 30s. Reset to 1s on a successful
- *     open. Cap at `MAX_RECONNECT_ATTEMPTS` total attempts before
- *     giving up + emitting a final error to subscribers. 1001 was
+ *     open. Cap at `MAX_RECONNECT_ATTEMPTS` total attempts before giving
+ *     up. Giving up is NOT a stream error: the data subject stays alive
+ *     and the `connectionState` signal flips to `'lost'`, so the UI can
+ *     render a non-fatal "connection lost" banner with a manual
+ *     `reconnect()`. Erroring the subject (the old behavior) tore down
+ *     every subscriber and escaped to the global Sentry ErrorHandler as
+ *     a false-positive Error on a routine `sm serve` shutdown. 1001 was
  *     previously treated as terminal too, but in practice the server
  *     issues it on every restart (`sm serve` hot-reload, container
  *     replacement, dev-loop save-and-rerun), and forcing the user to
  *     refresh the SPA every time was the larger UX cost.
+ *
+ * Connection state
+ * ----------------
+ *   `connectionState` is a readonly signal exposing the socket lifecycle
+ *   as `'connecting' | 'open' | 'reconnecting' | 'lost'`. Consumers read
+ *   it to drive UI affordances (the connection banner) and to re-seed
+ *   via `/api/scan` on a reconnect (per `spec/cli-contract.md` §WebSocket
+ *   protocol: treat `/ws` as a best-effort delta channel). It never
+ *   leaves `'connecting'` in demo mode (the socket never opens).
  *
  * Concurrency / multicast strategy
  * --------------------------------
@@ -64,7 +78,7 @@
  *   boundary so production code never touches a mock.
  */
 
-import { DestroyRef, InjectionToken, Injectable, OnDestroy, inject } from '@angular/core';
+import { DestroyRef, InjectionToken, Injectable, OnDestroy, inject, signal } from '@angular/core';
 import { EMPTY, Observable, Subject, share } from 'rxjs';
 import { filter } from 'rxjs/operators';
 
@@ -80,7 +94,7 @@ import { WS_TEXTS } from '../i18n/ws.texts';
 
 /** Backoff schedule (ms). Index = attempt number. After the last entry, we stay capped at 30s until `MAX_RECONNECT_ATTEMPTS`. */
 const BACKOFF_SCHEDULE_MS = [1_000, 2_000, 4_000, 8_000, 16_000, 30_000];
-/** Hard cap on consecutive reconnect attempts before we surface an error and stop. */
+/** Hard cap on consecutive reconnect attempts before we flip `connectionState` to `'lost'` and stop (no stream error). */
 const MAX_RECONNECT_ATTEMPTS = 10;
 /** RFC 6455 close codes that suppress the reconnect loop. Only 1000
  *  ('normal closure') qualifies: it's the code `disconnect()` issues
@@ -89,6 +103,17 @@ const MAX_RECONNECT_ATTEMPTS = 10;
  *  triggers the reconnect backoff, so a `sm serve` reload reattaches
  *  the SPA without a manual page refresh. */
 const NORMAL_CLOSE_CODES: ReadonlySet<number> = new Set([1000]);
+
+/**
+ * Socket lifecycle as observed by consumers:
+ *   - `'connecting'`: initial state, or a manual `reconnect()` in flight.
+ *   - `'open'`: the handshake completed; frames are flowing.
+ *   - `'reconnecting'`: an abnormal close happened and a backoff retry is
+ *     scheduled (transient; normal `sm serve` restarts pass through here).
+ *   - `'lost'`: `MAX_RECONNECT_ATTEMPTS` exhausted. Terminal until the
+ *     user triggers `reconnect()`. The data stream stays alive.
+ */
+export type TWsConnectionState = 'connecting' | 'open' | 'reconnecting' | 'lost';
 
 /**
  * Minimal contract the service needs from a WebSocket implementation.
@@ -159,6 +184,10 @@ export class WsEventStreamService implements OnDestroy {
   private reconnectAttempt = 0;
   /** Set true by `disconnect()` (and on `OnDestroy`). Suppresses any pending or future reconnect. */
   private disposed = false;
+
+  /** Socket lifecycle, readable by consumers (connection banner, re-seed on reconnect). */
+  private readonly _connectionState = signal<TWsConnectionState>('connecting');
+  readonly connectionState = this._connectionState.asReadonly();
 
   /** Socket constructor + target URL. Both injected so tests can swap them via DI; see `WS_SOCKET_FACTORY` / `WS_URL`. */
   private readonly socketFactory = inject(WS_SOCKET_FACTORY);
@@ -243,6 +272,27 @@ export class WsEventStreamService implements OnDestroy {
     this.subject.complete();
   }
 
+  /**
+   * Manually re-open the socket after the reconnect loop gave up
+   * (`connectionState === 'lost'`). Resets the attempt counter, flips
+   * the state back to `'connecting'`, and reconnects immediately
+   * (short-circuiting any pending backoff timer). Safe in any state: a
+   * no-op while disposed or while a socket is already open / connecting.
+   *
+   * Because give-up never errors the data subject, reconnecting resumes
+   * delivery to every existing subscriber without a re-subscribe.
+   */
+  reconnect(): void {
+    if (this.disposed || this.socket) return;
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.reconnectAttempt = 0;
+    this._connectionState.set('connecting');
+    this.connect();
+  }
+
   ngOnDestroy(): void {
     this.disconnect();
   }
@@ -273,6 +323,7 @@ export class WsEventStreamService implements OnDestroy {
       // Successful open resets the backoff so the next abnormal close
       // doesn't inherit a long delay from a previous failure.
       this.reconnectAttempt = 0;
+      this._connectionState.set('open');
       // eslint-disable-next-line no-console -- developer log
       console.info(WS_TEXTS.connected(this.url));
     };
@@ -339,15 +390,17 @@ export class WsEventStreamService implements OnDestroy {
     if (this.reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
       // eslint-disable-next-line no-console -- developer log
       console.warn(WS_TEXTS.reconnectGiveUp(MAX_RECONNECT_ATTEMPTS));
-      // Surface the failure as a stream error so a reactive consumer
-      // (e.g. event-log) can render a "lost connection" notice. Note
-      // that erroring the subject teardowns existing subscribers; the
-      // SPA today doesn't auto-resubscribe (the service is providedIn
-      // root and the user can refresh the page). Future work: a
-      // user-initiated `reconnect()` that resets `disposed` + counter.
-      this.subject.error(new Error(WS_TEXTS.reconnectGiveUp(MAX_RECONNECT_ATTEMPTS)));
+      // Give up WITHOUT erroring the subject. The data stream stays
+      // alive (so a later `reconnect()` resumes delivery to every
+      // existing subscriber) and the connection state flips to `'lost'`,
+      // which the connection banner renders as a non-fatal notice with a
+      // manual Reconnect button. Erroring the subject here used to tear
+      // down subscribers and surface a routine `sm serve` shutdown to
+      // Sentry as an uncaught Error.
+      this._connectionState.set('lost');
       return;
     }
+    this._connectionState.set('reconnecting');
     const idx = Math.min(this.reconnectAttempt, BACKOFF_SCHEDULE_MS.length - 1);
     const delayMs = BACKOFF_SCHEDULE_MS[idx]!;
     this.reconnectAttempt += 1;

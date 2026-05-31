@@ -13,8 +13,6 @@ export const EVENT_LOG_TEXTS = {
   title: 'Events',
   emptyStateLive: 'No events yet. Try editing a `.md` file in the watched scope.',
   emptyStateDemo: 'No live events in demo mode. Run `npx @skill-map/cli serve` for the live feed.',
-  /** Inline error notice when the WS connection has been lost permanently. */
-  streamError: (message: string) => `Live feed lost: ${message}`,
   /** Generic per-row payload digest fallback (unknown event type). */
   noPayloadDetails: 'no payload details',
   /**

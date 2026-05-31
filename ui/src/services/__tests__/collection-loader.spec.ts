@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { signal, type WritableSignal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { EMPTY, Subject } from 'rxjs';
 
 import { CollectionLoaderService } from '../collection-loader';
 import { DATA_SOURCE, type IDataSourcePort } from '../data-source/data-source.port';
-import { WsEventStreamService } from '../ws-event-stream';
+import { WsEventStreamService, type TWsConnectionState } from '../ws-event-stream';
 import type { IWsScanCompletedEvent, IWsSidecarBumpedEvent } from '../../models/ws-event';
 import type { IScanResultApi } from '../../models/api';
 
@@ -61,11 +62,13 @@ function makeStub(): IStubDataSource {
 function makeWsStub(
   scanCompleted$: Subject<IWsScanCompletedEvent>,
   sidecarBumped$: Subject<IWsSidecarBumpedEvent> | null = null,
+  connectionState: WritableSignal<TWsConnectionState> = signal('connecting'),
 ): WsEventStreamService {
   return {
     events$: EMPTY,
     scanCompleted$: scanCompleted$.asObservable(),
     sidecarBumped$: sidecarBumped$ ? sidecarBumped$.asObservable() : EMPTY,
+    connectionState,
   } as unknown as WsEventStreamService;
 }
 
@@ -315,5 +318,64 @@ describe('CollectionLoaderService, sidecar.bumped subscription', () => {
     const node = svc.nodes().find((n) => n.path === 'agents/architect.md');
     expect(node?.sidecar?.status).toBe('fresh');
     expect(node?.sidecar?.annotations?.['version']).toBe(2);
+  });
+});
+
+describe('CollectionLoaderService, re-seed on reconnect', () => {
+  let stub: IStubDataSource;
+  let scanCompleted$: Subject<IWsScanCompletedEvent>;
+  let connectionState: WritableSignal<TWsConnectionState>;
+  let ws: WsEventStreamService;
+
+  // Effects only run on a flush; settle the effect + the async load() it
+  // kicks. `TestBed.tick()` flushes the connectionState effect.
+  async function settle(): Promise<void> {
+    TestBed.tick();
+    await Promise.resolve();
+    await Promise.resolve();
+  }
+
+  beforeEach(() => {
+    scanCompleted$ = new Subject<IWsScanCompletedEvent>();
+    connectionState = signal<TWsConnectionState>('connecting');
+    stub = makeStub();
+    ws = makeWsStub(scanCompleted$, null, connectionState);
+  });
+
+  afterEach(() => {
+    scanCompleted$.complete();
+  });
+
+  it('does NOT re-seed on the first open (startup load already covers it)', async () => {
+    const svc = bootstrap(stub, ws);
+    await svc.load();
+    expect(stub.loadScan).toHaveBeenCalledTimes(1);
+
+    connectionState.set('open');
+    await settle();
+    expect(stub.loadScan).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-seeds via load() when the socket re-opens after a drop', async () => {
+    const svc = bootstrap(stub, ws);
+    await svc.load();
+    stub.loadScan.mockClear();
+
+    // First open after startup: no re-seed (startup load already ran).
+    connectionState.set('open');
+    await settle();
+    expect(stub.loadScan).not.toHaveBeenCalled();
+
+    // The transient 'reconnecting' state does not re-seed on its own.
+    connectionState.set('reconnecting');
+    await settle();
+    expect(stub.loadScan).not.toHaveBeenCalled();
+
+    // Coming back to 'open' re-seeds, because `/ws` does not replay
+    // events missed while the socket was down. (load()'s coalesce may
+    // collapse a flush double-fire, so assert it ran, not an exact count.)
+    connectionState.set('open');
+    await settle();
+    expect(stub.loadScan).toHaveBeenCalled();
   });
 });

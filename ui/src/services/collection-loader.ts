@@ -38,7 +38,7 @@
  *     real summarizer (LLM, wave 2). The header carries the same info.
  */
 
-import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import type {
@@ -66,6 +66,13 @@ export class CollectionLoaderService {
    * exactly one follow-up regardless of how many events came in.
    */
   private pendingRefresh = false;
+
+  /**
+   * `true` once the WS has opened at least once. Gates the reconnect
+   * re-seed so the FIRST open (covered by the normal startup `load()`)
+   * doesn't double-fetch; only subsequent re-opens trigger a refresh.
+   */
+  private wsConnectedBefore = false;
 
   readonly nodes = this._nodes.asReadonly();
   readonly scan = this._scan.asReadonly();
@@ -140,6 +147,19 @@ export class CollectionLoaderService {
           status: event.data.status,
         });
       });
+
+    // Re-seed on reconnect. `/ws` is a best-effort delta channel
+    // (spec/cli-contract.md §WebSocket protocol: the server does not
+    // replay missed events), so a `scan.completed` emitted while the
+    // socket was down is lost. Whenever the connection re-opens, do a
+    // full `load()` to resync. The FIRST open is skipped: startup
+    // already loads, and re-fetching there would just double the
+    // initial request.
+    effect(() => {
+      if (this.wsEvents.connectionState() !== 'open') return;
+      if (this.wsConnectedBefore) void this.load();
+      this.wsConnectedBefore = true;
+    });
   }
 
   /**

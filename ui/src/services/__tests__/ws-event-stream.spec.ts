@@ -285,13 +285,17 @@ describe('WsEventStreamService, reconnect', () => {
     expect(harness.factory).toHaveBeenCalledTimes(3);
   });
 
-  it('gives up + emits stream error after MAX_RECONNECT_ATTEMPTS', () => {
+  it('gives up after MAX_RECONNECT_ATTEMPTS WITHOUT erroring the stream (connectionState → lost)', () => {
     harness = createHarness('live');
     let receivedError: unknown = null;
+    let completed = false;
     harness.service.events$.subscribe({
       next: () => undefined,
       error: (err) => {
         receivedError = err;
+      },
+      complete: () => {
+        completed = true;
       },
     });
 
@@ -303,11 +307,63 @@ describe('WsEventStreamService, reconnect', () => {
       // even after the schedule plateau.
       vi.advanceTimersByTime(30_000);
     }
-    // Eleventh close → exceeded; service errors out without scheduling.
-    const last = harness.sockets[10]!;
-    last.simulateClose(1006);
-    expect(receivedError).toBeInstanceOf(Error);
-    expect(String(receivedError)).toMatch(/giving up/);
+    // Eleventh close → exceeded; service gives up.
+    harness.sockets[10]!.simulateClose(1006);
+
+    // The give-up does NOT error or complete the subject: subscribers
+    // stay attached so a later reconnect() resumes delivery. The failure
+    // surfaces only via the connectionState signal (the banner reads it).
+    expect(receivedError).toBeNull();
+    expect(completed).toBe(false);
+    expect(harness.service.connectionState()).toBe('lost');
+  });
+
+  it('tracks connectionState across the lifecycle (connecting → open → reconnecting → lost)', () => {
+    harness = createHarness('live');
+    expect(harness.service.connectionState()).toBe('connecting');
+
+    harness.service.events$.subscribe();
+    harness.sockets[0]!.simulateOpen();
+    expect(harness.service.connectionState()).toBe('open');
+
+    harness.sockets[0]!.simulateClose(1006);
+    expect(harness.service.connectionState()).toBe('reconnecting');
+
+    // Exhaust the remaining attempts: each plateau tick fires a reconnect
+    // whose close advances the counter until the cap trips.
+    for (let i = 1; i <= 10; i += 1) {
+      vi.advanceTimersByTime(30_000);
+      harness.sockets[i]!.simulateClose(1006);
+    }
+    expect(harness.service.connectionState()).toBe('lost');
+  });
+
+  it('reconnect() resets the backoff, returns to connecting, and resumes delivery after giving up', () => {
+    harness = createHarness('live');
+    const received: IWsEvent[] = [];
+    harness.service.events$.subscribe((e) => received.push(e));
+
+    // Drive the loop to exhaustion → 'lost'.
+    for (let i = 0; i < 11; i += 1) {
+      harness.sockets[i]!.simulateClose(1006);
+      vi.advanceTimersByTime(30_000);
+    }
+    expect(harness.service.connectionState()).toBe('lost');
+    const socketsBefore = harness.sockets.length;
+
+    // Manual reconnect opens a fresh socket immediately and resets state.
+    harness.service.reconnect();
+    expect(harness.service.connectionState()).toBe('connecting');
+    expect(harness.service._reconnectAttempt).toBe(0);
+    expect(harness.sockets).toHaveLength(socketsBefore + 1);
+
+    // The new socket opens and frames flow to the ORIGINAL subscriber,
+    // proving the subject was never torn down on give-up.
+    const fresh = harness.sockets[harness.sockets.length - 1]!;
+    fresh.simulateOpen();
+    expect(harness.service.connectionState()).toBe('open');
+    fresh.simulateMessage({ type: 'scan.started', timestamp: 1, data: {} });
+    expect(received).toHaveLength(1);
   });
 });
 
@@ -387,5 +443,12 @@ describe('WsEventStreamService, demo mode', () => {
   it('disconnect() is a safe no-op in demo mode', () => {
     harness = createHarness('demo');
     expect(() => harness.service.disconnect()).not.toThrow();
+  });
+
+  it('connectionState stays "connecting" (never opens) so the banner gate stays off', () => {
+    harness = createHarness('demo');
+    harness.service.events$.subscribe();
+    expect(harness.factory).not.toHaveBeenCalled();
+    expect(harness.service.connectionState()).toBe('connecting');
   });
 });

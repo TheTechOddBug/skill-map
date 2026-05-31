@@ -21,13 +21,14 @@ import { ProviderRegistryService, type IProviderUi } from '../services/provider-
 import { DemoBanner } from './components/demo-banner/demo-banner';
 import { OversizedBanner } from './components/oversized-banner/oversized-banner';
 import { SkippedFilesBanner } from './components/skipped-files-banner/skipped-files-banner';
+import { ConnectionBanner } from './components/connection-banner/connection-banner';
 import { SettingsModal } from './components/settings-modal/settings-modal';
 /* DEBUG-SLOTS: remove with debug-slots.css. */
 import { ViewContributionsHost } from './components/view-contributions-host/view-contributions-host';
 
 @Component({
   selector: 'sm-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, ButtonModule, InputTextModule, TooltipModule, FormsModule, NgOptimizedImage, DemoBanner, OversizedBanner, SkippedFilesBanner, SettingsModal, /* DEBUG-SLOTS */ ViewContributionsHost],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, ButtonModule, InputTextModule, TooltipModule, FormsModule, NgOptimizedImage, DemoBanner, OversizedBanner, SkippedFilesBanner, ConnectionBanner, SettingsModal, /* DEBUG-SLOTS */ ViewContributionsHost],
   templateUrl: './app.html',
   styleUrl: './app.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

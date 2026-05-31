@@ -83,10 +83,6 @@ export class EventLog {
   /** Live count for the badge in the handle. */
   readonly count = computed(() => this._events().length);
 
-  /** Surface a stream-error notice when the WS gives up reconnecting. */
-  private readonly _streamError = signal<string | null>(null);
-  readonly streamError = this._streamError.asReadonly();
-
   /** Demo-vs-live tells the empty-state which copy to render. */
   readonly isDemo = this.mode === 'demo';
 
@@ -106,17 +102,14 @@ export class EventLog {
   // ---------------------------------------------------------------------------
 
   private subscribeToStream(): void {
+    // No `error:` handler: the WS stream never errors. A lost connection
+    // is surfaced by `<sm-connection-banner>` reading the service's
+    // `connectionState` signal, not by tearing down this stream. The
+    // `complete()` in demo mode is a no-op, the empty state already
+    // covers the "no live events" case.
     this.dataSource.events()
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (event) => this.appendEvent(event),
-        error: (err) => {
-          const message = err instanceof Error ? err.message : String(err);
-          this._streamError.set(message);
-        },
-        // complete() in demo mode is a no-op, the empty state already
-        // covers the "no live events" case.
-      });
+      .subscribe((event) => this.appendEvent(event));
   }
 
   private appendEvent(event: IWsEvent): void {

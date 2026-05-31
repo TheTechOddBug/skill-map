@@ -134,12 +134,6 @@ describe('EventLog, subscription + ring', () => {
     expect(cmp.events()[0]!.digest).toBe('');
   });
 
-  it('captures stream errors into the streamError signal', () => {
-    const cmp = bootstrap(stub);
-    events$.error(new Error('lost connection'));
-    expect(cmp.streamError()).toBe('lost connection');
-  });
-
   it('does not subscribe to a real WS in demo mode (events stays EMPTY)', () => {
     stub.events.mockReturnValue(EMPTY);
     const cmp = bootstrap(stub, 'demo');
