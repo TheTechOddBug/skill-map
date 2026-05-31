@@ -31,15 +31,15 @@ If you use [Claude Code](https://claude.ai/code), `sm tutorial` is the fastest w
 
 ```bash
 mkdir try-skill-map && cd try-skill-map
-sm tutorial                  # writes sm-tutorial.md into the empty dir
+sm tutorial                  # installs the sm-tutorial skill
 claude                       # open Claude Code in the same dir
 # Inside Claude:
-ejecutá @sm-tutorial.md
+run the tutorial
 ```
 
 Claude loads the SKILL.md and runs the demo (~10 min): fixture, `sm init`, live UI, five sub-steps that show the watcher in action, plus the `.skillmapignore` hide-a-file flow. An optional deep-dive (~20-30 min) covers the rest of the CLI surface (`list`, `graph`, `export`, `check`, `plugins`).
 
-The verb `sm tutorial` writes a single self-contained file; the SKILL.md ships inside this package, so no extra install needed.
+The verb `sm tutorial` installs the skill directory under your agent's skill folder (`.claude/skills/sm-tutorial/`); the SKILL.md ships inside this package, so no extra install needed.
 
 ## Usage
 

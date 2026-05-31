@@ -247,6 +247,60 @@
 
     <hr class="section-divider" aria-hidden="true">
 
+    <!-- ============== QUICKSTART ============== -->
+    <section class="section quickstart" id="quickstart">
+      <header class="section-header section-header--center">
+        <div>
+          <div class="section-badge" data-i18n="qs.eyebrow">Quickstart</div>
+          <h2 class="section-title" data-i18n="qs.title">From zero to the tutorial in 5 lines.</h2>
+          <p class="section-sub" data-i18n="qs.sub">Install, scaffold an empty folder, open Claude Code. It drops a fixture and walks you through the whole flow, live in your browser.</p>
+        </div>
+      </header>
+
+      <div class="quickstart__card">
+        <div class="qterm">
+          <div class="qterm__bar">
+            <span class="qterm__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="qterm__title">bash</span>
+            <button
+              type="button"
+              class="qterm__copy js-copy"
+              data-copy="npm i -g @skill-map/cli&#10;mkdir try-skill-map &amp;&amp; cd try-skill-map&#10;sm tutorial&#10;claude"
+              data-i18n-aria-label="qs.copy.aria">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="9" y="9" width="13" height="13" rx="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+              <span data-i18n="qs.copy">Copy</span>
+            </button>
+          </div>
+          <div class="qterm__body">
+            <span class="qterm__line"><span class="qterm__prompt" aria-hidden="true">$</span>npm i -g @skill-map/cli</span>
+            <span class="qterm__line"><span class="qterm__prompt" aria-hidden="true">$</span>mkdir try-skill-map &amp;&amp; cd try-skill-map</span>
+            <span class="qterm__line"><span class="qterm__prompt" aria-hidden="true">$</span>sm tutorial<span class="qterm__cmt" data-i18n="qs.cmt.scaffold"># writes sm-tutorial.md</span></span>
+            <span class="qterm__line"><span class="qterm__prompt" aria-hidden="true">$</span>claude<span class="qterm__cmt" data-i18n="qs.cmt.open"># opens Claude Code here</span></span>
+          </div>
+        </div>
+
+        <p class="quickstart__then" data-i18n="qs.then">Then, inside Claude, type:</p>
+        <button
+          type="button"
+          class="qs-claude js-copy"
+          data-copy="run the tutorial"
+          data-i18n-data-copy="qs.claude.cmd"
+          data-i18n-aria-label="qs.claude.aria">
+          <span class="qs-claude__chevron" aria-hidden="true">&#9656;</span>
+          <code class="qs-claude__cmd" data-i18n="qs.claude.cmd">run the tutorial</code>
+          <svg class="qs-claude__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="9" y="9" width="13" height="13" rx="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+        </button>
+      </div>
+    </section>
+
+    <hr class="section-divider" aria-hidden="true">
+
     <!-- ============== SCREENSHOTS ============== -->
     <!-- Single hero screenshot, centered. Replace the <img> in the figure
          when delivering a new shot; the placeholder fallback stays in CSS. -->

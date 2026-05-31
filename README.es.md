@@ -93,10 +93,10 @@ Si usas [Claude Code](https://claude.ai/code), la forma más rápida de evaluar 
 
 ```bash
 mkdir prueba-skill-map && cd prueba-skill-map
-sm tutorial             # deja sm-tutorial.md en el directorio vacío
+sm tutorial             # instala la skill sm-tutorial
 claude                  # abre Claude Code en ese mismo directorio
 # Después, dentro de Claude:
-ejecuta @sm-tutorial.md
+ejecuta el tutorial
 ```
 
 Claude se hace cargo desde ahí: arma una fixture, te guía por `sm init`, abre la Web UI, edita archivos delante tuyo y te muestra al watcher reaccionando en vivo (incluso cómo `.skillmapignore` esconde archivos en tiempo real). Ves el flujo completo antes de apuntarlo a tu proyecto real, sin compromiso, totalmente reversible.
@@ -107,10 +107,10 @@ Una vez que tenés las bases, el **tutorial maestro** te lleva al sistema de plu
 
 ```bash
 mkdir prueba-skill-map-master && cd prueba-skill-map-master
-sm tutorial master      # deja sm-master.md en el directorio vacío
+sm tutorial master      # instala la skill sm-master
 claude                  # abre Claude Code en ese mismo directorio
 # Después, dentro de Claude:
-ejecuta @sm-master.md
+ejecuta el tutorial maestro
 ```
 
 Mismo estilo hands-on que el tutorial básico, pero con foco en extensibilidad: leés el modelo, listás el catálogo, inspeccionás extensiones puntuales, después armás un plugin chico de punta a punta y lo ves aparecer en la UI.

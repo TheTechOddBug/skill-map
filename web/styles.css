@@ -1454,6 +1454,124 @@ svg    { display: block; max-width: 100%; }
   }
 }
 
+/* ============================================================
+   QUICKSTART, terminal card with the tutorial first steps.
+   ------------------------------------------------------------
+   Reuses the click-to-copy system (.js-copy + data-copy). The
+   prompt glyph and inline comments are display-only; the copied
+   text comes from data-copy so it pastes as clean commands.
+   ============================================================ */
+.quickstart__card {
+  max-width: 760px;
+  margin: clamp(28px, 4vw, 48px) auto 0;
+}
+
+.qterm {
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(0,0,0,.55);
+  box-shadow: 0 24px 60px -24px rgba(0,0,0,.7);
+}
+
+.qterm__bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px 10px 16px;
+  background: rgba(255,255,255,.035);
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.qterm__dots { display: inline-flex; gap: 7px; }
+.qterm__dots i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.18);
+}
+.qterm__dots i:nth-child(1) { background: #ff5f57; }
+.qterm__dots i:nth-child(2) { background: #febc2e; }
+.qterm__dots i:nth-child(3) { background: #28c840; }
+.qterm__title {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: rgba(255,255,255,.4);
+  letter-spacing: .02em;
+}
+
+.qterm__copy {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.04);
+  color: rgba(255,255,255,.7);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background .15s var(--ease-out), border-color .15s var(--ease-out), color .15s var(--ease-out);
+}
+.qterm__copy:hover {
+  background: rgba(124,58,237,.18);
+  border-color: rgba(124,58,237,.5);
+  color: #fff;
+}
+.qterm__copy svg { width: 15px; height: 15px; }
+
+.qterm__body {
+  padding: 18px clamp(16px, 3vw, 24px);
+  font-family: var(--font-mono);
+  font-size: clamp(13px, 1.6vw, 14px);
+  line-height: 1.9;
+  color: var(--green-300);
+  overflow-x: auto;
+}
+.qterm__line { display: block; white-space: nowrap; }
+.qterm__prompt { color: rgba(255,255,255,.3); margin-right: 12px; user-select: none; }
+.qterm__cmt { color: rgba(255,255,255,.32); margin-left: 10px; }
+
+.quickstart__then {
+  text-align: center;
+  margin: clamp(20px, 3vw, 28px) 0 12px;
+  font-size: 14px;
+  color: rgba(255,255,255,.55);
+}
+
+.qs-claude {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(124,58,237,.35);
+  background: linear-gradient(180deg, rgba(124,58,237,.12), rgba(124,58,237,.04));
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .15s var(--ease-out), background .15s var(--ease-out);
+}
+.qs-claude:hover {
+  border-color: rgba(124,58,237,.7);
+  background: linear-gradient(180deg, rgba(124,58,237,.2), rgba(124,58,237,.07));
+}
+.qs-claude__chevron { color: var(--violet-400); font-family: var(--font-mono); }
+.qs-claude__cmd {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: clamp(13px, 1.6vw, 15px);
+  color: #fff;
+}
+.qs-claude__icon { width: 16px; height: 16px; color: rgba(255,255,255,.45); flex-shrink: 0; }
+.qs-claude:hover .qs-claude__icon { color: #fff; }
+
+@media (max-width: 480px) {
+  .qterm__body { font-size: 12px; }
+  .qterm__copy span { display: none; }
+}
+
 /* Variant: stacked single-column header (used by Use cases). */
 .section-header--stacked {
   grid-template-columns: 1fr;
