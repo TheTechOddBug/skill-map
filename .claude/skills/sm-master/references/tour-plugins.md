@@ -161,15 +161,15 @@ spec-compatibility mismatch, `doctor` is the verb that flags it.
 
 ```bash
 sm plugins disable core/external-url-counter
-sm plugins doctor
+sm plugins show core
 sm plugins enable core/external-url-counter
-sm plugins doctor
+sm plugins show core
 ```
 
-Expected: between the two `doctor` calls, the
-`core/external-url-counter` row flips from `enabled` to
-`disabled` and back. The change persists in the project DB; if
-you restarted `sm`, the disabled state would still be there.
+Expected: between the two `show core` calls, the
+`core/external-url-counter` row flips its marker from `✓` (enabled)
+to `✕` (disabled) and back. The change persists in the project DB;
+if you restarted `sm`, the disabled state would still be there.
 
 Mark `tour-3-explore: done`.
 

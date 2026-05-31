@@ -299,9 +299,10 @@ we move on."
 > before we move on.
 >
 > By the way: this advanced tutorial assumes you already went
-> through `sm-tutorial` (the onboarding one). If you have not, it
-> is the same flow with the `tutorial` keyword from an empty dir.
-> Want to keep going here, or pause and run that one first?
+> through `sm-tutorial` (the onboarding one). If you have not, run
+> `sm tutorial` in an empty dir to install its skill, then open
+> your agent there and ask for it, the same way you reached this
+> one. Want to keep going here, or pause and run that one first?
 
 ### 2. Verify `sm`
 
@@ -399,11 +400,11 @@ tester already completed.
 All set up! Pick your tour, you can come back for the others
 later.
 
-**1. Built-in plugins** (~13 min)
-> The six extension kinds, what comes pre-installed, how to inspect and toggle them.
+**1. Settings** (~10 min)
+> How `sm` resolves settings across its config layers (`settings.json` vs `settings.local.json` and the defaults under them), the `sm config` verbs to read, set, and reset them, and the active provider lens that decides how the project is read. The `.sm` consent gate lives in the basic tutorial.
 
-**2. Settings and consent** (~5 min)
-> Where settings live (`settings.json` vs `settings.local.json`), and the per-user consent gate that controls when `sm` may write `.sm` companion files in this project.
+**2. Built-in plugins** (~13 min)
+> The six extension kinds, what comes pre-installed, how to inspect and toggle them.
 
 **3. Build and configure plugins** (~17 min)
 > Scaffold a plugin with `sm plugins create`, tour what landed, edit a setting and a view-slot, see the contribution appear in the UI, validate with `doctor` and `upgrade`.
@@ -438,13 +439,12 @@ time and on subsequent loops):
   from option 4's description by a blank line.
 
 Mapping:
-- **1** → the tour `plugins-tour`. Its step order is defined in
+- **1** → the tour `settings`. Its step order is defined in
+  `master-state.yml.tours.settings.steps`. All step ids are
+  `settings-*`, the bodies live in `references/tour-settings.md`.
+- **2** → the tour `plugins-tour`. Its step order is defined in
   `master-state.yml.tours.plugins-tour.steps`. All step ids are
   `tour-*`, the bodies live in `references/tour-plugins.md`.
-- **2** → the tour `settings-and-consent`. Its step order is
-  defined in `master-state.yml.tours.settings-and-consent.steps`.
-  All step ids are `settings-*`, the bodies live in
-  `references/tour-settings.md`.
 - **3** → the **merged tour** `build-and-configure`. Its step
   order is defined in `master-state.yml.tours.build-and-configure.steps`.
   Walk those step ids in sequence; for each id, find its body in
@@ -470,7 +470,7 @@ the menu**. Re-render every option using the same layout from
 §Rendering rules above (plain bold title line + single-level `> `
 description line, back-to-back, one blank line between options,
 no outer blockquote), prefixing the title of any completed tour
-with `✓ ` (e.g. `**1. ✓ Built-in plugins** (~13 min)`). Skip the
+with `✓ ` (e.g. `**2. ✓ Built-in plugins** (~13 min)`). Skip the
 intro sentence ("All set up...") and close with:
 
 What next?
@@ -498,8 +498,8 @@ For every step in the tour:
    **Numbering rule**: `N` is the 1-based index of the current
    step inside the picked tour's `steps` array in
    `master-state.yml`. The count **resets to 1 when the tester
-   picks a new tour**, so the first step of `plugins-tour` is
-   "Step 1", the first step of `settings-and-consent` (after
+   picks a new tour**, so the first step of `settings` is
+   "Step 1", the first step of `plugins-tour` (after
    returning to the menu and picking option 2) is again "Step 1",
    and the first step of `build-and-configure` (option 3) is
    again "Step 1" and runs straight through to "Step 7" without
@@ -578,8 +578,8 @@ orchestrator, the tour file is the lesson.
 
 | Menu option | Tour id                 | Reference file(s)                                                                          |
 |-------------|-------------------------|--------------------------------------------------------------------------------------------|
-| 1           | `plugins-tour`          | `references/tour-plugins.md`                                                               |
-| 2           | `settings-and-consent`  | `references/tour-settings.md` (settings-* steps only)                                      |
+| 1           | `settings`              | `references/tour-settings.md` (settings-* steps only)                                      |
+| 2           | `plugins-tour`          | `references/tour-plugins.md`                                                               |
 | 3           | `build-and-configure`   | both `references/tour-settings.md` (settings-* steps) AND `references/tour-authoring.md` (authoring-* steps), dispatched by step id |
 
 Each tour file contains: a short overview, a precondition check

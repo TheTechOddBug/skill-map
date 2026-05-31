@@ -147,8 +147,25 @@ tours:
   # (e.g. tour-foo.md → steps prefixed `foo-*`). The orchestrator
   # in SKILL.md walks this list and dispatches each step id to its
   # reference file.
-  plugins-tour:
+  settings:
     status: "not_started"   # not_started | in_progress | done | declined
+    estimated_min: 10
+    # Config layers + the `sm config` verbs + the active provider
+    # lens. The `.sm` consent gate is covered in the basic
+    # sm-tutorial, not repeated here. Step bodies live in
+    # tour-settings.md (settings-* ids).
+    steps:
+      - id: "settings-1-layers"
+        title: "The config layers and `sm config list`"
+        status: "pending"
+      - id: "settings-2-resolve"
+        title: "Read, resolve, and set a value with `sm config`"
+        status: "pending"
+      - id: "settings-3-lens"
+        title: "The active provider lens (`activeProvider`)"
+        status: "pending"
+  plugins-tour:
+    status: "not_started"
     estimated_min: 13
     # All step bodies live in tour-plugins.md (tour-* ids).
     steps:
@@ -160,18 +177,6 @@ tours:
         status: "pending"
       - id: "tour-3-explore"
         title: "Explore one extension up close"
-        status: "pending"
-  settings-and-consent:
-    status: "not_started"
-    estimated_min: 5
-    # Settings + the `.sm` consent gate. Step bodies live in
-    # tour-settings.md (settings-* ids).
-    steps:
-      - id: "settings-1-project"
-        title: "Project settings: `.skill-map/settings.json`"
-        status: "pending"
-      - id: "settings-2-local"
-        title: "Per-user overrides: `settings.local.json`"
         status: "pending"
   build-and-configure:
     status: "not_started"

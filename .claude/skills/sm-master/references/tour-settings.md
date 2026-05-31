@@ -1,11 +1,17 @@
 # Tour: settings + slots (step library, `settings-*` ids)
 
-Step bodies for two tours: option 2 (`settings-and-consent`,
-runs `settings-1-project` and `settings-2-local`) and the
-single shared step `settings-6-contributions` borrowed by
+Step bodies for two tours: option 1 (`settings`, runs
+`settings-1-layers`, `settings-2-resolve`, and `settings-3-lens`)
+and the single shared step `settings-6-contributions` borrowed by
 option 3 (`build-and-configure`). The SKILL.md orchestrator
 dispatches each `settings-*` id here; `authoring-*` ids it
 dispatches to `tour-authoring.md`.
+
+The `.sm` consent gate (companion files, `allowEditSmFiles`,
+`sm sidecar annotate`) is covered end to end in the basic
+`sm-tutorial`, so this tour does NOT repeat it; it focuses on the
+config layer system and the `sm config` verbs, which the basic
+tutorial does not teach.
 
 ## Precondition check
 
@@ -16,18 +22,34 @@ and appended the master-tutorial's internal entries to
 `.skill-map/` is missing, surface the bootstrap mismatch and
 stop, do not try to re-init mid-tour.
 
-## Step `settings-1-project` — project settings (~2 min)
+## Step `settings-1-layers` — the config layers (~3 min)
 
-> Every project that runs `sm init` gets a `.skill-map/`
-> directory with two settings files. The first one is
-> `settings.json`, this is the **public** project settings, the
-> file you commit to git.
+**Context**: where settings live and how `sm` resolves a value
+when more than one place sets it.
+
+> `sm` resolves every setting through a stack of **layers**, each
+> one overriding the layer below it:
+>
+> 1. **defaults**, baked into the CLI.
+> 2. **project**, `.skill-map/settings.json`. Committed to git,
+>    shared with the whole team.
+> 3. **project-local**, `.skill-map/settings.local.json`.
+>    Gitignored, per-checkout, never travels through the repo
+>    (this is where the `.sm` consent flag from the basic tutorial
+>    lives).
+> 4. **override**, transient flags for a single command.
+>
+> There is no user or global layer: `sm` never merges anything
+> from your home directory. Everything is project-scoped.
+
+> `sm init` already created the two files. The committed one starts
+> minimal:
 
 ```bash
 cat .skill-map/settings.json
 ```
 
-Expected output on a fresh init:
+Expected on a fresh init:
 
 ```json
 {
@@ -35,77 +57,136 @@ Expected output on a fresh init:
 }
 ```
 
-> Minimal on purpose. The CLI keeps the file lean and only adds
-> keys when you change a setting. Schema version is there so the
-> CLI can migrate the shape forward without surprising you.
->
-> The settings UI in the browser (the `Settings` tab when `sm` is
-> running) writes back into this file. Anything you change in
-> there ends up here, commit it to share the choice with the
-> team.
-
-Mark `settings-1-project: done`.
-
-## Step `settings-2-local` — per-user overrides (~3 min)
-
-> The second file is `settings.local.json`, which is **gitignored
-> by default**. It exists for choices that should NOT travel
-> across the team:
->
-> - Whether you allowed `sm` to create `.sm` companion files in
->   this project (the consent gate from the basic tutorial).
-> - Personal token paths or credentials you do not want to
->   commit.
-> - Local preferences that depend on your dev environment.
+> `schemaVersion` lets the CLI migrate the shape forward without
+> surprising you; the file only grows keys as you change settings.
+> Now list every setting the project sees, already resolved across
+> the layers:
 
 ```bash
-cat .skill-map/settings.local.json
+sm config list
 ```
 
-Expected on a fresh init:
+Expected: a grouped table (General, Scan, Jobs, Roots & plugins,
+History, Other) with each key's resolved value. A dash means
+"unset, falling back to the default". The browser Settings tab
+writes into `settings.json`, so anything you change there shows up
+in this list too.
 
-```json
-{}
-```
+Mark `settings-1-layers: done`.
 
-> Empty until something writes to it. The first thing that
-> typically lands is `allowEditSmFiles: true` after you accept
-> the `.sm` prompt (the consent gate is a per-user, per-project
-> choice, that's why it goes here).
+## Step `settings-2-resolve` — read, resolve, and set a value (~3 min)
 
-Before the demo, give the tester one sentence of context about
-what a `.sm` file actually is (the basic tutorial introduces it
-in passing, here we anchor the concept):
+**Context**: the four config verbs (`get`, `show`, `set`, `reset`)
+and how `show --source` reveals which layer won.
 
-> Every `.md` skill-map tracks gets a sibling `.sm` file (e.g.
-> `notes/ideas.sm` next to `notes/ideas.md`) that carries **all
-> of the tool's metadata about that markdown, so your `.md`
-> stays clean and uncluttered**. Version, history, tags,
-> annotations, anything that does not belong in the
-> human-authored body lives in the `.sm`. The `.md` is content
-> you write for Claude or humans, the `.sm` is bookkeeping the
-> tool writes. They are ordinary source files, committed to git,
-> and you'll see them often once you start using `sm bump` /
-> `sm sidecar annotate` day to day.
-
-If the tester wants to see it in action: ask them to run
-`sm sidecar annotate notes/ideas.md`, accept the `[Y/n]` prompt
-with `y`, and re-check the file:
+> Read a single setting. We'll use `scan.maxNodes`, the cap on how
+> many nodes a scan walks:
 
 ```bash
-sm sidecar annotate notes/ideas.md
-cat .skill-map/settings.local.json
+sm config get scan.maxNodes
+sm config show scan.maxNodes --source
 ```
 
-Expected: now contains `{"allowEditSmFiles": true}` (plus a
-`notes/ideas.sm` file landed next to the markdown).
+Expected: `get` prints the value (`256`); `show --source` adds
+where it came from, `256  (from defaults)`. Nothing is set yet, so
+the default wins.
 
-> The choice stuck. Next time `sm` wants to write a `.sm` in this
-> project, it skips the prompt because your consent is on
-> record. If you delete the file or move to a different project,
-> the prompt comes back.
+> Now set it in the project layer and watch the source move:
 
-Mark `settings-2-local: done`.
+```bash
+sm config set scan.maxNodes 500 --yes
+sm config show scan.maxNodes --source
+```
+
+Expected: the set prints
+`✓  scan.maxNodes = 500  (wrote .skill-map/settings.json)`, and
+`show --source` now reads `500  (from project)`. The value climbed
+a layer, `project` overrides `defaults`. Peek at the file and the
+nested key is there:
+
+```bash
+cat .skill-map/settings.json
+```
+
+> Last, undo it. `sm config reset` removes the key so the default
+> takes over again:
+
+```bash
+sm config reset scan.maxNodes
+sm config show scan.maxNodes --source
+```
+
+Expected: `✓  Removed scan.maxNodes from .skill-map/settings.json`,
+then `256  (from defaults)`, back where we started. (A made-up key
+like `scan.nope` is rejected with `✕ Unknown config key`, the
+catalog is closed.)
+
+Mark `settings-2-resolve: done`.
+
+## Step `settings-3-lens` — the active provider lens (~4 min)
+
+**Context**: the single most consequential setting, the lens that
+decides which provider types the project's files. It is reversible
+and never touches your `.md` files, only the scan cache.
+
+> One setting earns its own step: the **active provider lens**. A
+> skill-map project sees its filesystem through exactly **one**
+> provider at a time, and that lens decides how each file is read.
+> Under the `claude` lens a `.claude/agents/*.md` is an agent and
+> `@`-mentions / `/`-commands become links; point the lens at
+> `openai` and the same tree is read against Codex's layout instead.
+> Same files, different reading.
+
+> The lens auto-detects on the first scan from the markers in your
+> project (`.claude/` → claude, `.codex/` or a root `AGENTS.md` →
+> openai, `.agents/` → agent-skills). Scan once and check where it
+> landed:
+
+```bash
+sm scan
+sm config get activeProvider
+```
+
+Expected: the scan prints a line like `Auto-detected activeProvider
+= claude from filesystem markers; persisted to
+.skill-map/settings.json`, and `get` then reports `claude`. The lens
+is just a key in `settings.json`, persisted like any other setting.
+
+> Now switch it by hand and watch what happens. We'll point it at
+> `openai`:
+
+```bash
+sm config set activeProvider openai
+```
+
+Expected: alongside the usual `✓  activeProvider = openai  (wrote
+.skill-map/settings.json)`, the CLI warns `Lens switched. Cleared 7
+scan table(s) ... Run sm scan to repopulate the graph under the new
+lens`. The important part: it cleared the **scan cache only**, your
+`.md` files are untouched. The graph is derived data; the source is
+always your filesystem.
+
+> Re-scan under the new lens, then put it back the way you found it:
+
+```bash
+sm scan
+sm config reset activeProvider
+sm scan
+```
+
+Expected: the first scan repopulates under `openai`; `reset` removes
+the key (`Removed activeProvider from .skill-map/settings.json`); the
+last scan auto-detects `claude` again from your `.claude/` marker.
+Back where you started, nothing lost.
+
+> That's the whole idea of the lens: one project, one active
+> provider at a time, chosen by `activeProvider` and backed by the
+> built-in provider plugins (`claude`, `openai`, `agent-skills`,
+> `antigravity`). Switching it is cheap and reversible because the
+> graph is always rebuilt from your files, never the other way
+> around.
+
+Mark `settings-3-lens: done`.
 
 ## Step `settings-6-contributions` — watch contributions land (~2 min)
 
