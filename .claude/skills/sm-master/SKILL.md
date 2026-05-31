@@ -409,9 +409,6 @@ later.
 **3. Build and configure plugins** (~17 min)
 > Scaffold a plugin with `sm plugins create`, tour what landed, edit a setting and a view-slot, see the contribution appear in the UI, validate with `doctor` and `upgrade`.
 
-**4. I'm done for today**
-> Wrap up.
-
 Which one?
 
 **Rendering rules** (apply on every render of the menu, first
@@ -436,7 +433,7 @@ time and on subsequent loops):
   the description visually with two spaces so it stays
   subordinate to its title.
 - The trailing "Which one?" stays on its own line, separated
-  from option 4's description by a blank line.
+  from option 3's description by a blank line.
 
 Mapping:
 - **1** → the tour `settings`. Its step order is defined in
@@ -455,13 +452,16 @@ Mapping:
   1..N where N is the length of `steps`, not restarting between
   the settings-* and authoring-* runs. The two reference files
   are the step library; the YAML is authoritative for order.
-- **4** → jump to §Final wrap-up.
+
+There is no "finish" option in the menu: the tester ends the
+session by saying they are done (or by completing every tour),
+which routes to §Final wrap-up.
 
 > **Adding a new tour**: append an entry to `master-state.yml.tours`
 > with its `steps` array, create (or extend) a `references/tour-<id>.md`
 > step library with the matching step ids, add a new option to the
-> menu above (and bump the "I'm done" option number), and add a
-> mapping row here. Keep step id prefixes consistent with the file
+> menu above, and add a mapping row here. Keep step id prefixes
+> consistent with the file
 > name so the dispatch stays mechanical.
 
 After a tour finishes, mark it `done` in `master-state.yml`,
@@ -475,7 +475,7 @@ intro sentence ("All set up...") and close with:
 
 What next?
 
-If they say "I'm done" or pick option 4, jump to §Final wrap-up.
+If they say "I'm done" (or have completed every tour), jump to §Final wrap-up.
 
 ## Per-step cycle (inside a tour)
 
@@ -596,8 +596,8 @@ and re-render the menu.
 
 ## Final wrap-up
 
-When the tester picks option 4 or signals they are done, show the
-closing block:
+When the tester signals they are done (or has completed every
+tour), show the closing block:
 
 > Thanks! That's a wrap.
 >
