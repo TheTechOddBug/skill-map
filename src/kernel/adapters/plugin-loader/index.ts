@@ -392,8 +392,9 @@ export class PluginLoader implements PluginLoaderPort {
     // Structure-as-truth: kind and id come from the path segment, not
     // from manifest fields. The path layout is `<kind-plural>/<id>/index.<ext>`;
     // the parent directory dictates `kind`, the leaf directory dictates `id`.
-    // Hand-authored manifests carrying either field are rejected by AJV
-    // (`unevaluatedProperties: false` on the kind schemas).
+    // Hand-authored manifests re-declaring either are rejected by the
+    // strict guard below (with AJV's `unevaluatedProperties: false` as a
+    // backstop).
     const [pathKindDir, pathId] = relEntry.split('/');
     const kindFromPath = pathKindDir && pathKindDir.endsWith('s')
       ? (pathKindDir.slice(0, -1) as ExtensionKind)
@@ -429,9 +430,11 @@ export class PluginLoader implements PluginLoaderPort {
       }};
     }
 
-    // Hand-declared `kind` or `id` literals in the exported manifest are
-    // rejected via AJV's `unevaluatedProperties: false`; the runtime path
-    // never reads `exported.kind`/`exported.id` directly.
+    // `pluginId` is injected from `plugin.json#/id` (spec § A.6). A
+    // declared value that disagrees is an author bug, reject it; a value
+    // that matches is tolerated and stripped before AJV (see the strict
+    // guard below for `id` / `kind` / `kinds` / `formatId`, which are
+    // never tolerated).
     const declaredPluginId = exported['pluginId'];
     if (typeof declaredPluginId === 'string' && declaredPluginId !== pluginId) {
       return { ok: false, failure: {
@@ -449,9 +452,32 @@ export class PluginLoader implements PluginLoaderPort {
       }};
     }
 
-    // Strip runtime methods + `pluginId` + `kind`/`id` (if accidentally
-    // present) so AJV's strict `unevaluatedProperties: false` doesn't
-    // reject the export.
+    // Strict structure-as-truth: `id` / `kind` / `kinds` / `formatId` are
+    // derived from the folder layout (`<plugin>/<kind>s/<name>/`, plus the
+    // Provider `kinds/` catalog and the formatter folder name), never
+    // declared. A manifest that re-declares any of them, even with a
+    // matching value, is rejected: a second source of truth can silently
+    // drift from the path, so the loader surfaces it at load instead of
+    // stripping it away.
+    const redeclared = DERIVED_MANIFEST_KEYS.filter((field) => field in exported);
+    if (redeclared.length > 0) {
+      return { ok: false, failure: {
+        ...fail(
+          pluginPath,
+          pluginId,
+          'invalid-manifest',
+          tx(PLUGIN_LOADER_TEXTS.invalidManifestRedeclaredField, {
+            relEntry,
+            fields: redeclared.map((field) => `\`${field}\``).join(', '),
+          }),
+        ),
+        manifest,
+      }};
+    }
+
+    // Strip runtime methods + the injected `pluginId` so AJV's strict
+    // `unevaluatedProperties: false` doesn't reject the export. The
+    // structure-as-truth fields are gone already (rejected above).
     const manifestView = stripFunctionsAndPluginId(exported);
 
     if (kind === 'hook') {
@@ -542,15 +568,14 @@ export class PluginLoader implements PluginLoaderPort {
     // sees the canonical fields. Formatters additionally get `formatId`
     // mirrored from the folder name so `sm graph --format <name>` keeps
     // its domain-specific lookup field; that mapping is the only place
-    // structure-as-truth synthesizes a second runtime alias. Providers
-    // merge the filesystem-discovered `kinds` over any inline ones the
-    // source declared (filesystem wins; inline kinds were a legacy
-    // pattern before the structure-as-truth refactor).
+    // structure-as-truth synthesizes a second runtime alias. Providers get
+    // the filesystem-discovered `kinds` catalog injected here; the export
+    // can no longer inline a `kinds` map (rejected at load), so there is
+    // nothing to merge.
     const instance: Record<string, unknown> = { ...exported, pluginId, id: pathId, kind };
     if (kind === 'formatter') instance['formatId'] = pathId;
     if (kind === 'provider' && discoveredKinds) {
-      const inlineKinds = isRecord(exported['kinds']) ? exported['kinds'] : {};
-      instance['kinds'] = { ...inlineKinds, ...discoveredKinds };
+      instance['kinds'] = discoveredKinds;
     }
 
     return { ok: true, extension: {
@@ -564,6 +589,16 @@ export class PluginLoader implements PluginLoaderPort {
     }};
   }
 }
+
+/**
+ * Manifest fields the loader derives from the filesystem layout, never
+ * from the export. Declaring any of them is rejected as `invalid-manifest`
+ * (strict structure-as-truth): `id` is the leaf folder, `kind` the parent
+ * folder, provider `kinds` the `kinds/<kindName>/` catalog, formatter
+ * `formatId` the formatter folder name. `pluginId` is NOT here, it has a
+ * dedicated mismatch check and a matching value is tolerated.
+ */
+const DERIVED_MANIFEST_KEYS: readonly string[] = ['id', 'kind', 'kinds', 'formatId'];
 
 /**
  * Plural directory name for each extension kind. The path

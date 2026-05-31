@@ -66,6 +66,11 @@ export const PLUGIN_LOADER_TEXTS = {
     "{{relEntry}}: extension declares pluginId '{{declared}}' but its plugin.json declares id '{{manifestId}}'. " +
     'Remove the explicit pluginId from the extension; the loader injects it from plugin.json#/id.',
 
+  invalidManifestRedeclaredField:
+    '{{relEntry}}: extension manifest declares {{fields}}, derived from the folder layout (structure-as-truth) ' +
+    'and not a manifest field. Remove it: id is the leaf folder, kind the parent folder, provider kinds the ' +
+    '`kinds/` catalog, formatter formatId the formatter folder name.',
+
   loadErrorStorageSchemaRead:
     "plugin '{{pluginId}}' failed to load schema for table '{{table}}': {{schemaPath}}: {{errDescription}}",
 

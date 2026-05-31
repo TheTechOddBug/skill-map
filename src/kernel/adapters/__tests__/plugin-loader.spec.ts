@@ -34,22 +34,20 @@ function makePluginsDir(name: string): string {
 }
 
 /**
- * Auto-place an extension file at the structure-as-truth layout
- * (`<kind>s/<name>/index.<ext>`) when the source declares a known
- * kind. Otherwise honour the literal path the test passed (used by
- * negative tests that intentionally write at the wrong place).
+ * Place an extension fixture at the structure-as-truth layout. The
+ * caller encodes the kind as the first key segment (`<kind>/<name>.<ext>`)
+ * so the fixture source no longer declares `kind` (declaring it is
+ * rejected at load, strict structure-as-truth). The file lands at
+ * `<kind>s/<name>/index.<ext>`. A key without a known-kind prefix is
+ * written verbatim (negative tests that intentionally misplace it).
  */
-function placeExtension(relPath: string, contents: string): string {
-  const match = /kind:\s*['"](provider|extractor|analyzer|action|formatter|hook)['"]/u.exec(
-    contents,
+function placeExtension(relPath: string): string {
+  const match = /^(provider|extractor|analyzer|action|formatter|hook)\/(.+)\.(mjs|js|ts)$/u.exec(
+    relPath,
   );
   if (!match) return relPath;
-  const kind = match[1];
-  const extMatch = /\.(mjs|js|ts)$/.exec(relPath);
-  if (!extMatch) return relPath;
-  const ext = extMatch[0];
-  const base = relPath.slice(0, -ext.length).replace(/.*\//, '');
-  return `${kind}s/${base}/index${ext}`;
+  const [, kind, name, ext] = match;
+  return `${kind}s/${name}/index.${ext}`;
 }
 
 function writePlugin(
@@ -62,7 +60,7 @@ function writePlugin(
   mkdirSync(pluginDir, { recursive: true });
   writeFileSync(join(pluginDir, 'plugin.json'), JSON.stringify(manifest));
   for (const [relPath, contents] of Object.entries(extensions)) {
-    const target = join(pluginDir, placeExtension(relPath, contents));
+    const target = join(pluginDir, placeExtension(relPath));
     mkdirSync(join(target, '..'), { recursive: true });
     writeFileSync(target, contents);
   }
@@ -87,12 +85,11 @@ describe('PluginLoader', () => {
 
   it('loads a green-path plugin with one extractor extension', async () => {
     const root = makePluginsDir('green');
-    // Structure-as-truth: the extension's id is the folder name; we
-    // plant the source at `url-counter.mjs` so `placeExtension` lays
-    // it down at `extractors/url-counter/index.mjs`.
+    // Structure-as-truth: the extension's kind and id come from the
+    // folder, never the source. The `extractor/url-counter.mjs` key tells
+    // `placeExtension` to lay it down at `extractors/url-counter/index.mjs`.
     const extractorSource = `
       export default {
-        kind: 'extractor',
         version: '1.0.0',
         description: 'Counts external URLs',
       };
@@ -106,7 +103,7 @@ describe('PluginLoader', () => {
         specCompat: '>=0.0.0',
         catalogCompat: '*',
       },
-      { 'url-counter.mjs': extractorSource },
+      { 'extractor/url-counter.mjs': extractorSource },
     );
 
     const result = await loaderFor(root).discoverAndLoadAll();
@@ -253,35 +250,75 @@ describe('PluginLoader', () => {
       match(r[0]!.reason!, /update the plugin's specCompat|pin sm to a compatible/);
     });
 
-    // Structure-as-truth makes a kind/dir mismatch impossible: the kind
-    // IS the parent folder. The exported `kind` literal is stripped
-    // before AJV validation; the loader uses the path-derived value.
-    it.skip('mismatched kind dir reports the discovered path and the expected folder', async () => {
-      // Auto-discovery: when the file lives under e.g. `analyzers/<name>/`
-      // but the export declares `kind: 'wat'`, the loader rejects with a
-      // directed `invalid-manifest` naming both the actual folder and the
-      // kind expected from the export.
-      const root = makePluginsDir('diag-kind');
-      const pluginDir = join(root, 'wrong-kind');
-      mkdirSync(join(pluginDir, 'analyzers', 'x'), { recursive: true });
-      writeFileSync(
-        join(pluginDir, 'plugin.json'),
-        JSON.stringify({
-          // id removed (structure-as-truth)
+    // Strict structure-as-truth: `id` / `kind` (and provider `kinds` /
+    // formatter `formatId`) are derived from the folder layout and must
+    // not be declared in the export. Re-declaring either, even with a
+    // value that matches the folder, is rejected as `invalid-manifest`
+    // (a second source of truth could silently drift from the path).
+    it('rejects an extension manifest that re-declares derived fields (id / kind)', async () => {
+      const root = makePluginsDir('diag-redeclare');
+      writePlugin(
+        root,
+        'redeclares',
+        {
           version: '1.0.0',
           description: 'test',
           specCompat: '>=0.0.0',
-
           catalogCompat: '*',
-        }),
-      );
-      writeFileSync(
-        join(pluginDir, 'analyzers', 'x', 'index.mjs'),
-        `export default { id: 'x', kind: 'extractor', version: '1.0.0', emitsLinkKinds: [], defaultConfidence: 'high' };`,
+        },
+        {
+          'extractor/x.mjs':
+            `export default { id: 'x', kind: 'extractor', version: '1.0.0', description: 'redeclares its derived fields' };`,
+        },
       );
       const r = await loaderFor(root).discoverAndLoadAll();
       strictEqual(r[0]?.status, 'invalid-manifest');
-      match(r[0]!.reason!, /kind=`extractor`.*analyzers/);
+      match(r[0]!.reason!, /declares `id`, `kind`/);
+      match(r[0]!.reason!, /structure-as-truth/);
+    });
+
+    it('rejects a provider that inlines a `kinds` map (discovered from disk, not declared)', async () => {
+      // The provider kinds catalog lives on disk under `kinds/<name>/`;
+      // an inline `kinds` map in the export is rejected, not merged.
+      const root = makePluginsDir('diag-provider-kinds');
+      writePlugin(
+        root,
+        'inline-kinds',
+        {
+          version: '1.0.0',
+          description: 'test',
+          specCompat: '>=0.0.0',
+          catalogCompat: '*',
+        },
+        {
+          'provider/p.mjs':
+            `export default { version: '1.0.0', description: 'inlines kinds', kinds: { agent: {} }, detect() { return null; } };`,
+        },
+      );
+      const r = await loaderFor(root).discoverAndLoadAll();
+      strictEqual(r[0]?.status, 'invalid-manifest');
+      match(r[0]!.reason!, /declares `kinds`/);
+    });
+
+    it('rejects a formatter that declares `formatId` (derived from the folder)', async () => {
+      const root = makePluginsDir('diag-formatter-formatid');
+      writePlugin(
+        root,
+        'inline-formatid',
+        {
+          version: '1.0.0',
+          description: 'test',
+          specCompat: '>=0.0.0',
+          catalogCompat: '*',
+        },
+        {
+          'formatter/csv.mjs':
+            `export default { version: '1.0.0', description: 'declares formatId', formatId: 'csv', render() { return ''; } };`,
+        },
+      );
+      const r = await loaderFor(root).discoverAndLoadAll();
+      strictEqual(r[0]?.status, 'invalid-manifest');
+      match(r[0]!.reason!, /declares `formatId`/);
     });
 
     it('extension manifest invalid points at its kind schema', async () => {
@@ -297,7 +334,9 @@ describe('PluginLoader', () => {
 
           catalogCompat: '*',
         },
-        { 'f.mjs': `export default { id: 'f', kind: 'formatter', version: '1.0.0' };` },
+        // No `description` → fails formatter.schema.json (via base),
+        // surfacing the directed "points at its kind schema" diagnostic.
+        { 'formatter/f.mjs': `export default { version: '1.0.0' };` },
       );
       const r = await loaderFor(root).discoverAndLoadAll();
       match(r[0]!.reason!, /spec\/schemas\/extensions\/formatter\.schema\.json/);
@@ -466,7 +505,7 @@ describe('PluginLoader', () => {
       // race with the loader's timer should win.
       const hangSource = `
         await new Promise(() => {});
-        export default { id: 'never', kind: 'extractor', version: '1.0.0', emitsLinkKinds: ['references'], defaultConfidence: 'high' };
+        export default { version: '1.0.0', description: 'never resolves' };
       `;
       writePlugin(
         root,
@@ -479,7 +518,7 @@ describe('PluginLoader', () => {
 
           catalogCompat: '*',
         },
-        { 'hang.mjs': hangSource },
+        { 'extractor/hang.mjs': hangSource },
       );
 
       const loader = new PluginLoader({
@@ -502,7 +541,7 @@ describe('PluginLoader', () => {
     it('non-hanging plugin still loads fine with a tight timeout', async () => {
       const root = makePluginsDir('timeout-fast');
       const extractor = `
-        export default { kind: 'extractor', version: '1.0.0', description: 'fast', extract() {} };
+        export default { version: '1.0.0', description: 'fast', extract() {} };
       `;
       writePlugin(
         root,
@@ -515,7 +554,7 @@ describe('PluginLoader', () => {
 
           catalogCompat: '*',
         },
-        { 'fast.mjs': extractor },
+        { 'extractor/fast.mjs': extractor },
       );
 
       const loader = new PluginLoader({
@@ -746,7 +785,7 @@ describe('PluginLoader', () => {
         catalogCompat: '*',
       },
       {
-        'd.mjs': `export default { kind: 'extractor', version: '1.0.0', description: 'd', extract() {} };`,
+        'extractor/d.mjs': `export default { version: '1.0.0', description: 'd', extract() {} };`,
       },
     );
     writePlugin(root, 'broken', { /* malformed manifest, missing required fields */ });

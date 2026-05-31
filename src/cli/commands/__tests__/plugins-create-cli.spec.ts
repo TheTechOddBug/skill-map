@@ -115,6 +115,10 @@ describe('sm plugins create, scaffolder shape', () => {
     assert.doesNotMatch(stub, /viewContributions/, 'stub must not use the dead field');
     assert.match(stub, /\n\s*settings:\s*{/, 'stub must declare per-extension settings');
     assert.match(stub, /slot:\s*'card\.footer\.left'/);
+    // Strict structure-as-truth: kind/id come from the folder, never the
+    // export. A scaffolded stub that declared either would now fail to load.
+    assert.doesNotMatch(stub, /\n\s*kind:/, 'stub must not declare `kind` (derived from the folder)');
+    assert.doesNotMatch(stub, /\n\s*id:/, 'stub must not declare `id` (derived from the folder)');
   });
 
   it('scaffolds a plugin that loads clean (no invalid-manifest)', () => {

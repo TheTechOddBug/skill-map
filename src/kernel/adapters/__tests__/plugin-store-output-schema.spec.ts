@@ -67,17 +67,18 @@ function makePluginsDir(name: string): string {
   return dir;
 }
 
-function placeExtension(relPath: string, contents: string): string {
-  const match = /kind:\s*['"](provider|extractor|analyzer|action|formatter|hook)['"]/u.exec(
-    contents,
+// The caller encodes the kind as the first key segment
+// (`<kind>/<name>.<ext>`) so the source no longer declares `kind`
+// (rejected at load, strict structure-as-truth); the file lands at
+// `<kind>s/<name>/index.<ext>`. A key without a known-kind prefix is
+// written verbatim.
+function placeExtension(relPath: string): string {
+  const match = /^(provider|extractor|analyzer|action|formatter|hook)\/(.+)\.(mjs|js|ts)$/u.exec(
+    relPath,
   );
   if (!match) return relPath;
-  const kind = match[1];
-  const extMatch = /\.(mjs|js|ts)$/.exec(relPath);
-  if (!extMatch) return relPath;
-  const ext = extMatch[0];
-  const base = relPath.slice(0, -ext.length).replace(/.*\//, '');
-  return `${kind}s/${base}/index${ext}`;
+  const [, kind, name, ext] = match;
+  return `${kind}s/${name}/index.${ext}`;
 }
 
 function writePlugin(
@@ -90,7 +91,7 @@ function writePlugin(
   mkdirSync(pluginDir, { recursive: true });
   writeFileSync(join(pluginDir, 'plugin.json'), JSON.stringify(manifest));
   for (const [relPath, contents] of Object.entries(files)) {
-    const target = join(pluginDir, placeExtension(relPath, contents));
+    const target = join(pluginDir, placeExtension(relPath));
     mkdirSync(join(target, '..'), { recursive: true });
     writeFileSync(target, contents);
   }
@@ -256,8 +257,6 @@ describe('A.12, loader load-error on missing / bad schema files', () => {
   // Helper to write a minimal extension that satisfies the loader.
   const minimalExtractorSrc = `
     export default {
-      id: 'x',
-      kind: 'extractor',
       version: '1.0.0',
       description: 'test',
       scope: 'body',
@@ -287,7 +286,7 @@ describe('A.12, loader load-error on missing / bad schema files', () => {
         },
       },
       {
-        'x.mjs': minimalExtractorSrc,
+        'extractor/x.mjs': minimalExtractorSrc,
         'migrations/001_init.sql': 'CREATE TABLE plugin_has_bad_schema_items (id TEXT PRIMARY KEY);',
       },
     );
@@ -320,7 +319,7 @@ describe('A.12, loader load-error on missing / bad schema files', () => {
         },
       },
       {
-        'x.mjs': minimalExtractorSrc,
+        'extractor/x.mjs': minimalExtractorSrc,
         'migrations/001_init.sql': 'CREATE TABLE plugin_bad_json_schema_items (id TEXT PRIMARY KEY);',
         'schemas/items.schema.json': '{ this is not json }',
       },
@@ -347,7 +346,7 @@ describe('A.12, loader load-error on missing / bad schema files', () => {
         storage: { mode: 'kv', schema: 'schemas/kv.json' },
       },
       {
-        'x.mjs': minimalExtractorSrc,
+        'extractor/x.mjs': minimalExtractorSrc,
         'schemas/kv.json': JSON.stringify({
           type: 'object',
           required: ['k'],
@@ -381,7 +380,7 @@ describe('A.12, loader load-error on missing / bad schema files', () => {
         catalogCompat: '*',
         storage: { mode: 'kv' },
       },
-      { 'x.mjs': minimalExtractorSrc },
+      { 'extractor/x.mjs': minimalExtractorSrc },
     );
 
     const result = await loaderFor(root).discoverAndLoadAll();

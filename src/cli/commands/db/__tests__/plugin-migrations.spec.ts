@@ -102,7 +102,11 @@ interface IPlantPluginOpts {
   migrations?: Record<string, string>;
   /** Defaults to dedicated mode if migrations are present. */
   storage?: 'kv' | 'dedicated' | 'none';
-  /** Defaults to ['./extension.mjs'], a no-op extractor. */
+  /**
+   * Map of `<kind>/<name>.<ext>` key to extension source. The key's
+   * kind prefix drives folder placement (structure-as-truth); the source
+   * must not declare `kind` / `id`. Defaults to one no-op extractor.
+   */
   extensions?: Record<string, string>;
 }
 
@@ -129,10 +133,11 @@ function plantPlugin(fixture: string, opts: IPlantPluginOpts): void {
   writeFileSync(join(dir, 'plugin.json'), JSON.stringify(manifest));
 
   const exts = opts.extensions ?? {
-    'extension.mjs': `
+    // Structure-as-truth: kind and id come from the folder, never the
+    // source. The `extractor/extension.mjs` key places it at
+    // `extractors/extension/index.mjs`.
+    'extractor/extension.mjs': `
       export default {
-        id: '${opts.id}-extractor',
-        kind: 'extractor',
         version: '1.0.0',
         description: 'test',
         extract() {},
@@ -140,12 +145,10 @@ function plantPlugin(fixture: string, opts: IPlantPluginOpts): void {
     `,
   };
   for (const [rel, content] of Object.entries(exts)) {
-    // Auto-place at <kind>s/<name>/index.<ext> when the body declares a kind.
-    const kindMatch = /kind:\s*['"](provider|extractor|analyzer|action|formatter|hook)['"]/u.exec(content);
-    const extMatch = /\.(mjs|js|ts)$/u.exec(rel);
-    const placed = kindMatch && extMatch
-      ? `${kindMatch[1]}s/${rel.replace(extMatch[0], '').replace(/.*\//, '')}/index${extMatch[0]}`
-      : rel;
+    // Auto-place at <kind>s/<name>/index.<ext> when the key carries a
+    // known-kind prefix (`<kind>/<name>.<ext>`); else write it verbatim.
+    const keyMatch = /^(provider|extractor|analyzer|action|formatter|hook)\/(.+)\.(mjs|js|ts)$/u.exec(rel);
+    const placed = keyMatch ? `${keyMatch[1]}s/${keyMatch[2]}/index.${keyMatch[3]}` : rel;
     const target = join(dir, placed);
     mkdirSync(join(target, '..'), { recursive: true });
     writeFileSync(target, content);
