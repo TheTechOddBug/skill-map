@@ -44,22 +44,23 @@ export const nodeStabilityAnalyzer: IBuiltInManifest<IAnalyzer> = {
   mode: 'deterministic',
 
   ui: {
-    // Second in the footer-right cluster, after the drift chip and
-    // before the severity counters. Stability is a state badge, not a
-    // count, so its priority sits between the two semantic zones.
+    // First in the footer-right cluster: stability is the node's
+    // declared lifecycle state, so it leads, followed by the drift
+    // chip and then the severity counters. It's a state badge, not a
+    // count, so it stays left of the numeric zone.
     experimental: {
       slot: 'card.footer.right',
       icon: 'fa-solid fa-flask',
       label: 'experimental',
       emitWhenEmpty: false,
-      priority: 20,
+      priority: 10,
     },
     deprecated: {
       slot: 'card.footer.right',
       icon: 'pi-ban',
       label: 'deprecated',
       emitWhenEmpty: false,
-      priority: 20,
+      priority: 10,
     },
   },
 

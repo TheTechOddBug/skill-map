@@ -51,10 +51,11 @@ export const annotationStaleAnalyzer: IBuiltInManifest<IAnalyzer> = {
       slot: 'card.footer.right',
       icon: 'pi-clock',
       emitWhenEmpty: true,
-      // First in the footer-right cluster: drift is the operator's
-      // entry point for "this node disagrees with its sidecar",
-      // followed by stability, then the severity counters.
-      priority: 10,
+      // Sits right after the stability badge and before the severity
+      // counters: stability is the node's declared lifecycle state,
+      // drift is "this node disagrees with its sidecar", then the
+      // warn / error counts anchor the right edge.
+      priority: 20,
     },
   },
 
