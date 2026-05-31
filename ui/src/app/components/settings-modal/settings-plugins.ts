@@ -45,6 +45,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   DestroyRef,
   effect,
   inject,
@@ -176,6 +177,15 @@ export class SettingsPlugins {
   protected readonly allFilterActive = this.pluginFilter.allFilterActive;
   protected readonly visiblePlugins = this.pluginFilter.visiblePlugins;
   protected readonly filteredPlugins = this.pluginFilter.filteredPlugins;
+
+  /**
+   * Whether any project plugin exists. When false, every loaded plugin is
+   * built-in, so the built-in / project source filter has nothing to
+   * separate: the template hides the two source chips and their divider.
+   */
+  protected readonly hasProjectPlugins = computed(() =>
+    this.plugins().some((plugin) => plugin.source === 'project'),
+  );
 
   constructor() {
     effect(() => {

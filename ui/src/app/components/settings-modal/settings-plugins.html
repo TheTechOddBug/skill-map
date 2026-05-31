@@ -47,25 +47,30 @@
       </ng-template>
     </p-togglebutton>
 
-    <span class="settings-plugins__filter-divider" aria-hidden="true">|</span>
-
     <!-- Source axis: built-in / project, mutually exclusive between the
-         two and independent of the kind chips. -->
-    @for (source of sourceFilterChips; track source) {
-      <p-togglebutton
-        [ngModel]="isSourceFilterActive(source)"
-        (ngModelChange)="toggleSourceFilter(source)"
-        styleClass="settings-plugins__source-chip"
-        [ariaLabel]="texts.pluginsSourceFilterOptionA11y(source, !isSourceFilterActive(source))"
-        [attr.data-testid]="'settings-plugins-source-chip-' + source"
-      >
-        <ng-template #content>
-          {{ sourceLabel(source) }}
-        </ng-template>
-      </p-togglebutton>
-    }
+         two and independent of the kind chips. The whole axis (both
+         dividers + both chips) is hidden when the project has no plugins
+         of its own: every plugin is then built-in, so there is nothing to
+         separate and the filter collapses to "All" + the kind chips. -->
+    @if (hasProjectPlugins()) {
+      <span class="settings-plugins__filter-divider" aria-hidden="true">|</span>
 
-    <span class="settings-plugins__filter-divider" aria-hidden="true">|</span>
+      @for (source of sourceFilterChips; track source) {
+        <p-togglebutton
+          [ngModel]="isSourceFilterActive(source)"
+          (ngModelChange)="toggleSourceFilter(source)"
+          styleClass="settings-plugins__source-chip"
+          [ariaLabel]="texts.pluginsSourceFilterOptionA11y(source, !isSourceFilterActive(source))"
+          [attr.data-testid]="'settings-plugins-source-chip-' + source"
+        >
+          <ng-template #content>
+            {{ sourceLabel(source) }}
+          </ng-template>
+        </p-togglebutton>
+      }
+
+      <span class="settings-plugins__filter-divider" aria-hidden="true">|</span>
+    }
 
     <!-- Kind axis: per-kind chips, mutually exclusive among kinds. -->
     @for (kind of kindFilterChips; track kind) {
