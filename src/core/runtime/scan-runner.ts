@@ -203,6 +203,16 @@ export type TScanRunResult =
        * freshly-run ones.
        */
       executedExtensionIds: readonly string[];
+      /**
+       * Provider id the lens auto-detected AND persisted on THIS scan
+       * (only when the lens was absent from config and a single marker
+       * matched), else `null`. The caller announces it on the summary's
+       * stream so the message never interleaves with the summary on a
+       * tty. `null` when the lens came from config or no marker matched.
+       * Set by `runScanForCommand` (the public entry) when it enriches
+       * the inner scan outcome; the internal scan paths leave it absent.
+       */
+      lensAutoDetected?: string | null;
     }
   | { kind: 'config-error'; message: string }
   | { kind: 'scan-error'; message: string }
@@ -270,9 +280,14 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<TScanRunRes
   );
 
   const willPersist = !opts.noBuiltIns && !opts.dryRun;
-  return willPersist
+  const scanned = await (willPersist
     ? runPersistPath(opts, dbPath, jobsDir, strict, loadPrior, runScanWith, extensions)
-    : runEphemeralPath(opts, dbPath, strict, loadPrior, runScanWith);
+    : runEphemeralPath(opts, dbPath, strict, loadPrior, runScanWith));
+  // Thread the auto-detect outcome onto the public result so the CLI
+  // can announce it next to the scan summary (same stream, in order).
+  return scanned.kind === 'ok'
+    ? { ...scanned, lensAutoDetected: lens.autoDetected }
+    : scanned;
 }
 
 /**
@@ -296,7 +311,7 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<TScanRunRes
  * doesn't conflate the two `kind: 'ok'` branches.
  */
 type TLensResolution =
-  | { kind: 'ok'; activeProvider: string | null }
+  | { kind: 'ok'; activeProvider: string | null; autoDetected: string | null }
   | (TScanRunResult & { kind: 'ambiguous-provider' });
 
 /**
@@ -351,7 +366,15 @@ async function resolveActiveLens(
     resolveEnabled: opts.resolveEnabledOverride ?? pluginRuntime.resolveEnabled,
     printer: opts.printer,
   });
-  return { kind: 'ok', activeProvider: bootstrap.activeProvider };
+  return {
+    kind: 'ok',
+    activeProvider: bootstrap.activeProvider,
+    // Only when the lens was freshly auto-detected (not read from
+    // config) does the caller announce it. The bootstrap no longer
+    // prints it itself, to avoid interleaving stderr with the
+    // stdout scan summary on a tty.
+    autoDetected: bootstrap.source === 'autodetect' ? bootstrap.activeProvider : null,
+  };
 }
 
 function emitReferenceWalkAdvisory(

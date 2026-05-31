@@ -16,8 +16,10 @@
  *        `activeProviderMarkers` snapshot of the detected set, so
  *        subsequent scans pick the value up from config without
  *        re-detecting and can compare disk reality against the
- *        moment-of-choice snapshot. Print a one-liner so the operator
- *        sees the side effect.
+ *        moment-of-choice snapshot. The outcome reports
+ *        `source: 'autodetect'`; the CALLER surfaces the one-liner to
+ *        the operator on the same stream as the scan summary (stdout
+ *        for `sm scan`, stderr for `init`) so the two never interleave.
  *      - 2+ detected (ambiguous) → under `yes: true`, exit non-zero
  *        with instructions to set the lens manually. Under
  *        `yes: false` (default), prompt the operator interactively to
@@ -228,7 +230,11 @@ function persistActiveProvider(
       target: 'project',
       cwd,
     });
-    printer.info(tx(SCAN_RUNNER_TEXTS.activeProviderAutodetected, { id }));
+    // Success is NOT announced here: the bootstrap runs at scan entry
+    // and writes to stderr, while `sm scan` prints its summary to
+    // stdout, so a one-liner here interleaved with the summary on a
+    // tty. The outcome carries `source: 'autodetect'`; the caller
+    // emits the message on the summary's own stream, in order.
   } catch (err) {
     // Non-fatal: if persistence fails (e.g. permission), the scan
     // continues using the in-memory value. The next scan will redo

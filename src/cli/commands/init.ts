@@ -9,8 +9,8 @@
  *     run automatically via `SqliteStorageAdapter.init()`).
  *   - Appends `.skill-map/settings.local.json` and
  *     `.skill-map/skill-map.db` to the project's `.gitignore`
- *     (creating the file when missing). The default `history.share`
- *     is `false`, so the DB stays untracked unless the team opts in.
+ *     (creating the file when missing), so the DB stays untracked
+ *     unless the team removes the entry by hand.
  *   - Runs a first scan unless `--no-scan` is passed.
  *
  * Per `spec/cli-contract.md` §Scope is always project-local, scope is
@@ -28,6 +28,7 @@ import { Command, Option } from 'clipanion';
 
 import { writeFileAtomicExclusive } from '../../core/config/atomic-write.js';
 import { runScanForCommand } from '../../core/runtime/scan-runner.js';
+import { SCAN_RUNNER_TEXTS } from '../../core/runtime/i18n/scan-runner.texts.js';
 import { loadBundledIgnoreText } from '../../kernel/scan/ignore.js';
 import { tx } from '../../kernel/util/tx.js';
 import type { IAnsi } from '../util/ansi.js';
@@ -401,6 +402,14 @@ async function runFirstScan(
   }
 
   const result = outcome.result;
+  // Announce the auto-detected lens before the first-scan summary, on
+  // the same stream (stderr/info) the summary uses, so the bootstrap's
+  // (now removed) stderr line is preserved here without interleaving.
+  if (outcome.lensAutoDetected) {
+    printer.info(
+      tx(SCAN_RUNNER_TEXTS.activeProviderAutodetected, { id: outcome.lensAutoDetected }),
+    );
+  }
   const hasErrors = result.issues.some((i) => i.severity === 'error');
   printer.info(
     tx(INIT_TEXTS.firstScanSummary, {

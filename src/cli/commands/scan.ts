@@ -3,6 +3,7 @@ import { Command, Option } from 'clipanion';
 import { SmCommand } from '../util/sm-command.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { tx } from '../../kernel/util/tx.js';
+import { SCAN_RUNNER_TEXTS } from '../../core/runtime/i18n/scan-runner.texts.js';
 import { SCAN_TEXTS } from '../i18n/scan.texts.js';
 import type { IAnsi } from '../util/ansi.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -178,7 +179,13 @@ export class ScanCommand extends SmCommand {
       // presence only) so the single `cli.<verb>` event emitted at exit carries
       // it as `extensions`. See spec/telemetry.md.
       setScanExtensions(buildScanExtensionSet(outcome.executedExtensionIds));
-      return this.renderOutcome(outcome.result, outcome.persistedTo, outcome.dbPath, outcome.strict);
+      return this.renderOutcome(
+        outcome.result,
+        outcome.persistedTo,
+        outcome.dbPath,
+        outcome.strict,
+        outcome.lensAutoDetected,
+      );
     }
     return this.renderFailure(outcome);
   }
@@ -311,6 +318,7 @@ export class ScanCommand extends SmCommand {
     persistedTo: string | null,
     dbPath: string,
     strict: boolean,
+    lensAutoDetected: string | null | undefined,
   ): number {
     const exitCode = result.issues.some((i) => i.severity === 'error') ? ExitCode.Issues : ExitCode.Ok;
 
@@ -319,6 +327,7 @@ export class ScanCommand extends SmCommand {
     }
 
     const ansi = this.ansiFor('stdout');
+    this.#announceAutoDetectedLens(lensAutoDetected);
     const cwd = defaultRuntimeContext().cwd;
     const hasErrors = exitCode === ExitCode.Issues;
     const severityCounts = countBySeverity(result.issues);
@@ -384,6 +393,22 @@ export class ScanCommand extends SmCommand {
         source: override !== null ? '--max-nodes' : 'scan.maxNodes',
         hint: ansi.dim(SCAN_TEXTS.scanCappedNoticeHint),
       }),
+    );
+  }
+
+  /**
+   * Print the lens auto-detect line on stdout (the SAME stream as the
+   * scan summary) so the two never interleave on a tty. The bootstrap
+   * deliberately no longer prints this to stderr; the runner threads
+   * `lensAutoDetected` through so the CLI announces it here, in order,
+   * right before the summary. The text ends in a newline, so the
+   * summary lands cleanly on its own line. No-op when the lens came
+   * from config or no marker matched (`null` / `undefined`).
+   */
+  #announceAutoDetectedLens(lensAutoDetected: string | null | undefined): void {
+    if (!lensAutoDetected) return;
+    this.printer!.data(
+      tx(SCAN_RUNNER_TEXTS.activeProviderAutodetected, { id: lensAutoDetected }),
     );
   }
 

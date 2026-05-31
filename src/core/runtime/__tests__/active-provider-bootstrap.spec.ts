@@ -154,8 +154,10 @@ describe('bootstrapActiveProvider: single marker', () => {
       readFileSync(join(tmpRoot, '.skill-map', 'settings.json'), 'utf8'),
     ) as Record<string, unknown>;
     assert.equal(persisted['activeProvider'], 'claude');
-    assert.equal(cap.infos.length, 1);
-    assert.match(cap.infos[0]!, /Auto-detected activeProvider = claude/);
+    // The bootstrap no longer prints the auto-detect line itself, the
+    // caller announces it on the scan-summary stream (`source:
+    // 'autodetect'` in the outcome is the signal). So no info here.
+    assert.equal(cap.infos.length, 0, 'bootstrap stays silent; caller announces');
   });
 
   it('detects markers in an effective root when cwd is unrelated', async () => {
