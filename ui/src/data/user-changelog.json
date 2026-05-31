@@ -2,6 +2,40 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.46.0",
+      "date": "2026-05-31",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "`sm scan` no longer glues the `Auto-detected activeProvider` notice onto the results line. The auto-detect message now prints on its own line, right above the scan summary.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "`sm plugins --help` (and `db`, `config`, `job`, and the other command groups) now print a tidy overview with a one-line description and a list of their subcommands, matching the look of `sm scan --help`, instead of a terse internal list.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**Config cleanup.** Several settings.json keys that never did anything (`i18n`, `providers`, `history`, `autoMigrate`, `scan.followSymlinks`, per-plugin `config` / `extensions`) were removed. If still present they are now ignored and reported with a warning on load.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "`sm plugins list` / `show` and the Settings → Plugins UI now consistently say \"plugin\" instead of \"bundle\". The only place \"bundle\" remains is the name for toggling a whole plugin (all its extensions) at once.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.45.1",
       "date": "2026-05-30",
       "kind": "internal",
