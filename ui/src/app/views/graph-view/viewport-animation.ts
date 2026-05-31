@@ -90,6 +90,37 @@ export function computeFitTransform(input: IFitTransformInput): IViewportTransfo
   return { position: { x: targetX, y: targetY }, scale };
 }
 
+export interface ICenterTransformInput {
+  /** Top-left corner of the target node card in flow coordinates. */
+  point: IPoint;
+  wrap: IWrapDims;
+  /** Width of the inspector panel overlay (0 when closed). */
+  panelW: number;
+  /** Current viewport scale. Preserved verbatim, centering pans only. */
+  scale: number;
+}
+
+/**
+ * Compute the pan that centers a single node card inside the visible
+ * portion of the canvas wrap WITHOUT changing zoom: `scale` is passed
+ * through untouched and only the position moves so the node's centre
+ * lands at the middle of the visible half (left of the inspector
+ * panel). Used by the "open in map" deep-link from the files view,
+ * which should glide the camera to the node, not re-fit the whole
+ * graph. Pure. No DOM, no signals.
+ */
+export function computeCenterTransform(input: ICenterTransformInput): IViewportTransform {
+  const { point, wrap, panelW, scale } = input;
+  const nodeCx = point.x + NODE_W / 2;
+  const nodeCy = point.y + NODE_H / 2;
+  // Inspector panel overlays the right edge; centre in the visible
+  // half so the node doesn't land underneath it.
+  const visibleW = Math.max(1, wrap.width - panelW);
+  const targetX = visibleW / 2 - nodeCx * scale;
+  const targetY = wrap.height / 2 - nodeCy * scale;
+  return { position: { x: targetX, y: targetY }, scale };
+}
+
 export interface IAnimateViewportIO {
   readPosition: () => IPoint;
   readScale: () => number;

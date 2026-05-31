@@ -40,6 +40,15 @@ export interface ISelectionUrlSyncConfig {
   /** Snapshot of the rendered graph nodes, the reader uses it to
    *  resolve a URL path back to a node id. */
   graphNodes: Signal<readonly IGraphNode[]>;
+  /**
+   * Fired ONLY by the reader when a `?path=` deep link (e.g. the
+   * "open in map" navigation from the files view) resolves to a node
+   * and moves the selection there. NOT fired for in-map node clicks,
+   * those set the selection directly and feed the writer, never the
+   * reader. The graph view uses this to pan the camera onto the node
+   * (centering), which would be intrusive on every in-map click.
+   */
+  onDeepLinkSelect?: (nodeId: string) => void;
   router: Router;
   route: ActivatedRoute;
 }
@@ -54,6 +63,7 @@ export function bindSelectionToUrl(config: ISelectionUrlSyncConfig): void {
     setSelectedNodeId,
     readSelectedNodeId,
     graphNodes,
+    onDeepLinkSelect,
     router,
     route,
   } = config;
@@ -87,7 +97,10 @@ export function bindSelectionToUrl(config: ISelectionUrlSyncConfig): void {
       if (currentNode?.view.path === path) return;
     }
     const target = nodes.find((n) => n.view.path === path);
-    if (target) setSelectedNodeId(target.id);
+    if (target) {
+      setSelectedNodeId(target.id);
+      onDeepLinkSelect?.(target.id);
+    }
   });
 
   // Writer: selection → URL.

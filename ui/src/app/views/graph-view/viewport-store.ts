@@ -32,7 +32,7 @@ import type { IPoint } from './graph-layout';
  * the toolbar buttons remain enabled past the clamp, so clicks
  * silently do nothing and read as "max ignored".
  */
-const ZOOM_MIN = 0.25;
+const ZOOM_MIN = 0.05;
 const ZOOM_MAX = 2;
 
 export { ZOOM_MIN, ZOOM_MAX };

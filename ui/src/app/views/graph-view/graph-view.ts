@@ -82,7 +82,7 @@ import { createSelectionState, type ISelectionView } from './selection-state';
 import { setupNodeDrag } from './node-drag.controller';
 import { setupExpansion } from './expansion.controller';
 import { setupLayoutFit } from './layout-fit.controller';
-import { animateViewport, computeFitTransform } from './viewport-animation';
+import { animateViewport, computeCenterTransform, computeFitTransform } from './viewport-animation';
 
 const ZOOM_BUTTON_STEP = 0.2;
 
@@ -451,6 +451,13 @@ export class GraphView implements OnInit {
       setSelectedNodeId: (id) => this.selectedNodeId.set(id),
       readSelectedNodeId: () => this.selectedNodeId(),
       graphNodes: selectionNodes,
+      // A deep link from the files view ("open in map") should glide
+      // the camera onto the node. Stash the id; the center effect below
+      // runs the pan once the boot fit has fixed the zoom and the dagre
+      // positions are in.
+      onDeepLinkSelect: (id) => {
+        this.pendingCenterNodeId = id;
+      },
       router: this.router,
       route: this.route,
     });
@@ -503,6 +510,25 @@ export class GraphView implements OnInit {
       if (!this.autoFitPending) return;
       this.autoFitPending = false;
       this.runAnimatedFit();
+    });
+
+    // Deep-link center pan. A files-view "open in map" navigation stashes
+    // the target node id in `pendingCenterNodeId`; this effect runs the
+    // camera glide once BOTH gates are satisfied: the boot fit has fixed
+    // the zoom (`hasCompletedInitialLayout`, signal-backed so this
+    // re-fires when it flips) AND dagre has produced positions (the
+    // `layoutComputedAt` tick). The pan itself is deferred to
+    // `afterNextRender` so Foblex's snap fit + clamp have already
+    // applied and the scale `centerOnNode` reads is the settled one,
+    // the pan keeps that zoom and only moves the position.
+    effect(() => {
+      this.layoutComputedAt();
+      const bootFitDone = this.layoutFit.hasCompletedInitialLayout();
+      const id = this.pendingCenterNodeId;
+      if (id === null || !bootFitDone) return;
+      if (this.fullLayout().positions.size === 0) return;
+      this.pendingCenterNodeId = null;
+      afterNextRender(() => this.centerOnNode(id), { injector: this.injector });
     });
 
     // Async layout effect, runs dagre when topology or layout
@@ -649,6 +675,15 @@ export class GraphView implements OnInit {
    */
   private autoFitPending = false;
 
+  /**
+   * Node id (== node path) queued by a deep-link selection (the files
+   * view "open in map" navigation). The center effect in the
+   * constructor drains it once the boot fit and dagre positions are
+   * ready. Plain field: written by the deep-link callback, read
+   * imperatively by the effect, no reactivity needed.
+   */
+  private pendingCenterNodeId: string | null = null;
+
   /** Public-facing scheduler the layout-fit controller wires into
    *  `animatedFit`. Just marks intent; the deferred runner does the work. */
   private animatedFitToScreen(): void {
@@ -696,6 +731,43 @@ export class GraphView implements OnInit {
       zoomMin: this.zoomMin,
     });
     if (!transform) return;
+
+    const token = ++this.autoFitAnimToken;
+    animateViewport(
+      {
+        readPosition: () => this.viewportPosition(),
+        readScale: () => this.viewportScale(),
+        writePosition: (p) => this.viewportPosition.set(p),
+        writeScale: (s) => this.viewportScale.set(s),
+        isStaleToken: () => token !== this.autoFitAnimToken,
+      },
+      transform,
+      AUTO_FIT_ANIM_MS,
+    );
+  }
+
+  /**
+   * Pan the camera so a single node sits in the centre of the visible
+   * canvas (left of the inspector panel), WITHOUT changing zoom. Driven
+   * by the files-view deep link, not by in-map clicks. Reuses the
+   * `autoFitAnimToken` so a competing auto-fit / center supersedes this
+   * tween cleanly. The effective position mirrors `projectVisible` /
+   * `runAnimatedFit`: user-pinned drag position wins over the dagre
+   * output. Bails when the node has no resolvable position or the host
+   * isn't mounted.
+   */
+  private centerOnNode(nodeId: string): void {
+    const host = this.canvasWrap()?.nativeElement;
+    if (!host) return;
+    const pt = this.nodePositions().get(nodeId) ?? this.fullLayout().positions.get(nodeId);
+    if (!pt) return;
+
+    const transform = computeCenterTransform({
+      point: pt,
+      wrap: { width: host.clientWidth, height: host.clientHeight },
+      panelW: this.selectedNodeId() !== null ? this.clampedPanelWidth() : 0,
+      scale: this.viewportScale(),
+    });
 
     const token = ++this.autoFitAnimToken;
     animateViewport(

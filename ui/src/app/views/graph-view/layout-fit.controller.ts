@@ -11,7 +11,7 @@
  * a small handle the component captures in its constructor.
  */
 
-import { effect, type Signal } from '@angular/core';
+import { effect, signal, type Signal } from '@angular/core';
 
 import type { INodeView } from '../../../models/node';
 import type { IStoredViewport } from './graph-view.storage';
@@ -48,12 +48,19 @@ export interface ILayoutFitHandle {
   /**
    * `true` once the boot fit has settled (or been skipped because of
    * a saved viewport). Consumed as a getter by `viewport-store` to
-   * gate `localStorage` writes during the initial fit-to-screen tween.
+   * gate `localStorage` writes during the initial fit-to-screen tween,
+   * and read reactively by the graph view's deep-link center effect so
+   * the camera pan waits for the boot fit to fix the zoom first.
    */
   readonly hasCompletedInitialLayout: () => boolean;
 }
 
 export function setupLayoutFit(config: ILayoutFitConfig): ILayoutFitHandle {
+  // Signal-backed so effects depending on it re-run when the boot fit
+  // settles (the deep-link center pan gates on this). The closure flag
+  // mirror keeps the synchronous reads inside the two effects below
+  // cheap and non-reactive.
+  const completed = signal(false);
   let hasCompletedInitialLayout = false;
   let lastPathsFingerprint: string | null = null;
 
@@ -74,6 +81,7 @@ export function setupLayoutFit(config: ILayoutFitConfig): ILayoutFitHandle {
     if (visible.length === 0) return;
     queueMicrotask(() => {
       hasCompletedInitialLayout = true;
+      completed.set(true);
       if (!config.savedViewport) config.fit();
     });
   });
@@ -98,5 +106,5 @@ export function setupLayoutFit(config: ILayoutFitConfig): ILayoutFitHandle {
     (config.animatedFit ?? config.fit)();
   });
 
-  return { hasCompletedInitialLayout: () => hasCompletedInitialLayout };
+  return { hasCompletedInitialLayout: () => completed() };
 }
