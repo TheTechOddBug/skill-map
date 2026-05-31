@@ -1,6 +1,6 @@
 ---
 name: experimental-skill
-description: Claude skill in active development. Demonstrates the `stability: experimental` annotation with a partial frontmatter — common pattern for skills that are still iterating on their contract.
+description: "Claude skill in active development. Demonstrates the `stability: experimental` annotation with a partial frontmatter — common pattern for skills that are still iterating on their contract."
 tags:
   - fixture
   - experimental
