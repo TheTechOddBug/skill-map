@@ -21,16 +21,16 @@ export const PLUGINS_TEXTS = {
 
   qualifiedIdNotFound:
     '{{glyph}}  Qualified extension id not found: {{id}}\n' +
-    "   The owning bundle '{{bundleId}}' does not declare an extension with id '{{extId}}'.\n" +
+    "   The owning plugin '{{pluginId}}' does not declare an extension with id '{{extId}}'.\n" +
     '   {{hint}}\n',
   qualifiedIdNotFoundHint:
-    'Run `sm plugins list` to see what each bundle ships.',
+    'Run `sm plugins list` to see what each plugin ships.',
 
-  qualifiedIdUnknownBundle:
-    '{{glyph}}  Qualified extension id references unknown bundle: {{bundleId}}\n' +
+  qualifiedIdUnknownPlugin:
+    '{{glyph}}  Qualified extension id references unknown plugin: {{pluginId}}\n' +
     '   {{hint}}\n',
-  qualifiedIdUnknownBundleHint:
-    'Run `sm plugins list` for known bundle ids.',
+  qualifiedIdUnknownPluginHint:
+    'Run `sm plugins list` for known plugin ids.',
 
   // Spec § A.10, `applicableKinds` filter on Extractors. When an extractor
   // declares a kind that no installed Provider emits, the load succeeds
@@ -62,7 +62,7 @@ export const PLUGINS_TEXTS = {
   // --- doctor verb -----------------------------------------------------
   /**
    * One-line summary that opens the human doctor output. `enabled` is
-   * the count of enabled extensions across every bundle (every
+   * the count of enabled extensions across every plugin (every
    * extension is independently toggle-able by its qualified id); the
    * value matches the row count rendered by `sm plugins list` once
    * disabled extensions are filtered out.
@@ -115,10 +115,10 @@ export const PLUGINS_TEXTS = {
   /**
    * Macro expansion summary printed on stderr before the confirm
    * prompt (or before the `--yes` rejection). The block lists every
-   * qualified extension id the bare bundle id resolves to, so the
+   * qualified extension id the bare plugin id resolves to, so the
    * user sees the exact set that would flip.
    */
-  bundleMacroHeader: 'sm plugins {{verb}} {{bundleId}}: this will affect {{count}} extensions:\n',
+  bundleMacroHeader: 'sm plugins {{verb}} {{pluginId}}: this will affect {{count}} extensions:\n',
   bundleMacroRow: '  - {{id}}\n',
   /**
    * Interactive prompt rendered to a TTY by the macro path. The
@@ -141,7 +141,7 @@ export const PLUGINS_TEXTS = {
     '{{glyph}}  Refusing to {{verb}} multiple extensions without confirmation.\n' +
     '   {{hint}}\n',
   bundleMacroRequiresYesHint:
-    'Re-run with --yes to apply, or pass a qualified id `<bundle>/<extension>` for a single extension.',
+    'Re-run with --yes to apply, or pass a qualified id `<plugin>/<extension>` for a single extension.',
 
   // --- list / show renderers ------------------------------------------
   rowStatusOk: 'ok',
@@ -155,18 +155,18 @@ export const PLUGINS_TEXTS = {
   sourceBuiltIn: 'built-in',
   sourceUser: 'user',
   /**
-   * Compact bundle row: `  GLYPH  ID(pad)  N ext   SOURCE`.
+   * Compact plugin row: `  GLYPH  ID(pad)  N ext   SOURCE`.
    * Padding for `id` and `count` is computed at render time so all rows
    * align regardless of length. The glyph is wrapped in color before the
    * template substitution.
    */
-  bundleRow: '  {{glyph}}  {{id}}{{count}} ext   {{source}}',
+  pluginRow: '  {{glyph}}  {{id}}{{count}} ext   {{source}}',
   /**
-   * Indent applied to the names / reason lines under each bundle row.
+   * Indent applied to the names / reason lines under each plugin row.
    * Kept as a single source of truth so the wrap math (`wrapNames`) and
    * the visible output stay in sync.
    */
-  bundleSubIndent: '       ',
+  pluginSubIndent: '       ',
   listTipShow:
     '\nTip: `sm plugins show <id>` for kinds, versions, and per-extension status.\n',
   /** Show command, built-in header (no version row, no path). */
@@ -189,11 +189,11 @@ export const PLUGINS_TEXTS = {
   /** Extensions block heading, separated from the header by a blank line. */
   detailExtensionsBlock: '\n',
   /**
-   * Extension row inside the bundle detail. Every extension is
+   * Extension row inside the plugin detail. Every extension is
    * independently toggle-able, so every row carries its own glyph
    * (✓ / ✕). Padding for {{kind}} and {{name}} is computed at render
    * time so columns align inside the block. `{{versionSuffix}}` is
-   * either `  v<x.y.z>` (user plugins) or empty (built-in bundles,
+   * either `  v<x.y.z>` (user plugins) or empty (built-in plugins,
    * which inherit the CLI version and do not maintain per-extension
    * versions of their own).
    */
@@ -201,7 +201,7 @@ export const PLUGINS_TEXTS = {
   detailVersionUnknown: '?',
   detailCompatUnknown: '?',
   /**
-   * Show command, single-extension header (qualified `<bundle>/<ext>` id
+   * Show command, single-extension header (qualified `<plugin>/<ext>` id
    * shape). Mirrors `detailHeaderBuiltIn` but the count slot is replaced
    * by the kind so the reader sees at a glance whether they are looking
    * at an extractor, analyzer, etc. Version moves down into the field

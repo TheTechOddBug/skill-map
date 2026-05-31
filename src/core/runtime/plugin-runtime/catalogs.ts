@@ -11,11 +11,11 @@ import type {
 } from '../../../kernel/extensions/index.js';
 import type { IExtension } from '../../../kernel/registry.js';
 import {
-  builtInBundles,
-  type IBuiltInBundle,
+  builtInPlugins,
+  type IBuiltInPlugin,
 } from '../../../plugins/built-ins.js';
 
-import { isBundleEntryEnabled } from './resolver.js';
+import { isPluginEntryEnabled } from './resolver.js';
 
 /**
  * Phase 3 / View contribution system, extract every qualified
@@ -42,7 +42,7 @@ export function collectRegisteredContributionKeys(
   for (const ext of [...composed.extractors, ...composed.analyzers]) {
     // Renamed from `viewContributions` to `ui` with the structure-as-truth
     // refactor; the runtime aggregator keeps reading the manifest-side
-    // field by its new name. The bundle field stays `viewContributions`
+    // field by its new name. The runtime field stays `viewContributions`
     // (the registered-catalog name, distinct from the manifest field).
     const raw = (ext as { ui?: unknown }).ui;
     if (typeof raw !== 'object' || raw === null) continue;
@@ -60,21 +60,21 @@ export function collectRegisteredContributionKeys(
  * manifests via `listBuiltIns()` BEFORE the orchestrator runs, without
  * this filter a user-disabled built-in would appear in `sm help` /
  * `sm plugins list` as if it were live. Each extension is independently
- * toggle-able by its qualified id `<bundle>/<ext>`.
+ * toggle-able by its qualified id `<plugin>/<ext>`.
  */
 export function filterBuiltInManifests(
   manifests: IExtension[],
   resolveEnabled: (id: string) => boolean,
 ): IExtension[] {
-  // Build a per-bundle index so the filter can hand `isBundleEntryEnabled`
-  // a stable bundle reference. The index is rebuilt every call (cheap,
-  // five bundles, ~33 extensions).
-  const bundleByPluginId = new Map<string, IBuiltInBundle>();
-  for (const bundle of builtInBundles) bundleByPluginId.set(bundle.id, bundle);
+  // Build a per-plugin index so the filter can hand `isPluginEntryEnabled`
+  // a stable plugin reference. The index is rebuilt every call (cheap,
+  // five plugins, ~33 extensions).
+  const pluginById = new Map<string, IBuiltInPlugin>();
+  for (const plugin of builtInPlugins) pluginById.set(plugin.id, plugin);
 
   return manifests.filter((m) => {
-    const bundle = bundleByPluginId.get(m.pluginId);
-    if (!bundle) return true; // not a built-in row, leave it alone.
-    return isBundleEntryEnabled(bundle, m.id, resolveEnabled);
+    const plugin = pluginById.get(m.pluginId);
+    if (!plugin) return true; // not a built-in row, leave it alone.
+    return isPluginEntryEnabled(plugin, m.id, resolveEnabled);
   });
 }

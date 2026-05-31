@@ -224,7 +224,7 @@ export const SETTINGS_TEXTS = {
 
   /** Kind filter, segmented control above the list. `All` is the
    *  default and shows every row; picking a kind narrows to extensions
-   *  of that kind and hides bundle-granularity rows (which do not
+   *  of that kind and hides plugin-granularity rows (which do not
    *  surface a per-row kind in the UI). */
   pluginsKindFilterAll: 'All',
   pluginsKindFilterA11y: 'Filter plugins by kind',

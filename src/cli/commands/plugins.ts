@@ -16,15 +16,15 @@
  *   DB override (config_plugins) > settings.json (#/plugins/<id>/enabled) > installed default (true)
  *
  * **Toggle model**: every extension is independently toggle-able by its
- * qualified id `<bundle>/<ext>` (e.g. `claude/at-directive`). The
- * bundle is a presentational grouping, not a toggle target. The bare
- * bundle id (`sm plugins disable claude`) is accepted as a macro that
- * fans the toggle out across the bundle's extensions; multi-extension
- * bundles require `--yes` (or an interactive TTY confirm) so the user
+ * qualified id `<plugin>/<ext>` (e.g. `claude/at-directive`). The
+ * plugin row is a presentational grouping, not a toggle target. The bare
+ * plugin id (`sm plugins disable claude`) is accepted as a macro that
+ * fans the toggle out across the plugin's extensions; multi-extension
+ * plugins require `--yes` (or an interactive TTY confirm) so the user
  * does not flip 27 `core` extensions by accident.
  *
- * `--all` operates only on bundle ids and cascades through every
- * extension in every bundle. CI / pipe contexts need `--yes`.
+ * `--all` operates only on plugin ids and cascades through every
+ * extension in every plugin. CI / pipe contexts need `--yes`.
  *
  * This file is a barrel, each subcommand lives in its own file under
  * `cli/commands/plugins/` (architect-audit follow-up: split the 1700-LOC

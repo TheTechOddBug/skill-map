@@ -59,4 +59,22 @@ export const WATCH_TEXTS = {
     '   {{hint}}\n',
   maxNodesInvalidHint:
     'Pass a positive integer, e.g. --max-nodes 256.',
+
+  /**
+   * File-size skip WARN, emitted per batch (stderr) when the walker
+   * skipped one or more files for exceeding `scan.maxFileSizeBytes`.
+   * Mirrors `sm scan`'s notice. `{{files}}` is the pre-rendered list of
+   * `path (size)` rows.
+   */
+  skippedFilesNotice:
+    '{{glyph}}  Skipped {{count}} {{noun}} over the size limit (scan.maxFileSizeBytes):\n' +
+    '{{files}}' +
+    '     {{hint}}\n',
+  // The per-file `     - path (size)\n` rows that fill `{{files}}` are
+  // rendered by `kernel/util/format-oversized.ts:formatOversizedFileRows`,
+  // shared with `sm scan` / `sm serve` so the three surfaces never drift.
+  skippedFileNounSingular: 'file',
+  skippedFileNounPlural: 'files',
+  skippedFilesNoticeHint:
+    'Raise scan.maxFileSizeBytes to include these, or add them to .skillmapignore to skip them on purpose.',
 } as const;

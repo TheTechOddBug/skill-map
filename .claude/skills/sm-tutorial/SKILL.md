@@ -1603,11 +1603,11 @@ tester pulls on the thread.
 
 The verb is informational, passing `core/external-url-counter`
 validates the extension exists and then renders the **parent
-bundle's** detail (i.e. the full `core` listing). The extension
+plugin's** detail (i.e. the full `core` listing). The extension
 you named lives in that list. This is deliberate: forcing the user
-to type the bundle id just to read a single extension's manifest
+to type the plugin id just to read a single extension's manifest
 would be hostile, so `show` accepts the qualified shape and
-resolves up. Use `sm plugins doctor` or scroll the bundle's
+resolves up. Use `sm plugins doctor` or scroll the plugin's
 extension table to spot the one you queried.
 
 ### IDs for `plugins disable` / `plugins enable`

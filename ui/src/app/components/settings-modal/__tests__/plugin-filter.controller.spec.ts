@@ -12,7 +12,7 @@ import type { IPluginItemApi } from '../../../../models/api';
  * handle directly, mirroring the `setupExpansion` spec style.
  */
 
-function bundle(
+function plugin(
   id: string,
   overrides: Partial<IPluginItemApi> = {},
 ): IPluginItemApi {
@@ -27,7 +27,7 @@ function bundle(
   };
 }
 
-function extensionBundle(
+function extensionPlugin(
   id: string,
   exts: Array<{ id: string; kind: string; description?: string }>,
 ): IPluginItemApi {
@@ -57,8 +57,8 @@ describe('plugin-filter.controller', () => {
   it('empty search + kind=all returns every visible plugin', () => {
     TestBed.runInInjectionContext(() => {
       const plugins = signal<readonly IPluginItemApi[]>([
-        bundle('claude'),
-        bundle('gemini'),
+        plugin('claude'),
+        plugin('gemini'),
       ]);
       const handle = setupPluginFilter({ plugins });
       const ids = handle.filteredPlugins().map((p) => p.id);
@@ -68,11 +68,11 @@ describe('plugin-filter.controller', () => {
     });
   });
 
-  it('search query hits a bundle id and narrows the list', () => {
+  it('search query hits a plugin id and narrows the list', () => {
     TestBed.runInInjectionContext(() => {
       const plugins = signal<readonly IPluginItemApi[]>([
-        bundle('claude'),
-        bundle('gemini'),
+        plugin('claude'),
+        plugin('gemini'),
       ]);
       const handle = setupPluginFilter({ plugins });
       handle.searchText.set('clau');
@@ -82,10 +82,10 @@ describe('plugin-filter.controller', () => {
     });
   });
 
-  it('kind filter narrows granularity=extension bundles to matching extensions', () => {
+  it('kind filter narrows granularity=extension plugins to matching extensions', () => {
     TestBed.runInInjectionContext(() => {
       const plugins = signal<readonly IPluginItemApi[]>([
-        extensionBundle('core', [
+        extensionPlugin('core', [
           { id: 'broken-ref', kind: 'analyzer' },
           { id: 'pretty', kind: 'formatter' },
         ]),
@@ -101,7 +101,7 @@ describe('plugin-filter.controller', () => {
   it('kind + search compose (kind first, then search)', () => {
     TestBed.runInInjectionContext(() => {
       const plugins = signal<readonly IPluginItemApi[]>([
-        extensionBundle('core', [
+        extensionPlugin('core', [
           { id: 'broken-ref', kind: 'analyzer', description: 'flags missing targets' },
           { id: 'superseded', kind: 'analyzer', description: 'flags supersededBy' },
           { id: 'pretty', kind: 'formatter' },
@@ -144,8 +144,8 @@ describe('plugin-filter.controller', () => {
   it('visiblePlugins strips host-locked rows before any filter', () => {
     TestBed.runInInjectionContext(() => {
       const plugins = signal<readonly IPluginItemApi[]>([
-        bundle('claude'),
-        bundle('locked-bundle', { locked: true }),
+        plugin('claude'),
+        plugin('locked-plugin', { locked: true }),
       ]);
       const handle = setupPluginFilter({ plugins });
       const ids = handle.visiblePlugins().map((p) => p.id);

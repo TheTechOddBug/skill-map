@@ -3,11 +3,11 @@
  *
  *   GET   /api/plugins                                             , list (read-only)
  *   PATCH /api/plugins/:id                                         , bundle macro toggle
- *   PATCH /api/plugins/:bundleId/extensions/:extensionId           , single-extension toggle
+ *   PATCH /api/plugins/:pluginId/extensions/:extensionId           , single-extension toggle
  *
- * Read side: rows carry `extensions[]` whenever the bundle declares
+ * Read side: rows carry `extensions[]` whenever the plugin declares
  * any. Every extension is independently toggle-able by its qualified
- * id; the bundle is a presentational grouping and has no bundle-level
+ * id; the plugin is a presentational grouping and has no plugin-level
  * toggle of its own.
  *
  * Write side: persists to `config_plugins` via `IConfigPluginsPort.set`,
@@ -17,9 +17,9 @@
  * /api/plugins/:id`.
  *
  * `PATCH /api/plugins/:id` is the **cascade endpoint**: it fans the
- * toggle out across every extension inside the bundle. Single-extension
- * bundles (`openai`, `antigravity`, `agent-skills`) flip just their
- * provider; multi-extension bundles (`claude`, `core`, user bundles)
+ * toggle out across every extension inside the plugin. Single-extension
+ * plugins (`openai`, `antigravity`, `agent-skills`) flip just their
+ * provider; multi-extension plugins (`claude`, `core`, user plugins)
  * flip every child. External automation calling this endpoint is
  * expected to know it's asking for a macro.
  *
@@ -42,8 +42,8 @@ import type { Context, Hono } from 'hono';
 // eslint-disable-next-line import-x/extensions
 import { HTTPException } from 'hono/http-exception';
 
-import { builtInBundles, type IBuiltInBundle } from '../../plugins/built-ins.js';
-import { sortBundlesForPresentation } from '../../plugins/presentation-order.js';
+import { builtInPlugins, type IBuiltInPlugin } from '../../plugins/built-ins.js';
+import { sortPluginsForPresentation } from '../../plugins/presentation-order.js';
 import { defaultProjectPluginsDir } from '../../core/paths/db-path.js';
 import {
   buildFreshResolver as buildFreshResolverFromDb,
@@ -82,13 +82,13 @@ export interface IPluginListItem {
   status: IDiscoveredPlugin['status'];
   reason: string | null;
   source: 'built-in' | 'project';
-  /** Bundle-level description. Built-ins: `IBuiltInBundle.description`.
+  /** Plugin-level description. Built-ins: `IBuiltInPlugin.description`.
    *  Drop-ins: `plugin.json#/description`. Surfaced + searchable in
    *  the SPA. Absent only for malformed user manifests that loaded as
    *  `invalid-manifest`. */
   description?: string;
   extensions?: IPluginExtensionItem[];
-  /** Host-enforced lock at the bundle level (see `IPluginExtensionItem.locked`). */
+  /** Host-enforced lock at the plugin level (see `IPluginExtensionItem.locked`). */
   locked?: boolean;
   /**
    * Stamped `true` on drop-in plugins whose discovery-time `status` was
@@ -170,13 +170,13 @@ const parseBulkPatchBody = makeBodyValidator<IBulkPatchBody>(BULK_PATCH_BODY_SCH
 });
 
 /**
- * Discriminated handle on a toggle-able plugin (built-in bundle OR
+ * Discriminated handle on a toggle-able plugin (built-in plugin OR
  * discovered drop-in). Centralises the "look up by id, branch on shape"
  * pattern the PATCH routes need so the granularity / extension-existence
  * checks stay symmetrical.
  */
 type TPluginHandle =
-  | { kind: 'built-in'; bundle: IBuiltInBundle }
+  | { kind: 'built-in'; plugin: IBuiltInPlugin }
   | { kind: 'discovered'; plugin: IDiscoveredPlugin };
 
 export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
@@ -206,10 +206,10 @@ export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
   });
 
   // PATCH /api/plugins/:id, bundle macro toggle. Fans the toggle out
-  // across every extension inside the bundle. The bundle itself is
+  // across every extension inside the plugin. The plugin itself is
   // presentational; the qualified-id route is the canonical per-extension
   // path for the SPA, this route is the convenience for CLI / external
-  // automation that wants to flip a whole bundle at once.
+  // automation that wants to flip a whole plugin at once.
   //
   // Rejects qualified ids (anything containing `/`) up front so the
   // operator hits the qualified route instead of accidentally trying
@@ -233,7 +233,7 @@ export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
       });
     }
     const body = await parsePatchBody(c.req.raw);
-    const childIds = bundleExtensionIds(handle).map((extId) => qualifiedExtensionId(id, extId));
+    const childIds = pluginExtensionIds(handle).map((extId) => qualifiedExtensionId(id, extId));
     // Drop locked children silently to mirror the CLI bulk semantics
     // (`#applyLockGate` in toggle.ts), so a multi-child cascade does
     // not abort when one extension happens to be locked.
@@ -241,28 +241,28 @@ export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
     return await persistManyAndProject(c, deps, writable, body.enabled);
   });
 
-  // PATCH /api/plugins/:bundleId/extensions/:extensionId, the canonical
+  // PATCH /api/plugins/:pluginId/extensions/:extensionId, the canonical
   // per-extension toggle. Every extension is independently toggle-able
   // by its qualified id, so the SPA posts here for every per-row flip
   // in the Settings modal.
-  app.patch('/api/plugins/:bundleId/extensions/:extensionId', async (c) => {
-    const bundleId = c.req.param('bundleId');
+  app.patch('/api/plugins/:pluginId/extensions/:extensionId', async (c) => {
+    const pluginId = c.req.param('pluginId');
     const extensionId = c.req.param('extensionId');
-    const handle = findHandle(bundleId, deps);
+    const handle = findHandle(pluginId, deps);
     if (!handle) {
       throw new HTTPException(404, {
-        message: tx(SERVER_TEXTS.pluginsUnknown, { id: bundleId }),
+        message: tx(SERVER_TEXTS.pluginsUnknown, { id: pluginId }),
       });
     }
     if (!hasExtension(handle, extensionId)) {
       throw new HTTPException(404, {
-        message: tx(SERVER_TEXTS.pluginsExtensionUnknown, { bundleId, extensionId }),
+        message: tx(SERVER_TEXTS.pluginsExtensionUnknown, { pluginId, extensionId }),
       });
     }
-    const qualified = qualifiedExtensionId(bundleId, extensionId);
-    if (isPluginLocked(qualified) || isPluginLocked(bundleId)) {
+    const qualified = qualifiedExtensionId(pluginId, extensionId);
+    if (isPluginLocked(qualified) || isPluginLocked(pluginId)) {
       throw new HTTPException(403, {
-        message: tx(SERVER_TEXTS.pluginsExtensionLocked, { bundleId, extensionId }),
+        message: tx(SERVER_TEXTS.pluginsExtensionLocked, { pluginId, extensionId }),
       });
     }
     const body = await parsePatchBody(c.req.raw);
@@ -301,10 +301,10 @@ export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
 // --- read side ------------------------------------------------------------
 
 /**
- * Compose the list response, built-in bundles first (in their canonical
+ * Compose the list response, built-in plugins first (in their canonical
  * order from `built-ins.ts`), then drop-ins (in discovery order). Both
  * sources share the same row shape; `granularity` + `extensions` come
- * from the bundle / manifest declaration. The `resolveEnabled` argument
+ * from the plugin / manifest declaration. The `resolveEnabled` argument
  * is the resolver to use for status projection, typically the cached
  * `deps.pluginRuntime.resolveEnabled`, but PATCH passes a fresh resolver
  * built from the post-write override map.
@@ -322,16 +322,16 @@ function listItems(
 function buildBuiltInItems(
   resolveEnabled: (id: string) => boolean,
 ): IPluginListItem[] {
-  // Presentation order: `core` first, then vendor bundles. Mirrors
-  // `sm plugins list` and the SPA's `PINNED_BUNDLE_ORDER`. Runtime
-  // iteration of `builtInBundles` keeps `core` last so `core/markdown`
+  // Presentation order: `core` first, then vendor plugins. Mirrors
+  // `sm plugins list` and the SPA's `PINNED_PLUGIN_ORDER`. Runtime
+  // iteration of `builtInPlugins` keeps `core` last so `core/markdown`
   // stays the terminal provider; the wire shape inverts that for the
   // UI's benefit (the SPA can sort or pin on top of this baseline).
-  return sortBundlesForPresentation(builtInBundles).map((bundle) => {
-    const bundleLocked = isPluginLocked(bundle.id);
-    const extensions: IPluginExtensionItem[] = bundle.extensions.map((ext) => {
-      const qualified = qualifiedExtensionId(bundle.id, ext.id);
-      const extLocked = bundleLocked || isPluginLocked(qualified);
+  return sortPluginsForPresentation(builtInPlugins).map((plugin) => {
+    const pluginLocked = isPluginLocked(plugin.id);
+    const extensions: IPluginExtensionItem[] = plugin.extensions.map((ext) => {
+      const qualified = qualifiedExtensionId(plugin.id, ext.id);
+      const extLocked = pluginLocked || isPluginLocked(qualified);
       return {
         id: ext.id,
         kind: ext.kind,
@@ -341,20 +341,20 @@ function buildBuiltInItems(
         ...(extLocked ? { locked: true } : {}),
       };
     });
-    // Aggregate bundle status: `enabled` when at least one extension is
-    // enabled, `disabled` otherwise. The bundle has no toggle of its own,
+    // Aggregate plugin status: `enabled` when at least one extension is
+    // enabled, `disabled` otherwise. The plugin has no toggle of its own,
     // this is just a row-level summary for the list view.
-    const bundleEnabled = extensions.some((e) => e.enabled);
+    const pluginEnabled = extensions.some((e) => e.enabled);
     return {
-      id: bundle.id,
-      version: firstVersion(bundle.extensions),
-      kinds: uniqueKinds(bundle.extensions.map((e) => e.kind)),
-      status: bundleEnabled ? 'enabled' : 'disabled',
+      id: plugin.id,
+      version: firstVersion(plugin.extensions),
+      kinds: uniqueKinds(plugin.extensions.map((e) => e.kind)),
+      status: pluginEnabled ? 'enabled' : 'disabled',
       reason: null,
       source: 'built-in' as const,
-      description: bundle.description,
+      description: plugin.description,
       ...(extensions.length > 0 ? { extensions } : {}),
-      ...(bundleLocked ? { locked: true } : {}),
+      ...(pluginLocked ? { locked: true } : {}),
     };
   });
 }
@@ -372,8 +372,8 @@ function buildDiscoveredItem(
   deps: IRouteDeps,
   resolveEnabled: (id: string) => boolean,
 ): IPluginListItem {
-  const bundleLocked = isPluginLocked(plugin.id);
-  const extensions = projectExtensionRows(plugin, resolveEnabled, bundleLocked);
+  const pluginLocked = isPluginLocked(plugin.id);
+  const extensions = projectExtensionRows(plugin, resolveEnabled, pluginLocked);
   const optional = optionalDiscoveredFields(plugin, extensions);
   // `startsAsDisabled` snapshots the BOOT-time loader verdict, NOT the
   // current resolver projection. A plugin can be `status === 'disabled'`
@@ -393,7 +393,7 @@ function buildDiscoveredItem(
     reason: plugin.reason ?? null,
     source: classifyPluginSource(plugin.path, deps),
     ...optional,
-    ...(bundleLocked ? { locked: true } : {}),
+    ...(pluginLocked ? { locked: true } : {}),
     ...(plugin.status === 'disabled' ? { startsAsDisabled: true } : {}),
   };
 }
@@ -419,13 +419,13 @@ function optionalDiscoveredFields(
 function projectExtensionRows(
   plugin: IDiscoveredPlugin,
   resolveEnabled: (id: string) => boolean,
-  bundleLocked: boolean,
+  pluginLocked: boolean,
 ): IPluginExtensionItem[] | undefined {
   if (!plugin.extensions || plugin.extensions.length === 0) return undefined;
   return plugin.extensions.map((ext) => {
     const description = readInstanceDescription(ext.instance);
     const qualified = qualifiedExtensionId(plugin.id, ext.id);
-    const extLocked = bundleLocked || isPluginLocked(qualified);
+    const extLocked = pluginLocked || isPluginLocked(qualified);
     return {
       id: ext.id,
       kind: ext.kind,
@@ -526,7 +526,7 @@ async function persistAndProject(
  * Cascade variant of `persistAndProject`: apply the same boolean to
  * every qualified id in `keys` inside a single SQLite transaction.
  * Used by `PATCH /api/plugins/:id` to fan the macro out across the
- * bundle's children. Empty `keys` (every child happened to be locked
+ * plugin's children. Empty `keys` (every child happened to be locked
  * and got filtered out at the route level) still reaches here and
  * returns the unchanged list, no DB writes, no envelope error.
  */
@@ -557,8 +557,8 @@ async function persistManyAndProject(
  * `sm plugins disable` purge path (`src/cli/commands/plugins.ts` →
  * `TogglePluginsBase.toggle`).
  *
- * `configKey` is either a bare bundle id (`claude`) or a qualified
- * `<bundle>/<ext>` (`core/slash-command`); the split mirrors how
+ * `configKey` is either a bare plugin id (`claude`) or a qualified
+ * `<plugin>/<ext>` (`core/slash-command`); the split mirrors how
  * `scan_contributions` rows are grouped.
  */
 async function applyChangeToAdapter(
@@ -630,8 +630,8 @@ interface IBulkValidationFailure {
 /**
  * Validate one bulk-PATCH entry against the same rules the single-id
  * routes enforce: 404 unknown plugin (or extension), 403 lock. Bare
- * bundle ids in a bulk request behave as the cascade macro (same as
- * `PATCH /api/plugins/:id`), so the validator only checks bundle
+ * plugin ids in a bulk request behave as the cascade macro (same as
+ * `PATCH /api/plugins/:id`), so the validator only checks plugin
  * existence and the row-level lock; the cascade itself happens in
  * `persistBulkAndProject`. Returns `null` on success; on failure
  * returns the descriptor the route maps into the response envelope.
@@ -659,33 +659,33 @@ function validateBulkChange(
     }
     return null;
   }
-  const bundleId = change.id.slice(0, slash);
+  const pluginId = change.id.slice(0, slash);
   const extensionId = change.id.slice(slash + 1);
-  const handle = findHandle(bundleId, deps);
+  const handle = findHandle(pluginId, deps);
   if (!handle) {
     return {
       status: 404,
       code: 'not-found',
-      message: tx(SERVER_TEXTS.pluginsUnknown, { id: bundleId }),
+      message: tx(SERVER_TEXTS.pluginsUnknown, { id: pluginId }),
     };
   }
   // Phase 4b follow-up: qualified-id toggles accepted for both
-  // granularity=extension AND granularity=bundle bundles, matching
+  // granularity=extension AND granularity=plugin plugins, matching
   // the per-id PATCH route above. CLI granularity validation stays
   // unchanged (the bare-id PATCH still rejects qualified-form on
-  // bundle granularity).
+  // plugin granularity).
   if (!hasExtension(handle, extensionId)) {
     return {
       status: 404,
       code: 'not-found',
-      message: tx(SERVER_TEXTS.pluginsExtensionUnknown, { bundleId, extensionId }),
+      message: tx(SERVER_TEXTS.pluginsExtensionUnknown, { pluginId, extensionId }),
     };
   }
-  if (isPluginLocked(change.id) || isPluginLocked(bundleId)) {
+  if (isPluginLocked(change.id) || isPluginLocked(pluginId)) {
     return {
       status: 403,
       code: 'locked',
-      message: tx(SERVER_TEXTS.pluginsExtensionLocked, { bundleId, extensionId }),
+      message: tx(SERVER_TEXTS.pluginsExtensionLocked, { pluginId, extensionId }),
     };
   }
   return null;
@@ -710,9 +710,9 @@ async function persistBulkAndProject(
     { databasePath: deps.options.dbPath, autoBackup: false },
     async (adapter) => {
       for (const change of changes) {
-        // Bare bundle ids cascade across every child extension (same
+        // Bare plugin ids cascade across every child extension (same
         // semantic as the single-id `PATCH /api/plugins/:id` macro);
-        // qualified `<bundle>/<ext>` ids are applied verbatim.
+        // qualified `<plugin>/<ext>` ids are applied verbatim.
         const writeKeys = expandBulkChangeKeys(change, deps);
         for (const key of writeKeys) {
           await applyChangeToAdapter(adapter, key, change.enabled);
@@ -726,7 +726,7 @@ async function persistBulkAndProject(
 
 /**
  * Expand a bulk-PATCH change into the set of qualified ids it should
- * persist. Bare bundle ids cascade into every child extension; locked
+ * persist. Bare plugin ids cascade into every child extension; locked
  * children are silently dropped (matches the CLI's bulk-mode lock
  * semantics). Qualified ids resolve to themselves.
  */
@@ -734,7 +734,7 @@ function expandBulkChangeKeys(change: IBulkChange, deps: IRouteDeps): string[] {
   if (change.id.includes('/')) return [change.id];
   const handle = findHandle(change.id, deps);
   if (!handle) return [];
-  return bundleExtensionIds(handle)
+  return pluginExtensionIds(handle)
     .map((extId) => qualifiedExtensionId(change.id, extId))
     .filter((q) => !isPluginLocked(q));
 }
@@ -774,28 +774,28 @@ function composeResolver(
 // --- handle helpers -------------------------------------------------------
 
 function findHandle(id: string, deps: IRouteDeps): TPluginHandle | null {
-  const builtIn = builtInBundles.find((b) => b.id === id);
-  if (builtIn) return { kind: 'built-in', bundle: builtIn };
+  const builtIn = builtInPlugins.find((b) => b.id === id);
+  if (builtIn) return { kind: 'built-in', plugin: builtIn };
   const discovered = deps.pluginRuntime.discovered.find((p) => p.id === id);
   if (discovered) return { kind: 'discovered', plugin: discovered };
   return null;
 }
 
 /**
- * Enumerate every extension id inside a bundle (built-in or discovered).
- * Used by `PATCH /api/plugins/:id` to expand the bare bundle id into
+ * Enumerate every extension id inside a plugin (built-in or discovered).
+ * Used by `PATCH /api/plugins/:id` to expand the bare plugin id into
  * the qualified ids the macro cascade will flip.
  */
-function bundleExtensionIds(handle: TPluginHandle): string[] {
+function pluginExtensionIds(handle: TPluginHandle): string[] {
   if (handle.kind === 'built-in') {
-    return handle.bundle.extensions.map((e) => e.id);
+    return handle.plugin.extensions.map((e) => e.id);
   }
   return (handle.plugin.extensions ?? []).map((e) => e.id);
 }
 
 function hasExtension(handle: TPluginHandle, extensionId: string): boolean {
   if (handle.kind === 'built-in') {
-    return handle.bundle.extensions.some((e) => e.id === extensionId);
+    return handle.plugin.extensions.some((e) => e.id === extensionId);
   }
   return (handle.plugin.extensions ?? []).some((e) => e.id === extensionId);
 }

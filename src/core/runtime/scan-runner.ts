@@ -37,7 +37,7 @@ import { resolveScanRoots } from './scan-roots.js';
 import { walkReferencePaths } from './reference-paths-walker.js';
 import {
   bootstrapActiveProvider,
-  warnIfLensBundleDisabled,
+  warnIfLensPluginDisabled,
 } from './active-provider-bootstrap.js';
 import type { IProviderDetectInput } from '../config/active-provider.js';
 import { tryWithSqlite, withSqlite } from '../sqlite/with-sqlite.js';
@@ -51,7 +51,7 @@ import {
   loadPluginRuntime,
   registerEnabledExtensions,
   type IConformanceKillSwitches,
-  type IPluginRuntimeBundle,
+  type IPluginRuntime,
 } from './plugin-runtime.js';
 import { defaultRuntimeContext, type IRuntimeContext } from './runtime-context.js';
 
@@ -103,22 +103,22 @@ export interface IScanRunOpts {
    */
   killSwitches?: IConformanceKillSwitches;
   /**
-   * Pre-loaded plugin runtime bundle (audit M3). When set, the runner
-   * skips its own `loadPluginRuntime` call and consumes this bundle
+   * Pre-loaded plugin runtime (audit M3). When set, the runner
+   * skips its own `loadPluginRuntime` call and consumes this runtime
    * directly, used by the BFF to share the boot-cached discovery
    * across `?fresh=1` requests instead of re-walking the filesystem +
    * recompiling AJV validators per call. CLI verbs leave this
    * undefined; they pay the discovery cost once per `sm scan`
    * invocation.
    */
-  pluginRuntime?: IPluginRuntimeBundle;
+  pluginRuntime?: IPluginRuntime;
   /**
    * Optional resolver override that the composer threads into
    * `composeScanExtensions(..., resolveEnabled)`. The BFF builds this
    * fresh from `config_plugins` on every `POST /api/scan` / watcher
    * batch so a mid-session toggle is honoured without restarting
    * `sm serve` (see `core/runtime/fresh-resolver.ts`). CLI offline
-   * callers (`sm scan`) leave this undefined, the bundle is reloaded
+   * callers (`sm scan`) leave this undefined, the runtime is reloaded
    * per invocation anyway, so the cached `pluginRuntime.resolveEnabled`
    * is already fresh.
    */
@@ -277,6 +277,7 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<TScanRunRes
     ctx.cwd,
     activeProvider,
     cfg.scan.maxNodes,
+    cfg.scan.maxFileSizeBytes,
   );
 
   const willPersist = !opts.noBuiltIns && !opts.dryRun;
@@ -299,7 +300,7 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<TScanRunRes
  * present anywhere. The resulting value is threaded through
  * `computeCacheDecision` to gate provider-specific extractors
  * (spec/architecture.md §Universal extractors and per-provider
- * extractors). When the resolved lens points at a bundle the operator
+ * extractors). When the resolved lens points at a plugin the operator
  * has disabled the scan still continues, but a warning fires so the
  * operator doesn't read the missing extractors as a bug. The BFF
  * resolve-enabled override is honoured so mid-session toggles land.
@@ -361,7 +362,7 @@ async function resolveActiveLens(
       }),
     };
   }
-  warnIfLensBundleDisabled({
+  warnIfLensPluginDisabled({
     activeProvider: bootstrap.activeProvider,
     resolveEnabled: opts.resolveEnabledOverride ?? pluginRuntime.resolveEnabled,
     printer: opts.printer,
@@ -393,9 +394,9 @@ function emitReferenceWalkAdvisory(
 
 /**
  * Discovery + warnings emission. `opts.pluginRuntime` (M3) short-
- * circuits the load when the caller already has a bundle in hand
+ * circuits the load when the caller already has a runtime in hand
  * (BFF boot snapshot); `--no-plugins` short-circuits to an empty
- * bundle (no DB / config reads, no FS walk under
+ * runtime (no DB / config reads, no FS walk under
  * `.skill-map/plugins/`). Warnings emit through the printer regardless
  * the CLI surfaces them per-invocation; the BFF emits a tiny no-op
  * printer so the warnings only land where the boot already logged
@@ -403,7 +404,7 @@ function emitReferenceWalkAdvisory(
  */
 async function preparePluginRuntime(opts: IScanRunOpts, printer: IPrinter) {
   if (opts.pluginRuntime) {
-    // Caller-supplied bundle: warnings were already surfaced at the
+    // Caller-supplied runtime: warnings were already surfaced at the
     // caller's boot path. Skip emission to avoid duplicating them
     // every `?fresh=1` request.
     return opts.pluginRuntime;
@@ -528,6 +529,7 @@ function makeScanRunner(
   scanCwd: string,
   activeProvider: string | null,
   recommendedNodeLimit: number,
+  maxFileSizeBytes: number,
 ) {
   return async (
     prior: ScanResult | null,
@@ -555,6 +557,7 @@ function makeScanRunner(
       prior,
       activeProvider,
       recommendedNodeLimit,
+      maxFileSizeBytes,
       ...(priorExtractorRuns ? { priorExtractorRuns } : {}),
       ...(orphanJobFiles ? { orphanJobFiles } : {}),
     });
@@ -573,6 +576,7 @@ interface IBuildRunScanOptionsArgs {
   prior: ScanResult | null;
   activeProvider: string | null;
   recommendedNodeLimit: number;
+  maxFileSizeBytes: number;
   priorExtractorRuns?: Map<string, Map<string, IPriorExtractorRun>>;
   orphanJobFiles?: readonly string[];
 }
@@ -600,6 +604,7 @@ function buildRunScanOptions(args: IBuildRunScanOptionsArgs): Parameters<typeof 
     activeProvider: args.activeProvider,
     recommendedNodeLimit: args.recommendedNodeLimit,
     overrideMaxNodes: opts.maxNodes ?? null,
+    maxFileSizeBytes: args.maxFileSizeBytes,
   };
   if (args.extensions) runOptions.extensions = args.extensions;
   if (prior) {

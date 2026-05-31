@@ -1,0 +1,90 @@
+/*
+ * Top-of-shell persistent banner for files skipped during scan because
+ * they exceeded `scan.maxFileSizeBytes`. Sibling of the oversized
+ * banner, but a single severity: this is always a warning (no data was
+ * silently dropped from a graph that would otherwise read, the operator
+ * just chose a size cap), so it rides the SM warn tokens unconditionally.
+ *
+ * Using the SM severity tokens (not raw `--p-yellow-*`) is what lets the
+ * matrix theme retint the banner to its green immersion automatically
+ * (`matrix.css` swaps the same tokens), while light + dark keep the
+ * conventional yellow palette via `styles.css`. Bare provider tokens,
+ * no hardcoded fallbacks.
+ */
+:host {
+  display: block;
+}
+
+.skipped-files-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--p-content-border-color);
+  font-size: 0.875rem;
+  background: var(--sm-severity-warn-bg);
+  color: var(--sm-severity-warn);
+}
+
+.skipped-files-banner__icon {
+  font-size: 1.1rem;
+  color: var(--sm-severity-warn);
+}
+
+.skipped-files-banner__body {
+  flex: 1 1 auto;
+  margin: 0;
+  line-height: 1.4;
+}
+
+/*
+ * The first offender, named inline as `name (humanSize)`. Bold so the
+ * filename stands apart from the headline copy without leaving the
+ * banner's foreground colour.
+ */
+.skipped-files-banner__first {
+  font-weight: 600;
+}
+
+/*
+ * Trailing `...` affordance carrying the rest-list tooltip. The tooltip
+ * itself renders multi-line via the global `.p-tooltip-text { white-space:
+ * pre-line }` rule in `styles.css`, so the `\n`-joined rest list shows
+ * one file per line. `cursor: help` signals the hover affordance.
+ */
+.skipped-files-banner__more {
+  font-weight: 600;
+  cursor: help;
+}
+
+/*
+ * Inline CTA. `currentColor` is the banner's warn foreground, so the
+ * button visually matches the banner without per-mode rules. Matrix
+ * retints the SM warn token to its accent palette automatically, the
+ * button rides along. PrimeNG `<p-button>` was avoided here because its
+ * secondary chrome doesn't track the SM tokens; a plain `<button>` gives
+ * us token-aware paint with zero theme-coupling.
+ */
+.skipped-files-banner__cta {
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  border: 1px solid currentColor;
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--p-border-radius);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.skipped-files-banner__cta:hover,
+.skipped-files-banner__cta:focus-visible {
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.skipped-files-banner__cta:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}

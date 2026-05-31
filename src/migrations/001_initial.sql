@@ -292,6 +292,13 @@ CREATE TABLE scan_meta (
   -- was passed) or NULL when the value above came from the setting.
   recommended_node_limit INTEGER NOT NULL,
   override_max_nodes INTEGER,
+  -- File-size skip envelope (see spec/cli-contract.md §Scan, `scan.maxFileSizeBytes`
+  -- setting, default 1 MiB). `files_oversized` is the count of files the walker
+  -- skipped before reading because they exceeded the limit (= `stats.filesOversized`);
+  -- `oversized_files_json` is the JSON array of `{ path, bytes }` entries the CLI /
+  -- serve terminal warns on and the UI banner lists. NULL when no file was skipped.
+  files_oversized INTEGER NOT NULL DEFAULT 0,
+  oversized_files_json TEXT,
   CONSTRAINT ck_scan_meta_singleton CHECK (id = 1)
 );
 

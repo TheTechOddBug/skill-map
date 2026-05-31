@@ -10,29 +10,29 @@
  * scan.
  *
  * **Toggle model**: every extension is independently toggle-able by
- * its qualified id `<bundle>/<ext>`. The bundle itself is a
+ * its qualified id `<plugin>/<ext>`. The plugin itself is a
  * presentational grouping. Two id shapes resolve here:
  *
  *   - **qualified id** (`claude/at-directive`, `core/markdown-link`): the
  *     direct toggle. Always applies to that one extension; no prompt.
- *   - **bare bundle id** (`claude`, `core`): the macro form. Fans the
- *     toggle out across every extension inside the bundle:
- *       * Bundle with exactly one extension (`openai`,
+ *   - **bare plugin id** (`claude`, `core`): the macro form. Fans the
+ *     toggle out across every extension inside the plugin:
+ *       * Plugin with exactly one extension (`openai`,
  *         `agent-skills`, `antigravity`): applies the toggle directly
  *         to the single child. No prompt (1-1 mapping).
- *       * Bundle with two or more extensions (`claude`, `core`):
+ *       * Plugin with two or more extensions (`claude`, `core`):
  *         requires `--yes` OR an interactive TTY confirm. Without
  *         `--yes` in a non-TTY context the verb refuses and prints the
  *         list of affected extensions plus the re-run hint.
  *
- * `--all` cascades through every discovered bundle (built-ins + user
+ * `--all` cascades through every discovered plugin (built-ins + user
  * plugins) and every extension inside. Always requires `--yes` in
  * non-TTY contexts.
  */
 
 import { Command, Option } from 'clipanion';
 
-import { builtInBundles } from '../../../plugins/built-ins.js';
+import { builtInPlugins } from '../../../plugins/built-ins.js';
 import { isPluginLocked } from '../../../kernel/config/locked-plugins.js';
 import { qualifiedExtensionId } from '../../../kernel/registry.js';
 import type { IDiscoveredPlugin } from '../../../kernel/types/plugin.js';
@@ -50,21 +50,21 @@ import { SmCommand } from '../../util/sm-command.js';
 import { withSqlite } from '../../util/with-sqlite.js';
 import { loadAll } from './shared.js';
 
-interface IBundleSlim {
+interface IPluginSlim {
   id: string;
-  /** Qualified `<bundle>/<ext>` ids of every extension inside. */
+  /** Qualified `<plugin>/<ext>` ids of every extension inside. */
   extensionIds: string[];
 }
 
 interface IResolvedTarget {
   /** Origin of the resolution, used by the macro-prompt path. */
   origin: 'qualified' | 'bare';
-  /** Bare bundle id when `origin === 'bare'`, parsed from the user input. */
-  bundleId?: string;
+  /** Bare plugin id when `origin === 'bare'`, parsed from the user input. */
+  pluginId?: string;
   /**
    * Qualified extension ids to flip. `qualifiedExtensionId(...)` shape
-   * (`<bundle>/<ext>`). For `origin === 'bare'` carries every child
-   * extension of the bundle; for `origin === 'qualified'` carries
+   * (`<plugin>/<ext>`). For `origin === 'bare'` carries every child
+   * extension of the plugin; for `origin === 'qualified'` carries
    * exactly one entry.
    */
   keys: string[];
@@ -74,7 +74,7 @@ abstract class TogglePluginsBase extends SmCommand {
   all = Option.Boolean('--all', false);
   yes = Option.Boolean('--yes,-y', false, {
     description:
-      'Skip the interactive confirm when a bare bundle id (or --all) fans the toggle out across multiple extensions.',
+      'Skip the interactive confirm when a bare plugin id (or --all) fans the toggle out across multiple extensions.',
   });
   ids = Option.Rest({ name: 'ids' });
 
@@ -86,15 +86,15 @@ abstract class TogglePluginsBase extends SmCommand {
     if (argError !== null) return argError;
 
     const plugins = await loadAll({ pluginDir: undefined });
-    const catalogue = bundleCatalogue(plugins);
+    const catalogue = pluginCatalogue(plugins);
 
     const targetsResult = this.#pickTargets(catalogue, stderrAnsi);
     if (typeof targetsResult === 'number') return targetsResult;
     let targets = targetsResult;
 
-    // Macro-prompt gate: a `--all` request or a bare bundle id whose
-    // bundle holds more than one extension requires confirmation. A
-    // bare bundle id mapped to a single child extension applies
+    // Macro-prompt gate: a `--all` request or a bare plugin id whose
+    // plugin holds more than one extension requires confirmation. A
+    // bare plugin id mapped to a single child extension applies
     // straight through (1-1 mapping; the user typed the natural name).
     const macroOk = await this.#confirmMacroIfNeeded(targets, verb, stderrAnsi);
     if (!macroOk) return ExitCode.Error;
@@ -153,11 +153,11 @@ abstract class TogglePluginsBase extends SmCommand {
    * The first unknown id aborts the batch before any DB write so the
    * user never lands in a partial state.
    */
-  #pickTargets(catalogue: IBundleSlim[], ansi: IAnsi): IResolvedTarget[] | number {
+  #pickTargets(catalogue: IPluginSlim[], ansi: IAnsi): IResolvedTarget[] | number {
     if (this.all) {
       return catalogue.map((b) => ({
         origin: 'bare' as const,
-        bundleId: b.id,
+        pluginId: b.id,
         keys: b.extensionIds.map((extId) => qualifiedExtensionId(b.id, extId)),
       }));
     }
@@ -184,8 +184,8 @@ abstract class TogglePluginsBase extends SmCommand {
 
   /**
    * Macro gate: when the request would fan a single user input out
-   * across more than one extension (either `--all` or a bare bundle
-   * id whose bundle holds ≥2 extensions), confirm the intent.
+   * across more than one extension (either `--all` or a bare plugin
+   * id whose plugin holds ≥2 extensions), confirm the intent.
    *
    * Resolution order:
    *   1. `--yes` flag: skip the prompt entirely.
@@ -194,7 +194,7 @@ abstract class TogglePluginsBase extends SmCommand {
    *      message that names the extensions and points at `--yes`.
    *
    * Returns `true` when the verb should proceed, `false` when it
-   * should abort. Single-extension targets (bare bundle id mapping to
+   * should abort. Single-extension targets (bare plugin id mapping to
    * one child, or qualified ids) skip the gate uniformly.
    */
   // Cyclomatic count comes from the three-stage gate (--yes shortcut,
@@ -213,15 +213,15 @@ abstract class TogglePluginsBase extends SmCommand {
 
     const isTty = Boolean(this.context.stdin && 'isTTY' in this.context.stdin && (this.context.stdin as { isTTY?: boolean }).isTTY);
 
-    // Render the per-bundle expansion so the user sees exactly what
+    // Render the per-plugin expansion so the user sees exactly what
     // will flip. Same shape for both branches; the TTY path appends
     // the prompt while the non-TTY path appends the re-run hint.
     for (const target of macroTargets) {
-      const bundleLabel = target.origin === 'bare' ? target.bundleId ?? '--all' : '--all';
+      const pluginLabel = target.origin === 'bare' ? target.pluginId ?? '--all' : '--all';
       this.printer!.info(
         tx(PLUGINS_TEXTS.bundleMacroHeader, {
           verb,
-          bundleId: sanitizeForTerminal(bundleLabel),
+          pluginId: sanitizeForTerminal(pluginLabel),
           count: target.keys.length,
         }),
       );
@@ -282,7 +282,7 @@ abstract class TogglePluginsBase extends SmCommand {
    * Persist every qualified id in `config_plugins`. On disable, also
    * purge the plugin's `scan_contributions` rows immediately (matches
    * the BFF route, see `server/routes/plugins.ts:applyChangeToAdapter`).
-   * Every key is `<bundle>/<ext>` shape so the contribution purge can
+   * Every key is `<plugin>/<ext>` shape so the contribution purge can
    * split into `(pluginId, extensionId)` cleanly.
    */
   async #persistKeys(keys: string[], enabled: boolean): Promise<void> {
@@ -314,8 +314,8 @@ abstract class TogglePluginsBase extends SmCommand {
 /**
  * A target needs the macro confirm prompt when it expands across more
  * than one extension. The macro shape is either `--all` (cascade
- * across every bundle) or a bare bundle id whose bundle holds ≥2
- * children. Single-child bundles (`openai`, `antigravity`,
+ * across every plugin) or a bare plugin id whose plugin holds ≥2
+ * children. Single-child plugins (`openai`, `antigravity`,
  * `agent-skills`) and qualified ids skip the prompt entirely.
  */
 function requiresMacroConfirm(target: IResolvedTarget): boolean {
@@ -361,11 +361,11 @@ export class PluginsEnableCommand extends TogglePluginsBase {
       flip; sm config reset plugins.<id>.enabled drops the settings.json
       baseline.
 
-      Accepts qualified ids (\`claude/at-directive\`) and bare bundle
+      Accepts qualified ids (\`claude/at-directive\`) and bare plugin
       ids (\`claude\`, which fans the toggle out across every extension
-      inside the bundle). Multi-extension bundles need --yes (or an
+      inside the plugin). Multi-extension plugins need --yes (or an
       interactive TTY confirm) to avoid flipping 27 core extensions by
-      accident. Single-extension bundles (openai, agent-skills,
+      accident. Single-extension plugins (openai, agent-skills,
       antigravity) apply without prompting.
 
       Batches are all-or-nothing: a single unknown id aborts before
@@ -390,11 +390,11 @@ export class PluginsDisableCommand extends TogglePluginsBase {
       sm plugins list, but with status=disabled; the kernel will not
       run any of its disabled extensions.
 
-      Accepts qualified ids (\`core/markdown-link\`) and bare bundle
+      Accepts qualified ids (\`core/markdown-link\`) and bare plugin
       ids (\`core\`, which fans the toggle out across every extension
-      inside the bundle). Multi-extension bundles need --yes (or an
+      inside the plugin). Multi-extension plugins need --yes (or an
       interactive TTY confirm) to avoid flipping 27 core extensions by
-      accident. Single-extension bundles (openai, agent-skills,
+      accident. Single-extension plugins (openai, agent-skills,
       antigravity) apply without prompting.
 
       Batches are all-or-nothing: a single unknown id aborts before
@@ -409,9 +409,9 @@ export class PluginsDisableCommand extends TogglePluginsBase {
 }
 
 /**
- * Build the canonical bundle catalogue: built-ins first, then any
+ * Build the canonical plugin catalogue: built-ins first, then any
  * loaded user plugins. Used by `resolveToggleTarget` to expand a bare
- * bundle id into its qualified-extension child set.
+ * plugin id into its qualified-extension child set.
  *
  * Plugins whose manifest never validated (`invalid-manifest` /
  * `load-error` without a manifest) are listed with an empty
@@ -419,12 +419,12 @@ export class PluginsDisableCommand extends TogglePluginsBase {
  * macro path then has zero children to flip and the verb reports the
  * lock state without writing anything.
  */
-function bundleCatalogue(plugins: IDiscoveredPlugin[]): IBundleSlim[] {
-  const out: IBundleSlim[] = [];
-  for (const bundle of builtInBundles) {
+function pluginCatalogue(plugins: IDiscoveredPlugin[]): IPluginSlim[] {
+  const out: IPluginSlim[] = [];
+  for (const plugin of builtInPlugins) {
     out.push({
-      id: bundle.id,
-      extensionIds: bundle.extensions.map((e) => e.id),
+      id: plugin.id,
+      extensionIds: plugin.extensions.map((e) => e.id),
     });
   }
   for (const p of plugins) {
@@ -439,8 +439,8 @@ function bundleCatalogue(plugins: IDiscoveredPlugin[]): IBundleSlim[] {
 /**
  * Resolve a user-supplied `<id>` against the catalogue. Returns either
  * a `IResolvedTarget` describing what to flip, or a directed error
- * message that explains why the id was rejected (unknown bundle,
- * unknown extension under a known bundle, malformed qualified id).
+ * message that explains why the id was rejected (unknown plugin,
+ * unknown extension under a known plugin, malformed qualified id).
  *
  * Split internally into two paths (qualified vs bare) so each branch
  * is small enough to stay under the lint cap without an
@@ -448,7 +448,7 @@ function bundleCatalogue(plugins: IDiscoveredPlugin[]): IBundleSlim[] {
  */
 function resolveToggleTarget(
   id: string,
-  catalogue: IBundleSlim[],
+  catalogue: IPluginSlim[],
   ansi: IAnsi,
 ): IResolvedTarget | { error: string } {
   return id.includes('/')
@@ -458,36 +458,36 @@ function resolveToggleTarget(
 
 function resolveQualifiedToggle(
   id: string,
-  catalogue: IBundleSlim[],
+  catalogue: IPluginSlim[],
   ansi: IAnsi,
 ): IResolvedTarget | { error: string } {
   const errGlyph = ansi.red('✕');
-  const [bundleId, extId, ...rest] = id.split('/');
-  if (!bundleId || !extId || rest.length > 0) {
+  const [pluginId, extId, ...rest] = id.split('/');
+  if (!pluginId || !extId || rest.length > 0) {
     return {
-      error: tx(PLUGINS_TEXTS.qualifiedIdUnknownBundle, {
+      error: tx(PLUGINS_TEXTS.qualifiedIdUnknownPlugin, {
         glyph: errGlyph,
-        bundleId: sanitizeForTerminal(id),
-        hint: ansi.dim(PLUGINS_TEXTS.qualifiedIdUnknownBundleHint),
+        pluginId: sanitizeForTerminal(id),
+        hint: ansi.dim(PLUGINS_TEXTS.qualifiedIdUnknownPluginHint),
       }),
     };
   }
-  const bundle = catalogue.find((b) => b.id === bundleId);
-  if (!bundle) {
+  const plugin = catalogue.find((b) => b.id === pluginId);
+  if (!plugin) {
     return {
-      error: tx(PLUGINS_TEXTS.qualifiedIdUnknownBundle, {
+      error: tx(PLUGINS_TEXTS.qualifiedIdUnknownPlugin, {
         glyph: errGlyph,
-        bundleId: sanitizeForTerminal(bundleId),
-        hint: ansi.dim(PLUGINS_TEXTS.qualifiedIdUnknownBundleHint),
+        pluginId: sanitizeForTerminal(pluginId),
+        hint: ansi.dim(PLUGINS_TEXTS.qualifiedIdUnknownPluginHint),
       }),
     };
   }
-  if (!bundle.extensionIds.includes(extId)) {
+  if (!plugin.extensionIds.includes(extId)) {
     return {
       error: tx(PLUGINS_TEXTS.qualifiedIdNotFound, {
         glyph: errGlyph,
         id: sanitizeForTerminal(id),
-        bundleId: sanitizeForTerminal(bundleId),
+        pluginId: sanitizeForTerminal(pluginId),
         extId: sanitizeForTerminal(extId),
         hint: ansi.dim(PLUGINS_TEXTS.qualifiedIdNotFoundHint),
       }),
@@ -495,16 +495,16 @@ function resolveQualifiedToggle(
   }
   return {
     origin: 'qualified',
-    keys: [qualifiedExtensionId(bundleId, extId)],
+    keys: [qualifiedExtensionId(pluginId, extId)],
   };
 }
 
 function resolveBareToggle(
   id: string,
-  catalogue: IBundleSlim[],
+  catalogue: IPluginSlim[],
 ): IResolvedTarget | { error: string } {
-  const bundle = catalogue.find((b) => b.id === id);
-  if (!bundle) {
+  const plugin = catalogue.find((b) => b.id === id);
+  if (!plugin) {
     return {
       error: tx(PLUGINS_TEXTS.pluginNotFound, {
         glyph: '✕',
@@ -515,7 +515,7 @@ function resolveBareToggle(
   }
   return {
     origin: 'bare',
-    bundleId: bundle.id,
-    keys: bundle.extensionIds.map((extId) => qualifiedExtensionId(bundle.id, extId)),
+    pluginId: plugin.id,
+    keys: plugin.extensionIds.map((extId) => qualifiedExtensionId(plugin.id, extId)),
   };
 }

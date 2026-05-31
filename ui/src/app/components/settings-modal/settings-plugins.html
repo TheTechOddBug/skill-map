@@ -118,7 +118,7 @@
                 (click)="toggleExpanded(plugin.id); $event.stopPropagation()"
                 [attr.aria-expanded]="isExpanded(plugin.id)"
                 [attr.aria-label]="isExpanded(plugin.id) ? texts.collapseLabel : texts.expandLabel"
-                [attr.data-testid]="'settings-bundle-expand-' + plugin.id"
+                [attr.data-testid]="'settings-plugin-expand-' + plugin.id"
               >
                 <i
                   class="fa-solid"

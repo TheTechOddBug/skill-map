@@ -63,7 +63,7 @@ export const coreMarkdownProvider: IBuiltInManifest<IProvider> = {
 
   // Per spec § A.6, defaultRefreshAction values MUST be qualified
   // action ids. The summarize-markdown action is not yet implemented
-  // as a registry entry (it ships later under the core bundle), but
+  // as a registry entry (it ships later under the core plugin), but
   // the qualified form is the contract.
   //
   // UI presentation: same neutral teal that the per-vendor Providers

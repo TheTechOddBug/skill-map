@@ -2,6 +2,7 @@ import { Command, Option } from 'clipanion';
 
 import { SmCommand } from '../util/sm-command.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
+import { formatOversizedFileRows } from '../../kernel/util/format-oversized.js';
 import { tx } from '../../kernel/util/tx.js';
 import { SCAN_RUNNER_TEXTS } from '../../core/runtime/i18n/scan-runner.texts.js';
 import { SCAN_TEXTS } from '../i18n/scan.texts.js';
@@ -366,7 +367,35 @@ export class ScanCommand extends SmCommand {
       );
     }
     this.maybePrintCapNotice(result, ansi);
+    this.maybePrintSkippedFilesNotice(result, ansi);
     return exitCode;
+  }
+
+  /**
+   * Surface a WARN when the walker skipped one or more files for
+   * exceeding `scan.maxFileSizeBytes`. Lists every skipped file as
+   * `path (humanSize)` and points the user at the two levers
+   * (`scan.maxFileSizeBytes` to raise the limit, `.skillmapignore` to
+   * exclude the path). Routed through `printer.warn` (stderr) because a
+   * silently dropped file is degraded state the operator should read,
+   * not a mid-flight progress line.
+   */
+  private maybePrintSkippedFilesNotice(
+    result: import('../../kernel/index.js').ScanResult,
+    ansi: IAnsi,
+  ): void {
+    const oversized = result.oversizedFiles ?? [];
+    if ((result.stats.filesOversized ?? oversized.length) <= 0) return;
+    const lines = formatOversizedFileRows(oversized).join('');
+    this.printer!.warn(
+      tx(SCAN_TEXTS.scanSkippedFilesNotice, {
+        glyph: ansi.yellow('⚠'),
+        count: String(oversized.length),
+        noun: oversized.length === 1 ? SCAN_TEXTS.scanSkippedFileNounSingular : SCAN_TEXTS.scanSkippedFileNounPlural,
+        files: lines,
+        hint: ansi.dim(SCAN_TEXTS.scanSkippedFilesNoticeHint),
+      }),
+    );
   }
 
   /**

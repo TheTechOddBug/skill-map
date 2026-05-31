@@ -69,6 +69,24 @@ export interface IWalkContentOptions {
    * (the orchestrator) always pass a fully-composed filter.
    */
   ignoreFilter?: IIgnoreFilter;
+  /**
+   * Mirror of `scan.maxFileSizeBytes`. When set, the walker skips any
+   * regular file whose on-disk size exceeds this many bytes BEFORE
+   * reading it (the existing TOCTOU `lstat` already supplies the size,
+   * so the check costs zero extra syscalls). The skipped file is never
+   * read, parsed, or yielded; `onOversizedFile` (when provided) is
+   * invoked with its root-relative path and byte size. Absent → no
+   * size limit (every matching file is read).
+   */
+  maxFileSizeBytes?: number;
+  /**
+   * Callback fired once per file skipped because it exceeded
+   * `maxFileSizeBytes`. Receives the root-relative, forward-slash path
+   * (same form as the yielded node paths) plus the file's byte size.
+   * The orchestrator threads a collector here so the skipped files reach
+   * `ScanResult.oversizedFiles`. No-op when omitted.
+   */
+  onOversizedFile?: (info: { path: string; bytes: number }) => void;
 }
 
 export class UnknownParserError extends Error {
@@ -90,8 +108,9 @@ export async function* walkContent(
   if (!parser) throw new UnknownParserError(options.parser);
   const filter: IIgnoreFilter = options.ignoreFilter ?? buildIgnoreFilter();
   const extensions = options.extensions;
+  const sizeLimit = buildSizeLimit(options);
   for (const root of roots) {
-    for await (const file of walkRoot(root, root, filter, extensions)) {
+    for await (const file of walkRoot(root, root, filter, extensions, sizeLimit)) {
       const relPath = relative(root, file).split(sep).join('/');
       let raw: string;
       try {
@@ -116,6 +135,32 @@ export async function* walkContent(
   }
 }
 
+/**
+ * File-size guard threaded from `walkContent` options into `walkRoot`.
+ * Mirror of `scan.maxFileSizeBytes` + its collector callback. Bundled
+ * so `walkRoot`'s signature stays short and the recursion threads one
+ * reference instead of two parameters per level.
+ */
+interface IWalkSizeLimit {
+  maxFileSizeBytes?: number;
+  onOversizedFile?: (info: { path: string; bytes: number }) => void;
+}
+
+/**
+ * Lift the file-size knobs off `IWalkContentOptions` into the bundled
+ * guard `walkRoot` consumes. Only sets each key when present so
+ * `exactOptionalPropertyTypes` stays satisfied, and keeps `walkContent`
+ * itself under the complexity cap.
+ */
+function buildSizeLimit(options: IWalkContentOptions): IWalkSizeLimit {
+  const sizeLimit: IWalkSizeLimit = {};
+  if (options.maxFileSizeBytes !== undefined) {
+    sizeLimit.maxFileSizeBytes = options.maxFileSizeBytes;
+  }
+  if (options.onOversizedFile) sizeLimit.onOversizedFile = options.onOversizedFile;
+  return sizeLimit;
+}
+
 // Recursive directory walker: per-entry branches over symlink /
 // ignore-filter / kind (dir vs file) / extension allow-list. The
 // branching IS the walker; extraction yields helpers that all run
@@ -126,6 +171,7 @@ async function* walkRoot(
   current: string,
   filter: IIgnoreFilter,
   extensions: readonly string[],
+  sizeLimit: IWalkSizeLimit,
 ): AsyncIterable<string> {
   let entries;
   try {
@@ -140,7 +186,7 @@ async function* walkRoot(
     if (filter.ignores(rel)) continue;
     if (entry.isSymbolicLink()) continue;
     if (entry.isDirectory()) {
-      yield* walkRoot(root, full, filter, extensions);
+      yield* walkRoot(root, full, filter, extensions, sizeLimit);
     } else if (entry.isFile() && hasMatchingExtension(name, extensions)) {
       // TOCTOU re-check (audit H1): readdir reported a regular file;
       // re-verify before reading. We use `lstat` (NOT `stat`) so a
@@ -153,7 +199,20 @@ async function* walkRoot(
       // device) that appeared in the race window.
       try {
         const s = await lstat(full);
-        if (s.isFile()) yield full;
+        if (!s.isFile()) continue;
+        // File-size skip (`scan.maxFileSizeBytes`). The `lstat` above
+        // already supplies `s.size`, so the guard costs zero extra
+        // syscalls. A file over the limit is reported and skipped here
+        // BEFORE the orchestrator ever reads it: an accidental binary
+        // drop or generated artefact never lands in the body store.
+        if (
+          sizeLimit.maxFileSizeBytes !== undefined &&
+          s.size > sizeLimit.maxFileSizeBytes
+        ) {
+          sizeLimit.onOversizedFile?.({ path: rel, bytes: s.size });
+          continue;
+        }
+        yield full;
       } catch {
         // silently skip unreadable files
       }

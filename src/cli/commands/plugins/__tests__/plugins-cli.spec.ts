@@ -130,7 +130,7 @@ after(() => {
 });
 
 describe('sm plugins enable / disable', () => {
-  it('disables a single-extension bundle by bare id (1-1 macro, no prompt)', async () => {
+  it('disables a single-extension plugin by bare id (1-1 macro, no prompt)', async () => {
     const scope = freshScope('disable-one');
     sm(['init', '--no-scan'], scope);
     dropMockPlugin(scope, 'mock-a');
@@ -152,7 +152,7 @@ describe('sm plugins enable / disable', () => {
     }
 
     // sm plugins list reflects the toggle, the row glyph aggregates
-    // children, so a single-extension bundle whose one child is
+    // children, so a single-extension plugin whose one child is
     // disabled lands on the ✕ glyph.
     const list = sm(['plugins', 'list'], scope);
     assert.equal(list.status, 0);
@@ -182,14 +182,14 @@ describe('sm plugins enable / disable', () => {
     assert.match(list.stdout, /✓\s+mock-b\b/);
   });
 
-  it('--all cascades across every bundle when invoked with --yes', async () => {
+  it('--all cascades across every plugin when invoked with --yes', async () => {
     const scope = freshScope('disable-all');
     sm(['init', '--no-scan'], scope);
     dropMockPlugin(scope, 'mock-c');
     dropMockPlugin(scope, 'mock-d');
 
     // `--all` is the cascade macro: it expands to every extension
-    // inside every discovered bundle (built-ins + user plugins).
+    // inside every discovered plugin (built-ins + user plugins).
     // Non-TTY contexts (the subprocess spawn here) need --yes to
     // confirm the cascade.
     const r = sm(['plugins', 'disable', '--all', '--yes'], scope);
@@ -212,7 +212,7 @@ describe('sm plugins enable / disable', () => {
       assert.equal(await getPluginEnabled(adapter.db, 'mock-d/mock-d-extractor'), false);
       assert.equal(await getPluginEnabled(adapter.db, 'claude/at-directive'), false);
       assert.equal(await getPluginEnabled(adapter.db, 'core/markdown-link'), false);
-      // Bare bundle ids are NEVER persisted, the cascade always expands.
+      // Bare plugin ids are NEVER persisted, the cascade always expands.
       assert.equal(await getPluginEnabled(adapter.db, 'claude'), undefined);
       assert.equal(await getPluginEnabled(adapter.db, 'core'), undefined);
     } finally {
@@ -270,7 +270,7 @@ describe('sm plugins enable / disable', () => {
       await seedAdapter.close();
     }
 
-    // Bare bundle id is the macro form. `mock-purge` has one
+    // Bare plugin id is the macro form. `mock-purge` has one
     // extension; the cascade applies without prompting and purges the
     // contributions row for that extension.
     const r = sm(['plugins', 'disable', 'mock-purge'], scope);
@@ -346,8 +346,8 @@ describe('sm plugins enable / disable', () => {
     dropMockPlugin(scope, 'mock-many-b');
     dropMockPlugin(scope, 'mock-many-c');
 
-    // Each bare bundle id is a 1-1 macro (one extension each). Three
-    // bundles cascade to three qualified-id writes.
+    // Each bare plugin id is a 1-1 macro (one extension each). Three
+    // plugins cascade to three qualified-id writes.
     const r = sm(['plugins', 'disable', 'mock-many-a', 'mock-many-b', 'mock-many-c'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     assert.match(r.stdout, /disabled: 3 extension\(s\)/);
@@ -426,19 +426,19 @@ describe('sm plugins enable / disable', () => {
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     // Dedupe collapses to one target so the single-target message
     // (not the multi-row header) is rendered. The macro expanded the
-    // single-extension bundle to its one child id.
+    // single-extension plugin to its one child id.
     assert.match(r.stdout, /disabled: mock-dedupe\/mock-dedupe-extractor/);
     assert.equal(/disabled: \d+ extension\(s\)/.test(r.stdout), false);
   });
 });
 
 // Bundle macro semantics: every extension is independently toggle-able
-// by its qualified id `<bundle>/<ext>`. The bare bundle id is the macro
-// form that fans the toggle out across the bundle's children;
-// multi-extension bundles need --yes in non-TTY contexts so the user
+// by its qualified id `<plugin>/<ext>`. The bare plugin id is the macro
+// form that fans the toggle out across the plugin's children;
+// multi-extension plugins need --yes in non-TTY contexts so the user
 // does not flip 27 core extensions by accident.
 describe('sm plugins enable / disable, bundle macro', () => {
-  it('disable claude (multi-extension bundle) without --yes is refused in non-TTY', () => {
+  it('disable claude (multi-extension plugin) without --yes is refused in non-TTY', () => {
     const scope = freshScope('macro-claude-no-yes');
     sm(['init', '--no-scan'], scope);
 
@@ -462,7 +462,7 @@ describe('sm plugins enable / disable, bundle macro', () => {
     const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
     await adapter.init();
     try {
-      // Every child extension flipped; the bare bundle id is never
+      // Every child extension flipped; the bare plugin id is never
       // persisted (the macro path always expands to qualified ids).
       assert.equal(await getPluginEnabled(adapter.db, 'claude/claude'), false);
       assert.equal(await getPluginEnabled(adapter.db, 'claude/at-directive'), false);
@@ -516,7 +516,7 @@ describe('sm plugins enable / disable, bundle macro', () => {
     await adapter.init();
     try {
       assert.equal(await getPluginEnabled(adapter.db, 'core/node-superseded'), false);
-      // Other core extensions and the claude bundle untouched.
+      // Other core extensions and the claude plugin untouched.
       assert.equal(await getPluginEnabled(adapter.db, 'claude'), undefined);
       assert.equal(await getPluginEnabled(adapter.db, 'core/reference-broken'), undefined);
     } finally {
@@ -524,14 +524,14 @@ describe('sm plugins enable / disable, bundle macro', () => {
     }
   });
 
-  it('(i) sm plugins list shows every bundle + user plugin', () => {
+  it('(i) sm plugins list shows every plugin + user plugin', () => {
     const scope = freshScope('granularity-list');
     sm(['init', '--no-scan'], scope);
     dropMockPlugin(scope, 'mock-list');
 
     const r = sm(['plugins', 'list'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    // Each enabled bundle (built-in or user) gets its own ✓ row with the
+    // Each enabled plugin (built-in or user) gets its own ✓ row with the
     // `built-in` / `user` source label. The new format collapses
     // per-extension breakdown into a dim names line under the row, so
     // the test matches the row + checks names appear nearby.
@@ -544,16 +544,16 @@ describe('sm plugins enable / disable, bundle macro', () => {
     assert.match(r.stdout, /✓\s+mock-list\b.*user/);
   });
 
-  it('rejects qualified id under unknown bundle with directed message', () => {
-    const scope = freshScope('granularity-unknown-bundle');
+  it('rejects qualified id under unknown plugin with directed message', () => {
+    const scope = freshScope('granularity-unknown-plugin');
     sm(['init', '--no-scan'], scope);
 
     const r = sm(['plugins', 'disable', 'no-such/anything'], scope);
     assert.equal(r.status, 5);
-    assert.match(r.stderr, /Qualified extension id references unknown bundle/);
+    assert.match(r.stderr, /Qualified extension id references unknown plugin/);
   });
 
-  it('rejects qualified id with unknown extension under known bundle', () => {
+  it('rejects qualified id with unknown extension under known plugin', () => {
     const scope = freshScope('granularity-unknown-ext');
     sm(['init', '--no-scan'], scope);
 
@@ -579,7 +579,7 @@ describe('sm plugins doctor, disabled is not a failure', () => {
 
 // Spec § A.6, show / list still expose every loaded extension id so
 // the user knows what's actually running. Post-redesign the human
-// renderer drops the `<bundle>/<id>` qualified form (the bundle is
+// renderer drops the `<plugin>/<id>` qualified form (the plugin is
 // already the row header) and just prints the bare extension name,
 // the qualified form survives in `--json` for tooling consumers.
 describe('sm plugins show, extension visibility', () => {
@@ -596,7 +596,7 @@ describe('sm plugins show, extension visibility', () => {
     assert.match(r.stdout, /extractor\s+mock-q\/mock-q-extractor\s+v/);
   });
 
-  it('list surfaces every loaded extension name under its bundle', () => {
+  it('list surfaces every loaded extension name under its plugin', () => {
     const scope = freshScope('list-qualified');
     sm(['init', '--no-scan'], scope);
     dropMockPlugin(scope, 'mock-l');
@@ -604,15 +604,15 @@ describe('sm plugins show, extension visibility', () => {
     const r = sm(['plugins', 'list'], scope);
     assert.equal(r.status, 0);
     // The extension name shows up in the dim names line under the
-    // `mock-l` row (no `<bundle>/<id>` prefix in the human output).
+    // `mock-l` row (no `<plugin>/<id>` prefix in the human output).
     assert.match(r.stdout, /\bmock-l-extractor\b/);
   });
 
-  // Qualified `<bundle>/<ext>` ids now render a single-extension detail
+  // Qualified `<plugin>/<ext>` ids now render a single-extension detail
   // (header + Kind / Version / Stability / Description / Preconditions /
-  // Entry) instead of the parent bundle's full listing. The reader asked
+  // Entry) instead of the parent plugin's full listing. The reader asked
   // about one extension; the output answers that question.
-  it('show with qualified `<bundle>/<ext>` id renders single-extension detail (built-in)', () => {
+  it('show with qualified `<plugin>/<ext>` id renders single-extension detail (built-in)', () => {
     const scope = freshScope('show-qualified-builtin');
     sm(['init', '--no-scan'], scope);
 
@@ -627,8 +627,8 @@ describe('sm plugins show, extension visibility', () => {
     // survives in `--json` for tooling consumers, see the JSON-shape
     // test below.
     assert.doesNotMatch(r.stdout, /^\s*Version\s/m);
-    // Bundle counter ("24 extensions" / "N extensions") must NOT appear,
-    // that's the bare-bundle header signature and would mean we fell
+    // Plugin counter ("24 extensions" / "N extensions") must NOT appear,
+    // that's the bare-plugin header signature and would mean we fell
     // back to the old behavior.
     assert.doesNotMatch(r.stdout, /\d+\s+extensions?/);
     // No sibling extension under `core` leaks into the output.
@@ -655,13 +655,13 @@ describe('sm plugins show, extension visibility', () => {
     const r = sm(['plugins', 'show', 'core/external-url-counter', '--json'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     const payload = JSON.parse(r.stdout);
-    // Extension shape, not a bundle envelope.
+    // Extension shape, not a plugin envelope.
     assert.equal(payload.id, 'external-url-counter');
     assert.equal(payload.pluginId, 'core');
     assert.equal(payload.kind, 'extractor');
     assert.equal(typeof payload.version, 'string');
-    // The bundle's `extensions` array must NOT be present, that would
-    // mean we dumped the whole bundle.
+    // The plugin's `extensions` array must NOT be present, that would
+    // mean we dumped the whole plugin.
     assert.equal(payload.extensions, undefined);
   });
 
@@ -678,9 +678,9 @@ describe('sm plugins show, extension visibility', () => {
     const off = sm(['plugins', 'disable', 'core/node-superseded'], scope);
     assert.equal(off.status, 0, `stderr: ${off.stderr}`);
 
-    // The single-ext header glyph flips to ✕; bare-bundle output would
+    // The single-ext header glyph flips to ✕; bare-plugin output would
     // keep `core` itself ✓ and only mark the inner row, this test
-    // guards that we render the EXTENSION header, not the bundle.
+    // guards that we render the EXTENSION header, not the plugin.
     const after = sm(['plugins', 'show', 'core/node-superseded'], scope);
     assert.equal(after.status, 0, `stderr: ${after.stderr}`);
     assert.match(after.stdout, /✕\s+core\/node-superseded/);
@@ -707,20 +707,20 @@ describe('sm plugins show, extension visibility', () => {
     assert.match(r.stdout, /Entry\s+\S+extractors\/mock-q-show-extractor\/index\.js/);
   });
 
-  it('show with bare bundle id still renders the full bundle detail (regression)', () => {
-    const scope = freshScope('show-bare-bundle');
+  it('show with bare plugin id still renders the full plugin detail (regression)', () => {
+    const scope = freshScope('show-bare-plugin');
     sm(['init', '--no-scan'], scope);
 
     const r = sm(['plugins', 'show', 'core'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    // Bundle header signature: "N extensions" counter.
+    // Plugin header signature: "N extensions" counter.
     assert.match(r.stdout, /✓\s+core\s+built-in\s+\d+\s+extensions/);
     // Per-extension rows appear (at least one sibling we can spot-check).
     assert.match(r.stdout, /\bnode-superseded\b/);
     assert.match(r.stdout, /\bexternal-url-counter\b/);
   });
 
-  it('show rejects qualified id with unknown extension under known bundle', () => {
+  it('show rejects qualified id with unknown extension under known plugin', () => {
     const scope = freshScope('show-qualified-unknown-ext');
     sm(['init', '--no-scan'], scope);
 
@@ -730,13 +730,13 @@ describe('sm plugins show, extension visibility', () => {
     assert.match(r.stderr, /'core' does not declare an extension with id 'no-such-rule'/);
   });
 
-  it('show rejects qualified id under unknown bundle', () => {
-    const scope = freshScope('show-qualified-unknown-bundle');
+  it('show rejects qualified id under unknown plugin', () => {
+    const scope = freshScope('show-qualified-unknown-plugin');
     sm(['init', '--no-scan'], scope);
 
     const r = sm(['plugins', 'show', 'no-such/anything'], scope);
     assert.equal(r.status, 5);
-    assert.match(r.stderr, /Qualified extension id references unknown bundle/);
+    assert.match(r.stderr, /Qualified extension id references unknown plugin/);
   });
 
   it('list marks individually-disabled extensions with ✕', async () => {
@@ -750,12 +750,12 @@ describe('sm plugins show, extension visibility', () => {
     assert.doesNotMatch(before.stdout, /✕\s+node-superseded\b/);
 
     // Disable one core extension by qualified id; siblings stay
-    // enabled and the bundle row aggregates ✓ (any child enabled).
+    // enabled and the plugin row aggregates ✓ (any child enabled).
     const disable = sm(['plugins', 'disable', 'core/node-superseded'], scope);
     assert.equal(disable.status, 0, `stderr: ${disable.stderr}`);
 
     // The list now shows the ✕ marker on the disabled name. The
-    // bundle row glyph stays ✓ because most of `core` is still on.
+    // plugin row glyph stays ✓ because most of `core` is still on.
     const after = sm(['plugins', 'list'], scope);
     assert.equal(after.status, 0, `stderr: ${after.stderr}`);
     assert.match(after.stdout, /✓\s+core\b/);

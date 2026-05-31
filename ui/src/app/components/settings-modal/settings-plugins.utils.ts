@@ -6,7 +6,7 @@
  *
  * Includes the ordering / filtering constants the helpers consume:
  *   - `KIND_FILTER_OPTIONS`: closed segment list for the kind filter.
- *   - `PINNED_BUNDLE_ORDER`: built-in bundle pin order.
+ *   - `PINNED_PLUGIN_ORDER`: built-in plugin pin order.
  *
  * Storage helpers live in `./settings-plugins.storage.ts` so this
  * file has zero `localStorage` access, every function here is a
@@ -44,12 +44,12 @@ export const KIND_FILTER_OPTIONS: readonly TKindFilter[] = [
 ] as const;
 
 /**
- * Built-in bundles that are pinned to the top of the Settings →
+ * Built-in plugins that are pinned to the top of the Settings →
  * Plugins list, in this exact order. `core` leads because it carries
  * the universal extractors / analyzers / formatters the user reaches
- * for the most; the vendor bundles follow in the same order
+ * for the most; the vendor plugins follow in the same order
  * `built-ins.ts` declares them so the runtime + presentation pin lists
- * stay aligned. Within each bundle the extensions are sorted
+ * stay aligned. Within each plugin the extensions are sorted
  * alphabetically by extension id (see `sortPluginsByPin` below).
  * Drop-in / future built-ins outside this list fall after,
  * alphabetically.
@@ -61,7 +61,7 @@ export const KIND_FILTER_OPTIONS: readonly TKindFilter[] = [
  * thing the user touches first should be at the top of the list).
  * Keeping the two lists separate makes the asymmetry explicit.
  */
-export const PINNED_BUNDLE_ORDER: readonly string[] = [
+export const PINNED_PLUGIN_ORDER: readonly string[] = [
   'core',
   'claude',
   'antigravity',
@@ -69,15 +69,15 @@ export const PINNED_BUNDLE_ORDER: readonly string[] = [
   'agent-skills',
 ];
 
-export function qualifiedKey(bundleId: string, extensionId: string): string {
-  return `${bundleId}/${extensionId}`;
+export function qualifiedKey(pluginId: string, extensionId: string): string {
+  return `${pluginId}/${extensionId}`;
 }
 
 /**
  * Walk the plugin list and project the toggle-state map the buffered
  * modal binds to. Every extension is independently toggle-able; the
- * bundle has no toggle axis of its own. One entry per extension keyed
- * by the qualified `<bundle>/<ext>` id.
+ * plugin has no toggle axis of its own. One entry per extension keyed
+ * by the qualified `<plugin>/<ext>` id.
  *
  * Failure rows (`invalid-manifest` / `load-error` / `incompatible-spec`
  * / `id-collision`) carry no toggle axis and are excluded; the template
@@ -116,18 +116,18 @@ export function clickedInteractive(event: Event): boolean {
 
 /**
  * Match `plugin` against the lower-cased query. Returns `[plugin]`
- * unchanged when the bundle id or description hits, `[plugin']` with
+ * unchanged when the plugin id or description hits, `[plugin']` with
  * the extensions array narrowed when only inner extensions hit, or
  * `[]` when nothing matches.
  *
  * Match axes (any of):
- *   - bundle.id includes query
- *   - bundle.description includes query
+ *   - plugin.id includes query
+ *   - plugin.description includes query
  *   - extension.id includes query
  *   - extension.description includes query
  */
 export function filterBySearch(plugin: IPluginItemApi, query: string): IPluginItemApi[] {
-  if (bundleHits(plugin, query)) return [plugin];
+  if (pluginHits(plugin, query)) return [plugin];
   if (!plugin.extensions) return [];
   const matchingExtensions = plugin.extensions.filter((ext) => extensionHits(ext, query));
   if (matchingExtensions.length === 0) return [];
@@ -135,14 +135,14 @@ export function filterBySearch(plugin: IPluginItemApi, query: string): IPluginIt
 }
 
 /**
- * Narrow `plugin` to the picked kind: drop the bundle if none of its
- * extensions match the kind; otherwise keep the bundle with only the
- * matching extensions. The bundle row stays as a header (the user
+ * Narrow `plugin` to the picked kind: drop the plugin if none of its
+ * extensions match the kind; otherwise keep the plugin with only the
+ * matching extensions. The plugin row stays as a header (the user
  * sees the grouping) but its expanded sublist only shows the picked
  * kind. Returns `[]` when nothing matches so the caller can simply
  * `flatMap`.
  *
- * Replaces the previous granularity-aware branch: the bundle is now
+ * Replaces the previous granularity-aware branch: the plugin is now
  * always a presentational grouping, never a toggle target, so the
  * matching surface is the underlying extensions in every case (this
  * is what fixes the "click provider, see extractors too" bug).
@@ -162,9 +162,9 @@ export function filterByKind(
 /**
  * Strip host-locked rows from the listing:
  *
- *   - bundle-level lock (`plugin.locked`) → drop the row entirely.
- *   - drop locked extensions inside the bundle; if the bundle ends
- *     up with zero extensions, drop the bundle row too (no children
+ *   - plugin-level lock (`plugin.locked`) → drop the row entirely.
+ *   - drop locked extensions inside the plugin; if the plugin ends
+ *     up with zero extensions, drop the plugin row too (no children
  *     left to show).
  */
 export function stripLocked(plugin: IPluginItemApi): IPluginItemApi[] {
@@ -178,20 +178,20 @@ export function stripLocked(plugin: IPluginItemApi): IPluginItemApi[] {
 /**
  * Canonical Settings → Plugins ordering:
  *
- *   1. `PINNED_BUNDLE_ORDER` first in that exact sequence.
- *   2. Everything else after, alphabetical by bundle id.
+ *   1. `PINNED_PLUGIN_ORDER` first in that exact sequence.
+ *   2. Everything else after, alphabetical by plugin id.
  *   3. Inner extensions are sorted alphabetically by extension id.
  *
- * The unknown-bundle bucket falls to the end so a new built-in or a
+ * The unknown-plugin bucket falls to the end so a new built-in or a
  * third-party plugin lands in a predictable slot without needing this
  * file to know about it.
  */
 export function sortPluginsByPin(plugins: IPluginItemApi[]): IPluginItemApi[] {
   const sortedTop = plugins.slice().sort((a, b) => {
-    const aIdx = PINNED_BUNDLE_ORDER.indexOf(a.id);
-    const bIdx = PINNED_BUNDLE_ORDER.indexOf(b.id);
-    const aKey = aIdx >= 0 ? aIdx : PINNED_BUNDLE_ORDER.length;
-    const bKey = bIdx >= 0 ? bIdx : PINNED_BUNDLE_ORDER.length;
+    const aIdx = PINNED_PLUGIN_ORDER.indexOf(a.id);
+    const bIdx = PINNED_PLUGIN_ORDER.indexOf(b.id);
+    const aKey = aIdx >= 0 ? aIdx : PINNED_PLUGIN_ORDER.length;
+    const bKey = bIdx >= 0 ? bIdx : PINNED_PLUGIN_ORDER.length;
     if (aKey !== bKey) return aKey - bKey;
     return a.id.localeCompare(b.id);
   });
@@ -204,7 +204,7 @@ export function sortPluginsByPin(plugins: IPluginItemApi[]): IPluginItemApi[] {
   });
 }
 
-function bundleHits(plugin: IPluginItemApi, query: string): boolean {
+function pluginHits(plugin: IPluginItemApi, query: string): boolean {
   if (plugin.id.toLowerCase().includes(query)) return true;
   if (plugin.description && plugin.description.toLowerCase().includes(query)) return true;
   return false;

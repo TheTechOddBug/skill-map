@@ -173,7 +173,7 @@ export interface StoragePort {
     ): Promise<IPersistedContribution[]>;
     /**
      * Drop rows for a plugin (optionally narrowed to a single
-     * extension within the bundle). Returns the number of deleted
+     * extension within the plugin). Returns the number of deleted
      * rows. Called by `sm plugins disable` so the UI stops rendering
      * the disabled plugin's chips before the next scan.
      */

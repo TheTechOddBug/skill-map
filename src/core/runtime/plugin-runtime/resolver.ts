@@ -6,11 +6,11 @@
  * The resolver layer is the single place that owns the
  * "is this id enabled right now?" question; the composer / catalogs /
  * registry-update paths consume it through the helpers below so the
- * toggle model (per-extension, no bundle kill-switch) stays consistent.
+ * toggle model (per-extension, no plugin kill-switch) stays consistent.
  */
 
 import type {
-  IBuiltInBundle,
+  IBuiltInPlugin,
   TBuiltInExtension,
 } from '../../../plugins/built-ins.js';
 import { loadConfig } from '../../../kernel/config/loader.js';
@@ -26,19 +26,19 @@ export function defaultResolveEnabled(_id: string): boolean {
 }
 
 /**
- * Per-extension enabled filter for built-in bundles. Honours the spec
+ * Per-extension enabled filter for built-in plugins. Honours the spec
  * promise that "no extension is privileged", every built-in is
- * removable via `config_plugins` / `settings.json`. The bundle is a
+ * removable via `config_plugins` / `settings.json`. The plugin row is a
  * presentational grouping only; the lookup key is always the qualified
- * extension id `<bundle.id>/<ext.id>`. Defaults to `true` for any id
+ * extension id `<plugin.id>/<ext.id>`. Defaults to `true` for any id
  * without an explicit override.
  */
 export function isBuiltInExtensionEnabled(
-  bundle: IBuiltInBundle,
+  plugin: IBuiltInPlugin,
   ext: TBuiltInExtension,
   resolveEnabled: (id: string) => boolean,
 ): boolean {
-  return isBundleEntryEnabled(bundle, ext.id, resolveEnabled);
+  return isPluginEntryEnabled(plugin, ext.id, resolveEnabled);
 }
 
 /**
@@ -48,19 +48,19 @@ export function isBuiltInExtensionEnabled(
  * not `TBuiltInExtension`. Same toggle semantics as
  * `isBuiltInExtensionEnabled`.
  */
-export function isBundleEntryEnabled(
-  bundle: IBuiltInBundle,
+export function isPluginEntryEnabled(
+  plugin: IBuiltInPlugin,
   extId: string,
   resolveEnabled: (id: string) => boolean,
 ): boolean {
-  return resolveEnabled(qualifiedExtensionId(bundle.id, extId));
+  return resolveEnabled(qualifiedExtensionId(plugin.id, extId));
 }
 
 /**
  * Decide whether a loaded user-plugin extension is enabled under a
  * (possibly fresh) resolver. The lookup key is the qualified extension
- * id `<pluginId>/<extId>`, mirroring `isBundleEntryEnabled` for
- * built-ins. There is no bundle-level kill-switch anymore.
+ * id `<pluginId>/<extId>`, mirroring `isPluginEntryEnabled` for
+ * built-ins. There is no plugin-level kill-switch anymore.
  */
 export function isPluginExtensionEnabled(
   ext: { pluginId: string; id: string },

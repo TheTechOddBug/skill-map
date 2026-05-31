@@ -6,7 +6,7 @@
  * dependency, so it is trivially unit-testable.
  */
 
-/** The closed set of built-in plugin (bundle) ids. */
+/** The closed set of built-in plugin ids. */
 const BUILT_IN_PLUGIN_IDS: ReadonlySet<string> = new Set([
   'claude',
   'antigravity',
@@ -19,15 +19,15 @@ const BUILT_IN_PLUGIN_IDS: ReadonlySet<string> = new Set([
 const EXTERNAL_PLUGIN_PLACEHOLDER = 'external_plugin';
 
 /**
- * Map a plugin id (a bare bundle id like `claude`, or a qualified extension id
+ * Map a plugin id (a bare plugin id like `claude`, or a qualified extension id
  * like `core/markdown-link`) to the value that may leave the machine: the id
- * unchanged when its bundle is built-in, the literal `external_plugin`
+ * unchanged when its plugin is built-in, the literal `external_plugin`
  * otherwise.
  */
 export function qualifyPluginForUsage(id: string): string {
   const slash = id.indexOf('/');
-  const bundleId = slash > 0 ? id.slice(0, slash) : id;
-  return BUILT_IN_PLUGIN_IDS.has(bundleId) ? id : EXTERNAL_PLUGIN_PLACEHOLDER;
+  const pluginId = slash > 0 ? id.slice(0, slash) : id;
+  return BUILT_IN_PLUGIN_IDS.has(pluginId) ? id : EXTERNAL_PLUGIN_PLACEHOLDER;
 }
 
 /**

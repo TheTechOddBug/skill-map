@@ -1,6 +1,6 @@
 /**
  * Bucket loaded user-plugin extensions into the per-kind arrays a
- * `IPluginRuntimeBundle` exposes, plus the per-extension annotation /
+ * `IPluginRuntime` exposes, plus the per-extension annotation /
  * view contribution catalogs that `loadPluginRuntime` aggregates.
  *
  * Shares the dispatch table with `plugins/built-ins.ts:
@@ -16,7 +16,7 @@ import type { IRegisteredAnnotationKey } from '../../../kernel/types/annotation-
 import type { ILoadedExtension } from '../../../kernel/types/plugin.js';
 import { bucketByKind } from '../../../kernel/util/bucket-by-kind.js';
 
-import type { IPluginRuntimeBundle } from './index.js';
+import type { IPluginRuntime } from './index.js';
 
 /**
  * Drop a plugin's loaded extensions into the per-kind buckets. Each
@@ -30,19 +30,19 @@ import type { IPluginRuntimeBundle } from './index.js';
  * regardless of kind so `sm plugins list` / `sm actions list` see
  * every extension that loaded.
  */
-export function bucketLoaded(loaded: ILoadedExtension[], bundle: IPluginRuntimeBundle): void {
+export function bucketLoaded(loaded: ILoadedExtension[], runtime: IPluginRuntime): void {
   for (const ext of loaded) {
     const instance = ext.instance;
     if (!isExtensionInstance(instance)) continue;
     bucketByKind(ext.kind, instance, {
-      provider: bundle.extensions.providers,
-      extractor: bundle.extensions.extractors,
-      analyzer: bundle.extensions.analyzers,
-      formatter: bundle.extensions.formatters,
-      hook: bundle.extensions.hooks,
+      provider: runtime.extensions.providers,
+      extractor: runtime.extensions.extractors,
+      analyzer: runtime.extensions.analyzers,
+      formatter: runtime.extensions.formatters,
+      hook: runtime.extensions.hooks,
       // `action` intentionally absent, see docstring.
     });
-    bundle.manifests.push({
+    runtime.manifests.push({
       id: ext.id,
       pluginId: ext.pluginId,
       kind: ext.kind,
@@ -51,23 +51,23 @@ export function bucketLoaded(loaded: ILoadedExtension[], bundle: IPluginRuntimeB
       ...(ext.entryPath ? { entry: ext.entryPath } : {}),
     });
     // Step 9.6.6, fold this extension's annotation contributions
-    // into the bundle-level catalog. Per-extension shape was already
+    // into the runtime-level catalog. Per-extension shape was already
     // validated at the loader (root requires exclusive; schema must
     // AJV-compile); cross-plugin collision detection happens after
     // every plugin has loaded.
-    collectAnnotationContributions(ext.pluginId, instance, bundle.annotationContributions);
+    collectAnnotationContributions(ext.pluginId, instance, runtime.annotationContributions);
     // Step 11.x, same for view contributions. Per-extension shape was
     // already validated at the loader (`contract` against the closed
     // catalog); no cross-plugin collision detection needed because the
     // qualified id `<pluginId>/<extensionId>/<contributionId>` is
     // structurally unique.
-    collectViewContributions(ext.pluginId, ext.id, instance, bundle.viewContributions);
+    collectViewContributions(ext.pluginId, ext.id, instance, runtime.viewContributions);
   }
 }
 
 /**
  * Pluck the optional `annotation` (singular) declaration off a loaded
- * extension instance and append one row to the bundle-level catalog.
+ * extension instance and append one row to the runtime-level catalog.
  * Defaults are filled in (`location: 'namespaced'`, `ownership: 'shared'`)
  * so consumers downstream see a fully-resolved shape. The annotation key
  * IS the extension id (structure-as-truth, replaces the `annotationContributions`

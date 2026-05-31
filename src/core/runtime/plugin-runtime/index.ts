@@ -80,7 +80,7 @@ export interface ILoadPluginRuntimeOptions {
   runtimeContext?: IRuntimeContext;
 }
 
-export interface IPluginRuntimeBundle {
+export interface IPluginRuntime {
   /** Bucketed runtime extensions keyed by kind, ready to merge with `builtIns()`. */
   extensions: {
     providers: IProvider[];
@@ -142,7 +142,7 @@ export interface IPluginRuntimeBundle {
   /**
    * Forward every warning row through `printer.warn`. The single
    * canonical surface for advisories from a plugin runtime,
-   * supersedes the hand-rolled `for (const w of bundle.warnings)
+   * supersedes the hand-rolled `for (const w of runtime.warnings)
    * stream.write(\`${w}\n\`)` loop every read-side verb used to
    * spell out (printer.warn already routes to stderr).
    */
@@ -154,19 +154,19 @@ export interface IPluginRuntimeBundle {
  * with the layered enabled-resolver applied.
  *
  * Never throws, a bad search path or a corrupt DB row degrades to a
- * warning and an empty (or partial) bundle. The verb that calls this
+ * warning and an empty (or partial) runtime. The verb that calls this
  * keeps running on whatever loaded successfully.
  *
  * Complexity comes from the orchestration steps (resolve context →
  * search paths → resolver build → loader run → per-plugin status
  * dispatch → root-exclusivity check). Splitting the per-plugin loop
- * into a helper would scatter the bundle population across two
+ * into a helper would scatter the runtime population across two
  * modules with no other consumer.
  */
 // eslint-disable-next-line complexity
 export async function loadPluginRuntime(
   opts: ILoadPluginRuntimeOptions = {},
-): Promise<IPluginRuntimeBundle> {
+): Promise<IPluginRuntime> {
   // Resolve the runtime context once and thread it through every
   // helper that previously called `defaultRuntimeContext()` directly.
   // R14, when the BFF (or a test) provides an explicit override, both
@@ -197,7 +197,7 @@ export async function loadPluginRuntime(
   const loader = createPluginLoader(loaderOpts);
   const discovered = await loader.discoverAndLoadAll();
 
-  const bundle: IPluginRuntimeBundle = {
+  const runtime: IPluginRuntime = {
     extensions: { providers: [], extractors: [], analyzers: [], formatters: [], hooks: [] },
     annotationContributions: [],
     viewContributions: [],
@@ -210,11 +210,11 @@ export async function loadPluginRuntime(
 
   for (const plugin of discovered) {
     if (plugin.status === 'enabled') {
-      bucketLoaded(plugin.extensions ?? [], bundle);
+      bucketLoaded(plugin.extensions ?? [], runtime);
       continue;
     }
     if (plugin.status === 'disabled') continue;
-    bundle.warnings.push(formatWarning(plugin));
+    runtime.warnings.push(formatWarning(plugin));
   }
 
   // Spec § 9.6.6, cross-plugin collision detection on annotation
@@ -226,9 +226,9 @@ export async function loadPluginRuntime(
   // which violates the spec invariant that plugin namespaces are
   // disjoint. The kernel does NOT boot in this state, the host (CLI
   // / BFF) propagates and exits non-zero.
-  enforceRootExclusivity(bundle.annotationContributions);
+  enforceRootExclusivity(runtime.annotationContributions);
 
-  return bundle;
+  return runtime;
 }
 
 /**
@@ -284,12 +284,12 @@ function enforceRootExclusivity(catalog: readonly IRegisteredAnnotationKey[]): v
 }
 
 /**
- * Empty bundle, the right answer for `--no-plugins` paths and any caller
+ * Empty runtime, the right answer for `--no-plugins` paths and any caller
  * that wants the same shape without a discovery pass. Cheaper than
  * calling `loadPluginRuntime` against an empty search path.
  */
-export function emptyPluginRuntime(): IPluginRuntimeBundle {
-  const bundle: IPluginRuntimeBundle = {
+export function emptyPluginRuntime(): IPluginRuntime {
+  const runtime: IPluginRuntime = {
     extensions: { providers: [], extractors: [], analyzers: [], formatters: [], hooks: [] },
     annotationContributions: [],
     viewContributions: [],
@@ -299,5 +299,5 @@ export function emptyPluginRuntime(): IPluginRuntimeBundle {
     resolveEnabled: defaultResolveEnabled,
     emitWarnings(printer) { emitWarnings(this, printer); },
   };
-  return bundle;
+  return runtime;
 }

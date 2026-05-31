@@ -22,8 +22,9 @@
  *
  * Meta envelope: the `scan_meta` table persists `roots` /
  * `scannedAt` / `scannedBy` / `providers` / `stats.filesWalked` /
- * `stats.filesSkipped` / `stats.durationMs`. When the row exists,
- * those fields come back authoritatively. When it does not (DB
+ * `stats.filesSkipped` / `stats.filesOversized` / `stats.durationMs` /
+ * `oversizedFiles`. When the row exists, those fields come back
+ * authoritatively. When it does not (DB
  * freshly migrated but never scanned, or a legacy DB never
  * re-persisted), the loader degrades to a synthetic envelope:
  *
@@ -54,6 +55,7 @@ import type {
   LinkOccurrence,
   LinkTrigger,
   Node,
+  OversizedFile,
   ScanResult,
   ScanScannedBy,
   TripleSplit,
@@ -117,6 +119,11 @@ export async function loadScanResult(
       version: metaRow.scannedByVersion,
       specVersion: metaRow.scannedBySpecVersion,
     };
+    // Reconstruct the file-size skip envelope. `oversized_files_json`
+    // is kernel-owned (only `metaToRow` writes it); NULL / legacy rows
+    // come back as `[]`. The count column defaults to 0 in SQL, so it
+    // stays consistent even on pre-feature DBs.
+    const oversizedFiles = parseJsonArray<OversizedFile>(metaRow.oversizedFilesJson);
     return {
       schemaVersion: 1,
       scannedAt: metaRow.scannedAt,
@@ -125,12 +132,14 @@ export async function loadScanResult(
       scannedBy,
       recommendedNodeLimit: metaRow.recommendedNodeLimit,
       overrideMaxNodes: metaRow.overrideMaxNodes,
+      oversizedFiles,
       nodes,
       links,
       issues,
       stats: {
         filesWalked: metaRow.statsFilesWalked,
         filesSkipped: metaRow.statsFilesSkipped,
+        filesOversized: metaRow.filesOversized,
         nodesCount: nodes.length,
         linksCount: links.length,
         issuesCount: issues.length,
@@ -156,12 +165,14 @@ export async function loadScanResult(
     // scan overwrites scan_meta with the live values on next run.
     recommendedNodeLimit: 256,
     overrideMaxNodes: null,
+    oversizedFiles: [],
     nodes,
     links,
     issues,
     stats: {
       filesWalked: 0,
       filesSkipped: 0,
+      filesOversized: 0,
       nodesCount: nodes.length,
       linksCount: links.length,
       issuesCount: issues.length,

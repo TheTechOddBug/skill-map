@@ -1,19 +1,19 @@
 /**
  * `sm plugins show <id>`, render one plugin's manifest + loaded
- * extensions. Accepts bare bundle ids (`core`, `claude`,
+ * extensions. Accepts bare plugin ids (`core`, `claude`,
  * `my-plugin`) and qualified extension ids (`core/<ext-id>`,
  * `<plugin>/<ext-id>`).
  *
  * Two rendering modes:
- *   - **Bare id**: full bundle detail (header + every extension row),
+ *   - **Bare id**: full plugin detail (header + every extension row),
  *     same as `list <id>` but expanded.
- *   - **Qualified `<bundle>/<ext>` id**: single-extension detail block
+ *   - **Qualified `<plugin>/<ext>` id**: single-extension detail block
  *     (header + Kind / Version / Stability / Description / Preconditions
  *     / Entry fields). The reader asked about one extension; the
- *     output answers that question instead of dumping the whole bundle.
+ *     output answers that question instead of dumping the whole plugin.
  *
  * Both modes accept the same id shapes `sm plugins enable|disable`
- * take. The bare-bundle form renders the bundle detail (with per-extension
+ * take. The bare-plugin form renders the plugin detail (with per-extension
  * status); the qualified form renders the single-extension detail.
  */
 
@@ -35,7 +35,7 @@ import {
   buildResolver,
   loadAll,
   omitModule,
-  type IBuiltInBundleRow,
+  type IBuiltInPluginRow,
 } from './shared.js';
 
 export class PluginsShowCommand extends SmCommand {
@@ -44,11 +44,11 @@ export class PluginsShowCommand extends SmCommand {
     category: 'Plugins',
     description: 'Show a single plugin\'s manifest + loaded extensions.',
     details: `
-      Accepts a bundle / plugin id (\`core\`, \`claude\`, \`my-plugin\`)
+      Accepts a plugin id (\`core\`, \`claude\`, \`my-plugin\`)
       or a qualified extension id (\`core/<ext-id>\`,
       \`<plugin>/<ext-id>\`). When given a qualified id, validates the
       extension exists and renders a single-extension detail block.
-      The bare form renders the parent bundle's detail with per-extension
+      The bare form renders the parent plugin's detail with per-extension
       status. The same id shapes \`sm plugins enable\` and
       \`sm plugins disable\` accept resolve cleanly here too.
     `,
@@ -63,18 +63,18 @@ export class PluginsShowCommand extends SmCommand {
     const builtIns = builtInRows(resolveEnabled);
     const stderrAnsi = this.ansiFor('stderr');
 
-    // Accept qualified `<bundle>/<ext>` ids the same way enable/disable
-    // do, validate the bundle exists and the extension exists inside
-    // it, then carry both `bundleId` and `extId` through.
+    // Accept qualified `<plugin>/<ext>` ids the same way enable/disable
+    // do, validate the plugin exists and the extension exists inside
+    // it, then carry both `pluginId` and `extId` through.
     const lookupResult = resolveShowLookupId(this.id, builtIns, plugins, stderrAnsi);
     if ('error' in lookupResult) {
       this.printer!.error(lookupResult.error);
       return ExitCode.NotFound;
     }
-    const { bundleId, extId } = lookupResult;
+    const { pluginId, extId } = lookupResult;
 
-    const builtIn = builtIns.find((b) => b.id === bundleId);
-    const match = plugins.find((p) => p.id === bundleId);
+    const builtIn = builtIns.find((b) => b.id === pluginId);
+    const match = plugins.find((p) => p.id === pluginId);
 
     if (!builtIn && !match) {
       this.printer!.error(
@@ -88,7 +88,7 @@ export class PluginsShowCommand extends SmCommand {
     }
 
     if (extId !== undefined) {
-      return this.renderExtensionDetail({ extId, bundleId, builtIn, match });
+      return this.renderExtensionDetail({ extId, pluginId, builtIn, match });
     }
 
     if (this.json) {
@@ -107,28 +107,28 @@ export class PluginsShowCommand extends SmCommand {
 
   /**
    * Render the single-extension detail block, the path taken when the
-   * user supplies a qualified `<bundle>/<ext>` id. `--json` emits the
-   * single extension row (no surrounding bundle envelope) so tooling
+   * user supplies a qualified `<plugin>/<ext>` id. `--json` emits the
+   * single extension row (no surrounding plugin envelope) so tooling
    * can pipe straight into `jq`; human mode renders a focused header
    * plus a Kind / Version / Stability / Description / Preconditions /
    * Entry field block.
    */
   private renderExtensionDetail(args: {
     extId: string;
-    bundleId: string;
-    builtIn: IBuiltInBundleRow | undefined;
+    pluginId: string;
+    builtIn: IBuiltInPluginRow | undefined;
     match: IDiscoveredPlugin | undefined;
   }): number {
-    const { extId, bundleId, builtIn, match } = args;
+    const { extId, pluginId, builtIn, match } = args;
     const ansi = this.ansiFor('stdout');
     if (builtIn) {
       const ext = builtIn.extensions.find((e) => e.id === extId);
       if (!ext) return ExitCode.NotFound; // resolveShowLookupId already validated; defensive.
       if (this.json) {
-        this.printer!.data(JSON.stringify({ pluginId: bundleId, ...ext }, omitModule, 2) + '\n');
+        this.printer!.data(JSON.stringify({ pluginId, ...ext }, omitModule, 2) + '\n');
         return ExitCode.Ok;
       }
-      this.printer!.data(renderBuiltInExtensionDetail(bundleId, ext, ansi));
+      this.printer!.data(renderBuiltInExtensionDetail(pluginId, ext, ansi));
       return ExitCode.Ok;
     }
     const userExt = match?.extensions?.find((e) => e.id === extId);
@@ -137,15 +137,15 @@ export class PluginsShowCommand extends SmCommand {
       this.printer!.data(JSON.stringify(userExt, omitModule, 2) + '\n');
       return ExitCode.Ok;
     }
-    this.printer!.data(renderUserExtensionDetail(bundleId, userExt, ansi));
+    this.printer!.data(renderUserExtensionDetail(pluginId, userExt, ansi));
     return ExitCode.Ok;
   }
 }
 
 /**
- * Resolve a user-supplied id (bare or qualified) to the bundle/plugin
+ * Resolve a user-supplied id (bare or qualified) to the plugin
  * id the renderer should look up. Bare ids fall through unchanged.
- * Qualified `<bundle>/<ext>` ids are validated: the bundle must exist
+ * Qualified `<plugin>/<ext>` ids are validated: the plugin must exist
  * (built-in or user plugin) and the extension must be declared inside
  * it. Failures return the same directed error messages as
  * enable/disable so the CLI surface stays consistent, only the
@@ -154,62 +154,62 @@ export class PluginsShowCommand extends SmCommand {
  */
 function resolveShowLookupId(
   id: string,
-  builtIns: IBuiltInBundleRow[],
+  builtIns: IBuiltInPluginRow[],
   plugins: IDiscoveredPlugin[],
   ansi: IAnsi,
-): { bundleId: string; extId?: string } | { error: string } {
-  if (!id.includes('/')) return { bundleId: id };
+): { pluginId: string; extId?: string } | { error: string } {
+  if (!id.includes('/')) return { pluginId: id };
   const parsed = parseQualifiedId(id);
   if ('error' in parsed) return { error: malformedQualifiedError(id, ansi) };
 
-  const { bundleId, extId } = parsed;
-  const knownExts = collectKnownExtensions(bundleId, builtIns, plugins);
-  if (knownExts === null) return { error: unknownBundleError(bundleId, ansi) };
+  const { pluginId, extId } = parsed;
+  const knownExts = collectKnownExtensions(pluginId, builtIns, plugins);
+  if (knownExts === null) return { error: unknownPluginError(pluginId, ansi) };
   if (!knownExts.includes(extId)) {
-    return { error: unknownExtensionError(id, bundleId, extId, ansi) };
+    return { error: unknownExtensionError(id, pluginId, extId, ansi) };
   }
-  return { bundleId, extId };
+  return { pluginId, extId };
 }
 
-function parseQualifiedId(id: string): { bundleId: string; extId: string } | { error: true } {
-  const [bundleId, extId, ...rest] = id.split('/');
-  if (!bundleId || !extId || rest.length > 0) return { error: true };
-  return { bundleId, extId };
+function parseQualifiedId(id: string): { pluginId: string; extId: string } | { error: true } {
+  const [pluginId, extId, ...rest] = id.split('/');
+  if (!pluginId || !extId || rest.length > 0) return { error: true };
+  return { pluginId, extId };
 }
 
 function collectKnownExtensions(
-  bundleId: string,
-  builtIns: IBuiltInBundleRow[],
+  pluginId: string,
+  builtIns: IBuiltInPluginRow[],
   plugins: IDiscoveredPlugin[],
 ): string[] | null {
-  const builtIn = builtIns.find((b) => b.id === bundleId);
+  const builtIn = builtIns.find((b) => b.id === pluginId);
   if (builtIn) return builtIn.extensions.map((e) => e.id);
-  const userPlugin = plugins.find((p) => p.id === bundleId);
+  const userPlugin = plugins.find((p) => p.id === pluginId);
   if (userPlugin) return userPlugin.extensions?.map((e) => e.id) ?? [];
   return null;
 }
 
 function malformedQualifiedError(id: string, ansi: IAnsi): string {
-  return tx(PLUGINS_TEXTS.qualifiedIdUnknownBundle, {
+  return tx(PLUGINS_TEXTS.qualifiedIdUnknownPlugin, {
     glyph: ansi.red('✕'),
-    bundleId: sanitizeForTerminal(id),
-    hint: ansi.dim(PLUGINS_TEXTS.qualifiedIdUnknownBundleHint),
+    pluginId: sanitizeForTerminal(id),
+    hint: ansi.dim(PLUGINS_TEXTS.qualifiedIdUnknownPluginHint),
   });
 }
 
-function unknownBundleError(bundleId: string, ansi: IAnsi): string {
-  return tx(PLUGINS_TEXTS.qualifiedIdUnknownBundle, {
+function unknownPluginError(pluginId: string, ansi: IAnsi): string {
+  return tx(PLUGINS_TEXTS.qualifiedIdUnknownPlugin, {
     glyph: ansi.red('✕'),
-    bundleId: sanitizeForTerminal(bundleId),
-    hint: ansi.dim(PLUGINS_TEXTS.qualifiedIdUnknownBundleHint),
+    pluginId: sanitizeForTerminal(pluginId),
+    hint: ansi.dim(PLUGINS_TEXTS.qualifiedIdUnknownPluginHint),
   });
 }
 
-function unknownExtensionError(id: string, bundleId: string, extId: string, ansi: IAnsi): string {
+function unknownExtensionError(id: string, pluginId: string, extId: string, ansi: IAnsi): string {
   return tx(PLUGINS_TEXTS.qualifiedIdNotFound, {
     glyph: ansi.red('✕'),
     id: sanitizeForTerminal(id),
-    bundleId: sanitizeForTerminal(bundleId),
+    pluginId: sanitizeForTerminal(pluginId),
     extId: sanitizeForTerminal(extId),
     hint: ansi.dim(PLUGINS_TEXTS.qualifiedIdNotFoundHint),
   });
@@ -220,7 +220,7 @@ interface IExtensionListItem {
   kind: string;
   name: string;
   /**
-   * Optional. Populated for user-plugin extensions so the bundle-detail
+   * Optional. Populated for user-plugin extensions so the plugin-detail
    * block surfaces per-extension semver. Omitted for built-in extensions
    * (`core`, `claude`, `antigravity`, `openai`, `agent-skills`), which
    * inherit the CLI version and are not versioned independently.
@@ -229,11 +229,11 @@ interface IExtensionListItem {
 }
 
 /**
- * Canonical kind ordering for the bundle-detail extension block. Mirrors
+ * Canonical kind ordering for the plugin-detail extension block. Mirrors
  * `EXTENSION_KINDS` from `kernel/registry.ts` (provider, extractor,
  * analyzer, action, formatter, hook), the pipeline order a reader walks
  * the satellites in on the marketing site. Within a kind, sort by short
- * id ascending (the unqualified id, NOT `<bundle>/<id>`, so user plugins
+ * id ascending (the unqualified id, NOT `<plugin>/<id>`, so user plugins
  * and built-ins sort the same way).
  */
 function kindIndex(kind: string): number {
@@ -252,7 +252,7 @@ function sortExtensionsCanonical<T extends { id: string; kind: ExtensionKind | s
 }
 
 /**
- * Detail rendering for one built-in bundle:
+ * Detail rendering for one built-in plugin:
  *
  *   ✓  core   built-in   27 extensions
  *
@@ -262,11 +262,11 @@ function sortExtensionsCanonical<T extends { id: string; kind: ExtensionKind | s
  *       ...
  *
  * Every extension carries its own glyph (✓ / ✕) because every extension
- * is independently toggle-able by its qualified id `<bundle>/<ext>`.
+ * is independently toggle-able by its qualified id `<plugin>/<ext>`.
  * Names are rendered qualified so the user can copy-paste the handle
  * straight into `sm plugins enable|disable`.
  */
-function renderBuiltInDetail(b: IBuiltInBundleRow, ansi: IAnsi): string {
+function renderBuiltInDetail(b: IBuiltInPluginRow, ansi: IAnsi): string {
   const glyph = b.enabled
     ? ansi.green(PLUGINS_TEXTS.rowGlyphOk)
     : ansi.red(PLUGINS_TEXTS.rowGlyphOff);
@@ -371,18 +371,18 @@ function collectPluginExtensionItems(
 ): IExtensionListItem[] {
   const enabled = match.status === 'enabled';
   if (!enabled || !match.extensions) return [];
-  const safeBundleId = sanitizeForTerminal(match.id);
+  const safePluginId = sanitizeForTerminal(match.id);
   const sorted = sortExtensionsCanonical(match.extensions);
   return sorted.map((ext) => {
     const safeExtId = sanitizeForTerminal(ext.id);
     return {
       // User plugins surfaced via `loadAll` already filter on the
       // resolver, so a reachable extension on this surface is enabled
-      // by construction. The disabled path goes through the bundle
+      // by construction. The disabled path goes through the plugin
       // status header above (✕ on the row).
       glyph: ansi.green(PLUGINS_TEXTS.rowGlyphOk),
       kind: sanitizeForTerminal(ext.kind),
-      name: `${safeBundleId}/${safeExtId}`,
+      name: `${safePluginId}/${safeExtId}`,
       version: sanitizeForTerminal(ext.version),
     };
   });
@@ -398,7 +398,7 @@ function renderExtensionItems(items: IExtensionListItem[]): string {
   if (items.length === 0) return '';
   const kindWidth = Math.max(...items.map((i) => i.kind.length));
   // `name` padding exists to align the `v<version>` column. When no
-  // item carries a version (built-in bundles, which inherit the CLI
+  // item carries a version (built-in plugins, which inherit the CLI
   // version), drop the padding so rows don't end in trailing spaces.
   const anyVersion = items.some((i) => i.version !== undefined);
   const nameWidth = anyVersion ? Math.max(...items.map((i) => i.name.length)) : 0;
@@ -421,7 +421,7 @@ function renderExtensionItems(items: IExtensionListItem[]): string {
 
 /**
  * Single-extension detail for a built-in extension. Header is the
- * qualified id with the same enabled/disabled glyph the bundle row
+ * qualified id with the same enabled/disabled glyph the plugin row
  * uses, followed by a field block (Kind / Version / Stability /
  * Description / Preconditions / Entry). Optional fields the manifest
  * does not declare are dropped from the block, the row is not rendered
@@ -429,8 +429,8 @@ function renderExtensionItems(items: IExtensionListItem[]): string {
  * never looks like a placeholder bug.
  */
 function renderBuiltInExtensionDetail(
-  bundleId: string,
-  ext: IBuiltInBundleRow['extensions'][number],
+  pluginId: string,
+  ext: IBuiltInPluginRow['extensions'][number],
   ansi: IAnsi,
 ): string {
   const glyph = ext.enabled
@@ -438,7 +438,7 @@ function renderBuiltInExtensionDetail(
     : ansi.red(PLUGINS_TEXTS.rowGlyphOff);
   const header = tx(PLUGINS_TEXTS.detailHeaderExtensionBuiltIn, {
     glyph,
-    qualifiedId: sanitizeForTerminal(`${bundleId}/${ext.id}`),
+    qualifiedId: sanitizeForTerminal(`${pluginId}/${ext.id}`),
     source: ansi.dim(PLUGINS_TEXTS.sourceBuiltIn),
   });
   // Built-in extensions inherit the CLI version, the Version field is
@@ -459,14 +459,14 @@ function renderBuiltInExtensionDetail(
  * extensions discovered under `status === 'enabled'`.
  */
 function renderUserExtensionDetail(
-  bundleId: string,
+  pluginId: string,
   ext: ILoadedExtension,
   ansi: IAnsi,
 ): string {
   const glyph = ansi.green(PLUGINS_TEXTS.rowGlyphOk);
   const header = tx(PLUGINS_TEXTS.detailHeaderExtensionUser, {
     glyph,
-    qualifiedId: sanitizeForTerminal(`${bundleId}/${ext.id}`),
+    qualifiedId: sanitizeForTerminal(`${pluginId}/${ext.id}`),
     source: ansi.dim(PLUGINS_TEXTS.sourceUser),
   });
   const meta = readInstanceMeta(ext.instance);

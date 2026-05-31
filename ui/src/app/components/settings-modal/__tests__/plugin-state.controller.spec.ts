@@ -27,7 +27,7 @@ function pluginsEnvelope(items: IPluginItemApi[]): IListEnvelopeApi<IPluginItemA
   };
 }
 
-function bundle(
+function plugin(
   id: string,
   overrides: Partial<IPluginItemApi> = {},
 ): IPluginItemApi {
@@ -39,11 +39,11 @@ function bundle(
     status,
     reason: null,
     source: 'built-in',
-    // Every bundle ships at least one extension. The bundle is just a
+    // Every plugin ships at least one extension. The plugin is just a
     // presentational grouping (no toggle of its own); the inline
     // extension carries the per-extension toggle axis the controller
     // tracks via `onExtensionToggle`. Mirrors the production single-
-    // extension provider bundles like `openai/openai`.
+    // extension provider plugins like `openai/openai`.
     extensions: [
       { id, kind: 'provider', version: '1.0.0', enabled: status === 'enabled' },
     ],
@@ -52,8 +52,8 @@ function bundle(
 }
 
 /**
- * Flip the bundle's first extension via `onExtensionToggle`. Replaces
- * the legacy `onBundleToggle` calls now that the bundle itself has no
+ * Flip the plugin's first extension via `onExtensionToggle`. Replaces
+ * the legacy `onBundleToggle` calls now that the plugin itself has no
  * toggle axis.
  */
 function toggleBundleAggregate(
@@ -62,7 +62,7 @@ function toggleBundleAggregate(
   next: boolean,
 ): void {
   const ext = (plugin.extensions ?? [])[0];
-  if (!ext) throw new Error(`bundle ${plugin.id} has no extensions to toggle`);
+  if (!ext) throw new Error(`plugin ${plugin.id} has no extensions to toggle`);
   handle.onExtensionToggle(plugin.id, ext, next);
 }
 
@@ -93,7 +93,7 @@ describe('plugin-state.controller, refresh', () => {
   });
 
   it('populates plugins + originalState + pendingState from the response', async () => {
-    const items = [bundle('claude'), bundle('gemini', { status: 'disabled' })];
+    const items = [plugin('claude'), plugin('gemini', { status: 'disabled' })];
     const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
     const handle = make(setupDeps({ listPlugins }));
 
@@ -123,8 +123,8 @@ describe('plugin-state.controller, refresh', () => {
 });
 
 describe('plugin-state.controller, toggle buffering', () => {
-  it('toggling a bundle aggregate mutates pendingState and dirtyIds reflects it', async () => {
-    const items = [bundle('claude')];
+  it('toggling a plugin aggregate mutates pendingState and dirtyIds reflects it', async () => {
+    const items = [plugin('claude')];
     const handle = make(
       setupDeps({ listPlugins: vi.fn().mockResolvedValue(pluginsEnvelope(items)) }),
     );
@@ -139,7 +139,7 @@ describe('plugin-state.controller, toggle buffering', () => {
   });
 
   it('toggling back to the original value clears the dirty marker', async () => {
-    const items = [bundle('claude')];
+    const items = [plugin('claude')];
     const handle = make(
       setupDeps({ listPlugins: vi.fn().mockResolvedValue(pluginsEnvelope(items)) }),
     );
@@ -151,7 +151,7 @@ describe('plugin-state.controller, toggle buffering', () => {
     expect(handle.hasPendingChanges()).toBe(false);
   });
 
-  it('onExtensionToggle keys the buffer with <bundle>/<ext>', async () => {
+  it('onExtensionToggle keys the buffer with <plugin>/<ext>', async () => {
     const core: IPluginItemApi = {
       id: 'core',
       version: null,
@@ -176,8 +176,8 @@ describe('plugin-state.controller, toggle buffering', () => {
 
 describe('plugin-state.controller, applyChanges', () => {
   it('ships only the dirty diff, refreshes state, fires a scan, and returns ok=true', async () => {
-    const before = [bundle('claude'), bundle('gemini')];
-    const after = [bundle('claude', { status: 'disabled' }), bundle('gemini')];
+    const before = [plugin('claude'), plugin('gemini')];
+    const after = [plugin('claude', { status: 'disabled' }), plugin('gemini')];
     const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(before));
     const applyPluginChanges = vi.fn().mockResolvedValue(pluginsEnvelope(after));
     const deps = setupDeps({ listPlugins, applyPluginChanges });
@@ -198,7 +198,7 @@ describe('plugin-state.controller, applyChanges', () => {
   });
 
   it('returns ok=false with no dirty entries and does not call the data source', async () => {
-    const items = [bundle('claude')];
+    const items = [plugin('claude')];
     const applyPluginChanges = vi.fn();
     const deps = setupDeps({
       listPlugins: vi.fn().mockResolvedValue(pluginsEnvelope(items)),
@@ -214,7 +214,7 @@ describe('plugin-state.controller, applyChanges', () => {
   });
 
   it('returns ok=false and surfaces the error when applyPluginChanges rejects', async () => {
-    const items = [bundle('claude')];
+    const items = [plugin('claude')];
     const applyPluginChanges = vi.fn().mockRejectedValue(new Error('boom'));
     const deps = setupDeps({
       listPlugins: vi.fn().mockResolvedValue(pluginsEnvelope(items)),
@@ -236,7 +236,7 @@ describe('plugin-state.controller, applyChanges', () => {
 
 describe('plugin-state.controller, discardChanges', () => {
   it('resets pendingState to originalState and clears toggleError', async () => {
-    const items = [bundle('claude')];
+    const items = [plugin('claude')];
     const handle = make(
       setupDeps({ listPlugins: vi.fn().mockResolvedValue(pluginsEnvelope(items)) }),
     );
@@ -254,8 +254,8 @@ describe('plugin-state.controller, discardChanges', () => {
 describe('plugin-state.controller, restartRecommended', () => {
   it('is true when a startsAsDisabled plugin is re-enabled in the buffer', async () => {
     const items = [
-      bundle('was-off', { status: 'disabled', startsAsDisabled: true }),
-      bundle('claude'),
+      plugin('was-off', { status: 'disabled', startsAsDisabled: true }),
+      plugin('claude'),
     ];
     const handle = make(
       setupDeps({ listPlugins: vi.fn().mockResolvedValue(pluginsEnvelope(items)) }),
@@ -269,7 +269,7 @@ describe('plugin-state.controller, restartRecommended', () => {
   });
 
   it('is false when only non-startsAsDisabled plugins are dirty', async () => {
-    const items = [bundle('claude')];
+    const items = [plugin('claude')];
     const handle = make(
       setupDeps({ listPlugins: vi.fn().mockResolvedValue(pluginsEnvelope(items)) }),
     );

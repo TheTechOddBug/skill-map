@@ -12,7 +12,7 @@ This guide is **descriptive prose, not the normative contract**. The normative p
 
 ```text
 my-plugin/
-├── plugin.json                          ← bundle metadata (required)
+├── plugin.json                          ← plugin metadata (required)
 └── extractors/                          ← one folder per extension kind
     └── my-extractor/
         ├── index.js                     ← extension entry (required)
@@ -23,7 +23,7 @@ my-plugin/
 The kernel auto-discovers extensions by walking
 `<plugin-dir>/<kind>s/<name>/index.{js,mjs,ts}` for each known kind
 (`providers`, `extractors`, `analyzers`, `actions`, `formatters`,
-`hooks`). **The folder layout IS the source of truth**: the bundle id comes from the
+`hooks`). **The folder layout IS the source of truth**: the plugin id comes from the
 top-level dir, the kind from the subfolder name, the extension id from the
 extension folder name. The manifest does NOT declare an
 `extensions[]` array, and an extension file does NOT declare its own `id` or `kind`
@@ -105,7 +105,7 @@ The plugin `id` is the **directory name** (`<root>/<id>/plugin.json`), not a man
 
 Every extension is identified in the registry, and in any cross-extension reference, by its **qualified id** `<plugin-id>/<extension-id>`. The plugin id (the directory name) is therefore also the **namespace** for every extension the plugin ships.
 
-Concrete examples for the reference impl's bundled extensions:
+Concrete examples for the reference impl's built-in extensions:
 
 | Extension | Short id (folder name) | Qualified id (in the registry) |
 |---|---|---|
@@ -121,7 +121,7 @@ Concrete examples for the reference impl's bundled extensions:
 Built-ins split between two namespaces:
 
 - **`core/`**, kernel-internal primitives, platform-agnostic: every built-in analyzer, the ASCII formatter, the cross-vendor extractors (`annotations`, `markdown-link`, `external-url-counter`), the universal `markdown` Provider fallback, and the `update-check` hook.
-- **`claude/`**, the Claude Code Provider bundle: the Provider plus the Claude-flavoured extractors (`slash-command`, `at-directive`). Other vendor bundles (`antigravity`, `openai`, `agent-skills`) follow the same shape (Provider only).
+- **`claude/`**, the Claude Code Provider plugin: the Provider plus the Claude-flavoured extractors (`slash-command`, `at-directive`). Other vendor plugins (`antigravity`, `openai`, `agent-skills`) follow the same shape (Provider only).
 
 ### Extension id shape
 
@@ -131,18 +131,18 @@ Authors are not required to follow this, but it makes `sm plugins list` self-gro
 
 ### Toggle model
 
-Every extension is independently toggle-able by its qualified id `<bundle>/<ext-id>` (e.g. `claude/at-directive`, `core/node-superseded`). The **bundle is a presentational grouping**, not a toggle target: the user sees a row per bundle in `sm plugins list` and the Settings UI, with each extension listed underneath with its own enabled / disabled state.
+Every extension is independently toggle-able by its qualified id `<plugin>/<ext-id>` (e.g. `claude/at-directive`, `core/node-superseded`). The **plugin row is a presentational grouping**, not the granular toggle target: the user sees a row per plugin in `sm plugins list` and the Settings UI, with each extension listed underneath with its own enabled / disabled state.
 
 Two id shapes resolve at the toggle surface:
 
-- **Qualified id** (`<bundle>/<ext-id>`): flips exactly that extension. No prompt.
-- **Bare bundle id** (`claude`, `core`): the **macro form**, fans the toggle across every extension inside the bundle.
-  - Single-extension bundle (`openai`, `antigravity`, `agent-skills`): applies directly, no prompt.
-  - Multi-extension bundle (`claude`, `core`): requires `--yes` OR an interactive TTY confirm. CI / pipe contexts must pass `--yes`.
+- **Qualified id** (`<plugin>/<ext-id>`): flips exactly that extension. No prompt.
+- **Bare plugin id** (`claude`, `core`): the **bundle (aggregate) macro form**, fans the toggle across every extension inside the plugin.
+  - Single-extension plugin (`openai`, `antigravity`, `agent-skills`): applies directly, no prompt.
+  - Multi-extension plugin (`claude`, `core`): requires `--yes` OR an interactive TTY confirm. CI / pipe contexts must pass `--yes`.
 
-`--all` is the cascade variant: it expands to every extension in every discovered bundle and applies the same `--yes` / TTY-confirm gate.
+`--all` is the cascade variant: it expands to every extension in every discovered plugin and applies the same `--yes` / TTY-confirm gate.
 
-Resolution order per id: DB override (`config_plugins`) > `settings.json#/plugins/<id>/enabled` > installed default (`true`). Persisted toggle keys are always qualified `<bundle>/<ext>` ids (the macro path expands at write time).
+Resolution order per id: DB override (`config_plugins`) > `settings.json#/plugins/<id>/enabled` > installed default (`true`). Persisted toggle keys are always qualified `<plugin>/<ext>` ids (the bundle macro path expands at write time).
 
 There is no `granularity` manifest field; per-extension toggling is the only model.
 

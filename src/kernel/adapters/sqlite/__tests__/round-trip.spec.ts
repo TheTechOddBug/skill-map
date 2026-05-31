@@ -264,3 +264,45 @@ describe('persistence round-trip for link-matrix fields', () => {
     }
   });
 });
+
+describe('persistence round-trip for the file-size skip envelope', () => {
+  it('persists and re-reads `oversizedFiles` + `stats.filesOversized` through scan_meta', async () => {
+    const path = freshDbPath('scan-meta-oversized');
+    const adapter = new SqliteStorageAdapter({ databasePath: path });
+    await adapter.init();
+    try {
+      const node = baseNode({ path: 'a.md' });
+      const result = makeScanResult([node], []);
+      result.oversizedFiles = [
+        { path: 'assets/huge.bin.md', bytes: 5_242_880 },
+        { path: 'docs/generated.md', bytes: 2_097_152 },
+      ];
+      result.stats.filesOversized = result.oversizedFiles.length;
+      await adapter.scans.persist(result);
+
+      const loaded = await adapter.scans.load();
+      ok(loaded);
+      deepStrictEqual(loaded.oversizedFiles, result.oversizedFiles);
+      strictEqual(loaded.stats.filesOversized, 2);
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('returns an empty `oversizedFiles` and `filesOversized: 0` when no file was skipped', async () => {
+    const path = freshDbPath('scan-meta-no-oversized');
+    const adapter = new SqliteStorageAdapter({ databasePath: path });
+    await adapter.init();
+    try {
+      const node = baseNode({ path: 'a.md' });
+      await adapter.scans.persist(makeScanResult([node], []));
+
+      const loaded = await adapter.scans.load();
+      ok(loaded);
+      deepStrictEqual(loaded.oversizedFiles, []);
+      strictEqual(loaded.stats.filesOversized, 0);
+    } finally {
+      await adapter.close();
+    }
+  });
+});

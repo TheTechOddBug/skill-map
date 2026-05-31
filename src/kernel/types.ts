@@ -34,7 +34,7 @@
  *   4. **Internal interfaces**, option bags, result records, config
  *      slices, anything declared as `interface` and passed across
  *      function boundaries inside the kernel / CLI but not part of the
- *      spec: `IPluginRuntimeBundle`, `IPruneResult`, `IMigrationFile`,
+ *      spec: `IPluginRuntime`, `IPruneResult`, `IMigrationFile`,
  *      `IDbLocationOptions`. **`I` prefix.** The prefix matches
  *      category 3 because both are "shapes that live in TypeScript
  *      only, never in JSON".
@@ -537,6 +537,13 @@ export interface ScanStats {
    * multiple Providers can claim the same file.
    */
   filesSkipped: number;
+  /**
+   * Files skipped by the walker BEFORE reading because their on-disk
+   * size exceeded `scan.maxFileSizeBytes`. Equals
+   * `ScanResult.oversizedFiles.length`. Absent on synthetic fixtures /
+   * loaders that predate the field; defaults to 0 when omitted.
+   */
+  filesOversized?: number;
   nodesCount: number;
   linksCount: number;
   issuesCount: number;
@@ -674,8 +681,28 @@ export interface ScanResult {
    * setting). Bidirectional: can raise OR lower the recommended limit.
    */
   overrideMaxNodes?: number | null;
+  /**
+   * Files the walker skipped because their on-disk size exceeded
+   * `scan.maxFileSizeBytes` (default 1 MiB). Each entry is the
+   * root-relative, forward-slash path (same form as `node.path`) plus
+   * the byte size. Drives the CLI / serve terminal WARN and the UI
+   * banner. Defaults to `[]`; absent on synthetic fixtures that bypass
+   * the walker.
+   */
+  oversizedFiles?: OversizedFile[];
   nodes: Node[];
   links: Link[];
   issues: Issue[];
   stats: ScanStats;
+}
+
+/**
+ * One file the walker skipped for exceeding `scan.maxFileSizeBytes`.
+ * Mirrors `scan-result.schema.json#/properties/oversizedFiles/items`.
+ */
+export interface OversizedFile {
+  /** Root-relative, forward-slash path (same form as `node.path`). */
+  path: string;
+  /** On-disk size of the skipped file, in bytes. */
+  bytes: number;
 }

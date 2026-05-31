@@ -2,7 +2,7 @@
  * `sm plugins list`, tabulate discovered plugins with status.
  *
  * Scans `<cwd>/.skill-map/plugins/` (or `--plugin-dir <path>` when
- * the operator opts into a custom root). Built-in bundles (`claude`,
+ * the operator opts into a custom root). Built-in plugins (`claude`,
  * `core`, …) surface alongside user plugins so the user sees the
  * full plugin universe in one place.
  */
@@ -22,7 +22,7 @@ import {
   buildResolver,
   loadAll,
   omitModule,
-  type IBuiltInBundleRow,
+  type IBuiltInPluginRow,
 } from './shared.js';
 
 export class PluginsListCommand extends SmCommand {
@@ -30,7 +30,7 @@ export class PluginsListCommand extends SmCommand {
   static override usage = Command.Usage({
     category: 'Plugins',
     description: 'List discovered plugins and their load status.',
-    details: 'Scans <cwd>/.skill-map/plugins (or --plugin-dir <path>). Built-in bundles (claude, core) are listed alongside user plugins.',
+    details: 'Scans <cwd>/.skill-map/plugins (or --plugin-dir <path>). Built-in plugins (claude, core) are listed alongside user plugins.',
   });
 
   pluginDir = Option.String('--plugin-dir', { required: false });
@@ -59,7 +59,7 @@ export class PluginsListCommand extends SmCommand {
 }
 
 interface IListRow {
-  /** Bundle / plugin id (raw, sanitized for user plugins). */
+  /** Plugin id (raw, sanitized for user plugins). */
   id: string;
   /** Resolved enabled-state of the row. Drives ✓ / ✕ glyph + color. */
   enabled: boolean;
@@ -84,7 +84,7 @@ interface IListRow {
  * across the whole table so columns align regardless of id length.
  */
 function renderListHuman(
-  builtIns: IBuiltInBundleRow[],
+  builtIns: IBuiltInPluginRow[],
   plugins: IDiscoveredPlugin[],
   resolveEnabled: (id: string) => boolean,
   ansi: IAnsi,
@@ -107,14 +107,14 @@ function renderListHuman(
     const idCol = row.id.padEnd(idWidth);
     const countCol = String(row.names.length).padStart(countWidth);
     lines.push(
-      tx(PLUGINS_TEXTS.bundleRow, {
+      tx(PLUGINS_TEXTS.pluginRow, {
         glyph,
         id: idCol,
         count: ` ${countCol}`,
         source: ansi.dim(row.source),
       }),
     );
-    const indent = PLUGINS_TEXTS.bundleSubIndent;
+    const indent = PLUGINS_TEXTS.pluginSubIndent;
     if (row.reason) {
       lines.push(`${indent}${ansi.dim(row.reason)}`);
     } else if (row.names.length > 0) {
@@ -126,12 +126,12 @@ function renderListHuman(
   return lines.join('\n') + '\n' + PLUGINS_TEXTS.listTipShow;
 }
 
-function builtInToListRow(b: IBuiltInBundleRow): IListRow {
+function builtInToListRow(b: IBuiltInPluginRow): IListRow {
   // Built-in ids and extension names are static / trusted (compiled in
   // from `plugins/built-ins.ts`); no sanitisation needed.
   //
   // Every extension is independently toggle-able by its qualified id
-  // `<bundle>/<ext>`. Surface that state in the names line by prefixing
+  // `<plugin>/<ext>`. Surface that state in the names line by prefixing
   // disabled extensions with the `✕` glyph so the user sees per-extension
   // status at a glance without having to run `sm plugins show` or
   // `sm plugins doctor`.
@@ -154,11 +154,11 @@ function pluginToListRow(
   // per-ext ids, `reason`) is user-controlled and runs through
   // `sanitizeForTerminal` before it lands in the rendered output.
   //
-  // Bundle aggregate: failure rows keep their loader-verdict glyph;
+  // Plugin aggregate: failure rows keep their loader-verdict glyph;
   // loaded rows aggregate the per-extension toggle state (at least
   // one child enabled → ✓, every child disabled → ✕), mirroring the
   // BFF projection. This keeps the list view consistent with the
-  // per-extension toggle model now that the bundle itself has no
+  // per-extension toggle model now that the plugin itself has no
   // toggle axis.
   const isLoaded = p.status === 'enabled';
   const extensions = p.extensions ?? [];

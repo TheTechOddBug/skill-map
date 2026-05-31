@@ -127,6 +127,14 @@ export const SERVER_TEXTS = {
   watcherBatchFailed:
     'skill-map server: watcher batch failed ({{message}}).\n',
 
+  // Logged on the server pane when a scan batch (initial or follow-up)
+  // skipped one or more files for exceeding `scan.maxFileSizeBytes`.
+  // `{{files}}` is the comma-separated `path (size)` list. The SPA
+  // raises its own banner from the persisted `oversizedFiles`, so this
+  // is log-only (no WS advisory).
+  watcherFilesOversized:
+    'skill-map server: skipped {{count}} file(s) over the size limit (scan.maxFileSizeBytes): {{files}}. Raise the limit or add them to .skillmapignore.\n',
+
   // Logged once when the pre-1.0 schema-drift check rebuilt the DB on
   // watcher boot (the on-disk cache was written by a different
   // major.minor). The scan that follows repopulates it; .sm sidecars
@@ -254,13 +262,13 @@ export const SERVER_TEXTS = {
   // bundle macro endpoint. Anything containing `/` needs the dedicated
   // per-extension route below.
   pluginsCascadeRouteQualifiedRejected:
-    'Plugin id "{{id}}" contains "/"; toggle individual extensions via PATCH /api/plugins/<bundle>/extensions/<extensionId>.',
+    'Plugin id "{{id}}" contains "/"; toggle individual extensions via PATCH /api/plugins/<plugin>/extensions/<extensionId>.',
 
   // 404, unknown plugin / extension.
   pluginsUnknown:
     'No plugin with id "{{id}}".',
   pluginsExtensionUnknown:
-    'Plugin "{{bundleId}}" has no extension named "{{extensionId}}".',
+    'Plugin "{{pluginId}}" has no extension named "{{extensionId}}".',
 
   // 500, DB missing on a write path. Read paths degrade to empty
   // shapes, but mutations cannot persist without a DB so they fail fast.
@@ -268,13 +276,13 @@ export const SERVER_TEXTS = {
     'Cannot persist plugin override: project DB not found at {{path}}. Run `sm scan` first or pass --db <path>.',
 
   // 403, host-enforced lock from `src/server/locked-plugins.ts`. The
-  // bundle (or qualified extension) is in the hardcoded lock-list and
+  // plugin (or qualified extension) is in the hardcoded lock-list and
   // its enabled state is fixed; the UI mirrors the same rule by
   // disabling the toggle.
   pluginsLocked:
     'Plugin "{{id}}" is locked by the host and cannot be toggled.',
   pluginsExtensionLocked:
-    'Extension "{{bundleId}}/{{extensionId}}" is locked by the host and cannot be toggled.',
+    'Extension "{{pluginId}}/{{extensionId}}" is locked by the host and cannot be toggled.',
 
   // 400 envelopes specific to the bulk `PATCH /api/plugins` endpoint.
   // The single-id variants above still apply for per-entry validation

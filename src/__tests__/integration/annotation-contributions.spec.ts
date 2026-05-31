@@ -98,10 +98,10 @@ describe('plugin annotation contributions, per-extension validation', () => {
       schema: { type: 'string' },
     });
 
-    const bundle = await loadPluginRuntime({ pluginDir: dir });
-    assert.equal(bundle.discovered[0]!.status, 'enabled');
-    assert.equal(bundle.annotationContributions.length, 1);
-    const entry = bundle.annotationContributions[0]!;
+    const runtime = await loadPluginRuntime({ pluginDir: dir });
+    assert.equal(runtime.discovered[0]!.status, 'enabled');
+    assert.equal(runtime.annotationContributions.length, 1);
+    const entry = runtime.annotationContributions[0]!;
     assert.equal(entry.pluginId, 'reviewer');
     assert.equal(entry.key, 'lastReviewedAt');
     assert.equal(entry.location, 'namespaced'); // default
@@ -116,11 +116,11 @@ describe('plugin annotation contributions, per-extension validation', () => {
       ownership: 'exclusive',
     });
 
-    const bundle = await loadPluginRuntime({ pluginDir: dir });
-    assert.equal(bundle.discovered[0]!.status, 'enabled');
-    assert.equal(bundle.annotationContributions.length, 1);
-    assert.equal(bundle.annotationContributions[0]!.location, 'root');
-    assert.equal(bundle.annotationContributions[0]!.ownership, 'exclusive');
+    const runtime = await loadPluginRuntime({ pluginDir: dir });
+    assert.equal(runtime.discovered[0]!.status, 'enabled');
+    assert.equal(runtime.annotationContributions.length, 1);
+    assert.equal(runtime.annotationContributions[0]!.location, 'root');
+    assert.equal(runtime.annotationContributions[0]!.ownership, 'exclusive');
   });
 
   it('rejects location:root with shared ownership as invalid-manifest', async () => {
@@ -131,10 +131,10 @@ describe('plugin annotation contributions, per-extension validation', () => {
       // ownership omitted, defaults to 'shared'
     });
 
-    const bundle = await loadPluginRuntime({ pluginDir: dir });
-    assert.equal(bundle.discovered[0]!.status, 'invalid-manifest');
-    assert.match(bundle.discovered[0]!.reason ?? '', /location: 'root'/);
-    assert.equal(bundle.annotationContributions.length, 0);
+    const runtime = await loadPluginRuntime({ pluginDir: dir });
+    assert.equal(runtime.discovered[0]!.status, 'invalid-manifest');
+    assert.match(runtime.discovered[0]!.reason ?? '', /location: 'root'/);
+    assert.equal(runtime.annotationContributions.length, 0);
   });
 
   it("rejects an invalid inline JSON Schema as invalid-manifest", async () => {
@@ -143,9 +143,9 @@ describe('plugin annotation contributions, per-extension validation', () => {
       schema: { type: 'not-a-real-type' },
     });
 
-    const bundle = await loadPluginRuntime({ pluginDir: dir });
-    assert.equal(bundle.discovered[0]!.status, 'invalid-manifest');
-    assert.match(bundle.discovered[0]!.reason ?? '', /annotation/);
+    const runtime = await loadPluginRuntime({ pluginDir: dir });
+    assert.equal(runtime.discovered[0]!.status, 'invalid-manifest');
+    assert.match(runtime.discovered[0]!.reason ?? '', /annotation/);
   });
 });
 
@@ -184,12 +184,12 @@ describe('plugin annotation contributions, cross-plugin conflict', () => {
       schema: { type: 'string' },
     });
 
-    const bundle = await loadPluginRuntime({ pluginDir: dir });
-    assert.equal(bundle.annotationContributions.length, 2);
+    const runtime = await loadPluginRuntime({ pluginDir: dir });
+    assert.equal(runtime.annotationContributions.length, 2);
     // Both plugins surfaced; namespaced contributions live under their
     // own `<plugin-id>:` block at runtime, so the same key under two
     // different namespaces never collides.
-    const pluginIds = bundle.annotationContributions.map((c) => c.pluginId).sort();
+    const pluginIds = runtime.annotationContributions.map((c) => c.pluginId).sort();
     assert.deepEqual(pluginIds, ['plugin-a', 'plugin-b']);
   });
 });

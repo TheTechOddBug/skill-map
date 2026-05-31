@@ -43,7 +43,7 @@
         "maxFileSizeBytes": {
           "type": "integer",
           "minimum": 1,
-          "description": "Files larger than this are skipped with an `info`-level log entry. Default 1048576 (1 MiB). Protects against scanning accidental binary drops or generated artefacts."
+          "description": "Files larger than this are skipped before they are read and surfaced at WARN level. Default 1048576 (1 MiB). Protects against scanning accidental binary drops or generated artefacts. Every skipped file is reported in `ScanResult.oversizedFiles` (root-relative path + byte size), counted in `ScanResult.stats.filesOversized`, printed as a terminal warning on `sm scan` / `sm watch` / `sm serve`, and raised as a UI banner. Trim the offending paths via `.skillmapignore` or raise this limit to include them."
         },
         "maxNodes": {
           "type": "integer",

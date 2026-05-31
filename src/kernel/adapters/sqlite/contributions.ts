@@ -366,13 +366,13 @@ export async function loadContributionLookup(
 
 /**
  * Drop contribution rows for a given plugin (optionally narrowed to a
- * single extension within the bundle). Used by `sm plugins disable` to
+ * single extension within the plugin). Used by `sm plugins disable` to
  * clear stale rows immediately at toggle time, without the purge, the
  * UI would keep rendering the disabled plugin's chips until the next
  * `sm scan` triggered the catalog sweep above.
  *
  * - `extensionId` omitted → wipes every row whose `pluginId` matches
- *   (bundle-granularity disable, e.g. `sm plugins disable claude`).
+ *   (plugin-granularity disable, e.g. `sm plugins disable claude`).
  * - `extensionId` supplied → narrows to the `(pluginId, extensionId)`
  *   pair (extension-granularity disable, e.g.
  *   `sm plugins disable core/slash-command`).

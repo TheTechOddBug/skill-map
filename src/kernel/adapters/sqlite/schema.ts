@@ -191,6 +191,15 @@ export interface IScanMetaTable {
   statsDurationMs: number;
   recommendedNodeLimit: number;
   overrideMaxNodes: number | null;
+  /**
+   * File-size skip envelope (see `scan.maxFileSizeBytes`).
+   * `filesOversized` mirrors `stats.filesOversized` (DEFAULT 0 so
+   * synthetic / legacy writes stay valid); `oversizedFilesJson` is the
+   * JSON-encoded `OversizedFile[]` the CLI / serve terminal warns on and
+   * the UI banner lists. NULL when no file was skipped.
+   */
+  filesOversized: Generated<number>;
+  oversizedFilesJson: string | null;
 }
 
 /**

@@ -163,7 +163,7 @@
   background: var(--p-message-error-background);
 }
 
-.settings-plugins__row.is-extension-bundle {
+.settings-plugins__row.is-extension-plugin {
   background: var(--p-content-background);
 }
 
@@ -366,7 +366,7 @@
   align-items: baseline;
   gap: 0.5rem 0.75rem;
   /* Positioning context for the floating `.settings-plugins__dirty-dot`
-   * (same rationale as the bundle-row headline above). */
+   * (same rationale as the plugin-row headline above). */
   position: relative;
 }
 
@@ -389,7 +389,7 @@
 
 /* Floating dot anchored in the left gutter of the headline whenever
  * the row's pending value differs from its original snapshot. Both
- * bundle-row and extension-subrow share the same dot class so the
+ * plugin-row and extension-subrow share the same dot class so the
  * visual is consistent across the hierarchy.
  *
  * `position: absolute` keeps the dot OUT of flex layout, so its

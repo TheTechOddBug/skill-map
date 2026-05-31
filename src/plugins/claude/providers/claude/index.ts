@@ -88,7 +88,7 @@ export const claudeProvider: IBuiltInManifest<IProvider> = {
 
   // Per spec § A.6, defaultRefreshAction values MUST be qualified action
   // ids. The summarize-* actions are not yet implemented as registry
-  // entries (they ship later under the Claude bundle), but the qualified
+  // entries (they ship later under the Claude plugin), but the qualified
   // form is the contract: when those actions land, they will register
   // under `claude/summarize-<kind>` and the Provider resolves them
   // deterministically.

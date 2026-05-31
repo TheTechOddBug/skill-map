@@ -30,6 +30,8 @@
  */
 
 import type { ProgressEmitterPort } from '../kernel/ports/progress-emitter.js';
+import type { ScanResult } from '../kernel/index.js';
+import { formatOversizedFilePair } from '../kernel/util/format-oversized.js';
 import { log } from '../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../kernel/util/safe-text.js';
 import { tx } from '../kernel/util/tx.js';
@@ -145,7 +147,14 @@ export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherS
                 message: sanitizeForTerminal(outcome.message),
               }),
             );
+            return;
           }
+          // File-size skip WARN. `onBatch` fires for the initial scan
+          // (runInitialBatch: true) AND every follow-up batch, so this
+          // one handler surfaces oversized files at startup and on every
+          // re-scan. Logged on the server pane, not broadcast (the UI
+          // raises its own banner from the persisted `oversizedFiles`).
+          warnOversizedFiles(outcome.result);
         },
         onWatcherError: (message) => {
           // chokidar transport-level error, log + broadcast advisory
@@ -217,6 +226,30 @@ export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherS
       await currentRuntime.start();
     },
   };
+}
+
+/**
+ * Surface a WARN on the server pane when the batch skipped one or more
+ * files for exceeding `scan.maxFileSizeBytes`. Lists each skipped file
+ * as `path (humanSize)`. No broadcast: the UI raises its own banner
+ * from the persisted `oversizedFiles`, so a duplicate WS advisory would
+ * be noise. No-op when nothing was skipped.
+ */
+function warnOversizedFiles(result: ScanResult): void {
+  const oversized = result.oversizedFiles ?? [];
+  if ((result.stats.filesOversized ?? oversized.length) <= 0) return;
+  const files = oversized
+    // Sanitise the disk-sourced path before it reaches the log line, then
+    // hand it to the shared `path (size)` formatter so serve renders the
+    // same atom as `sm scan` / `sm watch`.
+    .map((f) => formatOversizedFilePair({ path: sanitizeForTerminal(f.path), bytes: f.bytes }))
+    .join(', ');
+  log.warn(
+    tx(SERVER_TEXTS.watcherFilesOversized, {
+      count: String(oversized.length),
+      files,
+    }),
+  );
 }
 
 /**

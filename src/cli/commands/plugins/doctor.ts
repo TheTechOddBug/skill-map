@@ -27,7 +27,7 @@
 
 import { Command, Option } from 'clipanion';
 
-import { builtInBundles } from '../../../plugins/built-ins.js';
+import { builtInPlugins } from '../../../plugins/built-ins.js';
 import type {
   IExtractor,
   IProvider,
@@ -49,7 +49,7 @@ import {
   buildResolver,
   loadAll,
   wrapText,
-  type IBuiltInBundleRow,
+  type IBuiltInPluginRow,
 } from './shared.js';
 
 interface IApplicableKindWarning {
@@ -274,9 +274,9 @@ type TStatusCounts = Record<IDiscoveredPlugin['status'], number>;
  * Tally every extension by status. Every extension counts individually
  * (each is independently toggle-able by its qualified id). For loaded
  * user plugins, every child extension contributes (enabled / disabled
- * per the resolver). Failed bundles (invalid-manifest, load-error,
+ * per the resolver). Failed plugins (invalid-manifest, load-error,
  * incompatible-*, id-collision, fully-disabled-at-boot) contribute one
- * unit at the bundle level because the per-extension axis is not
+ * unit at the plugin level because the per-extension axis is not
  * reachable.
  */
 // Cyclomatic count comes from the seven-key counts init + the two
@@ -285,7 +285,7 @@ type TStatusCounts = Record<IDiscoveredPlugin['status'], number>;
 // tally clearer.
 // eslint-disable-next-line complexity
 function countByStatus(
-  builtIns: IBuiltInBundleRow[],
+  builtIns: IBuiltInPluginRow[],
   plugins: IDiscoveredPlugin[],
   resolveEnabled: (id: string) => boolean,
 ): TStatusCounts {
@@ -320,7 +320,7 @@ function countByStatus(
 
 /**
  * Iterate every Provider instance reachable from this run, built-in
- * bundles first, then user plugins (enabled only). Centralises the
+ * plugins first, then user plugins (enabled only). Centralises the
  * "if (ext.kind !== 'provider') continue; cast/extract instance"
  * guard so doctor-style helpers can stay focused on per-Provider
  * logic.
@@ -339,13 +339,13 @@ function forEachProviderInstance(
 function forEachBuiltInProvider(
   callback: (entry: { id: string; pluginId: string; instance: Record<string, unknown> }) => void,
 ): void {
-  for (const bundle of builtInBundles) {
-    for (const ext of bundle.extensions) {
+  for (const plugin of builtInPlugins) {
+    for (const ext of plugin.extensions) {
       if (ext.kind !== 'provider') continue;
       const provider = ext as IProvider;
       callback({
         id: provider.id,
-        pluginId: bundle.id,
+        pluginId: plugin.id,
         instance: provider as unknown as Record<string, unknown>,
       });
     }
@@ -397,7 +397,7 @@ function extensionInstance(ext: ILoadedExtension): Record<string, unknown> | nul
  * extractors that declare `precondition.kind: ['claude/agent']`
  * verbatim. Without the qualified form the doctor produced false
  * positives for `core/tools-counter` (whose precondition lists
- * `claude/agent`) even when the `claude` bundle was enabled.
+ * `claude/agent`) even when the `claude` plugin was enabled.
  */
 function collectKnownKinds(plugins: IDiscoveredPlugin[]): Set<string> {
   const known = new Set<string>();
@@ -442,15 +442,15 @@ function collectBuiltInApplicableKindWarnings(
   // filter via `precondition.kind` (qualified `<pluginPlugin>/<kindName>`)
   // instead of the old `applicableKinds: string[]` list. The doctor now
   // checks the qualified ids against the registered kinds catalog.
-  for (const bundle of builtInBundles) {
-    for (const ext of bundle.extensions) {
+  for (const plugin of builtInPlugins) {
+    for (const ext of plugin.extensions) {
       if (ext.kind !== 'extractor') continue;
       const extractor = ext as IExtractor;
       const kinds = extractor.precondition?.kind;
       if (!kinds || kinds.length === 0) continue;
       appendUnknownKindWarnings(
         out,
-        qualifiedExtensionId(bundle.id, extractor.id),
+        qualifiedExtensionId(plugin.id, extractor.id),
         kinds,
         knownKinds,
       );
@@ -533,15 +533,15 @@ function collectBuiltInUnknownSlotWarnings(
   out: IUnknownSlotWarning[],
   knownSlots: ReadonlySet<string>,
 ): void {
-  for (const bundle of builtInBundles) {
-    for (const ext of bundle.extensions) {
+  for (const plugin of builtInPlugins) {
+    for (const ext of plugin.extensions) {
       // Every `TBuiltInExtension` extends `IExtensionBase`, which
       // declares the optional `viewContributions` field. Read it
       // through a structural cast (no kind filter, every extension
       // kind may contribute).
       const vc = (ext as { viewContributions?: Record<string, unknown> }).viewContributions;
       if (!vc) continue;
-      appendUnknownSlotWarnings(out, qualifiedExtensionId(bundle.id, ext.id), vc, knownSlots);
+      appendUnknownSlotWarnings(out, qualifiedExtensionId(plugin.id, ext.id), vc, knownSlots);
     }
   }
 }

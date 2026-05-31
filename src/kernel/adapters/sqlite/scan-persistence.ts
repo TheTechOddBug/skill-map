@@ -553,6 +553,24 @@ function metaToRow(result: ScanResult): Insertable<IScanMetaTable> {
     statsFilesSkipped: result.stats.filesSkipped,
     statsDurationMs: result.stats.durationMs,
     ...projectNodeLimitColumns(result),
+    ...projectOversizedColumns(result),
+  };
+}
+
+/**
+ * Project the file-size skip envelope onto its `scan_meta` columns.
+ * `filesOversized` falls back to `oversizedFiles.length` (and then 0)
+ * so a result that carries the array but not the stat still persists a
+ * consistent count. `oversizedFilesJson` stays NULL when nothing was
+ * skipped so the column is sparse on the common path.
+ */
+function projectOversizedColumns(
+  result: ScanResult,
+): Pick<Insertable<IScanMetaTable>, 'filesOversized' | 'oversizedFilesJson'> {
+  const oversized = result.oversizedFiles ?? [];
+  return {
+    filesOversized: result.stats.filesOversized ?? oversized.length,
+    oversizedFilesJson: oversized.length > 0 ? JSON.stringify(oversized) : null,
   };
 }
 

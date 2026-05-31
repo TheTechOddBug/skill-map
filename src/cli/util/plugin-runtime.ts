@@ -16,5 +16,5 @@ export {
   loadPluginRuntime,
   registerEnabledExtensions,
   type ILoadPluginRuntimeOptions,
-  type IPluginRuntimeBundle,
+  type IPluginRuntime,
 } from '../../core/runtime/plugin-runtime.js';

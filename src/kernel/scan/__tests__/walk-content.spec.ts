@@ -213,6 +213,89 @@ describe('walkContent', () => {
     deepStrictEqual(collected, []);
   });
 
+  it('skips files larger than maxFileSizeBytes and fires onOversizedFile (path + bytes)', async () => {
+    const sub = mkdtempSync(join(tmpdir(), 'walk-content-size-'));
+    try {
+      // Small file (under the limit) and a big file (over it). The big
+      // file carries a sentinel body, the test asserts that sentinel
+      // never reaches a yielded node (the walker must not read it).
+      const small = '---\nname: small\n---\ntiny body';
+      writeFileSync(join(sub, 'small.md'), small);
+      const big = '---\nname: big\n---\n' + 'X'.repeat(4096);
+      writeFileSync(join(sub, 'big.md'), big);
+
+      const oversized: { path: string; bytes: number }[] = [];
+      const collected: { path: string; body: string }[] = [];
+      for await (const n of walkContent([sub], {
+        extensions: ['.md'],
+        parser: 'frontmatter-yaml',
+        maxFileSizeBytes: 1024,
+        onOversizedFile: (info) => oversized.push(info),
+      })) {
+        collected.push({ path: n.path, body: n.body });
+      }
+
+      // Small file yielded, big file skipped.
+      deepStrictEqual(collected.map((n) => n.path), ['small.md']);
+      // Skipped file content never read into a yielded body.
+      ok(
+        !collected.some((n) => n.body.includes('XXXX')),
+        'oversized file body must never be read / yielded',
+      );
+      // onOversizedFile fired once with the root-relative path + real bytes.
+      strictEqual(oversized.length, 1);
+      strictEqual(oversized[0]!.path, 'big.md');
+      strictEqual(oversized[0]!.bytes, Buffer.byteLength(big));
+    } finally {
+      rmSync(sub, { recursive: true, force: true });
+    }
+  });
+
+  it('does NOT skip a file whose size is exactly at the limit', async () => {
+    const sub = mkdtempSync(join(tmpdir(), 'walk-content-size-eq-'));
+    try {
+      // Body sized so the on-disk file is EXACTLY 1024 bytes; the guard
+      // is strictly-greater-than, so an equal-size file is kept.
+      const prefix = '---\nname: eq\n---\n';
+      const body = 'Y'.repeat(1024 - Buffer.byteLength(prefix));
+      const content = prefix + body;
+      writeFileSync(join(sub, 'eq.md'), content);
+      strictEqual(Buffer.byteLength(content), 1024);
+
+      const oversized: { path: string; bytes: number }[] = [];
+      const collected: string[] = [];
+      for await (const n of walkContent([sub], {
+        extensions: ['.md'],
+        parser: 'frontmatter-yaml',
+        maxFileSizeBytes: 1024,
+        onOversizedFile: (info) => oversized.push(info),
+      })) {
+        collected.push(n.path);
+      }
+      deepStrictEqual(collected, ['eq.md']);
+      deepStrictEqual(oversized, []);
+    } finally {
+      rmSync(sub, { recursive: true, force: true });
+    }
+  });
+
+  it('applies no size limit when maxFileSizeBytes is absent', async () => {
+    const sub = mkdtempSync(join(tmpdir(), 'walk-content-size-off-'));
+    try {
+      writeFileSync(join(sub, 'big.md'), '---\nname: big\n---\n' + 'Z'.repeat(8192));
+      const collected: string[] = [];
+      for await (const n of walkContent([sub], {
+        extensions: ['.md'],
+        parser: 'frontmatter-yaml',
+      })) {
+        collected.push(n.path);
+      }
+      deepStrictEqual(collected, ['big.md']);
+    } finally {
+      rmSync(sub, { recursive: true, force: true });
+    }
+  });
+
   it('throws `UnknownParserError` for an unknown parser id', async () => {
     await rejects(async () => {
       for await (const _ of walkContent([root], {

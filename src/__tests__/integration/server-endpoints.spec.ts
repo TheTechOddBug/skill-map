@@ -730,7 +730,7 @@ describe('/api/plugins', () => {
     });
   });
 
-  it('exposes extensions[] for every bundle (built-in + drop-in)', async () => {
+  it('exposes extensions[] for every plugin (built-in + drop-in)', async () => {
     await bootAndUse(defaultOptions(), async (handle) => {
       const res = await fetch(url(handle, '/api/plugins'));
       const env = (await res.json()) as IListEnvelope<{
@@ -745,14 +745,14 @@ describe('/api/plugins', () => {
       const claude = env.items.find((p) => p.id === 'claude');
       assert.ok(claude, 'expected claude item');
       assert.ok(Array.isArray(claude.extensions), 'claude must expose extensions[]');
-      assert.ok((claude.extensions ?? []).length > 0, 'claude bundle has at least one extension');
-      // No `granularity` field on the wire anymore; the bundle is a
+      assert.ok((claude.extensions ?? []).length > 0, 'claude plugin has at least one extension');
+      // No `granularity` field on the wire anymore; the plugin is a
       // presentational grouping and every extension toggles independently.
       assert.equal((claude as { granularity?: string }).granularity, undefined);
     });
   });
 
-  it('carries description on bundle rows and on per-extension entries', async () => {
+  it('carries description on plugin rows and on per-extension entries', async () => {
     // Pinned at 2026-05-09, the Settings UI reads `description` for
     // both display and substring search; guard the wire so a
     // built-ins refactor cannot silently drop the field.
@@ -763,10 +763,10 @@ describe('/api/plugins', () => {
         extensions?: Array<{ id: string; description?: string }>;
       }>;
       const claude = env.items.find((p) => p.id === 'claude');
-      assert.ok(claude?.description, 'claude bundle must carry a description');
+      assert.ok(claude?.description, 'claude plugin must carry a description');
       assert.ok((claude?.description ?? '').length > 0);
       const core = env.items.find((p) => p.id === 'core');
-      assert.ok(core?.description, 'core bundle must carry a description');
+      assert.ok(core?.description, 'core plugin must carry a description');
       const superseded = (core?.extensions ?? []).find((e) => e.id === 'node-superseded');
       assert.ok(superseded?.description, 'core/node-superseded must carry a description');
       assert.ok((superseded?.description ?? '').length > 0);
@@ -797,7 +797,7 @@ async function patchJson(
 }
 
 describe('PATCH /api/plugins/:id (bundle macro cascade)', () => {
-  it('cascades the toggle across every extension in the bundle', async () => {
+  it('cascades the toggle across every extension in the plugin', async () => {
     await bootAndUse(defaultOptions(), async (handle) => {
       const out = await patchJson(handle, '/api/plugins/claude', { enabled: false });
       assert.equal(out.status, 200);
@@ -956,7 +956,7 @@ describe('POST /api/scan', () => {
   });
 });
 
-describe('PATCH /api/plugins/:bundleId/extensions/:extensionId', () => {
+describe('PATCH /api/plugins/:pluginId/extensions/:extensionId', () => {
   it('toggles a single built-in extension by qualified id', async () => {
     await bootAndUse(defaultOptions(), async (handle) => {
       const out = await patchJson(
@@ -977,10 +977,10 @@ describe('PATCH /api/plugins/:bundleId/extensions/:extensionId', () => {
     });
   });
 
-  it('returns 404 when the qualified-form names an extension the bundle does not declare', async () => {
-    // Every bundle accepts the qualified-form for its real extensions
+  it('returns 404 when the qualified-form names an extension the plugin does not declare', async () => {
+    // Every plugin accepts the qualified-form for its real extensions
     // (every extension is independently toggle-able). Hitting a
-    // nonexistent extension on a real bundle surfaces 404 not-found.
+    // nonexistent extension on a real plugin surfaces 404 not-found.
     await bootAndUse(defaultOptions(), async (handle) => {
       const out = await patchJson(
         handle,
@@ -992,7 +992,7 @@ describe('PATCH /api/plugins/:bundleId/extensions/:extensionId', () => {
     });
   });
 
-  it('returns 404 for an unknown extension id under a known bundle', async () => {
+  it('returns 404 for an unknown extension id under a known plugin', async () => {
     await bootAndUse(defaultOptions(), async (handle) => {
       const out = await patchJson(
         handle,
@@ -1113,8 +1113,8 @@ describe('PATCH /api/plugins (bulk)', () => {
     });
   });
 
-  it('accepts a batch mixing bare bundle ids (cascade) and qualified extension ids', async () => {
-    // Bare bundle ids cascade across every child extension; qualified
+  it('accepts a batch mixing bare plugin ids (cascade) and qualified extension ids', async () => {
+    // Bare plugin ids cascade across every child extension; qualified
     // ids flip exactly that extension. Both shapes coexist in one
     // batch, no granularity reject anywhere on the bulk endpoint.
     await bootAndUse(defaultOptions(), async (handle) => {
@@ -1273,7 +1273,7 @@ describe('POST /api/scan honours mid-session plugin toggles', () => {
 describe('boot-cached registries include built-ins regardless of enabled state', () => {
   /**
    * Plant a `.skill-map/settings.json` under a fresh fixture cwd that
-   * disables one built-in bundle (claude) AND one built-in extension
+   * disables one built-in plugin (claude) AND one built-in extension
    * that contributes views (core/tools-counter). The server boots against
    * that cwd via the `runtimeContext` override and the registries must
    * still expose both items so a mid-session re-enable would surface

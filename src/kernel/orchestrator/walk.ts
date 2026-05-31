@@ -35,7 +35,7 @@ import {
   discoverOrphanSidecars,
   type IOrphanSidecar,
 } from '../sidecar/index.js';
-import type { Issue, Link, Node, ScanResult, Signal } from '../types.js';
+import type { Issue, Link, Node, OversizedFile, ScanResult, Signal } from '../types.js';
 import {
   cloneNodeAndReshapeLinks,
   computeCacheDecision,
@@ -108,6 +108,13 @@ export interface IWalkAndExtractOptions {
    * intent for this scan.
    */
   overrideMaxNodes: number | null;
+  /**
+   * Mirror of `scan.maxFileSizeBytes` (default 1 MiB). Threaded into the
+   * Provider walk so the kernel walker skips any file larger than this
+   * BEFORE reading it. Skipped files are collected into
+   * `IWalkAndExtractResult.oversizedFiles`. Absent → no size limit.
+   */
+  maxFileSizeBytes?: number;
 }
 
 export interface IWalkAndExtractResult {
@@ -141,6 +148,14 @@ export interface IWalkAndExtractResult {
    *  `nodesCount`; with future multi-Provider scans walking overlapping
    *  roots it can diverge. */
   filesWalked: number;
+  /**
+   * Files skipped by the walker because their on-disk size exceeded
+   * `scan.maxFileSizeBytes`. Each entry is the root-relative,
+   * forward-slash path (same form as `node.path`) plus the byte size.
+   * Surfaced into `ScanResult.oversizedFiles` and counted in
+   * `stats.filesOversized` so the CLI / serve terminal can warn and the
+   * UI can raise a banner. Empty when no file exceeded the limit. */
+  oversizedFiles: OversizedFile[];
   /**
    * Effective recommended cap that produced this walk (mirror of
    * `IWalkAndExtractOptions.recommendedNodeLimit`). Reported so callers
@@ -325,7 +340,22 @@ export async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWal
   // fallback (`core/markdown`, registered LAST) would re-claim every
   // file vendor Providers already classified, double-emitting nodes.
   const claimedPaths = new Set<string>();
-  const walkOptions = opts.ignoreFilter ? { ignoreFilter: opts.ignoreFilter } : {};
+  // Files skipped by the walker for exceeding `scan.maxFileSizeBytes`.
+  // Collected once across the whole multi-provider walk; the collector
+  // dedups by path so a file claimed by two providers' roots isn't
+  // double-reported. Surfaced as `ScanResult.oversizedFiles`.
+  const oversizedFiles: OversizedFile[] = [];
+  const oversizedSeen = new Set<string>();
+  const onOversizedFile = (info: OversizedFile): void => {
+    if (oversizedSeen.has(info.path)) return;
+    oversizedSeen.add(info.path);
+    oversizedFiles.push(info);
+  };
+  const walkOptions: import('../extensions/provider.js').IProviderWalkOptions = {
+    ...(opts.ignoreFilter ? { ignoreFilter: opts.ignoreFilter } : {}),
+    onOversizedFile,
+    ...(opts.maxFileSizeBytes !== undefined ? { maxFileSizeBytes: opts.maxFileSizeBytes } : {}),
+  };
   let filesWalked = 0;
   let index = 0;
 
@@ -383,6 +413,7 @@ export async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWal
     cachedPaths: accum.cachedPaths,
     frontmatterIssues: accum.frontmatterIssues,
     filesWalked,
+    oversizedFiles,
     recommendedNodeLimit: opts.recommendedNodeLimit,
     overrideMaxNodes: opts.overrideMaxNodes,
     capReached,

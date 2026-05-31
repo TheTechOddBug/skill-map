@@ -66,7 +66,7 @@ with you. They DO NOT edit anything yet.
 
 Then narrate, one file at a time:
 
-> **`plugin.json`**: the bundle manifest
+> **`plugin.json`**: the plugin manifest
 >
 > The contract the CLI validates at load. It is deliberately lean,
 > four keys:
@@ -79,7 +79,7 @@ Then narrate, one file at a time:
 >
 > - `description`: the one-liner shown in `sm plugins list`.
 >
-> Notice what is NOT here. There is no `id`: the bundle id is the
+> Notice what is NOT here. There is no `id`: the plugin id is the
 > folder name (`demo-highlight`). There is no `extensions` list: the
 > kernel discovers each extension by walking
 > `<plugin-dir>/<kind>s/<name>/index.js`. And there is no `settings`

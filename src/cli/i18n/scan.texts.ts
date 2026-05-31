@@ -80,6 +80,24 @@ export const SCAN_TEXTS = {
   scanCappedNoticeHint:
     'Trim .skillmapignore to exclude noisy paths (preferred), or re-run with --max-nodes <N> to raise the cap. Past the recommended limit the graph is hard to read and analyzer signal drops.',
   /**
+   * File-size skip notice, printed (WARN, stderr) when the walker
+   * skipped one or more files for exceeding `scan.maxFileSizeBytes`.
+   * `{{glyph}}` is the yellow warning glyph, `{{count}}`/`{{noun}}` the
+   * skipped-file tally, `{{files}}` the pre-rendered list of
+   * `path (size)` rows, `{{hint}}` the dim escape-route line.
+   */
+  scanSkippedFilesNotice:
+    '{{glyph}}  Skipped {{count}} {{noun}} over the size limit (scan.maxFileSizeBytes):\n' +
+    '{{files}}' +
+    '     {{hint}}\n',
+  // The per-file `     - path (size)\n` rows that fill `{{files}}` are
+  // rendered by `kernel/util/format-oversized.ts:formatOversizedFileRows`,
+  // shared with `sm watch` / `sm serve` so the three surfaces never drift.
+  scanSkippedFileNounSingular: 'file',
+  scanSkippedFileNounPlural: 'files',
+  scanSkippedFilesNoticeHint:
+    'Raise scan.maxFileSizeBytes to include these, or add them to .skillmapignore to skip them on purpose.',
+  /**
    * Validation message for an invalid `--max-nodes` value. Surfaced as a
    * §3.1b two-line block.
    */

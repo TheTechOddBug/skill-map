@@ -14,7 +14,7 @@
 
 import type { IProvider } from '../../kernel/extensions/index.js';
 import type { ConfigService } from '../../core/config/service.js';
-import type { IPluginRuntimeBundle } from '../../core/runtime/plugin-runtime.js';
+import type { IPluginRuntime } from '../../core/runtime/plugin-runtime.js';
 import type { IRuntimeContext } from '../../core/runtime/runtime-context.js';
 import type { TContributionsRegistry, TKindRegistry, TProviderRegistry } from '../envelope.js';
 import type { IServerOptions } from '../options.js';
@@ -72,12 +72,12 @@ export interface IRouteDeps {
    */
   contributionsRegistry: TContributionsRegistry;
   /**
-   * Plugin runtime bundle resolved once at boot (audit M3). Routes
+   * Plugin runtime resolved once at boot (audit M3). Routes
    * that previously called `loadPluginRuntime` per request now reuse
    * this cached value, an operator that installs a new plugin
    * restarts `sm serve`, matching the watcher's contract.
    */
-  pluginRuntime: IPluginRuntimeBundle;
+  pluginRuntime: IPluginRuntime;
   /**
    * Lazily-cached view over `loadConfig`. Routes consume
    * `c.var.configService.get()` (or `.effective()`) instead of calling

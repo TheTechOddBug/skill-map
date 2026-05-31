@@ -62,7 +62,7 @@ import type { ContentfulStatusCode, StatusCode } from 'hono/utils/http-status';
 import { formatErrorMessage } from '../kernel/util/format-error.js';
 import { ConfigService } from '../core/config/service.js';
 import { EConsentRequiredError } from '../core/config/sidecar-consent.js';
-import type { IPluginRuntimeBundle } from '../core/runtime/plugin-runtime.js';
+import type { IPluginRuntime } from '../core/runtime/plugin-runtime.js';
 import type { IRuntimeContext } from '../core/runtime/runtime-context.js';
 import { ExportQueryError } from '../kernel/index.js';
 import type { Kernel } from '../kernel/index.js';
@@ -252,14 +252,14 @@ export interface IAppDeps {
    */
   contributionsRegistry: TContributionsRegistry;
   /**
-   * Plugin runtime bundle resolved once at boot (audit M3). Threaded
+   * Plugin runtime resolved once at boot (audit M3). Threaded
    * through to every read-side route so `/api/graph`, `/api/plugins`,
    * and `/api/scan?fresh=1` reuse the cached discovery instead of
    * re-walking `.skill-map/plugins/` + recompiling AJV validators per
    * request. Mirrors the watcher's "loaded ONCE at boot" contract,
    * an operator that installs a new plugin restarts `sm serve`.
    */
-  pluginRuntime: IPluginRuntimeBundle;
+  pluginRuntime: IPluginRuntime;
   /**
    * Watcher reference holder. Composition root passes the holder
    * before the watcher has booted; the route layer reads

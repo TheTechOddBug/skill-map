@@ -212,12 +212,12 @@ export class RestDataSource implements IDataSourcePort {
   }
 
   async setPluginExtensionEnabled(
-    bundleId: string,
+    pluginId: string,
     extensionId: string,
     enabled: boolean,
   ): Promise<IListEnvelopeApi<TPluginItem>> {
     const envelope = await this.patchJson<IListEnvelopeApi<TPluginItem>>(
-      `${BASE}/plugins/${encodeURIComponent(bundleId)}/extensions/${encodeURIComponent(extensionId)}`,
+      `${BASE}/plugins/${encodeURIComponent(pluginId)}/extensions/${encodeURIComponent(extensionId)}`,
       { enabled },
     );
     this.ingestRegistry(envelope.kindRegistry);

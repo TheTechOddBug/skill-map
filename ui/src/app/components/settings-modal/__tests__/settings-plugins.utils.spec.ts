@@ -16,7 +16,7 @@ import {
  * component file stays focused on view glue.
  */
 
-function bundle(
+function plugin(
   overrides: Partial<IPluginItemApi> & Pick<IPluginItemApi, 'status'>,
 ): IPluginItemApi {
   return {
@@ -31,12 +31,12 @@ function bundle(
 
 describe('settings-plugins.utils, statusLabel', () => {
   it('returns the "Enabled" string for status=enabled', () => {
-    const label = statusLabel(bundle({ status: 'enabled' }), SETTINGS_TEXTS);
+    const label = statusLabel(plugin({ status: 'enabled' }), SETTINGS_TEXTS);
     expect(label).toBe(SETTINGS_TEXTS.enabledLabel);
   });
 
   it('returns the "Disabled" string for status=disabled', () => {
-    const label = statusLabel(bundle({ status: 'disabled' }), SETTINGS_TEXTS);
+    const label = statusLabel(plugin({ status: 'disabled' }), SETTINGS_TEXTS);
     expect(label).toBe(SETTINGS_TEXTS.disabledLabel);
   });
 
@@ -48,7 +48,7 @@ describe('settings-plugins.utils, statusLabel', () => {
       'id-collision',
     ];
     for (const status of failures) {
-      const label = statusLabel(bundle({ status }), SETTINGS_TEXTS);
+      const label = statusLabel(plugin({ status }), SETTINGS_TEXTS);
       expect(label).toBe(SETTINGS_TEXTS.statusFailure[status]);
     }
   });
@@ -73,8 +73,8 @@ function ext(
 }
 
 describe('settings-plugins.utils, buildStateFromPlugins', () => {
-  it('seeds per-extension keys for every extension, no bundle-level key', () => {
-    // The bundle is a presentational grouping; every extension is
+  it('seeds per-extension keys for every extension, no plugin-level key', () => {
+    // The plugin is a presentational grouping; every extension is
     // independently toggle-able by its qualified id. The state map
     // tracks the per-extension axis only.
     const plugin: IPluginItemApi = {
@@ -97,7 +97,7 @@ describe('settings-plugins.utils, buildStateFromPlugins', () => {
     expect(state.get(qualifiedKey('claude', 'slash'))).toBe(false);
   });
 
-  it('seeds per-extension keys for core (no bundle key)', () => {
+  it('seeds per-extension keys for core (no plugin key)', () => {
     const plugin: IPluginItemApi = {
       id: 'core',
       version: '1.0.0',
@@ -116,7 +116,7 @@ describe('settings-plugins.utils, buildStateFromPlugins', () => {
     expect(state.get(qualifiedKey('core', 'broken-ref'))).toBe(false);
   });
 
-  it('reflects each extension state independently of the bundle row status', () => {
+  it('reflects each extension state independently of the plugin row status', () => {
     const plugin: IPluginItemApi = {
       id: 'claude',
       version: '1.0.0',
@@ -131,7 +131,7 @@ describe('settings-plugins.utils, buildStateFromPlugins', () => {
     expect(state.get(qualifiedKey('claude', 'at-directive'))).toBe(true);
   });
 
-  it('skips failure rows entirely (no bundle key, no extension keys)', () => {
+  it('skips failure rows entirely (no plugin key, no extension keys)', () => {
     const plugin: IPluginItemApi = {
       id: 'broken',
       version: null,

@@ -192,11 +192,11 @@ export interface IDataSourcePort {
 
   /**
    * Toggle one extension under a granularity=`extension` plugin.
-   * Mirrors `PATCH /api/plugins/:bundleId/extensions/:extensionId`.
+   * Mirrors `PATCH /api/plugins/:pluginId/extensions/:extensionId`.
    * Same response shape and error semantics as `setPluginEnabled`.
    */
   setPluginExtensionEnabled(
-    bundleId: string,
+    pluginId: string,
     extensionId: string,
     enabled: boolean,
   ): Promise<IListEnvelopeApi<TPluginItem>>;
@@ -204,7 +204,7 @@ export interface IDataSourcePort {
   /**
    * Apply a buffered batch of plugin toggle changes atomically. Mirrors
    * the bulk `PATCH /api/plugins` endpoint. Each `id` is either a
-   * bundle id (`claude`) or a qualified `<bundle>/<ext>` id
+   * plugin id (`claude`) or a qualified `<plugin>/<ext>` id
    * (`core/superseded`); the BFF dispatcher branches on the slash
    * the same way the per-id PATCHes do.
    *

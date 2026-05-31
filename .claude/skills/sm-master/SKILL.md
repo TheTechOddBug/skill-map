@@ -98,13 +98,13 @@ must internalise before talking to the tester:
   first-mention gloss in addition. The list itself is the gloss.
 
   **Emoji preservation**: when the source line is `> <emoji>
-  **Name**` (e.g. `> 📦 **Built-in bundles**`, `> 🗂️
+  **Name**` (e.g. `> 📦 **Built-in plugins**`, `> 🗂️
   **provider**`), the emoji stands alone as plain text, the name
   is bold. NEVER wrap the emoji in single asterisks (`*📦*`) or
   underscores (`_📦_`), NEVER wrap the entire line in italics
   (`*📦 Name*`), NEVER convert the bold to italic. The emoji
   must render as a plain emoji glyph, not italicised. Same for
-  the bundle list (`📦`, `📥`) and the six-kinds list (`🗂️`,
+  the plugin list (`📦`, `📥`) and the six-kinds list (`🗂️`,
   `🔍`, `🩺`, `⚡`, `🎨`, `🎣`).
 - **The `> ` blockquote prefix on tester messages is
   host-dependent**, applied only when the host renders blockquotes

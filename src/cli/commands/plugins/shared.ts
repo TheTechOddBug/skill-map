@@ -11,7 +11,7 @@
  *   - enabled-state resolver composition (`buildResolver`), DB overrides
  *     stacked on top of `settings.json` + installed defaults
  *   - discovery (`loadAll`), runs the full PluginLoader pass
- *   - synthetic built-in bundle view (`builtInRows`) so list / show /
+ *   - synthetic built-in plugin view (`builtInRows`) so list / show /
  *     doctor / toggle treat built-ins as first-class plugins
  *   - JSON helpers (`omitModule`) for `--json` output that includes
  *     `ILoadedExtension.module` (live ESM namespaces with cycles)
@@ -25,10 +25,10 @@
  */
 
 import {
-  builtInBundles,
+  builtInPlugins,
   type TBuiltInExtension,
 } from '../../../plugins/built-ins.js';
-import { sortBundlesForPresentation } from '../../../plugins/presentation-order.js';
+import { sortPluginsForPresentation } from '../../../plugins/presentation-order.js';
 import {
   createPluginLoader,
   installedSpecVersion,
@@ -96,21 +96,21 @@ export async function loadAll(opts: IPluginDirOption): Promise<IDiscoveredPlugin
   return loader.discoverAndLoadAll();
 }
 
-// --- built-in bundle synthesis -------------------------------------------
+// --- built-in plugin synthesis -------------------------------------------
 
-export interface IBuiltInBundleRow {
+export interface IBuiltInPluginRow {
   id: string;
   /**
-   * Aggregate enabled-state for the bundle: `true` when at least one of
+   * Aggregate enabled-state for the plugin: `true` when at least one of
    * its extensions is enabled. Used by the human renderer to pick the
    * row glyph (`✓` / `✕`) when a per-extension breakdown is not shown.
    */
   enabled: boolean;
   /**
-   * One- to three-sentence summary of what the bundle ships. Carried so
-   * `sm plugins show <bundle>` can surface the same description the BFF
+   * One- to three-sentence summary of what the plugin ships. Carried so
+   * `sm plugins show <plugin>` can surface the same description the BFF
    * publishes for the SPA without re-deriving it. Always populated for
-   * built-ins (the bundle declaration in `built-ins.ts` requires it).
+   * built-ins (the plugin declaration in `built-ins.ts` requires it).
    */
   description: string;
   extensions: ReadonlyArray<{
@@ -120,7 +120,7 @@ export interface IBuiltInBundleRow {
     enabled: boolean;
     /**
      * Per-extension metadata used by the single-extension detail view
-     * (`sm plugins show <bundle>/<ext>`). `description` is required by
+     * (`sm plugins show <plugin>/<ext>`). `description` is required by
      * the new manifest contract; `entry` is the runtime entry path
      * preserved for diagnostics.
      */
@@ -132,26 +132,26 @@ export interface IBuiltInBundleRow {
 }
 
 /**
- * Build a synthesised view over the built-in bundles with the
+ * Build a synthesised view over the built-in plugins with the
  * resolved enabled-state per extension. Every extension is independently
- * toggle-able by its qualified id `<bundle>/<ext>`; the bundle-level
+ * toggle-able by its qualified id `<plugin>/<ext>`; the plugin-level
  * `enabled` is just an aggregate ("any child enabled") so the row
  * renderer can pick a glyph at a glance.
  */
-export function builtInRows(resolveEnabled: (id: string) => boolean): IBuiltInBundleRow[] {
-  // Presentation order: `core` first, then the vendor bundles. Runtime
-  // iteration of `builtInBundles` keeps `core` last so `core/markdown`
+export function builtInRows(resolveEnabled: (id: string) => boolean): IBuiltInPluginRow[] {
+  // Presentation order: `core` first, then the vendor plugins. Runtime
+  // iteration of `builtInPlugins` keeps `core` last so `core/markdown`
   // stays the terminal fallback provider; the CLI listing surface
   // inverts that for readability.
-  return sortBundlesForPresentation(builtInBundles).map((bundle) => {
-    const extensions = bundle.extensions.map((ext) => extensionRowFromBuiltIn(ext, bundle, resolveEnabled));
-    const manifestSummary = bundle.extensions
-      .map((ext) => `${ext.kind}:${qualifiedExtensionId(bundle.id, ext.id)}@${ext.version}`)
+  return sortPluginsForPresentation(builtInPlugins).map((plugin) => {
+    const extensions = plugin.extensions.map((ext) => extensionRowFromBuiltIn(ext, plugin, resolveEnabled));
+    const manifestSummary = plugin.extensions
+      .map((ext) => `${ext.kind}:${qualifiedExtensionId(plugin.id, ext.id)}@${ext.version}`)
       .join(', ');
     return {
-      id: bundle.id,
+      id: plugin.id,
       enabled: extensions.some((e) => e.enabled),
-      description: bundle.description,
+      description: plugin.description,
       extensions,
       manifestSummary,
     };
@@ -159,27 +159,27 @@ export function builtInRows(resolveEnabled: (id: string) => boolean): IBuiltInBu
 }
 
 /**
- * Build one row of `IBuiltInBundleRow.extensions`. Pulls the optional
+ * Build one row of `IBuiltInPluginRow.extensions`. Pulls the optional
  * metadata (`description`, `stability`, `preconditions`, `entry`) from
- * the live built-in instance so `sm plugins show <bundle>/<ext>` can
+ * the live built-in instance so `sm plugins show <plugin>/<ext>` can
  * render a full single-extension detail without re-fetching the source
  * module. The optional fields stay `undefined` when the extension does
  * not declare them; the renderer skips empty rows.
  */
 function extensionRowFromBuiltIn(
   ext: TBuiltInExtension,
-  bundle: { id: string },
+  plugin: { id: string },
   resolveEnabled: (id: string) => boolean,
-): IBuiltInBundleRow['extensions'][number] {
+): IBuiltInPluginRow['extensions'][number] {
   // `exactOptionalPropertyTypes` rejects assigning `undefined` to an
   // optional field, so we build the row in two steps: required fields
   // first, then spread the optional ones only when the source defined
   // them.
-  const row: IBuiltInBundleRow['extensions'][number] = {
+  const row: IBuiltInPluginRow['extensions'][number] = {
     id: ext.id,
     kind: ext.kind,
     version: ext.version,
-    enabled: resolveEnabled(qualifiedExtensionId(bundle.id, ext.id)),
+    enabled: resolveEnabled(qualifiedExtensionId(plugin.id, ext.id)),
     description: ext.description ?? '',
   };
   if (ext.entry !== undefined) row.entry = ext.entry;

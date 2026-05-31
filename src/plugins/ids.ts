@@ -1,5 +1,5 @@
 /**
- * Single source of truth for the built-in bundle ids that every
+ * Single source of truth for the built-in plugin ids that every
  * built-in extension stamps into its `pluginId` field. The literals
  * (`'core'`, `'claude'`, `'openai'`, etc.) used to be hardcoded
  * across ~30 extension files; routing them through this catalog

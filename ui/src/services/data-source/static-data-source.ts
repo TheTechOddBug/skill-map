@@ -325,7 +325,7 @@ export class StaticDataSource implements IDataSourcePort {
   }
 
   async setPluginExtensionEnabled(
-    _bundleId: string,
+    _pluginId: string,
     _extensionId: string,
     _enabled: boolean,
   ): Promise<IListEnvelopeApi<TPluginItem>> {

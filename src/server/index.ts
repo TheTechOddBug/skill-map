@@ -49,9 +49,9 @@ import { WebSocketServer } from 'ws';
 import {
   emptyPluginRuntime,
   loadPluginRuntime,
-  type IPluginRuntimeBundle,
+  type IPluginRuntime,
 } from '../core/runtime/plugin-runtime.js';
-import { builtInBundles } from '../plugins/built-ins.js';
+import { builtInPlugins } from '../plugins/built-ins.js';
 import { defaultRuntimeContext, type IRuntimeContext } from '../core/runtime/runtime-context.js';
 import { collectViewContributions } from '../kernel/extensions/index.js';
 import type { IProvider } from '../kernel/extensions/index.js';
@@ -239,7 +239,7 @@ async function assemblePluginRuntime(
   options: IServerOptions,
   runtimeContext: IRuntimeContext,
 ): Promise<{
-  pluginRuntime: IPluginRuntimeBundle;
+  pluginRuntime: IPluginRuntime;
   kindRegistry: ReturnType<typeof buildKindRegistry>;
   providerRegistry: ReturnType<typeof buildProviderRegistry>;
   providers: IProvider[];
@@ -262,7 +262,7 @@ async function assemblePluginRuntime(
   // mid-session expects its kinds and icons to render on the next
   // scan, and that only works when the registry already knew about
   // them. Built-in handlers are always in memory (statically imported
-  // via `built-in-bundles.ts`), so registering them unconditionally
+  // via `built-ins.ts`), so registering them unconditionally
   // is safe; the enabled/disabled axis is enforced at SCAN-TIME by
   // `composeScanExtensions` reading the fresh resolver, not by hiding
   // them from the registry.
@@ -288,7 +288,7 @@ async function assemblePluginRuntime(
 /**
  * Instantiate a kernel at boot, stamp it with the runtime annotation +
  * view-contribution catalogs harvested from `pluginRuntime` (user
- * plugins) and `builtInBundles` (built-ins), then pre-build the
+ * plugins) and `builtInPlugins` (built-ins), then pre-build the
  * BFF-side `contributionsRegistry` that routes embed in every
  * payload-bearing envelope (sibling to `kindRegistry`).
  *
@@ -299,7 +299,7 @@ async function assemblePluginRuntime(
  * that need the catalogs read them off this kernel via closure.
  *
  * `pluginRuntime.viewContributions` is collected only from USER
- * plugins (via `bucketLoaded`); built-in bundles never traverse that
+ * plugins (via `bucketLoaded`); built-in plugins never traverse that
  * path, so their declared `viewContributions` would otherwise be
  * invisible to the kernel catalog. Walk every built-in extension
  * here (NOT filtered by the boot-time resolver, see the registry
@@ -308,7 +308,7 @@ async function assemblePluginRuntime(
  * `collectViewContributions` helper.
  */
 function assembleKernel(
-  pluginRuntime: IPluginRuntimeBundle,
+  pluginRuntime: IPluginRuntime,
   noBuiltIns: boolean,
 ): {
   kernel: Kernel;
@@ -324,8 +324,8 @@ function assembleKernel(
         (c) => `${c.pluginId}/${c.extensionId}/${c.contributionId}`,
       ),
     );
-    for (const bundle of builtInBundles) {
-      for (const ext of bundle.extensions) {
+    for (const plugin of builtInPlugins) {
+      for (const ext of plugin.extensions) {
         collectViewContributions(ext.pluginId, ext.id, ext, mergedViewContributions, {
           excludeQualifiedIds: userKey,
         });
@@ -347,8 +347,8 @@ function assembleKernel(
  */
 function collectBuiltInProviders(): IProvider[] {
   const out: IProvider[] = [];
-  for (const bundle of builtInBundles) {
-    for (const ext of bundle.extensions) {
+  for (const plugin of builtInPlugins) {
+    for (const ext of plugin.extensions) {
       if (ext.kind === 'provider') {
         out.push(ext as IProvider);
       }

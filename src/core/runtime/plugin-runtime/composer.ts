@@ -8,7 +8,7 @@
  *   - `registerEnabledExtensions`, Registry update (manifest rows +
  *     annotation / view catalogs).
  *
- * Every helper threads the same `resolveEnabled` (default = bundle's
+ * Every helper threads the same `resolveEnabled` (default = runtime's
  * resolver; the BFF / watcher can pass a fresh one to honour a
  * mid-session toggle without restarting `sm serve`).
  */
@@ -25,14 +25,14 @@ import type { IRegisteredAnnotationKey } from '../../../kernel/types/annotation-
 import type { IRegisteredViewContribution } from '../../../kernel/types/view-catalog.js';
 import type { IExtension } from '../../../kernel/registry.js';
 import {
-  builtInBundles,
+  builtInPlugins,
   listBuiltIns,
 } from '../../../plugins/built-ins.js';
 
-import type { IPluginRuntimeBundle } from './index.js';
+import type { IPluginRuntime } from './index.js';
 import {
   isBuiltInExtensionEnabled,
-  isBundleEntryEnabled,
+  isPluginEntryEnabled,
   isPluginExtensionEnabled,
 } from './resolver.js';
 import { filterBuiltInManifests } from './catalogs.js';
@@ -71,15 +71,15 @@ export interface IConformanceKillSwitches {
  *
  * Built-ins are also gated by `pluginRuntime.resolveEnabled`: every
  * extension is independently toggle-able by its qualified id
- * `<bundle>/<ext>` (e.g. disabling `claude/at-directive` silences just
+ * `<plugin>/<ext>` (e.g. disabling `claude/at-directive` silences just
  * that extractor; disabling `core/node-superseded` drops just that
- * analyzer). The bundle is presentational grouping only.
+ * analyzer). The plugin row is presentational grouping only.
  * `--no-built-ins` is the macro override that wins when both layers say
  * "skip".
  *
  * `killSwitches` (optional, conformance-only) wins over every other
  * gate, when set, drops every extension of the chosen kind from the
- * composed bundle, including user plugins. Production callers leave
+ * composed set, including user plugins. Production callers leave
  * the field undefined; the conformance runner reads its env-var
  * representation at the CLI adapter and threads the resolved booleans
  * in.
@@ -90,13 +90,13 @@ export interface IConformanceKillSwitches {
 // eslint-disable-next-line complexity
 export function composeScanExtensions(opts: {
   noBuiltIns: boolean;
-  pluginRuntime: IPluginRuntimeBundle;
+  pluginRuntime: IPluginRuntime;
   /**
    * Optional override that wins over `pluginRuntime.resolveEnabled`.
    * The BFF and the watcher pass a fresh resolver built from
    * `config_plugins` so a toggle made mid-session is honoured without
    * restarting `sm serve`. CLI offline callers (`sm scan`) omit the
-   * override and inherit the loader-time resolver (the bundle is
+   * override and inherit the loader-time resolver (the runtime is
    * loaded fresh per CLI invocation anyway). See
    * `core/runtime/fresh-resolver.ts`.
    *
@@ -155,7 +155,7 @@ export function composeScanExtensions(opts: {
   // orchestrator follows its zero-extension code path. Hooks are
   // intentionally excluded from this check: a hook that subscribes
   // ONLY to CLI-driven triggers (`boot`, `shutdown`) reaches this
-  // composer through the built-in bundle but the scan dispatcher
+  // composer through the built-in plugins but the scan dispatcher
   // would never invoke it (those triggers fire from
   // `cli/entry.ts`, not from `runScan`). Preserving the empty-boot
   // shape regardless of hook presence keeps the conformance case
@@ -177,23 +177,23 @@ export function composeScanExtensions(opts: {
 }
 
 /**
- * Walk every built-in bundle, drop disabled extensions per the
+ * Walk every built-in plugin, drop disabled extensions per the
  * resolver, and bucket the survivors into the per-kind arrays.
  * Formatters are consumed by `composeFormatters`, not scan, so they
- * are skipped here even if the bundle ships them.
+ * are skipped here even if the plugin ships them.
  */
 // Discriminated-union dispatcher, one branch per `ext.kind` plus the
 // disabled-guard up front. Cyclomatic count comes from the six-kind
-// switch + the per-bundle iteration; splitting per kind would scatter
+// switch + the per-plugin iteration; splitting per kind would scatter
 // the dispatch table without making the algorithm clearer.
 // eslint-disable-next-line complexity
 export function accumulateBuiltInScanExtensions(
   buckets: { providers: IProvider[]; extractors: IExtractor[]; analyzers: IAnalyzer[]; hooks: IHook[] },
   resolveEnabled: (id: string) => boolean,
 ): void {
-  for (const bundle of builtInBundles) {
-    for (const ext of bundle.extensions) {
-      if (!isBuiltInExtensionEnabled(bundle, ext, resolveEnabled)) continue;
+  for (const plugin of builtInPlugins) {
+    for (const ext of plugin.extensions) {
+      if (!isBuiltInExtensionEnabled(plugin, ext, resolveEnabled)) continue;
       switch (ext.kind) {
         case 'provider':
           buckets.providers.push(ext);
@@ -237,7 +237,7 @@ export function accumulateBuiltInScanExtensions(
 // eslint-disable-next-line complexity
 export function composeFormatters(opts: {
   noBuiltIns?: boolean;
-  pluginRuntime: IPluginRuntimeBundle;
+  pluginRuntime: IPluginRuntime;
   /**
    * Optional resolver override (same semantics as in
    * `composeScanExtensions`). Allows the BFF / watcher to honour a
@@ -250,10 +250,10 @@ export function composeFormatters(opts: {
   const resolveEnabled = opts.resolveEnabled ?? opts.pluginRuntime.resolveEnabled;
   const out: IFormatter[] = [];
   if (!noBuiltIns) {
-    for (const bundle of builtInBundles) {
-      for (const ext of bundle.extensions) {
+    for (const plugin of builtInPlugins) {
+      for (const ext of plugin.extensions) {
         if (ext.kind !== 'formatter') continue;
-        if (!isBuiltInExtensionEnabled(bundle, ext, resolveEnabled)) continue;
+        if (!isBuiltInExtensionEnabled(plugin, ext, resolveEnabled)) continue;
         out.push(ext);
       }
     }
@@ -280,7 +280,7 @@ export function composeFormatters(opts: {
  * land on five files at once). The helper consolidates the dance so a
  * single edit moves every consumer in lock-step.
  */
-// Complexity counts the per-bundle / per-extension nested walks for
+// Complexity counts the per-plugin / per-extension nested walks for
 // the built-in catalog merge plus the dual `setRegistered*` guards.
 // Splitting the merge body into a private helper would scatter the
 // path-of-truth without making the algorithm clearer.
@@ -291,7 +291,7 @@ export function registerEnabledExtensions(
     setRegisteredAnnotationKeys?: (entries: readonly IRegisteredAnnotationKey[]) => void;
     setRegisteredViewContributions?: (entries: readonly IRegisteredViewContribution[]) => void;
   },
-  pluginRuntime: IPluginRuntimeBundle,
+  pluginRuntime: IPluginRuntime,
   options: {
     noBuiltIns?: boolean;
     /**
@@ -328,9 +328,9 @@ export function registerEnabledExtensions(
   // Annotation contributions are keyed on `pluginId` only (the catalog
   // row never names a specific extension), so we resolve against the
   // qualified id of the manifest itself by checking each contribution's
-  // bundle has at least one enabled extension. Cheap proxy: resolve the
+  // plugin has at least one enabled extension. Cheap proxy: resolve the
   // pluginId verbatim, callers persist plugin-id toggles for backwards
-  // compat with the previous bundle-level kill-switch shape.
+  // compat with the previous plugin-level kill-switch shape.
   if (kernel.setRegisteredAnnotationKeys) {
     const filteredAnnotations = pluginRuntime.annotationContributions.filter((entry) =>
       resolveEnabled(entry.pluginId),
@@ -343,7 +343,7 @@ export function registerEnabledExtensions(
   //
   // Built-ins fold in here too: `pluginRuntime.viewContributions` is
   // collected only from USER plugins (via `bucketLoaded`); built-in
-  // bundles never traverse `bucketLoaded`, so their declared
+  // plugins never traverse `bucketLoaded`, so their declared
   // `viewContributions` would otherwise be invisible to the kernel
   // catalog. Walk the enabled built-in extension instances and merge.
   if (kernel.setRegisteredViewContributions) {
@@ -355,9 +355,9 @@ export function registerEnabledExtensions(
     );
     const merged: IRegisteredViewContribution[] = [...userContribs];
     if (!noBuiltIns) {
-      for (const bundle of builtInBundles) {
-        for (const ext of bundle.extensions) {
-          if (!isBundleEntryEnabled(bundle, ext.id, resolveEnabled)) continue;
+      for (const plugin of builtInPlugins) {
+        for (const ext of plugin.extensions) {
+          if (!isPluginEntryEnabled(plugin, ext.id, resolveEnabled)) continue;
           collectViewContributions(ext.pluginId, ext.id, ext, merged);
         }
       }

@@ -157,7 +157,7 @@ describe('PluginLoader', () => {
   it('plugin with no extensions on disk loads with zero extensions and status enabled', async () => {
     // Auto-discovery: a manifest with no <kind>s/<name>/index.* file
     // anywhere under the plugin dir is still a valid (but empty) plugin.
-    // The bundle loads with status='enabled' and an empty extensions
+    // The plugin loads with status='enabled' and an empty extensions
     // array. Authors who genuinely had a typoed extension folder will
     // notice via `sm plugins show` (zero rows).
     const root = makePluginsDir('load-missing');

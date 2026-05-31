@@ -1,9 +1,9 @@
 /**
- * Coverage for the built-in bundle presentation-order helper. The
+ * Coverage for the built-in plugin presentation-order helper. The
  * sort is the single source of truth for the order `sm plugins list /
  * show / doctor` + `GET /api/plugins` + the SPA's Settings → Plugins
- * panel render in (`core` first, then the vendor bundles). A future
- * tweak (adding a new bundle, reshuffling the catalogue) without
+ * panel render in (`core` first, then the vendor plugins). A future
+ * tweak (adding a new plugin, reshuffling the catalogue) without
  * matching tests would silently regress every surface that humans
  * actually read.
  *
@@ -14,41 +14,41 @@
  *      the end, alphabetically.
  *   2. The sort is stable / pure: same input order, same output;
  *      empty input is allowed; the helper never mutates the caller's
- *      array (defensive copy via `[...bundles]`).
+ *      array (defensive copy via `[...plugins]`).
  */
 
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
 import {
-  BUILT_IN_BUNDLE_PRESENTATION_ORDER,
-  sortBundlesForPresentation,
+  BUILT_IN_PLUGIN_PRESENTATION_ORDER,
+  sortPluginsForPresentation,
 } from '../presentation-order.js';
 
-function bundle(id: string): { id: string } {
+function plugin(id: string): { id: string } {
   return { id };
 }
 
-describe('BUILT_IN_BUNDLE_PRESENTATION_ORDER', () => {
+describe('BUILT_IN_PLUGIN_PRESENTATION_ORDER', () => {
   it('starts with `core` (carries the universal extractors / analyzers / formatters the user reaches for the most)', () => {
-    assert.equal(BUILT_IN_BUNDLE_PRESENTATION_ORDER[0], 'core');
+    assert.equal(BUILT_IN_PLUGIN_PRESENTATION_ORDER[0], 'core');
   });
 
-  it('lists every vendor bundle that ships in `builtInBundles` today', () => {
+  it('lists every vendor plugin that ships in `builtInPlugins` today', () => {
     const expected = ['core', 'claude', 'antigravity', 'openai', 'agent-skills'];
-    assert.deepEqual([...BUILT_IN_BUNDLE_PRESENTATION_ORDER], expected);
+    assert.deepEqual([...BUILT_IN_PLUGIN_PRESENTATION_ORDER], expected);
   });
 
   it('does NOT include the retired `gemini` id (replaced upstream by `antigravity`)', () => {
-    assert.equal(BUILT_IN_BUNDLE_PRESENTATION_ORDER.includes('gemini'), false);
+    assert.equal(BUILT_IN_PLUGIN_PRESENTATION_ORDER.includes('gemini'), false);
   });
 });
 
-describe('sortBundlesForPresentation', () => {
+describe('sortPluginsForPresentation', () => {
   it('orders the canonical set: core → claude → antigravity → openai → agent-skills', () => {
     // Input deliberately shuffled to verify the sort actually runs.
-    const input = ['claude', 'agent-skills', 'core', 'openai', 'antigravity'].map(bundle);
-    const result = sortBundlesForPresentation(input).map((b) => b.id);
+    const input = ['claude', 'agent-skills', 'core', 'openai', 'antigravity'].map(plugin);
+    const result = sortPluginsForPresentation(input).map((b) => b.id);
     assert.deepEqual(result, ['core', 'claude', 'antigravity', 'openai', 'agent-skills']);
   });
 
@@ -56,8 +56,8 @@ describe('sortBundlesForPresentation', () => {
     // The runtime catalogue might gain a drop-in plugin or a future
     // built-in. Anything not in the pin list lands AFTER every pinned
     // entry, sorted alphabetically so the slot is deterministic.
-    const input = ['zeta-plugin', 'claude', 'alpha-plugin', 'core', 'mid-plugin'].map(bundle);
-    const result = sortBundlesForPresentation(input).map((b) => b.id);
+    const input = ['zeta-plugin', 'claude', 'alpha-plugin', 'core', 'mid-plugin'].map(plugin);
+    const result = sortPluginsForPresentation(input).map((b) => b.id);
     assert.deepEqual(result, [
       'core',
       'claude',
@@ -71,44 +71,44 @@ describe('sortBundlesForPresentation', () => {
     // Real plugin runtime might disable some built-ins; the sort must
     // still respect the canonical slot for the survivors instead of
     // collapsing to alphabetical.
-    const input = ['agent-skills', 'core', 'openai'].map(bundle);
-    const result = sortBundlesForPresentation(input).map((b) => b.id);
+    const input = ['agent-skills', 'core', 'openai'].map(plugin);
+    const result = sortPluginsForPresentation(input).map((b) => b.id);
     assert.deepEqual(result, ['core', 'openai', 'agent-skills']);
   });
 
   it('empty input returns []', () => {
-    assert.deepEqual(sortBundlesForPresentation([]), []);
+    assert.deepEqual(sortPluginsForPresentation([]), []);
   });
 
   it('input that is already sorted is returned in the same order', () => {
-    const input = BUILT_IN_BUNDLE_PRESENTATION_ORDER.map((id) => bundle(id));
-    const result = sortBundlesForPresentation(input).map((b) => b.id);
-    assert.deepEqual(result, [...BUILT_IN_BUNDLE_PRESENTATION_ORDER]);
+    const input = BUILT_IN_PLUGIN_PRESENTATION_ORDER.map((id) => plugin(id));
+    const result = sortPluginsForPresentation(input).map((b) => b.id);
+    assert.deepEqual(result, [...BUILT_IN_PLUGIN_PRESENTATION_ORDER]);
   });
 
   it('returns a new array, does not mutate the caller', () => {
     // The helper splats into a fresh array before sorting in place, so
     // the caller's array stays in its original order. Verifying this
     // matters because `sm plugins list / doctor` and the BFF share
-    // `builtInBundles` (the runtime iteration order) and a mutation
+    // `builtInPlugins` (the runtime iteration order) and a mutation
     // would silently break the kernel's "core/markdown last" promise
     // (see spec/architecture.md §"core/markdown is the universal
     // fallback for unclaimed `.md` files").
-    const input = ['claude', 'agent-skills', 'core'].map(bundle);
+    const input = ['claude', 'agent-skills', 'core'].map(plugin);
     const beforeIds = input.map((b) => b.id);
-    sortBundlesForPresentation(input);
+    sortPluginsForPresentation(input);
     assert.deepEqual(input.map((b) => b.id), beforeIds, 'input array must stay untouched');
   });
 
   it('preserves entry identity (same object references, just reordered)', () => {
     // The sort is shape-agnostic over `{ id: string }`; callers pass
-    // richer objects (e.g. `IBuiltInBundle` with `extensions`). The
+    // richer objects (e.g. `IBuiltInPlugin` with `extensions`). The
     // entries returned must be the SAME object references so a future
     // caller can sort once and then read off whatever extra fields it
     // attached without re-keying.
     const core = { id: 'core', extra: 'core-extra' };
     const claude = { id: 'claude', extra: 'claude-extra' };
-    const result = sortBundlesForPresentation([claude, core]);
+    const result = sortPluginsForPresentation([claude, core]);
     assert.equal(result[0], core);
     assert.equal(result[1], claude);
   });
@@ -117,9 +117,9 @@ describe('sortBundlesForPresentation', () => {
     // The sort uses `localeCompare` for the alphabetical tail, which is
     // stable per ECMAScript spec for V8. Re-sorting the result should
     // be a no-op.
-    const input = ['zeta', 'beta', 'alpha', 'gamma'].map(bundle);
-    const first = sortBundlesForPresentation(input).map((b) => b.id);
-    const second = sortBundlesForPresentation(first.map(bundle)).map((b) => b.id);
+    const input = ['zeta', 'beta', 'alpha', 'gamma'].map(plugin);
+    const first = sortPluginsForPresentation(input).map((b) => b.id);
+    const second = sortPluginsForPresentation(first.map(plugin)).map((b) => b.id);
     assert.deepEqual(first, ['alpha', 'beta', 'gamma', 'zeta']);
     assert.deepEqual(second, first);
   });

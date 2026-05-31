@@ -54,7 +54,7 @@ export function collectViewContributions(
 ): void {
   if (typeof instance !== 'object' || instance === null) return;
   // Renamed from `viewContributions` to `ui` with the structure-as-truth
-  // refactor. The bundle-level registry field stays `viewContributions`
+  // refactor. The runtime-level registry field stays `viewContributions`
   // (a runtime aggregate name), only the manifest-side field changed.
   const raw = (instance as Record<string, unknown>)['ui'];
   if (typeof raw !== 'object' || raw === null) return;

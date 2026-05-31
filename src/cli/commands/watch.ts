@@ -28,6 +28,8 @@ import { Command, Option } from 'clipanion';
 
 import { createWatcherRuntime, type ICreateWatcherRuntimeOpts } from '../../core/watcher/runtime.js';
 import { DB_DRIFT_TEXTS } from '../../core/sqlite/i18n/db-drift.texts.js';
+import type { ScanResult } from '../../kernel/index.js';
+import { formatOversizedFileRows } from '../../kernel/util/format-oversized.js';
 import { tx } from '../../kernel/util/tx.js';
 import { WATCH_TEXTS } from '../i18n/watch.texts.js';
 import { ansiFor } from '../util/ansi.js';
@@ -128,7 +130,7 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
   const errGlyph = stderrAnsi.red('✕');
 
   let initialDone = false;
-  const renderBatch = (result: { stats: { nodesCount: number; linksCount: number; issuesCount: number; durationMs: number } } | undefined): void => {
+  const renderBatch = (result: ScanResult | undefined): void => {
     if (!result) return;
     if (opts.json) {
       context.stdout.write(JSON.stringify(result) + '\n');
@@ -149,6 +151,25 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
         }),
       );
     }
+    // File-size skip WARN, per batch. Always to stderr (degraded state
+    // the operator should read), regardless of `--json` since stdout
+    // carries the ndjson record. Same shape as `sm scan`'s notice.
+    renderOversizedWarning(result);
+  };
+
+  const renderOversizedWarning = (result: ScanResult): void => {
+    const oversized = result.oversizedFiles ?? [];
+    if ((result.stats.filesOversized ?? oversized.length) <= 0) return;
+    const files = formatOversizedFileRows(oversized).join('');
+    context.stderr.write(
+      tx(WATCH_TEXTS.skippedFilesNotice, {
+        glyph: stderrAnsi.yellow('⚠'),
+        count: oversized.length,
+        noun: oversized.length === 1 ? WATCH_TEXTS.skippedFileNounSingular : WATCH_TEXTS.skippedFileNounPlural,
+        files,
+        hint: stderrAnsi.dim(WATCH_TEXTS.skippedFilesNoticeHint),
+      }),
+    );
   };
 
   const runtimeOpts: ICreateWatcherRuntimeOpts = {

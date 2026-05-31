@@ -1,7 +1,7 @@
 /**
  * `sm plugins create <plugin-id>`, scaffold a new plugin directory.
  *
- * Non-interactive Phase 5 minimum: emit a lean `plugin.json` (bundle
+ * Non-interactive Phase 5 minimum: emit a lean `plugin.json` (plugin
  * manifest only, no `id` / `settings` at the root, both are
  * structure-as-truth or per-extension now) plus a placeholder
  * extractor under `extractors/<id>/index.js` that declares its own
@@ -70,7 +70,7 @@ export class PluginsCreateCommand extends SmCommand {
     mkdirSync(join(targetDir, 'extractors', extractorName), { recursive: true });
 
     const specVersion = installedSpecVersion();
-    // Bundle manifest only. `id` is derived from the folder name and
+    // Plugin manifest only. `id` is derived from the folder name and
     // `settings` live per-extension (in the extension's index.js) since
     // the structure-as-truth refactor; both are rejected at the root by
     // `plugins-registry.schema.json#/$defs/PluginManifest`
@@ -115,7 +115,7 @@ function scaffolderExtractorStub(extractorId: string): string {
  * \`extractors/${extractorId}/index.js\`. The folder layout is the
  * source of truth (structure-as-truth): the loader derives \`kind\`
  * (\`extractor\`) from the parent folder and the id (\`${extractorId}\`)
- * from the leaf folder, and injects \`pluginId\` from the bundle, so none
+ * from the leaf folder, and injects \`pluginId\` from the plugin, so none
  * of them are declared here. Re-declaring \`kind\` / \`id\` is rejected as
  * \`invalid-manifest\`.
  *

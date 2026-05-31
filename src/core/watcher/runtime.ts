@@ -432,7 +432,7 @@ export function createWatcherRuntime(
       // Build a fresh resolver from `config_plugins` on every batch so
       // a `PATCH /api/plugins` made mid-session is honoured by the
       // next chokidar-driven scan WITHOUT restarting `sm serve`. The
-      // bundle itself stays cached (no re-discovery, no module
+      // runtime itself stays cached (no re-discovery, no module
       // re-import). One SQLite read per batch, cheap. See
       // `core/runtime/fresh-resolver.ts`.
       //
@@ -491,6 +491,7 @@ export function createWatcherRuntime(
         emitter,
         recommendedNodeLimit: cfg.scan.maxNodes,
         overrideMaxNodes: opts.maxNodesOverride ?? null,
+        maxFileSizeBytes: cfg.scan.maxFileSizeBytes,
       };
       // Reference-paths escape hatch: mirror what `scan-runner.ts`
       // (the CLI path) does, walk the configured side-roots and pass

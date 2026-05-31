@@ -2,7 +2,7 @@
  * `<sm-settings-plugins>`, Plugins section of the Settings modal.
  *
  * Owns the full lifecycle: fetch on `(visible) === true`, render the
- * list with bundle / per-extension toggles, BUFFER pending changes in
+ * list with plugin / per-extension toggles, BUFFER pending changes in
  * `pendingState`, dispatch the bulk `PATCH /api/plugins` via
  * `applyChanges()` (or revert with `discardChanges()`), and trigger
  * a scan after a successful apply so the graph reflects the new state.
@@ -144,7 +144,7 @@ export class SettingsPlugins {
   protected readonly restartRecommended = this.pluginState.restartRecommended;
 
   /**
-   * Bundle-row collapse state, owned by `plugin-collapse.controller`.
+   * Plugin-row collapse state, owned by `plugin-collapse.controller`.
    * The controller rehydrates the persisted set on construction and
    * mirrors subsequent writes back to localStorage; the template
    * binds `collapsed`, `toggleExpanded`, and `isExpanded` verbatim
@@ -238,11 +238,11 @@ export class SettingsPlugins {
   }
 
   protected onExtensionToggle(
-    bundleId: string,
+    pluginId: string,
     ext: IPluginExtensionApi,
     nextValue: boolean,
   ): void {
-    this.pluginState.onExtensionToggle(bundleId, ext, nextValue);
+    this.pluginState.onExtensionToggle(pluginId, ext, nextValue);
   }
 
   /**
@@ -269,7 +269,7 @@ export class SettingsPlugins {
   /**
    * Whether this row should expose the chevron + per-extension list.
    * True for any plugin that declares at least one extension on the
-   * wire. The bundle has no toggle axis of its own; the chevron is
+   * wire. The plugin has no toggle axis of its own; the chevron is
    * the only row-level affordance.
    */
   protected canExpandExtensions(plugin: IPluginItemApi): boolean {
@@ -283,7 +283,7 @@ export class SettingsPlugins {
 
   /**
    * Whether clicking anywhere on the row should do something useful:
-   * expand / collapse the per-extension list when the bundle declares
+   * expand / collapse the per-extension list when the plugin declares
    * any. Failure rows are inert (nothing to expand).
    */
   protected rowIsClickable(plugin: IPluginItemApi): boolean {
@@ -291,7 +291,7 @@ export class SettingsPlugins {
   }
 
   /**
-   * Whole-row click handler. The bundle has no toggle of its own, so
+   * Whole-row click handler. The plugin has no toggle of its own, so
    * the row click expands / collapses the extension list. Clicks on
    * the chevron or per-extension toggles are already handled by their
    * own listeners and stop propagation, this handler only fires when
@@ -306,14 +306,14 @@ export class SettingsPlugins {
 
   /** Whole-row click handler for the per-extension subrow. */
   protected onSubrowClick(
-    bundleId: string,
+    pluginId: string,
     ext: IPluginExtensionApi,
     event: Event,
   ): void {
     if (clickedInteractive(event)) return;
     if (!this.extensionToggleInteractive(ext)) return;
-    const key = qualifiedKey(bundleId, ext.id);
-    this.onExtensionToggle(bundleId, ext, !this.pendingEnabled(key));
+    const key = qualifiedKey(pluginId, ext.id);
+    this.onExtensionToggle(pluginId, ext, !this.pendingEnabled(key));
   }
 
   protected statusLabel(plugin: IPluginItemApi): string {
@@ -324,8 +324,8 @@ export class SettingsPlugins {
     return sourceLabel(source, this.texts);
   }
 
-  protected qualifiedExt(bundleId: string, extensionId: string): string {
-    return qualifiedKey(bundleId, extensionId);
+  protected qualifiedExt(pluginId: string, extensionId: string): string {
+    return qualifiedKey(pluginId, extensionId);
   }
 
   /** Resolve the canonical accent color for an extension kind. Used

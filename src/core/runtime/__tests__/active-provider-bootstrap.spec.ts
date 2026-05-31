@@ -33,7 +33,7 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import {
   bootstrapActiveProvider,
-  warnIfLensBundleDisabled,
+  warnIfLensPluginDisabled,
 } from '../active-provider-bootstrap.js';
 import type { IProviderDetectInput } from '../../config/active-provider.js';
 import type { IPrinter } from '../printer.js';
@@ -273,23 +273,23 @@ describe('bootstrapActiveProvider: ambiguous (multiple markers)', () => {
   });
 });
 
-describe('warnIfLensBundleDisabled (bd-23c regression)', () => {
-  it('warns when activeProvider points at a disabled bundle', () => {
+describe('warnIfLensPluginDisabled (bd-23c regression)', () => {
+  it('warns when activeProvider points at a disabled plugin', () => {
     const cap = capturePrinter();
-    warnIfLensBundleDisabled({
+    warnIfLensPluginDisabled({
       activeProvider: 'claude',
-      resolveEnabled: () => false, // every bundle reads as disabled
+      resolveEnabled: () => false, // every plugin reads as disabled
       printer: cap.printer,
     });
     assert.equal(cap.warns.length, 1);
     assert.match(cap.warns[0]!, /activeProvider = "claude"/);
-    assert.match(cap.warns[0]!, /"claude" plugin bundle is currently disabled/);
+    assert.match(cap.warns[0]!, /"claude" plugin is currently disabled/);
     assert.match(cap.warns[0]!, /sm plugins enable claude/);
   });
 
-  it('silent when the lens bundle is enabled (the happy path)', () => {
+  it('silent when the lens plugin is enabled (the happy path)', () => {
     const cap = capturePrinter();
-    warnIfLensBundleDisabled({
+    warnIfLensPluginDisabled({
       activeProvider: 'claude',
       resolveEnabled: () => true,
       printer: cap.printer,
@@ -299,7 +299,7 @@ describe('warnIfLensBundleDisabled (bd-23c regression)', () => {
 
   it('silent when activeProvider is null (no lens to validate)', () => {
     const cap = capturePrinter();
-    warnIfLensBundleDisabled({
+    warnIfLensPluginDisabled({
       activeProvider: null,
       // Should not even be consulted; pass a throwing stub to prove it.
       resolveEnabled: () => {
@@ -310,19 +310,19 @@ describe('warnIfLensBundleDisabled (bd-23c regression)', () => {
     assert.equal(cap.warns.length, 0);
   });
 
-  it('only warns when the specific lens bundle is disabled (selective)', () => {
+  it('only warns when the specific lens plugin is disabled (selective)', () => {
     const cap = capturePrinter();
     // claude enabled, antigravity disabled; lens=antigravity → warn about antigravity only.
-    warnIfLensBundleDisabled({
+    warnIfLensPluginDisabled({
       activeProvider: 'antigravity',
       resolveEnabled: (id) => id === 'claude',
       printer: cap.printer,
     });
     assert.equal(cap.warns.length, 1);
-    assert.match(cap.warns[0]!, /"antigravity" plugin bundle is currently disabled/);
+    assert.match(cap.warns[0]!, /"antigravity" plugin is currently disabled/);
     // Same scenario but lens=claude → no warning.
     const cap2 = capturePrinter();
-    warnIfLensBundleDisabled({
+    warnIfLensPluginDisabled({
       activeProvider: 'claude',
       resolveEnabled: (id) => id === 'claude',
       printer: cap2.printer,

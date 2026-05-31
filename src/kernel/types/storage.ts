@@ -84,7 +84,7 @@ export interface IPersistOptions {
    * `<pluginId>/<extensionId>/<contributionId>`. Passed to the
    * `scan_contributions` upsert so the catalog sweep can drop rows
    * belonging to plugins / extensions that are no longer in the
-   * catalog (uninstalled plugins, disabled bundles, removed
+   * catalog (uninstalled plugins, disabled plugins, removed
    * contributions). Empty / absent set = no catalog sweep (legacy
    * behaviour, leaves disabled-plugin rows stale per design F24
    * pre-fix).

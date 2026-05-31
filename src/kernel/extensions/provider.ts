@@ -380,7 +380,7 @@ export interface IProvider extends IExtensionBase {
    */
   walk?(
     roots: string[],
-    options?: { ignoreFilter?: IIgnoreFilter },
+    options?: IProviderWalkOptions,
   ): AsyncIterable<IRawNode>;
 
   /**
@@ -404,7 +404,7 @@ export interface IProvider extends IExtensionBase {
   /**
    * Strict resolution matrix consumed by the post-walk confidence-lift
    * transform: maps a `link.kind` (emitted by an Extractor in this
-   * Provider's bundle, e.g. `'mentions'`, `'invokes'`) to the set of
+   * Provider's plugin, e.g. `'mentions'`, `'invokes'`) to the set of
    * target `node.kind` values that count as a valid resolution.
    *
    * Used to decide whether to bump a link's confidence to 1.0 when its
@@ -541,6 +541,26 @@ export interface IResolverRules {
 }
 
 /**
+ * Per-invocation options the orchestrator threads into a Provider walk
+ * (and through `resolveProviderWalk` into the kernel walker). All
+ * optional, so a bare `provider.walk(roots)` keeps working.
+ *
+ *   - `ignoreFilter`, the composed `.skillmapignore` + config.ignore +
+ *     bundled-defaults filter.
+ *   - `maxFileSizeBytes` / `onOversizedFile`, mirror of
+ *     `scan.maxFileSizeBytes` and the collector that records skipped
+ *     files into `ScanResult.oversizedFiles`. A Provider that ships its
+ *     own `walk()` SHOULD forward both into `walkContent` (or apply the
+ *     same size guard) so oversized files stay skipped + reported
+ *     regardless of which discovery path runs.
+ */
+export interface IProviderWalkOptions {
+  ignoreFilter?: IIgnoreFilter;
+  maxFileSizeBytes?: number;
+  onOversizedFile?: (info: { path: string; bytes: number }) => void;
+}
+
+/**
  * Declarative read config a Provider declares via `IProvider.read`.
  * Mirrors `extensions/provider.schema.json#/properties/read` at the
  * TypeScript level. Built-in parser ids: `'frontmatter-yaml'`, `'plain'`.
@@ -589,7 +609,7 @@ export function resolveProviderWalk(
   provider: IBuiltInManifest<IProvider>,
 ): (
   roots: string[],
-  options?: { ignoreFilter?: IIgnoreFilter },
+  options?: IProviderWalkOptions,
 ) => AsyncIterable<IRawNode> {
   if (provider.walk) {
     const walk = provider.walk.bind(provider);
@@ -597,14 +617,18 @@ export function resolveProviderWalk(
   }
   const read = provider.read ?? DEFAULT_READ_CONFIG;
   return (roots, options) => {
-    // `ignoreFilter` is optional under `exactOptionalPropertyTypes`; only
-    // include the key when the caller actually supplied a filter so the
-    // walker's default-fallback path is preserved.
+    // `ignoreFilter` / `onOversizedFile` are optional under
+    // `exactOptionalPropertyTypes`; only set each key when the caller
+    // supplied it so the walker's default-fallback paths are preserved.
     const walkOptions: import('../scan/walk-content.js').IWalkContentOptions = {
       extensions: read.extensions,
       parser: read.parser,
     };
     if (options?.ignoreFilter) walkOptions.ignoreFilter = options.ignoreFilter;
+    if (options?.maxFileSizeBytes !== undefined) {
+      walkOptions.maxFileSizeBytes = options.maxFileSizeBytes;
+    }
+    if (options?.onOversizedFile) walkOptions.onOversizedFile = options.onOversizedFile;
     return walkContent(roots, walkOptions);
   };
 }

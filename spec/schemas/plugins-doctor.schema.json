@@ -43,7 +43,7 @@
           "id": {
             "type": "string",
             "minLength": 1,
-            "description": "Qualified extension id `<bundle>/<ext>`. The bare bundle id form is reserved for the macro path in CLI / BFF requests and never appears in persisted state."
+            "description": "Qualified extension id `<plugin>/<ext>`. The bare plugin id form is reserved for the bundle (aggregate) macro path in CLI / BFF requests and never appears in persisted state."
           },
           "status": {
             "type": "string",

@@ -5,7 +5,7 @@
  * This file targets the remaining branches:
  *
  *   - `pluginDir` override replaces the project search path
- *   - `emptyPluginRuntime()` returns the canonical zero-bundle shape
+ *   - `emptyPluginRuntime()` returns the canonical zero-runtime shape
  *   - `composeScanExtensions({ noBuiltIns: true, ... })` returns
  *     `undefined` when no plugin extensions exist (orchestrator
  *     follows its zero-extension code path)
@@ -102,14 +102,14 @@ describe('plugin-runtime, branch coverage', () => {
     const customDir = freshDir('custom');
     plantExtractor(customDir, 'custom-only');
 
-    const bundle = await loadPluginRuntime({ pluginDir: customDir });
-    assert.equal(bundle.discovered.length, 1);
-    assert.equal(bundle.discovered[0]!.id, 'custom-only');
-    assert.equal(bundle.extensions.extractors.length, 1);
-    assert.equal(bundle.extensions.extractors[0]!.id, 'custom-only-d');
+    const runtime = await loadPluginRuntime({ pluginDir: customDir });
+    assert.equal(runtime.discovered.length, 1);
+    assert.equal(runtime.discovered[0]!.id, 'custom-only');
+    assert.equal(runtime.extensions.extractors.length, 1);
+    assert.equal(runtime.extensions.extractors[0]!.id, 'custom-only-d');
   });
 
-  it('emptyPluginRuntime() returns the canonical zero-bundle shape', () => {
+  it('emptyPluginRuntime() returns the canonical zero-runtime shape', () => {
     const empty = emptyPluginRuntime();
     assert.deepEqual(empty.extensions, {
       providers: [],
@@ -145,20 +145,20 @@ describe('plugin-runtime, branch coverage', () => {
   it('composeFormatters({ noBuiltIns: true }) excludes built-in formatters', async () => {
     const customDir = freshDir('formatter-only');
     plantFormatter(customDir, 'custom-formatter', 'csv');
-    const bundle = await loadPluginRuntime({ pluginDir: customDir });
+    const runtime = await loadPluginRuntime({ pluginDir: customDir });
 
-    const noBi = composeFormatters({ noBuiltIns: true, pluginRuntime: bundle });
+    const noBi = composeFormatters({ noBuiltIns: true, pluginRuntime: runtime });
     assert.equal(noBi.length, 1);
     assert.equal(noBi[0]!.formatId, 'csv');
 
-    const withBi = composeFormatters({ pluginRuntime: bundle });
+    const withBi = composeFormatters({ pluginRuntime: runtime });
     assert.ok(withBi.length >= 2, 'expected built-in ascii + plugin csv');
     assert.ok(withBi.some((f) => f.formatId === 'ascii'));
     assert.ok(withBi.some((f) => f.formatId === 'csv'));
   });
 
   // Every extension is independently toggle-able by its qualified id
-  // `<bundle>/<ext>`. The runtime composer is the layer where those
+  // `<plugin>/<ext>`. The runtime composer is the layer where those
   // toggles take effect (the loader's pre-import gate uses the same
   // key). Five cases cover the model:
   //   (a) disable every claude extension by qualified id → claude
@@ -166,13 +166,13 @@ describe('plugin-runtime, branch coverage', () => {
   //   (b) disable `core/node-superseded` → only that rule disappears.
   //   (c) default, every built-in runs.
   //   (d) `--no-built-ins` overrides everything.
-  //   (e) disable one extension inside a multi-extension bundle.
+  //   (e) disable one extension inside a multi-extension plugin.
   describe('per-extension toggle filter', () => {
-    it('(a) disable every claude extension by qualified id → claude bundle skips compose; core extensions untouched', () => {
-      const bundle = emptyPluginRuntime();
-      bundle.resolveEnabled = (id: string) =>
+    it('(a) disable every claude extension by qualified id → claude plugin skips compose; core extensions untouched', () => {
+      const runtime = emptyPluginRuntime();
+      runtime.resolveEnabled = (id: string) =>
         !['claude/claude', 'claude/at-directive', 'claude/slash-command'].includes(id);
-      const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: bundle });
+      const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: runtime });
       assert.ok(composed, 'core extensions still keep the pipeline non-empty');
       // The `claude` provider drops; the other vendor providers and the
       // markdown fallback stay.
@@ -193,9 +193,9 @@ describe('plugin-runtime, branch coverage', () => {
     });
 
     it('(b) disable core/node-superseded → only that rule skips; other 16 core extensions stay', () => {
-      const bundle = emptyPluginRuntime();
-      bundle.resolveEnabled = (id: string) => id !== 'core/node-superseded';
-      const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: bundle });
+      const runtime = emptyPluginRuntime();
+      runtime.resolveEnabled = (id: string) => id !== 'core/node-superseded';
+      const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: runtime });
       assert.ok(composed);
       const analyzerIds = composed.analyzers.map((r) => r.id).sort();
       // The 17 built-in rules: 16 detect-phase analyzers plus the
@@ -226,7 +226,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.equal(composed.providers.length, 5);
       assert.equal(composed.extractors.length, 7, 'all 7 core extractors stay');
       // Formatter composer also respects the filter.
-      const formatters = composeFormatters({ pluginRuntime: bundle });
+      const formatters = composeFormatters({ pluginRuntime: runtime });
       // ascii + json formatters; superseded toggle is unrelated to either.
       assert.equal(formatters.length, 2, 'ascii + json formatters still on; superseded toggle is unrelated');
     });
@@ -245,23 +245,23 @@ describe('plugin-runtime, branch coverage', () => {
     });
 
     it('(d) --no-built-ins overrides per-extension config (everything off)', () => {
-      const bundle = emptyPluginRuntime();
+      const runtime = emptyPluginRuntime();
       // Every id enabled at the resolver level, the macro flag must
       // still win and produce an empty pipeline.
-      bundle.resolveEnabled = () => true;
-      const composed = composeScanExtensions({ noBuiltIns: true, pluginRuntime: bundle });
+      runtime.resolveEnabled = () => true;
+      const composed = composeScanExtensions({ noBuiltIns: true, pluginRuntime: runtime });
       assert.equal(composed, undefined, '--no-built-ins + empty plugin runtime → undefined (zero-extension)');
-      const formatters = composeFormatters({ noBuiltIns: true, pluginRuntime: bundle });
+      const formatters = composeFormatters({ noBuiltIns: true, pluginRuntime: runtime });
       assert.equal(formatters.length, 0);
     });
 
-    it('(e) per-extension override flips one extension while keeping the rest of the bundle live', () => {
+    it('(e) per-extension override flips one extension while keeping the rest of the plugin live', () => {
       // Every extension is independently toggle-able; disabling
       // `claude/at-directive` drops only that extractor. The provider
       // and `claude/slash-command` stay in the pipeline.
-      const bundle = emptyPluginRuntime();
-      bundle.resolveEnabled = (id: string) => id !== 'claude/at-directive';
-      const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: bundle });
+      const runtime = emptyPluginRuntime();
+      runtime.resolveEnabled = (id: string) => id !== 'claude/at-directive';
+      const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: runtime });
       assert.ok(composed);
       const extractorIds = composed.extractors.map((d) => d.id).sort();
       assert.equal(
@@ -411,10 +411,10 @@ describe('plugin-runtime, branch coverage', () => {
     // Good plugin alongside
     plantExtractor(dir, 'good');
 
-    const bundle = await loadPluginRuntime({ pluginDir: dir });
-    assert.equal(bundle.discovered.length, 2);
-    assert.equal(bundle.extensions.extractors.length, 1, 'only the good plugin loaded');
-    assert.equal(bundle.warnings.length, 1, 'one warning for the broken plugin');
-    assert.match(bundle.warnings[0]!, /broken: invalid-manifest/);
+    const runtime = await loadPluginRuntime({ pluginDir: dir });
+    assert.equal(runtime.discovered.length, 2);
+    assert.equal(runtime.extensions.extractors.length, 1, 'only the good plugin loaded');
+    assert.equal(runtime.warnings.length, 1, 'one warning for the broken plugin');
+    assert.match(runtime.warnings[0]!, /broken: invalid-manifest/);
   });
 });

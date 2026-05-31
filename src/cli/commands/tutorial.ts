@@ -404,7 +404,7 @@ function toScaffoldTarget(provider: IProvider): IScaffoldTarget | null {
 
 /**
  * Built-in Providers that declare a `scaffold.skillDir`, in catalog
- * order (vendor providers first per the codegen `BUNDLE_ORDER`, so
+ * order (vendor providers first per the codegen `PLUGIN_ORDER`, so
  * `claude` is the default). The tutorial is a pre-bootstrap helper, so
  * this reads the built-in catalog directly rather than project config.
  */

@@ -5,7 +5,7 @@
  * Consumers:
  *
  *   - `src/server/routes/plugins.ts`, `GET /api/plugins` so the modal
- *     sees the post-PATCH state on F5 / re-open even though the bundle
+ *     sees the post-PATCH state on F5 / re-open even though the runtime
  *     itself is boot-cached.
  *   - `src/server/routes/plugins.ts`, `PATCH /api/plugins[/...]` to
  *     project the post-write state into the response envelope.

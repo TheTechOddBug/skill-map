@@ -1,9 +1,9 @@
 # Tour: plugins-tour
 
 Guided tour of the **built-in plugins** that ship with `sm`. Three
-steps: a quick mental model of what bundles are plus a peek at
+steps: a quick mental model of what plugins are plus a peek at
 the catalogue, then the six extension kinds rounded off by opening
-one bundle to see them in the wild, and finally a deeper drill
+one plugin to see them in the wild, and finally a deeper drill
 into a single extension (detail view, diagnostic, disable/enable
 toggle). By the end the tester has the mental model and knows
 which verbs reach which surface.
@@ -22,41 +22,40 @@ restore the files.") and stop.
 
 ## Step `tour-1-intro` — how plugins work (~4 min)
 
-**Context**: A short tour of what a plugin is, how they're
-packaged into bundles, and a peek at the five bundles that ship
+**Context**: A short tour of what a plugin is, how it groups
+extensions, and a peek at the five plugins that ship
 pre-installed.
 
-> Plugins are how skill-map gets extended. A **plugin** groups one
-> or more **extensions**, the actual code units that run inside
-> the kernel. So when we say "skill-map has a plugin for Claude",
-> what we really mean is "there is a plugin called `claude` that
-> contains one extension (a provider) which knows how to walk
-> `.claude/`".
+> Plugins are how skill-map gets extended. A **plugin** is the
+> deployable unit: one directory with a `plugin.json` manifest and
+> the extension code. It groups one or more **extensions**, the
+> actual code units that run inside the kernel. So when we say
+> "skill-map has a plugin for Claude", what we really mean is
+> "there is a plugin called `claude` that contains one extension
+> (a provider) which knows how to walk `.claude/`".
 >
-> Plugins ship as **bundles**. A bundle is the deployable unit,
-> one directory with a `plugin.json` manifest and the extension
-> code. Two ways they reach your project:
+> Two ways plugins reach your project:
 >
-> 📦 **Built-in bundles**
+> 📦 **Built-in plugins**
 >    Travel inside the CLI itself. Available the moment you
 >    `npm install -g @skill-map/cli`.
 >
-> 📥 **Drop-in bundles**
+> 📥 **Drop-in plugins**
 >    You (your company, or someone else) drop them by hand under
 >    `<cwd>/.skill-map/plugins/`. The directory lives inside the
->    project, so a bundle committed here travels with the repo
+>    project, so a plugin committed here travels with the repo
 >    and the rest of the team picks it up on the next pull.
 
 > Now let's look at what's actually installed. `sm plugins list`
-> shows every bundle the CLI shipped with. Run it in your second
+> shows every plugin the CLI shipped with. Run it in your second
 > terminal:
 
 ```bash
 sm plugins list
 ```
 
-> There are the five bundles. The next step zooms into the six
-> kinds of extension that bundles can carry, you'll see at least
+> There are the five plugins. The next step zooms into the six
+> kinds of extension that a plugin can carry, you'll see at least
 > one of each living inside `core`.
 
 Mark `tour-1-intro: done`.
@@ -101,7 +100,7 @@ Mark `tour-1-intro: done`.
 >    newer skill-map is available on npm.
 >    Example: `update-check`.
 >
-> Putting it together: a **bundle** packages one or more
+> Putting it together: a **plugin** packages one or more
 > **extensions**, each extension has a **kind**, the kind decides
 > where it plugs into the kernel.
 >
@@ -111,7 +110,7 @@ Mark `tour-1-intro: done`.
 > from there. CLI and UI use the same store, so a change in one
 > is reflected in the other.
 
-> Now let's see those six kinds inside a real bundle. Open `core`
+> Now let's see those six kinds inside a real plugin. Open `core`
 > in your second terminal:
 
 ```bash
@@ -121,7 +120,7 @@ sm plugins show core
 Expected: the 28 extensions grouped by kind, each row showing its
 kind and qualified id (e.g. `extractor  core/markdown-link`). You
 can spot at least one of each of the six kinds you just read about,
-all packed into a single bundle.
+all packed into a single plugin.
 
 Mark `tour-2-kinds: done`.
 
@@ -177,8 +176,8 @@ Mark `tour-3-explore: done`.
 
 > All set. You now know:
 >
-> - What plugins, extensions, bundles, and the six kinds are.
-> - Five bundles ship pre-installed (`claude`, `antigravity`,
+> - What plugins, extensions, and the six kinds are.
+> - Five plugins ship pre-installed (`claude`, `antigravity`,
 >   `openai`, `agent-skills`, `core`).
 > - How to list, inspect, diagnose, and toggle extensions from
 >   the CLI (and the same lives in the UI).

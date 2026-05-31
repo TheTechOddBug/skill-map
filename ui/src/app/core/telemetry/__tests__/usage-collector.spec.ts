@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { buildPluginUsageSet, qualifyPluginForUsage } from '../usage-collector';
 
 describe('qualifyPluginForUsage', () => {
-  it('passes built-in ids through, bare bundle or qualified extension', () => {
+  it('passes built-in ids through, bare plugin or qualified extension', () => {
     expect(qualifyPluginForUsage('claude')).toBe('claude');
     expect(qualifyPluginForUsage('core')).toBe('core');
     expect(qualifyPluginForUsage('core/markdown-link')).toBe('core/markdown-link');

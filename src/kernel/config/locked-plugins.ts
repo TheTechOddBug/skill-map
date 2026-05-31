@@ -1,5 +1,5 @@
 /**
- * Hardcoded lock-list for plugin bundles and extensions.
+ * Hardcoded lock-list for plugins and extensions.
  *
  * Entries here cannot be toggled, by design, the lock is enforced at
  * every entry point that could mutate or interpret the enabled-state:
@@ -21,7 +21,7 @@
  * other drivers" rule.
  *
  * Forms accepted:
- *   - bundle id          → e.g. `'claude'` (locks the whole bundle)
+ *   - plugin id          → e.g. `'claude'` (locks the whole plugin)
  *   - qualified ext id   → e.g. `'core/markdown'` (locks one extension)
  *
  * Add or remove entries here only, there is no per-environment override
@@ -65,7 +65,7 @@ export const LOCKED_PLUGIN_IDS: ReadonlySet<string> = new Set<string>([
   'core/ascii',
 ]);
 
-/** True when the given bundle id or qualified extension id is locked. */
+/** True when the given plugin id or qualified extension id is locked. */
 export function isPluginLocked(idOrQualified: string): boolean {
   return LOCKED_PLUGIN_IDS.has(idOrQualified);
 }

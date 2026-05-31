@@ -2,7 +2,7 @@
  * Warning emission + plumbing helpers, runtime-context / search-path
  * resolution that the entry point threads through plugin discovery, and
  * the diagnostic-line renderer (with sanitisation + display caps) the
- * load loop pushes onto `bundle.warnings`.
+ * load loop pushes onto `runtime.warnings`.
  */
 
 import { resolve } from 'node:path';
@@ -18,7 +18,7 @@ import { defaultRuntimeContext, type IRuntimeContext } from '../runtime-context.
 
 import type {
   ILoadPluginRuntimeOptions,
-  IPluginRuntimeBundle,
+  IPluginRuntime,
 } from './index.js';
 
 // Caps for interpolated values in the warning template. The plugin id
@@ -37,8 +37,8 @@ export const PLUGIN_REASON_DISPLAY_CAP = 1000;
  * trailing-newline-free (matches the convention in
  * `cli/util/printer.ts`).
  */
-export function emitWarnings(bundle: IPluginRuntimeBundle, printer: IPrinter): void {
-  for (const warn of bundle.warnings) {
+export function emitWarnings(runtime: IPluginRuntime, printer: IPrinter): void {
+  for (const warn of runtime.warnings) {
     printer.warn(`${warn}\n`);
   }
 }

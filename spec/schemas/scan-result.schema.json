@@ -47,6 +47,26 @@
       "minimum": 1,
       "description": "Override applied via `--max-nodes <N>` on the verb that ran the scan (`sm scan`, `sm refresh`, `sm watch`), or `null` when no override was passed and the value above came from the setting. The override is bidirectional: it can raise the cap above the recommended limit (the UI banner stays visible until a re-scan lands below the recommended limit) or lower it (the banner also fires if `filesWalked` reaches the lowered override). Absent on synthetic fixtures."
     },
+    "oversizedFiles": {
+      "type": "array",
+      "description": "Files the walker skipped because their on-disk size exceeded `scan.maxFileSizeBytes` (default 1 MiB). Reported so the CLI / serve terminal can warn and the UI can raise a banner. Each entry is the root-relative, forward-slash path (same form as `node.path`) plus the file's byte size. Skipped files are never read, parsed, or indexed as nodes. Empty when no file exceeded the limit; defaults to `[]`.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "bytes"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Root-relative, forward-slash path of the skipped file (same form as `node.path`)."
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "On-disk size of the skipped file, in bytes."
+          }
+        }
+      }
+    },
     "nodes": {
       "type": "array",
       "items": { "$ref": "node.schema.json" }
@@ -66,6 +86,7 @@
       "properties": {
         "filesWalked": { "type": "integer", "minimum": 0 },
         "filesSkipped": { "type": "integer", "minimum": 0, "description": "Files walked but not classified by any Provider." },
+        "filesOversized": { "type": "integer", "minimum": 0, "description": "Files skipped before reading because their on-disk size exceeded `scan.maxFileSizeBytes`. Equals `oversizedFiles.length`. Absent on synthetic fixtures that bypass the walker." },
         "nodesCount": { "type": "integer", "minimum": 0 },
         "linksCount": { "type": "integer", "minimum": 0 },
         "issuesCount": { "type": "integer", "minimum": 0 },

@@ -1,0 +1,35 @@
+@if (visible()) {
+  <div
+    class="skipped-files-banner"
+    role="status"
+    data-testid="skipped-files-banner"
+  >
+    <span
+      class="skipped-files-banner__icon fa-solid fa-triangle-exclamation"
+      aria-hidden="true"
+    ></span>
+    <p class="skipped-files-banner__body" data-testid="skipped-files-banner-body">
+      {{ texts.headline(state().count) }}
+      <span class="skipped-files-banner__first" data-testid="skipped-files-banner-first">
+        {{ state().first }}
+      </span>
+      @if (state().hasMore) {
+        <span
+          class="skipped-files-banner__more"
+          [pTooltip]="state().tooltip"
+          data-testid="skipped-files-banner-more"
+          >{{ texts.more }}</span
+        >
+      }
+    </p>
+    <button
+      type="button"
+      class="skipped-files-banner__cta"
+      [attr.aria-label]="texts.ctaAria"
+      (click)="onCta()"
+      data-testid="skipped-files-banner-cta"
+    >
+      {{ texts.cta }}
+    </button>
+  </div>
+}

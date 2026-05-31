@@ -111,8 +111,8 @@ function resolveCliWorkspaceRoot(): string {
 /**
  * Enumerate every built-in Provider that ships a `conformance/`
  * directory next to its manifest. With the structure-as-truth layout,
- * providers live at `plugins/<bundle>/providers/<provider-id>/` so the
- * walker iterates each bundle and looks for `providers/<name>/conformance/`.
+ * providers live at `plugins/<plugin>/providers/<provider-id>/` so the
+ * walker iterates each plugin and looks for `providers/<name>/conformance/`.
  */
 function collectProviderScopes(specRoot: string): IConformanceScope[] {
   const out: IConformanceScope[] = [];
@@ -124,12 +124,12 @@ function collectProviderScopes(specRoot: string): IConformanceScope[] {
   }
   const pluginsRoot = resolve(workspaceRoot, 'plugins');
   if (!existsSync(pluginsRoot)) return out;
-  for (const bundleEntry of readdirSync(pluginsRoot)) {
-    const bundleDir = resolve(pluginsRoot, bundleEntry);
-    if (!isDir(bundleDir)) continue;
-    const providersRoot = resolve(bundleDir, 'providers');
+  for (const pluginEntry of readdirSync(pluginsRoot)) {
+    const pluginDir = resolve(pluginsRoot, pluginEntry);
+    if (!isDir(pluginDir)) continue;
+    const providersRoot = resolve(pluginDir, 'providers');
     if (!isDir(providersRoot)) continue;
-    collectBundleProviderScopes(providersRoot, specRoot, out);
+    collectPluginProviderScopes(providersRoot, specRoot, out);
   }
   return out;
 }
@@ -142,7 +142,7 @@ function isDir(path: string): boolean {
   }
 }
 
-function collectBundleProviderScopes(
+function collectPluginProviderScopes(
   providersRoot: string,
   specRoot: string,
   out: IConformanceScope[],

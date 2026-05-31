@@ -4,7 +4,7 @@
  * Covers:
  *   - AJV emit-time payload validation (`validateContributionPayload`).
  *   - Runtime catalog aggregation (`loadPluginRuntime` →
- *     `bundle.viewContributions`).
+ *     `runtime.viewContributions`).
  *   - Storage adapter round-trip (`replaceAllScanContributions` +
  *     `loadContributionsForNode` / `loadContributionsForPaths` /
  *     `loadContributionLookup` / `purgeContributionsByPlugin`).
@@ -167,16 +167,16 @@ describe('view contributions, AJV payload validation', () => {
 // ---------------------------------------------------------------------------
 
 describe('view contributions, loadPluginRuntime aggregation', () => {
-  it('collects a single declared contribution into the bundle catalog', async () => {
+  it('collects a single declared contribution into the plugin catalog', async () => {
     const dir = freshDir('catalog-one');
     plantPluginWithViewContributions(dir, 'agg-one', {
       counter: { slot: 'card.footer.right', label: 'Things', icon: '🔍' },
     });
 
-    const bundle = await loadPluginRuntime({ pluginDir: dir });
-    assert.equal(bundle.discovered[0]!.status, 'enabled');
-    assert.equal(bundle.viewContributions.length, 1);
-    const entry = bundle.viewContributions[0]!;
+    const runtime = await loadPluginRuntime({ pluginDir: dir });
+    assert.equal(runtime.discovered[0]!.status, 'enabled');
+    assert.equal(runtime.viewContributions.length, 1);
+    const entry = runtime.viewContributions[0]!;
     assert.equal(entry.pluginId, 'agg-one');
     assert.equal(entry.extensionId, 'agg-one-d');
     assert.equal(entry.contributionId, 'counter');
@@ -192,9 +192,9 @@ describe('view contributions, loadPluginRuntime aggregation', () => {
       tag: { slot: 'inspector.header.badge.tag', label: 'Status', emitWhenEmpty: true },
     });
 
-    const bundle = await loadPluginRuntime({ pluginDir: dir });
-    assert.equal(bundle.discovered[0]!.status, 'enabled');
-    assert.equal(bundle.viewContributions[0]!.emitWhenEmpty, true);
+    const runtime = await loadPluginRuntime({ pluginDir: dir });
+    assert.equal(runtime.discovered[0]!.status, 'enabled');
+    assert.equal(runtime.viewContributions[0]!.emitWhenEmpty, true);
   });
 
   it('collects multiple contributions per extension', async () => {
@@ -205,10 +205,10 @@ describe('view contributions, loadPluginRuntime aggregation', () => {
       tree: { slot: 'inspector.body.panel.tree', label: 'T' },
     });
 
-    const bundle = await loadPluginRuntime({ pluginDir: dir });
-    assert.equal(bundle.discovered[0]!.status, 'enabled');
-    assert.equal(bundle.viewContributions.length, 3);
-    const ids = bundle.viewContributions.map((c) => c.contributionId).sort();
+    const runtime = await loadPluginRuntime({ pluginDir: dir });
+    assert.equal(runtime.discovered[0]!.status, 'enabled');
+    assert.equal(runtime.viewContributions.length, 3);
+    const ids = runtime.viewContributions.map((c) => c.contributionId).sort();
     assert.deepEqual(ids, ['breakdown', 'counter', 'tree']);
   });
 
@@ -238,9 +238,9 @@ describe('view contributions, loadPluginRuntime aggregation', () => {
       };`,
     );
 
-    const bundle = await loadPluginRuntime({ pluginDir: dir });
-    assert.equal(bundle.discovered[0]!.status, 'enabled');
-    assert.equal(bundle.viewContributions.length, 0);
+    const runtime = await loadPluginRuntime({ pluginDir: dir });
+    assert.equal(runtime.discovered[0]!.status, 'enabled');
+    assert.equal(runtime.viewContributions.length, 0);
   });
 });
 
@@ -626,7 +626,7 @@ describe('view contributions, storage adapter round-trip', () => {
     // Mirrors the `sm plugins disable core/slash-command` path: the toggle
     // splits the qualified id into (pluginId='core', extensionId='slash-command')
     // and only that pair's rows must be dropped. Siblings under the
-    // same bundle survive.
+    // same plugin survive.
     const handle = await bootDb();
     try {
       await handle.db.transaction().execute(async (trx) => {

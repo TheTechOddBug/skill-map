@@ -58,7 +58,7 @@ export interface IPluginStateHandle {
   isDirty(id: string): boolean;
   refresh(): Promise<void>;
   onExtensionToggle(
-    bundleId: string,
+    pluginId: string,
     ext: IPluginExtensionApi,
     nextValue: boolean,
   ): void;
@@ -144,12 +144,12 @@ export function setupPluginState(deps: IPluginStateDeps): IPluginStateHandle {
   };
 
   const onExtensionToggle = (
-    bundleId: string,
+    pluginId: string,
     ext: IPluginExtensionApi,
     nextValue: boolean,
   ): void => {
     if (applying()) return;
-    const key = qualifiedKey(bundleId, ext.id);
+    const key = qualifiedKey(pluginId, ext.id);
     const next = new Map(pendingState());
     next.set(key, nextValue);
     pendingState.set(next);

@@ -6,11 +6,11 @@
  *   - `./plugin-runtime/index.ts`    , `loadPluginRuntime`,
  *                                       `emptyPluginRuntime`,
  *                                       `AnnotationContributionConflictError`,
- *                                       `IPluginRuntimeBundle`,
+ *                                       `IPluginRuntime`,
  *                                       `ILoadPluginRuntimeOptions`.
  *   - `./plugin-runtime/resolver.ts` , layered enabled-resolver
  *                                       (settings.json + DB) and the
- *                                       per-bundle / per-extension
+ *                                       per-plugin / per-extension
  *                                       granularity helpers.
  *   - `./plugin-runtime/composer.ts` , `composeScanExtensions`,
  *                                       `composeFormatters`,
@@ -32,7 +32,7 @@ export {
   loadPluginRuntime,
   emptyPluginRuntime,
   AnnotationContributionConflictError,
-  type IPluginRuntimeBundle,
+  type IPluginRuntime,
   type ILoadPluginRuntimeOptions,
 } from './plugin-runtime/index.js';
 

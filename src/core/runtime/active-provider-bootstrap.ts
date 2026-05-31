@@ -120,7 +120,7 @@ export type TBootstrapActiveProviderOutcome =
 // continue) plus the diff-against-markers fork. Splitting the
 // dispatch scatters the lens-resolution algorithm without clarifying
 // it; tracked as tech-debt rather than refactored under the
-// eliminate-bundle-toggle change.
+// eliminate-plugin-toggle change.
 // eslint-disable-next-line complexity
 export async function bootstrapActiveProvider(
   opts: IBootstrapActiveProviderOpts,
@@ -337,17 +337,17 @@ function diffMarkers(
 }
 
 /**
- * Surface a warning when the resolved active lens points at a bundle
+ * Surface a warning when the resolved active lens points at a plugin
  * the operator has disabled (via `sm plugins disable <id>` or the
  * Settings UI). Classification still runs (provider-driven), but the
- * lens-gated extractors for the disabled bundle silently no-op, so
+ * lens-gated extractors for the disabled plugin silently no-op, so
  * without this hint the graph quietly differs from what the lens
  * implies (the bd-23c finding from the providers-test-plan re-pass).
  * Pure: receives `resolveEnabled` as a function so callers thread their
  * own mid-session override when relevant (BFF fresh resolver, watcher
  * batch resolver).
  */
-export function warnIfLensBundleDisabled(args: {
+export function warnIfLensPluginDisabled(args: {
   activeProvider: string | null;
   resolveEnabled: (id: string) => boolean;
   printer: IPrinter;
@@ -355,7 +355,7 @@ export function warnIfLensBundleDisabled(args: {
   if (args.activeProvider === null) return;
   if (args.resolveEnabled(args.activeProvider)) return;
   args.printer.warn(
-    tx(SCAN_RUNNER_TEXTS.activeProviderBundleDisabledWarning, {
+    tx(SCAN_RUNNER_TEXTS.activeProviderPluginDisabledWarning, {
       id: args.activeProvider,
     }),
   );

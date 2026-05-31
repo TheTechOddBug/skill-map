@@ -136,7 +136,7 @@ interface IRunOnceResult {
  * extractors + analyzers so the persistence layer's catalog sweep
  * doesn't drop emitted rows. Mirrors `collectRegisteredContributionKeys`
  * from `core/runtime/plugin-runtime.ts` (which works on the composed
- * bundle, not on a raw extensions object).
+ * plugin runtime, not on a raw extensions object).
  */
 function collectKeys(extensions: IScanExtensionsLite): Set<string> {
   const keys = new Set<string>();

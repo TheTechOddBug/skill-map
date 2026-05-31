@@ -100,7 +100,7 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
       qualifiedByKindAndShort.set(`${ext.kind}:${ext.id}`, qualifiedExtensionId(ext.pluginId, ext.id));
     }
 
-    // Vendor provider bundles (provider-only today).
+    // Vendor provider plugins (provider-only today).
     assert.equal(qualifiedByKindAndShort.get('provider:claude'), 'claude/claude');
     assert.equal(qualifiedByKindAndShort.get('provider:antigravity'), 'antigravity/antigravity');
     assert.equal(qualifiedByKindAndShort.get('provider:agent-skills'), 'agent-skills/agent-skills');

@@ -248,6 +248,13 @@ export interface IScanResultApi {
    * 1000`" vs "default `scan.maxNodes`").
    */
   overrideMaxNodes?: number | null;
+  /**
+   * Files the walker refused to read because their size exceeded
+   * `scan.maxFileSizeBytes`. Each entry carries the root-relative path
+   * and the file's byte size. Used by the skipped-files banner to name
+   * the offenders. Empty / absent when nothing was skipped for size.
+   */
+  oversizedFiles?: { path: string; bytes: number }[];
   nodes: INodeApi[];
   links: ILinkApi[];
   issues: IIssueApi[];
@@ -258,6 +265,13 @@ export interface IScanResultApi {
     linksCount: number;
     issuesCount: number;
     durationMs: number;
+    /**
+     * Count of files skipped because they exceeded
+     * `scan.maxFileSizeBytes`. Equals `oversizedFiles.length`; the
+     * skipped-files banner reads this as the canonical count. Absent on
+     * legacy / synthetic envelopes.
+     */
+    filesOversized?: number;
   };
 }
 
@@ -399,14 +413,14 @@ export interface IPluginItemApi {
   status: TPluginStatusApi;
   reason: string | null;
   source: TPluginSourceApi;
-  /** Bundle-level manifest description. Surfaced as muted secondary
+  /** Plugin-level manifest description. Surfaced as muted secondary
    *  text in Settings; included in the substring search. */
   description?: string;
-  /** Present whenever the bundle declares any extension AND the plugin
-   *  loaded. Every extension is independently toggle-able; the bundle
+  /** Present whenever the plugin declares any extension AND the plugin
+   *  loaded. Every extension is independently toggle-able; the plugin
    *  itself is a presentational grouping. */
   extensions?: IPluginExtensionApi[];
-  /** Host-enforced lock at the bundle level (mirrors the BFF
+  /** Host-enforced lock at the plugin level (mirrors the BFF
    *  `IPluginListItem.locked`). */
   locked?: boolean;
   /**

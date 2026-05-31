@@ -357,6 +357,14 @@ export interface RunScanOptions {
    * replaces the recommended limit for the duration of this scan.
    */
   overrideMaxNodes?: number | null;
+  /**
+   * Mirror of `scan.maxFileSizeBytes` (default 1 MiB). Threaded into
+   * `walkAndExtract` so the walker skips any file larger than this
+   * BEFORE reading it; skipped files surface in
+   * `ScanResult.oversizedFiles` and `stats.filesOversized`. Absent → no
+   * size limit (out-of-band callers and synthetic fixtures stay safe).
+   */
+  maxFileSizeBytes?: number;
 }
 
 /**
@@ -437,6 +445,9 @@ async function runScanInternal(
     activeProvider: activeProviderId,
     recommendedNodeLimit: options.recommendedNodeLimit ?? 256,
     overrideMaxNodes: options.overrideMaxNodes ?? null,
+    ...(options.maxFileSizeBytes !== undefined
+      ? { maxFileSizeBytes: options.maxFileSizeBytes }
+      : {}),
   });
 
   // Signal IR resolver phase. Consumes the `Signal[]` buffer produced by
@@ -804,6 +815,7 @@ function buildScanStats(
     // Providers compete.
     filesWalked: walked.filesWalked,
     filesSkipped: 0,
+    filesOversized: walked.oversizedFiles.length,
     nodesCount: walked.nodes.length,
     linksCount: walked.internalLinks.length,
     issuesCount: issues.length,
@@ -835,6 +847,7 @@ function buildScanReturn(
       scannedBy: SCANNED_BY,
       recommendedNodeLimit: walked.recommendedNodeLimit,
       overrideMaxNodes: walked.overrideMaxNodes,
+      oversizedFiles: walked.oversizedFiles,
       nodes: walked.nodes,
       links: walked.internalLinks,
       issues,

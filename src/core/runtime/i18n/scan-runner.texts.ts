@@ -123,16 +123,16 @@ export const SCAN_RUNNER_TEXTS = {
     'Set the lens explicitly with `sm config set activeProvider <id>` and re-run, or omit --yes for interactive selection.',
 
   /**
-   * Active lens points at a bundle the operator has disabled (via
+   * Active lens points at a plugin the operator has disabled (via
    * `sm plugins disable <id>` or the Settings UI). Classification keeps
    * running because it's provider-driven, but the lens-gated extractors
-   * for the disabled bundle silently no-op. Without this warning the
+   * for the disabled plugin silently no-op. Without this warning the
    * graph quietly differs from what the lens implies.
    */
-  activeProviderBundleDisabledWarning:
-    'activeProvider = "{{id}}" but the "{{id}}" plugin bundle is currently disabled; ' +
+  activeProviderPluginDisabledWarning:
+    'activeProvider = "{{id}}" but the "{{id}}" plugin is currently disabled; ' +
     'provider-specific extractors will not run. ' +
-    'Re-enable the bundle with `sm plugins enable {{id}}` or switch the lens with ' +
+    'Re-enable the plugin with `sm plugins enable {{id}}` or switch the lens with ' +
     '`sm config set activeProvider <id>` to silence this warning.',
 
   /**

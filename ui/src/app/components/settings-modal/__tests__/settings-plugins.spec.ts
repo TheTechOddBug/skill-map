@@ -13,7 +13,7 @@ import type { IListEnvelopeApi, IPluginItemApi } from '../../../../models/api';
 /**
  * SettingsPlugins, coverage for the buffered-edit flow:
  *   - `visible()` flipping to true triggers `listPlugins()`.
- *   - bundle / extension toggles mutate `pendingState` only, they do
+ *   - plugin / extension toggles mutate `pendingState` only, they do
  *     NOT call the data-source's single-id PATCH endpoints.
  *   - `dirtyIds` tracks the diff against `originalState`.
  *   - `applyChanges()` ships the bulk PATCH and triggers a scan.
@@ -37,7 +37,7 @@ function pluginsEnvelope(items: IPluginItemApi[]): IListEnvelopeApi<IPluginItemA
   };
 }
 
-function bundlePlugin(
+function plugin(
   id: string,
   status: IPluginItemApi['status'] = 'enabled',
   description?: string,
@@ -50,11 +50,11 @@ function bundlePlugin(
     status,
     reason: null,
     source: 'built-in',
-    // Every bundle ships at least one extension; the bundle is just a
+    // Every plugin ships at least one extension; the plugin is just a
     // presentational grouping (no toggle of its own), so the inline
     // extension carries the toggle axis tests reach into via
-    // `onExtensionToggle`. Use the same id as the bundle (mirrors the
-    // single-extension provider bundles like `openai/openai`).
+    // `onExtensionToggle`. Use the same id as the plugin (mirrors the
+    // single-extension provider plugins like `openai/openai`).
     extensions: [
       {
         id,
@@ -69,9 +69,9 @@ function bundlePlugin(
 }
 
 /**
- * Convenience helper: flip the bundle's first extension via
+ * Convenience helper: flip the plugin's first extension via
  * `onExtensionToggle`. Replaces the legacy `onBundleToggle` calls now
- * that the bundle itself has no toggle axis. Returns the qualified id
+ * that the plugin itself has no toggle axis. Returns the qualified id
  * the dirty-state tracking should report against.
  */
 function toggleBundleAggregate(
@@ -80,7 +80,7 @@ function toggleBundleAggregate(
   next: boolean,
 ): string {
   const ext = (plugin.extensions ?? [])[0];
-  if (!ext) throw new Error(`bundle ${plugin.id} has no extensions to toggle`);
+  if (!ext) throw new Error(`plugin ${plugin.id} has no extensions to toggle`);
   (cmp as unknown as ITogglesProtoApi).onExtensionToggle(plugin.id, ext, next);
   return `${plugin.id}/${ext.id}`;
 }
@@ -88,7 +88,7 @@ function toggleBundleAggregate(
 function extensionPlugin(
   id: string,
   extensions: Array<{ id: string; enabled: boolean; description?: string }>,
-  bundleDescription?: string,
+  pluginDescription?: string,
 ): IPluginItemApi {
   return {
     id,
@@ -97,7 +97,7 @@ function extensionPlugin(
     status: 'enabled',
     reason: null,
     source: 'built-in',
-    ...(bundleDescription ? { description: bundleDescription } : {}),
+    ...(pluginDescription ? { description: pluginDescription } : {}),
     extensions: extensions.map((e) => ({
       id: e.id,
       kind: 'extractor',
@@ -151,7 +151,7 @@ async function flushAsync(): Promise<void> {
 
 interface ITogglesProtoApi {
   onExtensionToggle(
-    bundleId: string,
+    pluginId: string,
     ext: { id: string },
     v: boolean,
   ): void;
@@ -159,7 +159,7 @@ interface ITogglesProtoApi {
 
 describe('SettingsPlugins, fetch on activation', () => {
   it('fetches plugins when visible flips to true', async () => {
-    const items = [bundlePlugin('claude'), bundlePlugin('gemini', 'disabled')];
+    const items = [plugin('claude'), plugin('gemini', 'disabled')];
     const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
     const { fixture } = bootstrap({ listPlugins } as Partial<IDataSourcePort>);
 
@@ -174,8 +174,8 @@ describe('SettingsPlugins, fetch on activation', () => {
 });
 
 describe('SettingsPlugins, buffered toggle dispatch', () => {
-  it('bundle toggle mutates pendingState only, no PATCH fires', async () => {
-    const items = [bundlePlugin('claude')];
+  it('plugin toggle mutates pendingState only, no PATCH fires', async () => {
+    const items = [plugin('claude')];
     const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
     const setPluginEnabled = vi.fn();
     const applyPluginChanges = vi.fn();
@@ -226,7 +226,7 @@ describe('SettingsPlugins, buffered toggle dispatch', () => {
   });
 
   it('toggling back to the original value clears the dirty marker', async () => {
-    const items = [bundlePlugin('claude')];
+    const items = [plugin('claude')];
     const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
     const { cmp, fixture } = bootstrap({ listPlugins } as Partial<IDataSourcePort>);
 
@@ -246,12 +246,12 @@ describe('SettingsPlugins, buffered toggle dispatch', () => {
 describe('SettingsPlugins, applyChanges', () => {
   it('ships only the dirty entries in one bulk PATCH and triggers a scan', async () => {
     const items = [
-      bundlePlugin('claude'),
-      bundlePlugin('gemini'),
+      plugin('claude'),
+      plugin('gemini'),
     ];
     const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
     const applyPluginChanges = vi.fn().mockResolvedValue(
-      pluginsEnvelope([bundlePlugin('claude', 'disabled'), bundlePlugin('gemini')]),
+      pluginsEnvelope([plugin('claude', 'disabled'), plugin('gemini')]),
     );
     const { cmp, fixture, scanRun } = bootstrap({
       listPlugins,
@@ -267,8 +267,8 @@ describe('SettingsPlugins, applyChanges', () => {
     await cmp.applyChanges();
 
     expect(applyPluginChanges).toHaveBeenCalledTimes(1);
-    // Bulk PATCH now ships qualified `<bundle>/<ext>` ids (the toggle
-    // axis lives on the extension, not the bundle).
+    // Bulk PATCH now ships qualified `<plugin>/<ext>` ids (the toggle
+    // axis lives on the extension, not the plugin).
     expect(applyPluginChanges).toHaveBeenCalledWith([
       { id: 'claude/claude', enabled: false },
     ]);
@@ -278,7 +278,7 @@ describe('SettingsPlugins, applyChanges', () => {
   });
 
   it('does nothing when there are no dirty entries', async () => {
-    const items = [bundlePlugin('claude')];
+    const items = [plugin('claude')];
     const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
     const applyPluginChanges = vi.fn();
     const { cmp, fixture, scanRun } = bootstrap({
@@ -297,10 +297,10 @@ describe('SettingsPlugins, applyChanges', () => {
   });
 
   it('emits the `applied` output exactly once on a successful apply', async () => {
-    const items = [bundlePlugin('claude')];
+    const items = [plugin('claude')];
     const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
     const applyPluginChanges = vi.fn().mockResolvedValue(
-      pluginsEnvelope([bundlePlugin('claude', 'disabled')]),
+      pluginsEnvelope([plugin('claude', 'disabled')]),
     );
     const { cmp, fixture } = bootstrap({
       listPlugins,
@@ -320,7 +320,7 @@ describe('SettingsPlugins, applyChanges', () => {
   });
 
   it('does NOT emit `applied` when applyChanges fails (modal stays open)', async () => {
-    const items = [bundlePlugin('claude')];
+    const items = [plugin('claude')];
     const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
     const applyPluginChanges = vi.fn().mockRejectedValue(new Error('boom'));
     const { cmp, fixture } = bootstrap({
@@ -346,8 +346,8 @@ describe('SettingsPlugins, applyChanges', () => {
 describe('SettingsPlugins, restartRecommended footer hint', () => {
   it('is true when a dirty row is re-enabling a startsAsDisabled plugin', async () => {
     const items = [
-      bundlePlugin('was-off', 'disabled', undefined, { startsAsDisabled: true }),
-      bundlePlugin('claude'),
+      plugin('was-off', 'disabled', undefined, { startsAsDisabled: true }),
+      plugin('claude'),
     ];
     const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
     const { cmp, fixture } = bootstrap({ listPlugins } as Partial<IDataSourcePort>);
@@ -368,7 +368,7 @@ describe('SettingsPlugins, restartRecommended footer hint', () => {
   });
 
   it('is false when only non-startsAsDisabled plugins are dirty', async () => {
-    const items = [bundlePlugin('claude')];
+    const items = [plugin('claude')];
     const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
     const { cmp, fixture } = bootstrap({ listPlugins } as Partial<IDataSourcePort>);
     fixture.componentRef.setInput('visible', true);
@@ -384,7 +384,7 @@ describe('SettingsPlugins, restartRecommended footer hint', () => {
 });
 
 describe('SettingsPlugins, chevron honours user choice over filter forcing', () => {
-  it('toggleExpanded collapses a granularity=extension bundle even with an active kind filter', async () => {
+  it('toggleExpanded collapses a granularity=extension plugin even with an active kind filter', async () => {
     // Regression for the bug where `forcedExpand` overrode `collapsed`
     // while a filter was active, the chevron looked unresponsive
     // because the row stayed visually expanded after the click.
@@ -414,7 +414,7 @@ describe('SettingsPlugins, chevron honours user choice over filter forcing', () 
     // have kicked in.
     view.kindFilter.set('analyzer');
     fixture.detectChanges();
-    // Default for granularity=extension bundles is expanded.
+    // Default for granularity=extension plugins is expanded.
     expect(view.isExpanded('core')).toBe(true);
 
     // Click the chevron, user wants to collapse.
@@ -431,7 +431,7 @@ describe('SettingsPlugins, chevron honours user choice over filter forcing', () 
 
 describe('SettingsPlugins, discardChanges', () => {
   it('resets pendingState to originalState without calling the data-source', async () => {
-    const items = [bundlePlugin('claude')];
+    const items = [plugin('claude')];
     const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
     const applyPluginChanges = vi.fn();
     const { cmp, fixture, scanRun } = bootstrap({
@@ -457,8 +457,8 @@ describe('SettingsPlugins, discardChanges', () => {
 describe('SettingsPlugins, startsAsDisabled per-row hint', () => {
   it('returns true only when a startsAsDisabled plugin is being re-enabled', async () => {
     const items = [
-      bundlePlugin('was-off', 'disabled', undefined, { startsAsDisabled: true }),
-      bundlePlugin('claude'),
+      plugin('was-off', 'disabled', undefined, { startsAsDisabled: true }),
+      plugin('claude'),
     ];
     const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
     const { cmp, fixture } = bootstrap({ listPlugins } as Partial<IDataSourcePort>);
@@ -497,10 +497,10 @@ describe('SettingsPlugins, search by description', () => {
     };
   }
 
-  it('matches when the query hits the bundle description', async () => {
+  it('matches when the query hits the plugin description', async () => {
     const items = [
-      bundlePlugin('claude', 'enabled', 'Claude Code platform integration.'),
-      bundlePlugin('gemini', 'enabled', 'Gemini CLI integration.'),
+      plugin('claude', 'enabled', 'Claude Code platform integration.'),
+      plugin('gemini', 'enabled', 'Gemini CLI integration.'),
     ];
     const view = await loadAndSearch(items, 'claude code');
     const ids = view.filteredPlugins().map((p) => p.id);
@@ -527,7 +527,7 @@ describe('SettingsPlugins, search by description', () => {
     expect(exts[0].id).toBe('superseded');
   });
 
-  it('keeps every extension when the query hits the bundle (id or description) directly', async () => {
+  it('keeps every extension when the query hits the plugin (id or description) directly', async () => {
     const items = [
       extensionPlugin(
         'core',
@@ -559,7 +559,7 @@ describe('SettingsPlugins, error surface', () => {
   });
 
   it('surfaces applyChanges errors via toggleError', async () => {
-    const items = [bundlePlugin('claude')];
+    const items = [plugin('claude')];
     const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
     const applyPluginChanges = vi.fn().mockRejectedValue(new Error('apply failed'));
     const { cmp, fixture } = bootstrap({

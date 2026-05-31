@@ -1,13 +1,13 @@
-# Built-in extensions (built-in plugin bundles)
+# Built-in extensions (built-in plugins)
 
 The reference implementation's bundled extensions live here, organized by extension kind. Each is a directory with a manifest + implementation + a sibling `*.test.ts` (the kernel treats a missing test as a contract-check failure for built-ins).
 
-The built-in **plugin bundles** are declared in [`built-ins.ts`](./built-ins.ts):
+The built-in **plugins** are declared in [`built-ins.ts`](./built-ins.ts):
 
 - **`claude`** / **`antigravity`** / **`openai`** / **`agent-skills`** group the vendor Provider extensions (and, for `claude`, the two vendor-specific extractors that decode its `@`-directive and `/`-slash grammar). Today `antigravity`, `openai`, and `agent-skills` each ship just their Provider; `claude` ships its Provider plus the two extractors.
 - **`core`** ships the kernel-internal primitives (every Rule, the Formatter, the markdown / annotation / URL-counter Extractors, the `core-markdown` fallback Provider).
 
-Every extension is independently toggle-able by its qualified id `<bundle>/<ext-id>`, satisfying §Boot invariant: "no extension is privileged". Bundles are presentational grouping only; the bare bundle id maps to a CLI / BFF cascade macro (`sm plugins disable claude` fans out across every extension inside `claude`; multi-extension bundles need `--yes` in non-TTY contexts).
+Every extension is independently toggle-able by its qualified id `<plugin>/<ext-id>`, satisfying §Boot invariant: "no extension is privileged". Plugins are presentational grouping only; the bare plugin id maps to a CLI / BFF cascade macro (`sm plugins disable claude` fans out across every extension inside `claude`; multi-extension plugins need `--yes` in non-TTY contexts).
 
 ## Current built-in inventory
 
@@ -35,7 +35,7 @@ The `boot` and `shutdown` triggers fire from `cli/entry.ts`, not from `runScan`.
 
 ### Internal-only parsers
 
-`parsers/{frontmatter-yaml,plain}/` ship as built-in modules but are **not** registered in any bundle and are deliberately absent from the table above, they have no `kind: 'parser'` user-facing surface. Provider manifests reference them by id (`read.parser`) and the kernel-internal registry in [`../kernel/scan/parsers/index.ts`](../kernel/scan/parsers/index.ts) is the only resolution seam (frozen at seed time, not re-exported from `src/kernel/index.ts`). They live here for layout consistency with the rest of the built-ins; user plugins cannot add parsers.
+`parsers/{frontmatter-yaml,plain}/` ship as built-in modules but are **not** registered in any plugin and are deliberately absent from the table above, they have no `kind: 'parser'` user-facing surface. Provider manifests reference them by id (`read.parser`) and the kernel-internal registry in [`../kernel/scan/parsers/index.ts`](../kernel/scan/parsers/index.ts) is the only resolution seam (frozen at seed time, not re-exported from `src/kernel/index.ts`). They live here for layout consistency with the rest of the built-ins; user plugins cannot add parsers.
 
 ## Boot invariant
 

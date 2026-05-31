@@ -112,7 +112,7 @@ spec/                              ← published as @skill-map/spec
 
 ## Relationship to the reference implementation
 
-The reference implementation ([`../src/`](../src/README.md)) is one conforming consumer of this spec. It ships the CLI binary `sm`, a built-in SQLite storage adapter, and a bundle of default extensions.
+The reference implementation ([`../src/`](../src/README.md)) is one conforming consumer of this spec. It ships the CLI binary `sm`, a built-in SQLite storage adapter, and a set of default extensions.
 
 The reference impl has no privileged access to the spec. Breaking changes to the spec must follow [`versioning.md`](./versioning.md) regardless of reference-impl convenience.
 
