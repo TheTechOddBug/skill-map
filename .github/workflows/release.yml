@@ -68,6 +68,60 @@ jobs:
       - name: Build CLI
         run: pnpm --filter @skill-map/cli build
 
+      - name: Inject Sentry debug IDs into the CLI bundle
+        # Node packages install to per-machine paths, so the browser-style
+        # `release` + `url-prefix` matching the UI upload uses CANNOT resolve
+        # CLI stack frames (the abs path differs on every install). Debug IDs
+        # are the path-independent alternative: a stable id is embedded in
+        # each shipped JS file (and its `.map`), and Sentry matches crash
+        # events to maps by that id. Injection MUST run before the publish so
+        # the id lands in the published JS; `changeset publish` does not
+        # rebuild (and there is no prepublish hook), so the injected dist is
+        # exactly what ships.
+        #
+        # EXCLUDES `src/dist/ui`: that is the BFF-served UI bundle, whose maps
+        # are matched by filename in the UI upload below. Mutating its JS here
+        # would shift it relative to those maps and break UI symbolication.
+        # Self-skips when Sentry is not wired (no token / org), leaving the
+        # published bundle byte-identical to a no-telemetry release.
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+        run: |
+          if [ -n "$SENTRY_AUTH_TOKEN" ] && [ -n "$SENTRY_ORG" ]; then
+            echo "Injecting Sentry debug IDs into src/dist (excluding ui/)"
+            npx @sentry/cli@2 sourcemaps inject --ignore '**/ui/**' src/dist
+          else
+            echo "Sentry not configured; skipping CLI debug-id injection."
+          fi
+
+      - name: Stage and strip CLI sourcemaps from the published bundle
+        # Mirror of the UI strip, for the CLI's own maps. The `.map` files
+        # must NOT ship in the npm tarball (they embed the original TS via
+        # `sourcesContent`), but the post-publish upload still needs them.
+        # Copy them out of the published tree (preserving the `dist/` layout)
+        # then delete them from `src/dist`. Debug ids (injected above) live
+        # inside the maps, so the upload matches by id regardless of where
+        # the file sits. Excludes `src/dist/ui` (handled by the UI strip).
+        # Gated on Sentry being wired: a no-telemetry release keeps shipping
+        # its maps exactly as before (no behaviour change without a token).
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+        run: |
+          if [ -z "$SENTRY_AUTH_TOKEN" ] || [ -z "$SENTRY_ORG" ]; then
+            echo "Sentry not configured; leaving CLI sourcemaps in the bundle as-is."
+            exit 0
+          fi
+          mkdir -p .tmp/cli-sentry-maps
+          staged=0
+          while IFS= read -r m; do
+            cp --parents "$m" .tmp/cli-sentry-maps/
+            rm -f "$m"
+            staged=$((staged + 1))
+          done < <(find src/dist -name '*.map' -not -path '*/ui/*')
+          echo "Staged + stripped ${staged} CLI sourcemap(s) from the published bundle."
+
       - name: Strip UI sourcemaps from the published bundle
         # The `.map` files stay under `ui/dist/` for the post-publish upload,
         # but must NEVER ship inside the npm tarball (they would expose the
@@ -195,3 +249,45 @@ jobs:
             --release "${release}" \
             --url-prefix '~/' \
             ui/dist/ui/browser
+
+      - name: Upload CLI sourcemaps to Sentry (post-publish)
+        # Companion to the UI upload above, targeting the shared Node project
+        # (`skill-map-cli`, also home to the `surface: bff` events). The CLI
+        # bundle was debug-id-injected before publish, so Sentry matches CLI
+        # crash events to these maps by debug id; `--release` only associates
+        # the artifact bundle for housekeeping (no url-prefix / path matching
+        # is involved). Excludes `src/dist/ui` (covered by the UI upload).
+        # Self-skips unless this run published @skill-map/cli with Sentry
+        # wired and CLI maps present on disk.
+        if: steps.changesets.outputs.published == 'true'
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: skill-map-cli
+          PUBLISHED: ${{ steps.changesets.outputs.publishedPackages }}
+        run: |
+          if [ -z "$SENTRY_AUTH_TOKEN" ] || [ -z "$SENTRY_ORG" ]; then
+            echo "SENTRY_AUTH_TOKEN secret or SENTRY_ORG variable not set; skipping sourcemap upload."
+            exit 0
+          fi
+          cli_version=$(node -e '
+            const pkgs = JSON.parse(process.env.PUBLISHED || "[]");
+            const cli = pkgs.find((p) => p.name === "@skill-map/cli");
+            if (cli) process.stdout.write(cli.version);
+          ')
+          if [ -z "$cli_version" ]; then
+            echo "@skill-map/cli not in this release; skipping sourcemap upload."
+            exit 0
+          fi
+          if [ -z "$(find .tmp/cli-sentry-maps -name '*.map' -print -quit 2>/dev/null)" ]; then
+            echo "No staged CLI sourcemaps on disk (built without them); skipping upload."
+            exit 0
+          fi
+          release="skill-map-cli@${cli_version}"
+          echo "Uploading CLI sourcemaps for release ${release}"
+          # Reads from the staging dir populated before publish (the maps were
+          # stripped from the tarball there). Debug-id matched, so no
+          # url-prefix / path matching is needed.
+          npx @sentry/cli@2 sourcemaps upload \
+            --release "${release}" \
+            .tmp/cli-sentry-maps
