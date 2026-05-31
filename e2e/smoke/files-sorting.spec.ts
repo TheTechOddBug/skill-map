@@ -51,7 +51,7 @@ const isNonDecreasing = (a: number[]): boolean => a.every((v, i) => i === 0 || a
 test.describe('files view column sorting (smoke)', () => {
   test('boots into the folder tree with no active column sort', async ({ page }) => {
     await gotoFiles(page);
-    expect(await folderRows(page).count()).toBeGreaterThan(0);
+    await expect(folderRows(page)).not.toHaveCount(0);
     await expect(page.getByTestId('files-col-tokens')).toHaveAttribute('aria-sort', 'none');
   });
 
@@ -61,8 +61,8 @@ test.describe('files view column sorting (smoke)', () => {
 
     await expect(page.getByTestId('files-col-tokens')).toHaveAttribute('aria-sort', 'descending');
     // Flat mode: folder rows are gone, leaves remain.
-    expect(await folderRows(page).count()).toBe(0);
-    expect(await leafRows(page).count()).toBeGreaterThan(0);
+    await expect(folderRows(page)).toHaveCount(0);
+    await expect(leafRows(page)).not.toHaveCount(0);
 
     const tokens = await tokenSequence(page);
     expect(tokens.length).toBeGreaterThan(1);
@@ -85,10 +85,10 @@ test.describe('files view column sorting (smoke)', () => {
   test('the Folder / Node header restores the tree', async ({ page }) => {
     await gotoFiles(page);
     await page.getByTestId('files-col-tokens').click();
-    expect(await folderRows(page).count()).toBe(0);
+    await expect(folderRows(page)).toHaveCount(0);
 
     await page.getByTestId('files-col-tree').click();
-    expect(await folderRows(page).count()).toBeGreaterThan(0);
+    await expect(folderRows(page)).not.toHaveCount(0);
     await expect(page.getByTestId('files-col-tokens')).toHaveAttribute('aria-sort', 'none');
   });
 
@@ -100,7 +100,7 @@ test.describe('files view column sorting (smoke)', () => {
     await page.reload();
     await expect(page.getByTestId('files-table')).toBeVisible();
     await expect(page.getByTestId('files-col-tokens')).toHaveAttribute('aria-sort', 'descending');
-    expect(await folderRows(page).count()).toBe(0);
+    await expect(folderRows(page)).toHaveCount(0);
   });
 
   test('a file row shows its full path in a single-line tooltip', async ({ page }) => {
