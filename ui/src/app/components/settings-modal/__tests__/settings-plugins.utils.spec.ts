@@ -4,6 +4,7 @@ import { SETTINGS_TEXTS } from '../../../../i18n/settings.texts';
 import type { IPluginExtensionApi, IPluginItemApi } from '../../../../models/api';
 import {
   buildStateFromPlugins,
+  filterBySource,
   qualifiedKey,
   sourceLabel,
   statusLabel,
@@ -58,6 +59,23 @@ describe('settings-plugins.utils, sourceLabel', () => {
   it('maps each source value to its catalogue entry', () => {
     expect(sourceLabel('built-in', SETTINGS_TEXTS)).toBe(SETTINGS_TEXTS.sourceBuiltIn);
     expect(sourceLabel('project', SETTINGS_TEXTS)).toBe(SETTINGS_TEXTS.sourceProject);
+  });
+});
+
+describe('settings-plugins.utils, filterBySource', () => {
+  const builtIn = plugin({ status: 'enabled', id: 'core', source: 'built-in' });
+  const project = plugin({ status: 'enabled', id: 'mine', source: 'project' });
+
+  it("'all' keeps every plugin", () => {
+    expect(filterBySource(builtIn, 'all')).toEqual([builtIn]);
+    expect(filterBySource(project, 'all')).toEqual([project]);
+  });
+
+  it('keeps only plugins whose source matches the picked one', () => {
+    expect(filterBySource(project, 'project')).toEqual([project]);
+    expect(filterBySource(builtIn, 'project')).toEqual([]);
+    expect(filterBySource(builtIn, 'built-in')).toEqual([builtIn]);
+    expect(filterBySource(project, 'built-in')).toEqual([]);
   });
 });
 

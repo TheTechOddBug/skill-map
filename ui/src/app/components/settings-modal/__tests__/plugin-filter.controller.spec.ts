@@ -152,4 +152,118 @@ describe('plugin-filter.controller', () => {
       expect(ids).toEqual(['claude']);
     });
   });
+
+  it('source filter narrows the list to project (or built-in) plugins', () => {
+    TestBed.runInInjectionContext(() => {
+      const plugins = signal<readonly IPluginItemApi[]>([
+        plugin('core', { source: 'built-in' }),
+        plugin('my-plugin', { source: 'project' }),
+      ]);
+      const handle = setupPluginFilter({ plugins });
+      handle.setSourceFilter('project');
+      expect(handle.filteredPlugins().map((p) => p.id)).toEqual(['my-plugin']);
+      expect(handle.sourceFilterActive()).toBe(true);
+      handle.setSourceFilter('built-in');
+      expect(handle.filteredPlugins().map((p) => p.id)).toEqual(['core']);
+    });
+  });
+
+  it('source + kind compose (source first, then kind)', () => {
+    TestBed.runInInjectionContext(() => {
+      const plugins = signal<readonly IPluginItemApi[]>([
+        extensionPlugin('core', [{ id: 'broken-ref', kind: 'analyzer' }]),
+        {
+          ...extensionPlugin('mine', [
+            { id: 'my-analyzer', kind: 'analyzer' },
+            { id: 'my-fmt', kind: 'formatter' },
+          ]),
+          source: 'project',
+        },
+      ]);
+      const handle = setupPluginFilter({ plugins });
+      handle.setSourceFilter('project');
+      handle.setKindFilter('analyzer');
+      const filtered = handle.filteredPlugins();
+      expect(filtered.map((p) => p.id)).toEqual(['mine']);
+      expect(filtered[0].extensions?.map((e) => e.id)).toEqual(['my-analyzer']);
+    });
+  });
+
+  it('setSourceFilter persists the choice to localStorage (effect fires on tick)', () => {
+    TestBed.runInInjectionContext(() => {
+      const plugins = signal<readonly IPluginItemApi[]>([]);
+      const handle = setupPluginFilter({ plugins });
+      handle.setSourceFilter('project');
+      TestBed.tick();
+      expect(localStorage.getItem('sm.settings.plugins.source-filter')).toBe('project');
+      handle.setSourceFilter('all');
+      TestBed.tick();
+      expect(localStorage.getItem('sm.settings.plugins.source-filter')).toBeNull();
+    });
+  });
+
+  it('isSourceFilterActive reflects the current selection', () => {
+    TestBed.runInInjectionContext(() => {
+      const plugins = signal<readonly IPluginItemApi[]>([]);
+      const handle = setupPluginFilter({ plugins });
+      expect(handle.isSourceFilterActive('all')).toBe(true);
+      expect(handle.isSourceFilterActive('project')).toBe(false);
+      handle.setSourceFilter('project');
+      expect(handle.isSourceFilterActive('project')).toBe(true);
+      expect(handle.isSourceFilterActive('all')).toBe(false);
+    });
+  });
+
+  it('toggleSourceFilter selects, switches between the two, and toggles off to all', () => {
+    TestBed.runInInjectionContext(() => {
+      const plugins = signal<readonly IPluginItemApi[]>([]);
+      const handle = setupPluginFilter({ plugins });
+      handle.toggleSourceFilter('built-in');
+      expect(handle.sourceFilter()).toBe('built-in');
+      // Switching to the other source replaces it (XOR between the two).
+      handle.toggleSourceFilter('project');
+      expect(handle.sourceFilter()).toBe('project');
+      // Clicking the active one toggles back to 'all'.
+      handle.toggleSourceFilter('project');
+      expect(handle.sourceFilter()).toBe('all');
+    });
+  });
+
+  it('toggleKindFilter selects a kind and toggles it back off to all', () => {
+    TestBed.runInInjectionContext(() => {
+      const plugins = signal<readonly IPluginItemApi[]>([]);
+      const handle = setupPluginFilter({ plugins });
+      handle.toggleKindFilter('analyzer');
+      expect(handle.kindFilter()).toBe('analyzer');
+      handle.toggleKindFilter('analyzer');
+      expect(handle.kindFilter()).toBe('all');
+    });
+  });
+
+  it('source and kind axes are independent (toggling one keeps the other)', () => {
+    TestBed.runInInjectionContext(() => {
+      const plugins = signal<readonly IPluginItemApi[]>([]);
+      const handle = setupPluginFilter({ plugins });
+      handle.toggleSourceFilter('project');
+      handle.toggleKindFilter('analyzer');
+      expect(handle.sourceFilter()).toBe('project');
+      expect(handle.kindFilter()).toBe('analyzer');
+      expect(handle.allFilterActive()).toBe(false);
+    });
+  });
+
+  it('allFilterActive is true only when both axes are cleared; resetFilters clears both', () => {
+    TestBed.runInInjectionContext(() => {
+      const plugins = signal<readonly IPluginItemApi[]>([]);
+      const handle = setupPluginFilter({ plugins });
+      expect(handle.allFilterActive()).toBe(true);
+      handle.toggleSourceFilter('built-in');
+      handle.toggleKindFilter('formatter');
+      expect(handle.allFilterActive()).toBe(false);
+      handle.resetFilters();
+      expect(handle.sourceFilter()).toBe('all');
+      expect(handle.kindFilter()).toBe('all');
+      expect(handle.allFilterActive()).toBe(true);
+    });
+  });
 });

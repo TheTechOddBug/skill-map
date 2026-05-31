@@ -29,22 +29,56 @@
   </p-iconfield>
 
   <div
-    class="settings-plugins__kind-filter"
+    class="settings-plugins__filter"
     role="group"
-    [attr.aria-label]="texts.pluginsKindFilterA11y"
-    data-testid="settings-plugins-kind-filter"
+    [attr.aria-label]="texts.pluginsFilterA11y"
+    data-testid="settings-plugins-filter"
   >
-    @for (kind of kindFilterOptions; track kind) {
+    <!-- Single shared "All": clears both the source and kind axes. -->
+    <p-togglebutton
+      [ngModel]="allFilterActive()"
+      (ngModelChange)="resetFilters()"
+      styleClass="settings-plugins__source-chip is-all"
+      [ariaLabel]="texts.pluginsFilterAllA11y"
+      data-testid="settings-plugins-filter-all"
+    >
+      <ng-template #content>
+        {{ texts.pluginsKindFilterAll }}
+      </ng-template>
+    </p-togglebutton>
+
+    <span class="settings-plugins__filter-divider" aria-hidden="true">|</span>
+
+    <!-- Source axis: built-in / project, mutually exclusive between the
+         two and independent of the kind chips. -->
+    @for (source of sourceFilterChips; track source) {
+      <p-togglebutton
+        [ngModel]="isSourceFilterActive(source)"
+        (ngModelChange)="toggleSourceFilter(source)"
+        styleClass="settings-plugins__source-chip"
+        [ariaLabel]="texts.pluginsSourceFilterOptionA11y(source, !isSourceFilterActive(source))"
+        [attr.data-testid]="'settings-plugins-source-chip-' + source"
+      >
+        <ng-template #content>
+          {{ sourceLabel(source) }}
+        </ng-template>
+      </p-togglebutton>
+    }
+
+    <span class="settings-plugins__filter-divider" aria-hidden="true">|</span>
+
+    <!-- Kind axis: per-kind chips, mutually exclusive among kinds. -->
+    @for (kind of kindFilterChips; track kind) {
       <p-togglebutton
         [ngModel]="isKindFilterActive(kind)"
-        (ngModelChange)="setKindFilter(kind)"
-        [styleClass]="'settings-plugins__kind-chip' + (kind === 'all' ? ' is-all' : '')"
-        [style.--kind-color]="kind === 'all' ? null : kindTint(kind)"
+        (ngModelChange)="toggleKindFilter(kind)"
+        styleClass="settings-plugins__kind-chip"
+        [style.--kind-color]="kindTint(kind)"
         [ariaLabel]="texts.pluginsKindFilterOptionA11y(kind, !isKindFilterActive(kind))"
         [attr.data-testid]="'settings-plugins-kind-chip-' + kind"
       >
         <ng-template #content>
-          {{ kind === 'all' ? texts.pluginsKindFilterAll : kind }}
+          {{ kind }}
         </ng-template>
       </p-togglebutton>
     }
@@ -86,14 +120,24 @@
       </p-message>
     }
 
-    @if (searchActive() && filteredPlugins().length === 0) {
-      <p
-        class="settings-plugins__hint"
-        data-testid="settings-search-empty"
-      >
-        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-        {{ texts.pluginsSearchEmpty(searchText()) }}
-      </p>
+    @if (filteredPlugins().length === 0) {
+      @if (searchActive()) {
+        <p
+          class="settings-plugins__hint"
+          data-testid="settings-search-empty"
+        >
+          <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+          {{ texts.pluginsSearchEmpty(searchText()) }}
+        </p>
+      } @else if (sourceFilter() === 'project' && !kindFilterActive()) {
+        <p
+          class="settings-plugins__hint"
+          data-testid="settings-project-empty"
+        >
+          <i class="fa-solid fa-folder-open" aria-hidden="true"></i>
+          {{ texts.pluginsProjectEmpty }}
+        </p>
+      }
     }
     <ul class="settings-plugins__list" role="list">
       @for (plugin of filteredPlugins(); track plugin.id) {

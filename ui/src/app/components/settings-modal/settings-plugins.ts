@@ -75,6 +75,8 @@ import {
   sourceLabel,
   statusLabel,
   type TKindFilter,
+  type TSourceChip,
+  type TSourceFilter,
 } from './settings-plugins.utils';
 import { setupPluginCollapse } from './plugin-collapse.controller';
 import { setupPluginFilter } from './plugin-filter.controller';
@@ -154,13 +156,12 @@ export class SettingsPlugins {
   protected readonly collapsed = this.pluginCollapse.collapsed;
 
   /**
-   * Search + kind-filter state machine. Owns the writable `searchText`
-   * and `kindFilter` signals, the persistence effect for the kind
-   * filter, and the `filteredPlugins` derivation pipeline (lock strip
-   * → pin sort → kind → search). The template-bound surfaces below
-   * (`searchText`, `kindFilterOptions`, etc.) re-expose handles from
-   * this controller verbatim, the template binds the same shapes it
-   * always has.
+   * Search + source/kind filter state machine. Owns the writable
+   * `searchText`, `sourceFilter` and `kindFilter` signals, the
+   * persistence effects, and the `filteredPlugins` derivation pipeline
+   * (lock strip → pin sort → source → kind → search). The template-bound
+   * surfaces below (`searchText`, `kindFilterChips`, `sourceFilterChips`,
+   * `allFilterActive`, etc.) re-expose handles from this controller.
    */
   private readonly pluginFilter = setupPluginFilter({ plugins: this.plugins });
 
@@ -168,7 +169,11 @@ export class SettingsPlugins {
   protected readonly searchActive = this.pluginFilter.searchActive;
   protected readonly kindFilter = this.pluginFilter.kindFilter;
   protected readonly kindFilterActive = this.pluginFilter.kindFilterActive;
-  protected readonly kindFilterOptions = this.pluginFilter.kindFilterOptions;
+  protected readonly kindFilterChips = this.pluginFilter.kindFilterChips;
+  protected readonly sourceFilter = this.pluginFilter.sourceFilter;
+  protected readonly sourceFilterActive = this.pluginFilter.sourceFilterActive;
+  protected readonly sourceFilterChips = this.pluginFilter.sourceFilterChips;
+  protected readonly allFilterActive = this.pluginFilter.allFilterActive;
   protected readonly visiblePlugins = this.pluginFilter.visiblePlugins;
   protected readonly filteredPlugins = this.pluginFilter.filteredPlugins;
 
@@ -192,12 +197,24 @@ export class SettingsPlugins {
     this.destroyRef.onDestroy(() => this.buffer.deregister(owner));
   }
 
-  protected setKindFilter(kind: TKindFilter): void {
-    this.pluginFilter.setKindFilter(kind);
+  protected toggleKindFilter(kind: TKindFilter): void {
+    this.pluginFilter.toggleKindFilter(kind);
   }
 
   protected isKindFilterActive(kind: TKindFilter): boolean {
     return this.pluginFilter.isKindFilterActive(kind);
+  }
+
+  protected toggleSourceFilter(source: TSourceChip): void {
+    this.pluginFilter.toggleSourceFilter(source);
+  }
+
+  protected isSourceFilterActive(source: TSourceFilter): boolean {
+    return this.pluginFilter.isSourceFilterActive(source);
+  }
+
+  protected resetFilters(): void {
+    this.pluginFilter.resetFilters();
   }
 
   protected toggleExpanded(id: string): void {

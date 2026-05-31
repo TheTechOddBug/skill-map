@@ -11,10 +11,16 @@
  * session.
  */
 
-import { KIND_FILTER_OPTIONS, type TKindFilter } from './settings-plugins.utils';
+import {
+  KIND_FILTER_OPTIONS,
+  SOURCE_FILTER_OPTIONS,
+  type TKindFilter,
+  type TSourceFilter,
+} from './settings-plugins.utils';
 
 const COLLAPSED_STORAGE_KEY = 'sm.settings.plugins.collapsed';
 const KIND_FILTER_STORAGE_KEY = 'sm.settings.plugins.kind-filter';
+const SOURCE_FILTER_STORAGE_KEY = 'sm.settings.plugins.source-filter';
 
 export function readStoredCollapsed(): Set<string> {
   let raw: string | null = null;
@@ -73,6 +79,33 @@ export function writeStoredKindFilter(kind: TKindFilter): void {
       return;
     }
     localStorage.setItem(KIND_FILTER_STORAGE_KEY, kind);
+  } catch {
+    // Quota exceeded or storage blocked, ignore.
+  }
+}
+
+export function readStoredSourceFilter(): TSourceFilter {
+  let raw: string | null = null;
+  try {
+    raw = localStorage.getItem(SOURCE_FILTER_STORAGE_KEY);
+  } catch {
+    return 'all';
+  }
+  if (!raw) return 'all';
+  // Validate against the closed set so a stale entry falls back to the
+  // safe default rather than rendering as a phantom segment.
+  return SOURCE_FILTER_OPTIONS.includes(raw as TSourceFilter)
+    ? (raw as TSourceFilter)
+    : 'all';
+}
+
+export function writeStoredSourceFilter(source: TSourceFilter): void {
+  try {
+    if (source === 'all') {
+      localStorage.removeItem(SOURCE_FILTER_STORAGE_KEY);
+      return;
+    }
+    localStorage.setItem(SOURCE_FILTER_STORAGE_KEY, source);
   } catch {
     // Quota exceeded or storage blocked, ignore.
   }

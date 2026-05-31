@@ -227,9 +227,24 @@ export const SETTINGS_TEXTS = {
    *  of that kind and hides plugin-granularity rows (which do not
    *  surface a per-row kind in the UI). */
   pluginsKindFilterAll: 'All',
-  pluginsKindFilterA11y: 'Filter plugins by kind',
   pluginsKindFilterOptionA11y: (kind: string, willActivate: boolean): string =>
     willActivate ? `Show only ${kind} extensions` : `Show all kinds`,
+
+  /** Source filter, segmented control next to the kind filter. `All` is
+   *  the default; `Built-in` shows the plugins that ship with the CLI,
+   *  `Project` shows the drop-in plugins under `.skill-map/plugins/`. */
+  pluginsSourceFilterOptionA11y: (source: string, willActivate: boolean): string =>
+    willActivate ? `Show only ${source} plugins` : `Show all sources`,
+
+  /** Unified filter bar: a single shared "All" reset, the source chips
+   *  (built-in / project), and the kind chips, all on one line. The
+   *  source and kind axes compose; "All" clears both. */
+  pluginsFilterA11y: 'Filter plugins by source and kind',
+  pluginsFilterAllA11y: 'Show every plugin (clear the source and kind filters)',
+  /** Shown when the Project source filter is active and the project has
+   *  no drop-in plugins yet. Points the user at the scaffolder. */
+  pluginsProjectEmpty:
+    'No project plugins yet. Drop one under .skill-map/plugins/ or create it with sm plugins create <id>.',
 
   /**
    * Buffered-edit feedback, replaces the historic "Restart required"

@@ -43,6 +43,30 @@ export const KIND_FILTER_OPTIONS: readonly TKindFilter[] = [
   ...(Object.keys(EXTENSION_KIND_TINTS) as TExtensionKindForTint[]),
 ] as const;
 
+/** Kind chips rendered in the unified filter bar (the kinds, no 'all';
+ *  the bar carries a single shared "All" reset that clears both axes). */
+export const KIND_FILTER_CHIPS: readonly TExtensionKindForTint[] =
+  Object.keys(EXTENSION_KIND_TINTS) as TExtensionKindForTint[];
+
+/** Sentinel for the "show every source" segment of the source filter:
+ *  'all' plus the spec's plugin source enum ('built-in' | 'project'). */
+export type TSourceFilter = 'all' | IPluginItemApi['source'];
+
+/** The two real source values. Mutually exclusive between themselves and
+ *  independent of the kind axis. */
+export type TSourceChip = Exclude<TSourceFilter, 'all'>;
+
+/** Full source-filter domain, used to validate the persisted value. */
+export const SOURCE_FILTER_OPTIONS: readonly TSourceFilter[] = [
+  'all',
+  'built-in',
+  'project',
+] as const;
+
+/** Source chips rendered in the unified filter bar (no 'all'; the shared
+ *  "All" chip handles the neutral reset). */
+export const SOURCE_FILTER_CHIPS: readonly TSourceChip[] = ['built-in', 'project'];
+
 /**
  * Built-in plugins that are pinned to the top of the Settings →
  * Plugins list, in this exact order. `core` leads because it carries
@@ -157,6 +181,21 @@ export function filterByKind(
   );
   if (matchingExtensions.length === 0) return [];
   return [{ ...plugin, extensions: matchingExtensions }];
+}
+
+/**
+ * Narrow the listing to the picked source. 'all' keeps every plugin;
+ * otherwise keep the plugin whole only when `plugin.source` matches.
+ * Unlike `filterByKind`, source is a plugin-level axis so the extension
+ * sublist is never narrowed, the plugin is either in or out. Returns
+ * `[]` when the source does not match so the caller can `flatMap`.
+ */
+export function filterBySource(
+  plugin: IPluginItemApi,
+  source: TSourceFilter,
+): IPluginItemApi[] {
+  if (source === 'all') return [plugin];
+  return plugin.source === source ? [plugin] : [];
 }
 
 /**

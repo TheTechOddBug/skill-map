@@ -67,9 +67,10 @@
    chips are washed-out outlines; the active one fills with the tint so
    the current selection reads at a glance. The 'All' chip uses the
    neutral text color since it represents "no filter". */
-.settings-plugins__kind-filter {
+.settings-plugins__filter {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.375rem;
 }
 
@@ -79,8 +80,8 @@
  * togglebutton chrome so the host reads as a tinted chip; active state
  * is matched via `[aria-pressed='true']` (mirrors kind-palette).
  */
-.settings-plugins__kind-chip {
-  --chip-accent: var(--kind-color);
+.settings-plugins__kind-chip,
+.settings-plugins__source-chip {
   --p-togglebutton-padding: 0.25rem 0.625rem;
   --p-togglebutton-content-padding: 0;
   --p-togglebutton-content-checked-background: transparent;
@@ -101,7 +102,31 @@
   text-transform: lowercase;
 }
 
-:host-context(.app-dark) .settings-plugins__kind-chip {
+/* Kind chips tint per extension kind (`--kind-color` from the inline
+   binding); source chips use a single primary accent for the built-in /
+   project axis so the two filter rows read distinctly. */
+.settings-plugins__kind-chip {
+  --chip-accent: var(--kind-color);
+}
+
+.settings-plugins__source-chip {
+  --chip-accent: var(--p-primary-color);
+}
+
+/* The shared "All" reset reads neutral, not source-tinted. */
+.settings-plugins__source-chip.is-all {
+  --chip-accent: var(--p-text-muted-color);
+}
+
+/* Muted vertical separators between the All / source / kind groups. */
+.settings-plugins__filter-divider {
+  align-self: center;
+  color: var(--p-text-muted-color);
+  user-select: none;
+}
+
+:host-context(.app-dark) .settings-plugins__kind-chip,
+:host-context(.app-dark) .settings-plugins__source-chip {
   --p-togglebutton-background: color-mix(in oklab, var(--chip-accent) 14%, transparent);
   --p-togglebutton-hover-background: color-mix(in oklab, var(--chip-accent) 26%, transparent);
   --p-togglebutton-checked-background: color-mix(in oklab, var(--chip-accent) 70%, transparent);
