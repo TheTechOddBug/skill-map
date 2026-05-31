@@ -1,5 +1,29 @@
 # skill-map
 
+## 0.48.0
+
+### Minor Changes
+
+- `sm plugins create <kind> <plugin-id>` now takes the extension kind as a required first positional and scaffolds a loader-clean stub for each of the six kinds (provider, extractor, analyzer, action, formatter, hook). The slot / input-type catalog gains a single source of truth: the spec enums become `oneOf` const+description, and the kernel + CLI mirrors are generated from it by `scripts/generate-view-catalog.js`, guarded by `view-catalog:check` in `validate:compile`.
+
+  ## User-facing
+
+  `sm plugins create` now takes the extension kind as a required first argument: `sm plugins create <kind> <plugin-id>` (kinds: provider, extractor, analyzer, action, formatter, hook). Previously it only scaffolded extractors.
+
+### Patch Changes
+
+- Restore the left-to-right order of the `card.footer.right` chip cluster that the `core/issue-counter` aggregate had displaced: the stability badge leads (priority 10), then the stale-drift clock chip (priority 20), then the warning and error counters anchor the right edge. A reader notices it as the card-footer status icons returning to lifecycle, stale, warnings, errors order.
+
+  ## User-facing
+
+  **Card footer icon order restored.** The status icons in the bottom-right of each card are back to their previous order: lifecycle/stability first, then the stale indicator, then warnings and errors on the far right.
+
+- The phrase `sm tutorial` surfaces to start each walkthrough now matches the website and READMEs: the basic tutorial trigger is `run the tutorial` / `ejecuta el tutorial` (was `start the tutorial` / `arranquemos el tutorial`) and the master tutorial trigger is `run the master tutorial` / `ejecuta el tutorial maestro`. The two SKILL.md trigger lists pick up the new phrases.
+
+  ## User-facing
+
+  After `sm tutorial`, start the tutorial by typing `run the tutorial` (or `ejecuta el tutorial`), matching the website. The master tutorial uses `run the master tutorial` / `ejecuta el tutorial maestro`.
+
 ## 0.47.1
 
 ### Patch Changes
