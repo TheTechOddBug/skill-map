@@ -299,6 +299,14 @@ CREATE TABLE scan_meta (
   -- serve terminal warns on and the UI banner lists. NULL when no file was skipped.
   files_oversized INTEGER NOT NULL DEFAULT 0,
   oversized_files_json TEXT,
+  -- Schema-drift fingerprint (see spec/db-schema.md §Schema drift (pre-1.0)).
+  -- sha256 (hex) of the concatenated migration DDL the schema was built from,
+  -- written at persist time. NULL on a DB created by a pre-fingerprint CLI; a
+  -- NULL or mismatching value is read as schema drift on the next write-side
+  -- open so an inline `001_initial.sql` column add (no version bump,
+  -- greenfield posture) forces a one-time cache rebuild instead of surfacing
+  -- later as a "no such column" query error.
+  schema_fingerprint TEXT,
   CONSTRAINT ck_scan_meta_singleton CHECK (id = 1)
 );
 

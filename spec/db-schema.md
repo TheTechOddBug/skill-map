@@ -152,6 +152,7 @@ Single-row table holding the metadata of the last persisted scan. Lets `loadScan
 | `stats_files_walked` | INTEGER | NOT NULL |
 | `stats_files_skipped` | INTEGER | NOT NULL |
 | `stats_duration_ms` | INTEGER | NOT NULL |
+| `schema_fingerprint` | TEXT | NULL | sha256 (hex) of the migration DDL the schema was built from, written at persist time. NULL on a DB created by a pre-fingerprint CLI; a NULL (or mismatching) value is read as schema drift (see §Schema drift). Internal DB metadata, NOT carried on the `ScanResult` wire shape. |
 
 The `scope` column was removed pre-1.0 along with the `-g/--global` flag (see `cli-contract.md` §Scope is always project-local); every persisted scan is project-scoped so the column never carried any information worth round-tripping. Older DBs are not migrated, the column drop is a greenfield change and a fresh `sm init` regenerates the schema.
 
@@ -465,16 +466,28 @@ The kernel ALSO maintains `PRAGMA user_version` (or the engine equivalent) as a 
 
 ## Schema drift (pre-1.0)
 
-The project DB is a derived cache: every `scan_*` row is regenerable, and the operator's authored data lives in `.sm` sidecars, not in the DB. While the kernel stays in `0.Y.Z` (see [`versioning.md` §Pre-1.0](./versioning.md#pre-10)) it does NOT ship incremental migrations to carry an existing DB across a schema change. Instead, a write-side open (`sm scan`, `sm watch`, and the BFF watcher) compares `scan_meta.scanned_by_version` against the running CLI version:
+The project DB is a derived cache: every `scan_*` row is regenerable, and the operator's authored data lives in `.sm` sidecars, not in the DB. While the kernel stays in `0.Y.Z` (see [`versioning.md` §Pre-1.0](./versioning.md#pre-10)) it does NOT ship incremental migrations to carry an existing DB across a schema change. Drift is detected on two independent axes; either one trips a rebuild.
 
-- **Same `major.minor`** (patch differences ignored): the cache is compatible. The open proceeds untouched.
-- **Any minor or major difference**: the on-disk schema is treated as drifted. The entire DB file (plus its `-wal` / `-shm` sidecars) is deleted and recreated from the current `001_initial.sql`; the scan then repopulates it. No backup is written (the cache is derived). `state_*` and `config_*` are wiped along with `scan_*`; pre-1.0 they are accepted as transient. `.sm` sidecars are never touched.
+**Axis 1, version.** A write-side open compares `scan_meta.scanned_by_version` against the running CLI version:
 
-The rebuild is confirmed interactively on a TTY `sm scan` unless `--yes` is passed; non-interactive callers (piped stdin, CI, the BFF scan route, the watcher) rebuild without prompting. Declining the prompt aborts the scan (exit `2`) without deleting anything.
+- **Same `major.minor`** (patch differences ignored): compatible.
+- **Any minor or major difference**: drifted.
 
-Read-side verbs (`sm check`, `sm list`, `sm show`, ...) do NOT rebuild. They keep the version-skew advisory (warn on an older DB, refuse on a newer or different-major DB) so a read never silently discards the cache.
+**Axis 2, schema fingerprint.** Pre-1.0 the greenfield posture adds columns INLINE to `001_initial.sql` WITHOUT bumping a version (see [`versioning.md` §Pre-1.0](./versioning.md#pre-10)). A DB created within the same `major.minor` but with an older inline schema would otherwise pass the version axis and then fail later as a runtime "no such column" query error. To close that gap, the implementation computes a **schema fingerprint** = sha256 over the concatenated migration DDL (the `NNN_*.sql` files, in sorted order) and persists it to `scan_meta.schema_fingerprint` at persist time. A write-side open recomputes the fingerprint from the bundled migrations and compares:
 
-This is a pre-1.0 affordance. The first `1.0.0` replaces it with real up-only migrations (see §Migrations): drift detection by version becomes drift repair by migration, and `state_*` / `config_*` stop being disposable.
+- **Stored fingerprint equals the recomputed one**: compatible.
+- **Stored fingerprint differs from the recomputed one**: drifted. Any inline edit to a migration file changes the fingerprint and trips this axis independently of the version axis.
+- **Stored fingerprint is NULL** (a DB written by a pre-fingerprint CLI, or whose `schema_fingerprint` column does not exist): drifted. This forces a one-time rebuild on upgrade so the very column that detects drift gets provisioned.
+
+When **either axis** reports drift, the entire DB file (plus its `-wal` / `-shm` sidecars) is deleted and recreated from the current migrations; the scan then repopulates it. No backup is written (the cache is derived). `state_*` and `config_*` are wiped along with `scan_*`; pre-1.0 they are accepted as transient. `.sm` sidecars are never touched. The drift message names the reason (version skew vs schema fingerprint) so the operator understands why the cache is being rebuilt.
+
+A DB that was never scanned (no `scan_meta` row) is **not** drift: there is no recorded version and no recorded fingerprint, so there is no signal. The open proceeds untouched (the next scan writes both fields). Reading the stored fingerprint is defensive: a missing `scan_meta` table and a missing `schema_fingerprint` column are both tolerated (the column-absent case maps to NULL, i.e. drift; the row-absent case maps to no-signal).
+
+The rebuild is confirmed interactively on a TTY (`sm scan`, and `sm serve` before it starts listening) unless `--yes` is passed; non-interactive callers (piped stdin, CI, the BFF scan route, the watcher) rebuild without prompting. Declining the prompt aborts (exit `2`) without deleting anything.
+
+Read-side verbs (`sm check`, `sm list`, `sm show`, `GET /api/*`) do NOT rebuild. They surface a prominent advisory (warn on an older DB or a fingerprint mismatch, refuse on a newer or different-major DB) so a read never silently discards the cache and never crashes cryptically on a missing column. The advisory points the operator at `sm scan` (rebuild on the next write) or `sm db reset`.
+
+This is a pre-1.0 affordance. The first `1.0.0` replaces it with real up-only migrations (see §Migrations): drift detection by version / fingerprint becomes drift repair by migration, and `state_*` / `config_*` stop being disposable.
 
 ---
 

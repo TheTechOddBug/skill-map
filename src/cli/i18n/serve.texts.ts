@@ -150,4 +150,14 @@ export const SERVE_TEXTS = {
   // (`ℹ` cyan) per §3.1: no failure, no action; just a marker that the
   // long-running daemon has wound down cleanly.
   shutdown: '{{glyph}}  sm serve: shutdown complete.\n',
+
+  /**
+   * §3.1b error block when the operator declines the pre-boot
+   * schema-drift rebuild (TTY, no `--yes`). The server never starts;
+   * the cache is left untouched. `{{reason}}` names the drift axis
+   * (version skew vs an inline schema change).
+   */
+  driftDeclined:
+    '{{glyph}}  sm serve: cache rebuild declined; the {{dbVersion}} cache cannot be reused on {{currentVersion}} ({{reason}}).\n' +
+    '   {{hint}}\n',
 } as const;

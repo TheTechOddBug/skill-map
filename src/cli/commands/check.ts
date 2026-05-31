@@ -51,6 +51,7 @@ import type { Issue, Severity } from '../../kernel/types.js';
 import { matchesAnalyzerFilter } from '../../kernel/util/analyzer-filter.js';
 import { CHECK_TEXTS } from '../i18n/check.texts.js';
 import type { IAnsi } from '../util/ansi.js';
+import { buildReadVersionCheck } from '../util/db-version-check.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { readConformanceKillSwitches } from '../util/conformance-env.js';
@@ -127,32 +128,40 @@ export class CheckCommand extends SmCommand {
     const preflight = await this.#preflightAnalyzerCatalog(analyzerFilter);
     if (preflight.exit !== null) return preflight.exit;
 
-    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-      let issues = await adapter.issues.listAll();
+    const stderrAnsi = this.ansiFor('stderr');
+    return withSqlite(
+      {
+        databasePath: dbPath,
+        autoBackup: false,
+        versionCheck: buildReadVersionCheck(this.printer!, stderrAnsi),
+      },
+      async (adapter) => {
+        let issues = await adapter.issues.listAll();
 
-      // Filters apply to the persisted issue list. They do NOT affect the
-      // prob-analyzer advisory above (which already honoured `--analyzers`).
-      if (this.node !== undefined) {
-        const nodePath = this.node;
-        issues = issues.filter((i) => i.nodeIds.includes(nodePath));
-      }
-      if (analyzerFilter !== undefined) {
-        issues = issues.filter((i) => matchesAnalyzerFilter(i.analyzerId, analyzerFilter));
-      }
+        // Filters apply to the persisted issue list. They do NOT affect the
+        // prob-analyzer advisory above (which already honoured `--analyzers`).
+        if (this.node !== undefined) {
+          const nodePath = this.node;
+          issues = issues.filter((i) => i.nodeIds.includes(nodePath));
+        }
+        if (analyzerFilter !== undefined) {
+          issues = issues.filter((i) => matchesAnalyzerFilter(i.analyzerId, analyzerFilter));
+        }
 
-      const ansi = this.ansiFor('stdout');
-      if (this.json) {
-        this.printer!.data(JSON.stringify(issues) + '\n');
-      } else if (issues.length === 0) {
-        this.printer!.data(
-          tx(CHECK_TEXTS.noIssues, { glyph: ansi.green('✓') }),
-        );
-      } else {
-        this.printer!.data(renderHuman(issues, ansi));
-      }
+        const ansi = this.ansiFor('stdout');
+        if (this.json) {
+          this.printer!.data(JSON.stringify(issues) + '\n');
+        } else if (issues.length === 0) {
+          this.printer!.data(
+            tx(CHECK_TEXTS.noIssues, { glyph: ansi.green('✓') }),
+          );
+        } else {
+          this.printer!.data(renderHuman(issues, ansi));
+        }
 
-      return issues.some((i) => i.severity === 'error') ? ExitCode.Issues : ExitCode.Ok;
-    });
+        return issues.some((i) => i.severity === 'error') ? ExitCode.Issues : ExitCode.Ok;
+      },
+    );
   }
 
   /**

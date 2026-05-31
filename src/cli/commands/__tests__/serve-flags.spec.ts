@@ -15,9 +15,11 @@
  */
 
 import { strict as assert } from 'node:assert';
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
+import { Readable } from 'node:stream';
 import { after, before, describe, it } from 'node:test';
 import { Builtins, Cli } from 'clipanion';
 import type { BaseContext } from 'clipanion';
@@ -31,11 +33,11 @@ interface ICapture {
   stderr: () => string;
 }
 
-function captureContext(): ICapture {
+function captureContext(stdin: NodeJS.ReadableStream = process.stdin): ICapture {
   const stdoutChunks: string[] = [];
   const stderrChunks: string[] = [];
   const context = {
-    stdin: process.stdin,
+    stdin,
     stdout: { write: (s: string) => { stdoutChunks.push(s); return true; } },
     stderr: { write: (s: string) => { stderrChunks.push(s); return true; } },
   } as unknown as BaseContext;
@@ -44,6 +46,35 @@ function captureContext(): ICapture {
     stdout: () => stdoutChunks.join(''),
     stderr: () => stderrChunks.join(''),
   };
+}
+
+/** A readable that looks like a TTY and yields one answer line. */
+function ttyStdin(answer: string): NodeJS.ReadableStream {
+  const r = Readable.from([`${answer}\n`]) as Readable & { isTTY?: boolean };
+  r.isTTY = true;
+  return r;
+}
+
+/**
+ * Build a stale DB (same major.minor, but a `scan_meta` row WITHOUT the
+ * `schema_fingerprint` column = a pre-fingerprint DB) so the pre-boot
+ * drift check trips on the schema axis.
+ */
+function makeStaleDb(dir: string): string {
+  const p = join(dir, 'stale.db');
+  const db = new DatabaseSync(p);
+  db.exec('CREATE TABLE scan_meta (scanned_by_version TEXT NOT NULL)');
+  db.prepare('INSERT INTO scan_meta (scanned_by_version) VALUES (?)').run('0.0.0');
+  db.close();
+  return p;
+}
+
+/** Minimal valid UI bundle so `serve` clears the ui-dist resolution. */
+function makeUiBundle(dir: string): string {
+  const distDir = join(dir, 'ui-bundle-drift');
+  mkdirSync(distDir, { recursive: true });
+  writeFileSync(join(distDir, 'index.html'), '<!doctype html><html></html>');
+  return distDir;
 }
 
 function buildCli(): Cli {
@@ -235,6 +266,26 @@ describe('sm serve, flag validation', () => {
       /sm serve: --max-nodes must be an integer >= 1 \(got abc\)/,
       cap.stderr(),
     );
+  });
+
+  it('prompts on schema drift and aborts boot when the operator declines (exit 2)', async () => {
+    // A stale DB (recorded version differs from the running CLI) trips
+    // the pre-boot drift check. With a TTY stdin answering `n`, the verb
+    // aborts BEFORE `createServer` (so no port is bound) and the DB file
+    // is left untouched.
+    const dir = mkdtempSync(join(tmpRoot, 'serve-drift-decline-'));
+    const dbPath = makeStaleDb(dir);
+    const uiDist = makeUiBundle(dir);
+
+    const cap = captureContext(ttyStdin('n'));
+    const cli = buildCli();
+    const exit = await cli.run(
+      ['serve', '--db', dbPath, '--ui-dist', uiDist, '--no-open', '--port', '0'],
+      cap.context,
+    );
+    assert.equal(exit, ExitCode.Error);
+    assert.match(cap.stderr(), /cache rebuild declined/, cap.stderr());
+    assert.ok(existsSync(dbPath), 'declining the rebuild never deletes the cache');
   });
 
   it('accepts --ui-dist when the directory contains index.html', async () => {

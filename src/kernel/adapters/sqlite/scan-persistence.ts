@@ -30,6 +30,7 @@ import type {
 } from '../../orchestrator.js';
 import type { IContributionRecord } from './contributions.js';
 import { replaceAllScanContributions } from './contributions.js';
+import { schemaFingerprint } from '../../../core/sqlite/schema-fingerprint.js';
 import type { ITagRecord } from './tags.js';
 import { replaceAllScanTags } from './tags.js';
 import type { Issue, Link, Node, ScanResult } from '../../types.js';
@@ -548,6 +549,11 @@ function metaToRow(result: ScanResult): Insertable<IScanMetaTable> {
     scannedByName: result.scannedBy?.name ?? 'skill-map',
     scannedByVersion: result.scannedBy?.version ?? 'unknown',
     scannedBySpecVersion: result.scannedBy?.specVersion ?? 'unknown',
+    // Schema-drift fingerprint: sha256 over the bundled migration DDL.
+    // Sibling of `scannedByVersion`, the second drift axis the next
+    // write-side open compares (see spec/db-schema.md §Schema drift
+    // (pre-1.0)). Internal DB metadata, never on the ScanResult wire.
+    schemaFingerprint: schemaFingerprint(),
     providersJson: JSON.stringify(result.providers),
     statsFilesWalked: result.stats.filesWalked,
     statsFilesSkipped: result.stats.filesSkipped,

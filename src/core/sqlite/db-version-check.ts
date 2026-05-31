@@ -52,6 +52,19 @@ export type TDbVersionCheckOutcome =
       currentVersion: string;
     }
   | {
+      /**
+       * Same `major.minor`, but the recorded `schema_fingerprint`
+       * differs from (or is absent against) the bundled migration DDL,
+       * an inline schema change the version did not bump. WARN, the read
+       * continues but a column the query needs may be missing; the next
+       * `sm scan` rebuilds the cache. Resolved by the runner from the
+       * DB path (the fingerprint reader is defensive and path-based),
+       * NOT by `detectDbVersionSkew` which only sees the open handle.
+       */
+      kind: 'warn-schema';
+      currentVersion: string;
+    }
+  | {
       kind: 'error-newer';
       dbVersion: string;
       currentVersion: string;

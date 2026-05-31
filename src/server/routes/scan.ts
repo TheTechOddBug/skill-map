@@ -47,6 +47,7 @@ import { buildFreshResolver } from '../../core/runtime/fresh-resolver.js';
 import { runScanForCommand } from '../../core/runtime/scan-runner.js';
 import type { IPrinter } from '../../core/runtime/printer.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
+import { VERSION } from '../../version.js';
 import { log } from '../../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -155,7 +156,16 @@ async function buildBffResolverOverride(deps: IRouteDeps): Promise<(id: string) 
 
 async function loadPersistedScan(deps: IRouteDeps): Promise<ScanResult> {
   const opened = await tryWithSqlite(
-    { databasePath: deps.options.dbPath, autoBackup: false },
+    {
+      databasePath: deps.options.dbPath,
+      autoBackup: false,
+      // Read-side drift advisory (version skew + schema fingerprint).
+      // The BFF has no TTY, warnings go to the server log; a newer /
+      // different-major DB throws `DbVersionMismatchError`, which the
+      // global `app.onError` maps to a 500 so the SPA surfaces it
+      // rather than crashing on a cryptic missing-column read.
+      versionCheck: { currentVersion: VERSION, printer: bffVersionCheckPrinter },
+    },
     async (adapter) => {
       const [loaded, favSet] = await Promise.all([
         adapter.scans.load(),
@@ -296,6 +306,21 @@ async function runFreshScan(deps: IRouteDeps): Promise<ScanResult> {
  */
 const bffScanRunnerPrinter: IPrinter = {
   data: () => { /* discard, fresh-scan response body is the ScanResult */ },
+  info: (text) => log.warn(sanitizeForTerminal(text.trimEnd())),
+  warn: (text) => log.warn(sanitizeForTerminal(text.trimEnd())),
+  error: (text) => log.warn(sanitizeForTerminal(text.trimEnd())),
+};
+
+/**
+ * Printer for the read-side drift advisory on `GET /api/scan`. Only the
+ * one-shot `warn-older` / `warn-schema` advisories route through here
+ * (the version-skew runner calls `printer.warn`); the error
+ * classifications throw `DbVersionMismatchError` instead of printing, so
+ * `data` / `info` / `error` never fire on this path and discard
+ * defensively. The advisory lands in the server log, the BFF has no TTY.
+ */
+const bffVersionCheckPrinter: IPrinter = {
+  data: () => { /* unused on the version-check path */ },
   info: (text) => log.warn(sanitizeForTerminal(text.trimEnd())),
   warn: (text) => log.warn(sanitizeForTerminal(text.trimEnd())),
   error: (text) => log.warn(sanitizeForTerminal(text.trimEnd())),

@@ -38,6 +38,8 @@ import { Command, Option } from 'clipanion';
 import { isDevBuild } from '../../kernel/util/dev-mode.js';
 import { tx } from '../../kernel/util/tx.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
+import { maybeResetOnDrift } from '../../core/sqlite/db-drift-reset.js';
+import { DB_DRIFT_TEXTS } from '../../core/sqlite/i18n/db-drift.texts.js';
 import type { IAnsi } from '../util/ansi.js';
 import { validateBrowserUrl } from '../util/browser-launch.js';
 import {
@@ -126,6 +128,9 @@ export class ServeCommand extends SmCommand {
   });
   noWatcher = Option.Boolean('--no-watcher', false, {
     description: 'Disable the chokidar-fed scan-and-broadcast loop. Use only for CI / read-only deployments.',
+  });
+  yes = Option.Boolean('--yes', false, {
+    description: 'Skip the interactive prompt and rebuild the local cache when the on-disk DB has drifted (version skew or an inline schema change). Non-TTY invocations rebuild without asking regardless of this flag.',
   });
   // `--watcher-debounce-ms` is undocumented sugar for advanced users
   // who want to tighten / relax the watcher's batching window without
@@ -278,6 +283,17 @@ export class ServeCommand extends SmCommand {
       return ExitCode.Error;
     }
 
+    // 4b. Pre-1.0 schema-drift rebuild. Before the server boots (and its
+    //     watcher opens the DB with `assumeYes`), give an interactive
+    //     operator the chance to confirm rebuilding a drifted cache
+    //     (version skew OR an inline schema change). `--yes` and a
+    //     non-TTY stdin auto-confirm; declining aborts boot with a clear
+    //     message + nonzero exit so we never start listening against a
+    //     cache that the watcher would then silently wipe out from under
+    //     the connected SPA. See spec/db-schema.md §Schema drift.
+    const driftAbort = await this.#rebuildOnDrift(dbPath, stderrAnsi, warnGlyph);
+    if (driftAbort !== null) return driftAbort;
+
     // 5. Boot. Initialise BFF telemetry here (the CLI verb owns env reads,
     // the server stays env-free) and only here: the `serve` verb is skipped
     // by the CLI-side init in entry.ts so the two Sentry clients never
@@ -348,6 +364,43 @@ export class ServeCommand extends SmCommand {
     await handle.close();
     this.printer!.info(tx(SERVE_TEXTS.shutdown, { glyph: infoGlyph }));
     return ExitCode.Ok;
+  }
+
+  /**
+   * Pre-1.0 schema-drift rebuild for `sm serve`, run before boot. Reuses
+   * the shared `maybeResetOnDrift` (same prompt / `--yes` / non-TTY
+   * policy as `sm scan`), threading the verb's stdin / stderr so a TTY
+   * operator is asked y/N. Returns `null` to proceed (no drift, or the
+   * cache was rebuilt) or an `ExitCode` to abort boot when the operator
+   * declines the rebuild.
+   */
+  async #rebuildOnDrift(
+    dbPath: string,
+    stderrAnsi: IAnsi,
+    warnGlyph: string,
+  ): Promise<number | null> {
+    const outcome = await maybeResetOnDrift(dbPath, {
+      currentVersion: VERSION,
+      assumeYes: this.yes,
+      stdin: this.context.stdin,
+      stderr: this.context.stderr,
+      printer: this.printer!,
+      style: { warnGlyph, dim: stderrAnsi.dim },
+    });
+    if (outcome.kind !== 'aborted') return null;
+    this.printer!.error(
+      tx(SERVE_TEXTS.driftDeclined, {
+        glyph: stderrAnsi.red('✕'),
+        dbVersion: outcome.dbVersion,
+        currentVersion: outcome.currentVersion,
+        reason:
+          outcome.reason === 'version'
+            ? DB_DRIFT_TEXTS.driftReasonVersion
+            : DB_DRIFT_TEXTS.driftReasonSchema,
+        hint: stderrAnsi.dim(DB_DRIFT_TEXTS.driftAbortedHint),
+      }),
+    );
+    return ExitCode.Error;
   }
 }
 

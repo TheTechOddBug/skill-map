@@ -19,6 +19,7 @@ import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { LIST_TEXTS } from '../i18n/list.texts.js';
 import type { IAnsi } from '../util/ansi.js';
+import { buildReadVersionCheck } from '../util/db-version-check.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -102,8 +103,13 @@ export class ListCommand extends SmCommand {
     const exit = requireDbOrExit(dbPath, this.context.stderr);
     if (exit !== null) return exit;
 
-    return withSqlite({ databasePath: dbPath, autoBackup: false }, (adapter) =>
-      this.#runQuery(adapter, flags),
+    return withSqlite(
+      {
+        databasePath: dbPath,
+        autoBackup: false,
+        versionCheck: buildReadVersionCheck(this.printer!, stderrAnsi),
+      },
+      (adapter) => this.#runQuery(adapter, flags),
     );
   }
 

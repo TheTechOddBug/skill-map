@@ -656,6 +656,10 @@ async function rebuildOnDrift(
     message: tx(DB_DRIFT_TEXTS.driftAborted, {
       dbVersion: drift.dbVersion,
       currentVersion: drift.currentVersion,
+      reason:
+        drift.reason === 'version'
+          ? DB_DRIFT_TEXTS.driftReasonVersion
+          : DB_DRIFT_TEXTS.driftReasonSchema,
       hint: dim(DB_DRIFT_TEXTS.driftAbortedHint),
     }),
   };

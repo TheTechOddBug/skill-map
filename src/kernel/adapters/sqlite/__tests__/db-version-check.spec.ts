@@ -22,6 +22,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { strictEqual, ok, rejects, deepStrictEqual } from 'node:assert';
 import { describe, it, before, after, beforeEach } from 'node:test';
 
@@ -338,6 +339,104 @@ describe('withSqlite + versionCheck (seam)', () => {
     strictEqual(callbackRan, false);
   });
 
+  it('warns once on a same-version DB with a drifted schema fingerprint', async () => {
+    const path = freshDbPath('seam-warn-schema');
+    await seedDbWithScannedVersion(path, '0.36.0');
+    // Corrupt the persisted fingerprint so the version axis stays `ok`
+    // but the schema axis trips (an inline migration change with no
+    // version bump). Hand-edit the column via a raw handle.
+    const raw = new DatabaseSync(path);
+    try {
+      raw.exec("UPDATE scan_meta SET schema_fingerprint = 'stale-fingerprint'");
+    } finally {
+      raw.close();
+    }
+
+    const printer = makePrinterSpy();
+    const warnSeen = new Set<string>();
+    let calls = 0;
+    for (let i = 0; i < 2; i += 1) {
+      await withSqlite(
+        {
+          databasePath: path,
+          versionCheck: { currentVersion: '0.36.0', printer, warnSeen },
+        },
+        async () => {
+          calls += 1;
+        },
+      );
+    }
+    strictEqual(calls, 2, 'read continues on schema drift (WARN, never refuse)');
+    strictEqual(printer.warnings.length, 1, 'schema-drift warning printed exactly once');
+    ok(
+      printer.warnings[0]!.includes('schema change'),
+      'warning names the schema-drift cause',
+    );
+    ok(
+      printer.warnings[0]!.includes('sm scan'),
+      'warning points at the rebuild remediation',
+    );
+  });
+
+  it('warns on a pre-fingerprint DB (schema_fingerprint column absent)', async () => {
+    const path = freshDbPath('seam-warn-schema-absent');
+    await seedDbWithScannedVersion(path, '0.36.0');
+    // Drop the fingerprint column entirely to model a DB written by a
+    // CLI that predates the fingerprint feature.
+    const raw = new DatabaseSync(path);
+    try {
+      raw.exec(`
+        CREATE TABLE scan_meta_old AS SELECT * FROM scan_meta;
+        DROP TABLE scan_meta;
+        CREATE TABLE scan_meta (
+          id INTEGER PRIMARY KEY,
+          roots_json TEXT NOT NULL,
+          scanned_at INTEGER NOT NULL,
+          scanned_by_name TEXT NOT NULL,
+          scanned_by_version TEXT NOT NULL,
+          scanned_by_spec_version TEXT NOT NULL,
+          providers_json TEXT NOT NULL,
+          stats_files_walked INTEGER NOT NULL,
+          stats_files_skipped INTEGER NOT NULL,
+          stats_duration_ms INTEGER NOT NULL,
+          recommended_node_limit INTEGER NOT NULL,
+          override_max_nodes INTEGER,
+          files_oversized INTEGER NOT NULL DEFAULT 0,
+          oversized_files_json TEXT
+        );
+        INSERT INTO scan_meta (
+          id, roots_json, scanned_at, scanned_by_name, scanned_by_version,
+          scanned_by_spec_version, providers_json, stats_files_walked,
+          stats_files_skipped, stats_duration_ms, recommended_node_limit,
+          override_max_nodes, files_oversized, oversized_files_json
+        )
+        SELECT
+          id, roots_json, scanned_at, scanned_by_name, scanned_by_version,
+          scanned_by_spec_version, providers_json, stats_files_walked,
+          stats_files_skipped, stats_duration_ms, recommended_node_limit,
+          override_max_nodes, files_oversized, oversized_files_json
+        FROM scan_meta_old;
+        DROP TABLE scan_meta_old;`);
+    } finally {
+      raw.close();
+    }
+
+    const printer = makePrinterSpy();
+    let callbackRan = false;
+    await withSqlite(
+      {
+        databasePath: path,
+        autoMigrate: false,
+        versionCheck: { currentVersion: '0.36.0', printer },
+      },
+      async () => {
+        callbackRan = true;
+      },
+    );
+    strictEqual(callbackRan, true, 'read continues (WARN) on a pre-fingerprint DB');
+    strictEqual(printer.warnings.length, 1, 'schema-drift warning printed');
+  });
+
   it('omits the check entirely when versionCheck is not provided', async () => {
     // Seed with a NEWER version, which would normally throw. With no
     // `versionCheck` opt, the seam is the historical no-op.
@@ -374,7 +473,6 @@ describe('defensive fall-through: loadScanResult wraps enum-parse failures', () 
     // the kind column with an invalid `kind` via raw SQL that drops
     // the CHECK first, which a real corrupted DB would also have to
     // do, mirrors the actual reported failure mode.
-    const { DatabaseSync } = await import('node:sqlite');
     // Apply schema via the adapter, then close.
     const seed = new SqliteStorageAdapter({ databasePath: path });
     await seed.init();

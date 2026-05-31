@@ -48,6 +48,17 @@ export const DB_VERSION_TEXTS = {
   dbVersionOlderHint:
     'Behaviour may differ until the next `sm scan` rewrites the metadata; downstream parse errors are likely a symptom of this skew.',
 
+  // Schema-fingerprint drift on a same-version DB (pre-1.0 greenfield:
+  // a column was added inline to a migration with no version bump, so
+  // the version axis reads as compatible but the on-disk schema is
+  // older). WARN, `⚠` yellow, the read continues but a query may hit a
+  // missing column. Has no `dbVersion` placeholder, the version matched.
+  dbSchemaDrift:
+    '{{glyph}}  This DB predates a schema change in skill-map {{currentVersion}} (same version, older columns).\n' +
+    '   {{hint}}\n',
+  dbSchemaDriftHint:
+    'Run `sm scan` to rebuild the local cache (your .sm sidecars are untouched), or `sm db reset`; some columns may be missing until then.',
+
   // The defensive wrapper for `parseConfidence` / `parseLinkKind` /
   // `parseSeverity` failures during `loadScanResult` (when the meta
   // row was wiped and the version check returned `no-meta`) lives in

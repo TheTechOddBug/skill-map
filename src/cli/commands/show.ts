@@ -18,6 +18,7 @@ import { Command, Option } from 'clipanion';
 import type { Issue, Link, Node, Severity } from '../../kernel/types.js';
 import type { INodeBundle } from '../../kernel/types/storage.js';
 import type { IAnsi } from '../util/ansi.js';
+import { buildReadVersionCheck } from '../util/db-version-check.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -65,29 +66,37 @@ export class ShowCommand extends SmCommand {
     const exit = requireDbOrExit(dbPath, this.context.stderr);
     if (exit !== null) return exit;
 
-    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-      const bundle = await adapter.scans.findNode(this.nodePath);
-      if (!bundle) {
-        this.printer!.error(tx(SHOW_TEXTS.nodeNotFound, { nodePath: this.nodePath }));
-        return ExitCode.NotFound;
-      }
+    const stderrAnsi = this.ansiFor('stderr');
+    return withSqlite(
+      {
+        databasePath: dbPath,
+        autoBackup: false,
+        versionCheck: buildReadVersionCheck(this.printer!, stderrAnsi),
+      },
+      async (adapter) => {
+        const bundle = await adapter.scans.findNode(this.nodePath);
+        if (!bundle) {
+          this.printer!.error(tx(SHOW_TEXTS.nodeNotFound, { nodePath: this.nodePath }));
+          return ExitCode.NotFound;
+        }
 
-      const doc: TShowDocument = {
-        node: bundle.node,
-        linksOut: bundle.linksOut,
-        linksIn: bundle.linksIn,
-        issues: bundle.issues,
-      };
+        const doc: TShowDocument = {
+          node: bundle.node,
+          linksOut: bundle.linksOut,
+          linksIn: bundle.linksIn,
+          issues: bundle.issues,
+        };
 
-      if (this.json) {
-        this.printer!.data(JSON.stringify(doc) + '\n');
+        if (this.json) {
+          this.printer!.data(JSON.stringify(doc) + '\n');
+          return ExitCode.Ok;
+        }
+
+        const ansi = this.ansiFor('stdout');
+        this.printer!.data(renderHuman(doc, ansi));
         return ExitCode.Ok;
-      }
-
-      const ansi = this.ansiFor('stdout');
-      this.printer!.data(renderHuman(doc, ansi));
-      return ExitCode.Ok;
-    });
+      },
+    );
   }
 }
 
