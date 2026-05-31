@@ -26,6 +26,20 @@
   white-space: pre-line;
 }
 
+/* Opt-out for path tooltips (files view, flat mode): a filesystem path
+   has no newlines to honor and should read on a single line, so override
+   the `pre-line` default and drop the wrap-inducing max-width. Global
+   because PrimeNG mounts the tooltip on `body`. The styleClass is set via
+   `[tooltipStyleClass]="'files__path-tooltip'"` on the row. */
+.files__path-tooltip.p-tooltip,
+.files__path-tooltip .p-tooltip-text {
+  max-width: none;
+}
+
+.files__path-tooltip .p-tooltip-text {
+  white-space: nowrap;
+}
+
 :root {
   /* Mono font stack, used by inline code, mono pills, monospaced
      metadata values across components. */

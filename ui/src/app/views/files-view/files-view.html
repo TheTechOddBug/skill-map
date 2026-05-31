@@ -12,26 +12,28 @@
 
   <div class="files__toolbar">
     <sm-filter-bar />
-    <div class="files__toolbar-actions">
-      <p-button
-        [label]="texts.expandAll"
-        icon="pi pi-angle-double-down"
-        severity="secondary"
-        [text]="true"
-        size="small"
-        (onClick)="expandAll()"
-        data-testid="files-expand-all"
-      />
-      <p-button
-        [label]="texts.collapseAll"
-        icon="pi pi-angle-double-up"
-        severity="secondary"
-        [text]="true"
-        size="small"
-        (onClick)="collapseAll()"
-        data-testid="files-collapse-all"
-      />
-    </div>
+    @if (!isFlat()) {
+      <div class="files__toolbar-actions">
+        <p-button
+          [label]="texts.expandAll"
+          icon="pi pi-angle-double-down"
+          severity="secondary"
+          [text]="true"
+          size="small"
+          (onClick)="expandAll()"
+          data-testid="files-expand-all"
+        />
+        <p-button
+          [label]="texts.collapseAll"
+          icon="pi pi-angle-double-up"
+          severity="secondary"
+          [text]="true"
+          size="small"
+          (onClick)="collapseAll()"
+          data-testid="files-collapse-all"
+        />
+      </div>
+    }
   </div>
 
   @if (error()) {
@@ -69,13 +71,100 @@
       >
         <ng-template pTemplate="header">
           <tr>
-            <th class="files__col-tree">{{ texts.columns.tree }}</th>
-            <th style="width: 70px" class="files__col-num"
-                [pTooltip]="texts.linksInHeaderTooltip" tooltipPosition="top">{{ texts.columns.linksIn }}</th>
-            <th style="width: 70px" class="files__col-num"
-                [pTooltip]="texts.linksOutHeaderTooltip" tooltipPosition="top">{{ texts.columns.linksOut }}</th>
-            <th style="width: 110px" class="files__col-num">{{ texts.columns.tokens }}</th>
-            <th style="width: 130px">{{ texts.columns.issues }}</th>
+            <th class="files__col-tree" [attr.aria-sort]="ariaSortFor('tree')" data-testid="files-col-tree">
+              <button
+                type="button"
+                class="files__sort-btn"
+                [class.files__sort-btn--active]="sortState().column === 'tree'"
+                [attr.aria-label]="texts.sortTreeAriaLabel"
+                (click)="onSortColumn('tree')"
+              >
+                {{ texts.columns.tree }}
+                <i
+                  class="pi files__sort-icon"
+                  [class.pi-sort-amount-up]="sortState().column === 'tree' && sortState().dir === 'asc'"
+                  [class.pi-sort-amount-down]="sortState().column === 'tree' && sortState().dir === 'desc'"
+                  [class.pi-sort-alt]="sortState().column !== 'tree'"
+                  aria-hidden="true"
+                ></i>
+              </button>
+            </th>
+            <th style="width: 70px" class="files__col-num" [attr.aria-sort]="ariaSortFor('linksIn')" data-testid="files-col-linksIn">
+              <button
+                type="button"
+                class="files__sort-btn files__sort-btn--num"
+                [class.files__sort-btn--active]="sortState().column === 'linksIn'"
+                [pTooltip]="texts.linksInHeaderTooltip"
+                tooltipPosition="top"
+                [attr.aria-label]="texts.sortAriaLabel(texts.columns.linksIn)"
+                (click)="onSortColumn('linksIn')"
+              >
+                {{ texts.columns.linksIn }}
+                <i
+                  class="pi files__sort-icon"
+                  [class.pi-sort-amount-up]="sortState().column === 'linksIn' && sortState().dir === 'asc'"
+                  [class.pi-sort-amount-down]="sortState().column === 'linksIn' && sortState().dir === 'desc'"
+                  [class.pi-sort-alt]="sortState().column !== 'linksIn'"
+                  aria-hidden="true"
+                ></i>
+              </button>
+            </th>
+            <th style="width: 70px" class="files__col-num" [attr.aria-sort]="ariaSortFor('linksOut')" data-testid="files-col-linksOut">
+              <button
+                type="button"
+                class="files__sort-btn files__sort-btn--num"
+                [class.files__sort-btn--active]="sortState().column === 'linksOut'"
+                [pTooltip]="texts.linksOutHeaderTooltip"
+                tooltipPosition="top"
+                [attr.aria-label]="texts.sortAriaLabel(texts.columns.linksOut)"
+                (click)="onSortColumn('linksOut')"
+              >
+                {{ texts.columns.linksOut }}
+                <i
+                  class="pi files__sort-icon"
+                  [class.pi-sort-amount-up]="sortState().column === 'linksOut' && sortState().dir === 'asc'"
+                  [class.pi-sort-amount-down]="sortState().column === 'linksOut' && sortState().dir === 'desc'"
+                  [class.pi-sort-alt]="sortState().column !== 'linksOut'"
+                  aria-hidden="true"
+                ></i>
+              </button>
+            </th>
+            <th style="width: 110px" class="files__col-num" [attr.aria-sort]="ariaSortFor('tokens')" data-testid="files-col-tokens">
+              <button
+                type="button"
+                class="files__sort-btn files__sort-btn--num"
+                [class.files__sort-btn--active]="sortState().column === 'tokens'"
+                [attr.aria-label]="texts.sortAriaLabel(texts.columns.tokens)"
+                (click)="onSortColumn('tokens')"
+              >
+                {{ texts.columns.tokens }}
+                <i
+                  class="pi files__sort-icon"
+                  [class.pi-sort-amount-up]="sortState().column === 'tokens' && sortState().dir === 'asc'"
+                  [class.pi-sort-amount-down]="sortState().column === 'tokens' && sortState().dir === 'desc'"
+                  [class.pi-sort-alt]="sortState().column !== 'tokens'"
+                  aria-hidden="true"
+                ></i>
+              </button>
+            </th>
+            <th style="width: 130px" [attr.aria-sort]="ariaSortFor('issues')" data-testid="files-col-issues">
+              <button
+                type="button"
+                class="files__sort-btn"
+                [class.files__sort-btn--active]="sortState().column === 'issues'"
+                [attr.aria-label]="texts.sortAriaLabel(texts.columns.issues)"
+                (click)="onSortColumn('issues')"
+              >
+                {{ texts.columns.issues }}
+                <i
+                  class="pi files__sort-icon"
+                  [class.pi-sort-amount-up]="sortState().column === 'issues' && sortState().dir === 'asc'"
+                  [class.pi-sort-amount-down]="sortState().column === 'issues' && sortState().dir === 'desc'"
+                  [class.pi-sort-alt]="sortState().column !== 'issues'"
+                  aria-hidden="true"
+                ></i>
+              </button>
+            </th>
           </tr>
         </ng-template>
         <ng-template pTemplate="body" let-row>
@@ -133,7 +222,14 @@
                   <span class="files__indent" aria-hidden="true"></span>
                   <span class="files__chevron-placeholder" aria-hidden="true"></span>
                   <i class="pi pi-file files__leaf-icon" aria-hidden="true"></i>
-                  <span class="files__name files__name--leaf">@if (row.prefix) {<span class="files__name-prefix">{{ row.prefix }}</span>}{{ row.name }}</span>
+                  @if (isFlat()) {
+                    <span class="files__name-wrap" [pTooltip]="row.path" tooltipPosition="top" tooltipStyleClass="files__path-tooltip">
+                      <span class="files__leaf-name">{{ row.name }}</span>
+                      @if (row.prefix) {<span class="files__path-suffix">{{ row.prefix }}</span>}
+                    </span>
+                  } @else {
+                    <span class="files__name files__name--leaf">@if (row.prefix) {<span class="files__name-prefix">{{ row.prefix }}</span>}{{ row.name }}</span>
+                  }
                   <button
                     type="button"
                     class="files__open-graph"
@@ -149,7 +245,7 @@
               </td>
               <td class="files__cell-num">{{ row.linksIn }}</td>
               <td class="files__cell-num">{{ row.linksOut }}</td>
-              <td class="files__cell-num" [attr.title]="row.tokensRaw > 0 ? texts.tokensTooltip(row.tokensRaw) : null">{{ row.tokens }}</td>
+              <td class="files__cell-num" [attr.title]="(row.tokensRaw ?? 0) > 0 ? texts.tokensTooltip(row.tokensRaw!) : null">{{ row.tokens }}</td>
               <td class="files__cell-issues">
                 <span class="files__issues-row">
                   @if (row.isStale) {

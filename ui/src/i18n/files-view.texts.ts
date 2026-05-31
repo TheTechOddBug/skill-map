@@ -34,6 +34,10 @@ export const FILES_VIEW_TEXTS = {
   },
   linksInHeaderTooltip: 'Incoming references: how many other nodes link to this one.',
   linksOutHeaderTooltip: 'Outgoing references: how many nodes this one links to.',
+  /** Aria-label for a sortable data-column header. */
+  sortAriaLabel: (column: string) => `Sort by ${column}`,
+  /** Aria-label for the structural header that restores the folder tree. */
+  sortTreeAriaLabel: 'Show folder tree',
   /** Tooltip on the Tokens cell, full integer with thousands separator. */
   tokensTooltip: (tokens: number): string => `${tokens.toLocaleString()} tokens`,
   /**

@@ -7,71 +7,30 @@ import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { FILES_VIEW_TEXTS } from '../../../i18n/files-view.texts';
-import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
 import { IssuePathsService } from '../../../services/issue-paths';
 import { FilterBar } from '../../components/filter-bar/filter-bar';
-import { STABILITY_SEVERITY, type TTagSeverity } from '../../components/severity-map';
-import {
-  compactNumber,
-  effectiveIsStale,
-  effectiveStaleTooltip,
-  effectiveStability,
-} from '../../../models/node-derived';
-import { pathBasenameForLink } from '../../../services/trigger-resolve';
 import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
-import type {
-  INodeView,
-  TStability,
-} from '../../../models/node';
-import type { IIssueApi, TIssueSeverityApi } from '../../../models/api';
+import type { INodeView } from '../../../models/node';
 import { readStoredCollapsed, writeStoredCollapsed } from './files-view.storage';
-
-interface IFolderLeaf {
-  readonly type: 'leaf';
-  readonly path: string;
-  readonly name: string;
-  /**
-   * Collapsed folder chain shown dimmed before the name when a
-   * single-child branch folds down to one file (e.g. `docs/guides/`).
-   * Empty for ordinary leaves that render under a folder row.
-   */
-  readonly prefix: string;
-  readonly depth: number;
-  readonly linksIn: string;
-  readonly linksOut: string;
-  readonly tokens: string;
-  readonly tokensRaw: number;
-  readonly errors: number;
-  readonly warns: number;
-  readonly isStale: boolean;
-  readonly staleTooltip: string;
-  readonly stability: TStability;
-  readonly stabilitySeverity: TTagSeverity;
-}
-
-interface IFolderRow {
-  readonly type: 'folder';
-  readonly path: string;
-  readonly name: string;
-  readonly depth: number;
-  readonly expanded: boolean;
-  readonly nodeCount: number;
-}
-
-type TFolderViewRow = IFolderRow | IFolderLeaf;
-
-interface ITreeFolder {
-  readonly path: string;
-  readonly name: string;
-  readonly subfolders: Map<string, ITreeFolder>;
-  readonly leaves: INodeView[];
-}
-
-interface IAggregate {
-  nodes: number;
-}
+import {
+  buildRows,
+  buildTree,
+  computeAggregates,
+  countIssuesByPath,
+  type IFolderLeaf,
+  type IFolderRow,
+  type ITreeFolder,
+  type TFolderViewRow,
+} from './files-view.rows';
+import {
+  nextSort,
+  readStoredSort,
+  writeStoredSort,
+  type IFilesSort,
+  type TSortColumn,
+} from './files-view.sort';
 
 @Component({
   selector: 'sm-files-view',
@@ -111,9 +70,21 @@ export class FilesView implements OnInit {
    */
   private readonly collapsed = signal<ReadonlySet<string>>(readStoredCollapsed());
 
+  /**
+   * Active sort. `tree` (the default) renders the folder structure; any
+   * data column flattens the table into a sorted file listing. Seeded
+   * from `localStorage`; the `effect` mirrors changes back.
+   */
+  private readonly sort = signal<IFilesSort>(readStoredSort());
+  readonly sortState = this.sort.asReadonly();
+  readonly isFlat = computed(() => this.sort().column !== 'tree');
+
   constructor() {
     effect(() => {
       writeStoredCollapsed(this.collapsed());
+    });
+    effect(() => {
+      writeStoredSort(this.sort());
     });
   }
 
@@ -122,102 +93,21 @@ export class FilesView implements OnInit {
     return this.filters.apply(this.loader.nodes(), severity);
   });
 
-  private readonly tree = computed<ITreeFolder>(() => {
-    const root: ITreeFolder = { path: '', name: '', subfolders: new Map(), leaves: [] };
-    for (const node of this.filteredNodes()) {
-      const segments = node.path.split('/');
-      const fileName = segments.pop();
-      if (fileName === undefined) continue;
-      let cursor = root;
-      const prefix: string[] = [];
-      for (const seg of segments) {
-        if (!seg) continue;
-        prefix.push(seg);
-        let child = cursor.subfolders.get(seg);
-        if (!child) {
-          child = {
-            path: prefix.join('/'),
-            name: seg,
-            subfolders: new Map(),
-            leaves: [],
-          };
-          cursor.subfolders.set(seg, child);
-        }
-        cursor = child;
-      }
-      cursor.leaves.push(node);
-    }
-    return root;
-  });
+  private readonly tree = computed<ITreeFolder>(() => buildTree(this.filteredNodes()));
 
-  private readonly aggregates = computed<ReadonlyMap<string, IAggregate>>(() => {
-    const out = new Map<string, IAggregate>();
-    const visit = (folder: ITreeFolder): IAggregate => {
-      let nodes = folder.leaves.length;
-      for (const sub of folder.subfolders.values()) {
-        nodes += visit(sub).nodes;
-      }
-      const agg: IAggregate = { nodes };
-      out.set(folder.path, agg);
-      return agg;
-    };
-    visit(this.tree());
-    return out;
-  });
+  private readonly aggregates = computed(() => computeAggregates(this.tree()));
 
   readonly rows = computed<TFolderViewRow[]>(() => {
-    const tree = this.tree();
-    const collapsed = this.collapsed();
-    const aggregates = this.aggregates();
     const errorCounts = countIssuesByPath(this.loader.scan()?.issues, 'error');
     const warnCounts = countIssuesByPath(this.loader.scan()?.issues, 'warn');
-    const rows: TFolderViewRow[] = [];
-
-    // Compact single-child folder chains into one row (VS Code
-    // "compact folders"): while a folder holds exactly one subfolder
-    // and no files of its own, fold the child's name into the chain.
-    // When the chain bottoms out at a folder with a single file and no
-    // subfolders, the file folds in too, so a branch leading to a lone
-    // file is one line (`docs/guides/intro.md`) instead of a nested
-    // arrowhead.
-    const emitFolder = (folder: ITreeFolder, depth: number): void => {
-      const chain = [folder.name];
-      let terminal = folder;
-      while (terminal.subfolders.size === 1 && terminal.leaves.length === 0) {
-        const [only] = terminal.subfolders.values();
-        chain.push(only.name);
-        terminal = only;
-      }
-      const chainName = chain.join('/');
-
-      if (terminal.subfolders.size === 0 && terminal.leaves.length === 1) {
-        rows.push(this.makeLeafRow(terminal.leaves[0], depth, errorCounts, warnCounts, `${chainName}/`));
-        return;
-      }
-
-      const isExpanded = !collapsed.has(terminal.path);
-      const agg = aggregates.get(terminal.path) ?? { nodes: 0 };
-      rows.push({
-        type: 'folder',
-        path: terminal.path,
-        name: chainName,
-        depth,
-        expanded: isExpanded,
-        nodeCount: agg.nodes,
-      });
-      if (!isExpanded) return;
-      const subs = Array.from(terminal.subfolders.values()).sort(byName);
-      for (const sub of subs) emitFolder(sub, depth + 1);
-      const leaves = [...terminal.leaves].sort(byNodePath);
-      for (const leaf of leaves) rows.push(this.makeLeafRow(leaf, depth + 1, errorCounts, warnCounts));
-    };
-
-    const rootSubs = Array.from(tree.subfolders.values()).sort(byName);
-    for (const sub of rootSubs) emitFolder(sub, 0);
-    const rootLeaves = [...tree.leaves].sort(byNodePath);
-    for (const leaf of rootLeaves) rows.push(this.makeLeafRow(leaf, 0, errorCounts, warnCounts));
-
-    return rows;
+    return buildRows({
+      tree: this.tree(),
+      leaves: this.filteredNodes(),
+      collapsed: this.collapsed(),
+      aggregates: this.aggregates(),
+      maps: { errorCounts, warnCounts },
+      sort: this.sort(),
+    });
   });
 
   readonly visibleCount = computed(() => this.filteredNodes().length);
@@ -247,6 +137,20 @@ export class FilesView implements OnInit {
     };
     visit(this.tree());
     this.collapsed.set(all);
+  }
+
+  /** Column-header sort handler. Delegates the transition to the pure
+   *  `nextSort` (tree resets, same column toggles, fresh column opens at
+   *  its default direction). */
+  onSortColumn(column: TSortColumn): void {
+    this.sort.set(nextSort(this.sort(), column));
+  }
+
+  /** `aria-sort` value for a column header. */
+  ariaSortFor(column: TSortColumn): 'ascending' | 'descending' | 'none' {
+    const current = this.sort();
+    if (current.column !== column) return 'none';
+    return current.dir === 'asc' ? 'ascending' : 'descending';
   }
 
   /**
@@ -280,65 +184,4 @@ export class FilesView implements OnInit {
     if (row.type === 'folder') this.toggleFolder(row);
     else this.openLeaf(row);
   }
-
-  private makeLeafRow(
-    node: INodeView,
-    depth: number,
-    errorCounts: ReadonlyMap<string, number>,
-    warnCounts: ReadonlyMap<string, number>,
-    prefix = '',
-  ): IFolderLeaf {
-    const stability = rowStability(node);
-    const isStale = effectiveIsStale(node);
-    return {
-      type: 'leaf',
-      path: node.path,
-      name: leafName(node),
-      prefix,
-      depth,
-      linksIn: node.linksInCount !== undefined ? String(node.linksInCount) : FILES_VIEW_TEXTS.missing,
-      linksOut: node.linksOutCount !== undefined ? String(node.linksOutCount) : FILES_VIEW_TEXTS.missing,
-      tokens: node.tokensTotal !== undefined ? compactNumber(node.tokensTotal) : FILES_VIEW_TEXTS.missing,
-      tokensRaw: node.tokensTotal ?? 0,
-      errors: errorCounts.get(node.path) ?? 0,
-      warns: warnCounts.get(node.path) ?? 0,
-      isStale,
-      staleTooltip: isStale ? effectiveStaleTooltip(node, NODE_CARD_TEXTS.sidecar) : '',
-      stability,
-      stabilitySeverity: STABILITY_SEVERITY[stability],
-    };
-  }
-}
-
-function leafName(n: INodeView): string {
-  const fromFm = n.frontmatter.name?.trim();
-  if (fromFm) return fromFm;
-  return pathBasenameForLink(n.path) || FILES_VIEW_TEXTS.missing;
-}
-
-function rowStability(n: INodeView): TStability {
-  return effectiveStability(n) ?? 'stable';
-}
-
-function byName<T extends { name: string }>(a: T, b: T): number {
-  return a.name.localeCompare(b.name);
-}
-
-function byNodePath(a: INodeView, b: INodeView): number {
-  return a.path.localeCompare(b.path);
-}
-
-function countIssuesByPath(
-  issues: readonly IIssueApi[] | undefined,
-  severity: TIssueSeverityApi,
-): Map<string, number> {
-  const out = new Map<string, number>();
-  if (!issues) return out;
-  for (const issue of issues) {
-    if (issue.severity !== severity) continue;
-    for (const path of issue.nodeIds) {
-      out.set(path, (out.get(path) ?? 0) + 1);
-    }
-  }
-  return out;
 }

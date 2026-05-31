@@ -88,6 +88,56 @@
   vertical-align: middle;
 }
 
+/* Sortable column headers: the whole label is a button so it is
+   keyboard-focusable and the click target spans the cell. Transparent
+   so it reads as a header until hovered / active; the negative margin
+   lets the hover tint bleed to the cell padding edge. */
+.files__sort-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0.15rem 0.25rem;
+  margin: -0.15rem -0.25rem;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-radius: var(--sm-radius-sm);
+  transition: background 120ms ease-out, color 120ms ease-out;
+}
+
+.files__sort-btn--num {
+  justify-content: flex-end;
+}
+
+.files__sort-btn:hover {
+  background: var(--sm-bg-hover);
+}
+
+.files__sort-btn:focus-visible {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: -2px;
+}
+
+.files__sort-btn--active {
+  color: var(--p-primary-color);
+  font-weight: 600;
+}
+
+.files__sort-icon {
+  font-size: var(--files-fs-xs);
+  color: var(--p-text-muted-color);
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.files__sort-btn--active .files__sort-icon {
+  color: var(--p-primary-color);
+  opacity: 1;
+}
+
 .files__row {
   cursor: pointer;
 }
@@ -364,6 +414,44 @@
   color: var(--p-text-muted-color);
   font-weight: 400;
 }
+
+/* FLAT (sorted) mode: file name first at FULL width, the directory
+   path trailing dimmed and truncating with an ellipsis when space runs
+   out (the full path lives in the row tooltip). The name never shrinks
+   so it stays readable; the path absorbs the squeeze. */
+.files__name-wrap {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.files__leaf-name {
+  flex: 0 0 auto;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  color: var(--p-text-color);
+}
+
+.files__path-suffix {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--p-text-muted-color);
+  font-size: var(--files-fs-xs);
+}
+
+/* The full-path tooltip for flat-mode file rows is styled globally in
+   `src/styles.css` (`.files__path-tooltip`): PrimeNG mounts the tooltip
+   on `body`, outside this component's host, so a `:host ::ng-deep` rule
+   would never match it. */
 
 /* Per-leaf "open in graph" affordance. Sits inline after the file name
    so its action target (the file) is unambiguous. Discreet by default,
