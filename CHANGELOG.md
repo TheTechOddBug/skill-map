@@ -6,6 +6,14 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>0.49.0</b> · 2026-06-02</summary>
+
+### CLI Minor
+- Fuse the standalone files and map destinations into one workspace view, now the default landing: a drag-resizable files rail on the left, the graph in the center, and the inspector as a right-side slide-over, all linked through the shared `?path` selection. The file tree gains a tri-state control to curate which nodes appear on the map, with a `Show all` toolbar action to clear it. The `/files` and `/map` routes stay reachable.
+
+</details>
+
+<details>
 <summary><b>0.48.0</b> · 2026-05-31</summary>
 
 ### CLI Minor
