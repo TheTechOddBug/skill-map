@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.49.0",
+      "date": "2026-06-02",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "**New workspace view**: the file list, graph, and inspector now share one screen. Drag the divider to resize the file rail, click a file to focus its node on the map, and use the tree checkboxes to choose which nodes the map shows (`Show all` clears the selection).",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.48.0",
       "date": "2026-05-31",
       "kind": "user-facing",
