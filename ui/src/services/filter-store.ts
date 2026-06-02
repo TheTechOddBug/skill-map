@@ -7,20 +7,16 @@
  * universe is no longer a hardcoded enum; the toggle reads it from the
  * `KindRegistryService` (Provider-declared visual catalog) at call time
  * so a user-plugin Provider that adds a new kind participates in the
- * toggle / filter-bar without code changes here.
+ * toggle without code changes here.
  */
 
 import { Injectable, computed, signal } from '@angular/core';
 import {
-  isStaleSidecar,
   type TNodeKind,
   type INodeView,
-  type TStability,
 } from '../models/node';
 import type { TLinkKindApi } from '../models/api';
-import { effectiveStability, effectiveSupersededBy, effectiveUserTags } from '../models/node-derived';
-
-export const ALL_STABILITIES: readonly TStability[] = ['stable', 'experimental', 'deprecated'];
+import { effectiveUserTags } from '../models/node-derived';
 
 /**
  * Severity tiers surfaced by the severity palette (graph view). Mirrors
@@ -59,21 +55,11 @@ export class FilterStoreService {
    *     this sticky state).
    */
   private readonly _kindToggleExplicitEmpty = signal<boolean>(false);
-  private readonly _selectedStabilities = signal<TStability[]>([]);
-  private readonly _hasIssuesOnly = signal<boolean>(false);
-  /**
-   * Step 9.6.5, when true, only nodes whose sidecar overlay is in the
-   * "stale" set (`stale-body` / `stale-frontmatter` / `stale-both`)
-   * pass the filter. Nodes with no sidecar OR with a `fresh` overlay
-   * are filtered out.
-   */
-  private readonly _staleOnly = signal<boolean>(false);
   /**
    * When true, only nodes whose `isFavorite` is true pass the filter.
-   * Visibility of the corresponding toggle button in the filter-bar is
-   * gated by `CollectionLoaderService.hasAnyFavorites` (the toggle
-   * hides while the user has zero favorites, see the filter-bar
-   * template for the exact visibility rule).
+   * Visibility of the corresponding toggle button is gated by
+   * `CollectionLoaderService.hasAnyFavorites` (the toggle hides while
+   * the user has zero favorites).
    */
   private readonly _favoritesOnly = signal<boolean>(false);
   /**
@@ -103,9 +89,6 @@ export class FilterStoreService {
 
   readonly searchText = this._searchText.asReadonly();
   readonly selectedKinds = this._selectedKinds.asReadonly();
-  readonly selectedStabilities = this._selectedStabilities.asReadonly();
-  readonly hasIssuesOnly = this._hasIssuesOnly.asReadonly();
-  readonly staleOnly = this._staleOnly.asReadonly();
   readonly favoritesOnly = this._favoritesOnly.asReadonly();
   readonly selectedLinkKinds = this._selectedLinkKinds.asReadonly();
   readonly severityErrorActive = this._severityErrorActive.asReadonly();
@@ -124,9 +107,6 @@ export class FilterStoreService {
       this._searchText().trim().length > 0 ||
       this._selectedKinds().length > 0 ||
       this._kindToggleExplicitEmpty() ||
-      this._selectedStabilities().length > 0 ||
-      this._hasIssuesOnly() ||
-      this._staleOnly() ||
       this._favoritesOnly() ||
       this._selectedLinkKinds().length > 0 ||
       this._severityErrorActive() ||
@@ -202,18 +182,6 @@ export class FilterStoreService {
     return sel.includes(kind);
   }
 
-  setStabilities(stabilities: TStability[]): void {
-    this._selectedStabilities.set([...stabilities]);
-  }
-
-  setHasIssuesOnly(value: boolean): void {
-    this._hasIssuesOnly.set(value);
-  }
-
-  setStaleOnly(value: boolean): void {
-    this._staleOnly.set(value);
-  }
-
   setFavoritesOnly(value: boolean): void {
     this._favoritesOnly.set(value);
   }
@@ -277,9 +245,6 @@ export class FilterStoreService {
     this._searchText.set('');
     this._selectedKinds.set([]);
     this._kindToggleExplicitEmpty.set(false);
-    this._selectedStabilities.set([]);
-    this._hasIssuesOnly.set(false);
-    this._staleOnly.set(false);
     this._favoritesOnly.set(false);
     this._selectedLinkKinds.set([]);
     this._severityErrorActive.set(false);
@@ -289,20 +254,14 @@ export class FilterStoreService {
   /**
    * Applies the shared filter chain to a list of nodes in declared
    * order: (1) text search over path / name / description; (2) kind
-   * membership; (3) stability membership; (4) hasIssues (deprecated /
-   * superseded / any audit issue, see `nodeHasIssues`); (5) sidecar
-   * stale overlay; (6) favorites; (7) per-tier audit severity. Empty
+   * membership; (3) favorites; (4) per-tier audit severity. Empty
    * filter values are treated as "allow all".
    *
-   * `severityCtx` is consumed by BOTH the audit-severity tier filter
-   * AND the broad `hasIssues` toggle, which now considers a node as
-   * "having issues" if it carries any error/warn from the scan in
-   * addition to the lifecycle states (deprecated / superseded).
-   * Callers compute the index once (via `IssuePathsService.bySeverity`)
+   * `severityCtx` is consumed by the audit-severity tier filter:
+   * callers compute the index once (via `IssuePathsService.bySeverity`)
    * and pass it in. When `severityCtx` is omitted, both severity
-   * toggles behave as `allow all` and `hasIssues` falls back to its
-   * legacy lifecycle-only interpretation (used by demo harnesses /
-   * tests that don't have a scan in scope).
+   * toggles behave as `allow all` (used by demo harnesses / tests that
+   * don't have a scan in scope).
    */
   apply(
     nodes: INodeView[],
@@ -311,9 +270,6 @@ export class FilterStoreService {
     const text = this.searchText().trim().toLowerCase();
     const kinds = this.selectedKinds();
     const kindsExplicitlyEmpty = this._kindToggleExplicitEmpty();
-    const stabilities = this.selectedStabilities();
-    const issuesOnly = this.hasIssuesOnly();
-    const staleOnly = this.staleOnly();
     const favoritesOnly = this.favoritesOnly();
     const errorActive = this._severityErrorActive();
     const warnActive = this._severityWarnActive();
@@ -340,12 +296,6 @@ export class FilterStoreService {
       // the toggle palette, so the graph should render zero nodes.
       if (kindsExplicitlyEmpty) return false;
       if (kinds.length > 0 && !kinds.includes(n.kind)) return false;
-      if (stabilities.length > 0) {
-        const s = effectiveStability(n);
-        if (!s || !stabilities.includes(s)) return false;
-      }
-      if (issuesOnly && !nodeHasIssues(n, severityCtx)) return false;
-      if (staleOnly && !isStaleSidecar(n.sidecar)) return false;
       if (favoritesOnly && n.isFavorite !== true) return false;
       // AND across the two severity tiers, both on means "node has at
       // least one error AND at least one warn"; one on filters down to
@@ -357,33 +307,5 @@ export class FilterStoreService {
       return true;
     });
   }
-}
-
-/**
- * "Has issues" predicate for the toggle that surfaces nodes needing
- * operator attention. Three orthogonal signals OR-combined:
- *   - lifecycle: `stability: deprecated` (the node has been retired).
- *   - lineage: a `supersededBy` pointer exists (a successor has taken
- *     over this node).
- *   - audit: the scan attached at least one `error` or `warn` issue
- *     to this node (analyzer output). Requires `severityCtx`, callers
- *     without a scan in scope (demo harnesses, tests) get only the
- *     lifecycle / lineage signals.
- *
- * Originally the predicate only checked lifecycle / lineage which
- * meant the toggle returned a near-empty set on real projects, the
- * audit signal was added once `IssuePathsService` started indexing
- * `scan.issues` and the list view started passing the result in.
- */
-function nodeHasIssues(
-  n: INodeView,
-  severityCtx?: { errors: ReadonlySet<string>; warns: ReadonlySet<string> },
-): boolean {
-  if (effectiveStability(n) === 'deprecated') return true;
-  if (effectiveSupersededBy(n) !== null) return true;
-  if (severityCtx) {
-    if (severityCtx.errors.has(n.path) || severityCtx.warns.has(n.path)) return true;
-  }
-  return false;
 }
 

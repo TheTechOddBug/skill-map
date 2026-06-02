@@ -42,11 +42,11 @@ describe('FilterUrlSyncService', () => {
   });
 
   it('seeds store from URL on construction', async () => {
-    await router.navigateByUrl('/list?search=foo&kinds=agent,skill&hasIssues=true');
+    await router.navigateByUrl('/list?search=foo&kinds=agent,skill&favoritesOnly=true');
     TestBed.inject(FilterUrlSyncService);
     expect(store.searchText()).toBe('foo');
     expect(store.selectedKinds()).toEqual(['agent', 'skill']);
-    expect(store.hasIssuesOnly()).toBe(true);
+    expect(store.favoritesOnly()).toBe(true);
   });
 
   it('ignores unknown kinds when seeding from URL', async () => {

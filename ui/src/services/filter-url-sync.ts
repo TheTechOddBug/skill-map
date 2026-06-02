@@ -7,9 +7,7 @@
  *   - `?search=`                       (non-empty trimmed string).
  *   - `?kinds=agent,skill`             (comma-joined; empty array = absent).
  *   - `?linkKinds=invokes,references`  (comma-joined; empty array = absent).
- *   - `?stabilities=stable,…`          (comma-joined; empty array = absent).
- *   - `?hasIssues=true`                (present only when true).
- *   - `?staleOnly=true`                (present only when true).
+ *   - `?severities=error,warn`         (comma-joined; empty array = absent).
  *   - `?favoritesOnly=true`            (present only when true).
  *
  * Loop avoidance: every URL write compares against the current params
@@ -35,17 +33,14 @@ import { DestroyRef, Injectable, effect, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
 
-import type { TNodeKind, TStability } from '../models/node';
+import type { TNodeKind } from '../models/node';
 import type { TLinkKindApi } from '../models/api';
-import { ALL_LINK_KINDS, ALL_STABILITIES, FilterStoreService, type TSeverityFilter } from './filter-store';
+import { ALL_LINK_KINDS, FilterStoreService, type TSeverityFilter } from './filter-store';
 import { KindRegistryService } from './kind-registry';
 
 const PARAM_SEARCH = 'search';
 const PARAM_KINDS = 'kinds';
 const PARAM_LINK_KINDS = 'linkKinds';
-const PARAM_STABILITIES = 'stabilities';
-const PARAM_HAS_ISSUES = 'hasIssues';
-const PARAM_STALE_ONLY = 'staleOnly';
 const PARAM_FAVORITES_ONLY = 'favoritesOnly';
 const PARAM_SEVERITIES = 'severities';
 
@@ -125,21 +120,6 @@ export class FilterUrlSyncService {
       this.filters.setKinds(kinds);
     }
 
-    const stabilities = parseStabilities(params.get(PARAM_STABILITIES));
-    if (!arraysEqual(stabilities, this.filters.selectedStabilities())) {
-      this.filters.setStabilities(stabilities);
-    }
-
-    const hasIssues = params.get(PARAM_HAS_ISSUES) === 'true';
-    if (hasIssues !== this.filters.hasIssuesOnly()) {
-      this.filters.setHasIssuesOnly(hasIssues);
-    }
-
-    const staleOnly = params.get(PARAM_STALE_ONLY) === 'true';
-    if (staleOnly !== this.filters.staleOnly()) {
-      this.filters.setStaleOnly(staleOnly);
-    }
-
     const favoritesOnly = params.get(PARAM_FAVORITES_ONLY) === 'true';
     if (favoritesOnly !== this.filters.favoritesOnly()) {
       this.filters.setFavoritesOnly(favoritesOnly);
@@ -166,9 +146,6 @@ export class FilterUrlSyncService {
     const search = this.filters.searchText().trim();
     const kinds = this.filters.selectedKinds();
     const linkKinds = this.filters.selectedLinkKinds();
-    const stabilities = this.filters.selectedStabilities();
-    const hasIssues = this.filters.hasIssuesOnly();
-    const staleOnly = this.filters.staleOnly();
     const favoritesOnly = this.filters.favoritesOnly();
     const severities: TSeverityFilter[] = [];
     if (this.filters.severityErrorActive()) severities.push('error');
@@ -178,9 +155,6 @@ export class FilterUrlSyncService {
       [PARAM_SEARCH]: search.length > 0 ? search : null,
       [PARAM_KINDS]: kinds.length > 0 ? kinds.join(',') : null,
       [PARAM_LINK_KINDS]: linkKinds.length > 0 ? linkKinds.join(',') : null,
-      [PARAM_STABILITIES]: stabilities.length > 0 ? stabilities.join(',') : null,
-      [PARAM_HAS_ISSUES]: hasIssues ? 'true' : null,
-      [PARAM_STALE_ONLY]: staleOnly ? 'true' : null,
       [PARAM_FAVORITES_ONLY]: favoritesOnly ? 'true' : null,
       [PARAM_SEVERITIES]: severities.length > 0 ? severities.join(',') : null,
     };
@@ -238,15 +212,6 @@ function parseKinds(raw: string | null, knownKinds: readonly TNodeKind[]): TNode
     .split(',')
     .map((s) => s.trim())
     .filter((s) => allowed.has(s));
-}
-
-function parseStabilities(raw: string | null): TStability[] {
-  if (!raw) return [];
-  const allowed = new Set<TStability>(ALL_STABILITIES);
-  return raw
-    .split(',')
-    .map((s) => s.trim())
-    .filter((s): s is TStability => allowed.has(s as TStability));
 }
 
 /**
