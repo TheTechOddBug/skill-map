@@ -9,15 +9,10 @@ import { viewNameFor } from '../usage-tracker';
  * catalog stays bounded.
  */
 describe('viewNameFor', () => {
-  it('maps the map route (and root redirect) to map', () => {
-    expect(viewNameFor('/map')).toBe('map');
-    expect(viewNameFor('/map?tag=foo&kind=skill')).toBe('map');
-    expect(viewNameFor('/')).toBe('map');
-  });
-
-  it('maps the files route to files', () => {
-    expect(viewNameFor('/files')).toBe('files');
-    expect(viewNameFor('/files?q=x')).toBe('files');
+  it('maps the workspace route to workspace', () => {
+    expect(viewNameFor('/')).toBe('workspace');
+    expect(viewNameFor('/?path=agents/architect.md')).toBe('workspace');
+    expect(viewNameFor('/?tag=foo&kind=skill')).toBe('workspace');
   });
 
   it('returns null for untracked routes', () => {

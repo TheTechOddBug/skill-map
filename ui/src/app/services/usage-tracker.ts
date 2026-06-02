@@ -69,14 +69,13 @@ export class UsageTrackerService {
 }
 
 /**
- * Map a router URL to its `ui.view.<view>` name suffix (`map` / `files`), or
+ * Map a router URL to its `ui.view.<view>` name suffix (`workspace`), or
  * `null` when the route is not tracked. The suffix is a closed set from the
  * route table, never user input, so the PostHog event catalog stays bounded.
  * Path prefix only; the query string is never read so no filter state leaks.
  */
-export function viewNameFor(url: string): 'map' | 'files' | null {
+export function viewNameFor(url: string): 'workspace' | null {
   const path = url.split('?')[0] ?? '';
-  if (path === '/' || path.startsWith('/map')) return 'map';
-  if (path.startsWith('/files')) return 'files';
+  if (path === '/') return 'workspace';
   return null;
 }

@@ -24,10 +24,11 @@ interface INodeLinkListPayload {
  * never bind `path` to a raw `[href]`. The renderer is part of the
  * shell's closed renderer catalog (not plugin code), so it dispatches
  * the click intent through the injectable `NODE_OPEN_INTENT` token
- * (default impl navigates to `/map?path=…`). `NgComponentOutlet`
- * (used by `view-contributions-host`) does not propagate outputs, so
- * an `output<>()` here would be unreachable. Hosts that mount this
- * renderer outside the graph route override the token via DI.
+ * (default impl navigates to `/?path=…`, the workspace route).
+ * `NgComponentOutlet` (used by `view-contributions-host`) does not
+ * propagate outputs, so an `output<>()` here would be unreachable.
+ * Hosts that mount this renderer outside the workspace override the
+ * token via DI.
  */
 @Component({
   selector: 'sm-node-link-list',

@@ -101,9 +101,9 @@
 /* Embedded inspector panel, slides in from the right when a node is
    selected. Width is bound from the component's `clampedPanelWidth`
    signal (default 400px, persisted to localStorage, drag-resizable
-   via the left-edge handle). The InspectorView owns its own
-   compact-mode styling via the `mode="embedded"` input. This
-   stylesheet only owns the container position / animation / handle. */
+   via the left-edge handle). The InspectorView owns its own compact
+   styling (it is always embedded now). This stylesheet only owns the
+   container position / animation / handle. */
 .graph__panel {
   position: absolute;
   top: 0;

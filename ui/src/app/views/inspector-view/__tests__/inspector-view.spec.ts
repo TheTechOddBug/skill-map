@@ -468,37 +468,6 @@ describe('InspectorView, body refresh (Step 14.5.c)', () => {
   });
 });
 
-describe('InspectorView, mode (standalone vs embedded)', () => {
-  it("mode='standalone' (default) renders the back link", async () => {
-    const node = makeNode();
-    const loader = makeStubLoader([node]);
-    const dataSource = makeStubDataSource();
-    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
-
-    const { fixture } = bootstrap({ loader, dataSource });
-    fixture.componentRef.setInput('path', node.path);
-    await flush(fixture);
-
-    const dom: HTMLElement = fixture.nativeElement;
-    expect(dom.querySelector('[data-testid="inspector-back"]')).not.toBeNull();
-  });
-
-  it("mode='embedded' hides the back link", async () => {
-    const node = makeNode();
-    const loader = makeStubLoader([node]);
-    const dataSource = makeStubDataSource();
-    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
-
-    const { fixture } = bootstrap({ loader, dataSource });
-    fixture.componentRef.setInput('path', node.path);
-    fixture.componentRef.setInput('mode', 'embedded');
-    await flush(fixture);
-
-    const dom: HTMLElement = fixture.nativeElement;
-    expect(dom.querySelector('[data-testid="inspector-back"]')).toBeNull();
-  });
-});
-
 describe('InspectorView, vendor frontmatter card (catalog curation)', () => {
   it('renders the vendor frontmatter card on every kind that has a vendor surface', async () => {
     const node = makeNode({
@@ -522,7 +491,8 @@ describe('InspectorView, vendor frontmatter card (catalog curation)', () => {
   });
 });
 
-// Smoke: confirm the router is reachable so the back-link doesn't crash.
+// Smoke: confirm the router is reachable so node-open navigation
+// (via NODE_OPEN_INTENT's default Router-backed implementation) wires up.
 describe('InspectorView, router smoke', () => {
   it('has a router available for in-app navigation links', () => {
     bootstrap();

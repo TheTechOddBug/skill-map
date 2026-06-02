@@ -5,8 +5,8 @@
  * Mirrors `NODE_OPEN_INTENT`: the rail renderer stays host-agnostic, and
  * the host that actually owns the map (the workspace view) overrides the
  * token with an implementation that forwards to the mounted graph view.
- * The default is a no-op so the standalone `/files` route (no map on
- * screen) simply does nothing when the gesture fires.
+ * The default is a no-op for any host that mounts the rail without a map
+ * on screen, so the gesture simply does nothing rather than crashing.
  */
 
 import { InjectionToken } from '@angular/core';

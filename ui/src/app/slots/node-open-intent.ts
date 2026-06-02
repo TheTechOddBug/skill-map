@@ -4,21 +4,23 @@
  * specific Router target.
  *
  * Slot renderers are part of the shell's closed catalog (not plugin
- * code), but they can be mounted in multiple hosts: today the graph
- * view, tomorrow side-panels, embedded inspectors, or non-graph
- * shells. Hardcoding `router.navigate(['/map'], ...)` inside a
- * renderer (the pre-2026-05-13 shape) means a future host has to
- * either accept the wrong target or fork the renderer.
+ * code), but they can be mounted in multiple hosts: the fused
+ * workspace today, tomorrow side-panels, embedded inspectors, or
+ * non-graph shells. Hardcoding a fixed `router.navigate(...)` target
+ * inside a renderer means a future host has to either accept the wrong
+ * target or fork the renderer.
  *
  * `NgComponentOutlet` does NOT propagate component outputs to its
  * host, so an `output<>()` on the renderer is unreachable. Injecting
  * an open-intent service is the lightest workaround that keeps the
  * renderer pure and lets hosts override the navigation target via DI.
  *
- * Default implementation navigates to `/map?path=<path>`, the
- * canonical "open this node in the map view" gesture. Hosts that
- * mount the renderer in non-graph contexts override the token with
- * their own implementation.
+ * Default implementation navigates to `/?path=<path>` (the workspace
+ * route, the only view now), where the graph view's selection-url-sync
+ * reads `?path`, centers the camera, and slides the inspector in.
+ * Hosts that mount the renderer in non-workspace contexts override the
+ * token with their own implementation (the workspace itself supplies a
+ * relative-navigation override so it never tears the route).
  */
 
 import { Injectable, InjectionToken, inject } from '@angular/core';

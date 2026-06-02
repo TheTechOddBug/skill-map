@@ -1,6 +1,5 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, effect, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { TableModule } from 'primeng/table';
-import { TagModule } from 'primeng/tag';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { MessageModule } from 'primeng/message';
 import { ButtonModule } from 'primeng/button';
@@ -11,7 +10,6 @@ import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
 import { IssuePathsService } from '../../../services/issue-paths';
 import { MapVisibilityService, type TFolderVisibility } from '../../../services/map-visibility';
-import { FilterBar } from '../../components/filter-bar/filter-bar';
 import { MAP_ISOLATE_INTENT } from '../../slots/map-isolate-intent';
 import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
 import type { INodeView } from '../../../models/node';
@@ -39,9 +37,7 @@ import {
 @Component({
   selector: 'sm-files-view',
   imports: [
-    FilterBar,
     TableModule,
-    TagModule,
     ProgressSpinnerModule,
     MessageModule,
     ButtonModule,
@@ -60,18 +56,8 @@ export class FilesView implements OnInit {
   private readonly mapIsolate = inject(MAP_ISOLATE_INTENT);
   protected readonly texts = FILES_VIEW_TEXTS;
 
-  /**
-   * Rail mode: the view is embedded as the workspace's left navigator
-   * (next to the map) instead of rendered as a standalone page. Drops
-   * the page header and the preview aside (the floating inspector takes
-   * over), lets the table own the vertical scroll, and routes a leaf
-   * click straight to the map instead of the local preview.
-   */
-  readonly rail = input(false);
-
   readonly loading = this.loader.loading;
   readonly error = this.loader.error;
-  readonly total = this.loader.count;
   readonly filtersActive = this.filters.isActive;
 
   /**
@@ -125,10 +111,8 @@ export class FilesView implements OnInit {
     });
   });
 
-  readonly visibleCount = computed(() => this.filteredNodes().length);
-
   /**
-   * Map visibility curation (rail mode only). The set lives in the shared
+   * Map visibility curation. The set lives in the shared
    * `MapVisibilityService` and only affects the map; the tree here stays
    * full. Per the cascade decision, folder operations act over the
    * FILTERED tree (`this.tree()` is built from `filteredNodes()`), so a
@@ -260,39 +244,23 @@ export class FilesView implements OnInit {
   }
 
   /**
-   * Mock preview slot, prototype only: clicking a leaf row captures
-   * it in this signal so the right-hand `<aside>` re-renders against
-   * the captured row. Folder rows still toggle expand / collapse via
-   * `toggleFolder`; only file rows feed the preview.
-   */
-  readonly previewRow = signal<IFolderLeaf | null>(null);
-
-  openLeaf(row: IFolderLeaf): void {
-    this.previewRow.set(row);
-  }
-
-  /**
-   * Leaf row activation. In standalone mode this only feeds the local
-   * preview aside; in rail mode it also fires the open-intent so the
-   * adjacent map centers on the node and the inspector slides in.
+   * Leaf row activation: fire the open-intent so the adjacent map centers
+   * on the node and the inspector slides in.
    */
   onLeafActivate(row: IFolderLeaf): void {
-    this.openLeaf(row);
-    if (this.rail()) this.openInMap(row);
+    this.openInMap(row);
   }
 
   /**
-   * "Open in Map" affordance: navigate to the graph route focused on
-   * this node (`/map?path=<path>`), via the shared `NODE_OPEN_INTENT`
-   * the inspector uses. Distinct from `openLeaf`, which only feeds the
-   * local preview aside, so the row click and the button do different
-   * things.
+   * "Open in Map" affordance: focus the adjacent map on this node via the
+   * shared `NODE_OPEN_INTENT` (the workspace override writes the `?path`
+   * query param so the graph view centers + opens the inspector).
    */
   openInMap(row: IFolderLeaf): void {
     this.nodeOpenIntent.open(row.path);
   }
 
-  /** Toggle a single file's visibility on the map (rail checkbox). */
+  /** Toggle a single file's visibility on the map. */
   onToggleLeafVisibility(row: IFolderLeaf, event: Event): void {
     event.stopPropagation();
     this.mapVisibility.toggleLeaf(row.path);
@@ -307,22 +275,15 @@ export class FilesView implements OnInit {
   }
 
   /**
-   * Sitemap icon on a leaf row. In rail mode it isolates the node's whole
-   * link-chain on the map (and selects it); standalone it keeps the
-   * original "open in map" navigation.
+   * Sitemap icon on a leaf row: isolate the node's whole link-chain on
+   * the map (and select it).
    */
   onSitemapClick(row: IFolderLeaf, event: Event): void {
     event.stopPropagation();
-    if (this.rail()) this.mapIsolate.isolate(row.path);
-    else this.openInMap(row);
+    this.mapIsolate.isolate(row.path);
   }
 
   resetFilters(): void {
     this.filters.reset();
-  }
-
-  onRowClick(row: TFolderViewRow): void {
-    if (row.type === 'folder') this.toggleFolder(row);
-    else this.openLeaf(row);
   }
 }

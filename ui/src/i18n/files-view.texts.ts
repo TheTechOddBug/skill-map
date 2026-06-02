@@ -1,9 +1,5 @@
 /** UI strings for the FilesView. */
 export const FILES_VIEW_TEXTS = {
-  title: 'Files',
-  subtitleDefault: 'Filesystem view of the collection, click a folder to expand or a node to inspect it on the map.',
-  showingPrefix: 'Showing',
-  showingSuffix: (total: number) => ` of ${total} nodes.`,
   loading: 'Loading collection…',
   emptyFiltered: 'No nodes match the current filters.',
   emptyAll: 'No nodes loaded.',
@@ -18,10 +14,7 @@ export const FILES_VIEW_TEXTS = {
   folderAriaLabel: (name: string, expanded: boolean) =>
     `${expanded ? 'Collapse' : 'Expand'} folder ${name}`,
   leafAriaLabel: (name: string) => `Inspect ${name}`,
-  /** Per-leaf inline button that jumps to the map view focused on the node. */
-  openInMapTooltip: 'Open in map',
-  openInMapAriaLabel: (name: string) => `Open ${name} in map view`,
-  /** Rail-mode map visibility curation (checkboxes + isolate-chain). */
+  /** Map visibility curation (checkboxes + isolate-chain). */
   mapVisibilityTooltip: 'Toggle visibility on the map',
   mapVisibilityAriaLabel: (name: string) => `Toggle ${name} visibility on the map`,
   isolateChainTooltip: 'Isolate this chain on the map',

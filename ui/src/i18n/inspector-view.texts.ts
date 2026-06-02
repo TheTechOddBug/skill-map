@@ -2,19 +2,12 @@
 export const INSPECTOR_VIEW_TEXTS = {
   emptyNoSelection: {
     title: 'No node selected',
-    descPrefix: 'Pick a node from the ',
-    listLink: 'files',
-    descMiddle: ' or ',
-    mapLink: 'map',
-    descSuffix: '.',
+    desc: 'Select a node to inspect it.',
   },
   emptyNotFound: {
     title: 'Node not found',
-    descSuffix: ' does not exist in the collection. ',
-    backLink: 'Back to files',
-    descAfterLink: '.',
+    descSuffix: ' This node is no longer in the scan.',
   },
-  backToList: '← back to files',
   /**
    * Header badge shown when a node's frontmatter failed to parse (the
    * `frontmatter-parse-error` analyzer fired). The title falls back to

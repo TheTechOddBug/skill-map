@@ -11,13 +11,13 @@ import {
 import type { OnInit } from '@angular/core';
 
 import type { IIssueApi } from '../../../models/api';
-import { Router, RouterLink } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
 import { ConfirmationService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 
 import { INSPECTOR_VIEW_TEXTS } from '../../../i18n/inspector-view.texts';
+import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import {
   DATA_SOURCE,
@@ -53,22 +53,9 @@ import {
 import type { INodeView } from '../../../models/node';
 import { effectiveSupersededBy } from '../../../models/node-derived';
 
-/**
- * The inspector serves dual-purpose:
- *
- *   - `'standalone'` (default): full page rendered when the user
- *     navigates to a deep-linked path directly. Shows the back link
- *     to the files view and the v0.8.0 placeholder cards.
- *   - `'embedded'`: rendered inside the graph view's slide-in panel.
- *     The chrome and placeholder cards are hidden and the card grid
- *     compacts to a single column.
- */
-type TInspectorMode = 'standalone' | 'embedded';
-
 @Component({
   selector: 'sm-inspector-view',
   imports: [
-    RouterLink,
     ButtonModule,
     TooltipModule,
     ConfirmDialogModule,
@@ -85,13 +72,10 @@ type TInspectorMode = 'standalone' | 'embedded';
   templateUrl: './inspector-view.html',
   styleUrl: './inspector-view.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: {
-    '[class.inspector-view--embedded]': "mode() === 'embedded'",
-  },
 })
 export class InspectorView implements OnInit {
   private readonly loader = inject(CollectionLoaderService);
-  private readonly router = inject(Router);
+  private readonly nodeOpenIntent = inject(NODE_OPEN_INTENT);
   private readonly dataSource: IDataSourcePort = inject(DATA_SOURCE);
   private readonly markdown = inject(MarkdownRenderer);
   private readonly sidecarService = inject(SidecarService);
@@ -112,27 +96,23 @@ export class InspectorView implements OnInit {
   protected readonly showActionMocks = DEFAULT_SETTINGS.inspector.actionMocks;
 
   readonly path = input<string | undefined>(undefined);
-  readonly mode = input<TInspectorMode>('standalone');
 
   /**
    * Currently-active tag selection (the one whose matching nodes the
    * graph view has highlighted via Foblex `flow.select`). Forwarded
    * to `<sm-annotations-panel>` so the matching chip(s) render in
    * their "active" visual state. `null` when no tag selection is
-   * active. Standalone-mode hosts pass `null` here, there's no
-   * graph-side selection to mirror.
+   * active.
    */
   readonly activeTag = input<string | null>(null);
 
   /**
    * Emitted when the user clicks a tag chip in the annotations panel.
-   * The host (graph view in embedded mode) uses Foblex Flow's native
+   * The host (graph view) uses Foblex Flow's native
    * `flow.select(matchingPaths, [])` to multi-select every node whose
    * frontmatter.tags / sidecar.annotations.tags carries the tag.
    * Toggle: clicking the chip whose tag is already the active
-   * selection clears it. Standalone-mode hosts can ignore this output
-   * (no graph to mutate), or wire it into files-view filtering once
-   * that surface gets a multi-select equivalent.
+   * selection clears it.
    */
   readonly tagSelect = output<string>();
 
@@ -248,7 +228,7 @@ export class InspectorView implements OnInit {
   }
 
   openPath(path: string): void {
-    void this.router.navigate(['/map'], { queryParams: { path } });
+    this.nodeOpenIntent.open(path);
   }
 
   /**

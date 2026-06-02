@@ -1,11 +1,10 @@
-/* Typographic scale, mirrors files-view: every size in the view traces
-   back to one ladder. When tweaking sizes, edit the tokens below, do
-   NOT introduce a one-off literal. */
+/* Typographic scale: every size in the view traces back to one ladder.
+   When tweaking sizes, edit the tokens below, do NOT introduce a
+   one-off literal. */
 :host {
-  --files-fs-xs: 0.75rem;     /* subtitle, hints, count chips */
-  --files-fs-mono: 0.8rem;    /* leaf code paths, kind tag */
+  --files-fs-xs: 0.75rem;     /* hints, count chips */
+  --files-fs-mono: 0.8rem;    /* leaf code paths */
   --files-fs-sm: 0.875rem;    /* baseline body */
-  --files-fs-lg: 1.25rem;     /* section title */
 
   /* Indentation step per depth level, mirrors VSCode's explorer
      density. The tree column reserves enough room for ~6 levels
@@ -13,57 +12,14 @@
   --files-indent: 1rem;
 
   display: block;
-  padding: 1.5rem;
-  max-width: 1440px;
   width: 100%;
-  margin: 0 auto;
   box-sizing: border-box;
-}
-
-@media (max-width: 1280px) {
-  :host {
-    padding: 1rem;
-  }
 }
 
 .files {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-}
-
-.files__header h2 {
-  margin: 0;
-  font-size: var(--files-fs-lg);
-  font-weight: 600;
-}
-
-.files__sub {
-  margin: 0.25rem 0 0;
-  color: var(--p-text-muted-color);
-  font-size: var(--files-fs-xs);
-}
-
-/* Toolbar row, filter bar grows to fill the available space and the
-   expand / collapse buttons pin to the right. Wraps on narrow viewports
-   so the buttons drop under the filters instead of overflowing. */
-.files__toolbar {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.files__toolbar sm-filter-bar {
-  flex: 1;
-  min-width: 0;
-}
-
-.files__toolbar-actions {
-  display: inline-flex;
-  gap: 0.25rem;
-  align-items: center;
-  flex-shrink: 0;
 }
 
 .files__loading {
@@ -255,24 +211,17 @@
   background: var(--sm-bg-hover);
 }
 
-.files__row--selected,
-.files__row--selected:hover {
-  background: color-mix(in srgb, var(--p-primary-color) 14%, transparent);
-}
-
-/* Split: table on the left, mock preview on the right. Each side
-   scrolls independently. On narrow viewports the panel falls under
-   the table. */
+/* Table wrapper: a single column that fills the rail height so the
+   datatable owns the vertical scroll. */
 .files__split {
   display: flex;
   gap: 1rem;
   align-items: flex-start;
 }
 
-/* Rail mode: embedded as the workspace's left navigator. The section
-   fills its host (sized by the workspace), the split + table own the
-   vertical scroll, and the preview aside is dropped (the floating
-   inspector replaces it). */
+/* The view is embedded as the workspace's left navigator. The section
+   fills its host (sized by the workspace) and the split + table own the
+   vertical scroll. */
 .files--rail {
   flex: 1;
   min-height: 0;
@@ -285,7 +234,7 @@
   align-items: stretch;
 }
 
-/* Map visibility tri-state control (rail only). A small custom box (no
+/* Map visibility tri-state control. A small custom box (no
    clean indeterminate on PrimeNG checkbox): empty == hidden, check == all,
    minus == partial folder. Lives at the front of the tree cell. */
 .files__vis-check {
@@ -319,175 +268,8 @@
 }
 
 .files__split > p-table {
-  flex: 1 1 60%;
+  flex: 1 1 auto;
   min-width: 0;
-}
-
-.files__preview {
-  flex: 0 0 40%;
-  max-width: 520px;
-  align-self: stretch;
-  max-height: calc(100dvh - 280px);
-  overflow-y: auto;
-  padding: 1rem 1.1rem;
-  background: var(--p-content-background);
-  border: 1px solid var(--sm-border);
-  border-radius: var(--sm-radius-md);
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-@media (max-width: 1080px) {
-  .files__split {
-    flex-direction: column;
-  }
-  .files__preview {
-    flex: 1 1 auto;
-    max-width: none;
-    width: 100%;
-    max-height: 480px;
-  }
-}
-
-.files__preview-header {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.files__preview-title {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: var(--p-text-color);
-  flex-shrink: 1;
-  min-width: 0;
-}
-
-.files__preview-path {
-  flex-basis: 100%;
-  font-family: var(--sm-font-mono);
-  font-size: var(--files-fs-mono);
-  color: var(--p-text-muted-color);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.files__preview-meta {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-  align-items: center;
-}
-
-.files__preview-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: var(--files-fs-xs);
-  font-weight: 600;
-  padding: 0.1rem 0.4rem;
-  border-radius: var(--sm-radius-sm);
-  opacity: 0.85;
-}
-
-.files__preview-chip--stale {
-  color: var(--sm-severity-warn);
-  background: color-mix(in srgb, var(--sm-severity-warn) 12%, transparent);
-}
-
-.files__preview-chip--error {
-  color: var(--sm-severity-error);
-  background: color-mix(in srgb, var(--sm-severity-error) 12%, transparent);
-}
-
-.files__preview-chip--warn {
-  color: var(--sm-severity-warn);
-  background: color-mix(in srgb, var(--sm-severity-warn) 12%, transparent);
-}
-
-.files__preview-section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.files__preview-h4 {
-  margin: 0;
-  font-size: var(--files-fs-xs);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--p-text-muted-color);
-}
-
-.files__preview-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.5rem;
-  margin: 0;
-}
-
-.files__preview-stats > div {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  padding: 0.45rem 0.55rem;
-  background: var(--sm-bg-hover);
-  border-radius: var(--sm-radius-sm);
-}
-
-.files__preview-stats dt {
-  margin: 0;
-  font-size: var(--files-fs-xs);
-  color: var(--p-text-muted-color);
-  text-transform: lowercase;
-}
-
-.files__preview-stats dd {
-  margin: 0;
-  font-family: var(--sm-font-mono);
-  font-size: var(--files-fs-sm);
-  font-weight: 600;
-  color: var(--p-text-color);
-}
-
-.files__preview-lorem {
-  margin: 0;
-  font-size: var(--files-fs-sm);
-  line-height: 1.55;
-  color: var(--p-text-color);
-  opacity: 0.85;
-}
-
-.files__preview-findings {
-  margin: 0;
-  padding-left: 1.1rem;
-  font-size: var(--files-fs-sm);
-  color: var(--p-text-color);
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.files__preview-empty {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  color: var(--p-text-muted-color);
-  font-size: var(--files-fs-sm);
-  text-align: center;
-}
-
-.files__preview-empty-icon {
-  font-size: 1.5rem;
-  opacity: 0.5;
 }
 
 /* The structural (tree) column. Width capped so right-side numeric

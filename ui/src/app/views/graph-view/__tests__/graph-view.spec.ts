@@ -208,7 +208,7 @@ async function bootstrap(initialNodes: INodeView[]): Promise<{
     agent: { primaryProviderId: 'claude', providers: { claude: { label: 'Agents', color: '#3b82f6' } } },
   });
   const router = TestBed.inject(Router);
-  await router.navigateByUrl('/map');
+  await router.navigateByUrl('/');
   const fixture = TestBed.createComponent(GraphView);
   // Construction wires the effects but DOES NOT detect changes, that
   // would render the Foblex template, which is not our concern. We

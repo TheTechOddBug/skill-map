@@ -1,45 +1,4 @@
-<section class="files" [class.files--rail]="rail()" data-testid="files-view">
-  @if (!rail()) {
-    <header class="files__header">
-      <h2>{{ texts.title }}</h2>
-      <p class="files__sub">
-        @if (filtersActive()) {
-          {{ texts.showingPrefix }} <strong>{{ visibleCount() }}</strong>{{ texts.showingSuffix(total()) }}
-        } @else {
-          {{ texts.subtitleDefault }}
-        }
-      </p>
-    </header>
-  }
-
-  @if (!rail()) {
-    <div class="files__toolbar">
-      <sm-filter-bar />
-      @if (!isFlat()) {
-        <div class="files__toolbar-actions">
-          <p-button
-            [label]="texts.expandAll"
-            icon="pi pi-angle-double-down"
-            severity="secondary"
-            [text]="true"
-            size="small"
-            (onClick)="expandAll()"
-            data-testid="files-expand-all"
-          />
-          <p-button
-            [label]="texts.collapseAll"
-            icon="pi pi-angle-double-up"
-            severity="secondary"
-            [text]="true"
-            size="small"
-            (onClick)="collapseAll()"
-            data-testid="files-collapse-all"
-          />
-        </div>
-      }
-    </div>
-  }
-
+<section class="files files--rail" data-testid="files-view">
   @if (error()) {
     <p-message severity="error" [text]="error()!" />
   }
@@ -68,7 +27,7 @@
         [value]="rows()"
         [paginator]="false"
         [scrollable]="true"
-        [scrollHeight]="rail() ? 'flex' : 'calc(100dvh - 280px)'"
+        [scrollHeight]="'flex'"
         dataKey="path"
         styleClass="p-datatable-sm files__table"
         data-testid="files-table"
@@ -254,25 +213,23 @@
               <td class="files__cell-tree">
                 <span class="files__tree-inner">
                   <span class="files__indent" aria-hidden="true"></span>
-                  @if (rail()) {
-                    <button
-                      type="button"
-                      class="files__vis-check"
-                      [attr.data-state]="folderStateMap().get(row.path) ?? 'none'"
-                      [pTooltip]="texts.mapVisibilityTooltip"
-                      tooltipPosition="top"
-                      [attr.aria-label]="texts.mapVisibilityAriaLabel(row.name)"
-                      (click)="onToggleFolderVisibility(row, $event)"
-                      [attr.data-testid]="'files-vis-folder-' + row.path"
-                    >
-                      <i
-                        class="pi"
-                        [class.pi-check]="folderStateMap().get(row.path) === 'all'"
-                        [class.pi-minus]="folderStateMap().get(row.path) === 'some'"
-                        aria-hidden="true"
-                      ></i>
-                    </button>
-                  }
+                  <button
+                    type="button"
+                    class="files__vis-check"
+                    [attr.data-state]="folderStateMap().get(row.path) ?? 'none'"
+                    [pTooltip]="texts.mapVisibilityTooltip"
+                    tooltipPosition="top"
+                    [attr.aria-label]="texts.mapVisibilityAriaLabel(row.name)"
+                    (click)="onToggleFolderVisibility(row, $event)"
+                    [attr.data-testid]="'files-vis-folder-' + row.path"
+                  >
+                    <i
+                      class="pi"
+                      [class.pi-check]="folderStateMap().get(row.path) === 'all'"
+                      [class.pi-minus]="folderStateMap().get(row.path) === 'some'"
+                      aria-hidden="true"
+                    ></i>
+                  </button>
                   <i
                     class="pi files__chevron"
                     [class.pi-chevron-right]="!row.expanded"
@@ -297,7 +254,6 @@
           } @else {
             <tr
               class="files__row files__row--leaf"
-              [class.files__row--selected]="previewRow()?.path === row.path"
               tabindex="0"
               [attr.aria-label]="texts.leafAriaLabel(row.name)"
               [style.--folder-depth]="row.depth"
@@ -309,20 +265,18 @@
               <td class="files__cell-tree">
                 <span class="files__tree-inner">
                   <span class="files__indent" aria-hidden="true"></span>
-                  @if (rail()) {
-                    <button
-                      type="button"
-                      class="files__vis-check"
-                      [attr.data-state]="leafVisible(row.path) ? 'all' : 'none'"
-                      [pTooltip]="texts.mapVisibilityTooltip"
-                      tooltipPosition="top"
-                      [attr.aria-label]="texts.mapVisibilityAriaLabel(row.name)"
-                      (click)="onToggleLeafVisibility(row, $event)"
-                      [attr.data-testid]="'files-vis-leaf-' + row.path"
-                    >
-                      <i class="pi" [class.pi-check]="leafVisible(row.path)" aria-hidden="true"></i>
-                    </button>
-                  }
+                  <button
+                    type="button"
+                    class="files__vis-check"
+                    [attr.data-state]="leafVisible(row.path) ? 'all' : 'none'"
+                    [pTooltip]="texts.mapVisibilityTooltip"
+                    tooltipPosition="top"
+                    [attr.aria-label]="texts.mapVisibilityAriaLabel(row.name)"
+                    (click)="onToggleLeafVisibility(row, $event)"
+                    [attr.data-testid]="'files-vis-leaf-' + row.path"
+                  >
+                    <i class="pi" [class.pi-check]="leafVisible(row.path)" aria-hidden="true"></i>
+                  </button>
                   <span class="files__chevron-placeholder" aria-hidden="true"></span>
                   <i class="pi pi-file files__leaf-icon" aria-hidden="true"></i>
                   @if (isFlat()) {
@@ -336,9 +290,9 @@
                   <button
                     type="button"
                     class="files__open-graph"
-                    [pTooltip]="rail() ? texts.isolateChainTooltip : texts.openInMapTooltip"
+                    [pTooltip]="texts.isolateChainTooltip"
                     tooltipPosition="top"
-                    [attr.aria-label]="rail() ? texts.isolateChainAriaLabel(row.name) : texts.openInMapAriaLabel(row.name)"
+                    [attr.aria-label]="texts.isolateChainAriaLabel(row.name)"
                     (click)="onSitemapClick(row, $event)"
                     [attr.data-testid]="'files-leaf-graph-' + row.path"
                   >
@@ -380,92 +334,6 @@
           }
         </ng-template>
       </p-table>
-
-      @if (!rail()) {
-      <aside class="files__preview" data-testid="files-preview">
-        @if (previewRow(); as r) {
-          <header class="files__preview-header">
-            <h3 class="files__preview-title">{{ r.name }}</h3>
-            <code class="files__preview-path" [attr.title]="r.path">{{ r.path }}</code>
-          </header>
-
-          <div class="files__preview-meta">
-            <p-tag
-              [value]="r.stability"
-              [severity]="r.stabilitySeverity"
-              [rounded]="true"
-            />
-            @if (r.isStale) {
-              <span class="files__preview-chip files__preview-chip--stale">
-                <i class="pi pi-clock" aria-hidden="true"></i>
-                stale
-              </span>
-            }
-            @if (r.errors > 0) {
-              <span class="files__preview-chip files__preview-chip--error">
-                <i class="pi pi-times-circle" aria-hidden="true"></i>
-                {{ r.errors }} error{{ r.errors === 1 ? '' : 's' }}
-              </span>
-            }
-            @if (r.warns > 0) {
-              <span class="files__preview-chip files__preview-chip--warn">
-                <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
-                {{ r.warns }} warning{{ r.warns === 1 ? '' : 's' }}
-              </span>
-            }
-          </div>
-
-          <section class="files__preview-section">
-            <h4 class="files__preview-h4">Stats</h4>
-            <dl class="files__preview-stats">
-              <div>
-                <dt>in</dt>
-                <dd>{{ r.linksIn }}</dd>
-              </div>
-              <div>
-                <dt>out</dt>
-                <dd>{{ r.linksOut }}</dd>
-              </div>
-              <div>
-                <dt>tokens</dt>
-                <dd>{{ r.tokens }}</dd>
-              </div>
-            </dl>
-          </section>
-
-          <section class="files__preview-section">
-            <h4 class="files__preview-h4">Body preview</h4>
-            <p class="files__preview-lorem">
-              Lorem ipsum dolor sit amet, consectetur adipiscing elit. Suspendisse
-              potenti. Maecenas ultricies, lectus eget tempor cursus, libero erat
-              sodales lectus, vitae sodales nisl turpis vel mi. Donec faucibus,
-              quam id pretium auctor, lorem nulla vehicula sapien, in scelerisque
-              risus odio in odio.
-            </p>
-            <p class="files__preview-lorem">
-              Curabitur eget convallis quam, in cursus sapien. Aenean lacinia,
-              erat sed ultricies congue, lorem turpis efficitur magna, eget
-              interdum lectus arcu sed ligula. Sed congue tellus eu mi dictum
-              convallis. Vivamus consectetur arcu eget eros bibendum, vitae
-              placerat eros vulputate.
-            </p>
-          </section>
-
-          <section class="files__preview-section">
-            <h4 class="files__preview-h4">Findings</h4>
-            <ul class="files__preview-findings">
-              <li>Mock finding · severity: <strong>warn</strong> · drift detected on body hash.</li>
-              <li>Mock finding · severity: <strong>info</strong> · sidecar version is one behind.</li>
-            </ul>
-          </section>
-        } @else {
-          <div class="files__preview-empty">
-            <i class="pi pi-arrow-left files__preview-empty-icon" aria-hidden="true"></i>
-            <p>Pick a file to preview it here.</p>
-          </div>
-        }
-      </aside>
-      }
       </div>
     }
   }
