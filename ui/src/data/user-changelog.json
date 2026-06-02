@@ -2,6 +2,20 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.50.0",
+      "date": "2026-06-02",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "The Files and Map tabs are gone: skill-map opens on one screen, file tree left, graph right. Tick files or folders (or the 0/1/2 depth buttons) to pick what the map shows; the tree's map icon isolates a node's whole chain. \"Re-arrange layout\" tidies just what's visible.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.49.0",
       "date": "2026-06-02",
       "kind": "user-facing",
