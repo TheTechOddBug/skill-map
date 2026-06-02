@@ -918,6 +918,17 @@ export class GraphView implements OnInit {
   }
 
   resetLayout(): void {
+    const visiblePaths = this.mapVisiblePaths();
+    // Scoped re-arrange: when the view is curated / filtered to a subset,
+    // re-layout ONLY the visible nodes and leave the hidden ones' saved
+    // coordinates intact. That is non-destructive, so it runs WITHOUT the
+    // danger confirm.
+    if (visiblePaths.size < this.loader.nodes().length) {
+      this.applyResetLayout(visiblePaths, false);
+      return;
+    }
+    // Showing everything: the full reset wipes every saved position, so
+    // keep the danger confirm.
     const t = GRAPH_VIEW_TEXTS.resetLayoutConfirm;
     this.confirmationService.confirm({
       header: t.header,
@@ -925,22 +936,62 @@ export class GraphView implements OnInit {
       icon: 'pi pi-exclamation-triangle',
       acceptButtonProps: { label: t.accept, severity: 'danger' },
       rejectButtonProps: { label: t.reject, severity: 'secondary', outlined: true },
-      accept: () => {
-        // Clearing `nodePositions` here is the only mechanical step needed:
-        // the reconcile effect runs on the next tick, sees an empty map plus
-        // the current auto-layout, and reseeds every visible node, then
-        // persists the freshly-computed positions to storage. That's why
-        // "reset" ends up doing the full delete → re-arrange → save loop
-        // without any explicit save call here.
-        this.nodePositions.set(new Map());
-        // Reset layout also collapses every expanded card. The intent of
-        // "reset" is "give me back a clean canvas", leaving cards open
-        // would re-introduce the size variation that made the user reach
-        // for reset in the first place.
-        this.expansion.resetAll();
-        this.fitToScreenClamped();
-      },
+      accept: () => this.applyResetLayout(visiblePaths, true),
     });
+  }
+
+  private applyResetLayout(visiblePaths: Set<string>, full: boolean): void {
+    // Reset also collapses every expanded card: the intent is "give me a
+    // clean canvas", and leaving cards open re-introduces the size
+    // variation that made the user reach for reset in the first place.
+    this.expansion.resetAll();
+    if (full) {
+      // Clearing `nodePositions` is the only mechanical step needed: the
+      // reconcile effect runs on the next tick, sees an empty map plus the
+      // current full-graph auto-layout, reseeds every node, and persists.
+      // That's the original delete → re-arrange → save loop.
+      this.nodePositions.set(new Map());
+      this.fitToScreenClamped();
+      return;
+    }
+    void this.relayoutVisibleSubset(visiblePaths)
+      .then(() => this.fitToScreenClamped())
+      .catch(() => {
+        // Layout failure (e.g. dagre CJS interop missing in tests) must
+        // not crash the view; the previous positions stay.
+      });
+  }
+
+  /**
+   * Re-run the layout engine over ONLY the visible nodes and the edges
+   * between them, then pin the result (`manual: true`) so the reconcile
+   * pass, which reseeds AUTO pins from the FULL-graph dagre output, leaves
+   * it verbatim. Hidden nodes keep their stored coordinates, so showing
+   * them again later yields a hybrid layout that a full "show all" reset
+   * re-tidies.
+   */
+  private async relayoutVisibleSubset(visiblePaths: Set<string>): Promise<void> {
+    const subNodes = this.loader.nodes().filter((n) => visiblePaths.has(n.path));
+    if (subNodes.length === 0) return;
+    const subEdges = this.topology().edges.filter(
+      (e) => visiblePaths.has(e.from) && visiblePaths.has(e.to),
+    );
+    const preferences = {
+      algorithm: this.graphPreferences.layoutAlgorithm(),
+      direction: this.graphPreferences.layoutDirection(),
+      spacing: this.graphPreferences.layoutSpacing(),
+    };
+    const positions = await Promise.resolve(
+      preferences.algorithm === 'force'
+        ? computeForceLayoutPositions(subNodes, subEdges)
+        : computeDagreLayout(this.dagreLayout, subNodes, subEdges, preferences),
+    );
+    const next: TNodePositions = new Map(this.nodePositions());
+    for (const [path, pt] of positions) {
+      next.set(path, { x: pt.x, y: pt.y, manual: true });
+    }
+    this.nodePositions.set(next);
+    writeStoredNodePositions(next);
   }
 
   private getViewportCenter(): { x: number; y: number } {
