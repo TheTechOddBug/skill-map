@@ -109,10 +109,11 @@
 
     <nav class="shell__nav" [attr.aria-label]="texts.a11y.viewSwitcher" data-testid="shell-nav">
       <!-- DEBUG-SLOTS: host applies class+data-attr via host bindings
-           when debug-slots is on (see view-contributions-host.ts). -->
+           when debug-slots is on (see view-contributions-host.ts). The
+           former Map / Files view-switch tabs were removed when the fused
+           workspace became the only view; this slot stays for plugin nav
+           contributions. -->
       <sm-view-contributions-host slot="topbar.nav.start" [node]="null" />
-      <a routerLink="/map" routerLinkActive="is-active" queryParamsHandling="preserve" data-testid="nav-graph">{{ texts.nav.map }}</a>
-      <a routerLink="/files" routerLinkActive="is-active" queryParamsHandling="preserve" data-testid="nav-files">{{ texts.nav.files }}</a>
     </nav>
 
     <div class="shell__actions">

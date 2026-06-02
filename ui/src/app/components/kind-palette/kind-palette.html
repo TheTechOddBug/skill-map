@@ -1,36 +1,3 @@
-<div
-  class="kind-palette-search"
-  [class.kind-palette-search--expanded]="searchExpanded()"
-  [class.kind-palette-search--active]="searchActive()"
-  data-testid="kind-palette-search"
->
-  <button
-    type="button"
-    class="kind-palette-search__icon"
-    [pTooltip]="searchExpanded() ? texts.search.closeTooltip : texts.search.openTooltip"
-    tooltipPosition="right"
-    [attr.aria-label]="searchExpanded() ? texts.search.closeTooltip : texts.search.openTooltip"
-    [attr.aria-expanded]="searchExpanded()"
-    (click)="toggleSearch()"
-    data-testid="kind-palette-search-toggle"
-  >
-    <i class="pi pi-search" aria-hidden="true"></i>
-  </button>
-  <input
-    #searchInput
-    type="text"
-    class="kind-palette-search__input"
-    [placeholder]="texts.search.placeholder"
-    [attr.aria-label]="texts.search.inputAriaLabel"
-    [value]="filters.searchText()"
-    (input)="onSearchInput($any($event.target).value)"
-    (keydown)="onSearchKeydown($event)"
-    (blur)="onSearchBlur()"
-    [attr.tabindex]="searchExpanded() ? 0 : -1"
-    data-testid="kind-palette-search-input"
-  />
-</div>
-
 <div class="kind-palette" role="toolbar" [attr.aria-label]="texts.a11y.toolbarLabel" data-testid="kind-palette">
   @for (entry of entries(); track entry.kind) {
     <p-togglebutton

@@ -41,7 +41,6 @@ function makeFixture(init: IPreferencesStubInit = {}) {
     connectionType: connectionType.asReadonly(),
     setLayoutAlgorithm: (v: TLayoutAlgorithm) => algorithm.set(v),
     setLayoutDirection: (v: TLayoutDirection) => direction.set(v),
-    setLayoutSpacing: (v: TLayoutSpacing) => spacing.set(v),
     setConnectionType: (v: TConnectionType) => connectionType.set(v),
   };
 
@@ -56,17 +55,19 @@ function makeFixture(init: IPreferencesStubInit = {}) {
 }
 
 describe('GraphLayoutToolbar', () => {
-  it('renders the four layout-control toggle buttons', () => {
+  it('renders the three layout-control toggle buttons', () => {
+    // Spacing is fixed to "Normal", so it has no toggle; only algorithm
+    // / direction / connection-type are user-tunable here.
     const { fixture } = makeFixture();
     const root = fixture.nativeElement as HTMLElement;
     expect(root.querySelector('[data-testid="graph-layout-algorithm-toggle"]')).not.toBeNull();
     expect(root.querySelector('[data-testid="graph-layout-direction-toggle"]')).not.toBeNull();
-    expect(root.querySelector('[data-testid="graph-layout-spacing-toggle"]')).not.toBeNull();
+    expect(root.querySelector('[data-testid="graph-layout-spacing-toggle"]')).toBeNull();
     expect(root.querySelector('[data-testid="graph-connection-type-toggle"]')).not.toBeNull();
   });
 
-  it('disables direction + spacing toggles when the algorithm is force', () => {
-    // `force` has no flow direction, the toolbar greys out both pickers
+  it('disables the direction toggle when the algorithm is force', () => {
+    // `force` has no flow direction, the toolbar greys out the picker
     // and switches the tooltip to the unavailable-text variant. We
     // assert the disabled attribute rather than the tooltip text so
     // the test stays decoupled from i18n string changes.
@@ -75,24 +76,16 @@ describe('GraphLayoutToolbar', () => {
     const directionBtn = root.querySelector(
       '[data-testid="graph-layout-direction-toggle"] button',
     ) as HTMLButtonElement | null;
-    const spacingBtn = root.querySelector(
-      '[data-testid="graph-layout-spacing-toggle"] button',
-    ) as HTMLButtonElement | null;
     expect(directionBtn?.disabled).toBe(true);
-    expect(spacingBtn?.disabled).toBe(true);
   });
 
-  it('keeps direction + spacing enabled when the algorithm is dagre-based', () => {
+  it('keeps the direction toggle enabled when the algorithm is dagre-based', () => {
     const { fixture } = makeFixture({ algorithm: 'network-simplex' });
     const root = fixture.nativeElement as HTMLElement;
     const directionBtn = root.querySelector(
       '[data-testid="graph-layout-direction-toggle"] button',
     ) as HTMLButtonElement | null;
-    const spacingBtn = root.querySelector(
-      '[data-testid="graph-layout-spacing-toggle"] button',
-    ) as HTMLButtonElement | null;
     expect(directionBtn?.disabled).toBe(false);
-    expect(spacingBtn?.disabled).toBe(false);
   });
 
   it('reactively swaps the direction icon when the preference changes', () => {
@@ -109,24 +102,6 @@ describe('GraphLayoutToolbar', () => {
     preferences.setLayoutDirection('LEFT_RIGHT');
     fixture.detectChanges();
     expect(directionIconClass()).toContain('pi-arrow-right');
-  });
-
-  it('reactively swaps the spacing icon when the preference changes', () => {
-    const { fixture, preferences } = makeFixture({ spacing: 'normal' });
-    const root = fixture.nativeElement as HTMLElement;
-    function spacingIconClass(): string {
-      const span = root.querySelector(
-        '[data-testid="graph-layout-spacing-toggle"] .p-button-icon',
-      );
-      return span?.className ?? '';
-    }
-    expect(spacingIconClass()).toContain('pi-bars');
-    preferences.setLayoutSpacing('compact');
-    fixture.detectChanges();
-    expect(spacingIconClass()).toContain('pi-window-minimize');
-    preferences.setLayoutSpacing('spacious');
-    fixture.detectChanges();
-    expect(spacingIconClass()).toContain('pi-window-maximize');
   });
 
   it('renders the active connection-type glyph on the toggle button', () => {

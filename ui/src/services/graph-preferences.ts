@@ -8,7 +8,10 @@
  *   - `layoutAlgorithm`, dagre algorithm (network-simplex / tight-tree
  *     / longest-path).
  *   - `layoutDirection`, dagre direction (TB / BT / LR / RL).
- *   - `layoutSpacing`, preset that drives `nodeGap` + `layerGap`.
+ *   - `layoutSpacing`, preset that drives `nodeGap` + `layerGap`. The
+ *     toolbar control was removed, so this is pinned to the default
+ *     ("Normal") rather than read from / written to localStorage; the
+ *     graph engine still consumes it.
  *
  * Each signal mirrors a single `localStorage` key under `sm.graph.*`.
  * Reads defend against malformed / older payloads via the
@@ -36,7 +39,6 @@ import {
   DEFAULT_LAYOUT_SPACING,
   isLayoutAlgorithm,
   isLayoutDirection,
-  isLayoutSpacing,
   type TLayoutAlgorithm,
   type TLayoutDirection,
   type TLayoutSpacing,
@@ -69,7 +71,6 @@ export const CONNECTION_TYPES: ReadonlyArray<TConnectionType> = [
 const CONNECTION_TYPE_KEY = 'sm.graph.connection-type';
 const LAYOUT_ALGORITHM_KEY = 'sm.graph.layout-algorithm';
 const LAYOUT_DIRECTION_KEY = 'sm.graph.layout-direction';
-const LAYOUT_SPACING_KEY = 'sm.graph.layout-spacing';
 
 @Injectable({ providedIn: 'root' })
 export class GraphPreferencesService {
@@ -82,9 +83,11 @@ export class GraphPreferencesService {
   private readonly _layoutDirection = signal<TLayoutDirection>(
     readStored(LAYOUT_DIRECTION_KEY, isLayoutDirection, DEFAULT_LAYOUT_DIRECTION),
   );
-  private readonly _layoutSpacing = signal<TLayoutSpacing>(
-    readStored(LAYOUT_SPACING_KEY, isLayoutSpacing, DEFAULT_LAYOUT_SPACING),
-  );
+  // Pinned to the default: the spacing toolbar control was removed, so
+  // there is no UI to change it and no stored value is read (a legacy
+  // compact / spacious selection must not leak). The graph engine still
+  // reads this signal; it simply always yields "Normal".
+  private readonly _layoutSpacing = signal<TLayoutSpacing>(DEFAULT_LAYOUT_SPACING);
 
   /** Readable signal for graph-view (template) + selectbutton ngModel. */
   readonly connectionType = this._connectionType.asReadonly();
@@ -113,12 +116,6 @@ export class GraphPreferencesService {
     if (this._layoutDirection() === value) return;
     this._layoutDirection.set(value);
     writeStored(LAYOUT_DIRECTION_KEY, value);
-  }
-
-  setLayoutSpacing(value: TLayoutSpacing): void {
-    if (this._layoutSpacing() === value) return;
-    this._layoutSpacing.set(value);
-    writeStored(LAYOUT_SPACING_KEY, value);
   }
 
   /**

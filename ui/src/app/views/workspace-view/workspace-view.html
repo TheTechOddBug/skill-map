@@ -1,0 +1,64 @@
+<div class="workspace" data-testid="workspace-view">
+  <aside
+    class="workspace__rail"
+    [class.is-collapsed]="railCollapsed()"
+    [class.is-animating]="railAnimating()"
+    [style.width.px]="railCollapsed() ? null : clampedRailWidth()"
+    [attr.aria-label]="texts.rail.label"
+    data-testid="workspace-rail"
+  >
+    <!-- In-panel chrome lives on the rail's own bar (not the topbar):
+         a compact search next to the collapse handle. -->
+    <div class="workspace__rail-bar">
+      @if (!railCollapsed()) {
+        <p-iconfield iconPosition="left" class="workspace__search">
+          <p-inputicon styleClass="pi pi-search" />
+          <input
+            pInputText
+            pSize="small"
+            type="text"
+            [placeholder]="filterTexts.searchPlaceholder"
+            [attr.aria-label]="filterTexts.searchAriaLabel"
+            [ngModel]="searchText()"
+            (ngModelChange)="onSearchChange($event)"
+            data-testid="workspace-search"
+          />
+        </p-iconfield>
+      }
+      <button
+        type="button"
+        class="workspace__rail-btn"
+        [pTooltip]="railCollapsed() ? texts.rail.expand : texts.rail.collapse"
+        tooltipPosition="bottom"
+        [attr.aria-label]="railCollapsed() ? texts.rail.expand : texts.rail.collapse"
+        (click)="toggleRail()"
+        data-testid="workspace-rail-toggle"
+      >
+        <i
+          class="pi"
+          [class.pi-times]="!railCollapsed()"
+          [class.pi-angle-right]="railCollapsed()"
+          aria-hidden="true"
+        ></i>
+      </button>
+    </div>
+
+    @if (!railCollapsed()) {
+      <div class="workspace__rail-body">
+        <sm-files-view [rail]="true" />
+      </div>
+      <div
+        class="workspace__rail-resize"
+        role="separator"
+        aria-orientation="vertical"
+        [attr.aria-label]="texts.rail.resize"
+        (mousedown)="onRailResizeStart($event)"
+        data-testid="workspace-rail-resize"
+      ></div>
+    }
+  </aside>
+
+  <div class="workspace__map">
+    <sm-graph-view />
+  </div>
+</div>

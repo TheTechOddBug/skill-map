@@ -80,7 +80,7 @@
 }
 
 /* Compact icon-row popover, shared by direction (4 arrows) and
-   spacing (3 density icons). No text labels, the glyph carries
+   connection-type (4 edge shapes). No text labels, the glyph carries
    meaning + `aria-label` / `pTooltip` covers the accessible name.
    Same hover / active treatment as the vertical menu above. */
 .graph__layout-icon-row {

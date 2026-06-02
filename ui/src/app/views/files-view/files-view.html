@@ -1,40 +1,44 @@
-<section class="files" data-testid="files-view">
-  <header class="files__header">
-    <h2>{{ texts.title }}</h2>
-    <p class="files__sub">
-      @if (filtersActive()) {
-        {{ texts.showingPrefix }} <strong>{{ visibleCount() }}</strong>{{ texts.showingSuffix(total()) }}
-      } @else {
-        {{ texts.subtitleDefault }}
-      }
-    </p>
-  </header>
+<section class="files" [class.files--rail]="rail()" data-testid="files-view">
+  @if (!rail()) {
+    <header class="files__header">
+      <h2>{{ texts.title }}</h2>
+      <p class="files__sub">
+        @if (filtersActive()) {
+          {{ texts.showingPrefix }} <strong>{{ visibleCount() }}</strong>{{ texts.showingSuffix(total()) }}
+        } @else {
+          {{ texts.subtitleDefault }}
+        }
+      </p>
+    </header>
+  }
 
-  <div class="files__toolbar">
-    <sm-filter-bar />
-    @if (!isFlat()) {
-      <div class="files__toolbar-actions">
-        <p-button
-          [label]="texts.expandAll"
-          icon="pi pi-angle-double-down"
-          severity="secondary"
-          [text]="true"
-          size="small"
-          (onClick)="expandAll()"
-          data-testid="files-expand-all"
-        />
-        <p-button
-          [label]="texts.collapseAll"
-          icon="pi pi-angle-double-up"
-          severity="secondary"
-          [text]="true"
-          size="small"
-          (onClick)="collapseAll()"
-          data-testid="files-collapse-all"
-        />
-      </div>
-    }
-  </div>
+  @if (!rail()) {
+    <div class="files__toolbar">
+      <sm-filter-bar />
+      @if (!isFlat()) {
+        <div class="files__toolbar-actions">
+          <p-button
+            [label]="texts.expandAll"
+            icon="pi pi-angle-double-down"
+            severity="secondary"
+            [text]="true"
+            size="small"
+            (onClick)="expandAll()"
+            data-testid="files-expand-all"
+          />
+          <p-button
+            [label]="texts.collapseAll"
+            icon="pi pi-angle-double-up"
+            severity="secondary"
+            [text]="true"
+            size="small"
+            (onClick)="collapseAll()"
+            data-testid="files-collapse-all"
+          />
+        </div>
+      }
+    </div>
+  }
 
   @if (error()) {
     <p-message severity="error" [text]="error()!" />
@@ -42,7 +46,7 @@
 
   @if (loading()) {
     <div class="files__loading" data-testid="files-loading">
-      <p-progressSpinner strokeWidth="3" />
+      <p-progressSpinner strokeWidth="4" [style]="{ width: '1.75rem', height: '1.75rem' }" />
       <span class="files__loading-label">{{ texts.loading }}</span>
     </div>
   } @else if (!error()) {
@@ -64,7 +68,7 @@
         [value]="rows()"
         [paginator]="false"
         [scrollable]="true"
-        scrollHeight="calc(100dvh - 280px)"
+        [scrollHeight]="rail() ? 'flex' : 'calc(100dvh - 280px)'"
         dataKey="path"
         styleClass="p-datatable-sm files__table"
         data-testid="files-table"
@@ -72,22 +76,88 @@
         <ng-template pTemplate="header">
           <tr>
             <th class="files__col-tree" [attr.aria-sort]="ariaSortFor('tree')" data-testid="files-col-tree">
-              <button
-                type="button"
-                class="files__sort-btn"
-                [class.files__sort-btn--active]="sortState().column === 'tree'"
-                [attr.aria-label]="texts.sortTreeAriaLabel"
-                (click)="onSortColumn('tree')"
-              >
-                {{ texts.columns.tree }}
-                <i
-                  class="pi files__sort-icon"
-                  [class.pi-sort-amount-up]="sortState().column === 'tree' && sortState().dir === 'asc'"
-                  [class.pi-sort-amount-down]="sortState().column === 'tree' && sortState().dir === 'desc'"
-                  [class.pi-sort-alt]="sortState().column !== 'tree'"
-                  aria-hidden="true"
-                ></i>
-              </button>
+              <div class="files__tree-head">
+                <button
+                  type="button"
+                  class="files__sort-btn"
+                  [class.files__sort-btn--active]="sortState().column === 'tree'"
+                  [attr.aria-label]="texts.sortTreeAriaLabel"
+                  (click)="onSortColumn('tree')"
+                >
+                  {{ texts.columns.tree }}
+                  <i
+                    class="pi files__sort-icon"
+                    [class.pi-sort-amount-up]="sortState().column === 'tree' && sortState().dir === 'asc'"
+                    [class.pi-sort-amount-down]="sortState().column === 'tree' && sortState().dir === 'desc'"
+                    [class.pi-sort-alt]="sortState().column !== 'tree'"
+                    aria-hidden="true"
+                  ></i>
+                </button>
+                <!-- Expand/collapse-all act on the folder structure, so they
+                     live with the tree column and only show in tree mode. -->
+                @if (!isFlat()) {
+                  <span class="files__tree-actions">
+                    <button
+                      type="button"
+                      class="files__tree-action"
+                      [pTooltip]="texts.expandAll"
+                      tooltipPosition="top"
+                      [attr.aria-label]="texts.expandAll"
+                      (click)="expandAll()"
+                      data-testid="files-expand-all"
+                    >
+                      <i class="pi pi-angle-double-down" aria-hidden="true"></i>
+                    </button>
+                    <button
+                      type="button"
+                      class="files__tree-action"
+                      [pTooltip]="texts.collapseAll"
+                      tooltipPosition="top"
+                      [attr.aria-label]="texts.collapseAll"
+                      (click)="collapseAll()"
+                      data-testid="files-collapse-all"
+                    >
+                      <i class="pi pi-angle-double-up" aria-hidden="true"></i>
+                    </button>
+                    <span class="files__tree-sep" aria-hidden="true"></span>
+                    <!-- Map depth presets: check visibility checkboxes up to a
+                         folder depth. 0 = root, 1 = one deep, 2 = two deep. -->
+                    <button
+                      type="button"
+                      class="files__tree-num"
+                      [class.is-active]="activeDepthLevel() === 0"
+                      [pTooltip]="texts.depthLevel0"
+                      tooltipPosition="top"
+                      [attr.aria-label]="texts.depthLevel0"
+                      [attr.aria-pressed]="activeDepthLevel() === 0"
+                      (click)="setDepthLevel(0)"
+                      data-testid="files-depth-0"
+                    >0</button>
+                    <button
+                      type="button"
+                      class="files__tree-num"
+                      [class.is-active]="activeDepthLevel() === 1"
+                      [pTooltip]="texts.depthLevel1"
+                      tooltipPosition="top"
+                      [attr.aria-label]="texts.depthLevel1"
+                      [attr.aria-pressed]="activeDepthLevel() === 1"
+                      (click)="setDepthLevel(1)"
+                      data-testid="files-depth-1"
+                    >1</button>
+                    <button
+                      type="button"
+                      class="files__tree-num"
+                      [class.is-active]="activeDepthLevel() === 2"
+                      [pTooltip]="texts.depthLevel2"
+                      tooltipPosition="top"
+                      [attr.aria-label]="texts.depthLevel2"
+                      [attr.aria-pressed]="activeDepthLevel() === 2"
+                      (click)="setDepthLevel(2)"
+                      data-testid="files-depth-2"
+                    >2</button>
+                  </span>
+                }
+              </div>
             </th>
             <th style="width: 70px" class="files__col-num" [attr.aria-sort]="ariaSortFor('linksIn')" data-testid="files-col-linksIn">
               <button
@@ -184,6 +254,25 @@
               <td class="files__cell-tree">
                 <span class="files__tree-inner">
                   <span class="files__indent" aria-hidden="true"></span>
+                  @if (rail()) {
+                    <button
+                      type="button"
+                      class="files__vis-check"
+                      [attr.data-state]="folderStateMap().get(row.path) ?? 'none'"
+                      [pTooltip]="texts.mapVisibilityTooltip"
+                      tooltipPosition="top"
+                      [attr.aria-label]="texts.mapVisibilityAriaLabel(row.name)"
+                      (click)="onToggleFolderVisibility(row, $event)"
+                      [attr.data-testid]="'files-vis-folder-' + row.path"
+                    >
+                      <i
+                        class="pi"
+                        [class.pi-check]="folderStateMap().get(row.path) === 'all'"
+                        [class.pi-minus]="folderStateMap().get(row.path) === 'some'"
+                        aria-hidden="true"
+                      ></i>
+                    </button>
+                  }
                   <i
                     class="pi files__chevron"
                     [class.pi-chevron-right]="!row.expanded"
@@ -212,14 +301,28 @@
               tabindex="0"
               [attr.aria-label]="texts.leafAriaLabel(row.name)"
               [style.--folder-depth]="row.depth"
-              (click)="openLeaf(row)"
-              (keydown.enter)="openLeaf(row)"
-              (keydown.space)="$event.preventDefault(); openLeaf(row)"
+              (click)="onLeafActivate(row)"
+              (keydown.enter)="onLeafActivate(row)"
+              (keydown.space)="$event.preventDefault(); onLeafActivate(row)"
               [attr.data-testid]="'files-leaf-' + row.path"
             >
               <td class="files__cell-tree">
                 <span class="files__tree-inner">
                   <span class="files__indent" aria-hidden="true"></span>
+                  @if (rail()) {
+                    <button
+                      type="button"
+                      class="files__vis-check"
+                      [attr.data-state]="leafVisible(row.path) ? 'all' : 'none'"
+                      [pTooltip]="texts.mapVisibilityTooltip"
+                      tooltipPosition="top"
+                      [attr.aria-label]="texts.mapVisibilityAriaLabel(row.name)"
+                      (click)="onToggleLeafVisibility(row, $event)"
+                      [attr.data-testid]="'files-vis-leaf-' + row.path"
+                    >
+                      <i class="pi" [class.pi-check]="leafVisible(row.path)" aria-hidden="true"></i>
+                    </button>
+                  }
                   <span class="files__chevron-placeholder" aria-hidden="true"></span>
                   <i class="pi pi-file files__leaf-icon" aria-hidden="true"></i>
                   @if (isFlat()) {
@@ -233,10 +336,10 @@
                   <button
                     type="button"
                     class="files__open-graph"
-                    [pTooltip]="texts.openInMapTooltip"
+                    [pTooltip]="rail() ? texts.isolateChainTooltip : texts.openInMapTooltip"
                     tooltipPosition="top"
-                    [attr.aria-label]="texts.openInMapAriaLabel(row.name)"
-                    (click)="$event.stopPropagation(); openInMap(row)"
+                    [attr.aria-label]="rail() ? texts.isolateChainAriaLabel(row.name) : texts.openInMapAriaLabel(row.name)"
+                    (click)="onSitemapClick(row, $event)"
                     [attr.data-testid]="'files-leaf-graph-' + row.path"
                   >
                     <i class="pi pi-sitemap" aria-hidden="true"></i>
@@ -278,6 +381,7 @@
         </ng-template>
       </p-table>
 
+      @if (!rail()) {
       <aside class="files__preview" data-testid="files-preview">
         @if (previewRow(); as r) {
           <header class="files__preview-header">
@@ -361,6 +465,7 @@
           </div>
         }
       </aside>
+      }
       </div>
     }
   }

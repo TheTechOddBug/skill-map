@@ -11,12 +11,21 @@ export const FILES_VIEW_TEXTS = {
   resetFilters: 'Reset filters',
   expandAll: 'Expand all',
   collapseAll: 'Collapse all',
+  /** Map depth presets (tree header). Curate the map to a folder-depth slice. */
+  depthLevel0: 'Map: show only the root level',
+  depthLevel1: 'Map: show up to one folder deep',
+  depthLevel2: 'Map: show up to two folders deep',
   folderAriaLabel: (name: string, expanded: boolean) =>
     `${expanded ? 'Collapse' : 'Expand'} folder ${name}`,
   leafAriaLabel: (name: string) => `Inspect ${name}`,
   /** Per-leaf inline button that jumps to the map view focused on the node. */
   openInMapTooltip: 'Open in map',
   openInMapAriaLabel: (name: string) => `Open ${name} in map view`,
+  /** Rail-mode map visibility curation (checkboxes + isolate-chain). */
+  mapVisibilityTooltip: 'Toggle visibility on the map',
+  mapVisibilityAriaLabel: (name: string) => `Toggle ${name} visibility on the map`,
+  isolateChainTooltip: 'Isolate this chain on the map',
+  isolateChainAriaLabel: (name: string) => `Isolate the chain of ${name} on the map`,
   /**
    * Column headers. The structural (tree) column is unique to the
    * files view; the rest mirror the prior list view shape so the

@@ -30,8 +30,6 @@ export const APP_TEXTS = {
   lensChipTooltip: (lens: string): string => `Active lens: ${lens}. The map reflects how ${lens} interprets your files.`,
   lensChipA11y: (lens: string): string => `Active provider lens: ${lens}.`,
   nav: {
-    map: 'Map',
-    files: 'Files',
     searchLabel: 'Search nodes by name or tag',
     searchTooltip: 'Search',
     searchPlaceholder: 'Search by name or tag...',

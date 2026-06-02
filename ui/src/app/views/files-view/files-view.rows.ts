@@ -132,6 +132,33 @@ export function computeAggregates(tree: ITreeFolder): ReadonlyMap<string, IAggre
   return out;
 }
 
+/**
+ * Resolve the `ITreeFolder` at a folder path (root has path ''). Traverses
+ * by path segment, so it resolves a compacted folder row's terminal `.path`
+ * just as well (the tree itself is never compacted, only its rendering).
+ */
+export function findFolder(root: ITreeFolder, folderPath: string): ITreeFolder | null {
+  if (folderPath === '' || folderPath === root.path) return root;
+  let cursor: ITreeFolder | undefined = root;
+  for (const seg of folderPath.split('/')) {
+    if (!seg) continue;
+    cursor = cursor.subfolders.get(seg);
+    if (!cursor) return null;
+  }
+  return cursor ?? null;
+}
+
+/** Every descendant leaf node path under a folder (recursive). */
+export function collectLeafPaths(folder: ITreeFolder): string[] {
+  const out: string[] = [];
+  const visit = (f: ITreeFolder): void => {
+    for (const leaf of f.leaves) out.push(leaf.path);
+    for (const sub of f.subfolders.values()) visit(sub);
+  };
+  visit(folder);
+  return out;
+}
+
 export function makeLeafRow(
   node: INodeView,
   depth: number,

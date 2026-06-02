@@ -1,0 +1,141 @@
+.workspace {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+}
+
+.workspace__rail {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  /* Width is set inline by `[style.width.px]` so it tracks the resize
+     signal; this is just the pre-hydration fallback. */
+  width: 440px;
+  min-width: 0;
+  min-height: 0;
+  background: var(--sm-bg-content);
+  border-right: 1px solid var(--sm-border);
+}
+
+/* Collapsed: only the control strip stays, the body + handle unmount.
+   The inline width is dropped (bound to null) so this wins. */
+.workspace__rail.is-collapsed {
+  width: 44px;
+}
+
+/* Width transition is enabled only around a collapse/expand toggle (see
+   `railAnimating`), so the drag resize stays frame-tight. */
+.workspace__rail.is-animating {
+  transition: width 180ms ease;
+}
+
+.workspace__rail-bar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.4rem;
+  border-bottom: 1px solid var(--sm-border);
+}
+
+.workspace__rail.is-collapsed .workspace__rail-bar {
+  justify-content: center;
+}
+
+.workspace__search {
+  flex: 1;
+  min-width: 0;
+  display: block;
+}
+
+.workspace__search input {
+  width: 100%;
+}
+
+.workspace__rail-btn {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--p-text-muted-color);
+  cursor: pointer;
+}
+
+.workspace__rail-btn:hover {
+  background: var(--p-content-hover-background);
+  color: var(--p-text-color);
+}
+
+.workspace__rail-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Host-level overrides: the files view is authored as a centered, padded
+   standalone page. Inside the rail it must fill edge-to-edge. The host
+   element lives in this template, so no ::ng-deep is needed for these. */
+.workspace__rail-body sm-files-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0.5rem;
+}
+
+/* Right-edge drag handle, mirror of the inspector's `.graph__panel-resize`.
+   6px hit area straddling the edge for an easy grab; the 4px accent line
+   sits flush INSIDE the edge so it renders identically to the inspector
+   handle (whose panel clips anything past its edge). Shows only on
+   hover / drag so the rail reads clean at rest. */
+.workspace__rail-resize {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+  z-index: 5;
+}
+
+.workspace__rail-resize::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  /* Flush inside the rail's right edge (mirror of the inspector handle,
+     whose panel clips anything past the edge). Handle sits at
+     right:-3px, so right:3px lands the 4px line on the rail edge. */
+  right: 3px;
+  width: 4px;
+  background: transparent;
+  transition: background 120ms ease;
+}
+
+.workspace__rail-resize:hover::after,
+.workspace__rail-resize:active::after {
+  background: var(--p-primary-color);
+}
+
+.workspace__map {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.workspace__map sm-graph-view {
+  display: block;
+  height: 100%;
+}

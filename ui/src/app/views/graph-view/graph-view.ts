@@ -10,6 +10,7 @@ import {
   effect,
   inject,
   signal,
+  untracked,
   viewChild,
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -39,6 +40,8 @@ import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
 import { GraphPreferencesService } from '../../../services/graph-preferences';
 import { IssuePathsService } from '../../../services/issue-paths';
+import { MapVisibilityService } from '../../../services/map-visibility';
+import { connectedComponent } from './connected-component';
 import { resolveConnectionSides } from './connection-sides';
 import { GraphLayoutToolbar } from './graph-layout-toolbar/graph-layout-toolbar';
 import { KindPalette } from '../../components/kind-palette/kind-palette';
@@ -154,6 +157,9 @@ export class GraphView implements OnInit {
   private readonly loader = inject(CollectionLoaderService);
   private readonly filters = inject(FilterStoreService);
   private readonly issuePaths = inject(IssuePathsService);
+  // Protected so the template can read `isActive()` / `count()` (toolbar
+  // "show all" affordance + curation empty-state) and call `clear()`.
+  protected readonly mapVisibility = inject(MapVisibilityService);
   private readonly graphPreferences = inject(GraphPreferencesService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -305,8 +311,26 @@ export class GraphView implements OnInit {
     computedAt: this.layoutComputedAtSignal(),
   }));
 
+  /**
+   * Effective set of node paths the MAP shows: the facet-filtered set
+   * (`visibleNodes`, shared with the rail) intersected with the map
+   * visibility curation set. Empty curation set == "show all", so this
+   * is the facet set verbatim; a non-empty set restricts to the AND of
+   * the two. This is the single chokepoint both the canvas (`graph`) and
+   * the camera (`runAnimatedFit`) read, so they never disagree on what is
+   * visible. Crucially it layers ON TOP of `visibleNodes` rather than
+   * inside `FilterStoreService.apply`, so the rail's own tree is never
+   * touched by curation.
+   */
+  private readonly mapVisiblePaths = computed<Set<string>>(() => {
+    const facet = this.visibleNodes().map((n) => n.path);
+    const inclusion = this.mapVisibility.paths();
+    if (inclusion.size === 0) return new Set(facet);
+    return new Set(facet.filter((p) => inclusion.has(p)));
+  });
+
   readonly graph = computed<IGraphData>(() => {
-    const visibleIds = new Set(this.visibleNodes().map((n) => n.path));
+    const visibleIds = this.mapVisiblePaths();
     const linkKinds = this.filters.selectedLinkKinds();
     const visibleEdgeKinds = linkKinds.length > 0 ? new Set(linkKinds) : null;
     return projectVisible(
@@ -315,6 +339,30 @@ export class GraphView implements OnInit {
       this.nodePositions(),
       visibleEdgeKinds,
     );
+  });
+
+  /**
+   * Undirected neighbor map over the FULL topology (not the currently
+   * visible subset), built from `fullLayout().edges`. Mirrors the
+   * `adjacency` computed in `selection-state.ts`, but unfiltered: the
+   * isolate-chain gesture must expand to a node's whole link-chain even
+   * when curation has narrowed the canvas down. Feeds `isolateChain`.
+   */
+  private readonly fullAdjacency = computed<Map<string, Set<string>>>(() => {
+    const map = new Map<string, Set<string>>();
+    const link = (a: string, b: string): void => {
+      let set = map.get(a);
+      if (!set) {
+        set = new Set<string>();
+        map.set(a, set);
+      }
+      set.add(b);
+    };
+    for (const edge of this.fullLayout().edges) {
+      link(edge.from, edge.to);
+      link(edge.to, edge.from);
+    }
+    return map;
   });
 
   readonly hasData = computed(() => this.graph().nodes.length > 0);
@@ -336,8 +384,19 @@ export class GraphView implements OnInit {
   readonly showEmptyState = computed(
     () =>
       !this.hasData() &&
+      !this.mapVisibility.isActive() &&
       !this.filters.kindToggleExplicitEmpty() &&
       this.filters.searchText().trim().length === 0,
+  );
+
+  /**
+   * Curation drove the canvas to zero: the user curated a visible set,
+   * but nothing in it survives the active facet filters (or every curated
+   * path got filtered out). Distinct from `showEmptyState` so we can offer
+   * a "Show all on map" escape instead of the generic "no matches" copy.
+   */
+  readonly showCurationEmptyState = computed(
+    () => !this.hasData() && this.mapVisibility.isActive(),
   );
 
   /** Counters / timestamp exposed to the perf HUD. Pure derivations. */
@@ -456,7 +515,7 @@ export class GraphView implements OnInit {
       // runs the pan once the boot fit has fixed the zoom and the dagre
       // positions are in.
       onDeepLinkSelect: (id) => {
-        this.pendingCenterNodeId = id;
+        this.pendingCenterNodeId.set(id);
       },
       router: this.router,
       route: this.route,
@@ -524,11 +583,41 @@ export class GraphView implements OnInit {
     effect(() => {
       this.layoutComputedAt();
       const bootFitDone = this.layoutFit.hasCompletedInitialLayout();
-      const id = this.pendingCenterNodeId;
+      const id = this.pendingCenterNodeId();
       if (id === null || !bootFitDone) return;
       if (this.fullLayout().positions.size === 0) return;
-      this.pendingCenterNodeId = null;
+      this.pendingCenterNodeId.set(null);
       afterNextRender(() => this.centerOnNode(id), { injector: this.injector });
+    });
+
+    // Re-fit the camera when the map visibility curation changes (decision:
+    // refit on every change). Debounced so a burst of checkbox toggles
+    // coalesces into one glide. Topology is unchanged on a pure visibility
+    // edit, so `layoutComputedAt` does NOT tick; positions are already
+    // settled post-boot, so we drive `runAnimatedFit` via `afterNextRender`
+    // directly (which lets `projectVisible` render the new node set first).
+    effect(() => {
+      this.mapVisibility.paths(); // the only dependency: refit on curation change
+      // Gate, NOT a dependency: reading it tracked would also refit on the
+      // boot flip of this flag (a redundant re-frame). `untracked` keeps the
+      // effect firing only when the curation set actually changes.
+      if (!untracked(() => this.layoutFit.hasCompletedInitialLayout())) return;
+      if (this.mapFitDebounce !== null) clearTimeout(this.mapFitDebounce);
+      this.mapFitDebounce = setTimeout(() => {
+        afterNextRender(() => this.runAnimatedFit(), { injector: this.injector });
+      }, 180);
+    });
+    this.destroyRef.onDestroy(() => {
+      if (this.mapFitDebounce !== null) clearTimeout(this.mapFitDebounce);
+    });
+
+    // Garbage-collect curated paths a re-scan removed. Keyed on the loaded
+    // node set; if pruning empties the curation the map falls back to
+    // "show all" (the consistent default).
+    effect(() => {
+      const nodes = this.loader.nodes();
+      if (nodes.length === 0) return;
+      this.mapVisibility.prune(new Set(nodes.map((n) => n.path)));
     });
 
     // Async layout effect, runs dagre when topology or layout
@@ -676,13 +765,25 @@ export class GraphView implements OnInit {
   private autoFitPending = false;
 
   /**
+   * Debounce timer for the re-fit on a map-visibility change. A folder
+   * cascade is one signal tick (one fit), but rapid single-leaf toggles
+   * each tick the curation effect; coalescing them into one camera glide
+   * keeps the viewport from thrashing. Cleared on destroy.
+   */
+  private mapFitDebounce: ReturnType<typeof setTimeout> | null = null;
+
+  /**
    * Node id (== node path) queued by a deep-link selection (the files
    * view "open in map" navigation). The center effect in the
    * constructor drains it once the boot fit and dagre positions are
-   * ready. Plain field: written by the deep-link callback, read
-   * imperatively by the effect, no reactivity needed.
+   * ready. Signal-backed so a repeated deep-link re-fires the effect:
+   * in the fused workspace the graph stays mounted, so clicking a
+   * second file would set this without changing `layoutComputedAt` /
+   * `hasCompletedInitialLayout`, and a plain field would leave the
+   * effect dormant (camera never re-centers). As a signal, each set
+   * invalidates the effect and the camera glides to the new node.
    */
-  private pendingCenterNodeId: string | null = null;
+  private readonly pendingCenterNodeId = signal<string | null>(null);
 
   /** Public-facing scheduler the layout-fit controller wires into
    *  `animatedFit`. Just marks intent; the deferred runner does the work. */
@@ -716,9 +817,10 @@ export class GraphView implements OnInit {
     // what's actually rendered after manual drags, producing the
     // "zoom expanded too much" symptom the user reported.
     const pinned = this.nodePositions();
-    const visiblePaths = this.visibleNodes().map((n) => n.path);
+    // Fit over the SAME set the canvas renders (facet ∩ curation), so the
+    // camera frames exactly what is on screen, not the pre-curation set.
     const points: IPoint[] = [];
-    for (const path of visiblePaths) {
+    for (const path of this.mapVisiblePaths()) {
       const pt = pinned.get(path) ?? layoutPositions.get(path);
       if (pt) points.push({ x: pt.x, y: pt.y });
     }
@@ -781,6 +883,22 @@ export class GraphView implements OnInit {
       transform,
       AUTO_FIT_ANIM_MS,
     );
+  }
+
+  /**
+   * Isolate the connected link-chain of `path`: set the map visibility to
+   * that whole component and select the origin node. The curation change
+   * is picked up by the re-fit effect (which frames the chain, inspector-
+   * aware); selecting the node directly writes `?path` via the selection
+   * writer effect without firing the deep-link centerer, so the camera
+   * frames the chain rather than centering the single origin node. Public
+   * because the rail reaches it through `MAP_ISOLATE_INTENT` (the workspace
+   * provides an implementation that forwards here).
+   */
+  isolateChain(path: string): void {
+    const chain = connectedComponent(this.fullAdjacency(), path);
+    this.mapVisibility.setOnly(chain);
+    this.selectedNodeId.set(path);
   }
 
   onNodePositionChange(id: string, position: IPoint): void {

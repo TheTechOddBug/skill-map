@@ -33,7 +33,7 @@ export class DefaultNodeOpenIntent implements INodeOpenIntent {
   private readonly router = inject(Router);
 
   open(path: string): void {
-    void this.router.navigate(['/map'], { queryParams: { path } });
+    void this.router.navigate(['/'], { queryParams: { path } });
   }
 }
 

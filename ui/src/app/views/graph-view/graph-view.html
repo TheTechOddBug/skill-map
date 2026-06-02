@@ -31,6 +31,18 @@
         data-testid="graph-reset-filters"
       />
     </div>
+  } @else if (showCurationEmptyState()) {
+    <div class="empty-state" data-testid="graph-curation-empty">
+      <i class="pi pi-eye-slash empty-state__icon" aria-hidden="true"></i>
+      <p class="empty-state__title">{{ texts.curationEmptyTitle }}</p>
+      <p-button
+        [label]="texts.showAllOnMap"
+        [text]="true"
+        size="small"
+        (onClick)="mapVisibility.clear()"
+        data-testid="graph-show-all-on-map"
+      />
+    </div>
   } @else {
     <div
       class="graph__canvas-wrap"
@@ -286,6 +298,20 @@
           (onClick)="resetLayout()"
           data-testid="graph-reset-layout"
         />
+        @if (mapVisibility.isActive()) {
+          <span class="graph__toolbar-sep" aria-hidden="true"></span>
+          <p-button
+            icon="pi pi-eye"
+            [label]="texts.toolbar.showAllLabel"
+            [ariaLabel]="texts.toolbar.showAllAria"
+            [pTooltip]="texts.toolbar.showAllTooltip"
+            severity="secondary"
+            [text]="true"
+            size="small"
+            (onClick)="mapVisibility.clear()"
+            data-testid="graph-show-all-toolbar"
+          />
+        }
       </div>
 
     </div>

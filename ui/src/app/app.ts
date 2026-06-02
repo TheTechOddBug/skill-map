@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, isDevMode, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NgOptimizedImage } from '@angular/common';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { RouterOutlet } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { TooltipModule } from 'primeng/tooltip';
@@ -28,7 +28,7 @@ import { ViewContributionsHost } from './components/view-contributions-host/view
 
 @Component({
   selector: 'sm-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, ButtonModule, InputTextModule, TooltipModule, FormsModule, NgOptimizedImage, DemoBanner, OversizedBanner, SkippedFilesBanner, ConnectionBanner, SettingsModal, /* DEBUG-SLOTS */ ViewContributionsHost],
+  imports: [RouterOutlet, ButtonModule, InputTextModule, TooltipModule, FormsModule, NgOptimizedImage, DemoBanner, OversizedBanner, SkippedFilesBanner, ConnectionBanner, SettingsModal, /* DEBUG-SLOTS */ ViewContributionsHost],
   templateUrl: './app.html',
   styleUrl: './app.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

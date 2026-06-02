@@ -3,18 +3,15 @@ import type { Routes } from '@angular/router';
 import { APP_TEXTS } from '../i18n/app.texts';
 
 export const routes: Routes = [
-  { path: '', pathMatch: 'full', redirectTo: 'map' },
+  // The fused workspace (files rail + map + floating inspector) is the only
+  // primary view. The former standalone `/map` and `/files` routes were
+  // retired once the workspace replaced the split-view navigation.
   {
-    path: 'map',
+    path: '',
+    pathMatch: 'full',
     loadComponent: () =>
-      import('./views/graph-view/graph-view').then((m) => m.GraphView),
-    title: APP_TEXTS.nav.map,
-  },
-  {
-    path: 'files',
-    loadComponent: () =>
-      import('./views/files-view/files-view').then((m) => m.FilesView),
-    title: APP_TEXTS.nav.files,
+      import('./views/workspace-view/workspace-view').then((m) => m.WorkspaceView),
+    title: APP_TEXTS.brand,
   },
   // Hidden maintainer self-test for the UI Sentry surface. Deliberately
   // NOT in the nav (no `title`, no link in the shell): reachable only by
@@ -25,5 +22,5 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./views/intentional-fail/intentional-fail').then((m) => m.IntentionalFail),
   },
-  { path: '**', redirectTo: 'map' },
+  { path: '**', redirectTo: '' },
 ];

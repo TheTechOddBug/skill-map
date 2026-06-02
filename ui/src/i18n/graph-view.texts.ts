@@ -4,6 +4,8 @@ export const GRAPH_VIEW_TEXTS = {
   errorTitle: 'Failed to load',
   emptyTitle: 'No nodes match the current filters.',
   resetFilters: 'Reset filters',
+  curationEmptyTitle: 'Nothing from your map selection is visible right now.',
+  showAllOnMap: 'Show all on map',
   a11y: {
     toolbar: 'Map controls',
     panel: 'Selected node details',
@@ -14,6 +16,9 @@ export const GRAPH_VIEW_TEXTS = {
     fitToScreen: 'Fit to screen',
     resetLayoutLabel: 'Reset layout',
     resetLayoutTooltip: 'Reset layout (re-run auto layout, clear saved positions)',
+    showAllLabel: 'Show all',
+    showAllTooltip: 'Clear the map selection and show every node again',
+    showAllAria: 'Show all nodes on the map',
     /**
      * Inline graph-layout popovers anchored to the bottom toolbar.
      * The popovers are the only surface that exposes these knobs,

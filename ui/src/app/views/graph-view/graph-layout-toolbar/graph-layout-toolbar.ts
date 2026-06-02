@@ -1,11 +1,15 @@
 /**
- * `<sm-graph-layout-toolbar>`, the 4-button layout-control cluster of
+ * `<sm-graph-layout-toolbar>`, the 3-button layout-control cluster of
  * the graph view's bottom toolbar:
  *
  *   1. Algorithm popover (vertical menu of layout algorithms).
  *   2. Direction popover (icon row, top/bottom/left/right arrows).
- *   3. Spacing popover (icon row, compact/normal/spacious).
- *   4. Connection-type popover (icon row, segment/straight/bezier/adaptive).
+ *   3. Connection-type popover (icon row, segment/straight/bezier/adaptive).
+ *
+ * Layout spacing has no control here: it is fixed to "Normal"
+ * (`DEFAULT_LAYOUT_SPACING`) in `GraphPreferencesService`. The
+ * spacing -> nodeGap/layerGap machinery stays intact; only the toolbar
+ * toggle + popover were removed.
  *
  * Extracted out of `graph-view.ts` so the catalogs, labelers, setters,
  * and icon tables for layout preferences live next to the markup that
@@ -34,12 +38,9 @@ import {
 import {
   LAYOUT_ALGORITHMS,
   LAYOUT_DIRECTIONS,
-  LAYOUT_SPACINGS,
   algorithmUsesDirection,
-  algorithmUsesSpacing,
   type TLayoutAlgorithm,
   type TLayoutDirection,
-  type TLayoutSpacing,
 } from '../layout-controls';
 
 /**
@@ -53,17 +54,6 @@ const DIRECTION_ICONS: Readonly<Record<TLayoutDirection, string>> = {
   BOTTOM_TOP: 'pi pi-arrow-up',
   LEFT_RIGHT: 'pi pi-arrow-right',
   RIGHT_LEFT: 'pi pi-arrow-left',
-};
-
-/**
- * PrimeIcon class for each spacing preset. macOS-style window-control
- * gradient: minimize (less space taken) → bars → maximize (more space
- * taken). Same dynamic-button + icon-row popover pattern as direction.
- */
-const SPACING_ICONS: Readonly<Record<TLayoutSpacing, string>> = {
-  compact: 'pi pi-window-minimize',
-  normal: 'pi pi-bars',
-  spacious: 'pi pi-window-maximize',
 };
 
 /**
@@ -106,7 +96,6 @@ export class GraphLayoutToolbar {
   // resolved against `SETTINGS_TEXTS`.
   protected readonly layoutAlgorithms = LAYOUT_ALGORITHMS;
   protected readonly layoutDirections = LAYOUT_DIRECTIONS;
-  protected readonly layoutSpacings = LAYOUT_SPACINGS;
   protected readonly connectionTypes = CONNECTION_TYPES;
 
   // Direct re-exposes of the preferences signals so the template binds
@@ -114,7 +103,6 @@ export class GraphLayoutToolbar {
   // writes localStorage and notifies every consumer signal.
   protected readonly layoutAlgorithm = this.graphPreferences.layoutAlgorithm;
   protected readonly layoutDirection = this.graphPreferences.layoutDirection;
-  protected readonly layoutSpacing = this.graphPreferences.layoutSpacing;
   protected readonly connectionType = this.graphPreferences.connectionType;
 
   /**
@@ -125,8 +113,6 @@ export class GraphLayoutToolbar {
   protected readonly directionIcon = computed(
     () => DIRECTION_ICONS[this.layoutDirection()],
   );
-  /** Dynamic FontAwesome class for the spacing button (mirrors direction). */
-  protected readonly spacingIcon = computed(() => SPACING_ICONS[this.layoutSpacing()]);
 
   /**
    * Whether the active algorithm honours the `direction` preference.
@@ -136,14 +122,6 @@ export class GraphLayoutToolbar {
   protected readonly directionAvailable = computed(() =>
     algorithmUsesDirection(this.layoutAlgorithm()),
   );
-  /**
-   * Whether the active algorithm honours the `spacing` preset.
-   * Force-directed uses its own internal collision radius / link
-   * distance, the `nodeGap` / `layerGap` numbers go nowhere.
-   */
-  protected readonly spacingAvailable = computed(() =>
-    algorithmUsesSpacing(this.layoutAlgorithm()),
-  );
 
   protected layoutAlgorithmLabel(value: TLayoutAlgorithm): string {
     return GRAPH_VIEW_TEXTS.layout.algorithm.options[value].label;
@@ -151,10 +129,6 @@ export class GraphLayoutToolbar {
 
   protected layoutDirectionLabel(value: TLayoutDirection): string {
     return GRAPH_VIEW_TEXTS.layout.direction.options[value].label;
-  }
-
-  protected layoutSpacingLabel(value: TLayoutSpacing): string {
-    return GRAPH_VIEW_TEXTS.layout.spacing.options[value].label;
   }
 
   protected connectionTypeLabel(value: TConnectionType): string {
@@ -169,10 +143,6 @@ export class GraphLayoutToolbar {
     this.graphPreferences.setLayoutDirection(value);
   }
 
-  protected setLayoutSpacing(value: TLayoutSpacing): void {
-    this.graphPreferences.setLayoutSpacing(value);
-  }
-
   protected setConnectionType(value: TConnectionType): void {
     this.graphPreferences.setConnectionType(value);
   }
@@ -185,11 +155,6 @@ export class GraphLayoutToolbar {
    */
   protected directionItemIcon(value: TLayoutDirection): string {
     return DIRECTION_ICONS[value];
-  }
-
-  /** Same shape as `directionItemIcon`, but for the spacing popover. */
-  protected spacingItemIcon(value: TLayoutSpacing): string {
-    return SPACING_ICONS[value];
   }
 
   /**

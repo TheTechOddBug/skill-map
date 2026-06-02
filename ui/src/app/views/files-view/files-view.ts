@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, effect, inject, input, signal } from '@angular/core';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
@@ -10,15 +10,19 @@ import { FILES_VIEW_TEXTS } from '../../../i18n/files-view.texts';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
 import { IssuePathsService } from '../../../services/issue-paths';
+import { MapVisibilityService, type TFolderVisibility } from '../../../services/map-visibility';
 import { FilterBar } from '../../components/filter-bar/filter-bar';
+import { MAP_ISOLATE_INTENT } from '../../slots/map-isolate-intent';
 import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
 import type { INodeView } from '../../../models/node';
 import { readStoredCollapsed, writeStoredCollapsed } from './files-view.storage';
 import {
   buildRows,
   buildTree,
+  collectLeafPaths,
   computeAggregates,
   countIssuesByPath,
+  findFolder,
   type IFolderLeaf,
   type IFolderRow,
   type ITreeFolder,
@@ -52,7 +56,18 @@ export class FilesView implements OnInit {
   private readonly filters = inject(FilterStoreService);
   private readonly issuePaths = inject(IssuePathsService);
   private readonly nodeOpenIntent = inject(NODE_OPEN_INTENT);
+  private readonly mapVisibility = inject(MapVisibilityService);
+  private readonly mapIsolate = inject(MAP_ISOLATE_INTENT);
   protected readonly texts = FILES_VIEW_TEXTS;
+
+  /**
+   * Rail mode: the view is embedded as the workspace's left navigator
+   * (next to the map) instead of rendered as a standalone page. Drops
+   * the page header and the preview aside (the floating inspector takes
+   * over), lets the table own the vertical scroll, and routes a leaf
+   * click straight to the map instead of the local preview.
+   */
+  readonly rail = input(false);
 
   readonly loading = this.loader.loading;
   readonly error = this.loader.error;
@@ -112,6 +127,97 @@ export class FilesView implements OnInit {
 
   readonly visibleCount = computed(() => this.filteredNodes().length);
 
+  /**
+   * Map visibility curation (rail mode only). The set lives in the shared
+   * `MapVisibilityService` and only affects the map; the tree here stays
+   * full. Per the cascade decision, folder operations act over the
+   * FILTERED tree (`this.tree()` is built from `filteredNodes()`), so a
+   * folder checkbox under an active search curates only the visible leaves.
+   *
+   * Tri-state of every folder in one walk (post-order accumulation of
+   * total vs included descendant leaves). Re-derived only when the tree
+   * or the curation set changes; the template reads `.get(row.path)` so
+   * no per-row tree walk happens during render.
+   */
+  readonly folderStateMap = computed<Map<string, TFolderVisibility>>(() => {
+    const included = this.mapVisibility.paths();
+    const out = new Map<string, TFolderVisibility>();
+    const visit = (folder: ITreeFolder): [number, number] => {
+      let total = 0;
+      let inc = 0;
+      for (const leaf of folder.leaves) {
+        total++;
+        if (included.has(leaf.path)) inc++;
+      }
+      for (const sub of folder.subfolders.values()) {
+        const [t, i] = visit(sub);
+        total += t;
+        inc += i;
+      }
+      out.set(folder.path, total === 0 || inc === 0 ? 'none' : inc === total ? 'all' : 'some');
+      return [total, inc];
+    };
+    visit(this.tree());
+    return out;
+  });
+
+  leafVisible(path: string): boolean {
+    return this.mapVisibility.paths().has(path);
+  }
+
+  /** Folder depth of a node, 0-based: a root file is depth 0, a file one
+   *  folder deep is 1, and so on (the count of path separators). */
+  private nodeDepth(path: string): number {
+    let depth = 0;
+    for (const ch of path) if (ch === '/') depth++;
+    return depth;
+  }
+
+  /**
+   * Node paths (within the FILTERED/visible tree, per the cascade
+   * decision) up to a folder depth. Basis for the 0 / 1 / 2 depth presets:
+   * level 0 = root, 1 = up to one folder deep, 2 = up to two deep.
+   */
+  private depthSet(level: number): Set<string> {
+    const out = new Set<string>();
+    for (const node of this.filteredNodes()) {
+      if (this.nodeDepth(node.path) <= level) out.add(node.path);
+    }
+    return out;
+  }
+
+  /** True when the current map selection is exactly `target`. */
+  private pathsAre(target: ReadonlySet<string>): boolean {
+    const current = this.mapVisibility.paths();
+    if (current.size !== target.size) return false;
+    for (const p of target) if (!current.has(p)) return false;
+    return true;
+  }
+
+  /**
+   * Which depth preset (0 / 1 / 2), if any, the current map selection
+   * exactly matches, so the tree header can highlight the active button.
+   * Null when the set is empty or was hand-curated to a non-depth slice.
+   */
+  readonly activeDepthLevel = computed<number | null>(() => {
+    if (this.mapVisibility.paths().size === 0) return null;
+    for (const level of [0, 1, 2]) {
+      if (this.pathsAre(this.depthSet(level))) return level;
+    }
+    return null;
+  });
+
+  /**
+   * Depth preset: check every node up to `level` so the map shows exactly
+   * that folder-depth slice. Clicking the already-active preset clears the
+   * selection (shows everything again).
+   */
+  setDepthLevel(level: number): void {
+    const target = this.depthSet(level);
+    if (this.pathsAre(target)) this.mapVisibility.clear();
+    else this.mapVisibility.setOnly(target);
+  }
+
   ngOnInit(): void {
     if (this.loader.nodes().length === 0 && !this.loader.loading()) {
       void this.loader.load();
@@ -166,6 +272,16 @@ export class FilesView implements OnInit {
   }
 
   /**
+   * Leaf row activation. In standalone mode this only feeds the local
+   * preview aside; in rail mode it also fires the open-intent so the
+   * adjacent map centers on the node and the inspector slides in.
+   */
+  onLeafActivate(row: IFolderLeaf): void {
+    this.openLeaf(row);
+    if (this.rail()) this.openInMap(row);
+  }
+
+  /**
    * "Open in Map" affordance: navigate to the graph route focused on
    * this node (`/map?path=<path>`), via the shared `NODE_OPEN_INTENT`
    * the inspector uses. Distinct from `openLeaf`, which only feeds the
@@ -174,6 +290,31 @@ export class FilesView implements OnInit {
    */
   openInMap(row: IFolderLeaf): void {
     this.nodeOpenIntent.open(row.path);
+  }
+
+  /** Toggle a single file's visibility on the map (rail checkbox). */
+  onToggleLeafVisibility(row: IFolderLeaf, event: Event): void {
+    event.stopPropagation();
+    this.mapVisibility.toggleLeaf(row.path);
+  }
+
+  /** Toggle a folder's visibility on the map, cascading to its visible
+   *  descendant leaves (tri-state). */
+  onToggleFolderVisibility(row: IFolderRow, event: Event): void {
+    event.stopPropagation();
+    const folder = findFolder(this.tree(), row.path);
+    if (folder) this.mapVisibility.toggleFolder(collectLeafPaths(folder));
+  }
+
+  /**
+   * Sitemap icon on a leaf row. In rail mode it isolates the node's whole
+   * link-chain on the map (and selects it); standalone it keeps the
+   * original "open in map" navigation.
+   */
+  onSitemapClick(row: IFolderLeaf, event: Event): void {
+    event.stopPropagation();
+    if (this.rail()) this.mapIsolate.isolate(row.path);
+    else this.openInMap(row);
   }
 
   resetFilters(): void {

@@ -1,21 +1,9 @@
 /* Position is owned by the parent `.graph__filter-stack` in
    graph-view.html so this palette can sit next to siblings
    (`<sm-link-kind-palette>`) without competing absolute hosts. The
-   host stacks two independent wrappers vertically: the search pill on
-   top and the kind toggles below, separated by a small gap so the
-   search can grow horizontally without dragging the kind column with
-   it. */
-/* The host sits inside `.graph__filter-stack` (flex column with
-   `align-items: stretch`, by design so the three palettes read at the
-   same width). We keep that stretch alive by leaving the host as a
-   regular block-level item: the kind-toggles wrapper drives the host's
-   intrinsic size, and the search pill is rendered ABSOLUTELY so its
-   horizontal growth never widens the host (and thus never widens any
-   sibling palette via the parent's stretch). The kind-toggles wrapper
-   reserves vertical room at the top via `margin-top` so the absolute
-   search pill has a place to sit without overlapping the toggles. */
+   host is a plain block-level item whose kind-toggles wrapper drives
+   its intrinsic size. */
 :host {
-  position: relative;
   display: block;
   pointer-events: auto;
 }
@@ -34,103 +22,6 @@
      top / bottom buttons when their checked background is filled). */
   border-radius: 0.65rem;
   box-shadow: var(--sm-shadow-floating);
-  /* Reserve vertical room for the absolutely-positioned search pill on
-     top so it stays visually anchored above the toggles. */
-  margin-top: 44px;
-}
-
-/* Standalone search pill, lives absolutely above the kind toggles so
-   its horizontal growth (collapsed 64px → expanded 240px) never
-   contributes to the host's intrinsic width. Same blur / border /
-   shadow tokens as `.kind-palette` so the two wrappers read as a pair. */
-.kind-palette-search {
-  position: absolute;
-  top: 0;
-  left: 0;
-  display: inline-flex;
-  align-items: center;
-  width: 64px;
-  height: 38px;
-  padding: 4px;
-  border: 1px solid var(--sm-border);
-  border-radius: 0.65rem;
-  background: color-mix(in srgb, var(--sm-bg-content) 80%, transparent);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  box-shadow: var(--sm-shadow-floating);
-  overflow: hidden;
-  transition: width 200ms ease-out;
-  z-index: 1;
-}
-
-.kind-palette-search--expanded {
-  width: 240px;
-}
-
-.kind-palette-search__icon {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 56px;
-  height: 30px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  border-radius: var(--sm-radius-pill);
-  color: var(--p-text-muted-color);
-  cursor: pointer;
-  transition: color 120ms ease-out, width 200ms ease-out, background 120ms ease-out;
-}
-
-.kind-palette-search__icon i {
-  font-size: 0.95rem;
-  line-height: 1;
-}
-
-.kind-palette-search__icon:hover,
-.kind-palette-search__icon:focus-visible {
-  color: var(--p-text-color);
-  background: var(--sm-bg-hover);
-}
-
-/* When the pill is expanded, shrink the icon column so the input has
-   room. The collapsed-but-with-text state keeps the wider icon and
-   tints it primary to flag "filter still active". */
-.kind-palette-search--expanded .kind-palette-search__icon {
-  width: 30px;
-  color: var(--p-text-color);
-}
-
-.kind-palette-search--active:not(.kind-palette-search--expanded) .kind-palette-search__icon {
-  color: var(--p-primary-color);
-}
-
-.kind-palette-search__input {
-  flex: 1;
-  min-width: 0;
-  height: 100%;
-  border: 0;
-  outline: none;
-  background: transparent;
-  font-size: 0.8rem;
-  color: var(--p-text-color);
-  padding: 0 0.5rem 0 0;
-  /* The input is part of the DOM at all times so the width animation
-     has something to expand into; fade it out when collapsed so the
-     pill reads as a single icon. */
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 160ms ease-out;
-}
-
-.kind-palette-search__input::placeholder {
-  color: var(--p-text-muted-color);
-}
-
-.kind-palette-search--expanded .kind-palette-search__input {
-  opacity: 1;
-  pointer-events: auto;
 }
 
 /* Compact pill, overrides PrimeNG togglebutton design tokens.

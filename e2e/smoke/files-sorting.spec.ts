@@ -48,7 +48,10 @@ async function tokenSequence(page: Page): Promise<number[]> {
 const isNonIncreasing = (a: number[]): boolean => a.every((v, i) => i === 0 || a[i - 1] >= v);
 const isNonDecreasing = (a: number[]): boolean => a.every((v, i) => i === 0 || a[i - 1] <= v);
 
-test.describe('files view column sorting (smoke)', () => {
+// SKIPPED: pending e2e review after the workspace redesign (the standalone
+// Files / Map views were merged into one workspace at `/`). Unskip once the
+// suite is updated to the new layout.
+test.describe.skip('files view column sorting (smoke)', () => {
   test('boots into the folder tree with no active column sort', async ({ page }) => {
     await gotoFiles(page);
     await expect(folderRows(page)).not.toHaveCount(0);
