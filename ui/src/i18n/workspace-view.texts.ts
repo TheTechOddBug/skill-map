@@ -9,5 +9,7 @@ export const WORKSPACE_VIEW_TEXTS = {
     collapse: 'Collapse files panel',
     expand: 'Expand files panel',
     resize: 'Resize files panel',
+    searchPlaceholder: 'Search…',
+    searchAriaLabel: 'Search nodes by name or tag',
   },
 } as const;

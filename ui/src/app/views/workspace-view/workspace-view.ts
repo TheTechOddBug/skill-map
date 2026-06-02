@@ -5,7 +5,6 @@ import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
 import { TooltipModule } from 'primeng/tooltip';
 
-import { FILTER_BAR_TEXTS } from '../../../i18n/filter-bar.texts';
 import { WORKSPACE_VIEW_TEXTS } from '../../../i18n/workspace-view.texts';
 import { FilterStoreService } from '../../../services/filter-store';
 import { MAP_ISOLATE_INTENT, type IMapIsolateIntent } from '../../slots/map-isolate-intent';
@@ -29,9 +28,8 @@ const RAIL_WIDTH_KEY = 'sm.workspace.rail-width';
  * collapse handle, both in the top bar. Width is drag-resizable like the
  * inspector; faceted filters live on the map's floating palettes.
  *
- * Spike stage: replaces the separate `/files` and `/map` destinations as
- * the default landing while we evaluate the layout. The two standalone
- * routes stay reachable for comparison.
+ * This is the only primary view (route `/`); the former standalone
+ * `/files` and `/map` destinations were retired in favour of it.
  */
 @Component({
   selector: 'sm-workspace-view',
@@ -62,7 +60,6 @@ export class WorkspaceView implements IMapIsolateIntent {
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly texts = WORKSPACE_VIEW_TEXTS;
-  protected readonly filterTexts = FILTER_BAR_TEXTS;
 
   /** In-rail toggle: collapses the files panel to a thin strip. */
   protected readonly railCollapsed = signal(false);

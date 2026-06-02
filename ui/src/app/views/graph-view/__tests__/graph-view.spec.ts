@@ -173,7 +173,6 @@ async function bootstrap(initialNodes: INodeView[]): Promise<{
     providers: [
       provideRouter([
         { path: '', component: BlankPage },
-        { path: 'map', component: BlankPage },
       ]),
       { provide: CollectionLoaderService, useValue: loader },
       { provide: DATA_SOURCE, useValue: STUB_DATA_SOURCE },
@@ -320,7 +319,6 @@ describe('GraphView, deep-link reader', () => {
       providers: [
         provideRouter([
           { path: '', component: BlankPage },
-          { path: 'map', component: BlankPage },
         ]),
         { provide: CollectionLoaderService, useValue: loader },
         { provide: DATA_SOURCE, useValue: STUB_DATA_SOURCE },
@@ -334,7 +332,7 @@ describe('GraphView, deep-link reader', () => {
       agent: { primaryProviderId: 'claude', providers: { claude: { label: 'Agents', color: '#3b82f6' } } },
     });
     const router = TestBed.inject(Router);
-    await router.navigateByUrl(`/map?path=${encodeURIComponent(node.path)}`);
+    await router.navigateByUrl(`/?path=${encodeURIComponent(node.path)}`);
 
     const fixture = TestBed.createComponent(GraphView);
     const cmp = fixture.componentInstance;

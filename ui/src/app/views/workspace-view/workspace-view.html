@@ -17,8 +17,8 @@
             pInputText
             pSize="small"
             type="text"
-            [placeholder]="filterTexts.searchPlaceholder"
-            [attr.aria-label]="filterTexts.searchAriaLabel"
+            [placeholder]="texts.rail.searchPlaceholder"
+            [attr.aria-label]="texts.rail.searchAriaLabel"
             [ngModel]="searchText()"
             (ngModelChange)="onSearchChange($event)"
             data-testid="workspace-search"

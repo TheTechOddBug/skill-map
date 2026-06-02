@@ -22,8 +22,7 @@ interface IKindEntry {
  * Foblex/f-flow but adapted to PrimeIcons + the `--sm-kind-*` accent vars.
  *
  * Toggling delegates to `FilterStoreService.toggleKind`, so the palette
- * and the existing `<sm-filter-bar>` `kinds` multi-select stay in sync
- * through the same signal, pick whichever the user prefers.
+ * stays in sync with anything else reading the same kind-filter signal.
  *
  * Counts are total loaded nodes per kind (not "visible", those would
  * shrink to 0 when this palette deactivates a kind, which is confusing).
