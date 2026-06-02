@@ -924,24 +924,20 @@ export class GraphView implements OnInit {
 
   resetLayout(): void {
     const visiblePaths = this.mapVisiblePaths();
-    // Scoped re-arrange: when the view is curated / filtered to a subset,
-    // re-layout ONLY the visible nodes and leave the hidden ones' saved
-    // coordinates intact. That is non-destructive, so it runs WITHOUT the
-    // danger confirm.
-    if (visiblePaths.size < this.loader.nodes().length) {
-      this.applyResetLayout(visiblePaths, false);
-      return;
-    }
-    // Showing everything: the full reset wipes every saved position, so
-    // keep the danger confirm.
+    const full = visiblePaths.size >= this.loader.nodes().length;
+    // Always warn that the reset replaces saved node positions, but at LOW
+    // intensity (not a red danger action): an info icon and a normal accept
+    // button. The copy differs by case, the full reset replaces every
+    // position; the scoped one only re-arranges the currently visible nodes
+    // and leaves the hidden ones' coordinates intact.
     const t = GRAPH_VIEW_TEXTS.resetLayoutConfirm;
     this.confirmationService.confirm({
       header: t.header,
-      message: t.message,
-      icon: 'pi pi-exclamation-triangle',
-      acceptButtonProps: { label: t.accept, severity: 'danger' },
+      message: full ? t.message : t.messageVisible,
+      icon: 'pi pi-info-circle',
+      acceptButtonProps: { label: t.accept },
       rejectButtonProps: { label: t.reject, severity: 'secondary', outlined: true },
-      accept: () => this.applyResetLayout(visiblePaths, true),
+      accept: () => this.applyResetLayout(visiblePaths, full),
     });
   }
 

@@ -89,9 +89,13 @@ export const GRAPH_VIEW_TEXTS = {
     resizeLabel: 'Resize panel',
   },
   resetLayoutConfirm: {
-    header: 'Reset layout?',
-    message: 'Reset all node positions to the automatic layout. This cannot be undone.',
-    accept: 'Reset',
+    header: 'Re-arrange layout?',
+    // Full reset (the whole graph is visible): replaces every saved position.
+    message: 'This replaces every saved node position with a fresh automatic layout.',
+    // Scoped reset (a curated / filtered subset is visible): re-lays out only
+    // the visible nodes and replaces their positions.
+    messageVisible: 'This re-arranges the visible nodes and replaces their saved positions.',
+    accept: 'Re-arrange',
     reject: 'Cancel',
   },
 } as const;
