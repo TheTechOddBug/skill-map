@@ -855,10 +855,15 @@ export class GraphView implements OnInit {
    * `autoFitAnimToken` so a competing auto-fit / center supersedes this
    * tween cleanly. The effective position mirrors `projectVisible` /
    * `runAnimatedFit`: user-pinned drag position wins over the dagre
-   * output. Bails when the node has no resolvable position or the host
-   * isn't mounted.
+   * output. Bails when the node is not currently visible on the map, has
+   * no resolvable position, or the host isn't mounted.
    */
   private centerOnNode(nodeId: string): void {
+    // Only pan to a node that is actually on the map. When it is curated /
+    // filtered out of the visible set there is nothing on screen to center
+    // on (its full-layout position points at empty space), so leave the
+    // camera where it is.
+    if (!this.mapVisiblePaths().has(nodeId)) return;
     const host = this.canvasWrap()?.nativeElement;
     if (!host) return;
     const pt = this.nodePositions().get(nodeId) ?? this.fullLayout().positions.get(nodeId);
