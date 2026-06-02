@@ -7,97 +7,98 @@ import { expect, test } from '@playwright/test';
  * workspace runs against the **static demo bundle** at `/demo/`, which
  * deliberately never calls `/api/`. There is therefore no live BFF in
  * this harness and no way to drive a real bump request to completion.
- * What we CAN cover here:
  *
+ * Workspace redesign note: the standalone `/files` and `/map` routes were
+ * fused into one workspace at `/` (files tree rail on the left, map +
+ * floating inspector in the center). The old standalone files-page
+ * `sm-filter-bar` toolbar was removed, so the `filter-stale-only` chip no
+ * longer exists in the UI (the `staleOnly` filter survives only as a
+ * `FilterStoreService` capability + `?staleOnly=` URL param, with no rail
+ * affordance to toggle it). The two former "Stale only filter chip" cases
+ * are therefore replaced by the closest workspace equivalent: the rail
+ * surfaces per-node sidecar staleness via a `pi-clock` icon on the row.
+ *
+ * What we CAN still cover here:
+ *
+ *   - Stale surface: the files rail row for a `stale-*` node MUST render
+ *     the stale-clock icon (`files__stale-icon`), the rail's replacement
+ *     for the removed filter chip as the "UI surfaces staleness" signal.
  *   - Bump button surface: the button MUST be present in the inspector
- *     header when a node is selected. Per Decision #3, the button is
- *     disabled when the sidecar status is `'fresh'` and enabled in
- *     "first-time creation" state. The assertion here is presence,
- *     not the enabled/disabled flavour (covered by unit tests).
- *   - Filter surface: the `Stale only` filter chip MUST be present in
- *     the filter bar; toggling it SHOULD apply a client-side filter.
+ *     toolbar when a node is selected (the inspector opens via the shared
+ *     `?path=` query param). Per Decision #3, the button is disabled when
+ *     the sidecar status is `'fresh'` and enabled in "first-time creation"
+ *     state. The assertion here is presence, not the enabled/disabled
+ *     flavour (covered by unit tests, and the bump action itself is a
+ *     no-op in read-only demo mode).
  *   - Annotations card: nodes with no sidecar overlay MUST NOT show the
- *     annotations card (it gates on `node.sidecar?.present`). After the
- *     Step 9.6 fixture migration, `README.md` is the only demo-bundle
- *     node without a sidecar, so the test targets it by path.
+ *     annotations card (it gates on `n.sidecar?.present`). In the current
+ *     demo bundle the `mcp://*` provider nodes are the canonical
+ *     "no sidecar overlay" case (the former `README.md` node is gone), so
+ *     the test targets `mcp://github` by path.
  *
  * Happy-path bump (stale → click → badge clears, version increments) and
  * the 409 error envelope path live in the Karma/Vitest unit tests
- * (`inspector-view.spec.ts`, `node-card.spec.ts`, `sidecar.spec.ts`)
- * because the demo harness can't drive the live BFF. Wiring a Playwright
- * test against `sm serve` (live BFF) is a follow-up — the e2e harness
- * does not boot the kernel today.
+ * (`inspector-view.spec.ts`, `node-card.spec.ts`, `sidecar.spec.ts`) and
+ * in the live-BFF Playwright suite (`live-bff/specs/bump.spec.ts`),
+ * because the demo harness can't drive the live BFF.
  */
 
-// SKIPPED: pending e2e review after the workspace redesign (the standalone
-// Files / Map views were merged into one workspace at `/`). Unskip once the
-// suite is updated to the new layout.
-test.describe.skip('sidecar UI surface (Step 9.6.5)', () => {
-  test('files view exposes the "Stale only" filter chip', async ({ page }) => {
-    await page.goto('./');
-    await page.waitForLoadState('networkidle');
-    await page.goto('./files');
-    await expect(page).toHaveURL(/\/files/);
+const STALE_PATH = '.claude/agents/frontend-specialist.md';
+const NO_SIDECAR_PATH = 'mcp://github';
 
-    const staleFilter = page.getByTestId('filter-stale-only');
-    await expect(staleFilter).toBeVisible();
-  });
+async function gotoWorkspace(page: import('@playwright/test').Page): Promise<void> {
+  await page.goto('./');
+  await page.waitForLoadState('networkidle');
+  await expect(page.getByTestId('files-view')).toBeVisible();
+  await expect(page.getByTestId('files-table')).toBeVisible();
+}
 
-  test('toggling "Stale only" updates the URL filter param', async ({ page }) => {
-    await page.goto('./');
-    await page.waitForLoadState('networkidle');
-    await page.goto('./files');
-    await expect(page).toHaveURL(/\/files/);
+test.describe('sidecar UI surface (Step 9.6.5)', () => {
+  test('the files rail surfaces sidecar staleness on a stale node row', async ({ page }) => {
+    // Replaces the removed `filter-stale-only` chip cases: the rail no
+    // longer carries a stale filter toggle, but it DOES flag staleness
+    // per row. The demo bundle ships `frontend-specialist.md` with a
+    // `stale-both` sidecar, so its row must render the stale clock icon.
+    await gotoWorkspace(page);
 
-    const staleFilter = page.getByTestId('filter-stale-only');
-    await staleFilter.click();
-
-    // FilterUrlSyncService writes the staleOnly flag to the URL.
-    await expect(page).toHaveURL(/staleOnly=true/);
+    const row = page.getByTestId(`files-leaf-${STALE_PATH}`);
+    await expect(row).toBeVisible();
+    await expect(row.locator('.files__stale-icon')).toBeVisible();
   });
 
   test('inspector bump button is rendered when a node is selected', async ({ page }) => {
-    await page.goto('./');
-    await page.waitForLoadState('networkidle');
+    await gotoWorkspace(page);
 
-    // Pick the first leaf path from the files view, then deep-link into
-    // the map view with `?path=<path>` to open the inspector. The files
-    // view itself only renders an inline preview on row click; the
-    // inspector lives under `/map?path=`.
-    await page.goto('./files');
-    await expect(page).toHaveURL(/\/files/);
+    // Selecting a node opens the floating inspector in the same workspace
+    // via the shared `?path=` query param — there is no `/map` route to
+    // navigate to anymore. Pick the first leaf row and deep-link to it.
     const firstRow = page.locator('[data-testid^="files-leaf-"]').first();
     if ((await firstRow.count()) === 0) {
       test.skip(true, 'demo bundle has no nodes to open');
       return;
     }
     const firstPath = (await firstRow.getAttribute('data-testid'))!.replace(/^files-leaf-/, '');
-    await page.goto(`./map?path=${encodeURIComponent(firstPath)}`);
-    await expect(page).toHaveURL(/\/map/);
+    await page.goto(`./?path=${encodeURIComponent(firstPath)}`);
+    await page.waitForLoadState('networkidle');
 
-    // The bump button lives inside the inspector header. After the
-    // Step 9.6 fixture migration, `.claude/**` demo nodes ship with
-    // `status: 'fresh'` overlays (button disabled per Decision #3) and
-    // `README.md` ships with no overlay (button enabled, "first-time
-    // creation" state). What we assert here is presence; the
-    // enabled/disabled state is covered in `inspector-view.spec.ts`.
+    await expect(page.getByTestId('inspector-view')).toBeVisible();
+
+    // The bump button lives in the inspector toolbar and is ALWAYS
+    // rendered (disabled when `!canBump()`, e.g. fresh overlays). What we
+    // assert here is presence; the enabled/disabled state is covered in
+    // `inspector-view.spec.ts`.
     const bumpHost = page.getByTestId('inspector-bump');
     await expect(bumpHost).toBeVisible();
   });
 
   test('inspector annotations card is hidden for nodes without a sidecar overlay', async ({ page }) => {
-    await page.goto('./');
+    // Deep-link straight into the workspace selection via `?path=`. The
+    // `mcp://github` provider node ships no sidecar overlay, so the
+    // annotations card (which gates on `n.sidecar?.present`) must collapse.
+    await page.goto(`./?path=${encodeURIComponent(NO_SIDECAR_PATH)}`);
     await page.waitForLoadState('networkidle');
 
-    // Post Step 9.6 fixture migration the demo bundle ships sidecars
-    // for every `.claude/**` node; only the top-level `README.md` is
-    // left as the canonical "no sidecar overlay" case, so deep-link
-    // directly into the map view with the README path.
-    await page.goto('./map?path=README.md');
-    await expect(page).toHaveURL(/\/map/);
-
-    // README has `sidecar.present === false` — annotations card MUST
-    // collapse (it gates on `node.sidecar?.present`).
+    await expect(page.getByTestId('inspector-view')).toBeVisible();
     await expect(page.getByTestId('inspector-card-annotations')).toHaveCount(0);
   });
 });

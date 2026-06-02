@@ -13,9 +13,10 @@
  *   .claude/
  *     agents/
  *       stale-agent.md   — agent body the bump flow will refresh.
- *       stale-agent.sm   — sidecar with a deliberately wrong `for.bodyHash`,
- *                          so the kernel resolves `sidecar.status` to
- *                          'stale-body'. The UI's stale-badge predicate
+ *       stale-agent.sm   — sidecar with a deliberately wrong
+ *                          `identity.bodyHash`, so the kernel resolves
+ *                          `sidecar.status` to 'stale-body'. The UI's
+ *                          stale-badge predicate
  *                          (see `models/node.ts:isStaleSidecar`) then
  *                          returns true and the inspector bump button
  *                          enables.
@@ -53,9 +54,9 @@ model: claude-opus-4-7
 # Stale Agent
 
 Reference fixture for the live-BFF Playwright harness (R10 closure). The
-sibling stale-agent.sm carries a for.bodyHash that intentionally does
-not match the sha256 of this body, so the kernel resolves the sidecar
-overlay to status: 'stale-body'. The bump happy-path test clicks the
+sibling stale-agent.sm carries an identity.bodyHash that intentionally
+does not match the sha256 of this body, so the kernel resolves the
+sidecar overlay to status: 'stale-body'. The bump happy-path test clicks the
 inspector bump button, waits for the WS sidecar.bumped event, and
 asserts the stale badge clears + the version increments.
 
@@ -69,7 +70,7 @@ on \`card.footer.right\` still surfaces the broken-ref count.
 Refer this work to @nonexistent-handle for review.
 `;
 
-const STALE_AGENT_SM = `for:
+const STALE_AGENT_SM = `identity:
   path: .claude/agents/stale-agent.md
   bodyHash: ${SENTINEL_HASH}
   frontmatterHash: ${SENTINEL_HASH}

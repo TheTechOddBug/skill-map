@@ -29,17 +29,15 @@ import { test, expect } from './_fixtures.js';
 
 const STALE_PATH = '.claude/agents/stale-agent.md';
 
-// SKIPPED: pending e2e review after the workspace redesign (the standalone
-// Files / Map views were merged into one workspace at `/`). Unskip once the
-// suite is updated to the new layout.
-test.describe.skip('graph.node.alert (reserved slot, no built-in emitters)', () => {
+test.describe('graph.node.alert (reserved slot, no built-in emitters)', () => {
   test('renders zero corner badges even on nodes with reference-broken findings', async ({ page, liveBffUrl }) => {
     await page.goto(liveBffUrl);
     await page.waitForLoadState('networkidle');
 
     await expect(page.getByTestId('shell')).toBeVisible();
-    await page.getByTestId('nav-graph').click();
-    await expect(page).toHaveURL(/\/map/);
+    // Workspace redesign: the map renders directly on the single `/` route
+    // (no `nav-graph` tab, no `/map` destination to navigate to).
+    await expect(page.getByTestId('workspace-view')).toBeVisible();
 
     // Confirm the fixture node mounted before asserting absence on a
     // dependent surface, otherwise a "no badges" pass could just mean

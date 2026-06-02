@@ -14,12 +14,15 @@ import { expect, test } from '@playwright/test';
  *
  * Server: deps-free Node static server (`web/scripts/serve-demo.js`)
  * managed by Playwright's `webServer` config. Mount: `/demo/`.
+ *
+ * Workspace redesign note: the standalone `/files` and `/map` routes and
+ * their topbar nav tabs (`nav-files` / `nav-graph`) were retired. The app
+ * is now a single fused workspace at `/`: a files tree rail on the left
+ * (`files-view`) and the map canvas in the center (`workspace-view`).
+ * These tests target that single screen.
  */
 
-// SKIPPED: pending e2e review after the workspace redesign (the standalone
-// Files / Map views were merged into one workspace at `/`). Unskip once the
-// suite is updated to the new layout.
-test.describe.skip('demo bundle', () => {
+test.describe('demo bundle', () => {
   test('boots without console errors and runs in demo mode', async ({ page }) => {
     const consoleErrors: string[] = [];
     // Track failed network requests so we can filter the bare
@@ -57,6 +60,11 @@ test.describe.skip('demo bundle', () => {
     const shell = page.getByTestId('shell');
     await expect(shell).toBeVisible();
 
+    // The fused workspace is the only view. Both halves (files rail + map)
+    // mount on the single `/` route.
+    await expect(page.getByTestId('workspace-view')).toBeVisible();
+    await expect(page.getByTestId('files-view')).toBeVisible();
+
     expect(
       consoleErrors,
       `Demo bundle logged console errors:\n${consoleErrors.join('\n')}`,
@@ -76,11 +84,16 @@ test.describe.skip('demo bundle', () => {
     await page.goto('./');
     await page.waitForLoadState('networkidle');
 
-    // Visit each view. A regression that activates RestDataSource under
-    // demo mode will fire `/api/scan`, `/api/nodes`, etc. on view init.
-    await page.goto('./files');
-    await page.waitForLoadState('networkidle');
-    await page.getByTestId('nav-graph').click();
+    // Exercise the workspace interactions a regression could leak through:
+    // selecting a file row writes `?path=`, which opens the floating
+    // inspector and loads the node body. A DataSource that leaked into
+    // demo mode would fire `/api/scan`, `/api/nodes`, `/api/nodes/<p>/body`,
+    // etc. on selection. Drive a real selection so the body-load path runs.
+    await expect(page.getByTestId('files-table')).toBeVisible();
+    const firstLeaf = page.locator('[data-testid^="files-leaf-"]').first();
+    await firstLeaf.click();
+    await expect(page).toHaveURL(/[?&]path=/);
+    await expect(page.getByTestId('inspector-view')).toBeVisible();
     await page.waitForLoadState('networkidle');
 
     expect(
@@ -89,15 +102,24 @@ test.describe.skip('demo bundle', () => {
     ).toEqual([]);
   });
 
-  test('renders the two views without errors', async ({ page }) => {
+  test('renders the fused workspace (files rail + map) on the single route', async ({ page }) => {
     await page.goto('./');
     await page.waitForLoadState('networkidle');
 
-    await page.goto('./files');
-    await expect(page).toHaveURL(/\/files/);
+    // Single workspace route: no more `/files` / `/map` destinations.
+    // The files rail and the map canvas share one screen.
+    await expect(page.getByTestId('workspace-view')).toBeVisible();
+    await expect(page.getByTestId('workspace-rail')).toBeVisible();
+    await expect(page.getByTestId('files-view')).toBeVisible();
+    await expect(page.getByTestId('files-table')).toBeVisible();
 
-    await page.getByTestId('nav-graph').click();
-    await expect(page).toHaveURL(/\/map/);
+    // Selecting a file row opens the floating inspector in the same view
+    // (selection syncs through the `?path=` query param — there is no
+    // route change, the inspector is part of the workspace).
+    const firstLeaf = page.locator('[data-testid^="files-leaf-"]').first();
+    await firstLeaf.click();
+    await expect(page).toHaveURL(/[?&]path=/);
+    await expect(page.getByTestId('inspector-view')).toBeVisible();
   });
 });
 

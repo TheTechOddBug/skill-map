@@ -1,7 +1,12 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 /**
- * Files view column-sorting smoke tests (demo-mode harness).
+ * Files rail column-sorting smoke tests (demo-mode harness).
+ *
+ * Post the workspace redesign the files tree renders as the left RAIL of
+ * the fused workspace at `/` (no standalone `/files` route). The column
+ * headers, sort engine, and `aria-sort` wiring are unchanged, so this
+ * suite reaches the table directly on the landing route.
  *
  * The static demo bundle at `/demo/` ships a fixed dataset, so the
  * sort order is deterministic and assertable. The pure sort engine
@@ -18,10 +23,12 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
  */
 
 async function gotoFiles(page: Page): Promise<void> {
+  // Workspace redesign: there is no standalone `/files` route anymore.
+  // The files tree renders as the left RAIL of the fused workspace at `/`,
+  // so the table is reachable directly on the landing route.
   await page.goto('./');
   await page.waitForLoadState('networkidle');
-  await page.goto('./files');
-  await expect(page).toHaveURL(/\/files/);
+  await expect(page.getByTestId('files-view')).toBeVisible();
   await expect(page.getByTestId('files-table')).toBeVisible();
 }
 
@@ -48,10 +55,7 @@ async function tokenSequence(page: Page): Promise<number[]> {
 const isNonIncreasing = (a: number[]): boolean => a.every((v, i) => i === 0 || a[i - 1] >= v);
 const isNonDecreasing = (a: number[]): boolean => a.every((v, i) => i === 0 || a[i - 1] <= v);
 
-// SKIPPED: pending e2e review after the workspace redesign (the standalone
-// Files / Map views were merged into one workspace at `/`). Unskip once the
-// suite is updated to the new layout.
-test.describe.skip('files view column sorting (smoke)', () => {
+test.describe('files view column sorting (smoke)', () => {
   test('boots into the folder tree with no active column sort', async ({ page }) => {
     await gotoFiles(page);
     await expect(folderRows(page)).not.toHaveCount(0);
@@ -120,7 +124,14 @@ test.describe.skip('files view column sorting (smoke)', () => {
       .find((path) => path.includes('/'));
     expect(nested, 'demo bundle should have at least one nested file').toBeTruthy();
 
-    await page.getByTestId(`files-leaf-${nested}`).locator('.files__name-wrap').hover();
+    // In the narrow workspace rail the flat-mode tree column overflows
+    // horizontally (cell min-width > rail width), so the name-wrap can sit
+    // partly off the left edge — its center would be off-screen and the
+    // hover would miss. Scroll it into view first, then hover to fire the
+    // PrimeNG tooltip.
+    const nameWrap = page.getByTestId(`files-leaf-${nested}`).locator('.files__name-wrap');
+    await nameWrap.scrollIntoViewIfNeeded();
+    await nameWrap.hover();
 
     const tooltipText = page.locator('.files__path-tooltip .p-tooltip-text');
     await expect(tooltipText).toBeVisible();

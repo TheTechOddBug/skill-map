@@ -30,6 +30,12 @@ name: deploy-web
 #      Railway dashboard so the only deploy path is this workflow.
 
 on:
+  # Manual force-deploy: from the Actions tab ("Run workflow") or
+  # `gh workflow run deploy-web.yml --ref main`. Deploys whatever is on
+  # `main` to Railway, e.g. to refresh the public demo with the latest UI
+  # without waiting for a version-packages release. Reads the CURRENT
+  # web/package.json version for the deploy label.
+  workflow_dispatch:
   push:
     branches: [main]
     paths:

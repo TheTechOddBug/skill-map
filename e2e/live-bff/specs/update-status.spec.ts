@@ -102,10 +102,7 @@ function clearUpdateCheckCache(path: string): void {
   }
 }
 
-// SKIPPED: pending e2e review after the workspace redesign (the standalone
-// Files / Map views were merged into one workspace at `/`). Unskip once the
-// suite is updated to the new layout.
-test.describe.skip('live-BFF update-check', () => {
+test.describe('live-BFF update-check', () => {
   test('GET /api/update-status reflects the seeded cache row', async ({ request, liveBffUrl }) => {
     const path = await waitForDb();
     seedUpdateCheckCache(path, {
@@ -150,13 +147,19 @@ test.describe.skip('live-BFF update-check', () => {
     // fix on the UI side.
     await expect(page.getByTestId('shell')).toBeVisible();
 
+    // The outdated affordance is now a pair: a `shell-update-chip` button
+    // (copies the upgrade command on click) plus a sibling
+    // `shell-update-npm-link` anchor that opens the npm package page. We
+    // assert the chip is present and pin the href/target on the anchor
+    // (asserting on the anchor's attributes is more stable than hovering
+    // for the PrimeNG tooltip across versions).
     const chip = page.getByTestId('shell-update-chip');
     await expect(chip).toBeVisible();
-    // The chip is a real anchor — not a button — so we assert on
-    // href + target. Tooltip text would require hover + the
-    // tooltip-rendered DOM, which is fragile across PrimeNG versions.
-    await expect(chip).toHaveAttribute('href', NPM_PACKAGE_URL);
-    await expect(chip).toHaveAttribute('target', '_blank');
+
+    const npmLink = page.getByTestId('shell-update-npm-link');
+    await expect(npmLink).toBeVisible();
+    await expect(npmLink).toHaveAttribute('href', NPM_PACKAGE_URL);
+    await expect(npmLink).toHaveAttribute('target', '_blank');
   });
 
   test('chip is absent when the cache is empty', async ({ page, liveBffUrl }) => {
