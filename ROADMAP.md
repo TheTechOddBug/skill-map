@@ -830,6 +830,10 @@ Links:
 Issues: N     Findings: M
 ```
 
+### Workspace (fused view)
+
+The SPA's former two destinations (a standalone files list and a standalone graph) were fused into a single **workspace** at route `/`: a drag-resizable files tree rail on the left, the graph canvas in the center, and the inspector as a floating right-side slide-over, all linked through the shared `?path` selection. The rail doubles as a **map-visibility curation** surface: per-file and per-folder (tri-state) checkboxes pick which nodes the graph shows; folder-depth presets (0/1/2) and an "isolate chain" gesture (a node's connected link-chain) are one-click shortcuts; the curated set persists to localStorage. The graph's layout reset re-arranges only the currently visible nodes when the view is curated. The old `/files` and `/map` routes and their topbar tabs were retired.
+
 ---
 
 ## Testing strategy

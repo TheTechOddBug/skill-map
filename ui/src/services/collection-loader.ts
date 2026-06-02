@@ -101,13 +101,13 @@ export class CollectionLoaderService {
 
   /**
    * `true` iff at least one node in the current collection is favorited.
-   * Drives the visibility of the filter-bar's "Favorites only" toggle,
-   * the toggle hides while no favorite exists so the filter row stays
+   * Drives the visibility of the kind-palette's "Favorites only" pill,
+   * the pill hides while no favorite exists so the palette stays
    * uncluttered for first-time users (per the brief: "que no se muestre
    * el corazón si no hay favoritos"). The filter-store's
    * `favoritesOnly` signal stays orthogonal, when the toggle was on
-   * and the user un-favorites the last node, the toggle should remain
-   * visible long enough to let them turn it off; the filter-bar OR's
+   * and the user un-favorites the last node, the pill should remain
+   * visible long enough to let them turn it off; the palette OR's
    * the two signals to avoid trapping the user with an empty list.
    */
   readonly hasAnyFavorites = computed(() =>

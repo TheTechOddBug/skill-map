@@ -387,7 +387,7 @@ ctx.emitContribution('summary', {
 
 ## `topbar.nav.start`
 
-**Use for**: a single value summarizing the entire scope, total node count, last sync time, aggregate stat. Renders at the start of the topbar nav (left edge), before the view-switcher links.
+**Use for**: a single value summarizing the entire scope, total node count, last sync time, aggregate stat. Renders at the start of the topbar nav (left edge).
 
 **Manifest declaration**:
 ```jsonc

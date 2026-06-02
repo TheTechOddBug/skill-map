@@ -14,8 +14,8 @@ Every interactive or test-targetable element in `ui/src/` carries a `data-testid
 
 **Naming convention**: `kebab-case`, shaped as `<area>-<element>` or `<area>-<element>-<modifier>`.
 
-- Page sections: `list-view`, `graph-view`, `inspector-view`, `shell`, `shell-topbar`, `shell-nav`.
-- Navigation: `nav-list`, `nav-graph`, `nav-inspector`, `inspector-back`.
+- Page sections: `workspace-view`, `files-view`, `graph-view`, `inspector-view`, `shell`, `shell-topbar`, `shell-nav`.
+- Rail controls: `workspace-rail-toggle`, `workspace-search`, `files-depth-0`, `files-vis-leaf-<path>`.
 - Action buttons: `action-<verb>` (`action-simulate-scan`, `action-theme-toggle`, `action-det`, `action-prob`).
 - Toolbar buttons: `<view>-<verb>` (`graph-zoom-in`, `graph-fit-to-screen`, `graph-reset-layout`, `graph-theme-toggle`).
 - Form controls: `filter-search`, `filter-kinds`, `filter-stabilities`, `filter-has-issues`, `filter-reset`.

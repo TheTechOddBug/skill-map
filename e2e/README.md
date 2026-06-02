@@ -7,7 +7,7 @@ End-to-end / smoke tests for skill-map. Private workspace, never published to np
 - `playwright.config.ts`, two Chromium-only projects:
   - **`smoke`**, runs against the static demo bundle at `web/demo/`. Default in CI; the `webServer` block boots `../web/scripts/serve-demo.js` automatically. The static server can also be invoked manually via `npm run demo:serve --workspace=@skill-map/web`.
   - **`live-bff`**, runs against a real `sm serve` spawned by the harness in `live-bff/`. Opt-in (R10 closure from the §Step 9.6 review queue).
-- `smoke/`, Playwright specs for the static demo path. Asserts the bundle never calls `/api/` and the two views render.
+- `smoke/`, Playwright specs for the static demo path. Asserts the bundle never calls `/api/` and the workspace view renders.
 - `live-bff/`, harness + specs for the live-BFF path:
   - `fixture.ts`, materialises a kernel scope under `<repoRoot>/.tmp/e2e-live-bff-<ts>/` (a single agent `.md` + a `.sm` with a deliberately stale `for.bodyHash`).
   - `server.ts`, picks a free port, spawns `sm serve --no-open --port <free>` in one-shot mode (no `--watch`; see AGENTS.md §Operating rules, Agent execution), polls `/api/health` until 200.
@@ -72,7 +72,7 @@ tempdir behind; safe to delete manually.
 
 - The demo bundle boots without console errors under `MODE === 'demo'`.
 - The bundle never fetches `/api/...`, a regression activating the live-mode `RestDataSource` in the demo build is caught here.
-- The two views (graph, list) render and route correctly.
+- The fused workspace view (files rail + graph) renders and routes correctly.
 
 ## What the live-BFF smoke proves
 

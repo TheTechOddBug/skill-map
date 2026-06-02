@@ -69,10 +69,9 @@ export class KindPalette {
   /**
    * Favorites filter entry. Sits below the kind buttons in the palette
    * as a peer toggle (same compact pill chassis), but tied to the
-   * `favoritesOnly` signal instead of `selectedKinds`. Visibility
-   * mirrors the filter-bar rule: render when the user has any favorite
-   * OR when the filter is currently active (so they can disable it
-   * after un-favoriting the last node).
+   * `favoritesOnly` signal instead of `selectedKinds`. Visibility rule:
+   * render when the user has any favorite OR when the filter is currently
+   * active (so they can disable it after un-favoriting the last node).
    */
   protected readonly favoritesCount = computed(
     () => this.loader.nodes().filter((n) => n.isFavorite === true).length,
