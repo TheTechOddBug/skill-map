@@ -7,6 +7,7 @@ import { SEVERITY_PALETTE_TEXTS } from '../../../i18n/severity-palette.texts';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService, type TSeverityFilter } from '../../../services/filter-store';
 import { IssuePathsService } from '../../../services/issue-paths';
+import { MapVisibilityService } from '../../../services/map-visibility';
 
 /**
  * Floating palette for filtering graph nodes by audit severity tier.
@@ -42,6 +43,7 @@ export class SeverityPalette {
   private readonly loader = inject(CollectionLoaderService);
   private readonly filters = inject(FilterStoreService);
   private readonly issuePaths = inject(IssuePathsService);
+  private readonly mapVisibility = inject(MapVisibilityService);
 
   protected readonly texts = SEVERITY_PALETTE_TEXTS;
 
@@ -53,7 +55,9 @@ export class SeverityPalette {
   private readonly visibleSet = computed<ReadonlySet<string>>(() => {
     const visible = this.filters.apply(this.loader.nodes(), this.issuePaths.bySeverity());
     const set = new Set<string>();
-    for (const n of visible) set.add(n.path);
+    // Intersect with the map's curated scope so the badges match what is
+    // actually on the canvas (facet filters AND the files-rail curation).
+    for (const n of visible) if (this.mapVisibility.inScope(n.path)) set.add(n.path);
     return set;
   });
 

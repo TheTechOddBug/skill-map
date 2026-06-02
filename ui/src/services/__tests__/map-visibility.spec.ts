@@ -256,3 +256,28 @@ describe('MapVisibilityService, localStorage persistence round-trip', () => {
     expect(service.isActive()).toBe(true);
   });
 });
+
+describe('MapVisibilityService.inScope', () => {
+  it('is true for every path while curation is inactive (empty set)', () => {
+    const service = inject();
+    expect(service.isActive()).toBe(false);
+    expect(service.inScope('anything.md')).toBe(true);
+    expect(service.inScope('docs/deep/x.md')).toBe(true);
+  });
+
+  it('restricts to the curated paths once active', () => {
+    const service = inject();
+    service.setOnly(['a.md', 'docs/b.md']);
+    expect(service.inScope('a.md')).toBe(true);
+    expect(service.inScope('docs/b.md')).toBe(true);
+    expect(service.inScope('c.md')).toBe(false);
+  });
+
+  it('returns to all-in-scope after clear', () => {
+    const service = inject();
+    service.setOnly(['a.md']);
+    expect(service.inScope('b.md')).toBe(false);
+    service.clear();
+    expect(service.inScope('b.md')).toBe(true);
+  });
+});

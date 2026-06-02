@@ -37,6 +37,18 @@ export class MapVisibilityService {
   /** Count of curated-in nodes, for badges. */
   readonly count = computed(() => this._paths().size);
 
+  /**
+   * Whether a node path is in scope for the map. When curation is inactive
+   * (empty set) everything is in scope; once active, only the curated paths
+   * are. Reactive (reads the inclusion signal), so consumers that call it
+   * inside a `computed` (e.g. the graph palettes scoping their counts to the
+   * curated set) re-run when the curation changes.
+   */
+  inScope(path: string): boolean {
+    const paths = this._paths();
+    return paths.size === 0 || paths.has(path);
+  }
+
   constructor() {
     effect(() => writeStoredVisiblePaths(this._paths()));
   }
