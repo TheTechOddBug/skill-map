@@ -925,11 +925,21 @@ export class GraphView implements OnInit {
   resetLayout(): void {
     const visiblePaths = this.mapVisiblePaths();
     const full = visiblePaths.size >= this.loader.nodes().length;
-    // Always warn that the reset replaces saved node positions, but at LOW
-    // intensity (not a red danger action): an info icon and a normal accept
-    // button. The copy differs by case, the full reset replaces every
-    // position; the scoped one only re-arranges the currently visible nodes
-    // and leaves the hidden ones' coordinates intact.
+    // Skip the confirm entirely when nothing user-established would be lost:
+    // with no manual (dragged / re-arranged) position stored, the current
+    // layout IS the automatic one, so re-running it changes nothing to warn
+    // about. Only when the user has positioned nodes do we surface the
+    // (low-intensity) warning below.
+    const hasManualPositions = [...this.nodePositions().values()].some((p) => p.manual === true);
+    if (!hasManualPositions) {
+      this.applyResetLayout(visiblePaths, full);
+      return;
+    }
+    // Warn that the reset replaces those positions, but at LOW intensity
+    // (not a red danger action): an info icon and a normal accept button.
+    // The copy differs by case, the full reset replaces every position; the
+    // scoped one only re-arranges the currently visible nodes and leaves the
+    // hidden ones' coordinates intact.
     const t = GRAPH_VIEW_TEXTS.resetLayoutConfirm;
     this.confirmationService.confirm({
       header: t.header,
