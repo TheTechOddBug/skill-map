@@ -5,10 +5,12 @@ import { VendorFrontmatter } from '../vendor-frontmatter';
 import type { TFrontmatter, TNodeKind } from '../../../../models/node';
 
 /**
- * `<sm-vendor-frontmatter>`, three typographic sub-sections (Behavior /
- * Capabilities / Initial prompt) replacing the prior collapsed
- * "Provider-specific" wrapper. Each section hides on its own when its
- * fields are empty; the renderer hides entirely when all three are empty.
+ * `<sm-vendor-frontmatter>`, a single `Definition` section that lists
+ * every vendor frontmatter field in one definition list, with the
+ * initial prompt as a quote block at its foot. The runtime / capability
+ * grouping is a presentation choice (the frontmatter is flat), so it
+ * collapses into one rail; the section hides entirely when every field
+ * is empty.
  */
 
 function bootstrap(
@@ -57,10 +59,25 @@ describe('VendorFrontmatter, visibility', () => {
     const { dom } = bootstrap(fm, 'agent');
     expect(dom.querySelector('[data-testid="vendor-frontmatter"]')).toBeNull();
   });
+
+  it('exposes a single Definition section, not the legacy three-section split', () => {
+    const fm = {
+      name: 'a',
+      description: 'd',
+      metadata: { version: '' },
+      model: 'opus',
+      tools: ['Bash'],
+    } as unknown as TFrontmatter;
+    const { dom } = bootstrap(fm, 'agent');
+    expect(dom.querySelectorAll('[data-testid="vendor-frontmatter-definition"]').length).toBe(1);
+    expect(dom.querySelector('[data-testid="vendor-frontmatter-behavior"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="vendor-frontmatter-capabilities"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="vendor-frontmatter-initial-prompt"]')).toBeNull();
+  });
 });
 
-describe('VendorFrontmatter, Behavior section', () => {
-  it('renders the Behavior section when an agent declares model', () => {
+describe('VendorFrontmatter, Definition section (agent)', () => {
+  it('renders the section titled Definition when an agent declares model', () => {
     const fm = {
       name: 'a',
       description: 'd',
@@ -68,13 +85,35 @@ describe('VendorFrontmatter, Behavior section', () => {
       model: 'claude-opus-4-7',
     } as unknown as TFrontmatter;
     const { dom } = bootstrap(fm, 'agent');
-    const section = dom.querySelector('[data-testid="vendor-frontmatter-behavior"]');
+    const section = dom.querySelector('[data-testid="vendor-frontmatter-definition"]');
     expect(section).not.toBeNull();
-    expect(section!.textContent).toContain('Behavior');
+    expect(section!.textContent).toContain('Definition');
     expect(section!.textContent).toContain('claude-opus-4-7');
   });
 
-  it('hides the Behavior section when only capabilities-only fields are populated', () => {
+  it('lists runtime and capability fields together in the one section', () => {
+    const fm = {
+      name: 'a',
+      description: 'd',
+      metadata: { version: '' },
+      model: 'opus',
+      tools: ['Bash', 'Read'],
+      mcpServers: [{ name: 'echo', command: 'echo hi', args: ['x'] }],
+      hooks: { PreToolUse: { matchers: ['Bash'] } },
+    } as unknown as TFrontmatter;
+    const { dom } = bootstrap(fm, 'agent');
+    const section = dom.querySelector('[data-testid="vendor-frontmatter-definition"]');
+    expect(section).not.toBeNull();
+    // Both runtime (model) and capability (tools / mcp / hooks) fields
+    // live in the same section now.
+    expect(section!.textContent).toContain('opus');
+    expect(section!.textContent).toContain('Bash');
+    expect(section!.textContent).toContain('echo');
+    expect(section!.textContent).toContain('PreToolUse');
+    expect(section!.textContent).toContain('matchers');
+  });
+
+  it('renders the section for a capability-only agent (no runtime fields)', () => {
     const fm = {
       name: 'a',
       description: 'd',
@@ -82,11 +121,12 @@ describe('VendorFrontmatter, Behavior section', () => {
       tools: ['Bash'],
     } as unknown as TFrontmatter;
     const { dom } = bootstrap(fm, 'agent');
-    expect(dom.querySelector('[data-testid="vendor-frontmatter-behavior"]')).toBeNull();
-    expect(dom.querySelector('[data-testid="vendor-frontmatter-capabilities"]')).not.toBeNull();
+    const section = dom.querySelector('[data-testid="vendor-frontmatter-definition"]');
+    expect(section).not.toBeNull();
+    expect(section!.textContent).toContain('Bash');
   });
 
-  it('only counts background as a Behavior field when literally true', () => {
+  it('only counts background as a populated field when literally true', () => {
     const fmFalse = {
       name: 'a',
       description: 'd',
@@ -94,7 +134,7 @@ describe('VendorFrontmatter, Behavior section', () => {
       background: false,
     } as unknown as TFrontmatter;
     const { dom: domFalse } = bootstrap(fmFalse, 'agent');
-    // background:false alone leaves Behavior empty so the renderer hides.
+    // background:false alone leaves every field empty so the renderer hides.
     expect(domFalse.querySelector('[data-testid="vendor-frontmatter"]')).toBeNull();
 
     const fmTrue = {
@@ -104,7 +144,7 @@ describe('VendorFrontmatter, Behavior section', () => {
       background: true,
     } as unknown as TFrontmatter;
     const { dom: domTrue } = bootstrap(fmTrue, 'agent');
-    expect(domTrue.querySelector('[data-testid="vendor-frontmatter-behavior"]')).not.toBeNull();
+    expect(domTrue.querySelector('[data-testid="vendor-frontmatter-definition"]')).not.toBeNull();
     expect(domTrue.textContent).toContain('Background');
   });
 
@@ -126,39 +166,8 @@ describe('VendorFrontmatter, Behavior section', () => {
   });
 });
 
-describe('VendorFrontmatter, Capabilities section', () => {
-  it('renders tools, mcpServers, and hooks rows', () => {
-    const fm = {
-      name: 'a',
-      description: 'd',
-      metadata: { version: '' },
-      tools: ['Bash', 'Read'],
-      mcpServers: [{ name: 'echo', command: 'echo hi', args: ['x'] }],
-      hooks: { PreToolUse: { matchers: ['Bash'] } },
-    } as unknown as TFrontmatter;
-    const { dom } = bootstrap(fm, 'agent');
-    const section = dom.querySelector('[data-testid="vendor-frontmatter-capabilities"]');
-    expect(section).not.toBeNull();
-    expect(section!.textContent).toContain('Bash');
-    expect(section!.textContent).toContain('echo');
-    expect(section!.textContent).toContain('PreToolUse');
-    expect(section!.textContent).toContain('matchers');
-  });
-
-  it('hides the Capabilities section when no capability fields are populated', () => {
-    const fm = {
-      name: 'a',
-      description: 'd',
-      metadata: { version: '' },
-      model: 'opus',
-    } as unknown as TFrontmatter;
-    const { dom } = bootstrap(fm, 'agent');
-    expect(dom.querySelector('[data-testid="vendor-frontmatter-capabilities"]')).toBeNull();
-  });
-});
-
-describe('VendorFrontmatter, Initial prompt section', () => {
-  it('renders the initialPrompt as an always-visible quote block (no toggle)', () => {
+describe('VendorFrontmatter, Initial prompt', () => {
+  it('renders the initialPrompt as a quote block at the foot of the Definition section', () => {
     const fm = {
       name: 'a',
       description: 'd',
@@ -166,14 +175,16 @@ describe('VendorFrontmatter, Initial prompt section', () => {
       initialPrompt: 'Begin by analyzing the repository structure and reporting findings.',
     } as unknown as TFrontmatter;
     const { dom } = bootstrap(fm, 'agent');
-    const section = dom.querySelector('[data-testid="vendor-frontmatter-initial-prompt"]');
+    const section = dom.querySelector('[data-testid="vendor-frontmatter-definition"]');
     expect(section).not.toBeNull();
-    const quote = dom.querySelector('[data-testid="vendor-frontmatter-initial-prompt-quote"]');
+    const quote = section!.querySelector('[data-testid="vendor-frontmatter-initial-prompt-quote"]');
     expect(quote).not.toBeNull();
     expect(quote!.textContent).toContain('Begin by analyzing');
+    // The quote carries its own sub-label inside the shared section.
+    expect(section!.textContent).toContain('Initial prompt');
   });
 
-  it('hides the Initial prompt section when initialPrompt is empty', () => {
+  it('hides the quote block when initialPrompt is empty', () => {
     const fm = {
       name: 'a',
       description: 'd',
@@ -181,7 +192,9 @@ describe('VendorFrontmatter, Initial prompt section', () => {
       model: 'opus',
     } as unknown as TFrontmatter;
     const { dom } = bootstrap(fm, 'agent');
-    expect(dom.querySelector('[data-testid="vendor-frontmatter-initial-prompt"]')).toBeNull();
+    expect(
+      dom.querySelector('[data-testid="vendor-frontmatter-initial-prompt-quote"]'),
+    ).toBeNull();
   });
 });
 
@@ -241,17 +254,20 @@ describe('VendorFrontmatter, skill / command kinds', () => {
     expect(base!.textContent).toContain('Bash');
   });
 
-  it('does NOT render the Behavior or Initial prompt sections for skill / command', () => {
+  it('does NOT render the Initial prompt quote for skill / command (agent only)', () => {
     const fm = {
       name: 'a',
       description: 'd',
       metadata: { version: '' },
       when_to_use: 'When the user wants X.',
       model: 'opus',
+      initialPrompt: 'this is agent-only and must not leak',
     } as unknown as TFrontmatter;
     const { dom } = bootstrap(fm, 'skill');
-    expect(dom.querySelector('[data-testid="vendor-frontmatter-behavior"]')).toBeNull();
-    expect(dom.querySelector('[data-testid="vendor-frontmatter-initial-prompt"]')).toBeNull();
-    expect(dom.querySelector('[data-testid="vendor-frontmatter-capabilities"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="vendor-frontmatter-definition"]')).not.toBeNull();
+    expect(
+      dom.querySelector('[data-testid="vendor-frontmatter-initial-prompt-quote"]'),
+    ).toBeNull();
+    expect(dom.textContent).not.toContain('this is agent-only');
   });
 });

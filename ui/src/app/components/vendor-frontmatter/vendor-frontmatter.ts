@@ -1,26 +1,32 @@
 /**
- * `<sm-vendor-frontmatter>`, three typographically separated sub-sections
- * for the per-kind vendor frontmatter the inspector embeds. Replaces the
- * collapsed "Provider-specific" wrapper in favour of always-visible
- * sections that hide on their own when empty:
+ * `<sm-vendor-frontmatter>`, a single `Definition` section for the
+ * per-kind vendor frontmatter the inspector embeds. One rail, one title:
+ * every field flows in a single definition list so the labels share one
+ * `max-content` column, with the initial prompt closing the section as a
+ * quote block.
  *
- *   - `Behavior` (agent only): model, effort, permission mode, max
- *     turns, memory, background (only when true), isolation.
- *   - `Capabilities` (agent + skill + command): tools / allowed-tools,
- *     skills, disallowed-tools, MCP servers, hooks; skill / command
- *     base also includes when_to_use, argument-hint, arguments,
- *     disallowed-tools, model, effort, context, agent, shell, paths,
- *     disable-model-invocation, user-invocable.
- *   - `Initial prompt` (agent only): the prompt callout, rendered as a
- *     quote block (no longer collapsible).
+ * Field order inside the list (the Behavior / Capabilities grouping is a
+ * skill-map presentation choice, not vendor JSON structure, the
+ * frontmatter is flat, so it lists as one run):
+ *
+ *   - Agent runtime fields: model, effort, permission mode, max turns,
+ *     memory, background (only when true), isolation.
+ *   - Agent capability fields: tools, disallowed-tools, skills, MCP
+ *     servers, hooks.
+ *   - Skill / command base instead: when_to_use, argument-hint,
+ *     arguments, allowed-tools, disallowed-tools, model, effort,
+ *     context, agent, shell, paths, disable-model-invocation,
+ *     user-invocable.
+ *   - `Initial prompt` (agent only): a sub-labelled quote block at the
+ *     foot of the same section.
  *
  * `name`, `description`, and `color` are intentionally NOT rendered
- * here. The inspector header already shows name + description; the card
- * border accent + inspector title shading consume `color`.
+ * here. The inspector header already shows name + description; the
+ * inspector accent rail + title shading consume `color`.
  *
  * Notes have no vendor surface so the renderer hides entirely. When
- * every section is empty the whole component disappears so the
- * inspector does not paint chrome around nothing.
+ * every field is empty the whole component disappears so the inspector
+ * does not paint chrome around nothing.
  */
 
 import {

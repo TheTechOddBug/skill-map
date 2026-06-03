@@ -1,20 +1,22 @@
 /**
- * UI strings for `<sm-vendor-frontmatter>`. The component renders three
- * tipographically-separated sub-sections inside the inspector body:
+ * UI strings for `<sm-vendor-frontmatter>`. The component renders a
+ * single `Definition` section inside the inspector body, one rail, one
+ * title, that lists every vendor frontmatter field in order:
  *
- *   - `Behavior`: how the agent runs (model, effort, permission, max
- *     turns, memory, background, isolation).
- *   - `Capabilities`: what the agent / skill / command can do (tools,
- *     disallowed tools, skills, MCP servers, hooks).
- *   - `Initial prompt`: the opening callout, rendered as a quote block.
+ *   - Runtime fields (model, effort, permission, max turns, memory,
+ *     background, isolation) and capability fields (tools, disallowed
+ *     tools, skills, MCP servers, hooks) flow together in one
+ *     definition list.
+ *   - `Initial prompt`: the opening callout, rendered as a quote block
+ *     under a small sub-label at the foot of the same section.
  *
- * The wrapper is no longer collapsed; each section hides on its own when
- * the underlying fields are empty.
+ * The grouping is a skill-map presentation choice, not vendor JSON
+ * structure (the frontmatter is flat). The section hides on its own when
+ * every field is empty.
  */
 export const VENDOR_FRONTMATTER_TEXTS = {
   sections: {
-    behavior: 'Behavior',
-    capabilities: 'Capabilities',
+    definition: 'Definition',
     initialPrompt: 'Initial prompt',
   },
   /** Per-field labels, verbatim Anthropic naming where the schema is camelCase. */

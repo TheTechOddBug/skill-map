@@ -1,48 +1,48 @@
 @if (hasAnyContent()) {
   <div class="vfm" data-testid="vendor-frontmatter">
 
-    @if (hasBehavior()) {
-      <section class="sm-block" data-testid="vendor-frontmatter-behavior">
-        <h3 class="sm-block__title">{{ texts.sections.behavior }}</h3>
-        <dl class="sm-block__kv">
-          @if (model(); as m) {
-            <dt>{{ texts.fields.model }}</dt>
-            <dd><code>{{ m }}</code></dd>
-          }
-          @if (effort(); as ef) {
-            <dt>{{ texts.fields.effort }}</dt>
-            <dd>{{ ef }}</dd>
-          }
-          @if (permissionMode(); as pm) {
-            <dt>{{ texts.fields.permissionMode }}</dt>
-            <dd><code>{{ pm }}</code></dd>
-          }
-          @if (maxTurns() !== null) {
-            <dt>{{ texts.fields.maxTurns }}</dt>
-            <dd>{{ maxTurns() }}</dd>
-          }
-          @if (memory(); as me) {
-            <dt>{{ texts.fields.memory }}</dt>
-            <dd><code>{{ me }}</code></dd>
-          }
-          @if (background()) {
-            <dt>{{ texts.fields.background }}</dt>
-            <dd><code>true</code></dd>
-          }
-          @if (isolation(); as iso) {
-            <dt>{{ texts.fields.isolation }}</dt>
-            <dd><code>{{ iso }}</code></dd>
-          }
-        </dl>
-      </section>
-    }
+    <!--
+      Single `Definition` section. Runtime + capability fields share one
+      definition list so every `dt` aligns on the same `max-content`
+      column; the initial prompt closes the section as a quote block.
+      The Behavior / Capabilities / Initial-prompt split is a skill-map
+      presentation choice, not vendor JSON structure (the frontmatter is
+      flat), so it collapses cleanly into one rail.
+    -->
+    <section class="sm-block" data-testid="vendor-frontmatter-definition">
+      <h3 class="sm-block__title">{{ texts.sections.definition }}</h3>
 
-    @if (hasCapabilities()) {
-      <section class="sm-block" data-testid="vendor-frontmatter-capabilities">
-        <h3 class="sm-block__title">{{ texts.sections.capabilities }}</h3>
-
-        @if (isAgent()) {
+      @if (isAgent()) {
+        @if (hasBehavior() || hasCapabilities()) {
           <dl class="sm-block__kv">
+            @if (model(); as m) {
+              <dt>{{ texts.fields.model }}</dt>
+              <dd><code>{{ m }}</code></dd>
+            }
+            @if (effort(); as ef) {
+              <dt>{{ texts.fields.effort }}</dt>
+              <dd>{{ ef }}</dd>
+            }
+            @if (permissionMode(); as pm) {
+              <dt>{{ texts.fields.permissionMode }}</dt>
+              <dd><code>{{ pm }}</code></dd>
+            }
+            @if (maxTurns() !== null) {
+              <dt>{{ texts.fields.maxTurns }}</dt>
+              <dd>{{ maxTurns() }}</dd>
+            }
+            @if (memory(); as me) {
+              <dt>{{ texts.fields.memory }}</dt>
+              <dd><code>{{ me }}</code></dd>
+            }
+            @if (background()) {
+              <dt>{{ texts.fields.background }}</dt>
+              <dd><code>true</code></dd>
+            }
+            @if (isolation(); as iso) {
+              <dt>{{ texts.fields.isolation }}</dt>
+              <dd><code>{{ iso }}</code></dd>
+            }
             @if (tools().length) {
               <dt>{{ texts.fields.tools }}</dt>
               <dd class="vfm__inline">
@@ -95,7 +95,9 @@
               </dd>
             }
           </dl>
-        } @else if (isSkillOrCommand()) {
+        }
+      } @else if (isSkillOrCommand()) {
+        @if (hasCapabilities()) {
           @let sb = skillBase();
           <dl class="sm-block__kv" data-testid="vendor-frontmatter-skill-base">
             @if (sb.when_to_use !== null) {
@@ -168,15 +170,13 @@
             }
           </dl>
         }
-      </section>
-    }
+      }
 
-    @if (hasInitialPrompt()) {
-      <section class="sm-block" data-testid="vendor-frontmatter-initial-prompt">
-        <h3 class="sm-block__title">{{ texts.sections.initialPrompt }}</h3>
+      @if (hasInitialPrompt()) {
+        <p class="sm-block__sub">{{ texts.sections.initialPrompt }}</p>
         <blockquote class="vfm__quote" data-testid="vendor-frontmatter-initial-prompt-quote">{{ initialPrompt() }}</blockquote>
-      </section>
-    }
+      }
+    </section>
 
   </div>
 }
