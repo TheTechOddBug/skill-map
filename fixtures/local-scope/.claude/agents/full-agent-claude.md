@@ -1,12 +1,6 @@
 ---
 name: full-agent-claude
 description: Reference Claude agent populating every documented frontmatter field. The 14 vendor-specific fields plus the universal `name`/`description` are all set so reviewers can eyeball "what does a fully-annotated Claude agent look like?" without spelunking through specs.
-tags:
-  - fixture
-  - reference
-  - full
-  - claude
-  - agent
 tools:
   - Read
   - Grep

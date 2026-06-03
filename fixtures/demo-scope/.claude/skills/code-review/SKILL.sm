@@ -1,7 +1,7 @@
 identity:
   path: .claude/skills/code-review/SKILL.md
   bodyHash: a8b5cd024b7091ed2636fedd80e4f0c13087921b9eb4c849acb59058f46741e9
-  frontmatterHash: 1066a2f0ae0181f5c33b41a2518d93504962eba206066b93674a40748a64565f
+  frontmatterHash: f012b7ef03e3ba472bebc7d584980338c2d5a65d99a5601affca027a6f132ed5
 annotations:
   version: 3
   stability: experimental

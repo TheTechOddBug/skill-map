@@ -9,7 +9,7 @@
 identity:
   path: .claude/agents/full-agent-claude.md
   bodyHash: 0d3a517420312d9490551663bb3fe1a9474c089f6b34cd2ebb57c81ebbbe85c3
-  frontmatterHash: 2f45accaa8f51c260d086ebbb64aa9378d5f2914ae63de30aa62972b0ec89c30
+  frontmatterHash: 318ed83b2653daa7815ec906495072eaf7b5613cdf6ae7646d0b8f7b183baf4a
   resolvedAs:
     provider: claude
     kind: agent

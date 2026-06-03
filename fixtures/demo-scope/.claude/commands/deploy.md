@@ -1,12 +1,6 @@
 ---
 name: deploy
 description: Asks for confirmation, then invokes the CI deploy workflow. Reviews are delegated to #code-review.
-args:
-  - name: env
-    type: "enum:staging|production"
-    required: true
-    description: Target environment.
-shortcut: ctrl+alt+d
 ---
 
 # /deploy

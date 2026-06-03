@@ -1,12 +1,6 @@
 ---
 name: deprecated-agent
 description: "Retired Claude agent kept on disk for historical reference. Demonstrates the `stability: deprecated` annotation combined with `supersededBy` pointing at the newer @full-agent-claude."
-tags:
-  - fixture
-  - deprecated
-  - legacy
-  - claude
-  - agent
 model: sonnet
 tools:
   - Read

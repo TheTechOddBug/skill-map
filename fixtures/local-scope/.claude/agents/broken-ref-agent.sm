@@ -4,7 +4,7 @@
 identity:
   path: .claude/agents/broken-ref-agent.md
   bodyHash: e6ffbee7baf7de639ff0bc432502ffefad5b301a838fb73d00e57b4245d46548
-  frontmatterHash: 207d042eaca761f0616880fbb596cdfb2c8168e5f3445c62eca54cee602895e6
+  frontmatterHash: fbe390ff3bf79c0cfcb76b8b6ad3a92c12b3960408a03f23142d13d414c8ee21
   resolvedAs:
     provider: claude
     kind: agent

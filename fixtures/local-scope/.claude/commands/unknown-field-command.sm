@@ -4,7 +4,7 @@
 identity:
   path: .claude/commands/unknown-field-command.md
   bodyHash: 69a231cc6d5e7ce311cddaba32c1dc2866061229ea6fe99882c777e53f76b19c
-  frontmatterHash: 78fc51b4ef5c0511c78b808890781523e16d707150401d44e0410e367273e74a
+  frontmatterHash: d5f0e6687877e9a6837fe66a00ccb110fe283883b392bd4b11c88c1359630c6b
   resolvedAs:
     provider: claude
     kind: command

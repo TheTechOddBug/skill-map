@@ -1,10 +1,5 @@
 ---
 title: Stable plain markdown
-tags:
-  - fixture
-  - markdown
-  - stable
-  - root
 ---
 
 # Stable plain markdown

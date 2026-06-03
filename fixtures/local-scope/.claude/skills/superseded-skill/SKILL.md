@@ -1,13 +1,6 @@
 ---
 name: superseded-skill
 description: "Retired Claude skill kept on disk for historical reference. Demonstrates the `stability: deprecated` + `supersededBy` pattern — supersession is encoded in the sidecar so the graph renders the replacement arrow."
-tags:
-  - fixture
-  - superseded
-  - deprecated
-  - legacy
-  - claude
-  - skill
 when_to_use: Do not invoke; superseded by #full-skill-claude.
 ---
 

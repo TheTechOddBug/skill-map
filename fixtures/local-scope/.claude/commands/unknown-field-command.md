@@ -1,11 +1,6 @@
 ---
 name: unknown-field-command
 description: "Claude command whose frontmatter carries a key that is not in the schema (`customField`). Demonstrates the `additionalProperties: true` carry-through, AJV accepts the file, but the unknown-field analyzer surfaces a warning chip so curators can decide whether to add the key to the schema or drop it."
-tags:
-  - fixture
-  - unknown-field
-  - claude
-  - command
 when_to_use: When the unknown-field analyzer needs a node to flag.
 argument-hint: "[name]"
 arguments:

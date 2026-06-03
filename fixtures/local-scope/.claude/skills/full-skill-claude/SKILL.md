@@ -8,11 +8,9 @@ arguments:
   - mode
 disable-model-invocation: false
 user-invocable: true
-otra: lala
 allowed-tools:
   - Read
   - Grep
-  - aa
   - Bash(sm sidecar refresh *)
   - Bash(npm run validate*)
 disallowed-tools:
@@ -20,7 +18,7 @@ disallowed-tools:
   - AskUserQuestion
 model: sonnet
 effort: medium
-context: forks
+context: fork
 agent: Explore
 hooks:
   PreToolUse:

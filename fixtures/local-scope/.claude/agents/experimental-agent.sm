@@ -4,7 +4,7 @@
 identity:
   path: .claude/agents/experimental-agent.md
   bodyHash: 8c1e8ccb56dd6c5ce43c0b856de8ceae4bce3e7cda81ce07f4b9172912c8dc50
-  frontmatterHash: ee1429c937f1514aa513739383b42c61f0e22cc2a92cf390b9991b95f6bb3c7d
+  frontmatterHash: 21bc8a482ca71c26c6635df83e427b8b6faa1b5f9eda24b94fe73c3a7783b1a3
   resolvedAs:
     provider: claude
     kind: agent

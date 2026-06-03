@@ -4,7 +4,7 @@
 identity:
   path: stable-markdown.md
   bodyHash: 54a433c2445f4c9e5e4909d78206627b3f604c025cd384eb7ccb768bbd9527c4
-  frontmatterHash: 35b8f909b3c93f8c17bf11085785c18a5e9b8be3879e451e3b483294d6e7b042
+  frontmatterHash: 03ddd901c2b3c7001bdc8c8bc97613e8c10c1bef51ef263c2a186d70e79c6ff7
 annotations:
   version: 4
   stability: stable

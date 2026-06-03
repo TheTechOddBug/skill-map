@@ -4,7 +4,7 @@
 identity:
   path: .claude/agents/deprecated-agent.md
   bodyHash: bc299c304873c17d45c554e784b82ceb708cd239cfa90b0a4e98e6c03cee2f1f
-  frontmatterHash: 6d6601d22de8ff2560621ee87fd111ce4dc215664646e46e8cfb9c148152d39a
+  frontmatterHash: 84de85ec67d3e160426aae6a864acae901cd3cb0e1442ddfd10069c1a5003de9
   resolvedAs:
     provider: claude
     kind: agent

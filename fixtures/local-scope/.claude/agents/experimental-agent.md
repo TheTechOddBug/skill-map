@@ -1,11 +1,6 @@
 ---
 name: experimental-agent
 description: "Claude agent in active development. Demonstrates the `stability: experimental` annotation paired with partial vendor-field coverage, the shape new agents typically have before being promoted to stable."
-tags:
-  - fixture
-  - experimental
-  - claude
-  - agent
 model: sonnet
 tools:
   - Read

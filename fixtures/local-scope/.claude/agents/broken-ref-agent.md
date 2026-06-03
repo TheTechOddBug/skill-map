@@ -1,11 +1,6 @@
 ---
 name: broken-ref-agent
 description: Demonstrates the broken-reference scenario. The sidecar's `requires` annotation points at a node that does not exist on disk (`.claude/skills/does-not-exist/SKILL.md`), exercising the broken-ref analyzer and the muted chip rendering in the inspector.
-tags:
-  - fixture
-  - broken-ref
-  - claude
-  - agent
 model: sonnet
 tools:
   - Read
