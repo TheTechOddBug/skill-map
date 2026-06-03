@@ -6,7 +6,6 @@ import { TooltipModule } from 'primeng/tooltip';
 import { LINK_KIND_PALETTE_TEXTS } from '../../../i18n/link-kind-palette.texts';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { ALL_LINK_KINDS, FilterStoreService } from '../../../services/filter-store';
-import { MapVisibilityService } from '../../../services/map-visibility';
 import type { TLinkKindApi } from '../../../models/api';
 
 /**
@@ -93,31 +92,19 @@ for (const e of ENTRY_CATALOG) {
 export class LinkKindPalette {
   private readonly loader = inject(CollectionLoaderService);
   private readonly filters = inject(FilterStoreService);
-  private readonly mapVisibility = inject(MapVisibilityService);
 
   protected readonly texts = LINK_KIND_PALETTE_TEXTS;
 
-  /** Raw per-kind link counts over the whole scan. Drives the auto-clear
-   *  effect: only a kind that truly vanished from the DATA is dropped from
-   *  the whitelist, not one merely hidden by the files-rail curation. */
-  private readonly rawCounts = computed<ReadonlyMap<TLinkKindApi, number>>(() => {
-    const scan = this.loader.scan();
-    const counts = new Map<TLinkKindApi, number>();
-    if (!scan) return counts;
-    for (const link of scan.links) counts.set(link.kind, (counts.get(link.kind) ?? 0) + 1);
-    return counts;
-  });
-
-  /** Per-kind link counts within the map's curated scope (both endpoints in
-   *  scope), so curating from the files rail reshapes which buttons paint. */
+  /** Per-kind link counts derived from `scan().links`. Drives which buttons
+   *  paint (kinds present in the project). NOT scoped to the node-curation:
+   *  edge-kind visibility is orthogonal to which nodes are on the map, and
+   *  `link.target` is not always a resolved node path, so intersecting it
+   *  with the curated set wrongly dropped kinds. */
   private readonly counts = computed<ReadonlyMap<TLinkKindApi, number>>(() => {
     const scan = this.loader.scan();
     const counts = new Map<TLinkKindApi, number>();
     if (!scan) return counts;
     for (const link of scan.links) {
-      if (!this.mapVisibility.inScope(link.source) || !this.mapVisibility.inScope(link.target)) {
-        continue;
-      }
       counts.set(link.kind, (counts.get(link.kind) ?? 0) + 1);
     }
     return counts;
@@ -146,7 +133,7 @@ export class LinkKindPalette {
     // filtering the canvas down to zero edges. The effect runs only
     // when the per-kind count map changes.
     effect(() => {
-      const counts = this.rawCounts();
+      const counts = this.counts();
       const selected = this.filters.selectedLinkKinds();
       const next = selected.filter((k) => (counts.get(k) ?? 0) > 0);
       if (next.length !== selected.length) {
