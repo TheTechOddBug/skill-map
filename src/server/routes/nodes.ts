@@ -54,6 +54,7 @@ import { applyExportQuery } from '../../kernel/index.js';
 import type { IPersistedContribution } from '../../kernel/ports/storage.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import { tx } from '../../kernel/util/tx.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { buildListEnvelope, REST_ENVELOPE_SCHEMA_VERSION } from '../envelope.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
 import { readNodeBody } from '../node-body.js';
@@ -125,7 +126,7 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
     const tags = result?.tags ?? [];
     if (!bundle) {
       throw new HTTPException(404, {
-        message: tx(SERVER_TEXTS.nodeNotFound, { path: nodePath }),
+        message: tx(SERVER_TEXTS.nodeNotFound, { path: sanitizeForTerminal(nodePath) }),
       });
     }
     const decoratedNode = { ...bundle.node, isFavorite, contributions, tags };

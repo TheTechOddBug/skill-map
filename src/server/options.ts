@@ -133,6 +133,7 @@ export interface IServerOptionsInput {
 export type TServerOptionsErrorCode =
   | 'port-out-of-range'
   | 'port-invalid'
+  | 'host-not-loopback'
   | 'host-dev-cors-rejected'
   | 'watcher-requires-pipeline'
   | 'watcher-debounce-invalid'
@@ -254,14 +255,26 @@ function validatePort(port: number): IServerOptionsError | null {
 }
 
 function validateHost(host: string, devCors: boolean): IServerOptionsError | null {
-  if (devCors && !isLoopbackHost(host)) {
+  if (isLoopbackHost(host)) return null;
+  // Non-loopback bind. The BFF has no auth model (Decision #119, loopback
+  // -only pre-1.0), and the DNS-rebinding gate keys on the request
+  // `Host`/`Origin` header (port-agnostic, allows the literal `localhost`),
+  // so a socket bound off-loopback is reachable by any LAN peer sending
+  // `Host: localhost`. Refuse the bind outright rather than leaning on the
+  // gate as the sole control. The `--dev-cors` combo keeps its own, more
+  // specific message (it implies a browser dev workflow).
+  if (devCors) {
     return {
       code: 'host-dev-cors-rejected',
       message: `--dev-cors requires a loopback --host (got ${host})`,
       value: host,
     };
   }
-  return null;
+  return {
+    code: 'host-not-loopback',
+    message: `--host must be a loopback address; multi-host serve is not supported pre-1.0 (got ${host})`,
+    value: host,
+  };
 }
 
 /**

@@ -49,6 +49,18 @@ export const SERVE_TEXTS = {
     'Use --host 127.0.0.1 (or ::1) when --dev-cors is set. Multi-host serve reopens after v0.6.0 (Decision #119).',
 
   /**
+   * §3.1b error block when `--host` is any non-loopback address (without
+   * `--dev-cors`). The BFF is loopback-only and unauthenticated pre-1.0
+   * (Decision #119), so binding off-loopback is refused outright rather
+   * than relying on the DNS-rebinding gate as the sole control.
+   */
+  hostNotLoopback:
+    '{{glyph}}  sm serve: --host must be a loopback address (got {{host}}).\n' +
+    '   {{hint}}\n',
+  hostNotLoopbackHint:
+    'Use --host 127.0.0.1 (or ::1). The server has no auth and is loopback-only; multi-host serve reopens after v0.6.0 (Decision #119).',
+
+  /**
    * §3.1b error block when `--port` falls outside the [0, 65535] range.
    * Hint names the accepted range so the operator can re-run.
    */

@@ -29,6 +29,7 @@ import {
   WS_BACKPRESSURE_BYTES,
   type IBroadcasterClient,
 } from '../broadcaster.js';
+import { MAX_WS_CLIENTS } from '../limits.js';
 import { resetLogger } from '../../kernel/util/logger.js';
 
 interface ICloseCall {
@@ -101,6 +102,34 @@ describe('WsBroadcaster, register / unregister / clientCount', () => {
     b.unregister(c);
     b.unregister(c);
     assert.equal(b.clientCount, 0);
+  });
+
+  it('refuses registration past MAX_WS_CLIENTS, closing the newcomer with 1013', () => {
+    const b = new WsBroadcaster();
+    const accepted: IFakeClient[] = [];
+    for (let i = 0; i < MAX_WS_CLIENTS; i += 1) {
+      const c = makeFakeClient();
+      b.register(c);
+      accepted.push(c);
+    }
+    assert.equal(b.clientCount, MAX_WS_CLIENTS);
+
+    // One over the cap: refused (not added) and closed with 1013.
+    const overflow = makeFakeClient();
+    b.register(overflow);
+    assert.equal(b.clientCount, MAX_WS_CLIENTS, 'cap holds, newcomer not added');
+    assert.equal(overflow.closeCalls.length, 1);
+    assert.equal(overflow.closeCalls[0]?.code, 1013);
+
+    // Existing healthy clients are NOT evicted to make room.
+    assert.equal(accepted[0]?.closeCalls.length, 0);
+
+    // After one leaves, a newcomer is accepted again.
+    b.unregister(accepted[0]!);
+    const readmitted = makeFakeClient();
+    b.register(readmitted);
+    assert.equal(b.clientCount, MAX_WS_CLIENTS);
+    assert.equal(readmitted.closeCalls.length, 0);
   });
 });
 

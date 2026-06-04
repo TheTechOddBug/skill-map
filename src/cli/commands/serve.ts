@@ -458,6 +458,11 @@ function resolveUiDist(ctx: IRuntimeContext, raw: string | undefined): IUiDistOk
  * inner `{{message}}` varies per call site; the structured rejection
  * codes below all map to a §3.1b template with a sibling hint key.
  */
+// Flat per-error-code dispatch: one `case` per `TServerOptionsErrorCode`,
+// so cyclomatic complexity grows linearly with the number of validation
+// codes (no nesting). Sanctioned "CLI multi-flag handling" shape
+// (context/lint.md category 1), same rationale as `validateServerOptions`.
+// eslint-disable-next-line complexity
 function formatValidationError(
   err: { code: string; value: string; message: string },
   ansi: IAnsi,
@@ -469,6 +474,12 @@ function formatValidationError(
         glyph: errGlyph,
         host: sanitizeForTerminal(err.value),
         hint: ansi.dim(SERVE_TEXTS.hostDevCorsRejectedHint),
+      });
+    case 'host-not-loopback':
+      return tx(SERVE_TEXTS.hostNotLoopback, {
+        glyph: errGlyph,
+        host: sanitizeForTerminal(err.value),
+        hint: ansi.dim(SERVE_TEXTS.hostNotLoopbackHint),
       });
     case 'port-out-of-range':
       return tx(SERVE_TEXTS.portOutOfRange, {

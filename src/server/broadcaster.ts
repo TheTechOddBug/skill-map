@@ -43,6 +43,7 @@ import { sanitizeForTerminal } from '../kernel/util/safe-text.js';
 import { log } from '../kernel/util/logger.js';
 import { tx } from '../kernel/util/tx.js';
 import { SERVER_TEXTS } from './i18n/server.texts.js';
+import { MAX_WS_CLIENTS } from './limits.js';
 
 /**
  * Backpressure threshold. A client whose `WebSocket.bufferedAmount`
@@ -62,6 +63,8 @@ const MAX_BUFFERED_BYTES = 4 * 1024 * 1024;
 const CLOSE_CODE_GOING_AWAY = 1001;
 /** RFC 6455, message too big (used for the backpressure eviction). */
 const CLOSE_CODE_MESSAGE_TOO_BIG = 1009;
+/** RFC 6455, try again later (used when the client cap is reached). */
+const CLOSE_CODE_TRY_AGAIN_LATER = 1013;
 
 /**
  * Minimal WebSocket subset the broadcaster relies on. Lets the
@@ -99,6 +102,19 @@ export class WsBroadcaster {
     if (this.#shutDown) {
       try {
         ws.close(CLOSE_CODE_GOING_AWAY, 'server shutdown');
+      } catch {
+        // ignore, the socket may already be closed
+      }
+      return;
+    }
+    // Connection cap (CWE-770). Per-client memory is already bounded by
+    // the backpressure eviction; this bounds the client COUNT so a flood
+    // of `/ws` upgrades cannot exhaust file descriptors / heap. At the
+    // cap we refuse the newcomer (1013 'try again later') instead of
+    // evicting an existing, healthy session.
+    if (this.#clients.size >= MAX_WS_CLIENTS) {
+      try {
+        ws.close(CLOSE_CODE_TRY_AGAIN_LATER, 'too many connections');
       } catch {
         // ignore, the socket may already be closed
       }

@@ -39,3 +39,16 @@ export const MAX_LIMIT = 1000;
  * system, Hard caps; tuning is unsupported pre-v1.
  */
 export const BFF_MAX_BULK_CONTRIBUTIONS = 200;
+
+/**
+ * Hard cap on concurrently-registered `/ws` clients. The broadcaster
+ * already bounds per-client memory (`MAX_BUFFERED_BYTES` eviction), but
+ * not the NUMBER of sockets; without a cap a local process (or a LAN
+ * peer if the operator ever binds off-loopback) could open thousands of
+ * connections to exhaust file descriptors / heap. At the cap the
+ * broadcaster refuses the registration and closes the offered socket
+ * with `1013` (try again later). The local-only SPA opens exactly one
+ * `/ws` connection per tab, so 64 is far above any legitimate use while
+ * still being a meaningful ceiling. Tuning is unsupported pre-v1.
+ */
+export const MAX_WS_CLIENTS = 64;

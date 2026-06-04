@@ -107,6 +107,19 @@ describe('sm serve, flag validation', () => {
     );
   });
 
+  it('rejects a non-loopback --host (without --dev-cors) with exit 2 and a clear hint', async () => {
+    const cap = captureContext();
+    const cli = buildCli();
+    const exit = await cli.run(['serve', '--host', '0.0.0.0'], cap.context);
+    assert.equal(exit, ExitCode.Error);
+    assert.match(
+      cap.stderr(),
+      /--host must be a loopback address \(got 0\.0\.0\.0\)/,
+      cap.stderr(),
+    );
+    assert.match(cap.stderr(), /loopback-only/, cap.stderr());
+  });
+
   it('rejects --port 99999 (out of range) with exit 2', async () => {
     const cap = captureContext();
     const cli = buildCli();
