@@ -8,8 +8,8 @@
 # changes; otherwise the annotation-stale analyzer fires.
 identity:
   path: .claude/agents/full-agent-claude.md
-  bodyHash: 0d3a517420312d9490551663bb3fe1a9474c089f6b34cd2ebb57c81ebbbe85c3
-  frontmatterHash: 318ed83b2653daa7815ec906495072eaf7b5613cdf6ae7646d0b8f7b183baf4a
+  bodyHash: 3a0ffd5d3d6ef87c56e5cc1277dd7785a95c10c0433ca9ea221c82f61fc80112
+  frontmatterHash: 127da2f225f892a86d8cd1379f96d971d099423ae793d6066e207d468816dcdc
   resolvedAs:
     provider: claude
     kind: agent
@@ -35,3 +35,4 @@ audit:
   createdBy: cli
   lastBumpedAt: '2026-05-26T16:45:00Z'
   lastBumpedBy: cli
+

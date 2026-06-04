@@ -37,7 +37,8 @@ background: false
 effort: high
 isolation: worktree
 color: cyan
-initialPrompt: Greet the operator, list the active scope, and propose a starting task.
+initialPrompt: Greet the **operators**, list the active scope, and propose a starting task.
+pruebaDeDesconocido: es un prueba de desconocido
 ---
 
 # Full Claude agent
@@ -45,3 +46,4 @@ initialPrompt: Greet the operator, list the active scope, and propose a starting
 Demonstrator agent that touches every documented frontmatter field for the Claude Provider. Reference fixture for documentation, screenshots, conformance regressions, and tutorial walkthroughs.
 
 Supersedes @deprecated-agent. Pairs with #full-skill-agents (cross-vendor reference via the open standard) and #full-skill-claude. Requires #full-skill-claude to be loadable.
+
