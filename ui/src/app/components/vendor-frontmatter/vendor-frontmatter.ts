@@ -44,6 +44,7 @@ import {
 import { TooltipModule } from 'primeng/tooltip';
 
 import { VENDOR_FRONTMATTER_TEXTS } from '../../../i18n/vendor-frontmatter.texts';
+import { cssColorOrNull } from '../../../services/css-guard';
 import { MarkdownRenderer } from '../../../services/markdown-renderer';
 import { setupBlockMarkdown } from '../../../services/markdown-inline-signal';
 import type { TFrontmatter, TNodeKind } from '../../../models/node';
@@ -176,8 +177,11 @@ export class VendorFrontmatter {
     stringOrNull(this.fm()['isolation']),
   );
 
+  // Allowlist-guarded: `color` is author-controlled and binds into the
+  // swatch's `[style.background]`, so reject anything but a hex / named
+  // colour to block `url(...)` beacons (see `css-guard.ts`).
   protected readonly color = computed<string | null>(() =>
-    stringOrNull(this.fm()['color']),
+    cssColorOrNull(this.fm()['color']),
   );
 
   protected readonly mcpServers = computed<readonly IMcpServerRow[]>(() => {

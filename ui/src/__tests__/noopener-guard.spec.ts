@@ -17,13 +17,14 @@
  * sources when they enter the build graph as raw assets and surfaces
  * stale template-typecheck errors against the synthesised second copy.
  *
- * **Inline-template `.ts` components are NOT covered here.** Today the
- * only inline template carrying `target="_blank"` is
- * `app/components/settings-modal/settings-about.ts`; future inline
- * templates that introduce external links must either be migrated to
- * a sibling `.html` file (so this guard picks them up automatically)
- * or get a hand-written assertion alongside the component's own spec.
- * The accepted trade-off is documented in `context/ui.md`.
+ * **Inline-template `.ts` components are NOT covered here.** As of the
+ * settings-about migration there are no inline templates carrying
+ * `target="_blank"` (it moved to a sibling `.html`, now covered above).
+ * Future inline templates that introduce external links must either be
+ * migrated to a sibling `.html` file (so this guard picks them up
+ * automatically) or get a hand-written assertion alongside the
+ * component's own spec. The accepted trade-off is documented in
+ * `context/ui.md`.
  *
  * Test files (`__tests__/**`, `*.spec.html`) are excluded because they
  * assert against templates and may carry literal `target="_blank"`

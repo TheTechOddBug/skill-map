@@ -1,0 +1,99 @@
+<section class="settings-about" aria-labelledby="settings-about-heading" data-testid="settings-about">
+  <header class="settings-about__header">
+    <img
+      class="settings-about__logo"
+      [src]="markSrc()"
+      alt=""
+      aria-hidden="true"
+      data-testid="settings-about-logo"
+    />
+    <div class="settings-about__heading-text">
+      <h2 id="settings-about-heading" class="settings-about__title">
+        {{ texts.aboutHeading }}
+      </h2>
+      <p class="settings-about__intro">{{ texts.aboutIntro }}</p>
+    </div>
+  </header>
+
+  @if (loadError()) {
+    <p class="settings-about__error" data-testid="settings-about-error">
+      {{ texts.aboutErrorPrefix }} {{ loadError() }}
+    </p>
+  }
+
+  <a
+    class="settings-about__star"
+    [href]="texts.aboutGithubUrl"
+    target="_blank"
+    rel="noopener noreferrer"
+    [attr.aria-label]="texts.aboutStarA11y"
+    data-testid="settings-about-star"
+  >
+    <i class="fa-solid fa-star settings-about__star-icon" aria-hidden="true"></i>
+    <span class="settings-about__star-text">
+      <span class="settings-about__star-heading">{{ texts.aboutStarHeading }}</span>
+      <span class="settings-about__star-body">{{ texts.aboutStarBody }}</span>
+    </span>
+    <span class="settings-about__star-cta">
+      <i class="fa-solid fa-star" aria-hidden="true"></i>
+      {{ texts.aboutStarCta }}
+    </span>
+  </a>
+
+  <dl class="settings-about__list">
+    <div class="settings-about__row">
+      <dt class="settings-about__label">{{ texts.aboutWebsiteLabel }}</dt>
+      <dd class="settings-about__value">
+        <a
+          [href]="texts.aboutWebsiteUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="settings-about__link"
+          data-testid="settings-about-website"
+        >{{ texts.aboutWebsiteUrl }}</a>
+      </dd>
+    </div>
+    <div class="settings-about__row">
+      <dt class="settings-about__label">{{ texts.aboutGithubLabel }}</dt>
+      <dd class="settings-about__value">
+        <a
+          [href]="texts.aboutGithubUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="settings-about__link"
+          data-testid="settings-about-github"
+        >{{ texts.aboutGithubUrl }}</a>
+      </dd>
+    </div>
+    <div class="settings-about__row">
+      <dt class="settings-about__label">{{ texts.aboutCliLabel }}</dt>
+      <dd class="settings-about__value" data-testid="settings-about-cli">
+        {{ cliVersion() }}
+      </dd>
+    </div>
+    <div class="settings-about__row">
+      <dt class="settings-about__label">{{ texts.aboutSpecLabel }}</dt>
+      <dd class="settings-about__value" data-testid="settings-about-spec">
+        {{ specVersion() }}
+      </dd>
+    </div>
+    <div class="settings-about__row">
+      <dt class="settings-about__label">{{ texts.aboutSchemaLabel }}</dt>
+      <dd class="settings-about__value" data-testid="settings-about-schema">
+        {{ schemaVersion() }}
+      </dd>
+    </div>
+    <div class="settings-about__row">
+      <dt class="settings-about__label">{{ texts.aboutFolderLabel }}</dt>
+      <dd class="settings-about__value" data-testid="settings-about-cwd">
+        {{ cwd() }}
+      </dd>
+    </div>
+    <div class="settings-about__row">
+      <dt class="settings-about__label">{{ texts.aboutDbLabel }}</dt>
+      <dd class="settings-about__value" data-testid="settings-about-db">
+        {{ dbDisplay() }}
+      </dd>
+    </div>
+  </dl>
+</section>

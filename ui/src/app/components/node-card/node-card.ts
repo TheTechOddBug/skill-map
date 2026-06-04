@@ -21,6 +21,7 @@ import {
   effectiveVersion,
 } from '../../../models/node-derived';
 import { pathBasenameForLink } from '../../../services/trigger-resolve';
+import { cssColorOrNull } from '../../../services/css-guard';
 import type { ISelectionView } from '../../views/graph-view/selection-state';
 import { KindIcon } from '../kind-icon/kind-icon';
 import { ViewContributionsHost } from '../view-contributions-host/view-contributions-host';
@@ -181,8 +182,10 @@ export class NodeCard {
     const n = this.node();
     if (n.kind !== 'agent') return null;
     const fm = n.frontmatter as Record<string, unknown>;
-    const c = fm['color'];
-    return typeof c === 'string' && c.length > 0 ? c : null;
+    // Allowlist-guarded: `color` is author-controlled and binds into a
+    // CSS context (`--node-color`), so reject anything but a hex / named
+    // colour to block `url(...)` beacons (see `css-guard.ts`).
+    return cssColorOrNull(fm['color']);
   });
 
   private readonly markdown = inject(MarkdownRenderer);
