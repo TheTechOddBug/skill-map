@@ -1,5 +1,21 @@
 # skill-map
 
+## 0.50.1
+
+### Patch Changes
+
+- The reference-redundant finding message is shorter and more direct: "Duplicate reference to <target> (<n> occurrences): <list>." It drops the source-node name (the finding already hangs off that node) and the trailing "consider consolidating..." advice.
+
+  ## User-facing
+
+  The redundant-reference finding now reads with shorter, more direct wording so the duplicated target and where it appears are easier to scan at a glance.
+
+- Polish on the fused workspace: the floating kind / severity / favorites palette counts now reflect the files-rail curation (filtering from the tree reshapes the numbers); selecting a file whose node is hidden from the map no longer pans the camera to empty space; the layout reset only prompts when the user has actually positioned nodes and the warning is lower intensity; and the link-kind palette lists every link kind regardless of node curation.
+
+  ## User-facing
+
+  The map palettes now count only the nodes you've curated visible. Selecting a hidden file no longer jumps the camera to empty space, and "Re-arrange layout" only asks to confirm when you have moved nodes yourself.
+
 ## 0.50.0
 
 ### Minor Changes
