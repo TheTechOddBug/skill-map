@@ -27,6 +27,6 @@ export const LINKED_NODES_PANEL_TEXTS = {
   occurrencesItemUnknownLine: '`{{trigger}}` ({{extractor}})',
   externalRefsHeader: 'External references',
   emptyExternalRefs: 'No external URLs in this node\'s body.',
-  externalRefsItemLine: 'line {{line}}',
+  externalRefsItemLine: (line: number): string => `line ${line}`,
   externalRefsItemUnknownLine: 'unknown line',
 } as const;

@@ -9,7 +9,7 @@
   width: 260px;
   background: var(--sm-bg-content);
   border: 1px solid var(--sm-border);
-  border-radius: 8px;
+  border-radius: var(--sm-radius-lg);
   box-shadow: var(--sm-shadow-card);
   overflow: hidden;
   /*
@@ -74,7 +74,7 @@
 
   width: 38px;
   height: 38px;
-  border-radius: 8px;
+  border-radius: var(--sm-radius-lg);
   display: flex;
   align-items: center;
   justify-content: center;

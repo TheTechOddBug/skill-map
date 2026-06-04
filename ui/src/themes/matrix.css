@@ -30,15 +30,13 @@ html.app-matrix body {
 /* Font tokens: every component that picks its font via the shared
    `--sm-font-mono` / `--sm-font-display-brand` SM vars (node cards,
    inspector chips, vendor frontmatter, list view, plugin contributions,
-   demo banner, the brand "Alpha" chip) and every PrimeNG surface that
-   reads `--p-monospace-font-family` / `--p-font-family-mono` (settings
-   panels, dialog code blocks) flips to JetBrains Mono via the cascade.
+   demo banner, the brand "Alpha" chip, settings panels, dialog code
+   blocks) flips to JetBrains Mono via the cascade. Every mono surface
+   reads `--sm-font-mono`, so retinting that single var reaches them all.
    No per-component override needed, the var swap reaches them. */
 :root.app-matrix {
   --sm-font-mono: 'JetBrains Mono', 'Courier New', ui-monospace, monospace;
   --sm-font-display-brand: 'JetBrains Mono', 'Courier New', ui-monospace, monospace;
-  --p-monospace-font-family: 'JetBrains Mono', 'Courier New', ui-monospace, monospace;
-  --p-font-family-mono: 'JetBrains Mono', 'Courier New', ui-monospace, monospace;
 }
 
 /* === Base palette, SM tokens + PrimeNG retint + shadows === */

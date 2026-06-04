@@ -10,7 +10,6 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CardModule } from 'primeng/card';
 import { TagModule } from 'primeng/tag';
 import { ChipModule } from 'primeng/chip';
 import { ButtonModule } from 'primeng/button';
@@ -45,7 +44,7 @@ type TPanelState = 'idle' | 'loading' | 'ready' | 'error';
 
 @Component({
   selector: 'sm-linked-nodes-panel',
-  imports: [CardModule, TagModule, ChipModule, ButtonModule, TooltipModule],
+  imports: [TagModule, ChipModule, ButtonModule, TooltipModule],
   templateUrl: './linked-nodes-panel.html',
   styleUrl: './linked-nodes-panel.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

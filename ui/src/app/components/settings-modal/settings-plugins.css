@@ -242,7 +242,7 @@
 
 .settings-plugins__row-id {
   font-weight: 600;
-  font-family: var(--p-monospace-font-family);
+  font-family: var(--sm-font-mono);
 }
 
 /* Shared pill chrome, same shape, padding and typography for every
@@ -263,7 +263,7 @@
 
 .settings-plugins__row-version,
 .settings-plugins__subrow-version {
-  font-family: var(--p-monospace-font-family);
+  font-family: var(--sm-font-mono);
 }
 
 /* Neutral pills: source / version. Text-color wash so they stay legible
@@ -344,7 +344,7 @@
 .settings-plugins__row-reason {
   font-size: 0.8125rem;
   color: var(--p-message-error-color);
-  font-family: var(--p-monospace-font-family);
+  font-family: var(--sm-font-mono);
   margin-top: 0.25rem;
 }
 
@@ -396,7 +396,7 @@
 }
 
 .settings-plugins__subrow-id {
-  font-family: var(--p-monospace-font-family);
+  font-family: var(--sm-font-mono);
   font-size: 0.875rem;
 }
 

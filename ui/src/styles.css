@@ -54,11 +54,13 @@
 
   /* Border-radius scale. `sm` for inline glyphs/pills (3px), `md` for
      cards / inputs / chips (4px, also covers 0.25rem), `lg` for grouped
-     containers (0.5rem), `pill` for fully rounded affordances. Bespoke
-     radii (12px top-only, 16px hero shapes) stay inline. */
+     containers (0.5rem), `xl` for the floating filter palettes (0.65rem),
+     `pill` for fully rounded affordances. Bespoke radii (12px top-only,
+     16px hero shapes) stay inline. */
   --sm-radius-sm: 3px;
   --sm-radius-md: 4px;
   --sm-radius-lg: 0.5rem;
+  --sm-radius-xl: 0.65rem;
   --sm-radius-pill: 999px;
 
   /* Violet ramp, mirrors the `web/styles.css` palette so the public

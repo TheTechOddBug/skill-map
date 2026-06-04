@@ -47,6 +47,7 @@
               role="button"
               tabindex="0"
               (keydown.enter)="onOpenPath(sup.supersededBy)"
+              (keydown.space)="onOpenPath(sup.supersededBy); $event.preventDefault()"
             >
               <i class="pi pi-arrow-up-right" aria-hidden="true"></i> {{ sup.supersededBy }}
             </a>
@@ -67,6 +68,7 @@
                 role="button"
                 tabindex="0"
                 (keydown.enter)="onOpenPath(p)"
+                (keydown.space)="onOpenPath(p); $event.preventDefault()"
               >
                 <i class="pi pi-arrow-up-right" aria-hidden="true"></i> {{ p }}
               </a>

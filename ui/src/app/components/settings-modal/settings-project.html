@@ -110,6 +110,7 @@
         (ngModelChange)="newReferencePath.set($event)"
         (keydown.enter)="onReferencePathAdd()"
         [placeholder]="texts.project.referencePathsPlaceholder"
+        [attr.aria-label]="texts.project.referencePathsInputAriaLabel"
         [disabled]="isPending('scan.referencePaths')"
         data-testid="settings-project-reference-paths-input"
       />
@@ -171,6 +172,7 @@
         (ngModelChange)="newIgnorePattern.set($event)"
         (keydown.enter)="onIgnorePatternAdd()"
         [placeholder]="texts.project.ignorePatternsPlaceholder"
+        [attr.aria-label]="texts.project.ignorePatternsInputAriaLabel"
         [disabled]="isPending('ignore.patterns')"
         data-testid="settings-project-ignore-patterns-input"
       />

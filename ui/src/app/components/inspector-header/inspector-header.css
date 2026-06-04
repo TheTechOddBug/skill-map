@@ -246,32 +246,6 @@
   margin-right: 0.15rem;
 }
 
-.inspector__plugin-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.3rem 0.65rem;
-  border: 1px solid var(--sm-border);
-  border-radius: var(--sm-radius-md);
-  background: var(--sm-bg-content);
-  color: var(--p-text-color);
-  font-size: 0.78rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
-  font-family: inherit;
-}
-
-.inspector__plugin-btn:hover {
-  background: var(--sm-bg-hover);
-  border-color: var(--p-text-muted-color);
-  color: var(--p-text-color);
-}
-
-.inspector__plugin-btn i {
-  font-size: 0.82rem;
-}
-
 /* ---------------------------------------------------------------------------
  * Tools row, vendor tools / allowed-tools as inline mono tags.
  * ------------------------------------------------------------------------- */

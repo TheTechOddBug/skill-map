@@ -20,6 +20,7 @@ import {
   input,
   output,
 } from '@angular/core';
+import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { INSPECTOR_VIEW_TEXTS } from '../../../i18n/inspector-view.texts';
@@ -53,7 +54,7 @@ const CLAUDE_VENDOR_COLORS: ReadonlySet<string> = new Set([
 
 @Component({
   selector: 'sm-inspector-header',
-  imports: [TooltipModule, KindIcon, ViewContributionsHost],
+  imports: [ButtonModule, TooltipModule, KindIcon, ViewContributionsHost],
   templateUrl: './inspector-header.html',
   styleUrl: './inspector-header.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

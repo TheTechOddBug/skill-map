@@ -20,7 +20,7 @@
   /* Rectangular container so the pill-shaped buttons inside don't fight
      the outer rounding (a pill container clips the corners of the
      top / bottom buttons when their checked background is filled). */
-  border-radius: 0.65rem;
+  border-radius: var(--sm-radius-xl);
   box-shadow: var(--sm-shadow-floating);
 }
 

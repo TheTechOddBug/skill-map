@@ -94,30 +94,30 @@
   @if (showActionMocks()) {
     <div class="inspector__plugin-actions" data-testid="inspector-plugin-actions">
       <span class="inspector__plugin-actions-label">{{ texts.actionMocks.label }}</span>
-      <button
-        type="button"
-        class="inspector__plugin-btn"
+      <p-button
+        [label]="texts.actionMocks.summary"
+        icon="pi pi-sparkles"
+        severity="secondary"
+        [outlined]="true"
+        size="small"
         data-testid="inspector-plugin-btn-summary"
-      >
-        <i class="pi pi-sparkles" aria-hidden="true"></i>
-        <span>{{ texts.actionMocks.summary }}</span>
-      </button>
-      <button
-        type="button"
-        class="inspector__plugin-btn"
+      />
+      <p-button
+        [label]="texts.actionMocks.audit"
+        icon="pi pi-search"
+        severity="secondary"
+        [outlined]="true"
+        size="small"
         data-testid="inspector-plugin-btn-audit"
-      >
-        <i class="pi pi-search" aria-hidden="true"></i>
-        <span>{{ texts.actionMocks.audit }}</span>
-      </button>
-      <button
-        type="button"
-        class="inspector__plugin-btn"
+      />
+      <p-button
+        [label]="texts.actionMocks.validate"
+        icon="pi pi-check-circle"
+        severity="secondary"
+        [outlined]="true"
+        size="small"
         data-testid="inspector-plugin-btn-validate"
-      >
-        <i class="pi pi-check-circle" aria-hidden="true"></i>
-        <span>{{ texts.actionMocks.validate }}</span>
-      </button>
+      />
     </div>
   }
 

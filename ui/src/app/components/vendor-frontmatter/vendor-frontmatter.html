@@ -63,6 +63,7 @@
                       role="button"
                       tabindex="0"
                       (keydown.enter)="openSkill(sp)"
+                      (keydown.space)="openSkill(sp); $event.preventDefault()"
                     >
                       <i class="pi pi-arrow-up-right" aria-hidden="true"></i> {{ s }}
                     </a>

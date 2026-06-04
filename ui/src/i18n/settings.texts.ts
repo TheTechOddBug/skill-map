@@ -103,6 +103,7 @@ export const SETTINGS_TEXTS = {
       'folders here. Skill-map checks them only to confirm the links ' +
       'work, nothing from these folders shows up in the map.',
     referencePathsPlaceholder: '~/Documents/research',
+    referencePathsInputAriaLabel: 'New folder path',
     commaForbidden:
       'Add one path at a time, without commas.',
     addPathLabel: 'Add path',
@@ -125,6 +126,7 @@ export const SETTINGS_TEXTS = {
     ignorePatternsDescriptionGitignore: '.gitignore',
     ignorePatternsDescriptionSuffix: '(one pattern per line).',
     ignorePatternsPlaceholder: 'secrets.md',
+    ignorePatternsInputAriaLabel: 'New ignore pattern',
     ignorePatternEmpty:
       'Pattern cannot be empty or whitespace-only.',
     ignorePatternHasControlChar:

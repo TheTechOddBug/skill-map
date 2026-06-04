@@ -68,7 +68,7 @@ interface INodeLinkListPayload {
       text-align: left; width: 100%; }
     .vc-links__btn:hover { background: var(--p-surface-100); }
     .vc-links__kind { color: var(--p-surface-500);
-      font-family: var(--p-font-family-mono); font-size: 0.75rem; }
+      font-family: var(--sm-font-mono); font-size: 0.75rem; }
     .vc-links__label { word-break: break-all; }
     .vc-links__empty { color: var(--p-surface-500); font-size: 0.85rem;
       margin: 0; }

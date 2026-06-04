@@ -1,24 +1,19 @@
 @if (path()) {
-  <p-card
-    styleClass="linked-nodes-panel"
-    data-testid="linked-nodes-panel"
-  >
-    <ng-template pTemplate="header">
-      <div class="linked-nodes-panel__header">
-        <h3 class="linked-nodes-panel__title">{{ texts.cardHeader }}</h3>
-        <p-button
-          icon="pi pi-refresh"
-          [rounded]="true"
-          [text]="true"
-          severity="secondary"
-          [ariaLabel]="texts.refreshLabel"
-          [pTooltip]="texts.refreshLabel"
-          (onClick)="refresh()"
-          data-testid="linked-nodes-refresh"
-          [disabled]="state() === 'loading'"
-        />
-      </div>
-    </ng-template>
+  <div class="linked-nodes-panel" data-testid="linked-nodes-panel">
+    <div class="linked-nodes-panel__header">
+      <h3 class="linked-nodes-panel__title">{{ texts.cardHeader }}</h3>
+      <p-button
+        icon="pi pi-refresh"
+        [rounded]="true"
+        [text]="true"
+        severity="secondary"
+        [ariaLabel]="texts.refreshLabel"
+        [pTooltip]="texts.refreshLabel"
+        (onClick)="refresh()"
+        data-testid="linked-nodes-refresh"
+        [disabled]="state() === 'loading'"
+      />
+    </div>
     @switch (state()) {
       @case ('loading') {
         <p class="linked-nodes-panel__status" data-testid="linked-nodes-loading">{{ texts.loading }}</p>
@@ -36,7 +31,7 @@
                     [attr.data-testid]="'linked-nodes-external-ref-' + ref.url">
                   <span class="linked-nodes-panel__external-ref-line">
                     @if (ref.line) {
-                      {{ texts.externalRefsItemLine.replace('{{line}}', ref.line.toString()) }}
+                      {{ texts.externalRefsItemLine(ref.line) }}
                     } @else {
                       {{ texts.externalRefsItemUnknownLine }}
                     }
@@ -168,5 +163,5 @@
         </section>
       }
     }
-  </p-card>
+  </div>
 }
