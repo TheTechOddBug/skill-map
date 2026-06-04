@@ -8,12 +8,14 @@
 
 export const REFERENCE_REDUNDANT_TEXTS = {
   /**
-   * Multi-form / multi-occurrence reference message. Lists each
-   * occurrence (trigger + line) so the operator sees the full
-   * authorial surface without having to grep the body.
+   * Multi-form / multi-occurrence reference message. Short and direct:
+   * names the duplicated target + count and lists each occurrence
+   * (trigger + line) so the operator sees the offending spots at a
+   * glance. The source node is the finding's own node, so it is not
+   * repeated here.
    */
   message:
-    '{{source}} references {{resolvedTarget}} via {{count}} occurrences: {{occurrences}}. Consider consolidating to a single form to reduce maintenance surface and avoid duplicate inlining at runtime.',
+    'Duplicate reference to {{resolvedTarget}} ({{count}} occurrences): {{occurrences}}.',
   /** Inline separator between occurrences in the message. */
   occurrenceSeparator: ', ',
   /** Per-occurrence formatting (trigger + line). */
