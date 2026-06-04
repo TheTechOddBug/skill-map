@@ -1,5 +1,19 @@
 # skill-map
 
+## 0.51.0
+
+### Minor Changes
+
+- Security hardening. `sm serve` now refuses any non-loopback `--host` (the BFF is loopback-only and unauthenticated pre-1.0, Decision #119; off-loopback previously leaned on the DNS-rebinding gate alone). The `/api/nodes/:pathB64` 404 sanitizes the decoded path for the terminal (log-injection parity with sibling routes), the `/ws` broadcaster caps concurrent clients (refuses past the cap with close 1013), and published tarballs now carry npm provenance.
+
+  ## User-facing
+
+  `sm serve` now refuses a non-loopback `--host` (for example `0.0.0.0`): the local server has no auth and is loopback-only, so bind it to `127.0.0.1` or `::1`. Multi-host serve reopens after v0.6.0.
+
+### Patch Changes
+
+- Internal quality pass from a review. The kernel no longer imports the `core/` runtime layer: pure leaves (`atomic-write`, `schema-fingerprint`, `update-check`, the `SKILL_MAP_DIR` literal, the provider detector) moved into `kernel/` and the sidecar consent gate is now injected, with a new lint rule enforcing the boundary. The BFF's two `409` responses dispatch via a typed `ConflictError` instead of a message-prefix match, and `sm scan`'s count nouns moved into the i18n catalog.
+
 ## 0.50.1
 
 ### Patch Changes
