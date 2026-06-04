@@ -1,7 +1,7 @@
 identity:
   path: .claude/agents/frontend-specialist.md
-  bodyHash: efcdbddc8c4fe5e652bf3c4d6be5949916aefa4afe78ec2e60823684e3cacf34
-  frontmatterHash: 7e508f80f3e672002e81df0d060214b012e2d9006932965a6891e3c21e1a967c
+  bodyHash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  frontmatterHash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 annotations:
   version: 2
   stability: stable
