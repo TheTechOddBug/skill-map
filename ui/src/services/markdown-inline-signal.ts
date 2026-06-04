@@ -1,13 +1,17 @@
 /**
- * `setupInlineMarkdown`: render a reactive source string into inline
- * `SafeHtml` (emphasis / code spans / links, no block wrapper), for short
- * fields like node and inspector descriptions.
+ * Reactive markdown -> SafeHtml signals.
  *
- * Mirrors the token-guard shape of `setupBodyState`: each source change
- * bumps a monotonic token so a stale async render (the markdown libs are
- * lazy-loaded, so the first render resolves a tick or two later) can
- * never overwrite a newer value. The signal is cleared at the start of
- * every run so a previous node's description cannot linger on screen
+ * `setupInlineMarkdown` renders a reactive source string into inline
+ * `SafeHtml` (emphasis / code spans / links, no block wrapper), for
+ * short fields like node / inspector descriptions. `setupBlockMarkdown`
+ * renders full block markdown (paragraphs, lists, code blocks), for
+ * richer fields such as an agent's initial prompt.
+ *
+ * Both mirror the token-guard shape of `setupBodyState`: each source
+ * change bumps a monotonic token so a stale async render (the markdown
+ * libs are lazy-loaded, so the first render resolves a tick or two
+ * later) can never overwrite a newer value. The signal is cleared at the
+ * start of every run so a previous node's value cannot linger on screen
  * while the next one renders.
  *
  * Must be called from an injection context (component field initializer
@@ -20,12 +24,14 @@ import type { SafeHtml } from '@angular/platform-browser';
 
 import type { MarkdownRenderer } from './markdown-renderer';
 
-export function setupInlineMarkdown(
+/**
+ * Shared core: drive a `SafeHtml` signal off a reactive source string,
+ * rendered through the given async renderer with a stale-result guard.
+ */
+function setupMarkdownSignal(
   source: () => string,
-  markdown: MarkdownRenderer,
+  render: (src: string) => Promise<SafeHtml>,
 ): Signal<SafeHtml | null> {
-  assertInInjectionContext(setupInlineMarkdown);
-
   const html = signal<SafeHtml | null>(null);
   let token = 0;
 
@@ -34,8 +40,7 @@ export function setupInlineMarkdown(
     const myToken = ++token;
     html.set(null);
     if (!src) return;
-    void markdown
-      .renderInline(src)
+    void render(src)
       .then((rendered) => {
         if (myToken === token) html.set(rendered);
       })
@@ -48,4 +53,22 @@ export function setupInlineMarkdown(
   });
 
   return html.asReadonly();
+}
+
+/** Inline markdown (emphasis / code / links, no block wrapper). */
+export function setupInlineMarkdown(
+  source: () => string,
+  markdown: MarkdownRenderer,
+): Signal<SafeHtml | null> {
+  assertInInjectionContext(setupInlineMarkdown);
+  return setupMarkdownSignal(source, (src) => markdown.renderInline(src));
+}
+
+/** Full block markdown (paragraphs, lists, code blocks). */
+export function setupBlockMarkdown(
+  source: () => string,
+  markdown: MarkdownRenderer,
+): Signal<SafeHtml | null> {
+  assertInInjectionContext(setupBlockMarkdown);
+  return setupMarkdownSignal(source, (src) => markdown.render(src));
 }

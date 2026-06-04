@@ -31,6 +31,7 @@ export const VENDOR_FRONTMATTER_TEXTS = {
     background: 'Background',
     effort: 'Effort',
     isolation: 'Isolation',
+    color: 'Color',
     mcpServers: 'MCP servers',
     hooks: 'Hooks',
   },
@@ -50,4 +51,8 @@ export const VENDOR_FRONTMATTER_TEXTS = {
     disableModelInvocation: 'Model invocation',
     userInvocable: 'User invocable',
   },
+  /** Tooltip on the warning icon next to a catch-all (non-provider) field. */
+  unknownFieldTooltip: 'Unknown field, not part of the documented frontmatter for this provider.',
+  /** Tooltip on a skill chip that does not resolve to a node in this scan. */
+  skillUnresolvedTooltip: 'Skill not found in this scan.',
 } as const;

@@ -83,7 +83,6 @@ Each selector targets the merged host directly (no descendant step). `::ng-deep`
 
 | File:line | Selector | PrimeNG component | Purpose |
 |---|---|---|---|
-| `ui/src/app/components/annotations-panel/annotations-panel.css:70` | `.chip--broken` | `<p-chip>` | Broken-ref chip styling (bg, muted color, line-through). |
 | `ui/src/app/components/annotations-panel/annotations-panel.css:86` | `.ann-panel__chip--author` | `<p-chip>` | Outlined author tag chip. |
 | `ui/src/app/components/annotations-panel/annotations-panel.css:92` | `.ann-panel__chip--user` | `<p-chip>` | Explicit filled user tag chip. |
 | `ui/src/app/components/annotations-panel/annotations-panel.css:104` | `.ann-panel__chip--author, .ann-panel__chip--user` | `<p-chip>` | Interactive base styles (cursor, transition) shared across both variants. |

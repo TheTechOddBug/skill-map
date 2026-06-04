@@ -8,7 +8,6 @@
  *   - `hasVendorFrontmatter`: gate for the vendor card chrome.
  *   - `hasPluginContributions`: gate for the plugin contributions section.
  *   - `hasViewContributions`: gate for the inspector body slots card.
- *   - `auditSummary`: collapsed audit section header inline string.
  *
  * Hoisted out of `inspector-view.ts` so the component stays focused on
  * mode handling + child-component wiring + bump dispatch. Mirrors the
@@ -18,9 +17,7 @@
 
 import { computed, type Signal } from '@angular/core';
 
-import type { INSPECTOR_VIEW_TEXTS } from '../../../i18n/inspector-view.texts';
 import type { INodeView, TNodeKind } from '../../../models/node';
-import { relativeTime } from '../../../models/node-derived';
 
 /**
  * Six inspector-body sub-slots the host mounts. Filtering the node's
@@ -52,7 +49,6 @@ const VENDOR_KINDS: ReadonlySet<TNodeKind> = new Set<TNodeKind>([
 
 export interface IInspectorDerivationsConfig {
   node: Signal<INodeView | null>;
-  texts: typeof INSPECTOR_VIEW_TEXTS;
 }
 
 export interface IInspectorDerivationsHandle {
@@ -60,13 +56,12 @@ export interface IInspectorDerivationsHandle {
   readonly hasVendorFrontmatter: Signal<boolean>;
   readonly hasPluginContributions: Signal<boolean>;
   readonly hasViewContributions: Signal<boolean>;
-  readonly auditSummary: Signal<string>;
 }
 
 export function setupInspectorDerivations(
   config: IInspectorDerivationsConfig,
 ): IInspectorDerivationsHandle {
-  const { node: nodeSignal, texts } = config;
+  const { node: nodeSignal } = config;
 
   const sidecarRoot = computed<Record<string, unknown> | null>(() => {
     const overlay = nodeSignal()?.sidecar;
@@ -101,27 +96,10 @@ export function setupInspectorDerivations(
     return false;
   });
 
-  const auditSummary = computed<string>(() => {
-    const root = sidecarRoot();
-    if (!root) return texts.audit.headerEmpty;
-    const audit = root['audit'];
-    if (typeof audit !== 'object' || audit === null) {
-      return texts.audit.headerEmpty;
-    }
-    const a = audit as Record<string, unknown>;
-    const lastBumpedAt =
-      typeof a['lastBumpedAt'] === 'string' ? (a['lastBumpedAt'] as string) : null;
-    const lastBumpedBy =
-      typeof a['lastBumpedBy'] === 'string' ? (a['lastBumpedBy'] as string) : null;
-    if (lastBumpedAt === null) return texts.audit.headerEmpty;
-    return texts.audit.headerSummary(relativeTime(lastBumpedAt), lastBumpedBy ?? '?');
-  });
-
   return {
     sidecarRoot,
     hasVendorFrontmatter,
     hasPluginContributions,
     hasViewContributions,
-    auditSummary,
   };
 }

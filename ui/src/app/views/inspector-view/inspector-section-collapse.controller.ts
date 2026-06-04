@@ -1,57 +1,78 @@
 /**
- * Section-collapse controller for the inspector view (catalog curation
- * 2026-05-07).
+ * Persisted, per-section collapse state for the inspector.
  *
- * Owns the three collapsed-by-default signals (`auditExpanded`,
- * `pluginsExpanded`, `debugVisible`) and the reset effect that snaps
- * them back to closed on every `path` change so the next node opens
- * with the locked default surface (audit + plugins collapsed, debug
- * hidden).
+ * Replaces the earlier reset-on-navigation model: every inspector
+ * section (Definition, Annotations, Connections, Findings, Audit,
+ * Plugins, View contributions, Debug, Body) can be collapsed/expanded,
+ * and the state is remembered in `localStorage` (global, not per-node)
+ * so it survives navigation between nodes and full reloads. Sections the
+ * user has never touched default to expanded.
  *
  * Mirrors the `inspector-bump-controller` / `inspector-body-state`
- * pattern: a `setupX` factory returns a typed handle the component
- * holds.
+ * pattern: a `setupX` factory returns a typed handle the component holds.
  */
 
-import { assertInInjectionContext, effect, signal, type Signal } from '@angular/core';
+import { assertInInjectionContext, effect, signal } from '@angular/core';
 
-export interface ISectionCollapseConfig {
-  path: Signal<string | undefined>;
-}
+export type TInspectorSectionId =
+  | 'definition'
+  | 'annotations'
+  | 'connections'
+  | 'findings'
+  | 'audit'
+  | 'plugins'
+  | 'viewContributions'
+  | 'debug'
+  | 'body';
+
+const STORAGE_KEY = 'skill-map.ui.inspector.sections';
 
 export interface ISectionCollapseHandle {
-  readonly auditExpanded: Signal<boolean>;
-  readonly pluginsExpanded: Signal<boolean>;
-  readonly debugVisible: Signal<boolean>;
-  toggleAudit(): void;
-  togglePlugins(): void;
-  toggleDebug(): void;
+  /** True when the section is expanded (the default for unseen sections). */
+  expanded(id: TInspectorSectionId): boolean;
+  /** Flip a section's expanded state and persist the new map. */
+  toggle(id: TInspectorSectionId): void;
 }
 
-export function setupSectionCollapse(
-  config: ISectionCollapseConfig,
-): ISectionCollapseHandle {
-  // Reset effect below subscribes to `path`, so the helper must run in
-  // an Angular injection context.
+export function setupSectionCollapse(): ISectionCollapseHandle {
+  // The persist effect below runs in the component's reactive context.
   assertInInjectionContext(setupSectionCollapse);
 
-  const auditExpanded = signal<boolean>(false);
-  const pluginsExpanded = signal<boolean>(false);
-  const debugVisible = signal<boolean>(false);
+  const state = signal<Record<string, boolean>>(loadState());
 
+  // Persist on every change. Runs once on init (writes the loaded state
+  // straight back, a harmless no-op) and again after every toggle.
   effect(() => {
-    config.path();
-    auditExpanded.set(false);
-    pluginsExpanded.set(false);
-    debugVisible.set(false);
+    saveState(state());
   });
 
   return {
-    auditExpanded: auditExpanded.asReadonly(),
-    pluginsExpanded: pluginsExpanded.asReadonly(),
-    debugVisible: debugVisible.asReadonly(),
-    toggleAudit: () => auditExpanded.update((v) => !v),
-    togglePlugins: () => pluginsExpanded.update((v) => !v),
-    toggleDebug: () => debugVisible.update((v) => !v),
+    expanded: (id) => state()[id] ?? true,
+    toggle: (id) => state.update((s) => ({ ...s, [id]: !(s[id] ?? true) })),
   };
+}
+
+function loadState(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const out: Record<string, boolean> = {};
+    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof value === 'boolean') out[key] = value;
+    }
+    return out;
+  } catch {
+    // Corrupt JSON or storage unavailable; fall back to all-expanded.
+    return {};
+  }
+}
+
+function saveState(state: Record<string, boolean>): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // Storage unavailable / over quota; collapse state is non-critical.
+  }
 }

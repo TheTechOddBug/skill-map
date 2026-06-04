@@ -45,13 +45,12 @@ describe('AnnotationsPanel, empty states', () => {
     const dom = bootstrap({
       present: true,
       status: 'fresh',
-      annotations: { version: 1 },
+      annotations: { authors: ['crystian'] },
     });
-    // Lifecycle has version, so it renders.
-    expect(dom.querySelector('[data-testid="annotations-section-lifecycle"]')).not.toBeNull();
+    // Provenance has an author, so it renders.
+    expect(dom.querySelector('[data-testid="annotations-section-provenance"]')).not.toBeNull();
     // Other sections collapse.
     expect(dom.querySelector('[data-testid="annotations-section-supersession"]')).toBeNull();
-    expect(dom.querySelector('[data-testid="annotations-section-provenance"]')).toBeNull();
     expect(dom.querySelector('[data-testid="annotations-section-taxonomy"]')).toBeNull();
     expect(dom.querySelector('[data-testid="annotations-section-docs"]')).toBeNull();
   });
@@ -60,34 +59,30 @@ describe('AnnotationsPanel, empty states', () => {
     const dom = bootstrap({
       present: true,
       status: 'fresh',
-      annotations: { version: 1, stability: 'stable' },
+      annotations: { authors: ['crystian'] },
     });
     expect(dom.querySelector('[data-testid="annotations-section-display"]')).toBeNull();
+  });
+
+  it('does NOT render a Lifecycle section (version + stability live in the header)', () => {
+    const dom = bootstrap({
+      present: true,
+      status: 'fresh',
+      annotations: { version: 7, stability: 'stable' },
+    });
+    expect(dom.querySelector('[data-testid="annotations-section-lifecycle"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="annotations-version"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="annotations-stability"]')).toBeNull();
+    // version / stability are the only annotations and neither renders now,
+    // so the panel falls back to its empty-annotations state.
+    expect(
+      dom.querySelector('[data-testid="annotations-panel-empty-annotations"]'),
+    ).not.toBeNull();
   });
 });
 
 describe('AnnotationsPanel, section rendering', () => {
-  it('renders the version field as integer', () => {
-    const dom = bootstrap({
-      present: true,
-      status: 'fresh',
-      annotations: { version: 7 },
-    });
-    const v = dom.querySelector('[data-testid="annotations-version"]');
-    expect(v).not.toBeNull();
-    expect(v!.textContent).toContain('7');
-  });
-
-  it('renders a stability tag', () => {
-    const dom = bootstrap({
-      present: true,
-      status: 'fresh',
-      annotations: { stability: 'stable' },
-    });
-    expect(dom.querySelector('[data-testid="annotations-stability"]')).not.toBeNull();
-  });
-
-  it('renders supersedes + supersededBy as clickable chips', () => {
+  it('renders supersedes + supersededBy as node links', () => {
     const dom = bootstrap({
       present: true,
       status: 'fresh',
@@ -96,9 +91,10 @@ describe('AnnotationsPanel, section rendering', () => {
         supersededBy: 'new/agent.md',
       },
     });
-    expect(dom.querySelector('[data-testid="annotations-section-supersession"]')).not.toBeNull();
-    const chips = dom.querySelectorAll('p-chip');
-    expect(chips.length).toBeGreaterThanOrEqual(3);
+    const sec = dom.querySelector('[data-testid="annotations-section-supersession"]');
+    expect(sec).not.toBeNull();
+    // 2 supersedes + 1 supersededBy, all rendered as node links.
+    expect(sec!.querySelectorAll('.sm-node-link').length).toBe(3);
   });
 
   it('renders source as an external link with rel=noopener', () => {
@@ -107,7 +103,7 @@ describe('AnnotationsPanel, section rendering', () => {
       status: 'fresh',
       annotations: { source: 'https://example.com/agent.md' },
     });
-    const a = dom.querySelector('[data-testid="annotations-section-provenance"] a') as HTMLAnchorElement;
+    const a = dom.querySelector('[data-testid="annotations-section-repository"] a') as HTMLAnchorElement;
     expect(a).not.toBeNull();
     expect(a.target).toBe('_blank');
     expect(a.rel).toContain('noopener');
@@ -175,7 +171,7 @@ describe('AnnotationsPanel, section rendering', () => {
 });
 
 describe('AnnotationsPanel, broken-ref chips (Step 9.6 catalog curation)', () => {
-  it('renders supersededBy as a broken chip when path is not in knownPaths', () => {
+  it('renders supersededBy dimmed (no link) when path is not in knownPaths', () => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({});
     const fixture = TestBed.createComponent(AnnotationsPanel);
@@ -186,16 +182,15 @@ describe('AnnotationsPanel, broken-ref chips (Step 9.6 catalog curation)', () =>
     } as ISidecarOverlay);
     fixture.componentRef.setInput('knownPaths', new Set<string>());
     fixture.detectChanges();
-    const chip = fixture.nativeElement.querySelector(
-      '[data-testid="annotations-section-supersession"] p-chip',
+    const sec = fixture.nativeElement.querySelector(
+      '[data-testid="annotations-section-supersession"]',
     ) as HTMLElement;
-    expect(chip).not.toBeNull();
-    // The styleClass binding produces a `chip--broken` class on the
-    // host element via PrimeNG's host binding.
-    expect(chip.className).toContain('chip--broken');
+    // Broken → dimmed node link, not the clickable `--known` variant.
+    expect(sec.querySelector('.sm-node-link')).not.toBeNull();
+    expect(sec.querySelector('.sm-node-link--known')).toBeNull();
   });
 
-  it('does NOT emit openPath for a broken-ref chip click', () => {
+  it('does NOT emit openPath when a broken supersedes ref is clicked', () => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({});
     const fixture = TestBed.createComponent(AnnotationsPanel);
@@ -208,10 +203,10 @@ describe('AnnotationsPanel, broken-ref chips (Step 9.6 catalog curation)', () =>
     fixture.detectChanges();
     const emissions: string[] = [];
     fixture.componentInstance.openPath.subscribe((p: string) => emissions.push(p));
-    const chip = fixture.nativeElement.querySelector(
-      '[data-testid="annotations-section-supersession"] p-chip',
+    const link = fixture.nativeElement.querySelector(
+      '[data-testid="annotations-section-supersession"] .sm-node-link',
     ) as HTMLElement;
-    chip.click();
+    link.click();
     expect(emissions).toEqual([]);
   });
 });
@@ -230,11 +225,11 @@ describe('AnnotationsPanel, openPath emission', () => {
     fixture.detectChanges();
     const emissions: string[] = [];
     fixture.componentInstance.openPath.subscribe((p: string) => emissions.push(p));
-    const chip = fixture.nativeElement.querySelector(
-      '[data-testid="annotations-section-supersession"] p-chip',
+    const link = fixture.nativeElement.querySelector(
+      '[data-testid="annotations-section-supersession"] .sm-node-link--known',
     ) as HTMLElement;
-    expect(chip).not.toBeNull();
-    chip.click();
+    expect(link).not.toBeNull();
+    link.click();
     expect(emissions).toEqual(['old/agent.md']);
   });
 
@@ -250,10 +245,10 @@ describe('AnnotationsPanel, openPath emission', () => {
     fixture.detectChanges();
     const emissions: string[] = [];
     fixture.componentInstance.openPath.subscribe((p: string) => emissions.push(p));
-    const chip = fixture.nativeElement.querySelector(
-      '[data-testid="annotations-section-supersession"] p-chip',
+    const link = fixture.nativeElement.querySelector(
+      '[data-testid="annotations-section-supersession"] .sm-node-link--known',
     ) as HTMLElement;
-    chip.click();
+    link.click();
     expect(emissions).toEqual(['old/agent.md']);
   });
 });
@@ -267,7 +262,7 @@ describe('AnnotationsPanel, openPath emission', () => {
 // custom schemes a stale sidecar might smuggle in.
 describe('AnnotationsPanel, audit L1, URL scheme allowlist', () => {
   function sourceHref(dom: HTMLElement): string | null {
-    const section = dom.querySelector('[data-testid="annotations-section-provenance"]');
+    const section = dom.querySelector('[data-testid="annotations-section-repository"]');
     if (!section) return null;
     const anchor = section.querySelector('a[target="_blank"]');
     return anchor?.getAttribute('href') ?? null;
@@ -335,7 +330,7 @@ describe('AnnotationsPanel, audit L1, URL scheme allowlist', () => {
       annotations: { source: 'https://example.com/x' },
     });
     const anchor = dom
-      .querySelector('[data-testid="annotations-section-provenance"]')
+      .querySelector('[data-testid="annotations-section-repository"]')
       ?.querySelector('a[target="_blank"]') as HTMLAnchorElement | null;
     expect(anchor?.getAttribute('rel')).toBe('noopener noreferrer');
   });

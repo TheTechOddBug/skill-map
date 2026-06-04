@@ -1,23 +1,21 @@
 /**
  * UI strings for `<sm-annotations-panel>`. The panel renders the
- * curated 10-field annotation catalog the orchestrator + user locked
+ * curated annotation catalog the orchestrator + user locked
  * block-by-block. Sub-section order matches the inspector tiering
- * decision: Lifecycle → Supersession → Provenance → Taxonomy → Docs.
+ * decision: Taxonomy → Supersession → Repository → Authors → Docs.
  */
 export const ANNOTATIONS_PANEL_TEXTS = {
   cardHeader: 'Annotations',
   emptyOverlay: 'No sidecar (.sm) file present for this node.',
   emptyAnnotations: 'Sidecar present but no annotations are declared yet.',
   sections: {
-    lifecycle: 'Lifecycle',
     supersession: 'Supersession',
-    provenance: 'Provenance',
+    provenance: 'Authors',
+    repository: 'Repository',
     taxonomy: 'Taxonomy',
     docs: 'Docs',
   },
   fields: {
-    version: 'Version',
-    stability: 'Stability',
     supersedes: 'Supersedes',
     supersededBy: 'Superseded by',
     authors: 'Authors',

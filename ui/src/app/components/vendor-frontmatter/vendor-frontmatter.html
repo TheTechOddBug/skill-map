@@ -9,11 +9,25 @@
       presentation choice, not vendor JSON structure (the frontmatter is
       flat), so it collapses cleanly into one rail.
     -->
-    <section class="sm-block" data-testid="vendor-frontmatter-definition">
-      <h3 class="sm-block__title">{{ texts.sections.definition }}</h3>
-
+    <section class="sm-block sm-block--collapsible" data-testid="vendor-frontmatter-definition">
+      <button
+        type="button"
+        class="sm-block__row sm-block__row--toggle"
+        (click)="toggle.emit()"
+        [attr.aria-expanded]="expanded()"
+        data-testid="vendor-frontmatter-toggle"
+      >
+        <span class="sm-block__title">{{ texts.sections.definition }}</span>
+        <i
+          class="pi sm-block__chevron"
+          [class.pi-chevron-right]="!expanded()"
+          [class.pi-chevron-down]="expanded()"
+          aria-hidden="true"
+        ></i>
+      </button>
+      @if (expanded()) {
       @if (isAgent()) {
-        @if (hasBehavior() || hasCapabilities()) {
+        @if (hasBehavior() || hasCapabilities() || extraFields().length) {
           <dl class="sm-block__kv">
             @if (model(); as m) {
               <dt>{{ texts.fields.model }}</dt>
@@ -21,27 +35,7 @@
             }
             @if (effort(); as ef) {
               <dt>{{ texts.fields.effort }}</dt>
-              <dd>{{ ef }}</dd>
-            }
-            @if (permissionMode(); as pm) {
-              <dt>{{ texts.fields.permissionMode }}</dt>
-              <dd><code>{{ pm }}</code></dd>
-            }
-            @if (maxTurns() !== null) {
-              <dt>{{ texts.fields.maxTurns }}</dt>
-              <dd>{{ maxTurns() }}</dd>
-            }
-            @if (memory(); as me) {
-              <dt>{{ texts.fields.memory }}</dt>
-              <dd><code>{{ me }}</code></dd>
-            }
-            @if (background()) {
-              <dt>{{ texts.fields.background }}</dt>
-              <dd><code>true</code></dd>
-            }
-            @if (isolation(); as iso) {
-              <dt>{{ texts.fields.isolation }}</dt>
-              <dd><code>{{ iso }}</code></dd>
+              <dd><code>{{ ef }}</code></dd>
             }
             @if (tools().length) {
               <dt>{{ texts.fields.tools }}</dt>
@@ -51,6 +45,37 @@
                 }
               </dd>
             }
+            @if (color(); as c) {
+              <dt>{{ texts.fields.color }}</dt>
+              <dd class="vfm__color">
+                <span class="vfm__swatch" [style.background]="c" aria-hidden="true"></span>
+                <code>{{ c }}</code>
+              </dd>
+            }
+            @if (skills().length) {
+              <dt>{{ texts.fields.skills }}</dt>
+              <dd class="vfm__inline">
+                @for (s of skills(); track s; let last = $last) {
+                  @if (skillPath(s); as sp) {
+                    <a
+                      class="sm-node-link sm-node-link--known"
+                      (click)="openSkill(sp)"
+                      role="button"
+                      tabindex="0"
+                      (keydown.enter)="openSkill(sp)"
+                    >
+                      <i class="pi pi-arrow-up-right" aria-hidden="true"></i> {{ s }}
+                    </a>
+                  } @else {
+                    <span class="sm-node-link" [pTooltip]="texts.skillUnresolvedTooltip">{{ s }}</span>
+                  }@if (!last) { <span class="vfm__sep" aria-hidden="true">·</span> }
+                }
+              </dd>
+            }
+            @if (permissionMode(); as pm) {
+              <dt>{{ texts.fields.permissionMode }}</dt>
+              <dd><code>{{ pm }}</code></dd>
+            }
             @if (disallowedTools().length) {
               <dt>{{ texts.fields.disallowedTools }}</dt>
               <dd class="vfm__inline">
@@ -59,22 +84,21 @@
                 }
               </dd>
             }
-            @if (skills().length) {
-              <dt>{{ texts.fields.skills }}</dt>
-              <dd class="vfm__inline">
-                @for (s of skills(); track s; let last = $last) {
-                  <a
-                    class="vfm__link"
-                    [class.vfm__link--known]="isSkillKnown(s)"
-                    (click)="onSkillChipClick(s)"
-                    role="button"
-                    tabindex="0"
-                    (keydown.enter)="onSkillChipClick(s)"
-                  >
-                    <i class="pi pi-arrow-up-right" aria-hidden="true"></i> {{ s }}
-                  </a>@if (!last) { <span class="vfm__sep" aria-hidden="true">·</span> }
-                }
-              </dd>
+            @if (maxTurns() !== null) {
+              <dt>{{ texts.fields.maxTurns }}</dt>
+              <dd><code>{{ maxTurns() }}</code></dd>
+            }
+            @if (memory(); as me) {
+              <dt>{{ texts.fields.memory }}</dt>
+              <dd><code>{{ me }}</code></dd>
+            }
+            @if (background() !== null) {
+              <dt>{{ texts.fields.background }}</dt>
+              <dd><code>{{ background() }}</code></dd>
+            }
+            @if (isolation(); as iso) {
+              <dt>{{ texts.fields.isolation }}</dt>
+              <dd><code>{{ iso }}</code></dd>
             }
             @if (mcpServers().length) {
               <dt>{{ texts.fields.mcpServers }}</dt>
@@ -94,12 +118,32 @@
                 }
               </dd>
             }
+            @for (f of extraFields(); track f.key) {
+              <dt>{{ f.key }}</dt>
+              <dd class="vfm__unknown-dd">
+                <i
+                  class="pi pi-exclamation-circle vfm__unknown"
+                  [pTooltip]="texts.unknownFieldTooltip"
+                  [attr.aria-label]="texts.unknownFieldTooltip"
+                  role="img"
+                ></i>
+                <code>{{ f.value }}</code>
+              </dd>
+            }
           </dl>
         }
       } @else if (isSkillOrCommand()) {
-        @if (hasCapabilities()) {
+        @if (hasCapabilities() || extraFields().length) {
           @let sb = skillBase();
           <dl class="sm-block__kv" data-testid="vendor-frontmatter-skill-base">
+            @if (sb.model !== null) {
+              <dt>{{ texts.skillBaseFields.model }}</dt>
+              <dd><code>{{ sb.model }}</code></dd>
+            }
+            @if (sb.effort !== null) {
+              <dt>{{ texts.skillBaseFields.effort }}</dt>
+              <dd><code>{{ sb.effort }}</code></dd>
+            }
             @if (sb.when_to_use !== null) {
               <dt>{{ texts.skillBaseFields.whenToUse }}</dt>
               <dd>{{ sb.when_to_use }}</dd>
@@ -132,14 +176,6 @@
                 }
               </dd>
             }
-            @if (sb.model !== null) {
-              <dt>{{ texts.skillBaseFields.model }}</dt>
-              <dd><code>{{ sb.model }}</code></dd>
-            }
-            @if (sb.effort !== null) {
-              <dt>{{ texts.skillBaseFields.effort }}</dt>
-              <dd>{{ sb.effort }}</dd>
-            }
             @if (sb.context !== null) {
               <dt>{{ texts.skillBaseFields.context }}</dt>
               <dd><code>{{ sb.context }}</code></dd>
@@ -168,13 +204,35 @@
               <dt>{{ texts.skillBaseFields.userInvocable }}</dt>
               <dd><code>{{ sb.userInvocable }}</code></dd>
             }
+            @for (f of extraFields(); track f.key) {
+              <dt>{{ f.key }}</dt>
+              <dd class="vfm__unknown-dd">
+                <i
+                  class="pi pi-exclamation-circle vfm__unknown"
+                  [pTooltip]="texts.unknownFieldTooltip"
+                  [attr.aria-label]="texts.unknownFieldTooltip"
+                  role="img"
+                ></i>
+                <code>{{ f.value }}</code>
+              </dd>
+            }
           </dl>
         }
       }
 
       @if (hasInitialPrompt()) {
         <p class="sm-block__sub">{{ texts.sections.initialPrompt }}</p>
-        <blockquote class="vfm__quote" data-testid="vendor-frontmatter-initial-prompt-quote">{{ initialPrompt() }}</blockquote>
+        <!--
+          `[innerHTML]` is the SafeHtml output of MarkdownRenderer.render()
+          (markdown-it html:false + DOMPurify) over project-controlled
+          frontmatter, same trust + sanitisation path as the body card.
+        -->
+        <blockquote
+          class="vfm__quote"
+          data-testid="vendor-frontmatter-initial-prompt-quote"
+          [innerHTML]="initialPromptHtml()"
+        ></blockquote>
+      }
       }
     </section>
 

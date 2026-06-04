@@ -3,10 +3,10 @@
  * (`.sm`) `annotations:` block. Mirrors the sub-section grouping
  * declared in `spec/schemas/annotations.schema.json`:
  *
- *   - Lifecycle: `version`, `stability`
- *   - Supersession: `supersedes`, `supersededBy`
- *   - Provenance: `authors[]`, `license`, `source`, `sourceVersion`
  *   - Taxonomy: `tags`
+ *   - Supersession: `supersedes`, `supersededBy`
+ *   - Repository: `source` (upstream URL), `sourceVersion`
+ *   - Authors: `authors[]`, `license`
  *   - Docs: `docsUrl`
  *
  * Each sub-section hides cleanly when its data is empty / absent.
@@ -38,18 +38,11 @@ import {
   output,
 } from '@angular/core';
 import { ChipModule } from 'primeng/chip';
-import { TagModule } from 'primeng/tag';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { ANNOTATIONS_PANEL_TEXTS } from '../../../i18n/annotations-panel.texts';
-import type { ISidecarOverlay, TStability } from '../../../models/node';
+import type { ISidecarOverlay } from '../../../models/node';
 import { httpUrlOrNull } from '../../../services/url-guard';
-import { STABILITY_SEVERITY } from '../severity-map';
-
-interface ILifecycleSection {
-  version: number | null;
-  stability: TStability | null;
-}
 
 interface ISupersessionSection {
   supersedes: readonly string[];
@@ -59,6 +52,9 @@ interface ISupersessionSection {
 interface IProvenanceSection {
   authors: readonly string[];
   license: string | null;
+}
+
+interface IRepositorySection {
   source: string | null;
   sourceVersion: string | null;
 }
@@ -74,7 +70,7 @@ interface IDocsSection {
 
 @Component({
   selector: 'sm-annotations-panel',
-  imports: [ChipModule, TagModule, TooltipModule],
+  imports: [ChipModule, TooltipModule],
   templateUrl: './annotations-panel.html',
   styleUrl: './annotations-panel.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -140,22 +136,11 @@ export class AnnotationsPanel {
    */
   protected readonly hasAnyContent = computed<boolean>(
     () =>
-      this.hasLifecycle() ||
       this.hasSupersession() ||
       this.hasProvenance() ||
+      this.hasRepository() ||
       this.hasTaxonomy() ||
       this.hasDocs(),
-  );
-
-  protected readonly lifecycle = computed<ILifecycleSection>(() => {
-    const a = this.annotations() ?? {};
-    return {
-      version: numberOrNull(a['version']),
-      stability: stabilityOrNull(a['stability']),
-    };
-  });
-  protected readonly hasLifecycle = computed<boolean>(() =>
-    sectionHasContent(this.lifecycle() as unknown as Record<string, unknown>),
   );
 
   protected readonly supersession = computed<ISupersessionSection>(() => {
@@ -174,12 +159,21 @@ export class AnnotationsPanel {
     return {
       authors: stringArray(a['authors']),
       license: stringOrNull(a['license']),
-      source: httpUrlOrNull(a['source']),
-      sourceVersion: stringOrNull(a['sourceVersion']),
     };
   });
   protected readonly hasProvenance = computed<boolean>(() =>
     sectionHasContent(this.provenance() as unknown as Record<string, unknown>),
+  );
+
+  protected readonly repository = computed<IRepositorySection>(() => {
+    const a = this.annotations() ?? {};
+    return {
+      source: httpUrlOrNull(a['source']),
+      sourceVersion: stringOrNull(a['sourceVersion']),
+    };
+  });
+  protected readonly hasRepository = computed<boolean>(() =>
+    sectionHasContent(this.repository() as unknown as Record<string, unknown>),
   );
 
   protected readonly taxonomy = computed<ITaxonomySection>(() => {
@@ -201,10 +195,6 @@ export class AnnotationsPanel {
     sectionHasContent(this.docs() as unknown as Record<string, unknown>),
   );
 
-  protected stabilitySeverity(s: TStability): 'success' | 'info' | 'warn' {
-    return STABILITY_SEVERITY[s];
-  }
-
   /** Heuristic: true when the path is NOT in the local node store. */
   protected isBroken(path: string): boolean {
     const known = this.knownPaths();
@@ -218,17 +208,8 @@ export class AnnotationsPanel {
   }
 }
 
-function numberOrNull(v: unknown): number | null {
-  return typeof v === 'number' && Number.isFinite(v) ? v : null;
-}
-
 function stringOrNull(v: unknown): string | null {
   return typeof v === 'string' && v.length > 0 ? v : null;
-}
-
-function stabilityOrNull(v: unknown): TStability | null {
-  if (v === 'stable' || v === 'experimental' || v === 'deprecated') return v;
-  return null;
 }
 
 function stringArray(v: unknown): string[] {

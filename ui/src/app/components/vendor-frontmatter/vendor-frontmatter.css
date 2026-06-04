@@ -59,29 +59,6 @@
   font-size: 0.7rem;
 }
 
-.vfm__link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  color: var(--p-text-muted-color);
-  cursor: default;
-  text-decoration: none;
-  font-size: 0.83rem;
-}
-
-.vfm__link .pi {
-  font-size: 0.7rem;
-}
-
-.vfm__link--known {
-  color: var(--p-primary-color);
-  cursor: pointer;
-}
-
-.vfm__link--known:hover {
-  text-decoration: underline;
-}
-
 .vfm__hook {
   display: inline-flex;
   align-items: center;
@@ -96,15 +73,70 @@
   font-family: var(--sm-font-mono);
 }
 
+/* Catch-all (non-provider) field value: a muted warning glyph leads the
+   value (centered with it), tooltip explains it is not a documented
+   provider field. Muted on purpose so it informs without shouting. */
+.vfm__unknown-dd {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.vfm__unknown {
+  font-size: 0.72rem;
+  color: var(--p-text-muted-color);
+  cursor: help;
+  line-height: 1;
+}
+
+/* Color field: a small round swatch (filled with the literal vendor
+   colour name, which is a valid CSS named colour) next to the value. */
+.vfm__color {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.vfm__swatch {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  flex: none;
+  border: 1px solid var(--sm-border);
+}
+
 .vfm__quote {
   margin: 0;
   padding: 0.7rem 0.95rem;
   border-left: 2px solid var(--sm-border);
   background: var(--sm-bg-hover);
   color: var(--p-text-color);
-  font-style: italic;
   font-size: 0.9rem;
   line-height: 1.55;
   border-radius: 0 var(--sm-radius-sm) var(--sm-radius-sm) 0;
-  white-space: pre-wrap;
+}
+
+/* Rendered markdown inside the prompt quote is injected via [innerHTML]
+   so it sits outside view encapsulation (::ng-deep). Reset the outer
+   margins so the blockquote padding owns the spacing, and give code
+   spans / links the panel's affordances. */
+:host ::ng-deep .vfm__quote > :first-child {
+  margin-top: 0;
+}
+
+:host ::ng-deep .vfm__quote > :last-child {
+  margin-bottom: 0;
+}
+
+:host ::ng-deep .vfm__quote code {
+  background: var(--sm-bg-content);
+  padding: 0.05rem 0.4rem;
+  border-radius: var(--sm-radius-sm);
+  font-size: 0.82rem;
+  font-family: var(--sm-font-mono);
+}
+
+:host ::ng-deep .vfm__quote a {
+  color: var(--p-primary-color);
+  text-decoration: underline;
 }

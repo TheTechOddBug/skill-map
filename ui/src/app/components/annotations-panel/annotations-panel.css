@@ -64,27 +64,6 @@
   gap: 0.3rem;
 }
 
-/* Broken-ref chip, path is not resolvable in the local store. PrimeNG 21
-   merges [styleClass] onto `.p-chip` so the variant class lands on the
-   host. */
-:host ::ng-deep .chip--broken {
-  background: var(--sm-bg-hover);
-  color: var(--sm-text-muted);
-  text-decoration: line-through;
-  cursor: not-allowed;
-}
-
-:host ::ng-deep .chip--link {
-  cursor: pointer;
-  background: var(--p-primary-50);
-  color: var(--p-primary-color);
-  transition: background 0.15s ease;
-}
-
-:host ::ng-deep .chip--link:hover {
-  background: var(--p-primary-100);
-}
-
 /* Tag chips · single-source (sidecar `annotations.tags`), filled.
    Click → host emits `tagClick`; graph view multi-selects matching
    nodes via Foblex's `flow.select(matchingPaths, [])` (toggle: same

@@ -34,12 +34,6 @@ export interface IBodyStateHandle {
   readonly bodyState: Signal<TBodyState>;
   /** Sanitized HTML for the `ready` state. `null` otherwise. */
   readonly bodyHtml: Signal<SafeHtml | null>;
-  /**
-   * Manual re-fetch, wired to the body card's refresh button. No-op
-   * during `loading` so a double-click can't kick off two in-flight
-   * fetches against the same token.
-   */
-  refresh: () => void;
 }
 
 /**
@@ -98,19 +92,8 @@ export function setupBodyState(config: IBodyStateConfig): IBodyStateHandle {
     void fetchAndRender(path, myToken);
   });
 
-  const refresh = (): void => {
-    const path = pathSignal();
-    if (!path) return;
-    if (bodyState() === 'loading') return;
-    const myToken = ++fetchToken;
-    bodyHtml.set(null);
-    bodyState.set('loading');
-    void fetchAndRender(path, myToken);
-  };
-
   return {
     bodyState: bodyState.asReadonly(),
     bodyHtml: bodyHtml.asReadonly(),
-    refresh,
   };
 }

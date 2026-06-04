@@ -45,6 +45,7 @@ import {
 import {
   setupSectionCollapse,
   type ISectionCollapseHandle,
+  type TInspectorSectionId,
 } from './inspector-section-collapse.controller';
 import {
   setupInspectorDerivations,
@@ -129,10 +130,40 @@ export class InspectorView implements OnInit {
     return set;
   });
 
+  /**
+   * Skill identifier -> node path map for the current scan. An agent's
+   * `skills: [...]` lists skills by identifier (the skill node's
+   * `frontmatter.name`); the vendor frontmatter uses this to turn a
+   * resolvable identifier into a link to the skill node. Built locally
+   * from the loaded nodes, nothing is persisted.
+   */
+  protected readonly skillPathByName = computed<ReadonlyMap<string, string>>(() => {
+    const map = new Map<string, string>();
+    for (const n of this.loader.nodes()) {
+      if (n.kind !== 'skill') continue;
+      const name = n.frontmatter?.name;
+      if (typeof name === 'string' && name.length > 0) map.set(name, n.path);
+    }
+    return map;
+  });
+
   /** Banner: yellow strip when annotations.supersededBy is set. */
   protected readonly headerSupersededBy = computed<string | null>(() =>
     effectiveSupersededBy(this.node()),
   );
+
+  /**
+   * Co-located `.sm` sidecar file name for the active node (the `.md`
+   * basename with the `.sm` extension, no directory). Surfaced in the
+   * Annotations section so the user sees which file the annotations live
+   * in.
+   */
+  protected readonly sidecarFileName = computed<string | null>(() => {
+    const p = this.node()?.path;
+    if (!p) return null;
+    const file = p.split('/').pop() ?? p;
+    return file.replace(/\.md$/, '.sm');
+  });
 
   /**
    * Body card state machine, owned by `setupBodyState` helper. Field
@@ -164,39 +195,43 @@ export class InspectorView implements OnInit {
     dataSource: this.dataSource,
   });
 
-  // Catalog curation 2026-05-07: collapsed-by-default sections.
-  // Reset-on-navigation logic lives inside the controller so the
-  // policy is in one place.
-  private readonly sectionCollapse: ISectionCollapseHandle = setupSectionCollapse({
-    path: this.path,
-  });
-  protected readonly auditExpanded = this.sectionCollapse.auditExpanded;
-  protected readonly pluginsExpanded = this.sectionCollapse.pluginsExpanded;
-  protected readonly debugVisible = this.sectionCollapse.debugVisible;
+  // Per-section collapse state, persisted to localStorage (global, not
+  // per-node) so it survives navigation + reload. All sections default
+  // to expanded. Template binds through `expanded()` / `toggleSection()`.
+  private readonly sectionCollapse: ISectionCollapseHandle = setupSectionCollapse();
+  protected expanded(id: TInspectorSectionId): boolean {
+    return this.sectionCollapse.expanded(id);
+  }
+  protected toggleSection(id: TInspectorSectionId): void {
+    this.sectionCollapse.toggle(id);
+  }
 
   // Per-node section visibility / audit summary derivations.
   private readonly derivations: IInspectorDerivationsHandle = setupInspectorDerivations({
     node: this.node,
-    texts: this.texts,
   });
   protected readonly sidecarRoot = this.derivations.sidecarRoot;
   protected readonly hasVendorFrontmatter = this.derivations.hasVendorFrontmatter;
   protected readonly hasPluginContributions = this.derivations.hasPluginContributions;
   protected readonly hasViewContributions = this.derivations.hasViewContributions;
-  protected readonly auditSummary = this.derivations.auditSummary;
 
   /**
    * Per-node issues for the findings card. Lazily fetched via
    * `listIssues({ node })` so the inspector can show the actual
    * messages + fix hints emitted by analyzers like `broken-ref`.
-   * Reset to `[]` whenever the path changes; populated from the BFF
-   * response. No spinner / error UI yet, the user asked for basic.
+   * Populated from the BFF response. No spinner / error UI yet, the
+   * user asked for basic.
    */
   protected readonly issues = signal<IIssueApi[]>([]);
   private readonly issuesLoaderEffect = effect((onCleanup) => {
-    const path = this.path();
+    // Track `node()` (not just `path()`) so this re-runs both on
+    // navigation AND whenever the persisted scan reloads (the loader
+    // re-runs `load()` on every `scan.completed`). That keeps the
+    // Findings card in sync after the user edits + re-scans the file.
+    const node = this.node();
     this.issues.set([]);
-    if (!path) return;
+    if (!node) return;
+    const path = node.path;
     let cancelled = false;
     onCleanup(() => {
       cancelled = true;
@@ -256,10 +291,6 @@ export class InspectorView implements OnInit {
     return this.deadLink.verifyDeadLink(path);
   }
 
-  protected refreshBody(): void {
-    this.bodyHandle.refresh();
-  }
-
   /**
    * Forwarded from `<sm-inspector-header (favoriteToggle)>`. The header
    * emits the path so we don't have to re-resolve `node()` here. The
@@ -270,16 +301,6 @@ export class InspectorView implements OnInit {
     const n = this.node();
     if (!n || n.path !== path) return;
     void this.loader.toggleFavorite(path, !n.isFavorite);
-  }
-
-  protected toggleAudit(): void {
-    this.sectionCollapse.toggleAudit();
-  }
-  protected togglePlugins(): void {
-    this.sectionCollapse.togglePlugins();
-  }
-  protected toggleDebug(): void {
-    this.sectionCollapse.toggleDebug();
   }
 
   // Step 9.6.5 bump button. State + handler + consent retry live in

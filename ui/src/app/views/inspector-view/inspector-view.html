@@ -76,19 +76,56 @@
         (onClick)="onBumpClick()"
         data-testid="inspector-bump"
       />
-      <p-button
-        icon="pi pi-refresh"
-        [text]="true"
-        severity="secondary"
-        size="small"
-        [ariaLabel]="texts.body.refreshLabel"
-        [pTooltip]="texts.body.refreshLabel"
-        (onClick)="refreshBody()"
-        [disabled]="bodyState() === 'loading' || !path()"
-        [loading]="bodyState() === 'loading'"
-        data-testid="inspector-body-refresh"
-      />
     </div>
+
+    @if (issues().length > 0) {
+      <section class="sm-block sm-block--collapsible" data-testid="inspector-findings">
+        <button
+          type="button"
+          class="sm-block__row sm-block__row--toggle"
+          (click)="toggleSection('findings')"
+          [attr.aria-expanded]="expanded('findings')"
+          data-testid="inspector-findings-toggle"
+        >
+          <span class="sm-block__title">
+            {{ texts.sections.findings }}
+            <span class="sm-block__count">({{ issues().length }})</span>
+          </span>
+          <i
+            class="pi sm-block__chevron"
+            [class.pi-chevron-right]="!expanded('findings')"
+            [class.pi-chevron-down]="expanded('findings')"
+            aria-hidden="true"
+          ></i>
+        </button>
+        @if (expanded('findings')) {
+          <ul class="inspector__findings-list">
+            @for (issue of issues(); track $index) {
+              <li
+                class="inspector__finding"
+                [attr.data-severity]="issue.severity"
+                data-testid="inspector-finding"
+              >
+                <div class="inspector__finding-head">
+                  <span
+                    class="inspector__finding-severity"
+                    [attr.data-severity]="issue.severity"
+                    >{{ issue.severity }}</span
+                  >
+                  <code class="inspector__finding-analyzer">{{ issue.analyzerId }}</code>
+                </div>
+                <p class="inspector__finding-message">{{ issue.message }}</p>
+                @if (issue.fix?.summary; as fixSummary) {
+                  <p class="inspector__finding-hint" data-testid="inspector-finding-hint">
+                    <strong>{{ texts.findingHintLabel }}</strong> {{ fixSummary }}
+                  </p>
+                }
+              </li>
+            }
+          </ul>
+        }
+      </section>
+    }
 
     @if (hasVendorFrontmatter()) {
       <div class="inspector__vendor" data-testid="inspector-card-vendor-frontmatter">
@@ -96,82 +133,109 @@
           [frontmatter]="fm"
           [kind]="n.kind"
           [provider]="n.provider"
-          [knownPaths]="pathSet()"
+          [skillPathByName]="skillPathByName()"
           [onSkillClick]="onSkillChip"
+          [expanded]="expanded('definition')"
+          (toggle)="toggleSection('definition')"
         />
       </div>
     }
 
     @if (n.sidecar?.present) {
-      <section class="sm-block" data-testid="inspector-card-annotations">
-        <h3 class="sm-block__title">{{ texts.sections.annotations }}</h3>
-        <sm-annotations-panel
-          [overlay]="n.sidecar"
-          [knownPaths]="pathSet()"
-          [activeTag]="activeTag()"
-          (openPath)="openPath($event)"
-          (tagClick)="tagSelect.emit($event)"
-        />
+      <section class="sm-block sm-block--collapsible" data-testid="inspector-card-annotations">
+        <button
+          type="button"
+          class="sm-block__row sm-block__row--toggle"
+          (click)="toggleSection('annotations')"
+          [attr.aria-expanded]="expanded('annotations')"
+          data-testid="inspector-annotations-toggle"
+        >
+          <span class="sm-block__title">
+            {{ texts.sections.annotations }}
+            @if (sidecarFileName(); as sf) {
+              <code class="inspector__sidecar-file" data-testid="inspector-sidecar-file">({{ sf }})</code>
+            }
+          </span>
+          <i
+            class="pi sm-block__chevron"
+            [class.pi-chevron-right]="!expanded('annotations')"
+            [class.pi-chevron-down]="expanded('annotations')"
+            aria-hidden="true"
+          ></i>
+        </button>
+        @if (expanded('annotations')) {
+          <sm-annotations-panel
+            [overlay]="n.sidecar"
+            [knownPaths]="pathSet()"
+            [activeTag]="activeTag()"
+            (openPath)="openPath($event)"
+            (tagClick)="tagSelect.emit($event)"
+          />
+        }
       </section>
     }
 
-    <section class="sm-block" data-testid="inspector-card-linked-nodes">
-      <h3 class="sm-block__title">{{ texts.sections.connections }}</h3>
-      <sm-linked-nodes-panel [path]="n.path" (openPath)="openPath($event)" />
-    </section>
-
-    @if (issues().length > 0) {
-      <section class="sm-block" data-testid="inspector-findings">
-        <h3 class="sm-block__title">
-          {{ texts.sections.findings }}
-          <span class="sm-block__count">({{ issues().length }})</span>
-        </h3>
-        <ul class="inspector__findings-list">
-          @for (issue of issues(); track $index) {
-            <li
-              class="inspector__finding"
-              [attr.data-severity]="issue.severity"
-              data-testid="inspector-finding"
-            >
-              <div class="inspector__finding-head">
-                <span
-                  class="inspector__finding-severity"
-                  [attr.data-severity]="issue.severity"
-                  >{{ issue.severity }}</span
-                >
-                <code class="inspector__finding-analyzer">{{ issue.analyzerId }}</code>
-              </div>
-              <p class="inspector__finding-message">{{ issue.message }}</p>
-              @if (issue.fix?.summary; as fixSummary) {
-                <p class="inspector__finding-hint" data-testid="inspector-finding-hint">
-                  <strong>{{ texts.findingHintLabel }}</strong> {{ fixSummary }}
-                </p>
-              }
-            </li>
-          }
-        </ul>
-      </section>
-    }
-
-    <section class="sm-block sm-block--collapsible" data-testid="inspector-card-audit">
+    <section class="sm-block sm-block--collapsible" data-testid="inspector-card-linked-nodes">
       <button
         type="button"
         class="sm-block__row sm-block__row--toggle"
-        (click)="toggleAudit()"
-        [attr.aria-expanded]="auditExpanded()"
-        data-testid="inspector-audit-toggle"
+        (click)="toggleSection('connections')"
+        [attr.aria-expanded]="expanded('connections')"
+        data-testid="inspector-connections-toggle"
       >
-        <span class="sm-block__title">{{ texts.sections.audit }}</span>
-        <span class="sm-block__summary" data-testid="inspector-audit-summary">{{ auditSummary() }}</span>
+        <span class="sm-block__title">{{ texts.sections.connections }}</span>
         <i
           class="pi sm-block__chevron"
-          [class.pi-chevron-right]="!auditExpanded()"
-          [class.pi-chevron-down]="auditExpanded()"
+          [class.pi-chevron-right]="!expanded('connections')"
+          [class.pi-chevron-down]="expanded('connections')"
           aria-hidden="true"
         ></i>
       </button>
-      @if (auditExpanded()) {
-        <sm-inspector-audit-panel [sidecarRoot]="sidecarRoot()" />
+      @if (expanded('connections')) {
+        <sm-linked-nodes-panel [path]="n.path" (openPath)="openPath($event)" />
+      }
+    </section>
+
+    <section class="sm-block sm-block--collapsible inspector__body-section" data-testid="inspector-card-body">
+      <button
+        type="button"
+        class="sm-block__row sm-block__row--toggle"
+        (click)="toggleSection('body')"
+        [attr.aria-expanded]="expanded('body')"
+        data-testid="inspector-body-toggle"
+      >
+        <span class="sm-block__title">{{ texts.sections.body }}</span>
+        <i
+          class="pi sm-block__chevron"
+          [class.pi-chevron-right]="!expanded('body')"
+          [class.pi-chevron-down]="expanded('body')"
+          aria-hidden="true"
+        ></i>
+      </button>
+      @if (expanded('body')) {
+        @switch (bodyState()) {
+          @case ('loading') {
+            <p class="inspector__body-status" data-testid="inspector-body-loading">{{ texts.body.loading }}</p>
+          }
+          @case ('empty') {
+            <p class="inspector__body-status" data-testid="inspector-body-empty">{{ texts.body.empty }}</p>
+          }
+          @case ('unavailable') {
+            <p class="inspector__body-status inspector__body-status--warn" data-testid="inspector-body-unavailable">{{ texts.body.unavailable }}</p>
+          }
+          @case ('error') {
+            <p class="inspector__body-status inspector__body-status--warn" data-testid="inspector-body-error">{{ texts.body.renderError }}</p>
+          }
+          @case ('ready') {
+            <!--
+              `[innerHTML]` is intentional: `bodyHtml()` is the SafeHtml
+              output of `MarkdownRenderer.render()`, which already runs
+              two sanitization layers (`markdown-it` with `html: false` +
+              DOMPurify) over project-controlled markdown bytes.
+            -->
+            <div class="inspector__body-rendered" data-testid="inspector-body-rendered" [innerHTML]="bodyHtml()"></div>
+          }
+        }
       }
     </section>
 
@@ -180,28 +244,44 @@
         <button
           type="button"
           class="sm-block__row sm-block__row--toggle"
-          (click)="togglePlugins()"
-          [attr.aria-expanded]="pluginsExpanded()"
+          (click)="toggleSection('plugins')"
+          [attr.aria-expanded]="expanded('plugins')"
           data-testid="inspector-plugins-toggle"
         >
           <span class="sm-block__title">{{ texts.sections.plugins }}</span>
           <i
             class="pi sm-block__chevron"
-            [class.pi-chevron-right]="!pluginsExpanded()"
-            [class.pi-chevron-down]="pluginsExpanded()"
+            [class.pi-chevron-right]="!expanded('plugins')"
+            [class.pi-chevron-down]="expanded('plugins')"
             aria-hidden="true"
           ></i>
         </button>
-        @if (pluginsExpanded()) {
+        @if (expanded('plugins')) {
           <sm-plugin-contributions [sidecarRoot]="sidecarRoot()" />
         }
       </section>
     }
 
     @if (hasViewContributions()) {
-      <section class="sm-block" data-testid="inspector-card-view-contributions">
-        <h3 class="sm-block__title">{{ texts.sections.viewContributions }}</h3>
-        <sm-inspector-slots-panel [node]="node()" />
+      <section class="sm-block sm-block--collapsible" data-testid="inspector-card-view-contributions">
+        <button
+          type="button"
+          class="sm-block__row sm-block__row--toggle"
+          (click)="toggleSection('viewContributions')"
+          [attr.aria-expanded]="expanded('viewContributions')"
+          data-testid="inspector-view-contributions-toggle"
+        >
+          <span class="sm-block__title">{{ texts.sections.viewContributions }}</span>
+          <i
+            class="pi sm-block__chevron"
+            [class.pi-chevron-right]="!expanded('viewContributions')"
+            [class.pi-chevron-down]="expanded('viewContributions')"
+            aria-hidden="true"
+          ></i>
+        </button>
+        @if (expanded('viewContributions')) {
+          <sm-inspector-slots-panel [node]="node()" />
+        }
       </section>
     }
 
@@ -209,8 +289,8 @@
       <button
         type="button"
         class="sm-block__row sm-block__row--toggle"
-        (click)="toggleDebug()"
-        [attr.aria-expanded]="debugVisible()"
+        (click)="toggleSection('debug')"
+        [attr.aria-expanded]="expanded('debug')"
         [attr.aria-label]="texts.debugToggleAriaLabel"
         [pTooltip]="texts.debugToggleTooltip"
         data-testid="inspector-debug-toggle"
@@ -218,12 +298,12 @@
         <span class="sm-block__title">{{ texts.sections.debug }}</span>
         <i
           class="pi sm-block__chevron"
-          [class.pi-chevron-right]="!debugVisible()"
-          [class.pi-chevron-down]="debugVisible()"
+          [class.pi-chevron-right]="!expanded('debug')"
+          [class.pi-chevron-down]="expanded('debug')"
           aria-hidden="true"
         ></i>
       </button>
-      @if (debugVisible()) {
+      @if (expanded('debug')) {
         <div class="inspector__debug" data-testid="inspector-debug-section">
           <sm-inspector-debug-panel
             [node]="n"
@@ -234,30 +314,24 @@
       }
     </section>
 
-    <section class="sm-block inspector__body-section" data-testid="inspector-card-body">
-      <h3 class="sm-block__title">{{ texts.sections.body }}</h3>
-      @switch (bodyState()) {
-        @case ('loading') {
-          <p class="inspector__body-status" data-testid="inspector-body-loading">{{ texts.body.loading }}</p>
-        }
-        @case ('empty') {
-          <p class="inspector__body-status" data-testid="inspector-body-empty">{{ texts.body.empty }}</p>
-        }
-        @case ('unavailable') {
-          <p class="inspector__body-status inspector__body-status--warn" data-testid="inspector-body-unavailable">{{ texts.body.unavailable }}</p>
-        }
-        @case ('error') {
-          <p class="inspector__body-status inspector__body-status--warn" data-testid="inspector-body-error">{{ texts.body.renderError }}</p>
-        }
-        @case ('ready') {
-          <!--
-            `[innerHTML]` is intentional: `bodyHtml()` is the SafeHtml
-            output of `MarkdownRenderer.render()`, which already runs
-            two sanitization layers (`markdown-it` with `html: false` +
-            DOMPurify) over project-controlled markdown bytes.
-          -->
-          <div class="inspector__body-rendered" data-testid="inspector-body-rendered" [innerHTML]="bodyHtml()"></div>
-        }
+    <section class="sm-block sm-block--collapsible" data-testid="inspector-card-audit">
+      <button
+        type="button"
+        class="sm-block__row sm-block__row--toggle"
+        (click)="toggleSection('audit')"
+        [attr.aria-expanded]="expanded('audit')"
+        data-testid="inspector-audit-toggle"
+      >
+        <span class="sm-block__title">{{ texts.sections.audit }}</span>
+        <i
+          class="pi sm-block__chevron"
+          [class.pi-chevron-right]="!expanded('audit')"
+          [class.pi-chevron-down]="expanded('audit')"
+          aria-hidden="true"
+        ></i>
+      </button>
+      @if (expanded('audit')) {
+        <sm-inspector-audit-panel [sidecarRoot]="sidecarRoot()" />
       }
     </section>
 

@@ -10,19 +10,23 @@
  * frontmatter is flat, so it lists as one run):
  *
  *   - Agent runtime fields: model, effort, permission mode, max turns,
- *     memory, background (only when true), isolation.
+ *     memory, background (shown even when false), isolation, color.
  *   - Agent capability fields: tools, disallowed-tools, skills, MCP
  *     servers, hooks.
  *   - Skill / command base instead: when_to_use, argument-hint,
  *     arguments, allowed-tools, disallowed-tools, model, effort,
  *     context, agent, shell, paths, disable-model-invocation,
  *     user-invocable.
+ *   - Any remaining frontmatter key (unknown / plugin / future, carried
+ *     by the schema's `additionalProperties: true`) via the generic
+ *     `extraFields` catch-all, so nothing in the frontmatter stays
+ *     hidden.
  *   - `Initial prompt` (agent only): a sub-labelled quote block at the
  *     foot of the same section.
  *
- * `name`, `description`, and `color` are intentionally NOT rendered
- * here. The inspector header already shows name + description; the
- * inspector accent rail + title shading consume `color`.
+ * Only `name` and `description` are NOT rendered here, the inspector
+ * header already shows them. `color` IS rendered (with a swatch) and
+ * also still drives the header accent rail + title shading.
  *
  * Notes have no vendor surface so the renderer hides entirely. When
  * every field is empty the whole component disappears so the inspector
@@ -33,11 +37,15 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  inject,
   input,
+  output,
 } from '@angular/core';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { VENDOR_FRONTMATTER_TEXTS } from '../../../i18n/vendor-frontmatter.texts';
+import { MarkdownRenderer } from '../../../services/markdown-renderer';
+import { setupBlockMarkdown } from '../../../services/markdown-inline-signal';
 import type { TFrontmatter, TNodeKind } from '../../../models/node';
 
 interface IMcpServerRow {
@@ -50,6 +58,29 @@ interface IHookRow {
   event: string;
   keys: readonly string[];
 }
+
+/**
+ * Frontmatter keys the Definition section renders with an explicit row
+ * (curated label + special rendering). Any key NOT in the kind's set
+ * flows through the generic `extraFields` catch-all so unknown / plugin
+ * / future keys (schema `additionalProperties: true`) never disappear
+ * silently. The sets also include the keys consumed elsewhere so the
+ * catch-all does not re-dump them: `name` / `description` (inspector
+ * header) and `metadata` (the legacy pre-9.5 block whose `version` /
+ * `stability` / `supersededBy` already surface via the header chip,
+ * stability tag, and derived signals, see `models/node-derived.ts`).
+ */
+const RENDERED_AGENT_KEYS: ReadonlySet<string> = new Set([
+  'name', 'description', 'metadata', 'model', 'effort', 'permissionMode',
+  'maxTurns', 'memory', 'background', 'isolation', 'color', 'tools',
+  'disallowedTools', 'skills', 'mcpServers', 'hooks', 'initialPrompt',
+]);
+const RENDERED_SKILL_KEYS: ReadonlySet<string> = new Set([
+  'name', 'description', 'metadata', 'when_to_use', 'argument-hint',
+  'arguments', 'disable-model-invocation', 'user-invocable',
+  'allowed-tools', 'disallowed-tools', 'model', 'effort', 'context',
+  'agent', 'hooks', 'paths', 'shell',
+]);
 
 @Component({
   selector: 'sm-vendor-frontmatter',
@@ -64,16 +95,28 @@ export class VendorFrontmatter {
   readonly provider = input<string | undefined>(undefined);
 
   /**
-   * Optional set of skill paths in the local store. Used to render
-   * `skills[]` chips as clickable links when the target is in scope.
-   * Absent → all skill chips render as plain mono chips.
+   * Map of skill identifier (the skill node's `frontmatter.name`) to its
+   * node path, scoped to the current scan. An agent's `skills: [...]`
+   * lists skills by identifier; a resolvable one renders as a clickable
+   * link to the skill node, an unresolvable one renders dimmed with no
+   * link. Built by the host (inspector) from the loaded nodes.
    */
-  readonly knownPaths = input<ReadonlySet<string> | null>(null);
+  readonly skillPathByName = input<ReadonlyMap<string, string> | null>(null);
 
-  /** Click on a skill chip whose target is in scope. */
+  /** Navigate to a resolved skill node path (host decides how). */
   readonly onSkillClick = input<((path: string) => void) | null>(null);
 
+  /**
+   * Collapse state for the Definition section. Owned by the host
+   * (inspector) so it can persist across nodes in localStorage. Defaults
+   * to expanded.
+   */
+  readonly expanded = input<boolean>(true);
+  /** Emitted when the user clicks the Definition section header. */
+  readonly toggle = output<void>();
+
   protected readonly texts = VENDOR_FRONTMATTER_TEXTS;
+  private readonly markdown = inject(MarkdownRenderer);
 
   protected readonly hasVendorSurface = computed<boolean>(() => {
     const k = this.kind();
@@ -120,8 +163,10 @@ export class VendorFrontmatter {
     stringOrNull(this.fm()['memory']),
   );
 
-  /** Background renders ONLY when true (false adds no signal). */
-  protected readonly background = computed<boolean>(() => this.fm()['background'] === true);
+  /** Background: the actual boolean (false included) when the key is present. */
+  protected readonly background = computed<boolean | null>(() =>
+    typeof this.fm()['background'] === 'boolean' ? (this.fm()['background'] as boolean) : null,
+  );
 
   protected readonly effort = computed<string | null>(() =>
     stringOrNull(this.fm()['effort']),
@@ -129,6 +174,10 @@ export class VendorFrontmatter {
 
   protected readonly isolation = computed<string | null>(() =>
     stringOrNull(this.fm()['isolation']),
+  );
+
+  protected readonly color = computed<string | null>(() =>
+    stringOrNull(this.fm()['color']),
   );
 
   protected readonly mcpServers = computed<readonly IMcpServerRow[]>(() => {
@@ -208,9 +257,10 @@ export class VendorFrontmatter {
       this.permissionMode() !== null ||
       this.maxTurns() !== null ||
       this.memory() !== null ||
-      this.background() ||
+      this.background() !== null ||
       this.effort() !== null ||
-      this.isolation() !== null
+      this.isolation() !== null ||
+      this.color() !== null
     );
   });
 
@@ -249,22 +299,61 @@ export class VendorFrontmatter {
     return this.isAgent() && this.initialPrompt() !== null;
   });
 
+  /** Initial prompt rendered as block markdown for the quote callout. */
+  protected readonly initialPromptHtml = setupBlockMarkdown(
+    () => this.initialPrompt() ?? '',
+    this.markdown,
+  );
+
+  /**
+   * Generic catch-all: every frontmatter key not rendered by an explicit
+   * row above (and not `name` / `description`, shown in the header).
+   * Keeps the Definition section complete, unknown / plugin / future
+   * keys show as a labelled code chip instead of silently disappearing.
+   * Objects / arrays are JSON-stringified; primitives shown as-is.
+   */
+  protected readonly extraFields = computed<readonly { key: string; value: string }[]>(() => {
+    const handled = this.isAgent()
+      ? RENDERED_AGENT_KEYS
+      : this.isSkillOrCommand()
+        ? RENDERED_SKILL_KEYS
+        : null;
+    if (!handled) return [];
+    const fm = this.fm();
+    const out: { key: string; value: string }[] = [];
+    for (const key of Object.keys(fm)) {
+      if (handled.has(key)) continue;
+      const v = fm[key];
+      if (v === null || v === undefined) continue;
+      const value =
+        typeof v === 'string'
+          ? v
+          : typeof v === 'number' || typeof v === 'boolean'
+            ? String(v)
+            : JSON.stringify(v);
+      out.push({ key, value });
+    }
+    return out;
+  });
+
   /** Hide the renderer entirely when every section is empty. */
   protected readonly hasAnyContent = computed<boolean>(
     () =>
       this.hasVendorSurface() &&
-      (this.hasBehavior() || this.hasCapabilities() || this.hasInitialPrompt()),
+      (this.hasBehavior() ||
+        this.hasCapabilities() ||
+        this.hasInitialPrompt() ||
+        this.extraFields().length > 0),
   );
 
-  protected onSkillChipClick(path: string): void {
-    const handler = this.onSkillClick();
-    if (handler) handler(path);
+  /** Resolve a skill identifier to its node path, or null if unknown. */
+  protected skillPath(name: string): string | null {
+    return this.skillPathByName()?.get(name) ?? null;
   }
 
-  protected isSkillKnown(path: string): boolean {
-    const known = this.knownPaths();
-    if (!known) return false;
-    return known.has(path);
+  protected openSkill(path: string): void {
+    const handler = this.onSkillClick();
+    if (handler) handler(path);
   }
 
   /** Cast for templates, vendor schemas are open + plugin-extensible. */

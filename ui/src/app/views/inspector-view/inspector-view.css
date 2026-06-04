@@ -35,6 +35,15 @@
   max-width: none;
 }
 
+/* Annotations section: the `.sm` sidecar file name shown inline next to
+   the section title. Muted mono so it reads as a caption, not a heading. */
+.inspector__sidecar-file {
+  font-family: var(--sm-font-mono);
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--p-text-muted-color);
+}
+
 /* The description is inline markdown injected via [innerHTML], so the
    rendered children sit outside Angular view encapsulation; their styles
    go through ::ng-deep (same pattern as the body / settings changelog).

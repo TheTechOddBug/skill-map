@@ -7,21 +7,27 @@
 } @else {
   <dl class="ann-panel__rows sm-block__kv">
 
-    @if (hasLifecycle()) {
-      @let lc = lifecycle();
-      <dt>{{ texts.sections.lifecycle }}</dt>
-      <dd class="ann-panel__inline" data-testid="annotations-section-lifecycle">
-        @if (lc.version !== null) {
-          <code data-testid="annotations-version">v{{ lc.version }}</code>
-        }
-        @if (lc.stability !== null) {
-          <p-tag
-            [value]="lc.stability"
-            [severity]="stabilitySeverity(lc.stability)"
-            [rounded]="true"
-            data-testid="annotations-stability"
-          />
-        }
+    @if (hasTaxonomy()) {
+      @let tx = taxonomy();
+      <dt>{{ texts.fields.tags }}</dt>
+      <dd class="ann-panel__chips" data-testid="annotations-section-taxonomy">
+        <div class="ann-panel__chips-row" data-testid="annotations-tags">
+          @for (t of tx.userTags; track 'u:' + t) {
+            <p-chip
+              [label]="t"
+              [styleClass]="
+                'ann-panel__chip ann-panel__chip--user' +
+                (isActiveTag(t) ? ' ann-panel__chip--active' : '')
+              "
+              data-tag-source="user"
+              role="button"
+              tabindex="0"
+              (click)="tagClick.emit(t)"
+              (keydown.enter)="tagClick.emit(t)"
+              (keydown.space)="tagClick.emit(t); $event.preventDefault()"
+            />
+          }
+        </div>
       </dd>
     }
 
@@ -34,12 +40,19 @@
             <i class="pi pi-arrow-down" aria-hidden="true"></i>
             <span>{{ texts.fields.supersededBy }}</span>
           </span>
-          <p-chip
-            [label]="sup.supersededBy"
-            [styleClass]="isBroken(sup.supersededBy) ? 'chip--broken' : 'chip--link'"
-            [pTooltip]="isBroken(sup.supersededBy) ? texts.brokenRefTooltip : ''"
-            (click)="onOpenPath(sup.supersededBy)"
-          />
+          @if (!isBroken(sup.supersededBy)) {
+            <a
+              class="sm-node-link sm-node-link--known"
+              (click)="onOpenPath(sup.supersededBy)"
+              role="button"
+              tabindex="0"
+              (keydown.enter)="onOpenPath(sup.supersededBy)"
+            >
+              <i class="pi pi-arrow-up-right" aria-hidden="true"></i> {{ sup.supersededBy }}
+            </a>
+          } @else {
+            <span class="sm-node-link" [pTooltip]="texts.brokenRefTooltip">{{ sup.supersededBy }}</span>
+          }
         }
         @if (sup.supersedes.length) {
           <span class="ann-panel__meta">
@@ -47,13 +60,39 @@
             <span>{{ texts.fields.supersedes }}</span>
           </span>
           @for (p of sup.supersedes; track p) {
-            <p-chip
-              [label]="p"
-              [styleClass]="isBroken(p) ? 'chip--broken' : 'chip--link'"
-              [pTooltip]="isBroken(p) ? texts.brokenRefTooltip : ''"
-              (click)="onOpenPath(p)"
-            />
+            @if (!isBroken(p)) {
+              <a
+                class="sm-node-link sm-node-link--known"
+                (click)="onOpenPath(p)"
+                role="button"
+                tabindex="0"
+                (keydown.enter)="onOpenPath(p)"
+              >
+                <i class="pi pi-arrow-up-right" aria-hidden="true"></i> {{ p }}
+              </a>
+            } @else {
+              <span class="sm-node-link" [pTooltip]="texts.brokenRefTooltip">{{ p }}</span>
+            }
           }
+        }
+      </dd>
+    }
+
+    @if (hasRepository()) {
+      @let rp = repository();
+      <dt>{{ texts.sections.repository }}</dt>
+      <dd class="ann-panel__inline" data-testid="annotations-section-repository">
+        @if (rp.source !== null) {
+          <span class="ann-panel__meta">
+            <i class="pi pi-link" aria-hidden="true"></i>
+            <a [href]="rp.source" target="_blank" rel="noopener noreferrer">{{ rp.source }}</a>
+          </span>
+        }
+        @if (rp.sourceVersion !== null) {
+          <span class="ann-panel__meta">
+            <i class="pi pi-tag" aria-hidden="true"></i>
+            <code>{{ rp.sourceVersion }}</code>
+          </span>
         }
       </dd>
     }
@@ -76,42 +115,6 @@
             <span>{{ pr.license }}</span>
           </span>
         }
-        @if (pr.source !== null) {
-          <span class="ann-panel__meta">
-            <i class="pi pi-link" aria-hidden="true"></i>
-            <a [href]="pr.source" target="_blank" rel="noopener noreferrer">{{ pr.source }}</a>
-          </span>
-        }
-        @if (pr.sourceVersion !== null) {
-          <span class="ann-panel__meta">
-            <i class="pi pi-tag" aria-hidden="true"></i>
-            <code>{{ pr.sourceVersion }}</code>
-          </span>
-        }
-      </dd>
-    }
-
-    @if (hasTaxonomy()) {
-      @let tx = taxonomy();
-      <dt>{{ texts.fields.tags }}</dt>
-      <dd class="ann-panel__chips" data-testid="annotations-section-taxonomy">
-        <div class="ann-panel__chips-row" data-testid="annotations-tags">
-          @for (t of tx.userTags; track 'u:' + t) {
-            <p-chip
-              [label]="t"
-              [styleClass]="
-                'ann-panel__chip ann-panel__chip--user' +
-                (isActiveTag(t) ? ' ann-panel__chip--active' : '')
-              "
-              data-tag-source="user"
-              role="button"
-              tabindex="0"
-              (click)="tagClick.emit(t)"
-              (keydown.enter)="tagClick.emit(t)"
-              (keydown.space)="tagClick.emit(t); $event.preventDefault()"
-            />
-          }
-        </div>
       </dd>
     }
 

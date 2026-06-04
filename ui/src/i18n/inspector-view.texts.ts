@@ -28,7 +28,7 @@ export const INSPECTOR_VIEW_TEXTS = {
     annotations: 'Annotations',
     connections: 'Connections',
     findings: 'Findings',
-    audit: 'Audit',
+    audit: 'Metadata',
     plugins: 'Plugin contributions',
     viewContributions: 'View contributions',
     debug: 'Debug',
@@ -39,7 +39,6 @@ export const INSPECTOR_VIEW_TEXTS = {
     empty: 'This file has no body content (only frontmatter).',
     unavailable: 'Body content unavailable. The source file may have moved or been deleted since the last scan.',
     renderError: 'Failed to render markdown body.',
-    refreshLabel: 'Refresh body',
   },
   /** Step 9.6.5, bump button + consent dialog. */
   bump: {
@@ -67,12 +66,12 @@ export const INSPECTOR_VIEW_TEXTS = {
   /** Aria label for the bump-error toast dismiss button. */
   bumpErrorDismissAriaLabel: 'Dismiss',
   /**
-   * Catalog curation (2026-05-07), collapsible audit summary line. The
-   * header surfaces the most-recent activity inline so the user does not
-   * have to expand to see it.
+   * Metadata section (the `audit:` sidecar block). Field labels for the
+   * panel body; the section no longer shows an inline summary next to
+   * the title.
    */
   audit: {
-    headerSummary: (rel: string, by: string) => `last bumped ${rel} by ${by}`,
+    /** Empty-state line shown by the Metadata panel when no audit data. */
     headerEmpty: 'never bumped',
     fields: {
       lastBumpedAt: 'Last bumped',
