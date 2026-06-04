@@ -157,8 +157,22 @@ export default tseslint.config(
         },
       ],
 
-      // Kernel must not import from cli/. Resolves the V1 invariant
-      // structurally (was hand-audited in the v0.6 review).
+      // Kernel must not import from cli/ or core/. Resolves the V1
+      // invariant structurally (was hand-audited in the v0.6 review).
+      //
+      // The `core/` ban enforces the layer direction: the kernel is the
+      // innermost layer, `core/` (the kernel-side runtime layer) sits
+      // ABOVE it and imports DOWN into the kernel, never the reverse. A
+      // kernel file reaching up into `core/` is the inversion the v0.x
+      // audit (H1) flagged; the fix is to move the shared leaf DOWN into
+      // kernel/ (e.g. `kernel/util/atomic-write.ts`,
+      // `kernel/update-check/`, `kernel/adapters/sqlite/schema-fingerprint.ts`)
+      // or INJECT it (e.g. the sidecar consent gate, the active-provider
+      // filesystem detector). The `../`-prefixed globs target the
+      // sibling `src/core/` only; `plugins/core/*` (built-in parser /
+      // analyzer implementations the kernel legitimately registers) is
+      // reached via `../plugins/core/...` and is intentionally NOT
+      // matched.
       'no-restricted-imports': [
         'error',
         {
@@ -175,6 +189,20 @@ export default tseslint.config(
                 '../../../../cli/**',
               ],
               message: 'Kernel must not import from cli/.',
+            },
+            {
+              group: [
+                '../core/*',
+                '../core/**',
+                '../../core/*',
+                '../../core/**',
+                '../../../core/*',
+                '../../../core/**',
+                '../../../../core/*',
+                '../../../../core/**',
+              ],
+              message:
+                'Kernel must not import from core/ (the runtime layer sits ABOVE the kernel). Move the shared leaf down into kernel/, or inject it. See context/kernel.md §Layer direction.',
             },
           ],
         },

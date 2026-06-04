@@ -39,7 +39,7 @@ import {
   deleteAtPath,
   ForbiddenSegmentError,
 } from './dot-path.js';
-import { readJsonObjectOrEmpty, writeJsonAtomic } from './atomic-write.js';
+import { readJsonObjectOrEmpty, writeJsonAtomic } from '../../kernel/util/atomic-write.js';
 
 /**
  * Keys whose value can OPEN disk access outside the project root,

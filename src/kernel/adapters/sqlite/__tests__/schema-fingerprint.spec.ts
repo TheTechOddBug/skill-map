@@ -19,7 +19,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
-import type { IMigrationFile } from '../../../kernel/adapters/sqlite/migrations.js';
+import type { IMigrationFile } from '../migrations.js';
 import {
   classifyFingerprint,
   readStoredFingerprint,

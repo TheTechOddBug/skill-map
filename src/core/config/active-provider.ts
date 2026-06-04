@@ -24,24 +24,18 @@
  * confirms) so the side-effect surface remains in the writer.
  */
 
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
-
+import {
+  detectProvidersFromFilesystem,
+  type IProviderDetectInput,
+} from '../../kernel/scan/detect-providers.js';
 import { readConfigValue } from './helper.js';
 
-/**
- * Structural subset of a Provider this module needs for auto-detection.
- * `IProvider` (kernel) is assignable to it, so callers pass their
- * provider list directly without a conversion step AND without this
- * module importing the kernel `IProvider` type (which would make the
- * existing kernel -> core/config dependency bidirectional). The marker
- * set is provider-owned: each Provider declares its own `detect.markers`
- * in its manifest, replacing the former hardcoded detection table.
- */
-export interface IProviderDetectInput {
-  id: string;
-  detect?: { markers?: readonly string[] };
-}
+// `IProviderDetectInput` and the pure filesystem detector now live in
+// the kernel (`kernel/scan/detect-providers.ts`); re-export the type so
+// the scan runner / bootstrap consumers keep importing it from this
+// module. The kernel is the innermost layer, so `core/` composing the
+// kernel detector with a config read is the sanctioned direction.
+export type { IProviderDetectInput };
 
 export interface IActiveProviderResolution {
   /**
@@ -90,32 +84,6 @@ export function resolveActiveProvider(
     return { resolved: detected[0]!, source: 'autodetect', detected };
   }
   return { resolved: null, source: 'none', detected };
-}
-
-/**
- * Walk each Provider's `detect.markers` and return the unique provider
- * ids whose marker exists under `cwd`. A Provider may declare several
- * markers (Codex matches both `.codex/` and root `AGENTS.md`); the
- * result deduplicates by provider id while preserving Provider
- * iteration order, so the first matching Provider determines the
- * default suggestion. Providers with no `detect` block are never
- * auto-suggested.
- */
-function detectProvidersFromFilesystem(
-  cwd: string,
-  providers: ReadonlyArray<IProviderDetectInput>,
-): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const provider of providers) {
-    if (seen.has(provider.id)) continue;
-    const markers = provider.detect?.markers;
-    if (!markers || markers.length === 0) continue;
-    if (!markers.some((marker) => existsSync(join(cwd, marker)))) continue;
-    seen.add(provider.id);
-    out.push(provider.id);
-  }
-  return out;
 }
 
 /**

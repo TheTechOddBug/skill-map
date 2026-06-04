@@ -26,7 +26,7 @@ import {
   fetchLatestVersion,
   isOutdated,
   type IUpdateCheckCache,
-} from '../../../../../core/update-check/index.js';
+} from '../../../../../kernel/update-check/index.js';
 import { SqliteStorageAdapter } from '../../../../../kernel/adapters/sqlite/index.js';
 import { UPDATE_CHECK_KEY } from '../../../../../kernel/storage/update-check.js';
 import { maybeRunUpdateCheck } from '../../../../../cli/util/update-check-banner.js';

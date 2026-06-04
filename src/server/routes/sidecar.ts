@@ -63,7 +63,8 @@ import {
   type INodeBumpReport,
 } from '../../plugins/core/actions/node-bump/index.js';
 import { assertContained } from '../../core/paths/path-guard.js';
-import { EConsentRequiredError } from '../../core/config/sidecar-consent.js';
+import { ConflictError } from '../app.js';
+import { EConsentRequiredError, ensureSidecarWritesAllowed } from '../../core/config/sidecar-consent.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import type { TActionWrite } from '../../kernel/extensions/index.js';
 import { FilesystemSidecarStore } from '../../kernel/sidecar/store.js';
@@ -187,12 +188,12 @@ export function registerSidecarRoutes(app: Hono, deps: ISidecarRouteDeps): void 
 
     const result = invokeBump(node, absPath, body);
 
-    // Refusal, fresh node, no force. The `sidecar-fresh:` prefix in
-    // the catalog message is load-bearing: HTTP 409 already maps to
-    // the `sidecar-fresh` envelope `code` in `app.onError`, but the
-    // prefix keeps log-grep affinity with the CLI's `sm bump` verb.
+    // Refusal, fresh node, no force. Dispatched by the typed
+    // `ConflictError` (carries `code: 'sidecar-fresh'`); the catalog
+    // message keeps its `sidecar-fresh:` prefix only for log-grep
+    // affinity with the CLI's `sm bump` verb, not for dispatch.
     if (result.report.ok === false && result.report.reason === 'fresh') {
-      throw new HTTPException(409, { message: SERVER_TEXTS.sidecarFreshRefusal });
+      throw new ConflictError({ code: 'sidecar-fresh', message: SERVER_TEXTS.sidecarFreshRefusal });
     }
 
     // Force-on-fresh silent no-op, return 200 with the existing
@@ -213,7 +214,7 @@ export function registerSidecarRoutes(app: Hono, deps: ISidecarRouteDeps): void 
 
     // Stale / first-time, materialise the writes through the same
     // store the CLI uses.
-    const store = new FilesystemSidecarStore();
+    const store = new FilesystemSidecarStore(ensureSidecarWritesAllowed);
     try {
       for (const w of result.writes ?? []) {
         if (w.kind === 'sidecar') {

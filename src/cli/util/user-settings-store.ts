@@ -30,7 +30,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
-import { writeFileAtomicExclusive } from '../../core/config/atomic-write.js';
+import { writeFileAtomicExclusive } from '../../kernel/util/atomic-write.js';
 import { SKILL_MAP_DIR } from '../../core/paths/db-path.js';
 
 const FILENAME = 'settings.json';

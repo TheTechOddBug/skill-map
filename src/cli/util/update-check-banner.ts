@@ -43,7 +43,7 @@
  * `kernel/`).
  */
 
-import { fetchLatestVersion, isOutdated } from '../../core/update-check/index.js';
+import { fetchLatestVersion, isOutdated } from '../../kernel/update-check/index.js';
 import { UPDATE_CHECK_TEXTS } from '../i18n/update-check.texts.js';
 import { VERSION } from '../version.js';
 import { ansiFor } from './ansi.js';

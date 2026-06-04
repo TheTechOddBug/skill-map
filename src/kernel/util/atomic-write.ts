@@ -6,10 +6,13 @@
  * settings-mutating code path can share one implementation. Behavior
  * is unchanged from the previous inline definitions.
  *
- * Lives under `src/core/config/` so `cli/` and `server/` (BFF) can
- * both import it; the module reads no `process.env` /
- * `process.cwd()` (every input is an explicit parameter), so the
- * kernel-boundary lint rule (`src/eslint.config.js:233`) holds.
+ * Lives under `src/kernel/util/` as the innermost-layer home for this
+ * generic atomic-write primitive: the kernel's sidecar store consumes
+ * it, and `core/` (the config helper) plus `cli/` reach DOWN into the
+ * kernel for it (the sanctioned `core|cli` -> `kernel` direction), so
+ * no layer has to import upward. Pure: only Node built-ins, reads no
+ * `process.env` / `process.cwd()` (every input is an explicit
+ * parameter).
  */
 
 import {

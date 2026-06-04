@@ -21,7 +21,7 @@
 import type { Kysely } from 'kysely';
 
 import type { IDatabase } from '../adapters/sqlite/schema.js';
-import type { IUpdateCheckCache } from '../../core/update-check/index.js';
+import type { IUpdateCheckCache } from '../update-check/index.js';
 
 export const UPDATE_CHECK_KEY = '_kernel.update-check';
 

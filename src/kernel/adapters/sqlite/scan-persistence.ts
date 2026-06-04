@@ -30,7 +30,7 @@ import type {
 } from '../../orchestrator.js';
 import type { IContributionRecord } from './contributions.js';
 import { replaceAllScanContributions } from './contributions.js';
-import { schemaFingerprint } from '../../../core/sqlite/schema-fingerprint.js';
+import { schemaFingerprint } from './schema-fingerprint.js';
 import type { ITagRecord } from './tags.js';
 import { replaceAllScanTags } from './tags.js';
 import type { Issue, Link, Node, ScanResult } from '../../types.js';

@@ -67,6 +67,25 @@ export const SCAN_TEXTS = {
   /** Body line for dry-run mode, same indent, marker tail. */
   wouldPersist: '     would persist to {{dbPath}}  (dry-run)\n',
   /**
+   * Count-row nouns for the `{{counts}}` block in `scannedSummary`.
+   * The caller selects the singular / plural form on `count === 1`
+   * (English plural rule), so both forms live in the catalog instead of
+   * being hand-suffixed with `s` at the call site (per the i18n
+   * contract: catalog strings, no `${word}s` interpolation). `info` is
+   * uncountable in English (no `infos`), so it carries a single form;
+   * `countNoIssues` is the all-clean placeholder.
+   */
+  countNodeNounSingular: 'node',
+  countNodeNounPlural: 'nodes',
+  countLinkNounSingular: 'link',
+  countLinkNounPlural: 'links',
+  countErrorNounSingular: 'error',
+  countErrorNounPlural: 'errors',
+  countWarningNounSingular: 'warning',
+  countWarningNounPlural: 'warnings',
+  countInfoNoun: 'info',
+  countNoIssues: '0 issues',
+  /**
    * Cap-hit notice, printed when the walker stopped accepting nodes
    * because `--max-nodes` (or the `scan.maxNodes` setting) was reached.
    * `{{glyph}}` is the yellow warning glyph, `{{limit}}` the effective

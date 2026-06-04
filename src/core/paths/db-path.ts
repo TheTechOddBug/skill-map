@@ -21,15 +21,16 @@
 import { join, resolve } from 'node:path';
 
 import type { IRuntimeContext } from '../runtime/runtime-context.js';
+import { SKILL_MAP_DIR } from '../../kernel/util/skill-map-paths.js';
 
 /**
  * Per-scope directory the CLI stores its state under (DB file, settings,
- * plugins, etc.). Resolved against the project cwd
- * (`<cwd>/.skill-map/`). Exported so write-side scaffolding (`sm init`)
- * and other helpers can reuse the convention without duplicating the
- * literal.
+ * plugins, etc.). Resolved against the project cwd (`<cwd>/.skill-map/`).
+ * The canonical literal lives in `kernel/util/skill-map-paths.ts` (the
+ * innermost layer); it is re-exported here so the CLI / BFF path helpers
+ * keep importing it from one place without `core/` owning the literal.
  */
-export const SKILL_MAP_DIR = '.skill-map';
+export { SKILL_MAP_DIR };
 
 const DB_FILENAME = 'skill-map.db';
 const JOBS_DIRNAME = 'jobs';

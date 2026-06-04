@@ -48,7 +48,7 @@ import { DatabaseSync } from 'node:sqlite';
 
 import { classifyVersionSkew } from './db-version-check.js';
 import { removeDbFiles } from './db-files.js';
-import { classifyFingerprint } from './schema-fingerprint.js';
+import { classifyFingerprint } from '../../kernel/adapters/sqlite/schema-fingerprint.js';
 import { DB_DRIFT_TEXTS } from './i18n/db-drift.texts.js';
 import { tx } from '../../kernel/util/tx.js';
 import type { IPrinter } from '../runtime/printer.js';

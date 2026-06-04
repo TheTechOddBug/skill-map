@@ -34,7 +34,7 @@ import { resolve } from 'node:path';
 
 import { Command, Option } from 'clipanion';
 
-import { EConsentRequiredError } from '../../core/config/sidecar-consent.js';
+import { EConsentRequiredError, ensureSidecarWritesAllowed } from '../../core/config/sidecar-consent.js';
 import { sidecarPathFor } from '../../kernel/sidecar/parse.js';
 import { discoverOrphanSidecars } from '../../kernel/sidecar/discover-orphans.js';
 import { FilesystemSidecarStore } from '../../kernel/sidecar/store.js';
@@ -245,7 +245,7 @@ export class SidecarRefreshCommand extends SmCommand {
     // leave version + audit untouched. Same deep-merge channel the
     // bump Action uses; this verb just hands the store a smaller
     // patch.
-    const store = new FilesystemSidecarStore();
+    const store = new FilesystemSidecarStore(ensureSidecarWritesAllowed);
     try {
       await store.applyPatch(
         sidecarAbsPath,
@@ -584,7 +584,7 @@ export class SidecarAnnotateCommand extends SmCommand {
       }
     }
 
-    const store = new FilesystemSidecarStore();
+    const store = new FilesystemSidecarStore(ensureSidecarWritesAllowed);
     try {
       await store.applyPatch(
         sidecarAbsPath,

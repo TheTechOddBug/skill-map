@@ -214,7 +214,7 @@ export interface IScanMetaTable {
    * (pre-1.0)). sha256 (hex) of the concatenated migration DDL the
    * schema was built from, written by `metaToRow` at persist time. NULL
    * on a DB created by a pre-fingerprint CLI; a NULL or mismatching
-   * value is read as schema drift by `core/sqlite/schema-fingerprint.ts`
+   * value is read as schema drift by `kernel/adapters/sqlite/schema-fingerprint.ts`
    * so an inline `001_initial.sql` column add (greenfield, no version
    * bump) forces a one-time cache rebuild. Internal DB metadata, NOT a
    * `ScanResult` field.

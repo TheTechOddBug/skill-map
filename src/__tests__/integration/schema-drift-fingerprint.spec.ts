@@ -26,7 +26,7 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import type { Node, ScanResult } from '../../kernel/types.js';
 import { maybeResetOnDrift } from '../../core/sqlite/db-drift-reset.js';
-import { schemaFingerprint } from '../../core/sqlite/schema-fingerprint.js';
+import { schemaFingerprint } from '../../kernel/adapters/sqlite/schema-fingerprint.js';
 import { withSqlite } from '../../core/sqlite/with-sqlite.js';
 import type { IPrinter } from '../../core/runtime/printer.js';
 

@@ -26,7 +26,7 @@ import { join } from 'node:path';
 
 import { Command, Option } from 'clipanion';
 
-import { writeFileAtomicExclusive } from '../../core/config/atomic-write.js';
+import { writeFileAtomicExclusive } from '../../kernel/util/atomic-write.js';
 import { runScanForCommand } from '../../core/runtime/scan-runner.js';
 import { SCAN_RUNNER_TEXTS } from '../../core/runtime/i18n/scan-runner.texts.js';
 import { loadBundledIgnoreText } from '../../kernel/scan/ignore.js';

@@ -537,29 +537,37 @@ function formatScanCounts(opts: {
 }): string {
   const { nodes, links, severities, ansi } = opts;
   const parts: string[] = [
-    `${nodes} ${plural(nodes, 'node')}`,
-    `${links} ${plural(links, 'link')}`,
+    `${nodes} ${countNoun(nodes, SCAN_TEXTS.countNodeNounSingular, SCAN_TEXTS.countNodeNounPlural)}`,
+    `${links} ${countNoun(links, SCAN_TEXTS.countLinkNounSingular, SCAN_TEXTS.countLinkNounPlural)}`,
   ];
   const total = severities.errors + severities.warns + severities.info;
   if (total === 0) {
-    parts.push(ansi.dim('0 issues'));
+    parts.push(ansi.dim(SCAN_TEXTS.countNoIssues));
   } else {
     if (severities.errors > 0) {
-      parts.push(ansi.red(`${severities.errors} ${plural(severities.errors, 'error')}`));
+      const noun = countNoun(severities.errors, SCAN_TEXTS.countErrorNounSingular, SCAN_TEXTS.countErrorNounPlural);
+      parts.push(ansi.red(`${severities.errors} ${noun}`));
     }
     if (severities.warns > 0) {
-      parts.push(ansi.yellow(`${severities.warns} ${plural(severities.warns, 'warning')}`));
+      const noun = countNoun(severities.warns, SCAN_TEXTS.countWarningNounSingular, SCAN_TEXTS.countWarningNounPlural);
+      parts.push(ansi.yellow(`${severities.warns} ${noun}`));
     }
     if (severities.info > 0) {
       // `info` is an uncountable noun in English (no `infos`), keep it
       // bare so the row reads naturally even at higher counts.
-      parts.push(ansi.dim(`${severities.info} info`));
+      parts.push(ansi.dim(`${severities.info} ${SCAN_TEXTS.countInfoNoun}`));
     }
   }
   return parts.join(' · ');
 }
 
-function plural(count: number, word: string): string {
-  return count === 1 ? word : `${word}s`;
+/**
+ * Pick the singular or plural catalog noun for `count` (English plural
+ * rule). Extracted so the per-count ternary lives outside
+ * `formatScanCounts` (keeps its cyclomatic complexity inside budget),
+ * replacing the former `${word}s` hand-suffix helper.
+ */
+function countNoun(count: number, singular: string, plural: string): string {
+  return count === 1 ? singular : plural;
 }
 

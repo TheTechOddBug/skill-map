@@ -23,7 +23,7 @@ import {
   detectDbVersionSkew,
   type TDbVersionCheckOutcome,
 } from './db-version-check.js';
-import { classifyFingerprint } from './schema-fingerprint.js';
+import { classifyFingerprint } from '../../kernel/adapters/sqlite/schema-fingerprint.js';
 import { DB_VERSION_TEXTS } from './i18n/db-version.texts.js';
 import { tx } from '../../kernel/util/tx.js';
 import type { IPrinter } from '../runtime/printer.js';

@@ -27,6 +27,9 @@ import {
   _resetSidecarStoreValidatorCacheForTests,
   deepMerge,
 } from '../store.js';
+// The store's consent gate is injected; tests wire the real
+// config-backed gate so they exercise the same path production does.
+import { ensureSidecarWritesAllowed } from '../../../core/config/sidecar-consent.js';
 
 const VALID_HASH_A = 'a'.repeat(64);
 const VALID_HASH_B = 'b'.repeat(64);
@@ -126,7 +129,7 @@ describe('deepMerge', () => {
 
 describe('FilesystemSidecarStore.applyPatch', () => {
   it('creates a new sidecar when the file is absent', async () => {
-    const store = new FilesystemSidecarStore();
+    const store = new FilesystemSidecarStore(ensureSidecarWritesAllowed);
     const target = join(tmpRoot, 'create.sm');
     ok(!existsSync(target));
 
@@ -148,7 +151,7 @@ describe('FilesystemSidecarStore.applyPatch', () => {
   });
 
   it('deep-merges into an existing sidecar, preserving plugin namespaces', async () => {
-    const store = new FilesystemSidecarStore();
+    const store = new FilesystemSidecarStore(ensureSidecarWritesAllowed);
     const target = join(tmpRoot, 'merge.sm');
 
     // Seed the file with plugin-namespaced data + an existing version.
@@ -188,7 +191,7 @@ describe('FilesystemSidecarStore.applyPatch', () => {
   // YAML parse as an own property but must not propagate through the
   // read-merge-write round-trip or pollute `Object.prototype`.
   it('strips prototype-pollution keys from a tainted existing sidecar on patch', async () => {
-    const store = new FilesystemSidecarStore();
+    const store = new FilesystemSidecarStore(ensureSidecarWritesAllowed);
     const target = join(tmpRoot, 'tainted.sm');
 
     // Seed a sidecar whose raw YAML literally contains `__proto__:`. We
@@ -232,7 +235,7 @@ describe('FilesystemSidecarStore.applyPatch', () => {
   });
 
   it('serialises concurrent applyPatch calls on the same path (no lost write)', async () => {
-    const store = new FilesystemSidecarStore();
+    const store = new FilesystemSidecarStore(ensureSidecarWritesAllowed);
     const target = join(tmpRoot, 'concurrent.sm');
 
     // Seed.
@@ -269,7 +272,7 @@ describe('FilesystemSidecarStore.applyPatch', () => {
   });
 
   it('throws and leaves the file unchanged when the merged result is schema-invalid', async () => {
-    const store = new FilesystemSidecarStore();
+    const store = new FilesystemSidecarStore(ensureSidecarWritesAllowed);
     const target = join(tmpRoot, 'invalid.sm');
 
     const seed = {
@@ -297,7 +300,7 @@ describe('FilesystemSidecarStore.applyPatch', () => {
   });
 
   it('leaves no `.tmp` file behind on the success path', async () => {
-    const store = new FilesystemSidecarStore();
+    const store = new FilesystemSidecarStore(ensureSidecarWritesAllowed);
     const target = join(tmpRoot, 'no-tmp.sm');
     await store.applyPatch(target, {
       identity: {
@@ -310,7 +313,7 @@ describe('FilesystemSidecarStore.applyPatch', () => {
   });
 
   it('throws EConsentRequiredError when allowEditSmFiles is false and confirm is false', async () => {
-    const store = new FilesystemSidecarStore();
+    const store = new FilesystemSidecarStore(ensureSidecarWritesAllowed);
     const gateRoot = mkdtempSync(join(tmpdir(), 'sm-sidecar-gate-'));
     const target = join(gateRoot, 'gated.sm');
     const { EConsentRequiredError } = await import('../../../core/config/sidecar-consent.js');
@@ -331,7 +334,7 @@ describe('FilesystemSidecarStore.applyPatch', () => {
   });
 
   it('persists the consent flag flip to settings.local.json on confirm:true', async () => {
-    const store = new FilesystemSidecarStore();
+    const store = new FilesystemSidecarStore(ensureSidecarWritesAllowed);
     const gateRoot = mkdtempSync(join(tmpdir(), 'sm-sidecar-gate-confirm-'));
     const target = join(gateRoot, 'confirmed.sm');
     await store.applyPatch(target, {

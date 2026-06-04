@@ -103,7 +103,7 @@ import type {
 import type { IRegisteredAnnotationKey } from '../types/annotation-catalog.js';
 import type { IRegisteredViewContribution } from '../types/view-catalog.js';
 import { tx } from '../util/tx.js';
-import { resolveActiveProvider } from '../../core/config/active-provider.js';
+import { detectProvidersFromFilesystem } from '../scan/detect-providers.js';
 import { runAnalyzers } from './analyzers.js';
 import {
   indexPriorSnapshot,
@@ -984,9 +984,12 @@ function validateRoots(roots: string[]): void {
  *      explicitly, never branch 3.
  *
  * Auto-detect scans the first root that resolves to an existing dir
- * and returns the first detected provider id (per
- * `core/config/active-provider#resolveActiveProvider`). When no root
- * carries a marker, returns `null`.
+ * and returns the first filesystem-detected provider id (per
+ * `kernel/scan/detect-providers#detectProvidersFromFilesystem`). This
+ * is the pure marker scan only, NO persisted-config read: a caller that
+ * wants the `settings.json` `activeProvider` to win resolves it upstream
+ * (core's `resolveActiveProvider`) and passes `string | null` explicitly.
+ * When no root carries a marker, returns `null`.
  */
 function resolveActiveProviderOption(
   optionValue: string | null | undefined,
@@ -997,7 +1000,7 @@ function resolveActiveProviderOption(
   for (const root of roots) {
     const absRoot = isAbsolute(root) ? root : resolve(root);
     if (!existsSync(absRoot)) continue;
-    const detected = resolveActiveProvider(absRoot, providers).resolved;
+    const detected = detectProvidersFromFilesystem(absRoot, providers)[0] ?? null;
     if (detected !== null) return detected;
   }
   return null;

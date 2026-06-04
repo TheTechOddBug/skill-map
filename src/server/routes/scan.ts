@@ -51,7 +51,7 @@ import { VERSION } from '../../version.js';
 import { log } from '../../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
-import { DbMissingError } from '../app.js';
+import { ConflictError, DbMissingError } from '../app.js';
 import type { WsBroadcaster } from '../broadcaster.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
 import { ScanBusyError, withScanMutex } from '../scan-mutex.js';
@@ -134,7 +134,7 @@ async function runPersistedScan(c: Context, deps: IScanRouteDeps): Promise<Respo
     });
   } catch (err) {
     if (err instanceof ScanBusyError) {
-      throw new HTTPException(409, { message: SERVER_TEXTS.scanPostBusy });
+      throw new ConflictError({ code: 'scan-busy', message: SERVER_TEXTS.scanPostBusy });
     }
     throw err;
   }

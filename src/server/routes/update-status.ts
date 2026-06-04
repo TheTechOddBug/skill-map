@@ -40,7 +40,7 @@
 import type { Hono } from 'hono';
 
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
-import { isOutdated } from '../../core/update-check/index.js';
+import { isOutdated } from '../../kernel/update-check/index.js';
 import { VERSION } from '../../version.js';
 import type { IRouteDeps } from './deps.js';
 

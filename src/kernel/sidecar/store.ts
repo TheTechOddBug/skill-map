@@ -34,8 +34,7 @@ import { createRequire } from 'node:module';
 import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
 import yaml from 'js-yaml';
 
-import { writeFileAtomicExclusive } from '../../core/config/atomic-write.js';
-import { ensureSidecarWritesAllowed } from '../../core/config/sidecar-consent.js';
+import { writeFileAtomicExclusive } from '../util/atomic-write.js';
 import { applyAjvFormats } from '../util/ajv-interop.js';
 import {
   FORBIDDEN_KEYS,
@@ -43,17 +42,30 @@ import {
 } from '../util/strip-prototype-pollution.js';
 
 /**
- * Consent + runtime context required to gate a `.sm` write through
- * `ensureSidecarWritesAllowed` (per `spec/architecture.md` §Annotation
- * system · Write consent). The caller threads its own
- * `IRuntimeContext` (`cwd`) plus the operator's confirmation signal,
- * `true` when consent was already secured (`--yes` on the CLI,
- * `confirm: true` in the BFF body) and `false` otherwise.
+ * Consent + runtime context required to gate a `.sm` write (per
+ * `spec/architecture.md` §Annotation system · Write consent). The caller
+ * threads its own `IRuntimeContext` (`cwd`) plus the operator's
+ * confirmation signal, `true` when consent was already secured (`--yes`
+ * on the CLI, `confirm: true` in the BFF body) and `false` otherwise.
  */
 export interface ISidecarWriteConsent {
   confirm: boolean;
   cwd: string;
 }
+
+/**
+ * The consent gate injected into `FilesystemSidecarStore`. Returns
+ * silently when the write is permitted (flag already true, or flipped
+ * to true under `confirm`) and THROWS (`EConsentRequiredError`) when
+ * consent is required and absent.
+ *
+ * Injected rather than imported so the kernel store stays the single
+ * chokepoint WITHOUT reaching up into `core/`: the config-reading
+ * implementation (`core/config/sidecar-consent.ts:ensureSidecarWritesAllowed`)
+ * lives in the runtime layer and is wired in by the CLI verb / BFF route
+ * at construction (the sanctioned `core` -> `kernel` direction).
+ */
+export type TSidecarConsentGate = (consent: ISidecarWriteConsent) => void;
 
 /**
  * Sidecar persistence port. Implementations MUST guarantee:
@@ -102,8 +114,9 @@ export interface ISidecarStore {
 
 /**
  * Filesystem-backed `ISidecarStore`. Composed at the kernel boot site
- * and threaded through `IActionContext` consumers (the orchestrator's
- * Action dispatcher in 9.6.4 and beyond).
+ * (CLI verb / BFF route) with the consent gate injected, and threaded
+ * through `IActionContext` consumers (the orchestrator's Action
+ * dispatcher in 9.6.4 and beyond).
  */
 export class FilesystemSidecarStore implements ISidecarStore {
   /**
@@ -116,6 +129,20 @@ export class FilesystemSidecarStore implements ISidecarStore {
    */
   #locks = new Map<string, Promise<void>>();
 
+  /** Injected consent gate, see {@link TSidecarConsentGate}. */
+  readonly #consentGate: TSidecarConsentGate;
+
+  /**
+   * @param consentGate the write-consent gate, invoked first inside
+   *   `applyPatch`. Production wires
+   *   `core/config/sidecar-consent.ts:ensureSidecarWritesAllowed`; tests
+   *   wire the same function (to exercise the real config-backed gate)
+   *   or a stub.
+   */
+  constructor(consentGate: TSidecarConsentGate) {
+    this.#consentGate = consentGate;
+  }
+
   async applyPatch(
     sidecarAbsPath: string,
     changes: Record<string, unknown>,
@@ -123,14 +150,11 @@ export class FilesystemSidecarStore implements ISidecarStore {
   ): Promise<void> {
     // Consent gate FIRST, if the operator has not granted permission
     // to write `.sm` files in this project, abort before taking the
-    // path-keyed lock or touching disk. `ensureSidecarWritesAllowed`
-    // throws `EConsentRequiredError`; the caller (CLI verb / BFF
-    // route) catches and surfaces it as an interactive prompt or a
-    // 412 envelope.
-    ensureSidecarWritesAllowed({
-      confirm: consent.confirm,
-      cwd: consent.cwd,
-    });
+    // path-keyed lock or touching disk. The injected gate throws
+    // `EConsentRequiredError`; the caller (CLI verb / BFF route)
+    // catches and surfaces it as an interactive prompt or a 412
+    // envelope.
+    this.#consentGate(consent);
 
     const prev = this.#locks.get(sidecarAbsPath) ?? Promise.resolve();
     let release: () => void;

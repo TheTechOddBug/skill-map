@@ -41,7 +41,8 @@
  *
  *   - `HTTPException(404)`    → `code: 'not-found'`.
  *   - `HTTPException(400)`    → `code: 'bad-query'`.
- *   - `HTTPException(409)`    → `code: 'sidecar-fresh'` (Step 9.6.5).
+ *   - `ConflictError(409)`    → `code: 'scan-busy' | 'sidecar-fresh'`
+ *                               (typed subclass, dispatched by `code`).
  *   - `HTTPException(413)`    → `code: 'payload-too-large'` (audit M4).
  *   - `ExportQueryError`      → `code: 'bad-query'`, `status: 400`.
  *   - any other status / `Error` → `code: 'internal'`, `status: 500`.
@@ -189,6 +190,31 @@ export class LoopbackGateError extends HTTPException {
   constructor(init: { code: 'host-not-allowed' | 'origin-not-allowed'; message: string }) {
     super(403, { message: init.message });
     this.name = 'LoopbackGateError';
+    this.code = init.code;
+  }
+}
+
+/**
+ * The two `409 Conflict` conditions, carried as a dedicated subclass so
+ * `formatError` can stamp the right `code` via `instanceof` instead of
+ * regex-matching the human message prefix (both 409s share the status,
+ * so a status-only mapping cannot tell them apart). Mirrors
+ * `LoopbackGateError`'s one-class-two-codes shape:
+ *
+ *   - `scan-busy`     (`POST /api/scan`): another scan is in flight.
+ *   - `sidecar-fresh` (`POST /api/sidecar/bump`): node is fresh and
+ *     `force` was not passed.
+ *
+ * The catalog messages keep their `scan-busy:` / `sidecar-fresh:`
+ * prefixes for log-grep affinity with the CLI, but the prefix is no
+ * longer load-bearing for dispatch (the typed `code` is).
+ */
+export class ConflictError extends HTTPException {
+  readonly code: 'scan-busy' | 'sidecar-fresh';
+
+  constructor(init: { code: 'scan-busy' | 'sidecar-fresh'; message: string }) {
+    super(409, { message: init.message });
+    this.name = 'ConflictError';
     this.code = init.code;
   }
 }
@@ -475,7 +501,12 @@ export function createApp(deps: IAppDeps): Hono {
   return app;
 }
 
-function codeForStatus(status: number, message: string): TErrorCode {
+// The two `409` codes (`scan-busy` / `sidecar-fresh`) are NOT resolved
+// here: they share the HTTP status, so a status-only mapping cannot tell
+// them apart. They flow through the dedicated `ConflictError` subclass,
+// which carries the typed `code` and is dispatched by `instanceof` in
+// `formatError` before this generic status mapper ever runs.
+function codeForStatus(status: number): TErrorCode {
   if (status === 404) return 'not-found';
   if (status === 400) return 'bad-query';
   // 403, host-enforced policy refusal. Today only the plugin-lock
@@ -489,16 +520,6 @@ function codeForStatus(status: number, message: string): TErrorCode {
   // 413, request body exceeded the global `BODY_LIMIT_BYTES` cap
   // (audit M4). Thrown by the `bodyLimit` middleware's `onError`.
   if (status === 413) return 'payload-too-large';
-  // 409 fans out by message prefix: `sidecar-fresh:` (Step 9.6.5,
-  // `POST /api/sidecar/bump`) and `scan-busy:` (`POST /api/scan`)
-  // share the same HTTP status. The prefix is load-bearing, it
-  // travels in the message catalog (`SERVER_TEXTS.sidecarFreshRefusal`,
-  // `SERVER_TEXTS.scanPostBusy`) so the UI can branch on the envelope
-  // `code` without regex-matching the full body.
-  if (status === 409) {
-    if (message.startsWith('scan-busy:')) return 'scan-busy';
-    return 'sidecar-fresh';
-  }
   return 'internal';
 }
 
@@ -545,12 +566,24 @@ export function formatError(err: unknown, c: Context): Response {
     return c.json(envelope, 403);
   }
 
+  if (err instanceof ConflictError) {
+    const envelope: IErrorEnvelope = {
+      ok: false,
+      error: {
+        code: err.code,
+        message: err.message,
+        details: null,
+      },
+    };
+    return c.json(envelope, 409);
+  }
+
   if (err instanceof HTTPException) {
     const status = err.status as StatusCode;
     const envelope: IErrorEnvelope = {
       ok: false,
       error: {
-        code: codeForStatus(status, err.message),
+        code: codeForStatus(status),
         message: err.message,
         details: null,
       },

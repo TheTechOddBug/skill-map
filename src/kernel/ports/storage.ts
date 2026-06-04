@@ -33,7 +33,7 @@ import type {
   IPersistedEnrichment,
 } from '../orchestrator.js';
 import type { IPriorExtractorRun } from '../adapters/sqlite/scan-load.js';
-import type { IUpdateCheckCache } from '../../core/update-check/index.js';
+import type { IUpdateCheckCache } from '../update-check/index.js';
 import type { IDiscoveredPlugin } from './plugin-loader.js';
 import type {
   IApplyOptions,

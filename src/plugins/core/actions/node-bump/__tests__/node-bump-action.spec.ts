@@ -27,6 +27,7 @@ import {
 } from '../../../../../kernel/sidecar/store.js';
 import type { IActionContext, IActionResult } from '../../../../../kernel/extensions/index.js';
 import type { Node } from '../../../../../kernel/types.js';
+import { ensureSidecarWritesAllowed } from '../../../../../core/config/sidecar-consent.js';
 
 const HASH_A = 'a'.repeat(64);
 const HASH_B = 'b'.repeat(64);
@@ -218,7 +219,7 @@ describe('built-in bump action, round-trip through FilesystemSidecarStore', () =
     const result = callBump({}, makeCtx(node, target.replace(/\.sm$/, '.md'), 'cli'));
     ok(result.writes);
 
-    const store = new FilesystemSidecarStore();
+    const store = new FilesystemSidecarStore(ensureSidecarWritesAllowed);
     for (const w of result.writes!) {
       if (w.kind === 'sidecar') {
         await store.applyPatch(w.path, w.changes, consentBag());
@@ -250,7 +251,7 @@ describe('built-in bump action, round-trip through FilesystemSidecarStore', () =
     const result = callBump({}, makeCtx(node, target.replace(/\.sm$/, '.md'), 'cli'));
     ok(result.writes);
 
-    const store = new FilesystemSidecarStore();
+    const store = new FilesystemSidecarStore(ensureSidecarWritesAllowed);
     for (const w of result.writes!) {
       if (w.kind === 'sidecar') await store.applyPatch(w.path, w.changes, consentBag());
     }

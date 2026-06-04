@@ -30,6 +30,7 @@ import { join } from 'node:path';
 
 import { writeJsonAtomic } from '../atomic-write.js';
 import { FilesystemSidecarStore } from '../../../kernel/sidecar/store.js';
+import { ensureSidecarWritesAllowed } from '../../../core/config/sidecar-consent.js';
 
 const SKIP = process.platform === 'win32';
 
@@ -64,7 +65,7 @@ describe('audit M1, atomic writes land mode 0o600', { skip: SKIP }, () => {
       );
 
       const target = join(sidecarRoot, 'foo.sm');
-      const store = new FilesystemSidecarStore();
+      const store = new FilesystemSidecarStore(ensureSidecarWritesAllowed);
       await store.applyPatch(
         target,
         {

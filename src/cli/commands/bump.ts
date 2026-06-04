@@ -48,7 +48,7 @@
 
 import { Command, Option } from 'clipanion';
 
-import { EConsentRequiredError } from '../../core/config/sidecar-consent.js';
+import { EConsentRequiredError, ensureSidecarWritesAllowed } from '../../core/config/sidecar-consent.js';
 import { sidecarPathFor } from '../../kernel/sidecar/parse.js';
 import { FilesystemSidecarStore } from '../../kernel/sidecar/store.js';
 import type { Node } from '../../kernel/types.js';
@@ -451,7 +451,7 @@ export class BumpCommand extends SmCommand {
    * the staging missed).
    */
   async #executePending(plan: IBumpPlan, cwd: string, ansi: IAnsi): Promise<IBumpOutcome[]> {
-    const store = new FilesystemSidecarStore();
+    const store = new FilesystemSidecarStore(ensureSidecarWritesAllowed);
     const ctx = defaultRuntimeContext();
     const consent: ISidecarWriteConsent = {
       confirm: this.yes,
@@ -651,7 +651,7 @@ function buildBumpedOutcome(
 async function applyBumpWrites(
   item: Extract<TBumpPlanItem, { status: 'bumped' }>,
   consent: ISidecarWriteConsent,
-  store: FilesystemSidecarStore = new FilesystemSidecarStore(),
+  store: FilesystemSidecarStore = new FilesystemSidecarStore(ensureSidecarWritesAllowed),
 ): Promise<{ sidecarPath?: string; error?: unknown }> {
   let sidecarPath: string | undefined;
   try {

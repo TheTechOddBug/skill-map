@@ -190,11 +190,10 @@ export const SERVER_TEXTS = {
 
   // ---- sidecar bump route (routes/sidecar.ts) ------------------------------
 
-  // 409 refusal when a fresh node is bumped without `force`. The
-  // `sidecar-fresh:` prefix is load-bearing, the UI pattern-matches
-  // it (the global `app.onError` already maps HTTP 409 to the
-  // `sidecar-fresh` envelope `code`, so the prefix is for log-grep
-  // affinity with the CLI's bump verb).
+  // 409 refusal when a fresh node is bumped without `force`. Dispatch
+  // is via the typed `ConflictError` (`code: 'sidecar-fresh'`), so the
+  // `sidecar-fresh:` prefix is NOT load-bearing; it stays only for
+  // log-grep affinity with the CLI's bump verb.
   sidecarFreshRefusal:
     'sidecar-fresh: Node is fresh; pass force:true to bump anyway.',
 
@@ -236,9 +235,9 @@ export const SERVER_TEXTS = {
     'POST /api/scan cannot run while the server was started with --no-built-ins or --no-plugins (would persist a partial DB).',
 
   // 409, another scan (watcher batch or another POST) is in flight.
-  // The `scan-busy:` prefix is load-bearing: HTTP 409 maps to
-  // `scan-busy` in `app.onError`'s `codeForStatus`, but the prefix
-  // keeps log-grep affinity with the CLI's `sm scan` verb.
+  // Dispatch is via the typed `ConflictError` (`code: 'scan-busy'`), so
+  // the `scan-busy:` prefix is NOT load-bearing; it stays only for
+  // log-grep affinity with the CLI's `sm scan` verb.
   scanPostBusy:
     'scan-busy: Another scan is already in flight; retry once it finishes.',
 

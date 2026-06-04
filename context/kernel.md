@@ -40,14 +40,28 @@ The kernel is NOT allowed to know about its drivers. Today there are two drivers
 
 6. **CLI commands MUST receive their `stdin` / `stdout` / `stderr` from the Clipanion `this.context`**, not Node globals. Helpers that need streams take them as a parameter (`confirm(question, { stdin, stderr })`, etc.). This keeps every command testable with captured streams instead of monkey-patched `process.*`.
 
+## Layer direction
+
+There is a third source layer between the kernel and its drivers: **`src/core/`**, the **kernel-side runtime layer** (paths, sqlite wrappers, plugin runtime, scan runner, watcher runtime, layered-config helpers). It is consumed by BOTH `src/cli/` and `src/server/`. The dependency direction is strict and one-way:
+
+```
+kernel/  ◄── core/  ◄── cli/  ,  server/
+(innermost)  (runtime)   (drivers)
+```
+
+- **`core/` imports `kernel/`**, never the reverse. The kernel is the innermost layer: it must not reach UP into `core/`. Enforced structurally by `no-restricted-imports` in `src/eslint.config.js` (the `kernel/**` block bans both `cli/` and `core/`; the `core/**` block bans `cli/`). Note the ban targets the sibling `src/core/` runtime layer, NOT `src/plugins/core/` (the built-in implementations the kernel legitimately registers).
+- When a kernel file appears to need something from `core/`, the fix is one of two shapes, both used in the codebase:
+  1. **Move the shared leaf DOWN into the kernel** when it is pure (no config read, no `core/` deps): e.g. `kernel/util/atomic-write.ts`, `kernel/update-check/`, `kernel/adapters/sqlite/schema-fingerprint.ts`, the `SKILL_MAP_DIR` literal in `kernel/util/skill-map-paths.ts` (re-exported by `core/paths/db-path.ts`), the filesystem provider detector in `kernel/scan/detect-providers.ts` (composed with a config read by `core/config/active-provider.ts`).
+  2. **Inject it** when it genuinely reads layered config (which lives in `core/`): e.g. the sidecar write-consent gate is injected into `FilesystemSidecarStore` at construction (`TSidecarConsentGate`), wired to `core/config/sidecar-consent.ts:ensureSidecarWritesAllowed` by the CLI verb / BFF route.
+
 ## Source layout: built-ins vs extension contracts
 
 Two directories with similar-sounding names; tell them apart by purpose:
 
 - **`src/kernel/extensions/`**, the **contracts**: one file per extension kind (`provider.ts`, `extractor.ts`, `analyzer.ts`, `action.ts`, `formatter.ts`, `hook.ts`) plus a shared `base.ts` (`IExtensionBase`). Each kind file exports its main contract (`IProvider`, `IExtractor`, `IAnalyzer`, `IAction`, `IFormatter`, `IHook`) alongside the associated context / payload shapes that live next to it (`IRawNode` and `IProviderKind` in `provider.ts`; `IExtractorContext` / `IExtractorCallbacks` in `extractor.ts`; `IAnalyzerContext` in `analyzer.ts`; `IActionPrecondition` in `action.ts`; `IFormatterContext` in `formatter.ts`; `IHookContext` / `THookTrigger` / `THookFilter` in `hook.ts`). Defines the shape any extension author (built-in or user plugin) must implement. Pure types + small helpers; no runtime data.
-- **`src/built-in-plugins/`**, the **bundled implementations**: the `claude` Provider, the `frontmatter` / `slash` / `at-directive` / `external-url-counter` Extractors, the `link-conflict` / `trigger-collision` / `orphan-detection` / `auto-rename` Analyzers, the `ascii` Formatter. Every one of these `implements` a contract from `kernel/extensions/`.
+- **`src/plugins/`**, the **bundled implementations**, laid out as `src/plugins/<pluginId>/<kind>s/<name>/` (e.g. `plugins/claude/providers/`, `plugins/core/analyzers/`, `plugins/core/extractors/`, `plugins/core/parsers/`, `plugins/core/actions/`, `plugins/core/hooks/`, `plugins/core/formatters/`, plus the `openai` / `agent-skills` / `antigravity` Providers). Every one of these `implements` a contract from `kernel/extensions/`. The generated registry that wires them is `src/plugins/built-ins.ts` (emitted by `scripts/generate-built-ins.js`; do not hand-edit). Built-in strings are co-located per extension as `*.texts.ts` files in the same folder.
 
-Mnemonic: "kernel/extensions = what shape; built-in-plugins = what code." When wiring from the CLI: import the **runtime instance** from `built-in-plugins/built-ins.ts`; import the **type** from `kernel/extensions/<kind>.ts`.
+Mnemonic: "kernel/extensions = what shape; plugins = what code." When wiring from the CLI: import the **runtime instance** from `plugins/built-ins.ts`; import the **type** from `kernel/extensions/<kind>.ts`.
 
 ## i18n strategy: where strings live
 
@@ -57,7 +71,7 @@ User-facing text in the **CLI** uses the `tx(*_TEXTS.*)` system end-to-end:
 - Hardcoded inline strings (e.g. `this.context.stdout.write('No issues.\n')`) are forbidden in command files. The pattern goes through `tx(<VERB>_TEXTS.noIssues)`.
 - Pure passthrough of an external string (`this.context.stderr.write(\`${warn}\n\`)` for a plugin warning that already came formatted from the kernel) is allowed, the warning text was already authored elsewhere.
 - The kernel emits text via `kernel/i18n/<module>.texts.ts` for the same reason; mirroring the pattern keeps the future Transloco / message-format migration trivial.
-- **Built-in plugins follow the same analyzer.** `Issue.message` strings emitted by `built-in-plugins/analyzers/*` and any user-visible text rendered by `built-in-plugins/formatters/*` (or `extractors/*`, when a future built-in extractor surfaces user-readable output) MUST come from `built-in-plugins/i18n/<id>.texts.ts`. Issue messages persist in `scan_issues.message` and surface through `sm check` / `sm show` / `sm export`, they are user-facing exactly like CLI stdout. The catalog naming mirrors the analyzer / formatter id (`broken-ref.texts.ts`, `ascii.texts.ts`).
+- **Built-in plugins follow the same analyzer.** `Issue.message` strings emitted by `plugins/core/analyzers/*` and any user-visible text rendered by `plugins/core/formatters/*` (or `extractors/*`, when a future built-in extractor surfaces user-readable output) MUST come from a co-located `*.texts.ts` next to the extension. Issue messages persist in `scan_issues.message` and surface through `sm check` / `sm show` / `sm export`, they are user-facing exactly like CLI stdout. The catalog naming mirrors the analyzer / formatter id (`broken-ref.texts.ts`, `ascii.texts.ts`).
 - **Conformance runner follows the same analyzer.** Assertion `reason` strings produced by `src/conformance/index.ts` are surfaced verbatim to stderr by `sm conformance run`, they are user-facing. Source them from `src/conformance/i18n/runner.texts.ts` via `tx(CONFORMANCE_RUNNER_TEXTS.*, { vars })`.
 - **BFF (Hono server) follows the same analyzer.** Strings the server writes to `stdout` / `stderr` (boot banner, shutdown trace, missing-bundle hint) source from `src/server/i18n/server.texts.ts` (`SERVER_TEXTS`); the `sm serve` CLI verb's strings source from `src/cli/i18n/serve.texts.ts` (`SERVE_TEXTS`). HTTP response bodies (the `/api/*` JSON envelopes) are NOT user-facing in the same way, they are machine-readable contract surface and stay where they belong (`src/server/app.ts` formats them inline against the documented envelope shape).
 

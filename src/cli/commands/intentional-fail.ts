@@ -19,6 +19,7 @@
  */
 
 import { SmCommand } from '../util/sm-command.js';
+import { ExitCode } from '../util/exit-codes.js';
 import { INTENTIONAL_FAIL_TEXTS } from '../i18n/intentional-fail.texts.js';
 
 export class IntentionalFailCommand extends SmCommand {
@@ -44,6 +45,6 @@ export class IntentionalFailCommand extends SmCommand {
     // hang if the throw were ever swallowed.
     await new Promise<void>((resolve) => setTimeout(resolve, 5_000));
     // Unreachable in practice; non-zero so a swallowed throw still "fails".
-    return 1;
+    return ExitCode.Issues;
   }
 }

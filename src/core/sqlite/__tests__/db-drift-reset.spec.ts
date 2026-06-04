@@ -24,7 +24,7 @@ import { Readable, Writable } from 'node:stream';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import { maybeResetOnDrift } from '../db-drift-reset.js';
-import { schemaFingerprint } from '../schema-fingerprint.js';
+import { schemaFingerprint } from '../../../kernel/adapters/sqlite/schema-fingerprint.js';
 
 let dir: string;
 

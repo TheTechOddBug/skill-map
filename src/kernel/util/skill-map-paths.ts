@@ -2,22 +2,25 @@
  * Kernel-side helpers that compose the layered-config file paths from
  * the canonical `SKILL_MAP_DIR` literal.
  *
- * `SKILL_MAP_DIR` is exported once from `core/paths/db-path.ts` and
- * re-exported here as `KERNEL_SKILL_MAP_DIR` so kernel-side callers
- * keep their historic name without the literal living in two files
- * (audit m3, one literal home, no `grep "'\.skill-map'"` sweep
- * invariant to maintain across kernel + CLI).
+ * This is the CANONICAL home for the literal (audit m3, one literal
+ * home, no `grep "'\.skill-map'"` sweep invariant to maintain). The
+ * kernel is the innermost layer, so the literal lives here and the
+ * `core/` path helpers (`core/paths/db-path.ts`) re-export it DOWNward,
+ * never the reverse. `KERNEL_SKILL_MAP_DIR` stays as the historic
+ * kernel-side alias for callers that already use that name
+ * (`conformance/index.ts`).
  */
 
 import { join } from 'node:path';
 
-import { SKILL_MAP_DIR } from '../../core/paths/db-path.js';
-
 /**
  * Per-scope directory the kernel + CLI both store state under (DB file,
- * settings, plugins, etc.). Re-exported from `core/paths/db-path.ts`
- * the single canonical source for the literal.
+ * settings, plugins, etc.). The single canonical source for the literal;
+ * `core/paths/db-path.ts` re-exports it.
  */
+export const SKILL_MAP_DIR = '.skill-map';
+
+/** Historic kernel-side alias for {@link SKILL_MAP_DIR}. */
 export const KERNEL_SKILL_MAP_DIR = SKILL_MAP_DIR;
 
 const SETTINGS_FILENAME = 'settings.json';
