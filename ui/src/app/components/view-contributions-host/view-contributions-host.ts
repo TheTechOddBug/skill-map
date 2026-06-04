@@ -101,6 +101,11 @@ interface IDispatchedItem {
     }
   `,
   styles: [`
+    /* Production baseline: the host is transparent to layout so a slot
+       with no contributions takes zero space, and the inner .vch span
+       becomes the real flex/flow item of the parent slot. Owned here
+       (not the debug-only debug-slots.css) because it is load-bearing. */
+    :host { display: contents; }
     .vch { display: inline-flex; align-items: center; gap: 0.7rem;
       flex-wrap: wrap; }
     .vch__slot { display: inline-flex; }

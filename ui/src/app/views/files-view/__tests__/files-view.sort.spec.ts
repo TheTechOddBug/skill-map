@@ -12,7 +12,7 @@ import {
 
 const STORAGE_KEY = 'sm.files.sort';
 
-describe('files-view.sort — defaults', () => {
+describe('files-view.sort: defaults', () => {
   beforeEach(() => localStorage.clear());
   afterEach(() => localStorage.clear());
 
@@ -30,7 +30,7 @@ describe('files-view.sort — defaults', () => {
   });
 });
 
-describe('files-view.sort — round-trip', () => {
+describe('files-view.sort: round-trip', () => {
   beforeEach(() => localStorage.clear());
   afterEach(() => localStorage.clear());
 
@@ -48,7 +48,7 @@ describe('files-view.sort — round-trip', () => {
   });
 });
 
-describe('files-view.sort — malformed storage resets to default', () => {
+describe('files-view.sort: malformed storage resets to default', () => {
   beforeEach(() => localStorage.clear());
   afterEach(() => localStorage.clear());
 
@@ -71,7 +71,7 @@ describe('files-view.sort — malformed storage resets to default', () => {
   }
 });
 
-describe('nextSort — header-click transitions', () => {
+describe('nextSort: header-click transitions', () => {
   it('the tree column always resets to the default, from any state', () => {
     expect(nextSort({ column: 'tokens', dir: 'asc' }, 'tree')).toEqual(DEFAULT_SORT);
     expect(nextSort({ column: 'issues', dir: 'desc' }, 'tree')).toEqual(DEFAULT_SORT);

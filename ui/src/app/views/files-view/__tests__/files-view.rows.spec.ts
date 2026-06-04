@@ -58,7 +58,7 @@ function rowsFor(nodes: readonly INodeView[], sort: IFilesSort, m: IIssueMaps = 
 const leaves = (rows: TFolderViewRow[]): IFolderLeaf[] =>
   rows.filter((r): r is IFolderLeaf => r.type === 'leaf');
 
-describe('buildRows — tree mode (default)', () => {
+describe('buildRows: tree mode (default)', () => {
   it('emits folder rows + leaves and keeps alpha order', () => {
     const nodes = [
       makeNode('src/b.md', { name: 'b' }),
@@ -87,7 +87,7 @@ describe('buildRows — tree mode (default)', () => {
   });
 });
 
-describe('buildRows — flat mode', () => {
+describe('buildRows: flat mode', () => {
   const nodes = [
     makeNode('a.md', { name: 'a', linksIn: 5, linksOut: 1, tokens: 100 }),
     makeNode('b.md', { name: 'b', linksIn: 2, linksOut: 9, tokens: 300 }),

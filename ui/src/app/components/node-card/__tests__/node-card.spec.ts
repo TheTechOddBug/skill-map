@@ -227,7 +227,7 @@ describe('NodeCard, catalog curation surfaces (2026-05-07)', () => {
     fixture.componentRef.setInput('node', node);
     fixture.detectChanges();
     // The host element receives the `sm-gnode--with-color` class and
-    // the `--node-color` CSS var; both are wired off `agentVendorColor()`.
+    // the `--node-color` CSS var; both are wired off `nodeColor()`.
     const host = fixture.elementRef.nativeElement as HTMLElement;
     expect(host.classList.contains('sm-gnode--with-color')).toBe(true);
     expect(host.style.getPropertyValue('--node-color')).toBe('purple');

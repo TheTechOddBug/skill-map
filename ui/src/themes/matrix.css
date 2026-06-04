@@ -109,6 +109,7 @@ html.app-matrix body {
   --sm-shadow-floating: 0 4px 14px color-mix(in srgb, var(--sm-matrix-accent) 18%, transparent);
   --sm-shadow-card: 0 0 18px color-mix(in srgb, var(--sm-matrix-accent) 20%, transparent);
   --sm-shadow-card-hover: 0 0 18px color-mix(in srgb, var(--sm-matrix-accent) 55%, transparent);
+  --sm-shadow-panel: 0 4px 24px color-mix(in srgb, var(--sm-matrix-accent) 18%, transparent);
 
   /* Tooltip retint: PrimeNG tooltips live in `<body>` (appended out
      of any wrapper), so the vars MUST be set at `:root` to reach

@@ -14,7 +14,9 @@
  * and PrimeNG's `--p-*` palette in one beat.
  */
 
-/* DEBUG-SLOTS: temporary visual aid for view-contribution slot mapping. Remove. */
+/* DEBUG-SLOTS: kept dev overlay for view-contribution slot mapping
+   (`?debug-slots=1`). Deliberate tool, not scaffolding to delete, see
+   context/ui.md § Debug overlays. */
 @import './app/debug-slots.css';
 
 /* PrimeNG tooltip respects newlines in the text content. Lets analyzer

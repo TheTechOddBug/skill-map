@@ -60,9 +60,10 @@ export class KindIcon {
    * input above is kept for backward compatibility (and so per-provider
    * surfaces like the legacy "claude vs gemini agent" experiment can
    * be re-introduced if the spec ever flips back), but the resolver
-   * intentionally ignores it. Same principle as `node-card.providerAccent`
-   * being disabled: provider identity surfaces via the subtitle chip,
-   * not via icon / colour overrides that fight the kind visual.
+   * intentionally ignores it. Same principle as the node card not
+   * painting a per-provider accent: provider identity surfaces via the
+   * subtitle chip, not via icon / colour overrides that fight the kind
+   * visual.
    */
   private readonly resolvedUi = computed(() => {
     return this.kindRegistry.lookup(this.kind());

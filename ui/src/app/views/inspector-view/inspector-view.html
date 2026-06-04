@@ -79,25 +79,14 @@
     </div>
 
     @if (issues().length > 0) {
-      <section class="sm-block sm-block--collapsible" data-testid="inspector-findings">
-        <button
-          type="button"
-          class="sm-block__row sm-block__row--toggle"
-          (click)="toggleSection('findings')"
-          [attr.aria-expanded]="expanded('findings')"
-          data-testid="inspector-findings-toggle"
-        >
-          <span class="sm-block__title">
-            {{ texts.sections.findings }}
-            <span class="sm-block__count">({{ issues().length }})</span>
-          </span>
-          <i
-            class="pi sm-block__chevron"
-            [class.pi-chevron-right]="!expanded('findings')"
-            [class.pi-chevron-down]="expanded('findings')"
-            aria-hidden="true"
-          ></i>
-        </button>
+      <sm-collapsible-section
+        [title]="texts.sections.findings"
+        [expanded]="expanded('findings')"
+        toggleTestid="inspector-findings-toggle"
+        (toggle)="toggleSection('findings')"
+        data-testid="inspector-findings"
+      >
+        <span class="sm-block__count" smSectionTitleExtra>({{ issues().length }})</span>
         @if (expanded('findings')) {
           <ul class="inspector__findings-list">
             @for (issue of issues(); track $index) {
@@ -124,7 +113,7 @@
             }
           </ul>
         }
-      </section>
+      </sm-collapsible-section>
     }
 
     @if (hasVendorFrontmatter()) {
@@ -142,27 +131,16 @@
     }
 
     @if (n.sidecar?.present) {
-      <section class="sm-block sm-block--collapsible" data-testid="inspector-card-annotations">
-        <button
-          type="button"
-          class="sm-block__row sm-block__row--toggle"
-          (click)="toggleSection('annotations')"
-          [attr.aria-expanded]="expanded('annotations')"
-          data-testid="inspector-annotations-toggle"
-        >
-          <span class="sm-block__title">
-            {{ texts.sections.annotations }}
-            @if (sidecarFileName(); as sf) {
-              <code class="inspector__sidecar-file" data-testid="inspector-sidecar-file">({{ sf }})</code>
-            }
-          </span>
-          <i
-            class="pi sm-block__chevron"
-            [class.pi-chevron-right]="!expanded('annotations')"
-            [class.pi-chevron-down]="expanded('annotations')"
-            aria-hidden="true"
-          ></i>
-        </button>
+      <sm-collapsible-section
+        [title]="texts.sections.annotations"
+        [expanded]="expanded('annotations')"
+        toggleTestid="inspector-annotations-toggle"
+        (toggle)="toggleSection('annotations')"
+        data-testid="inspector-card-annotations"
+      >
+        @if (sidecarFileName(); as sf) {
+          <code class="inspector__sidecar-file" smSectionTitleExtra data-testid="inspector-sidecar-file">({{ sf }})</code>
+        }
         @if (expanded('annotations')) {
           <sm-annotations-panel
             [overlay]="n.sidecar"
@@ -172,46 +150,29 @@
             (tagClick)="tagSelect.emit($event)"
           />
         }
-      </section>
+      </sm-collapsible-section>
     }
 
-    <section class="sm-block sm-block--collapsible" data-testid="inspector-card-linked-nodes">
-      <button
-        type="button"
-        class="sm-block__row sm-block__row--toggle"
-        (click)="toggleSection('connections')"
-        [attr.aria-expanded]="expanded('connections')"
-        data-testid="inspector-connections-toggle"
-      >
-        <span class="sm-block__title">{{ texts.sections.connections }}</span>
-        <i
-          class="pi sm-block__chevron"
-          [class.pi-chevron-right]="!expanded('connections')"
-          [class.pi-chevron-down]="expanded('connections')"
-          aria-hidden="true"
-        ></i>
-      </button>
+    <sm-collapsible-section
+      [title]="texts.sections.connections"
+      [expanded]="expanded('connections')"
+      toggleTestid="inspector-connections-toggle"
+      (toggle)="toggleSection('connections')"
+      data-testid="inspector-card-linked-nodes"
+    >
       @if (expanded('connections')) {
         <sm-linked-nodes-panel [path]="n.path" (openPath)="openPath($event)" />
       }
-    </section>
+    </sm-collapsible-section>
 
-    <section class="sm-block sm-block--collapsible inspector__body-section" data-testid="inspector-card-body">
-      <button
-        type="button"
-        class="sm-block__row sm-block__row--toggle"
-        (click)="toggleSection('body')"
-        [attr.aria-expanded]="expanded('body')"
-        data-testid="inspector-body-toggle"
-      >
-        <span class="sm-block__title">{{ texts.sections.body }}</span>
-        <i
-          class="pi sm-block__chevron"
-          [class.pi-chevron-right]="!expanded('body')"
-          [class.pi-chevron-down]="expanded('body')"
-          aria-hidden="true"
-        ></i>
-      </button>
+    <sm-collapsible-section
+      class="inspector__body-section"
+      [title]="texts.sections.body"
+      [expanded]="expanded('body')"
+      toggleTestid="inspector-body-toggle"
+      (toggle)="toggleSection('body')"
+      data-testid="inspector-card-body"
+    >
       @if (expanded('body')) {
         @switch (bodyState()) {
           @case ('loading') {
@@ -237,72 +198,45 @@
           }
         }
       }
-    </section>
+    </sm-collapsible-section>
 
     @if (hasPluginContributions()) {
-      <section class="sm-block sm-block--collapsible" data-testid="inspector-card-plugins">
-        <button
-          type="button"
-          class="sm-block__row sm-block__row--toggle"
-          (click)="toggleSection('plugins')"
-          [attr.aria-expanded]="expanded('plugins')"
-          data-testid="inspector-plugins-toggle"
-        >
-          <span class="sm-block__title">{{ texts.sections.plugins }}</span>
-          <i
-            class="pi sm-block__chevron"
-            [class.pi-chevron-right]="!expanded('plugins')"
-            [class.pi-chevron-down]="expanded('plugins')"
-            aria-hidden="true"
-          ></i>
-        </button>
+      <sm-collapsible-section
+        [title]="texts.sections.plugins"
+        [expanded]="expanded('plugins')"
+        toggleTestid="inspector-plugins-toggle"
+        (toggle)="toggleSection('plugins')"
+        data-testid="inspector-card-plugins"
+      >
         @if (expanded('plugins')) {
           <sm-plugin-contributions [sidecarRoot]="sidecarRoot()" />
         }
-      </section>
+      </sm-collapsible-section>
     }
 
     @if (hasViewContributions()) {
-      <section class="sm-block sm-block--collapsible" data-testid="inspector-card-view-contributions">
-        <button
-          type="button"
-          class="sm-block__row sm-block__row--toggle"
-          (click)="toggleSection('viewContributions')"
-          [attr.aria-expanded]="expanded('viewContributions')"
-          data-testid="inspector-view-contributions-toggle"
-        >
-          <span class="sm-block__title">{{ texts.sections.viewContributions }}</span>
-          <i
-            class="pi sm-block__chevron"
-            [class.pi-chevron-right]="!expanded('viewContributions')"
-            [class.pi-chevron-down]="expanded('viewContributions')"
-            aria-hidden="true"
-          ></i>
-        </button>
+      <sm-collapsible-section
+        [title]="texts.sections.viewContributions"
+        [expanded]="expanded('viewContributions')"
+        toggleTestid="inspector-view-contributions-toggle"
+        (toggle)="toggleSection('viewContributions')"
+        data-testid="inspector-card-view-contributions"
+      >
         @if (expanded('viewContributions')) {
           <sm-inspector-slots-panel [node]="node()" />
         }
-      </section>
+      </sm-collapsible-section>
     }
 
-    <section class="sm-block sm-block--collapsible" data-testid="inspector-card-debug">
-      <button
-        type="button"
-        class="sm-block__row sm-block__row--toggle"
-        (click)="toggleSection('debug')"
-        [attr.aria-expanded]="expanded('debug')"
-        [attr.aria-label]="texts.debugToggleAriaLabel"
-        [pTooltip]="texts.debugToggleTooltip"
-        data-testid="inspector-debug-toggle"
-      >
-        <span class="sm-block__title">{{ texts.sections.debug }}</span>
-        <i
-          class="pi sm-block__chevron"
-          [class.pi-chevron-right]="!expanded('debug')"
-          [class.pi-chevron-down]="expanded('debug')"
-          aria-hidden="true"
-        ></i>
-      </button>
+    <sm-collapsible-section
+      [title]="texts.sections.debug"
+      [expanded]="expanded('debug')"
+      toggleTestid="inspector-debug-toggle"
+      [toggleAriaLabel]="texts.debugToggleAriaLabel"
+      [toggleTooltip]="texts.debugToggleTooltip"
+      (toggle)="toggleSection('debug')"
+      data-testid="inspector-card-debug"
+    >
       @if (expanded('debug')) {
         <div class="inspector__debug" data-testid="inspector-debug-section">
           <sm-inspector-debug-panel
@@ -312,28 +246,19 @@
           />
         </div>
       }
-    </section>
+    </sm-collapsible-section>
 
-    <section class="sm-block sm-block--collapsible" data-testid="inspector-card-audit">
-      <button
-        type="button"
-        class="sm-block__row sm-block__row--toggle"
-        (click)="toggleSection('audit')"
-        [attr.aria-expanded]="expanded('audit')"
-        data-testid="inspector-audit-toggle"
-      >
-        <span class="sm-block__title">{{ texts.sections.audit }}</span>
-        <i
-          class="pi sm-block__chevron"
-          [class.pi-chevron-right]="!expanded('audit')"
-          [class.pi-chevron-down]="expanded('audit')"
-          aria-hidden="true"
-        ></i>
-      </button>
+    <sm-collapsible-section
+      [title]="texts.sections.audit"
+      [expanded]="expanded('audit')"
+      toggleTestid="inspector-audit-toggle"
+      (toggle)="toggleSection('audit')"
+      data-testid="inspector-card-audit"
+    >
       @if (expanded('audit')) {
         <sm-inspector-audit-panel [sidecarRoot]="sidecarRoot()" />
       }
-    </section>
+    </sm-collapsible-section>
 
     <!--
       Phase 6 consent gate, first-time `.sm` sidecar write confirmation.

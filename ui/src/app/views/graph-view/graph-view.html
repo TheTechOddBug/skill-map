@@ -74,6 +74,7 @@
         >
           <ng-container ngProjectAs="[fConnections]">
             @for (edge of graph().edges; track edge.id) {
+              @let es = edgeSelectionFor(edge.id);
               <f-connection
                 [fOutputId]="edge.from + '-out'"
                 [fInputId]="edge.to + '-in'"
@@ -83,9 +84,9 @@
                 [fBehavior]="connectionBehavior"
                 [fReassignDisabled]="true"
                 [class]="'f-conn--' + edge.kind"
-                [class.f-conn--highlighted]="isEdgeHighlighted(edge)"
-                [class.f-conn--dimmed]="isEdgeDimmed(edge)"
-                [style.opacity]="edgeOpacity(edge)"
+                [class.f-conn--highlighted]="es.highlighted"
+                [class.f-conn--dimmed]="es.dimmed"
+                [style.opacity]="es.opacity"
               >
                 <!-- Schema-designer style: a circular dot at the source and
                      an arrow at the target. The dot uses the `svg[fMarker]`

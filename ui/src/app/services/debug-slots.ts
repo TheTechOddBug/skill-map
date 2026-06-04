@@ -16,8 +16,9 @@
  * otherwise the `.is-debug-slots` class on `<html>` lags the first
  * paint until the first view-contribution host injects the service.
  *
- * Remove this file together with `debug-slots.css` and the wrappers /
- * mounts marked `DEBUG-SLOTS` once the slot mapping discussion lands.
+ * KEPT dev tool, NOT temporary scaffolding (see `context/ui.md`
+ * § Debug overlays). Do not remove as "cleanup"; retire only on an
+ * explicit decision.
  */
 
 import { Injectable, effect, signal } from '@angular/core';

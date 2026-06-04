@@ -115,7 +115,7 @@
      animation, producing visible lag during resize. */
   background: var(--sm-bg-content);
   border-left: 1px solid var(--sm-border);
-  box-shadow: 0 4px 24px rgb(0 0 0 / 0.18);
+  box-shadow: var(--sm-shadow-panel);
   transform: translateX(100%);
   transition: transform 220ms ease;
   z-index: 20;

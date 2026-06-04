@@ -53,13 +53,15 @@ Anywhere else, default to `<p-button>`. When in doubt, default to `<p-button>` a
 
 ## PrimeNG `::ng-deep` exceptions
 
-PrimeNG internal class names (`.p-togglebutton-content`, `.p-card-body`, `.p-chip`, ...) are not part of any stability guarantee. The M1 audit (May 2026, primeng@21.1.6) swept `ui/` to migrate every `::ng-deep` block that targeted those internals. The outcome:
+PrimeNG internal class names (`.p-togglebutton-content`, `.p-datatable-tbody`, `.p-chip`, ...) are not part of any stability guarantee. The M1 audit (May 2026, primeng@21.1.6) swept `ui/` to migrate every `::ng-deep` block that targeted those internals; the taxonomy is kept in sync with the tree as components change. The classes:
 
-1. **Class A (4 blocks)**: migrated to `[pt]` pass-through (see "`[pt]` slot classes" below).
-2. **Class B (12 blocks)**: stable host-merge contract, kept as `::ng-deep` with the selector pointing at the merged host directly (see "Class B" table below).
-3. **Class D (4 blocks)**: deep internals (no `pt`, no `dt`, no host-merge alternative), kept as `::ng-deep` and pinned to the verified PrimeNG version (see "Class D" table below).
+1. **Class A**: migrated to `[pt]` pass-through (see "`[pt]` slot classes" below).
+2. **Class B (host-merge contracts)**: project-owned class merged onto a PrimeNG host, kept as `::ng-deep` with the selector pointing at the merged host directly (see "Class B" table below).
+3. **Class D (deep internals)**: `.p-*` internals or content-slot locks (no `pt`, no `dt`, no host-merge alternative), kept as `::ng-deep` and pinned to the verified PrimeNG version (see "Class D" table below).
 4. **Class C**: investigated as `[dt]` candidates, none migrated. The four candidate blocks (chip background/color variants) used the broken descendant selector pattern `.chip--X .p-chip`, which PrimeNG 21 silently misses (host merge, see "Why descendant selectors are wrong" below). The fix is a Class B rewrite (`.chip--X`), not a `[dt]` migration: chip design tokens cover `background` / `color` / `borderRadius` / `paddingX/Y` but not `:hover`, `text-decoration`, `cursor`, or `transition`, all of which the migrated variants need.
 5. **Dead code removed**: `.chip--dead .p-chip` and `.chip--dead-confirmed .p-chip` (inspector-view.css) had no template references and were deleted.
+
+The Class B / Class D tables below identify each block by **file + selector**, not `file:line`: line numbers rot on unrelated edits (the original pinned numbers had all drifted by the time the inspector moved off `<p-card>`), so grep the selector to locate the rule. The inspector's `<p-card>`-based hero card and chips were retired when it moved to the `.sm-block` collapsible-section vocabulary (see "Non-PrimeNG `::ng-deep`" below), which is why no `p-card` rows remain.
 
 All classes verified against `primeng@21.1.6`. Re-verify on the next major.
 
@@ -77,34 +79,39 @@ Three components migrated their `.p-togglebutton-content` overrides to a `[pt]="
 
 When `<p-togglebutton>` carries `[pTooltip]` on the same host (as in `kind-palette.html`), Angular strict template check picks `TooltipPassThroughOptions` (which only exposes `root` / `arrow` / `text`) over `ToggleButtonPassThroughOptions`, so the `[pt]` expression is cast with `$any({...})` to keep the togglebutton-shaped object. Reason: two directives on the same host both declare a `pt` input with different types, Angular merges the input declarations and picks the first match. Removing `[pTooltip]` would require restructuring the template (wrap in a div, lose the host-level tooltip behaviour), so the `$any` cast is the smaller cost.
 
-### Class B, stable host-merge contract (12 blocks)
+### Class B, stable host-merge contract
 
 Each selector targets the merged host directly (no descendant step). `::ng-deep` stays because the host element is rendered by PrimeNG outside Angular's view encapsulation; the targeted class lives in the host-merge contract documented in `host.class = cn(cx('root'), styleClass)` for the relevant component.
 
-| File:line | Selector | PrimeNG component | Purpose |
+| File | Selector | PrimeNG component | Purpose |
 |---|---|---|---|
-| `ui/src/app/components/annotations-panel/annotations-panel.css:86` | `.ann-panel__chip--author` | `<p-chip>` | Outlined author tag chip. |
-| `ui/src/app/components/annotations-panel/annotations-panel.css:92` | `.ann-panel__chip--user` | `<p-chip>` | Explicit filled user tag chip. |
-| `ui/src/app/components/annotations-panel/annotations-panel.css:104` | `.ann-panel__chip--author, .ann-panel__chip--user` | `<p-chip>` | Interactive base styles (cursor, transition) shared across both variants. |
-| `ui/src/app/components/annotations-panel/annotations-panel.css:109` | `...:hover` | `<p-chip>` | Hover state (filter brightness) on both variants. |
-| `ui/src/app/components/annotations-panel/annotations-panel.css:113` | `...:focus-visible` | `<p-chip>` | Focus ring on both variants. |
-| `ui/src/app/components/annotations-panel/annotations-panel.css:124` | `.ann-panel__chip--active` | `<p-chip>` | Active tag overlay (solid primary). |
-| `ui/src/app/components/vendor-frontmatter/vendor-frontmatter.css:140` | `.chip--danger` | `<p-chip>` | Disallowed-tool danger chip (severity-error bg/color). |
-| `ui/src/app/views/inspector-view/inspector-view.css:58` | `.inspector__card--hero` | `<p-card>` | Hero-card accent (primary border-left). |
-| `ui/src/app/views/inspector-view/inspector-view.css:184` | `.chip--link` | `<p-chip>` | Linked-node chip (primary-50 bg, primary color, transition). |
-| `ui/src/app/views/inspector-view/inspector-view.css:191` | `.chip--link:hover` | `<p-chip>` | Linked-node chip hover (primary-100 bg). |
-| `ui/src/app/views/inspector-view/inspector-view.css:202` | `.chip--warn` | `<p-chip>` | Warn chip (command-bg / command-fg). |
+| `ui/src/app/components/annotations-panel/annotations-panel.css` | `.ann-panel__chip--user` | `<p-chip>` | Filled user tag chip. |
+| `ui/src/app/components/annotations-panel/annotations-panel.css` | `.ann-panel__chip--user:hover` | `<p-chip>` | Hover state (filter brightness). |
+| `ui/src/app/components/annotations-panel/annotations-panel.css` | `.ann-panel__chip--user:focus-visible` | `<p-chip>` | Focus ring. |
+| `ui/src/app/components/annotations-panel/annotations-panel.css` | `.ann-panel__chip--active` | `<p-chip>` | Active tag overlay (solid primary). |
+| `ui/src/app/views/inspector-view/inspector-view.css` | `.ann-panel__chip--user` | `<p-chip>` | Inspector-scoped padding override of the annotations chip (tighter rows next to the dense `dt`/`dd` grid). |
 
-### Class D, deep internals (accepted lock-in, 4 blocks)
+### Class D, deep internals (accepted lock-in)
 
 No `pt` section, no `dt` token, no host-merge alternative covers the case. Pin the PrimeNG version, monitor the changelog on every bump.
 
-| File:line | Selector | PrimeNG component | Why no `pt`/`dt` |
+| File | Selector | PrimeNG component | Why no `pt`/`dt` |
 |---|---|---|---|
-| `ui/src/app/components/kind-palette/kind-palette.css:65` | `.kind-palette__content > span` | `<p-togglebutton>` content slot child | Layout for the count-bearing span inside the content slot. No `pt` key for "first child of content". Slot-shape lock, not internal-class lock. |
-| `ui/src/app/components/settings-modal/settings-modal.css:8` | `.settings-modal__content` | `<p-dialog>` | Resets dialog content padding via `[contentStyleClass]` injection. `<p-dialog>` exposes no `pt.content` key for padding override in 21.1.6. |
-| `ui/src/app/views/inspector-view/inspector-view.css:366` | `.inspector__card .p-card-body` (scoped to embedded mode) | `<p-card>` | `<p-card>` exposes `pt.root` / `pt.header` but no `pt.body` in 21.1.6. Scoped to `:host(.inspector-view--embedded)` so standalone mode is unaffected. |
-| `ui/src/app/views/inspector-view/inspector-view.css:369` | `.inspector__card .p-card-title` (scoped to embedded mode) | `<p-card>` | Same, no `pt.title` key. Embedded-mode scope keeps the blast radius small. |
+| `ui/src/app/components/kind-palette/kind-palette.css` | `.kind-palette__content > span` | `<p-togglebutton>` content slot child | Layout for the count-bearing span inside the content slot. No `pt` key for "first child of content". Slot-shape lock, not internal-class lock. |
+| `ui/src/app/components/settings-modal/settings-modal.css` | `.settings-modal__content` | `<p-dialog>` | Resets dialog content padding via `[contentStyleClass]` injection. `<p-dialog>` exposes no `pt.content` key for padding override in 21.1.6. |
+| `ui/src/app/components/link-kind-palette/link-kind-palette.css` | `.link-kind-palette__tooltip .p-tooltip-text` | `<p-tooltip>` text node | Two-line tooltip (`pre-line` + centered). No `pt` key for the tooltip text node. |
+| `ui/src/app/views/graph-view/graph-layout-toolbar/graph-layout-toolbar.css` | `.graph__layout-popover .p-popover-content` | `<p-popover>` content | Tightens the popover content padding to a 4px gutter. No `pt.content` key for popover. |
+| `ui/src/app/views/files-view/files-view.css` | `.files__table .p-datatable-tbody td` | `<p-table>` body cell | Body-cell font-size + vertical-align. No `pt` key reaches the generated `<td>`. |
+| `ui/src/app/views/files-view/files-view.css` | `.files__table .p-datatable-tbody .files__row--folder > td` | `<p-table>` body cell | Folder-row tint MUST sit on the `<td>` to beat PrimeNG's per-cell striping background (a `<tr>` rule loses). |
+
+## Debug overlays (kept dev tools, do NOT remove)
+
+The SPA ships two opt-in debug overlays. Both are **deliberate, maintained dev tools**, not throwaway scaffolding, even where older inline comments said "temporary" / "Remove". Do not flag them for deletion in audits, and do not strip their mounts. Retire them only on an explicit decision, never as "cleanup".
+
+- **Slot overlay** (`?debug-slots=1`, or `localStorage` `sm-debug-slots`): `DebugSlotsService` toggles `html.is-debug-slots`; `ui/src/app/debug-slots.css` then paints a coloured ring + label around every `<sm-view-contributions-host>` so you can see where each view-contribution slot lands. Gated, so production users never see it. The host's own production `:host { display: contents }` baseline lives in `view-contributions-host.ts` (load-bearing), not in `debug-slots.css`, so the overlay file carries only debug-mode rules.
+- **Perf HUD** (`?debug-perf=1`, or `localStorage` `sm-debug-perf`): `DebugPerfService` gates `<sm-perf-hud>` in the graph view (visible / total / edge counts, layout timing).
+
+The `graph.node.alert` (graph view) and `topbar.nav.start` (shell topbar) `<sm-view-contributions-host>` mounts are **real slot anchors**, not debug-only; they stay regardless of the overlay.
 
 ## External-link safety (`target="_blank"`)
 
@@ -137,10 +144,11 @@ The same split applies to `ui/src/i18n/` (single folder, but every catalog file 
 
 ### Non-PrimeNG `::ng-deep` (out of M1 scope)
 
-Two unrelated escape-hatches also live under `::ng-deep`, neither targets a PrimeNG internal so neither is part of the M1 sweep. Recorded here so future audits do not lump them in:
+Several unrelated escape-hatches also live under `::ng-deep`, none targets a PrimeNG internal so none is part of the M1 sweep. Recorded here so future audits do not lump them in:
 
 - **Foblex Flow internals** in `graph-view.css` (2 blocks, `.f-connection-drag-handle` and `.f-conn--supersedes .f-connection-path`), intentional per the `foblex-flow` skill Rule 6, library elements styled in read-only graph contexts.
-- **Rendered markdown DOM** injected via `[innerHTML]`, so component encapsulation does not reach it and child styles go through `::ng-deep`: `settings-changelog.css` (5 blocks under `.settings-changelog__highlight-body`), plus the inline-markdown description fields in `inspector-view.css` (`.inspector__desc` `code` / `a`) and `node-card.css` (`.sm-gnode__desc` `code` / `a`). The description `a` rules also restore link affordance over the global `a` reset.
+- **Rendered markdown DOM** injected via `[innerHTML]`, so component encapsulation does not reach it and child styles go through `::ng-deep`: `settings-changelog.css` (5 blocks under `.settings-changelog__highlight-body`), the inline-markdown description fields in `inspector-view.css` (`.inspector__desc` `code` / `a`) and `node-card.css` (`.sm-gnode__desc` `code` / `a`), and the rendered author quote in `vendor-frontmatter.css` (`.vfm__quote` `> :first-child` / `> :last-child` / `code` / `a`). The description `a` rules also restore link affordance over the global `a` reset.
+- **Shared `.sm-block` section vocabulary**: `inspector-view.css` styles the `.sm-block*` family (rail, toggle row, chevron, dense `dt`/`dd` grid) via `::ng-deep` so the child components that emit that markup, `<sm-vendor-frontmatter>`, `<sm-annotations-panel>`, and `<sm-collapsible-section>` (the generic toggle row the inspector sections are built from), inherit the chrome without redeclaring it. Project-owned classes on project-owned child DOM, never a PrimeNG internal.
 - **Custom-element children** in `kind-palette.css` (the `<sm-kind-icon>` tints and PrimeIcon `.pi` rules), styling a project-owned custom element from its parent, again outside Angular encapsulation.
 
 ## Themes

@@ -1,7 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, model, output } from '@angular/core';
 import { TooltipModule } from 'primeng/tooltip';
 
-import { KindRegistryService } from '../../../services/kind-registry';
 import { MarkdownRenderer } from '../../../services/markdown-renderer';
 import { setupInlineMarkdown } from '../../../services/markdown-inline-signal';
 import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
@@ -69,12 +68,6 @@ const DEFAULT_SELECTION: ISelectionView = {
     '[class.sm-gnode--highlighted]': 'selection().highlighted',
     '[class.sm-gnode--dimmed]': 'selection().dimmed',
     '[style.--node-color]': 'nodeColor()',
-    // Per-provider accent override. When a kind name is contributed
-    // by several Providers (e.g. Claude `agent` and Gemini `agent`),
-    // the kindRegistry's primary drives the shared `--sm-kind-<kind>`
-    // CSS var. Nodes sourced from a non-primary Provider override the
-    // accent here so each card paints with its own Provider's color.
-    '[style.--accent]': 'providerAccent()',
   },
 })
 export class NodeCard {
@@ -171,30 +164,28 @@ export class NodeCard {
   }
 
   /**
-   * Card accent color. Catalog curation 2026-05-07: the canonical
-   * source is the Anthropic vendor `frontmatter.color` enum
-   * (`red` / `blue` / `green` / …) on agent kind. Non-agent kinds have
-   * no override and fall back to the kind-default palette via the
-   * existing `--accent` CSS var. The pre-curation `metadata.color`
-   * opt-in was dropped at curation 2026-05-07.
+   * Card accent color. Catalog curation 2026-05-07: the canonical source
+   * is the Anthropic vendor `frontmatter.color` enum (`red` / `blue` /
+   * `green` / …) on agent kind (per the Claude provider's agent schema,
+   * NOT `metadata.color`). Non-agent kinds have no override and fall back
+   * to the kind-default palette via the `--accent` CSS var. Drives the
+   * `sm-gnode--with-color` class and the `--node-color` host var.
+   *
+   * Per-provider accent is intentionally NOT painted: kind dictates the
+   * visual (an agent reads as "an agent" first, not as a vendor-tinted
+   * card); provider identity surfaces via the kind-icon glyph and the
+   * chrome above the list, not via a colour override that fights the
+   * kind visual. See `kind-icon.ts` for the matching resolver.
    */
-  protected readonly nodeColor = computed<string | null>(() => this.agentVendorColor());
+  protected readonly nodeColor = computed<string | null>(() => {
+    const n = this.node();
+    if (n.kind !== 'agent') return null;
+    const fm = n.frontmatter as Record<string, unknown>;
+    const c = fm['color'];
+    return typeof c === 'string' && c.length > 0 ? c : null;
+  });
 
-  private readonly kindRegistry = inject(KindRegistryService);
   private readonly markdown = inject(MarkdownRenderer);
-
-  /**
-   * Per-Provider accent override. Disabled, the node card always paints
-   * with the KIND's primary colour (via the `--sm-kind-<kind>` CSS var
-   * the kind-class rule sets): kind dictates the visual. A Codex agent
-   * reads as "an agent" first, not as a Codex-tinted card. Provider
-   * identity is conveyed by the kind-icon's provider glyph (icon-box)
-   * and surfaced in the chrome above the list, so the card no longer
-   * carries a separate provider chip. Returning `null` unconditionally
-   * keeps the `[style.--accent]` binding inert and lets the CSS cascade
-   * pick up the kind primary.
-   */
-  protected readonly providerAccent = computed<string | null>(() => null);
 
   /** Pretty number formatting for bytes / tokens (e.g. 12420 → "12k"). */
   protected readonly bytesShort = computed<string | null>(() => {
@@ -234,20 +225,6 @@ export class NodeCard {
   protected readonly moreTagsCount = computed<number>(() =>
     Math.max(0, this.tagChips().length - 3),
   );
-
-  /**
-   * Anthropic vendor `color` from agent frontmatter, drives the card's
-   * accent. Non-agent kinds fall back to the kind-default palette.
-   * Catalog curation: vendor color rides on `frontmatter.color` (per
-   * the Claude provider's agent schema), NOT `metadata.color`.
-   */
-  protected readonly agentVendorColor = computed<string | null>(() => {
-    const n = this.node();
-    if (n.kind !== 'agent') return null;
-    const fm = n.frontmatter as Record<string, unknown>;
-    const c = fm['color'];
-    return typeof c === 'string' && c.length > 0 ? c : null;
-  });
 
   protected readonly displayName = computed<string>(() => {
     const fm = this.node().frontmatter;

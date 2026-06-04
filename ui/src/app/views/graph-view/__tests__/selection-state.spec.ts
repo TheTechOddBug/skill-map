@@ -109,4 +109,34 @@ describe('selection-state', () => {
       expect(handle.isEdgeDimmed(edge('e:bc', 'b', 'c'))).toBe(true);
     });
   });
+
+  it('edgeSelectionView bundles highlight / dim / opacity per edge id', () => {
+    TestBed.runInInjectionContext(() => {
+      const handle = createSelectionState({
+        graph: signal(makeGraph()),
+        selectedNodeId: signal<string | null>('a'),
+        activeTagSelection: signal<string | null>(null),
+      });
+      const view = handle.edgeSelectionView();
+      // e:ab touches the selected node 'a': highlighted, not dimmed,
+      // opacity from the confidence gradient (0.25 + 0.75 * 0.6 = 0.7).
+      expect(view.get('e:ab')).toEqual({ highlighted: true, dimmed: false, opacity: 0.7 });
+      // e:bc touches neither endpoint of 'a': dimmed, flat fade opacity.
+      expect(view.get('e:bc')).toEqual({ highlighted: false, dimmed: true, opacity: 0.15 });
+    });
+  });
+
+  it('edgeSelectionView: no selection leaves every edge at its confidence opacity', () => {
+    TestBed.runInInjectionContext(() => {
+      const handle = createSelectionState({
+        graph: signal(makeGraph()),
+        selectedNodeId: signal<string | null>(null),
+        activeTagSelection: signal<string | null>(null),
+      });
+      const view = handle.edgeSelectionView();
+      for (const id of ['e:ab', 'e:bc']) {
+        expect(view.get(id)).toEqual({ highlighted: false, dimmed: false, opacity: 0.7 });
+      }
+    });
+  });
 });

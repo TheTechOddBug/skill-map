@@ -49,7 +49,7 @@ import { LinkKindPalette } from '../../components/link-kind-palette/link-kind-pa
 import { SeverityPalette } from '../../components/severity-palette/severity-palette';
 import { NodeCard } from '../../components/node-card/node-card';
 import { PerfHud } from '../../components/perf-hud/perf-hud';
-/* DEBUG-SLOTS: remove with debug-slots.css. */
+/* ViewContributionsHost: real graph.node.alert slot mount (also ringed by the kept debug-slots overlay; see context/ui.md). */
 import { ViewContributionsHost } from '../../components/view-contributions-host/view-contributions-host';
 import { DebugPerfService } from '../../services/debug-perf';
 import { UsageTrackerService } from '../../services/usage-tracker';
@@ -63,7 +63,6 @@ import {
   topologyFingerprint,
   type IFullLayout,
   type IGraphData,
-  type IGraphEdge,
   type IGraphNode,
   type IPoint,
   type TNodePositions,
@@ -81,7 +80,11 @@ import { setupPanelResize } from './panel-resize.controller';
 import { setupTagSelection } from './tag-selection.controller';
 import { setupViewportStore, ZOOM_MIN, ZOOM_MAX } from './viewport-store';
 import { isAnyPrimengOverlayOpen } from './graph-view.utils';
-import { createSelectionState, type ISelectionView } from './selection-state';
+import {
+  createSelectionState,
+  type IEdgeSelectionView,
+  type ISelectionView,
+} from './selection-state';
 import { setupNodeDrag } from './node-drag.controller';
 import { setupExpansion } from './expansion.controller';
 import { setupLayoutFit } from './layout-fit.controller';
@@ -95,23 +98,18 @@ const ZOOM_BUTTON_STEP = 0.2;
  *  distinct event without dragging the UX. */
 const AUTO_FIT_ANIM_MS = 420;
 
-/**
- * Edge opacity tunables. `DIMMED` paints a flat fade for edges outside
- * the selection halo; the active edges run a confidence-weighted
- * gradient `MIN + RANGE * confidence` so high-confidence links read
- * solid and low-confidence ones recede. `CONFIDENCE_DEFAULT` fills in
- * when an edge's `confidence` is missing from the projection.
- */
-const EDGE_OPACITY_DIMMED = 0.15;
-const EDGE_OPACITY_MIN = 0.25;
-const EDGE_OPACITY_RANGE = 0.75;
-const EDGE_CONFIDENCE_DEFAULT = 0.6;
-
 /** Default selection bundle when a node is not yet in the selection map. */
 const SELECTION_DEFAULT: ISelectionView = {
   selected: false,
   highlighted: false,
   dimmed: false,
+};
+
+/** Default edge bundle when an edge is not yet in the selection map. */
+const EDGE_SELECTION_DEFAULT: IEdgeSelectionView = {
+  highlighted: false,
+  dimmed: false,
+  opacity: 1,
 };
 
 
@@ -135,7 +133,7 @@ const SELECTION_DEFAULT: ISelectionView = {
     ButtonModule,
     ConfirmDialogModule,
     TooltipModule,
-    /* DEBUG-SLOTS: remove with debug-slots.css. */
+    /* ViewContributionsHost: real graph.node.alert slot mount (also ringed by the kept debug-slots overlay; see context/ui.md). */
     ViewContributionsHost,
     MiddleMousePanDirective,
   ],
@@ -1149,38 +1147,18 @@ export class GraphView implements OnInit {
     void this.loader.toggleFavorite(payload.path, payload.value);
   }
 
-  isEdgeHighlighted(edge: IGraphEdge): boolean {
-    return this.selectionState.isEdgeHighlighted(edge);
-  }
-
-  isEdgeDimmed(edge: IGraphEdge): boolean {
-    return this.selectionState.isEdgeDimmed(edge);
-  }
-
   /**
-   * Map a numeric `[0..1]` `IGraphEdge.confidence` to the SVG opacity
-   * applied via `[style.opacity]` on the `<f-connection>`. The floor
-   * of `0.25` keeps even the most uncertain link readable; the slope
-   * of `0.75` puts a confident link (`>= 0.9`) within a hair of fully
-   * opaque so the operator's eye follows the strongest signal. The
-   * mapping is intentionally linear: a non-linear curve would amplify
-   * any clustering of extractor emissions in the middle of the range
-   * (see the plan's "Edge opacity from confidence" risk note).
-   *
-   * Selection overrides: when another edge is highlighted and this
-   * one is dimmed, return the fixed dim value (`0.15`) so the
-   * selection fade reads consistently across kinds and confidences.
-   * Inline styles win over class styles in CSS specificity, so this
-   * function is the single source of truth for the f-connection
-   * opacity, `.f-conn--dimmed` no longer applies its rule. Highlighted
-   * edges keep the confidence-derived value since the highlight reads
-   * through stroke width + colour, not opacity.
+   * Single-call lookup for the bundled selection state of an edge, read
+   * via a `@let` on each `<f-connection>` so highlight / dim / opacity
+   * cost one Map lookup instead of three function calls per CD pass
+   * (mirrors `selectionFor` for nodes). The opacity folds the confidence
+   * gradient and the dim override into one value; inline styles win over
+   * the `.f-conn--dimmed` class rule, so this is the single source of
+   * truth for connection opacity. Falls back to the all-visible default
+   * between a graph swap and the next selection recompute.
    */
-  edgeOpacity(edge: IGraphEdge): number {
-    if (this.isEdgeDimmed(edge)) return EDGE_OPACITY_DIMMED;
-    const confidence =
-      typeof edge.confidence === 'number' ? edge.confidence : EDGE_CONFIDENCE_DEFAULT;
-    return EDGE_OPACITY_MIN + EDGE_OPACITY_RANGE * confidence;
+  edgeSelectionFor(id: string): IEdgeSelectionView {
+    return this.selectionState.edgeSelectionView().get(id) ?? EDGE_SELECTION_DEFAULT;
   }
 
   // Layout-popover labelers + setters + per-item icon helpers now live

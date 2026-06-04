@@ -34,6 +34,7 @@ import { InspectorSlotsPanel } from '../../components/inspector-slots-panel/insp
 import { InspectorDebugPanel } from '../../components/inspector-debug-panel/inspector-debug-panel';
 import { InspectorAuditPanel } from '../../components/inspector-audit-panel/inspector-audit-panel';
 import { InspectorHeader } from '../../components/inspector-header/inspector-header';
+import { CollapsibleSection } from '../../components/collapsible-section/collapsible-section';
 import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
 import { DEFAULT_SETTINGS } from '../../../models/settings';
 import { setupBodyState, type IBodyStateHandle } from './inspector-body-state';
@@ -68,6 +69,7 @@ import { effectiveSupersededBy } from '../../../models/node-derived';
     InspectorDebugPanel,
     InspectorAuditPanel,
     InspectorHeader,
+    CollapsibleSection,
   ],
   providers: [ConfirmationService],
   templateUrl: './inspector-view.html',

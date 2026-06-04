@@ -15,6 +15,20 @@ import { computed, type Signal } from '@angular/core';
 
 import type { IGraphData, IGraphEdge } from './graph-layout';
 
+/**
+ * Edge opacity tunables. `DIMMED` paints a flat fade for edges outside
+ * the selection halo; active edges run a confidence-weighted gradient
+ * `MIN + RANGE * confidence` so high-confidence links read solid and
+ * low-confidence ones recede. `CONFIDENCE_DEFAULT` fills in when an
+ * edge's `confidence` is missing from the projection. The mapping is
+ * intentionally linear: a non-linear curve would amplify any clustering
+ * of extractor emissions in the middle of the range.
+ */
+const EDGE_OPACITY_DIMMED = 0.15;
+const EDGE_OPACITY_MIN = 0.25;
+const EDGE_OPACITY_RANGE = 0.75;
+const EDGE_CONFIDENCE_DEFAULT = 0.6;
+
 export interface ISelectionStateConfig {
   readonly graph: Signal<IGraphData>;
   readonly selectedNodeId: Signal<string | null>;
@@ -38,10 +52,17 @@ export interface ISelectionView {
   readonly dimmed: boolean;
 }
 
-/** Per-edge selection state. Same shape rationale as `ISelectionView`. */
+/**
+ * Per-edge selection state. Same shape rationale as `ISelectionView`:
+ * one Map lookup hands the `<f-connection>` its full picture per CD
+ * pass. `opacity` folds the confidence gradient and the dim override
+ * into a single value, so the template binds it directly (inline styles
+ * win over the `.f-conn--dimmed` class rule, this is the source of truth).
+ */
 export interface IEdgeSelectionView {
   readonly highlighted: boolean;
   readonly dimmed: boolean;
+  readonly opacity: number;
 }
 
 export interface ISelectionStateHandle {
@@ -57,6 +78,14 @@ export interface ISelectionStateHandle {
    * via the single `[selection]` input.
    */
   readonly selectionView: Signal<ReadonlyMap<string, ISelectionView>>;
+  /**
+   * Pre-computed selection state for every visible edge, keyed by
+   * `edge.id`. Rebuilt on the same triggers as `selectionView`; template
+   * reads are O(1). Bound on each `<f-connection>` through a single
+   * `@let` so highlight / dim / opacity cost one lookup per edge, not
+   * three function calls per CD pass.
+   */
+  readonly edgeSelectionView: Signal<ReadonlyMap<string, IEdgeSelectionView>>;
 }
 
 export function createSelectionState(
@@ -132,5 +161,30 @@ export function createSelectionState(
     return out;
   });
 
-  return { isSelected, isHighlighted, isDimmed, isEdgeHighlighted, isEdgeDimmed, selectionView };
+  const edgeSelectionView = computed<ReadonlyMap<string, IEdgeSelectionView>>(() => {
+    const sel = config.selectedNodeId();
+    const tagActive = config.activeTagSelection() !== null;
+    const out = new Map<string, IEdgeSelectionView>();
+    for (const edge of config.graph().edges) {
+      const touchesSel = sel !== null && (edge.from === sel || edge.to === sel);
+      const dimmed = !tagActive && sel !== null && !touchesSel;
+      const confidence =
+        typeof edge.confidence === 'number' ? edge.confidence : EDGE_CONFIDENCE_DEFAULT;
+      const opacity = dimmed
+        ? EDGE_OPACITY_DIMMED
+        : EDGE_OPACITY_MIN + EDGE_OPACITY_RANGE * confidence;
+      out.set(edge.id, { highlighted: touchesSel, dimmed, opacity });
+    }
+    return out;
+  });
+
+  return {
+    isSelected,
+    isHighlighted,
+    isDimmed,
+    isEdgeHighlighted,
+    isEdgeDimmed,
+    selectionView,
+    edgeSelectionView,
+  };
 }

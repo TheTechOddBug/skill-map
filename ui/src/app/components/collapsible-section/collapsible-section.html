@@ -1,0 +1,21 @@
+<button
+  type="button"
+  class="sm-block__row sm-block__row--toggle"
+  (click)="toggle.emit()"
+  [attr.aria-expanded]="expanded()"
+  [attr.aria-label]="toggleAriaLabel() ?? null"
+  [pTooltip]="toggleTooltip() ?? ''"
+  [attr.data-testid]="toggleTestid() ?? null"
+>
+  <span class="sm-block__title">
+    {{ title() }}
+    <ng-content select="[smSectionTitleExtra]"></ng-content>
+  </span>
+  <i
+    class="pi sm-block__chevron"
+    [class.pi-chevron-right]="!expanded()"
+    [class.pi-chevron-down]="expanded()"
+    aria-hidden="true"
+  ></i>
+</button>
+<ng-content></ng-content>
