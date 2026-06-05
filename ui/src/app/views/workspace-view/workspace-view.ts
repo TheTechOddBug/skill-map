@@ -76,13 +76,13 @@ export class WorkspaceView implements IMapIsolateIntent {
   /** Compact search, shared with the table and the map via the store. */
   protected readonly searchText = this.store.searchText;
 
-  /** The mounted map, reached so the rail's isolate-chain gesture (routed
+  /** The mounted map, reached so the rail's isolate gesture (routed
    *  here via `MAP_ISOLATE_INTENT`) forwards to it. */
   private readonly graphView = viewChild(GraphView);
 
-  /** `IMapIsolateIntent`: forward the rail's chain gesture to the map. */
+  /** `IMapIsolateIntent`: forward the rail's isolate gesture to the map. */
   isolate(path: string): void {
-    this.graphView()?.isolateChain(path);
+    this.graphView()?.isolateNeighborhood(path);
   }
 
   private readonly resize = setupRailResize({

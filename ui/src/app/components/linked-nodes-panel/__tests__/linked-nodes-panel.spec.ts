@@ -14,8 +14,8 @@ import type { IWsScanCompletedEvent } from '../../../../models/ws-event';
 /**
  * `LinkedNodesPanel` spec, covers the panel's full lifecycle:
  * empty path (no fetch), parallel fetch wiring, ready/empty/error
- * states, manual refresh, scan.completed reactive refresh, token
- * guard for rapid path changes.
+ * states, scan.completed reactive refresh, token guard for rapid
+ * path changes.
  */
 
 type IStubDataSource = IDataSourcePort & {
@@ -199,20 +199,6 @@ describe('LinkedNodesPanel', () => {
     fixture.componentRef.setInput('path', 'a.md');
     await flush(fixture);
     expect(fixture.nativeElement.querySelector('[data-testid="linked-nodes-error"]')).not.toBeNull();
-  });
-
-  it('refreshes when the user clicks the refresh button', async () => {
-    const { fixture } = bootstrap(stub, ws);
-    fixture.componentRef.setInput('path', 'a.md');
-    await flush(fixture);
-    expect(stub.listLinks).toHaveBeenCalledTimes(2);
-
-    const refresh = fixture.nativeElement.querySelector(
-      '[data-testid="linked-nodes-refresh"] button',
-    ) as HTMLButtonElement;
-    refresh.click();
-    await flush(fixture);
-    expect(stub.listLinks).toHaveBeenCalledTimes(4);
   });
 
   it('refreshes on a scan.completed WS event', async () => {

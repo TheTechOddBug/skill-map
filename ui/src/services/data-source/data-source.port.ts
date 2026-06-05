@@ -279,10 +279,11 @@ export interface IDataSourcePort {
   /**
    * Read the active provider lens envelope. Mirrors
    * `GET /api/active-provider`. Carries the persisted value (or null),
-   * the filesystem auto-detected provider list, and the source the
-   * persisted value came from. Used by the Settings UI's Project
-   * section to render the lens dropdown. Demo mode returns
-   * `{ activeProvider: null, detected: [], source: 'none' }`.
+   * the filesystem auto-detected provider list, the source the
+   * persisted value came from, and `selectable` (the enabled
+   * Provider ids the dropdown may offer). Used by the Settings UI's
+   * Project section to render the lens dropdown. Demo mode returns
+   * `{ activeProvider: null, detected: [], source: 'none', selectable: [] }`.
    */
   getActiveProvider(): Promise<IActiveProviderApi>;
 

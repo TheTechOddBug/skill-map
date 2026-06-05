@@ -116,12 +116,13 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
   getProjectIgnore: () => Promise.resolve({ patterns: [] }),
   setProjectIgnore: () => Promise.resolve({ patterns: [] }),
   getActiveProvider: () =>
-    Promise.resolve({ activeProvider: null, detected: [], source: 'none' as const }),
+    Promise.resolve({ activeProvider: null, detected: [], source: 'none' as const, selectable: [] }),
   setActiveProvider: () =>
     Promise.resolve({
       activeProvider: null,
       detected: [],
       source: 'none' as const,
+      selectable: [],
       switch: { dropped: null },
     }),
   setPluginEnabled: () =>

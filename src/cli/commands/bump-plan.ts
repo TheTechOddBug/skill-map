@@ -35,6 +35,7 @@ import { assertContained } from '../../core/paths/path-guard.js';
 import type { TActionWrite } from '../../kernel/extensions/index.js';
 import type { Node } from '../../kernel/types.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
+import { resolveGitAuthorName } from '../util/git.js';
 
 /**
  * One row of the bump plan. The status tag discriminates the union:
@@ -107,14 +108,18 @@ export function computeBumpPlan(
   nodes: readonly Node[],
   options: IBumpPlanOptions,
 ): IBumpPlan {
+  // Resolve the bump author once per batch (the Git identity is the same
+  // for every node under the same project root); fall back to the `'cli'`
+  // channel literal when the project is not a Git repo / has no author.
+  const invoker = resolveGitAuthorName(options.cwd) ?? 'cli';
   const items: TBumpPlanItem[] = [];
   for (const node of nodes) {
-    items.push(planOne(node, options));
+    items.push(planOne(node, options, invoker));
   }
   return { items };
 }
 
-function planOne(node: Node, options: IBumpPlanOptions): TBumpPlanItem {
+function planOne(node: Node, options: IBumpPlanOptions, invoker: string): TBumpPlanItem {
   let absPath: string;
   try {
     assertContained(options.cwd, node.path);
@@ -129,7 +134,7 @@ function planOne(node: Node, options: IBumpPlanOptions): TBumpPlanItem {
 
   let result: { report: INodeBumpReport; writes?: TActionWrite[] };
   try {
-    result = invokeBumpFor(node, absPath, options.force);
+    result = invokeBumpFor(node, absPath, options.force, invoker);
   } catch (err) {
     return {
       nodePath: node.path,
@@ -165,6 +170,7 @@ export function invokeBumpFor(
   node: Node,
   absPath: string,
   force: boolean,
+  invoker: string,
 ): { report: INodeBumpReport; writes?: TActionWrite[] } {
   if (!nodeBumpAction.invoke) {
     throw new Error('built-in bump action is missing its invoke()');
@@ -174,7 +180,7 @@ export function invokeBumpFor(
   return nodeBumpAction.invoke<INodeBumpInput, INodeBumpReport>(input, {
     node,
     nodeAbsolutePath: absPath,
-    invoker: 'cli',
+    invoker,
     now: () => new Date(),
     settings: {},
   });

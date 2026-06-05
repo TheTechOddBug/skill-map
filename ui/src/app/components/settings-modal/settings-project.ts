@@ -124,11 +124,30 @@ export class SettingsProject {
    * field), so the dropdown lists exactly the Providers registered in
    * this scope, never a hardcoded list. Downstream `'' → null`
    * conversion stays in `onActiveProviderChange()`.
+   *
+   * Each registry Provider absent from the envelope's `selectable` set
+   * (the ids enabled right now) is rendered disabled: greyed and not
+   * selectable (`optionDisabled` in the template) plus a "(disabled)"
+   * label suffix, so a disabled Provider stays visible but can never be
+   * chosen as the lens. Before the envelope loads (`selectable === null`)
+   * nothing is greyed, to avoid a flash of all-disabled rows.
    */
-  protected readonly providerOptions = computed<{ id: string; label: string }[]>(() => [
-    { id: '', label: SETTINGS_TEXTS.project.activeProviderEmptyOption },
-    ...this.providerRegistry.providers().map((p) => ({ id: p.id, label: p.label })),
-  ]);
+  protected readonly providerOptions = computed<
+    { id: string; label: string; disabled: boolean }[]
+  >(() => {
+    const env = this.activeProviderEnvelope();
+    const selectable = env ? new Set(env.selectable) : null;
+    return [
+      { id: '', label: SETTINGS_TEXTS.project.activeProviderEmptyOption, disabled: false },
+      ...this.providerRegistry.providers().map((p) => {
+        const disabled = selectable !== null && !selectable.has(p.id);
+        const label = disabled
+          ? `${p.label} ${SETTINGS_TEXTS.project.activeProviderDisabledSuffix}`
+          : p.label;
+        return { id: p.id, label, disabled };
+      }),
+    ];
+  });
 
   /** Current resolved value (from config or autodetect); `''` for "none". */
   protected readonly activeProviderValue = computed<string>(() => {
@@ -296,6 +315,7 @@ export class SettingsProject {
         activeProvider: envelope.activeProvider,
         detected: envelope.detected,
         source: envelope.source,
+        selectable: envelope.selectable,
       });
       const dropped = envelope.switch.dropped;
       if (dropped === null) {

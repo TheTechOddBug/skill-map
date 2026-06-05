@@ -63,6 +63,32 @@ export function ensureGitForStaged(cwd: string): 'ok' | 'no-repo' | 'no-binary' 
 }
 
 /**
+ * Resolve the Git author name (`git config user.name`) for the
+ * repository that contains `cwd`. Returns the trimmed non-empty name,
+ * or `null` when any of these hold:
+ *   - `cwd` is not inside a Git repo (no `.git/` ancestor),
+ *   - the `git` binary is not on PATH (spawn ENOENT / error),
+ *   - `user.name` is unset or resolves to an empty string.
+ *
+ * Used to stamp `audit.lastBumpedBy` / `audit.createdBy` with the human
+ * author on `sm bump` and the BFF bump route; the caller supplies the
+ * channel literal (`'cli'` / `'ui'`) as the fallback. Synchronous
+ * (`spawnSync`) to match the single-pass bump loop, same posture as the
+ * `--staged` helpers above.
+ */
+export function resolveGitAuthorName(cwd: string): string | null {
+  if (!isInsideGitRepo(cwd)) return null;
+  const result = spawnSync('git', ['config', 'user.name'], {
+    cwd,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    encoding: 'utf8',
+  });
+  if (result.error !== undefined || result.status !== 0) return null;
+  const name = (result.stdout ?? '').trim();
+  return name.length > 0 ? name : null;
+}
+
+/**
  * `git add <abs sidecar path>`. Returns `null` on success or the
  * stderr message on failure. Failures degrade to a warning at the
  * caller, the batch keeps running.

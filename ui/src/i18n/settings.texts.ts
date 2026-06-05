@@ -154,6 +154,7 @@ export const SETTINGS_TEXTS = {
       'No provider detected. Install or enable a provider to start.',
     activeProviderDetectedPrefix: 'Detected:',
     activeProviderEmptyOption: '(none)',
+    activeProviderDisabledSuffix: '(disabled)',
     activeProviderConfirmHeader: 'Switch the active provider?',
     activeProviderConfirmIntro:
       'Switching will clear the persisted scan (nodes, links, ' +

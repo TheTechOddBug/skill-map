@@ -144,10 +144,8 @@
   cursor: pointer;
 }
 
-/* Expanded collapsible body, separated from the header row by a hairline.
-   `.inspector__debug` carries its own divider (it needs different inner
-   padding for the recessed debug grid), so it is excluded here. */
-:host ::ng-deep .sm-block--collapsible > .sm-block__row--toggle + :not(.inspector__debug) {
+/* Expanded collapsible body, separated from the header row by a hairline. */
+:host ::ng-deep .sm-block--collapsible > .sm-block__row--toggle + * {
   margin-top: 0.5rem;
   padding-top: 0.7rem;
   border-top: 1px solid var(--sm-border);
@@ -203,6 +201,42 @@
   font-family: var(--sm-font-mono);
 }
 
+/* Inline value cluster inside a `dd`: one or more icon-led meta items
+   (`.sm-block__meta`) that wrap on narrow panels. Shared by the
+   Annotations and Metadata sections so their rows read identically. */
+:host ::ng-deep .sm-block__inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.65rem;
+  row-gap: 0.35rem;
+}
+
+:host ::ng-deep .sm-block__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.83rem;
+  color: var(--p-text-color);
+}
+
+:host ::ng-deep .sm-block__meta .pi {
+  color: var(--p-text-muted-color);
+  font-size: 0.85rem;
+}
+
+:host ::ng-deep .sm-block__meta a {
+  color: var(--p-primary-color);
+  word-break: break-all;
+}
+
+:host ::ng-deep .sm-block__meta code {
+  background: var(--sm-bg-hover);
+  padding: 0.05rem 0.35rem;
+  border-radius: var(--sm-radius-sm);
+  font-size: 0.78rem;
+}
+
 /* Vendor card wrapper, contents-only so the inner block flows in the
    single column. */
 .inspector__vendor {
@@ -228,48 +262,181 @@
   font-style: normal;
 }
 
-.inspector__body-rendered {
+/* ---------------------------------------------------------------------
+ * Rendered markdown prose (the Body card). The HTML comes in via
+ * `[innerHTML]` (MarkdownRenderer output), so it carries NO `_ngcontent`
+ * attribute and emulated encapsulation would never match plain
+ * `.inspector__body-rendered <child>` selectors. Every rule therefore
+ * goes through `:host ::ng-deep`, the same pattern the description field
+ * and the `.sm-block` annexes use above. Without this the body fell back
+ * to browser defaults (invisible quote, borderless code).
+ * ------------------------------------------------------------------- */
+:host ::ng-deep .inspector__body-rendered {
   font-size: 0.9rem;
   line-height: 1.6;
   max-height: 480px;
   overflow: auto;
   padding: 0.25rem 0 0;
+  /* Code chrome: a border one step stronger than the hairline so inline
+     code and code blocks read as clearly "wrapped" against the content
+     surface (`--sm-border` alone is too faint on the white body). */
+  --code-border: color-mix(in srgb, var(--sm-border) 70%, var(--p-text-muted-color));
 }
 
-.inspector__body-rendered :first-child {
+:host ::ng-deep .inspector__body-rendered :first-child {
   margin-top: 0;
 }
 
-.inspector__body-rendered :last-child {
+:host ::ng-deep .inspector__body-rendered :last-child {
   margin-bottom: 0;
 }
 
-.inspector__body-rendered pre {
-  background: var(--p-content-background);
-  border: 1px solid var(--p-content-border-color);
-  border-radius: var(--sm-radius-md);
-  padding: 0.75rem;
+/* Headings: tighten the default scale so an h1 in a note does not dwarf
+   the 0.9rem body, weight plus a hairline under the top two levels carry
+   the hierarchy instead of size alone. */
+:host ::ng-deep .inspector__body-rendered h1,
+:host ::ng-deep .inspector__body-rendered h2,
+:host ::ng-deep .inspector__body-rendered h3,
+:host ::ng-deep .inspector__body-rendered h4,
+:host ::ng-deep .inspector__body-rendered h5,
+:host ::ng-deep .inspector__body-rendered h6 {
+  margin: 1.2rem 0 0.6rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+:host ::ng-deep .inspector__body-rendered h1 { font-size: 1.35rem; }
+:host ::ng-deep .inspector__body-rendered h2 { font-size: 1.18rem; }
+:host ::ng-deep .inspector__body-rendered h3 { font-size: 1.05rem; }
+:host ::ng-deep .inspector__body-rendered h4 { font-size: 0.95rem; }
+:host ::ng-deep .inspector__body-rendered h5,
+:host ::ng-deep .inspector__body-rendered h6 {
+  font-size: 0.9rem;
+  color: var(--p-text-muted-color);
+}
+:host ::ng-deep .inspector__body-rendered h1,
+:host ::ng-deep .inspector__body-rendered h2 {
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--sm-border);
+}
+
+:host ::ng-deep .inspector__body-rendered p {
+  margin: 0.6rem 0;
+}
+
+/* Links: primary colour + underline, same affordance as the description
+   field. */
+:host ::ng-deep .inspector__body-rendered a {
+  color: var(--p-primary-color);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Lists: readable indent (browser default is wider than the body's
+   rhythm) with markers preserved. */
+:host ::ng-deep .inspector__body-rendered ul,
+:host ::ng-deep .inspector__body-rendered ol {
+  margin: 0.6rem 0;
+  padding-left: 1.4rem;
+}
+:host ::ng-deep .inspector__body-rendered li {
+  margin: 0.2rem 0;
+}
+:host ::ng-deep .inspector__body-rendered li > ul,
+:host ::ng-deep .inspector__body-rendered li > ol {
+  margin: 0.2rem 0;
+}
+
+/* Blockquote: matches the vendor frontmatter initial-prompt quote
+   (`.vfm__quote`, the one shown in Definition) value-for-value so quotes
+   read the same everywhere. Full text colour (not muted) is the key: the
+   muted variant read washed out. Only the margin differs (the body needs
+   vertical rhythm; the vfm quote stands alone). */
+:host ::ng-deep .inspector__body-rendered blockquote {
   margin: 0.75rem 0;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  font-family: var(--sm-font-mono);
+  padding: 0.7rem 0.95rem;
+  border-left: 2px solid var(--sm-border);
+  background: var(--sm-bg-hover);
+  color: var(--p-text-color);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  border-radius: 0 var(--sm-radius-sm) var(--sm-radius-sm) 0;
+}
+:host ::ng-deep .inspector__body-rendered blockquote :first-child {
+  margin-top: 0;
+}
+:host ::ng-deep .inspector__body-rendered blockquote :last-child {
+  margin-bottom: 0;
+}
+
+:host ::ng-deep .inspector__body-rendered hr {
+  margin: 1.2rem 0;
+  border: 0;
+  border-top: 1px solid var(--sm-border);
+}
+
+:host ::ng-deep .inspector__body-rendered img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--sm-radius-sm);
+}
+
+/* Tables: hairline grid, tinted header, zebra body so dense tables stay
+   scannable. */
+:host ::ng-deep .inspector__body-rendered table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.75rem 0;
   font-size: 0.85rem;
+}
+:host ::ng-deep .inspector__body-rendered th,
+:host ::ng-deep .inspector__body-rendered td {
+  border: 1px solid var(--sm-border);
+  padding: 0.35rem 0.55rem;
+  text-align: left;
+}
+:host ::ng-deep .inspector__body-rendered th {
+  background: var(--sm-bg-hover);
+  font-weight: 600;
+}
+:host ::ng-deep .inspector__body-rendered tbody tr:nth-child(even) {
+  background: var(--sm-bg-hover);
+}
+
+/* Fenced code block: tinted surface + visible border, mono, horizontal
+   scroll for long lines. The `.hljs` token spans inside are coloured by
+   `themes/highlight.css`. */
+:host ::ng-deep .inspector__body-rendered pre {
+  background: var(--sm-bg-hover);
+  border: 1px solid var(--code-border);
+  border-radius: var(--sm-radius-md);
+  padding: 0.75rem 0.85rem;
+  margin: 0.75rem 0;
+  white-space: pre;
+  font-family: var(--sm-font-mono);
+  font-size: 0.82rem;
   line-height: 1.5;
   overflow-x: auto;
 }
 
-.inspector__body-rendered code {
+/* Inline code: a bordered mono pill so it reads as code, not prose. The
+   border (`--code-border`) is what makes it stand out, the tinted
+   background alone was too faint on the content surface. Inside a `pre`
+   it strips its own chrome so the block's border + highlight tokens take
+   over (no double border). */
+:host ::ng-deep .inspector__body-rendered code {
   background: var(--sm-bg-hover);
-  padding: 0.1rem 0.3rem;
+  border: 1px solid var(--code-border);
+  padding: 0.05rem 0.34rem;
   border-radius: var(--sm-radius-sm);
   font-family: var(--sm-font-mono);
   font-size: 0.85em;
 }
-
-.inspector__body-rendered pre code {
+:host ::ng-deep .inspector__body-rendered pre code {
   background: transparent;
+  border: 0;
   padding: 0;
   border-radius: 0;
+  font-size: inherit;
 }
 
 /* ---------------------------------------------------------------------
@@ -310,12 +477,19 @@
 }
 
 /* ---------------------------------------------------------------------
- * Debug body, visible only when the section is expanded. Divided from
- * the toggle row by the same hairline as the other collapsibles; the
- * debug grid carries its own recessed code cells so no boxed wrapper is
- * needed inside the card.
+ * Metadata body: stacks the audit panel (created / bumped timestamps)
+ * above the diagnostic panel (identity hashes, resolved provider/kind,
+ * sidecar status). The wrapper inherits the section hairline from the
+ * collapsible-body rule above; the diagnostic sub-panel gets its own
+ * hairline so the technical block reads as a distinct group below the
+ * human-facing audit info.
  * ------------------------------------------------------------------- */
-.inspector__debug {
+.inspector__metadata {
+  display: flex;
+  flex-direction: column;
+}
+
+.inspector__metadata > sm-inspector-debug-panel {
   margin-top: 0.5rem;
   padding-top: 0.7rem;
   border-top: 1px solid var(--sm-border);

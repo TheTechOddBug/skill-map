@@ -2,7 +2,8 @@
  * UI strings for `<sm-annotations-panel>`. The panel renders the
  * curated annotation catalog the orchestrator + user locked
  * block-by-block. Sub-section order matches the inspector tiering
- * decision: Taxonomy → Supersession → Repository → Authors → Docs.
+ * decision: Authors → Supersession → Repository → Docs. Tags moved
+ * to the inspector header (clickable tag row).
  */
 export const ANNOTATIONS_PANEL_TEXTS = {
   cardHeader: 'Annotations',
@@ -12,7 +13,6 @@ export const ANNOTATIONS_PANEL_TEXTS = {
     supersession: 'Supersession',
     provenance: 'Authors',
     repository: 'Repository',
-    taxonomy: 'Taxonomy',
     docs: 'Docs',
   },
   fields: {
@@ -22,7 +22,6 @@ export const ANNOTATIONS_PANEL_TEXTS = {
     license: 'License',
     source: 'Source',
     sourceVersion: 'Source version',
-    tags: 'Tags',
     docsUrl: 'Docs URL',
   },
   /**

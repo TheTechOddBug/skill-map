@@ -91,6 +91,21 @@
   --sm-stat-tokens-bg: rgba(59, 130, 246, 0.14);
   --sm-stat-bytes-bg: rgba(245, 158, 11, 0.16);
 
+  /* === Syntax highlight palette (code blocks) ===
+     Token colours for highlight.js (`hljs-*` spans), wired up in
+     `themes/highlight.css`. GitHub-light inspired, tuned to read on the
+     `--p-content-background` code surface. */
+  --sm-hl-comment: #6e7781;
+  --sm-hl-keyword: #cf222e;
+  --sm-hl-string: #0a3069;
+  --sm-hl-number: #0550ae;
+  --sm-hl-title: #8250df;
+  --sm-hl-attr: #0550ae;
+  --sm-hl-built-in: #953800;
+  --sm-hl-meta: #6e7781;
+  --sm-hl-addition: #116329;
+  --sm-hl-deletion: #82071e;
+
   /* === Accent foreground ===
      Text colour used by surfaces that paint a kind-coloured backdrop
      (e.g. inspector-header's icon box). White in both light and dark

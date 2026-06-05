@@ -5,8 +5,10 @@
  * Mirrors the `sm bump <node.path> [--force]` CLI verb (`cli/commands/bump.ts`)
  * 1:1, same Action (`plugins/core/actions/bump`), same Store
  * (`FilesystemSidecarStore`), same refusal semantics on a fresh node.
- * The only differences are the invoker label (`'ui'` vs `'cli'`) and
- * the wire shape (REST envelope + WS event vs stdout/stderr).
+ * The only differences are the invoker channel fallback (`'ui'` vs
+ * `'cli'`, used only when the project is not a Git repo; otherwise both
+ * stamp the resolved Git `user.name`) and the wire shape (REST envelope
+ * + WS event vs stdout/stderr).
  *
  * Behaviour matrix (locked in the Step 9.6.5 brief):
  *
@@ -72,6 +74,7 @@ import type { Node } from '../../kernel/types.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
+import { resolveGitAuthorName } from '../../cli/util/git.js';
 import type { WsBroadcaster } from '../broadcaster.js';
 import type { IWsEventEnvelope } from '../events.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
@@ -186,7 +189,7 @@ export function registerSidecarRoutes(app: Hono, deps: ISidecarRouteDeps): void 
       throw new HTTPException(400, { message: formatErrorMessage(err) });
     }
 
-    const result = invokeBump(node, absPath, body);
+    const result = invokeBump(node, absPath, body, deps.runtimeContext.cwd);
 
     // Refusal, fresh node, no force. Dispatched by the typed
     // `ConflictError` (carries `code: 'sidecar-fresh'`); the catalog
@@ -298,13 +301,17 @@ async function loadNode(deps: IRouteDeps, nodePath: string): Promise<Node> {
 }
 
 /**
- * Invoke the built-in `core/node-bump` Action with `invoker: 'ui'`. Mirrors
- * `invokeBumpFor` in `cli/commands/bump.ts` except for the invoker label.
+ * Invoke the built-in `core/node-bump` Action. Mirrors `invokeBumpFor`
+ * in `cli/commands/bump-plan.ts`; the only difference is the channel
+ * fallback (`'ui'` vs `'cli'`) used when `cwd` is not a Git repo. When
+ * the project IS a Git repo, both routes stamp the resolved Git author
+ * (`git config user.name`).
  */
 function invokeBump(
   node: Node,
   absPath: string,
   body: IBumpBody,
+  cwd: string,
 ): { report: INodeBumpReport; writes?: TActionWrite[] } {
   if (!nodeBumpAction.invoke) {
     throw new HTTPException(500, { message: SERVER_TEXTS.sidecarBumpInvokeMissing });
@@ -314,7 +321,7 @@ function invokeBump(
   return nodeBumpAction.invoke<INodeBumpInput, INodeBumpReport>(input, {
     node,
     nodeAbsolutePath: absPath,
-    invoker: 'ui',
+    invoker: resolveGitAuthorName(cwd) ?? 'ui',
     now: () => new Date(),
     settings: {},
   });

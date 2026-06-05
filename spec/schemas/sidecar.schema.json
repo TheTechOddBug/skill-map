@@ -38,7 +38,7 @@
         "lastBumpedBy": {
           "type": "string",
           "minLength": 1,
-          "description": "Identity of the bump invoker. Literal `'cli'` for `sm bump` (we are not threading user identity yet); `'plugin:<plugin-id>'` when a plugin's deterministic Action triggered the bump. Tests / future invokers MAY pass any non-empty string."
+          "description": "Identity of the bump invoker. When the project is a Git repository with `user.name` configured, this is the resolved Git author name (`git config user.name`). Otherwise it falls back to the channel literal: `'cli'` for `sm bump`, `'ui'` for the BFF bump route, `'plugin:<plugin-id>'` when a plugin's deterministic Action triggered the bump. Tests / future invokers MAY pass any non-empty string."
         },
         "createdAt": {
           "type": "string",

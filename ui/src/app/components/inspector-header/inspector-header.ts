@@ -5,8 +5,9 @@
  * eyebrow + icon box + name (with version chip and stability tag) +
  * path + meta strip (bytes), plus the right-edge actions
  * cluster (favorite star, stale clock, header-badge slots), the
- * plugin-actions row (hidden behind a feature flag), and the tools
- * chip row.
+ * plugin-actions row (hidden behind a feature flag), and the tag
+ * chip row (sidecar-curated tags; clicking one selects every node
+ * carrying that tag on the map).
  *
  * Inputs are required: a non-null `node` is the precondition the host
  * already enforces before mounting the header (the `@else { ... }`
@@ -30,7 +31,7 @@ import {
   effectiveIsStale,
   effectiveStability,
   effectiveStaleTooltip,
-  effectiveToolsList,
+  effectiveUserTags,
   effectiveVersion,
 } from '../../../models/node-derived';
 import { KindIcon } from '../kind-icon/kind-icon';
@@ -75,11 +76,26 @@ export class InspectorHeader {
   readonly frontmatterInvalid = input<boolean>(false);
 
   /**
+   * Tag currently driving the map's tag-selection (forwarded down from
+   * the graph view's `activeTagSelection`). Highlights the matching chip
+   * in the header tag row so the user sees which tag is active.
+   */
+  readonly activeTag = input<string | null>(null);
+
+  /**
    * Emitted when the user clicks the heart. Carries the node path so
    * the host can call `loader.toggleFavorite(path, !isFavorite)`
    * without the header reaching into the loader itself.
    */
   readonly favoriteToggle = output<string>();
+
+  /**
+   * Emitted when the user clicks a tag chip in the header. Carries the
+   * tag string; the host forwards it to the graph's tag-selection
+   * (`onTagSelect`), which selects every node carrying that tag and
+   * frames them on the map. Re-clicking the active tag clears it.
+   */
+  readonly tagClick = output<string>();
 
   protected readonly texts = INSPECTOR_VIEW_TEXTS;
   /** Reused so the card and the inspector header speak the same language. */
@@ -117,9 +133,14 @@ export class InspectorHeader {
     return `var(--sm-kind-${n.kind})`;
   });
 
-  protected readonly headerTools = computed<readonly string[]>(() =>
-    effectiveToolsList(this.node()),
+  /** Sidecar-curated tags shown as clickable chips in the header. */
+  protected readonly headerTags = computed<readonly string[]>(() =>
+    effectiveUserTags(this.node()),
   );
+
+  protected isActiveTag(tag: string): boolean {
+    return this.activeTag() === tag;
+  }
 
   protected readonly headerIsStale = computed<boolean>(() => effectiveIsStale(this.node()));
 

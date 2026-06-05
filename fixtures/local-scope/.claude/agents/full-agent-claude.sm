@@ -1,38 +1,29 @@
-# Reference Claude agent sidecar populating every documented field in
-# the curated 10-annotation catalog plus the full identity, audit, and
-# settings blocks. Companion to `full-agent-claude.md`; together they
-# render every UI affordance the inspector + node-card support.
-#
-# Hashes computed against the current .md content with the kernel's
-# canonical-form algorithm. Re-compute (or run `sm bump`) if the .md
-# changes; otherwise the annotation-stale analyzer fires.
-identity:
-  path: .claude/agents/full-agent-claude.md
-  bodyHash: 3a0ffd5d3d6ef87c56e5cc1277dd7785a95c10c0433ca9ea221c82f61fc80112
-  frontmatterHash: 127da2f225f892a86d8cd1379f96d971d099423ae793d6066e207d468816dcdc
-  resolvedAs:
-    provider: claude
-    kind: agent
 annotations:
-  version: 7
-  stability: stable
   authors:
     - crystian
     - reference-team
+  docsUrl: https://docs.claude.com/agents/full-agent-claude
   license: MIT
   source: https://github.com/anthropic/agents/blob/main/full-agent-claude.md
   sourceVersion: v2.4.1
+  stability: stable
+  supersedes:
+    - .claude/agents/deprecated-agent.md
   tags:
     - reference
     - showcase
     - canonical
-  docsUrl: https://docs.claude.com/agents/full-agent-claude
-  supersedes:
-    - .claude/agents/deprecated-agent.md
-settings: {}
+  version: 10
 audit:
   createdAt: '2026-04-01T10:00:00Z'
   createdBy: cli
-  lastBumpedAt: '2026-05-26T16:45:00Z'
-  lastBumpedBy: cli
-
+  lastBumpedAt: '2026-06-05T02:02:54.210Z'
+  lastBumpedBy: Crystian
+identity:
+  bodyHash: 0612ec831fd4e3a7d4fd204ec71527ebbd14ce6279d6adf9c8a32882d0838a0a
+  frontmatterHash: c584cf0406a330d41bf2ab49a30c62fa16554a29a68ce32dc1e4f1c74a38f379
+  path: .claude/agents/full-agent-claude.md
+  resolvedAs:
+    kind: agent
+    provider: claude
+settings: {}

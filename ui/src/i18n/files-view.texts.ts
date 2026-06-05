@@ -14,11 +14,11 @@ export const FILES_VIEW_TEXTS = {
   folderAriaLabel: (name: string, expanded: boolean) =>
     `${expanded ? 'Collapse' : 'Expand'} folder ${name}`,
   leafAriaLabel: (name: string) => `Inspect ${name}`,
-  /** Map visibility curation (checkboxes + isolate-chain). */
+  /** Map visibility curation (checkboxes + isolate). */
   mapVisibilityTooltip: 'Toggle visibility on the map',
   mapVisibilityAriaLabel: (name: string) => `Toggle ${name} visibility on the map`,
-  isolateChainTooltip: 'Isolate this chain on the map',
-  isolateChainAriaLabel: (name: string) => `Isolate the chain of ${name} on the map`,
+  isolateTooltip: 'Isolate this node and its direct links on the map',
+  isolateAriaLabel: (name: string) => `Isolate ${name} and its direct links on the map`,
   /**
    * Column headers. The structural (tree) column is unique to the
    * files view; the rest mirror the prior list view shape so the

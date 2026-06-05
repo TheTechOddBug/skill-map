@@ -201,7 +201,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--sm-severity-warn);
+  /* Drift is a neutral state, not a warning: render the clock muted
+     (not the warn tint, and not the full foreground colour, which read
+     too strong next to the name). A subtle hint the operator can hover
+     for the tooltip. */
+  color: var(--p-text-muted-color);
   cursor: help;
 }
 
@@ -247,9 +251,11 @@
 }
 
 /* ---------------------------------------------------------------------------
- * Tools row, vendor tools / allowed-tools as inline mono tags.
+ * Tags row, sidecar-curated tags as clickable chips. Clicking a chip
+ * selects every node carrying that tag on the map; the active tag stays
+ * lit. Replaces the former vendor-tools row.
  * ------------------------------------------------------------------------- */
-.inspector__tools {
+.inspector__tags {
   grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
@@ -260,16 +266,54 @@
   border-top: 1px solid var(--sm-border);
 }
 
-.inspector__tool-tag {
+.inspector__tag {
   display: inline-flex;
   align-items: center;
+  gap: 0.25rem;
   padding: 0.1rem 0.5rem;
+  border: 1px solid transparent;
   border-radius: var(--sm-radius-sm);
   background: var(--sm-bg-hover);
   color: var(--p-text-color);
-  font-family: var(--sm-font-mono);
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   font-weight: 500;
   line-height: 1.35;
-  flex: none;
+  cursor: pointer;
+  transition: background 120ms ease-out, color 120ms ease-out, border-color 120ms ease-out;
+}
+
+.inspector__tag .pi {
+  font-size: 0.62rem;
+  opacity: 0.7;
+}
+
+/* Hover affordance for INACTIVE chips only: tint the text/border toward
+   the primary. Scoped with `:not(--active)` so it never recolours an
+   active chip's text to the primary, which would match its primary
+   background and wipe out the contrast. */
+.inspector__tag:not(.inspector__tag--active):hover {
+  border-color: var(--sm-border);
+  color: var(--p-primary-color);
+}
+
+.inspector__tag:focus-visible {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: 1px;
+}
+
+.inspector__tag--active {
+  background: var(--p-primary-color);
+  color: var(--p-primary-contrast-color);
+  border-color: var(--p-primary-color);
+}
+
+/* Active chip hover: keep the contrast text (inherited from the rule
+   above) and lift the fill slightly, the same brightness affordance the
+   other curated chips use, instead of swapping the text colour. */
+.inspector__tag--active:hover {
+  filter: brightness(1.08);
+}
+
+.inspector__tag--active .pi {
+  opacity: 1;
 }

@@ -202,7 +202,7 @@ export function resolveSidecarOverlay(
     for (const parseIssue of result.issues) {
       issues.push({
         analyzerId: 'invalid-sidecar',
-        severity: 'warn',
+        severity: 'error',
         nodeIds: [nodePathForIssue],
         message: parseIssue.message,
         data: { sidecarPath: relativePathFromRoots(mdAbs, roots) },

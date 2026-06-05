@@ -6,9 +6,10 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
 import { DomSanitizer, type SafeHtml } from '@angular/platform-browser';
 import { ConfirmationService, type Confirmation } from 'primeng/api';
-import { EMPTY } from 'rxjs';
+import { EMPTY, Subject } from 'rxjs';
 
 import { InspectorView } from '../inspector-view';
+import { WsEventStreamService } from '../../../../services/ws-event-stream';
 import {
   DATA_SOURCE,
   type IDataSourcePort,
@@ -208,6 +209,8 @@ interface IBootstrapOpts {
   sidecar?: IStubSidecar;
   confirmation?: IStubConfirmation;
   rendererMode?: 'pass' | 'throw';
+  /** Drives the body card's reactive `scan.completed` refresh. */
+  scanCompleted$?: Subject<void>;
 }
 
 function bootstrap(opts: IBootstrapOpts = {}): {
@@ -217,11 +220,13 @@ function bootstrap(opts: IBootstrapOpts = {}): {
   dataSource: IStubDataSource;
   sidecar: IStubSidecar;
   confirmation: IStubConfirmation;
+  scanCompleted$: Subject<void>;
 } {
   const loader = opts.loader ?? makeStubLoader();
   const dataSource = opts.dataSource ?? makeStubDataSource();
   const sidecar = opts.sidecar ?? makeStubSidecar();
   const confirmation = opts.confirmation ?? makeStubConfirmation();
+  const scanCompleted$ = opts.scanCompleted$ ?? new Subject<void>();
 
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
@@ -233,6 +238,17 @@ function bootstrap(opts: IBootstrapOpts = {}): {
       { provide: SKILL_MAP_MODE, useValue: 'demo' },
       { provide: CollectionLoaderService, useValue: loader },
       { provide: SidecarService, useValue: sidecar },
+      // Stub the WS stream: the body card subscribes to `scanCompleted$`
+      // for its reactive refresh. A Subject lets tests drive it; the
+      // other streams are unused here so they resolve to EMPTY.
+      {
+        provide: WsEventStreamService,
+        useValue: {
+          scanCompleted$: scanCompleted$.asObservable(),
+          events$: EMPTY,
+          sidecarBumped$: EMPTY,
+        } as unknown as WsEventStreamService,
+      },
       {
         provide: MarkdownRenderer,
         useFactory: (): MarkdownRenderer =>
@@ -248,7 +264,7 @@ function bootstrap(opts: IBootstrapOpts = {}): {
     set: { providers: [{ provide: ConfirmationService, useValue: confirmation }] },
   });
   const fixture = TestBed.createComponent(InspectorView);
-  return { fixture, cmp: fixture.componentInstance, loader, dataSource, sidecar, confirmation };
+  return { fixture, cmp: fixture.componentInstance, loader, dataSource, sidecar, confirmation, scanCompleted$ };
 }
 
 async function flush(fixture: ComponentFixture<InspectorView>): Promise<void> {
@@ -409,6 +425,50 @@ describe('InspectorView, body card lifecycle', () => {
     expect(rendered).not.toBeNull();
     expect(rendered!.innerHTML).toContain('# B body');
     expect(rendered!.innerHTML).not.toContain('A body');
+  });
+
+  it('re-fetches and re-renders the body on a scan.completed event (reactive refresh)', async () => {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '# first' })));
+
+    const { fixture, scanCompleted$ } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+
+    const dom: HTMLElement = fixture.nativeElement;
+    expect(
+      dom.querySelector('[data-testid="inspector-body-rendered"]')!.innerHTML,
+    ).toContain('# first');
+    // Multiple consumers call getNode on selection (body card + the
+    // linked-nodes panel), so assert the call count GROWS after the
+    // event rather than pinning an exact number; the body content swap
+    // below is the real proof of the reactive re-render.
+    const callsBeforeEvent = dataSource.getNode.mock.calls.length;
+
+    // The file body changes on disk and the watcher re-scans: getNode now
+    // returns the new body, and the scan.completed event triggers a silent
+    // re-fetch for the SAME path (no navigation, no path-signal change).
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '# second' })));
+    scanCompleted$.next();
+    await flush(fixture);
+
+    expect(dataSource.getNode.mock.calls.length).toBeGreaterThan(callsBeforeEvent);
+    const rendered = dom.querySelector('[data-testid="inspector-body-rendered"]');
+    expect(rendered!.innerHTML).toContain('# second');
+    expect(rendered!.innerHTML).not.toContain('# first');
+  });
+
+  it('ignores scan.completed when no node is selected (no fetch)', async () => {
+    const dataSource = makeStubDataSource();
+    const { fixture, scanCompleted$ } = bootstrap({ dataSource });
+    await flush(fixture);
+
+    scanCompleted$.next();
+    await flush(fixture);
+
+    expect(dataSource.getNode).not.toHaveBeenCalled();
   });
 });
 
@@ -731,7 +791,7 @@ describe('InspectorView, collapsible sections (catalog curation)', () => {
     return fixture.nativeElement as HTMLElement;
   }
 
-  it('renders the audit section expanded by default', async () => {
+  it('renders the metadata section expanded by default', async () => {
     const node = makeNodeWithSidecar({ present: true, status: 'fresh', annotations: {} });
     const loader = makeStubLoader([node]);
     const dataSource = makeStubDataSource();
@@ -740,7 +800,7 @@ describe('InspectorView, collapsible sections (catalog curation)', () => {
     fixture.componentRef.setInput('path', node.path);
     await flush(fixture);
     expect(
-      fixture.nativeElement.querySelector('[data-testid="inspector-card-audit"]'),
+      fixture.nativeElement.querySelector('[data-testid="inspector-card-metadata"]'),
     ).not.toBeNull();
     // Sections default to expanded, so the audit panel body is in the DOM.
     expect(
@@ -748,7 +808,7 @@ describe('InspectorView, collapsible sections (catalog curation)', () => {
     ).not.toBeNull();
   });
 
-  it('collapses the audit section on header click', async () => {
+  it('collapses the metadata section on header click', async () => {
     const node = makeNodeWithSidecar({ present: true, status: 'fresh', annotations: {} });
     const loader = makeStubLoader([node]);
     const dataSource = makeStubDataSource();
@@ -761,7 +821,7 @@ describe('InspectorView, collapsible sections (catalog curation)', () => {
       fixture.nativeElement.querySelector('[data-testid="inspector-audit-panel-empty"]'),
     ).not.toBeNull();
     const toggle = fixture.nativeElement.querySelector(
-      '[data-testid="inspector-audit-toggle"]',
+      '[data-testid="inspector-metadata-toggle"]',
     ) as HTMLButtonElement;
     expect(toggle).not.toBeNull();
     toggle.click();
@@ -822,8 +882,8 @@ describe('InspectorView, collapsible sections (catalog curation)', () => {
   });
 });
 
-describe('InspectorView, debug section (catalog curation)', () => {
-  it('renders the debug section expanded by default', async () => {
+describe('InspectorView, debug panel inside the merged metadata section', () => {
+  it('renders the debug panel inside the metadata section by default', async () => {
     const node = makeNode();
     const loader = makeStubLoader([node]);
     const dataSource = makeStubDataSource();
@@ -831,11 +891,13 @@ describe('InspectorView, debug section (catalog curation)', () => {
     const { fixture } = bootstrap({ loader, dataSource });
     fixture.componentRef.setInput('path', node.path);
     await flush(fixture);
-    expect(fixture.nativeElement.querySelector('[data-testid="inspector-debug-toggle"]')).not.toBeNull();
-    expect(fixture.nativeElement.querySelector('[data-testid="inspector-debug-section"]')).not.toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="inspector-metadata-section"]'),
+    ).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="inspector-debug-panel"]')).not.toBeNull();
   });
 
-  it('collapses the debug panel when the toggle is clicked', async () => {
+  it('hides the debug panel when the metadata section is collapsed', async () => {
     const node = makeNode();
     const loader = makeStubLoader([node]);
     const dataSource = makeStubDataSource();
@@ -844,16 +906,17 @@ describe('InspectorView, debug section (catalog curation)', () => {
     fixture.componentRef.setInput('path', node.path);
     await flush(fixture);
     // Visible by default.
-    expect(fixture.nativeElement.querySelector('[data-testid="inspector-debug-section"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="inspector-debug-panel"]')).not.toBeNull();
     const toggle = fixture.nativeElement.querySelector(
-      '[data-testid="inspector-debug-toggle"]',
+      '[data-testid="inspector-metadata-toggle"]',
     ) as HTMLButtonElement;
     toggle.click();
     await flush(fixture);
-    expect(fixture.nativeElement.querySelector('[data-testid="inspector-debug-section"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="inspector-metadata-section"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="inspector-debug-panel"]')).toBeNull();
   });
 
-  it('re-expands the debug panel on a second toggle click', async () => {
+  it('restores both audit and debug panels on a second metadata toggle click', async () => {
     const node = makeNode();
     const loader = makeStubLoader([node]);
     const dataSource = makeStubDataSource();
@@ -862,14 +925,17 @@ describe('InspectorView, debug section (catalog curation)', () => {
     fixture.componentRef.setInput('path', node.path);
     await flush(fixture);
     const toggle = fixture.nativeElement.querySelector(
-      '[data-testid="inspector-debug-toggle"]',
+      '[data-testid="inspector-metadata-toggle"]',
     ) as HTMLButtonElement;
     toggle.click(); // collapse
     await flush(fixture);
-    expect(fixture.nativeElement.querySelector('[data-testid="inspector-debug-section"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="inspector-debug-panel"]')).toBeNull();
     toggle.click(); // expand again
     await flush(fixture);
-    expect(fixture.nativeElement.querySelector('[data-testid="inspector-debug-section"]')).not.toBeNull();
+    // Both sub-panels return: the audit empty-state and the debug grid.
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="inspector-audit-panel-empty"]'),
+    ).not.toBeNull();
     expect(fixture.nativeElement.querySelector('[data-testid="inspector-debug-panel"]')).not.toBeNull();
   });
 });

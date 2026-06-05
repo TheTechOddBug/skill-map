@@ -20,9 +20,8 @@ import type { IWsScanCompletedEvent } from '../../../../models/ws-event';
 /**
  * `LinkedNodesPanel` visual-surfaces spec, complements
  * `linked-nodes-panel.spec.ts` (lifecycle / state machine). Covers
- * the five affordances added in commits d207cfa + 21920e8:
+ * the affordances added in commits d207cfa + 21920e8:
  *
- *   - findings list (severity tag colours + empty state)
  *   - inline issue chip on outgoing rows (source-match + target-fallback)
  *   - inline issue chip on incoming rows (source-match)
  *   - per-row occurrences sub-list (rendered for >=1 occurrence)
@@ -144,106 +143,6 @@ async function flush(fixture: ComponentFixture<LinkedNodesPanel>): Promise<void>
   await Promise.resolve();
   fixture.detectChanges();
 }
-
-describe('LinkedNodesPanel · findings section', () => {
-  let scanCompleted$: Subject<IWsScanCompletedEvent>;
-  let stub: IStubDataSource;
-  let ws: WsEventStreamService;
-
-  beforeEach(() => {
-    scanCompleted$ = new Subject<IWsScanCompletedEvent>();
-    stub = makeStub();
-    ws = makeWsStub(scanCompleted$);
-  });
-
-  afterEach(() => {
-    scanCompleted$.complete();
-  });
-
-  it('renders findings filtered to the focused node with the right severity tag', async () => {
-    const focused = 'center.md';
-    stub.listIssues.mockResolvedValue(
-      issueEnvelope([
-        {
-          analyzerId: 'core/broken-ref',
-          severity: 'error',
-          nodeIds: [focused],
-          message: 'Target not found: @ghost',
-          data: { target: '@ghost' },
-        },
-        {
-          analyzerId: 'core/reserved-name',
-          severity: 'warn',
-          nodeIds: [focused],
-          message: 'Shadows a runtime built-in',
-        },
-        // Issue attached to a DIFFERENT node, must not appear.
-        {
-          analyzerId: 'core/orphan',
-          severity: 'info',
-          nodeIds: ['other.md'],
-          message: 'Orphan node',
-        },
-      ]),
-    );
-
-    const { fixture } = bootstrap(stub, ws);
-    fixture.componentRef.setInput('path', focused);
-    await flush(fixture);
-
-    const dom: HTMLElement = fixture.nativeElement;
-    const section = dom.querySelector('[data-testid="linked-nodes-findings"]');
-    expect(section).not.toBeNull();
-
-    // Both attached issues render; the orphan one does not.
-    const rows = section!.querySelectorAll('[data-testid^="linked-nodes-finding-"]');
-    expect(rows.length).toBe(2);
-    expect(section!.querySelector('[data-testid="linked-nodes-finding-core/broken-ref"]')).not.toBeNull();
-    expect(section!.querySelector('[data-testid="linked-nodes-finding-core/reserved-name"]')).not.toBeNull();
-    expect(section!.querySelector('[data-testid="linked-nodes-finding-core/orphan"]')).toBeNull();
-
-    // The severity tags carry the right PrimeNG severity via `data-p`.
-    // `error` -> 'danger', `warn` -> 'warn' (see `issueSeverity`).
-    const brokenTag = section!.querySelector(
-      '[data-testid="linked-nodes-finding-core/broken-ref"] p-tag',
-    );
-    const reservedTag = section!.querySelector(
-      '[data-testid="linked-nodes-finding-core/reserved-name"] p-tag',
-    );
-    expect(brokenTag?.getAttribute('data-p') ?? '').toContain('danger');
-    expect(reservedTag?.getAttribute('data-p') ?? '').toContain('warn');
-
-    // The full analyzer message renders inline next to the tag.
-    expect(section!.textContent).toContain('Target not found: @ghost');
-    expect(section!.textContent).toContain('Shadows a runtime built-in');
-  });
-
-  it('renders the empty-state text when no issue is attached to the focused node', async () => {
-    stub.listIssues.mockResolvedValue(
-      issueEnvelope([
-        {
-          analyzerId: 'core/orphan',
-          severity: 'info',
-          nodeIds: ['other.md'],
-          message: 'Orphan node',
-        },
-      ]),
-    );
-
-    const { fixture } = bootstrap(stub, ws);
-    fixture.componentRef.setInput('path', 'center.md');
-    await flush(fixture);
-
-    const dom: HTMLElement = fixture.nativeElement;
-    const section = dom.querySelector('[data-testid="linked-nodes-findings"]');
-    expect(section).not.toBeNull();
-    const empty = section!.querySelector('[data-testid="linked-nodes-findings-empty"]');
-    expect(empty).not.toBeNull();
-    // Wording is centralised in the i18n catalog; assert the literal so
-    // a refactor that silently swaps the text trips the spec.
-    expect(empty?.textContent).toContain('No findings on this node.');
-  });
-});
 
 describe('LinkedNodesPanel · inline issue chip on rows', () => {
   let scanCompleted$: Subject<IWsScanCompletedEvent>;
@@ -747,5 +646,90 @@ describe('LinkedNodesPanel · numeric confidence', () => {
     expect(
       (cmp as unknown as { confidenceLabel(c: number): string }).confidenceLabel(0.85),
     ).toBe('high');
+  });
+});
+
+describe('LinkedNodesPanel · section count headers', () => {
+  let scanCompleted$: Subject<IWsScanCompletedEvent>;
+  let stub: IStubDataSource;
+  let ws: WsEventStreamService;
+
+  beforeEach(() => {
+    scanCompleted$ = new Subject<IWsScanCompletedEvent>();
+    stub = makeStub();
+    ws = makeWsStub(scanCompleted$);
+  });
+
+  afterEach(() => {
+    scanCompleted$.complete();
+  });
+
+  it('renders each section header with the card icon vocabulary and the live count', async () => {
+    const focused = 'center.md';
+    stub.listLinks.mockImplementation((q: { from?: string; to?: string }) => {
+      if (q.from === focused) {
+        return Promise.resolve(
+          envelope([
+            makeLink({ source: focused, target: 'out-1.md' }),
+            makeLink({ source: focused, target: 'out-2.md' }),
+          ]),
+        );
+      }
+      if (q.to === focused) {
+        return Promise.resolve(envelope([makeLink({ source: 'in-1.md', target: focused })]));
+      }
+      return Promise.resolve(envelope([]));
+    });
+    stub.getNode.mockResolvedValue(
+      nodeDetail(focused, [
+        { url: 'https://example.com/a', line: 12, originalTrigger: 'https://example.com/a' },
+        { url: 'https://example.com/b', originalTrigger: 'https://example.com/b' },
+      ]),
+    );
+
+    const { fixture } = bootstrap(stub, ws);
+    fixture.componentRef.setInput('path', focused);
+    await flush(fixture);
+
+    const dom: HTMLElement = fixture.nativeElement;
+
+    // Outgoing: pi-upload glyph + count 2 (mirrors the card's `linksOut`).
+    const out = dom.querySelector('[data-testid="linked-nodes-outgoing"]')!;
+    expect(out.querySelector('i.pi-upload')).not.toBeNull();
+    expect(
+      out.querySelector('[data-testid="linked-nodes-outgoing-count"]')?.textContent?.trim(),
+    ).toBe('2');
+
+    // Incoming: pi-download glyph + count 1 (mirrors the card's `linksIn`).
+    const inc = dom.querySelector('[data-testid="linked-nodes-incoming"]')!;
+    expect(inc.querySelector('i.pi-download')).not.toBeNull();
+    expect(
+      inc.querySelector('[data-testid="linked-nodes-incoming-count"]')?.textContent?.trim(),
+    ).toBe('1');
+
+    // External: pi-link glyph + count 2 (mirrors the card's external-url counter).
+    const ext = dom.querySelector('[data-testid="linked-nodes-external-refs"]')!;
+    expect(ext.querySelector('i.pi-link')).not.toBeNull();
+    expect(
+      ext.querySelector('[data-testid="linked-nodes-external-count"]')?.textContent?.trim(),
+    ).toBe('2');
+  });
+
+  it('shows a zero count in the header when a direction has no links', async () => {
+    // Default stub: every listLinks resolves empty and getNode has no refs.
+    const { fixture } = bootstrap(stub, ws);
+    fixture.componentRef.setInput('path', 'lonely.md');
+    await flush(fixture);
+
+    const dom: HTMLElement = fixture.nativeElement;
+    expect(
+      dom.querySelector('[data-testid="linked-nodes-outgoing-count"]')?.textContent?.trim(),
+    ).toBe('0');
+    expect(
+      dom.querySelector('[data-testid="linked-nodes-incoming-count"]')?.textContent?.trim(),
+    ).toBe('0');
+    // The external section is omitted entirely when there are no URLs, so
+    // its count header never renders.
+    expect(dom.querySelector('[data-testid="linked-nodes-external-count"]')).toBeNull();
   });
 });

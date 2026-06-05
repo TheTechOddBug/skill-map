@@ -9,84 +9,11 @@
   margin: 0;
 }
 
-/* Rows share the `.sm-section__kv` grid declared in inspector-view.css
-   (`:host ::ng-deep .sm-section__kv`). The component-local rules below
-   tweak alignment for the inline dd content and stage the chip
-   variants used by the Taxonomy + Supersession rows. */
+/* Rows share the `.sm-block__kv` grid plus the `.sm-block__inline` /
+   `.sm-block__meta` icon-row vocabulary declared in inspector-view.css
+   (the Metadata section reuses the same classes). */
 
 .ann-panel__rows dd {
   display: flex;
   align-items: center;
-}
-
-.ann-panel__inline {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.45rem 0.65rem;
-  row-gap: 0.35rem;
-}
-
-.ann-panel__meta {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.83rem;
-  color: var(--p-text-color);
-}
-
-.ann-panel__meta .pi {
-  color: var(--p-text-muted-color);
-  font-size: 0.85rem;
-}
-
-.ann-panel__meta a {
-  color: var(--p-primary-color);
-  word-break: break-all;
-}
-
-.ann-panel__meta code {
-  background: var(--sm-bg-hover);
-  padding: 0.05rem 0.35rem;
-  border-radius: var(--sm-radius-sm);
-  font-size: 0.78rem;
-}
-
-.ann-panel__chips {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.ann-panel__chips-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-}
-
-/* Tag chips · single-source (sidecar `annotations.tags`), filled.
-   Click → host emits `tagClick`; graph view multi-selects matching
-   nodes via Foblex's `flow.select(matchingPaths, [])` (toggle: same
-   chip clears). */
-:host ::ng-deep .ann-panel__chip--user {
-  background: var(--p-chip-background);
-  color: var(--p-chip-color);
-  cursor: pointer;
-  transition: filter 100ms ease, box-shadow 100ms ease;
-}
-:host ::ng-deep .ann-panel__chip--user:hover {
-  filter: brightness(1.05);
-}
-:host ::ng-deep .ann-panel__chip--user:focus-visible {
-  outline: 2px solid var(--p-primary-color);
-  outline-offset: 1px;
-}
-
-/* Active state, the chip whose tag drives the current Foblex selection.
-   Solid primary fill overrides both source variants. */
-:host ::ng-deep .ann-panel__chip--active {
-  background: var(--p-primary-color);
-  color: var(--p-primary-color-text);
-  border-color: var(--p-primary-color);
-  box-shadow: 0 0 0 2px var(--p-primary-color-200);
 }

@@ -2,25 +2,6 @@
   display: block;
 }
 
-/* Header row (title + refresh) sits at the top of the panel, which now
-   renders bare inside the inspector's Connections collapsible (no card
-   box). The collapsible already provides the rail indent + top divider,
-   so the header only needs a gap before the first section. */
-.linked-nodes-panel__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0;
-  margin-bottom: 0.6rem;
-}
-
-.linked-nodes-panel__title {
-  margin: 0;
-  font-size: 0.95rem;
-  font-weight: 600;
-}
-
 .linked-nodes-panel__status {
   margin: 0;
   font-size: 0.85rem;
@@ -37,9 +18,38 @@
   margin-top: 1rem;
 }
 
+/*
+ * Section header reuses the card footer's icon + count vocabulary
+ * (`pi-upload` outgoing, `pi-download` incoming, `pi-link` external),
+ * so the connections panel reads in the same language as the node
+ * cards: a glyph, the count, then a muted label. The count is the
+ * focal point (text colour, bold); the label is secondary (muted,
+ * uppercase). See `node-counter` / `.sm-gnode__stat` for the source
+ * pattern.
+ */
 .linked-nodes-panel__section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
   margin: 0 0 0.5rem;
   font-size: 0.8rem;
+}
+
+.linked-nodes-panel__section-icon {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.85rem;
+  color: var(--p-text-color);
+}
+
+.linked-nodes-panel__section-count {
+  font-weight: 700;
+  font-size: 0.9rem;
+  line-height: 1;
+  color: var(--p-text-color);
+}
+
+.linked-nodes-panel__section-label {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -113,21 +123,6 @@
   font-family: var(--sm-font-mono);
   font-size: 0.78rem;
   color: var(--p-text-muted-color);
-}
-
-/*
- * Finding rows (the new "Findings" section at the top of the panel).
- * Same chrome as a regular row but the message text reads as prose
- * rather than a path, so it gets a slightly different rhythm.
- */
-.linked-nodes-panel__row--finding {
-  align-items: flex-start;
-}
-
-.linked-nodes-panel__finding-message {
-  font-size: 0.8rem;
-  line-height: 1.4;
-  color: var(--p-text-color);
 }
 
 /*

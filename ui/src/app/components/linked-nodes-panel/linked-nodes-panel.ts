@@ -11,10 +11,10 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { TagModule } from 'primeng/tag';
-import { ChipModule } from 'primeng/chip';
 import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
 
+import { Icon } from '../../slots/icon';
 import { LINKED_NODES_PANEL_TEXTS } from '../../../i18n/linked-nodes-panel.texts';
 import {
   DATA_SOURCE,
@@ -44,7 +44,7 @@ type TPanelState = 'idle' | 'loading' | 'ready' | 'error';
 
 @Component({
   selector: 'sm-linked-nodes-panel',
-  imports: [TagModule, ChipModule, ButtonModule, TooltipModule],
+  imports: [TagModule, ButtonModule, TooltipModule, Icon],
   templateUrl: './linked-nodes-panel.html',
   styleUrl: './linked-nodes-panel.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -121,18 +121,6 @@ export class LinkedNodesPanel {
     () => this.state() === 'ready' && (this.outgoing().length > 0 || this.incoming().length > 0),
   );
 
-  /**
-   * Issues whose `nodeIds[]` includes the currently-focused path. These
-   * land in the "Findings" panel at the top of the card so the operator
-   * sees, at a glance, every analyzer alert that fired against this
-   * node (broken-ref, reserved-name, validate-all, etc.).
-   */
-  protected readonly findings = computed(() => {
-    const path = this.path();
-    if (!path) return [] as IIssueApi[];
-    return this.issues().filter((i) => i.nodeIds.includes(path));
-  });
-
   constructor() {
     // Reactive refresh on `scan.completed`, same trigger the
     // CollectionLoader uses. Re-running list-links keeps the panel in
@@ -157,12 +145,6 @@ export class LinkedNodesPanel {
       }
       void this.fetch(path);
     });
-  }
-
-  /** Manual refresh, wired to the card header's button. */
-  protected refresh(): void {
-    const path = this.path();
-    if (path) void this.fetch(path);
   }
 
   protected onOpen(target: string): void {

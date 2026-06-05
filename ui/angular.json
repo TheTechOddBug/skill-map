@@ -31,7 +31,8 @@
               "src/styles.css",
               "src/themes/light.css",
               "src/themes/dark.css",
-              "src/themes/matrix.css"
+              "src/themes/matrix.css",
+              "src/themes/highlight.css"
             ],
             "allowedCommonJsDependencies": ["dagre"],
             "progress": false

@@ -80,6 +80,19 @@ function preGrantConsent(fixture: string): void {
   );
 }
 
+/**
+ * Give `fixture` its own Git identity so the bump invoker
+ * (`resolveGitAuthorName`) is deterministic regardless of the dev / CI
+ * global Git config. The fixture lives under the project `.tmp/`, so
+ * `git init` creates a NESTED repo whose local `user.name` shadows any
+ * global value, the resolver reads it back via `git config user.name`.
+ */
+function initGitIdentity(fixture: string, name: string): void {
+  spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: fixture });
+  spawnSync('git', ['config', 'user.email', 'bump-tester@example.com'], { cwd: fixture });
+  spawnSync('git', ['config', 'user.name', name], { cwd: fixture });
+}
+
 before(() => {
   // AGENTS.md baseline, temp files always under `.tmp/`.
   const projectTmp = resolve(originalCwd, '.tmp');
@@ -156,6 +169,9 @@ describe('sm bump <node-path>, single-node mode', () => {
   it('first-time bump creates the .sm file with audit + version=1', async () => {
     const fixture = freshFixture('first');
     const dbPath = freshDbPath('first');
+    // Give the fixture a deterministic Git author so the bump stamps it
+    // (instead of resolving the project's real git config, or `'cli'`).
+    initGitIdentity(fixture, 'Bump Tester');
     writeFile(fixture, '.claude/skills/foo.md',
       ['---', 'name: foo', '---', 'Body.'].join('\n'),
     );
@@ -175,8 +191,10 @@ describe('sm bump <node-path>, single-node mode', () => {
     const parsed = yaml.load(readFileSync(sidecarPath, 'utf8')) as Record<string, unknown>;
     strictEqual((parsed['annotations'] as Record<string, unknown>)['version'], 1);
     const audit = parsed['audit'] as Record<string, unknown>;
-    strictEqual(audit['lastBumpedBy'], 'cli');
-    strictEqual(audit['createdBy'], 'cli');
+    // The bump invoker resolves to the project's Git author (here the
+    // fixture's local `user.name`), not the `'cli'` channel literal.
+    strictEqual(audit['lastBumpedBy'], 'Bump Tester');
+    strictEqual(audit['createdBy'], 'Bump Tester');
   });
 
   it('refuses on a fresh node without --force (exit 2)', async () => {

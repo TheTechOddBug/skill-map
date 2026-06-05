@@ -19,7 +19,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
-import { ensureGitForStaged, isInsideGitRepo, stageSidecar } from '../git.js';
+import { ensureGitForStaged, isInsideGitRepo, resolveGitAuthorName, stageSidecar } from '../git.js';
 
 let scratch: string;
 
@@ -163,5 +163,31 @@ describe('stageSidecar()', () => {
     const result = stageSidecar(repo, missing);
     assert.ok(result !== null, 'expected a stderr string, got null');
     assert.match(result!, /did not match any files|pathspec/i);
+  });
+});
+
+describe('resolveGitAuthorName()', () => {
+  it('returns null when the cwd is not inside a git repo', (t) => {
+    if (scratchPathHasGitAncestor()) {
+      t.skip(
+        'polluted test env: `.git/` ancestor found above the scratch path. ' +
+          'Inspect the tmpdir lineage (likely `/tmp/.git/` or a parent) and remove it.',
+      );
+      return;
+    }
+    const root = mkdtempSync(join(scratch, 'author-no-repo-'));
+    assert.equal(resolveGitAuthorName(root), null);
+  });
+
+  it('returns the configured `user.name` inside a git repo', () => {
+    const probe = spawnSync('git', ['--version'], { stdio: 'ignore' });
+    if (probe.error !== undefined) return; // skip, see ensureGitForStaged note
+
+    const repo = mkdtempSync(join(scratch, 'author-named-'));
+    spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: repo });
+    // Local config shadows any global `user.name`, so the result is
+    // deterministic regardless of the dev / CI machine's git identity.
+    spawnSync('git', ['config', 'user.name', 'Ada Lovelace'], { cwd: repo });
+    assert.equal(resolveGitAuthorName(repo), 'Ada Lovelace');
   });
 });

@@ -1,4 +1,4 @@
-<dl class="dbg__kv" data-testid="inspector-debug-panel">
+<dl class="sm-block__kv dbg__kv" data-testid="inspector-debug-panel">
   <dt>{{ texts.fields.forPath }}</dt>
   <dd data-testid="dbg-for-path">
     @if (identityBlock().path; as p) {
@@ -70,7 +70,4 @@
       <span class="dbg__absent">{{ texts.absentMarker }}</span>
     }
   </dd>
-
-  <dt>{{ texts.fields.sidecarPresent }}</dt>
-  <dd data-testid="dbg-sidecar-present"><code>{{ sidecarPresent() }}</code></dd>
 </dl>

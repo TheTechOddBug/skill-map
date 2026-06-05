@@ -10,7 +10,7 @@ import {
 } from '@angular/core';
 import type { OnInit } from '@angular/core';
 
-import type { IIssueApi } from '../../../models/api';
+import type { IIssueApi, TIssueSeverityApi } from '../../../models/api';
 import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
 import { ConfirmationService } from 'primeng/api';
@@ -19,6 +19,7 @@ import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { INSPECTOR_VIEW_TEXTS } from '../../../i18n/inspector-view.texts';
 import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
 import { CollectionLoaderService } from '../../../services/collection-loader';
+import { WsEventStreamService } from '../../../services/ws-event-stream';
 import {
   DATA_SOURCE,
   type IDataSourcePort,
@@ -81,6 +82,7 @@ export class InspectorView implements OnInit {
   private readonly nodeOpenIntent = inject(NODE_OPEN_INTENT);
   private readonly dataSource: IDataSourcePort = inject(DATA_SOURCE);
   private readonly markdown = inject(MarkdownRenderer);
+  private readonly wsEvents = inject(WsEventStreamService);
   private readonly sidecarService = inject(SidecarService);
   private readonly confirmation = inject(ConfirmationService);
 
@@ -178,6 +180,8 @@ export class InspectorView implements OnInit {
     path: this.path,
     dataSource: this.dataSource,
     markdown: this.markdown,
+    // Keep the open node's body live when the watcher re-scans an edit.
+    scanCompleted$: this.wsEvents.scanCompleted$,
   });
   protected readonly bodyState = this.bodyHandle.bodyState;
   protected readonly bodyHtml = this.bodyHandle.bodyHtml;
@@ -246,6 +250,16 @@ export class InspectorView implements OnInit {
       .catch(() => {
         if (!cancelled) this.issues.set([]);
       });
+  });
+
+  /**
+   * Findings sorted for display: error first, then warn, then info last
+   * (matches `sm check`'s severity ordering). Stable within a tier, so
+   * the analyzer emission order is preserved among same-severity issues.
+   */
+  protected readonly sortedIssues = computed<IIssueApi[]>(() => {
+    const order: Record<TIssueSeverityApi, number> = { error: 0, warn: 1, info: 2 };
+    return [...this.issues()].sort((a, b) => order[a.severity] - order[b.severity]);
   });
 
   /**

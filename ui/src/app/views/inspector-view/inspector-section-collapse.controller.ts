@@ -2,8 +2,8 @@
  * Persisted, per-section collapse state for the inspector.
  *
  * Replaces the earlier reset-on-navigation model: every inspector
- * section (Definition, Annotations, Connections, Findings, Audit,
- * Plugins, View contributions, Debug, Body) can be collapsed/expanded,
+ * section (Definition, Annotations, Connections, Findings, Metadata,
+ * Plugins, View contributions, Body) can be collapsed/expanded,
  * and the state is remembered in `localStorage` (global, not per-node)
  * so it survives navigation between nodes and full reloads. Sections the
  * user has never touched default to expanded.
@@ -19,10 +19,9 @@ export type TInspectorSectionId =
   | 'annotations'
   | 'connections'
   | 'findings'
-  | 'audit'
+  | 'metadata'
   | 'plugins'
   | 'viewContributions'
-  | 'debug'
   | 'body';
 
 const STORAGE_KEY = 'skill-map.ui.inspector.sections';

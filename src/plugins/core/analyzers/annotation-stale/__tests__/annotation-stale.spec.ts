@@ -1,6 +1,6 @@
 /**
  * Unit coverage for the dual surface of `annotation-stale`:
- *   - Issue emission per stale node (warn severity, `nodeIds: [path]`).
+ *   - Issue emission per stale node (info severity, `nodeIds: [path]`).
  *   - View-contribution emission to `card.footer.right` (icon-only
  *     chip via `value: 0` + the renderer's `value > 0` guard; tooltip
  *     differentiates body / frontmatter / both).
@@ -77,7 +77,7 @@ describe('annotation-stale analyzer, dual surface (issue + badge)', () => {
     const { ctx: c, contributions } = ctx([node]);
     const issues = await annotationStaleAnalyzer.evaluate(c);
     strictEqual(issues.length, 1);
-    strictEqual(issues[0]!.severity, 'warn');
+    strictEqual(issues[0]!.severity, 'info');
     deepStrictEqual(issues[0]!.nodeIds, ['notes/x.md']);
     deepStrictEqual(contributions, [
       {
@@ -85,7 +85,6 @@ describe('annotation-stale analyzer, dual surface (issue + badge)', () => {
         id: 'staleIcon',
         payload: {
           value: 0,
-          severity: 'warn',
           tooltip: ANNOTATION_STALE_TEXTS.bodyTooltip,
         },
       },
@@ -100,7 +99,6 @@ describe('annotation-stale analyzer, dual surface (issue + badge)', () => {
     strictEqual(contributions.length, 1);
     deepStrictEqual(contributions[0]!.payload, {
       value: 0,
-      severity: 'warn',
       tooltip: ANNOTATION_STALE_TEXTS.frontmatterTooltip,
     });
   });
@@ -113,7 +111,6 @@ describe('annotation-stale analyzer, dual surface (issue + badge)', () => {
     strictEqual(contributions.length, 1);
     deepStrictEqual(contributions[0]!.payload, {
       value: 0,
-      severity: 'warn',
       tooltip: ANNOTATION_STALE_TEXTS.bothTooltip,
     });
   });

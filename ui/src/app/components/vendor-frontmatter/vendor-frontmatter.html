@@ -45,6 +45,18 @@
                 }
               </dd>
             }
+            @if (disallowedTools().length) {
+              <dt>{{ texts.fields.disallowedTools }}</dt>
+              <dd class="vfm__inline">
+                @for (d of disallowedTools(); track d; let last = $last) {
+                  <span class="vfm__danger"><i class="pi pi-ban" aria-hidden="true"></i> <code>{{ d }}</code></span>@if (!last) { <span class="vfm__sep" aria-hidden="true">·</span> }
+                }
+              </dd>
+            }
+            @if (permissionMode(); as pm) {
+              <dt>{{ texts.fields.permissionMode }}</dt>
+              <dd><code>{{ pm }}</code></dd>
+            }
             @if (color(); as c) {
               <dt>{{ texts.fields.color }}</dt>
               <dd class="vfm__color">
@@ -70,18 +82,6 @@
                   } @else {
                     <span class="sm-node-link" [pTooltip]="texts.skillUnresolvedTooltip">{{ s }}</span>
                   }@if (!last) { <span class="vfm__sep" aria-hidden="true">·</span> }
-                }
-              </dd>
-            }
-            @if (permissionMode(); as pm) {
-              <dt>{{ texts.fields.permissionMode }}</dt>
-              <dd><code>{{ pm }}</code></dd>
-            }
-            @if (disallowedTools().length) {
-              <dt>{{ texts.fields.disallowedTools }}</dt>
-              <dd class="vfm__inline">
-                @for (d of disallowedTools(); track d; let last = $last) {
-                  <span class="vfm__danger"><i class="pi pi-ban" aria-hidden="true"></i> <code>{{ d }}</code></span>@if (!last) { <span class="vfm__sep" aria-hidden="true">·</span> }
                 }
               </dd>
             }

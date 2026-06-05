@@ -42,6 +42,8 @@ import { HTTPException } from 'hono/http-exception';
 import { resolveActiveProvider } from '../../core/config/active-provider.js';
 import { writeConfigValue } from '../../core/config/helper.js';
 import { resolveDbPath } from '../../core/paths/db-path.js';
+import { buildFreshResolver } from '../../core/runtime/fresh-resolver.js';
+import { isPluginExtensionEnabled } from '../../core/runtime/plugin-runtime/resolver.js';
 import { dropScanZone } from '../../cli/util/scan-zone-drop.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -53,6 +55,19 @@ export interface IActiveProviderEnvelope {
   activeProvider: string | null;
   detected: readonly string[];
   source: 'config' | 'autodetect' | 'none';
+  /**
+   * Registered-Provider ids that are enabled right now, resolved against
+   * the live per-extension resolver (`config_plugins` layered over
+   * `settings.json#/plugins`, the same resolution `GET /api/plugins`
+   * applies). This is the subset of `providerRegistry` eligible to
+   * become the lens. A Provider the operator disabled drops out of
+   * `selectable` but stays in `providerRegistry` (the static boot
+   * catalog keeps it so already-scanned nodes still render their chip).
+   * The SPA greys out (and refuses to select) any dropdown entry absent
+   * from this set, so a disabled Provider can never be picked as the
+   * lens. See `spec/cli-contract.md` §Active provider lens.
+   */
+  selectable: readonly string[];
 }
 
 interface IPatchBody {
@@ -64,25 +79,49 @@ interface ILensSwitchResult {
 }
 
 export function registerActiveProviderRoute(app: Hono, deps: IRouteDeps): void {
-  app.get('/api/active-provider', (c) => {
-    return c.json(buildEnvelope(deps));
+  app.get('/api/active-provider', async (c) => {
+    return c.json(await buildEnvelope(deps));
   });
 
   app.patch('/api/active-provider', async (c) => {
     const body = await parsePatchBody(c.req.raw);
     const result = applyLensSwitch(deps, body.activeProvider);
     deps.configService.reload();
-    return c.json({ ...buildEnvelope(deps), switch: result });
+    return c.json({ ...(await buildEnvelope(deps)), switch: result });
   });
 }
 
-function buildEnvelope(deps: IRouteDeps): IActiveProviderEnvelope {
+async function buildEnvelope(deps: IRouteDeps): Promise<IActiveProviderEnvelope> {
   const r = resolveActiveProvider(deps.runtimeContext.cwd, deps.providers);
   return {
     activeProvider: r.resolved,
     detected: r.detected,
     source: r.source,
+    selectable: await resolveSelectableProviders(deps),
   };
+}
+
+/**
+ * Project the set of registered Providers that are enabled right now.
+ * Reads a fresh resolver (`config_plugins` layered over
+ * `settings.json#/plugins`) so a mid-session toggle is honoured without
+ * restarting `sm serve`, mirroring `GET /api/plugins`. Keyed by
+ * `provider.id` to line up with the `providerRegistry` the dropdown
+ * iterates; deduped to stay stable when a plugin shadows a built-in id.
+ */
+async function resolveSelectableProviders(deps: IRouteDeps): Promise<string[]> {
+  const resolveEnabled = await buildFreshResolver({
+    databasePath: deps.options.dbPath,
+    effectiveConfig: () => deps.configService.effective(),
+    fallbackResolver: deps.pluginRuntime.resolveEnabled,
+  });
+  const selectable = new Set<string>();
+  for (const provider of deps.providers) {
+    if (isPluginExtensionEnabled(provider, resolveEnabled)) {
+      selectable.add(provider.id);
+    }
+  }
+  return [...selectable];
 }
 
 /**

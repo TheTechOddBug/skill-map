@@ -21,7 +21,6 @@ export const INSPECTOR_DEBUG_PANEL_TEXTS = {
     resolvedProvider: 'for.resolvedAs.provider',
     resolvedKind: 'for.resolvedAs.kind',
     sidecarStatus: 'sidecar.status',
-    sidecarPresent: 'sidecar.present',
   },
   diffMarker: '!=',
   /** Marker for rows whose source value is absent (no sidecar / null). */

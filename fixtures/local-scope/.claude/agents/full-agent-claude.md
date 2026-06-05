@@ -37,13 +37,30 @@ background: false
 effort: high
 isolation: worktree
 color: cyan
-initialPrompt: Greet the **operators**, list the active scope, and propose a starting task.
+initialPrompt: Greet the s**operators**, list the active scope, and propose a starting task.
 pruebaDeDesconocido: es un prueba de desconocido
 ---
 
 # Full Claude agent
+                         
+d  
+Demonstrator agent that **touches** every `documented` frontmatter field for the Claude Provider. Reference fixture for documentation, screenshots, conformance regressions, and tutorial walkthroughs.
 
-Demonstrator agent that touches every documented frontmatter field for the Claude Provider. Reference fixture for documentation, screenshots, conformance regressions, and tutorial walkthroughs.
+Supersedes [test](@deprecated-agent). Pairs with #full-skill-agents (cross-vendor reference via the open standard) and #full-skill-claude. Requires #full-skill-claude to be loadable.
 
-Supersedes @deprecated-agent. Pairs with #full-skill-agents (cross-vendor reference via the open standard) and #full-skill-claude. Requires #full-skill-claude to be loadable.
+Esto es un codigo de javascript: `if(true){}`
 
+got to [google](https://google.com)
+                   
+> esto es un quote
+                
+```javascript
+function pickExistingVersion(node: Node): number | null {
+  const overlay = node.sidecar;
+  if (!overlay || overlay.present !== true) return null;
+  const annotations = overlay.annotations;
+  if (!annotations) return null;
+  const v = (annotations as Record<string, unknown>)['version'];
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+```

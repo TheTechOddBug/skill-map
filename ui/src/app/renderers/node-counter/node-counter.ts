@@ -47,10 +47,12 @@ interface INodeCounterPayload {
        same selectors-by-role, so the counter reads identically to the
        hardcoded footer stats next to it. Font-size is inherited from
        the slot host (0.7rem inside the footer), no override here.
-       NO tinted wrapper, severity drives the glyph + value color
-       directly, leaving the surrounding chrome quiet. */
+       NO tinted wrapper. A counter with no severity reads in the
+       neutral foreground (the base .vc-counter color below, matching
+       the value); a severity tints the glyph + value directly, leaving
+       the surrounding chrome quiet. */
     .vc-counter { display: inline-flex; align-items: center; gap: 0.3rem;
-      line-height: 1; }
+      line-height: 1; color: var(--p-text-color); }
     .vc-counter__icon { font-size: 0.6rem; line-height: 1; display: block; }
     .vc-counter__value { font-weight: 600; color: var(--p-text-color);
       line-height: 1; display: block; }

@@ -1,6 +1,7 @@
 /**
  * `IMapIsolateIntent`, the abstraction the files rail uses to ask "isolate
- * this node's chain on the map" without coupling to the graph view.
+ * this node on the map" (focus it and its direct neighbors) without
+ * coupling to the graph view.
  *
  * Mirrors `NODE_OPEN_INTENT`: the rail renderer stays host-agnostic, and
  * the host that actually owns the map (the workspace view) overrides the
@@ -12,7 +13,7 @@
 import { InjectionToken } from '@angular/core';
 
 export interface IMapIsolateIntent {
-  /** Isolate the connected chain of `path` on the map and select it. */
+  /** Isolate `path` on the map (focus it + its direct neighbors) and select it. */
   isolate(path: string): void;
 }
 

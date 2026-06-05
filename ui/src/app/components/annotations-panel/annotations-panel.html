@@ -7,36 +7,33 @@
 } @else {
   <dl class="ann-panel__rows sm-block__kv">
 
-    @if (hasTaxonomy()) {
-      @let tx = taxonomy();
-      <dt>{{ texts.fields.tags }}</dt>
-      <dd class="ann-panel__chips" data-testid="annotations-section-taxonomy">
-        <div class="ann-panel__chips-row" data-testid="annotations-tags">
-          @for (t of tx.userTags; track 'u:' + t) {
-            <p-chip
-              [label]="t"
-              [styleClass]="
-                'ann-panel__chip ann-panel__chip--user' +
-                (isActiveTag(t) ? ' ann-panel__chip--active' : '')
-              "
-              data-tag-source="user"
-              role="button"
-              tabindex="0"
-              (click)="tagClick.emit(t)"
-              (keydown.enter)="tagClick.emit(t)"
-              (keydown.space)="tagClick.emit(t); $event.preventDefault()"
-            />
+    @if (hasProvenance()) {
+      @let pr = provenance();
+      <dt>{{ texts.sections.provenance }}</dt>
+      <dd class="sm-block__inline" data-testid="annotations-section-provenance">
+        @if (pr.authors.length) {
+          @for (a of pr.authors; track a) {
+            <span class="sm-block__meta">
+              <i class="pi pi-user" aria-hidden="true"></i>
+              <span>{{ a }}</span>
+            </span>
           }
-        </div>
+        }
+        @if (pr.license !== null) {
+          <span class="sm-block__meta">
+            <i class="pi pi-shield" aria-hidden="true"></i>
+            <span>{{ pr.license }}</span>
+          </span>
+        }
       </dd>
     }
 
     @if (hasSupersession()) {
       @let sup = supersession();
       <dt>{{ texts.sections.supersession }}</dt>
-      <dd class="ann-panel__inline" data-testid="annotations-section-supersession">
+      <dd class="sm-block__inline" data-testid="annotations-section-supersession">
         @if (sup.supersededBy !== null) {
-          <span class="ann-panel__meta">
+          <span class="sm-block__meta">
             <i class="pi pi-arrow-down" aria-hidden="true"></i>
             <span>{{ texts.fields.supersededBy }}</span>
           </span>
@@ -49,14 +46,14 @@
               (keydown.enter)="onOpenPath(sup.supersededBy)"
               (keydown.space)="onOpenPath(sup.supersededBy); $event.preventDefault()"
             >
-              <i class="pi pi-arrow-up-right" aria-hidden="true"></i> {{ sup.supersededBy }}
+              {{ sup.supersededBy }}
             </a>
           } @else {
             <span class="sm-node-link" [pTooltip]="texts.brokenRefTooltip">{{ sup.supersededBy }}</span>
           }
         }
         @if (sup.supersedes.length) {
-          <span class="ann-panel__meta">
+          <span class="sm-block__meta">
             <i class="pi pi-arrow-up" aria-hidden="true"></i>
             <span>{{ texts.fields.supersedes }}</span>
           </span>
@@ -70,7 +67,7 @@
                 (keydown.enter)="onOpenPath(p)"
                 (keydown.space)="onOpenPath(p); $event.preventDefault()"
               >
-                <i class="pi pi-arrow-up-right" aria-hidden="true"></i> {{ p }}
+                {{ p }}
               </a>
             } @else {
               <span class="sm-node-link" [pTooltip]="texts.brokenRefTooltip">{{ p }}</span>
@@ -83,38 +80,17 @@
     @if (hasRepository()) {
       @let rp = repository();
       <dt>{{ texts.sections.repository }}</dt>
-      <dd class="ann-panel__inline" data-testid="annotations-section-repository">
+      <dd class="sm-block__inline" data-testid="annotations-section-repository">
         @if (rp.source !== null) {
-          <span class="ann-panel__meta">
+          <span class="sm-block__meta">
             <i class="pi pi-link" aria-hidden="true"></i>
             <a [href]="rp.source" target="_blank" rel="noopener noreferrer">{{ rp.source }}</a>
           </span>
         }
         @if (rp.sourceVersion !== null) {
-          <span class="ann-panel__meta">
+          <span class="sm-block__meta">
             <i class="pi pi-tag" aria-hidden="true"></i>
             <code>{{ rp.sourceVersion }}</code>
-          </span>
-        }
-      </dd>
-    }
-
-    @if (hasProvenance()) {
-      @let pr = provenance();
-      <dt>{{ texts.sections.provenance }}</dt>
-      <dd class="ann-panel__inline" data-testid="annotations-section-provenance">
-        @if (pr.authors.length) {
-          @for (a of pr.authors; track a) {
-            <span class="ann-panel__meta">
-              <i class="pi pi-user" aria-hidden="true"></i>
-              <span>{{ a }}</span>
-            </span>
-          }
-        }
-        @if (pr.license !== null) {
-          <span class="ann-panel__meta">
-            <i class="pi pi-shield" aria-hidden="true"></i>
-            <span>{{ pr.license }}</span>
           </span>
         }
       </dd>
@@ -123,9 +99,9 @@
     @if (hasDocs()) {
       @let dc = docs();
       <dt>{{ texts.sections.docs }}</dt>
-      <dd class="ann-panel__inline" data-testid="annotations-section-docs">
+      <dd class="sm-block__inline" data-testid="annotations-section-docs">
         @if (dc.docsUrl !== null) {
-          <span class="ann-panel__meta">
+          <span class="sm-block__meta">
             <i class="pi pi-external-link" aria-hidden="true"></i>
             <a [href]="dc.docsUrl" target="_blank" rel="noopener noreferrer">{{ dc.docsUrl }}</a>
           </span>

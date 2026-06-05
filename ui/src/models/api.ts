@@ -662,11 +662,16 @@ export interface IProjectIgnorePatchApi {
  *   - `source`: where the value came from (`'config'` when persisted
  *     in settings.json, `'autodetect'` when derived from filesystem,
  *     `'none'` when neither source produced a value).
+ *   - `selectable`: registered-Provider ids enabled right now (the
+ *     subset of `providerRegistry` eligible to become the lens). The
+ *     active-lens dropdown greys out and refuses to select any entry
+ *     absent from this set, so a disabled Provider can never be chosen.
  */
 export interface IActiveProviderApi {
   activeProvider: string | null;
   detected: readonly string[];
   source: 'config' | 'autodetect' | 'none';
+  selectable: readonly string[];
 }
 
 /**

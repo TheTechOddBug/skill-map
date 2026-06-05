@@ -82,39 +82,6 @@ export function effectiveStability(node: INodeView | null | undefined): TStabili
 }
 
 /**
- * Effective tool NAMES for the inspector header tag row:
- *
- *   - Agent `frontmatter.tools` → array of strings.
- *   - Skill / command `frontmatter.allowed-tools` → array of strings,
- *     OR a single string (Anthropic accepts both shapes; the string
- *     form is rendered as one tag).
- *
- * Returns `[]` when the node carries no tools at all (notes, skills
- * without allowed-tools, etc.). Order: agent tools first, then skill
- * allowed-tools (in declaration order). No deduplication, the kinds
- * never overlap on the same node.
- */
-export function effectiveToolsList(node: INodeView | null | undefined): string[] {
-  if (!node) return [];
-  const fm = node.frontmatter as Record<string, unknown>;
-  const out: string[] = [];
-  if (node.kind === 'agent' && Array.isArray(fm['tools'])) {
-    for (const t of fm['tools'] as unknown[]) {
-      if (typeof t === 'string' && t.length > 0) out.push(t);
-    }
-  }
-  if (node.kind === 'skill' || node.kind === 'command') {
-    const allowed = fm['allowed-tools'];
-    if (Array.isArray(allowed)) {
-      for (const t of allowed) if (typeof t === 'string' && t.length > 0) out.push(t);
-    } else if (typeof allowed === 'string' && allowed.length > 0) {
-      out.push(allowed);
-    }
-  }
-  return out;
-}
-
-/**
  * True when the node's sidecar overlay reports drift (any
  * `stale-*` status). Re-exports `isStaleSidecar` from the node model
  * with a node-level signature so call sites read uniformly with the

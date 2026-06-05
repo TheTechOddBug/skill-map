@@ -18,6 +18,7 @@ export const INSPECTOR_VIEW_TEXTS = {
     invalidFrontmatter: 'invalid frontmatter',
     invalidFrontmatterTooltip:
       'The YAML frontmatter could not be parsed, so name, description and other metadata are unavailable. Check the Findings section for the parser error.',
+    tagFilterAriaLabel: (tag: string) => `Select every node tagged ${tag} on the map`,
   },
   /**
    * Section headers the inspector body renders directly. Vendor-frontmatter
@@ -28,10 +29,9 @@ export const INSPECTOR_VIEW_TEXTS = {
     annotations: 'Annotations',
     connections: 'Connections',
     findings: 'Findings',
-    audit: 'Metadata',
+    metadata: 'Metadata',
     plugins: 'Plugin contributions',
     viewContributions: 'View contributions',
-    debug: 'Debug',
     body: 'Body',
   },
   body: {
@@ -82,9 +82,6 @@ export const INSPECTOR_VIEW_TEXTS = {
   },
   /** Banner shown when `annotations.supersededBy` is set. */
   supersededByBanner: (path: string) => `Superseded by ${path}`,
-  /** Aria + tooltip for the debug toggle that sits in the toolbar. */
-  debugToggleAriaLabel: 'Toggle debug panel',
-  debugToggleTooltip: 'Show diagnostic fields (hash diffs, resolved provider/kind, sidecar status enum).',
   /**
    * TEMPORARY plugin-actions row mocks while the BFF surface for runnable
    * verbs is being designed. Gated by the `inspector.actionMocks` setting

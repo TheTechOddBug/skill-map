@@ -1,19 +1,5 @@
 @if (path()) {
   <div class="linked-nodes-panel" data-testid="linked-nodes-panel">
-    <div class="linked-nodes-panel__header">
-      <h3 class="linked-nodes-panel__title">{{ texts.cardHeader }}</h3>
-      <p-button
-        icon="pi pi-refresh"
-        [rounded]="true"
-        [text]="true"
-        severity="secondary"
-        [ariaLabel]="texts.refreshLabel"
-        [pTooltip]="texts.refreshLabel"
-        (onClick)="refresh()"
-        data-testid="linked-nodes-refresh"
-        [disabled]="state() === 'loading'"
-      />
-    </div>
     @switch (state()) {
       @case ('loading') {
         <p class="linked-nodes-panel__status" data-testid="linked-nodes-loading">{{ texts.loading }}</p>
@@ -22,47 +8,12 @@
         <p class="linked-nodes-panel__status linked-nodes-panel__status--warn" data-testid="linked-nodes-error">{{ texts.error }}</p>
       }
       @case ('ready') {
-        @if (externalRefs().length > 0) {
-          <section class="linked-nodes-panel__section" data-testid="linked-nodes-external-refs">
-            <h4 class="linked-nodes-panel__section-title">{{ texts.externalRefsHeader }}</h4>
-            <ul class="linked-nodes-panel__rows">
-              @for (ref of externalRefs(); track ref.url + '|' + (ref.line ?? -1)) {
-                <li class="linked-nodes-panel__row linked-nodes-panel__row--external-ref"
-                    [attr.data-testid]="'linked-nodes-external-ref-' + ref.url">
-                  <span class="linked-nodes-panel__external-ref-line">
-                    @if (ref.line) {
-                      {{ texts.externalRefsItemLine(ref.line) }}
-                    } @else {
-                      {{ texts.externalRefsItemUnknownLine }}
-                    }
-                  </span>
-                  <a class="linked-nodes-panel__external-ref-url"
-                     [href]="ref.url"
-                     target="_blank"
-                     rel="noopener noreferrer">{{ ref.url }}</a>
-                </li>
-              }
-            </ul>
-          </section>
-        }
-        <section class="linked-nodes-panel__section" data-testid="linked-nodes-findings">
-          <h4 class="linked-nodes-panel__section-title">{{ texts.findingsHeader }}</h4>
-          @if (findings().length === 0) {
-            <p class="linked-nodes-panel__status" data-testid="linked-nodes-findings-empty">{{ texts.emptyFindings }}</p>
-          } @else {
-            <ul class="linked-nodes-panel__rows">
-              @for (issue of findings(); track issue.analyzerId + '|' + ($any(issue.data)?.target ?? '') + '|' + issue.message) {
-                <li class="linked-nodes-panel__row linked-nodes-panel__row--finding"
-                    [attr.data-testid]="'linked-nodes-finding-' + issue.analyzerId">
-                  <p-tag [value]="issue.analyzerId" [severity]="issueSeverity(issue.severity)" [rounded]="true" />
-                  <span class="linked-nodes-panel__finding-message">{{ issue.message }}</span>
-                </li>
-              }
-            </ul>
-          }
-        </section>
         <section class="linked-nodes-panel__section" data-testid="linked-nodes-outgoing">
-          <h4 class="linked-nodes-panel__section-title">{{ texts.outgoingHeader }}</h4>
+          <h4 class="linked-nodes-panel__section-title">
+            <sm-icon class="linked-nodes-panel__section-icon" icon="pi-upload" />
+            <span class="linked-nodes-panel__section-count" data-testid="linked-nodes-outgoing-count">{{ outgoing().length }}</span>
+            <span class="linked-nodes-panel__section-label">{{ texts.outgoingHeader }}</span>
+          </h4>
           @if (outgoing().length === 0) {
             <p class="linked-nodes-panel__status" data-testid="linked-nodes-outgoing-empty">{{ texts.emptyOutgoing }}</p>
           } @else {
@@ -112,7 +63,11 @@
           }
         </section>
         <section class="linked-nodes-panel__section" data-testid="linked-nodes-incoming">
-          <h4 class="linked-nodes-panel__section-title">{{ texts.incomingHeader }}</h4>
+          <h4 class="linked-nodes-panel__section-title">
+            <sm-icon class="linked-nodes-panel__section-icon" icon="pi-download" />
+            <span class="linked-nodes-panel__section-count" data-testid="linked-nodes-incoming-count">{{ incoming().length }}</span>
+            <span class="linked-nodes-panel__section-label">{{ texts.incomingHeader }}</span>
+          </h4>
           @if (incoming().length === 0) {
             <p class="linked-nodes-panel__status" data-testid="linked-nodes-incoming-empty">{{ texts.emptyIncoming }}</p>
           } @else {
@@ -161,6 +116,33 @@
             </ul>
           }
         </section>
+        @if (externalRefs().length > 0) {
+          <section class="linked-nodes-panel__section" data-testid="linked-nodes-external-refs">
+            <h4 class="linked-nodes-panel__section-title">
+              <sm-icon class="linked-nodes-panel__section-icon" icon="pi-link" />
+              <span class="linked-nodes-panel__section-count" data-testid="linked-nodes-external-count">{{ externalRefs().length }}</span>
+              <span class="linked-nodes-panel__section-label">{{ texts.externalRefsHeader }}</span>
+            </h4>
+            <ul class="linked-nodes-panel__rows">
+              @for (ref of externalRefs(); track ref.url + '|' + (ref.line ?? -1)) {
+                <li class="linked-nodes-panel__row linked-nodes-panel__row--external-ref"
+                    [attr.data-testid]="'linked-nodes-external-ref-' + ref.url">
+                  <span class="linked-nodes-panel__external-ref-line">
+                    @if (ref.line) {
+                      {{ texts.externalRefsItemLine(ref.line) }}
+                    } @else {
+                      {{ texts.externalRefsItemUnknownLine }}
+                    }
+                  </span>
+                  <a class="linked-nodes-panel__external-ref-url"
+                     [href]="ref.url"
+                     target="_blank"
+                     rel="noopener noreferrer">{{ ref.url }}</a>
+                </li>
+              }
+            </ul>
+          </section>
+        }
       }
     }
   </div>

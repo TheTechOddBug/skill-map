@@ -142,7 +142,7 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
     strictEqual(stale.length, 0, 'fresh sidecar emits no stale issue');
   });
 
-  it('stale-body: body changed after sidecar was bumped → stale-body status + warning', async () => {
+  it('stale-body: body changed after sidecar was bumped → stale-body status + info issue', async () => {
     const fixture = freshFixture('stale-body');
     writeFile(fixture, NODE_PATH, BASE_MD);
     const baseline = await fullScan(fixture);
@@ -174,7 +174,7 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
     strictEqual(node.sidecar?.status, 'stale-body');
     const stale = result.issues.filter((i) => i.analyzerId === 'annotation-stale');
     strictEqual(stale.length, 1);
-    strictEqual(stale[0]!.severity, 'warn');
+    strictEqual(stale[0]!.severity, 'info');
     ok(stale[0]!.message.includes('body changed'));
   });
 
@@ -234,7 +234,7 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
     ok(typeof orphans[0]!.data?.['expectedMdPath'] === 'string');
   });
 
-  it('malformed YAML in .sm → invalid-sidecar warning, scan still completes', async () => {
+  it('malformed YAML in .sm → invalid-sidecar error, scan still completes', async () => {
     const fixture = freshFixture('malformed');
     writeFile(fixture, NODE_PATH, BASE_MD);
     writeFile(fixture, '.claude/agents/architect.sm', 'identity: { not closed');
@@ -245,10 +245,10 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
     strictEqual(node.sidecar?.status, null);
     const invalid = result.issues.filter((i) => i.analyzerId === 'invalid-sidecar');
     strictEqual(invalid.length, 1);
-    strictEqual(invalid[0]!.severity, 'warn');
+    strictEqual(invalid[0]!.severity, 'error');
   });
 
-  it('schema-invalid sidecar (missing for.bodyHash) → invalid-sidecar warning', async () => {
+  it('schema-invalid sidecar (missing for.bodyHash) → invalid-sidecar error', async () => {
     const fixture = freshFixture('schema-invalid');
     writeFile(fixture, NODE_PATH, BASE_MD);
     writeFile(

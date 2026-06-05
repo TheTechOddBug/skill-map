@@ -1,9 +1,14 @@
 /**
  * Tag-selection state machine for the graph view. Owns the
- * `activeTagSelection` signal, the viewport snapshot used to restore
- * the pre-tag pan / zoom on toggle-clear, and the supersession token
- * that keeps back-to-back tag clicks from spawning competing tween
- * loops.
+ * `activeTagSelection` signal and a snapshot of the map-visibility
+ * curation taken before the first tag activation, so toggling the tag
+ * off lands the user back on whatever they were looking at.
+ *
+ * Clicking a tag CURATES the map down to the nodes carrying that tag:
+ * `mapVisibility.setOnly(taggedPaths)` hides every other node (same
+ * mechanism the rail's isolate gesture uses). Framing is handled by the
+ * graph view's existing curation re-fit effect, so this controller stays
+ * a pure visibility state machine with no viewport / Foblex coupling.
  *
  * Extracted from `graph-view.ts` so the view component focuses on
  * graph rendering + node-drag + filter concerns. Mirrors the
@@ -11,107 +16,49 @@
  * a small handle the component captures in its constructor.
  */
 
-import { signal, type Signal, type WritableSignal } from '@angular/core';
-import type { FFlowComponent } from '@foblex/flow';
+import { signal, type Signal } from '@angular/core';
 
 import type { INodeView } from '../../../models/node';
+import type { MapVisibilityService } from '../../../services/map-visibility';
 import { nodeHasTag } from './graph-view.utils';
-import type { IFullLayout, IPoint } from './graph-layout';
-import {
-  animateViewport,
-  computeFitTransform,
-  type IViewportTransform,
-} from './viewport-animation';
-
-/** Tween duration (ms) for tag-fit and tag-restore viewport animations. */
-const VIEWPORT_ANIM_MS = 320;
 
 export interface ITagSelectionConfig {
-  /** Foblex flow handle, used for `select()` / `clearSelection()`. */
-  readonly flow: Signal<FFlowComponent | undefined>;
-  /** Source for the full node list. */
+  /** Source for the full node list (tagged-path resolution). */
   readonly nodes: Signal<INodeView[]>;
-  /** Full layout (positions + edges), used to compute the fit bbox. */
-  readonly fullLayout: Signal<IFullLayout>;
-  /** Live canvas wrap dimensions. Returns `null` when the host is not mounted yet. */
-  readonly canvasWrap: () => { width: number; height: number } | null;
-  /** Selected node id, drives whether the inspector panel reserves space in the fit. */
-  readonly selectedNodeId: Signal<string | null>;
-  /** Inspector panel width when open. */
-  readonly clampedPanelWidth: Signal<number>;
-  /** Zoom floor, viewport snapshots must stay above this. */
-  readonly zoomMin: number;
-  readonly viewportPosition: WritableSignal<IPoint>;
-  readonly viewportScale: WritableSignal<number>;
+  /** Shared map-visibility curation store the tag filter drives. */
+  readonly mapVisibility: Pick<MapVisibilityService, 'paths' | 'setOnly'>;
 }
 
 export interface ITagSelectionHandle {
   readonly activeTagSelection: Signal<string | null>;
   /**
-   * Tag chip click forwarded from the embedded inspector panel.
-   * Toggles the multi-select halo via Foblex's native selection API
-   * and animates the viewport to fit the matching node bbox.
+   * Tag chip click forwarded from the inspector header. Curates the map
+   * to every node carrying `tag` (the rest hide); clicking the active
+   * tag again restores the pre-tag curation.
    */
   onTagSelect: (tag: string) => void;
 }
 
 export function setupTagSelection(config: ITagSelectionConfig): ITagSelectionHandle {
   const activeTagSelection = signal<string | null>(null);
-  let viewportBeforeTagSelect: { position: IPoint; scale: number } | null = null;
-  let viewportAnimToken = 0;
+  // Curation in effect before the first tag activation. Restored on
+  // toggle-off so the user returns to their prior view (a manual
+  // checkbox curation, an isolate set, or "show all" == empty set).
+  // Snapshotted once; tag-to-tag swaps do not overwrite it.
+  let curationBeforeTag: ReadonlySet<string> | null = null;
 
-  const animateViewportTo = (target: IViewportTransform, durationMs: number): void => {
-    const token = ++viewportAnimToken;
-    animateViewport(
-      {
-        readPosition: () => config.viewportPosition(),
-        readScale: () => config.viewportScale(),
-        writePosition: (p) => config.viewportPosition.set(p),
-        writeScale: (s) => config.viewportScale.set(s),
-        isStaleToken: () => token !== viewportAnimToken,
-      },
-      target,
-      durationMs,
-    );
-  };
-
-  const fitViewportToPaths = (paths: readonly string[]): void => {
-    const wrap = config.canvasWrap();
-    if (!wrap) return;
-    if (paths.length === 0) return;
-
-    const layout = config.fullLayout();
-    const points: IPoint[] = [];
-    for (const p of paths) {
-      const pt = layout.positions.get(p);
-      if (pt) points.push(pt);
-    }
-    if (points.length === 0) return;
-
-    const transform = computeFitTransform({
-      points,
-      wrap,
-      panelW: config.selectedNodeId() !== null ? config.clampedPanelWidth() : 0,
-      zoomMin: config.zoomMin,
-    });
-    if (!transform) return;
-    animateViewportTo(transform, VIEWPORT_ANIM_MS);
-  };
-
-  const restoreViewportFromTagSnapshot = (): void => {
-    const saved = viewportBeforeTagSelect;
-    if (!saved) return;
-    viewportBeforeTagSelect = null;
-    animateViewportTo({ position: saved.position, scale: saved.scale }, VIEWPORT_ANIM_MS);
+  const restoreCuration = (): void => {
+    if (curationBeforeTag === null) return;
+    const saved = curationBeforeTag;
+    curationBeforeTag = null;
+    // An empty saved set means "show all" (setOnly([]) clears curation).
+    config.mapVisibility.setOnly(saved);
   };
 
   const onTagSelect = (tag: string): void => {
-    const flow = config.flow();
-    if (!flow) return;
     if (activeTagSelection() === tag) {
-      flow.clearSelection();
       activeTagSelection.set(null);
-      restoreViewportFromTagSnapshot();
+      restoreCuration();
       return;
     }
     const paths = config
@@ -119,23 +66,15 @@ export function setupTagSelection(config: ITagSelectionConfig): ITagSelectionHan
       .filter((n) => nodeHasTag(n, tag))
       .map((n) => n.path);
     if (paths.length === 0) {
-      flow.clearSelection();
       activeTagSelection.set(null);
-      restoreViewportFromTagSnapshot();
+      restoreCuration();
       return;
     }
-    // Snapshot the viewport on first activation only, swaps don't
-    // overwrite, so toggling off after N swaps still lands on the
-    // pre-tag pan / zoom the user came from.
-    if (viewportBeforeTagSelect === null) {
-      viewportBeforeTagSelect = {
-        position: { ...config.viewportPosition() },
-        scale: config.viewportScale(),
-      };
+    if (curationBeforeTag === null) {
+      curationBeforeTag = new Set(config.mapVisibility.paths());
     }
-    flow.select(paths, []);
+    config.mapVisibility.setOnly(paths);
     activeTagSelection.set(tag);
-    fitViewportToPaths(paths);
   };
 
   return { activeTagSelection, onTagSelect };

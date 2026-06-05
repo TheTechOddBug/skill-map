@@ -1,0 +1,81 @@
+/* skill-map syntax-highlight theme. Maps highlight.js token classes
+ * (`hljs-*`, emitted by the markdown renderer's `highlight` callback) to
+ * the per-theme `--sm-hl-*` palette declared in `light.css` / `dark.css`
+ * / `matrix.css`. One theme-agnostic file: the colours follow whichever
+ * theme is active because every rule resolves the same custom
+ * properties. Registered in `angular.json`'s `styles` array after the
+ * theme files (custom properties resolve at use time, so source order is
+ * not strictly required, but keeping it last reads cleanly).
+ *
+ * The base `.hljs` container colour / background is owned by the
+ * consuming surface (e.g. `.inspector__body-rendered pre`); this file
+ * only colours the token spans so it composes with any code-block chrome.
+ */
+
+.hljs-comment,
+.hljs-quote {
+  color: var(--sm-hl-comment);
+  font-style: italic;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-type,
+.hljs-name {
+  color: var(--sm-hl-keyword);
+}
+
+.hljs-string,
+.hljs-regexp,
+.hljs-meta .hljs-string {
+  color: var(--sm-hl-string);
+}
+
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link {
+  color: var(--sm-hl-number);
+}
+
+.hljs-title,
+.hljs-section,
+.hljs-selector-id,
+.hljs-selector-class {
+  color: var(--sm-hl-title);
+}
+
+.hljs-attr,
+.hljs-attribute,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-property {
+  color: var(--sm-hl-attr);
+}
+
+.hljs-built_in,
+.hljs-class .hljs-title {
+  color: var(--sm-hl-built-in);
+}
+
+.hljs-meta,
+.hljs-meta .hljs-keyword {
+  color: var(--sm-hl-meta);
+}
+
+.hljs-addition {
+  color: var(--sm-hl-addition);
+}
+
+.hljs-deletion {
+  color: var(--sm-hl-deletion);
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: 600;
+}

@@ -1,21 +1,33 @@
 @if (hasContent()) {
   @let a = audit();
-  <dl class="audit__kv" data-testid="inspector-audit-panel">
+  <dl class="sm-block__kv" data-testid="inspector-audit-panel">
     @if (a.lastBumpedAt !== null) {
       <dt>{{ texts.fields.lastBumpedAt }}</dt>
-      <dd>
-        <span [title]="a.lastBumpedAt">{{ lastBumpedRel() }}</span>
+      <dd class="sm-block__inline" data-testid="inspector-audit-last-bumped">
+        <span class="sm-block__meta">
+          <i class="pi pi-history" aria-hidden="true"></i>
+          <span [title]="a.lastBumpedAt">{{ lastBumpedRel() }}</span>
+        </span>
         @if (a.lastBumpedBy !== null) {
-          <span class="audit__by"> {{ texts.fields.lastBumpedBy }} <code>{{ a.lastBumpedBy }}</code></span>
+          <span class="sm-block__meta">
+            <i class="pi pi-user" aria-hidden="true"></i>
+            <span>{{ texts.fields.lastBumpedBy }} <code>{{ a.lastBumpedBy }}</code></span>
+          </span>
         }
       </dd>
     }
     @if (a.createdAt !== null) {
       <dt>{{ texts.fields.createdAt }}</dt>
-      <dd>
-        <span [title]="a.createdAt">{{ createdRel() }}</span>
+      <dd class="sm-block__inline" data-testid="inspector-audit-created">
+        <span class="sm-block__meta">
+          <i class="pi pi-calendar-plus" aria-hidden="true"></i>
+          <span [title]="a.createdAt">{{ createdRel() }}</span>
+        </span>
         @if (a.createdBy !== null) {
-          <span class="audit__by"> {{ texts.fields.createdBy }} <code>{{ a.createdBy }}</code></span>
+          <span class="sm-block__meta">
+            <i class="pi pi-user" aria-hidden="true"></i>
+            <span>{{ texts.fields.createdBy }} <code>{{ a.createdBy }}</code></span>
+          </span>
         }
       </dd>
     }

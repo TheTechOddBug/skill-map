@@ -1,10 +1,10 @@
 /**
- * `annotation-stale` rule (Step 9.6.2). Emits a `warn` issue per node
+ * `annotation-stale` rule (Step 9.6.2). Emits an `info` issue per node
  * whose co-located `.sm` sidecar is stale relative to the current node
  * hashes, `node.sidecar.status` ∈ {`stale-body`, `stale-frontmatter`,
  * `stale-both`}, AND emits a `pi-clock` icon-only chip to
  * `card.footer.right` so the operator can spot drift visually without
- * opening the Issues panel. Severity uniform `warn`; the per-face
+ * opening the Issues panel. Severity uniform `info`; the per-face
  * detail (body / frontmatter / both) lives on the chip's tooltip
  * rather than on a numeric count.
  *
@@ -13,9 +13,10 @@
  * `for.{bodyHash, frontmatterHash}`); this rule just surfaces the
  * already-computed status through both surfaces.
  *
- * Severity is `warn` per Decision #4, bumps are never auto-applied,
- * so stale state is advisory until the user runs `sm bump` (Step
- * 9.6.4).
+ * Severity is `info` (was `warn` under the original Decision #4): drift
+ * is informational, not a warning, bumps are never auto-applied, so
+ * stale state is purely advisory until the user runs `sm bump` (Step
+ * 9.6.4). The footer chip carries no severity at all (neutral clock).
  */
 
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
@@ -73,16 +74,21 @@ export const annotationStaleAnalyzer: IBuiltInManifest<IAnalyzer> = {
             : tx(ANNOTATION_STALE_TEXTS.bothDrift, { path: node.path });
       issues.push({
         analyzerId: ID,
-        severity: 'warn',
+        severity: 'info',
         nodeIds: [node.path],
         message,
         data: { status },
       });
       // `value: 0` + the renderer's `value > 0` guard yields an
       // icon-only chip in the footer, no number next to the clock.
+      // No `severity`: drift is a neutral state, not a warning, so the
+      // clock renders in the foreground colour (the node-counter
+      // renderer's no-severity default) instead of the warn tint. The
+      // Findings issue above is `info` for the same reason; `info`
+      // issues stay out of the card's warn chip (issue-counter buckets
+      // error/warn only) and never fail `sm check`'s exit code.
       ctx.emitContribution(node.path, 'staleIcon', {
         value: 0,
-        severity: 'warn',
         tooltip: tooltipFor(status),
       });
     }

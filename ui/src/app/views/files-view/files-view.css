@@ -471,7 +471,9 @@
 /* Issues column, same dual-signal shape + hue as files-view. */
 .files__stale-icon {
   font-size: var(--files-fs-sm);
-  color: var(--sm-severity-warn);
+  /* Neutral foreground (not a warn tint): drift is informational. The
+     0.65 opacity keeps it quiet at row density. */
+  color: var(--p-text-color);
   line-height: 1;
   opacity: 0.65;
 }

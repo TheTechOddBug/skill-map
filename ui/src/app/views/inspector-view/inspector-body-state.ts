@@ -15,7 +15,9 @@
  */
 
 import { assertInInjectionContext, effect, signal, type Signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import type { SafeHtml } from '@angular/platform-browser';
+import type { Observable } from 'rxjs';
 
 import type { IDataSourcePort } from '../../../services/data-source/data-source.port';
 import type { MarkdownRenderer } from '../../../services/markdown-renderer';
@@ -27,6 +29,16 @@ export interface IBodyStateConfig {
   path: Signal<string | undefined>;
   dataSource: IDataSourcePort;
   markdown: MarkdownRenderer;
+  /**
+   * Optional reactive refresh trigger. When provided (the inspector wires
+   * the `scan.completed` WS stream), the body is silently re-fetched and
+   * re-rendered on each emission for the CURRENT path, so an external edit
+   * to the open node's `.md` body shows up without the user re-selecting
+   * the node. The path-change `effect` already covers navigation; this
+   * covers same-path content changes (the watcher re-scan case), which is
+   * why the body was the one card that did not update live.
+   */
+  scanCompleted$?: Observable<unknown>;
 }
 
 export interface IBodyStateHandle {
@@ -90,6 +102,18 @@ export function setupBodyState(config: IBodyStateConfig): IBodyStateHandle {
     }
     bodyState.set('loading');
     void fetchAndRender(path, myToken);
+  });
+
+  // Reactive refresh: re-render the OPEN node's body when a watcher-driven
+  // re-scan completes. Re-fetches silently (no `loading` flash, no
+  // `bodyHtml` reset) so the user keeps reading the current render until
+  // the fresh one swaps in; the token guard drops a stale resolve if the
+  // user navigates mid-refresh. Mirrors the `LinkedNodesPanel`
+  // scan.completed subscription so the body stays in step with the rest
+  // of the inspector.
+  config.scanCompleted$?.pipe(takeUntilDestroyed()).subscribe(() => {
+    const path = pathSignal();
+    if (path) void fetchAndRender(path, ++fetchToken);
   });
 
   return {

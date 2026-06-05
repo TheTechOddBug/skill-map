@@ -12,7 +12,6 @@
  *     when neither is present, opt-in only when classification is
  *     ambiguous, so the absent state is the common case)
  *   - `sidecar.status` enum literal
- *   - `sidecar.present` boolean
  *
  * Refinement (2026-05-07): the panel ALWAYS renders the full structure
  * when toggled on. Rows whose source value is missing show an explicit
@@ -111,6 +110,4 @@ export class InspectorDebugPanel {
     const status = overlay.status ?? null;
     return status === null ? null : String(status);
   });
-
-  protected readonly sidecarPresent = computed<boolean>(() => this.overlay()?.present === true);
 }

@@ -20,6 +20,6 @@
     { "type": "json-path", "path": "$.issues[0].severity", "equals": "warn" },
     { "type": "json-path", "path": "$.issues[0].data.expectedMdPath", "equals": ".claude/agents/orphan.md" },
     { "type": "json-path", "path": "$.issues[1].analyzerId", "equals": "annotation-stale" },
-    { "type": "json-path", "path": "$.issues[1].severity", "equals": "warn" }
+    { "type": "json-path", "path": "$.issues[1].severity", "equals": "info" }
   ]
 }

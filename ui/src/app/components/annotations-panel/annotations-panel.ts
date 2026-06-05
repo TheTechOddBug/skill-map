@@ -3,11 +3,14 @@
  * (`.sm`) `annotations:` block. Mirrors the sub-section grouping
  * declared in `spec/schemas/annotations.schema.json`:
  *
- *   - Taxonomy: `tags`
+ *   - Authors: `authors[]`, `license`
  *   - Supersession: `supersedes`, `supersededBy`
  *   - Repository: `source` (upstream URL), `sourceVersion`
- *   - Authors: `authors[]`, `license`
  *   - Docs: `docsUrl`
+ *
+ * Tags (`annotations.tags`) are NOT rendered here: they live in the
+ * inspector header as a clickable tag row (clicking one selects every
+ * node carrying that tag on the map).
  *
  * Each sub-section hides cleanly when its data is empty / absent.
  * Path-typed fields (`supersedes`, `supersededBy`) render as
@@ -37,7 +40,6 @@ import {
   input,
   output,
 } from '@angular/core';
-import { ChipModule } from 'primeng/chip';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { ANNOTATIONS_PANEL_TEXTS } from '../../../i18n/annotations-panel.texts';
@@ -59,18 +61,13 @@ interface IRepositorySection {
   sourceVersion: string | null;
 }
 
-interface ITaxonomySection {
-  /** Tags written into `sidecar.annotations.tags` by the curator. */
-  userTags: readonly string[];
-}
-
 interface IDocsSection {
   docsUrl: string | null;
 }
 
 @Component({
   selector: 'sm-annotations-panel',
-  imports: [ChipModule, TooltipModule],
+  imports: [TooltipModule],
   templateUrl: './annotations-panel.html',
   styleUrl: './annotations-panel.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -92,27 +89,6 @@ export class AnnotationsPanel {
    * to navigate, same pattern as the existing relations card.
    */
   readonly openPath = output<string>();
-
-  /**
-   * Emitted when the user clicks a tag chip. The host forwards this
-   * to the graph view, which uses Foblex Flow's native selection API
-   * (`flow.select(matchingPaths, [])`) to multi-select every node
-   * carrying the tag. Toggle: clicking the chip whose tag is already
-   * the active selection clears it.
-   */
-  readonly tagClick = output<string>();
-
-  /**
-   * Currently-active tag selection from the graph view, projected
-   * down through the inspector. When set, the matching chip renders
-   * in the "active" visual state (solid primary fill).
-   */
-  readonly activeTag = input<string | null>(null);
-
-  /** Pure helper used by the template to mark active chips. */
-  protected isActiveTag(tag: string): boolean {
-    return this.activeTag() === tag;
-  }
 
   protected readonly texts = ANNOTATIONS_PANEL_TEXTS;
 
@@ -139,7 +115,6 @@ export class AnnotationsPanel {
       this.hasSupersession() ||
       this.hasProvenance() ||
       this.hasRepository() ||
-      this.hasTaxonomy() ||
       this.hasDocs(),
   );
 
@@ -175,17 +150,6 @@ export class AnnotationsPanel {
   protected readonly hasRepository = computed<boolean>(() =>
     sectionHasContent(this.repository() as unknown as Record<string, unknown>),
   );
-
-  protected readonly taxonomy = computed<ITaxonomySection>(() => {
-    const a = this.annotations() ?? {};
-    return {
-      userTags: stringArray(a['tags']),
-    };
-  });
-  protected readonly hasTaxonomy = computed<boolean>(() => {
-    const tx = this.taxonomy();
-    return tx.userTags.length > 0;
-  });
 
   protected readonly docs = computed<IDocsSection>(() => {
     const a = this.annotations() ?? {};

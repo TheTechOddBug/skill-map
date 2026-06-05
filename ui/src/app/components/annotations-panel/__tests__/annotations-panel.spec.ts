@@ -51,7 +51,6 @@ describe('AnnotationsPanel, empty states', () => {
     expect(dom.querySelector('[data-testid="annotations-section-provenance"]')).not.toBeNull();
     // Other sections collapse.
     expect(dom.querySelector('[data-testid="annotations-section-supersession"]')).toBeNull();
-    expect(dom.querySelector('[data-testid="annotations-section-taxonomy"]')).toBeNull();
     expect(dom.querySelector('[data-testid="annotations-section-docs"]')).toBeNull();
   });
 
@@ -117,47 +116,14 @@ describe('AnnotationsPanel, section rendering', () => {
     });
     const sec = dom.querySelector('[data-testid="annotations-section-provenance"]');
     expect(sec).not.toBeNull();
-    // Authors now render as `<span class="ann-panel__meta">` rows with a
+    // Authors now render as `<span class="sm-block__meta">` rows with a
     // pi-user icon (mirrors how license / source / sourceVersion render in
     // the same row). Locked to the count so multi-author shapes stay
     // visually distinct.
-    const authors = sec!.querySelectorAll('.ann-panel__meta');
+    const authors = sec!.querySelectorAll('.sm-block__meta');
     expect(authors.length).toBeGreaterThanOrEqual(2);
     expect(sec!.textContent).toContain('alice');
     expect(sec!.textContent).toContain('bob');
-  });
-
-  it('renders the taxonomy section with user tags from sidecar', () => {
-    const dom = bootstrap({
-      present: true,
-      status: 'fresh',
-      annotations: {
-        tags: ['t1', 't2'],
-      },
-    });
-    expect(dom.querySelector('[data-testid="annotations-section-taxonomy"]')).not.toBeNull();
-    const userChips = dom.querySelectorAll('[data-tag-source="user"]');
-    expect(userChips.length).toBe(2);
-    expect(dom.querySelectorAll('[data-tag-source="author"]').length).toBe(0);
-  });
-
-  it('renders user tags from the sidecar (single-source)', () => {
-    const dom = bootstrap({
-      present: true,
-      status: 'fresh',
-      annotations: { tags: ['user-a', 'user-b'] },
-    });
-    expect(dom.querySelector('[data-testid="annotations-section-taxonomy"]')).not.toBeNull();
-    const chips = Array.from(dom.querySelectorAll('[data-testid="annotations-tags"] > p-chip'));
-    expect(chips.length).toBe(2);
-    expect(chips.every((c) => c.getAttribute('data-tag-source') === 'user')).toBe(true);
-    // The retired author source no longer renders any chips.
-    expect(dom.querySelectorAll('[data-tag-source="author"]').length).toBe(0);
-  });
-
-  it('does not render the taxonomy section when the sidecar has no tags', () => {
-    const dom = bootstrap({ present: true, status: 'fresh', annotations: {} });
-    expect(dom.querySelector('[data-testid="annotations-section-taxonomy"]')).toBeNull();
   });
 
   it('renders the docs section with docsUrl link', () => {

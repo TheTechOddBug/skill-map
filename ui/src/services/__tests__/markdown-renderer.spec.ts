@@ -18,6 +18,26 @@ describe('MarkdownRenderer', () => {
     expect(html).toContain('<code>code</code>');
   });
 
+  it('highlights a fenced code block with highlight.js token classes', async () => {
+    const r = makeRenderer();
+    const html = await r.renderToHtml('```ts\nconst x = 1;\n```');
+    // The `highlight` callback wraps the block with the `hljs` container
+    // class and the language tag; `const` is a keyword so highlight.js
+    // emits at least one `hljs-keyword` span. DOMPurify keeps `class`.
+    expect(html).toContain('class="hljs language-ts"');
+    expect(html).toMatch(/hljs-keyword/);
+  });
+
+  it('renders an unknown-language fence as a plain escaped hljs block', async () => {
+    const r = makeRenderer();
+    const html = await r.renderToHtml('```nope-not-a-lang\n<b>raw</b>\n```');
+    // Unknown language: bare `hljs` container (no `language-*`), content
+    // HTML-escaped by the callback rather than passed through live.
+    expect(html).toContain('class="hljs"');
+    expect(html).toContain('&lt;b&gt;raw&lt;/b&gt;');
+    expect(html.toLowerCase()).not.toContain('<b>raw</b>');
+  });
+
   it('strips raw <script> tags before they reach the DOM', async () => {
     const r = makeRenderer();
     const html = await r.renderToHtml(

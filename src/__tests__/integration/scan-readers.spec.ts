@@ -127,9 +127,9 @@ async function writeAnnotationsSidecar(
 }
 
 /**
- * Plant a minimal warn-only fixture, single agent with a deliberately
+ * Plant a minimal non-error fixture, single agent with a deliberately
  * stale sidecar that makes the `annotation-stale` analyzer fire at
- * `warn`. Used by the tests that exercise the "no error-severity → exit 0"
+ * `info`. Used by the tests that exercise the "no error-severity → exit 0"
  * contract; `plantClaudeFixture` cannot serve that role since
  * `reference-broken` (which the default fixture exercises via
  * `/unknown` + `@backend-lead`) emits at `error` severity.
@@ -138,9 +138,9 @@ async function writeAnnotationsSidecar(
  * accidentally escalates the run. The sidecar carries a sentinel
  * `bodyHash` (64 `a`s) that cannot match any real `sha256(body)`, so the
  * kernel resolves `sidecar.status` to `stale-body` and the
- * `annotation-stale` rule emits its warn issue.
+ * `annotation-stale` rule emits its info issue.
  */
-async function plantWarnOnlyFixture(root: string): Promise<void> {
+async function plantStaleFixture(root: string): Promise<void> {
   const nodeRel = '.claude/agents/architect.md';
   writeFixtureFile(
     root,
@@ -636,12 +636,12 @@ describe('sm show', () => {
 
 describe('sm scan exit code', () => {
   it('warn / info issues only → exit 0', async () => {
-    // Uses the warn-only helper, the default fixture's broken refs are
+    // Uses the stale helper, the default fixture's broken refs are
     // now `error` (per the chip-vs-issue policy in `context/view-slots.md`),
-    // so we plant a minimal stale-sidecar scenario (annotation-stale, warn)
+    // so we plant a minimal stale-sidecar scenario (annotation-stale, info)
     // to exercise the "no errors → exit 0" branch in isolation.
     const fixture = freshFixture('scan-warns');
-    await plantWarnOnlyFixture(fixture);
+    await plantStaleFixture(fixture);
 
     const cap = captureContext();
     const cmd = buildScan({ roots: [fixture], dryRun: true, json: true });
@@ -705,13 +705,13 @@ describe('sm check', () => {
     match(cap.stdout(), /No issues\./);
   });
 
-  it('warn-severity issues with no error-severity → exit 0', async () => {
-    // Uses the warn-only fixture so the verb-side "exit 0 when no
+  it('info-severity issue with no error-severity → exit 0', async () => {
+    // Uses the stale fixture so the verb-side "exit 0 when no
     // errors" branch is exercised in isolation. The default
     // claude fixture's `reference-broken` is now `error` (per the
     // chip-vs-issue policy in `context/view-slots.md`).
     const fixture = freshFixture('check-warns');
-    await plantWarnOnlyFixture(fixture);
+    await plantStaleFixture(fixture);
     const dbPath = freshDbPath('check-warns');
     await primeDb(fixture, dbPath);
 
@@ -722,8 +722,8 @@ describe('sm check', () => {
 
     strictEqual(code, 0, `expected exit 0 with no error-severity issues, got ${code}`);
     // Layout: severity glyph + dim analyzer id. annotation-stale is
-    // the warn-only finding planted by the fixture.
-    match(cap.stdout(), /⚠\s+annotation-stale/);
+    // the info-only finding planted by the fixture.
+    match(cap.stdout(), /ℹ\s+annotation-stale/);
   });
 
   it('error-severity issue present → exit 1', async () => {

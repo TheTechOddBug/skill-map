@@ -16,9 +16,9 @@ export type TFolderVisibility = 'all' | 'none' | 'some';
  * filters); a non-empty set means "show ONLY these" (still intersected
  * with the facet filters downstream). The graph view reads this and
  * intersects it into its visible projection; the rail writes it via the
- * per-row checkboxes and the isolate-chain gesture. Deliberately decoupled
- * from edge/topology data: chain computation lives in the graph view,
- * which owns the link graph.
+ * per-row checkboxes and the isolate gesture. Deliberately decoupled
+ * from edge/topology data: neighborhood computation lives in the graph
+ * view, which owns the link graph.
  *
  * Persisted to `localStorage` (survives a reload) via an effect, mirroring
  * the `nodePositions` / `collapsed` discipline. Mutations are immutable
@@ -91,7 +91,7 @@ export class MapVisibilityService {
     return included === total ? 'all' : 'some';
   }
 
-  /** Replace the whole set (used by isolate-chain). */
+  /** Replace the whole set (used by the isolate gesture). */
   setOnly(paths: Iterable<string>): void {
     this._paths.set(new Set(paths));
   }

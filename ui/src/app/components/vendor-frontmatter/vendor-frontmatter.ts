@@ -9,10 +9,11 @@
  * skill-map presentation choice, not vendor JSON structure, the
  * frontmatter is flat, so it lists as one run):
  *
- *   - Agent runtime fields: model, effort, permission mode, max turns,
- *     memory, background (shown even when false), isolation, color.
- *   - Agent capability fields: tools, disallowed-tools, skills, MCP
- *     servers, hooks.
+ *   - Agent fields, in render order: model, effort, tools,
+ *     disallowed-tools, permission mode, color, skills, max turns,
+ *     memory, background (shown even when false), isolation, MCP
+ *     servers, hooks. (tools / disallowed-tools / permission mode are
+ *     kept adjacent so the capability gate reads top-down.)
  *   - Skill / command base instead: when_to_use, argument-hint,
  *     arguments, allowed-tools, disallowed-tools, model, effort,
  *     context, agent, shell, paths, disable-model-invocation,

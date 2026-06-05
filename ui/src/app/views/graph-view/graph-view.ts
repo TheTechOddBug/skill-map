@@ -41,7 +41,7 @@ import { FilterStoreService } from '../../../services/filter-store';
 import { GraphPreferencesService } from '../../../services/graph-preferences';
 import { IssuePathsService } from '../../../services/issue-paths';
 import { MapVisibilityService } from '../../../services/map-visibility';
-import { connectedComponent } from './connected-component';
+import { directNeighborhood } from './node-neighborhood';
 import { resolveConnectionSides } from './connection-sides';
 import { GraphLayoutToolbar } from './graph-layout-toolbar/graph-layout-toolbar';
 import { KindPalette } from '../../components/kind-palette/kind-palette';
@@ -343,8 +343,9 @@ export class GraphView implements OnInit {
    * Undirected neighbor map over the FULL topology (not the currently
    * visible subset), built from `fullLayout().edges`. Mirrors the
    * `adjacency` computed in `selection-state.ts`, but unfiltered: the
-   * isolate-chain gesture must expand to a node's whole link-chain even
-   * when curation has narrowed the canvas down. Feeds `isolateChain`.
+   * isolate gesture must resolve a node's direct neighbors against the
+   * full topology even when curation has narrowed the canvas down. Feeds
+   * `isolateNeighborhood`.
    */
   private readonly fullAdjacency = computed<Map<string, Set<string>>>(() => {
     const map = new Map<string, Set<string>>();
@@ -889,18 +890,20 @@ export class GraphView implements OnInit {
   }
 
   /**
-   * Isolate the connected link-chain of `path`: set the map visibility to
-   * that whole component and select the origin node. The curation change
-   * is picked up by the re-fit effect (which frames the chain, inspector-
-   * aware); selecting the node directly writes `?path` via the selection
-   * writer effect without firing the deep-link centerer, so the camera
-   * frames the chain rather than centering the single origin node. Public
+   * Isolate `path` on the map: curate visibility down to the node and its
+   * DIRECT neighbors (one hop), and select the origin node. One hop, not
+   * the transitive connected component, because a connected graph has a
+   * single component, so "isolate" would otherwise show the whole map and
+   * read as a plain select. The curation change is picked up by the
+   * re-fit effect (which frames the neighborhood, inspector-aware);
+   * selecting the node directly writes `?path` via the selection writer
+   * effect without firing the deep-link centerer, so the camera frames the
+   * neighborhood rather than centering the single origin node. Public
    * because the rail reaches it through `MAP_ISOLATE_INTENT` (the workspace
    * provides an implementation that forwards here).
    */
-  isolateChain(path: string): void {
-    const chain = connectedComponent(this.fullAdjacency(), path);
-    this.mapVisibility.setOnly(chain);
+  isolateNeighborhood(path: string): void {
+    this.mapVisibility.setOnly(directNeighborhood(this.fullAdjacency(), path));
     this.selectedNodeId.set(path);
   }
 
@@ -1026,25 +1029,15 @@ export class GraphView implements OnInit {
     this.usageTracker.trackFeature('inspector');
   }
 
-  // Tag-selection state machine (active tag, viewport snapshot, fit /
-  // restore animation), owned by `setupTagSelection`. The graph view
-  // still owns the multi-select trigger surface (`onTagSelect` wired
-  // to the inspector's tag chip output) and the `activeTagSelection`
-  // signal it reads for the dim suspension.
+  // Tag-selection state machine (active tag + pre-tag curation snapshot),
+  // owned by `setupTagSelection`. Clicking a tag curates the map to the
+  // nodes carrying it (the rest hide); the graph view's curation re-fit
+  // effect frames the result. The view still owns the trigger surface
+  // (`onTagSelect`, wired to the inspector header's tag chip output) and
+  // reads `activeTagSelection` for the dim suspension.
   private readonly tagSelection = setupTagSelection({
-    flow: this.flow,
     nodes: this.loader.nodes,
-    fullLayout: computed(() => this.fullLayout()),
-    canvasWrap: () => {
-      const host = this.canvasWrap()?.nativeElement;
-      if (!host) return null;
-      return { width: host.clientWidth, height: host.clientHeight };
-    },
-    selectedNodeId: this.selectedNodeId,
-    clampedPanelWidth: this.clampedPanelWidth,
-    zoomMin: ZOOM_MIN,
-    viewportPosition: this.viewportPosition,
-    viewportScale: this.viewportScale,
+    mapVisibility: this.mapVisibility,
   });
   protected readonly activeTagSelection = this.tagSelection.activeTagSelection;
 

@@ -35,7 +35,9 @@
       [node]="n"
       [showActionMocks]="showActionMocks"
       [frontmatterInvalid]="frontmatterInvalid()"
+      [activeTag]="activeTag()"
       (favoriteToggle)="onHeaderFavoriteToggle($event)"
+      (tagClick)="tagSelect.emit($event)"
     />
 
     @if (fm.description) {
@@ -89,7 +91,7 @@
         <span class="sm-block__count" smSectionTitleExtra>({{ issues().length }})</span>
         @if (expanded('findings')) {
           <ul class="inspector__findings-list">
-            @for (issue of issues(); track $index) {
+            @for (issue of sortedIssues(); track $index) {
               <li
                 class="inspector__finding"
                 [attr.data-severity]="issue.severity"
@@ -115,6 +117,18 @@
         }
       </sm-collapsible-section>
     }
+
+    <sm-collapsible-section
+      [title]="texts.sections.connections"
+      [expanded]="expanded('connections')"
+      toggleTestid="inspector-connections-toggle"
+      (toggle)="toggleSection('connections')"
+      data-testid="inspector-card-linked-nodes"
+    >
+      @if (expanded('connections')) {
+        <sm-linked-nodes-panel [path]="n.path" (openPath)="openPath($event)" />
+      }
+    </sm-collapsible-section>
 
     @if (hasVendorFrontmatter()) {
       <div class="inspector__vendor" data-testid="inspector-card-vendor-frontmatter">
@@ -145,25 +159,11 @@
           <sm-annotations-panel
             [overlay]="n.sidecar"
             [knownPaths]="pathSet()"
-            [activeTag]="activeTag()"
             (openPath)="openPath($event)"
-            (tagClick)="tagSelect.emit($event)"
           />
         }
       </sm-collapsible-section>
     }
-
-    <sm-collapsible-section
-      [title]="texts.sections.connections"
-      [expanded]="expanded('connections')"
-      toggleTestid="inspector-connections-toggle"
-      (toggle)="toggleSection('connections')"
-      data-testid="inspector-card-linked-nodes"
-    >
-      @if (expanded('connections')) {
-        <sm-linked-nodes-panel [path]="n.path" (openPath)="openPath($event)" />
-      }
-    </sm-collapsible-section>
 
     <sm-collapsible-section
       class="inspector__body-section"
@@ -229,34 +229,21 @@
     }
 
     <sm-collapsible-section
-      [title]="texts.sections.debug"
-      [expanded]="expanded('debug')"
-      toggleTestid="inspector-debug-toggle"
-      [toggleAriaLabel]="texts.debugToggleAriaLabel"
-      [toggleTooltip]="texts.debugToggleTooltip"
-      (toggle)="toggleSection('debug')"
-      data-testid="inspector-card-debug"
+      [title]="texts.sections.metadata"
+      [expanded]="expanded('metadata')"
+      toggleTestid="inspector-metadata-toggle"
+      (toggle)="toggleSection('metadata')"
+      data-testid="inspector-card-metadata"
     >
-      @if (expanded('debug')) {
-        <div class="inspector__debug" data-testid="inspector-debug-section">
+      @if (expanded('metadata')) {
+        <div class="inspector__metadata" data-testid="inspector-metadata-section">
+          <sm-inspector-audit-panel [sidecarRoot]="sidecarRoot()" />
           <sm-inspector-debug-panel
             [node]="n"
             [sidecarRoot]="sidecarRoot()"
             [overlay]="n.sidecar"
           />
         </div>
-      }
-    </sm-collapsible-section>
-
-    <sm-collapsible-section
-      [title]="texts.sections.audit"
-      [expanded]="expanded('audit')"
-      toggleTestid="inspector-audit-toggle"
-      (toggle)="toggleSection('audit')"
-      data-testid="inspector-card-audit"
-    >
-      @if (expanded('audit')) {
-        <sm-inspector-audit-panel [sidecarRoot]="sidecarRoot()" />
       }
     </sm-collapsible-section>
 

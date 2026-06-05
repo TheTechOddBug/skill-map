@@ -402,7 +402,7 @@ export class StaticDataSource implements IDataSourcePort {
   }
 
   async getActiveProvider(): Promise<IActiveProviderApi> {
-    return { activeProvider: null, detected: [], source: 'none' };
+    return { activeProvider: null, detected: [], source: 'none', selectable: [] };
   }
 
   async setActiveProvider(_activeProvider: string): Promise<IActiveProviderPutEnvelopeApi> {

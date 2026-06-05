@@ -122,14 +122,26 @@
   }
 
   <!--
-    Tools row, vendor `tools` (agents) / `allowed-tools` (skills,
-    commands) rendered as inline mono tags so the user sees WHAT the
-    node can do at a glance.
+    Tags row, sidecar-curated `annotations.tags`. Each tag is a clickable
+    chip: clicking it selects every node carrying that tag on the map
+    (`tagClick` -> host -> graph `onTagSelect`) and the active one stays
+    highlighted. Replaces the former vendor-tools row.
   -->
-  @if (headerTools().length > 0) {
-    <div class="inspector__tools" data-testid="inspector-header-tools">
-      @for (tool of headerTools(); track tool) {
-        <span class="inspector__tool-tag">{{ tool }}</span>
+  @if (headerTags().length > 0) {
+    <div class="inspector__tags" data-testid="inspector-header-tags">
+      @for (tag of headerTags(); track tag) {
+        <button
+          type="button"
+          class="inspector__tag"
+          [class.inspector__tag--active]="isActiveTag(tag)"
+          [attr.aria-pressed]="isActiveTag(tag)"
+          [attr.aria-label]="texts.header.tagFilterAriaLabel(tag)"
+          (click)="tagClick.emit(tag)"
+          data-testid="inspector-header-tag"
+        >
+          <i class="pi pi-tag" aria-hidden="true"></i>
+          {{ tag }}
+        </button>
       }
     </div>
   }

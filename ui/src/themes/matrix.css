@@ -99,6 +99,21 @@ html.app-matrix body {
   --p-button-danger-hover-background: color-mix(in srgb, var(--sm-matrix-accent) 80%, #ffffff);
   --p-button-danger-active-background: color-mix(in srgb, var(--sm-matrix-accent) 70%, #000000);
 
+  /* === Syntax highlight palette (code blocks) ===
+     Phosphor-green ramp so fenced code stays inside the matrix
+     immersion; only diff deletion keeps a warm tone so removals still
+     read as removals. Mirrors the light / dark catalog token-for-token. */
+  --sm-hl-comment: #4b7a5e;
+  --sm-hl-keyword: var(--sm-matrix-accent);
+  --sm-hl-string: var(--sm-matrix-muted);
+  --sm-hl-number: #b9f6ca;
+  --sm-hl-title: #86efac;
+  --sm-hl-attr: var(--sm-matrix-accent-dim);
+  --sm-hl-built-in: #a7f3d0;
+  --sm-hl-meta: var(--sm-matrix-accent-dim);
+  --sm-hl-addition: var(--sm-matrix-accent);
+  --sm-hl-deletion: #f87171;
+
   /* Card glow: default carries a soft matrix halo; hover bumps the
      opacity (same radius) so the gesture still produces a visible
      delta. Other shadow stops keep the dark base. */

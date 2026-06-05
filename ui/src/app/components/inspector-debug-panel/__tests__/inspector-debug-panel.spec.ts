@@ -56,7 +56,6 @@ describe('InspectorDebugPanel, always-open structure', () => {
       'dbg-resolved-provider',
       'dbg-resolved-kind',
       'dbg-sidecar-status',
-      'dbg-sidecar-present',
     ];
     for (const id of ids) {
       expect(dom.querySelector(`[data-testid="${id}"]`)).not.toBeNull();
@@ -94,13 +93,10 @@ describe('InspectorDebugPanel, always-open structure', () => {
     expect(fmLive!.textContent).toContain('live-fm-hash');
   });
 
-  it('renders sidecar.present:false when the overlay reports it absent', () => {
+  it('shows the status `(absent)` marker when the overlay reports a null status', () => {
     const node = makeNode();
     const overlay: ISidecarOverlay = { present: false, status: null };
     const { dom } = bootstrap({ node, sidecarRoot: null, overlay });
-    const present = dom.querySelector('[data-testid="dbg-sidecar-present"]');
-    expect(present!.textContent).toContain('false');
-    // status is null → `(absent)` marker.
     const status = dom.querySelector('[data-testid="dbg-sidecar-status"]');
     expect(status!.textContent).toContain('(absent)');
   });
@@ -132,9 +128,6 @@ describe('InspectorDebugPanel, always-open structure', () => {
     expect(dom.querySelector('[data-testid="dbg-resolved-kind"]')!.textContent).toContain('agent');
     expect(dom.querySelector('[data-testid="dbg-sidecar-status"]')!.textContent).toContain(
       'fresh',
-    );
-    expect(dom.querySelector('[data-testid="dbg-sidecar-present"]')!.textContent).toContain(
-      'true',
     );
   });
 

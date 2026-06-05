@@ -134,11 +134,12 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
   setProjectIgnore: vi.fn().mockResolvedValue({ patterns: [] }),
   getActiveProvider: vi
     .fn()
-    .mockResolvedValue({ activeProvider: null, detected: [], source: 'none' as const }),
+    .mockResolvedValue({ activeProvider: null, detected: [], source: 'none' as const, selectable: [] }),
   setActiveProvider: vi.fn().mockResolvedValue({
     activeProvider: null,
     detected: [],
     source: 'none' as const,
+    selectable: [],
     switch: { dropped: null },
   }),
   lookupContribution: vi.fn().mockResolvedValue(null),
@@ -341,5 +342,54 @@ describe('GraphView, deep-link reader', () => {
     await flushEffects(fixture);
 
     expect(cmp.selectedNodeId()).toBe(node.path);
+  });
+});
+
+describe('GraphView, isolate (1-hop neighborhood)', () => {
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  it('restricts the map to the node + DIRECT neighbors, excluding 2-hop nodes', async () => {
+    const a = makeNode('a.md', 'a');
+    const b = makeNode('b.md', 'b');
+    const c = makeNode('c.md', 'c'); // 2 hops from a (a-b-c): must NOT survive
+    const { fixture, cmp, loader } = await bootstrap([a, b, c]);
+    // a -> b -> c. With the old connected-component scope, isolating `a`
+    // would keep all three (the graph is one component); 1-hop keeps {a, b}.
+    loader.scan.set({
+      ...loader.scan()!,
+      links: [
+        { source: 'a.md', target: 'b.md', kind: 'references', confidence: 1, sources: ['x'] },
+        { source: 'b.md', target: 'c.md', kind: 'references', confidence: 1, sources: ['x'] },
+      ],
+    });
+    await flushEffects(fixture);
+
+    // Baseline: no curation, every node is on the map.
+    expect(new Set(cmp.graph().nodes.map((n) => n.id))).toEqual(
+      new Set(['a.md', 'b.md', 'c.md']),
+    );
+
+    cmp.isolateNeighborhood('a.md');
+    await flushEffects(fixture);
+
+    // a + its direct neighbor b survive; the 2-hop c is hidden. This is
+    // the whole point of the fix: even on a connected graph, isolate
+    // narrows the map instead of showing everything.
+    expect(new Set(cmp.graph().nodes.map((n) => n.id))).toEqual(new Set(['a.md', 'b.md']));
+    expect(cmp.selectedNodeId()).toBe('a.md');
+  });
+
+  it('isolates an orphan node down to itself alone', async () => {
+    const a = makeNode('a.md', 'a');
+    const b = makeNode('b.md', 'b');
+    const { fixture, cmp } = await bootstrap([a, b]);
+    await flushEffects(fixture);
+
+    cmp.isolateNeighborhood('a.md');
+    await flushEffects(fixture);
+
+    expect(new Set(cmp.graph().nodes.map((n) => n.id))).toEqual(new Set(['a.md']));
   });
 });

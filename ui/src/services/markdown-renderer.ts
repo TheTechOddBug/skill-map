@@ -7,7 +7,9 @@
  *      into HTML with raw HTML disabled (`html: false`). Disabling raw
  *      HTML at the parser level is the first sanitization line, the
  *      worst input the renderer can produce is text-styled markup, no
- *      direct `<script>` injection.
+ *      direct `<script>` injection. Fenced code blocks run through a
+ *      `highlight` callback (highlight.js) that emits `hljs-*` token
+ *      spans; the spans survive step 2 (DOMPurify keeps `class`).
  *   2. `DOMPurify` runs over the rendered HTML as the second line of
  *      defence (markdown features that wrap user input, e.g. autolinks,
  *      reference labels, can still smuggle attribute-level vectors
@@ -16,7 +18,8 @@
  *      Angular's template binding renders it as DOM rather than text.
  *
  * **Lazy-loaded**: the heavy modules (`markdown-it` ~80 KB, `dompurify`
- * ~30 KB) are imported via dynamic `import()` on first call. The renderer
+ * ~30 KB, `highlight.js/lib/common` ~common-language subset) are imported
+ * via dynamic `import()` on first call. The renderer
  * is provided in the root injector and constructed cheaply (no work in
  * the constructor) so the inspector view can `inject()` it without
  * paying the cost until a card actually needs to render markdown.
@@ -119,14 +122,26 @@ const ALLOWED_URI_REGEXP = /^(?:(?:https?|mailto|tel):|[^a-z]|[a-z+.\-]+(?:[^a-z
  * Angular `inject()` graph.
  */
 async function importRenderer(): Promise<IRenderer> {
-  const [mdMod, purifyMod] = await Promise.all([
+  const [mdMod, purifyMod, hljsMod] = await Promise.all([
     import('markdown-it'),
     import('dompurify'),
+    // `lib/common` ships highlight.js with the ~37 most-used languages
+    // pre-registered (bash, json, yaml, ts / js, python, xml, css, sql,
+    // diff, markdown, …), the bundle-size-conscious entry point the
+    // upstream README recommends over the all-languages default.
+    import('highlight.js/lib/common'),
   ]);
   // markdown-it ships its constructor on the default export. The
   // `.default` access works for both ESM and Vite's CJS interop.
   const MarkdownIt = (mdMod as unknown as { default: new (opts: unknown) => { render: (src: string) => string; renderInline: (src: string) => string } }).default;
-  const md = new MarkdownIt({ html: false, linkify: true });
+  const hljs = (hljsMod as unknown as { default: IHljs }).default;
+  const md = new MarkdownIt({
+    html: false,
+    linkify: true,
+    // Fenced code blocks render with highlight.js token spans; the theme
+    // colours live in `themes/highlight.css`. See `highlightCode`.
+    highlight: (str: string, lang: string): string => highlightCode(hljs, str, lang),
+  });
   // DOMPurify's default export IS the singleton DOMPurify instance,
   // calling `.sanitize()` on it directly uses the current `window`
   // (browser default) or jsdom's `window` in unit tests.
@@ -148,6 +163,50 @@ async function importRenderer(): Promise<IRenderer> {
     FORBID_ATTR: ['style', 'srcset'],
   });
   return { md, purify };
+}
+
+/** Minimal slice of the highlight.js surface the renderer touches. */
+interface IHljs {
+  getLanguage(name: string): unknown;
+  highlight(code: string, opts: { language: string; ignoreIllegals?: boolean }): { value: string };
+}
+
+/**
+ * markdown-it `highlight` callback. Returns a complete `<pre><code>`
+ * block so markdown-it uses it verbatim (its fence renderer skips its
+ * own wrapper once the highlight result already starts with `<pre`).
+ * A recognised language gets highlight.js token spans
+ * (`class="hljs-*"`, coloured by `themes/highlight.css`); an unknown or
+ * unlabelled fence falls back to a plain escaped block carrying just the
+ * `hljs` container class. `ignoreIllegals` stops a malformed snippet
+ * from throwing; the `catch` is belt-and-braces. The result still flows
+ * through DOMPurify, which keeps `class` on `pre` / `code` / `span` (only
+ * `style` is stripped), so the token spans survive sanitisation.
+ */
+function highlightCode(hljs: IHljs, code: string, lang: string): string {
+  if (lang && hljs.getLanguage(lang)) {
+    try {
+      const out = hljs.highlight(code, { language: lang, ignoreIllegals: true }).value;
+      return `<pre><code class="hljs language-${lang}">${out}</code></pre>`;
+    } catch {
+      // fall through to the escaped plain block
+    }
+  }
+  return `<pre><code class="hljs">${escapeHtml(code)}</code></pre>`;
+}
+
+/**
+ * Escape the four HTML-significant characters for the plain fallback
+ * block. markdown-it escapes fence content itself, but only when no
+ * `highlight` callback is set; once we own the callback we must escape
+ * the unhighlighted branch ourselves before it reaches `[innerHTML]`.
+ */
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 /**

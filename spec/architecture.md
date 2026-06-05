@@ -629,7 +629,7 @@ Two schemas describe the wire shape:
 
 `identity` carries `path` (scope-root-relative, matches the canonical Node identifier in [`schemas/node.schema.json`](./schemas/node.schema.json)) plus `bodyHash` and `frontmatterHash`. Both hashes are sha256 over the kernel's canonical form of the markdown body (post-frontmatter bytes) and frontmatter (YAML re-emitted via `js-yaml dump` with `sortKeys: true`, `lineWidth: -1`, `noRefs: true`, `noCompatMode: true`); each sidecar captures the values the kernel saw at the moment it was last written.
 
-At scan time the kernel re-computes the live hashes and compares against the stored ones. Mismatch in either is **drift**, surfaced via the built-in `annotation-stale` analyzer (severity `warning`, never blocking, soft mode by design). A `.sm` whose `identity.path` no longer points at an existing `.md` is **orphan**, surfaced via the built-in `annotation-orphan` analyzer (also `warning`). Drift state is **derived**, never stored, pure function over existing data, no flag to drift between flag and reality.
+At scan time the kernel re-computes the live hashes and compares against the stored ones. Mismatch in either is **drift**, surfaced via the built-in `annotation-stale` analyzer (severity `info`, never blocking, soft mode by design: drift is informational, the footer chip is a neutral clock). A `.sm` whose `identity.path` no longer points at an existing `.md` is **orphan**, surfaced via the built-in `annotation-orphan` analyzer (also `warning`). Drift state is **derived**, never stored, pure function over existing data, no flag to drift between flag and reality.
 
 ### Bump model
 
@@ -637,7 +637,7 @@ The deterministic built-in `core/node-bump` Action produces a sidecar patch:
 
 - Increments `annotations.version` by 1 (or sets to `1` if missing, single integer monotonic, orthogonal to `stability`; major bumps are not a concept, the convention for breaking changes is "create a new node, supersede the old").
 - Refreshes `identity.bodyHash` and `identity.frontmatterHash` to the live values.
-- Stamps `audit.lastBumpedAt` (ISO 8601 datetime) and `audit.lastBumpedBy` (`'cli'`, `'ui'`, or `'plugin:<id>'`).
+- Stamps `audit.lastBumpedAt` (ISO 8601 datetime) and `audit.lastBumpedBy` (the Git author name from `git config user.name` when the project is a Git repo; otherwise the channel literal `'cli'`, `'ui'`, or `'plugin:<id>'`).
 - On first-time creation also stamps `audit.createdAt` and `audit.createdBy` (set once, stable thereafter).
 
 The Action stays pure (no IO). The kernel materializes the patch through the `SidecarStore` port, a path-keyed read-modify-write critical section that deep-merges the patch into the on-disk file (arrays REPLACE, objects RECURSE, `null` DELETES) and writes atomically via `<path>.tmp` + POSIX rename. Concurrent bumps on the same path serialize through the lock; both patches' effects survive (no lost write).
@@ -831,7 +831,7 @@ Endpoints under `/api/contributions/*`:
 
 Plus catalog embedding into every payload-bearing envelope:
 
-- `kindRegistry`, `providerRegistry`, and `contributionsRegistry` are siblings on the envelope (see schema). Built once per server boot, embedded into list (`nodes` / `links` / `issues` / `plugins`), single (`node`), and value (`config`) envelopes. Sentinel envelopes (`health` / `scan` / `graph`) and action-result envelopes (`sidecar.bumped`) and the catalog envelopes themselves (`annotations.registered` / `contributions.registered`) carry none of them. `providerRegistry` is the static boot catalog of registered Providers' identity; the dynamic active lens (current value + filesystem-detected candidates) is served separately by `GET /api/active-provider`.
+- `kindRegistry`, `providerRegistry`, and `contributionsRegistry` are siblings on the envelope (see schema). Built once per server boot, embedded into list (`nodes` / `links` / `issues` / `plugins`), single (`node`), and value (`config`) envelopes. Sentinel envelopes (`health` / `scan` / `graph`) and action-result envelopes (`sidecar.bumped`) and the catalog envelopes themselves (`annotations.registered` / `contributions.registered`) carry none of them. `providerRegistry` is the static boot catalog of registered Providers' identity; the dynamic active lens (current value + filesystem-detected candidates + the enabled `selectable` set) is served separately by `GET /api/active-provider`.
 
 Plus per-node embedding on node responses:
 

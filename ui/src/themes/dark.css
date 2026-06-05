@@ -62,6 +62,19 @@
   --sm-stat-tokens-bg: rgba(96, 165, 250, 0.24);
   --sm-stat-bytes-bg: rgba(251, 191, 36, 0.24);
 
+  /* === Syntax highlight palette (code blocks) ===
+     GitHub-dark inspired; mirrors the light catalog token-for-token. */
+  --sm-hl-comment: #8b949e;
+  --sm-hl-keyword: #ff7b72;
+  --sm-hl-string: #a5d6ff;
+  --sm-hl-number: #79c0ff;
+  --sm-hl-title: #d2a8ff;
+  --sm-hl-attr: #79c0ff;
+  --sm-hl-built-in: #ffa657;
+  --sm-hl-meta: #8b949e;
+  --sm-hl-addition: #3fb950;
+  --sm-hl-deletion: #ff7b72;
+
   /* === Accent foreground ===
      Same value as light today; reserved so a future contrast-aware
      switch can land per-theme without touching the consumers. */

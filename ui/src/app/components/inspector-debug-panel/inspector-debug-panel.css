@@ -2,44 +2,27 @@
   display: block;
 }
 
-.dbg__kv {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  column-gap: 0.6rem;
-  row-gap: 0.2rem;
-  margin: 0;
-  font-size: 0.8rem;
-}
+/* Grid, label styling and code chips come from the shared `.sm-block__kv`
+   vocabulary in inspector-view.css. The rules below are the
+   diagnostic-only extras (the diagnostics grid carries no row icons). */
 
-.dbg__kv dt {
-  color: var(--sm-text-muted);
-  font-family: var(--sm-font-mono);
-  font-weight: 500;
-}
-
-.dbg__kv dd {
-  margin: 0;
-}
-
-.dbg__kv code {
-  font-family: var(--sm-font-mono);
-  font-size: 0.78rem;
-  background: var(--sm-bg-hover);
-  padding: 0.05rem 0.3rem;
-  border-radius: var(--sm-radius-sm);
-  word-break: break-all;
-}
-
-.dbg__diff {
+/* Drift highlight on a hash chip whose stored / live values diverge.
+   Scoped under `.dbg__kv` so it beats the shared `.sm-block__kv code`
+   background that every chip otherwise inherits. */
+.dbg__kv .dbg__diff {
   background: var(--sm-severity-error-bg);
   color: var(--sm-severity-error);
 }
 
-/* Catalog curation refinement (2026-05-07): rows whose source value is
-   missing show an explicit `(absent)` / `(not set)` marker so the
-   panel surfaces "this row is empty" instead of disappearing. The
-   muted styling keeps the marker visually distinct from real values
-   without competing with the diff highlight. */
+/* Hashes are 64-char hex with no natural break points; let them wrap
+   inside the chip instead of overflowing the panel. */
+.dbg__kv code {
+  word-break: break-all;
+}
+
+/* Rows whose source value is missing show an explicit `(absent)` /
+   `(not set)` marker, muted so it reads as "empty" without competing
+   with the diff highlight. */
 .dbg__absent {
   font-family: var(--sm-font-mono);
   font-size: 0.78rem;
