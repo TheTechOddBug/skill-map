@@ -35,10 +35,10 @@ export const INSPECTOR_VIEW_TEXTS = {
     body: 'Body',
   },
   body: {
+    // The body section is hidden entirely when there is nothing to
+    // render (empty / unavailable / error states), so only the
+    // transient loading line survives in the catalog.
     loading: 'Loading body…',
-    empty: 'This file has no body content (only frontmatter).',
-    unavailable: 'Body content unavailable. The source file may have moved or been deleted since the last scan.',
-    renderError: 'Failed to render markdown body.',
   },
   /** Step 9.6.5, bump button + consent dialog. */
   bump: {

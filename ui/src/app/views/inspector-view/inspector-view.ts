@@ -186,6 +186,20 @@ export class InspectorView implements OnInit {
   protected readonly bodyState = this.bodyHandle.bodyState;
   protected readonly bodyHtml = this.bodyHandle.bodyHtml;
 
+  /**
+   * Whether the Body section renders at all. The body is fetched eagerly
+   * on every node change (not gated by the collapse state), so the
+   * lifecycle phase is known even while the section sits collapsed. We
+   * show the section only while loading or once content is `ready`;
+   * `empty` / `unavailable` / `error` resolve to a hidden section per the
+   * operator decision, so a node with no body shows no Body section
+   * instead of a "this file has no body" placeholder.
+   */
+  protected readonly showBody = computed<boolean>(() => {
+    const s = this.bodyState();
+    return s === 'loading' || s === 'ready';
+  });
+
   /** Active node's description rendered as inline markdown (emphasis / code / links). */
   protected readonly descriptionHtml = setupInlineMarkdown(
     () => this.node()?.frontmatter.description ?? '',
@@ -202,8 +216,9 @@ export class InspectorView implements OnInit {
   });
 
   // Per-section collapse state, persisted to localStorage (global, not
-  // per-node) so it survives navigation + reload. All sections default
-  // to expanded. Template binds through `expanded()` / `toggleSection()`.
+  // per-node) so it survives navigation + reload. Sections default to
+  // collapsed except the body (see SECTION_DEFAULT_EXPANDED). Template
+  // binds through `expanded()` / `toggleSection()`.
   private readonly sectionCollapse: ISectionCollapseHandle = setupSectionCollapse();
   protected expanded(id: TInspectorSectionId): boolean {
     return this.sectionCollapse.expanded(id);
@@ -218,8 +233,10 @@ export class InspectorView implements OnInit {
   });
   protected readonly sidecarRoot = this.derivations.sidecarRoot;
   protected readonly hasVendorFrontmatter = this.derivations.hasVendorFrontmatter;
+  protected readonly hasConnections = this.derivations.hasConnections;
   protected readonly hasPluginContributions = this.derivations.hasPluginContributions;
   protected readonly hasViewContributions = this.derivations.hasViewContributions;
+  protected readonly hasMetadata = this.derivations.hasMetadata;
 
   /**
    * Per-node issues for the findings card. Lazily fetched via

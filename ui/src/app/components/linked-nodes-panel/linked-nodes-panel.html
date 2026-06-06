@@ -8,114 +8,77 @@
         <p class="linked-nodes-panel__status linked-nodes-panel__status--warn" data-testid="linked-nodes-error">{{ texts.error }}</p>
       }
       @case ('ready') {
-        <section class="linked-nodes-panel__section" data-testid="linked-nodes-outgoing">
-          <h4 class="linked-nodes-panel__section-title">
-            <sm-icon class="linked-nodes-panel__section-icon" icon="pi-upload" />
-            <span class="linked-nodes-panel__section-count" data-testid="linked-nodes-outgoing-count">{{ outgoing().length }}</span>
-            <span class="linked-nodes-panel__section-label">{{ texts.outgoingHeader }}</span>
-          </h4>
-          @if (outgoing().length === 0) {
-            <p class="linked-nodes-panel__status" data-testid="linked-nodes-outgoing-empty">{{ texts.emptyOutgoing }}</p>
-          } @else {
-            <ul class="linked-nodes-panel__rows">
+        @if (outgoing().length > 0) {
+          <section class="linked-nodes-panel__section" data-testid="linked-nodes-outgoing">
+            <h4 class="linked-nodes-panel__section-title">
+              <sm-icon class="linked-nodes-panel__section-icon" icon="pi-upload" />
+              <span class="linked-nodes-panel__section-count" data-testid="linked-nodes-outgoing-count">{{ outgoing().length }}</span>
+              <span class="linked-nodes-panel__section-label">{{ texts.outgoingHeader }}</span>
+            </h4>
+            <ul class="linked-nodes-panel__table">
               @for (link of outgoing(); track link.source + '|' + link.target + '|' + link.kind + '|' + (link.trigger?.normalizedTrigger ?? '')) {
                 <li class="linked-nodes-panel__row" [attr.data-testid]="'linked-nodes-outgoing-row-' + link.target">
-                  <p-tag [value]="link.kind" [severity]="kindSeverity(link.kind)" />
-                  <p-button
-                    [link]="true"
-                    [label]="link.target"
-                    severity="primary"
-                    styleClass="linked-nodes-panel__path"
-                    (onClick)="onOpen(link.target)"
-                    [attr.data-testid]="'linked-nodes-outgoing-link-' + link.target"
-                  />
-                  <p-tag
-                    [value]="confidenceValue(link.confidence)"
-                    [severity]="confidenceSeverity(link.confidence)"
-                    [rounded]="true"
-                    [pTooltip]="confidenceLabel(link.confidence)"
-                  />
+                  @if (outgoingBroken(link)) {
+                    <span
+                      class="linked-nodes-panel__path linked-nodes-panel__path--broken"
+                      [attr.data-testid]="'linked-nodes-outgoing-link-' + link.target"
+                    >{{ link.target }}</span>
+                  } @else {
+                    <button
+                      type="button"
+                      class="linked-nodes-panel__path"
+                      (click)="onOpen(link.resolvedTarget ?? link.target)"
+                      [attr.data-testid]="'linked-nodes-outgoing-link-' + link.target"
+                    >{{ link.target }}</button>
+                  }
+                  <span
+                    class="linked-nodes-panel__chip"
+                    [style.color]="confidenceColor(link.confidence)"
+                    [style.borderColor]="confidenceColor(link.confidence)"
+                    [pTooltip]="confidenceTooltip(link.confidence)"
+                  >{{ confidenceValue(link.confidence) }}</span>
+                  <span class="linked-nodes-panel__chip linked-nodes-panel__chip--kind" [attr.data-kind]="link.kind">{{ link.kind }}</span>
                   @if (issueForOutgoing(link); as issue) {
-                    <p-tag
-                      [value]="issue.analyzerId"
-                      [severity]="issueSeverity(issue.severity)"
-                      [rounded]="true"
+                    <span
+                      class="linked-nodes-panel__chip linked-nodes-panel__chip--issue"
+                      [attr.data-severity]="issue.severity"
                       [pTooltip]="issue.message"
                       [attr.data-testid]="'linked-nodes-outgoing-issue-' + link.target"
-                    />
-                  }
-                  @if (link.sources.length) {
-                    <span class="linked-nodes-panel__sources">
-                      {{ texts.sourcesPrefix }}{{ link.sources.join(texts.sourcesSeparator) }}
-                    </span>
-                  }
-                  @if (link.occurrences && link.occurrences.length > 0) {
-                    <ul class="linked-nodes-panel__occurrences" [attr.data-testid]="'linked-nodes-occurrences-' + link.target">
-                      <li class="linked-nodes-panel__occurrences-header">{{ texts.occurrencesHeader }}</li>
-                      @for (occ of link.occurrences; track occ.extractor + '|' + occ.originalTrigger + '|' + (occ.location?.line ?? -1)) {
-                        <li class="linked-nodes-panel__occurrences-item">{{ occurrenceLabel(occ) }}</li>
-                      }
-                    </ul>
+                    >{{ issue.analyzerId }}</span>
                   }
                 </li>
               }
             </ul>
-          }
-        </section>
-        <section class="linked-nodes-panel__section" data-testid="linked-nodes-incoming">
-          <h4 class="linked-nodes-panel__section-title">
-            <sm-icon class="linked-nodes-panel__section-icon" icon="pi-download" />
-            <span class="linked-nodes-panel__section-count" data-testid="linked-nodes-incoming-count">{{ incoming().length }}</span>
-            <span class="linked-nodes-panel__section-label">{{ texts.incomingHeader }}</span>
-          </h4>
-          @if (incoming().length === 0) {
-            <p class="linked-nodes-panel__status" data-testid="linked-nodes-incoming-empty">{{ texts.emptyIncoming }}</p>
-          } @else {
-            <ul class="linked-nodes-panel__rows">
+          </section>
+        }
+        @if (incoming().length > 0) {
+          <section class="linked-nodes-panel__section" data-testid="linked-nodes-incoming">
+            <h4 class="linked-nodes-panel__section-title">
+              <sm-icon class="linked-nodes-panel__section-icon" icon="pi-download" />
+              <span class="linked-nodes-panel__section-count" data-testid="linked-nodes-incoming-count">{{ incoming().length }}</span>
+              <span class="linked-nodes-panel__section-label">{{ texts.incomingHeader }}</span>
+            </h4>
+            <ul class="linked-nodes-panel__table">
               @for (link of incoming(); track link.source + '|' + link.target + '|' + link.kind + '|' + (link.trigger?.normalizedTrigger ?? '')) {
                 <li class="linked-nodes-panel__row" [attr.data-testid]="'linked-nodes-incoming-row-' + link.source">
-                  <p-tag [value]="link.kind" [severity]="kindSeverity(link.kind)" />
-                  <p-button
-                    [link]="true"
-                    [label]="link.source"
-                    severity="primary"
-                    styleClass="linked-nodes-panel__path"
-                    (onClick)="onOpen(link.source)"
+                  <button
+                    type="button"
+                    class="linked-nodes-panel__path"
+                    (click)="onOpen(link.source)"
                     [attr.data-testid]="'linked-nodes-incoming-link-' + link.source"
-                  />
-                  <p-tag
-                    [value]="confidenceValue(link.confidence)"
-                    [severity]="confidenceSeverity(link.confidence)"
-                    [rounded]="true"
-                    [pTooltip]="confidenceLabel(link.confidence)"
-                  />
-                  @if (issueForIncoming(link); as issue) {
-                    <p-tag
-                      [value]="issue.analyzerId"
-                      [severity]="issueSeverity(issue.severity)"
-                      [rounded]="true"
-                      [pTooltip]="issue.message"
-                      [attr.data-testid]="'linked-nodes-incoming-issue-' + link.source"
-                    />
-                  }
-                  @if (link.sources.length) {
-                    <span class="linked-nodes-panel__sources">
-                      {{ texts.sourcesPrefix }}{{ link.sources.join(texts.sourcesSeparator) }}
-                    </span>
-                  }
-                  @if (link.occurrences && link.occurrences.length > 0) {
-                    <ul class="linked-nodes-panel__occurrences" [attr.data-testid]="'linked-nodes-occurrences-' + link.target">
-                      <li class="linked-nodes-panel__occurrences-header">{{ texts.occurrencesHeader }}</li>
-                      @for (occ of link.occurrences; track occ.extractor + '|' + occ.originalTrigger + '|' + (occ.location?.line ?? -1)) {
-                        <li class="linked-nodes-panel__occurrences-item">{{ occurrenceLabel(occ) }}</li>
-                      }
-                    </ul>
-                  }
+                  >{{ link.source }}</button>
+                  <span
+                    class="linked-nodes-panel__chip"
+                    [style.color]="confidenceColor(link.confidence)"
+                    [style.borderColor]="confidenceColor(link.confidence)"
+                    [pTooltip]="confidenceTooltip(link.confidence)"
+                  >{{ confidenceValue(link.confidence) }}</span>
+                  <span class="linked-nodes-panel__chip linked-nodes-panel__chip--kind" [attr.data-kind]="link.kind">{{ link.kind }}</span>
                 </li>
               }
             </ul>
-          }
-        </section>
+          </section>
+        }
         @if (externalRefs().length > 0) {
           <section class="linked-nodes-panel__section" data-testid="linked-nodes-external-refs">
             <h4 class="linked-nodes-panel__section-title">
@@ -123,19 +86,14 @@
               <span class="linked-nodes-panel__section-count" data-testid="linked-nodes-external-count">{{ externalRefs().length }}</span>
               <span class="linked-nodes-panel__section-label">{{ texts.externalRefsHeader }}</span>
             </h4>
-            <ul class="linked-nodes-panel__rows">
+            <ul class="linked-nodes-panel__table linked-nodes-panel__table--external">
               @for (ref of externalRefs(); track ref.url + '|' + (ref.line ?? -1)) {
                 <li class="linked-nodes-panel__row linked-nodes-panel__row--external-ref"
                     [attr.data-testid]="'linked-nodes-external-ref-' + ref.url">
-                  <span class="linked-nodes-panel__external-ref-line">
-                    @if (ref.line) {
-                      {{ texts.externalRefsItemLine(ref.line) }}
-                    } @else {
-                      {{ texts.externalRefsItemUnknownLine }}
-                    }
-                  </span>
                   <a class="linked-nodes-panel__external-ref-url"
                      [href]="ref.url"
+                     [pTooltip]="ref.url"
+                     tooltipPosition="top"
                      target="_blank"
                      rel="noopener noreferrer">{{ ref.url }}</a>
                 </li>

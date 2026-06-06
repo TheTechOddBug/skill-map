@@ -6,8 +6,10 @@
  *
  *   - `sidecarRoot`: the full `.sm` root (real or synthesized).
  *   - `hasVendorFrontmatter`: gate for the vendor card chrome.
+ *   - `hasConnections`: gate for the connections section.
  *   - `hasPluginContributions`: gate for the plugin contributions section.
  *   - `hasViewContributions`: gate for the inspector body slots card.
+ *   - `hasMetadata`: gate for the metadata (audit + debug) section.
  *
  * Hoisted out of `inspector-view.ts` so the component stays focused on
  * mode handling + child-component wiring + bump dispatch. Mirrors the
@@ -54,8 +56,10 @@ export interface IInspectorDerivationsConfig {
 export interface IInspectorDerivationsHandle {
   readonly sidecarRoot: Signal<Record<string, unknown> | null>;
   readonly hasVendorFrontmatter: Signal<boolean>;
+  readonly hasConnections: Signal<boolean>;
   readonly hasPluginContributions: Signal<boolean>;
   readonly hasViewContributions: Signal<boolean>;
+  readonly hasMetadata: Signal<boolean>;
 }
 
 export function setupInspectorDerivations(
@@ -79,6 +83,19 @@ export function setupInspectorDerivations(
     return k !== undefined && VENDOR_KINDS.has(k);
   });
 
+  // The connections panel surfaces outgoing/incoming links plus external
+  // references. The node carries the three counters projected from the
+  // scan, so we gate the (lazy) panel on them without instantiating it:
+  // when all three are zero (or absent, treated as zero per the operator
+  // decision), there is nothing to connect and the section is hidden.
+  const hasConnections = computed<boolean>(() => {
+    const n = nodeSignal();
+    if (!n) return false;
+    const total =
+      (n.linksOutCount ?? 0) + (n.linksInCount ?? 0) + (n.externalRefsCount ?? 0);
+    return total > 0;
+  });
+
   const hasPluginContributions = computed<boolean>(() => {
     const root = sidecarRoot();
     if (!root) return false;
@@ -96,10 +113,17 @@ export function setupInspectorDerivations(
     return false;
   });
 
+  // The metadata section hosts the audit panel (sidecar `audit:` block)
+  // and the debug panel. Both read off the `.sm` root, so without a
+  // sidecar the section has nothing meaningful to show and is hidden.
+  const hasMetadata = computed<boolean>(() => sidecarRoot() !== null);
+
   return {
     sidecarRoot,
     hasVendorFrontmatter,
+    hasConnections,
     hasPluginContributions,
     hasViewContributions,
+    hasMetadata,
   };
 }

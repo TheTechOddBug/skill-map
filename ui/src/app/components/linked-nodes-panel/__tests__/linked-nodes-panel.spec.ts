@@ -134,13 +134,15 @@ describe('LinkedNodesPanel', () => {
     expect(stub.listLinks).toHaveBeenCalledWith({ to: 'a.md' });
   });
 
-  it('renders empty-state messages for both lists when nothing comes back', async () => {
+  it('renders no outgoing/incoming sections when both lists are empty', async () => {
+    // Empty directions are hidden entirely now (no "0 / no links" header),
+    // so neither section renders when nothing comes back.
     const { fixture } = bootstrap(stub, ws);
     fixture.componentRef.setInput('path', 'a.md');
     await flush(fixture);
     const dom: HTMLElement = fixture.nativeElement;
-    expect(dom.querySelector('[data-testid="linked-nodes-outgoing-empty"]')).not.toBeNull();
-    expect(dom.querySelector('[data-testid="linked-nodes-incoming-empty"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="linked-nodes-outgoing"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="linked-nodes-incoming"]')).toBeNull();
   });
 
   it('renders outgoing + incoming rows when both lists have data', async () => {
@@ -185,12 +187,49 @@ describe('LinkedNodesPanel', () => {
     fixture.componentRef.setInput('path', 'a.md');
     await flush(fixture);
 
+    // The path is now a native `<button>` carrying the data-testid
+    // directly (no inner PrimeNG button element).
     const link = fixture.nativeElement.querySelector(
-      '[data-testid="linked-nodes-outgoing-link-b.md"] button',
+      '[data-testid="linked-nodes-outgoing-link-b.md"]',
     ) as HTMLButtonElement;
     link.click();
 
     expect(opened).toEqual(['b.md']);
+  });
+
+  it('navigates to resolvedTarget (not the raw trigger) when a mention link is clicked', async () => {
+    // A `@handle` mention keeps the literal trigger as `target`, but the
+    // post-walk lift records the real node path in `resolvedTarget`. The
+    // click must open the resolved node, not the unresolvable trigger.
+    stub.listLinks.mockImplementation((q: { from?: string }) =>
+      Promise.resolve(
+        q.from
+          ? envelope([
+              makeLink({
+                source: 'a.md',
+                target: '@full',
+                resolvedTarget: 'agents/full.md',
+                kind: 'mentions',
+              }),
+            ])
+          : envelope([]),
+      ),
+    );
+
+    const { fixture, cmp } = bootstrap(stub, ws);
+    const opened: string[] = [];
+    cmp.openPath.subscribe((p: string) => opened.push(p));
+
+    fixture.componentRef.setInput('path', 'a.md');
+    await flush(fixture);
+
+    // The row's data-testid still carries the literal trigger.
+    const link = fixture.nativeElement.querySelector(
+      '[data-testid="linked-nodes-outgoing-link-@full"]',
+    ) as HTMLButtonElement;
+    link.click();
+
+    expect(opened).toEqual(['agents/full.md']);
   });
 
   it('shows the error state when a list-links call rejects', async () => {

@@ -47,6 +47,8 @@ Demonstrator agent that **touches** every `documented` frontmatter field for the
 
 Supersedes [test](@deprecated-agent). Pairs with #full-skill-agents (cross-vendor reference via the open standard) and #full-skill-claude. Requires #full-skill-claude to be loadable.
 
+Confidence ramp examples for the connections panel, none of which lift to 1.0 (so they exercise the full red→green colour ramp): mentions @draft-orchestrator (a bare handle that resolves to nothing, stays at 0.5, yellow), points at @phantom-helper.md (a file-style handle that also resolves to nothing, stays at 0.85, yellow-green), and calls /review (resolves to a command whose name shadows the built-in `/review`, downgraded to 0.1, red).
+
 Esto es un codigo de javascript: `if(true){}`
 
 got to [google](https://google.com)

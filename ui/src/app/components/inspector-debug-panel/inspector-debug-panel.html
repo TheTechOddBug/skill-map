@@ -11,7 +11,9 @@
   <dt>{{ texts.fields.bodyHashStored }}</dt>
   <dd data-testid="dbg-body-hash-stored">
     @if (identityBlock().bodyHash; as stored) {
-      <code [class.dbg__diff]="bodyHashDrift()">{{ stored }}</code>
+      <ng-container
+        *ngTemplateOutlet="hashCell; context: { key: 'body-stored', label: texts.fields.bodyHashStored, value: stored, drift: bodyHashDrift() }"
+      />
     } @else {
       <span class="dbg__absent">{{ texts.absentMarker }}</span>
     }
@@ -20,7 +22,9 @@
   <dt>{{ texts.fields.bodyHashLive }}</dt>
   <dd data-testid="dbg-body-hash-live">
     @if (bodyHashLive(); as live) {
-      <code [class.dbg__diff]="bodyHashDrift()">{{ live }}</code>
+      <ng-container
+        *ngTemplateOutlet="hashCell; context: { key: 'body-live', label: texts.fields.bodyHashLive, value: live, drift: bodyHashDrift() }"
+      />
     } @else {
       <span class="dbg__absent">{{ texts.absentMarker }}</span>
     }
@@ -29,7 +33,9 @@
   <dt>{{ texts.fields.frontmatterHashStored }}</dt>
   <dd data-testid="dbg-fm-hash-stored">
     @if (identityBlock().frontmatterHash; as stored) {
-      <code [class.dbg__diff]="frontmatterHashDrift()">{{ stored }}</code>
+      <ng-container
+        *ngTemplateOutlet="hashCell; context: { key: 'fm-stored', label: texts.fields.frontmatterHashStored, value: stored, drift: frontmatterHashDrift() }"
+      />
     } @else {
       <span class="dbg__absent">{{ texts.absentMarker }}</span>
     }
@@ -38,7 +44,9 @@
   <dt>{{ texts.fields.frontmatterHashLive }}</dt>
   <dd data-testid="dbg-fm-hash-live">
     @if (frontmatterHashLive(); as live) {
-      <code [class.dbg__diff]="frontmatterHashDrift()">{{ live }}</code>
+      <ng-container
+        *ngTemplateOutlet="hashCell; context: { key: 'fm-live', label: texts.fields.frontmatterHashLive, value: live, drift: frontmatterHashDrift() }"
+      />
     } @else {
       <span class="dbg__absent">{{ texts.absentMarker }}</span>
     }
@@ -71,3 +79,24 @@
     }
   </dd>
 </dl>
+
+<!--
+  Click-to-copy hash cell. One template, instanced for each of the four
+  body/frontmatter x stored/live hashes. The button copies the FULL hash
+  (carried in `value`, not the truncated display) to the clipboard; the
+  inline "Copied" note is the toast stand-in (see `copyHash`).
+-->
+<ng-template #hashCell let-key="key" let-label="label" let-value="value" let-drift="drift">
+  <button
+    type="button"
+    class="dbg__copy"
+    [attr.title]="value"
+    [attr.aria-label]="texts.copyA11y(label)"
+    (click)="copyHash(key, value)"
+  >
+    <code [class.dbg__diff]="drift">{{ truncateHash(value) }}</code>
+    @if (copiedKey() === key) {
+      <span class="dbg__copied" role="status">{{ texts.copiedLabel }}</span>
+    }
+  </button>
+</ng-template>

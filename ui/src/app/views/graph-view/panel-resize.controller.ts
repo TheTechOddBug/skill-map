@@ -19,7 +19,8 @@ import { DestroyRef, computed, signal, type Signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { fromEvent } from 'rxjs';
 
-const PANEL_WIDTH_DEFAULT = 400;
+/** Inspector panel width the view opens at when nothing is persisted. */
+export const PANEL_WIDTH_DEFAULT = 500;
 const PANEL_WIDTH_MIN = 400;
 /** Minimum graph area to keep visible at any viewport width. */
 const PANEL_VIEWPORT_RESERVE = 80;

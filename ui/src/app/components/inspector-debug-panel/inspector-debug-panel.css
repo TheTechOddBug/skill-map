@@ -29,3 +29,41 @@
   color: var(--sm-text-muted);
   font-style: italic;
 }
+
+/* Hash cells are click-to-copy. The button is a transparent shell around
+   the existing code chip, so the chip keeps its shared `.sm-block__kv code`
+   styling and the button only adds the pointer affordance plus a keyboard
+   focus target. */
+.dbg__copy {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dbg__copy:hover code {
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+.dbg__copy:focus-visible {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: 1px;
+  border-radius: var(--sm-radius-sm);
+}
+
+/* Inline "Copied" confirmation, the lightweight stand-in for a toast: a
+   small success-tinted note that appears in the clicked row for ~2s after
+   a successful clipboard write. */
+.dbg__copied {
+  font-family: var(--sm-font-mono);
+  font-size: 0.72rem;
+  font-style: italic;
+  color: var(--sm-severity-success);
+}

@@ -30,8 +30,9 @@ import type { INodeDetailApi, INodeApi } from '../../../../models/api';
  */
 
 // Section collapse state persists in localStorage; clear it before each
-// test so collapse defaults (all expanded) are deterministic and tests
-// do not leak state into each other.
+// test so collapse defaults are deterministic (everything collapsed by
+// default EXCEPT body + findings) and tests do not leak state into each
+// other.
 beforeEach(() => {
   localStorage.clear();
 });
@@ -331,7 +332,7 @@ describe('InspectorView, body card lifecycle', () => {
     expect(rendered!.innerHTML).toContain('data-fake');
   });
 
-  it('shows the empty body state when item.body is undefined', async () => {
+  it('hides the body section when item.body is undefined (empty)', async () => {
     const node = makeNode();
     const loader = makeStubLoader([node]);
     const dataSource = makeStubDataSource();
@@ -341,10 +342,12 @@ describe('InspectorView, body card lifecycle', () => {
     fixture.componentRef.setInput('path', node.path);
     await flush(fixture);
     const dom: HTMLElement = fixture.nativeElement;
-    expect(dom.querySelector('[data-testid="inspector-body-empty"]')).not.toBeNull();
+    // Nothing to render -> the whole Body section is omitted (no empty
+    // placeholder).
+    expect(dom.querySelector('[data-testid="inspector-card-body"]')).toBeNull();
   });
 
-  it('shows the unavailable state when item.body is null (file missing)', async () => {
+  it('hides the body section when item.body is null (file missing)', async () => {
     const node = makeNode();
     const loader = makeStubLoader([node]);
     const dataSource = makeStubDataSource();
@@ -354,10 +357,10 @@ describe('InspectorView, body card lifecycle', () => {
     fixture.componentRef.setInput('path', node.path);
     await flush(fixture);
     const dom: HTMLElement = fixture.nativeElement;
-    expect(dom.querySelector('[data-testid="inspector-body-unavailable"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-card-body"]')).toBeNull();
   });
 
-  it('shows the unavailable state when getNode() returns null (404)', async () => {
+  it('hides the body section when getNode() returns null (404)', async () => {
     const node = makeNode();
     const loader = makeStubLoader([node]);
     const dataSource = makeStubDataSource();
@@ -367,10 +370,10 @@ describe('InspectorView, body card lifecycle', () => {
     fixture.componentRef.setInput('path', node.path);
     await flush(fixture);
     const dom: HTMLElement = fixture.nativeElement;
-    expect(dom.querySelector('[data-testid="inspector-body-unavailable"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-card-body"]')).toBeNull();
   });
 
-  it('shows the error state when getNode() throws', async () => {
+  it('hides the body section when getNode() throws', async () => {
     const node = makeNode();
     const loader = makeStubLoader([node]);
     const dataSource = makeStubDataSource();
@@ -380,10 +383,10 @@ describe('InspectorView, body card lifecycle', () => {
     fixture.componentRef.setInput('path', node.path);
     await flush(fixture);
     const dom: HTMLElement = fixture.nativeElement;
-    expect(dom.querySelector('[data-testid="inspector-body-error"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-card-body"]')).toBeNull();
   });
 
-  it('shows the error state when the markdown renderer throws', async () => {
+  it('hides the body section when the markdown renderer throws', async () => {
     const node = makeNode();
     const loader = makeStubLoader([node]);
     const dataSource = makeStubDataSource();
@@ -393,7 +396,7 @@ describe('InspectorView, body card lifecycle', () => {
     fixture.componentRef.setInput('path', node.path);
     await flush(fixture);
     const dom: HTMLElement = fixture.nativeElement;
-    expect(dom.querySelector('[data-testid="inspector-body-error"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-card-body"]')).toBeNull();
   });
 
   it('drops a stale resolution when the user navigates to a different path mid-fetch', async () => {
@@ -791,7 +794,7 @@ describe('InspectorView, collapsible sections (catalog curation)', () => {
     return fixture.nativeElement as HTMLElement;
   }
 
-  it('renders the metadata section expanded by default', async () => {
+  it('renders the metadata section collapsed by default', async () => {
     const node = makeNodeWithSidecar({ present: true, status: 'fresh', annotations: {} });
     const loader = makeStubLoader([node]);
     const dataSource = makeStubDataSource();
@@ -799,16 +802,17 @@ describe('InspectorView, collapsible sections (catalog curation)', () => {
     const { fixture } = bootstrap({ loader, dataSource });
     fixture.componentRef.setInput('path', node.path);
     await flush(fixture);
+    // The section renders (the node has a sidecar), but collapsed: its
+    // body (the audit panel) is NOT in the DOM until the user expands it.
     expect(
       fixture.nativeElement.querySelector('[data-testid="inspector-card-metadata"]'),
     ).not.toBeNull();
-    // Sections default to expanded, so the audit panel body is in the DOM.
     expect(
       fixture.nativeElement.querySelector('[data-testid="inspector-audit-panel-empty"]'),
-    ).not.toBeNull();
+    ).toBeNull();
   });
 
-  it('collapses the metadata section on header click', async () => {
+  it('expands the metadata section on header click', async () => {
     const node = makeNodeWithSidecar({ present: true, status: 'fresh', annotations: {} });
     const loader = makeStubLoader([node]);
     const dataSource = makeStubDataSource();
@@ -816,20 +820,20 @@ describe('InspectorView, collapsible sections (catalog curation)', () => {
     const { fixture } = bootstrap({ loader, dataSource });
     fixture.componentRef.setInput('path', node.path);
     await flush(fixture);
-    // Expanded by default: the audit-panel-empty body is present.
+    // Collapsed by default: the audit-panel-empty body is absent.
     expect(
       fixture.nativeElement.querySelector('[data-testid="inspector-audit-panel-empty"]'),
-    ).not.toBeNull();
+    ).toBeNull();
     const toggle = fixture.nativeElement.querySelector(
       '[data-testid="inspector-metadata-toggle"]',
     ) as HTMLButtonElement;
     expect(toggle).not.toBeNull();
     toggle.click();
     await flush(fixture);
-    // After collapsing, the body is removed from the DOM.
+    // After expanding, the body appears in the DOM.
     expect(
       fixture.nativeElement.querySelector('[data-testid="inspector-audit-panel-empty"]'),
-    ).toBeNull();
+    ).not.toBeNull();
   });
 
   it('does NOT render the plugin contributions section when sidecar has no non-reserved keys', async () => {
@@ -856,23 +860,27 @@ describe('InspectorView, collapsible sections (catalog curation)', () => {
     expect(
       fixture.nativeElement.querySelector('[data-testid="inspector-card-plugins"]'),
     ).not.toBeNull();
-    // Expanded by default, so the namespace block renders without a click.
+    // Collapsed by default, so the namespace block is not rendered until
+    // the user expands the section.
     expect(
       fixture.nativeElement.querySelector('[data-testid="plugin-contributions-ns-my-plugin"]'),
-    ).not.toBeNull();
+    ).toBeNull();
   });
 
   it('persists a section collapse to localStorage', async () => {
     const node = makeNode();
     const loader = makeStubLoader([node]);
     const dataSource = makeStubDataSource();
-    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    // Body must have content so the (default-expanded) body section
+    // renders and its toggle is present to click.
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '# body' })));
     const { fixture } = bootstrap({ loader, dataSource });
     fixture.componentRef.setInput('path', node.path);
     await flush(fixture);
     const toggle = fixture.nativeElement.querySelector(
       '[data-testid="inspector-body-toggle"]',
     ) as HTMLButtonElement;
+    // Body defaults to expanded, so the first toggle collapses it.
     toggle.click();
     await flush(fixture);
     const stored = JSON.parse(
@@ -883,13 +891,20 @@ describe('InspectorView, collapsible sections (catalog curation)', () => {
 });
 
 describe('InspectorView, debug panel inside the merged metadata section', () => {
-  it('renders the debug panel inside the metadata section by default', async () => {
-    const node = makeNode();
+  it('renders the debug panel inside the metadata section when expanded', async () => {
+    const node = makeNodeWithSidecar({ present: true, status: 'fresh', annotations: {} });
     const loader = makeStubLoader([node]);
     const dataSource = makeStubDataSource();
     dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
     const { fixture } = bootstrap({ loader, dataSource });
     fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    // Metadata is collapsed by default, so the debug panel starts hidden.
+    expect(fixture.nativeElement.querySelector('[data-testid="inspector-debug-panel"]')).toBeNull();
+    const toggle = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-metadata-toggle"]',
+    ) as HTMLButtonElement;
+    toggle.click();
     await flush(fixture);
     expect(
       fixture.nativeElement.querySelector('[data-testid="inspector-metadata-section"]'),
@@ -897,7 +912,7 @@ describe('InspectorView, debug panel inside the merged metadata section', () => 
     expect(fixture.nativeElement.querySelector('[data-testid="inspector-debug-panel"]')).not.toBeNull();
   });
 
-  it('hides the debug panel when the metadata section is collapsed', async () => {
+  it('does not render the metadata section for a node without a sidecar', async () => {
     const node = makeNode();
     const loader = makeStubLoader([node]);
     const dataSource = makeStubDataSource();
@@ -905,19 +920,14 @@ describe('InspectorView, debug panel inside the merged metadata section', () => 
     const { fixture } = bootstrap({ loader, dataSource });
     fixture.componentRef.setInput('path', node.path);
     await flush(fixture);
-    // Visible by default.
-    expect(fixture.nativeElement.querySelector('[data-testid="inspector-debug-panel"]')).not.toBeNull();
-    const toggle = fixture.nativeElement.querySelector(
-      '[data-testid="inspector-metadata-toggle"]',
-    ) as HTMLButtonElement;
-    toggle.click();
-    await flush(fixture);
-    expect(fixture.nativeElement.querySelector('[data-testid="inspector-metadata-section"]')).toBeNull();
+    // No sidecar -> the metadata section (and the debug panel it hosts)
+    // is omitted entirely.
+    expect(fixture.nativeElement.querySelector('[data-testid="inspector-card-metadata"]')).toBeNull();
     expect(fixture.nativeElement.querySelector('[data-testid="inspector-debug-panel"]')).toBeNull();
   });
 
-  it('restores both audit and debug panels on a second metadata toggle click', async () => {
-    const node = makeNode();
+  it('toggles the audit + debug panels on metadata expand/collapse', async () => {
+    const node = makeNodeWithSidecar({ present: true, status: 'fresh', annotations: {} });
     const loader = makeStubLoader([node]);
     const dataSource = makeStubDataSource();
     dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
@@ -927,16 +937,18 @@ describe('InspectorView, debug panel inside the merged metadata section', () => 
     const toggle = fixture.nativeElement.querySelector(
       '[data-testid="inspector-metadata-toggle"]',
     ) as HTMLButtonElement;
-    toggle.click(); // collapse
-    await flush(fixture);
+    // Collapsed by default.
     expect(fixture.nativeElement.querySelector('[data-testid="inspector-debug-panel"]')).toBeNull();
-    toggle.click(); // expand again
+    toggle.click(); // expand
     await flush(fixture);
-    // Both sub-panels return: the audit empty-state and the debug grid.
+    // Both sub-panels appear: the audit empty-state and the debug grid.
     expect(
       fixture.nativeElement.querySelector('[data-testid="inspector-audit-panel-empty"]'),
     ).not.toBeNull();
     expect(fixture.nativeElement.querySelector('[data-testid="inspector-debug-panel"]')).not.toBeNull();
+    toggle.click(); // collapse again
+    await flush(fixture);
+    expect(fixture.nativeElement.querySelector('[data-testid="inspector-debug-panel"]')).toBeNull();
   });
 });
 

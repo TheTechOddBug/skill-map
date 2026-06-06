@@ -153,6 +153,10 @@ function click(fixture: ComponentFixture<WorkspaceView>, testid: string): void {
 
 describe('WorkspaceView isolate wiring', () => {
   it('rail sitemap button isolates the node + direct neighbors on the map', async () => {
+    // The files rail defaults to collapsed (and the file tree is gated
+    // behind it), so open it via the persisted flag before bootstrapping
+    // so the sitemap leaf button renders.
+    localStorage.setItem('sm.workspace.rail-collapsed', '0');
     const a = makeNode('a.md', 'a');
     const b = makeNode('b.md', 'b');
     const c = makeNode('c.md', 'c'); // 2 hops from a (a-b-c): must NOT be curated in
@@ -171,5 +175,38 @@ describe('WorkspaceView isolate wiring', () => {
     // excluded. End-to-end proof that the rail gesture reaches the graph
     // and applies the 1-hop scope, not the whole connected component.
     expect(new Set(mapVisibility.paths())).toEqual(new Set(['a.md', 'b.md']));
+  });
+});
+
+describe('WorkspaceView files rail collapse default', () => {
+  function railEl(fixture: ComponentFixture<WorkspaceView>): HTMLElement {
+    return (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="workspace-rail"]',
+    ) as HTMLElement;
+  }
+
+  it('defaults the files rail to collapsed when nothing is persisted', async () => {
+    localStorage.removeItem('sm.workspace.rail-collapsed');
+    const { fixture } = await bootstrap([makeNode('a.md', 'a')], []);
+    // Collapsed: the rail carries the modifier class and its body (the
+    // resize handle gating the file tree) is not mounted.
+    expect(railEl(fixture).classList.contains('is-collapsed')).toBe(true);
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector(
+        '[data-testid="workspace-rail-resize"]',
+      ),
+    ).toBeNull();
+  });
+
+  it('respects a persisted open rail', async () => {
+    localStorage.setItem('sm.workspace.rail-collapsed', '0');
+    const { fixture } = await bootstrap([makeNode('a.md', 'a')], []);
+    expect(railEl(fixture).classList.contains('is-collapsed')).toBe(false);
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector(
+        '[data-testid="workspace-rail-resize"]',
+      ),
+    ).not.toBeNull();
+    localStorage.removeItem('sm.workspace.rail-collapsed');
   });
 });

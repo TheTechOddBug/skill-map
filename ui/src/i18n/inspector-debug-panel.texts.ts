@@ -27,4 +27,8 @@ export const INSPECTOR_DEBUG_PANEL_TEXTS = {
   absentMarker: '(absent)',
   /** Marker for `resolvedAs.*` rows, opt-in, so absent is the default. */
   notSetMarker: '(not set)',
+  /** Inline confirmation shown in the hash row for ~2s after a copy. */
+  copiedLabel: 'Copied',
+  /** Aria label for a click-to-copy hash button (field name interpolated). */
+  copyA11y: (field: string): string => `Copy ${field} to clipboard`,
 } as const;

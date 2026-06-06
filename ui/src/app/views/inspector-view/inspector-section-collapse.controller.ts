@@ -6,7 +6,11 @@
  * Plugins, View contributions, Body) can be collapsed/expanded,
  * and the state is remembered in `localStorage` (global, not per-node)
  * so it survives navigation between nodes and full reloads. Sections the
- * user has never touched default to expanded.
+ * user has never touched fall back to `SECTION_DEFAULT_EXPANDED`: a fresh
+ * inspector (empty `localStorage`) opens every section collapsed EXCEPT
+ * the body, which starts expanded so the file content is visible without
+ * a click. Once the user toggles a section, the explicit choice is
+ * persisted and wins over the default.
  *
  * Mirrors the `inspector-bump-controller` / `inspector-body-state`
  * pattern: a `setupX` factory returns a typed handle the component holds.
@@ -26,8 +30,28 @@ export type TInspectorSectionId =
 
 const STORAGE_KEY = 'skill-map.ui.inspector.sections';
 
+/**
+ * Default expanded state for a section the user has never toggled.
+ * Everything collapses by default except:
+ *   - `body`: so the markdown content shows immediately on selecting a node.
+ *   - `findings`: so issues are visible without a click WHEN they exist
+ *     (the section only renders when `issues.length > 0`, so this default
+ *     never opens an empty section).
+ * Any id not listed here falls back to `false` (collapsed) via
+ * `defaultExpanded`. Once the user toggles a section, the persisted
+ * choice wins over these defaults.
+ */
+const SECTION_DEFAULT_EXPANDED: Partial<Record<TInspectorSectionId, boolean>> = {
+  body: true,
+  findings: true,
+};
+
+function defaultExpanded(id: TInspectorSectionId): boolean {
+  return SECTION_DEFAULT_EXPANDED[id] ?? false;
+}
+
 export interface ISectionCollapseHandle {
-  /** True when the section is expanded (the default for unseen sections). */
+  /** True when the section is expanded. Unseen sections default to collapsed. */
   expanded(id: TInspectorSectionId): boolean;
   /** Flip a section's expanded state and persist the new map. */
   toggle(id: TInspectorSectionId): void;
@@ -46,8 +70,9 @@ export function setupSectionCollapse(): ISectionCollapseHandle {
   });
 
   return {
-    expanded: (id) => state()[id] ?? true,
-    toggle: (id) => state.update((s) => ({ ...s, [id]: !(s[id] ?? true) })),
+    expanded: (id) => state()[id] ?? defaultExpanded(id),
+    toggle: (id) =>
+      state.update((s) => ({ ...s, [id]: !(s[id] ?? defaultExpanded(id)) })),
   };
 }
 
@@ -63,7 +88,7 @@ function loadState(): Record<string, boolean> {
     }
     return out;
   } catch {
-    // Corrupt JSON or storage unavailable; fall back to all-expanded.
+    // Corrupt JSON or storage unavailable; fall back to all-collapsed.
     return {};
   }
 }

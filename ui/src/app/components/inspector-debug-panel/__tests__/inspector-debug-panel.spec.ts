@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 
 import { InspectorDebugPanel } from '../inspector-debug-panel';
@@ -140,5 +140,47 @@ describe('InspectorDebugPanel, always-open structure', () => {
     const live = dom.querySelector('[data-testid="dbg-body-hash-live"] code');
     expect(stored!.classList.contains('dbg__diff')).toBe(true);
     expect(live!.classList.contains('dbg__diff')).toBe(true);
+  });
+
+  it('copies the full hash to the clipboard and shows the inline confirmation', async () => {
+    // Fake timers neutralise the component's ~2s "Copied" reset so no real
+    // timer leaks past the test into a shared runner environment.
+    vi.useFakeTimers();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const original = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+
+    try {
+      const fullHash = 'a'.repeat(64);
+      const node = makeNode({ bodyHash: fullHash });
+      const sidecarRoot = { identity: { bodyHash: fullHash } };
+      const { dom, fixture } = bootstrap({ node, sidecarRoot });
+
+      const button = dom.querySelector(
+        '[data-testid="dbg-body-hash-stored"] button.dbg__copy',
+      ) as HTMLButtonElement | null;
+      expect(button).not.toBeNull();
+
+      button!.click();
+      // writeText fires synchronously inside the handler: the FULL 64-char
+      // digest is written, never the truncated display form.
+      expect(writeText).toHaveBeenCalledWith(fullHash);
+
+      // Flush the awaited clipboard promise (a microtask, unaffected by the
+      // fake timers) so `copiedKey` flips and the inline note renders.
+      await Promise.resolve();
+      await Promise.resolve();
+      fixture.detectChanges();
+      expect(dom.querySelector('[data-testid="dbg-body-hash-stored"]')!.textContent).toContain(
+        'Copied',
+      );
+    } finally {
+      vi.useRealTimers();
+      if (original) {
+        Object.defineProperty(navigator, 'clipboard', original);
+      } else {
+        Reflect.deleteProperty(navigator as unknown as Record<string, unknown>, 'clipboard');
+      }
+    }
   });
 });

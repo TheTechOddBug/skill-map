@@ -76,7 +76,7 @@ import {
   writeStoredNodePositions,
   writeStoredPanelWidth,
 } from './graph-view.storage';
-import { setupPanelResize } from './panel-resize.controller';
+import { PANEL_WIDTH_DEFAULT, setupPanelResize } from './panel-resize.controller';
 import { setupTagSelection } from './tag-selection.controller';
 import { setupViewportStore, ZOOM_MIN, ZOOM_MAX } from './viewport-store';
 import { isAnyPrimengOverlayOpen } from './graph-view.utils';
@@ -202,7 +202,7 @@ export class GraphView implements OnInit {
    */
   protected readonly perf = DEFAULT_SETTINGS.graph.perf;
   /**
-   * PerfHud visibility. Gated by `DebugPerfService` (`?debug-perf=1` /
+   * PerfHud visibility. Gated by `DebugPerfService` (`?debug-fps=1` /
    * localStorage `sm-debug-perf`) until the runtime settings loader
    * lands and a real `graph.perfHud` config key takes over. The signal
    * shape matches what the future settings-driven flag will look like
@@ -251,7 +251,7 @@ export class GraphView implements OnInit {
   // bindings come straight off the returned handle.
   private readonly panelResize = setupPanelResize({
     destroyRef: this.destroyRef,
-    initialWidth: readStoredPanelWidth() ?? 400,
+    initialWidth: readStoredPanelWidth() ?? PANEL_WIDTH_DEFAULT,
     onCommit: (width) => writeStoredPanelWidth(width),
   });
   protected readonly clampedPanelWidth = this.panelResize.clampedPanelWidth;

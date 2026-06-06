@@ -22,16 +22,13 @@
  * Section header reuses the card footer's icon + count vocabulary
  * (`pi-upload` outgoing, `pi-download` incoming, `pi-link` external),
  * so the connections panel reads in the same language as the node
- * cards: a glyph, the count, then a muted label. The count is the
- * focal point (text colour, bold); the label is secondary (muted,
- * uppercase). See `node-counter` / `.sm-gnode__stat` for the source
- * pattern.
+ * cards: a glyph, the count, then a muted label.
  */
 .linked-nodes-panel__section-title {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  margin: 0 0 0.5rem;
+  margin: 0 0 0.4rem;
   font-size: 0.8rem;
 }
 
@@ -56,95 +53,156 @@
   color: var(--p-text-muted-color);
 }
 
-.linked-nodes-panel__rows {
+/*
+ * One row per link: the full path reads as the headline and the subtle
+ * metadata chips (confidence, kind, optional issue) flow right after it
+ * on the same line, wrapping only when they run out of room. Rows are
+ * separated by a hairline rule, no per-row card chrome.
+ */
+.linked-nodes-panel__table {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
 }
 
 .linked-nodes-panel__row {
   display: flex;
+  flex-flow: row wrap;
   align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  padding: 0.4rem 0.5rem;
-  border-radius: var(--sm-radius-md);
-  background: var(--p-content-background);
-  border: 1px solid var(--p-content-border-color);
+  gap: 0.4rem;
+  padding: 0.4rem 0.25rem;
+  min-width: 0;
+}
+
+.linked-nodes-panel__row + .linked-nodes-panel__row {
+  border-top: 1px solid var(--p-content-border-color);
 }
 
 /*
- * `<p-button [link]>` already provides the primary color, transparent
- * background, and hover underline. We only override font + tight
- * padding so the path reads like inline code.
+ * The path headline. Plain weight (not bold, not monospaced) so it reads
+ * as content rather than code; rendered as a link button when the target
+ * is navigable, falling back to inert `--broken` text when an error
+ * issue means there is no node to open. The full path wraps instead of
+ * truncating.
  */
 .linked-nodes-panel__path {
-  font-family: var(--sm-font-mono);
-  font-size: 0.85rem;
+  margin: 0;
   padding: 0;
-  text-underline-offset: 2px;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 400;
+  text-align: left;
+  line-height: 1.35;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--p-primary-color);
+  cursor: pointer;
 }
 
-.linked-nodes-panel__sources {
-  font-size: 0.75rem;
-  color: var(--p-text-muted-color);
-  margin-left: auto;
+button.linked-nodes-panel__path:hover,
+button.linked-nodes-panel__path:focus-visible {
+  text-decoration: underline;
+}
+
+.linked-nodes-panel__path--broken {
+  color: var(--p-text-color);
+  cursor: default;
 }
 
 /*
- * Per-row occurrences sub-list. Hangs under the row's main metadata
- * (kind tag, path button, confidence badge, issue chip, sources). Each
- * item shows the line + original trigger + extractor. Muted styling so
- * it does not compete with the row's primary affordances.
+ * Subtle metadata pills (confidence, kind). Outlined rather than filled
+ * so they stay quiet next to the path; the issue chip keeps PrimeNG's
+ * severity colour so a warning / error still draws the eye.
  */
-.linked-nodes-panel__occurrences {
-  flex-basis: 100%;
-  list-style: none;
-  margin: 0.25rem 0 0;
-  padding: 0.25rem 0 0;
-  border-top: 1px dashed var(--p-content-border-color);
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-}
-
-.linked-nodes-panel__occurrences-header {
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+.linked-nodes-panel__chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.02rem 0.4rem;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  line-height: 1.5;
   color: var(--p-text-muted-color);
-}
-
-.linked-nodes-panel__occurrences-item {
-  font-family: var(--sm-font-mono);
-  font-size: 0.78rem;
-  color: var(--p-text-muted-color);
+  white-space: nowrap;
 }
 
 /*
- * External references section, one row per http(s) URL the body
- * mentions. Line number on the left (subdued), URL on the right
- * (clickable, opens in new tab). Same row chrome as the link rows
- * so the visual rhythm stays consistent.
+ * Kind chip: lowercase, tinted with the SAME per-link-kind colour the
+ * graph paints the connection edge (`--sm-edge-<kind>`), so the chip and
+ * the line on the map read as the same thing. Outlined (border + text in
+ * the hue, no fill) to stay subtle. The four kinds are a closed union
+ * (`TLinkKindApi`), so enumerating them keeps the binding static.
+ */
+.linked-nodes-panel__chip--kind {
+  border-color: var(--sm-edge-neutral);
+  color: var(--sm-edge-neutral);
+}
+
+.linked-nodes-panel__chip--kind[data-kind='invokes'] {
+  border-color: var(--sm-edge-invokes);
+  color: var(--sm-edge-invokes);
+}
+
+.linked-nodes-panel__chip--kind[data-kind='references'] {
+  border-color: var(--sm-edge-references);
+  color: var(--sm-edge-references);
+}
+
+.linked-nodes-panel__chip--kind[data-kind='mentions'] {
+  border-color: var(--sm-edge-mentions);
+  color: var(--sm-edge-mentions);
+}
+
+/*
+ * `supersedes` keeps the grey edge hue but uses the `-active` (higher
+ * contrast) variant: the muted base token is the right colour on the map
+ * line but too faint to read as small chip text.
+ */
+.linked-nodes-panel__chip--kind[data-kind='supersedes'] {
+  border-color: var(--sm-edge-supersedes-active);
+  color: var(--sm-edge-supersedes-active);
+}
+
+/*
+ * Issue chip: same outlined pill chassis as the kind chip, tinted by
+ * analyzer severity (`--sm-severity-<sev>`) so a warning / error reads
+ * as one of the row's chips instead of a louder filled tag, while its
+ * colour still flags the problem.
+ */
+.linked-nodes-panel__chip--issue[data-severity='error'] {
+  border-color: var(--sm-severity-error);
+  color: var(--sm-severity-error);
+}
+
+.linked-nodes-panel__chip--issue[data-severity='warn'] {
+  border-color: var(--sm-severity-warn);
+  color: var(--sm-severity-warn);
+}
+
+.linked-nodes-panel__chip--issue[data-severity='info'] {
+  border-color: var(--sm-severity-info);
+  color: var(--sm-severity-info);
+}
+
+/*
+ * External references table, one row per http(s) URL the body mentions.
+ * Single clickable line; the URL truncates with an ellipsis (full URL in
+ * the tooltip). Line numbers are intentionally not shown.
  */
 .linked-nodes-panel__row--external-ref {
-  font-family: var(--sm-font-mono);
   font-size: 0.85rem;
-}
-
-.linked-nodes-panel__external-ref-line {
-  font-size: 0.75rem;
-  color: var(--p-text-muted-color);
-  min-width: 4.5rem;
 }
 
 .linked-nodes-panel__external-ref-url {
-  flex: 1;
-  word-break: break-all;
+  display: block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--p-primary-color);
   text-decoration: none;
 }

@@ -15,6 +15,7 @@ import { RAIL_WIDTH_DEFAULT, setupRailResize } from './workspace-rail-resize';
 import { WorkspaceNodeOpenIntent } from './workspace-open-intent';
 
 const RAIL_WIDTH_KEY = 'sm.workspace.rail-width';
+const RAIL_COLLAPSED_KEY = 'sm.workspace.rail-collapsed';
 
 /**
  * Fused single-screen workspace: a resizable files rail on the left, the
@@ -61,8 +62,13 @@ export class WorkspaceView implements IMapIsolateIntent {
 
   protected readonly texts = WORKSPACE_VIEW_TEXTS;
 
-  /** In-rail toggle: collapses the files panel to a thin strip. */
-  protected readonly railCollapsed = signal(false);
+  /**
+   * In-rail toggle: collapses the files panel to a thin strip. Defaults
+   * to collapsed (the workspace opens with the map front-and-center) and
+   * remembers the user's choice in `localStorage`, mirroring how the rail
+   * width is persisted, so re-opening it sticks across reloads.
+   */
+  protected readonly railCollapsed = signal(this.readStoredCollapsed());
 
   /**
    * True for a beat around a collapse/expand toggle. Gates the width
@@ -95,6 +101,7 @@ export class WorkspaceView implements IMapIsolateIntent {
 
   protected toggleRail(): void {
     this.railCollapsed.update((v) => !v);
+    this.writeStoredCollapsed(this.railCollapsed());
     this.railAnimating.set(true);
     if (this.railAnimTimer !== null) clearTimeout(this.railAnimTimer);
     this.railAnimTimer = setTimeout(() => this.railAnimating.set(false), 220);
@@ -116,6 +123,26 @@ export class WorkspaceView implements IMapIsolateIntent {
       localStorage.setItem(RAIL_WIDTH_KEY, String(width));
     } catch {
       // localStorage disabled / quota exceeded; width just won't persist.
+    }
+  }
+
+  /**
+   * Files rail collapse, persisted. Absent key → collapsed by default
+   * (the workspace opens map-first); `'1'` collapsed, `'0'` open.
+   */
+  private readStoredCollapsed(): boolean {
+    if (typeof localStorage === 'undefined') return true;
+    const raw = localStorage.getItem(RAIL_COLLAPSED_KEY);
+    if (raw === null) return true;
+    return raw === '1';
+  }
+
+  private writeStoredCollapsed(collapsed: boolean): void {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      localStorage.setItem(RAIL_COLLAPSED_KEY, collapsed ? '1' : '0');
+    } catch {
+      // localStorage disabled / quota exceeded; collapse just won't persist.
     }
   }
 }

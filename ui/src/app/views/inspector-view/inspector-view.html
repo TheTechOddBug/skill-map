@@ -118,17 +118,19 @@
       </sm-collapsible-section>
     }
 
-    <sm-collapsible-section
-      [title]="texts.sections.connections"
-      [expanded]="expanded('connections')"
-      toggleTestid="inspector-connections-toggle"
-      (toggle)="toggleSection('connections')"
-      data-testid="inspector-card-linked-nodes"
-    >
-      @if (expanded('connections')) {
-        <sm-linked-nodes-panel [path]="n.path" (openPath)="openPath($event)" />
-      }
-    </sm-collapsible-section>
+    @if (hasConnections()) {
+      <sm-collapsible-section
+        [title]="texts.sections.connections"
+        [expanded]="expanded('connections')"
+        toggleTestid="inspector-connections-toggle"
+        (toggle)="toggleSection('connections')"
+        data-testid="inspector-card-linked-nodes"
+      >
+        @if (expanded('connections')) {
+          <sm-linked-nodes-panel [path]="n.path" (openPath)="openPath($event)" />
+        }
+      </sm-collapsible-section>
+    }
 
     @if (hasVendorFrontmatter()) {
       <div class="inspector__vendor" data-testid="inspector-card-vendor-frontmatter">
@@ -165,40 +167,33 @@
       </sm-collapsible-section>
     }
 
-    <sm-collapsible-section
-      class="inspector__body-section"
-      [title]="texts.sections.body"
-      [expanded]="expanded('body')"
-      toggleTestid="inspector-body-toggle"
-      (toggle)="toggleSection('body')"
-      data-testid="inspector-card-body"
-    >
-      @if (expanded('body')) {
-        @switch (bodyState()) {
-          @case ('loading') {
-            <p class="inspector__body-status" data-testid="inspector-body-loading">{{ texts.body.loading }}</p>
-          }
-          @case ('empty') {
-            <p class="inspector__body-status" data-testid="inspector-body-empty">{{ texts.body.empty }}</p>
-          }
-          @case ('unavailable') {
-            <p class="inspector__body-status inspector__body-status--warn" data-testid="inspector-body-unavailable">{{ texts.body.unavailable }}</p>
-          }
-          @case ('error') {
-            <p class="inspector__body-status inspector__body-status--warn" data-testid="inspector-body-error">{{ texts.body.renderError }}</p>
-          }
-          @case ('ready') {
-            <!--
-              `[innerHTML]` is intentional: `bodyHtml()` is the SafeHtml
-              output of `MarkdownRenderer.render()`, which already runs
-              two sanitization layers (`markdown-it` with `html: false` +
-              DOMPurify) over project-controlled markdown bytes.
-            -->
-            <div class="inspector__body-rendered" data-testid="inspector-body-rendered" [innerHTML]="bodyHtml()"></div>
+    @if (showBody()) {
+      <sm-collapsible-section
+        class="inspector__body-section"
+        [title]="texts.sections.body"
+        [expanded]="expanded('body')"
+        toggleTestid="inspector-body-toggle"
+        (toggle)="toggleSection('body')"
+        data-testid="inspector-card-body"
+      >
+        @if (expanded('body')) {
+          @switch (bodyState()) {
+            @case ('loading') {
+              <p class="inspector__body-status" data-testid="inspector-body-loading">{{ texts.body.loading }}</p>
+            }
+            @case ('ready') {
+              <!--
+                `[innerHTML]` is intentional: `bodyHtml()` is the SafeHtml
+                output of `MarkdownRenderer.render()`, which already runs
+                two sanitization layers (`markdown-it` with `html: false` +
+                DOMPurify) over project-controlled markdown bytes.
+              -->
+              <div class="inspector__body-rendered" data-testid="inspector-body-rendered" [innerHTML]="bodyHtml()"></div>
+            }
           }
         }
-      }
-    </sm-collapsible-section>
+      </sm-collapsible-section>
+    }
 
     @if (hasPluginContributions()) {
       <sm-collapsible-section
@@ -228,24 +223,26 @@
       </sm-collapsible-section>
     }
 
-    <sm-collapsible-section
-      [title]="texts.sections.metadata"
-      [expanded]="expanded('metadata')"
-      toggleTestid="inspector-metadata-toggle"
-      (toggle)="toggleSection('metadata')"
-      data-testid="inspector-card-metadata"
-    >
-      @if (expanded('metadata')) {
-        <div class="inspector__metadata" data-testid="inspector-metadata-section">
-          <sm-inspector-audit-panel [sidecarRoot]="sidecarRoot()" />
-          <sm-inspector-debug-panel
-            [node]="n"
-            [sidecarRoot]="sidecarRoot()"
-            [overlay]="n.sidecar"
-          />
-        </div>
-      }
-    </sm-collapsible-section>
+    @if (hasMetadata()) {
+      <sm-collapsible-section
+        [title]="texts.sections.metadata"
+        [expanded]="expanded('metadata')"
+        toggleTestid="inspector-metadata-toggle"
+        (toggle)="toggleSection('metadata')"
+        data-testid="inspector-card-metadata"
+      >
+        @if (expanded('metadata')) {
+          <div class="inspector__metadata" data-testid="inspector-metadata-section">
+            <sm-inspector-audit-panel [sidecarRoot]="sidecarRoot()" />
+            <sm-inspector-debug-panel
+              [node]="n"
+              [sidecarRoot]="sidecarRoot()"
+              [overlay]="n.sidecar"
+            />
+          </div>
+        }
+      </sm-collapsible-section>
+    }
 
     <!--
       Phase 6 consent gate, first-time `.sm` sidecar write confirmation.

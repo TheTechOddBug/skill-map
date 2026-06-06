@@ -22,7 +22,8 @@
  * payload so they're populated regardless of sidecar presence.
  */
 
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
+import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
 
 import { INSPECTOR_DEBUG_PANEL_TEXTS } from '../../../i18n/inspector-debug-panel.texts';
 import type { ISidecarOverlay, INodeView } from '../../../models/node';
@@ -37,6 +38,7 @@ interface IIdentityBlock {
 
 @Component({
   selector: 'sm-inspector-debug-panel',
+  imports: [NgTemplateOutlet],
   templateUrl: './inspector-debug-panel.html',
   styleUrl: './inspector-debug-panel.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -48,6 +50,15 @@ export class InspectorDebugPanel {
   readonly overlay = input<ISidecarOverlay | undefined>(undefined);
 
   protected readonly texts = INSPECTOR_DEBUG_PANEL_TEXTS;
+
+  /**
+   * Key of the hash cell whose value was just copied to the clipboard
+   * (`body-stored` / `body-live` / `fm-stored` / `fm-live`), or `null`.
+   * Drives the inline "Copied" confirmation in that row, reverting ~2s
+   * later. This is the lightweight stand-in for a global toast: the
+   * feedback lives in the row that was clicked.
+   */
+  protected readonly copiedKey = signal<string | null>(null);
 
   protected readonly identityBlock = computed<IIdentityBlock>(() => {
     const root = this.sidecarRoot();
@@ -110,4 +121,34 @@ export class InspectorDebugPanel {
     const status = overlay.status ?? null;
     return status === null ? null : String(status);
   });
+
+  /**
+   * Copy the full hash to the clipboard and flag the row for ~2s so the
+   * inline "Copied" note shows. The full 64-char digest is written, not
+   * the truncated display form. Errors are swallowed: the Clipboard API
+   * needs a secure context (https / localhost), so a failure here is
+   * non-actionable for the user (mirrors the update-chip copy in app.ts).
+   */
+  protected async copyHash(key: string, value: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(value);
+      this.copiedKey.set(key);
+      setTimeout(() => {
+        if (this.copiedKey() === key) this.copiedKey.set(null);
+      }, 2000);
+    } catch {
+      // Clipboard write blocked (insecure context / denied permission). No-op.
+    }
+  }
+
+  /**
+   * Display form for a hash: the first 20 characters followed by an
+   * ellipsis. Hashes are 64-char SHA digests; the full value rides in
+   * the cell's `title` so it stays available on hover / copy, while the
+   * panel stays compact. Drift highlighting still compares the full
+   * stored vs live values, so truncation never hides a real mismatch.
+   */
+  protected truncateHash(hash: string): string {
+    return hash.length > 20 ? `${hash.slice(0, 20)}...` : hash;
+  }
 }

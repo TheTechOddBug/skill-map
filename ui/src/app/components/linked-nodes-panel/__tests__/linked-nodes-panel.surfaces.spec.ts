@@ -19,15 +19,14 @@ import type { IWsScanCompletedEvent } from '../../../../models/ws-event';
 
 /**
  * `LinkedNodesPanel` visual-surfaces spec, complements
- * `linked-nodes-panel.spec.ts` (lifecycle / state machine). Covers
- * the affordances added in commits d207cfa + 21920e8:
+ * `linked-nodes-panel.spec.ts` (lifecycle / state machine). Covers:
  *
- *   - inline issue chip on outgoing rows (source-match + target-fallback)
- *   - inline issue chip on incoming rows (source-match)
- *   - per-row occurrences sub-list (rendered for >=1 occurrence)
- *   - external references section (link href + line label)
+ *   - inline issue chip on outgoing rows, source-side ONLY (an issue
+ *     that lives on the inspected node and names this edge). Issues that
+ *     live on the neighbour (target / incoming source) are NOT surfaced.
+ *   - external references section (link href, no line label)
  *   - self-loop filter (`outgoingRaw` keeps them, `outgoing` drops them)
- *   - numeric confidence (`p-tag` value + qualitative tooltip)
+ *   - numeric confidence value rendered in the confidence chip
  *
  * The panel fans out four parallel data-source calls (`listLinks` x2,
  * `listIssues`, `getNode`); the helper below stubs all four with
@@ -186,14 +185,13 @@ describe('LinkedNodesPanel · inline issue chip on rows', () => {
       `[data-testid="linked-nodes-outgoing-issue-${linkTarget}"]`,
     );
     expect(chip).not.toBeNull();
-    // PrimeNG renders the `value` input inside the tag, the analyzer id
-    // ends up in the text content.
+    // The chip is a plain span carrying the analyzer id as text and the
+    // raw severity on `data-severity` (drives the outlined colour).
     expect(chip!.textContent).toContain('core/broken-ref');
-    // `error` -> 'danger' on the host's `data-p` attribute.
-    expect(chip!.getAttribute('data-p') ?? '').toContain('danger');
+    expect(chip!.getAttribute('data-severity')).toBe('error');
   });
 
-  it('outgoing row falls back to a target-side issue when no source-side match exists', async () => {
+  it('outgoing row does NOT surface an issue that lives only on the target node', async () => {
     const focused = 'src.md';
     const linkTarget = 'dst.md';
     stub.listLinks.mockImplementation((q: { from?: string; to?: string }) => {
@@ -202,9 +200,9 @@ describe('LinkedNodesPanel · inline issue chip on rows', () => {
       }
       return Promise.resolve(envelope([]));
     });
-    // Issue is attached to the TARGET (dst.md), not the focused source.
-    // No `data.target` (pure node-attribute), so the fallback branch
-    // (`onTarget`) must pick it up.
+    // Issue is attached to the TARGET (dst.md), not the focused source:
+    // it describes the neighbour, not the node being inspected, so the
+    // row must NOT show it (the operator sees it by navigating to dst).
     const reservedOnTarget: IIssueApi = {
       analyzerId: 'core/reserved-name',
       severity: 'warn',
@@ -218,15 +216,16 @@ describe('LinkedNodesPanel · inline issue chip on rows', () => {
     await flush(fixture);
 
     const dom: HTMLElement = fixture.nativeElement;
-    const chip = dom.querySelector(
-      `[data-testid="linked-nodes-outgoing-issue-${linkTarget}"]`,
-    );
-    expect(chip).not.toBeNull();
-    expect(chip!.textContent).toContain('core/reserved-name');
-    expect(chip!.getAttribute('data-p') ?? '').toContain('warn');
+    expect(
+      dom.querySelector(`[data-testid="linked-nodes-outgoing-issue-${linkTarget}"]`),
+    ).toBeNull();
+    // The row itself still renders.
+    expect(
+      dom.querySelector(`[data-testid="linked-nodes-outgoing-row-${linkTarget}"]`),
+    ).not.toBeNull();
   });
 
-  it('incoming row renders an issue chip when the SOURCE node has a broken-ref naming the focused path', async () => {
+  it('incoming rows never render an issue chip (those issues live on the neighbour)', async () => {
     const focused = 'me.md';
     const incomingSrc = 'caller.md';
     stub.listLinks.mockImplementation((q: { from?: string; to?: string }) => {
@@ -251,12 +250,13 @@ describe('LinkedNodesPanel · inline issue chip on rows', () => {
     await flush(fixture);
 
     const dom: HTMLElement = fixture.nativeElement;
-    const chip = dom.querySelector(
-      `[data-testid="linked-nodes-incoming-issue-${incomingSrc}"]`,
-    );
-    expect(chip).not.toBeNull();
-    expect(chip!.textContent).toContain('core/broken-ref');
-    expect(chip!.getAttribute('data-p') ?? '').toContain('danger');
+    // The incoming row renders, but with no issue chip.
+    expect(
+      dom.querySelector(`[data-testid="linked-nodes-incoming-row-${incomingSrc}"]`),
+    ).not.toBeNull();
+    expect(
+      dom.querySelector(`[data-testid="linked-nodes-incoming-issue-${incomingSrc}"]`),
+    ).toBeNull();
   });
 
   it('omits the chip on a row whose source and target both lack a matching issue', async () => {
@@ -293,132 +293,6 @@ describe('LinkedNodesPanel · inline issue chip on rows', () => {
     expect(
       dom.querySelector(`[data-testid="linked-nodes-outgoing-row-${linkTarget}"]`),
     ).not.toBeNull();
-  });
-});
-
-describe('LinkedNodesPanel · occurrences sub-list', () => {
-  let scanCompleted$: Subject<IWsScanCompletedEvent>;
-  let stub: IStubDataSource;
-  let ws: WsEventStreamService;
-
-  beforeEach(() => {
-    scanCompleted$ = new Subject<IWsScanCompletedEvent>();
-    stub = makeStub();
-    ws = makeWsStub(scanCompleted$);
-  });
-
-  afterEach(() => {
-    scanCompleted$.complete();
-  });
-
-  it('renders a sub-list with every occurrence label when a link carries multiple sites', async () => {
-    const focused = 'src.md';
-    const linkTarget = 'dst.md';
-    stub.listLinks.mockImplementation((q: { from?: string; to?: string }) => {
-      if (q.from === focused) {
-        return Promise.resolve(
-          envelope([
-            makeLink({
-              source: focused,
-              target: linkTarget,
-              occurrences: [
-                {
-                  extractor: 'core/markdown-link',
-                  originalTrigger: '[dst](dst.md)',
-                  location: { line: 12 },
-                },
-                {
-                  extractor: 'claude/at-directive',
-                  originalTrigger: '@dst',
-                  location: null,
-                },
-              ],
-            }),
-          ]),
-        );
-      }
-      return Promise.resolve(envelope([]));
-    });
-
-    const { fixture } = bootstrap(stub, ws);
-    fixture.componentRef.setInput('path', focused);
-    await flush(fixture);
-
-    const dom: HTMLElement = fixture.nativeElement;
-    const sub = dom.querySelector(
-      `[data-testid="linked-nodes-occurrences-${linkTarget}"]`,
-    );
-    expect(sub).not.toBeNull();
-    const items = sub!.querySelectorAll('.linked-nodes-panel__occurrences-item');
-    expect(items.length).toBe(2);
-    // Templated label, with-line variant for the markdown-link entry.
-    expect(items[0]?.textContent).toContain('line 12');
-    expect(items[0]?.textContent).toContain('[dst](dst.md)');
-    expect(items[0]?.textContent).toContain('core/markdown-link');
-    // Unknown-line variant for the at-directive entry (no location).
-    expect(items[1]?.textContent).toContain('@dst');
-    expect(items[1]?.textContent).toContain('claude/at-directive');
-    expect(items[1]?.textContent ?? '').not.toContain('line ');
-  });
-
-  it('renders the sub-list even when the link has a single occurrence (>= 1 site)', async () => {
-    const focused = 'src.md';
-    const linkTarget = 'dst.md';
-    stub.listLinks.mockImplementation((q: { from?: string; to?: string }) => {
-      if (q.from === focused) {
-        return Promise.resolve(
-          envelope([
-            makeLink({
-              source: focused,
-              target: linkTarget,
-              occurrences: [
-                {
-                  extractor: 'core/markdown-link',
-                  originalTrigger: '[dst](dst.md)',
-                  location: { line: 7 },
-                },
-              ],
-            }),
-          ]),
-        );
-      }
-      return Promise.resolve(envelope([]));
-    });
-
-    const { fixture } = bootstrap(stub, ws);
-    fixture.componentRef.setInput('path', focused);
-    await flush(fixture);
-
-    const dom: HTMLElement = fixture.nativeElement;
-    const sub = dom.querySelector(
-      `[data-testid="linked-nodes-occurrences-${linkTarget}"]`,
-    );
-    expect(sub).not.toBeNull();
-    const items = sub!.querySelectorAll('.linked-nodes-panel__occurrences-item');
-    expect(items.length).toBe(1);
-  });
-
-  it('omits the sub-list when the link has no occurrences array', async () => {
-    const focused = 'src.md';
-    const linkTarget = 'dst.md';
-    stub.listLinks.mockImplementation((q: { from?: string; to?: string }) => {
-      if (q.from === focused) {
-        return Promise.resolve(
-          envelope([makeLink({ source: focused, target: linkTarget })]),
-        );
-      }
-      return Promise.resolve(envelope([]));
-    });
-
-    const { fixture } = bootstrap(stub, ws);
-    fixture.componentRef.setInput('path', focused);
-    await flush(fixture);
-
-    const dom: HTMLElement = fixture.nativeElement;
-    const sub = dom.querySelector(
-      `[data-testid="linked-nodes-occurrences-${linkTarget}"]`,
-    );
-    expect(sub).toBeNull();
   });
 });
 
@@ -462,17 +336,15 @@ describe('LinkedNodesPanel · external references section', () => {
     expect(a).not.toBeNull();
     expect(b).not.toBeNull();
 
-    // Anchor for entry with known line.
+    // Each entry is a single clickable anchor (line numbers are no
+    // longer shown).
     const anchorA = a!.querySelector('a');
     expect(anchorA?.getAttribute('href')).toBe('https://example.com/a');
     expect(anchorA?.getAttribute('target')).toBe('_blank');
     expect(anchorA?.getAttribute('rel')).toBe('noopener noreferrer');
-    expect(a!.textContent).toContain('line 12');
 
-    // Entry without `line` falls back to the unknown-line label.
     const anchorB = b!.querySelector('a');
     expect(anchorB?.getAttribute('href')).toBe('https://example.com/b');
-    expect(b!.textContent).toContain('unknown line');
   });
 
   it('omits the external-refs section entirely when the node has no URLs', async () => {
@@ -633,19 +505,18 @@ describe('LinkedNodesPanel · numeric confidence', () => {
       `[data-testid="linked-nodes-outgoing-row-${linkTarget}"]`,
     );
     expect(row).not.toBeNull();
-    const tags = row!.querySelectorAll('p-tag');
-    // Row has at least: kind tag + confidence tag.
-    expect(tags.length).toBeGreaterThanOrEqual(2);
-    // The confidence tag carries the numeric value as its rendered label.
-    const labels = Array.from(tags).map((t) => t.textContent?.trim() ?? '');
-    expect(labels).toContain('0.85');
-    // The qualitative tier (`high` here, since 0.85 >= 0.75) is the
-    // value the component computes for the tooltip binding. Asserting
-    // the helper directly because pTooltip is a directive and does not
-    // surface the string in the rendered DOM under jsdom.
+    // The confidence chip renders the two-decimal value as its text.
+    const chipLabels = Array.from(
+      row!.querySelectorAll('.linked-nodes-panel__chip'),
+    ).map((c) => c.textContent?.trim() ?? '');
+    expect(chipLabels).toContain('0.85');
+    // The tooltip string is built from the qualitative tier (`high` for
+    // 0.85 >= 0.75). Asserting the helper directly because pTooltip is a
+    // directive and does not surface the string in the rendered DOM
+    // under jsdom.
     expect(
-      (cmp as unknown as { confidenceLabel(c: number): string }).confidenceLabel(0.85),
-    ).toBe('high');
+      (cmp as unknown as { confidenceTooltip(c: number): string }).confidenceTooltip(0.85),
+    ).toBe('confidence: high');
   });
 });
 
@@ -715,21 +586,17 @@ describe('LinkedNodesPanel · section count headers', () => {
     ).toBe('2');
   });
 
-  it('shows a zero count in the header when a direction has no links', async () => {
+  it('omits a direction section entirely when it has no links', async () => {
     // Default stub: every listLinks resolves empty and getNode has no refs.
     const { fixture } = bootstrap(stub, ws);
     fixture.componentRef.setInput('path', 'lonely.md');
     await flush(fixture);
 
     const dom: HTMLElement = fixture.nativeElement;
-    expect(
-      dom.querySelector('[data-testid="linked-nodes-outgoing-count"]')?.textContent?.trim(),
-    ).toBe('0');
-    expect(
-      dom.querySelector('[data-testid="linked-nodes-incoming-count"]')?.textContent?.trim(),
-    ).toBe('0');
-    // The external section is omitted entirely when there are no URLs, so
-    // its count header never renders.
-    expect(dom.querySelector('[data-testid="linked-nodes-external-count"]')).toBeNull();
+    // Empty directions (and external refs) render no section at all, so
+    // no header / count appears for any of them.
+    expect(dom.querySelector('[data-testid="linked-nodes-outgoing"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="linked-nodes-incoming"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="linked-nodes-external-refs"]')).toBeNull();
   });
 });

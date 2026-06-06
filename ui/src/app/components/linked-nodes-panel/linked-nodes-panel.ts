@@ -10,8 +10,6 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { TagModule } from 'primeng/tag';
-import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { Icon } from '../../slots/icon';
@@ -26,12 +24,9 @@ import type {
   IExternalRefApi,
   IIssueApi,
   ILinkApi,
-  ILinkOccurrenceApi,
-  TIssueSeverityApi,
   TLinkConfidenceApi,
-  TLinkKindApi,
 } from '../../../models/api';
-import { KIND_SEVERITY, confidenceSeverity, confidenceTier } from '../severity-map';
+import { confidenceTier } from '../severity-map';
 
 /**
  * Linked-nodes panel state machine. Drives the card's `@switch` block.
@@ -44,7 +39,7 @@ type TPanelState = 'idle' | 'loading' | 'ready' | 'error';
 
 @Component({
   selector: 'sm-linked-nodes-panel',
-  imports: [TagModule, ButtonModule, TooltipModule, Icon],
+  imports: [TooltipModule, Icon],
   templateUrl: './linked-nodes-panel.html',
   styleUrl: './linked-nodes-panel.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -151,16 +146,8 @@ export class LinkedNodesPanel {
     this.openPath.emit(target);
   }
 
-  protected kindSeverity(kind: TLinkKindApi): 'info' | 'success' | 'warn' | 'danger' | 'secondary' {
-    return KIND_SEVERITY[kind] ?? 'secondary';
-  }
-
-  protected confidenceSeverity(c: TLinkConfidenceApi): 'success' | 'info' | 'warn' {
-    return confidenceSeverity(c);
-  }
-
-  protected confidenceLabel(c: TLinkConfidenceApi): string {
-    return this.texts.confidence[confidenceTier(c)];
+  protected confidenceTooltip(c: TLinkConfidenceApi): string {
+    return this.texts.confidenceTooltip(this.texts.confidence[confidenceTier(c)]);
   }
 
   /**
@@ -177,106 +164,65 @@ export class LinkedNodesPanel {
   }
 
   /**
-   * PrimeNG severity mapping for an issue. Mirrors the analyzer severity
-   * directly: `error` → danger, `warn` → warn, `info` → info.
+   * Confidence-relative colour for the chip: a continuous red→green ramp
+   * mapped onto the `[0..1]` confidence. We interpolate the HSL hue from
+   * 0deg (red, no confidence) to 120deg (green, full confidence), so the
+   * chip's tint reads the strength of the edge at a glance, with yellow
+   * around the midpoint. Used for both text and border so the outlined
+   * chip stays subtle.
    */
-  protected issueSeverity(s: TIssueSeverityApi): 'danger' | 'warn' | 'info' {
-    if (s === 'error') return 'danger';
-    if (s === 'warn') return 'warn';
-    return 'info';
+  protected confidenceColor(c: TLinkConfidenceApi): string {
+    const clamped = Math.max(0, Math.min(1, c));
+    const hue = Math.round(clamped * 120);
+    return `hsl(${hue}, 60%, 50%)`;
   }
 
   /**
-   * Pick the most-relevant issue, if any, for an outgoing link row. Two
-   * sources of evidence:
+   * Whether a link's path should render as plain text instead of a
+   * clickable link. We only disable navigation when the row carries an
+   * `error`-severity issue (e.g. a broken reference to a target that is
+   * not in the scan): there is no node to open, so the path is shown but
+   * inert. `warn` / `info` rows stay clickable.
+   */
+  protected outgoingBroken(link: ILinkApi): boolean {
+    return this.issueForOutgoing(link)?.severity === 'error';
+  }
+
+  /**
+   * The issue, if any, that the INSPECTED node itself raised about this
+   * outgoing edge: a broken-ref / link analyzer that fired on the
+   * inspected node with `data.target` naming this edge's target.
    *
-   *   1. The current node's own broken-ref / link analyzer fired with
-   *      `data.target === link.target`. The edge is the offender.
-   *   2. The TARGET node carries any issue (e.g. `reserved-name` on a
-   *      file that shadows a runtime built-in). The edge is healthy
-   *      but its destination has a flag the operator should see.
+   * We deliberately do NOT surface issues that live on the TARGET node
+   * (its own `deprecated`, `name-reserved`, etc.). Those belong to the
+   * neighbour, not to the node the operator is looking at; showing them
+   * on this row reads as "the node I'm inspecting has a problem" when
+   * the flag is really the destination's. The operator sees the
+   * neighbour's own chips by navigating to it.
    *
-   * Returns `null` when neither applies. Severity drives the inline
-   * chip's colour; the message goes in the tooltip.
+   * Returns `null` when the inspected node has no edge-scoped issue.
+   * Severity drives the inline chip's colour; the message goes in the
+   * tooltip.
    */
   protected issueForOutgoing(link: ILinkApi): IIssueApi | null {
     const path = this.path();
     if (!path) return null;
-    // Edge-scoped lookup: a source-side issue MUST name this specific
-    // edge via `data.target` (matching the link's literal target OR its
-    // resolved target). Without this guard a broken-ref about an
-    // UNRELATED outgoing link of the same source bleeds into every
-    // row, which the operator reads as "all my edges are broken".
+    // Edge-scoped lookup: the issue MUST live on the inspected node and
+    // name this specific edge via `data.target` (matching the link's
+    // literal target OR its resolved target). The `data.target` guard
+    // keeps a broken-ref about an UNRELATED outgoing link of the same
+    // source from bleeding into every row.
     const targetCandidates = [link.target, link.resolvedTarget].filter(
       (s): s is string => typeof s === 'string',
     );
-    const onSource = this.issues().find((i) => {
-      if (!i.nodeIds.includes(path)) return false;
-      const dataTarget = i.data?.['target'];
-      if (typeof dataTarget !== 'string') return false;
-      return targetCandidates.includes(dataTarget);
-    });
-    if (onSource) return onSource;
-    // Target-side attribute fallback: issues attached to the OTHER end
-    // of the edge that describe the target itself (e.g. `reserved-name`
-    // on a shadowed file). We accept only "no data.target" (pure node-
-    // attribute) or "data.target === target path" (self-referential),
-    // never "data.target === some other node" which would mean the
-    // issue is about a different edge.
-    const targetPath = link.resolvedTarget ?? link.target;
-    const onTarget = this.issues().find((i) => {
-      if (!i.nodeIds.includes(targetPath)) return false;
-      const dataTarget = i.data?.['target'];
-      return typeof dataTarget !== 'string' || dataTarget === targetPath;
-    });
-    return onTarget ?? null;
-  }
-
-  /**
-   * Same idea as `issueForOutgoing` but for the incoming side: an issue
-   * attached to the SOURCE of an incoming edge (broken-ref pointing at
-   * us, or reserved-name on the source node itself) surfaces inline so
-   * the operator does not have to navigate to the source to discover it.
-   */
-  /**
-   * Per-occurrence display string for the row's sub-list. Picks the
-   * "with line" or "no line" template based on whether the extractor
-   * recorded a position. Centralised here so the template stays
-   * declarative.
-   */
-  protected occurrenceLabel(occ: ILinkOccurrenceApi): string {
-    const line = occ.location?.line;
-    if (typeof line !== 'number') {
-      return this.texts.occurrencesItemUnknownLine
-        .replace('{{trigger}}', occ.originalTrigger)
-        .replace('{{extractor}}', occ.extractor);
-    }
-    return this.texts.occurrencesItem
-      .replace('{{line}}', String(line))
-      .replace('{{trigger}}', occ.originalTrigger)
-      .replace('{{extractor}}', occ.extractor);
-  }
-
-  protected issueForIncoming(link: ILinkApi): IIssueApi | null {
-    const path = this.path();
-    if (!path) return null;
-    // Edge-scoped only: a source-side issue MUST name this specific
-    // incoming edge by `data.target` matching either the literal
-    // `link.target` (a trigger-style target the operator wrote), the
-    // `link.resolvedTarget` (what the post-walk lift bound it to), or
-    // our own path. Any other issue on the source describes a
-    // DIFFERENT outgoing edge of theirs and does not belong on our
-    // incoming row.
-    const targetCandidates = [link.target, link.resolvedTarget, path].filter(
-      (s): s is string => typeof s === 'string',
+    return (
+      this.issues().find((i) => {
+        if (!i.nodeIds.includes(path)) return false;
+        const dataTarget = i.data?.['target'];
+        if (typeof dataTarget !== 'string') return false;
+        return targetCandidates.includes(dataTarget);
+      }) ?? null
     );
-    const onSource = this.issues().find((i) => {
-      if (!i.nodeIds.includes(link.source)) return false;
-      const dataTarget = i.data?.['target'];
-      if (typeof dataTarget !== 'string') return false;
-      return targetCandidates.includes(dataTarget);
-    });
-    return onSource ?? null;
   }
 
   /**
