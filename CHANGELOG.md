@@ -6,6 +6,27 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>0.52.0</b> · 2026-06-05</summary>
+
+### CLI Minor
+- `sm bump` and the BFF bump route (`POST /api/sidecar/bump`) now stamp `audit.lastBumpedBy` / `audit.createdBy` with the project's Git author name (`git config user.name`) when the node lives in a Git repository, falling back to the channel literal (`'cli'` / `'ui'`) otherwise. This supersedes Decision A5, which kept the invoker a literal.
+- The inspector body renders markdown with full prose styling plus highlight.js syntax highlighting and re-renders live on `scan.completed`. The connections panel drops its duplicate Findings sub-section and header and reuses the node-card icon vocabulary for Outgoing / Incoming / External; sidecar tags move to a clickable header row, the Annotations panel leads with Authors, and the map isolate gesture now focuses a node and its direct (one-hop) neighbors instead of its whole chain.
+- A malformed or schema-invalid `.sm` sidecar now emits its `invalid-sidecar` diagnostic at `error` severity instead of `warn`. The scan still completes (the node is marked present with a null status), but `sm check` now exits non-zero when any sidecar fails to parse or validate, surfacing broken annotations in CI rather than letting them pass as a warning.
+
+### CLI Patch
+- The active-provider lens dropdown in Settings → Project now greys out (and refuses to select) any Provider the operator has disabled. `GET /api/active-provider` gained a `selectable` field listing the Provider ids that are enabled right now; the SPA renders Providers absent from it as disabled instead of offering a lens whose extractors would never run.
+- The `core/annotation-stale` analyzer is now neutral instead of warning-tinted: drift is informational, not a warning. Its footer chip (`staleIcon`) carries no severity (the clock renders in the foreground colour instead of the warn tint), and the stale Findings issue is lowered from `warn` to `info`. As `info`, it no longer counts toward the card's warn chip (the issue-counter buckets error/warn only) and never affected `sm check`'s exit code (info and warn are both non-failing).
+
+### Spec Minor (0.46.0)
+- The active-provider lens dropdown in Settings → Project now greys out (and refuses to select) any Provider the operator has disabled. `GET /api/active-provider` gained a `selectable` field listing the Provider ids that are enabled right now; the SPA renders Providers absent from it as disabled instead of offering a lens whose extractors would never run.
+- `sm bump` and the BFF bump route (`POST /api/sidecar/bump`) now stamp `audit.lastBumpedBy` / `audit.createdBy` with the project's Git author name (`git config user.name`) when the node lives in a Git repository, falling back to the channel literal (`'cli'` / `'ui'`) otherwise. This supersedes Decision A5, which kept the invoker a literal.
+
+### Spec Patch (0.46.0)
+- The `core/annotation-stale` analyzer is now neutral instead of warning-tinted: drift is informational, not a warning. Its footer chip (`staleIcon`) carries no severity (the clock renders in the foreground colour instead of the warn tint), and the stale Findings issue is lowered from `warn` to `info`. As `info`, it no longer counts toward the card's warn chip (the issue-counter buckets error/warn only) and never affected `sm check`'s exit code (info and warn are both non-failing).
+
+</details>
+
+<details>
 <summary><b>0.51.0</b> · 2026-06-04</summary>
 
 ### CLI Minor

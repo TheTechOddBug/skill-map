@@ -2,6 +2,39 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.52.0",
+      "date": "2026-06-05",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "Disabling a provider plugin now removes it as a choice in **Settings → Project → Active provider**. The provider stays listed but greyed out and labelled `(disabled)`, so you can no longer switch the lens to a provider whose extractors would not run.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Bumping a node now records **who** bumped it: the audit `by` fields show your Git author name (`git config user.name`) instead of `cli` / `ui`, when the project is a Git repo. It falls back to `cli` / `ui` outside a Git repo or when no `user.name` is configured.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**Inspector polish.** The body now renders rich markdown with code syntax highlighting and updates live after a re-scan. Node tags moved to a clickable row in the header, and \"isolate\" on the map now shows a node plus its direct neighbors.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "`sm check` now **fails** (non-zero exit) when a `.sm` sidecar is malformed or breaks schema validation. These were previously reported as warnings and did not affect the exit code. Fix or remove the offending sidecar to make the check pass.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.51.0",
       "date": "2026-06-04",
       "kind": "user-facing",

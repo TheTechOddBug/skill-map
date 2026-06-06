@@ -1,5 +1,37 @@
 # skill-map
 
+## 0.52.0
+
+### Minor Changes
+
+- `sm bump` and the BFF bump route (`POST /api/sidecar/bump`) now stamp `audit.lastBumpedBy` / `audit.createdBy` with the project's Git author name (`git config user.name`) when the node lives in a Git repository, falling back to the channel literal (`'cli'` / `'ui'`) otherwise. This supersedes Decision A5, which kept the invoker a literal.
+
+  ## User-facing
+
+  Bumping a node now records **who** bumped it: the audit `by` fields show your Git author name (`git config user.name`) instead of `cli` / `ui`, when the project is a Git repo. It falls back to `cli` / `ui` outside a Git repo or when no `user.name` is configured.
+
+- The inspector body renders markdown with full prose styling plus highlight.js syntax highlighting and re-renders live on `scan.completed`. The connections panel drops its duplicate Findings sub-section and header and reuses the node-card icon vocabulary for Outgoing / Incoming / External; sidecar tags move to a clickable header row, the Annotations panel leads with Authors, and the map isolate gesture now focuses a node and its direct (one-hop) neighbors instead of its whole chain.
+
+  ## User-facing
+
+  **Inspector polish.** The body now renders rich markdown with code syntax highlighting and updates live after a re-scan. Node tags moved to a clickable row in the header, and "isolate" on the map now shows a node plus its direct neighbors.
+
+- A malformed or schema-invalid `.sm` sidecar now emits its `invalid-sidecar` diagnostic at `error` severity instead of `warn`. The scan still completes (the node is marked present with a null status), but `sm check` now exits non-zero when any sidecar fails to parse or validate, surfacing broken annotations in CI rather than letting them pass as a warning.
+
+  ## User-facing
+
+  `sm check` now **fails** (non-zero exit) when a `.sm` sidecar is malformed or breaks schema validation. These were previously reported as warnings and did not affect the exit code. Fix or remove the offending sidecar to make the check pass.
+
+### Patch Changes
+
+- The active-provider lens dropdown in Settings → Project now greys out (and refuses to select) any Provider the operator has disabled. `GET /api/active-provider` gained a `selectable` field listing the Provider ids that are enabled right now; the SPA renders Providers absent from it as disabled instead of offering a lens whose extractors would never run.
+
+  ## User-facing
+
+  Disabling a provider plugin now removes it as a choice in **Settings → Project → Active provider**. The provider stays listed but greyed out and labelled `(disabled)`, so you can no longer switch the lens to a provider whose extractors would not run.
+
+- The `core/annotation-stale` analyzer is now neutral instead of warning-tinted: drift is informational, not a warning. Its footer chip (`staleIcon`) carries no severity (the clock renders in the foreground colour instead of the warn tint), and the stale Findings issue is lowered from `warn` to `info`. As `info`, it no longer counts toward the card's warn chip (the issue-counter buckets error/warn only) and never affected `sm check`'s exit code (info and warn are both non-failing).
+
 ## 0.51.0
 
 ### Minor Changes
