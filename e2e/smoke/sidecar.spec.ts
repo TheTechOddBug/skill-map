@@ -32,9 +32,9 @@ import { expect, test } from '@playwright/test';
  *     no-op in read-only demo mode).
  *   - Annotations card: nodes with no sidecar overlay MUST NOT show the
  *     annotations card (it gates on `n.sidecar?.present`). In the current
- *     demo bundle the `mcp://*` provider nodes are the canonical
- *     "no sidecar overlay" case (the former `README.md` node is gone), so
- *     the test targets `mcp://github` by path.
+ *     demo bundle `ARCHITECTURE.md` is the canonical "no sidecar overlay"
+ *     case (a plain doc that was never annotated), so the test targets it
+ *     by path.
  *
  * Happy-path bump (stale → click → badge clears, version increments) and
  * the 409 error envelope path live in the Karma/Vitest unit tests
@@ -44,7 +44,7 @@ import { expect, test } from '@playwright/test';
  */
 
 const STALE_PATH = '.claude/agents/frontend-specialist.md';
-const NO_SIDECAR_PATH = 'mcp://github';
+const NO_SIDECAR_PATH = 'ARCHITECTURE.md';
 
 async function gotoWorkspace(page: import('@playwright/test').Page): Promise<void> {
   await page.goto('./');
@@ -92,9 +92,9 @@ test.describe('sidecar UI surface (Step 9.6.5)', () => {
   });
 
   test('inspector annotations card is hidden for nodes without a sidecar overlay', async ({ page }) => {
-    // Deep-link straight into the workspace selection via `?path=`. The
-    // `mcp://github` provider node ships no sidecar overlay, so the
-    // annotations card (which gates on `n.sidecar?.present`) must collapse.
+    // Deep-link straight into the workspace selection via `?path=`.
+    // `ARCHITECTURE.md` ships no sidecar overlay, so the annotations card
+    // (which gates on `n.sidecar?.present`) must collapse.
     await page.goto(`./?path=${encodeURIComponent(NO_SIDECAR_PATH)}`);
     await page.waitForLoadState('networkidle');
 

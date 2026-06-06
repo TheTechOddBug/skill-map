@@ -1,6 +1,6 @@
 /* DEBUG-SLOTS, KEPT dev overlay to visualise view-contribution slots.
    Deliberate, maintained tool, NOT temporary scaffolding (see
-   `context/ui.md` § Debug overlays). Toggle with `?debug-slots=1`.
+   `context/ui.md` § Debug overlays). Toggle with `?debug=1`.
    The wrapper `<div class="sm-debug-slot" data-debug-slot="...">` is gone
    from every template; `<sm-view-contributions-host>` now carries the
    class + `data-debug-slot` itself via host bindings (see
@@ -28,7 +28,7 @@
 }
 
 /* All rules below are gated behind `html.is-debug-slots`. The class is
-   toggled by `DebugSlotsService` based on `?debug-slots=1` / localStorage. */
+   toggled by `DebugSlotsService` based on `?debug=1` / localStorage. */
 
 /* `box-shadow` renders the ring OUTSIDE the box-model so toggling debug
    on/off doesn't shift the layout, `border` would push siblings by 6px

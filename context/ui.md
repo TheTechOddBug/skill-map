@@ -108,8 +108,8 @@ No `pt` section, no `dt` token, no host-merge alternative covers the case. Pin t
 
 The SPA ships two opt-in debug overlays. Both are **deliberate, maintained dev tools**, not throwaway scaffolding, even where older inline comments said "temporary" / "Remove". Do not flag them for deletion in audits, and do not strip their mounts. Retire them only on an explicit decision, never as "cleanup".
 
-- **Slot overlay** (`?debug-slots=1`, or `localStorage` `sm-debug-slots`): `DebugSlotsService` toggles `html.is-debug-slots`; `ui/src/app/debug-slots.css` then paints a coloured ring + label around every `<sm-view-contributions-host>` so you can see where each view-contribution slot lands. Gated, so production users never see it. The host's own production `:host { display: contents }` baseline lives in `view-contributions-host.ts` (load-bearing), not in `debug-slots.css`, so the overlay file carries only debug-mode rules.
-- **Perf HUD** (`?debug-perf=1`, or `localStorage` `sm-debug-perf`): `DebugPerfService` gates `<sm-perf-hud>` in the graph view (visible / total / edge counts, layout timing).
+- **Slot overlay** (`?debug=1`, or `localStorage` `sm-debug-slots`): `DebugSlotsService` toggles `html.is-debug-slots`; `ui/src/app/debug-slots.css` then paints a coloured ring + label around every `<sm-view-contributions-host>` so you can see where each view-contribution slot lands. Gated, so production users never see it. The host's own production `:host { display: contents }` baseline lives in `view-contributions-host.ts` (load-bearing), not in `debug-slots.css`, so the overlay file carries only debug-mode rules.
+- **Perf HUD** (`?debug-fps=1`, or `localStorage` `sm-debug-perf`): `DebugPerfService` gates `<sm-perf-hud>` in the graph view (visible / total / edge counts, layout timing).
 
 The `graph.node.alert` (graph view) and `topbar.nav.start` (shell topbar) `<sm-view-contributions-host>` mounts are **real slot anchors**, not debug-only; they stay regardless of the overlay.
 

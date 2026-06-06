@@ -42,6 +42,37 @@ function makeNode(overrides: Partial<INodeView> = {}): INodeView {
   };
 }
 
+/** A full 64-char digest made of one repeated char (distinct per test). */
+function hash64(ch: string): string {
+  return ch.repeat(64);
+}
+
+/** Swap in a fake `navigator.clipboard`; returns a restore thunk. */
+function stubClipboard(writeText: ReturnType<typeof vi.fn>): () => void {
+  const original = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+  return () => {
+    if (original) {
+      Object.defineProperty(navigator, 'clipboard', original);
+    } else {
+      Reflect.deleteProperty(navigator as unknown as Record<string, unknown>, 'clipboard');
+    }
+  };
+}
+
+/** Drain the microtask queue so an awaited clipboard promise settles. */
+async function flushMicrotasks(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
+/** Resolve the click-to-copy button inside a hash cell by its testid. */
+function copyButton(dom: HTMLElement, testid: string): HTMLButtonElement {
+  const btn = dom.querySelector(`[data-testid="${testid}"] button.dbg__copy`);
+  if (!btn) throw new Error(`no copy button under [data-testid="${testid}"]`);
+  return btn as HTMLButtonElement;
+}
+
 describe('InspectorDebugPanel, always-open structure', () => {
   it('renders every row even when the sidecar is absent', () => {
     const node = makeNode({ bodyHash: 'live-body', frontmatterHash: 'live-fm' });
@@ -147,40 +178,112 @@ describe('InspectorDebugPanel, always-open structure', () => {
     // timer leaks past the test into a shared runner environment.
     vi.useFakeTimers();
     const writeText = vi.fn().mockResolvedValue(undefined);
-    const original = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
-    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
-
+    const restoreClipboard = stubClipboard(writeText);
     try {
-      const fullHash = 'a'.repeat(64);
-      const node = makeNode({ bodyHash: fullHash });
-      const sidecarRoot = { identity: { bodyHash: fullHash } };
-      const { dom, fixture } = bootstrap({ node, sidecarRoot });
+      const full = hash64('a');
+      const { dom, fixture } = bootstrap({
+        node: makeNode({ bodyHash: full }),
+        sidecarRoot: { identity: { bodyHash: full } },
+      });
 
-      const button = dom.querySelector(
-        '[data-testid="dbg-body-hash-stored"] button.dbg__copy',
-      ) as HTMLButtonElement | null;
-      expect(button).not.toBeNull();
-
-      button!.click();
+      copyButton(dom, 'dbg-body-hash-stored').click();
       // writeText fires synchronously inside the handler: the FULL 64-char
       // digest is written, never the truncated display form.
-      expect(writeText).toHaveBeenCalledWith(fullHash);
+      expect(writeText).toHaveBeenCalledWith(full);
 
-      // Flush the awaited clipboard promise (a microtask, unaffected by the
-      // fake timers) so `copiedKey` flips and the inline note renders.
-      await Promise.resolve();
-      await Promise.resolve();
+      await flushMicrotasks();
       fixture.detectChanges();
       expect(dom.querySelector('[data-testid="dbg-body-hash-stored"]')!.textContent).toContain(
         'Copied',
       );
     } finally {
       vi.useRealTimers();
-      if (original) {
-        Object.defineProperty(navigator, 'clipboard', original);
-      } else {
-        Reflect.deleteProperty(navigator as unknown as Record<string, unknown>, 'clipboard');
+      restoreClipboard();
+    }
+  });
+
+  it('swallows a clipboard failure and shows no confirmation', async () => {
+    vi.useFakeTimers();
+    const writeText = vi.fn().mockRejectedValue(new Error('insecure context'));
+    const restoreClipboard = stubClipboard(writeText);
+    try {
+      const full = hash64('b');
+      const { dom, fixture } = bootstrap({
+        node: makeNode({ bodyHash: full }),
+        sidecarRoot: { identity: { bodyHash: full } },
+      });
+
+      copyButton(dom, 'dbg-body-hash-stored').click();
+      expect(writeText).toHaveBeenCalledWith(full);
+
+      // The rejection is caught inside the component, so nothing throws and
+      // the row stays without a "Copied" note.
+      await flushMicrotasks();
+      fixture.detectChanges();
+      expect(dom.querySelector('[data-testid="dbg-body-hash-stored"]')!.textContent).not.toContain(
+        'Copied',
+      );
+    } finally {
+      vi.useRealTimers();
+      restoreClipboard();
+    }
+  });
+
+  it('shows the confirmation only in the clicked hash row', async () => {
+    vi.useFakeTimers();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const restoreClipboard = stubClipboard(writeText);
+    try {
+      const body = hash64('a');
+      const fm = hash64('c');
+      const { dom, fixture } = bootstrap({
+        node: makeNode({ bodyHash: body, frontmatterHash: fm }),
+        sidecarRoot: { identity: { bodyHash: body, frontmatterHash: fm } },
+      });
+
+      copyButton(dom, 'dbg-body-hash-stored').click();
+      await flushMicrotasks();
+      fixture.detectChanges();
+
+      expect(dom.querySelector('[data-testid="dbg-body-hash-stored"]')!.textContent).toContain(
+        'Copied',
+      );
+      for (const sibling of ['dbg-body-hash-live', 'dbg-fm-hash-stored', 'dbg-fm-hash-live']) {
+        expect(dom.querySelector(`[data-testid="${sibling}"]`)!.textContent).not.toContain('Copied');
       }
+    } finally {
+      vi.useRealTimers();
+      restoreClipboard();
+    }
+  });
+
+  it('clears the confirmation after the reset timeout', async () => {
+    vi.useFakeTimers();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const restoreClipboard = stubClipboard(writeText);
+    try {
+      const full = hash64('a');
+      const { dom, fixture } = bootstrap({
+        node: makeNode({ bodyHash: full }),
+        sidecarRoot: { identity: { bodyHash: full } },
+      });
+
+      copyButton(dom, 'dbg-body-hash-stored').click();
+      await flushMicrotasks();
+      fixture.detectChanges();
+      expect(dom.querySelector('[data-testid="dbg-body-hash-stored"]')!.textContent).toContain(
+        'Copied',
+      );
+
+      // Advance past the ~2s reset; the inline note must clear itself.
+      await vi.advanceTimersByTimeAsync(2000);
+      fixture.detectChanges();
+      expect(dom.querySelector('[data-testid="dbg-body-hash-stored"]')!.textContent).not.toContain(
+        'Copied',
+      );
+    } finally {
+      vi.useRealTimers();
+      restoreClipboard();
     }
   });
 });

@@ -4,8 +4,8 @@
  * `ui/src/app/debug-slots.css`) light up with strong-color borders.
  *
  * Activation rules, first match wins, then persisted to localStorage:
- *   1. URL query `?debug-slots=1`: ON.
- *   2. URL query `?debug-slots=0`: OFF.
+ *   1. URL query `?debug` / `?debug=1`: ON.
+ *   2. URL query `?debug=0`: OFF.
  *   3. No query: read `sm-debug-slots` from localStorage.
  *
  * BOOT CONTRACT: this service self-wires on construction (constructor
@@ -24,7 +24,7 @@
 import { Injectable, effect, signal } from '@angular/core';
 
 const STORAGE_KEY = 'sm-debug-slots';
-const QUERY_KEY = 'debug-slots';
+const QUERY_KEY = 'debug';
 const HTML_CLASS = 'is-debug-slots';
 
 @Injectable({ providedIn: 'root' })
@@ -49,7 +49,9 @@ export class DebugSlotsService {
   private resolveInitial(): boolean {
     const params = new URLSearchParams(window.location.search);
     const q = params.get(QUERY_KEY);
-    if (q === '1' || q === 'true') {
+    // Present in any form (`?debug`, `?debug=1`, `?debug=true`) turns it
+    // ON; only an explicit `?debug=0` / `?debug=false` turns it OFF.
+    if (q !== null && q !== '0' && q !== 'false') {
       try { localStorage.setItem(STORAGE_KEY, '1'); } catch { /* ignore */ }
       return true;
     }

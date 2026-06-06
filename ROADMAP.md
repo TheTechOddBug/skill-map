@@ -652,7 +652,7 @@ Decision #293 ("Third-party UI + BFF extensions", post-v1.0) is **superseded** b
 
 ### Follow-up: slot debug overlay (do this properly)
 
-While iterating on the slot map (which contracts go to which slots, where each slot mounts in the templates) it is useful to **see** every slot lit up on the page, even when empty. A throwaway implementation lives today under `ui/src/app/debug-slots.css` + `ui/src/app/services/debug-slots.ts` + greppable `sm-debug-slot` wrappers; activation is `?debug-slots=1` (persisted in `localStorage` under `sm-debug-slots`). It is intentionally hacky, flat CSS file, runtime class on `<html>`, no settings integration, because the runtime settings loader (§Configuration → "Runtime delivery to the UI") does not exist yet.
+While iterating on the slot map (which contracts go to which slots, where each slot mounts in the templates) it is useful to **see** every slot lit up on the page, even when empty. A throwaway implementation lives today under `ui/src/app/debug-slots.css` + `ui/src/app/services/debug-slots.ts` + greppable `sm-debug-slot` wrappers; activation is `?debug=1` (persisted in `localStorage` under `sm-debug-slots`). It is intentionally hacky, flat CSS file, runtime class on `<html>`, no settings integration, because the runtime settings loader (§Configuration → "Runtime delivery to the UI") does not exist yet.
 
 When the loader lands, replace the hack with a real feature:
 
@@ -735,7 +735,7 @@ The `sm config` verbs (`list` / `get` / `set` / `reset` / `show --source`, where
 
 ### UI-side keys
 
-UI-only keys (declared in `ui/src/models/settings.ts`, to be formalised in `spec/runtime-settings.schema.json` at Step 15) cohabit the same file and reach the browser through the runtime-delivery path above: `graph.perf.cache` (Foblex `[fCache]` geometry caching), `graph.perf.virtualization` (`*fVirtualFor`, worth enabling above ~300 visible nodes), and `debug.slotsVisible` (reserved; will replace the throwaway `?debug-slots=1` overlay once the runtime loader lands). Each side ignores keys it does not recognise (graceful forward-compat).
+UI-only keys (declared in `ui/src/models/settings.ts`, to be formalised in `spec/runtime-settings.schema.json` at Step 15) cohabit the same file and reach the browser through the runtime-delivery path above: `graph.perf.cache` (Foblex `[fCache]` geometry caching), `graph.perf.virtualization` (`*fVirtualFor`, worth enabling above ~300 visible nodes), and `debug.slotsVisible` (reserved; will replace the throwaway `?debug=1` overlay once the runtime loader lands). Each side ignores keys it does not recognise (graceful forward-compat).
 
 ---
 
