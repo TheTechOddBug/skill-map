@@ -3,7 +3,7 @@ name: sm-tutorial
 description: |
   Interactive tutorial for testing the skill-map CLI and UI. Aimed at
   testers who are downloading the tool for the first time. The flow
-  starts with a quick demo (~10 min) that showcases the live UI, the
+  starts with a quick demo (~12 min) that showcases the live UI, the
   tester runs `sm`, opens the browser, and watches the UI update as
   the agent edits `.md` files, and at the end offers an optional
   deep-dive (~20-30 min) covering the rest of the CLI with flags and
@@ -23,14 +23,14 @@ validated in pre-flight), narrate what you did, show the commands to
 type, and wait for the tester to run them and confirm.
 
 **Internal structure (do NOT mention this to the tester)**: the tutorial
-has a short first phase (~10 min) that demonstrates the live UI, and an
+has a short first phase (~12 min) that demonstrates the live UI, and an
 optional second phase (~20-30 min) covering the rest of the CLI.
 
 > ⚠️ For the tester this is **a single continuous flow**. Never use
 > "short path", "long path", "route", "phase 1" / "phase 2", or
 > "let's start the short one" in messages to the tester. The internal
 > split exists so YOU know what comes next; for the tester you only
-> talk about the current step and, at the end of step 9 (wrap-up),
+> talk about the current step and, at the end of step 10 (wrap-up),
 > offer "if you want, we can keep going deeper" without labelling it.
 
 ## Tone
@@ -177,7 +177,7 @@ optional second phase (~20-30 min) covering the rest of the CLI.
      calls for a change to `.skillmapignore`,
      `.skill-map/settings.json`,
      `.skill-map/settings.local.json`, or `.gitignore` AS PART
-     OF A LESSON (e.g. Step 8 hides a private node by appending
+     OF A LESSON (e.g. Step 9 hides a private node by appending
      a pattern), you describe the edit in a tester-facing
      message and the tester applies it in their own editor. The pedagogical point
      is that those files belong to the user, they need to
@@ -204,7 +204,7 @@ optional second phase (~20-30 min) covering the rest of the CLI.
     command blocks assume the second terminal is anchored to the
     tutorial folder.
 11. **Never skip the level question when entering the deep-dive.**
-    The level drives modulation of every Step 10+ instruction.
+    The level drives modulation of every Step 11+ instruction.
 
 ## Provider detection
 
@@ -556,9 +556,9 @@ tutorial-state.yml
 export.*
 dump.sql
 
-# Step 15 spawns a self-contained sub-project under link-validation/hijoA
+# Step 16 spawns a self-contained sub-project under link-validation/hijoA
 # with its own .skill-map/. Excluded here so that, if the tester
-# relaunches `sm` from the tutorial root after Step 15, the nested
+# relaunches `sm` from the tutorial root after Step 16, the nested
 # project does not leak into the main demo map.
 link-validation/
 ```
@@ -577,7 +577,7 @@ tester:
 route:
   short:
     status: "in_progress"
-    estimated_min: 7
+    estimated_min: 9
     started_at: "<now>"
     completed_at: null
   long:
@@ -605,37 +605,40 @@ short_steps:
   - id: "7-live-edit"
     title: "⭐ Live UI: edit a link and watch the topology change"
     status: "pending"
-  - id: "8-live-ignore"
+  - id: "8-live-workspace"
+    title: "⭐ Live UI: navigate the workspace (files, search, isolate)"
+    status: "pending"
+  - id: "9-live-ignore"
     title: "⭐ Live UI: silence via .skillmapignore"
     status: "pending"
-  - id: "9-handoff"
+  - id: "10-handoff"
     title: "Wrap-up of the demo and offer to keep going"
     status: "pending"
 long_steps:
-  - id: "10-cli-browse"
+  - id: "11-cli-browse"
     title: "Browse CLI: list / show / check"
     status: "pending"
     verbs: ["sm list", "sm show", "sm check"]
-  - id: "11-ascii"
+  - id: "12-ascii"
     title: "ASCII: graph + export"
     status: "pending"
     verbs: ["sm graph", "sm export"]
-  - id: "12-issues"
+  - id: "13-issues"
     title: "Issues: broken refs"
     status: "pending"
     verbs: ["sm check", "sm check --analyzers reference-broken",
             "sm check --json"]
-  - id: "13-plugins"
+  - id: "14-plugins"
     title: "Plugins"
     status: "pending"
     verbs: ["sm plugins list", "sm plugins show",
             "sm plugins doctor", "sm plugins enable",
             "sm plugins disable"]
-  - id: "14-annotations"
+  - id: "15-annotations"
     title: "Annotations and the .sm consent prompt"
     status: "pending"
     verbs: ["sm sidecar annotate"]
-  - id: "15-reference-paths"
+  - id: "16-reference-paths"
     title: "Validate links to folders outside the scan scope"
     status: "pending"
     verbs: ["sm config set scan.referencePaths", "sm scan", "sm check"]
@@ -697,7 +700,7 @@ to resume (re-invoke the skill from the same dir).
 
 ---
 
-## DEMO (~10 min)
+## DEMO (~12 min)
 
 Always runs. The pedagogical hook is the live UI.
 
@@ -730,8 +733,8 @@ of `sm serve` with all defaults; the moment you need any flag
 you write `sm serve --flag ...` explicitly). One process, one
 terminal: it boots the server, scans the `.md` files, detects
 changes, and pushes events over WebSocket to the live UI. The next
-seven steps (2-8) all run against the same `sm` session, you boot
-it here and keep it alive through Step 8.
+eight steps (2-9) all run against the same `sm` session, you boot
+it here and keep it alive through Step 9.
 
 **Command** (one terminal):
 
@@ -766,7 +769,12 @@ Wait for confirmation that the page loaded. Then tell the tester:
 > You'll see exactly **one node** in the **Map**: `demo-agent`
 > (kind `agent`). That's our starting point.
 >
-> Walk the two views before we go on:
+> The workspace opens **map-first**: the canvas fills the screen and
+> the **Files** panel sits collapsed against the left edge. Click the
+> expand handle on the far left (the `>` arrow, its tooltip reads
+> "Expand files panel") to open it.
+>
+> Now walk the two views before we go on:
 > 1. **Map**: the single agent node on the canvas.
 > 2. **Files**: one row, with path / kind / metadata.
 >
@@ -913,7 +921,7 @@ Up to here you've been watching the agent write files. Now hand
 the keyboard over: the lesson is that the watcher reacts to
 **any** `.md` edit under the cwd, not just to files the agent
 authors. After this beat, the tester has the muscle memory for
-"save → map updates", which Step 8 (`.skillmapignore`) reuses
+"save → map updates", which Step 9 (`.skillmapignore`) reuses
 verbatim.
 
 Tell the tester:
@@ -927,7 +935,7 @@ Tell the tester:
 > ⚠ Heads-up: the inspector header shows a couple of action
 > buttons (**Bump version**, **Refresh body**). **Don't click
 > them yet**, they write files to your project and we cover that
-> flow deliberately in step 14. For now, just look.
+> flow deliberately in step 15. For now, just look.
 >
 > Now open `.claude/agents/demo-agent.md` in your editor of
 > choice. In the **frontmatter** at the top of the file, change
@@ -1042,7 +1050,7 @@ a Markdown link and watch the MAP TOPOLOGY change (a connector
 disappears). Same watcher, different surface.
 
 The server has been live since Step 2, leave it running; this step
-and the next one (`.skillmapignore`) both reuse it.
+and the next two (the workspace tour, then `.skillmapignore`) reuse it.
 
 > Your turn. Edit `notes/todo.md` with your editor of choice and
 > delete the bullet that contains `@demo-agent`. Save. Watch the
@@ -1059,10 +1067,71 @@ they did add and watch THAT connector vanish, the lesson is the
 same.) Once they confirm, leave the server running, the next step
 reuses it. Mark `7-live-edit: done`.
 
-### Step 8: Live UI: silence a private file via `.skillmapignore` (~2 min)
+### Step 8: Live UI: navigate the workspace (~2 min)
+
+**Context**: you've built the graph and understood it; this beat is
+about *moving around* it. The workspace has two halves: the **Map**
+you've been working in, and a **Files** panel, a folder tree of every
+node. You'll open that tree, filter it with the search box, and use
+**isolate** to collapse the map down to a single node and the things
+it touches. No file edits here, pure navigation, and the same `sm`
+session you booted back in Step 2 is still running.
+
+Per §Provider detection, on `agent-skills` / Antigravity the fixture
+has fewer nodes (`demo-skill` plus the two `notes/` files), so swap
+the node names below for ones that exist in that set; the gestures
+are identical.
+
+**Beat 1, open the Files panel (tester does this).**
+
+> Make sure the **Files** panel is open, the one you expanded back
+> in Step 2 on the left edge. If you collapsed it since, click the
+> expand handle (the `>` arrow, tooltip "Expand files panel") to
+> reopen it. The sidebar shows a **folder tree** (a nested view of
+> your folders and the nodes inside them): your five nodes grouped
+> under `.claude/` and `notes/`, each row showing its kind and how
+> many links go in and out.
+>
+> Tell me when the tree is open.
+
+**Beat 2, search (tester does this).**
+
+> At the top of that sidebar there's a search box (placeholder
+> `Search…`). Type `guideline`. Watch both halves at once: the tree
+> narrows down to `demo-guideline` and the **Map** drops every node
+> except `demo-guideline`. The search matches a node's name, path,
+> tags or description, and filters live as you type, no Enter
+> needed.
+>
+> Now clear the box. All five nodes come back, in both the tree and
+> the Map. Confirm you saw it filter and then restore.
+
+**Beat 3, isolate (tester does this).**
+
+> Last one. In the tree, find the `notes/todo` row: at its right
+> edge there's a small **sitemap** icon (its tooltip reads "Isolate
+> this node and its direct links on the map"). Click it.
+>
+> The Map collapses to `notes/todo` plus only the nodes it links to
+> (`demo-command`, `demo-skill`, `demo-guideline`). `demo-agent`,
+> which lost its only connector back in the last step, drops out of
+> view, and the Inspector opens on `notes/todo`. That's how you
+> focus on one node's neighborhood when a map gets busy.
+>
+> To bring the rest back, look at the toolbar along the bottom of
+> the Map: there's a **Show all** button (an eye icon, tooltip
+> "Clear the map selection and show every node again"). Click it and
+> all five nodes return.
+>
+> Did the map isolate and then restore?
+
+Leave the server running, the next step (`.skillmapignore`) is the
+last one that uses it. Mark `8-live-workspace: done`.
+
+### Step 9: Live UI: silence a private file via `.skillmapignore` (~2 min)
 
 Steps 2-5 showed the watcher picking up new files and edits (yours
-and theirs). Step 8 flips the direction: a file the tester DOES NOT
+and theirs). Step 9 flips the direction: a file the tester DOES NOT
 want in the map (a draft, a scratch file, a secret) gets hidden by
 a single line in `.skillmapignore`. Same live mechanism, no restart.
 
@@ -1154,9 +1223,9 @@ verify the appended pattern landed correctly (in case
 allowed. Once confirmed, ask them to stop the server with
 **Ctrl+C** in the terminal before continuing.
 
-Mark `8-live-ignore: done`.
+Mark `9-live-ignore: done`.
 
-### Step 9: Wrap-up of the demo and offer to keep going (30 s)
+### Step 10: Wrap-up of the demo and offer to keep going (30 s)
 
 Keep this short: one closing line, then a single decision. Do NOT
 dump feature notes here (no `.sm` files, multi-provider, active
@@ -1166,7 +1235,7 @@ day-to-day use). One closing line, then ask.
 Closing line (tester-facing):
 
 > All set! That's the heart of skill-map: you edit a `.md` and the
-> UI reflects it instantly. In ~10 minutes you've seen the full
+> UI reflects it instantly. In ~12 minutes you've seen the full
 > flow.
 
 Then ask with the **`AskUserQuestion`** tool (not a numbered list),
@@ -1215,7 +1284,7 @@ Save into `tester.level` and modulate:
 - **Level 3**: dense blocks, flags included, no explanations of
   basic concepts.
 
-### Step 10: Browse CLI: list / show / check (~3 min)
+### Step 11: Browse CLI: list / show / check (~3 min)
 
 ```bash
 sm list
@@ -1234,9 +1303,9 @@ target of the hub's `references` link). `check` reads the persisted
 `scan_issues` table, it does NOT re-walk the filesystem. The
 fixture is clean (Steps 2-6 captured the latest state before
 Ctrl+C), so the verb prints `✓ No issues`. We will plant one in
-Step 12 and watch the rule catch it after a fresh `sm scan`.
+Step 13 and watch the rule catch it after a fresh `sm scan`.
 
-### Step 11: ASCII: graph + export (~3 min)
+### Step 12: ASCII: graph + export (~3 min)
 
 ```bash
 sm graph
@@ -1254,7 +1323,7 @@ within a key, AND across keys) and a `--format` of `md` or
 segment, `**` spans segments) so `path=notes/**` cleanly
 captures the notes folder regardless of the catch-all kind.
 
-### Step 12: Issues: broken refs (~3 min)
+### Step 13: Issues: broken refs (~3 min)
 
 `reference-broken` is one of the deterministic rules `sm check` runs.
 We'll plant one and watch it surface, that's the easiest way to
@@ -1299,7 +1368,7 @@ rest of the deep-dive doesn't depend on it.
 If the tester asks about `sm orphans` vs `sm check`, see
 §Scope clarifications.
 
-### Step 13: Plugins (~3 min)
+### Step 14: Plugins (~3 min)
 
 **Context, present plugins to the tester before any command runs.**
 This is the official welcome to the plugin world; many testers will
@@ -1347,7 +1416,7 @@ behavior, see §Scope clarifications.
 If `plugins list` shows zero entries (depends on the build), tell
 the tester no plugins are installed yet and offer to skip.
 
-### Step 14: Annotations and the `.sm` consent prompt (~3 min)
+### Step 15: Annotations and the `.sm` consent prompt (~3 min)
 
 **Context**: every `.md` skill-map tracks gets a sibling
 **companion file** with extension `.sm` that carries **all of
@@ -1400,7 +1469,7 @@ goes through silently). On a CI / non-interactive session, pass
 If the tester asks about `sm bump` vs `sm sidecar annotate` vs
 `sm sidecar refresh`, see §Scope clarifications.
 
-### Step 15: Validate links to folders outside the scan scope (~4 min)
+### Step 16: Validate links to folders outside the scan scope (~4 min)
 
 **Context**: until now the map saw only files inside the cwd. In
 real projects a repo often links to files in a sibling repo (a specs
@@ -1585,7 +1654,7 @@ in §Final wrap-up, right before the cleanup line. Mark
 ## Scope clarifications (on demand)
 
 Reference material for the "mention only if the tester asks"
-beats in Steps 7, 8 and 9. Do NOT volunteer these unprompted,
+beats in Steps 13, 14 and 15. Do NOT volunteer these unprompted,
 they exist so the agent has a precise answer ready when the
 tester pulls on the thread.
 
@@ -1665,7 +1734,7 @@ sm tutorial master
 ```
 
 If the deep-dive ran, the tester's second terminal is still inside
-`link-validation/hijoA/` from Step 15; send them back to the
+`link-validation/hijoA/` from Step 16; send them back to the
 tutorial root before the cleanup line. **Skip this whole block if
 they stopped at the demo** (they never left the root).
 
@@ -1694,9 +1763,9 @@ the cwd, start like this (do NOT repeat pre-flight from scratch):
 
 > I see you already started the tutorial.
 >
-> You're at step <N> of 9 (or "you've already completed the demo
-> (steps 1-9) and you're on step <M> of 6 of the deep-dive (steps
-> 10-15)", depending on the yaml state).
+> You're at step <N> of 10 (or "you've already completed the demo
+> (steps 1-10) and you're on step <M> of 6 of the deep-dive (steps
+> 11-16)", depending on the yaml state).
 >
 > 1. **Continue** from where you left off
 > 2. **Start over**: wipes all the tutorial content in this dir
@@ -1735,7 +1804,7 @@ anything**:
    > notes/todo.md
    > notes/demo-guideline.md
    > notes/private-credentials.md
-   > link-validation/                             (if Step 15 ran)
+   > link-validation/                             (if Step 16 ran)
    > export.*                (if present)
    > dump.sql                (if present)
    > ```
@@ -1756,7 +1825,7 @@ anything**:
    `<provider_dir>/skills`), then `notes/` and `<provider_dir>/`,
    each one only if empty (silent failure if not). `link-validation/`
    IS safe to remove recursively when present, the agent created it
-   from scratch in Step 15 and nothing else lives inside it. Then
+   from scratch in Step 16 and nothing else lives inside it. Then
    start everything from pre-flight.
 
 ## Edge cases
