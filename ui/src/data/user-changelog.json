@@ -112,7 +112,7 @@
           ]
         },
         {
-          "body": "After `sm tutorial`, start the tutorial by typing `run the tutorial` (or `ejecuta el tutorial`), matching the website. The master tutorial uses `run the master tutorial` / `ejecuta el tutorial maestro`.",
+          "body": "After `sm tutorial`, start the tutorial by typing `run the tutorial` (or `ejecuta el tutorial`), matching the website.",
           "packages": [
             "@skill-map/cli"
           ]

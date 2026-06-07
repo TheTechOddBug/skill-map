@@ -1,9 +1,8 @@
-# Tour: plugin authoring (step library, `authoring-*` ids)
+# Part 6 (c): Extend skill-map - build plugins (step library, `authoring-*` ids)
 
-Step bodies used by the menu's option 3 (`build-and-configure`).
-The SKILL.md orchestrator walks `master-state.yml.tours.build-and-configure.steps`
-and dispatches each `authoring-*` id here; `settings-*` ids it
-dispatches to `tour-settings.md`.
+Step bodies for the plugin-authoring chapters of Part 6.
+The SKILL.md orchestrator dispatches each `authoring-*` chapter id
+here; `settings-*` ids it dispatches to `part-settings.md`.
 
 The tester writes their first plugin. We use `sm plugins create` to
 scaffold an extractor that counts configurable keywords (TODO,
@@ -16,11 +15,11 @@ Verify that `.skill-map/` exists in the cwd (pre-flight step 4 of
 the `SKILL.md` orchestrator ran `sm init --no-scan` and appended
 the master-tutorial's internal entries to `.skillmapignore`, so
 this is the expected state regardless of whether the tester ran
-`plugins-tour` first). If `.skill-map/` is missing, the fixture
+the plugins chapters first). If `.skill-map/` is missing, the fixture
 is corrupted: surface the mismatch ("the project bootstrap is
-gone, re-invoke `sm-master` from an empty dir") and stop.
+gone, re-invoke the tutorial from an empty dir") and stop.
 
-## Step `authoring-1-scaffold` — `sm plugins create demo-highlight` (~2 min)
+## Step `authoring-1-scaffold` - `sm plugins create demo-highlight` (~2 min)
 
 **Context**: We're building `demo-highlight`: a tiny extractor
 that scans each node's body for the keywords `TODO` and `FIXME`
@@ -51,7 +50,7 @@ or `Demo-Highlight` are rejected.
 
 Mark `authoring-1-scaffold: done`.
 
-## Step `authoring-2-anatomy` — tour the scaffold (~3 min)
+## Step `authoring-2-anatomy` - tour the scaffold (~3 min)
 
 Ask the tester to open the three files and walk through each one
 with you. They DO NOT edit anything yet.
@@ -132,7 +131,7 @@ and `spec/view-slots.md`.
 
 Mark `authoring-2-anatomy: done`.
 
-## Step `authoring-3-edit-setting` — edit a setting and observe it (~3 min)
+## Step `authoring-3-edit-setting` - edit a setting and observe it (~3 min)
 
 > Now we'll touch the settings. The scaffold tracks `TODO` and
 > `FIXME`. Add a third keyword: `XXX`. The change goes in the
@@ -178,7 +177,7 @@ the icon and label come from the manifest's `ui.count`.
 
 Mark `authoring-3-edit-setting: done`.
 
-## Step `authoring-4-edit-slot` — change the view-slot (~2 min)
+## Step `authoring-4-edit-slot` - change the view-slot (~2 min)
 
 > Same contribution, different home. We'll move it from the
 > footer to the top-right corner of the card.
@@ -212,7 +211,7 @@ catalogue, picking an unknown slot id is rejected at load.
 
 Mark `authoring-4-edit-slot: done`.
 
-## Step `authoring-5-doctor-author` — catch a manifest mistake (~2 min)
+## Step `authoring-5-doctor-author` - catch a manifest mistake (~2 min)
 
 > Last lesson on the manifest. We'll break it on purpose to see
 > how `doctor` reports it.
@@ -244,7 +243,7 @@ Back to clean.
 
 Mark `authoring-5-doctor-author: done`.
 
-## Step `authoring-6-upgrade` — `sm plugins upgrade` (~2 min)
+## Step `authoring-6-upgrade` - `sm plugins upgrade` (~2 min)
 
 > One last verb. `sm plugins upgrade` applies catalog migrations
 > to plugin manifests. Today the catalog is at `1.0.0` with zero
@@ -267,7 +266,7 @@ Expected: both report no migrations to apply.
 
 Mark `authoring-6-upgrade: done`.
 
-## Tour wrap-up (fires at the end of `build-and-configure`)
+## Wrap-up (fires at the end of the authoring chapters)
 
 > You wrote a plugin. From here:
 >
@@ -283,5 +282,5 @@ Mark `authoring-6-upgrade: done`.
 >
 > Anything weird worth logging? If not, back to the menu.
 
-Mark tour `build-and-configure: done` in `master-state.yml`, update
+Mark the authoring chapters done in `tutorial-state.yml`, update
 the matching harness task, return to the menu in `SKILL.md`.

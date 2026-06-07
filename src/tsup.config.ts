@@ -66,7 +66,6 @@ export default defineConfig({
       cpSync('config/defaults', 'dist/config/defaults', { recursive: true });
     }
     copySkillFolder('sm-tutorial');
-    copySkillFolder('sm-master');
     copyUiBundle();
     restoreNodeSqliteImports('dist');
   },
@@ -90,10 +89,9 @@ export default defineConfig({
 function copySkillFolder(slug: string): void {
   const source = `../.claude/skills/${slug}`;
   if (!existsSync(source)) {
-    const cmd = slug === 'sm-master' ? 'sm tutorial master' : 'sm tutorial';
     process.stderr.write(
       `tsup: skipping ${slug} copy: ${source} not found ` +
-        `(expected at repo root; required for \`${cmd}\` to ship its payload).\n`,
+        '(expected at repo root; required for `sm tutorial` to ship its payload).\n',
     );
     return;
   }

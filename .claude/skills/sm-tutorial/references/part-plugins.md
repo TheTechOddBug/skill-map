@@ -1,4 +1,4 @@
-# Tour: plugins-tour
+# Part 6 (b): Extend skill-map - plugins (step library, `tour-*` ids)
 
 Guided tour of the **built-in plugins** that ship with `sm`. Three
 steps: a quick mental model of what plugins are plus a peek at
@@ -16,11 +16,11 @@ Before announcing the first step, verify the fixture is initialised
 `settings.json` and `skill-map.db`). Pre-flight already ran
 `sm init --no-scan` and appended the master entries to
 `.skillmapignore`. If any of that is missing, surface the
-bootstrap mismatch ("master-state.yml says we are running, but
-the bootstrap is missing. Run `sm-master` from an empty dir or
+bootstrap mismatch ("tutorial-state.yml says we are running, but
+the bootstrap is missing. Re-run the tutorial from an empty dir or
 restore the files.") and stop.
 
-## Step `tour-1-intro` — how plugins work (~4 min)
+## Step `tour-1-intro` - how plugins work (~4 min)
 
 **Context**: A short tour of what a plugin is, how it groups
 extensions, and a peek at the five plugins that ship
@@ -60,7 +60,7 @@ sm plugins list
 
 Mark `tour-1-intro: done`.
 
-## Step `tour-2-kinds` — the six extension kinds (~5 min)
+## Step `tour-2-kinds` - the six extension kinds (~5 min)
 
 > An extension has a **kind**. The kind tells the kernel where it
 > plugs into the pipeline. There are exactly six kinds:
@@ -104,7 +104,7 @@ Mark `tour-1-intro: done`.
 > **extensions**, each extension has a **kind**, the kind decides
 > where it plugs into the kernel.
 >
-> Heads up: every `sm plugins` verb you'll run in this tour is
+> Heads up: every `sm plugins` verb you'll run in this part is
 > also available from the UI. From any `sm serve` session, open
 > the **gear icon → Plugins** tab to browse and toggle plugins
 > from there. CLI and UI use the same store, so a change in one
@@ -124,7 +124,7 @@ all packed into a single plugin.
 
 Mark `tour-2-kinds: done`.
 
-## Step `tour-3-explore` — explore one extension up close (~4 min)
+## Step `tour-3-explore` - explore one extension up close (~4 min)
 
 **Context**: Drill into a single extension to see its detail,
 run the diagnostic, then toggle one off and back on so you see
@@ -172,7 +172,7 @@ if you restarted `sm`, the disabled state would still be there.
 
 Mark `tour-3-explore: done`.
 
-## Tour wrap-up
+## Wrap-up
 
 > All set. You now know:
 >
@@ -182,13 +182,13 @@ Mark `tour-3-explore: done`.
 > - How to list, inspect, diagnose, and toggle extensions from
 >   the CLI (and the same lives in the UI).
 >
-> If you want to dig deeper, the next menu option takes you into
+> If you want to dig deeper, the next chapters take you into
 > authoring your own plugin and into settings + view-slots. Or
 > if you've seen enough, "I'm done for today" closes us out.
 >
 > Anything weird worth logging? If not, back to the menu.
 
-Mark tour `plugins-tour: done` in `master-state.yml`, update the
+Mark the plugins chapters done in `tutorial-state.yml`, update the
 matching harness task, return to the menu in `SKILL.md`.
 
 ## Reference: how `sm` decides what to load
@@ -198,7 +198,7 @@ Not for the tester unless they ask. Cheat sheet for the agent:
 - Built-in plugins live inside the CLI bundle and are always
   discovered first.
 - Project plugins live under `<cwd>/.skill-map/plugins/`; the
-  authoring tour uses this path. There is no user / global
+  authoring chapters use this path. There is no user / global
   scope, `-g/--global` and `~/.skill-map/plugins/` were removed
   in v0.27.x.
 - Load order: built-in → project (project ids that collide with

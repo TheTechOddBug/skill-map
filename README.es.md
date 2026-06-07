@@ -89,7 +89,7 @@ Spec completo: [`spec/architecture.md` §Annotation system](./spec/architecture.
 
 ## Tutorial interactivo (recomendado)
 
-Si usas [Claude Code](https://claude.ai/code), la forma más rápida de evaluar skill-map es el tutorial interactivo que viene incluido, aprox. **10 minutos** para la demo, con un opcional de 20–30 min más para profundizar.
+Si usas [Claude Code](https://claude.ai/code), la forma más rápida de evaluar skill-map es el tutorial interactivo que viene incluido. Es un único "libro" guiado: quien lo prueba por primera vez recorre el prólogo con la UI en vivo (aprox. **10 minutos**) y después elige más partes desde un menú dentro de la skill, extender skill-map con plugins, settings y view-slots, y la CLI a fondo.
 
 ```bash
 mkdir prueba-skill-map && cd prueba-skill-map
@@ -99,21 +99,7 @@ claude                  # abre Claude Code en ese mismo directorio
 ejecuta el tutorial
 ```
 
-Claude se hace cargo desde ahí: arma una fixture, te guía por `sm init`, abre la Web UI, edita archivos delante tuyo y te muestra al watcher reaccionando en vivo (incluso cómo `.skillmapignore` esconde archivos en tiempo real). Ves el flujo completo antes de apuntarlo a tu proyecto real, sin compromiso, totalmente reversible.
-
-## ¿Querés profundizar? El tutorial maestro
-
-Una vez que tenés las bases, el **tutorial maestro** te lleva al sistema de plugins, settings y view-slots: cómo funcionan los seis tipos de extensión, cómo generar y configurar tu propio plugin, y dónde aterrizan las contribuciones en la UI. Alrededor de **30–35 minutos**, modular (vos elegís qué explorar desde un menú).
-
-```bash
-mkdir prueba-skill-map-master && cd prueba-skill-map-master
-sm tutorial master      # instala la skill sm-master
-claude                  # abre Claude Code en ese mismo directorio
-# Después, dentro de Claude:
-ejecuta el tutorial maestro
-```
-
-Mismo estilo hands-on que el tutorial básico, pero con foco en extensibilidad: leés el modelo, listás el catálogo, inspeccionás extensiones puntuales, después armás un plugin chico de punta a punta y lo ves aparecer en la UI.
+Claude se hace cargo desde ahí: arma una fixture, te guía por `sm init`, abre la Web UI, edita archivos delante tuyo y te muestra al watcher reaccionando en vivo (incluso cómo `.skillmapignore` esconde archivos en tiempo real). Ves el flujo completo antes de apuntarlo a tu proyecto real, sin compromiso, totalmente reversible. Cuando termina el prólogo te ofrece un menú de partes más profundas (plugins, settings, view-slots, la CLI); eliges la que quieras, o lo dejas ahí.
 
 ## Especificación
 

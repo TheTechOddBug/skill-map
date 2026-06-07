@@ -181,7 +181,7 @@
       "CHANGELOG.md": "f144432840afc98bb65fb0982865d1f7ed233cae2ec0b0eaea94c84d2299f771",
       "README.md": "a7505a7b0672c39a8b011e3c5e7d41826306476ee63768249bba4bdb3c03d4d1",
       "architecture.md": "159163aa0e2a225f5d701e4edd18ef45ce7ca22a75f6ce8e76e2a4d528561c3b",
-      "cli-contract.md": "92259a45962f4c0374f707b33b814bce6430eca7936d2ff52e7095484c634279",
+      "cli-contract.md": "71067c7ff7a845afaa3537f1dd0be5b34b20034d06b42fc29261486ff3f6021b",
       "conformance/README.md": "4ec22ca3cc8e4282fe0bfd111f22b121e0781e2b525867cd092258b8f58ae1e1",
       "conformance/cases/extractor-emits-signal.json": "0115c7bb62a7a705f72e9d8048b3f0396e5caaeb3d04dea204415e279e58479d",
       "conformance/cases/kernel-empty-boot.json": "9b51b85ff62479cd0eee37cad260245208d94f6d79644f7ee40945a934960913",

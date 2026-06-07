@@ -1,15 +1,15 @@
 /**
  * CLI strings emitted by `sm tutorial`, `cli/commands/tutorial.ts`.
  *
- * Paired with the `sm-tutorial` skill (basic walkthrough) and the
- * `sm-master` skill (advanced walkthrough). The verb takes an optional
- * positional `variant` arg (`tutorial` default, or `master`) and a
- * `--for <provider>` flag selecting the destination territory. The skill
- * folder lands under the chosen Provider's `scaffold.skillDir`
- * (`.claude/skills` for Claude, `.agents/skills` for the open standard),
- * so every key that mentions a target path is parameterized with a
- * `{{target}}` placeholder and the success block also interpolates
- * `{{slug}}`, `{{provider}}`, plus per-language trigger phrases.
+ * Paired with the single `sm-tutorial` skill (basic walkthrough plus the
+ * advanced parts, selectable from the in-skill menu). The verb takes no
+ * positional argument and a `--for <provider>` flag selecting the
+ * destination territory. The skill folder lands under the chosen
+ * Provider's `scaffold.skillDir` (`.claude/skills` for Claude,
+ * `.agents/skills` for the open standard), so every key that mentions a
+ * target path is parameterized with a `{{target}}` placeholder and the
+ * success block also interpolates `{{slug}}`, `{{provider}}`, plus
+ * per-language trigger phrases.
  *
  * Convention: flat string templates with `{{name}}` placeholders. The
  * `tx` helper at `kernel/util/tx.ts` does the interpolation.
@@ -77,13 +77,16 @@ export const TUTORIAL_TEXTS = {
   notEmptyHint:
     'sm tutorial seeds a self-contained scenario; run it in a fresh empty directory, or pass `--force` to use this one anyway.',
 
-  // Invalid `variant` positional argument. Goes to stderr, exit code 2.
-  // Mirrors the error shape: glyph + headline + dim hint enumerating the
-  // valid values.
-  invalidVariant:
-    "{{glyph}}  sm tutorial: unknown variant '{{variant}}'\n" +
+  // Legacy positional argument (e.g. a stale `sm tutorial master`). The
+  // verb no longer takes a positional: there is a single umbrella skill
+  // and the advanced walkthrough is a menu choice inside it, not a
+  // separate install. Goes to stderr, exit code 2. Mirrors the error
+  // shape: glyph + headline + dim hint.
+  legacyPositional:
+    "{{glyph}}  sm tutorial: unexpected argument '{{arg}}'\n" +
     '   {{hint}}\n',
-  invalidVariantHint: 'Valid values: tutorial (default), master.',
+  legacyPositionalHint:
+    'sm tutorial takes no positional argument. The master walkthrough is no longer a separate install; run `sm tutorial` and pick the advanced parts from the in-skill menu.',
 
   // I/O failure on write or on reading the bundled skill source.
   writeFailed: '{{glyph}}  sm tutorial: failed to write {{target}}: {{message}}\n',

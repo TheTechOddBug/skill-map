@@ -89,7 +89,7 @@ Full spec: [`spec/architecture.md` §Annotation system](./spec/architecture.md#a
 
 ## Interactive tutorial (recommended)
 
-If you use [Claude Code](https://claude.ai/code), the fastest way to evaluate skill-map is the bundled interactive tutorial, about **10 minutes** for the demo, with an optional 20–30-min deep dive afterwards.
+If you use [Claude Code](https://claude.ai/code), the fastest way to evaluate skill-map is the bundled interactive tutorial. It is a single guided "book": a first-timer walks the live-UI prologue (about **10 minutes**), then picks further parts from an in-skill menu, extend skill-map with plugins, settings, and view-slots, and the CLI in depth.
 
 ```bash
 mkdir try-skill-map && cd try-skill-map
@@ -99,21 +99,7 @@ claude                  # open Claude Code in the same dir
 run the tutorial
 ```
 
-Claude takes over from there: drops a fixture, walks you through `sm init`, opens the Web UI, edits files in front of your eyes, and shows the watcher reacting live (including how `.skillmapignore` hides files in real time). You see the full flow before pointing it at your real project, no commitment, fully reversible.
-
-## Want to go deeper? The master tutorial
-
-Once you have the basics down, the **master tutorial** takes you into the plugin system, settings, and view-slots: how the six extension kinds work, how to scaffold and configure your own plugin, and where contributions land in the UI. Around **30–35 minutes**, modular (you pick what to explore from a menu).
-
-```bash
-mkdir try-skill-map-master && cd try-skill-map-master
-sm tutorial master      # installs the sm-master skill
-claude                  # open Claude Code in the same dir
-# Then, in the Claude prompt:
-run the master tutorial
-```
-
-Same hands-on style as the basic tutorial, but with a deeper focus on extensibility: you read the model, list the catalogue, inspect single extensions, then build a small plugin end-to-end and watch it appear in the UI.
+Claude takes over from there: drops a fixture, walks you through `sm init`, opens the Web UI, edits files in front of your eyes, and shows the watcher reacting live (including how `.skillmapignore` hides files in real time). You see the full flow before pointing it at your real project, no commitment, fully reversible. When the prologue ends it offers a menu of deeper parts (plugins, settings, view-slots, the CLI); pick whichever you want, or stop there.
 
 ## Specification
 

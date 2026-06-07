@@ -8,16 +8,12 @@
  *                                      (empty cwd; non-interactive stdin → default provider: claude.)
  *   - `sm tutorial` (non-empty cwd)  → exits 2, writes nothing.
  *   - `sm tutorial --force` (non-empty) → seeds anyway, exit 0, leaves unrelated content.
- *   - `sm tutorial master`           → writes <cwd>/.claude/skills/sm-master/, exit 0.
- *   - `sm tutorial master`           → also ships the references/ sub-folder.
- *   - `sm tutorial master` (non-empty cwd) → exits 2, writes nothing.
- *   - `sm tutorial master --force`   → overwrites existing dir, exit 0.
- *   - `sm tutorial garbage`          → exits 2, emits `invalidVariant`.
+ *   - `sm tutorial`                  → ships the references/ sub-folder.
+ *   - `sm tutorial master`/`garbage` → exits 2, emits `legacyPositional`.
  *   - `sm tutorial --for agent-skills` → writes <cwd>/.agents/skills/sm-tutorial/, exit 0.
- *   - `sm tutorial --for claude master` → writes <cwd>/.claude/skills/sm-master/, exit 0.
  *   - `sm tutorial --for garbage`    → exits 2, emits `forUnknown`.
  *   - `sm tutorial` (empty cwd, no marker) → defaults to Claude.
- *   - SKILL.md and references/* match the canonical sources byte-for-byte.
+ *   - SKILL.md and references/* match the canonical source byte-for-byte.
  *   - No `.skill-map/` is required (verb runs in a virgin dir).
  */
 
@@ -41,8 +37,8 @@ import { after, before, describe, it } from 'node:test';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BIN = resolve(HERE, '..', '..', '..', 'bin', 'sm.js');
 
-// Repo root → .claude/skills/<slug>/ are the source-of-truth folders
-// the verb materializes. From src/test/ that's three levels up.
+// Repo root → .claude/skills/sm-tutorial/ is the source-of-truth folder
+// the verb materializes. From src/test/ that's four levels up.
 const SKILL_SOURCE_TUTORIAL = resolve(
   HERE,
   '..', '..', '..',
@@ -50,14 +46,6 @@ const SKILL_SOURCE_TUTORIAL = resolve(
   '.claude',
   'skills',
   'sm-tutorial',
-);
-const SKILL_SOURCE_MASTER = resolve(
-  HERE,
-  '..', '..', '..',
-  '..',
-  '.claude',
-  'skills',
-  'sm-master',
 );
 
 let root: string;
@@ -140,10 +128,6 @@ before(() => {
     existsSync(SKILL_SOURCE_TUTORIAL) && statSync(SKILL_SOURCE_TUTORIAL).isDirectory(),
     `sm-tutorial source missing at ${SKILL_SOURCE_TUTORIAL}`,
   );
-  assert.ok(
-    existsSync(SKILL_SOURCE_MASTER) && statSync(SKILL_SOURCE_MASTER).isDirectory(),
-    `sm-master source missing at ${SKILL_SOURCE_MASTER}`,
-  );
 });
 
 after(() => {
@@ -176,6 +160,20 @@ describe('sm tutorial, happy path', () => {
     assertDirsEqual(SKILL_SOURCE_TUTORIAL, target);
   });
 
+  it('always ships the references/ sub-folder', () => {
+    const scope = freshScope('references');
+    const r = sm(['tutorial'], scope);
+    assert.equal(r.status, 0);
+
+    const refsDir = join(scope.cwd, '.claude', 'skills', 'sm-tutorial', 'references');
+    assert.ok(existsSync(refsDir), 'references/ folder must be materialized');
+    assert.ok(statSync(refsDir).isDirectory(), 'references/ must be a directory');
+    // At least one reference file must be present (the count depends
+    // on the canonical sm-tutorial payload at runtime).
+    const refs = readdirSync(refsDir);
+    assert.ok(refs.length > 0, 'references/ must not be empty');
+  });
+
   it('runs in a virgin directory (no .skill-map/ required)', () => {
     const scope = freshScope('virgin');
     // Sanity: confirm there's no .skill-map/ in the scope.
@@ -198,16 +196,6 @@ describe('sm tutorial, happy path', () => {
     assert.equal(existsSync(join(scope.cwd, '.sm-tutorial')), false);
     // The skill directory IS created.
     assert.ok(existsSync(join(scope.cwd, '.claude', 'skills', 'sm-tutorial')));
-  });
-
-  it('explicit `sm tutorial tutorial` behaves the same as no positional', () => {
-    const scope = freshScope('explicit-default');
-    const r = sm(['tutorial', 'tutorial'], scope);
-
-    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    const target = join(scope.cwd, '.claude', 'skills', 'sm-tutorial');
-    assert.ok(existsSync(target), 'skill directory must be written');
-    assertDirsEqual(SKILL_SOURCE_TUTORIAL, target);
   });
 });
 
@@ -273,94 +261,31 @@ describe('sm tutorial, empty-directory guard', () => {
   });
 });
 
-describe('sm tutorial master, happy path', () => {
-  it('writes .claude/skills/sm-master/ in cwd with exit 0 and the success line', () => {
-    const scope = freshScope('master-basic');
-    const r = sm(['tutorial', 'master'], scope);
-
-    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    const target = join(scope.cwd, '.claude', 'skills', 'sm-master');
-    assert.ok(existsSync(target), 'sm-master skill directory must be written');
-    assert.ok(existsSync(join(target, 'SKILL.md')), 'SKILL.md must be inside');
-
-    // The basic variant's directory is NOT written by this variant.
-    assert.equal(existsSync(join(scope.cwd, '.claude', 'skills', 'sm-tutorial')), false);
-
-    // Success message points the tester at the master skill.
-    assert.match(r.stdout, /Skill `sm-master`/);
-    assert.match(r.stdout, /\.claude\/skills\/sm-master\//);
-    assert.match(r.stdout, /Open your coding agent/);
-  });
-
-  it('ships the references/ sub-folder (the core of this fix)', () => {
-    const scope = freshScope('master-references');
-    const r = sm(['tutorial', 'master'], scope);
-    assert.equal(r.status, 0);
-
-    const refsDir = join(scope.cwd, '.claude', 'skills', 'sm-master', 'references');
-    assert.ok(existsSync(refsDir), 'references/ folder must be materialized');
-    assert.ok(statSync(refsDir).isDirectory(), 'references/ must be a directory');
-    // At least one reference file must be present (the count depends
-    // on the canonical sm-master payload at runtime).
-    const refs = readdirSync(refsDir);
-    assert.ok(refs.length > 0, 'references/ must not be empty');
-  });
-
-  it('content matches the canonical sm-master folder byte-for-byte', () => {
-    const scope = freshScope('master-byte-match');
-    const r = sm(['tutorial', 'master'], scope);
-    assert.equal(r.status, 0);
-
-    const target = join(scope.cwd, '.claude', 'skills', 'sm-master');
-    assertDirsEqual(SKILL_SOURCE_MASTER, target);
-  });
-});
-
-describe('sm tutorial master, empty-directory guard', () => {
-  it('exits 2 when the cwd is not empty (sm-master dir present) and --force is not passed', () => {
-    const scope = freshScope('master-clobber-blocked');
-    const target = join(scope.cwd, '.claude', 'skills', 'sm-master');
-    mkdirSync(target, { recursive: true });
-    const sentinel = join(target, 'SKILL.md');
-    const sentinelBody = '# pre-existing content, must NOT be overwritten\n';
-    writeFileSync(sentinel, sentinelBody);
-
+describe('sm tutorial, legacy positional argument', () => {
+  it('exits 2 and emits the legacyPositional error for the retired `master` arg', () => {
+    const scope = freshScope('legacy-master');
     const r = sm(['tutorial', 'master'], scope);
 
     assert.equal(r.status, 2, `stderr: ${r.stderr}`);
-    assert.match(r.stderr, /not empty/);
-    assert.match(r.stderr, /--force/);
+    assert.match(r.stderr, /unexpected argument 'master'/);
+    assert.match(r.stderr, /no positional argument/);
+    assert.match(r.stderr, /in-skill menu/);
 
-    // File untouched.
-    assert.equal(readFileSync(sentinel, 'utf8'), sentinelBody);
+    // Defensive: nothing should have been written to cwd.
+    assert.equal(existsSync(join(scope.cwd, '.claude')), false);
   });
 
-  it('--force overwrites an existing sm-master directory and exits 0', () => {
-    const scope = freshScope('master-clobber-force');
-    const target = join(scope.cwd, '.claude', 'skills', 'sm-master');
-    mkdirSync(target, { recursive: true });
-    writeFileSync(join(target, 'SKILL.md'), '# stale master content\n');
-
-    const r = sm(['tutorial', 'master', '--force'], scope);
-
-    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    assertDirsEqual(SKILL_SOURCE_MASTER, target);
-  });
-});
-
-describe('sm tutorial, invalid variant', () => {
-  it('exits 2 and emits the invalidVariant error for an unknown variant', () => {
-    const scope = freshScope('invalid-variant');
+  it('exits 2 and emits the legacyPositional error for any other positional', () => {
+    const scope = freshScope('legacy-garbage');
     const r = sm(['tutorial', 'garbage'], scope);
 
     assert.equal(r.status, 2, `stderr: ${r.stderr}`);
-    assert.match(r.stderr, /unknown variant 'garbage'/);
-    assert.match(r.stderr, /Valid values: tutorial \(default\), master\./);
+    assert.match(r.stderr, /unexpected argument 'garbage'/);
+    assert.match(r.stderr, /no positional argument/);
 
     // Defensive: nothing should have been written to cwd.
     assert.equal(existsSync(join(scope.cwd, '.claude')), false);
     assert.equal(existsSync(join(scope.cwd, 'sm-tutorial.md')), false);
-    assert.equal(existsSync(join(scope.cwd, 'sm-master.md')), false);
   });
 });
 
@@ -377,15 +302,6 @@ describe('sm tutorial, --for provider selection', () => {
     assert.equal(existsSync(join(scope.cwd, '.claude')), false);
     // Success line names the relative path and the provider.
     assert.match(r.stdout, /\.agents\/skills\/sm-tutorial\//);
-  });
-
-  it('combines --for with the master variant', () => {
-    const scope = freshScope('for-master');
-    const r = sm(['tutorial', '--for', 'agent-skills', 'master'], scope);
-
-    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    const target = join(scope.cwd, '.agents', 'skills', 'sm-master');
-    assertDirsEqual(SKILL_SOURCE_MASTER, target);
   });
 
   it('--for claude is explicit and matches the default', () => {

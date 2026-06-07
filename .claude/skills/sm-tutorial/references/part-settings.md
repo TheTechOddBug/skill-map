@@ -1,28 +1,26 @@
-# Tour: settings + slots (step library, `settings-*` ids)
+# Parte 6 (a): Extender skill-map - settings (step library, `settings-*` ids)
 
-Step bodies for two tours: option 1 (`settings`, runs
-`settings-1-layers`, `settings-2-resolve`, and `settings-3-lens`)
-and the single shared step `settings-6-contributions` borrowed by
-option 3 (`build-and-configure`). The SKILL.md orchestrator
-dispatches each `settings-*` id here; `authoring-*` ids it
-dispatches to `tour-authoring.md`.
+Step bodies for the settings chapters of Part 6 (config layers, the
+`sm config` verbs, the active provider lens), plus the shared step
+`settings-6-contributions` that the plugin-authoring chapters reuse.
+The SKILL.md orchestrator dispatches each `settings-*` chapter id
+here; `authoring-*` ids it dispatches to `part-authoring.md`.
 
 The `.sm` consent gate (companion files, `allowEditSmFiles`,
-`sm sidecar annotate`) is covered end to end in the basic
-`sm-tutorial`, so this tour does NOT repeat it; it focuses on the
-config layer system and the `sm config` verbs, which the basic
-tutorial does not teach.
+`sm sidecar annotate`) is covered elsewhere in this tutorial, so
+these chapters do NOT repeat it; they focus on the config layer
+system and the `sm config` verbs.
 
 ## Precondition check
 
-Same as the authoring step library: `.skill-map/` must exist in
-the cwd (pre-flight step 4 of `SKILL.md` ran `sm init --no-scan`
-and appended the master-tutorial's internal entries to
+Same as the authoring chapters: `.skill-map/` must exist in the
+cwd (the orchestrator's backstage-init pre-flight ran `sm init
+--no-scan` and appended the tutorial's internal entries to
 `.skillmapignore`, so this is the expected state). If
 `.skill-map/` is missing, surface the bootstrap mismatch and
-stop, do not try to re-init mid-tour.
+stop, do not try to re-init mid-chapter.
 
-## Step `settings-1-layers` — the config layers (~3 min)
+## Step `settings-1-layers` - the config layers (~3 min)
 
 **Context**: where settings live and how `sm` resolves a value
 when more than one place sets it.
@@ -74,7 +72,7 @@ in this list too.
 
 Mark `settings-1-layers: done`.
 
-## Step `settings-2-resolve` — read, resolve, and set a value (~3 min)
+## Step `settings-2-resolve` - read, resolve, and set a value (~3 min)
 
 **Context**: the four config verbs (`get`, `show`, `set`, `reset`)
 and how `show --source` reveals which layer won.
@@ -123,7 +121,7 @@ catalog is closed.)
 
 Mark `settings-2-resolve: done`.
 
-## Step `settings-3-lens` — the active provider lens (~4 min)
+## Step `settings-3-lens` - the active provider lens (~4 min)
 
 **Context**: the single most consequential setting, the lens that
 decides which provider types the project's files. It is reversible
@@ -188,14 +186,14 @@ Back where you started, nothing lost.
 
 Mark `settings-3-lens: done`.
 
-## Step `settings-6-contributions` — watch contributions land (~2 min)
+## Step `settings-6-contributions` - watch contributions land (~2 min)
 
 > Last step. Let's watch a contribution land on a node card live.
 > The fixture's `master-agent` declares `tools: [Read, Bash,
 > Edit]`, which the `core/tools-counter` extractor picks up.
 
 If the tester does not have `sm` running, ask them to launch it
-in their second terminal (same drill as the basic tutorial:
+in their second terminal (same drill as the fundamentals part:
 `sm`, copy the link from the output, open the browser, arrange
 the screen). If `sm` is still running, leave it.
 
@@ -214,18 +212,18 @@ Once the UI is open, ask the tester to:
 > `card.footer.left`, the renderer is `NodeCounter` (same one your
 > scaffold uses), the payload was `{ value: 3 }`.
 
-If the `demo-highlight` plugin from the earlier authoring steps
-of this tour is still installed, point the tester at the
+If the `demo-highlight` plugin from the earlier authoring chapters
+of this part is still installed, point the tester at the
 contribution it emits too:
 
-> The `demo-highlight` you scaffolded earlier in this tour also
+> The `demo-highlight` you scaffolded earlier in this part also
 > shows up: its chip lands on every node that has a TODO / FIXME
 > / XXX in its body. Click `notes/ideas` to find it.
 
 Have the tester change `master-agent`'s `tools` array (add or
 remove one tool), save, and watch the chip refresh.
 
-> Same flow as the basic tutorial's live UI: edit the markdown,
+> Same flow as the fundamentals part's live UI: edit the markdown,
 > watch the UI refresh. The difference is that the value flowed
 > through a plugin (`core/tools-counter`) and landed in a specific
 > slot (`card.footer.left`). You now know the full path from `.md`

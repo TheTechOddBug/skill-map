@@ -1,0 +1,142 @@
+# The book ToC: the single source of every part and chapter.
+# The orchestrator (SKILL.md) renders the menu from this and routes
+# each chapter id to its part's step_file. One ordered sequence; the
+# reading order is `order`. Add content by adding a chapter here (and
+# its body in the part's step_file), or a whole new part-<id>.md plus
+# a row below. Keep chapter-id prefixes matching the step_file so
+# dispatch stays mechanical.
+#
+# Per-part fields:
+#   order        reading position in the book (ascending).
+#   title        English; the orchestrator translates per _core.md.
+#   step_file    the part's chapter library under references/.
+#                Omitted on `status: planned` parts (not yet written,
+#                not shown in the menu).
+#   step_files   list form when a part spans several files; dispatch
+#                by chapter-id prefix.
+#   pace         per-step | auto-advance  (see _core.md per-step cycle).
+#   preflight    taught-init | backstage-init  (see _core.md rule #1).
+#   prereq       part id that must be done first (menu gating).
+#   fixture      which fixture this part lays (see fixtures.md / the
+#                part body); `inline` means the chapters lay it as a
+#                taught step.
+#   status       active (default, shown) | planned (no body yet, hidden).
+
+parts:
+  # ----- migrated content (ships in this release) -----
+
+  - id: fundamentals
+    order: 0
+    title: "The live map (prologue)"
+    step_file: part-fundamentals.md
+    pace: per-step
+    preflight: taught-init
+    fixture: inline           # the chapters lay the basics fixture as taught steps
+    status: active
+    chapters:
+      - id: init            ; title: "Your first node (sm init, sm, the UI)" ; est_min: 2
+      - id: kinds           ; title: "The other kinds appear"               ; est_min: 1
+      - id: first-edit      ; title: "Your first edit (the watcher reacts)" ; est_min: 1
+      - id: connectors      ; title: "The connectors light up"             ; est_min: 2
+      - id: inspector       ; title: "The inspector and linked nodes"      ; est_min: 1
+      - id: edit-link       ; title: "Edit a link, the topology changes"   ; est_min: 3
+      - id: workspace       ; title: "Navigate the workspace (files, search, isolate)" ; est_min: 2
+      - id: ignore          ; title: "Silence a file via .skillmapignore"  ; est_min: 2
+
+  - id: extend
+    order: 6
+    title: "Extend skill-map for the site"
+    # Spans three chapter libraries; dispatch by chapter-id prefix:
+    #   settings-*  -> part-settings.md
+    #   tour-*      -> part-plugins.md
+    #   authoring-* -> part-authoring.md
+    step_files:
+      - part-settings.md
+      - part-plugins.md
+      - part-authoring.md
+    pace: auto-advance
+    preflight: backstage-init  # lays the fixture below + sm init --no-scan
+    fixture: master            # master-agent / master-skill / notes/ideas (fixtures.md)
+    status: active
+    chapters:
+      - id: settings-1-layers        ; title: "The config layers and `sm config list`" ; est_min: 3
+      - id: settings-2-resolve       ; title: "Read, resolve, and set a value with `sm config`" ; est_min: 3
+      - id: settings-3-lens          ; title: "The active provider lens (`activeProvider`)" ; est_min: 4
+      - id: tour-1-intro             ; title: "How plugins work" ; est_min: 4
+      - id: tour-2-kinds             ; title: "The six extension kinds" ; est_min: 5
+      - id: tour-3-explore           ; title: "Explore one extension up close" ; est_min: 4
+      - id: authoring-1-scaffold     ; title: "`sm plugins create demo-highlight`" ; est_min: 2
+      - id: authoring-2-anatomy      ; title: "Tour the scaffold (plugin.json + stubs + README)" ; est_min: 3
+      - id: authoring-3-edit-setting ; title: "Edit a setting (string-list) and observe it in the UI" ; est_min: 3
+      - id: authoring-4-edit-slot    ; title: "Change the view-slot the contribution targets" ; est_min: 2
+      - id: settings-6-contributions ; title: "Watch contributions land in the inspector" ; est_min: 2
+      - id: authoring-5-doctor-author; title: "Catch a manifest mistake with `sm plugins doctor`" ; est_min: 2
+      - id: authoring-6-upgrade      ; title: "Try `sm plugins upgrade`" ; est_min: 2
+
+  - id: cli
+    order: 7
+    title: "The CLI in depth"
+    step_file: part-cli.md
+    pace: auto-advance
+    preflight: reuse           # reuses the fundamentals fixture + DB
+    prereq: fundamentals       # menu offers this only after Part 0
+    status: active
+    chapters:
+      - id: browse           ; title: "list / show / check" ; est_min: 3
+      - id: graph-export     ; title: "graph / export (query, formatters)" ; est_min: 3
+      - id: issues           ; title: "Issues and broken refs (--analyzers, --json)" ; est_min: 3
+      - id: annotations      ; title: "Annotations and the .sm consent prompt" ; est_min: 3
+      - id: reference-paths  ; title: "Validate links to folders outside the scan scope" ; est_min: 4
+
+  # ----- planned parts (the portfolio campaign; no body yet, hidden
+  #       from the menu until their step_file exists) -----
+
+  - id: project-kickoff
+    order: 1
+    title: "The project from zero"
+    status: planned
+    chapters:
+      - id: kickoff   ; title: "Start the portfolio (sm init on the real skeleton)"
+      - id: manual    ; title: "The manual: AGENTS.md and CLAUDE.md (@AGENTS.md)"
+      - id: first-agent ; title: "The first harness agent (content-editor)"
+      - id: real-kinds ; title: "The real kinds in context"
+
+  - id: connect-harness
+    order: 2
+    title: "Connect the harness"
+    status: planned
+    chapters:
+      - id: check-links ; title: "The check-links skill"
+      - id: publish     ; title: "The /publish command invokes the skill"
+      - id: links       ; title: "Mentions (@) and references between assets"
+      - id: confidence  ; title: "Connector confidence (opacity = certainty)"
+
+  - id: maintain
+    order: 3
+    title: "Maintain the site"
+    status: planned
+    chapters:
+      - id: broken-ref   ; title: "A ref breaks (you rename DEPLOY.md)"
+      - id: analyzers    ; title: "The analyzer catalogue (what sm check catches)"
+      - id: orphans      ; title: "Orphans (sm orphans)"
+      - id: reserved     ; title: "Reserved names"
+      - id: sidecar      ; title: "Annotations .sm and consent"
+      - id: versions     ; title: "Versions: sm bump and history"
+
+  - id: mcp
+    order: 4
+    title: "MCP"            # a chapter apart, just before the finale
+    prereq: connect-harness
+    status: planned
+    chapters:
+      - id: mcp-node ; title: "content-editor declares an MCP tool; the mcp:// node appears"
+
+  - id: live-site
+    order: 5
+    title: "The site, live"  # the finale / climax
+    status: planned
+    chapters:
+      - id: generate ; title: "The agent generates the HTML in public/"
+      - id: serve    ; title: "node server.js: your portfolio, live, next to the graph"
+
+findings_file: "./findings.md"
