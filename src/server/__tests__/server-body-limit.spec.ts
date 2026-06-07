@@ -77,7 +77,7 @@ describe('audit M4, request body cap (1 MiB) on /api/*', () => {
       // matches what `parseBody` expects so we hit the middleware
       // BEFORE the parser would have buffered the body.
       const payload = 'x'.repeat(BODY_LIMIT_BYTES + 1024);
-      const res = await fetch(url(handle, '/api/sidecar/bump'), {
+      const res = await fetch(url(handle, '/api/actions/core/node-bump'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: payload,
@@ -100,7 +100,7 @@ describe('audit M4, request body cap (1 MiB) on /api/*', () => {
       // route happens to emit (404 for missing node, 400 for shape,
       // 500 for a missing DB). The whole point is the cap doesn't
       // misfire on legitimate small payloads.
-      const res = await fetch(url(handle, '/api/sidecar/bump'), {
+      const res = await fetch(url(handle, '/api/actions/core/node-bump'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ nodePath: 'does/not/exist.md' }),
