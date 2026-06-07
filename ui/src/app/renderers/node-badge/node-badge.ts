@@ -47,7 +47,7 @@ interface INodeBadgePayload {
       [class.vc-badge--success]="severity() === 'success'"
       [class.vc-badge--danger]="severity() === 'danger'"
       [pTooltip]="resolvedTooltip()"
-      [attr.title]="resolvedTooltip() || null"
+      tooltipPosition="left"
       [attr.data-testid]="'renderer-node-badge'"
     >
       @if (icon()) {

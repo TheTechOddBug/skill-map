@@ -190,8 +190,8 @@
         "required": ["inputType", "paramKey", "label"],
         "properties": {
           "inputType": {
-            "type": "string",
-            "description": "Input-type id from the closed catalog (`input-types.schema.json`), e.g. `enum-pick`, `single-string`, `string-list`. The UI renders the matching control before dispatch. (Reserved; the precise `$ref` to the input-type catalog lands with Step 3.)"
+            "$ref": "input-types.schema.json#/$defs/InputTypeName",
+            "description": "Input-type id from the closed catalog. The UI renders the matching control before dispatch (`single-string`, `enum-pick` and `string-list` today; other types degrade to a graceful 'unsupported' notice)."
           },
           "paramKey": {
             "type": "string",

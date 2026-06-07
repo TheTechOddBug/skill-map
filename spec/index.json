@@ -227,7 +227,7 @@
       "schemas/conformance-case.schema.json": "958b316d646d0c64a715a7a28cee66d2c2d2498a60dbfc5ae8970687c2a96954",
       "schemas/conformance-result.schema.json": "14f983a8f4e62cd4ff964688c9b2b026a3bee3a0b762b64091c8c34db5b75777",
       "schemas/execution-record.schema.json": "db0eb16153493ad9f13ea0ecede44191e4a8536979adffd17ca278ddf8786c77",
-      "schemas/extensions/action.schema.json": "a1d9d10ca51e1c6c5566eb913a43663b0fe1fe8ec580e162ff3cae9bb5c67558",
+      "schemas/extensions/action.schema.json": "8b300532c0217c0f65c454edd6df86d1fe4245590fb5e0974944ce9e593f7f28",
       "schemas/extensions/analyzer.schema.json": "8def4a5ca4934197c34abde97da70704b2751041a443c859eddd4b783e2fe1db",
       "schemas/extensions/base.schema.json": "49baa06a4ce8a6ce75fec52b650d9bf3566e5de0b1053b06f73a71ce103e4fdf",
       "schemas/extensions/extractor.schema.json": "ee44bf562b19318c93116c574a811857cdef1f4119326a9a604fa408889dd230",
@@ -257,7 +257,7 @@
       "schemas/summaries/markdown.schema.json": "369d75a18710eb6c7ee4220b2899767ddbc07dada24f81b611827fe2e3a2977a",
       "schemas/summaries/skill.schema.json": "85d68056054bade62391948cc038fcfa70cdcf465e2b295f69cd520bbdba0134",
       "schemas/user-settings.schema.json": "d155552ffca9c7dd4c6e31398aff4950dd9721d2a1f4b308cf0fe33000ca31b5",
-      "schemas/view-slots.schema.json": "c02fd5ff6891bd6da58427a84c3913a12b2da8796375f169c4c9622901464379",
+      "schemas/view-slots.schema.json": "a6065adf1c6fff8d244a1cce1a350d6f4d8bd9b24bd9d78f7fb72c9f8dc34bb0",
       "telemetry.md": "fa659b47c59e692f50c7a091470888d5e7c98dcf858978fa549af25b2562803f",
       "versioning.md": "28a13f165f837921fe5066f4bfce61012cd9f1b7c451f88eeb67252e39a0981a"
     }

@@ -16,6 +16,8 @@ export const SUPERSEDE_TEXTS = {
   supersedeLabel: 'Supersede',
   /** Tooltip shown when the supersede button is disabled (already superseded). */
   supersedeDisabledReason: 'Already superseded.',
-  /** Prompt label for the target-path single-string input. */
-  supersedePromptLabel: 'Superseded by (node path)',
+  /** Tooltip shown when there is no other node to supersede this one. */
+  supersedeNoTargetsReason: 'No other node to supersede this one.',
+  /** Prompt label for the target node-picker (enum-pick over the live node set). */
+  supersedePromptLabel: 'Superseded by',
 } as const;

@@ -44,11 +44,16 @@ html.is-debug-slots .sm-debug-slot {
   justify-content: center;
 }
 
+/* Anchored to the host's RIGHT edge (not the left) so the slot-name
+   label grows leftward. Long names like `inspector.body.panel.key-values`
+   on right-side hosts (the header badge cluster, the inspector body
+   panels) used to run off the right edge of the viewport with the old
+   `left: 4px` + `white-space: nowrap`; growing left keeps them on screen. */
 html.is-debug-slots .sm-debug-slot::before {
   content: attr(data-debug-slot);
   position: absolute;
   top: -10px;
-  left: 4px;
+  right: 4px;
   font: bold 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
   background: #000;
   color: #fff;

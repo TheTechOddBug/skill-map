@@ -1,12 +1,13 @@
 /**
  * Unit coverage for the `supersede` analyzer:
  *   - Emits NO issues (the declaration is owned by `core/node-superseded`).
- *   - Emits one `inspector.action.button` contribution per NON-virtual
- *     node, dispatching `core/node-supersede`, carrying the
- *     `single-string` prompt for the target path.
- *   - `enabled` is `true` when the node has no `supersededBy`, `false`
- *     (with `disabledReason`) when the sidecar already carries one.
- *   - Skips `virtual === true` nodes entirely.
+ *   - Emits one `inspector.action.button` per NON-virtual node dispatching
+ *     `core/node-supersede`, with an `enum-pick` prompt whose options are
+ *     the OTHER non-virtual nodes (node-picker + live-set validation by
+ *     construction: only existing nodes are offered, never the node itself).
+ *   - `enabled` is true when the node has no `supersededBy` AND there is at
+ *     least one other node to point at; disabled (with reason) otherwise.
+ *   - Skips `virtual === true` nodes entirely (not emitted, not offered).
  */
 
 import { describe, it } from 'node:test';
@@ -52,91 +53,106 @@ function supersededSidecar(supersededBy: string): ISidecarOverlay {
   return { present: true, status: 'fresh', annotations: { supersededBy } };
 }
 
-const PROMPT = {
-  inputType: 'single-string',
-  paramKey: 'supersededBy',
-  label: SUPERSEDE_TEXTS.supersedePromptLabel,
-};
+function options(...paths: string[]): { value: string; label: string }[] {
+  return paths.map((p) => ({ value: p, label: p }));
+}
 
-const ENABLED_BUTTON = {
-  actionId: 'core/node-supersede',
-  label: SUPERSEDE_TEXTS.supersedeLabel,
-  icon: 'pi-arrow-right-arrow-left',
-  enabled: true,
-  prompt: PROMPT,
-};
-
-const DISABLED_BUTTON = {
-  actionId: 'core/node-supersede',
-  label: SUPERSEDE_TEXTS.supersedeLabel,
-  icon: 'pi-arrow-right-arrow-left',
-  enabled: false,
-  disabledReason: SUPERSEDE_TEXTS.supersedeDisabledReason,
-  prompt: PROMPT,
-};
+function button(opts: {
+  enabled: boolean;
+  disabledReason?: string;
+  options: { value: string; label: string }[];
+}): Record<string, unknown> {
+  return {
+    actionId: 'core/node-supersede',
+    label: SUPERSEDE_TEXTS.supersedeLabel,
+    icon: 'pi-arrow-right-arrow-left',
+    enabled: opts.enabled,
+    ...(opts.disabledReason ? { disabledReason: opts.disabledReason } : {}),
+    prompt: {
+      inputType: 'enum-pick',
+      paramKey: 'supersededBy',
+      label: SUPERSEDE_TEXTS.supersedePromptLabel,
+      options: opts.options,
+    },
+  };
+}
 
 describe('supersede analyzer, inspector action button', () => {
   it('emits no issues', async () => {
-    const node = mockNode('docs/a.md');
-    const { ctx: c } = ctx([node]);
+    const { ctx: c } = ctx([mockNode('docs/a.md'), mockNode('docs/b.md')]);
     const issues = await supersedeAnalyzer.evaluate(c);
     strictEqual(issues.length, 0);
   });
 
-  it('emits an enabled button for a non-virtual node with no supersededBy', async () => {
-    const node = mockNode('docs/a.md');
-    const { ctx: c, contributions } = ctx([node]);
+  it('disables the button when there is no other node to point at', async () => {
+    const { ctx: c, contributions } = ctx([mockNode('docs/a.md')]);
     await supersedeAnalyzer.evaluate(c);
     deepStrictEqual(contributions, [
-      { nodePath: 'docs/a.md', id: 'supersedeButton', payload: ENABLED_BUTTON },
+      {
+        nodePath: 'docs/a.md',
+        id: 'supersedeButton',
+        payload: button({
+          enabled: false,
+          disabledReason: SUPERSEDE_TEXTS.supersedeNoTargetsReason,
+          options: [],
+        }),
+      },
     ]);
   });
 
-  it('emits an enabled button when the sidecar is present but carries no supersededBy', async () => {
-    const node = mockNode('docs/a.md', {
-      sidecar: { present: true, status: 'fresh', annotations: { version: 2 } },
-    });
-    const { ctx: c, contributions } = ctx([node]);
+  it('enables the button with the OTHER nodes as picker options', async () => {
+    const { ctx: c, contributions } = ctx([mockNode('docs/a.md'), mockNode('docs/b.md')]);
     await supersedeAnalyzer.evaluate(c);
     deepStrictEqual(contributions, [
-      { nodePath: 'docs/a.md', id: 'supersedeButton', payload: ENABLED_BUTTON },
+      { nodePath: 'docs/a.md', id: 'supersedeButton', payload: button({ enabled: true, options: options('docs/b.md') }) },
+      { nodePath: 'docs/b.md', id: 'supersedeButton', payload: button({ enabled: true, options: options('docs/a.md') }) },
     ]);
   });
 
-  it('emits a disabled button when the node is already superseded', async () => {
-    const node = mockNode('docs/a.md', { sidecar: supersededSidecar('docs/b.md') });
-    const { ctx: c, contributions } = ctx([node]);
+  it('disables the button when the node is already superseded (regardless of targets)', async () => {
+    const { ctx: c, contributions } = ctx([
+      mockNode('docs/a.md', { sidecar: supersededSidecar('docs/b.md') }),
+      mockNode('docs/b.md'),
+    ]);
     await supersedeAnalyzer.evaluate(c);
     deepStrictEqual(contributions, [
-      { nodePath: 'docs/a.md', id: 'supersedeButton', payload: DISABLED_BUTTON },
+      {
+        nodePath: 'docs/a.md',
+        id: 'supersedeButton',
+        payload: button({
+          enabled: false,
+          disabledReason: SUPERSEDE_TEXTS.supersedeDisabledReason,
+          options: options('docs/b.md'),
+        }),
+      },
+      { nodePath: 'docs/b.md', id: 'supersedeButton', payload: button({ enabled: true, options: options('docs/a.md') }) },
     ]);
   });
 
-  it('skips virtual nodes entirely (no contribution)', async () => {
-    const node = mockNode('virtual/group', { virtual: true });
-    const { ctx: c, contributions } = ctx([node]);
+  it('skips virtual nodes entirely (not emitted, not offered as a target)', async () => {
+    const { ctx: c, contributions } = ctx([
+      mockNode('docs/a.md'),
+      mockNode('virtual/group', { virtual: true }),
+    ]);
     await supersedeAnalyzer.evaluate(c);
-    strictEqual(contributions.length, 0);
-  });
-
-  it('emits per non-virtual node and skips virtual ones in a mixed set', async () => {
-    const real = mockNode('docs/a.md');
-    const superseded = mockNode('docs/b.md', { sidecar: supersededSidecar('docs/a.md') });
-    const virtual = mockNode('virtual/group', { virtual: true });
-    const { ctx: c, contributions } = ctx([real, superseded, virtual]);
-    await supersedeAnalyzer.evaluate(c);
+    // The only non-virtual node has no other non-virtual target, so it is
+    // disabled, and the virtual node is neither emitted nor offered.
     deepStrictEqual(contributions, [
-      { nodePath: 'docs/a.md', id: 'supersedeButton', payload: ENABLED_BUTTON },
-      { nodePath: 'docs/b.md', id: 'supersedeButton', payload: DISABLED_BUTTON },
+      {
+        nodePath: 'docs/a.md',
+        id: 'supersedeButton',
+        payload: button({
+          enabled: false,
+          disabledReason: SUPERSEDE_TEXTS.supersedeNoTargetsReason,
+          options: [],
+        }),
+      },
     ]);
   });
 
   it('declares the inspector.action.button contribution slot', () => {
     deepStrictEqual(supersedeAnalyzer.ui, {
-      supersedeButton: {
-        slot: 'inspector.action.button',
-        priority: 10,
-      },
+      supersedeButton: { slot: 'inspector.action.button', priority: 10 },
     });
   });
 });

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
+import { Tooltip } from 'primeng/tooltip';
 
 import { NodeBadge } from '../node-badge';
 import type { IRendererInputs } from '../../../slots/slot-renderer-map';
@@ -9,8 +11,9 @@ import type { IRendererInputs } from '../../../slots/slot-renderer-map';
  * NodeBadge renderer (`inspector.header.badge` slot). A generic badge
  * folding the former counter + tag sub-slots: icon and/or label and/or
  * count, optional severity tint, tooltip. Contribution data is bound
- * only via interpolation + `[pTooltip]` / `[attr.title]` (no
- * `[innerHTML]` / `[style]` / `[src]` / `[href]`).
+ * only via interpolation + the library `[pTooltip]` (auto-sanitized; the
+ * native `title` attribute was dropped so a single tooltip shows). No
+ * `[innerHTML]` / `[style]` / `[src]` / `[href]`.
  */
 
 function makeInputs(overrides: Partial<IRendererInputs> = {}): IRendererInputs {
@@ -37,6 +40,11 @@ function root(fixture: ComponentFixture<NodeBadge>): HTMLElement {
   return (fixture.nativeElement as HTMLElement).querySelector(
     '[data-testid="renderer-node-badge"]',
   ) as HTMLElement;
+}
+
+/** The PrimeNG `Tooltip` directive instance bound to the badge span. */
+function tooltipDir(fixture: ComponentFixture<NodeBadge>): Tooltip {
+  return fixture.debugElement.query(By.directive(Tooltip)).injector.get(Tooltip);
 }
 
 describe('NodeBadge', () => {
@@ -84,16 +92,25 @@ describe('NodeBadge', () => {
     expect(el.classList.contains('vc-badge--tinted')).toBe(true);
   });
 
-  it('binds the tooltip via the title attribute (sanitized), never innerHTML', () => {
+  it('binds the tooltip via the library pTooltip, not the native title attribute', () => {
     const fixture = bootstrap(makeInputs({ payload: { label: 'x', tooltip: 'Drifted since last bump' } }));
     const el = root(fixture);
-    expect(el.getAttribute('title')).toBe('Drifted since last bump');
+    // Only the PrimeNG tooltip carries the text; the native `title`
+    // attribute is gone so the browser does not stack a second tooltip.
+    expect(tooltipDir(fixture).content).toBe('Drifted since last bump');
+    expect(el.getAttribute('title')).toBeNull();
     expect(el.innerHTML).not.toContain('Drifted since last bump<');
+  });
+
+  it('positions the tooltip to the left so it does not run off the right edge', () => {
+    const fixture = bootstrap(makeInputs({ payload: { label: 'x', tooltip: 'tip' } }));
+    expect(tooltipDir(fixture).tooltipPosition).toBe('left');
   });
 
   it('falls back to the manifest tooltip when the payload omits one', () => {
     const fixture = bootstrap(makeInputs({ tooltip: 'manifest tip', payload: { label: 'x' } }));
-    expect(root(fixture).getAttribute('title')).toBe('manifest tip');
+    expect(tooltipDir(fixture).content).toBe('manifest tip');
+    expect(root(fixture).getAttribute('title')).toBeNull();
   });
 
   it('tolerates a non-object payload without throwing', () => {

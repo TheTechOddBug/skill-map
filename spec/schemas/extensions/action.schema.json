@@ -58,8 +58,8 @@
       "required": ["inputType", "paramKey", "label"],
       "properties": {
         "inputType": {
-          "type": "string",
-          "description": "Input-type id from the closed catalog (`input-types.schema.json`), e.g. `enum-pick`, `single-string`, `string-list`. Reserved; the precise `$ref` to the input-type catalog lands with Step 3."
+          "$ref": "../input-types.schema.json#/$defs/InputTypeName",
+          "description": "Input-type id from the closed catalog. The UI renders the matching control before dispatch."
         },
         "paramKey": {
           "type": "string",

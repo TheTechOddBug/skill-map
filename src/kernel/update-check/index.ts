@@ -83,27 +83,54 @@ export async function fetchLatestVersion(
   opts: IFetchLatestVersionOptions,
 ): Promise<string> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), opts.timeoutMs);
+  const abortTimer = setTimeout(() => controller.abort(), opts.timeoutMs);
+  // Hard cap: race the whole network round-trip (connect + headers + body)
+  // against a timeout that rejects REGARDLESS of whether the
+  // `AbortController` actually tears the socket down. Some blocked-network
+  // conditions (a firewall dropping SYN packets) leave a TCP connect
+  // hanging past the abort, up to the OS connect timeout (~75s on Linux).
+  // Because the `boot` hook awaits this BEFORE the verb runs, that would
+  // stall every `sm <cmd>`. The hard cap bounds the wait to `timeoutMs`
+  // and lets the verb proceed; a leaked socket (if any) is reaped when the
+  // process exits. The abort remains the primary, graceful cancellation.
+  let capTimer: ReturnType<typeof setTimeout> | undefined;
+  const hardCap = new Promise<never>((_resolve, reject) => {
+    capTimer = setTimeout(
+      () => reject(new Error(`update check timed out after ${opts.timeoutMs}ms`)),
+      opts.timeoutMs,
+    );
+  });
   try {
-    const url = `https://registry.npmjs.org/${pkg}/latest`;
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: { accept: 'application/json' },
-    });
-    if (!response.ok) {
-      throw new Error(`registry returned status ${response.status}`);
-    }
-    const payload = (await response.json()) as INpmLatestPayload;
-    if (typeof payload.version !== 'string' || payload.version.length === 0) {
-      throw new Error('registry payload missing string `version`');
-    }
-    if (!SEMVER_SHAPE_RE.test(payload.version)) {
-      throw new Error('registry payload `version` is not a semver-shaped string');
-    }
-    return payload.version;
+    return await Promise.race([fetchVersion(pkg, controller.signal), hardCap]);
   } finally {
-    clearTimeout(timer);
+    clearTimeout(abortTimer);
+    if (capTimer !== undefined) clearTimeout(capTimer);
   }
+}
+
+/**
+ * The actual network round-trip, split out so `fetchLatestVersion` can
+ * race it against the hard-cap timeout. Honours the abort `signal` (the
+ * primary, graceful cancellation path); throws on non-2xx, parse failure,
+ * or a non-semver-shaped `version`.
+ */
+async function fetchVersion(pkg: string, signal: AbortSignal): Promise<string> {
+  const url = `https://registry.npmjs.org/${pkg}/latest`;
+  const response = await fetch(url, {
+    signal,
+    headers: { accept: 'application/json' },
+  });
+  if (!response.ok) {
+    throw new Error(`registry returned status ${response.status}`);
+  }
+  const payload = (await response.json()) as INpmLatestPayload;
+  if (typeof payload.version !== 'string' || payload.version.length === 0) {
+    throw new Error('registry payload missing string `version`');
+  }
+  if (!SEMVER_SHAPE_RE.test(payload.version)) {
+    throw new Error('registry payload `version` is not a semver-shaped string');
+  }
+  return payload.version;
 }
 
 /**
