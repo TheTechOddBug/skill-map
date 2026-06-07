@@ -39,7 +39,7 @@ Each README also ships a short essentials-only glossary with a pointer back to t
 22. [Deferred beyond v1.0](#deferred-beyond-v10), Steps and features intentionally pushed past the first stable release.
 23. [Discarded (explicitly rejected)](#discarded-explicitly-rejected), pointer to the rationale of dropped proposals in `context/roadmap-history.md`.
 
-> **Step vs Phase glossary**: a **Step** (e.g. `Step 9`, `Step 14.4.b`) is an atomic feature milestone, one PR or a tightly-related sequence. A **Phase** (e.g. `Phase A`, `Phase B`, `Phase C`) is a multi-Step release target. Phase A = `v0.5.0` (deterministic kernel + CLI), Phase B = `v0.8.0` (job subsystem + LLM verbs), Phase C = `v1.0.0` (surface + distribution). Execution prose mixes both: `Step 14 ships v0.6.0 inside Phase C` is correct shorthand.
+> **Step vs Phase glossary**: a **Step** (e.g. `Step 9`, `Step 14.4.b`) is an atomic feature milestone, one PR or a tightly-related sequence. A **Phase** (e.g. `Phase A`, `Phase B`, `Phase C`) is a multi-Step release target. Phase A = `v0.5.0` → `v0.6.0` (deterministic kernel + CLI + Web UI), Phase B = the stabilization run that ships **Beta** (`v0.52.0`: multi-runtime lens, Signal IR, annotations, extensible inspector, fused workspace, hardening), Phase C = `v0.8.0` (job subsystem + LLM verbs), Phase D = `v1.0.0` (surface + distribution). Execution prose mixes both: `Step 14 ships v0.6.0 inside Phase A` is correct shorthand.
 
 ---
 
@@ -202,7 +202,7 @@ Mirrors the interactive timeline on `skill-map.ai` (driven by `web/app.js` `PHAS
 ● Versioning policy · changesets, independent semver per package
 ● Spec as a standard · separable from reference impl
 ● 29 schemas + 9 prose contracts + conformance suite
-● 117 architectural decisions, logged
+● 293 architectural decisions, logged
 ● @skill-map/spec published on npm
   ────────────────────────────────────────────────────────────────────────
    ▶ @skill-map/spec released
@@ -226,12 +226,27 @@ Mirrors the interactive timeline on `skill-map.ai` (driven by `web/app.js` `PHAS
 ●  9    Plugin author UX             plugin runtime · plugin migrations · author guide
 ●  ALm  Active-lens migration        Phases 1–6 (2026-05-19→05-23): active-provider lens · Signal IR scaffold · numeric `Confidence` · MCP virtual nodes + `core/mcp-tools` extractor · OpenAI Codex provider (`.codex/agents/*.toml`) · Antigravity onboarded + Gemini retired · lens-only extractor gating · provider-aware confidence bump on resolved links · reserved-name catalog + analyzer + confidence downgrade · observable link analysis (`core/link-counts` chips, in/out per-kind tooltip) · lens-drift warning · db-version skew detection · auto-detect on first scan
   ────────────────────────────────────────────────────────────────────────
-   ▶ YOU ARE HERE, Steps 0–9 + 14.1–14.7 + active-lens migration Phases 1–6 complete · v0.6.0 shipped (CI/publish wiring deferred to Step 15). Phase B opens with Step 10 (job subsystem) next; the only remaining pre-v1.0 deterministic deliverable is the Codex body extractor (Step 13).
-  ────────────────────────────────────────────────────────────────────────
-   ▶ skill-map@0.5
+   ▶ deterministic core + Web UI shipped · skill-map@0.6
 
 ═══════════════════════════════════════════════════════════════════════════
-  PHASE B · LLM AS AN OPTIONAL LAYER (summaries, semantic verbs)
+  PHASE B · STABILIZATION (deterministic core hardened into Beta)
+═══════════════════════════════════════════════════════════════════════════
+● Plugin model settled · six kinds · Audit absorbed into Analyzer · open node kinds
+● Active-lens multi-provider · claude · openai/codex · agent-skills · antigravity (gemini retired)
+● Signal IR + cross-extractor collision detection · core/signal-collision
+● Annotations · co-located .sm sidecars · drift detection · git-author · write-consent
+● MCP virtual nodes + observable link analysis · core/link-counts chips · edge opacity
+● Reserved-name catalog + analyzer
+● Extensible inspector · plugin action buttons · per-plugin sections · parametrized actions
+● Fused workspace · files rail + graph + inspector · map curation · isolate-chain
+● Hardening · loopback-only serve · node caps · opt-in off-by-default telemetry
+  ────────────────────────────────────────────────────────────────────────
+   ▶ YOU ARE HERE, deterministic core complete and stabilized · skill-map@0.52. The only pre-v1.0 deterministic deliverable left is the Codex body extractor (Step 13). Phase C (the LLM optional layer) opens with Step 10 (job subsystem) next.
+  ────────────────────────────────────────────────────────────────────────
+   ▶ Beta
+
+═══════════════════════════════════════════════════════════════════════════
+  PHASE C · LLM AS AN OPTIONAL LAYER (summaries, semantic verbs)
 ═══════════════════════════════════════════════════════════════════════════
 ●  9.6  Foundation refactors         Open node kinds · storage port promotion (5 namespaces) · universal enrichment · incremental scan cache
 ○  10a  Queue infrastructure         state_jobs + content-addressed state_job_contents · atomic claim · sm job submit/list/show/preview/claim/cancel/status · sm record + nonce
@@ -245,7 +260,7 @@ Mirrors the interactive timeline on `skill-map.ai` (driven by `web/app.js` `PHAS
    ▶ target: v0.8.0, LLM optional layer + initial UI hand-off
 
 ═══════════════════════════════════════════════════════════════════════════
-  PHASE C · SURFACE & DISTRIBUTION (formatters, full web UI, single-binary release)
+  PHASE D · SURFACE & DISTRIBUTION (formatters, full web UI, single-binary release)
 ═══════════════════════════════════════════════════════════════════════════
 ○  12   Additional formatters        Mermaid · DOT/Graphviz · subgraph export with filters
 ○  13   Multi-host adapters          Codex body extractor · Copilot · per-host sm-<host>-* skill namespace · adapter conformance · (Codex + agent-skills + Antigravity onboarded during the post-v0.6.0 active-lens migration; legacy Gemini Provider shipped at 9.7 and retired 2026-05 when Antigravity replaced Gemini CLI)
@@ -260,7 +275,7 @@ Mirrors the interactive timeline on `skill-map.ai` (driven by `web/app.js` `PHAS
    ▶ target: v1.0.0, full distributable
 
 ═══════════════════════════════════════════════════════════════════════════
-  PHASE D · REAL-TIME (pending, watch execution as it happens)
+  PHASE E · REAL-TIME (pending, watch execution as it happens)
 ═══════════════════════════════════════════════════════════════════════════
 ○       Event stream                 live WebSocket from the kernel to the UI
 ○       Execution snapshot           immutable audit of every run
@@ -747,7 +762,7 @@ Shared flags (inherited by every verb): `--json`, `-v`/`-q`, `--no-color`, `-h`/
 
 The verb surface is specified in [`spec/cli-contract.md`](./spec/cli-contract.md); each verb's flags and JSON shape live there and in `sm help <verb>`. The families:
 
-- **Setup & state**: `init` (bootstrap `.skill-map/` + first scan), `tutorial [tutorial|master]` (materialize a tester walkthrough `.md`), `version`, `doctor`, `help`.
+- **Setup & state**: `init` (bootstrap `.skill-map/` + first scan), `tutorial` (materialize the single tester walkthrough skill, a "book" of parts whose advanced parts, plugins/settings/view-slots, the CLI in depth, are reached from its in-skill menu), `version`, `doctor`, `help`.
 - **Scan**: `scan` (full), `scan -n <id>` (one node), `scan --changed` (incremental), `scan --compare-with <path>` (delta).
 - **Browse**: `list`, `show`, `check`, `findings`, `graph`, `export`, and `orphans` (with `orphans reconcile` / `orphans undo-rename` for rename recovery).
 - **Actions**: `actions list` / `actions show`.
@@ -926,6 +941,8 @@ Phase A → v0.6.0 (Web UI):
 - ✅ **9.5**, Spec base cleanup: absorb provider verbatim. Pre-wave-2 prerequisite.
 - ✅ **9.6**, Annotation system (sidecar `.sm` files). Sub-steps 9.6.1–9.6.7, review queue R1–R15 closed.
 - ✅ **14.1–14.7**, Full Web UI (Hono BFF, REST, WS broadcaster, inspector polish, Foblex strict types + dark-mode tri-state, bundle hard cut + responsive scope + demo smoke).
+Phase B, Stabilization (deterministic core hardened into **Beta**, `v0.6.0` → `v0.52.0`):
+
 - ✅ **Active-lens migration, Phases 1–6** (2026-05-19 → 2026-05-23), post-v0.6.0 deterministic polish that lands the multi-runtime story end-to-end:
   - **Phase 1**, lens model + Signal IR scaffold + numeric `Confidence` + MCP virtual nodes + OpenAI Codex provider (`.codex/agents/*.toml`) + extractor mudanza (`core/{markdown-link, slash, at-directive}` move to vendor-neutral `core`). Settings → Project → "Active provider" dropdown switches the runtime lens; switching drops `scan_*` and rebuilds the graph under the new lens. Single coherent migration in commit `29fb353`.
   - **Phase 2**, lens-only extractor gating (per-provider extractors run when the **active lens** matches, regardless of which provider classified the host file). Closes the cross-lens isolation contract.
@@ -938,13 +955,13 @@ Phase A → v0.6.0 (Web UI):
   - **Deferred (post-v1.0)**: Phase 5b (MCP config-side discovery, the consumer side already ships) and Phase 6b (Codex AGENTS.md hierarchical walker + `.codex/skills/`). See §Deferred beyond v1.0.
   - **Pre-v1.0 deliverable remaining**: Codex body extractor (TOML `instructions` field), see Step 13.
 
-Next (Phase B, `v0.8.0`):
+Next (Phase C, `v0.8.0`):
 
 - ⏸ **10**, Job subsystem + first probabilistic extension (`skill-summarizer` as a probabilistic Action; Extractors are deterministic-only). Phase 0 (`IAction` runtime contract) landed and dormant; Phases A–G paused.
 - ⏸ **11**, Remaining probabilistic extensions + LLM verbs + findings.
 - 🔮 **16**, Web UI: LLM surfaces v1 (initial). Render the probabilistic outputs Steps 10–11 emit, replaces the "Available in v0.8.0" empty-state placeholders shipped in 14.3 inspector with read-only surfaces for `state_summaries` / `state_enrichments` / `findings`. UI does not orchestrate jobs at this stage.
 
-Phase C (`v1.0.0` target):
+Phase D (`v1.0.0` target):
 
 - 🔮 **12**, Additional Formatters (Mermaid, DOT, subgraph export with filters).
 - 🔮 **13**, Multi-host Providers (Codex body extractor; Copilot; generic). Codex itself + agent-skills + Antigravity already landed during the active-lens migration; the Codex body extractor (TOML `instructions` field → markdown / at-directive / slash pipeline) and Copilot are the remaining pieces. The legacy Gemini Provider shipped at Step 9.7 and was retired in 2026-05.
@@ -1026,7 +1043,7 @@ Deferred to a future Step (the rest of the spec's resolver pipeline, NOT blockin
 
 ### Step 13, More adapters
 
-Promotes the long-deferred multi-host scope into Phase C so v1.0 ships supporting more than the Claude ecosystem out of the box. Each adapter recognises its host's on-disk layout, classifies files into the six extension kinds, and feeds the same scan pipeline, no kernel changes, pure composition over the `AdapterPort`.
+Promotes the long-deferred multi-host scope into Phase D so v1.0 ships supporting more than the Claude ecosystem out of the box. Each adapter recognises its host's on-disk layout, classifies files into the six extension kinds, and feeds the same scan pipeline, no kernel changes, pure composition over the `AdapterPort`.
 
 - **Codex adapter**, file layout, frontmatter conventions, slash invocations. Phase 6 (shipped 2026-05-19) already onboarded openai/Codex as a first-class provider with TOML parsing and the `.codex/agents/*.toml` classifier; this Step finishes the round-trip.
 - **Codex body extractor (TOML `instructions` field)**, today the openai provider parses the TOML envelope and classifies `.codex/agents/*.toml` into agent nodes, but the `instructions: """..."""` block (which carries the agent's actual markdown body) is not fed through the link extractors. Effect: a Codex agent whose instructions reference another agent via `@handle`, `[link](path.md)`, or a slash command stays invisible in the graph under any lens. Pre-v1.0 deliverable: a new `openai/body-extractor` that reads `parsed.instructions` and runs the same markdown / at-directive / slash pipeline the Claude body uses, plus an integration test fixture exercising every link kind against a TOML source. Effort: low-medium (~half-day), the extractor surface is settled and the only novel piece is teaching the orchestrator that "body" can live on a parsed-frontmatter field rather than a file's raw contents. Keeps Codex feature parity with Claude under `activeProvider=openai`. Compare with the post-v1.0 follow-ups for Codex (Phase 6b in §Deferred): hierarchical AGENTS.md walker, `.codex/skills/`. Those stay deferred; only the body extractor lands pre-1.0.
@@ -1038,7 +1055,7 @@ Promotes the long-deferred multi-host scope into Phase C so v1.0 ships supportin
 
 ### Step 17, Web UI: LLM surfaces v2 (deeper)
 
-Builds on Step 16 (Phase B) once the probabilistic outputs are stable in the UI. Promotes LLM **verbs** into interactive flows, the user no longer has to drop to a terminal for the high-leverage analyses.
+Builds on Step 16 (Phase C) once the probabilistic outputs are stable in the UI. Promotes LLM **verbs** into interactive flows, the user no longer has to drop to a terminal for the high-leverage analyses.
 
 - **Inspector action buttons + plugin-driven badges**, ✅ landed 2026-06-06 (Phase 1). The inspector is now extensible by plugins, not just cards / header. A new `inspector.action.button` view slot renders buttons that dispatch a kernel Action through the generic `POST /api/actions/:id` endpoint (generalises the retired bespoke `/api/sidecar/bump`); the two header badge sub-slots (`inspector.header.badge.counter` / `.tag`) collapsed into one unified `inspector.header.badge` slot; and the `.sm` write consent split into `confirm` (one-shot grant) vs `always` (persists `allowEditSmFiles`), surfaced as an "always allow" checkbox on the consent dialog. First adopter: `core/annotation-stale` emits the Bump button (`enabled` flips with drift, always emitted so the upsert refreshes it, no sweep) and the stale badge as contributions, retiring the hardcoded inspector wiring plus the three mock "Plugin actions". Contribution-driven by decision (the plugin emits the affordance; the dispatch + consent live in the host). Follow-up phases also landed 2026-06-06: parametrized actions via a `prompt` field + a UI input-type renderer (`single-string` / `enum-pick` / `string-list`, seeded with the node's current value), driving `core/supersede` (Supersede), `core/node-stability` (Set stability) and a new `core/tags` analyzer (Edit tags) backed by the deterministic actions `core/node-supersede` / `core/node-set-stability` / `core/node-set-tags`. The plugin-owned inspector body surface settled on **one collapsible section per plugin** (`<sm-inspector-plugin-sections>`): the `inspector.body.panel.*` contributions are grouped by the trusted `pluginId` (titled by it, collapsed by default), replacing the former shared "View contributions" drawer; the short-lived `inspector.body.section` slot was retired before release (its role is absorbed by the grouping). Two optional inspector-only `order` fields, plugin-level (`plugin.json`, sorts sections) and extension-level (extension manifest, sorts bricks), drive layout (default 100, denormalised onto each `contributionsRegistry` entry as `pluginOrder` / `extensionOrder`); `inspector.action.button` is uncapped. Still deferred to the post-v1.0 iframe sandbox (Decision #293): arbitrary HTML / JS inside a plugin section.
 - **Verb panels**, one panel per kernel verb shipped at Step 11. Initial set:
@@ -1200,7 +1217,7 @@ Numbering is sparse on purpose: sub-items (`74a`…`74e`) land where they belong
 - **`.ts` migrations** (escape hatch for SQL-impossible data transforms).
 - **`sm graph --root <node-path>` (focused subgraph render)**. Today `sm graph` always renders the whole collection through the chosen formatter; on large scopes the user has no way to focus on "what does THIS node connect to". Surface a `--root` flag that scopes the render to the transitive closure (in + out edges) of the named node, with `--depth N` to bound the walk. Useful for inspector-style flows from the CLI without round-tripping through `sm export`.
 - **`sm conformance run --format json` (machine-readable conformance output)**. Today the runner prints a human summary; CI pipelines that want to gate on per-case results have to parse the prose. Add `--format json` returning `{ scope, cases: [{ id, status, durationMs, message? }], totals }`, mirroring the JSON shape of `sm version` / `/api/health`.
-- **Standalone executable (no Node required on the host)**. Today `@skill-map/cli` ships as an npm package with two `bin` aliases (`sm`, `skill-map`); both require a Node runtime on the user's machine and a `npm install -g` (or `npx`) round-trip. The deferred goal is a self-contained binary per-OS, drop it on the box, run it, no Node, no `node_modules`. Tooling target: **`bun build --compile`** (produces a standalone executable that bundles the Bun runtime + the CLI; cross-compile to linux/macOS/windows targets is supported out of the box). Implications worth flagging: (a) the bundled runtime is Bun, not Node, any kernel code that touches Node-only APIs (e.g. `node:sqlite`, `process.binding`) needs a compat audit before flipping; (b) plugins are user-supplied JS dropped into `.skill-map/plugins/<id>/`, under a Bun standalone they execute through Bun's loader, so the plugin author guide gets a "supported runtime APIs" surface; (c) the npm package still ships in parallel, the standalone is an additional distribution channel for users who don't have or don't want Node, not a replacement. Distribution mechanics (signed releases, GitHub Releases attachments, Homebrew tap, scoop bucket) are part of the same step. Targets post-v1.0 because the v1.0 Phase C distribution polish (Step 15) intentionally locks the npm path first; standalone is a packaging extension once the npm channel is stable and the runtime-API audit is done.
+- **Standalone executable (no Node required on the host)**. Today `@skill-map/cli` ships as an npm package with two `bin` aliases (`sm`, `skill-map`); both require a Node runtime on the user's machine and a `npm install -g` (or `npx`) round-trip. The deferred goal is a self-contained binary per-OS, drop it on the box, run it, no Node, no `node_modules`. Tooling target: **`bun build --compile`** (produces a standalone executable that bundles the Bun runtime + the CLI; cross-compile to linux/macOS/windows targets is supported out of the box). Implications worth flagging: (a) the bundled runtime is Bun, not Node, any kernel code that touches Node-only APIs (e.g. `node:sqlite`, `process.binding`) needs a compat audit before flipping; (b) plugins are user-supplied JS dropped into `.skill-map/plugins/<id>/`, under a Bun standalone they execute through Bun's loader, so the plugin author guide gets a "supported runtime APIs" surface; (c) the npm package still ships in parallel, the standalone is an additional distribution channel for users who don't have or don't want Node, not a replacement. Distribution mechanics (signed releases, GitHub Releases attachments, Homebrew tap, scoop bucket) are part of the same step. Targets post-v1.0 because the v1.0 Phase D distribution polish (Step 15) intentionally locks the npm path first; standalone is a packaging extension once the npm channel is stable and the runtime-API audit is done.
 - **Plugin-to-plugin dependencies**. Today the manifest declares compatibility against the spec (`specCompat`) and the contracts catalog (`catalogCompat`), but a plugin cannot declare it requires another plugin. The current escape valve is the data graph: a plugin that consumes Markdown nodes simply finds none if no Markdown extractor is installed, and the user has to discover the missing piece by absence. Use cases that break this pattern: a Markdown-validation Analyzer that is meaningless without a Markdown Extractor; a probabilistic Summarizer that extends a deterministic Extractor's output schema; a Hook chained to another plugin's Action. Add a manifest field, `requires: { "<plugin-id>": "<semver-range>" }`, checked at load time alongside `specCompat`/`catalogCompat`. Resolution order: missing dependency → status `missing-dependency` (load skipped, doctor surfaces it); incompatible version → `incompatible-dependency`; cyclic graph → load aborts with a named cycle. `sm plugins doctor` lists missing/incompatible dependencies; `sm plugins install` (when distribution lands) walks the closure. Out of scope for this entry: runtime imports between plugins (cross-plugin code reuse), that is a packaging problem, not a manifest one, and stays deferred independently. Targets post-v1.0 because the v1.0 plugin set is small enough that the data-graph fallback is acceptable, and the design needs the catalog evolution story to settle first (catalog-major + plugin-dep-major interactions).
 - **Third-party UI + BFF extensions**. Today plugins extend the kernel via the six declarative kinds (Provider / Extractor / Analyzer / Action / Formatter / Hook); they cannot ship Angular components, Hono routes, or any code that runs in the browser or in the BFF process. A future plugin kind (or two new kinds, `UIExtension` + `BFFExtension`) lets third parties contribute: (a) Angular lazy modules that mount in declared extension points (extra inspector tabs, list-view columns, graph node decorations, side-nav routes, custom views, driven by the same plugin manifest field surface used today for annotation contributions); (b) Hono route bundles mounted under `/api/plugins/<plugin-id>/*` with their own middleware + Zod validation, sharing the BFF's broadcaster + kernel handle. Use cases: a vendor's plugin adds a "Verify against upstream" tab calling its own BFF endpoint to check the agent against the published version; a team's plugin adds an internal-scoring column in the list view sourced from a private cache; a security plugin adds a heatmap of agents that touch sensitive paths. Risk surface is non-trivial: sandboxing the contributed UI so it can't break the host SPA (CSP, isolated bundles, signed builds), securing plugin BFF endpoints (auth scope, rate limits, no kernel-bypass), versioning the contribution APIs (new sub-spec, plugin-author guide expansion). Distribution model TBD, likely the plugin author ships an extra `ui/` and `bff/` folder under their plugin, the kernel composes them at boot. Targets a deliberate post-v1.0 step because the security + sandboxing design needs masticación before any third-party code runs in the browser or the BFF process.
 - **Action discovery surface in the node inspector**. The spec now carries two complementary fields that together describe "what can the user do with this node": (a) `Action.precondition` (already shipped, see `src/kernel/extensions/action.ts:108`) declares which nodes an Action applies to from the Action's own side (`kind`, `provider`, `stability`, `custom`); (b) `Analyzer.recommendedActions` (added in this iteration) declares per-Analyzer which per-node Actions are the canonical resolution for that Analyzer's issues. The UI work pending is the inspector hookup: when the user lands on a node, render two lists, "Applicable Actions" (every Action whose `precondition` matches the current node) and "Recommended for issues" (for each Issue on the node, the `recommendedActions` of the Analyzer that fired it). Actions are per-node by design; project-level operations (orphan-file prune, contribution relink) stay as CLI verbs (e.g. `sm job prune --orphan-files`) and do NOT participate in this surface. A future iteration MAY extend `IActionPrecondition` with scope-level dimensions if a real graph-scoped Action surfaces; until then the surface stays strictly per-node. Built-in pairings shipping today: `core/annotation-stale.recommendedActions = ['core/bump']` (stale sidecar → run `bump`).

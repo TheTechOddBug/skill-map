@@ -77,8 +77,8 @@
 
   "pe.provider.title": { "en": "Provider", "es": "Provider" },
   "pe.provider.one":   { "en": "Defines an agent (Claude, Codex, etc)", "es": "Define un agente (Claude, Codex, etc)" },
-  "pe.provider.brief": { "en": "Declares the file kinds an agent exposes (skill / agent / command for Claude), where its content lives on disk, the frontmatter schema each kind follows, and how the UI renders it (label, color, icon). The Claude provider ships built-in; write one for Codex, Gemini, Copilot, or your own runner.",
-                         "es": "Declara los tipos de archivo que un agente expone (skill / agent / command para Claude), dónde vive su contenido en disco, el schema de frontmatter de cada tipo y cómo la UI lo dibuja (etiqueta, color, ícono). El provider de Claude viene built-in; escribe uno para Codex, Gemini, Copilot, o tu propio runner." },
+  "pe.provider.brief": { "en": "Declares the file kinds an agent exposes (skill / agent / command for Claude), where its content lives on disk, the frontmatter schema each kind follows, and how the UI renders it (label, color, icon). The Claude provider ships built-in; write one for Codex, Copilot, or your own runner.",
+                         "es": "Declara los tipos de archivo que un agente expone (skill / agent / command para Claude), dónde vive su contenido en disco, el schema de frontmatter de cada tipo y cómo la UI lo dibuja (etiqueta, color, ícono). El provider de Claude viene built-in; escribe uno para Codex, Copilot, o tu propio runner." },
 
   "pe.extractor.title": { "en": "Extractor", "es": "Extractor" },
   "pe.extractor.one":   { "en": "Extracts data from a node", "es": "Extrae datos de un nodo" },
