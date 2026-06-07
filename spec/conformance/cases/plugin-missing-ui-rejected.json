@@ -9,7 +9,7 @@
   },
   "assertions": [
     { "type": "exit-code", "value": 0 },
-    { "type": "stderr-matches", "pattern": "plugin bad-provider:.*invalid.*must have required property 'ui'" },
+    { "type": "stderr-matches", "pattern": "plugin bad-provider \\(invalid-manifest\\), all extensions skipped:.*must have required property 'ui'" },
     { "type": "json-path", "path": "$.providers.length", "equals": 5 },
     { "type": "json-path", "path": "$.providers[0]", "equals": "claude" },
     { "type": "json-path", "path": "$.providers[1]", "equals": "antigravity" },

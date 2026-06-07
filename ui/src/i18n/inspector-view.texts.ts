@@ -31,7 +31,6 @@ export const INSPECTOR_VIEW_TEXTS = {
     findings: 'Findings',
     metadata: 'Metadata',
     plugins: 'Plugin contributions',
-    viewContributions: 'View contributions',
     body: 'Body',
   },
   body: {

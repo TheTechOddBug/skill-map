@@ -76,17 +76,17 @@ type TCellKind = 'empty' | 'bool-true' | 'bool-false' | 'text';
     </section>
   `,
   styles: [`
-    .vc-records__header { font-size: 0.85rem; color: var(--p-surface-700);
+    .vc-records__header { font-size: 0.85rem; color: var(--p-text-muted-color);
       margin: 0 0 0.5rem; }
     .vc-records__table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
     .vc-records__table th { text-align: left; padding: 0.25rem 0.5rem;
       border-bottom: 1px solid var(--p-surface-200);
-      color: var(--p-surface-700); font-weight: 600; }
+      color: var(--p-text-muted-color); font-weight: 600; }
     .vc-records__table td { padding: 0.25rem 0.5rem;
       border-bottom: 1px solid var(--p-surface-100);
-      color: var(--p-surface-800); white-space: nowrap;
+      color: var(--p-text-color); white-space: nowrap;
       overflow: hidden; text-overflow: ellipsis; max-width: 16rem; }
-    .vc-records__empty { color: var(--p-surface-500); font-size: 0.85rem;
+    .vc-records__empty { color: var(--p-text-muted-color); font-size: 0.85rem;
       margin: 0; }
     .vc-records__bool { font-size: 0.9rem; line-height: 1; }
     .vc-records__bool--true { color: var(--p-primary-color); }

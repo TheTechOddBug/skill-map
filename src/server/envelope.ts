@@ -156,6 +156,19 @@ export interface IContributionsRegistryEntry {
    * `server/contributions-registry.ts:entryFromRegistered`.
    */
   priority?: number;
+  /**
+   * Inspector-only ordering hint, denormalised from the owning plugin's
+   * `plugin.json` `order` (default 100). Orders the per-plugin inspector
+   * body sections. Same value on every contribution of a plugin.
+   */
+  pluginOrder?: number;
+  /**
+   * Inspector-only ordering hint, denormalised from the owning
+   * extension's `order` (default 100). Orders the bricks within a
+   * plugin's inspector section. Same value on every contribution of an
+   * extension.
+   */
+  extensionOrder?: number;
 }
 
 export interface IListEnvelope<TItem> {

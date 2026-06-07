@@ -10,8 +10,10 @@
     "url": "git+https://github.com/crystian/skill-map.git"
   },
   "scripts": {
-    "prestart": "pnpm cli:build",
     "start": "bash scripts/start.sh",
+    "fix:local": "pnpm start",
+    "fix:plugins": "bash scripts/start.sh plugins-scope",
+    "fix:demo": "bash scripts/start.sh demo-scope",
     "sm": "node src/bin/sm.js",
     "sm:reset": "bash scripts/dev-reset.sh",
     "sqlite": "node src/bin/sm.js db browser",
@@ -22,9 +24,8 @@
     "cli:build": "pnpm --filter @skill-map/cli build",
     "ui:build": "pnpm --filter ui build",
     "ui:dev": "pnpm --filter ui dev",
-    "prebff:dev": "pnpm bff:scan",
-    "bff:dev": "SKILL_MAP_TELEMETRY_ENV=dev pnpm --filter @skill-map/cli dev:serve --cwd fixtures/local-scope --port 4242 --no-ui",
-    "bff:scan": "cd fixtures/local-scope && (SKILL_MAP_TELEMETRY_ENV=dev node ../../src/bin/sm.js scan || true)",
+    "bff:dev": "SKILL_MAP_TELEMETRY_ENV=dev pnpm --filter @skill-map/cli dev:serve --cwd fixtures/${SM_FIXTURE:-local-scope} --port 4242 --no-ui",
+    "bff:scan": "cd fixtures/${SM_FIXTURE:-local-scope} && (SKILL_MAP_TELEMETRY_ENV=dev node ../../src/bin/sm.js scan || true)",
     "e2e:dev": "pnpm --filter skill-map-e2e test:ui",
     "lint": "pnpm -r --if-present lint",
     "lint:fix": "pnpm -r --if-present lint:fix",

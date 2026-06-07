@@ -47,10 +47,10 @@ import type {
   IPluginManifest,
 } from '../../types/plugin.js';
 import type { PluginLoaderPort } from '../../ports/plugin-loader.js';
-import { PLUGIN_LOADER_TEXTS } from '../../i18n/plugin-loader.texts.js';
+import { PLUGIN_LOADER_TEXTS, SPEC_GITHUB_BASE } from '../../i18n/plugin-loader.texts.js';
 import { tx } from '../../util/tx.js';
 import type { ExtensionKind } from '../../registry.js';
-import type { ISchemaValidators } from '../schema-validators.js';
+import { formatAjvErrors, type ISchemaValidators } from '../schema-validators.js';
 
 import {
   applyIdCollisions,
@@ -494,15 +494,24 @@ export class PluginLoader implements PluginLoaderPort {
     // module imported fine; the declared shape is wrong.
     const extValidator = this.#options.validators.validatorForExtension(kind);
     if (!extValidator(manifestView)) {
-      const errors = (extValidator.errors ?? [])
-        .map((e) => `${e.instancePath || '(root)'} ${e.message ?? e.keyword}`)
-        .join('; ');
+      const errors = formatAjvErrors(extValidator.errors);
+      // A bad view-slot value points the author at the slot catalog
+      // (where the valid slot names live), not the kind schema (which
+      // only `$ref`s the catalog). Every other manifest-shape error
+      // points at the kind schema. The view-slot field is `ui.<id>.slot`,
+      // so its AJV instancePath ends with `/slot`.
+      const slotError = (extValidator.errors ?? []).some((e) =>
+        (e.instancePath ?? '').endsWith('/slot'),
+      );
+      const docUrl = slotError
+        ? `${SPEC_GITHUB_BASE}/spec/view-slots.md`
+        : `${SPEC_GITHUB_BASE}/spec/schemas/extensions/${kind}.schema.json`;
       return { ok: false, failure: {
         ...fail(
           pluginPath,
           pluginId,
           'invalid-manifest',
-          tx(PLUGIN_LOADER_TEXTS.invalidManifestExtensionShape, { relEntry, kind, errors }),
+          tx(PLUGIN_LOADER_TEXTS.invalidManifestExtensionShape, { relEntry, errors, docUrl }),
         ),
         manifest,
       }};

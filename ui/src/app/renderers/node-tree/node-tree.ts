@@ -58,14 +58,14 @@ interface ITreeNode {
     </section>
   `,
   styles: [`
-    .vc-tree__header { font-size: 0.85rem; color: var(--p-surface-700);
+    .vc-tree__header { font-size: 0.85rem; color: var(--p-text-muted-color);
       margin: 0 0 0.5rem; }
     .vc-tree__list { list-style: none; padding-left: 1rem; margin: 0;
       font-size: 0.85rem; }
     .vc-tree__list > li { padding: 0.125rem 0; }
     .vc-tree__marker { margin-right: 0.25rem; opacity: 0.7; }
-    .vc-tree__label { color: var(--p-surface-800); }
-    .vc-tree__empty { color: var(--p-surface-500); font-size: 0.85rem;
+    .vc-tree__label { color: var(--p-text-color); }
+    .vc-tree__empty { color: var(--p-text-muted-color); font-size: 0.85rem;
       margin: 0; }
   `],
 })

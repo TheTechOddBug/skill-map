@@ -292,7 +292,7 @@ describe('Step 9.1, plugin runtime wiring', () => {
       cmd.context = cap.context;
       const code = await cmd.execute();
       strictEqual(code, 0, `scan exited ${code}; stderr=${cap.stderr()}`);
-      match(cap.stderr(), /plugin busted-plugin: invalid-manifest/);
+      match(cap.stderr(), /plugin busted-plugin \(invalid-manifest\), all extensions skipped/);
       // The built-in pipeline still runs, at least one node persisted.
       const result = parseScanResult(cap.stdout());
       ok(result.stats.nodesCount >= 1, 'scan must keep running on a bad plugin');
@@ -369,7 +369,7 @@ describe('Step 9.1, plugin runtime wiring', () => {
       // The helper caps the `reason` interpolation at
       // PLUGIN_REASON_DISPLAY_CAP (1000) chars via `truncateHead`.
       // Bound the total output a few hundred chars above that to
-      // accommodate the surrounding template (`plugin <id>: <status>, <reason>`)
+      // accommodate the surrounding template (`plugin <id> (<status>), all extensions skipped: <reason>`)
       // the cap policy is what we're pinning, not exact byte counts.
       const oversize = 'x'.repeat(5000);
       const plugin: IDiscoveredPlugin = {

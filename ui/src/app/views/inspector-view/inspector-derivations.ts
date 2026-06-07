@@ -8,8 +8,11 @@
  *   - `hasVendorFrontmatter`: gate for the vendor card chrome.
  *   - `hasConnections`: gate for the connections section.
  *   - `hasPluginContributions`: gate for the plugin contributions section.
- *   - `hasViewContributions`: gate for the inspector body slots card.
  *   - `hasMetadata`: gate for the metadata (audit + debug) section.
+ *
+ * The inspector-body view contributions are no longer gated here: the
+ * `<sm-inspector-plugin-sections>` component self-hides (renders nothing
+ * when no plugin contributed a body panel), so it needs no derivation.
  *
  * Hoisted out of `inspector-view.ts` so the component stays focused on
  * mode handling + child-component wiring + bump dispatch. Mirrors the
@@ -20,21 +23,6 @@
 import { computed, type Signal } from '@angular/core';
 
 import type { INodeView, TNodeKind } from '../../../models/node';
-
-/**
- * Six inspector-body sub-slots the host mounts. Filtering the node's
- * contributions by this set keeps the `hasViewContributions` gate in
- * sync with the template; if a slot is removed or renamed, the gate
- * stays correct because both lists live here.
- */
-export const INSPECTOR_BODY_SLOTS: ReadonlySet<string> = new Set([
-  'inspector.body.panel.breakdown',
-  'inspector.body.panel.records',
-  'inspector.body.panel.tree',
-  'inspector.body.panel.key-values',
-  'inspector.body.panel.link-list',
-  'inspector.body.panel.markdown',
-]);
 
 const RESERVED_SIDECAR_KEYS: ReadonlySet<string> = new Set([
   'identity',
@@ -58,7 +46,6 @@ export interface IInspectorDerivationsHandle {
   readonly hasVendorFrontmatter: Signal<boolean>;
   readonly hasConnections: Signal<boolean>;
   readonly hasPluginContributions: Signal<boolean>;
-  readonly hasViewContributions: Signal<boolean>;
   readonly hasMetadata: Signal<boolean>;
 }
 
@@ -105,14 +92,6 @@ export function setupInspectorDerivations(
     return false;
   });
 
-  const hasViewContributions = computed<boolean>(() => {
-    const contributions = nodeSignal()?.contributions ?? [];
-    for (const c of contributions) {
-      if (INSPECTOR_BODY_SLOTS.has(c.slot)) return true;
-    }
-    return false;
-  });
-
   // The metadata section hosts the audit panel (sidecar `audit:` block)
   // and the debug panel. Both read off the `.sm` root, so without a
   // sidecar the section has nothing meaningful to show and is hidden.
@@ -123,7 +102,6 @@ export function setupInspectorDerivations(
     hasVendorFrontmatter,
     hasConnections,
     hasPluginContributions,
-    hasViewContributions,
     hasMetadata,
   };
 }

@@ -85,30 +85,16 @@ html.is-debug-slots .sm-debug-slot[data-debug-slot="topbar.nav.start"] { box-sha
    at-directive + markdown-link + slash). The wrapper is the
    `<span class="vch__slot" data-testid="contribution-<id>">` that
    `view-contributions-host` emits per item. Colour rotates by
-   `:nth-child` so adjacent chips never share the same hue, and the
-   wrapper carries its qualified id as a tiny floating label.
+   `:nth-child` so adjacent chips never share the same hue. The
+   qualified id of each contribution is no longer painted per chip; it
+   now lives in the slot label's hover tooltip (the host's native
+   `title`, see `debugTitle` in view-contributions-host.ts), so a busy
+   slot stays readable.
 
    `outline` (not `border` / `padding` / `margin`) keeps the toggle
    layout-neutral, same trick the slot-level `box-shadow` rules above
    use. No spacing changes when debug-slots flips on/off. */
-html.is-debug-slots .vch__slot { position: relative; }
-
 html.is-debug-slots .vch__slot:nth-child(4n+1) { outline: 2px solid #f59e0b; }
 html.is-debug-slots .vch__slot:nth-child(4n+2) { outline: 2px solid #10b981; }
 html.is-debug-slots .vch__slot:nth-child(4n+3) { outline: 2px solid #3b82f6; }
 html.is-debug-slots .vch__slot:nth-child(4n)   { outline: 2px solid #ef4444; }
-
-html.is-debug-slots .vch__slot::before {
-  content: attr(data-testid);
-  position: absolute;
-  bottom: calc(100% + 2px);
-  left: 0;
-  font: 600 8px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
-  background: #1f2937;
-  color: #f3f4f6;
-  padding: 1px 3px;
-  border-radius: 2px;
-  pointer-events: none;
-  white-space: nowrap;
-  z-index: 99;
-}

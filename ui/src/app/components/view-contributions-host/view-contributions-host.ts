@@ -45,6 +45,7 @@ import {
   isKnownSlot,
   type IRendererInputs,
 } from '../../slots/slot-renderer-map';
+import { buildRendererInputs } from '../../slots/build-renderer-inputs';
 import { SLOT_REGISTRY, type TSlotId } from '../../slots/slot-config';
 import { VIEW_CONTRIBUTIONS_TEXTS } from '../../../i18n/view-contributions.texts';
 
@@ -68,12 +69,12 @@ interface IDispatchedItem {
   host: {
     '[class.sm-debug-slot]': 'debugVisible()',
     '[attr.data-debug-slot]': 'debugVisible() ? slot() : null',
+    '[attr.title]': 'debugTitle()',
   },
   template: `
     @if (visible().length > 0 || overflowCount() > 0) {
       <span
         class="vch"
-        [class.vch--stack]="stacked()"
         [attr.data-testid]="'view-contributions-host-' + testidSuffix()"
       >
         @for (item of visible(); track item.qualifiedId) {
@@ -110,13 +111,6 @@ interface IDispatchedItem {
     .vch { display: inline-flex; align-items: center; gap: 0.7rem;
       flex-wrap: wrap; }
     .vch__slot { display: inline-flex; }
-    /* Stacked slots (e.g. inspector.body.section) lay their
-       contributions out as a full-width vertical column: each renderer
-       paints block-level chrome (its own collapsible section) so the
-       items must never sit side by side. */
-    .vch--stack { display: flex; flex-direction: column;
-      align-items: stretch; gap: 0.6rem; width: 100%; }
-    .vch--stack .vch__slot { display: block; }
     .vch__overflow { display: inline-flex; align-items: center;
       padding: 0.125rem 0.5rem; border-radius: 0.75rem;
       background: var(--p-surface-100); color: var(--p-surface-600);
@@ -146,15 +140,6 @@ export class ViewContributionsHost {
   protected readonly testidSuffix = computed(() => this.slot().replaceAll('.', '-'));
 
   /**
-   * Whether this slot lays its contributions out as a full-width
-   * vertical column (`layout: 'stack'`) instead of the default inline
-   * chip cluster. Drives the `.vch--stack` modifier.
-   */
-  protected readonly stacked = computed(
-    () => SLOT_REGISTRY[this.slot()].layout === 'stack',
-  );
-
-  /**
    * The full filtered + ordered list. Internal, used by `visible`
    * + `overflowCount` to compute the cap.
    */
@@ -179,12 +164,31 @@ export class ViewContributionsHost {
   protected readonly visible = computed<IDispatchedItem[]>(() => {
     const all = this.dispatched();
     const cap = SLOT_REGISTRY[this.slot()].maxItems;
-    return all.slice(0, cap);
+    // Uncapped slot (`maxItems` omitted): render every contribution.
+    return cap === undefined ? all : all.slice(0, cap);
+  });
+
+  /**
+   * DEBUG-SLOTS: hover tooltip listing every contribution dispatched to
+   * this slot (qualified `plugin/extension/contribution` ids, one per
+   * line, the full list including items past `maxItems`). Surfaced as
+   * the host's native `title` so hovering the debug ring/label reveals
+   * which extensions compete for the slot. Replaces the per-contribution
+   * floating labels that used to clutter each chip. Returns `null` (the
+   * attribute drops) when the debug toggle is off or the slot is empty,
+   * so production DOM stays clean.
+   */
+  protected readonly debugTitle = computed(() => {
+    if (!this.debugVisible()) return null;
+    const items = this.dispatched();
+    if (items.length === 0) return null;
+    return items.map((i) => i.qualifiedId).join('\n');
   });
 
   protected readonly overflowCount = computed(() => {
     const all = this.dispatched();
     const cap = SLOT_REGISTRY[this.slot()].maxItems;
+    if (cap === undefined) return 0;
     return Math.max(0, all.length - cap);
   });
 
@@ -205,6 +209,7 @@ export class ViewContributionsHost {
   protected readonly overflowTooltip = computed(() => {
     const all = this.dispatched();
     const cap = SLOT_REGISTRY[this.slot()].maxItems;
+    if (cap === undefined) return '';
     const hidden = all.slice(cap).map((i) => i.qualifiedId).join(', ');
     return VIEW_CONTRIBUTIONS_TEXTS.overflowTooltip(hidden);
   });
@@ -215,25 +220,7 @@ export class ViewContributionsHost {
 
   private buildInputs(c: IContributionApi, slot: TSlotId, nodePath: string): IRendererInputs {
     const qualified = `${c.pluginId}/${c.extensionId}/${c.contributionId}`;
-    const reg = this.registry.get(qualified);
-    const respectSeverity = SLOT_REGISTRY[slot].respectSeverity !== false;
-    let payload = c.payload;
-    if (!respectSeverity && typeof payload === 'object' && payload !== null && 'severity' in payload) {
-      const { severity: _drop, ...rest } = payload as Record<string, unknown>;
-      payload = rest;
-    }
-    const inputs: IRendererInputs = {
-      pluginId: c.pluginId,
-      extensionId: c.extensionId,
-      contributionId: c.contributionId,
-      nodePath,
-      payload,
-    };
-    if (reg?.label) inputs.label = reg.label;
-    if (reg?.tooltip) inputs.tooltip = reg.tooltip;
-    if (reg?.icon) inputs.icon = reg.icon;
-    if (reg?.emptyText) inputs.emptyText = reg.emptyText;
-    return inputs;
+    return buildRendererInputs(c, slot, nodePath, this.registry.get(qualified));
   }
 
   private sortBySlotOrder(items: IContributionApi[], slot: TSlotId): IContributionApi[] {

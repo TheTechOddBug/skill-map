@@ -606,6 +606,19 @@ The kernel ships exactly these 14 slots. Each fixes a renderer + a payload shape
 | `inspector.body.panel.markdown` | sanitized markdown panel |
 | `topbar.nav.start` | scope chip |
 
+### Inspector grouping and `order`
+
+The six `inspector.body.panel.*` contributions are not rendered in a shared drawer. The inspector groups them **one collapsible section per plugin**, titled by the plugin id (host-applied from the trusted contribution `pluginId`, never the payload) and **collapsed by default**. A plugin's bricks only ever land in its own section: a plugin cannot contribute into another plugin's space.
+
+Two optional, inspector-only `order` hints (both `number`, default `100`) control layout:
+
+| Field | Where | Effect |
+|---|---|---|
+| `order` | `plugin.json` (plugin level) | Sorts the plugin sections, ASC, tie-break by plugin id. |
+| `order` | extension manifest (extension level) | Sorts the bricks inside a plugin's section, ASC, tie-break by the contribution `priority` then qualified id. |
+
+`order` is purely presentational and never affects execution order (analyzer `phase` + registration order govern that). It only applies to the inspector body sections; `priority` still governs ordering within the card / header / action slots.
+
 ### Chip vs Issue
 
 For analyzers, a per-node card surfaces a finding through two independent channels: the `Issue` returned by `evaluate(ctx)` feeds the aggregated stats and the scan / check exit code; a view contribution to a card slot is **purely presentational** (its `severity` controls only the chip's own colour, never the count, never the exit code). The colour rule, when a chip may paint `warn` / `danger`, and the reserved status of `graph.node.alert` are documented in [`view-slots.md` §Chip vs Issue](./view-slots.md). Breaking the colour rule produces visually misleading cards and is caught in code review, not by the schema.

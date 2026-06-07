@@ -305,6 +305,30 @@
   font-weight: 500;
 }
 
+/* Failure badge: same pill chrome as the locked tag but error-toned, a
+   glanceable `✕ <status>` marking a plugin rejected whole (none of its
+   extensions loaded). The detail lives in the row-reason line below + the
+   badge's native title. */
+.settings-plugins__row-status--failed {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--sm-radius-pill);
+  white-space: nowrap;
+  color: var(--p-message-error-color);
+  background: color-mix(in oklab, var(--p-message-error-color) 14%, transparent);
+}
+
+/* A failed plugin reads as inactive: dim the identity + description so the
+   eye lands on the badge + reason, which stay at full strength. */
+.settings-plugins__row.is-failed .settings-plugins__row-id,
+.settings-plugins__row.is-failed .settings-plugins__row-description {
+  opacity: 0.6;
+}
+
 /* Locked tag, same pill chrome as source/version, plus an amber
    accent (matches the warn severity used by the restart banner) so
    the host-enforced lock reads as advisory, not as an error. The lock

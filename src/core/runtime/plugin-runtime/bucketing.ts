@@ -30,7 +30,11 @@ import type { IPluginRuntime } from './index.js';
  * regardless of kind so `sm plugins list` / `sm actions list` see
  * every extension that loaded.
  */
-export function bucketLoaded(loaded: ILoadedExtension[], runtime: IPluginRuntime): void {
+export function bucketLoaded(
+  loaded: ILoadedExtension[],
+  runtime: IPluginRuntime,
+  pluginOrder?: number,
+): void {
   for (const ext of loaded) {
     const instance = ext.instance;
     if (!isExtensionInstance(instance)) continue;
@@ -61,7 +65,9 @@ export function bucketLoaded(loaded: ILoadedExtension[], runtime: IPluginRuntime
     // catalog); no cross-plugin collision detection needed because the
     // qualified id `<pluginId>/<extensionId>/<contributionId>` is
     // structurally unique.
-    collectViewContributions(ext.pluginId, ext.id, instance, runtime.viewContributions);
+    collectViewContributions(ext.pluginId, ext.id, instance, runtime.viewContributions, {
+      ...(typeof pluginOrder === 'number' ? { pluginOrder } : {}),
+    });
   }
 }
 

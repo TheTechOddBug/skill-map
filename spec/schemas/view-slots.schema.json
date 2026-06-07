@@ -21,7 +21,6 @@
         { "const": "inspector.body.panel.key-values", "description": "Flat key/value pairs (≤ 50) in the inspector body." },
         { "const": "inspector.body.panel.link-list", "description": "Clickable scope-relative paths (≤ 100) in the inspector body." },
         { "const": "inspector.body.panel.markdown", "description": "Sanitized markdown text (≤ 4096 chars) in the inspector body." },
-        { "const": "inspector.body.section", "description": "A plugin-owned collapsible zone in the inspector body, titled `<pluginId>:<zone>` (host-applied prefix). Multi-cardinality; content is key/value pairs. Arbitrary HTML/JS is deferred to the post-v1.0 sandbox." },
         { "const": "topbar.nav.start", "description": "Scope-wide indicator chip at the start of the topbar nav (before the view-switcher links)." }
       ],
       "description": "Closed catalog of slot identifiers. Adding an entry requires the full spec/UI/scaffolder/conformance round-trip per ROADMAP.md §UI contribution system. Removing or renaming an entry is a catalog-major-bump and triggers `sm plugins upgrade` migration. Slots that share a payload shape (e.g. `card.subtitle.left`, `card.footer.right`, and `card.footer.left` all carry a counter) reference the same payload schema in `$defs.payloads`. Each member's `description` is the catalog summary surfaced by `sm plugins slots list` and is the single source of truth for the generated kernel + CLI mirrors (see `scripts/generate-view-catalog.js`)."
@@ -389,48 +388,6 @@
             "description": "Markdown text rendered with a sanitized allow-list (paragraphs, headings up to H3, lists, inline code, fenced code, emphasis, strong, blockquote). HTML, scripts, embedded SVG, image tags, and link autodetection are stripped. Hard cap 4096 chars to keep render cost bounded. 'Empty' for `emitWhenEmpty` is `markdown.trim() === ''`."
           }
         }
-      },
-      "inspector.body.section": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["zone", "entries"],
-        "properties": {
-          "zone": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 48,
-            "description": "Plugin-chosen zone name. The UI renders a collapsible inspector section titled `<pluginId>:<zone>`; the `<pluginId>:` prefix is applied by the host (not the plugin) so a plugin can never disguise its zone as a system section. Built-in (system) plugins render without the prefix."
-          },
-          "defaultCollapsed": {
-            "type": "boolean",
-            "default": false,
-            "description": "Whether the section starts collapsed."
-          },
-          "icon": { "$ref": "#/$defs/IconString" },
-          "entries": {
-            "type": "array",
-            "maxItems": 50,
-            "items": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["key", "value"],
-              "properties": {
-                "key": { "type": "string", "minLength": 1, "maxLength": 64 },
-                "value": {
-                  "oneOf": [
-                    { "type": "string", "maxLength": 512 },
-                    { "type": "number" },
-                    { "type": "boolean" },
-                    { "type": "null" }
-                  ]
-                },
-                "tooltip": { "type": "string", "maxLength": 256 }
-              }
-            },
-            "description": "Key/value pairs rendered inside the zone (max 50), same shape as `inspector.body.panel.key-values`. Future content types extend this payload. 'Empty' for `emitWhenEmpty` is `entries.length === 0`."
-          }
-        },
-        "description": "A plugin-owned collapsible zone in the inspector body. Multi-cardinality (a plugin may emit several zones; several plugins each get their own). The zone title is `<pluginId>:<zone>` with a host-applied, non-falsifiable prefix; content is key/value pairs for now. Arbitrary HTML/JS is intentionally NOT supported, deferred to the post-v1.0 iframe sandbox (Decision #293)."
       },
       "topbar.nav.start": {
         "type": "object",

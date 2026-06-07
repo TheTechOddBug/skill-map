@@ -125,6 +125,14 @@
           "priority": {
             "type": "number",
             "description": "Optional ordering hint (default 100 when omitted). Slots whose `order` is `'priority'` sort contributions ASC by this value with alphabetical tie-break by qualified id. Mirror of `IViewContribution.priority` in `view-slots.schema.json#/$defs/ViewContribution`; propagated so the UI can apply the manifest-declared order without a second round-trip."
+          },
+          "pluginOrder": {
+            "type": "number",
+            "description": "Optional inspector-only ordering hint, denormalised from the owning plugin's `plugin.json` `order` field (default 100). The inspector groups `inspector.body.panel.*` contributions into one collapsible section per plugin and sorts those sections ASC by this value, tie-break by plugin id. Every contribution of a given plugin carries the same value."
+          },
+          "extensionOrder": {
+            "type": "number",
+            "description": "Optional inspector-only ordering hint, denormalised from the owning extension's `order` manifest field (default 100). Inside a plugin's inspector section, bricks are sorted ASC by this value, tie-break by `priority` then qualified id. Every contribution of a given extension carries the same value."
           }
         }
       }

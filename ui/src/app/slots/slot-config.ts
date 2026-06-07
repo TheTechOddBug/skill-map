@@ -22,11 +22,13 @@
  */
 
 /**
- * Closed enum of slot ids. Mirror of the kernel's `TSlotName`. 15
+ * Closed enum of slot ids. Mirror of the kernel's `TSlotName`. 14
  * entries: 5 card slots (`card.*` + `graph.node.alert`), one unified
  * inspector header badge slot, one inspector action-button slot, 6
- * inspector body panel sub-slots, one plugin-owned inspector body
- * section slot, and the topbar nav slot.
+ * inspector body panel sub-slots, and the topbar nav slot. The body
+ * panels are grouped one collapsible section per plugin by
+ * `inspector-plugin-sections`; the former `inspector.body.section`
+ * slot was retired when that grouping landed.
  */
 export type TSlotId =
   | 'card.title.right'
@@ -42,8 +44,21 @@ export type TSlotId =
   | 'inspector.body.panel.key-values'
   | 'inspector.body.panel.link-list'
   | 'inspector.body.panel.markdown'
-  | 'inspector.body.section'
   | 'topbar.nav.start';
+
+/**
+ * The six inspector-body panel slots, grouped one section per plugin by
+ * `inspector-plugin-sections`. Kept here (the slot catalog) so the
+ * grouping component and any gate stay in sync with the union above.
+ */
+export const INSPECTOR_BODY_PANEL_SLOTS: ReadonlySet<TSlotId> = new Set<TSlotId>([
+  'inspector.body.panel.breakdown',
+  'inspector.body.panel.records',
+  'inspector.body.panel.tree',
+  'inspector.body.panel.key-values',
+  'inspector.body.panel.link-list',
+  'inspector.body.panel.markdown',
+]);
 
 /**
  * Per-slot configuration. The host component reads this to know
@@ -59,8 +74,12 @@ export interface ISlotConfig {
    * collapses into `+N`).
    */
   cardinality: 'single' | 'multi';
-  /** Max contributions visible at once. Overflow folds into `+N`. */
-  maxItems: number;
+  /**
+   * Max contributions visible at once. Overflow folds into `+N`. Omit
+   * for an uncapped slot (every contribution renders, no `+N`), e.g.
+   * `inspector.action.button` where the user wants every action shown.
+   */
+  maxItems?: number;
   /**
    * Stable order for `multi` slots. `alphabetical` sorts by
    * qualified id; `fifo` keeps the kernel's emission order;
@@ -98,16 +117,6 @@ export interface ISlotConfig {
    * the winner per the `order` rule, the rest are suppressed.
    */
   showOverflowBadge?: boolean;
-  /**
-   * How the host lays out the contributions in this slot.
-   *   - `inline` (default), an inline-flex cluster (chips, counters,
-   *     badges) that wraps within the parent's content box.
-   *   - `stack`, a full-width vertical column, one contribution per
-   *     row. Used by slots whose renderer paints block-level chrome
-   *     (e.g. `inspector.body.section`, where each contribution is its
-   *     own collapsible section), so the items never sit side by side.
-   */
-  layout?: 'inline' | 'stack';
 }
 
 /**
@@ -141,7 +150,9 @@ export const SLOT_REGISTRY: Record<TSlotId, ISlotConfig> = {
   'inspector.action.button': {
     id: 'inspector.action.button',
     cardinality: 'multi',
-    maxItems: 6,
+    // Uncapped on purpose (no `maxItems`): the inspector shows every
+    // action a plugin contributes; folding extra buttons into a `+N`
+    // chip would hide dispatchable verbs from the user.
     order: 'priority',
     strategy: 'append',
     respectSeverity: true,
@@ -187,22 +198,6 @@ export const SLOT_REGISTRY: Record<TSlotId, ISlotConfig> = {
     maxItems: 50,
     order: 'alphabetical',
     strategy: 'append',
-  },
-  'inspector.body.section': {
-    // Plugin-owned collapsible zones in the inspector body. Each
-    // contribution paints its OWN `<sm-collapsible-section>` titled
-    // `<pluginId>:<zone>` (the prefix is host-applied for non-system
-    // plugins, never trusted from the payload). Multi-cardinality so
-    // several plugins (and several zones per plugin) can each get a
-    // section; capped at 10 so a misbehaving plugin cannot flood the
-    // inspector. Priority order lets a plugin hint where its zone sits
-    // relative to others, tie-breaking alphabetically by qualified id.
-    id: 'inspector.body.section',
-    cardinality: 'multi',
-    maxItems: 10,
-    order: 'priority',
-    strategy: 'append',
-    layout: 'stack',
   },
   'card.footer.left': {
     id: 'card.footer.left',

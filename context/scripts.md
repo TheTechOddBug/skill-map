@@ -57,14 +57,15 @@ When a workspace depends on external artifacts to validate (e.g. e2e needs `web/
 
 - **BFF** is not a workspace (it lives embedded in `src/server/` and ships as part of the CLI). But `bff:dev` exists at root because iterating on the BFF has its own mental identity.
 - **Demo** is a cross-workspace artifact (built UI + scripts + fixtures), not a workspace. Its root shortcuts reflect the artifact's reality.
-- **`start`** stays at root but is pending redesign: the end target is to bring up BFF + UI in parallel.
+- **`fix:*`** is the fixture dev-scope bring-up family (`component:action`, component `fix` = fixtures): `fix:local`, `fix:plugins`, `fix:demo`. Each brings up BFF + UI in parallel against `fixtures/<scope>` (two Windows Terminal panes via `scripts/start.sh`: `bff:dev` left, `ui:dev` right). The fixture is threaded to the BFF pane via the `SM_FIXTURE` env var (`bff:dev` resolves `fixtures/${SM_FIXTURE:-local-scope}`); the UI pane is fixture-agnostic (Angular HMR proxies the API to the BFF). Both panes run from source (BFF via `tsx`, UI via `ng serve`), so `start.sh` regenerates only `src/plugins/built-ins.ts` (`build-built-ins`), no `dist` build, and there is NO pre-scan: the BFF's watcher does the initial scan itself (`runInitialBatch`), so a `prebff:dev` pre-scan would just double the boot scan + its warnings. `bff:scan` stays as a standalone manual scan. The former `prestart: cli:build` hook was retired. Adding a fixture under `fixtures/` is a one-line `fix:<name>` alias.
+- **`start`** is the cross-platform-agnostic entry the `fix:*` family aliases: `pnpm start` ≡ `pnpm fix:local` ≡ `scripts/start.sh local-scope`. The former "pending redesign" (bring up BFF + UI in parallel) landed as the `fix:*` family above.
 
 ## Anti-patterns
 
 - ❌ **Root scripts that delegate to a single specific workspace.** Skews the monorepo and breaks symmetry. If it only applies to one workspace, it lives in the workspace. Exception: genuine cross-workspace combos like `demo:build`.
 - ❌ **Scripts duplicated with the orchestrator.** Root `validate` covers lint + test + build + typecheck per workspace; a redundant root `lint` alongside `validate` is noise. Keeping `lint`/`lint:fix` at root is justified only as a quick-iteration shortcut (not orchestration).
 - ❌ **Root package scripts that invoke a workspace's own `.js`.** If the `.js` belongs to the workspace, the script that invokes it lives in the workspace. Root only invokes via `pnpm --filter <name> <script>` (not via `node workspace/scripts/foo.js`).
-- ❌ **Aliases that break `component:action`.** `start`, `web` (no action), `site:build` (made-up "site" component), `smoke:demo` (action first), all removed or renamed. Do not reintroduce them.
+- ❌ **Aliases that break `component:action`.** `web` (no action), `site:build` (made-up "site" component), `smoke:demo` (action first), all removed or renamed. Do not reintroduce them. (`start` is the single retained bare word: it is the npm-standard entry that `fix:local` aliases, documented under Special cases.)
 
 ## Policy for scripts in root `scripts/`
 

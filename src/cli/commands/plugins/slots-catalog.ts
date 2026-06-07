@@ -20,7 +20,6 @@ export const VIEW_SLOTS_CATALOG = [
   { id: 'inspector.body.panel.key-values', summary: 'Flat key/value pairs (≤ 50) in the inspector body.' },
   { id: 'inspector.body.panel.link-list', summary: 'Clickable scope-relative paths (≤ 100) in the inspector body.' },
   { id: 'inspector.body.panel.markdown', summary: 'Sanitized markdown text (≤ 4096 chars) in the inspector body.' },
-  { id: 'inspector.body.section', summary: 'A plugin-owned collapsible zone in the inspector body, titled `<pluginId>:<zone>` (host-applied prefix). Multi-cardinality; content is key/value pairs. Arbitrary HTML/JS is deferred to the post-v1.0 sandbox.' },
   { id: 'topbar.nav.start', summary: 'Scope-wide indicator chip at the start of the topbar nav (before the view-switcher links).' },
 ] as const;
 

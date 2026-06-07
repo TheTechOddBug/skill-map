@@ -57,6 +57,12 @@ Thumbs.db
 .skill-map/
 !spec/conformance/fixtures/**/.skill-map/
 !spec/conformance/fixtures/**/.skill-map/**
+# Same exception for the plugins-scope dev fixture: it ships committed
+# drop-in plugins under `.skill-map/plugins/`. The runtime artifacts it
+# still ignores (db, settings, backups) live in its own
+# `fixtures/plugins-scope/.gitignore`.
+!fixtures/plugins-scope/.skill-map/
+!fixtures/plugins-scope/.skill-map/**
 
 .codex
 

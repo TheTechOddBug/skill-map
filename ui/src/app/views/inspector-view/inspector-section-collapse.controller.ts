@@ -25,7 +25,6 @@ export type TInspectorSectionId =
   | 'findings'
   | 'metadata'
   | 'plugins'
-  | 'viewContributions'
   | 'body';
 
 const STORAGE_KEY = 'skill-map.ui.inspector.sections';

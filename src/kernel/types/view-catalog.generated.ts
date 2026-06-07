@@ -22,7 +22,6 @@ export type TSlotName =
   | 'inspector.body.panel.key-values'
   | 'inspector.body.panel.link-list'
   | 'inspector.body.panel.markdown'
-  | 'inspector.body.section'
   | 'topbar.nav.start';
 
 /**
@@ -45,7 +44,6 @@ export const ALL_SLOT_NAMES: ReadonlyArray<TSlotName> = [
   'inspector.body.panel.key-values',
   'inspector.body.panel.link-list',
   'inspector.body.panel.markdown',
-  'inspector.body.section',
   'topbar.nav.start',
 ];
 

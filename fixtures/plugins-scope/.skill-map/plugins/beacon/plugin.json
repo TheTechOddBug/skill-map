@@ -1,0 +1,7 @@
+{
+  "version": "0.1.0",
+  "specCompat": "^0.46.0",
+  "catalogCompat": "^1.0.0",
+  "description": "Second demo plugin, lower plugin order so it sorts above example.",
+  "order": 10
+}

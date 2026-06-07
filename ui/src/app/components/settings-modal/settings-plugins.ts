@@ -72,6 +72,7 @@ import { ScanTriggerService } from '../../services/scan-trigger';
 
 import {
   clickedInteractive,
+  isFailureStatus,
   qualifiedKey,
   sourceLabel,
   statusLabel,
@@ -345,6 +346,17 @@ export class SettingsPlugins {
 
   protected statusLabel(plugin: IPluginItemApi): string {
     return statusLabel(plugin, this.texts);
+  }
+
+  /**
+   * True for the load-failure statuses (`invalid-manifest`,
+   * `incompatible-spec`, `load-error`, `id-collision`), where the plugin
+   * was rejected whole and none of its extensions loaded. Drives the red
+   * `✕ <status>` badge + the dimmed row; user-disabled plugins are NOT
+   * failures (that is an intentional toggle, no badge).
+   */
+  protected isFailed(plugin: IPluginItemApi): boolean {
+    return isFailureStatus(plugin.status);
   }
 
   protected sourceLabel(source: IPluginItemApi['source']): string {

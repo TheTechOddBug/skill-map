@@ -27,7 +27,7 @@ import { AnnotationsPanel } from '../../components/annotations-panel/annotations
 import { LinkedNodesPanel } from '../../components/linked-nodes-panel/linked-nodes-panel';
 import { VendorFrontmatter } from '../../components/vendor-frontmatter/vendor-frontmatter';
 import { PluginContributions } from '../../components/plugin-contributions/plugin-contributions';
-import { InspectorSlotsPanel } from '../../components/inspector-slots-panel/inspector-slots-panel';
+import { InspectorPluginSections } from '../../components/inspector-plugin-sections/inspector-plugin-sections';
 import { InspectorDebugPanel } from '../../components/inspector-debug-panel/inspector-debug-panel';
 import { InspectorAuditPanel } from '../../components/inspector-audit-panel/inspector-audit-panel';
 import { InspectorHeader } from '../../components/inspector-header/inspector-header';
@@ -62,7 +62,7 @@ import { effectiveSupersededBy } from '../../../models/node-derived';
     AnnotationsPanel,
     VendorFrontmatter,
     PluginContributions,
-    InspectorSlotsPanel,
+    InspectorPluginSections,
     InspectorDebugPanel,
     InspectorAuditPanel,
     InspectorHeader,
@@ -221,7 +221,6 @@ export class InspectorView implements OnInit {
   protected readonly hasVendorFrontmatter = this.derivations.hasVendorFrontmatter;
   protected readonly hasConnections = this.derivations.hasConnections;
   protected readonly hasPluginContributions = this.derivations.hasPluginContributions;
-  protected readonly hasViewContributions = this.derivations.hasViewContributions;
   protected readonly hasMetadata = this.derivations.hasMetadata;
 
   /**
@@ -232,15 +231,30 @@ export class InspectorView implements OnInit {
    * user asked for basic.
    */
   protected readonly issues = signal<IIssueApi[]>([]);
+  /**
+   * Last path the issues effect fetched for. Lets the effect tell a
+   * navigation (path changed) apart from a same-path reload (the loader
+   * re-runs `load()` on every `scan.completed` / reconnect re-seed,
+   * handing `node()` a fresh object with the same path).
+   */
+  private issuesPath: string | undefined = undefined;
   private readonly issuesLoaderEffect = effect((onCleanup) => {
     // Track `node()` (not just `path()`) so this re-runs both on
-    // navigation AND whenever the persisted scan reloads (the loader
-    // re-runs `load()` on every `scan.completed`). That keeps the
-    // Findings card in sync after the user edits + re-scans the file.
+    // navigation AND whenever the persisted scan reloads. That keeps the
+    // Findings card live after the user edits + re-scans the file.
     const node = this.node();
-    this.issues.set([]);
-    if (!node) return;
-    const path = node.path;
+    const path = node?.path;
+    // Reset to empty ONLY on navigation: a finding from the previous
+    // node must not linger on the newly-selected one. On a same-path
+    // reload we keep the current list mounted and swap it in once the
+    // fresh fetch resolves, so the Findings section never
+    // unmounts/remounts (that reset-then-refill was the flicker). Mirrors
+    // the body card's silent-refresh contract in `inspector-body-state`.
+    if (path !== this.issuesPath) {
+      this.issues.set([]);
+      this.issuesPath = path;
+    }
+    if (!node || !path) return;
     let cancelled = false;
     onCleanup(() => {
       cancelled = true;
@@ -248,10 +262,12 @@ export class InspectorView implements OnInit {
     void this.dataSource
       .listIssues({ node: path })
       .then((env) => {
-        if (!cancelled) this.issues.set(env.items);
+        // Guard the path too: a stale resolve from the node we navigated
+        // away from must not overwrite the current node's findings.
+        if (!cancelled && this.issuesPath === path) this.issues.set(env.items);
       })
       .catch(() => {
-        if (!cancelled) this.issues.set([]);
+        if (!cancelled && this.issuesPath === path) this.issues.set([]);
       });
   });
 

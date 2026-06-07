@@ -57,20 +57,20 @@ interface INodeLinkListPayload {
     </section>
   `,
   styles: [`
-    .vc-links__header { font-size: 0.85rem; color: var(--p-surface-700);
+    .vc-links__header { font-size: 0.85rem; color: var(--p-text-muted-color);
       margin: 0 0 0.5rem; }
     .vc-links__list { list-style: none; padding: 0; margin: 0;
       display: flex; flex-direction: column; gap: 0.125rem;
       font-size: 0.85rem; }
     .vc-links__btn { display: inline-flex; align-items: center; gap: 0.5rem;
       background: transparent; border: 0; padding: 0.25rem 0.5rem;
-      border-radius: var(--sm-radius-md); color: var(--p-primary-600); cursor: pointer;
+      border-radius: var(--sm-radius-md); color: var(--p-primary-color); cursor: pointer;
       text-align: left; width: 100%; }
     .vc-links__btn:hover { background: var(--p-surface-100); }
-    .vc-links__kind { color: var(--p-surface-500);
+    .vc-links__kind { color: var(--p-text-muted-color);
       font-family: var(--sm-font-mono); font-size: 0.75rem; }
     .vc-links__label { word-break: break-all; }
-    .vc-links__empty { color: var(--p-surface-500); font-size: 0.85rem;
+    .vc-links__empty { color: var(--p-text-muted-color); font-size: 0.85rem;
       margin: 0; }
   `],
 })

@@ -20,7 +20,7 @@ import { Ajv2020 } from 'ajv/dist/2020.js';
 
 import type { IDiscoveredPlugin, IPluginManifest } from '../../types/plugin.js';
 import type { ExtensionKind } from '../../registry.js';
-import { PLUGIN_LOADER_TEXTS } from '../../i18n/plugin-loader.texts.js';
+import { PLUGIN_LOADER_TEXTS, SPEC_GITHUB_BASE } from '../../i18n/plugin-loader.texts.js';
 import { applyAjvFormats } from '../../util/ajv-interop.js';
 import { tx } from '../../util/tx.js';
 import { HOOK_TRIGGERS } from '../../extensions/hook.js';
@@ -335,7 +335,7 @@ function loadOneProviderKind(opts: ILoadOneKindOptions):
           opts.pluginPath,
           opts.pluginId,
           'invalid-manifest',
-          `Provider kind \`${opts.entry}\` (declared at \`${opts.relEntry}\`) failed validation in \`kinds/${opts.entry}/kind.json\`: ${validation.errors}. See spec/schemas/extensions/provider-kind.schema.json.`,
+          `Provider kind \`${opts.entry}\` (declared at \`${opts.relEntry}\`) failed validation in \`kinds/${opts.entry}/kind.json\`: ${validation.errors}. See ${SPEC_GITHUB_BASE}/spec/schemas/extensions/provider-kind.schema.json.`,
         ),
         manifest: opts.manifest,
       },

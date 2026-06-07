@@ -36,12 +36,12 @@ The plugin author **picks a slot**. The slot fixes both the renderer (which Angu
 | `graph.node.alert` | NodeAlert | `graph-view.html` (corner badge inside `[fNode]`). **Reserved**: catalog keeps the surface available for special-case signals, NO built-in core analyzer emits here. Routine "this node has a problem" findings (`reference-broken`, `annotation-field-unknown`, `schema-violation`) ship as chips on `card.footer.right` instead. See the policy note on the slot entry in `ui/src/app/slots/slot-config.ts`. |
 | `inspector.header.badge.counter` | NodeCounter | `inspector-view.html` (badge row under title) |
 | `inspector.header.badge.tag` | NodeTag | `inspector-view.html` (badge row, adjacent to counter sub-slot) |
-| `inspector.body.panel.breakdown` | NodeBreakdown | `inspector-view.html` (body panel) |
-| `inspector.body.panel.records` | NodeRecords | `inspector-view.html` (body panel) |
-| `inspector.body.panel.tree` | NodeTree | `inspector-view.html` (body panel) |
-| `inspector.body.panel.key-values` | NodeKeyValues | `inspector-view.html` (body panel) |
-| `inspector.body.panel.link-list` | NodeLinkList | `inspector-view.html` (body panel) |
-| `inspector.body.panel.markdown` | NodeMarkdown | `inspector-view.html` (body panel) |
+| `inspector.body.panel.breakdown` | NodeBreakdown | `inspector-plugin-sections` (grouped one section per plugin) |
+| `inspector.body.panel.records` | NodeRecords | `inspector-plugin-sections` (grouped one section per plugin) |
+| `inspector.body.panel.tree` | NodeTree | `inspector-plugin-sections` (grouped one section per plugin) |
+| `inspector.body.panel.key-values` | NodeKeyValues | `inspector-plugin-sections` (grouped one section per plugin) |
+| `inspector.body.panel.link-list` | NodeLinkList | `inspector-plugin-sections` (grouped one section per plugin) |
+| `inspector.body.panel.markdown` | NodeMarkdown | `inspector-plugin-sections` (grouped one section per plugin) |
 | `topbar.nav.start` | ScopeStat | `app.html` (topbar) |
 
 Default order across the catalog (when `SLOT_REGISTRY[slot].order === 'alphabetical'`): `pluginId` ASC → `extensionId` ASC → `contributionId` ASC. Deterministic. Slots with `order: 'priority'` sort by the manifest-declared `priority` (default 100) with alphabetical tie-break.
@@ -166,8 +166,8 @@ Follows the existing repo convention (kebab-case, `<area>-<element>`):
 Two existing components consume the word "contributions", DO NOT collide:
 
 - `<sm-plugin-contributions>`, **existing**, surfaces sidecar root keys (annotation contributions). Lives at `ui/src/app/components/plugin-contributions/`.
-- `<sm-view-contributions>`, surfaces view contributions in `inspector.body.panel.*` slots. Lives at `ui/src/app/components/view-contributions/`.
-- `<sm-view-contributions-host>`, generic slot host that filters / sorts / dispatches per slot. Lives at `ui/src/app/components/view-contributions-host/`.
+- `<sm-inspector-plugin-sections>`, groups the `inspector.body.panel.*` contributions into one collapsible section per plugin (titled by the trusted `pluginId`, collapsed by default), ordered by the manifest `order` fields. Lives at `ui/src/app/components/inspector-plugin-sections/`. Replaced the former shared "View contributions" drawer and the retired `inspector.body.section` slot.
+- `<sm-view-contributions-host>`, generic slot host that filters / sorts / dispatches per slot (card / header / action / graph / topbar mounts). Lives at `ui/src/app/components/view-contributions-host/`.
 
 The two systems are independent: annotation contributions write to the sidecar `.sm` file; view contributions emit per-node payloads stored in `scan_contributions`. They share the "plugin contributes data, kernel exposes catalog, UI renders" pattern but never overlap in storage or routing.
 

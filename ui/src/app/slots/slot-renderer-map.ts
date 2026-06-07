@@ -25,7 +25,6 @@ import { NodeRecords } from '../renderers/node-records/node-records';
 import { NodeMarkdown } from '../renderers/node-markdown/node-markdown';
 import { NodeBadge } from '../renderers/node-badge/node-badge';
 import { NodeActionButton } from '../renderers/node-action-button/node-action-button';
-import { NodeSection } from '../renderers/node-section/node-section';
 import { NodeTree } from '../renderers/node-tree/node-tree';
 import { NodeAlert } from '../renderers/node-alert/node-alert';
 import { NodeIcon } from '../renderers/node-icon/node-icon';
@@ -76,7 +75,6 @@ export const SLOT_RENDERERS: Record<TSlotId, Type<unknown>> = {
   'inspector.body.panel.key-values': NodeKeyValues,
   'inspector.body.panel.link-list': NodeLinkList,
   'inspector.body.panel.markdown': NodeMarkdown,
-  'inspector.body.section': NodeSection,
   'topbar.nav.start': ScopeStat,
 };
 

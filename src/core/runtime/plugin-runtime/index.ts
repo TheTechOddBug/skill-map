@@ -210,7 +210,7 @@ export async function loadPluginRuntime(
 
   for (const plugin of discovered) {
     if (plugin.status === 'enabled') {
-      bucketLoaded(plugin.extensions ?? [], runtime);
+      bucketLoaded(plugin.extensions ?? [], runtime, plugin.manifest?.order);
       continue;
     }
     if (plugin.status === 'disabled') continue;

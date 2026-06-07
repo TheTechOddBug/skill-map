@@ -149,6 +149,7 @@
         <li
           class="settings-plugins__row"
           [class.is-clickable]="rowIsClickable(plugin)"
+          [class.is-failed]="isFailed(plugin)"
           [attr.data-testid]="'settings-row-' + plugin.id"
         >
           <div
@@ -186,6 +187,16 @@
                 <span class="settings-plugins__row-source">{{ sourceLabel(plugin.source) }}</span>
                 @if (plugin.source === 'project' && plugin.version) {
                   <span class="settings-plugins__row-version">v{{ plugin.version }}</span>
+                }
+                @if (isFailed(plugin)) {
+                  <span
+                    class="settings-plugins__row-status settings-plugins__row-status--failed"
+                    [title]="plugin.reason ?? ''"
+                    [attr.data-testid]="'settings-row-status-' + plugin.id"
+                  >
+                    <i class="fa-solid fa-circle-xmark" aria-hidden="true"></i>
+                    {{ statusLabel(plugin) }}
+                  </span>
                 }
                 @if (plugin.locked) {
                   <span

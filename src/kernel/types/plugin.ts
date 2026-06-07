@@ -59,6 +59,12 @@ export interface IPluginManifest {
   catalogCompat: string;
   /** Required short description shown in `sm plugins list` and the UI. */
   description: string;
+  /**
+   * Optional inspector-only ordering hint (default 100). Sorts the
+   * per-plugin sections in the inspector body. Never affects execution
+   * order. See `plugins-registry.schema.json#/$defs/PluginManifest`.
+   */
+  order?: number;
   storage?: TPluginStorage;
   author?: string;
   license?: string;

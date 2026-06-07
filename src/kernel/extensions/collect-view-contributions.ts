@@ -35,6 +35,13 @@ import type { IRegisteredViewContribution, IViewContribution, TSlotName } from '
 
 export interface ICollectViewContributionsOptions {
   excludeQualifiedIds?: ReadonlySet<string>;
+  /**
+   * Inspector-only ordering hint from the owning plugin's `plugin.json`
+   * `order` field. Denormalised onto every registered contribution of
+   * this plugin so the UI can order the per-plugin inspector sections
+   * without a second lookup. Absent when the manifest omits `order`.
+   */
+  pluginOrder?: number;
 }
 
 // Complexity counts the typeof guard chain on each contribution's
@@ -59,6 +66,13 @@ export function collectViewContributions(
   const raw = (instance as Record<string, unknown>)['ui'];
   if (typeof raw !== 'object' || raw === null) return;
   const exclude = options.excludeQualifiedIds;
+  // Inspector-only ordering hints (default applied in the UI). `pluginOrder`
+  // comes from the caller (plugin.json `order`); `extensionOrder` is read off
+  // the extension instance's `order` field. Both are denormalised onto every
+  // row so the UI orders sections + bricks from a single registry lookup.
+  const pluginOrder = options.pluginOrder;
+  const extOrder = (instance as Record<string, unknown>)['order'];
+  const extensionOrder = typeof extOrder === 'number' ? extOrder : undefined;
   for (const [contributionId, value] of Object.entries(raw as Record<string, unknown>)) {
     if (typeof value !== 'object' || value === null) continue;
     const entry = value as Partial<IViewContribution>;
@@ -77,6 +91,8 @@ export function collectViewContributions(
       ...(typeof entry.icon === 'string' ? { icon: entry.icon } : {}),
       ...(typeof entry.emptyText === 'string' ? { emptyText: entry.emptyText } : {}),
       ...(typeof entry.priority === 'number' ? { priority: entry.priority } : {}),
+      ...(typeof pluginOrder === 'number' ? { pluginOrder } : {}),
+      ...(typeof extensionOrder === 'number' ? { extensionOrder } : {}),
       emitWhenEmpty: entry.emitWhenEmpty === true,
     });
   }

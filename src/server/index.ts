@@ -253,8 +253,16 @@ async function assemblePluginRuntime(
   const pluginRuntime = options.noPlugins
     ? emptyPluginRuntime()
     : await loadPluginRuntime({ runtimeContext });
-  for (const warn of pluginRuntime.warnings) {
-    log.warn(sanitizeForTerminal(warn));
+  // Surface plugin-load warnings ONCE at boot. When the watcher runs
+  // (the default), its initial scan (`runInitialBatch`) re-loads the
+  // plugins and surfaces the identical warnings via `onPluginWarning`,
+  // so printing them here too would double every warning at startup.
+  // Only print here when no watcher will run (`--no-watcher`), where
+  // this is the sole surfacing point.
+  if (options.noWatcher) {
+    for (const warn of pluginRuntime.warnings) {
+      log.warn(sanitizeForTerminal(warn));
+    }
   }
   // The kindRegistry embeds in every envelope and is CACHED at boot.
   // It must include EVERY built-in's declarations regardless of the

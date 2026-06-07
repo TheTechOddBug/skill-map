@@ -55,5 +55,7 @@ function entryFromRegistered(c: IRegisteredViewContribution): IContributionsRegi
   if (c.icon !== undefined) entry.icon = c.icon;
   if (c.emptyText !== undefined) entry.emptyText = c.emptyText;
   if (c.priority !== undefined) entry.priority = c.priority;
+  if (c.pluginOrder !== undefined) entry.pluginOrder = c.pluginOrder;
+  if (c.extensionOrder !== undefined) entry.extensionOrder = c.extensionOrder;
   return entry;
 }

@@ -15,7 +15,7 @@
     { "type": "json-path", "path": "$.nodes[0].path", "equals": "notes/example.md" },
     { "type": "json-path", "path": "$.nodes[0].kind", "equals": "markdown" },
     { "type": "json-path", "path": "$.nodes[0].provider", "equals": "markdown" },
-    { "type": "stderr-matches", "pattern": "plugin legacy-badge: invalid-manifest.*/ui/keywords/slot must" },
-    { "type": "stderr-matches", "pattern": "must match exactly one schema in oneOf" }
+    { "type": "stderr-matches", "pattern": "plugin legacy-badge \\(invalid-manifest\\), all extensions skipped:.*/ui/keywords/slot is not a valid value" },
+    { "type": "stderr-matches", "pattern": "See https://github.com/crystian/skill-map/blob/main/spec/view-slots.md" }
   ]
 }

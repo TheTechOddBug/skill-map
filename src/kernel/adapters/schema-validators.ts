@@ -230,12 +230,12 @@ function buildSchemaValidators(): ISchemaValidators {
       const v = validators.get(name);
       if (!v) throw new Error(`Unknown schema: ${name}`);
       if (v(data)) return { ok: true as const, data: data as T };
-      const errors = (v.errors ?? []).map(formatError).join('; ');
+      const errors = formatAjvErrors(v.errors);
       return { ok: false as const, errors };
     },
     validatePluginManifest<T = unknown>(data: unknown) {
       if (pluginManifestValidator(data)) return { ok: true as const, data: data as T };
-      const errors = (pluginManifestValidator.errors ?? []).map(formatError).join('; ');
+      const errors = formatAjvErrors(pluginManifestValidator.errors);
       return { ok: false as const, errors };
     },
     validateContributionPayload(slot: string, payload: unknown) {
@@ -244,7 +244,7 @@ function buildSchemaValidators(): ISchemaValidators {
         return { ok: false as const, errors: 'unknown-slot' };
       }
       if (validator(payload)) return { ok: true as const };
-      const errors = (validator.errors ?? []).map(formatError).join('; ');
+      const errors = formatAjvErrors(validator.errors);
       return { ok: false as const, errors };
     },
   };
@@ -326,15 +326,96 @@ export function buildProviderFrontmatterValidator(
       const v = compiled.get(key);
       if (!v) return { ok: false as const, errors: 'no-schema' };
       if (v(data)) return { ok: true as const };
-      const errors = (v.errors ?? []).map(formatError).join('; ');
+      const errors = formatAjvErrors(v.errors);
       return { ok: false as const, errors };
     },
   };
 }
 
-function formatError(err: { instancePath: string; message?: string; keyword: string; params?: unknown }): string {
+interface IAjvErrorLike {
+  instancePath: string;
+  message?: string;
+  keyword: string;
+  params?: unknown;
+}
+
+function formatError(err: IAjvErrorLike): string {
   const path = err.instancePath || '(root)';
   return `${path} ${err.message ?? err.keyword}`;
+}
+
+/**
+ * Turn AJV's raw error list into ONE legible line.
+ *
+ * AJV runs with `allErrors: true` so a single bad value can produce a
+ * wall of errors. The worst offender is a closed enum modelled as a
+ * `oneOf` of `const` branches (the view-slot catalog `SlotName`, kept as
+ * `oneOf` so each slot carries its own description): a wrong `slot`
+ * yields one `must be equal to constant` per catalog member plus a
+ * `must match exactly one schema in oneOf` umbrella, i.e. 15 near-
+ * identical fragments. This collapses each such path to a single concise
+ * `<path> is not a valid value`, drops the per-branch `const` noise and
+ * the redundant `oneOf` umbrella, and dedupes the rest. The allowed list
+ * is intentionally NOT inlined (the slot catalog alone is 14 entries);
+ * the schema link in the surrounding message template points the author
+ * to the authoritative list. Used everywhere the loader stringifies
+ * validation errors.
+ */
+export function formatAjvErrors(errors: ReadonlyArray<IAjvErrorLike> | null | undefined): string {
+  const list = errors ?? [];
+  if (list.length === 0) return '';
+  // Group by instancePath (Map preserves first-seen order) so the per-path
+  // formatter sees every branch AJV emitted for one value, then flatten.
+  const byPath = new Map<string, IAjvErrorLike[]>();
+  for (const e of list) {
+    const path = e.instancePath || '(root)';
+    const bucket = byPath.get(path);
+    if (bucket) bucket.push(e);
+    else byPath.set(path, [e]);
+  }
+  const parts: string[] = [];
+  for (const [path, errs] of byPath) parts.push(...formatPathErrors(path, errs));
+  // Idempotent safety net against cross-path repeats.
+  return [...new Set(parts)].join('; ');
+}
+
+/** Count of `const`-branch values at one path (the enum-of-consts tell). */
+function constBranchValues(errs: IAjvErrorLike[]): number {
+  let count = 0;
+  for (const e of errs) {
+    const isConst =
+      e.keyword === 'const' &&
+      typeof e.params === 'object' &&
+      e.params !== null &&
+      'allowedValue' in e.params;
+    if (isConst) count += 1;
+  }
+  return count;
+}
+
+/** Format all of one instancePath's errors into deduped message lines. */
+function formatPathErrors(path: string, errs: IAjvErrorLike[]): string[] {
+  if (constBranchValues(errs) >= 2) {
+    // enum-of-consts: one concise line, dropping the per-branch `const`
+    // noise and the `oneOf` umbrella. The allowed values are not inlined
+    // (see docstring); the message template's schema link carries them.
+    const parts = [`${path} is not a valid value`];
+    for (const e of errs) {
+      if (e.keyword !== 'const' && e.keyword !== 'oneOf') parts.push(formatError(e));
+    }
+    return parts;
+  }
+  // Default: one message per distinct (path, message) pair.
+  const seen = new Set<string>();
+  const parts: string[] = [];
+  for (const e of errs) {
+    const msg = formatError(e);
+    if (!seen.has(msg)) {
+      seen.add(msg);
+      parts.push(msg);
+    }
+  }
+  return parts;
 }
 
 /**

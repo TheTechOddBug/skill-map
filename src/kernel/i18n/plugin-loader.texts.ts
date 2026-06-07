@@ -19,12 +19,20 @@
  *                            precedence rule applies.
  */
 
+/**
+ * Base GitHub URL (blob, default branch) the manifest-validation errors
+ * link to so an author can open the authoritative schema in the browser
+ * instead of hunting for a local path. Resolved at module load; the
+ * `{{...}}` tokens in the templates below stay literal for `tx`.
+ */
+export const SPEC_GITHUB_BASE = 'https://github.com/crystian/skill-map/blob/main';
+
 export const PLUGIN_LOADER_TEXTS = {
   invalidManifestJsonParse:
     '{{manifestPath}}: {{errDescription}}. Validate the JSON (e.g. `npx jsonlint plugin.json`).',
 
   invalidManifestAjv:
-    '{{manifestPath}}: {{errors}}. See spec/schemas/plugins-registry.schema.json#/$defs/PluginManifest.',
+    `{{manifestPath}}: {{errors}}. See ${SPEC_GITHUB_BASE}/spec/schemas/plugins-registry.schema.json#/$defs/PluginManifest.`,
 
   invalidSpecCompat:
     'specCompat "{{specCompat}}" is not a valid semver range. Use a range like "^1.0.0".',
@@ -44,8 +52,14 @@ export const PLUGIN_LOADER_TEXTS = {
   loadErrorUnknownKind:
     '{{relEntry}}: unknown extension kind "{{kindReceived}}". Expected one of: {{knownKindsList}}.',
 
+  // No "manifest invalid" framing here: the warning wrapper already
+  // carries the `(invalid-manifest)` status, so this reason is just the
+  // file + the specific error + the doc link. `{{docUrl}}` is chosen by
+  // the caller: a bad view-slot value points to the slot catalog
+  // (`spec/view-slots.md`), every other manifest-shape error to the kind
+  // schema. Both are GitHub blob URLs.
   invalidManifestExtensionShape:
-    '{{relEntry}}: {{kind}} manifest invalid: {{errors}}. See spec/schemas/extensions/{{kind}}.schema.json.',
+    '{{relEntry}}: {{errors}}. See {{docUrl}}.',
 
   importExceededTimeout:
     'import exceeded {{timeoutMs}}ms; likely a top-level side effect ' +

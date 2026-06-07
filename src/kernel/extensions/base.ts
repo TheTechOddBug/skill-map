@@ -69,6 +69,13 @@ export interface IExtensionBase {
   /** Required short description shown by `sm <kind>s list` / UI. */
   description: string;
   /**
+   * Optional inspector-only ordering hint (default 100). Inside the
+   * owning plugin's inspector section, orders this extension's
+   * `inspector.body.panel.*` bricks relative to its sibling extensions.
+   * Never affects execution order. See `extensions/base.schema.json`.
+   */
+  order?: number;
+  /**
    * Optional opt-in single annotation contribution. Renamed from
    * `annotationContributions` (mapa) with the structure-as-truth
    * refactor; the key is the extension's id, so only the schema +

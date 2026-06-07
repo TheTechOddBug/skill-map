@@ -204,29 +204,15 @@
       </sm-collapsible-section>
     }
 
-    @if (hasViewContributions()) {
-      <sm-collapsible-section
-        [title]="texts.sections.viewContributions"
-        [expanded]="expanded('viewContributions')"
-        toggleTestid="inspector-view-contributions-toggle"
-        (toggle)="toggleSection('viewContributions')"
-        data-testid="inspector-card-view-contributions"
-      >
-        @if (expanded('viewContributions')) {
-          <sm-inspector-slots-panel [node]="node()" />
-        }
-      </sm-collapsible-section>
-    }
-
     <!--
-      Plugin-owned collapsible zones (`inspector.body.section`). Unlike
-      the body-panel slots above (grouped under one "View contributions"
-      section), each contribution here paints its OWN collapsible section
-      titled `<pluginId>:<zone>` (host-applied prefix for drop-in
-      plugins, bare zone name for system plugins). The host self-hides
-      when no plugin emitted a zone, so no wrapper / gate is needed.
+      Plugin view contributions, grouped ONE collapsible section per
+      plugin (titled by the trusted pluginId, collapsed by default). The
+      component groups the node's `inspector.body.panel.*` contributions
+      by plugin, sorts sections by the plugin `order` and bricks by the
+      extension `order`, and self-hides when no plugin contributed a body
+      panel, so no wrapper / gate is needed.
     -->
-    <sm-view-contributions-host slot="inspector.body.section" [node]="node()" />
+    <sm-inspector-plugin-sections [node]="node()" />
 
     @if (hasMetadata()) {
       <sm-collapsible-section

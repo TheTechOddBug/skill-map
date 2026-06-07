@@ -32,6 +32,10 @@
           "minLength": 1,
           "description": "Required short description shown in `sm plugins list` and the UI. English-only per AGENTS.md."
         },
+        "order": {
+          "type": "number",
+          "description": "Optional visual ordering hint, inspector-only. The inspector renders one collapsible section per plugin (grouping the plugin's `inspector.body.panel.*` contributions); sections are sorted ASC by this value (default 100), tie-break by plugin id. Does NOT affect extension execution order, which is governed by `phase` (analyzers) and registration order."
+        },
         "storage": {
           "type": "object",
           "description": "Persistence mode for this plugin. Absent = plugin does not persist state.",

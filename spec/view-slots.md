@@ -50,6 +50,8 @@ Bare class names without a `pi-` / `fa-` prefix (e.g. `'star-fill'`) are **rejec
 
 **Slot picks ONE place**, unlike the previous (pre-2026-05) "contract" abstraction, a contribution is rendered exclusively in the slot the author declared. If you want the same data in multiple surfaces, declare multiple `ui` entries (one per slot). The reason is intentional: one source of truth per surface, no surprise duplication.
 
+**Inspector body grouping**, the six `inspector.body.panel.*` slots do not share one drawer. The inspector renders **one collapsible section per plugin** (titled by the trusted `pluginId`, collapsed by default), grouping that plugin's body-panel bricks; a plugin's contributions never land in another plugin's section. Section order follows the plugin-level `order` field in `plugin.json` (default 100, tie-break by plugin id); brick order within a section follows the extension-level `order` field (default 100, tie-break by the contribution `priority` then qualified id). Both `order` fields are optional and inspector-only, they never affect execution order.
+
 ---
 
 ## `card.title.right`
