@@ -13,7 +13,7 @@ import type { IExtensionBase } from './base.js';
 import type { IExtensionPrecondition } from './extractor.js';
 import type { Issue, Link, Node, Signal, TExecutionMode } from '../types.js';
 import type { IRegisteredAnnotationKey } from '../types/annotation-catalog.js';
-import type { IRegisteredViewContribution } from '../types/view-catalog.js';
+import type { IRegisteredViewContribution, IViewContribution, SlotPayload } from '../types/view-catalog.js';
 
 /**
  * Step 9.6.2, orphan sidecar entry surfaced to analyzers. A `.sm` file
@@ -158,12 +158,18 @@ export interface IAnalyzerContext {
    * sees the full graph at once. The analyzer walks `ctx.nodes` itself
    * and MUST supply the target node path explicitly per emission.
    *
-   * Calling `emitContribution` with a `contributionId` that is not
-   * declared in the manifest is dropped with an `extension.error`. The
-   * kernel routes emitted contributions to the same persistence
-   * pipeline as Extractor emissions (`scan_contributions`).
+   * Pass the contribution object declared in the manifest `ui` map BY
+   * REFERENCE (same model as the Extractor emit). `payload` is typed from
+   * `ref.slot`. An undeclared `ref` (a spread copy / inline literal) or an
+   * off-shape payload drops with a loud `extension.error`. The kernel routes
+   * accepted contributions to the same persistence pipeline as Extractor
+   * emissions (`scan_contributions`).
    */
-  emitContribution(nodePath: string, contributionId: string, payload: unknown): void;
+  emitContribution<C extends IViewContribution>(
+    nodePath: string,
+    ref: C,
+    payload: SlotPayload<C['slot']>,
+  ): void;
 }
 
 export interface IAnalyzer extends IExtensionBase {

@@ -13,7 +13,7 @@ This annex is the **agent-facing operating guide**: where each catalog lives, ho
 | Layer | Owner | Lives in | Visible to plugin author? |
 |---|---|---|---|
 | **Slot** | Spec + kernel + UI (the catalog is normative) | `spec/schemas/view-slots.schema.json` (catalog enum + payload schemas), `src/kernel/types/view-catalog.ts` (`TSlotName` type), `ui/src/app/slots/slot-config.ts` (`SLOT_REGISTRY` layout config), `ui/src/app/slots/slot-renderer-map.ts` (`SLOT_RENDERERS` 1:1 map) | Yes, picked by name |
-| **Contribution** | Plugin (per-node payload) | Emitted via `ctx.emitContribution(id, payload)`; persisted in `scan_contributions` | Yes, plugin authors emit |
+| **Contribution** | Plugin (per-node payload) | Emitted via `ctx.emitContribution(ref, payload)` (the declared `ui` object by reference; kernel recovers the id by object identity, `readDeclaredContributionRefs`); payload typed by `SlotPayload<C['slot']>` (generated) + AJV-validated; persisted in `scan_contributions` | Yes, plugin authors emit |
 
 The plugin author **picks a slot**. The slot fixes both the renderer (which Angular component draws) and the payload shape (what AJV validates at emit). There is no separate "contract" abstraction, the slot IS the contract.
 

@@ -30,11 +30,20 @@
  */
 
 import type { IBuiltInManifest, IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
+import type { IViewContribution } from '../../../../kernel/types/view-catalog.js';
 import { stripCodeBlocks } from '../../../../kernel/util/strip-code-blocks.js';
 import { computeLineStarts, lineFor } from '../../../../kernel/util/line-tracking.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'external-url-counter';
+
+const count = {
+  slot: 'card.footer.left',
+  icon: 'pi-link',
+  label: 'urls',
+  emitWhenEmpty: false,
+  priority: 30,
+} satisfies IViewContribution;
 
 // Greedy match of http(s) URLs. Stops at whitespace and the markdown
 // delimiters that commonly wrap URLs: `<`, `>`, `"`, `'`, backtick,
@@ -68,15 +77,7 @@ export const externalUrlCounterExtractor: IBuiltInManifest<IExtractor> = {
    * inherited from the footer `.sm-gnode__stat` styles cloned by
    * the `NodeCounter` renderer.
    */
-  ui: {
-    count: {
-      slot: 'card.footer.left',
-      icon: 'pi-link',
-      label: 'urls',
-      emitWhenEmpty: false,
-      priority: 30,
-    },
-  },
+  ui: { count },
 
   extract(ctx: IExtractorContext): void {
     const seen = new Set<string>();
@@ -124,7 +125,7 @@ export const externalUrlCounterExtractor: IBuiltInManifest<IExtractor> = {
     }
 
     if (seen.size > 0) {
-      ctx.emitContribution('count', { value: seen.size });
+      ctx.emitContribution(count, { value: seen.size });
     }
   },
 };

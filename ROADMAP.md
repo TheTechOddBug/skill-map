@@ -622,7 +622,7 @@ This system fills the gap with a deterministic, scoped, built-in-driven model th
 | Term | Owner | Definition |
 |---|---|---|
 | **Slot** | Spec + kernel + UI | A named visual surface in the UI that fixes both the renderer and the payload shape. Closed catalog of 14 slots in `spec/schemas/view-slots.schema.json`. The plugin author picks ONE slot per contribution; that pick is the entire mental model. |
-| **Contribution** | Plugin | Per-node typed data emission via `ctx.emitContribution(id, payload)`, payload conforms to the slot's payload schema. |
+| **Contribution** | Plugin | Per-node typed data emission via `ctx.emitContribution(ref, payload)`, payload conforms to the slot's payload schema. |
 
 Plugin authors pick slots. The kernel + spec publish the catalog and the per-slot AJV payload schemas. There is no separate "contract" abstraction, the slot IS the contract.
 
@@ -630,7 +630,17 @@ Plugin authors pick slots. The kernel + spec publish the catalog and the per-slo
 
 ### Catalogs and manifest
 
-Plugin authors pick a `slot` from the closed catalog (14 slots, [`spec/view-slots.md`](./spec/view-slots.md)) and, for settings, an input-type from the closed catalog (10 types, [`spec/input-types.md`](./spec/input-types.md)), writing zero JSON Schema and zero renderer code. View contributions are declared in the extension manifest's `ui` map (alongside `settings` and `annotation`) and emitted per node at scan time via `ctx.emitContribution(id, payload)`; the manifest carries `catalogCompat` (parallel to `specCompat`), and a catalog mismatch surfaces as `incompatible-catalog`. The per-slot renderers and payload shapes, the prefix-discriminated icon strings, and the UI-side slot configuration (cardinality, deterministic ordering, replacement strategy) live in [`spec/plugin-author-guide.md`](./spec/plugin-author-guide.md) §View contributions, [`spec/view-slots.md`](./spec/view-slots.md), and [`context/view-slots.md`](./context/view-slots.md).
+Plugin authors pick a `slot` from the closed catalog (14 slots, [`spec/view-slots.md`](./spec/view-slots.md)) and, for settings, an input-type from the closed catalog (10 types, [`spec/input-types.md`](./spec/input-types.md)), writing zero JSON Schema and zero renderer code. View contributions are declared in the extension manifest's `ui` map (alongside `settings` and `annotation`) and emitted per node at scan time via `ctx.emitContribution(ref, payload)`; the manifest carries `catalogCompat` (parallel to `specCompat`), and a catalog mismatch surfaces as `incompatible-catalog`. The per-slot renderers and payload shapes, the prefix-discriminated icon strings, and the UI-side slot configuration (cardinality, deterministic ordering, replacement strategy) live in [`spec/plugin-author-guide.md`](./spec/plugin-author-guide.md) §View contributions, [`spec/view-slots.md`](./spec/view-slots.md), and [`context/view-slots.md`](./context/view-slots.md).
+
+### Author API (emit by reference + dev-time payload types, 2026-06-07)
+
+The author surface was tightened to remove the string-id duplication and to push payload validation up to author time. Three changes, all breaking (minor, pre-1.0):
+
+- **Emit by reference, not by id.** A contribution is declared as a module-level const and listed in `ui` by shorthand (`const facts = { slot: '...' } satisfies IViewContribution; ui: { facts }`); `evaluate` / `extract` emit by passing that const **by reference** (`ctx.emitContribution([nodePath,] facts, payload)`), never a string id. The kernel recovers the contribution id (the `ui` key) by **object identity** against the `ui` map. A ref that is not a declared `ui` value (a spread copy, an inline literal) drops with a loud `extension.error` (`reason: undeclared-contribution-ref`), never silently. This kills the old failure mode where a typo'd string id dropped at runtime with no compile-time signal. (The id is still the `ui` key, kebab-cased per the manifest schema, not the const's variable name.)
+- **Dev-time payload types.** `emitContribution` is generic: `emitContribution<C extends IViewContribution>([nodePath,] ref: C, payload: SlotPayload<C['slot']>)`. `SlotPayload<S>` + the per-slot payload interfaces are **generated from `view-slots.schema.json#/$defs/payloads`** by `json-schema-to-typescript` (wired into `scripts/generate-view-catalog.js`, drift-guarded by `view-catalog:check`). A TS author who writes `satisfies IViewContribution` gets a compile-time error on a wrong-shape payload. The generics are a dev-time layer **on top of**, not a replacement for, the runtime AJV check, which stays the authority across the plugin trust boundary (JS plugins, `as any`, and hostile code all bypass the types). The repo's fixture plugins moved to `.ts` (typecheck wired into `validate:compile`) to dogfood the net.
+- **Self-documenting list-payload fields.** The three array payloads were renamed off the overloaded `entries`: breakdown `bars`, key-values `pairs`, link-list `links` (records `columns`/`rows` and tree `children` unchanged).
+
+Still pending (follow-up PR): making the runtime off-shape **visible** in `sm plugins doctor` + the UI plugin error panel (today it is a loud `extension.error` on the scan event stream, but not persisted/surfaced post-scan). Tracked as the "off-shape visible" work split out of this refactor.
 
 ### Persistence, BFF, isolation
 

@@ -11,7 +11,7 @@ interface IBreakdownEntry {
 }
 
 interface INodeBreakdownPayload {
-  entries: IBreakdownEntry[];
+  bars: IBreakdownEntry[];
 }
 
 /**
@@ -19,7 +19,7 @@ interface INodeBreakdownPayload {
  * bar chart of labeled counts.
  *
  * Bars are width-relative to the max value in the slice (no axes,
- * no scale legend). Hard cap of 20 entries enforced at the kernel
+ * no scale legend). Hard cap of 20 bars enforced at the kernel
  * via the AJV payload schema; this renderer trusts the input.
  */
 @Component({
@@ -30,11 +30,11 @@ interface INodeBreakdownPayload {
       @if (label()) {
         <h5 class="vc-breakdown__header">{{ label() }}</h5>
       }
-      @if (entries().length === 0) {
+      @if (bars().length === 0) {
         <p class="vc-breakdown__empty">{{ emptyText() }}</p>
       } @else {
         <ul class="vc-breakdown__rows">
-          @for (e of entries(); track e.label) {
+          @for (e of bars(); track e.label) {
             <li class="vc-breakdown__row" [attr.title]="e.tooltip ?? ''">
               <span class="vc-breakdown__label">{{ e.label }}</span>
               <span class="vc-breakdown__bar-track">
@@ -75,21 +75,21 @@ export class NodeBreakdown {
 
   protected readonly typed = computed<INodeBreakdownPayload>(() => {
     const p = this.inputs().payload;
-    if (!isObjectPayload(p)) return { entries: [] };
-    // `entries` must be an array, the template @for over it would
+    if (!isObjectPayload(p)) return { bars: [] };
+    // `bars` must be an array, the template @for over it would
     // throw otherwise. A non-array drops to the empty-text branch.
-    if (!isArrayField(p, 'entries')) return { entries: [] };
+    if (!isArrayField(p, 'bars')) return { bars: [] };
     return p as unknown as INodeBreakdownPayload;
   });
 
-  protected readonly entries = computed(() => this.typed().entries ?? []);
+  protected readonly bars = computed(() => this.typed().bars ?? []);
   protected readonly label = computed(() => this.inputs().label);
   protected readonly emptyText = computed(
     () => this.inputs().emptyText ?? VIEW_CONTRIBUTIONS_TEXTS.emptyDefault,
   );
 
   protected readonly maxValue = computed(() => {
-    const list = this.entries();
+    const list = this.bars();
     return list.reduce((m, e) => (e.value > m ? e.value : m), 0);
   });
 

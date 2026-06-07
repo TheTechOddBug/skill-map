@@ -6,15 +6,19 @@ import { NODE_STABILITY_TEXTS } from '../text.js';
 import type { IAnalyzerContext } from '../../../../../kernel/extensions/index.js';
 import type { ISidecarOverlay, Issue, Node } from '../../../../../kernel/types.js';
 
-type TContribution = { nodePath: string; id: string; payload: unknown };
+type TContribution = { nodePath: string; ref: unknown; payload: unknown };
 
 /**
  * Drop the `setStabilityButton` contributions: the chip-focused tests
  * predate the button and assert on the experimental / deprecated chips
  * only. The button surface has its own dedicated suite below.
+ *
+ * The kernel recovers the contribution id from the `ui` map by object
+ * identity, so the runtime `ref` is the very const declared on the
+ * analyzer. Compare against it rather than a string id.
  */
 function chipsOnly(contributions: TContribution[]): TContribution[] {
-  return contributions.filter((c) => c.id !== 'setStabilityButton');
+  return contributions.filter((c) => c.ref !== nodeStabilityAnalyzer.ui!['setStabilityButton']);
 }
 
 function setStabilityButton(defaultValue: string): unknown {
@@ -63,9 +67,9 @@ function withAnnotations(annotations: Record<string, unknown>): ISidecarOverlay 
 
 function ctx(nodes: Node[]): {
   ctx: IAnalyzerContext;
-  contributions: { nodePath: string; id: string; payload: unknown }[];
+  contributions: { nodePath: string; ref: unknown; payload: unknown }[];
 } {
-  const contributions: { nodePath: string; id: string; payload: unknown }[] = [];
+  const contributions: { nodePath: string; ref: unknown; payload: unknown }[] = [];
   return {
     ctx: {
       nodes,
@@ -73,8 +77,8 @@ function ctx(nodes: Node[]): {
       sidecarRoots: new Map(),
       annotationContributions: [],
       ui: [],
-      emitContribution: (nodePath: string, id: string, payload: unknown) =>
-        contributions.push({ nodePath, id, payload }),
+      emitContribution: (nodePath: string, ref: unknown, payload: unknown) =>
+        contributions.push({ nodePath, ref, payload }),
     } as unknown as IAnalyzerContext,
     contributions,
   };
@@ -82,7 +86,7 @@ function ctx(nodes: Node[]): {
 
 async function run(nodes: Node[]): Promise<{
   issues: Issue[];
-  contributions: { nodePath: string; id: string; payload: unknown }[];
+  contributions: { nodePath: string; ref: unknown; payload: unknown }[];
 }> {
   const { ctx: c, contributions } = ctx(nodes);
   const issues = await nodeStabilityAnalyzer.evaluate(c);
@@ -95,11 +99,9 @@ describe('stability analyzer', () => {
     const { issues, contributions } = await run([node]);
     const chips = chipsOnly(contributions);
     strictEqual(chips.length, 1);
-    deepStrictEqual(chips[0], {
-      nodePath: 'notes/x.md',
-      id: 'experimental',
-      payload: { value: 0, tooltip: 'Experimental: API may change' },
-    });
+    strictEqual(chips[0]!.nodePath, 'notes/x.md');
+    strictEqual(chips[0]!.ref, nodeStabilityAnalyzer.ui!['experimental']);
+    deepStrictEqual(chips[0]!.payload, { value: 0, tooltip: 'Experimental: API may change' });
     strictEqual(issues.length, 1);
     strictEqual(issues[0]?.severity, 'info');
     strictEqual(issues[0]?.analyzerId, 'node-stability');
@@ -111,11 +113,9 @@ describe('stability analyzer', () => {
     const { issues, contributions } = await run([node]);
     const chips = chipsOnly(contributions);
     strictEqual(chips.length, 1);
-    deepStrictEqual(chips[0], {
-      nodePath: 'notes/x.md',
-      id: 'deprecated',
-      payload: { value: 0, tooltip: 'Deprecated: avoid in new code', severity: 'warn' },
-    });
+    strictEqual(chips[0]!.nodePath, 'notes/x.md');
+    strictEqual(chips[0]!.ref, nodeStabilityAnalyzer.ui!['deprecated']);
+    deepStrictEqual(chips[0]!.payload, { value: 0, tooltip: 'Deprecated: avoid in new code', severity: 'warn' });
     strictEqual(issues.length, 1);
     strictEqual(issues[0]?.severity, 'warn');
     strictEqual(issues[0]?.analyzerId, 'node-stability');
@@ -140,7 +140,7 @@ describe('stability analyzer', () => {
     const { contributions } = await run([node]);
     // No sidecar -> no button; the chip is the only contribution.
     strictEqual(contributions.length, 1);
-    strictEqual(contributions[0]?.id, 'experimental');
+    strictEqual(contributions[0]?.ref, nodeStabilityAnalyzer.ui!['experimental']);
   });
 
   it('prefers sidecar annotations over legacy frontmatter metadata when both present', async () => {
@@ -152,7 +152,7 @@ describe('stability analyzer', () => {
     const { contributions } = await run([node]);
     const chips = chipsOnly(contributions);
     strictEqual(chips.length, 1);
-    strictEqual(chips[0]?.id, 'experimental');
+    strictEqual(chips[0]?.ref, nodeStabilityAnalyzer.ui!['experimental']);
   });
 
   it('emits no chip / issue when sidecar is present but annotations.stability is missing (button still fires)', async () => {
@@ -177,7 +177,9 @@ describe('stability analyzer', () => {
     const chips = chipsOnly(contributions);
     strictEqual(chips.length, 2);
     strictEqual(chips[0]?.nodePath, 'a.md');
+    strictEqual(chips[0]?.ref, nodeStabilityAnalyzer.ui!['experimental']);
     strictEqual(chips[1]?.nodePath, 'b.md');
+    strictEqual(chips[1]?.ref, nodeStabilityAnalyzer.ui!['deprecated']);
     strictEqual(issues.length, 2);
   });
 
@@ -214,39 +216,36 @@ describe('stability analyzer, set-stability inspector button', () => {
   it('emits no button for a node without a sidecar (creation is CLI-only)', async () => {
     const node = mockNode('notes/x.md', { metadata: { stability: 'experimental' } });
     const { contributions } = await run([node]);
-    strictEqual(contributions.some((c) => c.id === 'setStabilityButton'), false);
+    strictEqual(
+      contributions.some((c) => c.ref === nodeStabilityAnalyzer.ui!['setStabilityButton']),
+      false,
+    );
   });
 
   it('emits a button with defaultValue = the current sidecar stability', async () => {
     const node = mockNode('notes/x.md', {}, withAnnotations({ stability: 'deprecated' }));
     const { contributions } = await run([node]);
-    const button = contributions.find((c) => c.id === 'setStabilityButton');
-    deepStrictEqual(button, {
-      nodePath: 'notes/x.md',
-      id: 'setStabilityButton',
-      payload: setStabilityButton('deprecated'),
-    });
+    const button = contributions.find((c) => c.ref === nodeStabilityAnalyzer.ui!['setStabilityButton']);
+    strictEqual(button!.nodePath, 'notes/x.md');
+    strictEqual(button!.ref, nodeStabilityAnalyzer.ui!['setStabilityButton']);
+    deepStrictEqual(button!.payload, setStabilityButton('deprecated'));
   });
 
   it("defaults to 'stable' when the sidecar carries no recognised stability", async () => {
     const node = mockNode('notes/x.md', {}, withAnnotations({ version: 2 }));
     const { contributions } = await run([node]);
-    const button = contributions.find((c) => c.id === 'setStabilityButton');
-    deepStrictEqual(button, {
-      nodePath: 'notes/x.md',
-      id: 'setStabilityButton',
-      payload: setStabilityButton('stable'),
-    });
+    const button = contributions.find((c) => c.ref === nodeStabilityAnalyzer.ui!['setStabilityButton']);
+    strictEqual(button!.nodePath, 'notes/x.md');
+    strictEqual(button!.ref, nodeStabilityAnalyzer.ui!['setStabilityButton']);
+    deepStrictEqual(button!.payload, setStabilityButton('stable'));
   });
 
   it('pre-loads the experimental stage as defaultValue', async () => {
     const node = mockNode('notes/x.md', {}, withAnnotations({ stability: 'experimental' }));
     const { contributions } = await run([node]);
-    const button = contributions.find((c) => c.id === 'setStabilityButton');
-    deepStrictEqual(button, {
-      nodePath: 'notes/x.md',
-      id: 'setStabilityButton',
-      payload: setStabilityButton('experimental'),
-    });
+    const button = contributions.find((c) => c.ref === nodeStabilityAnalyzer.ui!['setStabilityButton']);
+    strictEqual(button!.nodePath, 'notes/x.md');
+    strictEqual(button!.ref, nodeStabilityAnalyzer.ui!['setStabilityButton']);
+    deepStrictEqual(button!.payload, setStabilityButton('experimental'));
   });
 });

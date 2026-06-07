@@ -34,7 +34,7 @@ function mockLink(
 
 interface ICapturedContribution {
   nodePath: string;
-  contributionId: string;
+  ref: unknown;
   payload: unknown;
 }
 
@@ -45,8 +45,8 @@ function run(nodes: Node[], links: Link[]): { issues: Issue[]; captured: ICaptur
   const issues = linkCounterAnalyzer.evaluate({
     nodes,
     links,
-    emitContribution(nodePath, contributionId, payload) {
-      captured.push({ nodePath, contributionId, payload });
+    emitContribution(nodePath, ref, payload) {
+      captured.push({ nodePath, ref, payload });
     },
   }) as Issue[];
   return { issues, captured };
@@ -96,11 +96,18 @@ describe('core/link-counter analyzer, paired in/out chips', () => {
       [mockNode('a.md'), mockNode('b.md'), mockNode('c.md')],
       [mockLink('a.md', 'b.md'), mockLink('c.md', 'b.md', 'invokes')],
     );
-    deepStrictEqual(captured, [
-      { nodePath: 'a.md', contributionId: 'linksOut', payload: { value: 1, tooltip: 'out\nreferences: 1' } },
-      { nodePath: 'b.md', contributionId: 'linksIn',  payload: { value: 2, tooltip: 'in\ninvokes: 1\nreferences: 1' } },
-      { nodePath: 'c.md', contributionId: 'linksOut', payload: { value: 1, tooltip: 'out\ninvokes: 1' } },
-    ]);
+    // The kernel recovers the contribution id from the `ui` map by object
+    // identity, so assert `ref` is the very const declared on the analyzer.
+    strictEqual(captured.length, 3);
+    strictEqual(captured[0]!.nodePath, 'a.md');
+    strictEqual(captured[0]!.ref, linkCounterAnalyzer.ui!['linksOut']);
+    deepStrictEqual(captured[0]!.payload, { value: 1, tooltip: 'out\nreferences: 1' });
+    strictEqual(captured[1]!.nodePath, 'b.md');
+    strictEqual(captured[1]!.ref, linkCounterAnalyzer.ui!['linksIn']);
+    deepStrictEqual(captured[1]!.payload, { value: 2, tooltip: 'in\ninvokes: 1\nreferences: 1' });
+    strictEqual(captured[2]!.nodePath, 'c.md');
+    strictEqual(captured[2]!.ref, linkCounterAnalyzer.ui!['linksOut']);
+    deepStrictEqual(captured[2]!.payload, { value: 1, tooltip: 'out\ninvokes: 1' });
   });
 
   it('groups multiple links of the same kind on one tooltip line (incoming)', () => {
@@ -157,7 +164,7 @@ describe('core/link-counter analyzer, trigger resolution', () => {
     };
     const { captured } = run(nodes, [link]);
     const fooLinksIn = captured.find(
-      (c) => c.nodePath === 'commands/foo.md' && c.contributionId === 'linksIn',
+      (c) => c.nodePath === 'commands/foo.md' && c.ref === linkCounterAnalyzer.ui!['linksIn'],
     );
     deepStrictEqual(fooLinksIn?.payload, {
       value: 1,
@@ -185,7 +192,7 @@ describe('core/link-counter analyzer, trigger resolution', () => {
     };
     const { captured } = run(nodes, [link]);
     const inChip = captured.find(
-      (c) => c.nodePath === '.claude/skills/stale-skill/SKILL.md' && c.contributionId === 'linksIn',
+      (c) => c.nodePath === '.claude/skills/stale-skill/SKILL.md' && c.ref === linkCounterAnalyzer.ui!['linksIn'],
     );
     deepStrictEqual(inChip?.payload, {
       value: 1,
@@ -237,8 +244,8 @@ describe('core/link-counter analyzer, trigger resolution', () => {
         mockLink('c.md', 'a.md'),
       ],
     );
-    const aIn = captured.find((c) => c.nodePath === 'a.md' && c.contributionId === 'linksIn');
-    const aOut = captured.find((c) => c.nodePath === 'a.md' && c.contributionId === 'linksOut');
+    const aIn = captured.find((c) => c.nodePath === 'a.md' && c.ref === linkCounterAnalyzer.ui!['linksIn']);
+    const aOut = captured.find((c) => c.nodePath === 'a.md' && c.ref === linkCounterAnalyzer.ui!['linksOut']);
     deepStrictEqual(aIn?.payload, { value: 1, tooltip: 'in\nreferences: 1' });
     deepStrictEqual(aOut?.payload, { value: 1, tooltip: 'out\nreferences: 1' });
   });

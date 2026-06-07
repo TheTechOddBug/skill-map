@@ -34,15 +34,15 @@ function mockNode(path: string, overrides: Partial<Node> = {}): Node {
 
 function ctx(nodes: Node[]): {
   ctx: IAnalyzerContext;
-  contributions: { nodePath: string; id: string; payload: unknown }[];
+  contributions: { nodePath: string; ref: unknown; payload: unknown }[];
 } {
-  const contributions: { nodePath: string; id: string; payload: unknown }[] = [];
+  const contributions: { nodePath: string; ref: unknown; payload: unknown }[] = [];
   return {
     ctx: {
       nodes,
       links: [],
-      emitContribution: (nodePath: string, id: string, payload: unknown) =>
-        contributions.push({ nodePath, id, payload }),
+      emitContribution: (nodePath: string, ref: unknown, payload: unknown) =>
+        contributions.push({ nodePath, ref, payload }),
     } as unknown as IAnalyzerContext,
     contributions,
   };
@@ -80,36 +80,40 @@ describe('tags analyzer, inspector action button', () => {
     const node = mockNode('docs/a.md', { sidecar: sidecarWithTags(['core', 'wip']) });
     const { ctx: c, contributions } = ctx([node]);
     await tagsAnalyzer.evaluate(c);
-    deepStrictEqual(contributions, [
-      { nodePath: 'docs/a.md', id: 'setTagsButton', payload: button(['core', 'wip']) },
-    ]);
+    strictEqual(contributions.length, 1);
+    strictEqual(contributions[0]!.nodePath, 'docs/a.md');
+    strictEqual(contributions[0]!.ref, tagsAnalyzer.ui!['setTagsButton']);
+    deepStrictEqual(contributions[0]!.payload, button(['core', 'wip']));
   });
 
   it('defaults to [] when the sidecar carries no tags', async () => {
     const node = mockNode('docs/a.md', { sidecar: sidecarWithTags(undefined) });
     const { ctx: c, contributions } = ctx([node]);
     await tagsAnalyzer.evaluate(c);
-    deepStrictEqual(contributions, [
-      { nodePath: 'docs/a.md', id: 'setTagsButton', payload: button([]) },
-    ]);
+    strictEqual(contributions.length, 1);
+    strictEqual(contributions[0]!.nodePath, 'docs/a.md');
+    strictEqual(contributions[0]!.ref, tagsAnalyzer.ui!['setTagsButton']);
+    deepStrictEqual(contributions[0]!.payload, button([]));
   });
 
   it('drops non-string entries from a malformed tags array', async () => {
     const node = mockNode('docs/a.md', { sidecar: sidecarWithTags(['ok', 7, null, 'fine']) });
     const { ctx: c, contributions } = ctx([node]);
     await tagsAnalyzer.evaluate(c);
-    deepStrictEqual(contributions, [
-      { nodePath: 'docs/a.md', id: 'setTagsButton', payload: button(['ok', 'fine']) },
-    ]);
+    strictEqual(contributions.length, 1);
+    strictEqual(contributions[0]!.nodePath, 'docs/a.md');
+    strictEqual(contributions[0]!.ref, tagsAnalyzer.ui!['setTagsButton']);
+    deepStrictEqual(contributions[0]!.payload, button(['ok', 'fine']));
   });
 
   it('defaults to [] when tags is not an array', async () => {
     const node = mockNode('docs/a.md', { sidecar: sidecarWithTags('not-an-array') });
     const { ctx: c, contributions } = ctx([node]);
     await tagsAnalyzer.evaluate(c);
-    deepStrictEqual(contributions, [
-      { nodePath: 'docs/a.md', id: 'setTagsButton', payload: button([]) },
-    ]);
+    strictEqual(contributions.length, 1);
+    strictEqual(contributions[0]!.nodePath, 'docs/a.md');
+    strictEqual(contributions[0]!.ref, tagsAnalyzer.ui!['setTagsButton']);
+    deepStrictEqual(contributions[0]!.payload, button([]));
   });
 
   it('skips nodes with no sidecar entirely (no contribution)', async () => {
@@ -124,9 +128,10 @@ describe('tags analyzer, inspector action button', () => {
     const noSidecar = mockNode('docs/b.md');
     const { ctx: c, contributions } = ctx([withSidecar, noSidecar]);
     await tagsAnalyzer.evaluate(c);
-    deepStrictEqual(contributions, [
-      { nodePath: 'docs/a.md', id: 'setTagsButton', payload: button(['t']) },
-    ]);
+    strictEqual(contributions.length, 1);
+    strictEqual(contributions[0]!.nodePath, 'docs/a.md');
+    strictEqual(contributions[0]!.ref, tagsAnalyzer.ui!['setTagsButton']);
+    deepStrictEqual(contributions[0]!.payload, button(['t']));
   });
 
   it('declares the inspector.action.button contribution slot', () => {

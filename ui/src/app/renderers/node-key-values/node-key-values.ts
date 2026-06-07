@@ -12,13 +12,13 @@ interface IKvEntry {
 }
 
 interface INodeKeyValuesPayload {
-  entries: IKvEntry[];
+  pairs: IKvEntry[];
 }
 
 /**
  * Renderer for the `inspector.body.panel.key-values` slot. Definition
  * list rendering. Caps already enforced at emit time
- * (≤ 50 entries, value ≤ 512 chars).
+ * (≤ 50 pairs, value ≤ 512 chars).
  */
 @Component({
   selector: 'sm-node-key-values',
@@ -29,11 +29,11 @@ interface INodeKeyValuesPayload {
       @if (label()) {
         <h5 class="vc-kv__header">{{ label() }}</h5>
       }
-      @if (entries().length === 0) {
+      @if (pairs().length === 0) {
         <p class="vc-kv__empty">{{ emptyText() }}</p>
       } @else {
         <dl class="vc-kv__list">
-          @for (e of entries(); track e.key) {
+          @for (e of pairs(); track e.key) {
             <dt [pTooltip]="e.tooltip ?? ''">{{ e.key }}</dt>
             <dd>{{ formatValue(e.value) }}</dd>
           }
@@ -59,14 +59,14 @@ export class NodeKeyValues {
 
   protected readonly typed = computed<INodeKeyValuesPayload>(() => {
     const p = this.inputs().payload;
-    if (!isObjectPayload(p)) return { entries: [] };
-    // `entries` MUST be an array, the template @for over it would
+    if (!isObjectPayload(p)) return { pairs: [] };
+    // `pairs` MUST be an array, the template @for over it would
     // throw on anything else. Drop to the empty branch.
-    if (!isArrayField(p, 'entries')) return { entries: [] };
+    if (!isArrayField(p, 'pairs')) return { pairs: [] };
     return p as unknown as INodeKeyValuesPayload;
   });
 
-  protected readonly entries = computed(() => this.typed().entries ?? []);
+  protected readonly pairs = computed(() => this.typed().pairs ?? []);
   protected readonly label = computed(() => this.inputs().label);
   protected readonly emptyText = computed(
     () => this.inputs().emptyText ?? VIEW_CONTRIBUTIONS_TEXTS.emptyDefault,

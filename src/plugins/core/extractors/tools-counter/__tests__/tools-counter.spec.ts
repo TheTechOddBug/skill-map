@@ -21,9 +21,9 @@ function mockNode(path: string): Node {
 
 function ctx(frontmatter: Record<string, unknown>): {
   ctx: IExtractorContext;
-  contributions: { id: string; payload: unknown }[];
+  contributions: { ref: unknown; payload: unknown }[];
 } {
-  const contributions: { id: string; payload: unknown }[] = [];
+  const contributions: { ref: unknown; payload: unknown }[] = [];
   return {
     ctx: {
       node: mockNode('agents/x.md'),
@@ -32,7 +32,7 @@ function ctx(frontmatter: Record<string, unknown>): {
       settings: {},
       emitLink: () => undefined,
       enrichNode: () => undefined,
-      emitContribution: (id, payload) => contributions.push({ id, payload }),
+      emitContribution: (ref, payload) => contributions.push({ ref, payload }),
       emitSignal: () => undefined,
       emitNode: () => undefined,
     },
@@ -45,10 +45,10 @@ describe('tools-count extractor', () => {
     const { ctx: c, contributions } = ctx({ tools: ['Read', 'Edit', 'Bash'] });
     await toolsCounterExtractor.extract(c);
     strictEqual(contributions.length, 1);
-    deepStrictEqual(contributions[0], {
-      id: 'count',
-      payload: { value: 3, tooltip: 'Read · Edit · Bash' },
-    });
+    // The kernel recovers the contribution id from the `ui` map by object
+    // identity, so assert `ref` is the very const declared on the extractor.
+    strictEqual(contributions[0]!.ref, toolsCounterExtractor.ui!['count']);
+    deepStrictEqual(contributions[0]!.payload, { value: 3, tooltip: 'Read · Edit · Bash' });
   });
 
   it('emits nothing when tools is absent', async () => {

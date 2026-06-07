@@ -28,6 +28,7 @@
 
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { Issue, Node } from '../../../../kernel/types.js';
+import type { IViewContribution } from '../../../../kernel/types/view-catalog.js';
 import { NODE_STABILITY_TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
@@ -35,6 +36,34 @@ const ID = 'node-stability';
 
 const EXPERIMENTAL_TOOLTIP = 'Experimental: API may change';
 const DEPRECATED_TOOLTIP = 'Deprecated: avoid in new code';
+
+// First in the footer-right cluster: stability is the node's declared
+// lifecycle state, so it leads, followed by the drift chip and then the
+// severity counters. It's a state badge, not a count, so it stays left
+// of the numeric zone.
+const experimental = {
+  slot: 'card.footer.right',
+  icon: 'fa-solid fa-flask',
+  label: 'experimental',
+  emitWhenEmpty: false,
+  priority: 10,
+} satisfies IViewContribution;
+
+const deprecated = {
+  slot: 'card.footer.right',
+  icon: 'pi-ban',
+  label: 'deprecated',
+  emitWhenEmpty: false,
+  priority: 10,
+} satisfies IViewContribution;
+
+// Inspector action button that dispatches `core/node-set-stability`.
+// Emitted for every node that already has a sidecar; the prompt
+// pre-loads the current stage (or `stable`) as its `defaultValue`.
+const setStabilityButton = {
+  slot: 'inspector.action.button',
+  priority: 15,
+} satisfies IViewContribution;
 
 export const nodeStabilityAnalyzer: IBuiltInManifest<IAnalyzer> = {
   id: ID,
@@ -44,33 +73,7 @@ export const nodeStabilityAnalyzer: IBuiltInManifest<IAnalyzer> = {
     'Reports a node\'s stability stage (`experimental`, `deprecated`) on the card.',
   mode: 'deterministic',
 
-  ui: {
-    // First in the footer-right cluster: stability is the node's
-    // declared lifecycle state, so it leads, followed by the drift
-    // chip and then the severity counters. It's a state badge, not a
-    // count, so it stays left of the numeric zone.
-    experimental: {
-      slot: 'card.footer.right',
-      icon: 'fa-solid fa-flask',
-      label: 'experimental',
-      emitWhenEmpty: false,
-      priority: 10,
-    },
-    deprecated: {
-      slot: 'card.footer.right',
-      icon: 'pi-ban',
-      label: 'deprecated',
-      emitWhenEmpty: false,
-      priority: 10,
-    },
-    // Inspector action button that dispatches `core/node-set-stability`.
-    // Emitted for every node that already has a sidecar; the prompt
-    // pre-loads the current stage (or `stable`) as its `defaultValue`.
-    setStabilityButton: {
-      slot: 'inspector.action.button',
-      priority: 15,
-    },
-  },
+  ui: { experimental, deprecated, setStabilityButton },
 
   evaluate(ctx: IAnalyzerContext): Issue[] {
     const issues: Issue[] = [];
@@ -85,7 +88,7 @@ export const nodeStabilityAnalyzer: IBuiltInManifest<IAnalyzer> = {
       }
 
       if (stability === 'experimental') {
-        ctx.emitContribution(node.path, 'experimental', {
+        ctx.emitContribution(node.path, experimental, {
           value: 0,
           tooltip: EXPERIMENTAL_TOOLTIP,
         });
@@ -97,7 +100,7 @@ export const nodeStabilityAnalyzer: IBuiltInManifest<IAnalyzer> = {
           data: { stability },
         });
       } else if (stability === 'deprecated') {
-        ctx.emitContribution(node.path, 'deprecated', {
+        ctx.emitContribution(node.path, deprecated, {
           value: 0,
           tooltip: DEPRECATED_TOOLTIP,
           severity: 'warn',
@@ -149,7 +152,7 @@ function emitSetStabilityButton(
   nodePath: string,
   current: 'experimental' | 'deprecated' | 'stable',
 ): void {
-  ctx.emitContribution(nodePath, 'setStabilityButton', {
+  ctx.emitContribution(nodePath, setStabilityButton, {
     actionId: 'core/node-set-stability',
     label: NODE_STABILITY_TEXTS.setLabel,
     icon: 'pi-flag',

@@ -21,9 +21,18 @@
  */
 
 import type { IBuiltInManifest, IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
+import type { IViewContribution } from '../../../../kernel/types/view-catalog.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'tools-counter';
+
+const count = {
+  slot: 'card.footer.left',
+  icon: 'pi-wrench',
+  label: 'tools',
+  emitWhenEmpty: false,
+  priority: 40,
+} satisfies IViewContribution;
 
 /**
  * Tooltip cap. View-slot payloads enforce a 256-char `tooltip` limit
@@ -41,15 +50,7 @@ export const toolsCounterExtractor: IBuiltInManifest<IExtractor> = {
   scope: 'frontmatter',
   precondition: { kind: ['claude/agent'] },
 
-  ui: {
-    count: {
-      slot: 'card.footer.left',
-      icon: 'pi-wrench',
-      label: 'tools',
-      emitWhenEmpty: false,
-      priority: 40,
-    },
-  },
+  ui: { count },
 
   extract(ctx: IExtractorContext): void {
     const raw = ctx.frontmatter['tools'];
@@ -61,7 +62,7 @@ export const toolsCounterExtractor: IBuiltInManifest<IExtractor> = {
     }
     if (names.length === 0) return;
 
-    ctx.emitContribution('count', {
+    ctx.emitContribution(count, {
       value: names.length,
       tooltip: buildTooltip(names),
     });

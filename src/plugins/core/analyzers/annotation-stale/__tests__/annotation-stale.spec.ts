@@ -40,17 +40,17 @@ function mockNode(path: string, sidecar: ISidecarOverlay | undefined): Node {
 
 function ctx(nodes: Node[]): {
   ctx: IAnalyzerContext;
-  contributions: { nodePath: string; id: string; payload: unknown }[];
+  contributions: { nodePath: string; ref: unknown; payload: unknown }[];
 } {
-  const contributions: { nodePath: string; id: string; payload: unknown }[] = [];
+  const contributions: { nodePath: string; ref: unknown; payload: unknown }[] = [];
   return {
     ctx: {
       nodes,
       links: [],
       enrichments: new Map(),
       ui: new Map(),
-      emitContribution: (nodePath: string, id: string, payload: unknown) =>
-        contributions.push({ nodePath, id, payload }),
+      emitContribution: (nodePath: string, ref: unknown, payload: unknown) =>
+        contributions.push({ nodePath, ref, payload }),
     } as unknown as IAnalyzerContext,
     contributions,
   };
@@ -89,9 +89,10 @@ describe('annotation-stale analyzer, surfaces (issue + footer chip + header badg
     const { ctx: c, contributions } = ctx([node]);
     const issues = await annotationStaleAnalyzer.evaluate(c);
     strictEqual(issues.length, 0);
-    deepStrictEqual(contributions, [
-      { nodePath: 'notes/x.md', id: 'bumpButton', payload: DISABLED_BUMP },
-    ]);
+    strictEqual(contributions.length, 1);
+    strictEqual(contributions[0]!.nodePath, 'notes/x.md');
+    strictEqual(contributions[0]!.ref, annotationStaleAnalyzer.ui!['bumpButton']);
+    deepStrictEqual(contributions[0]!.payload, DISABLED_BUMP);
   });
 
   it('emits enabled bump button + issue + footer chip + header badge on stale-body', async () => {
@@ -101,19 +102,16 @@ describe('annotation-stale analyzer, surfaces (issue + footer chip + header badg
     strictEqual(issues.length, 1);
     strictEqual(issues[0]!.severity, 'info');
     deepStrictEqual(issues[0]!.nodeIds, ['notes/x.md']);
-    deepStrictEqual(contributions, [
-      { nodePath: 'notes/x.md', id: 'bumpButton', payload: ENABLED_BUMP },
-      {
-        nodePath: 'notes/x.md',
-        id: 'staleIcon',
-        payload: { value: 0, tooltip: ANNOTATION_STALE_TEXTS.bodyTooltip },
-      },
-      {
-        nodePath: 'notes/x.md',
-        id: 'staleBadge',
-        payload: { icon: 'pi-clock', tooltip: ANNOTATION_STALE_TEXTS.bodyTooltip },
-      },
-    ]);
+    strictEqual(contributions.length, 3);
+    strictEqual(contributions[0]!.nodePath, 'notes/x.md');
+    strictEqual(contributions[0]!.ref, annotationStaleAnalyzer.ui!['bumpButton']);
+    deepStrictEqual(contributions[0]!.payload, ENABLED_BUMP);
+    strictEqual(contributions[1]!.nodePath, 'notes/x.md');
+    strictEqual(contributions[1]!.ref, annotationStaleAnalyzer.ui!['staleIcon']);
+    deepStrictEqual(contributions[1]!.payload, { value: 0, tooltip: ANNOTATION_STALE_TEXTS.bodyTooltip });
+    strictEqual(contributions[2]!.nodePath, 'notes/x.md');
+    strictEqual(contributions[2]!.ref, annotationStaleAnalyzer.ui!['staleBadge']);
+    deepStrictEqual(contributions[2]!.payload, { icon: 'pi-clock', tooltip: ANNOTATION_STALE_TEXTS.bodyTooltip });
   });
 
   it('emits the same three contributions on stale-frontmatter', async () => {
@@ -122,8 +120,12 @@ describe('annotation-stale analyzer, surfaces (issue + footer chip + header badg
     const issues = await annotationStaleAnalyzer.evaluate(c);
     strictEqual(issues.length, 1);
     deepStrictEqual(
-      contributions.map((c2) => c2.id),
-      ['bumpButton', 'staleIcon', 'staleBadge'],
+      contributions.map((c2) => c2.ref),
+      [
+        annotationStaleAnalyzer.ui!['bumpButton'],
+        annotationStaleAnalyzer.ui!['staleIcon'],
+        annotationStaleAnalyzer.ui!['staleBadge'],
+      ],
     );
     deepStrictEqual(contributions[1]!.payload, {
       value: 0,
@@ -141,8 +143,12 @@ describe('annotation-stale analyzer, surfaces (issue + footer chip + header badg
     const issues = await annotationStaleAnalyzer.evaluate(c);
     strictEqual(issues.length, 1);
     deepStrictEqual(
-      contributions.map((c2) => c2.id),
-      ['bumpButton', 'staleIcon', 'staleBadge'],
+      contributions.map((c2) => c2.ref),
+      [
+        annotationStaleAnalyzer.ui!['bumpButton'],
+        annotationStaleAnalyzer.ui!['staleIcon'],
+        annotationStaleAnalyzer.ui!['staleBadge'],
+      ],
     );
     deepStrictEqual(contributions[2]!.payload, {
       icon: 'pi-clock',

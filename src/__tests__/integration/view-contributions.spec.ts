@@ -134,7 +134,7 @@ describe('view contributions, AJV payload validation', () => {
   it('accepts a valid key-values payload (inspector.body.panel.key-values)', () => {
     const validators = loadSchemaValidators();
     const result = validators.validateContributionPayload('inspector.body.panel.key-values', {
-      entries: [
+      pairs: [
         { key: 'title', value: 'API Reference' },
         { key: 'version', value: 3 },
         { key: 'pinned', value: true },
@@ -156,7 +156,7 @@ describe('view contributions, AJV payload validation', () => {
   it('rejects breakdown payload with an entry missing label', () => {
     const validators = loadSchemaValidators();
     const result = validators.validateContributionPayload('inspector.body.panel.breakdown', {
-      entries: [{ value: 5 }],
+      bars: [{ value: 5 }],
     });
     assert.equal(result.ok, false);
   });

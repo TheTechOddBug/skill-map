@@ -24,11 +24,40 @@
 
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { ISidecarOverlay, Issue, SidecarStatus } from '../../../../kernel/types.js';
+import type { IViewContribution } from '../../../../kernel/types/view-catalog.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { ANNOTATION_STALE_TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'annotation-stale';
+
+// A `pi-clock` chip in the footer-right cluster so the operator spots
+// drift in the list / inspector card. Emitted with `value: 0` +
+// `emitWhenEmpty: true` so the renderer treats it as icon-only; the
+// tooltip carries the per-face detail (body / frontmatter / both).
+const staleIcon = {
+  slot: 'card.footer.right',
+  icon: 'pi-clock',
+  emitWhenEmpty: true,
+  priority: 20,
+} satisfies IViewContribution;
+
+// Inspector header badge: the same clock, now plugin-driven instead of
+// hardcoded in inspector-header.html. Emitted only for stale nodes (see
+// evaluate). The payload carries the icon + tooltip.
+const staleBadge = {
+  slot: 'inspector.header.badge',
+  emitWhenEmpty: false,
+  priority: 20,
+} satisfies IViewContribution;
+
+// Inspector action button that dispatches `core/node-bump`. Always
+// emitted for nodes that already have a sidecar; the payload's `enabled`
+// flag carries the dynamic gate (stale => enabled).
+const bumpButton = {
+  slot: 'inspector.action.button',
+  priority: 10,
+} satisfies IViewContribution;
 
 export const annotationStaleAnalyzer: IBuiltInManifest<IAnalyzer> = {
   id: ID,
@@ -40,33 +69,7 @@ export const annotationStaleAnalyzer: IBuiltInManifest<IAnalyzer> = {
   // increments `annotations.version`, and stamps the audit block. The
   // inspector surfaces `core/node-bump` as the `bumpButton` contribution.
 
-  ui: {
-    // A `pi-clock` chip in the footer-right cluster so the operator
-    // spots drift in the list / inspector card. Emitted with `value: 0`
-    // + `emitWhenEmpty: true` so the renderer treats it as icon-only;
-    // the tooltip carries the per-face detail (body / frontmatter / both).
-    staleIcon: {
-      slot: 'card.footer.right',
-      icon: 'pi-clock',
-      emitWhenEmpty: true,
-      priority: 20,
-    },
-    // Inspector header badge: the same clock, now plugin-driven instead
-    // of hardcoded in inspector-header.html. Emitted only for stale
-    // nodes (see evaluate). The payload carries the icon + tooltip.
-    staleBadge: {
-      slot: 'inspector.header.badge',
-      emitWhenEmpty: false,
-      priority: 20,
-    },
-    // Inspector action button that dispatches `core/node-bump`. Always
-    // emitted for nodes that already have a sidecar; the payload's
-    // `enabled` flag carries the dynamic gate (stale => enabled).
-    bumpButton: {
-      slot: 'inspector.action.button',
-      priority: 10,
-    },
-  },
+  ui: { staleIcon, staleBadge, bumpButton },
 
   evaluate(ctx: IAnalyzerContext): Issue[] {
     const issues: Issue[] = [];
@@ -92,11 +95,11 @@ export const annotationStaleAnalyzer: IBuiltInManifest<IAnalyzer> = {
       // `value: 0` yields an icon-only footer chip (no count). No
       // severity: drift is neutral, and the issue above is `info`, so it
       // stays out of the card's warn chip and never fails `sm check`.
-      ctx.emitContribution(node.path, 'staleIcon', {
+      ctx.emitContribution(node.path, staleIcon, {
         value: 0,
         tooltip: tooltipFor(status),
       });
-      ctx.emitContribution(node.path, 'staleBadge', {
+      ctx.emitContribution(node.path, staleBadge, {
         icon: 'pi-clock',
         tooltip: tooltipFor(status),
       });
@@ -128,7 +131,7 @@ function messageFor(status: Exclude<SidecarStatus, 'fresh'>, path: string): stri
 }
 
 function emitBumpButton(ctx: IAnalyzerContext, nodePath: string, enabled: boolean): void {
-  ctx.emitContribution(nodePath, 'bumpButton', {
+  ctx.emitContribution(nodePath, bumpButton, {
     actionId: 'core/node-bump',
     label: ANNOTATION_STALE_TEXTS.bumpLabel,
     icon: 'pi-arrow-up-right',

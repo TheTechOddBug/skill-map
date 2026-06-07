@@ -218,7 +218,7 @@
       "interfaces/security-scanner.md": "e8049712b9cf7a07c786bf19f8f775f8ef9638f063f7fba5c7a8b1431b92f38e",
       "job-events.md": "9d5b35d4c451a7f8eef9915d85316d924ac52f1c026a316cdda5f1099d496854",
       "job-lifecycle.md": "9c429121f98a07c8795f8979ed1abc5e5334e3f89db51585a8da55c527ef855b",
-      "plugin-author-guide.md": "051a9b47b7e03171ab934ce4ea7a45c350b3995b07facc93098081be1123c10f",
+      "plugin-author-guide.md": "fd08837e43e5cdaaaff62a56859d19fe6bb887383639c0eb279da45ea5309a83",
       "plugin-kv-api.md": "1acc69ed82433a74e35ada61d63a6d7379fb61046ff83de1e0facbe884c64704",
       "prompt-preamble.md": "9dd4f6d1bc6a425f8782fcee10cbe75909e8d64e28781fda56c2fae909b02f40",
       "schemas/annotations.schema.json": "8c639b149cad675fdd4e7d6be2b47e920cfdd24087b41361d6e1b8280f646322",
@@ -257,7 +257,7 @@
       "schemas/summaries/markdown.schema.json": "369d75a18710eb6c7ee4220b2899767ddbc07dada24f81b611827fe2e3a2977a",
       "schemas/summaries/skill.schema.json": "85d68056054bade62391948cc038fcfa70cdcf465e2b295f69cd520bbdba0134",
       "schemas/user-settings.schema.json": "d155552ffca9c7dd4c6e31398aff4950dd9721d2a1f4b308cf0fe33000ca31b5",
-      "schemas/view-slots.schema.json": "46b4a6ef95cb26e8319c75b7daaf0fa1cf35ccb4781994484ae90329268c8d90",
+      "schemas/view-slots.schema.json": "886487a1f38fd7e4270fa6213653664c0cf906043e8aa9e832017149932bf6a2",
       "telemetry.md": "fa659b47c59e692f50c7a091470888d5e7c98dcf858978fa549af25b2562803f",
       "versioning.md": "28a13f165f837921fe5066f4bfce61012cd9f1b7c451f88eeb67252e39a0981a"
     }

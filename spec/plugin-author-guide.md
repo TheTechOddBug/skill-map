@@ -557,6 +557,27 @@ Inside an extractor or analyzer manifest, declare a `ui` map (sibling of `annota
 }
 ```
 
+In TypeScript, declare each contribution as a module-level const with `satisfies IViewContribution` and build `ui` by shorthand. You then emit by passing the SAME object by reference (see [Emit path](#emit-path)) and get a typed payload for free:
+
+```ts
+import type { IViewContribution } from '@skill-map/cli';
+
+const breakdown = {
+  slot: 'inspector.body.panel.breakdown', label: 'Keyword hits', emptyText: 'No matches.',
+} satisfies IViewContribution;
+const total = {
+  slot: 'card.footer.left', icon: '🔍', label: 'kw', emitWhenEmpty: false,
+} satisfies IViewContribution;
+
+export default {
+  // ...
+  ui: { breakdown, total },
+  // ...
+};
+```
+
+The `ui` **key** (kebab-case per the manifest schema) is the contribution id; the const's variable name is incidental, because the kernel matches an emission to its declaration by object identity, not by name. Plain `.js` plugins use the same shape without `satisfies` (they get the runtime check, not the compile-time one).
+
 Field reference (full schema in [`schemas/view-slots.schema.json`](./schemas/view-slots.schema.json) at `$defs/IViewContribution`):
 
 | Field | Required | Notes |
@@ -627,14 +648,14 @@ For analyzers, a per-node card surfaces a finding through two independent channe
 
 ```ts
 // Extractor (per-node walk): nodePath is implicit (ctx.node.path)
-ctx.emitContribution('breakdown', { entries: [...] });
-ctx.emitContribution('total', { value: total });
+ctx.emitContribution(breakdown, { bars: [...] });
+ctx.emitContribution(total, { value });
 
 // Analyzer (post-merge graph): explicit nodePath, the analyzer sees every node at once
-ctx.emitContribution(nodePath, 'breakdown', { ... });
+ctx.emitContribution(nodePath, breakdown, { bars: [...] });
 ```
 
-The first id argument is the **manifest `ui` key**, NOT the slot name; the kernel composes the qualified id from your plugin id, extension id, and the key, and looks up the declared slot to validate the payload against `view-slots.schema.json#/$defs/payloads/<slot>`. Off-shape payloads emit an `extension.error` and drop silently, same posture as `emitLink`. For `topbar.nav.start`, analyzers use `ctx.emitScopeContribution(id, payload)` (reserved in the spec; the runtime callback lands when the first scope-level adopter arrives).
+Pass the contribution **object you declared in `ui`, by reference** (the `const` above), not a string id. The kernel recovers the contribution id (the `ui` key) by object identity and looks up the declared slot to validate the payload against `view-slots.schema.json#/$defs/payloads/<slot>`. The payload argument is typed from `ref.slot` (`SlotPayload<C['slot']>`), so a wrong-shape payload is a **compile error** in TypeScript. At runtime, a ref that is not one of your declared `ui` objects (a spread copy, an inline literal) or an off-shape payload emits an `extension.error` and drops, same posture as `emitLink`. For `topbar.nav.start`, analyzers use `ctx.emitScopeContribution(ref, payload)` (reserved in the spec; the runtime callback lands when the first scope-level adopter arrives).
 
 To surface the same data in two surfaces, declare two contributions (one per slot) and emit twice, there is no broadcast.
 

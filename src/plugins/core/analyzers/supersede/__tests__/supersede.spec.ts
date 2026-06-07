@@ -35,15 +35,15 @@ function mockNode(path: string, overrides: Partial<Node> = {}): Node {
 
 function ctx(nodes: Node[]): {
   ctx: IAnalyzerContext;
-  contributions: { nodePath: string; id: string; payload: unknown }[];
+  contributions: { nodePath: string; ref: unknown; payload: unknown }[];
 } {
-  const contributions: { nodePath: string; id: string; payload: unknown }[] = [];
+  const contributions: { nodePath: string; ref: unknown; payload: unknown }[] = [];
   return {
     ctx: {
       nodes,
       links: [],
-      emitContribution: (nodePath: string, id: string, payload: unknown) =>
-        contributions.push({ nodePath, id, payload }),
+      emitContribution: (nodePath: string, ref: unknown, payload: unknown) =>
+        contributions.push({ nodePath, ref, payload }),
     } as unknown as IAnalyzerContext,
     contributions,
   };
@@ -87,26 +87,29 @@ describe('supersede analyzer, inspector action button', () => {
   it('disables the button when there is no other node to point at', async () => {
     const { ctx: c, contributions } = ctx([mockNode('docs/a.md')]);
     await supersedeAnalyzer.evaluate(c);
-    deepStrictEqual(contributions, [
-      {
-        nodePath: 'docs/a.md',
-        id: 'supersedeButton',
-        payload: button({
-          enabled: false,
-          disabledReason: SUPERSEDE_TEXTS.supersedeNoTargetsReason,
-          options: [],
-        }),
-      },
-    ]);
+    strictEqual(contributions.length, 1);
+    strictEqual(contributions[0]!.nodePath, 'docs/a.md');
+    strictEqual(contributions[0]!.ref, supersedeAnalyzer.ui!['supersedeButton']);
+    deepStrictEqual(
+      contributions[0]!.payload,
+      button({
+        enabled: false,
+        disabledReason: SUPERSEDE_TEXTS.supersedeNoTargetsReason,
+        options: [],
+      }),
+    );
   });
 
   it('enables the button with the OTHER nodes as picker options', async () => {
     const { ctx: c, contributions } = ctx([mockNode('docs/a.md'), mockNode('docs/b.md')]);
     await supersedeAnalyzer.evaluate(c);
-    deepStrictEqual(contributions, [
-      { nodePath: 'docs/a.md', id: 'supersedeButton', payload: button({ enabled: true, options: options('docs/b.md') }) },
-      { nodePath: 'docs/b.md', id: 'supersedeButton', payload: button({ enabled: true, options: options('docs/a.md') }) },
-    ]);
+    strictEqual(contributions.length, 2);
+    strictEqual(contributions[0]!.nodePath, 'docs/a.md');
+    strictEqual(contributions[0]!.ref, supersedeAnalyzer.ui!['supersedeButton']);
+    deepStrictEqual(contributions[0]!.payload, button({ enabled: true, options: options('docs/b.md') }));
+    strictEqual(contributions[1]!.nodePath, 'docs/b.md');
+    strictEqual(contributions[1]!.ref, supersedeAnalyzer.ui!['supersedeButton']);
+    deepStrictEqual(contributions[1]!.payload, button({ enabled: true, options: options('docs/a.md') }));
   });
 
   it('disables the button when the node is already superseded (regardless of targets)', async () => {
@@ -115,18 +118,20 @@ describe('supersede analyzer, inspector action button', () => {
       mockNode('docs/b.md'),
     ]);
     await supersedeAnalyzer.evaluate(c);
-    deepStrictEqual(contributions, [
-      {
-        nodePath: 'docs/a.md',
-        id: 'supersedeButton',
-        payload: button({
-          enabled: false,
-          disabledReason: SUPERSEDE_TEXTS.supersedeDisabledReason,
-          options: options('docs/b.md'),
-        }),
-      },
-      { nodePath: 'docs/b.md', id: 'supersedeButton', payload: button({ enabled: true, options: options('docs/a.md') }) },
-    ]);
+    strictEqual(contributions.length, 2);
+    strictEqual(contributions[0]!.nodePath, 'docs/a.md');
+    strictEqual(contributions[0]!.ref, supersedeAnalyzer.ui!['supersedeButton']);
+    deepStrictEqual(
+      contributions[0]!.payload,
+      button({
+        enabled: false,
+        disabledReason: SUPERSEDE_TEXTS.supersedeDisabledReason,
+        options: options('docs/b.md'),
+      }),
+    );
+    strictEqual(contributions[1]!.nodePath, 'docs/b.md');
+    strictEqual(contributions[1]!.ref, supersedeAnalyzer.ui!['supersedeButton']);
+    deepStrictEqual(contributions[1]!.payload, button({ enabled: true, options: options('docs/a.md') }));
   });
 
   it('skips virtual nodes entirely (not emitted, not offered as a target)', async () => {
@@ -137,17 +142,17 @@ describe('supersede analyzer, inspector action button', () => {
     await supersedeAnalyzer.evaluate(c);
     // The only non-virtual node has no other non-virtual target, so it is
     // disabled, and the virtual node is neither emitted nor offered.
-    deepStrictEqual(contributions, [
-      {
-        nodePath: 'docs/a.md',
-        id: 'supersedeButton',
-        payload: button({
-          enabled: false,
-          disabledReason: SUPERSEDE_TEXTS.supersedeNoTargetsReason,
-          options: [],
-        }),
-      },
-    ]);
+    strictEqual(contributions.length, 1);
+    strictEqual(contributions[0]!.nodePath, 'docs/a.md');
+    strictEqual(contributions[0]!.ref, supersedeAnalyzer.ui!['supersedeButton']);
+    deepStrictEqual(
+      contributions[0]!.payload,
+      button({
+        enabled: false,
+        disabledReason: SUPERSEDE_TEXTS.supersedeNoTargetsReason,
+        options: [],
+      }),
+    );
   });
 
   it('declares the inspector.action.button contribution slot', () => {

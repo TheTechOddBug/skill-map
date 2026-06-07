@@ -13,6 +13,8 @@ export type { IRegisteredAnnotationKey } from './types/annotation-catalog.js';
 export type {
   IRegisteredViewContribution,
   IViewContribution,
+  SlotPayload,
+  SlotPayloadMap,
   TSettingDeclaration,
   TSlotName,
   TInputTypeName,

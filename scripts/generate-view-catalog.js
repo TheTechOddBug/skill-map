@@ -29,12 +29,19 @@
  * next to `built-ins:check`, and in `.githooks/pre-commit`.
  */
 
+import { createRequire } from 'node:module';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, '..');
+
+// `json-schema-to-typescript` is a devDep of the `@skill-map/cli` workspace
+// (src/), not of the repo root where this script lives, so resolve it through
+// src/package.json rather than relying on hoisting.
+const require = createRequire(resolve(REPO_ROOT, 'src/package.json'));
+const { compile: compileJsonSchemaToTs } = require('json-schema-to-typescript');
 
 const VIEW_SLOTS_SCHEMA = resolve(REPO_ROOT, 'spec/schemas/view-slots.schema.json');
 const INPUT_TYPES_SCHEMA = resolve(REPO_ROOT, 'spec/schemas/input-types.schema.json');
@@ -102,10 +109,78 @@ const GEN_HEADER = [
   '//   spec/schemas/input-types.schema.json#/$defs/InputTypeName',
 ];
 
-export function renderKernel(slots, inputs) {
+/**
+ * Build the synthetic root schema fed to json-schema-to-typescript: an object
+ * whose properties are `<slot> -> $ref payloads/<slot>`, so the generated root
+ * interface IS the slot->payload map. TS cannot express two JSON-Schema
+ * keywords our payloads use, so we strip them from the object-root of each
+ * payload def before generating (they stay in the on-disk schema and are
+ * enforced at runtime by AJV):
+ *   - `anyOf`/`oneOf`/`allOf` at the object root ("at least one of icon/label/
+ *     count" on the badge) would otherwise collapse the interface to an
+ *     unusable `{ [k: string]: unknown }`.
+ *   - `maxItems`/`minItems` are dropped via the `ignoreMinAndMaxItems` option
+ *     (otherwise arrays explode into length-N tuple unions).
+ */
+function buildSyntheticPayloadSchema(schema) {
+  const defs = JSON.parse(JSON.stringify(schema.$defs));
+  for (const def of Object.values(defs.payloads ?? {})) {
+    if (def && typeof def === 'object' && def.type === 'object') {
+      delete def.anyOf;
+      delete def.oneOf;
+      delete def.allOf;
+    }
+  }
+  const slotIds = schema.$defs.SlotName.oneOf.map((b) => b.const);
+  return {
+    title: 'SlotPayloadMap',
+    type: 'object',
+    additionalProperties: false,
+    $defs: defs,
+    properties: Object.fromEntries(slotIds.map((s) => [s, { $ref: `#/$defs/payloads/${s}` }])),
+    required: slotIds,
+  };
+}
+
+/**
+ * Generate the per-slot payload interfaces + the `SlotPayloadMap` (slot ->
+ * payload) + the `SlotPayload<S>` accessor, as one TS block appended to the
+ * kernel generated file. Async because json-schema-to-typescript is async.
+ */
+async function renderPayloadTypes(viewSlotsSchema) {
+  const synthetic = buildSyntheticPayloadSchema(viewSlotsSchema);
+  const body = await compileJsonSchemaToTs(synthetic, 'SlotPayloadMap', {
+    additionalProperties: false,
+    bannerComment: '',
+    declareExternallyReferenced: true,
+    ignoreMinAndMaxItems: true,
+    style: { singleQuote: true },
+    cwd: resolve(REPO_ROOT, 'spec/schemas') + '/',
+  });
+  return [
+    '',
+    '// ---------------------------------------------------------------------------',
+    '// Per-slot payload types, generated from',
+    '// `view-slots.schema.json#/$defs/payloads`. TS captures the STRUCTURAL shape',
+    '// only; array length caps (maxItems) and "at least one of" (anyOf) constraints',
+    '// are enforced at runtime by AJV (see kernel/adapters/schema-validators.ts).',
+    '// ---------------------------------------------------------------------------',
+    body.trimEnd(),
+    '',
+    '/**',
+    ' * Payload type for a given slot. `ctx.emitContribution` infers this from the',
+    " * declared contribution's `slot`, so the author gets a typed payload argument.",
+    ' */',
+    'export type SlotPayload<S extends TSlotName> = SlotPayloadMap[S];',
+    '',
+  ].join('\n');
+}
+
+export function renderKernel(slots, inputs, payloadBlock) {
   const slotIds = slots.map((s) => s.id);
   const inputIds = inputs.map((s) => s.id);
   const out = [
+    '/* eslint-disable */',
     ...GEN_HEADER,
     '',
     '/**',
@@ -137,7 +212,7 @@ export function renderKernel(slots, inputs) {
     '',
     '/** Runtime mirror of `TInputTypeName`. */',
     tsNameArray('ALL_INPUT_TYPE_NAMES', 'TInputTypeName', inputIds),
-    '',
+    payloadBlock,
   ];
   return out.join('\n');
 }
@@ -178,10 +253,12 @@ function checkFile(path, content) {
   return true;
 }
 
-function main() {
-  const slots = readOneOfEntries(readSchema(VIEW_SLOTS_SCHEMA), 'SlotName');
+async function main() {
+  const viewSlotsSchema = readSchema(VIEW_SLOTS_SCHEMA);
+  const slots = readOneOfEntries(viewSlotsSchema, 'SlotName');
   const inputs = readOneOfEntries(readSchema(INPUT_TYPES_SCHEMA), 'InputTypeName');
-  const kernelContent = renderKernel(slots, inputs);
+  const payloadBlock = await renderPayloadTypes(viewSlotsSchema);
+  const kernelContent = renderKernel(slots, inputs, payloadBlock);
   const cliContent = renderCli(slots, inputs);
 
   const slotIds = new Set(slots.map((s) => s.id));
@@ -216,4 +293,9 @@ function main() {
 }
 
 const isMain = import.meta.url === pathToFileURL(process.argv[1] ?? '').href;
-if (isMain) main();
+if (isMain) {
+  main().catch((err) => {
+    process.stderr.write(`${err?.stack ?? err}\n`);
+    process.exit(1);
+  });
+}

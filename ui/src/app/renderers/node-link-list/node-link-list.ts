@@ -12,13 +12,13 @@ interface ILinkEntry {
 }
 
 interface INodeLinkListPayload {
-  entries: ILinkEntry[];
+  links: ILinkEntry[];
 }
 
 /**
  * Renderer for the `inspector.body.panel.link-list` slot. Clickable
  * list of in-scope node paths. Caps already enforced at emit time
- * (≤ 100 entries, path ≤ 512 chars).
+ * (≤ 100 links, path ≤ 512 chars).
  *
  * Per the renderer attr-sanitization rule (isolation rule #6), we
  * never bind `path` to a raw `[href]`. The renderer is part of the
@@ -38,11 +38,11 @@ interface INodeLinkListPayload {
       @if (label()) {
         <h5 class="vc-links__header">{{ label() }}</h5>
       }
-      @if (entries().length === 0) {
+      @if (links().length === 0) {
         <p class="vc-links__empty">{{ emptyText() }}</p>
       } @else {
         <ul class="vc-links__list">
-          @for (e of entries(); track e.path) {
+          @for (e of links(); track e.path) {
             <li>
               <button type="button" class="vc-links__btn" (click)="onOpenPath(e.path)">
                 @if (e.kind) {
@@ -81,14 +81,14 @@ export class NodeLinkList {
 
   protected readonly typed = computed<INodeLinkListPayload>(() => {
     const p = this.inputs().payload;
-    if (!isObjectPayload(p)) return { entries: [] };
-    // `entries` MUST be an array, `@for` over it would throw on
+    if (!isObjectPayload(p)) return { links: [] };
+    // `links` MUST be an array, `@for` over it would throw on
     // anything else. Drop to the empty-text branch.
-    if (!isArrayField(p, 'entries')) return { entries: [] };
+    if (!isArrayField(p, 'links')) return { links: [] };
     return p as unknown as INodeLinkListPayload;
   });
 
-  protected readonly entries = computed(() => this.typed().entries ?? []);
+  protected readonly links = computed(() => this.typed().links ?? []);
   protected readonly label = computed(() => this.inputs().label);
   protected readonly emptyText = computed(
     () => this.inputs().emptyText ?? VIEW_CONTRIBUTIONS_TEXTS.emptyDefault,

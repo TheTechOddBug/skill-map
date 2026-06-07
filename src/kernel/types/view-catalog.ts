@@ -42,6 +42,12 @@ import type { TInputTypeName, TSlotName } from './view-catalog.generated.js';
 export { ALL_INPUT_TYPE_NAMES, ALL_SLOT_NAMES, KNOWN_SLOT_NAMES };
 export type { TInputTypeName, TSlotName };
 
+// Generated per-slot payload types (see view-catalog.generated.ts). The
+// `SlotPayload<S>` accessor types `ctx.emitContribution`'s payload argument
+// from the declared contribution's slot; `SlotPayloadMap` is the slot->payload
+// map it indexes.
+export type { SlotPayload, SlotPayloadMap } from './view-catalog.generated.js';
+
 /** Closed severity palette aligned with PrimeNG `<p-tag>` / `<p-message>`. */
 export type TSeverity = 'info' | 'warn' | 'success' | 'danger';
 

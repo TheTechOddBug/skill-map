@@ -25,9 +25,9 @@ import type { IOrphanSidecar } from '../sidecar/index.js';
 import { qualifiedExtensionId } from '../registry.js';
 import type { Issue, Link, Node, Severity, Signal } from '../types.js';
 import type { IRegisteredAnnotationKey } from '../types/annotation-catalog.js';
-import type { IRegisteredViewContribution } from '../types/view-catalog.js';
+import type { IRegisteredViewContribution, IViewContribution } from '../types/view-catalog.js';
 import { tx } from '../util/tx.js';
-import { emitExtensionError, readDeclaredContributions } from './extractors.js';
+import { emitExtensionError, readDeclaredContributionRefs } from './extractors.js';
 
 /**
  * Run every registered analyzer over the merged graph. Analyzers see internal
@@ -91,21 +91,20 @@ export async function runAnalyzers(
   const scheduled = orderAnalyzersByPhase(analyzers);
   for (const analyzer of scheduled) {
     const qualifiedId = qualifiedExtensionId(analyzer.pluginId, analyzer.id);
-    const declaredContributions = readDeclaredContributions(analyzer);
+    const declaredContributions = readDeclaredContributionRefs(analyzer);
     const emitContribution = (
       nodePath: string,
-      contributionId: string,
+      ref: IViewContribution,
       payload: unknown,
     ): void => {
-      const declared = declaredContributions.get(contributionId);
+      const declared =
+        typeof ref === 'object' && ref !== null ? declaredContributions.get(ref) : undefined;
       if (!declared) {
         emitExtensionError(emitter, qualifiedId, nodePath, {
           phase: 'emitContribution',
-          contributionId,
-          reason: 'unknown-contribution-id',
-          message: tx(ORCHESTRATOR_TEXTS.extensionErrorContributionUnknownId, {
+          reason: 'undeclared-contribution-ref',
+          message: tx(ORCHESTRATOR_TEXTS.extensionErrorContributionUndeclaredRef, {
             extractorId: qualifiedId,
-            contributionId,
             nodePath,
           }),
         });
@@ -115,12 +114,12 @@ export async function runAnalyzers(
       if (!result.ok) {
         emitExtensionError(emitter, qualifiedId, nodePath, {
           phase: 'emitContribution',
-          contributionId,
+          contributionId: declared.id,
           slot: declared.slot,
           reason: result.errors,
           message: tx(ORCHESTRATOR_TEXTS.extensionErrorContributionPayloadInvalid, {
             extractorId: qualifiedId,
-            contributionId,
+            contributionId: declared.id,
             nodePath,
             slot: declared.slot,
             errors: result.errors,
@@ -132,7 +131,7 @@ export async function runAnalyzers(
         pluginId: analyzer.pluginId,
         extensionId: analyzer.id,
         nodePath,
-        contributionId,
+        contributionId: declared.id,
         slot: declared.slot,
         payload,
         emittedAt: Date.now(),

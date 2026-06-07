@@ -35,9 +35,10 @@ export const ORCHESTRATOR_TEXTS = {
     'Rule "{{analyzerId}}" emitted an issue with invalid severity {{severity}} ' +
     "(allowed: 'error' | 'warn' | 'info'). Issue dropped.",
 
-  extensionErrorContributionUnknownId:
-    'Extractor "{{extractorId}}" emitted contribution "{{contributionId}}" on {{nodePath}} ' +
-    'but did not declare it in its `viewContributions` map. Contribution dropped.',
+  extensionErrorContributionUndeclaredRef:
+    'Extension "{{extractorId}}" emitted a view contribution on {{nodePath}} whose object is ' +
+    'not one declared in its `ui` map (pass the declared const by reference, do not spread or ' +
+    'inline it). Contribution dropped.',
 
   extensionErrorContributionPayloadInvalid:
     'Extractor "{{extractorId}}" emitted contribution "{{contributionId}}" on {{nodePath}}; ' +

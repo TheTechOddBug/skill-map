@@ -95,6 +95,7 @@
     "payloads": {
       "description": "Per-slot payload schemas. The kernel validates `ctx.emitContribution(id, payload)` calls against the entry corresponding to the declared slot before persisting to `scan_contributions`. Off-shape payloads emit an `extension.error` event and drop silently (mirror of `emitLink` off-contract drop pattern). Slots that share a renderer share a payload shape; the schema is defined inline at each slot to keep lookups direct (no internal indirection).",
       "card.title.right": {
+        "title": "IconMarkerPayload",
         "type": "object",
         "additionalProperties": false,
         "properties": {
@@ -111,6 +112,7 @@
       "card.footer.left": { "$ref": "#/$defs/payloads/_counter" },
       "card.footer.right": { "$ref": "#/$defs/payloads/_counter" },
       "_counter": {
+        "title": "CounterPayload",
         "type": "object",
         "additionalProperties": false,
         "required": ["value"],
@@ -129,6 +131,7 @@
         "description": "Single icon + integer pair, modelled after the `.sm-gnode__stat` rows in the card footer. Manifest requires `icon` (enforced by `IViewContribution.allOf` for every counter slot); payload carries `value`, optionally `severity` and `tooltip`. The manifest `label` is metadata (docs / plugin-doctor / aria-label) and is NOT rendered inline."
       },
       "inspector.header.badge": {
+        "title": "BadgePayload",
         "type": "object",
         "additionalProperties": false,
         "properties": {
@@ -146,6 +149,7 @@
         "description": "Unified inspector header badge. At least one of `icon`, `label`, `count` is required; optional `severity` tint and `tooltip`. Multi-cardinality slot (priority order, modeled on card.footer.left); a plugin extension may emit several. 'Empty' for `emitWhenEmpty` is the absence of `icon` AND `label` AND `count`. Replaces the retired `_counter`/`_tag` header sub-slots: a counter-style badge sets `count` (+`icon`), a tag-style badge sets `label` (+`severity`), the stale clock sets `icon` + `tooltip`."
       },
       "inspector.action.button": {
+        "title": "ActionButtonPayload",
         "type": "object",
         "additionalProperties": false,
         "required": ["actionId", "label", "enabled"],
@@ -184,6 +188,7 @@
         "description": "An action button rendered in the inspector. The manifest declares only `{ slot: 'inspector.action.button' }`; the per-node payload carries the action id, label, and the dynamic `enabled` flag. Click dispatches the Action via POST /api/actions/:id. `emitWhenEmpty` does not apply (a button is always meaningful)."
       },
       "_ActionPrompt": {
+        "title": "ActionPrompt",
         "type": "object",
         "additionalProperties": false,
         "required": ["inputType", "paramKey", "label"],
@@ -223,6 +228,7 @@
         "description": "Reserved (Steps 3+). Declares a parameter the UI prompts for before dispatching the Action, reusing the input-type catalog. Step 1 actions (bump) omit it."
       },
       "graph.node.alert": {
+        "title": "AlertPayload",
         "type": "object",
         "additionalProperties": false,
         "properties": {
@@ -239,11 +245,12 @@
         "description": "Decoration on the graph node (corner badge / pin). At least one of `icon`, `severity`, `count` is required. 'Empty' for `emitWhenEmpty` is the absence of `icon` AND `count`. Hard cap 1 marker per node per plugin extension (slot config enforces)."
       },
       "inspector.body.panel.breakdown": {
+        "title": "BreakdownPayload",
         "type": "object",
         "additionalProperties": false,
-        "required": ["entries"],
+        "required": ["bars"],
         "properties": {
-          "entries": {
+          "bars": {
             "type": "array",
             "maxItems": 20,
             "items": {
@@ -256,11 +263,12 @@
                 "tooltip": { "type": "string", "maxLength": 256 }
               }
             },
-            "description": "Top-N labeled values rendered as a horizontal bar chart. Hard cap 20 entries (overflow rejected at validation, plugin should pre-truncate). 'Empty' for `emitWhenEmpty` is `entries.length === 0`."
+            "description": "Top-N labeled values rendered as a horizontal bar chart. Hard cap 20 bars (overflow rejected at validation, plugin should pre-truncate). 'Empty' for `emitWhenEmpty` is `bars.length === 0`."
           }
         }
       },
       "inspector.body.panel.records": {
+        "title": "RecordsPayload",
         "type": "object",
         "additionalProperties": false,
         "required": ["columns", "rows"],
@@ -303,6 +311,7 @@
         "description": "Recursive tree rendered as an indented hierarchy. Hard caps: max depth 6, max 200 total nodes per tree (validator enforces). 'Empty' for `emitWhenEmpty` is the root having no `children`."
       },
       "_TreeNode": {
+        "title": "TreeNode",
         "type": "object",
         "additionalProperties": false,
         "required": ["label"],
@@ -317,11 +326,12 @@
         }
       },
       "inspector.body.panel.key-values": {
+        "title": "KeyValuesPayload",
         "type": "object",
         "additionalProperties": false,
-        "required": ["entries"],
+        "required": ["pairs"],
         "properties": {
-          "entries": {
+          "pairs": {
             "type": "array",
             "maxItems": 50,
             "items": {
@@ -341,16 +351,17 @@
                 "tooltip": { "type": "string", "maxLength": 256 }
               }
             },
-            "description": "Flat key/value pairs (max 50). Renders as a definition list. 'Empty' for `emitWhenEmpty` is `entries.length === 0`."
+            "description": "Flat key/value pairs (max 50). Renders as a definition list. 'Empty' for `emitWhenEmpty` is `pairs.length === 0`."
           }
         }
       },
       "inspector.body.panel.link-list": {
+        "title": "LinkListPayload",
         "type": "object",
         "additionalProperties": false,
-        "required": ["entries"],
+        "required": ["links"],
         "properties": {
-          "entries": {
+          "links": {
             "type": "array",
             "maxItems": 100,
             "items": {
@@ -373,11 +384,12 @@
                 }
               }
             },
-            "description": "List of in-scope node paths (max 100). 'Empty' for `emitWhenEmpty` is `entries.length === 0`."
+            "description": "List of in-scope node paths (max 100). 'Empty' for `emitWhenEmpty` is `links.length === 0`."
           }
         }
       },
       "inspector.body.panel.markdown": {
+        "title": "MarkdownPayload",
         "type": "object",
         "additionalProperties": false,
         "required": ["markdown"],
@@ -390,6 +402,7 @@
         }
       },
       "topbar.nav.start": {
+        "title": "ScopeStatPayload",
         "type": "object",
         "additionalProperties": false,
         "required": ["value"],

@@ -34,10 +34,19 @@
 
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { Issue, Node } from '../../../../kernel/types.js';
+import type { IViewContribution } from '../../../../kernel/types/view-catalog.js';
 import { SUPERSEDE_TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'supersede';
+
+// Inspector action button that dispatches `core/node-supersede`. Always
+// emitted for non-virtual nodes; the payload's `enabled` flag carries
+// the dynamic gate.
+const supersedeButton = {
+  slot: 'inspector.action.button',
+  priority: 10,
+} satisfies IViewContribution;
 
 interface IPickOption {
   value: string;
@@ -51,15 +60,7 @@ export const supersedeAnalyzer: IBuiltInManifest<IAnalyzer> = {
   description: 'Projects the inspector "Supersede" button (declares a node replaced by another).',
   mode: 'deterministic',
 
-  ui: {
-    // Inspector action button that dispatches `core/node-supersede`.
-    // Always emitted for non-virtual nodes; the payload's `enabled` flag
-    // carries the dynamic gate.
-    supersedeButton: {
-      slot: 'inspector.action.button',
-      priority: 10,
-    },
-  },
+  ui: { supersedeButton },
 
   evaluate(ctx: IAnalyzerContext): Issue[] {
     // Candidate targets: every non-virtual node. Built once from the live
@@ -82,7 +83,7 @@ export const supersedeAnalyzer: IBuiltInManifest<IAnalyzer> = {
 
 function emitSupersedeButton(ctx: IAnalyzerContext, node: Node, options: IPickOption[]): void {
   const disabledReason = resolveDisabledReason(node, options.length);
-  ctx.emitContribution(node.path, 'supersedeButton', {
+  ctx.emitContribution(node.path, supersedeButton, {
     actionId: 'core/node-supersede',
     label: SUPERSEDE_TEXTS.supersedeLabel,
     icon: 'pi-arrow-right-arrow-left',

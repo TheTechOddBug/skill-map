@@ -247,19 +247,19 @@ ctx.emitContribution(nodePath, 'bump', {
 { "slot": "inspector.body.panel.breakdown", "label": "Code by language" }
 ```
 
-**Payload shape**: `{ entries: Array<{ label, value: integer ≥ 0, tooltip? }> }` (max 20 entries; pre-truncate before emit).
+**Payload shape**: `{ bars: Array<{ label, value: integer ≥ 0, tooltip? }> }` (max 20 bars; pre-truncate before emit).
 
 **Emit**:
 ```ts
 ctx.emitContribution('codestats', {
-  entries: [
+  bars: [
     { label: 'ts', value: 142 },
     { label: 'sh', value: 23 },
   ],
 });
 ```
 
-**Empty**: `entries.length === 0`.
+**Empty**: `bars.length === 0`.
 
 **Where it renders**: inspector body, horizontal bar chart.
 
@@ -274,7 +274,7 @@ ctx.emitContribution('codestats', {
 { "slot": "inspector.body.panel.records", "label": "Dependencies" }
 ```
 
-**Payload shape**: `{ columns: ≤6 entries, rows: ≤50 entries }` where each `column` is `{ key, label }` and each row maps `column.key` to a scalar (string ≤256, number, boolean, null).
+**Payload shape**: `{ columns: ≤6, rows: ≤50 }` where each `column` is `{ key, label }` and each row maps `column.key` to a scalar (string ≤256, number, boolean, null).
 
 **Emit**:
 ```ts
@@ -336,19 +336,19 @@ ctx.emitContribution('outline', {
 { "slot": "inspector.body.panel.key-values", "label": "Frontmatter" }
 ```
 
-**Payload shape**: `{ entries: Array<{ key (1-64), value: scalar (string ≤512, number, boolean, null), tooltip? }> }` (max 50 entries).
+**Payload shape**: `{ pairs: Array<{ key (1-64), value: scalar (string ≤512, number, boolean, null), tooltip? }> }` (max 50 pairs).
 
 **Emit**:
 ```ts
 ctx.emitContribution('parsed', {
-  entries: [
+  pairs: [
     { key: 'description', value: 'Test harness for skill loaders' },
     { key: 'allowed-tools', value: 'Bash, Read, Grep' },
   ],
 });
 ```
 
-**Empty**: `entries.length === 0`.
+**Empty**: `pairs.length === 0`.
 
 **Where it renders**: inspector body, definition list.
 
@@ -363,19 +363,19 @@ ctx.emitContribution('parsed', {
 { "slot": "inspector.body.panel.link-list", "label": "Mentioned in" }
 ```
 
-**Payload shape**: `{ entries: Array<{ path (1-512), label?, kind? }> }` (max 100 entries). `path` is scope-relative; the UI resolves to a clickable link via `Router.navigate`, never as raw `[href]`.
+**Payload shape**: `{ links: Array<{ path (1-512), label?, kind? }> }` (max 100 links). `path` is scope-relative; the UI resolves to a clickable link via `Router.navigate`, never as raw `[href]`.
 
 **Emit**:
 ```ts
 ctx.emitContribution('mentions', {
-  entries: [
+  links: [
     { path: './skills/foo.md', label: 'foo skill' },
     { path: './api.md' },
   ],
 });
 ```
 
-**Empty**: `entries.length === 0`.
+**Empty**: `links.length === 0`.
 
 **Where it renders**: inspector body, clickable list with optional kind tinting from `kindRegistry`.
 

@@ -1,0 +1,24 @@
+{
+  "//": "Type-checks the demo fixture plugins (dogfooding). These .ts plugins live outside every workspace tsconfig; this config wires them up so `tsc --noEmit` validates that they call the view-contribution API correctly. `@skill-map/cli` resolves to the workspace SOURCE (../src/index.ts), so a renamed slot / payload field surfaces here before it ships.",
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "typeRoots": ["../src/node_modules/@types"],
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "forceConsistentCasingInFileNames": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@skill-map/cli": ["../src/index.ts"]
+    }
+  },
+  "include": [
+    "plugins-scope/.skill-map/plugins/*/analyzers/*/index.ts"
+  ]
+}

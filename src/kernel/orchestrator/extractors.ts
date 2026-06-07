@@ -21,6 +21,7 @@ import type { TPluginStore } from '../adapters/plugin-store.js';
 import { loadSchemaValidators } from '../adapters/schema-validators.js';
 import type { IContributionRecord } from '../adapters/sqlite/contributions.js';
 import { ORCHESTRATOR_TEXTS } from '../i18n/orchestrator.texts.js';
+import type { IViewContribution } from '../types/view-catalog.js';
 import type {
   ProgressEmitterPort,
 } from '../ports/progress-emitter.js';
@@ -193,17 +194,16 @@ export async function runExtractorsForNode(opts: {
     //      reason: AJV error string.
     // Accepted emissions append a record to the buffer; persistence
     // happens later via `replaceAllScanContributions`.
-    const declaredContributions = readDeclaredContributions(extractor);
-    const emitContribution = (contributionId: string, payload: unknown): void => {
-      const declared = declaredContributions.get(contributionId);
+    const declaredContributions = readDeclaredContributionRefs(extractor);
+    const emitContribution = (ref: IViewContribution, payload: unknown): void => {
+      const declared =
+        typeof ref === 'object' && ref !== null ? declaredContributions.get(ref) : undefined;
       if (!declared) {
         emitExtensionError(opts.emitter, qualifiedId, opts.node.path, {
           phase: 'emitContribution',
-          contributionId,
-          reason: 'unknown-contribution-id',
-          message: tx(ORCHESTRATOR_TEXTS.extensionErrorContributionUnknownId, {
+          reason: 'undeclared-contribution-ref',
+          message: tx(ORCHESTRATOR_TEXTS.extensionErrorContributionUndeclaredRef, {
             extractorId: qualifiedId,
-            contributionId,
             nodePath: opts.node.path,
           }),
         });
@@ -213,12 +213,12 @@ export async function runExtractorsForNode(opts: {
       if (!result.ok) {
         emitExtensionError(opts.emitter, qualifiedId, opts.node.path, {
           phase: 'emitContribution',
-          contributionId,
+          contributionId: declared.id,
           slot: declared.slot,
           reason: result.errors,
           message: tx(ORCHESTRATOR_TEXTS.extensionErrorContributionPayloadInvalid, {
             extractorId: qualifiedId,
-            contributionId,
+            contributionId: declared.id,
             nodePath: opts.node.path,
             slot: declared.slot,
             errors: result.errors,
@@ -230,7 +230,7 @@ export async function runExtractorsForNode(opts: {
         pluginId: extractor.pluginId,
         extensionId: extractor.id,
         nodePath: opts.node.path,
-        contributionId,
+        contributionId: declared.id,
         slot: declared.slot,
         payload,
         emittedAt: Date.now(),
@@ -278,22 +278,31 @@ export async function runExtractorsForNode(opts: {
 }
 
 /**
- * Pull the manifest's `ui` map (renamed from `viewContributions` with
- * the structure-as-truth refactor) into a `Map<contributionId, { slot }>`.
- * Called once per extractor per node; the result lives for the duration
- * of `runExtractorsForNode` and disappears with the function frame.
+ * Reverse-identity lookup for view contributions: maps each declared `ui`
+ * value OBJECT to its `{ id, slot }`. The author emits by passing the
+ * contribution object by reference (`ctx.emitContribution(ref, payload)`);
+ * the orchestrator recovers the contribution id + slot via `Map.get`, which
+ * compares objects by reference (SameValueZero). A `ref` that is not one of
+ * the declared `ui` values (a spread copy, an inline literal) yields
+ * `undefined`, surfaced as a loud `extension.error` rather than a silent drop.
+ *
+ * Identity holds because the manifest `ui` map and the const the author
+ * passes in `extract()` / `evaluate()` are the same object in memory
+ * (`ui: { facts }` shorthand). The built-ins codegen and the plugin loader
+ * MUST preserve that identity (shallow-spread the extension, never deep-clone
+ * `ui`). Called once per extension per node; the map disappears with the frame.
  */
-export function readDeclaredContributions(
+export function readDeclaredContributionRefs(
   extension: { ui?: unknown },
-): Map<string, { slot: string }> {
-  const out = new Map<string, { slot: string }>();
+): Map<object, { id: string; slot: string }> {
+  const out = new Map<object, { id: string; slot: string }>();
   const raw = extension.ui;
   if (typeof raw !== 'object' || raw === null) return out;
   for (const [id, value] of Object.entries(raw as Record<string, unknown>)) {
     if (typeof value !== 'object' || value === null) continue;
     const slot = (value as { slot?: unknown }).slot;
     if (typeof slot !== 'string') continue;
-    out.set(id, { slot });
+    out.set(value, { id, slot });
   }
   return out;
 }
@@ -328,7 +337,7 @@ function buildExtractorContext(
   frontmatter: Record<string, unknown>,
   emitLink: (link: Link) => void,
   enrichNode: (partial: Partial<Node>) => void,
-  emitContribution: (contributionId: string, payload: unknown) => void,
+  emitContribution: IExtractorContext['emitContribution'],
   emitSignal: (signal: Signal) => void,
   emitNode: (node: IEmittedNode) => void,
   store: TPluginStore | undefined,

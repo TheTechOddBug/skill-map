@@ -17,7 +17,7 @@ function contribution(overrides: Partial<IContributionApi> = {}): IContributionA
     contributionId: 'summary',
     nodePath: 'skills/alpha/SKILL.md',
     slot: 'inspector.body.panel.key-values',
-    payload: { entries: [{ key: 'k', value: 'v' }] },
+    payload: { pairs: [{ key: 'k', value: 'v' }] },
     ...overrides,
   };
 }
@@ -45,7 +45,7 @@ describe('buildRendererInputs', () => {
     expect(out.extensionId).toBe('metrics');
     expect(out.contributionId).toBe('summary');
     expect(out.nodePath).toBe('skills/alpha/SKILL.md');
-    expect(out.payload).toEqual({ entries: [{ key: 'k', value: 'v' }] });
+    expect(out.payload).toEqual({ pairs: [{ key: 'k', value: 'v' }] });
   });
 
   it('maps the manifest label / tooltip / icon / emptyText from the registry entry', () => {

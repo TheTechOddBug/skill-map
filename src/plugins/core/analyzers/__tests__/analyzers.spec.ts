@@ -51,7 +51,7 @@ async function run(rule: typeof triggerCollisionAnalyzer, ctx: { nodes: Node[]; 
 }
 
 /** Stub for tests that don't exercise the contribution emit channel. */
-function noopEmitContribution(_nodePath: string, _contributionId: string, _payload: unknown): void {
+function noopEmitContribution(): void {
   // no-op
 }
 

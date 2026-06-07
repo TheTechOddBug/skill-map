@@ -31,11 +31,32 @@
 
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { Issue } from '../../../../kernel/types.js';
+import type { IViewContribution } from '../../../../kernel/types/view-catalog.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { ISSUE_COUNTER_TEXTS as TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'issue-counter';
+
+// Third in the footer-right cluster, after the drift chip (priority 10)
+// and the stability badge (priority 20). The warn counter sits before
+// the error counter so the operator reads "advisory → blocking"
+// left-to-right.
+const warnCount = {
+  slot: 'card.footer.right',
+  icon: 'pi-exclamation-triangle',
+  emitWhenEmpty: false,
+  priority: 30,
+} satisfies IViewContribution;
+
+// Last in the cluster, the red chip pins to the right edge so the most
+// severe signal anchors the row's reading position.
+const errorCount = {
+  slot: 'card.footer.right',
+  icon: 'pi-times-circle',
+  emitWhenEmpty: false,
+  priority: 40,
+} satisfies IViewContribution;
 
 interface ITierCounts {
   readonly errors: ReadonlyMap<string, number>;
@@ -59,7 +80,7 @@ function countByTier(issues: readonly Issue[]): ITierCounts {
 
 function emitTierChips(
   ctx: IAnalyzerContext,
-  contributionId: 'errorCount' | 'warnCount',
+  ref: typeof warnCount | typeof errorCount,
   severity: 'danger' | 'warn',
   counts: ReadonlyMap<string, number>,
   singleTooltip: string,
@@ -67,7 +88,7 @@ function emitTierChips(
 ): void {
   for (const [nodePath, count] of counts) {
     const capped = Math.min(count, 99);
-    ctx.emitContribution(nodePath, contributionId, {
+    ctx.emitContribution(nodePath, ref, {
       value: capped,
       severity,
       tooltip: count === 1 ? singleTooltip : tx(manyTooltip, { count }),
@@ -84,34 +105,15 @@ export const issueCounterAnalyzer: IBuiltInManifest<IAnalyzer> = {
   mode: 'deterministic',
   phase: 'aggregate',
 
-  ui: {
-    // Third in the footer-right cluster, after the drift chip
-    // (priority 10) and the stability badge (priority 20). The warn
-    // counter sits before the error counter so the operator reads
-    // "advisory → blocking" left-to-right.
-    warnCount: {
-      slot: 'card.footer.right',
-      icon: 'pi-exclamation-triangle',
-      emitWhenEmpty: false,
-      priority: 30,
-    },
-    // Last in the cluster, the red chip pins to the right edge so the
-    // most severe signal anchors the row's reading position.
-    errorCount: {
-      slot: 'card.footer.right',
-      icon: 'pi-times-circle',
-      emitWhenEmpty: false,
-      priority: 40,
-    },
-  },
+  ui: { warnCount, errorCount },
 
   evaluate(ctx: IAnalyzerContext): Issue[] {
     const accumulator = ctx.accumulatedIssues ?? [];
     if (accumulator.length === 0) return [];
     const { errors, warns } = countByTier(accumulator);
-    emitTierChips(ctx, 'errorCount', 'danger', errors,
+    emitTierChips(ctx, errorCount, 'danger', errors,
       TEXTS.errorTooltipSingle, TEXTS.errorTooltipMany);
-    emitTierChips(ctx, 'warnCount', 'warn', warns,
+    emitTierChips(ctx, warnCount, 'warn', warns,
       TEXTS.warnTooltipSingle, TEXTS.warnTooltipMany);
     // The aggregator emits zero issues, only contributions. Issues
     // remain owned by the analyzers that detected the underlying

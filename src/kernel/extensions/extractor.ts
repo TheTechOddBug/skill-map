@@ -19,6 +19,7 @@
 
 import type { IExtensionBase } from './base.js';
 import type { Link, Node, Signal } from '../types.js';
+import type { IViewContribution, SlotPayload } from '../types/view-catalog.js';
 
 /**
  * Payload accepted by `IExtractorCallbacks.emitNode`. A loose subset of
@@ -102,15 +103,18 @@ export interface IExtractorCallbacks {
   enrichNode(partial: Partial<Node>): void;
 
   /**
-   * Emit a per-node view contribution. `contributionId` MUST be a key
-   * declared under the manifest's `ui` map; the payload MUST conform to
-   * the slot's payload schema in
-   * `spec/schemas/view-slots.schema.json#/$defs/payloads/<slot>`. Off-shape
-   * payloads (or unknown contribution ids) drop silently with an
-   * `extension.error`. Renamed from `viewContributions` with the
-   * structure-as-truth refactor.
+   * Emit a per-node view contribution. Pass the contribution object you
+   * declared in the manifest's `ui` map BY REFERENCE, e.g.
+   * `const facts = { slot: '...' } satisfies IViewContribution; ui: { facts };`
+   * then `ctx.emitContribution(facts, payload)`. The kernel recovers the
+   * contribution id + slot by object identity, then validates `payload`
+   * against the slot's payload schema in
+   * `spec/schemas/view-slots.schema.json#/$defs/payloads/<slot>`. `payload`
+   * is typed from `ref.slot` (`SlotPayload<C['slot']>`), so the wrong shape
+   * is a compile error; an undeclared `ref` (a spread copy / inline literal)
+   * or an off-shape payload drops at runtime with a loud `extension.error`.
    */
-  emitContribution(contributionId: string, payload: unknown): void;
+  emitContribution<C extends IViewContribution>(ref: C, payload: SlotPayload<C['slot']>): void;
 }
 
 export interface IExtractorContext extends IExtractorCallbacks {

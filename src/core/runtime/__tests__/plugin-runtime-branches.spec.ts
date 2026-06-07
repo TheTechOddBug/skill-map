@@ -417,6 +417,6 @@ describe('plugin-runtime, branch coverage', () => {
     assert.equal(runtime.discovered.length, 2);
     assert.equal(runtime.extensions.extractors.length, 1, 'only the good plugin loaded');
     assert.equal(runtime.warnings.length, 1, 'one warning for the broken plugin');
-    assert.match(runtime.warnings[0]!, /broken: invalid-manifest/);
+    assert.match(runtime.warnings[0]!, /plugin broken \(invalid-manifest\), all extensions skipped/);
   });
 });

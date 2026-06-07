@@ -22,10 +22,19 @@
 
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { Issue, Node } from '../../../../kernel/types.js';
+import type { IViewContribution } from '../../../../kernel/types/view-catalog.js';
 import { TAGS_TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'tags';
+
+// Inspector action button that dispatches `core/node-set-tags`. Emitted
+// for every node that already has a sidecar; the prompt pre-loads the
+// current tags as its `defaultValue`.
+const setTagsButton = {
+  slot: 'inspector.action.button',
+  priority: 15,
+} satisfies IViewContribution;
 
 export const tagsAnalyzer: IBuiltInManifest<IAnalyzer> = {
   id: ID,
@@ -34,15 +43,7 @@ export const tagsAnalyzer: IBuiltInManifest<IAnalyzer> = {
   description: 'Projects the inspector "Edit tags" button (edits a node\'s taxonomy tags).',
   mode: 'deterministic',
 
-  ui: {
-    // Inspector action button that dispatches `core/node-set-tags`.
-    // Emitted for every node that already has a sidecar; the prompt
-    // pre-loads the current tags as its `defaultValue`.
-    setTagsButton: {
-      slot: 'inspector.action.button',
-      priority: 15,
-    },
-  },
+  ui: { setTagsButton },
 
   evaluate(ctx: IAnalyzerContext): Issue[] {
     for (const node of ctx.nodes) {
@@ -55,7 +56,7 @@ export const tagsAnalyzer: IBuiltInManifest<IAnalyzer> = {
 };
 
 function emitSetTagsButton(ctx: IAnalyzerContext, node: Node): void {
-  ctx.emitContribution(node.path, 'setTagsButton', {
+  ctx.emitContribution(node.path, setTagsButton, {
     actionId: 'core/node-set-tags',
     label: TAGS_TEXTS.editLabel,
     icon: 'pi-tags',

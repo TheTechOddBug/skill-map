@@ -32,7 +32,7 @@ function kv(
     contributionId,
     nodePath: NODE_PATH,
     slot,
-    payload: { entries: [{ key: contributionId, value: 'v' }] },
+    payload: { pairs: [{ key: contributionId, value: 'v' }] },
   };
 }
 

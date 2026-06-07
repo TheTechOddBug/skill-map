@@ -32,9 +32,22 @@ function stub(extId: string): string {
  * Declared settings (\`settings\`):
  *   - 'keywords' (${DEFAULT_INPUT_TYPE}) → exposed as ctx.settings.keywords
  *
+ * View contributions: declare each one as a const, list it in \`ui\` by
+ * shorthand, and pass that SAME const (by reference, not a string id) to
+ * \`ctx.emitContribution\`. The kernel recovers the contribution from the
+ * object identity. (Write the plugin in TypeScript and add
+ * \`satisfies IViewContribution\` from '@skill-map/cli' to get a typed payload.)
+ *
  * See: spec/plugin-author-guide.md §View contributions
  *      spec/view-slots.md
  */
+const count = {
+  slot: '${DEFAULT_SLOT}',
+  icon: '🔍',
+  label: 'kw',
+  emitWhenEmpty: false,
+};
+
 export default {
   version: '0.1.0',
   description: 'Counts configured keywords per node.',
@@ -50,14 +63,7 @@ export default {
     },
   },
 
-  ui: {
-    count: {
-      slot: '${DEFAULT_SLOT}',
-      icon: '🔍',
-      label: 'kw',
-      emitWhenEmpty: false,
-    },
-  },
+  ui: { count },
 
   extract(ctx) {
     const keywords = (ctx.settings && ctx.settings.keywords) || ['TODO', 'FIXME'];
@@ -67,7 +73,7 @@ export default {
       total += (ctx.body.match(re) || []).length;
     }
     if (total > 0) {
-      ctx.emitContribution('count', { value: total });
+      ctx.emitContribution(count, { value: total });
     }
   },
 };

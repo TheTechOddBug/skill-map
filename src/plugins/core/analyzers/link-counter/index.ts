@@ -38,10 +38,27 @@
 
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { Issue, LinkKind } from '../../../../kernel/types.js';
+import type { IViewContribution } from '../../../../kernel/types/view-catalog.js';
 import { buildNameIndex, resolveLinkTargetToPath } from '../../../../kernel/util/trigger-resolve.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'link-counter';
+
+const linksIn = {
+  slot: 'card.footer.left',
+  icon: 'pi-download',
+  label: 'incoming links',
+  emitWhenEmpty: false,
+  priority: 10,
+} satisfies IViewContribution;
+
+const linksOut = {
+  slot: 'card.footer.left',
+  icon: 'pi-upload',
+  label: 'outgoing links',
+  emitWhenEmpty: false,
+  priority: 20,
+} satisfies IViewContribution;
 
 export const linkCounterAnalyzer: IBuiltInManifest<IAnalyzer> = {
   id: ID,
@@ -50,22 +67,7 @@ export const linkCounterAnalyzer: IBuiltInManifest<IAnalyzer> = {
   description: 'Counts incoming and outgoing links per node.',
   mode: 'deterministic',
 
-  ui: {
-    linksIn: {
-      slot: 'card.footer.left',
-      icon: 'pi-download',
-      label: 'incoming links',
-      emitWhenEmpty: false,
-      priority: 10,
-    },
-    linksOut: {
-      slot: 'card.footer.left',
-      icon: 'pi-upload',
-      label: 'outgoing links',
-      emitWhenEmpty: false,
-      priority: 20,
-    },
-  },
+  ui: { linksIn, linksOut },
 
   evaluate(ctx: IAnalyzerContext): Issue[] {
     // Two passes over `ctx.links`: one tallying by `target` (incoming)
@@ -100,8 +102,8 @@ export const linkCounterAnalyzer: IBuiltInManifest<IAnalyzer> = {
       bump(perSource, link.source, link.kind);
     }
     for (const node of ctx.nodes) {
-      emitChip(ctx, node.path, 'linksIn', perTarget.get(node.path));
-      emitChip(ctx, node.path, 'linksOut', perSource.get(node.path));
+      emitChip(ctx, node.path, linksIn, 'in', perTarget.get(node.path));
+      emitChip(ctx, node.path, linksOut, 'out', perSource.get(node.path));
     }
     return [];
   },
@@ -119,7 +121,8 @@ function bump(map: Map<string, Map<LinkKind, number>>, key: string, kind: LinkKi
 function emitChip(
   ctx: IAnalyzerContext,
   nodePath: string,
-  contributionId: 'linksIn' | 'linksOut',
+  ref: typeof linksIn | typeof linksOut,
+  direction: 'in' | 'out',
   byKind: Map<LinkKind, number> | undefined,
 ): void {
   if (!byKind) return;
@@ -127,8 +130,7 @@ function emitChip(
   for (const n of byKind.values()) total += n;
   if (total === 0) return;
   const capped = Math.min(total, 99);
-  const direction = contributionId === 'linksIn' ? 'in' : 'out';
-  ctx.emitContribution(nodePath, contributionId, {
+  ctx.emitContribution(nodePath, ref, {
     value: capped,
     tooltip: formatBreakdown(byKind, direction),
   });

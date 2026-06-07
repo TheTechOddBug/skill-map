@@ -5,7 +5,7 @@ import { schemaViolationAnalyzer } from '../index.js';
 import type { Link, Node } from '../../../../../kernel/types.js';
 
 /** Stub for tests that don't exercise the contribution emit channel. */
-function noopEmit(_nodePath: string, _contributionId: string, _payload: unknown): void {
+function noopEmit(): void {
   // no-op
 }
 
@@ -172,12 +172,12 @@ describe('validate-all rule, contribution surface', () => {
   it('emits no view contributions (chip ownership moved to `core/issue-counter`)', async () => {
     interface IEmittedContribution {
       nodePath: string;
-      contributionId: string;
+      ref: unknown;
       payload: unknown;
     }
     const log: IEmittedContribution[] = [];
-    const emit = (nodePath: string, contributionId: string, payload: unknown): void => {
-      log.push({ nodePath, contributionId, payload });
+    const emit = (nodePath: string, ref: unknown, payload: unknown): void => {
+      log.push({ nodePath, ref, payload });
     };
     const broken = {
       path: 'agents/broken.md',
