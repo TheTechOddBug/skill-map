@@ -45,6 +45,7 @@ import type {
   IRegisteredAnnotationsEnvelopeApi,
   IScanResultApi,
   ISidecarBumpedEnvelopeApi,
+  IActionAppliedEnvelopeApi,
   IUpdateStatusResponseApi,
   IValueEnvelopeApi,
 } from '../../models/api';
@@ -57,6 +58,7 @@ import { encodeNodePath } from './path-codec';
 import {
   DataSourceError,
   type IDataSourcePort,
+  type IActionDispatchOpts,
   type IIssuesQuery,
   type ILinksQuery,
   type INodesQuery,
@@ -305,6 +307,26 @@ export class RestDataSource implements IDataSourcePort {
     if (opts.force !== undefined) body['force'] = opts.force;
     if (opts.confirm !== undefined) body['confirm'] = opts.confirm;
     return this.patchJson<ISidecarBumpedEnvelopeApi>(`${BASE}/sidecar/bump`, body, 'POST');
+  }
+
+  async dispatchAction(
+    actionId: string,
+    nodePath: string,
+    opts: IActionDispatchOpts = {},
+  ): Promise<IActionAppliedEnvelopeApi> {
+    // The qualified action id (`core/node-bump`) carries a slash, so each
+    // segment is percent-encoded independently to land on the route's
+    // `:plugin/:action` (or wildcard) path without collapsing the slash.
+    const encodedId = actionId.split('/').map(encodeURIComponent).join('/');
+    const body: Record<string, unknown> = { nodePath };
+    if (opts.input !== undefined) body['input'] = opts.input;
+    if (opts.confirm !== undefined) body['confirm'] = opts.confirm;
+    if (opts.always !== undefined) body['always'] = opts.always;
+    return this.patchJson<IActionAppliedEnvelopeApi>(
+      `${BASE}/actions/${encodedId}`,
+      body,
+      'POST',
+    );
   }
 
   async getUpdateStatus(): Promise<IUpdateStatusResponseApi> {

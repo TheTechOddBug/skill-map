@@ -34,17 +34,37 @@ import {
 
 /**
  * Inputs for `ensureSidecarWritesAllowed`. Mirrors the
- * `IRuntimeContext` bag (`cwd`) plus the operator's confirmation
- * signal, `true` when the call site already secured consent (`--yes`
- * on the CLI, `confirm: true` in the BFF body) and `false` otherwise.
+ * `IRuntimeContext` bag (`cwd`) plus the operator's two-tier consent
+ * signal:
+ *
+ *   - `confirm`, one-shot grant: the operator allowed THIS write but
+ *     did NOT ask to be remembered. The write proceeds; nothing is
+ *     persisted, so the next write re-asks.
+ *   - `always`, persistent grant: the operator ticked "allow always".
+ *     The flag is flipped to `true` on disk (`project-local`) and the
+ *     project never re-asks. `always` implies `confirm` (a strong
+ *     grant), so a body with `always: true` is allowed regardless of
+ *     `confirm`.
+ *
+ * Before the split (Step 17, Decision #5) `confirm: true` did BOTH,
+ * grant AND persist, with no way to allow a single write without
+ * remembering forever.
  */
 export interface IEnsureSidecarWritesAllowedOpts {
   /**
-   * Operator-supplied consent signal. `true` flips the flag to `true`
-   * on disk and returns; `false` throws `EConsentRequiredError` unless
-   * the flag was already true.
+   * One-shot consent signal. `true` lets THIS write through WITHOUT
+   * persisting anything; the next write re-asks. `false` (and
+   * `always` not true) throws `EConsentRequiredError` unless the flag
+   * was already true on disk.
    */
   confirm: boolean;
+  /**
+   * Persistent consent signal. `true` flips `allowEditSmFiles` to
+   * `true` in `project-local` settings (gitignored) and returns, the
+   * project never re-asks. Implies `confirm` (strong grant). Optional
+   * (defaults to one-shot semantics when absent).
+   */
+  always?: boolean;
   cwd: string;
 }
 
@@ -77,9 +97,15 @@ export class EConsentRequiredError extends Error {
 
 /**
  * Pre-flight gate for any `.sm` write. Reads `allowEditSmFiles` from
- * the layered config; returns silently when it is already `true`,
- * flips it to `true` (persisted to `project-local`) when `confirm`
- * is true, or throws `EConsentRequiredError` otherwise.
+ * the layered config; the decision ladder (Step 17, Decision #5):
+ *
+ *   1. Flag already `true` on disk      -> return (no re-ask).
+ *   2. `always === true`                -> persist the flag to
+ *      `project-local` (gitignored) and return. Strong grant; checked
+ *      BEFORE `confirm` so `always` implies `confirm`.
+ *   3. `confirm === true`               -> return WITHOUT persisting.
+ *      One-shot grant; the next write re-asks.
+ *   4. otherwise                        -> throw `EConsentRequiredError`.
  *
  * `allowEditSmFiles` is project-scoped (a "yes" in project A must not
  * implicitly extend to project B). The `PROJECT_LOCAL_ONLY_KEYS`
@@ -96,11 +122,21 @@ export function ensureSidecarWritesAllowed(
     default: false,
   });
   if (allowed === true) return;
-  if (opts.confirm === true) {
+  if (opts.always === true) {
+    // Persistent grant: flip the flag on disk so the project never
+    // re-asks. The `always` branch comes first, so it also covers the
+    // case where a caller passes `always: true` with `confirm` absent
+    // or false (the strong grant subsumes the one-shot signal).
     writeConfigValue('allowEditSmFiles', true, {
       target: 'project-local',
       cwd: opts.cwd,
     });
+    return;
+  }
+  if (opts.confirm === true) {
+    // One-shot grant: let THIS write through but do NOT persist, the
+    // next write re-asks. This is the new default for an unticked
+    // "allow always" checkbox in the UI consent dialog.
     return;
   }
   throw new EConsentRequiredError({

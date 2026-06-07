@@ -51,6 +51,38 @@
           "description": "Qualified analyzer ids whose findings this action is intended to resolve (Modelo B, replaces the deprecated `Analyzer.recommendedActions`). The UI surfaces matching actions in the node inspector under 'Resolve this issue' when the analyzer's id matches an entry here. Format `<plugin>/<analyzer>` or `<plugin>/<analyzer>:<sub-id>` when the analyzer emits sub-typed issues. Dangling references warn via `recommended-action-missing` in `sm plugins doctor` but do NOT block load."
         }
       }
+    },
+    "prompt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inputType", "paramKey", "label"],
+      "properties": {
+        "inputType": {
+          "type": "string",
+          "description": "Input-type id from the closed catalog (`input-types.schema.json`), e.g. `enum-pick`, `single-string`, `string-list`. Reserved; the precise `$ref` to the input-type catalog lands with Step 3."
+        },
+        "paramKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 48,
+          "description": "Key under which the UI-collected value is placed in the dispatch `input` body."
+        },
+        "label": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["value", "label"],
+            "properties": {
+              "value": { "type": "string" },
+              "label": { "type": "string" }
+            }
+          },
+          "description": "Choice list for `enum-pick` / `enum-multipick` input types."
+        }
+      },
+      "description": "Reserved (Steps 3+). When set, a parametrized Action declares the single user input it needs; the UI renders the matching input-type control before dispatch and places the value under `paramKey` in the dispatch body. Deterministic no-prompt actions (e.g. `node-bump`) omit it. Mirrors `view-slots.schema.json#/$defs/payloads/_ActionPrompt`."
     }
   },
   "allOf": [

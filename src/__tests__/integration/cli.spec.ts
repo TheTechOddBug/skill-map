@@ -17,7 +17,22 @@ function sm(args: string[], cwd?: string): { status: number; stdout: string; std
   const r = spawnSync(process.execPath, [BIN, ...args], {
     encoding: 'utf8',
     cwd,
-    env: { ...process.env, NO_COLOR: '1' },
+    env: {
+      ...process.env,
+      NO_COLOR: '1',
+      // Hermetic spawn: the child `sm` must never touch the network, or
+      // `spawnSync` hangs forever (it has no timeout). Two boot-time
+      // probes reach out: the npm-registry update check and telemetry.
+      // The update check normally caps at 1500ms, but a slow / blocked
+      // network or an expired 24h throttle can still stall the very
+      // first spawn (and running this spec on its own, outside the npm
+      // `test:ci` env, hung the whole suite). Pin both kill switches on
+      // the spawn itself so the spec is self-contained, not reliant on
+      // the runner's env (per project memory: spawn-specs isolate their
+      // own side effects).
+      SM_NO_UPDATE_CHECK: '1',
+      SKILL_MAP_TELEMETRY: '0',
+    },
   });
   return { status: r.status ?? 0, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 }

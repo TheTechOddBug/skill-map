@@ -24,6 +24,7 @@
         "health",
         "scan",
         "sidecar.bumped",
+        "action.applied",
         "annotations.registered",
         "contributions.registered"
       ],
@@ -39,7 +40,7 @@
     },
     "value": {
       "type": "object",
-      "description": "Present when `kind` is `'config'` or `'sidecar.bumped'`. For `'config'`, carries the merged effective config object. For `'sidecar.bumped'`, carries `{ nodePath, version, status }` (the Action-result payload from `POST /api/sidecar/bump`)."
+      "description": "Present when `kind` is `'config'`, `'sidecar.bumped'`, or `'action.applied'`. For `'config'`, carries the merged effective config object. For `'sidecar.bumped'`, carries `{ nodePath, version, status }` (the bump report from `POST /api/sidecar/bump`). For `'action.applied'`, carries `{ actionId, nodePath, report }` (the generic Action-result payload from `POST /api/actions/:id`)."
     },
     "elapsedMs": {
       "type": "integer",
@@ -251,10 +252,10 @@
       }
     },
     {
-      "description": "Action-result envelope, `value` + `elapsedMs` siblings, no `filters` / `counts` / `kindRegistry` / `providerRegistry` / `contributionsRegistry`. Used by `POST /api/sidecar/bump` (Step 9.6.5, BFF half) where the response carries the bump report (`{ nodePath, version, status }`) plus the wall-clock duration. The registries are intentionally absent, the action result is orthogonal to every catalog and the SPA already has them cached from a prior list call.",
+      "description": "Action-result envelope, `value` + `elapsedMs` siblings, no `filters` / `counts` / `kindRegistry` / `providerRegistry` / `contributionsRegistry`. Used by `POST /api/actions/:id` (`action.applied`, carries `{ actionId, nodePath, report }`) and the legacy `POST /api/sidecar/bump` (`sidecar.bumped`, Step 9.6.5, carries `{ nodePath, version, status }`), in both cases plus the wall-clock duration. The registries are intentionally absent, the action result is orthogonal to every catalog and the SPA already has them cached from a prior list call.",
       "required": ["value", "elapsedMs"],
       "properties": {
-        "kind": { "const": "sidecar.bumped" }
+        "kind": { "enum": ["sidecar.bumped", "action.applied"] }
       },
       "not": {
         "anyOf": [

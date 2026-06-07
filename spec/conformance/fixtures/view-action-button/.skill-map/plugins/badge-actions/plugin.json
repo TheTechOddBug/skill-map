@@ -1,0 +1,6 @@
+{
+  "version": "0.1.0",
+  "specCompat": "*",
+  "catalogCompat": "*",
+  "description": "Conformance fixture: one analyzer declaring the unified `inspector.header.badge` plus the `inspector.action.button` slots (loads clean), and a sibling analyzer declaring the retired `inspector.header.badge.counter` slot (rejected as invalid-manifest)."
+}

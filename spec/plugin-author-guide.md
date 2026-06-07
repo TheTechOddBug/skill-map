@@ -596,8 +596,8 @@ The kernel ships exactly these 14 slots. Each fixes a renderer + a payload shape
 | `card.footer.left` | counter chip (icon required) |
 | `card.footer.right` | counter chip (icon required) |
 | `graph.node.alert` | graph corner badge (reserved, see `view-slots.md`) |
-| `inspector.header.badge.counter` | counter chip (icon required) |
-| `inspector.header.badge.tag` | tag chip |
+| `inspector.header.badge` | unified header badge (icon and/or label and/or count) |
+| `inspector.action.button` | action button (dispatches an Action, see `view-slots.md`) |
 | `inspector.body.panel.breakdown` | bar chart panel |
 | `inspector.body.panel.records` | table panel |
 | `inspector.body.panel.tree` | tree panel |

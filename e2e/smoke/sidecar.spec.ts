@@ -47,6 +47,15 @@ const STALE_PATH = '.claude/agents/frontend-specialist.md';
 const NO_SIDECAR_PATH = 'ARCHITECTURE.md';
 
 async function gotoWorkspace(page: import('@playwright/test').Page): Promise<void> {
+  // The files rail opens collapsed map-first by default; seed the
+  // persisted OPEN state so `files-view` / `files-table` mount on load.
+  await page.addInitScript(() => {
+    try {
+      window.localStorage.setItem('sm.workspace.rail-collapsed', '0');
+    } catch {
+      /* localStorage unavailable before first paint; ignore. */
+    }
+  });
   await page.goto('./');
   await page.waitForLoadState('networkidle');
   await expect(page.getByTestId('files-view')).toBeVisible();
@@ -66,29 +75,24 @@ test.describe('sidecar UI surface (Step 9.6.5)', () => {
     await expect(row.locator('.files__stale-icon')).toBeVisible();
   });
 
-  test('inspector bump button is rendered when a node is selected', async ({ page }) => {
+  test('inspector bump button is rendered when a stale node is selected', async ({ page }) => {
     await gotoWorkspace(page);
 
-    // Selecting a node opens the floating inspector in the same workspace
-    // via the shared `?path=` query param — there is no `/map` route to
-    // navigate to anymore. Pick the first leaf row and deep-link to it.
-    const firstRow = page.locator('[data-testid^="files-leaf-"]').first();
-    if ((await firstRow.count()) === 0) {
-      test.skip(true, 'demo bundle has no nodes to open');
-      return;
-    }
-    const firstPath = (await firstRow.getAttribute('data-testid'))!.replace(/^files-leaf-/, '');
-    await page.goto(`./?path=${encodeURIComponent(firstPath)}`);
+    // The bump button is no longer a hardcoded toolbar element: it is a
+    // plugin contribution to the `inspector.action.button` slot, emitted
+    // by `core/annotation-stale` for nodes that have a sidecar. Deep-link
+    // to the stale demo node so the button is present, via the shared
+    // `?path=` query param (there is no `/map` route anymore).
+    await page.goto(`./?path=${encodeURIComponent(STALE_PATH)}`);
     await page.waitForLoadState('networkidle');
 
     await expect(page.getByTestId('inspector-view')).toBeVisible();
 
-    // The bump button lives in the inspector toolbar and is ALWAYS
-    // rendered (disabled when `!canBump()`, e.g. fresh overlays). What we
-    // assert here is presence; the enabled/disabled state is covered in
-    // `inspector-view.spec.ts`.
-    const bumpHost = page.getByTestId('inspector-bump');
-    await expect(bumpHost).toBeVisible();
+    // The bump action renders as a `<p-button label="Bump">` in the
+    // inspector action-button slot. Assert by accessible name so the test
+    // does not couple to the renderer's internal testid. Presence only;
+    // the enabled/disabled + dispatch flow is covered in the unit tests.
+    await expect(page.getByRole('button', { name: 'Bump' })).toBeVisible();
   });
 
   test('inspector annotations card is hidden for nodes without a sidecar overlay', async ({ page }) => {

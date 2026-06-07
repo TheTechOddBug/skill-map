@@ -192,16 +192,16 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed.analyzers.length >= 5, 'every core rule should survive');
     });
 
-    it('(b) disable core/node-superseded → only that rule skips; other 16 core extensions stay', () => {
+    it('(b) disable core/node-superseded → only that rule skips; other 17 core extensions stay', () => {
       const runtime = emptyPluginRuntime();
       runtime.resolveEnabled = (id: string) => id !== 'core/node-superseded';
       const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: runtime });
       assert.ok(composed);
       const analyzerIds = composed.analyzers.map((r) => r.id).sort();
-      // The 17 built-in rules: 16 detect-phase analyzers plus the
+      // The 19 built-in rules: 18 detect-phase analyzers plus the
       // `issue-counter` aggregate analyzer that emits the per-card
       // severity chips post-walk. Disabling `core/node-superseded`
-      // drops only one; the surviving 16 are listed below in
+      // drops only one; the surviving 18 are listed below in
       // alphabetical order.
       assert.deepEqual(analyzerIds, [
         'annotation-field-unknown',
@@ -219,6 +219,8 @@ describe('plugin-runtime, branch coverage', () => {
         'reference-redundant',
         'schema-violation',
         'signal-collision',
+        'supersede',
+        'tags',
         'trigger-collision',
       ]);
       // claude / antigravity / openai / agent-skills / core-markdown providers
@@ -239,7 +241,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 5, 'claude + antigravity + openai + agent-skills + core-markdown providers loaded');
       assert.equal(composed.extractors.length, 7, 'all 7 core extractors loaded (stability moved to analyzers)');
-      assert.equal(composed.analyzers.length, 17, 'all 17 rules loaded (16 detect-phase analyzers + the issue-counter aggregate)');
+      assert.equal(composed.analyzers.length, 19, 'all 19 rules loaded (18 detect-phase analyzers including the tags button projector + the issue-counter aggregate)');
       const formatters = composeFormatters({ pluginRuntime: emptyPluginRuntime() });
       assert.equal(formatters.length, 2, 'ascii + json formatters loaded');
     });
@@ -326,7 +328,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 0);
       assert.equal(composed.extractors.length, 7, 'extractors untouched');
-      assert.equal(composed.analyzers.length, 17, 'rules untouched');
+      assert.equal(composed.analyzers.length, 19, 'rules untouched');
     });
 
     it('(b) killSwitches.extractors empties only the extractors bucket', () => {
@@ -338,7 +340,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 5);
       assert.equal(composed.extractors.length, 0);
-      assert.equal(composed.analyzers.length, 17);
+      assert.equal(composed.analyzers.length, 19);
     });
 
     it('(c) killSwitches.analyzers empties only the rules bucket', () => {

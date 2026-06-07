@@ -197,25 +197,6 @@
   color: var(--p-primary-color);
 }
 
-.inspector__stale-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  /* Drift is a neutral state, not a warning: render the clock muted
-     (not the warn tint, and not the full foreground colour, which read
-     too strong next to the name). A subtle hint the operator can hover
-     for the tooltip. */
-  color: var(--p-text-muted-color);
-  cursor: help;
-}
-
-.inspector__stale-icon i {
-  font-size: 0.78rem;
-  width: 1em;
-  height: 1em;
-  line-height: 1;
-}
-
 .inspector__name-version {
   font-family: var(--sm-font-mono);
   font-size: 0.7rem;
@@ -225,29 +206,6 @@
   border-radius: var(--sm-radius-sm);
   line-height: 1.2;
   flex: none;
-}
-
-/* ---------------------------------------------------------------------------
- * Plugin actions row (mocks behind a setting), full-width below identity.
- * ------------------------------------------------------------------------- */
-.inspector__plugin-actions {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.4rem;
-  margin-top: 0.55rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid var(--sm-border);
-}
-
-.inspector__plugin-actions-label {
-  font-size: 0.6rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 600;
-  color: var(--p-text-muted-color);
-  margin-right: 0.15rem;
 }
 
 /* ---------------------------------------------------------------------------

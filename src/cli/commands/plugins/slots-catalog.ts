@@ -12,14 +12,15 @@ export const VIEW_SLOTS_CATALOG = [
   { id: 'card.footer.left', summary: 'Counter chip in the left footer of the card.' },
   { id: 'card.footer.right', summary: 'Counter chip in the right footer of the card.' },
   { id: 'graph.node.alert', summary: 'Reserved corner badge on the graph node, special-case signals only. No core analyzer emits here; routine "this node has a problem" findings belong in `card.footer.right`.' },
-  { id: 'inspector.header.badge.counter', summary: 'Counter chip in the inspector header badge cluster.' },
-  { id: 'inspector.header.badge.tag', summary: 'Qualitative tag chip in the inspector header badge cluster.' },
+  { id: 'inspector.header.badge', summary: 'Unified badge in the inspector header cluster: icon and/or label and/or count, optional severity. Multi-cardinality, priority order, modeled on card.footer.left. Replaces the retired inspector.header.badge.counter and inspector.header.badge.tag sub-slots.' },
+  { id: 'inspector.action.button', summary: 'Action button in the inspector. Click dispatches a kernel Action by qualified id via POST /api/actions/:id. Always emitted; the payload `enabled` flag carries the dynamic condition (e.g. isStale for the bump button).' },
   { id: 'inspector.body.panel.breakdown', summary: 'Top-N labeled values rendered as a bar chart in the inspector body.' },
   { id: 'inspector.body.panel.records', summary: 'Tabular data (rows × columns ≤ 50 × 6) in the inspector body.' },
   { id: 'inspector.body.panel.tree', summary: 'Recursive label/children hierarchy (depth ≤ 6, total ≤ 200) in the inspector body.' },
   { id: 'inspector.body.panel.key-values', summary: 'Flat key/value pairs (≤ 50) in the inspector body.' },
   { id: 'inspector.body.panel.link-list', summary: 'Clickable scope-relative paths (≤ 100) in the inspector body.' },
   { id: 'inspector.body.panel.markdown', summary: 'Sanitized markdown text (≤ 4096 chars) in the inspector body.' },
+  { id: 'inspector.body.section', summary: 'A plugin-owned collapsible zone in the inspector body, titled `<pluginId>:<zone>` (host-applied prefix). Multi-cardinality; content is key/value pairs. Arbitrary HTML/JS is deferred to the post-v1.0 sandbox.' },
   { id: 'topbar.nav.start', summary: 'Scope-wide indicator chip at the start of the topbar nav (before the view-switcher links).' },
 ] as const;
 

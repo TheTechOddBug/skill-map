@@ -11,10 +11,6 @@ import {
 import type { OnInit } from '@angular/core';
 
 import type { IIssueApi, TIssueSeverityApi } from '../../../models/api';
-import { ButtonModule } from 'primeng/button';
-import { TooltipModule } from 'primeng/tooltip';
-import { ConfirmationService } from 'primeng/api';
-import { ConfirmDialogModule } from 'primeng/confirmdialog';
 
 import { INSPECTOR_VIEW_TEXTS } from '../../../i18n/inspector-view.texts';
 import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
@@ -26,7 +22,7 @@ import {
 } from '../../../services/data-source/data-source.port';
 import { MarkdownRenderer } from '../../../services/markdown-renderer';
 import { setupInlineMarkdown } from '../../../services/markdown-inline-signal';
-import { SidecarService } from '../../../services/sidecar';
+import { ActionDispatchService } from '../../../services/action-dispatch';
 import { AnnotationsPanel } from '../../components/annotations-panel/annotations-panel';
 import { LinkedNodesPanel } from '../../components/linked-nodes-panel/linked-nodes-panel';
 import { VendorFrontmatter } from '../../components/vendor-frontmatter/vendor-frontmatter';
@@ -36,10 +32,13 @@ import { InspectorDebugPanel } from '../../components/inspector-debug-panel/insp
 import { InspectorAuditPanel } from '../../components/inspector-audit-panel/inspector-audit-panel';
 import { InspectorHeader } from '../../components/inspector-header/inspector-header';
 import { CollapsibleSection } from '../../components/collapsible-section/collapsible-section';
+import { ViewContributionsHost } from '../../components/view-contributions-host/view-contributions-host';
+import {
+  SidecarConsentDialog,
+  type ISidecarConsentDecision,
+} from '../../components/sidecar-consent-dialog/sidecar-consent-dialog';
 import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
-import { DEFAULT_SETTINGS } from '../../../models/settings';
 import { setupBodyState, type IBodyStateHandle } from './inspector-body-state';
-import { setupBumpController, type IBumpHandle } from './inspector-bump-controller';
 import {
   setupDeadLinkVerification,
   type IDeadLinkHandle,
@@ -59,9 +58,6 @@ import { effectiveSupersededBy } from '../../../models/node-derived';
 @Component({
   selector: 'sm-inspector-view',
   imports: [
-    ButtonModule,
-    TooltipModule,
-    ConfirmDialogModule,
     LinkedNodesPanel,
     AnnotationsPanel,
     VendorFrontmatter,
@@ -71,8 +67,9 @@ import { effectiveSupersededBy } from '../../../models/node-derived';
     InspectorAuditPanel,
     InspectorHeader,
     CollapsibleSection,
+    ViewContributionsHost,
+    SidecarConsentDialog,
   ],
-  providers: [ConfirmationService],
   templateUrl: './inspector-view.html',
   styleUrl: './inspector-view.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -83,22 +80,11 @@ export class InspectorView implements OnInit {
   private readonly dataSource: IDataSourcePort = inject(DATA_SOURCE);
   private readonly markdown = inject(MarkdownRenderer);
   private readonly wsEvents = inject(WsEventStreamService);
-  private readonly sidecarService = inject(SidecarService);
-  private readonly confirmation = inject(ConfirmationService);
+  private readonly actionDispatch = inject(ActionDispatchService);
 
   protected readonly texts = INSPECTOR_VIEW_TEXTS;
   /** Reused to format the sub-stat tooltips identically to the card. */
   protected readonly cardTexts = NODE_CARD_TEXTS;
-
-  /**
-   * Hardcoded "Generate summary / Run audit / Validate" mock buttons.
-   * See template `@if (showActionMocks)`. Defaults to false so users
-   * don't see non-functional buttons until plugin-contributed verbs
-   * land. Flip the corresponding `DEFAULT_SETTINGS.inspector.actionMocks`
-   * key (or layer it in via a project settings file) to iterate on
-   * the visual layout locally.
-   */
-  protected readonly showActionMocks = DEFAULT_SETTINGS.inspector.actionMocks;
 
   readonly path = input<string | undefined>(undefined);
 
@@ -336,18 +322,25 @@ export class InspectorView implements OnInit {
     void this.loader.toggleFavorite(path, !n.isFavorite);
   }
 
-  // Step 9.6.5 bump button. State + handler + consent retry live in
-  // `inspector-bump-controller.ts`. The handle is constructed below;
-  // the template binds the protected getters here.
-  private readonly bumpHandle: IBumpHandle = setupBumpController({
-    node: this.node,
-    sidecarService: this.sidecarService,
-    confirmation: this.confirmation,
-  });
-  protected readonly canBump = this.bumpHandle.canBump;
-  protected readonly bumpInFlight = this.bumpHandle.bumpInFlight;
-  protected readonly bumpError = this.bumpHandle.bumpError;
-  protected readonly bumpTooltip = this.bumpHandle.bumpTooltip;
-  protected onBumpClick(): Promise<void> { return this.bumpHandle.onBumpClick(); }
-  protected dismissBumpError(): void { this.bumpHandle.dismissBumpError(); }
+  // Action dispatch. The toolbar's action buttons arrive as
+  // contributions on `inspector.action.button`; each button dispatches
+  // through the shared `ActionDispatchService`, which owns the `.sm`
+  // write-consent handshake. The template binds the service's state for
+  // the consent dialog + the error banner.
+  protected readonly consentOpen = this.actionDispatch.consentOpen;
+  protected readonly actionError = this.actionDispatch.error;
+
+  /**
+   * Forwarded from `<sm-sidecar-consent-dialog (decision)>`. Hands the
+   * user's choice back to the dispatch service, which retries the parked
+   * dispatch (with `{ confirm }` or `{ confirm, always }`) on accept, or
+   * abandons it silently on decline.
+   */
+  protected onConsentDecision(decision: ISidecarConsentDecision): void {
+    this.actionDispatch.resolveConsent(decision);
+  }
+
+  protected dismissActionError(): void {
+    this.actionDispatch.dismissError();
+  }
 }

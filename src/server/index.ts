@@ -51,7 +51,7 @@ import {
   loadPluginRuntime,
   type IPluginRuntime,
 } from '../core/runtime/plugin-runtime.js';
-import { builtInPlugins } from '../plugins/built-ins.js';
+import { builtInPlugins, builtIns } from '../plugins/built-ins.js';
 import { defaultRuntimeContext, type IRuntimeContext } from '../core/runtime/runtime-context.js';
 import { collectViewContributions } from '../kernel/extensions/index.js';
 import type { IProvider } from '../kernel/extensions/index.js';
@@ -316,6 +316,24 @@ function assembleKernel(
 } {
   const kernel = createKernel();
   kernel.setRegisteredAnnotationKeys(pluginRuntime.annotationContributions);
+
+  // Step 17, register built-in Action manifests into the kernel
+  // registry so `POST /api/actions/:id` can resolve them by qualified
+  // id (`registry.get('action', 'core/node-bump')`). `builtIns().actions`
+  // returns the full `IAction[]` (stamped with `pluginId` + `version`,
+  // `invoke` intact), unlike `listBuiltIns()` which projects to the base
+  // `IExtension` row and drops `invoke`. Skipped under `--no-built-ins`
+  // (the dispatch route then 404s every id, matching the scan pipeline's
+  // built-ins-off behaviour). User-plugin actions are NOT surfaced by the
+  // runtime bucket today (`IPluginRuntime.extensions` has no `actions`
+  // bucket), so only built-in actions are dispatchable over this route at
+  // this step; that is sufficient for `core/node-bump` (Phase D's bump
+  // migration) and `core/node-supersede` (Step 2).
+  if (!noBuiltIns) {
+    for (const action of builtIns().actions) {
+      kernel.registry.register(action);
+    }
+  }
 
   const mergedViewContributions: IRegisteredViewContribution[] = [...pluginRuntime.viewContributions];
   if (!noBuiltIns) {

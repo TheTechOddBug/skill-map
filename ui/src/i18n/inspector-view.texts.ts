@@ -40,31 +40,10 @@ export const INSPECTOR_VIEW_TEXTS = {
     // transient loading line survives in the catalog.
     loading: 'Loading body…',
   },
-  /** Step 9.6.5, bump button + consent dialog. */
-  bump: {
-    label: 'Bump version',
-    tooltipEnabled: 'Increment the sidecar version and refresh hashes.',
-    tooltipDisabledFresh: 'No drift detected (bump is only available when the body or frontmatter has changed since the last bump).',
-    tooltipDisabledNoSidecar: 'No sidecar yet. Run `sm sidecar annotate <path>` from your terminal to create one.',
-    errorPrefix: 'Bump failed:',
-    errorFresh: 'This node is fresh; nothing to bump.',
-    errorNotFound: 'Node not found on the server.',
-    errorGeneric: 'Could not bump the sidecar.',
-    consentHeader: 'Allow skill-map to create files in this project?',
-    consentMessage:
-      'Skill-map will create companion files (*.sm) next to your markdown ' +
-      'files to track version, history and tags. Your markdown stays clean, ' +
-      'metadata never gets mixed into the content you wrote.\n\n' +
-      'The choice is per-project and per-machine, it does not travel with ' +
-      "the repo, and we won't ask again.",
-    consentAccept: 'Yes, allow',
-    consentReject: 'Not now',
-    consentDialogAriaLabel: 'Sidecar consent',
-  },
   /** Findings list, fix hint label rendered before the per-issue summary. */
   findingHintLabel: 'Hint:',
-  /** Aria label for the bump-error toast dismiss button. */
-  bumpErrorDismissAriaLabel: 'Dismiss',
+  /** Aria label for the action-error banner dismiss button. */
+  actionErrorDismissAriaLabel: 'Dismiss',
   /**
    * Metadata section (the `audit:` sidecar block). Field labels for the
    * panel body; the section no longer shows an inline summary next to
@@ -82,16 +61,4 @@ export const INSPECTOR_VIEW_TEXTS = {
   },
   /** Banner shown when `annotations.supersededBy` is set. */
   supersededByBanner: (path: string) => `Superseded by ${path}`,
-  /**
-   * TEMPORARY plugin-actions row mocks while the BFF surface for runnable
-   * verbs is being designed. Gated by the `inspector.actionMocks` setting
-   * (default OFF), the labels stay in the catalog so the convention does
-   * not erode.
-   */
-  actionMocks: {
-    label: 'Actions',
-    summary: 'Generate summary',
-    audit: 'Run audit',
-    validate: 'Validate',
-  },
 } as const;

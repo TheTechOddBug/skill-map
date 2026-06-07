@@ -1,0 +1,6 @@
+{
+  "version": "0.1.0",
+  "specCompat": "*",
+  "catalogCompat": "*",
+  "description": "Conformance fixture: an analyzer declaring the retired `inspector.header.badge.counter` slot, which the unified `inspector.header.badge` replaced. The loader MUST reject it as invalid-manifest while the rest of the pipeline keeps running."
+}

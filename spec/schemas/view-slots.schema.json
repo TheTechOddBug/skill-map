@@ -13,14 +13,15 @@
         { "const": "card.footer.left", "description": "Counter chip in the left footer of the card." },
         { "const": "card.footer.right", "description": "Counter chip in the right footer of the card." },
         { "const": "graph.node.alert", "description": "Reserved corner badge on the graph node, special-case signals only. No core analyzer emits here; routine \"this node has a problem\" findings belong in `card.footer.right`." },
-        { "const": "inspector.header.badge.counter", "description": "Counter chip in the inspector header badge cluster." },
-        { "const": "inspector.header.badge.tag", "description": "Qualitative tag chip in the inspector header badge cluster." },
+        { "const": "inspector.header.badge", "description": "Unified badge in the inspector header cluster: icon and/or label and/or count, optional severity. Multi-cardinality, priority order, modeled on card.footer.left. Replaces the retired inspector.header.badge.counter and inspector.header.badge.tag sub-slots." },
+        { "const": "inspector.action.button", "description": "Action button in the inspector. Click dispatches a kernel Action by qualified id via POST /api/actions/:id. Always emitted; the payload `enabled` flag carries the dynamic condition (e.g. isStale for the bump button)." },
         { "const": "inspector.body.panel.breakdown", "description": "Top-N labeled values rendered as a bar chart in the inspector body." },
         { "const": "inspector.body.panel.records", "description": "Tabular data (rows × columns ≤ 50 × 6) in the inspector body." },
         { "const": "inspector.body.panel.tree", "description": "Recursive label/children hierarchy (depth ≤ 6, total ≤ 200) in the inspector body." },
         { "const": "inspector.body.panel.key-values", "description": "Flat key/value pairs (≤ 50) in the inspector body." },
         { "const": "inspector.body.panel.link-list", "description": "Clickable scope-relative paths (≤ 100) in the inspector body." },
         { "const": "inspector.body.panel.markdown", "description": "Sanitized markdown text (≤ 4096 chars) in the inspector body." },
+        { "const": "inspector.body.section", "description": "A plugin-owned collapsible zone in the inspector body, titled `<pluginId>:<zone>` (host-applied prefix). Multi-cardinality; content is key/value pairs. Arbitrary HTML/JS is deferred to the post-v1.0 sandbox." },
         { "const": "topbar.nav.start", "description": "Scope-wide indicator chip at the start of the topbar nav (before the view-switcher links)." }
       ],
       "description": "Closed catalog of slot identifiers. Adding an entry requires the full spec/UI/scaffolder/conformance round-trip per ROADMAP.md §UI contribution system. Removing or renaming an entry is a catalog-major-bump and triggers `sm plugins upgrade` migration. Slots that share a payload shape (e.g. `card.subtitle.left`, `card.footer.right`, and `card.footer.left` all carry a counter) reference the same payload schema in `$defs.payloads`. Each member's `description` is the catalog summary surfaced by `sm plugins slots list` and is the single source of truth for the generated kernel + CLI mirrors (see `scripts/generate-view-catalog.js`)."
@@ -78,8 +79,7 @@
                 "enum": [
                   "card.subtitle.left",
                   "card.footer.left",
-                  "card.footer.right",
-                  "inspector.header.badge.counter"
+                  "card.footer.right"
                 ]
               }
             }
@@ -111,7 +111,6 @@
       "card.subtitle.left": { "$ref": "#/$defs/payloads/_counter" },
       "card.footer.left": { "$ref": "#/$defs/payloads/_counter" },
       "card.footer.right": { "$ref": "#/$defs/payloads/_counter" },
-      "inspector.header.badge.counter": { "$ref": "#/$defs/payloads/_counter" },
       "_counter": {
         "type": "object",
         "additionalProperties": false,
@@ -130,21 +129,99 @@
         },
         "description": "Single icon + integer pair, modelled after the `.sm-gnode__stat` rows in the card footer. Manifest requires `icon` (enforced by `IViewContribution.allOf` for every counter slot); payload carries `value`, optionally `severity` and `tooltip`. The manifest `label` is metadata (docs / plugin-doctor / aria-label) and is NOT rendered inline."
       },
-      "inspector.header.badge.tag": { "$ref": "#/$defs/payloads/_tag" },
-      "_tag": {
+      "inspector.header.badge": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["label"],
         "properties": {
-          "label": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 32,
-            "description": "Tag text (e.g. 'fresh', 'stale', '7d ago'). 'Empty' for `emitWhenEmpty` is `label === ''`."
-          },
+          "icon": { "$ref": "#/$defs/IconString" },
+          "label": { "type": "string", "minLength": 1, "maxLength": 32 },
+          "count": { "type": "integer", "minimum": 0 },
           "severity": { "$ref": "#/$defs/Severity" },
           "tooltip": { "type": "string", "maxLength": 256 }
-        }
+        },
+        "anyOf": [
+          { "required": ["icon"] },
+          { "required": ["label"] },
+          { "required": ["count"] }
+        ],
+        "description": "Unified inspector header badge. At least one of `icon`, `label`, `count` is required; optional `severity` tint and `tooltip`. Multi-cardinality slot (priority order, modeled on card.footer.left); a plugin extension may emit several. 'Empty' for `emitWhenEmpty` is the absence of `icon` AND `label` AND `count`. Replaces the retired `_counter`/`_tag` header sub-slots: a counter-style badge sets `count` (+`icon`), a tag-style badge sets `label` (+`severity`), the stale clock sets `icon` + `tooltip`."
+      },
+      "inspector.action.button": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["actionId", "label", "enabled"],
+        "properties": {
+          "actionId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*/[a-z][a-z0-9-]*$",
+            "description": "Qualified Action id `<plugin>/<action>` the click dispatches via POST /api/actions/:id. Resolved by the kernel registry; an unknown id makes the BFF answer 404."
+          },
+          "label": { "type": "string", "minLength": 1, "maxLength": 48 },
+          "icon": { "$ref": "#/$defs/IconString" },
+          "severity": { "$ref": "#/$defs/Severity" },
+          "enabled": {
+            "type": "boolean",
+            "description": "Dynamic gate. The button is ALWAYS emitted (the persistence upsert refreshes the row each scan); `false` renders it disabled. e.g. `isStale` for the bump button."
+          },
+          "disabledReason": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "Tooltip shown when `enabled` is false."
+          },
+          "input": {
+            "type": "object",
+            "description": "Reserved (Step 2+). Static input merged into the dispatch body for parametrized actions that need no user prompt."
+          },
+          "prompt": {
+            "$ref": "#/$defs/payloads/_ActionPrompt",
+            "description": "Reserved (Step 3+). Declares an input-type prompt the UI collects before dispatching (enum-pick for stability, single-string for tags)."
+          },
+          "confirm": {
+            "type": "boolean",
+            "default": false,
+            "description": "Reserved. Require an extra confirm step before dispatch (destructive actions)."
+          }
+        },
+        "description": "An action button rendered in the inspector. The manifest declares only `{ slot: 'inspector.action.button' }`; the per-node payload carries the action id, label, and the dynamic `enabled` flag. Click dispatches the Action via POST /api/actions/:id. `emitWhenEmpty` does not apply (a button is always meaningful)."
+      },
+      "_ActionPrompt": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["inputType", "paramKey", "label"],
+        "properties": {
+          "inputType": {
+            "type": "string",
+            "description": "Input-type id from the closed catalog (`input-types.schema.json`), e.g. `enum-pick`, `single-string`, `string-list`. The UI renders the matching control before dispatch. (Reserved; the precise `$ref` to the input-type catalog lands with Step 3.)"
+          },
+          "paramKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 48,
+            "description": "Key under which the collected value is placed in the dispatch `input` body."
+          },
+          "label": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "defaultValue": {
+            "oneOf": [
+              { "type": "string" },
+              { "type": "array", "items": { "type": "string" } }
+            ],
+            "description": "Optional pre-filled value the UI seeds the control with before the user edits (e.g. a node's current tags for a `string-list` edit). String for scalar input-types, string array for list input-types."
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["value", "label"],
+              "properties": {
+                "value": { "type": "string" },
+                "label": { "type": "string" }
+              }
+            },
+            "description": "Choice list for `enum-pick` / `enum-multipick` input types."
+          }
+        },
+        "description": "Reserved (Steps 3+). Declares a parameter the UI prompts for before dispatching the Action, reusing the input-type catalog. Step 1 actions (bump) omit it."
       },
       "graph.node.alert": {
         "type": "object",
@@ -312,6 +389,48 @@
             "description": "Markdown text rendered with a sanitized allow-list (paragraphs, headings up to H3, lists, inline code, fenced code, emphasis, strong, blockquote). HTML, scripts, embedded SVG, image tags, and link autodetection are stripped. Hard cap 4096 chars to keep render cost bounded. 'Empty' for `emitWhenEmpty` is `markdown.trim() === ''`."
           }
         }
+      },
+      "inspector.body.section": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["zone", "entries"],
+        "properties": {
+          "zone": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 48,
+            "description": "Plugin-chosen zone name. The UI renders a collapsible inspector section titled `<pluginId>:<zone>`; the `<pluginId>:` prefix is applied by the host (not the plugin) so a plugin can never disguise its zone as a system section. Built-in (system) plugins render without the prefix."
+          },
+          "defaultCollapsed": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether the section starts collapsed."
+          },
+          "icon": { "$ref": "#/$defs/IconString" },
+          "entries": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["key", "value"],
+              "properties": {
+                "key": { "type": "string", "minLength": 1, "maxLength": 64 },
+                "value": {
+                  "oneOf": [
+                    { "type": "string", "maxLength": 512 },
+                    { "type": "number" },
+                    { "type": "boolean" },
+                    { "type": "null" }
+                  ]
+                },
+                "tooltip": { "type": "string", "maxLength": 256 }
+              }
+            },
+            "description": "Key/value pairs rendered inside the zone (max 50), same shape as `inspector.body.panel.key-values`. Future content types extend this payload. 'Empty' for `emitWhenEmpty` is `entries.length === 0`."
+          }
+        },
+        "description": "A plugin-owned collapsible zone in the inspector body. Multi-cardinality (a plugin may emit several zones; several plugins each get their own). The zone title is `<pluginId>:<zone>` with a host-applied, non-falsifiable prefix; content is key/value pairs for now. Arbitrary HTML/JS is intentionally NOT supported, deferred to the post-v1.0 iframe sandbox (Decision #293)."
       },
       "topbar.nav.start": {
         "type": "object",

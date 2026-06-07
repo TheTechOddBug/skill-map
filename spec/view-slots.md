@@ -21,8 +21,8 @@ Architectural narrative is in [`architecture.md`](./architecture.md) §View cont
 | [`card.footer.left`](#cardfooterleft) | counter chip | one non-negative integer |
 | [`card.footer.right`](#cardfooterright) | counter chip | one non-negative integer |
 | [`graph.node.alert`](#graphnodealert) | corner badge | icon + optional severity / count |
-| [`inspector.header.badge.counter`](#inspectorheaderbadgecounter) | counter chip | one non-negative integer |
-| [`inspector.header.badge.tag`](#inspectorheaderbadgetag) | tag chip | a label + optional severity |
+| [`inspector.header.badge`](#inspectorheaderbadge) | badge | icon and/or label and/or count, optional severity |
+| [`inspector.action.button`](#inspectoractionbutton) | action button | actionId + label + enabled gate |
 | [`inspector.body.panel.breakdown`](#inspectorbodypanelbreakdown) | bar chart | top-N labeled values |
 | [`inspector.body.panel.records`](#inspectorbodypanelrecords) | table | rows × columns ≤ 50 × 6 |
 | [`inspector.body.panel.tree`](#inspectorbodypaneltree) | indented tree | recursive label/children, depth ≤ 6, total ≤ 200 |
@@ -172,49 +172,67 @@ ctx.emitContribution('mentions-count', { count: 12 });
 
 ---
 
-## `inspector.header.badge.counter`
+## `inspector.header.badge`
 
-**Use for**: a single non-negative integer surfaced as a header badge when the inspector is open.
+**Use for**: a unified header badge surfaced when the inspector is open. One slot covers every header chip shape, a counter-style badge (icon + count), a tag-style badge (label + severity), or the stale clock (icon + tooltip). It replaces the retired `inspector.header.badge.counter` and `inspector.header.badge.tag` sub-slots; pick this slot and set whichever fields the badge needs.
 
 **Manifest declaration**:
 ```jsonc
-{ "slot": "inspector.header.badge.counter", "icon": "🔍", "label": "kw" }
+{ "slot": "inspector.header.badge", "label": "keywords" }
 ```
 
-`icon` is required.
+No manifest field is required beyond `slot` (the payload supplies the visible content). The manifest `label` stays metadata (docs / plugin-doctor / aria-label).
 
-**Payload shape**: `{ value: integer ≥ 0, severity?, tooltip? }`.
+**Payload shape**: `{ icon?, label? (1-32), count?: integer ≥ 0, severity?, tooltip? }`. At least one of `icon`, `label`, `count` is required (`anyOf`). A counter-style badge sets `count` (plus an optional `icon`); a tag-style badge sets `label` (plus an optional `severity`); the stale clock sets `icon` + `tooltip`.
 
 **Emit**:
 ```ts
-ctx.emitContribution('myCounter', { value: 12 });
+ctx.emitContribution('keywords', { count: 12, icon: '🔍' });
+ctx.emitContribution('age', { label: '7d', severity: 'info' });
+ctx.emitContribution('stale', { icon: 'pi-clock', tooltip: 'Sidecar drift' });
 ```
 
-**Empty**: `value === 0`.
+**Empty**: absence of `icon` AND `label` AND `count` (dropped if `emitWhenEmpty` is false).
 
-**Where it renders**: inspector header, alongside other badges. Cap `maxItems: 4`, alphabetical.
+**Where it renders**: inspector header badge cluster. Multi-cardinality (a plugin extension may emit several), priority-ordered, modeled on `card.footer.left`.
 
 ---
 
-## `inspector.header.badge.tag`
+## `inspector.action.button`
 
-**Use for**: a single qualitative tag surfaced as a header badge when the inspector is open.
+**Use for**: an actionable button in the inspector that dispatches a kernel Action against the open node (the bump button is the first adopter). The button is always emitted; its `enabled` flag carries the dynamic condition (e.g. `isStale` for bump) so a disabled button stays visible with its `disabledReason`.
 
 **Manifest declaration**:
 ```jsonc
-{ "slot": "inspector.header.badge.tag", "label": "age" }
+{ "slot": "inspector.action.button" }
 ```
 
-**Payload shape**: `{ label: string (1-32), severity?, tooltip? }`.
+The manifest declares only `{ slot }`. The per-node payload carries the action id, label, and the dynamic `enabled` flag; the kernel re-emits the row on every scan so the button refreshes.
+
+**Payload shape**: `{ actionId, label (1-48), enabled, icon?, severity?, disabledReason? (≤128), input?, prompt?, confirm? }`. Required: `actionId` (qualified `<plugin>/<action>`, pattern-checked), `label`, and `enabled` (boolean). `disabledReason` is the tooltip shown when `enabled` is false. `input`, `prompt`, and `confirm` are **reserved for parametrized actions** (Steps 2+, see below) and carry no behaviour today.
 
 **Emit**:
 ```ts
-ctx.emitContribution('age', { label: '7d', severity: 'info' });
+ctx.emitContribution(nodePath, 'bump', {
+  actionId: 'core/node-bump',
+  label: 'Bump version',
+  icon: 'pi-arrow-up',
+  enabled: isStale,
+  disabledReason: 'Sidecar is already up to date.',
+});
 ```
 
-**Empty**: `label === ''`.
+**Dispatch**: a click sends `POST /api/actions/:id` with the qualified `actionId`; the kernel resolves the Action in its registry (unknown id → 404), runs it against the open node, and answers an `action.applied` envelope (`{ value: { actionId, nodePath, report }, elapsedMs }`). `.sm`-writing actions still pass through the write-consent gate (see [`architecture.md`](./architecture.md) §Annotation system → Write consent).
 
-**Where it renders**: inspector header, alongside other badges. Cap `maxItems: 4`, alphabetical.
+**Reserved fields** (no effect yet, declared so the contract is stable before the parametrized-action steps land):
+
+- `input` (Step 2+), a static object merged into the dispatch body for actions that need a fixed parameter but no user prompt.
+- `prompt` (Step 3+), an `_ActionPrompt` declaring an input-type control the UI collects before dispatching (enum pick, single string, etc.), keyed into the dispatch `input` body under `paramKey`.
+- `confirm`, requires an extra confirm step before dispatch (destructive actions).
+
+**Empty**: not applicable. `emitWhenEmpty` does not apply, a button is always meaningful, and the `enabled` flag (not absence) carries the "nothing to do" state.
+
+**Where it renders**: inspector body, action cluster.
 
 ---
 
@@ -412,8 +430,9 @@ ctx.emitScopeContribution('total', { value: ctx.nodes.length });
 
 ## Stability
 
-- The catalog of 14 slots above is the v1 surface.
-- Adding a new slot is a **catalog-minor bump**; renaming or removing one is a **catalog-major bump** and triggers `sm plugins upgrade` migration of dependent plugins.
+- The catalog of 14 slots above is the v1 surface. The unified `inspector.header.badge` (replacing the retired `inspector.header.badge.counter` / `.tag` pair) and the `inspector.action.button` dispatch slot are part of that surface.
+- Adding a new slot is a **catalog-minor bump**; renaming or removing one is a **catalog-major bump** and triggers `sm plugins upgrade` migration of dependent plugins. Folding the two header sub-slots into `inspector.header.badge` was such a removal, dependent plugins migrate via `sm plugins upgrade`.
+- The `inspector.action.button` reserved fields (`input`, `prompt`, `confirm`) are declared but inert; wiring them in the parametrized-action steps is additive (minor bump). The `_ActionPrompt` payload shape is reserved for the same steps.
 - The `IViewContribution` seven-field declaration shape (`slot`, `label?`, `tooltip?`, `icon?`, `emptyText?`, `emitWhenEmpty?`, `priority?`) is stable. Adding a new optional field is a minor bump; making a field required or removing one is a catalog-major bump.
 - Slots are now spec-level (the kernel and the spec own the catalog). UI implementation may rearrange visual placement WITHOUT renaming a slot, the slot id is the public handle, the visual surface beneath it can evolve.
 - The Severity enum and Icon string conventions are stable.

@@ -717,6 +717,26 @@ export interface ISidecarBumpedEnvelopeApi {
 }
 
 /**
+ * Successful 200 envelope returned by `POST /api/actions/:qualifiedId`
+ * (the generic action-dispatch endpoint that generalised the dedicated
+ * `/api/sidecar/bump`). Mirrors the BFF's `action.applied` envelope.
+ * The matching WS event (`type: 'action.applied'`) carries the same
+ * `value` so the in-memory node store updates via the loader's
+ * subscription rather than a manual patch here.
+ */
+export interface IActionAppliedEnvelopeApi {
+  schemaVersion: '1';
+  kind: 'action.applied';
+  value: {
+    actionId: string;
+    nodePath: string;
+    /** Action-defined result payload (per the action's report schema). */
+    report?: unknown;
+  };
+  elapsedMs: number;
+}
+
+/**
  * One registered annotation contribution declared by a plugin manifest
  * and surfaced by `GET /api/annotations/registered`. Mirror of the
  * kernel's `IRegisteredAnnotationKey`.

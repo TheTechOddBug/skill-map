@@ -66,6 +66,25 @@ export interface IWsEventEnvelope<T = unknown> {
   data: T;
 }
 
+/**
+ * Payload of the `action.applied` WS event (Step 17), broadcast by the
+ * generic action-dispatch route (`routes/actions.ts`) after an Action's
+ * writes materialise. Carried under the standard `IWsEventEnvelope.data`
+ * slot, every WS event the BFF broadcasts wraps its payload in
+ * `{ type, timestamp, data }` so the SPA's `isWsEvent` guard validates
+ * a single shape (R9 closed at 9.6.7). Mirrors the wire `value` of the
+ * `action.applied` REST envelope so a connected client can refresh the
+ * affected node without a follow-up fetch.
+ */
+export interface IActionAppliedEventData {
+  /** Qualified action id (`<plugin>/<action>`, e.g. `core/node-bump`). */
+  actionId: string;
+  /** Scope-relative path of the node the Action operated on. */
+  nodePath: string;
+  /** The Action's own report object (shape is action-defined). */
+  report: unknown;
+}
+
 /** Watcher-internal advisory, fired once when the watcher subscribes successfully. */
 export interface IWatcherStartedData {
   roots: string[];

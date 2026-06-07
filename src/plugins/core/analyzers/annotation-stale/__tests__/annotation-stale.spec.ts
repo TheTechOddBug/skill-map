@@ -1,12 +1,17 @@
 /**
- * Unit coverage for the dual surface of `annotation-stale`:
+ * Unit coverage for the surfaces of `annotation-stale`:
  *   - Issue emission per stale node (info severity, `nodeIds: [path]`).
- *   - View-contribution emission to `card.footer.right` (icon-only
- *     chip via `value: 0` + the renderer's `value > 0` guard; tooltip
- *     differentiates body / frontmatter / both).
+ *   - `staleIcon` view contribution to `card.footer.right` (icon-only
+ *     chip via `value: 0`; tooltip differentiates body / frontmatter / both).
+ *   - `staleBadge` view contribution to `inspector.header.badge` (the
+ *     clock that used to be hardcoded in the inspector header), stale-only.
+ *   - `bumpButton` view contribution to `inspector.action.button`,
+ *     emitted for EVERY node that has a sidecar (the payload `enabled`
+ *     flag carries the dynamic gate: true when stale, false when fresh).
  *
- * Fresh nodes and nodes without a sidecar overlay must emit nothing on
- * either surface.
+ * Nodes without a sidecar overlay emit nothing (the inspector never
+ * offers to scaffold a `.sm`). Fresh nodes still emit the disabled bump
+ * button so the affordance is always present.
  */
 
 import { describe, it } from 'node:test';
@@ -55,7 +60,22 @@ function sidecar(status: SidecarStatus | null | undefined): ISidecarOverlay {
   return { present: true, status: status ?? null };
 }
 
-describe('annotation-stale analyzer, dual surface (issue + badge)', () => {
+const ENABLED_BUMP = {
+  actionId: 'core/node-bump',
+  label: ANNOTATION_STALE_TEXTS.bumpLabel,
+  icon: 'pi-arrow-up-right',
+  enabled: true,
+};
+
+const DISABLED_BUMP = {
+  actionId: 'core/node-bump',
+  label: ANNOTATION_STALE_TEXTS.bumpLabel,
+  icon: 'pi-arrow-up-right',
+  enabled: false,
+  disabledReason: ANNOTATION_STALE_TEXTS.bumpDisabledReason,
+};
+
+describe('annotation-stale analyzer, surfaces (issue + footer chip + header badge + bump button)', () => {
   it('emits nothing for a node without a sidecar overlay', async () => {
     const node = mockNode('notes/x.md', undefined);
     const { ctx: c, contributions } = ctx([node]);
@@ -64,15 +84,17 @@ describe('annotation-stale analyzer, dual surface (issue + badge)', () => {
     strictEqual(contributions.length, 0);
   });
 
-  it('emits nothing when status is fresh', async () => {
+  it('emits only a disabled bump button when status is fresh', async () => {
     const node = mockNode('notes/x.md', sidecar('fresh'));
     const { ctx: c, contributions } = ctx([node]);
     const issues = await annotationStaleAnalyzer.evaluate(c);
     strictEqual(issues.length, 0);
-    strictEqual(contributions.length, 0);
+    deepStrictEqual(contributions, [
+      { nodePath: 'notes/x.md', id: 'bumpButton', payload: DISABLED_BUMP },
+    ]);
   });
 
-  it('emits issue + icon-only footer chip on stale-body', async () => {
+  it('emits enabled bump button + issue + footer chip + header badge on stale-body', async () => {
     const node = mockNode('notes/x.md', sidecar('stale-body'));
     const { ctx: c, contributions } = ctx([node]);
     const issues = await annotationStaleAnalyzer.evaluate(c);
@@ -80,48 +102,70 @@ describe('annotation-stale analyzer, dual surface (issue + badge)', () => {
     strictEqual(issues[0]!.severity, 'info');
     deepStrictEqual(issues[0]!.nodeIds, ['notes/x.md']);
     deepStrictEqual(contributions, [
+      { nodePath: 'notes/x.md', id: 'bumpButton', payload: ENABLED_BUMP },
       {
         nodePath: 'notes/x.md',
         id: 'staleIcon',
-        payload: {
-          value: 0,
-          tooltip: ANNOTATION_STALE_TEXTS.bodyTooltip,
-        },
+        payload: { value: 0, tooltip: ANNOTATION_STALE_TEXTS.bodyTooltip },
+      },
+      {
+        nodePath: 'notes/x.md',
+        id: 'staleBadge',
+        payload: { icon: 'pi-clock', tooltip: ANNOTATION_STALE_TEXTS.bodyTooltip },
       },
     ]);
   });
 
-  it('emits issue + icon-only footer chip on stale-frontmatter', async () => {
+  it('emits the same three contributions on stale-frontmatter', async () => {
     const node = mockNode('notes/x.md', sidecar('stale-frontmatter'));
     const { ctx: c, contributions } = ctx([node]);
     const issues = await annotationStaleAnalyzer.evaluate(c);
     strictEqual(issues.length, 1);
-    strictEqual(contributions.length, 1);
-    deepStrictEqual(contributions[0]!.payload, {
+    deepStrictEqual(
+      contributions.map((c2) => c2.id),
+      ['bumpButton', 'staleIcon', 'staleBadge'],
+    );
+    deepStrictEqual(contributions[1]!.payload, {
       value: 0,
+      tooltip: ANNOTATION_STALE_TEXTS.frontmatterTooltip,
+    });
+    deepStrictEqual(contributions[2]!.payload, {
+      icon: 'pi-clock',
       tooltip: ANNOTATION_STALE_TEXTS.frontmatterTooltip,
     });
   });
 
-  it('emits issue + icon-only footer chip on stale-both', async () => {
+  it('emits the same three contributions on stale-both', async () => {
     const node = mockNode('notes/x.md', sidecar('stale-both'));
     const { ctx: c, contributions } = ctx([node]);
     const issues = await annotationStaleAnalyzer.evaluate(c);
     strictEqual(issues.length, 1);
-    strictEqual(contributions.length, 1);
-    deepStrictEqual(contributions[0]!.payload, {
-      value: 0,
+    deepStrictEqual(
+      contributions.map((c2) => c2.id),
+      ['bumpButton', 'staleIcon', 'staleBadge'],
+    );
+    deepStrictEqual(contributions[2]!.payload, {
+      icon: 'pi-clock',
       tooltip: ANNOTATION_STALE_TEXTS.bothTooltip,
     });
   });
 
-  it('declares a single contribution slot (card.footer.right)', () => {
+  it('declares three contribution slots (footer chip, header badge, action button)', () => {
     deepStrictEqual(annotationStaleAnalyzer.ui, {
       staleIcon: {
         slot: 'card.footer.right',
         icon: 'pi-clock',
         emitWhenEmpty: true,
         priority: 20,
+      },
+      staleBadge: {
+        slot: 'inspector.header.badge',
+        emitWhenEmpty: false,
+        priority: 20,
+      },
+      bumpButton: {
+        slot: 'inspector.action.button',
+        priority: 10,
       },
     });
   });

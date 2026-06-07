@@ -188,44 +188,44 @@ export const SERVER_TEXTS = {
   unknownPath:
     'Not found: {{path}}.',
 
-  // ---- sidecar bump route (routes/sidecar.ts) ------------------------------
-
-  // 409 refusal when a fresh node is bumped without `force`. Dispatch
-  // is via the typed `ConflictError` (`code: 'sidecar-fresh'`), so the
-  // `sidecar-fresh:` prefix is NOT load-bearing; it stays only for
-  // log-grep affinity with the CLI's bump verb.
-  sidecarFreshRefusal:
-    'sidecar-fresh: Node is fresh; pass force:true to bump anyway.',
+  // ---- generic action-dispatch route (routes/actions.ts, Step 17) ----------
+  //
+  // POST /api/actions/:qualifiedId. Generalises the legacy bump route:
+  // resolve the qualified action id off the kernel registry, invoke it,
+  // materialise any sidecar writes through the same consent-gated store,
+  // broadcast `action.applied`. Each error keeps its own message key so
+  // the UI / log can disambiguate without regex on the message.
 
   // 400 envelopes thrown by `parseBody` when the request payload is
-  // malformed. Each branch has its own key so the UI / log can
-  // disambiguate without regex on the message.
-  sidecarBodyNotJson:
+  // malformed.
+  actionBodyNotJson:
     'Request body must be valid JSON.',
-  sidecarBodyNotObject:
+  actionBodyNotObject:
     'Request body must be a JSON object.',
-  sidecarNodePathRequired:
+  actionNodePathRequired:
     '`nodePath` is required and must be a non-empty string.',
-  sidecarForceMustBeBoolean:
-    '`force` must be a boolean when present.',
-  sidecarConfirmMustBeBoolean:
+  actionInputMustBeObject:
+    '`input` must be an object when present.',
+  actionConfirmMustBeBoolean:
     '`confirm` must be a boolean when present.',
-  /**
-   * 412 envelope when `POST /api/sidecar/bump` would create a `.sm`
-   * file but `allowEditSmFiles` is still false. The UI's bump
-   * call-path catches `code: 'confirm-required'` and opens a
-   * `ConfirmationService` dialog explaining `.sm` writes; on accept
-   * it retries with `confirm: true` in the body.
-   */
-  sidecarConsentRequired:
-    'consent required to write .sm sidecar files in this project. Retry with `confirm: true` to grant (writes to .skill-map/settings.local.json, gitignored).',
+  actionAlwaysMustBeBoolean:
+    '`always` must be a boolean when present.',
 
-  // 500 envelope when the built-in bump action ships without an
-  // `invoke()`, should be impossible in production but the route
-  // throws a typed envelope rather than a bare `Error` so the global
-  // `app.onError` can format it.
-  sidecarBumpInvokeMissing:
-    'built-in bump action is missing its invoke().',
+  // 404 envelope when `:qualifiedId` does not resolve to a registered
+  // action with an `invoke()`. Covers both "no such action" and "action
+  // exists but ships no deterministic entry point" (a probabilistic
+  // action that cannot be dispatched over this synchronous route). The
+  // id is sanitised before interpolation.
+  actionUnknown:
+    'No invokable action with id "{{actionId}}".',
+
+  // 409 envelope when an action's report comes back `ok: false`. The
+  // refusal `reason` (when the report carries one) becomes the envelope
+  // `code`; the fallback `action-refused` covers reports that refuse
+  // without naming a reason. Dispatch is via the typed
+  // `ActionRefusedError`; the message is informational only.
+  actionRefused:
+    'Action "{{actionId}}" refused to run on "{{nodePath}}".',
 
   // ---- POST /api/scan (manual refresh) ------------------------------------
 

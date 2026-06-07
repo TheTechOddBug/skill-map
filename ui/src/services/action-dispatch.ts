@@ -1,0 +1,169 @@
+/**
+ * `ActionDispatchService`, the UI half of the generic action-dispatch
+ * flow. Generalises the retired `inspector-bump-controller.ts`: instead
+ * of owning the bump verb alone, it dispatches ANY kernel Action by
+ * qualified id against a node path, and shares the `.sm` write-consent
+ * handshake across every action.
+ *
+ * Lifecycle of `dispatch(actionId, nodePath, input?)`:
+ *   1. POST `/api/actions/:qualifiedId` via the data-source port.
+ *   2. On success, resolve. The in-memory node store updates through the
+ *      BFF's WS broadcast (`action.applied` / `sidecar.bumped`), not a
+ *      manual patch here, so the card and inspector re-render via the
+ *      same path the CLI / pre-commit hook would.
+ *   3. On a 412 `confirm-required` whose `details.key === 'allowEditSmFiles'`,
+ *      open the consent dialog (`consentOpen()` flips true). The pending
+ *      dispatch is parked until the user answers via `resolveConsent()`:
+ *        - accept, not "always": retry with `{ confirm: true }`.
+ *        - accept + "always": retry with `{ confirm: true, always: true }`.
+ *        - decline: silent abandon (no error banner), matching the
+ *          `settings-project.ts` precedent for `scan.referencePaths`.
+ *   4. Any other error surfaces via `error()` (a formatted message).
+ *
+ * The service is presentational-state only; the consent DIALOG is a
+ * separate component (`<sm-sidecar-consent-dialog>`) driven by
+ * `consentOpen()` and reporting back through `resolveConsent()`. This
+ * keeps the dispatch logic free of PrimeNG imports and unit-testable
+ * without a TestBed.
+ *
+ * Demo mode: `dispatchAction()` rejects with `'demo-readonly'`, which
+ * surfaces in `error()` like any other failure; the service stays inert
+ * by virtue of the rejection.
+ */
+
+import { Injectable, computed, inject, signal } from '@angular/core';
+
+import { ACTION_DISPATCH_TEXTS } from '../i18n/action-dispatch.texts';
+import {
+  DATA_SOURCE,
+  DataSourceError,
+  type IDataSourcePort,
+} from './data-source/data-source.port';
+
+/** A dispatch parked while the consent dialog is open. */
+interface IPendingDispatch {
+  actionId: string;
+  nodePath: string;
+  input?: unknown;
+}
+
+@Injectable({ providedIn: 'root' })
+export class ActionDispatchService {
+  private readonly dataSource: IDataSourcePort = inject(DATA_SOURCE);
+  private readonly texts = ACTION_DISPATCH_TEXTS;
+
+  private readonly inFlightSig = signal<boolean>(false);
+  private readonly errorSig = signal<string | null>(null);
+  private readonly consentOpenSig = signal<boolean>(false);
+
+  /** A dispatch round-trip is in flight (button shows a spinner). */
+  readonly inFlight = this.inFlightSig.asReadonly();
+  /** Formatted last-error message, or null. Bound to the error banner. */
+  readonly error = this.errorSig.asReadonly();
+  /** Drives the `<sm-sidecar-consent-dialog>` `open` input. */
+  readonly consentOpen = this.consentOpenSig.asReadonly();
+  /** True when an action is dispatchable (idle). Convenience for callers. */
+  readonly idle = computed(() => !this.inFlightSig());
+
+  /** The dispatch parked behind the consent dialog, if any. */
+  private pending: IPendingDispatch | null = null;
+
+  /**
+   * Dispatch a kernel Action against `nodePath`. Resolves on success;
+   * on a `.sm` consent gate it opens the dialog and resolves once the
+   * user has answered (the retry, if accepted, runs before resolve).
+   * Any non-consent failure is captured in `error()` and the promise
+   * still resolves (callers do not need to try/catch, they read state).
+   */
+  async dispatch(actionId: string, nodePath: string, input?: unknown): Promise<void> {
+    if (this.inFlightSig()) return;
+    this.errorSig.set(null);
+    await this.run(actionId, nodePath, input, {});
+  }
+
+  /**
+   * Resolve the consent dialog. Called by the host when the
+   * `<sm-sidecar-consent-dialog>` emits its `decision`. Accept retries
+   * the parked dispatch with the right consent flags; decline abandons
+   * it silently.
+   */
+  resolveConsent(decision: { accepted: boolean; always: boolean }): void {
+    this.consentOpenSig.set(false);
+    const pending = this.pending;
+    this.pending = null;
+    if (!pending) return;
+    if (!decision.accepted) return; // silent abandon
+    const consent = decision.always ? { confirm: true, always: true } : { confirm: true };
+    void this.run(pending.actionId, pending.nodePath, pending.input, consent);
+  }
+
+  /** Dismiss the error banner. */
+  dismissError(): void {
+    this.errorSig.set(null);
+  }
+
+  /**
+   * Single dispatch attempt. `consent` is `{}` on the first try and
+   * `{ confirm }` / `{ confirm, always }` on a post-consent retry.
+   */
+  private async run(
+    actionId: string,
+    nodePath: string,
+    input: unknown,
+    consent: { confirm?: boolean; always?: boolean },
+  ): Promise<void> {
+    this.inFlightSig.set(true);
+    try {
+      await this.dataSource.dispatchAction(actionId, nodePath, { input, ...consent });
+    } catch (err) {
+      // First-write consent gate: 412 `confirm-required` with the
+      // `allowEditSmFiles` key. Park the dispatch and open the dialog;
+      // the retry (or abandon) runs from `resolveConsent`. Only the
+      // FIRST attempt can hit this (the retry already carries consent),
+      // so there is no risk of re-opening the dialog in a loop.
+      if (
+        consent.confirm !== true &&
+        err instanceof DataSourceError &&
+        err.code === 'confirm-required' &&
+        consentTargetsAllowEditSm(err.details)
+      ) {
+        this.pending = { actionId, nodePath, input };
+        this.consentOpenSig.set(true);
+        return;
+      }
+      this.errorSig.set(this.formatError(err));
+    } finally {
+      this.inFlightSig.set(false);
+    }
+  }
+
+  private formatError(err: unknown): string {
+    if (err instanceof DataSourceError) {
+      switch (err.code) {
+        case 'sidecar-fresh':
+          return `${this.texts.errorPrefix} ${this.texts.errorFresh}`;
+        case 'not-found':
+          return `${this.texts.errorPrefix} ${this.texts.errorNotFound}`;
+        case 'demo-readonly':
+          return `${this.texts.errorPrefix} ${this.texts.errorReadonly}`;
+        default:
+          return `${this.texts.errorPrefix} ${err.message || this.texts.errorGeneric}`;
+      }
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    return `${this.texts.errorPrefix} ${message || this.texts.errorGeneric}`;
+  }
+}
+
+/**
+ * Narrows the `details` payload on a `confirm-required` error to the
+ * `.sm` sidecar consent gate. The BFF embeds `{ key: 'allowEditSmFiles' }`
+ * so the UI branches on which copy to show (there are two consent gates
+ * today, `scan.referencePaths` and `allowEditSmFiles`). Anything else
+ * falls through to the generic error banner.
+ */
+function consentTargetsAllowEditSm(details: unknown): boolean {
+  if (typeof details !== 'object' || details === null) return false;
+  const d = details as Record<string, unknown>;
+  return d['key'] === 'allowEditSmFiles';
+}

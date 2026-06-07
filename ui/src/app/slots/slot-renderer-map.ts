@@ -23,7 +23,9 @@ import { NodeKeyValues } from '../renderers/node-key-values/node-key-values';
 import { NodeLinkList } from '../renderers/node-link-list/node-link-list';
 import { NodeRecords } from '../renderers/node-records/node-records';
 import { NodeMarkdown } from '../renderers/node-markdown/node-markdown';
-import { NodeTag } from '../renderers/node-tag/node-tag';
+import { NodeBadge } from '../renderers/node-badge/node-badge';
+import { NodeActionButton } from '../renderers/node-action-button/node-action-button';
+import { NodeSection } from '../renderers/node-section/node-section';
 import { NodeTree } from '../renderers/node-tree/node-tree';
 import { NodeAlert } from '../renderers/node-alert/node-alert';
 import { NodeIcon } from '../renderers/node-icon/node-icon';
@@ -39,6 +41,13 @@ export interface IRendererInputs {
   tooltip?: string;
   icon?: string;
   emptyText?: string;
+  /**
+   * Path of the node this contribution is rendered for. Threaded by the
+   * slot host (`view-contributions-host`) from `node.path`. Action
+   * renderers (`NodeActionButton`) need it to dispatch a kernel Action
+   * against the right node; every other renderer ignores it.
+   */
+  nodePath: string;
   /** Per-node payload, already validated at emit time on the kernel side. */
   payload: unknown;
 }
@@ -49,9 +58,9 @@ export interface IRendererInputs {
  * contribution. Standalone Angular components, no NgModule wiring.
  *
  * Each slot has exactly one renderer; payload shape is fixed per
- * slot at the spec layer. Some renderers (NodeCounter, NodeTag) are
- * mounted in multiple slots, they are stateless and accept the
- * same `IRendererInputs` regardless of mount.
+ * slot at the spec layer. Some renderers (NodeCounter) are mounted in
+ * multiple slots, they are stateless and accept the same
+ * `IRendererInputs` regardless of mount.
  */
 export const SLOT_RENDERERS: Record<TSlotId, Type<unknown>> = {
   'card.title.right': NodeIcon,
@@ -59,14 +68,15 @@ export const SLOT_RENDERERS: Record<TSlotId, Type<unknown>> = {
   'card.footer.left': NodeCounter,
   'card.footer.right': NodeCounter,
   'graph.node.alert': NodeAlert,
-  'inspector.header.badge.counter': NodeCounter,
-  'inspector.header.badge.tag': NodeTag,
+  'inspector.header.badge': NodeBadge,
+  'inspector.action.button': NodeActionButton,
   'inspector.body.panel.breakdown': NodeBreakdown,
   'inspector.body.panel.records': NodeRecords,
   'inspector.body.panel.tree': NodeTree,
   'inspector.body.panel.key-values': NodeKeyValues,
   'inspector.body.panel.link-list': NodeLinkList,
   'inspector.body.panel.markdown': NodeMarkdown,
+  'inspector.body.section': NodeSection,
   'topbar.nav.start': ScopeStat,
 };
 

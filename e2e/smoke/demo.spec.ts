@@ -23,6 +23,20 @@ import { expect, test } from '@playwright/test';
  */
 
 test.describe('demo bundle', () => {
+  // The fused workspace opens with the files rail collapsed (map-first by
+  // default: `sm.workspace.rail-collapsed` absent => collapsed). Seed the
+  // persisted OPEN state before each navigation so the `files-view` /
+  // `files-table` assertions below find the rail expanded.
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      try {
+        window.localStorage.setItem('sm.workspace.rail-collapsed', '0');
+      } catch {
+        /* localStorage unavailable before first paint; ignore. */
+      }
+    });
+  });
+
   test('boots without console errors and runs in demo mode', async ({ page }) => {
     const consoleErrors: string[] = [];
     // Track failed network requests so we can filter the bare

@@ -121,6 +121,8 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     assert.equal(qualifiedByKindAndShort.get('analyzer:schema-violation'), 'core/schema-violation');
     assert.equal(qualifiedByKindAndShort.get('action:node-bump'), 'core/node-bump');
     assert.equal(qualifiedByKindAndShort.get('action:node-supersede'), 'core/node-supersede');
+    assert.equal(qualifiedByKindAndShort.get('action:node-set-stability'), 'core/node-set-stability');
+    assert.equal(qualifiedByKindAndShort.get('action:node-set-tags'), 'core/node-set-tags');
   });
 
   // Tests for `analyzer.recommendedActions` were retired with the
@@ -155,7 +157,9 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // `core/link-self-loop` (analyzer that flags links whose source is their own resolved target, hidden from the UI by default) brings it to 32.
     // `core/signal-collision` (analyzer that surfaces Signal IR resolver rejections, range-overlap losers, as warn issues) brings it to 33.
     // `core/issue-counter` (aggregate analyzer that runs after the detect phase and emits the per-card error / warn count chips on `card.footer.right`, replacing the hand-rolled chip block in `<sm-node-card>`) brings it to 34.
-    assert.equal(rows.length, 34);
+    // `core/supersede` (analyzer that projects the inspector `Supersede` action button to `inspector.action.button` for non-virtual nodes, dispatching `core/node-supersede`) brings it to 35.
+    // `core/node-set-stability` + `core/node-set-tags` (two deterministic actions writing `annotations.stability` / `annotations.tags` to the sidecar) and `core/tags` (analyzer that projects the inspector `Edit tags` action button) bring it to 38.
+    assert.equal(rows.length, 38);
   });
 
   // `defaultRefreshAction` was retired with the structure-as-truth

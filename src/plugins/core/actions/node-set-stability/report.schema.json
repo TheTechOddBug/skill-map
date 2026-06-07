@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:skill-map:core/node-set-stability/report",
+  "title": "SetStabilityReport",
+  "description": "Report shape returned by `core/node-set-stability`. Deterministic Action; carries the lifecycle stage written to the sidecar.",
+  "type": "object",
+  "required": ["confidence", "safety", "stability"],
+  "additionalProperties": false,
+  "properties": {
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "safety": {
+      "type": "object",
+      "required": ["injectionDetected", "contentQuality"],
+      "additionalProperties": false,
+      "properties": {
+        "injectionDetected": { "type": "boolean" },
+        "contentQuality": { "type": "string", "enum": ["high", "medium", "low", "unknown"] }
+      }
+    },
+    "stability": { "type": "string", "enum": ["experimental", "stable", "deprecated"] }
+  }
+}

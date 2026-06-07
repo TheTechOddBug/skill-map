@@ -365,8 +365,8 @@ describe('sidecar-aware per-(node, extractor) cache key', () => {
 
     deepStrictEqual(
       readStabilityContributions(),
-      ['experimental'],
-      "first sidecar (experimental) wrote contribution_id='experimental'",
+      ['experimental', 'setStabilityButton'],
+      "first sidecar (experimental) wrote the 'experimental' chip (the always-on 'setStabilityButton' rides alongside)",
     );
 
     // Flip experimental → deprecated. Body and frontmatter unchanged.
@@ -383,8 +383,8 @@ describe('sidecar-aware per-(node, extractor) cache key', () => {
     // contribution when `core/node-stability` re-ran for this node).
     deepStrictEqual(
       readStabilityContributions(),
-      ['deprecated'],
-      "post-flip scan shows ONLY the new 'deprecated' contribution, pre-fix bug emitted ['experimental'] from cache",
+      ['deprecated', 'setStabilityButton'],
+      "post-flip scan replaced the chip experimental -> deprecated (pre-fix bug reused ['experimental'] from cache); 'setStabilityButton' persists",
     );
   });
 });

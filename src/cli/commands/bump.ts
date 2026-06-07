@@ -97,6 +97,14 @@ interface IPendingJsonEnvelope {
 
 interface ISidecarWriteConsent {
   confirm: boolean;
+  /**
+   * Persistent grant (Step 17 consent split). The CLI's accept / `--yes`
+   * persists `allowEditSmFiles` to project-local (its documented
+   * "never asked again" contract), so it maps to `always`, NOT the new
+   * one-shot `confirm`. Kept in lock-step with the kernel
+   * `ISidecarWriteConsent` (`kernel/sidecar/store.ts`).
+   */
+  always?: boolean;
   cwd: string;
 }
 
@@ -226,10 +234,11 @@ export class BumpCommand extends SmCommand {
    * `EConsentRequiredError` thrown by `FilesystemSidecarStore.applyPatch`
    * (via `ensureSidecarWritesAllowed`), prompt the operator if stdin is
    * a TTY and `--yes` was not passed. On accept, flip `this.yes` to
-   * true and re-run `dispatch` (the second pass passes `confirm: true`
-   * to the store and the gate persists the flag to project-local).
-   * On decline or non-TTY without `--yes`, print a directed message
-   * and return `ExitCode.Error`.
+   * true and re-run `dispatch` (the second pass passes `always: true`
+   * to the store and the gate persists the flag to project-local, the
+   * CLI's documented "never asked again" contract, Step 17 consent
+   * split). On decline or non-TTY without `--yes`, print a directed
+   * message and return `ExitCode.Error`.
    */
   async #runWithConsent(
     ansi: IAnsi,
@@ -349,7 +358,11 @@ export class BumpCommand extends SmCommand {
   ): Promise<number> {
     const ctx = defaultRuntimeContext();
     const consent: ISidecarWriteConsent = {
+      // Step 17 split: the CLI's accept / `--yes` persists the grant
+      // (its documented "never asked again" contract), so it threads
+      // `always`, not the new one-shot `confirm`.
       confirm: this.yes,
+      always: this.yes,
       cwd: ctx.cwd,
     };
     const applied = await applyBumpWrites(item, consent);
@@ -454,7 +467,9 @@ export class BumpCommand extends SmCommand {
     const store = new FilesystemSidecarStore(ensureSidecarWritesAllowed);
     const ctx = defaultRuntimeContext();
     const consent: ISidecarWriteConsent = {
+      // Step 17 split: CLI accept / `--yes` persists (see #runSingle).
       confirm: this.yes,
+      always: this.yes,
       cwd: ctx.cwd,
     };
     const outcomes: IBumpOutcome[] = [];

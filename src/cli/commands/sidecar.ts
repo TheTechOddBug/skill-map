@@ -256,7 +256,9 @@ export class SidecarRefreshCommand extends SmCommand {
             frontmatterHash: node.frontmatterHash,
           },
         },
-        { confirm: this.yes, cwd: ctx.cwd },
+        // Step 17 split: CLI accept / `--yes` persists the grant, so it
+        // threads `always`, not the new one-shot `confirm`.
+        { confirm: this.yes, always: this.yes, cwd: ctx.cwd },
       );
     } catch (err) {
       // Consent failures bubble up to `runWithSidecarConsent` for
@@ -589,7 +591,9 @@ export class SidecarAnnotateCommand extends SmCommand {
       await store.applyPatch(
         sidecarAbsPath,
         scaffoldSidecarObject(node),
-        { confirm: this.yes, cwd: ctx.cwd },
+        // Step 17 split: CLI accept / `--yes` persists the grant, so it
+        // threads `always`, not the new one-shot `confirm`.
+        { confirm: this.yes, always: this.yes, cwd: ctx.cwd },
       );
     } catch (err) {
       // Consent failures bubble up to `runWithSidecarConsent` for

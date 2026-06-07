@@ -56,6 +56,7 @@ import type {
   IRegisteredAnnotationKeyApi,
   IScanResultApi,
   ISidecarBumpedEnvelopeApi,
+  IActionAppliedEnvelopeApi,
   IUpdateStatusResponseApi,
   IValueEnvelopeApi,
 } from '../../models/api';
@@ -65,6 +66,7 @@ import { ProviderRegistryService } from '../provider-registry';
 import {
   DataSourceError,
   type IDataSourcePort,
+  type IActionDispatchOpts,
   type IIssuesQuery,
   type ILinksQuery,
   type INodesQuery,
@@ -429,6 +431,17 @@ export class StaticDataSource implements IDataSourcePort {
     throw new DataSourceError(
       'demo-readonly',
       'Sidecar bump is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  async dispatchAction(
+    _actionId: string,
+    _nodePath: string,
+    _opts: IActionDispatchOpts = {},
+  ): Promise<IActionAppliedEnvelopeApi> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Actions are not available in demo mode (static bundle is immutable).',
     );
   }
 

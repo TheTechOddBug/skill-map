@@ -1,0 +1,21 @@
+{
+  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "id": "view-action-button",
+  "description": "Inspector slot catalog change: an analyzer declaring the unified `inspector.header.badge` slot plus the new `inspector.action.button` slot MUST load clean, while an analyzer declaring the retired `inspector.header.badge.counter` slot (folded into `inspector.header.badge`) MUST be rejected as `invalid-manifest` because the id is no longer in the closed `SlotName` enum. `sm scan` MUST exit cleanly with the good plugin and the markdown node intact, locking that the removed sub-slots fail manifest load while the unified badge and the action-button slot are accepted.",
+  "fixture": "view-action-button",
+  "invoke": {
+    "verb": "scan",
+    "flags": ["--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "json-path", "path": "$.schemaVersion", "equals": 1 },
+    { "type": "json-path", "path": "$.stats.nodesCount", "equals": 1 },
+    { "type": "json-path", "path": "$.stats.issuesCount", "equals": 0 },
+    { "type": "json-path", "path": "$.nodes[0].path", "equals": "notes/example.md" },
+    { "type": "json-path", "path": "$.nodes[0].kind", "equals": "markdown" },
+    { "type": "json-path", "path": "$.nodes[0].provider", "equals": "markdown" },
+    { "type": "stderr-matches", "pattern": "plugin legacy-badge: invalid-manifest.*/ui/keywords/slot must" },
+    { "type": "stderr-matches", "pattern": "must match exactly one schema in oneOf" }
+  ]
+}

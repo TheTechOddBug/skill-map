@@ -333,7 +333,7 @@ describe('FilesystemSidecarStore.applyPatch', () => {
     rmSync(gateRoot, { recursive: true, force: true });
   });
 
-  it('persists the consent flag flip to settings.local.json on confirm:true', async () => {
+  it('confirm:true writes the .sm file but does NOT persist the consent flag (one-shot, Step 17)', async () => {
     const store = new FilesystemSidecarStore(ensureSidecarWritesAllowed);
     const gateRoot = mkdtempSync(join(tmpdir(), 'sm-sidecar-gate-confirm-'));
     const target = join(gateRoot, 'confirmed.sm');
@@ -345,7 +345,28 @@ describe('FilesystemSidecarStore.applyPatch', () => {
       },
     }, { confirm: true, cwd: gateRoot});
     ok(existsSync(target), '.sm file should be created after confirm:true');
-    // The gate must have persisted the flag flip to project-local.
+    // One-shot grant: the flag is NOT persisted to project-local.
+    const localPath = join(gateRoot, '.skill-map', 'settings.local.json');
+    ok(
+      !existsSync(localPath),
+      'confirm:true is one-shot; settings.local.json must NOT be created',
+    );
+    rmSync(gateRoot, { recursive: true, force: true });
+  });
+
+  it('always:true writes the .sm file AND persists the consent flag (Step 17)', async () => {
+    const store = new FilesystemSidecarStore(ensureSidecarWritesAllowed);
+    const gateRoot = mkdtempSync(join(tmpdir(), 'sm-sidecar-gate-always-'));
+    const target = join(gateRoot, 'always.sm');
+    await store.applyPatch(target, {
+      identity: {
+        path: 'foo.md',
+        bodyHash: VALID_HASH_A,
+        frontmatterHash: VALID_HASH_B,
+      },
+    }, { confirm: false, always: true, cwd: gateRoot});
+    ok(existsSync(target), '.sm file should be created after always:true');
+    // Persistent grant: the gate flips the flag in project-local.
     const localPath = join(gateRoot, '.skill-map', 'settings.local.json');
     ok(existsSync(localPath), 'settings.local.json should now exist');
     const persisted = JSON.parse(readFileSync(localPath, 'utf8')) as Record<string, unknown>;

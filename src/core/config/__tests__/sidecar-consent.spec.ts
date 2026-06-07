@@ -2,11 +2,15 @@
  * Coverage for `core/config/sidecar-consent`, the pre-flight gate
  * every `.sm` write funnels through.
  *
- * Three branches under test:
- *   - Flag already true → no-op (no throw, no write).
- *   - Flag false + `confirm: true` → flips the flag in project-local,
- *     returns silently.
- *   - Flag false + `confirm: false` → throws `EConsentRequiredError`.
+ * Branches under test (Step 17 split, Decision #5):
+ *   - Flag already true                    -> no-op (no throw, no write).
+ *   - Flag false + `always: true`          -> flips the flag in
+ *     project-local (persists), returns silently.
+ *   - Flag false + `confirm: true`         -> one-shot grant, returns
+ *     silently WITHOUT persisting (next call re-asks).
+ *   - Flag false + `always: true` even with `confirm` absent / false
+ *     -> persists (`always` implies `confirm`, strong grant).
+ *   - Flag false + neither                 -> throws `EConsentRequiredError`.
  *
  * Tests use file-based fixtures under `.tmp/` per AGENTS.md baseline;
  * no `:memory:`.
@@ -59,15 +63,54 @@ describe('ensureSidecarWritesAllowed', () => {
     assert.deepEqual(persisted, { allowEditSmFiles: true });
   });
 
-  it('flips the flag in project-local when confirm:true', () => {
-    ensureSidecarWritesAllowed({ confirm: true, cwd });
+  it('persists the flag in project-local when always:true', () => {
+    ensureSidecarWritesAllowed({ confirm: false, always: true, cwd });
     const persisted = JSON.parse(
       readFileSync(join(cwd, '.skill-map/settings.local.json'), 'utf8'),
     );
     assert.deepEqual(persisted, { allowEditSmFiles: true });
   });
 
-  it('throws EConsentRequiredError when flag is false and confirm:false', () => {
+  it('always:true persists even when confirm is absent (strong grant)', () => {
+    ensureSidecarWritesAllowed({ confirm: false, always: true, cwd });
+    const persisted = JSON.parse(
+      readFileSync(join(cwd, '.skill-map/settings.local.json'), 'utf8'),
+    );
+    assert.deepEqual(persisted, { allowEditSmFiles: true });
+  });
+
+  it('confirm:true is one-shot, lets the write through but does NOT persist', () => {
+    // Should not throw.
+    ensureSidecarWritesAllowed({ confirm: true, cwd });
+    // No file written, the one-shot grant is not remembered.
+    assert.equal(
+      existsSync(join(cwd, '.skill-map/settings.local.json')),
+      false,
+    );
+    // The next call with the same one-shot signal still passes (still
+    // does not persist), proving the grant did not become sticky.
+    ensureSidecarWritesAllowed({ confirm: true, cwd });
+    assert.equal(
+      existsSync(join(cwd, '.skill-map/settings.local.json')),
+      false,
+    );
+  });
+
+  it('confirm:true alone re-asks on the next write without confirm', () => {
+    // One-shot grant this time.
+    ensureSidecarWritesAllowed({ confirm: true, cwd });
+    // A subsequent write with NO consent throws, the one-shot grant did
+    // not persist anything.
+    let caught: unknown;
+    try {
+      ensureSidecarWritesAllowed({ confirm: false, cwd });
+    } catch (err) {
+      caught = err;
+    }
+    assert.ok(caught instanceof EConsentRequiredError);
+  });
+
+  it('throws EConsentRequiredError when flag is false and neither confirm nor always', () => {
     let caught: unknown;
     try {
       ensureSidecarWritesAllowed({ confirm: false, cwd });

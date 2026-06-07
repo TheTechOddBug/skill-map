@@ -14,14 +14,15 @@ export type TSlotName =
   | 'card.footer.left'
   | 'card.footer.right'
   | 'graph.node.alert'
-  | 'inspector.header.badge.counter'
-  | 'inspector.header.badge.tag'
+  | 'inspector.header.badge'
+  | 'inspector.action.button'
   | 'inspector.body.panel.breakdown'
   | 'inspector.body.panel.records'
   | 'inspector.body.panel.tree'
   | 'inspector.body.panel.key-values'
   | 'inspector.body.panel.link-list'
   | 'inspector.body.panel.markdown'
+  | 'inspector.body.section'
   | 'topbar.nav.start';
 
 /**
@@ -36,14 +37,15 @@ export const ALL_SLOT_NAMES: ReadonlyArray<TSlotName> = [
   'card.footer.left',
   'card.footer.right',
   'graph.node.alert',
-  'inspector.header.badge.counter',
-  'inspector.header.badge.tag',
+  'inspector.header.badge',
+  'inspector.action.button',
   'inspector.body.panel.breakdown',
   'inspector.body.panel.records',
   'inspector.body.panel.tree',
   'inspector.body.panel.key-values',
   'inspector.body.panel.link-list',
   'inspector.body.panel.markdown',
+  'inspector.body.section',
   'topbar.nav.start',
 ];
 

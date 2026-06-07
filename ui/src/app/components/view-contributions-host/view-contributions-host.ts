@@ -73,6 +73,7 @@ interface IDispatchedItem {
     @if (visible().length > 0 || overflowCount() > 0) {
       <span
         class="vch"
+        [class.vch--stack]="stacked()"
         [attr.data-testid]="'view-contributions-host-' + testidSuffix()"
       >
         @for (item of visible(); track item.qualifiedId) {
@@ -109,6 +110,13 @@ interface IDispatchedItem {
     .vch { display: inline-flex; align-items: center; gap: 0.7rem;
       flex-wrap: wrap; }
     .vch__slot { display: inline-flex; }
+    /* Stacked slots (e.g. inspector.body.section) lay their
+       contributions out as a full-width vertical column: each renderer
+       paints block-level chrome (its own collapsible section) so the
+       items must never sit side by side. */
+    .vch--stack { display: flex; flex-direction: column;
+      align-items: stretch; gap: 0.6rem; width: 100%; }
+    .vch--stack .vch__slot { display: block; }
     .vch__overflow { display: inline-flex; align-items: center;
       padding: 0.125rem 0.5rem; border-radius: 0.75rem;
       background: var(--p-surface-100); color: var(--p-surface-600);
@@ -138,6 +146,15 @@ export class ViewContributionsHost {
   protected readonly testidSuffix = computed(() => this.slot().replaceAll('.', '-'));
 
   /**
+   * Whether this slot lays its contributions out as a full-width
+   * vertical column (`layout: 'stack'`) instead of the default inline
+   * chip cluster. Drives the `.vch--stack` modifier.
+   */
+  protected readonly stacked = computed(
+    () => SLOT_REGISTRY[this.slot()].layout === 'stack',
+  );
+
+  /**
    * The full filtered + ordered list. Internal, used by `visible`
    * + `overflowCount` to compute the cap.
    */
@@ -155,7 +172,7 @@ export class ViewContributionsHost {
     return this.sortBySlotOrder(matching, slot).map((c) => ({
       qualifiedId: `${c.pluginId}/${c.extensionId}/${c.contributionId}`,
       slot: c.slot as TSlotId,
-      rendererInputs: this.buildInputs(c, slot),
+      rendererInputs: this.buildInputs(c, slot, node.path),
     }));
   });
 
@@ -196,7 +213,7 @@ export class ViewContributionsHost {
     return SLOT_RENDERERS[slot];
   }
 
-  private buildInputs(c: IContributionApi, slot: TSlotId): IRendererInputs {
+  private buildInputs(c: IContributionApi, slot: TSlotId, nodePath: string): IRendererInputs {
     const qualified = `${c.pluginId}/${c.extensionId}/${c.contributionId}`;
     const reg = this.registry.get(qualified);
     const respectSeverity = SLOT_REGISTRY[slot].respectSeverity !== false;
@@ -209,6 +226,7 @@ export class ViewContributionsHost {
       pluginId: c.pluginId,
       extensionId: c.extensionId,
       contributionId: c.contributionId,
+      nodePath,
       payload,
     };
     if (reg?.label) inputs.label = reg.label;

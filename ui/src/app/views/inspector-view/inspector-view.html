@@ -33,7 +33,6 @@
   >
     <sm-inspector-header
       [node]="n"
-      [showActionMocks]="showActionMocks"
       [frontmatterInvalid]="frontmatterInvalid()"
       [activeTag]="activeTag()"
       (favoriteToggle)="onHeaderFavoriteToggle($event)"
@@ -51,33 +50,29 @@
       </div>
     }
 
-    @if (bumpError(); as err) {
-      <div class="inspector__banner inspector__banner--error" data-testid="inspector-bump-error">
+    @if (actionError(); as err) {
+      <div class="inspector__banner inspector__banner--error" data-testid="inspector-action-error">
         <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
         <span>{{ err }}</span>
         <button
           type="button"
           class="inspector__banner-dismiss"
-          (click)="dismissBumpError()"
-          [attr.aria-label]="texts.bumpErrorDismissAriaLabel"
+          (click)="dismissActionError()"
+          [attr.aria-label]="texts.actionErrorDismissAriaLabel"
         >
           <i class="pi pi-times" aria-hidden="true"></i>
         </button>
       </div>
     }
 
+    <!--
+      Action toolbar. The bump button (and any other plugin-contributed
+      verb) arrives as a contribution on `inspector.action.button`,
+      dispatched through `ActionDispatchService`. Nothing is hardcoded
+      here anymore.
+    -->
     <div class="inspector__toolbar">
-      <p-button
-        [label]="texts.bump.label"
-        icon="pi pi-arrow-up-right"
-        severity="secondary"
-        size="small"
-        [disabled]="!canBump() || bumpInFlight()"
-        [loading]="bumpInFlight()"
-        [pTooltip]="bumpTooltip()"
-        (onClick)="onBumpClick()"
-        data-testid="inspector-bump"
-      />
+      <sm-view-contributions-host slot="inspector.action.button" [node]="n" />
     </div>
 
     @if (issues().length > 0) {
@@ -223,6 +218,16 @@
       </sm-collapsible-section>
     }
 
+    <!--
+      Plugin-owned collapsible zones (`inspector.body.section`). Unlike
+      the body-panel slots above (grouped under one "View contributions"
+      section), each contribution here paints its OWN collapsible section
+      titled `<pluginId>:<zone>` (host-applied prefix for drop-in
+      plugins, bare zone name for system plugins). The host self-hides
+      when no plugin emitted a zone, so no wrapper / gate is needed.
+    -->
+    <sm-view-contributions-host slot="inspector.body.section" [node]="node()" />
+
     @if (hasMetadata()) {
       <sm-collapsible-section
         [title]="texts.sections.metadata"
@@ -245,14 +250,15 @@
     }
 
     <!--
-      Phase 6 consent gate, first-time `.sm` sidecar write confirmation.
-      Opened imperatively from `onBumpClick()` when the BFF answers 412
-      `confirm-required` with `details.key === "allowEditSmFiles"`.
+      `.sm` write consent gate. Opened by `ActionDispatchService` when a
+      dispatch hits a 412 `confirm-required` with
+      `details.key === "allowEditSmFiles"`. The dialog reports the user's
+      choice (accept / decline + "always allow") back to the service,
+      which retries the parked dispatch with the right consent flags.
     -->
-    <p-confirmdialog
-      [ariaLabel]="texts.bump.consentDialogAriaLabel"
-      data-testid="inspector-bump-consent"
-      styleClass="sm-consent-dialog"
+    <sm-sidecar-consent-dialog
+      [open]="consentOpen()"
+      (decision)="onConsentDecision($event)"
     />
   </section>
 }

@@ -172,6 +172,13 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
       value: { nodePath: '', version: null, status: 'fresh' },
       elapsedMs: 0,
     }),
+  dispatchAction: () =>
+    Promise.resolve({
+      schemaVersion: '1',
+      kind: 'action.applied',
+      value: { actionId: 'core/node-bump', nodePath: '' },
+      elapsedMs: 0,
+    }),
   getUpdateStatus: () =>
     Promise.resolve({
       current: '0.0.0',

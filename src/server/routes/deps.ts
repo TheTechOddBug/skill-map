@@ -84,8 +84,8 @@ export interface IRouteDeps {
    * `loadConfig()` per request, the BFF is long-lived and the layered
    * walk + AJV validation on every read would be wasted work. Routes
    * that mutate the config (`PATCH /api/preferences`,
-   * `PATCH /api/project-preferences`, the `confirm: true` arm of
-   * `POST /api/sidecar/bump`) MUST call `configService.reload()`
+   * `PATCH /api/project-preferences`, the `always: true` arm of
+   * `POST /api/actions/:id`) MUST call `configService.reload()`
    * immediately after the write so the next read sees the new state.
    */
   configService: ConfigService;

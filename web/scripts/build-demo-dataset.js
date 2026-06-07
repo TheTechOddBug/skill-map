@@ -28,12 +28,14 @@
 import { execFile, spawn } from 'node:child_process';
 import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 const REPO_ROOT = resolve(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
 const FIXTURE_DIR = join(REPO_ROOT, 'fixtures', 'demo-scope');
+const DB_PATH = join(FIXTURE_DIR, '.skill-map', 'skill-map.db');
 const OUT_DIR = join(REPO_ROOT, 'web', 'demo');
 const DATA_PATH = join(OUT_DIR, 'data.json');
 const META_PATH = join(OUT_DIR, 'data.meta.json');
@@ -340,6 +342,63 @@ async function writeAtomic(path, content) {
  * `src/server/node-body.ts` (the runtime path live mode uses) so the
  * demo body bytes match what live would serve byte-for-byte.
  */
+/**
+ * Populate each `node.contributions[]` from the persisted
+ * `scan_contributions` table (the `sm scan` above wrote it). `sm scan
+ * --json` does NOT embed contributions (they are a BFF-only surface),
+ * so without this the demo bundle renders no view-contribution slots
+ * (counters, header badges, action buttons, plugin zones). Mirrors the
+ * wire shape the BFF embeds via `contributions.listForPaths(...)`
+ * (`IContributionApi`: pluginId / extensionId / nodePath / contributionId
+ * / slot / payload) so the StaticDataSource serves byte-compatible nodes.
+ */
+function embedContributions(scan, dbPath) {
+  if (!existsSync(dbPath)) {
+    process.stderr.write(
+      `[build-demo-dataset] no DB at ${dbPath}; skipping contributions\n`,
+    );
+    return;
+  }
+  const byPath = new Map();
+  const conn = new DatabaseSync(dbPath, { readOnly: true });
+  try {
+    const rows = conn
+      .prepare(
+        'SELECT plugin_id, extension_id, node_path, contribution_id, slot, payload_json ' +
+          'FROM scan_contributions ORDER BY plugin_id, extension_id, contribution_id',
+      )
+      .all();
+    for (const r of rows) {
+      let payload = null;
+      try {
+        payload = JSON.parse(r.payload_json);
+      } catch {
+        continue;
+      }
+      const list = byPath.get(r.node_path) ?? [];
+      list.push({
+        pluginId: r.plugin_id,
+        extensionId: r.extension_id,
+        nodePath: r.node_path,
+        contributionId: r.contribution_id,
+        slot: r.slot,
+        payload,
+      });
+      byPath.set(r.node_path, list);
+    }
+  } finally {
+    conn.close();
+  }
+  let total = 0;
+  for (const node of scan.nodes ?? []) {
+    node.contributions = byPath.get(node.path) ?? [];
+    total += node.contributions.length;
+  }
+  process.stdout.write(
+    `[build-demo-dataset] embedded ${total} contributions across ${scan.nodes?.length ?? 0} nodes\n`,
+  );
+}
+
 async function embedBodies(scan, fixtureDir) {
   for (const node of scan.nodes ?? []) {
     try {
@@ -388,6 +447,7 @@ async function main() {
   // bundle). When the fixture grows past ~100 nodes, revisit this
   // (split into per-node JSON assets fetched on demand).
   await embedBodies(scan, FIXTURE_DIR);
+  embedContributions(scan, DB_PATH);
 
   const ascii = await renderAsciiGraph();
 

@@ -189,7 +189,7 @@ describe('view contributions, loadPluginRuntime aggregation', () => {
   it('honours emitWhenEmpty: true when set', async () => {
     const dir = freshDir('catalog-emit-empty');
     plantPluginWithViewContributions(dir, 'agg-emit', {
-      tag: { slot: 'inspector.header.badge.tag', label: 'Status', emitWhenEmpty: true },
+      tag: { slot: 'inspector.header.badge', label: 'Status', emitWhenEmpty: true },
     });
 
     const runtime = await loadPluginRuntime({ pluginDir: dir });

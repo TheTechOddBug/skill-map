@@ -28,6 +28,7 @@
 
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { Issue, Node } from '../../../../kernel/types.js';
+import { NODE_STABILITY_TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'node-stability';
@@ -62,12 +63,27 @@ export const nodeStabilityAnalyzer: IBuiltInManifest<IAnalyzer> = {
       emitWhenEmpty: false,
       priority: 10,
     },
+    // Inspector action button that dispatches `core/node-set-stability`.
+    // Emitted for every node that already has a sidecar; the prompt
+    // pre-loads the current stage (or `stable`) as its `defaultValue`.
+    setStabilityButton: {
+      slot: 'inspector.action.button',
+      priority: 15,
+    },
   },
 
   evaluate(ctx: IAnalyzerContext): Issue[] {
     const issues: Issue[] = [];
     for (const node of ctx.nodes) {
       const stability = readStability(node);
+
+      // Set-stability button: present for every node that already has a
+      // sidecar. Nodes with no sidecar are skipped so the inspector
+      // never offers to scaffold a `.sm` (creation is CLI-only).
+      if (node.sidecar?.present === true) {
+        emitSetStabilityButton(ctx, node.path, stability ?? 'stable');
+      }
+
       if (stability === 'experimental') {
         ctx.emitContribution(node.path, 'experimental', {
           value: 0,
@@ -121,4 +137,33 @@ function readLegacyMetadataStability(fm: Record<string, unknown> | undefined): u
 
 function isStability(value: unknown): value is 'experimental' | 'deprecated' | 'stable' {
   return value === 'experimental' || value === 'deprecated' || value === 'stable';
+}
+
+/**
+ * Project the inspector "Set stability" button. `defaultValue` pre-loads
+ * the node's current lifecycle stage so the picker opens on the active
+ * value (callers pass `'stable'` when nothing is set).
+ */
+function emitSetStabilityButton(
+  ctx: IAnalyzerContext,
+  nodePath: string,
+  current: 'experimental' | 'deprecated' | 'stable',
+): void {
+  ctx.emitContribution(nodePath, 'setStabilityButton', {
+    actionId: 'core/node-set-stability',
+    label: NODE_STABILITY_TEXTS.setLabel,
+    icon: 'pi-flag',
+    enabled: true,
+    prompt: {
+      inputType: 'enum-pick',
+      paramKey: 'stability',
+      label: NODE_STABILITY_TEXTS.promptLabel,
+      options: [
+        { value: 'experimental', label: NODE_STABILITY_TEXTS.optionExperimental },
+        { value: 'stable', label: NODE_STABILITY_TEXTS.optionStable },
+        { value: 'deprecated', label: NODE_STABILITY_TEXTS.optionDeprecated },
+      ],
+      defaultValue: current,
+    },
+  });
 }

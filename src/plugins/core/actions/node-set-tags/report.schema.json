@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:skill-map:core/node-set-tags/report",
+  "title": "SetTagsReport",
+  "description": "Report shape returned by `core/node-set-tags`. Deterministic Action; lists the taxonomy tags written to the sidecar.",
+  "type": "object",
+  "required": ["confidence", "safety", "tags"],
+  "additionalProperties": false,
+  "properties": {
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "safety": {
+      "type": "object",
+      "required": ["injectionDetected", "contentQuality"],
+      "additionalProperties": false,
+      "properties": {
+        "injectionDetected": { "type": "boolean" },
+        "contentQuality": { "type": "string", "enum": ["high", "medium", "low", "unknown"] }
+      }
+    },
+    "tags": { "type": "array", "items": { "type": "string" } }
+  }
+}

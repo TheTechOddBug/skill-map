@@ -27,4 +27,8 @@ export const ANNOTATION_STALE_TEXTS = {
     'Sidecar drift since last bump:\n  • frontmatter\nRun `sm bump <path>` to refresh.',
   bothTooltip:
     'Sidecar drift since last bump:\n  • body\n  • frontmatter\nRun `sm bump <path>` to refresh.',
+  /** Label of the inspector action button that dispatches a bump. */
+  bumpLabel: 'Bump',
+  /** Tooltip shown when the bump button is disabled (the node is fresh, no drift). */
+  bumpDisabledReason: 'No drift to bump.',
 } as const;

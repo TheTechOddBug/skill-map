@@ -44,12 +44,23 @@ import {
 /**
  * Consent + runtime context required to gate a `.sm` write (per
  * `spec/architecture.md` §Annotation system · Write consent). The caller
- * threads its own `IRuntimeContext` (`cwd`) plus the operator's
- * confirmation signal, `true` when consent was already secured (`--yes`
- * on the CLI, `confirm: true` in the BFF body) and `false` otherwise.
+ * threads its own `IRuntimeContext` (`cwd`) plus the operator's two-tier
+ * consent signal:
+ *
+ *   - `confirm`, one-shot grant: let THIS write through without
+ *     persisting (`--yes` on the CLI, `confirm: true` in the BFF body).
+ *   - `always`, persistent grant: flip `allowEditSmFiles` to `true` on
+ *     disk so the project never re-asks (`always: true` in the BFF
+ *     body, the "allow always" checkbox in the UI consent dialog).
+ *     Implies `confirm` (strong grant).
+ *
+ * Both fields are forwarded verbatim to the injected gate; the gate
+ * (`core/config/sidecar-consent.ts:ensureSidecarWritesAllowed`) owns
+ * the decision ladder.
  */
 export interface ISidecarWriteConsent {
   confirm: boolean;
+  always?: boolean;
   cwd: string;
 }
 

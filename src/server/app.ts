@@ -43,6 +43,8 @@
  *   - `HTTPException(400)`    → `code: 'bad-query'`.
  *   - `ConflictError(409)`    → `code: 'scan-busy' | 'sidecar-fresh'`
  *                               (typed subclass, dispatched by `code`).
+ *   - `ActionRefusedError(409)` → `code: <report.reason> | 'action-refused'`
+ *                               (generic action refusal, open-ended code).
  *   - `HTTPException(413)`    → `code: 'payload-too-large'` (audit M4).
  *   - `ExportQueryError`      → `code: 'bad-query'`, `status: 400`.
  *   - any other status / `Error` → `code: 'internal'`, `status: 500`.
@@ -94,8 +96,8 @@ import { registerPreferencesRoute } from './routes/preferences.js';
 import { registerProjectIgnoreRoute } from './routes/project-ignore.js';
 import { registerProjectPreferencesRoute } from './routes/project-preferences.js';
 import { registerActiveProviderRoute } from './routes/active-provider.js';
+import { registerActionsRoutes } from './routes/actions.js';
 import { registerScanRoute } from './routes/scan.js';
-import { registerSidecarRoutes } from './routes/sidecar.js';
 import { registerUpdateStatusRoute } from './routes/update-status.js';
 import { createSpaFallback, createStaticHandler } from './static.js';
 import { attachBroadcasterRoute } from './ws.js';
@@ -117,6 +119,7 @@ export type TErrorCode =
   | 'db-missing'
   | 'sidecar-fresh'
   | 'scan-busy'
+  | 'action-refused'
   | 'locked'
   | 'confirm-required'
   | 'host-not-allowed'
@@ -202,12 +205,15 @@ export class LoopbackGateError extends HTTPException {
  * `LoopbackGateError`'s one-class-two-codes shape:
  *
  *   - `scan-busy`     (`POST /api/scan`): another scan is in flight.
- *   - `sidecar-fresh` (`POST /api/sidecar/bump`): node is fresh and
- *     `force` was not passed.
+ *   - `sidecar-fresh` (legacy bump path): node is fresh and `force` was
+ *     not passed. Retained for `POST /api/scan` parity; the generic
+ *     `POST /api/actions/:id` route emits its refusals via the
+ *     open-ended `ActionRefusedError` instead (the bump refusal now
+ *     surfaces as `code: 'fresh'`, the report's own reason).
  *
- * The catalog messages keep their `scan-busy:` / `sidecar-fresh:`
- * prefixes for log-grep affinity with the CLI, but the prefix is no
- * longer load-bearing for dispatch (the typed `code` is).
+ * The catalog messages keep their `scan-busy:` prefix for log-grep
+ * affinity with the CLI, but the prefix is no longer load-bearing for
+ * dispatch (the typed `code` is).
  */
 export class ConflictError extends HTTPException {
   readonly code: 'scan-busy' | 'sidecar-fresh';
@@ -216,6 +222,44 @@ export class ConflictError extends HTTPException {
     super(409, { message: init.message });
     this.name = 'ConflictError';
     this.code = init.code;
+  }
+}
+
+/**
+ * Generic action-refusal conflict (Step 17), thrown by the
+ * `POST /api/actions/:id` route when an Action's report comes back
+ * `ok: false`. Distinct from `ConflictError` because the refusal
+ * `code` is open-ended: a plugin Action names its own refusal reason
+ * (e.g. `sidecar-fresh`, `cycle-detected`, `supersede-self`), so the
+ * code can't be a closed host union. The reason travels on the envelope
+ * `code` (sanitised); the full report ships under `details.report` so
+ * the SPA can render the action-specific copy. When the report refuses
+ * without naming a reason, the canonical `action-refused` is used.
+ *
+ * `details` carries `{ actionId, nodePath, report }` so the UI's
+ * dispatch path can correlate the refusal with the button it clicked
+ * and surface the report verbatim.
+ */
+export class ActionRefusedError extends HTTPException {
+  /** Refusal code: the report's `reason` when present, else `'action-refused'`. */
+  readonly code: string;
+  readonly details: { actionId: string; nodePath: string; report: unknown };
+
+  constructor(init: {
+    code: string;
+    message: string;
+    actionId: string;
+    nodePath: string;
+    report: unknown;
+  }) {
+    super(409, { message: init.message });
+    this.name = 'ActionRefusedError';
+    this.code = init.code;
+    this.details = {
+      actionId: init.actionId,
+      nodePath: init.nodePath,
+      report: init.report,
+    };
   }
 }
 
@@ -316,7 +360,7 @@ export function createApp(deps: IAppDeps): Hono {
   // Single ConfigService instance for the lifetime of the server.
   // Routes consume it via `IRouteDeps.configService`; mutating routes
   // (PATCH preferences / PATCH project-preferences / the
-  // `confirm: true` arm of POST /api/sidecar/bump) call
+  // `always: true` arm of POST /api/actions/:id) call
   // `configService.reload()` after a successful write so the next
   // read does not hand out stale state. Mounted directly onto the
   // route deps instead of via a Hono `c.var` middleware, every
@@ -411,10 +455,13 @@ export function createApp(deps: IAppDeps): Hono {
   registerGraphRoute(app, routeDeps);
   registerConfigRoute(app, routeDeps);
   registerPluginsRoute(app, routeDeps);
-  // Step 9.6.5, `POST /api/sidecar/bump` (UI-driven sidecar bump).
-  // Carries the broadcaster so a successful bump can fan out a
-  // `sidecar.bumped` WS event to every connected client.
-  registerSidecarRoutes(app, { ...routeDeps, broadcaster: deps.broadcaster });
+  // Step 17, `POST /api/actions/:qualifiedId` (generic Action
+  // dispatch). Generalises the retired `POST /api/sidecar/bump`:
+  // resolves any qualified action id off the kernel registry, invokes
+  // it, materialises sidecar writes through the consent-gated store,
+  // and fans out an `action.applied` WS event on success. Carries the
+  // broadcaster + kernel.
+  registerActionsRoutes(app, { ...routeDeps, broadcaster: deps.broadcaster, kernel: deps.kernel });
   // Per-user favorites, `PUT/DELETE /api/favorites/:pathB64`. Persists
   // to `state_node_favorites` (zone `state_`); decorated onto every
   // `/api/nodes` response via in-memory Set membership.
@@ -566,17 +613,8 @@ export function formatError(err: unknown, c: Context): Response {
     return c.json(envelope, 403);
   }
 
-  if (err instanceof ConflictError) {
-    const envelope: IErrorEnvelope = {
-      ok: false,
-      error: {
-        code: err.code,
-        message: err.message,
-        details: null,
-      },
-    };
-    return c.json(envelope, 409);
-  }
+  const conflict = formatConflict(err, c);
+  if (conflict) return conflict;
 
   if (err instanceof HTTPException) {
     const status = err.status as StatusCode;
@@ -628,6 +666,40 @@ export function formatError(err: unknown, c: Context): Response {
   }
 
   return formatInternalErrorFallThrough(err, c);
+}
+
+/**
+ * Format the two `409 Conflict` subclasses into the canonical error
+ * envelope. Returns `null` when `err` is neither, so the caller can
+ * fall through to the next mapping branch. Extracted from `formatError`
+ * so the dispatcher's cyclomatic complexity stays inside the lint
+ * budget (the two `instanceof` checks + the details ternary would
+ * otherwise push it over).
+ *
+ *   - `ConflictError`      (`scan-busy` / `sidecar-fresh`): closed
+ *     `code`, no `details`.
+ *   - `ActionRefusedError` (`POST /api/actions/:id`): open-ended `code`
+ *     (the report's `reason`, sanitised at the throw site, widened past
+ *     the closed `TErrorCode` union, the UI's `TErrorCodeApi` accepts
+ *     an open `string`), `details` carries `{ actionId, nodePath,
+ *     report }` so the SPA renders action-specific copy.
+ */
+function formatConflict(err: unknown, c: Context): Response | null {
+  if (err instanceof ActionRefusedError) {
+    const envelope: IErrorEnvelope = {
+      ok: false,
+      error: { code: err.code as TErrorCode, message: err.message, details: err.details },
+    };
+    return c.json(envelope, 409);
+  }
+  if (err instanceof ConflictError) {
+    const envelope: IErrorEnvelope = {
+      ok: false,
+      error: { code: err.code, message: err.message, details: null },
+    };
+    return c.json(envelope, 409);
+  }
+  return null;
 }
 
 /**

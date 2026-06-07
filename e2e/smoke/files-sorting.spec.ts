@@ -25,7 +25,17 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 async function gotoFiles(page: Page): Promise<void> {
   // Workspace redesign: there is no standalone `/files` route anymore.
   // The files tree renders as the left RAIL of the fused workspace at `/`,
-  // so the table is reachable directly on the landing route.
+  // so the table is reachable directly on the landing route. The rail
+  // opens collapsed map-first by default (`sm.workspace.rail-collapsed`
+  // absent => collapsed), so seed the persisted OPEN state before the
+  // first navigation; otherwise `files-view` never mounts.
+  await page.addInitScript(() => {
+    try {
+      window.localStorage.setItem('sm.workspace.rail-collapsed', '0');
+    } catch {
+      /* localStorage unavailable before first paint; ignore. */
+    }
+  });
   await page.goto('./');
   await page.waitForLoadState('networkidle');
   await expect(page.getByTestId('files-view')).toBeVisible();

@@ -3,11 +3,12 @@
  *
  * Owns the visual fingerprint of the node currently in focus: kind
  * eyebrow + icon box + name (with version chip and stability tag) +
- * path + meta strip (bytes), plus the right-edge actions
- * cluster (favorite star, stale clock, header-badge slots), the
- * plugin-actions row (hidden behind a feature flag), and the tag
- * chip row (sidecar-curated tags; clicking one selects every node
- * carrying that tag on the map).
+ * path + meta strip (bytes), plus the right-edge actions cluster
+ * (favorite star, unified header-badge slot), and the tag chip row
+ * (sidecar-curated tags; clicking one selects every node carrying that
+ * tag on the map). The stale signal and any other header badge now
+ * arrive as contributions on `inspector.header.badge`; the header
+ * carries no hardcoded badge of its own.
  *
  * Inputs are required: a non-null `node` is the precondition the host
  * already enforces before mounting the header (the `@else { ... }`
@@ -21,16 +22,13 @@ import {
   input,
   output,
 } from '@angular/core';
-import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { INSPECTOR_VIEW_TEXTS } from '../../../i18n/inspector-view.texts';
 import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
 import type { INodeView, TStability } from '../../../models/node';
 import {
-  effectiveIsStale,
   effectiveStability,
-  effectiveStaleTooltip,
   effectiveUserTags,
   effectiveVersion,
 } from '../../../models/node-derived';
@@ -55,18 +53,13 @@ const CLAUDE_VENDOR_COLORS: ReadonlySet<string> = new Set([
 
 @Component({
   selector: 'sm-inspector-header',
-  imports: [ButtonModule, TooltipModule, KindIcon, ViewContributionsHost],
+  imports: [TooltipModule, KindIcon, ViewContributionsHost],
   templateUrl: './inspector-header.html',
   styleUrl: './inspector-header.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class InspectorHeader {
   readonly node = input.required<INodeView>();
-  /**
-   * Mirrors `DEFAULT_SETTINGS.inspector.actionMocks`. When false the
-   * Actions row is hidden, see inspector-view.ts for the source.
-   */
-  readonly showActionMocks = input<boolean>(false);
   /**
    * True when the node carries a `frontmatter-parse-error` issue, i.e.
    * its YAML frontmatter failed to parse and `frontmatter` came back
@@ -141,12 +134,6 @@ export class InspectorHeader {
   protected isActiveTag(tag: string): boolean {
     return this.activeTag() === tag;
   }
-
-  protected readonly headerIsStale = computed<boolean>(() => effectiveIsStale(this.node()));
-
-  protected readonly headerStaleTooltip = computed<string>(() =>
-    effectiveStaleTooltip(this.node(), NODE_CARD_TEXTS.sidecar),
-  );
 
   protected onFavoriteClick(event: MouseEvent): void {
     event.stopPropagation();

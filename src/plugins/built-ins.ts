@@ -43,10 +43,14 @@ import { referenceBrokenAnalyzer as _referenceBrokenAnalyzer } from './core/anal
 import { referenceRedundantAnalyzer as _referenceRedundantAnalyzer } from './core/analyzers/reference-redundant/index.js';
 import { schemaViolationAnalyzer as _schemaViolationAnalyzer } from './core/analyzers/schema-violation/index.js';
 import { signalCollisionAnalyzer as _signalCollisionAnalyzer } from './core/analyzers/signal-collision/index.js';
+import { supersedeAnalyzer as _supersedeAnalyzer } from './core/analyzers/supersede/index.js';
+import { tagsAnalyzer as _tagsAnalyzer } from './core/analyzers/tags/index.js';
 import { triggerCollisionAnalyzer as _triggerCollisionAnalyzer } from './core/analyzers/trigger-collision/index.js';
 import { asciiFormatter as _asciiFormatter } from './core/formatters/ascii/index.js';
 import { jsonFormatter as _jsonFormatter } from './core/formatters/json/index.js';
 import { nodeBumpAction as _nodeBumpAction } from './core/actions/node-bump/index.js';
+import { nodeSetStabilityAction as _nodeSetStabilityAction } from './core/actions/node-set-stability/index.js';
+import { nodeSetTagsAction as _nodeSetTagsAction } from './core/actions/node-set-tags/index.js';
 import { nodeSupersedeAction as _nodeSupersedeAction } from './core/actions/node-supersede/index.js';
 import { updateCheckHook as _updateCheckHook } from './core/hooks/update-check/index.js';
 
@@ -78,10 +82,14 @@ const referenceBrokenAnalyzer = { ..._referenceBrokenAnalyzer, pluginId: 'core',
 const referenceRedundantAnalyzer = { ..._referenceRedundantAnalyzer, pluginId: 'core', version: VERSION };
 const schemaViolationAnalyzer = { ..._schemaViolationAnalyzer, pluginId: 'core', version: VERSION };
 const signalCollisionAnalyzer = { ..._signalCollisionAnalyzer, pluginId: 'core', version: VERSION };
+const supersedeAnalyzer = { ..._supersedeAnalyzer, pluginId: 'core', version: VERSION };
+const tagsAnalyzer = { ..._tagsAnalyzer, pluginId: 'core', version: VERSION };
 const triggerCollisionAnalyzer = { ..._triggerCollisionAnalyzer, pluginId: 'core', version: VERSION };
 const asciiFormatter = { ..._asciiFormatter, pluginId: 'core', version: VERSION };
 const jsonFormatter = { ..._jsonFormatter, pluginId: 'core', version: VERSION };
 const nodeBumpAction = { ..._nodeBumpAction, pluginId: 'core', version: VERSION };
+const nodeSetStabilityAction = { ..._nodeSetStabilityAction, pluginId: 'core', version: VERSION };
+const nodeSetTagsAction = { ..._nodeSetTagsAction, pluginId: 'core', version: VERSION };
 const nodeSupersedeAction = { ..._nodeSupersedeAction, pluginId: 'core', version: VERSION };
 const updateCheckHook = { ..._updateCheckHook, pluginId: 'core', version: VERSION };
 
@@ -159,10 +167,14 @@ export const builtInPlugins: IBuiltInPlugin[] = [
       referenceRedundantAnalyzer,
       schemaViolationAnalyzer,
       signalCollisionAnalyzer,
+      supersedeAnalyzer,
+      tagsAnalyzer,
       triggerCollisionAnalyzer,
       asciiFormatter,
       jsonFormatter,
       nodeBumpAction,
+      nodeSetStabilityAction,
+      nodeSetTagsAction,
       nodeSupersedeAction,
       updateCheckHook,
     ],

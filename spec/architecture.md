@@ -651,18 +651,19 @@ The Action stays pure (no IO). The kernel materializes the patch through the `Si
 
 ### Write consent
 
-Every `.sm` write, scaffold (`sm sidecar annotate`), hash-only update (`sm sidecar refresh`), bump (`sm bump`, `POST /api/sidecar/bump`), or any future write surface, passes through `SidecarStore.applyPatch` (or, where the verb writes a fresh sidecar, the equivalent kernel-managed entry point). That single chokepoint MUST consult `allowEditSmFiles` (see §Config layering) before touching disk:
+Every `.sm` write, scaffold (`sm sidecar annotate`), hash-only update (`sm sidecar refresh`), bump (`sm bump`, `POST /api/sidecar/bump`), action dispatch (`POST /api/actions/:id` for any `.sm`-writing Action), or any future write surface, passes through `SidecarStore.applyPatch` (or, where the verb writes a fresh sidecar, the equivalent kernel-managed entry point). That single chokepoint MUST consult `allowEditSmFiles` (see §Config layering) before touching disk. Every write asks unless `allowEditSmFiles === true`; the dispatch / bump body carries two orthogonal consent fields, `confirm` (one-shot grant) and `always` (persist the grant):
 
-- `allowEditSmFiles === true` → write proceeds.
-- `allowEditSmFiles === false` AND the caller passes `confirm: true` → the kernel persists `allowEditSmFiles: true` to `<cwd>/.skill-map/settings.local.json` (layer `project-local`) and then performs the write.
-- `allowEditSmFiles === false` AND `confirm` is missing / false → the kernel raises `EConsentRequiredError`. The driving adapter MUST translate it into a surface-appropriate prompt:
-  - **CLI on a TTY**: interactive `confirm()` prompt. Accept re-invokes the verb with `confirm: true`; decline aborts without persisting the rejection.
+- `allowEditSmFiles === true` → write proceeds, no prompt (consent already persisted).
+- `allowEditSmFiles === false` AND the caller passes `always: true` → the kernel persists `allowEditSmFiles: true` to `<cwd>/.skill-map/settings.local.json` (layer `project-local`) and then performs the write. `always` **implies** `confirm`: the grant authorises this write too, so a body carrying `always: true` need not also set `confirm`.
+- `allowEditSmFiles === false` AND `confirm: true` (without `always`) → a **one-shot** grant. The kernel performs this write but persists **nothing**; the next write re-asks. Use this for "yes, just this once".
+- `allowEditSmFiles === false` AND both `confirm` and `always` missing / false → the kernel raises `EConsentRequiredError`. The driving adapter MUST translate it into a surface-appropriate prompt:
+  - **CLI on a TTY**: interactive `confirm()` prompt offering "just this once" (re-invokes with `confirm: true`) vs. "always for this project" (re-invokes with `always: true`). Decline aborts without persisting the rejection.
   - **CLI without a TTY** (CI, scripts): exit with the standard "user input required" code and a message hinting `--yes`.
-  - **BFF**: 412 `confirm-required` envelope (`{ ok: false, error: { code: 'confirm-required', message, details: { key: 'allowEditSmFiles' } } }`). The UI catches it, opens a confirm dialog, and on accept retries the original request with `{ confirm: true }`.
+  - **BFF**: 412 `confirm-required` envelope (`{ ok: false, error: { code: 'confirm-required', message, details: { key: 'allowEditSmFiles' } } }`). The UI catches it, opens a confirm dialog with the same two choices, and on accept retries the original request with `{ confirm: true }` or `{ always: true }`.
 
-The rejection is **not persisted**. Declining the prompt aborts the current operation but the next attempt re-asks. This is deliberate: a "no" today should not foreclose a "yes" tomorrow without the user having to hand-edit the settings file.
+Declining the prompt persists **nothing**, neither a grant nor a rejection. It aborts the current operation but the next attempt re-asks. This is deliberate: a "no" today should not foreclose a "yes" tomorrow without the user having to hand-edit the settings file, and a one-shot `confirm` never silently enrols the project into unconditional writes.
 
-The flag lives in `project-local` (gitignored) so each collaborator consents independently; a single contributor's "yes" never enrols their teammates without their knowledge.
+The flag lives in `project-local` (gitignored) so each collaborator consents independently; a single contributor's `always` never enrols their teammates without their knowledge.
 
 ### Plugin contributions
 
@@ -828,6 +829,10 @@ Endpoints under `/api/contributions/*`:
 
 - `GET /api/contributions/registered`, runtime catalog. Mirror of `/api/annotations/registered`. Envelope variant `kind: 'contributions.registered'` (see [`schemas/api/rest-envelope.schema.json`](./schemas/api/rest-envelope.schema.json)).
 - `GET /api/contributions/:pluginId/:extensionId/:contributionId?path=...`, lazy per-node fetch for inspector slots. **Three URL segments** mirror the qualified id `<pluginId>/<extensionId>/<contributionId>`. Filters by qualified id + node path; the BFF enforces `pluginId` ↔ namespace at the route level, no cross-plugin reads via this endpoint.
+
+The `inspector.action.button` slot dispatches to a generic Action endpoint, sibling of the single-node `POST /api/sidecar/bump`:
+
+- `POST /api/actions/:id`, dispatch a kernel Action by qualified id (`:id` is the `<plugin>/<action>` from the button payload's `actionId`). Body carries the target `nodePath`, the optional reserved `input` object (Steps 2+), and the consent fields `confirm` / `always` (see §Annotation system → Write consent) for `.sm`-writing Actions. The kernel resolves the Action in its registry (unknown id → 404), runs it against the node, and answers the action-result envelope `kind: 'action.applied'` (`{ value: { actionId, nodePath, report }, elapsedMs }`, see [`schemas/api/rest-envelope.schema.json`](./schemas/api/rest-envelope.schema.json)). `POST /api/sidecar/bump` remains the dedicated single-purpose route for `core/node-bump` (`kind: 'sidecar.bumped'`); the generic dispatch route shares the same action-result envelope variant.
 
 Plus catalog embedding into every payload-bearing envelope:
 
