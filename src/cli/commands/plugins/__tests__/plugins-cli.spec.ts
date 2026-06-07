@@ -21,7 +21,9 @@ import { after, before, describe, it } from 'node:test';
 import { SqliteStorageAdapter } from '../../../../kernel/adapters/sqlite/index.js';
 import {
   loadContributionsForNode,
+  replaceAllScanContributionErrors,
   replaceAllScanContributions,
+  type IContributionErrorRecord,
 } from '../../../../kernel/adapters/sqlite/contributions.js';
 import { getPluginEnabled } from '../../../../kernel/adapters/sqlite/plugins.js';
 import { installedSpecVersion } from '../../../../kernel/adapters/plugin-loader.js';
@@ -574,6 +576,115 @@ describe('sm plugins doctor, disabled is not a failure', () => {
     const r = sm(['plugins', 'doctor'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     assert.match(r.stdout, /disabled\s+1/);
+  });
+});
+
+// "off-shape visible" follow-up. The doctor reads the last scan's
+// persisted `scan_contribution_errors` rows, renders a "Runtime
+// contribution errors (last scan)" section, promotes the exit code to 1
+// when any exist, and carries them in the `--json` envelope.
+describe('sm plugins doctor, runtime contribution errors (last scan)', () => {
+  /**
+   * Seed `scan_contribution_errors` against the project DB the doctor
+   * resolves (`<cwd>/.skill-map/skill-map.db`). Mirrors the
+   * round-trip seeding in `view-contributions.spec.ts`, the replace-all
+   * writer inside the same transaction the adapter exposes.
+   */
+  async function seedContribErrors(
+    scope: IScope,
+    records: IContributionErrorRecord[],
+  ): Promise<void> {
+    const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
+    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+    await adapter.init();
+    try {
+      await adapter.db.transaction().execute(async (trx) => {
+        await replaceAllScanContributionErrors(trx, records);
+      });
+    } finally {
+      await adapter.close();
+    }
+  }
+
+  it('renders the section, exits 1, and lists a sample message (human mode)', async () => {
+    const scope = freshScope('doctor-contrib-errors');
+    sm(['init', '--no-scan'], scope);
+    await seedContribErrors(scope, [
+      {
+        pluginId: 'mock-bad',
+        extensionId: 'mock-bad-extractor',
+        nodePath: 'a.md',
+        reason: 'must have required property `value`',
+        message: 'Extractor "mock-bad/mock-bad-extractor" emitted contribution "count" on a.md; payload failed the schema.',
+        contributionId: 'count',
+        slot: 'card.footer.right',
+        emittedAt: 1000,
+      },
+      {
+        pluginId: 'mock-bad',
+        extensionId: 'mock-bad-extractor',
+        nodePath: 'b.md',
+        reason: 'undeclared-contribution-ref',
+        message: 'Extension "mock-bad/mock-bad-extractor" emitted a view contribution on b.md whose object is not declared.',
+        emittedAt: 2000,
+      },
+    ]);
+
+    const r = sm(['plugins', 'doctor'], scope);
+    // Any persisted runtime contribution error promotes the exit code.
+    assert.equal(r.status, 1, `stderr: ${r.stderr}`);
+    // The gated section header (with the total count) appears.
+    assert.match(r.stdout, /Runtime contribution errors \(last scan\) \(2\)/);
+    // The per-plugin group entry carries the plugin id + its error count.
+    assert.match(r.stdout, /mock-bad\s+\(2\)/);
+    // At least one sample message line is rendered.
+    assert.match(r.stdout, /payload failed the schema/);
+  });
+
+  it('carries every error in the --json envelope and exits 1', async () => {
+    const scope = freshScope('doctor-contrib-errors-json');
+    sm(['init', '--no-scan'], scope);
+    await seedContribErrors(scope, [
+      {
+        pluginId: 'mock-bad',
+        extensionId: 'mock-bad-extractor',
+        nodePath: 'a.md',
+        reason: 'must have required property `value`',
+        message: 'payload failed the schema',
+        contributionId: 'count',
+        slot: 'card.footer.right',
+        emittedAt: 1000,
+      },
+    ]);
+
+    const r = sm(['plugins', 'doctor', '--json'], scope);
+    assert.equal(r.status, 1, `stderr: ${r.stderr}`);
+    const payload = JSON.parse(r.stdout);
+    assert.equal(payload.kind, 'plugins.doctor');
+    assert.ok(Array.isArray(payload.contributionErrors), 'contributionErrors is an array');
+    assert.equal(payload.contributionErrors.length, 1);
+    const err = payload.contributionErrors[0];
+    assert.equal(err.pluginId, 'mock-bad');
+    assert.equal(err.extensionId, 'mock-bad-extractor');
+    assert.equal(err.nodePath, 'a.md');
+    assert.equal(err.contributionId, 'count');
+    assert.equal(err.slot, 'card.footer.right');
+    assert.equal(err.reason, 'must have required property `value`');
+  });
+
+  it('cold start: no rows means no section and exit 0', () => {
+    const scope = freshScope('doctor-contrib-errors-cold');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['plugins', 'doctor'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.doesNotMatch(r.stdout, /Runtime contribution errors/);
+
+    // The --json envelope still carries the (empty) array.
+    const json = sm(['plugins', 'doctor', '--json'], scope);
+    assert.equal(json.status, 0, `stderr: ${json.stderr}`);
+    const payload = JSON.parse(json.stdout);
+    assert.deepEqual(payload.contributionErrors, []);
   });
 });
 

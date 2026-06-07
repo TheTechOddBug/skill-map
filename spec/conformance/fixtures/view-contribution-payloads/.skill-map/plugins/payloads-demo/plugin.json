@@ -1,0 +1,6 @@
+{
+  "version": "0.1.0",
+  "specCompat": "*",
+  "catalogCompat": "*",
+  "description": "Conformance fixture: an analyzer emitting well-formed bars/pairs/links payloads plus two deliberately rejected emissions (off-shape payload + spread copy that loses ui object identity)."
+}

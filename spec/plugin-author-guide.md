@@ -739,6 +739,8 @@ Analyzers take a `ctx` with `nodes`, `links`, and (if you assert on view contrib
 
 `sm plugins doctor` runs the full load pass and exits `1` if any plugin is in a non-`loaded` / non-`disabled` state. Wire it into CI.
 
+Beyond load status, `sm plugins doctor` also reports **runtime contribution errors from the last scan**: view contributions rejected at emit time (an undeclared ref, or a payload that fails the slot's schema) are persisted per scan and surfaced in a "Runtime contribution errors (last scan)" section grouped by plugin, and any present also promote the exit code to `1`. A plugin can be `loaded` (clean manifest) yet still have runtime rejections, a healthy `list` status does not mean your chips actually rendered. The same errors appear per-plugin in the Settings plugin panel (a warning badge plus a collapsible diagnostics list). Re-run `sm scan` after a fix to clear them.
+
 ---
 
 ## Scaffolder

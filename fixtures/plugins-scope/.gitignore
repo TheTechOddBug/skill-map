@@ -6,3 +6,5 @@
 .skill-map/settings.json
 .skill-map/settings.local.json
 .skill-map/backups/
+.skill-map/skill-map.db-shm
+.skill-map/skill-map.db-wal

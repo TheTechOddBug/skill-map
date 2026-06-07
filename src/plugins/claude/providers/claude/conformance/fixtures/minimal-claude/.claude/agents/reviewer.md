@@ -14,3 +14,5 @@ metadata:
 # Reviewer agent
 
 Reviews supplied text and suggests edits. Does not modify files automatically; returns proposed diffs only.
+
+After a review, run /status to confirm the working tree state before committing.

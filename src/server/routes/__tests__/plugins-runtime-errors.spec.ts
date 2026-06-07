@@ -205,8 +205,8 @@ describe('GET /api/plugins, runtimeContributionErrors', () => {
       assert.ok(claudeErr);
       assert.ok(coreErr);
       // Grouping key + timestamp are stripped from the wire element.
-      assert.equal((claudeErr as Record<string, unknown>).pluginId, undefined);
-      assert.equal((claudeErr as Record<string, unknown>).emittedAt, undefined);
+      assert.equal((claudeErr as unknown as Record<string, unknown>)['pluginId'], undefined);
+      assert.equal((claudeErr as unknown as Record<string, unknown>)['emittedAt'], undefined);
       // Full AJV shape carries contributionId + slot.
       assert.equal(claudeErr.extensionId, 'slash-command');
       assert.equal(claudeErr.contributionId, 'cmd-card');

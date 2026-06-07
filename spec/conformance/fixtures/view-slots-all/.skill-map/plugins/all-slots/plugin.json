@@ -1,0 +1,6 @@
+{
+  "version": "0.1.0",
+  "specCompat": "*",
+  "catalogCompat": "*",
+  "description": "Conformance fixture: one analyzer whose ui map declares a contribution to every one of the 14 view slots, so the loader must accept every slot id in the closed catalog."
+}

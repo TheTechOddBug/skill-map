@@ -1,0 +1,15 @@
+{
+  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "id": "view-slots-all",
+  "description": "An analyzer whose `ui` map declares a contribution to every one of the 14 view slots (with the required `icon` on the counter and title slots) MUST load clean: `sm plugins doctor` reports `ok` with no `invalid-manifest`. Locks that every slot id in the closed catalog is a valid manifest declaration; removing or renaming a slot would flip a declaration to `invalid-manifest` and fail this case.",
+  "fixture": "view-slots-all",
+  "invoke": {
+    "verb": "plugins",
+    "sub": "doctor",
+    "flags": ["--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "json-path", "path": "$.ok", "equals": true }
+  ]
+}

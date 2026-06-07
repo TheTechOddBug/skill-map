@@ -11,27 +11,30 @@
 // `$defs/payloads/inspector.action.button`. The companion case
 // `view-action-button.json` asserts the plugin loads (no stderr
 // rejection) and `sm scan` exits cleanly.
+// Contributions are declared as consts and emitted BY REFERENCE (the kernel
+// recovers the id from the `ui` map by object identity); `ui` lists them by
+// shorthand so each const and its `ui` entry are the same object.
+const keywords = {
+  slot: 'inspector.header.badge',
+  label: 'keywords',
+};
+const bump = {
+  slot: 'inspector.action.button',
+};
+
 export default {
   version: '0.1.0',
   description: 'analyzer declaring inspector.header.badge + inspector.action.button',
   mode: 'deterministic',
 
-  ui: {
-    keywords: {
-      slot: 'inspector.header.badge',
-      label: 'keywords',
-    },
-    bump: {
-      slot: 'inspector.action.button',
-    },
-  },
+  ui: { keywords, bump },
 
   evaluate(ctx) {
     for (const node of ctx.nodes) {
       // Well-formed `inspector.header.badge` payload (count + icon).
-      ctx.emitContribution(node.path, 'keywords', { count: 3, icon: 'pi-search' });
+      ctx.emitContribution(node.path, keywords, { count: 3, icon: 'pi-search' });
       // Well-formed `inspector.action.button` payload.
-      ctx.emitContribution(node.path, 'bump', {
+      ctx.emitContribution(node.path, bump, {
         actionId: 'core/node-bump',
         label: 'Bump version',
         icon: 'pi-arrow-up',

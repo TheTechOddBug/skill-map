@@ -10,7 +10,7 @@ metadata:
   version: 1.0.0
 ---
 
-# /status command
+# The `/status` command
 
 Prints a concise status line for the current project. Shows the branch name, whether the tree is dirty, and the commit distance from upstream.
 

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "id": "view-contribution-payloads",
+  "description": "An analyzer emitting well-formed payloads to the renamed list-panel slots (breakdown `bars`, key-values `pairs`, link-list `links`) MUST load and scan clean (exit 0). Two deliberately off-shape emissions MUST each be dropped with a loud `extension.error` on stderr: a payload that fails the key-values AJV schema (a pair missing `value`), and a spread copy that loses the `ui` object identity (the undeclared-contribution-ref guard). Locks the emit-by-reference contract, the renamed payload fields, and the visible off-shape diagnostic.",
+  "fixture": "view-contribution-payloads",
+  "invoke": {
+    "verb": "scan",
+    "flags": ["--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "json-path", "path": "$.schemaVersion", "equals": 1 },
+    { "type": "json-path", "path": "$.stats.nodesCount", "equals": 1 },
+    { "type": "json-path", "path": "$.stats.issuesCount", "equals": 0 },
+    { "type": "json-path", "path": "$.nodes[0].path", "equals": "notes/example.md" },
+    { "type": "stderr-matches", "pattern": "payload failed the .inspector.body.panel.key-values. schema" },
+    { "type": "stderr-matches", "pattern": "whose object is not one declared in its .ui. map" }
+  ]
+}
