@@ -1,10 +1,12 @@
 # Fixture templates
 
-Read this file during pre-flight steps 3 and 4 of `SKILL.md`. It
-holds the verbatim content of every file the skill writes to the
-cwd at boot.
+Fixtures the orchestrator lays for the auto-fixtured parts. Two sets
+today: the **master fixture** (Part 6, "Extend skill-map",
+`backstage-init`) right below, and the **portfolio fixture** (Part 1,
+"The project from zero", `portfolio-init`) at the end of this file.
+Read the set for the part being entered.
 
-## Fixture layout (per provider)
+## Master fixture (Part 6): layout (per provider)
 
 Per §Provider detection in `SKILL.md`, the `<provider_dir>`
 placeholder resolves to `.claude/` or `.agents/skills/` depending
@@ -126,3 +128,87 @@ Per finding:
 - **Got**: ...
 - **Notes**: ...
 ```
+
+## Portfolio fixture (Part 1, `portfolio-init`)
+
+Laid backstage before the tester's `sm init` in Part 1. The Express
+skeleton (`server.js`, `package.json`, `public/index.html`) is plain
+scaffolding, not `.md`, so the scan ignores it; it makes the project
+real and runnable (Part 5 starts it). The one boot node is the
+handbook `AGENTS.md`. On `agent-skills` / Antigravity (no `agent`
+kind) the harness still works: the agent member is created as a skill
+in a later chapter.
+
+Layout:
+
+```
+<cwd>/
+├── <provider_dir>/            (harness, grown by the chapters)
+├── docs/                      (created in the real-kinds chapter)
+├── public/
+│   └── index.html
+├── AGENTS.md                  (the boot node)
+├── server.js
+└── package.json
+```
+
+### File: `AGENTS.md` (kind: markdown, the boot node)
+
+```markdown
+---
+name: portfolio-handbook
+description: |
+  Operating manual for this portfolio site: how its pages get
+  written, checked, and published by the .claude/ harness.
+tags: [docs, portfolio]
+---
+
+# Portfolio handbook
+
+A small static portfolio site, served by Express (`server.js`). The
+`.claude/` harness maintains it: an agent writes the pages, a skill
+checks the links, a command publishes. The conventions live in
+`docs/STYLE.md`; the deploy steps in `docs/DEPLOY.md`.
+```
+
+### File: `server.js` (not scanned; runnable scaffolding)
+
+```js
+// Minimal static server for the portfolio. No framework, one dep.
+const express = require('express');
+const path = require('node:path');
+
+const app = express();
+app.use(express.static(path.join(__dirname, 'public')));
+
+const port = process.env.PORT || 3000;
+app.listen(port, () => console.log(`Portfolio live at http://localhost:${port}`));
+```
+
+### File: `package.json` (not scanned)
+
+```json
+{
+  "name": "my-portfolio",
+  "private": true,
+  "scripts": { "start": "node server.js" },
+  "dependencies": { "express": "4.21.2" }
+}
+```
+
+### File: `public/index.html` (not scanned; placeholder until Part 5)
+
+```html
+<!doctype html>
+<meta charset="utf-8">
+<title>My portfolio</title>
+<h1>My portfolio</h1>
+<p>Pages land here once the content-editor generates them.</p>
+```
+
+### `.skillmapignore` additions
+
+Append to the portfolio `.skillmapignore` (on top of the tutorial
+internals from `SKILL.md`): `node_modules/` (the Express install) and
+`public/` (generated HTML, not part of the harness graph).
+

@@ -88,55 +88,76 @@ parts:
       - id: annotations      ; title: "Annotations and the .sm consent prompt" ; est_min: 3
       - id: reference-paths  ; title: "Validate links to folders outside the scan scope" ; est_min: 4
 
-  # ----- planned parts (the portfolio campaign; no body yet, hidden
-  #       from the menu until their step_file exists) -----
+  # ----- the portfolio campaign (the spine's real project) -----
+  # Sequential: each part builds on the prior one's accumulated harness
+  # (preflight: reuse + a prereq chain). Full seed-to-stage-start is
+  # future work; today they run in order in the same cwd.
 
   - id: project-kickoff
     order: 1
     title: "The project from zero"
-    status: planned
+    step_file: part-project-kickoff.md
+    pace: per-step
+    preflight: portfolio-init   # lays the Express skeleton + AGENTS.md; clears the prologue demo fixture if present
+    fixture: portfolio
+    status: active
     chapters:
-      - id: kickoff   ; title: "Start the portfolio (sm init on the real skeleton)"
-      - id: manual    ; title: "The manual: AGENTS.md and CLAUDE.md (@AGENTS.md)"
-      - id: first-agent ; title: "The first harness agent (content-editor)"
-      - id: real-kinds ; title: "The real kinds in context"
+      - id: kickoff     ; title: "Start the portfolio (sm init on the real skeleton)" ; est_min: 2
+      - id: manual      ; title: "The handbook and CLAUDE.md (@AGENTS.md)" ; est_min: 2
+      - id: first-agent ; title: "The first harness agent (content-editor)" ; est_min: 2
+      - id: real-kinds  ; title: "The real kinds in context" ; est_min: 2
 
   - id: connect-harness
     order: 2
     title: "Connect the harness"
-    status: planned
+    step_file: part-connect-harness.md
+    pace: auto-advance
+    preflight: reuse
+    prereq: project-kickoff
+    status: active
     chapters:
-      - id: check-links ; title: "The check-links skill"
-      - id: publish     ; title: "The /publish command invokes the skill"
-      - id: links       ; title: "Mentions (@) and references between assets"
-      - id: confidence  ; title: "Connector confidence (opacity = certainty)"
+      - id: check-links ; title: "The check-links skill" ; est_min: 2
+      - id: publish     ; title: "The /publish command invokes the skill" ; est_min: 3
+      - id: links       ; title: "Mentions (@) and references between assets" ; est_min: 3
+      - id: confidence  ; title: "Connector confidence (opacity = certainty)" ; est_min: 2
 
   - id: maintain
     order: 3
     title: "Maintain the site"
-    status: planned
+    step_file: part-maintain.md
+    pace: auto-advance
+    preflight: reuse
+    prereq: connect-harness
+    status: active
     chapters:
-      - id: broken-ref   ; title: "A ref breaks (you rename DEPLOY.md)"
-      - id: analyzers    ; title: "The analyzer catalogue (what sm check catches)"
-      - id: orphans      ; title: "Orphans (sm orphans)"
-      - id: reserved     ; title: "Reserved names"
-      - id: sidecar      ; title: "Annotations .sm and consent"
-      - id: versions     ; title: "Versions: sm bump and history"
+      - id: broken-ref   ; title: "A ref breaks (you rename DEPLOY.md)" ; est_min: 3
+      - id: analyzers    ; title: "The analyzer catalogue (what sm check catches)" ; est_min: 3
+      - id: orphans      ; title: "Orphans (sm orphans)" ; est_min: 2
+      - id: reserved     ; title: "Reserved names" ; est_min: 2
+      - id: sidecar      ; title: "Annotations .sm and consent" ; est_min: 3
+      - id: versions     ; title: "Versions: sm bump and history" ; est_min: 2
 
   - id: mcp
     order: 4
     title: "MCP"            # a chapter apart, just before the finale
+    step_file: part-mcp.md
+    pace: auto-advance
+    preflight: reuse
     prereq: connect-harness
-    status: planned
+    status: active
     chapters:
-      - id: mcp-node ; title: "content-editor declares an MCP tool; the mcp:// node appears"
+      - id: mcp-node ; title: "content-editor declares an MCP tool; the mcp:// node appears" ; est_min: 3
 
   - id: live-site
     order: 5
     title: "The site, live"  # the finale / climax
-    status: planned
+    step_file: part-live-site.md
+    pace: auto-advance
+    preflight: reuse
+    prereq: connect-harness
+    status: active
     chapters:
-      - id: generate ; title: "The agent generates the HTML in public/"
-      - id: serve    ; title: "node server.js: your portfolio, live, next to the graph"
+      - id: generate ; title: "The agent generates the HTML in public/" ; est_min: 3
+      - id: serve    ; title: "node server.js: your portfolio, live, next to the graph" ; est_min: 3
 
 findings_file: "./findings.md"

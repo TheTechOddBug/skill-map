@@ -272,6 +272,22 @@ When a part begins, honour its `preflight` from the manifest:
 - **`taught-init`** (Part 0): the fixture + `.skillmapignore` were
   pre-laid in pre-flight; the tester runs `sm init` inside the
   first chapter. Nothing to do here.
+- **`portfolio-init`** (Part 1 `project-kickoff`): the campaign's
+  real project begins. Backstage, before the tester's `sm init` in
+  the `kickoff` chapter: (1) if the prologue ran first in this dir,
+  clear its demo fixture so the map starts clean, delete ONLY the
+  Part 0 fixture files (`<provider_dir>/agents/demo-agent.md`,
+  `<provider_dir>/skills/demo-skill/`,
+  `<provider_dir>/commands/demo-command.md`, `notes/todo.md`,
+  `notes/demo-guideline.md`, `notes/private-credentials.md`) plus the
+  stale `.skill-map/` DB (a fresh `sm init` rebuilds it), never the
+  tester's own files; (2) `Write` the portfolio fixture from
+  `references/fixtures.md` (the Express skeleton + the handbook
+  `AGENTS.md`); (3) ensure `.skillmapignore` carries the portfolio
+  additions (`node_modules/`, `public/`). The tester runs `sm init`
+  themselves in the first chapter. NOTE: a full seed-to-stage-start
+  (so any spine part can begin from a clean slate) is future work;
+  today this transition only covers Part 0 to Part 1.
 - **`backstage-init`** (Part 6 `extend`): silently, with no
   narration: run `sm init --no-scan` from the cwd, then `Edit` the
   freshly created `.skillmapignore` to append the tutorial's
@@ -283,11 +299,15 @@ When a part begins, honour its `preflight` from the manifest:
   the dir was already initialised by an earlier part, that is fine:
   the DB already exists, skip the init and just ensure the fixture
   files are present.
-- **`reuse`** (Part 7 `cli`): assumes the fundamentals fixture and
-  `.skill-map/` already exist. The menu only offers this part when
-  its `prereq` (`fundamentals`) is done, so they will. If
-  `.skill-map/` is somehow missing, point the tester back to the
-  prologue rather than re-initialising mid-part.
+- **`reuse`** (Part 7 `cli`, and the campaign parts
+  `connect-harness` / `maintain` / `mcp` / `live-site`): assumes the
+  prior part's fixture and `.skill-map/` already exist; nothing to
+  lay. The menu only offers a `reuse` part once its `prereq` is done,
+  so the state is there (Part 7 reuses the prologue fixture; each
+  campaign part reuses the accumulating portfolio harness from
+  `project-kickoff` onward). If `.skill-map/` is somehow missing,
+  point the tester back to the part its `prereq` names rather than
+  re-initialising mid-part.
 
 Then walk the part's chapters in manifest order, dispatching each
 chapter id to its `step_file` per the §Per-step cycle in `_core.md`
