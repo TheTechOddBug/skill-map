@@ -212,3 +212,40 @@ Append to the portfolio `.skillmapignore` (on top of the tutorial
 internals from `SKILL.md`): `node_modules/` (the Express install) and
 `public/` (generated HTML, not part of the harness graph).
 
+## Seed snapshots (for `preflight: seed`, jumping into a campaign part)
+
+When the orchestrator enters a campaign part out of order (its
+predecessors are not `done`), it fast-forwards the project by laying
+the snapshot below, then `sm init` (if `.skill-map/` is missing) +
+`sm scan`. These are **checklists, not content**: each row names a file
+and the chapter that holds its canonical content. Lay each file by
+copying the content from the named chapter (substitute `<provider_dir>`
+and skip provider-unsupported kinds per `_core.md`); an `EDIT` row is
+applied on top of the file an earlier row laid. Keep these lists in
+sync only when a harness FILE is added or removed, the file CONTENT
+lives in the chapters, so editing a chapter needs no change here.
+
+### Seed snapshot: `harness-built` (start of Part 2)
+
+The portfolio skeleton plus the harness members Part 1 created, before
+any cross-links:
+
+1. `AGENTS.md`, `server.js`, `package.json`, `public/index.html`, and
+   the portfolio `.skillmapignore` additions  <-  the `## Portfolio
+   fixture` section above.
+2. `CLAUDE.md` (`@AGENTS.md`)  <-  part-project-kickoff.md, chapter `manual`.
+3. `<provider_dir>/agents/content-editor.md`  <-  part-project-kickoff.md, chapter `first-agent`.
+4. `docs/STYLE.md` and `docs/DEPLOY.md`  <-  part-project-kickoff.md, chapter `real-kinds`.
+
+### Seed snapshot: `harness-connected` (start of Parts 3, 4, 5)
+
+Everything in `harness-built`, PLUS the Part 2 wiring:
+
+5. `<provider_dir>/skills/check-links/SKILL.md`  <-  part-connect-harness.md, chapter `check-links`.
+6. `<provider_dir>/commands/publish.md`  <-  part-connect-harness.md, chapter `publish`.
+7. EDIT `AGENTS.md`: append the two hub bullets (mention `@content-editor`, invoke `/publish`)  <-  part-connect-harness.md, chapter `links`.
+8. EDIT `<provider_dir>/agents/content-editor.md`: add the `[style guide](../../docs/STYLE.md)` line  <-  part-connect-harness.md, chapter `links`.
+
+After laying a snapshot the map matches the state a tester would have at
+the END of the part just before the one being entered.
+

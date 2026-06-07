@@ -285,9 +285,10 @@ When a part begins, honour its `preflight` from the manifest:
   `references/fixtures.md` (the Express skeleton + the handbook
   `AGENTS.md`); (3) ensure `.skillmapignore` carries the portfolio
   additions (`node_modules/`, `public/`). The tester runs `sm init`
-  themselves in the first chapter. NOTE: a full seed-to-stage-start
-  (so any spine part can begin from a clean slate) is future work;
-  today this transition only covers Part 0 to Part 1.
+  themselves in the first chapter. (The later campaign parts use
+  `preflight: seed` to fast-forward into them directly, see the `seed`
+  case below; `portfolio-init` is just Part 1's flavour of that,
+  handling the Part 0 to Part 1 transition.)
 - **`backstage-init`** (Part 6 `extend`): silently, with no
   narration: run `sm init --no-scan` from the cwd, then `Edit` the
   freshly created `.skillmapignore` to append the tutorial's
@@ -299,15 +300,34 @@ When a part begins, honour its `preflight` from the manifest:
   the dir was already initialised by an earlier part, that is fine:
   the DB already exists, skip the init and just ensure the fixture
   files are present.
-- **`reuse`** (Part 7 `cli`, and the campaign parts
-  `connect-harness` / `maintain` / `mcp` / `live-site`): assumes the
-  prior part's fixture and `.skill-map/` already exist; nothing to
-  lay. The menu only offers a `reuse` part once its `prereq` is done,
-  so the state is there (Part 7 reuses the prologue fixture; each
-  campaign part reuses the accumulating portfolio harness from
-  `project-kickoff` onward). If `.skill-map/` is somehow missing,
-  point the tester back to the part its `prereq` names rather than
-  re-initialising mid-part.
+- **`reuse`** (Part 7 `cli`): assumes the prologue fixture and
+  `.skill-map/` already exist; nothing to lay. The menu offers Part 7
+  only once its `prereq` (`fundamentals`) is done, so the state is
+  there. If `.skill-map/` is somehow missing, point the tester back to
+  the prologue rather than re-initialising mid-part.
+- **`seed`** (the campaign parts `connect-harness` / `maintain` /
+  `mcp` / `live-site`): the part builds on the accumulating portfolio
+  harness, but the tester may have jumped straight here from the menu.
+  On entry, read the state file:
+  - If every predecessor campaign part up the `prereq` chain is `done`
+    → reuse the accumulated state; an `sm scan` to refresh is enough,
+    nothing to lay.
+  - Else → **fast-forward, silently** (backstage, do not narrate the
+    plumbing): lay the part's `seed` snapshot from
+    `references/fixtures.md` (§Seed snapshots) by following its
+    checklist, copy each file's canonical content from the chapter the
+    row names, apply the `EDIT` rows on top, substituting
+    `<provider_dir>` and skipping provider-unsupported kinds per
+    `_core.md`. Then run `sm init` if `.skill-map/` is missing, then
+    `sm scan` so the map reflects the seeded harness. Mark the skipped
+    predecessor campaign parts `skipped` in the state (they stay in the
+    menu for later). Then emit exactly ONE tester-facing line:
+
+    > I set the project up to where this part begins, so you can start
+    > here. The earlier parts that build up to this are still in the
+    > menu if you want them later.
+
+  Either way, then walk the part's chapters.
 
 Then walk the part's chapters in manifest order, dispatching each
 chapter id to its `step_file` per the §Per-step cycle in `_core.md`
@@ -319,9 +339,9 @@ All three are specified in `_core.md`:
 
 - **Routing + menu**: §Routing + menu. The first-timer skips the
   menu and lands in Part 0; the menu (the ToC rendered from
-  `_manifest.yml`, completed chapters ticked, `planned` parts
-  hidden, `prereq` respected) appears after a part closes or on
-  resume.
+  `_manifest.yml`, completed chapters ticked, `planned` parts hidden,
+  `prereq` gating only the parts that have no `seed`) appears after a
+  part closes or on resume.
 - **Resume / restart**: §Resume / restart. On start-over, the exact
   wipe list is whatever the tester's parts actually created:
   `tutorial-state.yml`, `findings.md`, `.skillmapignore`,

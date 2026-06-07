@@ -15,8 +15,14 @@
 #   step_files   list form when a part spans several files; dispatch
 #                by chapter-id prefix.
 #   pace         per-step | auto-advance  (see _core.md per-step cycle).
-#   preflight    taught-init | backstage-init  (see _core.md rule #1).
-#   prereq       part id that must be done first (menu gating).
+#   preflight    taught-init | backstage-init | portfolio-init | seed |
+#                reuse  (see _core.md rule #1 + SKILL.md §Entering a part).
+#   seed         which cumulative snapshot to fast-forward to when this
+#                part is entered out of order (see fixtures.md §Seed
+#                snapshot:*). Campaign parts only.
+#   prereq       recommended predecessor. Gates the menu ONLY for a part
+#                with NO `seed`; a seedable part is always shown (its
+#                seed bridges the gap, predecessors get marked `skipped`).
 #   fixture      which fixture this part lays (see fixtures.md / the
 #                part body); `inline` means the chapters lay it as a
 #                taught step.
@@ -89,9 +95,11 @@ parts:
       - id: reference-paths  ; title: "Validate links to folders outside the scan scope" ; est_min: 4
 
   # ----- the portfolio campaign (the spine's real project) -----
-  # Sequential: each part builds on the prior one's accumulated harness
-  # (preflight: reuse + a prereq chain). Full seed-to-stage-start is
-  # future work; today they run in order in the same cwd.
+  # Each part builds on the prior one's accumulated harness. Run in
+  # order it just continues; entered out of order, `preflight: seed`
+  # fast-forwards the project to the part's `seed` snapshot (see
+  # SKILL.md §Entering a part + fixtures.md §Seed snapshot:*), so any
+  # part is reachable directly from the menu.
 
   - id: project-kickoff
     order: 1
@@ -112,7 +120,8 @@ parts:
     title: "Connect the harness"
     step_file: part-connect-harness.md
     pace: auto-advance
-    preflight: reuse
+    preflight: seed
+    seed: harness-built     # fast-forward to here if project-kickoff is not done
     prereq: project-kickoff
     status: active
     chapters:
@@ -126,7 +135,8 @@ parts:
     title: "Maintain the site"
     step_file: part-maintain.md
     pace: auto-advance
-    preflight: reuse
+    preflight: seed
+    seed: harness-connected   # fast-forward to here if the earlier parts are not done
     prereq: connect-harness
     status: active
     chapters:
@@ -142,7 +152,8 @@ parts:
     title: "MCP"            # a chapter apart, just before the finale
     step_file: part-mcp.md
     pace: auto-advance
-    preflight: reuse
+    preflight: seed
+    seed: harness-connected   # fast-forward to here if the earlier parts are not done
     prereq: connect-harness
     status: active
     chapters:
@@ -153,7 +164,8 @@ parts:
     title: "The site, live"  # the finale / climax
     step_file: part-live-site.md
     pace: auto-advance
-    preflight: reuse
+    preflight: seed
+    seed: harness-connected   # fast-forward to here if the earlier parts are not done
     prereq: connect-harness
     status: active
     chapters:

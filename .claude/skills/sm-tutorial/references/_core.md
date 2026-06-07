@@ -272,9 +272,13 @@ For every step in a chapter:
   part split).
 - **After a part closes, or state exists**: render the **ToC menu**
   from `_manifest.yml`, parts in `order` with their chapters,
-  completed chapters prefixed `✓ `, respecting `prereq`. Parts with
-  `status: planned` (no `step_file`) are NOT shown. Let the tester
-  pick; walk that part; return to the menu when it ends.
+  completed chapters prefixed `✓ `. A part with a `seed` (the campaign
+  parts) is **always shown**, even out of order: its `preflight: seed`
+  fast-forwards the project into it (SKILL.md §Entering a part). A part
+  with a `prereq` but NO `seed` (Part 7 `cli`) is shown only once its
+  `prereq` is `done`. Parts with `status: planned` (no `step_file`) are
+  NOT shown. Let the tester pick; walk that part; return to the menu
+  when it ends.
 - **Adding content** is data-only: a new chapter in a part (or a
   new `part-<id>.md` + a manifest row). Keep chapter-id prefixes
   matching the file name so dispatch stays mechanical.
