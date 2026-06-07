@@ -358,6 +358,32 @@
   color: color-mix(in oklab, var(--p-message-warn-color) 85%, var(--p-surface-50));
 }
 
+/* Runtime-contribution-errors badge: same pill chrome as the failure
+   badge but warn-toned, not error-toned. A plugin can load fine
+   (`status: enabled`) yet still have emissions the kernel rejected
+   during the last scan; the warning tone keeps it visually distinct
+   from the red `✕ <status>` whole-plugin failure. */
+.settings-plugins__row-runtime-errors {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--sm-radius-pill);
+  white-space: nowrap;
+  color: color-mix(in oklab, var(--p-message-warn-color) 70%, var(--p-surface-900));
+  background: color-mix(in oklab, var(--p-message-warn-color) 14%, transparent);
+  border: 1px solid color-mix(in oklab, var(--p-message-warn-color) 35%, transparent);
+}
+
+:host-context(.app-dark) .settings-plugins__row-runtime-errors {
+  color: color-mix(in oklab, var(--p-message-warn-color) 85%, var(--p-surface-50));
+  background: color-mix(in oklab, var(--p-message-warn-color) 22%, transparent);
+  border-color: color-mix(in oklab, var(--p-message-warn-color) 55%, transparent);
+}
+
 .settings-plugins__row-description {
   margin: 0.25rem 0 0;
   font-size: 0.8125rem;
@@ -478,6 +504,89 @@
 
 .settings-plugins__row-hint i {
   margin-top: 0.125rem;
+}
+
+/* Runtime-contribution-errors collapsible section. Collapsed by
+ * default; the warn-toned toggle mirrors the row badge's tone so the
+ * count and the disclosure read as one affordance. Each item shows the
+ * display-ready message line plus secondary metadata (extension / slot
+ * / contribution) kept dim and monospaced for scanning. */
+.settings-plugins__runtime {
+  margin-top: 0.375rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.settings-plugins__runtime-toggle {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: color-mix(in oklab, var(--p-message-warn-color) 70%, var(--p-text-color));
+}
+
+.settings-plugins__runtime-toggle:hover {
+  color: var(--p-message-warn-color);
+}
+
+.settings-plugins__runtime-toggle i {
+  font-size: 0.7rem;
+}
+
+.settings-plugins__runtime-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border-left: 2px solid color-mix(in oklab, var(--p-message-warn-color) 35%, transparent);
+  padding-left: 0.625rem;
+}
+
+.settings-plugins__runtime-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.settings-plugins__runtime-message {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--p-text-color);
+}
+
+.settings-plugins__runtime-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+}
+
+.settings-plugins__runtime-meta-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+}
+
+.settings-plugins__runtime-meta-label {
+  color: var(--p-text-muted-color);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.settings-plugins__runtime-meta-value {
+  font-family: var(--sm-font-mono);
+  color: var(--p-text-muted-color);
 }
 
 /* Footer (Discard / Apply) appears only when dirtyIds().size > 0.

@@ -28,8 +28,14 @@ import type {
   IExtractorRunRecord,
   RenameOp,
 } from '../../orchestrator.js';
-import type { IContributionRecord } from './contributions.js';
-import { replaceAllScanContributions } from './contributions.js';
+import type {
+  IContributionErrorRecord,
+  IContributionRecord,
+} from './contributions.js';
+import {
+  replaceAllScanContributionErrors,
+  replaceAllScanContributions,
+} from './contributions.js';
 import { schemaFingerprint } from './schema-fingerprint.js';
 import type { ITagRecord } from './tags.js';
 import { replaceAllScanTags } from './tags.js';
@@ -66,6 +72,7 @@ export async function persistScanResult(
   contributions: IContributionRecord[] = [],
   registeredContributionKeys: ReadonlySet<string> = new Set(),
   freshlyRunTuples: ReadonlySet<string> = new Set(),
+  contributionErrors: IContributionErrorRecord[] = [],
 ): Promise<{ renames: IMigrateNodeFksReport[] }> {
   const scannedAt = validateScannedAt(result.scannedAt);
 
@@ -99,6 +106,12 @@ export async function persistScanResult(
       registeredContributionKeys,
       freshlyRunTuples,
     );
+
+    // "off-shape visible" follow-up, `scan_contribution_errors`. Plain
+    // REPLACE-ALL (delete all, then insert), unlike the sweep model
+    // above: a rejected emission is a transient finding re-derived in
+    // full on every scan, so there is no cached row to preserve.
+    await replaceAllScanContributionErrors(trx, contributionErrors);
 
     // Tags · single-source, `scan_node_tags`. Replace-all per scan;
     // projected from `sidecar.annotations.tags` (the only tag source)

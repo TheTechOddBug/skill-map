@@ -73,7 +73,10 @@ import {
   buildProviderFrontmatterValidator,
   type IProviderFrontmatterValidator,
 } from '../adapters/schema-validators.js';
-import type { IContributionRecord } from '../adapters/sqlite/contributions.js';
+import type {
+  IContributionErrorRecord,
+  IContributionRecord,
+} from '../adapters/sqlite/contributions.js';
 import type { IPriorExtractorRun } from '../adapters/sqlite/scan-load.js';
 import {
   makeHookDispatcher,
@@ -446,6 +449,7 @@ export async function runScanWithRenames(
   extractorRuns: IExtractorRunRecord[];
   enrichments: IEnrichmentRecord[];
   contributions: IContributionRecord[];
+  contributionErrors: IContributionErrorRecord[];
   freshlyRunTuples: ReadonlySet<string>;
 }> {
   return runScanInternal(_kernel, options);
@@ -469,6 +473,7 @@ async function runScanInternal(
   extractorRuns: IExtractorRunRecord[];
   enrichments: IEnrichmentRecord[];
   contributions: IContributionRecord[];
+  contributionErrors: IContributionErrorRecord[];
   freshlyRunTuples: ReadonlySet<string>;
 }> {
   validateRoots(options.roots);
@@ -867,10 +872,16 @@ async function dispatchExtractorCompleted(
  */
 function mergeAnalyzerEmissions(
   walked: IWalkAndExtractResult,
-  analyzerResult: { contributions: IContributionRecord[] },
+  analyzerResult: {
+    contributions: IContributionRecord[];
+    contributionErrors: IContributionErrorRecord[];
+  },
   analyzers: readonly IAnalyzer[] | undefined,
 ): void {
   for (const c of analyzerResult.contributions) walked.contributions.push(c);
+  // "off-shape visible" follow-up, fold analyzer-rejected emissions into
+  // the same buffer extractor-rejected ones populate.
+  for (const e of analyzerResult.contributionErrors) walked.contributionErrors.push(e);
   for (const analyzer of analyzers ?? []) {
     if (analyzer.ui === undefined) continue;
     for (const node of walked.nodes) {
@@ -919,6 +930,7 @@ function buildScanReturn(
   extractorRuns: IExtractorRunRecord[];
   enrichments: IEnrichmentRecord[];
   contributions: IContributionRecord[];
+  contributionErrors: IContributionErrorRecord[];
   freshlyRunTuples: ReadonlySet<string>;
 } {
   return {
@@ -941,6 +953,7 @@ function buildScanReturn(
     extractorRuns: walked.extractorRuns,
     enrichments: walked.enrichments,
     contributions: walked.contributions,
+    contributionErrors: walked.contributionErrors,
     freshlyRunTuples: walked.freshlyRunTuples,
   };
 }

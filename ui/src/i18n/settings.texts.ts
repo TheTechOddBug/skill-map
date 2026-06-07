@@ -314,6 +314,36 @@ export const SETTINGS_TEXTS = {
   expandLabel: 'Show extensions',
   collapseLabel: 'Hide extensions',
 
+  /**
+   * Runtime contribution errors, per-plugin diagnostics recorded by the
+   * last scan when an extension emitted a view contribution the kernel
+   * rejected (undeclared slot ref, or a payload that failed the slot's
+   * schema). Distinct from a load failure: the plugin loaded fine, but
+   * some of its emissions did not land. Surfaced as a warning-toned
+   * count badge on the plugin row plus a collapsible list.
+   */
+  runtimeErrors: {
+    /** Count badge on the plugin row (warning tone). */
+    badge: (count: number): string =>
+      count === 1 ? '1 runtime error' : `${count} runtime errors`,
+    /** Badge tooltip / aria, explains what the count means. */
+    badgeTooltip:
+      'This plugin loaded fine, but some of its contributions were ' +
+      'rejected during the last scan. Expand for details.',
+    /** Collapsible-section toggle labels (collapsed by default). */
+    expandLabel: 'Show runtime errors',
+    collapseLabel: 'Hide runtime errors',
+    /** Secondary metadata prefixes inside each error row. */
+    extensionPrefix: 'Extension:',
+    slotPrefix: 'Slot:',
+    contributionPrefix: 'Contribution:',
+    a11y: {
+      /** Aria for the collapsible toggle button. */
+      toggle: (pluginId: string, count: number): string =>
+        `Runtime errors for plugin ${pluginId} (${count})`,
+    },
+  },
+
   /** Status overrides, non-toggleable rows surface their failure mode. */
   statusFailure: {
     'incompatible-spec': 'Incompatible spec version',

@@ -392,6 +392,31 @@ export type TPluginStatusApi =
 
 export type TPluginSourceApi = 'built-in' | 'project';
 
+/**
+ * One rejected view-contribution emission recorded by the last scan,
+ * embedded per plugin on the `GET /api/plugins` list items. Mirrors the
+ * BFF's `IPluginListItem.runtimeContributionErrors[]` element. A plugin
+ * can load cleanly (status `enabled`) yet still have its extensions
+ * emit contributions the kernel refused at scan time (an undeclared
+ * slot ref, or a payload that failed the slot's AJV schema), so this is
+ * surfaced separately from the load-status failure badge.
+ */
+export interface IPluginRuntimeContributionErrorApi {
+  /** Qualified extension id (`<pluginId>/<extensionId>`) that emitted. */
+  extensionId: string;
+  /** Node path the rejected emission targeted. */
+  nodePath: string;
+  /** Either the literal `undeclared-contribution-ref` or an AJV error
+   *  string describing why the payload was rejected. */
+  reason: string;
+  /** Display-ready diagnostic line (pre-formatted by the BFF). */
+  message: string;
+  /** Contribution id the emission used, when the rejection carries it. */
+  contributionId?: string;
+  /** Slot the emission targeted, when the rejection carries it. */
+  slot?: string;
+}
+
 export interface IPluginExtensionApi {
   id: string;
   kind: string;
@@ -434,6 +459,17 @@ export interface IPluginItemApi {
    * a row back on. Built-ins never carry the flag.
    */
   startsAsDisabled?: boolean;
+  /**
+   * View-contribution emissions the kernel rejected during the last
+   * scan, grouped per plugin and stable-sorted by the BFF. ABSENT (not
+   * `[]`) when the plugin had zero rejections in the last scan (the
+   * common case). Distinct from a load failure: a plugin can be
+   * `enabled` (clean load) yet still appear here when one of its
+   * extensions emitted a contribution against an undeclared slot or
+   * with a payload that failed the slot's schema. Settings surfaces it
+   * as a warning-toned count + a collapsible list of the diagnostics.
+   */
+  runtimeContributionErrors?: IPluginRuntimeContributionErrorApi[];
 }
 
 export interface IListEnvelopeApi<TItem> {

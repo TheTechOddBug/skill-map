@@ -208,6 +208,16 @@
                     {{ texts.lockedLabel }}
                   </span>
                 }
+                @if (hasRuntimeErrors(plugin)) {
+                  <span
+                    class="settings-plugins__row-runtime-errors"
+                    [title]="texts.runtimeErrors.badgeTooltip"
+                    [attr.data-testid]="'settings-row-runtime-errors-' + plugin.id"
+                  >
+                    <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+                    {{ texts.runtimeErrors.badge(runtimeErrorCount(plugin)) }}
+                  </span>
+                }
               </div>
               @if (plugin.description) {
                 <p class="settings-plugins__row-description">{{ plugin.description }}</p>
@@ -223,6 +233,57 @@
                   <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
                   {{ texts.startsAsDisabledRowHint }}
                 </p>
+              }
+              @if (hasRuntimeErrors(plugin)) {
+                <div class="settings-plugins__runtime">
+                  <button
+                    type="button"
+                    class="settings-plugins__runtime-toggle"
+                    (click)="toggleRuntimeErrors(plugin.id); $event.stopPropagation()"
+                    [attr.aria-expanded]="isRuntimeErrorsExpanded(plugin.id)"
+                    [attr.aria-label]="texts.runtimeErrors.a11y.toggle(plugin.id, runtimeErrorCount(plugin))"
+                    [attr.data-testid]="'settings-runtime-errors-toggle-' + plugin.id"
+                  >
+                    <i
+                      class="fa-solid"
+                      [class.fa-chevron-down]="isRuntimeErrorsExpanded(plugin.id)"
+                      [class.fa-chevron-right]="!isRuntimeErrorsExpanded(plugin.id)"
+                      aria-hidden="true"
+                    ></i>
+                    {{ isRuntimeErrorsExpanded(plugin.id) ? texts.runtimeErrors.collapseLabel : texts.runtimeErrors.expandLabel }}
+                  </button>
+                  @if (isRuntimeErrorsExpanded(plugin.id)) {
+                    <ul
+                      class="settings-plugins__runtime-list"
+                      role="list"
+                      [attr.data-testid]="'settings-runtime-errors-' + plugin.id"
+                    >
+                      @for (err of plugin.runtimeContributionErrors; track $index) {
+                        <li class="settings-plugins__runtime-item">
+                          <p class="settings-plugins__runtime-message">{{ err.message }}</p>
+                          <div class="settings-plugins__runtime-meta">
+                            <span class="settings-plugins__runtime-meta-item">
+                              <span class="settings-plugins__runtime-meta-label">{{ texts.runtimeErrors.extensionPrefix }}</span>
+                              <span class="settings-plugins__runtime-meta-value">{{ err.extensionId }}</span>
+                            </span>
+                            @if (err.slot) {
+                              <span class="settings-plugins__runtime-meta-item">
+                                <span class="settings-plugins__runtime-meta-label">{{ texts.runtimeErrors.slotPrefix }}</span>
+                                <span class="settings-plugins__runtime-meta-value">{{ err.slot }}</span>
+                              </span>
+                            }
+                            @if (err.contributionId) {
+                              <span class="settings-plugins__runtime-meta-item">
+                                <span class="settings-plugins__runtime-meta-label">{{ texts.runtimeErrors.contributionPrefix }}</span>
+                                <span class="settings-plugins__runtime-meta-value">{{ err.contributionId }}</span>
+                              </span>
+                            }
+                          </div>
+                        </li>
+                      }
+                    </ul>
+                  }
+                </div>
               }
             </div>
           </div>

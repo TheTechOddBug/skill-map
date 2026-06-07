@@ -18,7 +18,10 @@ import type { Tiktoken } from 'js-tiktoken/lite';
 import type { TPluginStore } from '../adapters/plugin-store.js';
 import type { IProviderFrontmatterValidator } from '../adapters/schema-validators.js';
 import type { IPriorExtractorRun } from '../adapters/sqlite/scan-load.js';
-import type { IContributionRecord } from '../adapters/sqlite/contributions.js';
+import type {
+  IContributionErrorRecord,
+  IContributionRecord,
+} from '../adapters/sqlite/contributions.js';
 import { makeEvent } from '../extensions/hook-dispatcher.js';
 import {
   resolveProviderWalk,
@@ -206,6 +209,17 @@ export interface IWalkAndExtractResult {
    */
   contributions: IContributionRecord[];
   /**
+   * "off-shape visible" follow-up, per-(plugin × extension × node)
+   * records for contributions REJECTED at extractor emit time
+   * (undeclared ref, or payload failed the slot's AJV schema). The
+   * persistence layer flushes these via
+   * `replaceAllScanContributionErrors`; `sm plugins doctor` reads them
+   * back. Empty when no extractor emission was rejected (the common
+   * case). Analyzer-side rejections are merged in by the caller
+   * (`runScanInternal`), mirroring how `contributions` is threaded.
+   */
+  contributionErrors: IContributionErrorRecord[];
+  /**
    * Phase 3 / View contribution system, set of `(plugin, extension,
    * node)` tuples where `extract()` actually RAN this scan (cache
    * miss). Cached-extractor tuples are EXCLUDED so their prior rows
@@ -279,6 +293,12 @@ interface IWalkAccumulators {
    * unique within a single scan).
    */
   contributionsBuffer: IContributionRecord[];
+  /**
+   * "off-shape visible" follow-up, flat buffer of rejected extractor
+   * emissions collected across the walk. Flushed to
+   * `scan_contribution_errors`.
+   */
+  contributionErrorsBuffer: IContributionErrorRecord[];
   /**
    * Phase 3 / View contributions, accumulator of (plugin, extension,
    * node) tuples where extract() actually RAN this scan (cache
@@ -433,6 +453,7 @@ export async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWal
     enrichments: [...accum.enrichmentBuffer.values()],
     extractorRuns: accum.extractorRuns,
     contributions: accum.contributionsBuffer,
+    contributionErrors: accum.contributionErrorsBuffer,
     freshlyRunTuples: accum.freshlyRunTuples,
     orphanSidecars,
     sidecarRoots: accum.sidecarRoots,
@@ -450,6 +471,7 @@ function createWalkAccumulators(): IWalkAccumulators {
     frontmatterIssues: [],
     enrichmentBuffer: new Map(),
     contributionsBuffer: [],
+    contributionErrorsBuffer: [],
     freshlyRunTuples: new Set(),
     extractorRuns: [],
     sidecarRoots: new Map(),
@@ -742,12 +764,21 @@ function mergeExtractResult(
     accum.enrichmentBuffer.set(`${enr.nodePath}\x00${enr.extractorId}`, enr);
   }
   for (const c of extractResult.contributions) accum.contributionsBuffer.push(c);
-  // Phase 5, virtual / synthetic nodes emitted by extractors. First-wins
-  // dedup against the accumulator: if N skills each emit `mcp://github`,
-  // the first one materialises the node and the rest are silent. Same
-  // dedup if a walker's regular node already carries the path (would be
-  // weird for `mcp://` paths but the check costs nothing).
-  for (const vn of extractResult.virtualNodes) {
+  for (const e of extractResult.contributionErrors) accum.contributionErrorsBuffer.push(e);
+  mergeVirtualNodes(extractResult.virtualNodes, accum);
+}
+
+/**
+ * Phase 5, fold extractor-emitted virtual / synthetic nodes into the
+ * accumulator. First-wins dedup by `path`: if N skills each emit
+ * `mcp://github`, the first one materialises the node and the rest are
+ * silent. The same dedup guards against a walker's regular node already
+ * carrying the path (unlikely for `mcp://` paths, but the check is
+ * cheap). Split out of `mergeExtractResult` so that function stays a
+ * flat list of per-collection folds under the complexity cap.
+ */
+function mergeVirtualNodes(virtualNodes: readonly Node[], accum: IWalkAccumulators): void {
+  for (const vn of virtualNodes) {
     if (accum.nodes.some((n) => n.path === vn.path)) continue;
     accum.nodes.push(vn);
   }

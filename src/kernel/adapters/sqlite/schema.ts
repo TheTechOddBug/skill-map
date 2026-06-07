@@ -335,6 +335,39 @@ export interface IScanContributionsTable {
 }
 
 /**
+ * Per-scan record of view contributions REJECTED at emit time, the
+ * "off-shape visible" follow-up to the ephemeral `extension.error`
+ * event (kind `contribution-rejected`). One row per rejected
+ * `ctx.emitContribution(...)` call.
+ *
+ *   - `reason`, the diagnostic reason. Either the literal
+ *     `undeclared-contribution-ref` (the ref was not a declared
+ *     `viewContributions` object) or the AJV error string when the
+ *     payload failed the slot's payload schema.
+ *   - `message`, the rendered human-readable diagnostic (same string
+ *     the `extension.error` event carries).
+ *   - `contributionId` / `slot`, NULL for the
+ *     `undeclared-contribution-ref` shape (no contribution / slot was
+ *     resolved); populated for the AJV-failure shape.
+ *   - `emittedAt`, wall-clock ms at rejection time.
+ *
+ * Belongs to the `scan_*` family, plain REPLACE-ALL per scan (the same
+ * posture as `scan_issues`; NOT the sweep model `scan_contributions`
+ * uses). Index on `plugin_id` for the `sm plugins doctor` group-by,
+ * index on `node_path` for per-node lookups + the rename heuristic.
+ */
+export interface IScanContributionErrorsTable {
+  pluginId: string;
+  extensionId: string;
+  nodePath: string;
+  reason: string;
+  message: string;
+  contributionId: string | null;
+  slot: string | null;
+  emittedAt: number;
+}
+
+/**
  * Tags · single-source, `scan_node_tags`.
  *
  * One row per `(node_path, tag)` pair. Projected at persist time from
@@ -465,6 +498,7 @@ export interface IDatabase {
   scan_meta: IScanMetaTable;
   scan_extractor_runs: IScanExtractorRunsTable;
   scan_contributions: IScanContributionsTable;
+  scan_contribution_errors: IScanContributionErrorsTable;
   scan_node_tags: IScanNodeTagsTable;
   node_enrichments: INodeEnrichmentsTable;
 

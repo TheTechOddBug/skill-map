@@ -29,11 +29,14 @@ import { CamelCasePlugin } from 'kysely';
 import { loadPluginRuntime } from '../../core/runtime/plugin-runtime.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import {
+  listAllContributionErrors,
   loadContributionLookup,
   loadContributionsForNode,
   loadContributionsForPaths,
   purgeContributionsByPlugin,
+  replaceAllScanContributionErrors,
   replaceAllScanContributions,
+  type IContributionErrorRecord,
   type IContributionRecord,
 } from '../../kernel/adapters/sqlite/contributions.js';
 import { discoverMigrations, applyMigrations } from '../../kernel/adapters/sqlite/migrations.js';
@@ -650,6 +653,91 @@ describe('view contributions, storage adapter round-trip', () => {
     try {
       const rows = await loadContributionsForNode(handle.db, 'a.md');
       assert.deepEqual(rows, []);
+    } finally {
+      await handle.close();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4. Contribution-error round-trip ("off-shape visible" follow-up)
+// ---------------------------------------------------------------------------
+
+describe('contribution errors, storage adapter round-trip', () => {
+  it('replaceAll persists rejected emissions, listAll reads them back grouped', async () => {
+    const handle = await bootDb();
+    try {
+      const records: IContributionErrorRecord[] = [
+        {
+          pluginId: 'p2',
+          extensionId: 'e1',
+          nodePath: 'b.md',
+          reason: 'undeclared-contribution-ref',
+          message: 'Extension "p2/e1" emitted a view contribution on b.md ...',
+          emittedAt: 2000,
+        },
+        {
+          pluginId: 'p1',
+          extensionId: 'e1',
+          nodePath: 'a.md',
+          reason: 'must have required property `value`',
+          message: 'Extractor "p1/e1" emitted contribution "count" on a.md ...',
+          contributionId: 'count',
+          slot: 'card.footer.right',
+          emittedAt: 1000,
+        },
+      ];
+      await handle.db.transaction().execute(async (trx) => {
+        await replaceAllScanContributionErrors(trx, records);
+      });
+
+      const rows = await listAllContributionErrors(handle.db);
+      assert.equal(rows.length, 2);
+      // Ordered by (pluginId, extensionId, nodePath, emittedAt) ASC, so
+      // p1's AJV error sorts before p2's undeclared-ref error.
+      assert.equal(rows[0]!.pluginId, 'p1');
+      assert.equal(rows[0]!.contributionId, 'count');
+      assert.equal(rows[0]!.slot, 'card.footer.right');
+      assert.equal(rows[1]!.pluginId, 'p2');
+      // undeclared-ref shape carries no contributionId / slot.
+      assert.equal(rows[1]!.contributionId, undefined);
+      assert.equal(rows[1]!.slot, undefined);
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it('plain replace-all: an empty buffer wipes prior rows', async () => {
+    const handle = await bootDb();
+    try {
+      await handle.db.transaction().execute(async (trx) => {
+        await replaceAllScanContributionErrors(trx, [
+          {
+            pluginId: 'p1',
+            extensionId: 'e1',
+            nodePath: 'a.md',
+            reason: 'undeclared-contribution-ref',
+            message: 'msg',
+            emittedAt: 1,
+          },
+        ]);
+      });
+      assert.equal((await listAllContributionErrors(handle.db)).length, 1);
+
+      // A clean re-scan (no rejected emissions) clears the table.
+      await handle.db.transaction().execute(async (trx) => {
+        await replaceAllScanContributionErrors(trx, []);
+      });
+      assert.deepEqual(await listAllContributionErrors(handle.db), []);
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it('returns empty for cold-start (no rows yet)', async () => {
+    const handle = await bootDb();
+    try {
+      assert.deepEqual(await listAllContributionErrors(handle.db), []);
     } finally {
       await handle.close();
     }

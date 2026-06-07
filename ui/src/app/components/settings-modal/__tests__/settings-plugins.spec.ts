@@ -545,6 +545,88 @@ describe('SettingsPlugins, search by description', () => {
   });
 });
 
+describe('SettingsPlugins, runtime contribution errors', () => {
+  it('shows the warning badge only when runtimeContributionErrors is present', async () => {
+    const withErrors = plugin('beacon', 'enabled', undefined, {
+      runtimeContributionErrors: [
+        {
+          extensionId: 'beacon/beacon-analyzer',
+          nodePath: 'docs/a.md',
+          reason: 'undeclared-contribution-ref',
+          message: 'Emitted contribution against an undeclared slot ref.',
+          slot: 'inspector.body',
+          contributionId: 'beacon-summary',
+        },
+      ],
+    });
+    const clean = plugin('claude');
+    const listPlugins = vi
+      .fn()
+      .mockResolvedValue(pluginsEnvelope([withErrors, clean]));
+    const { fixture } = bootstrap({ listPlugins } as Partial<IDataSourcePort>);
+
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const badge = host.querySelector(
+      '[data-testid="settings-row-runtime-errors-beacon"]',
+    );
+    expect(badge).not.toBeNull();
+    expect(badge?.textContent).toContain('1 runtime error');
+
+    // The clean plugin renders no badge.
+    expect(
+      host.querySelector('[data-testid="settings-row-runtime-errors-claude"]'),
+    ).toBeNull();
+  });
+
+  it('expands the diagnostics list on toggle (collapsed by default)', async () => {
+    const withErrors = plugin('beacon', 'enabled', undefined, {
+      runtimeContributionErrors: [
+        {
+          extensionId: 'beacon/beacon-analyzer',
+          nodePath: 'docs/a.md',
+          reason: 'undeclared-contribution-ref',
+          message: 'Emitted contribution against an undeclared slot ref.',
+          slot: 'inspector.body',
+        },
+      ],
+    });
+    const listPlugins = vi
+      .fn()
+      .mockResolvedValue(pluginsEnvelope([withErrors]));
+    const { cmp, fixture } = bootstrap({ listPlugins } as Partial<IDataSourcePort>);
+
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    // Collapsed by default, the list is not rendered.
+    expect(
+      host.querySelector('[data-testid="settings-runtime-errors-beacon"]'),
+    ).toBeNull();
+
+    const expand = cmp as unknown as { toggleRuntimeErrors(id: string): void };
+    expand.toggleRuntimeErrors('beacon');
+    fixture.detectChanges();
+
+    const list = host.querySelector(
+      '[data-testid="settings-runtime-errors-beacon"]',
+    );
+    expect(list).not.toBeNull();
+    expect(list?.textContent).toContain(
+      'Emitted contribution against an undeclared slot ref.',
+    );
+    expect(list?.textContent).toContain('beacon/beacon-analyzer');
+    expect(list?.textContent).toContain('inspector.body');
+  });
+});
+
 describe('SettingsPlugins, error surface', () => {
   it('exposes the error message when listPlugins rejects', async () => {
     const listPlugins = vi.fn().mockRejectedValue(new Error('boom'));

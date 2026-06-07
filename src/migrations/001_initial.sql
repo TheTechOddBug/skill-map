@@ -431,6 +431,42 @@ CREATE TABLE scan_contributions (
 CREATE INDEX ix_scan_contributions_node_path ON scan_contributions(node_path);
 CREATE INDEX ix_scan_contributions_plugin_id ON scan_contributions(plugin_id);
 
+-- scan_contribution_errors: per-scan record of view contributions the
+-- orchestrator REJECTED at emit time (the "off-shape visible" follow-up).
+-- Each row is one `ctx.emitContribution(...)` call that did NOT survive
+-- validation, with the same diagnostic the ephemeral `extension.error`
+-- event (kind `contribution-rejected`) already carried. Two rejection
+-- shapes land here:
+--   1. `undeclared-contribution-ref` — the extension passed a `ref` that
+--      is not one of its declared `viewContributions` objects (a spread
+--      copy / inline literal). `contribution_id` and `slot` are NULL.
+--   2. AJV failure — the payload failed the slot's payload schema. `reason`
+--      carries the AJV error string; `contribution_id` and `slot` name the
+--      target contribution / slot.
+--
+-- Belongs to the `scan_*` family. Plain REPLACE-ALL per scan (delete all,
+-- then insert), the same posture as `scan_issues` — NOT the orphan/catalog/
+-- per-tuple sweep `scan_contributions` uses. A rejected emission is a
+-- transient scan finding, not durable state: every scan re-derives the
+-- full set, so there is no cached-node row to preserve and no compound PK
+-- (the nullable `contribution_id` / `slot` columns rule a compound PK out
+-- anyway). Indexes on `plugin_id` (the `sm plugins doctor` group-by) and
+-- `node_path` (the rename heuristic + per-node lookups).
+CREATE TABLE scan_contribution_errors (
+  plugin_id TEXT NOT NULL,
+  extension_id TEXT NOT NULL,
+  node_path TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  message TEXT NOT NULL,
+  -- NULL for the `undeclared-contribution-ref` shape (the orchestrator
+  -- never resolved a contribution id / slot for the rejected ref).
+  contribution_id TEXT,
+  slot TEXT,
+  emitted_at INTEGER NOT NULL
+);
+CREATE INDEX ix_scan_contribution_errors_plugin_id ON scan_contribution_errors(plugin_id);
+CREATE INDEX ix_scan_contribution_errors_node_path ON scan_contribution_errors(node_path);
+
 -- scan_node_tags: tag system. One row per (node_path, tag) pair.
 -- Projected at persist time from `sidecar.annotations.tags`. Tags are
 -- a skill-map concept (no vendor carries `tags` in frontmatter), so the

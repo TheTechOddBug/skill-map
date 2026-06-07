@@ -19,7 +19,10 @@ import type {
 } from '../extensions/index.js';
 import type { TPluginStore } from '../adapters/plugin-store.js';
 import { loadSchemaValidators } from '../adapters/schema-validators.js';
-import type { IContributionRecord } from '../adapters/sqlite/contributions.js';
+import type {
+  IContributionErrorRecord,
+  IContributionRecord,
+} from '../adapters/sqlite/contributions.js';
 import { ORCHESTRATOR_TEXTS } from '../i18n/orchestrator.texts.js';
 import type { IViewContribution } from '../types/view-catalog.js';
 import type {
@@ -130,6 +133,7 @@ export async function runExtractorsForNode(opts: {
   externalLinks: Link[];
   enrichments: IEnrichmentRecord[];
   contributions: IContributionRecord[];
+  contributionErrors: IContributionErrorRecord[];
   signals: Signal[];
   virtualNodes: Node[];
 }> {
@@ -137,6 +141,11 @@ export async function runExtractorsForNode(opts: {
   const externalLinks: Link[] = [];
   const enrichmentBuffer = new Map<string, IEnrichmentRecord>();
   const contributions: IContributionRecord[] = [];
+  // "off-shape visible" follow-up, per-node buffer of contributions the
+  // emit-time validation rejected. Mirrors `extension.error` event data
+  // so the persisted row carries the same diagnostic; the event still
+  // fires (see `emitExtensionError`), the buffer is purely additive.
+  const contributionErrors: IContributionErrorRecord[] = [];
   // Signal IR scaffold (Phase 2 of the active-lens migration). Extractors
   // that opt into `ctx.emitSignal()` push into this buffer; the resolver
   // phase (not yet wired) will consume it and emit Links. Until then the
@@ -199,30 +208,50 @@ export async function runExtractorsForNode(opts: {
       const declared =
         typeof ref === 'object' && ref !== null ? declaredContributions.get(ref) : undefined;
       if (!declared) {
+        const message = tx(ORCHESTRATOR_TEXTS.extensionErrorContributionUndeclaredRef, {
+          extractorId: qualifiedId,
+          nodePath: opts.node.path,
+        });
         emitExtensionError(opts.emitter, qualifiedId, opts.node.path, {
           phase: 'emitContribution',
           reason: 'undeclared-contribution-ref',
-          message: tx(ORCHESTRATOR_TEXTS.extensionErrorContributionUndeclaredRef, {
-            extractorId: qualifiedId,
-            nodePath: opts.node.path,
-          }),
+          message,
+        });
+        contributionErrors.push({
+          pluginId: extractor.pluginId,
+          extensionId: extractor.id,
+          nodePath: opts.node.path,
+          reason: 'undeclared-contribution-ref',
+          message,
+          emittedAt: Date.now(),
         });
         return;
       }
       const result = validators.validateContributionPayload(declared.slot, payload);
       if (!result.ok) {
+        const message = tx(ORCHESTRATOR_TEXTS.extensionErrorContributionPayloadInvalid, {
+          extractorId: qualifiedId,
+          contributionId: declared.id,
+          nodePath: opts.node.path,
+          slot: declared.slot,
+          errors: result.errors,
+        });
         emitExtensionError(opts.emitter, qualifiedId, opts.node.path, {
           phase: 'emitContribution',
           contributionId: declared.id,
           slot: declared.slot,
           reason: result.errors,
-          message: tx(ORCHESTRATOR_TEXTS.extensionErrorContributionPayloadInvalid, {
-            extractorId: qualifiedId,
-            contributionId: declared.id,
-            nodePath: opts.node.path,
-            slot: declared.slot,
-            errors: result.errors,
-          }),
+          message,
+        });
+        contributionErrors.push({
+          pluginId: extractor.pluginId,
+          extensionId: extractor.id,
+          nodePath: opts.node.path,
+          reason: result.errors,
+          message,
+          contributionId: declared.id,
+          slot: declared.slot,
+          emittedAt: Date.now(),
         });
         return;
       }
@@ -272,6 +301,7 @@ export async function runExtractorsForNode(opts: {
     externalLinks,
     enrichments: Array.from(enrichmentBuffer.values()),
     contributions,
+    contributionErrors,
     signals,
     virtualNodes,
   };

@@ -87,6 +87,24 @@ export const PLUGINS_TEXTS = {
   doctorIssueEntry: '    {{glyph}}  {{id}}  {{status}}\n',
   doctorIssueBody: '       {{line}}\n',
 
+  // --- runtime contribution errors (last scan) -------------------------
+  /**
+   * "off-shape visible" follow-up. Section heading for view
+   * contributions the last scan REJECTED at emit time (undeclared ref,
+   * or payload failed the slot's AJV schema). Rendered only when at
+   * least one error was persisted; promotes the exit code to 1.
+   * `count` is the total error row count across every plugin.
+   */
+  doctorContribErrorsHeader: '\n  Runtime contribution errors (last scan) ({{count}})\n',
+  /** Per-plugin group header: red glyph + plugin id + this plugin's error count. */
+  doctorContribErrorEntry: '    {{glyph}}  {{pluginId}}  ({{count}})\n',
+  /** Sample line under a plugin group: wrapped, dimmed diagnostic message. */
+  doctorContribErrorBody: '       {{line}}\n',
+  /** Trailing dimmed note when a plugin has more errors than the sample cap shows. */
+  doctorContribErrorMore: '       {{line}}\n',
+  /** Body of the "more" note: the count of samples omitted under this plugin. */
+  doctorContribErrorMoreText: '... and {{count}} more',
+
   // --- enable / disable -----------------------------------------------
   /**
    * §3.1b two-line block. Mutex between explicit ids and `--all`; the

@@ -51,6 +51,7 @@ import {
   inject,
   input,
   output,
+  signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
@@ -156,6 +157,15 @@ export class SettingsPlugins {
    */
   private readonly pluginCollapse = setupPluginCollapse();
   protected readonly collapsed = this.pluginCollapse.collapsed;
+
+  /**
+   * Plugin ids whose runtime-contribution-errors section is expanded.
+   * The section is collapsed by DEFAULT (the opposite of the extension
+   * list, which defaults expanded), so this set is empty until the user
+   * opens a panel. Not persisted: a runtime error is a per-scan
+   * diagnostic, re-collapsing on reopen keeps the list tidy.
+   */
+  private readonly runtimeErrorsExpanded = signal<ReadonlySet<string>>(new Set());
 
   /**
    * Search + source/kind filter state machine. Owns the writable
@@ -357,6 +367,37 @@ export class SettingsPlugins {
    */
   protected isFailed(plugin: IPluginItemApi): boolean {
     return isFailureStatus(plugin.status);
+  }
+
+  /**
+   * Count of view-contribution emissions the kernel rejected for this
+   * plugin during the last scan. Zero when the optional wire field is
+   * absent (the common case) or empty. Drives the warning-toned count
+   * badge + the collapsible diagnostics section, independent of the
+   * load-status failure badge (`isFailed`).
+   */
+  protected runtimeErrorCount(plugin: IPluginItemApi): number {
+    return plugin.runtimeContributionErrors?.length ?? 0;
+  }
+
+  /** True when the plugin carries at least one runtime contribution
+   *  error, so the row should render the warning badge + the
+   *  collapsible diagnostics section. */
+  protected hasRuntimeErrors(plugin: IPluginItemApi): boolean {
+    return this.runtimeErrorCount(plugin) > 0;
+  }
+
+  /** Whether the runtime-errors section for this plugin is open. */
+  protected isRuntimeErrorsExpanded(id: string): boolean {
+    return this.runtimeErrorsExpanded().has(id);
+  }
+
+  /** Toggle the per-plugin runtime-errors section (collapsed by default). */
+  protected toggleRuntimeErrors(id: string): void {
+    const next = new Set(this.runtimeErrorsExpanded());
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    this.runtimeErrorsExpanded.set(next);
   }
 
   protected sourceLabel(source: IPluginItemApi['source']): string {

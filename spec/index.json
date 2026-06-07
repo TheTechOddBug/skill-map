@@ -242,7 +242,7 @@
       "schemas/job.schema.json": "dbcedf137de03fde38f74686f594e600c627bf808f2aad23511a26617a663a02",
       "schemas/link.schema.json": "10f700feb3e23d89453d4d11cbe559bcc0b31f6edf08fffbe9e6773e58120512",
       "schemas/node.schema.json": "14ed2e4c44d01e3f662e240219819895cca06dead374a5cadccfd423c520ed69",
-      "schemas/plugins-doctor.schema.json": "2238266f31402a446b313af16f933e395a02eca70128e39ab99a11de90a4735f",
+      "schemas/plugins-doctor.schema.json": "03e2dc51c052a09bf0198c80e2c26e6129734ada4a748e483245de3dd8576c42",
       "schemas/plugins-registry.schema.json": "211d081691fc83526e1593c79ed9741ad8a5dbd4db1a756f72141b0cced2ea15",
       "schemas/project-config.schema.json": "0a4a12a3409f900bd19b47c34588c77ac894b944d21a9beebb91ae1e9c0f3d01",
       "schemas/refresh-report.schema.json": "47184d4f6b15e9b7671dc178b3b3886a64422da198898508ecdb2cb27876db04",

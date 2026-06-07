@@ -79,6 +79,15 @@ export interface IPersistOptions {
   enrichments?: import('../orchestrator.js').IEnrichmentRecord[];
   contributions?: import('../adapters/sqlite/contributions.js').IContributionRecord[];
   /**
+   * "off-shape visible" follow-up, per-scan records of view
+   * contributions REJECTED at emit time (undeclared ref, or payload
+   * failed the slot's AJV schema). Plain REPLACE-ALL into
+   * `scan_contribution_errors` (delete all, then insert), the same
+   * posture as `scan_issues`. Empty / absent wipes the table (a clean
+   * scan clears any stale rows). Surfaced by `sm plugins doctor`.
+   */
+  contributionErrors?: import('../adapters/sqlite/contributions.js').IContributionErrorRecord[];
+  /**
    * Phase 3 / View contribution system, active runtime catalog of
    * registered view contributions, keyed by qualified id
    * `<pluginId>/<extensionId>/<contributionId>`. Passed to the

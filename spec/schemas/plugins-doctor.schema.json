@@ -2,9 +2,9 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.ai/spec/v0/plugins-doctor.schema.json",
   "title": "PluginsDoctorReport",
-  "description": "Machine-readable output of `sm plugins doctor --json`. Aggregates per-status counts across built-in and drop-in plugins plus the structured issue / warning lists the human renderer produces. The `elapsedMs` top-level field is the command's own wall-clock (see `cli-contract.md` §Elapsed time).",
+  "description": "Machine-readable output of `sm plugins doctor --json`. Aggregates per-status counts across built-in and drop-in plugins plus the structured issue / warning lists the human renderer produces, and the runtime contribution rejections persisted by the last scan. The `elapsedMs` top-level field is the command's own wall-clock (see `cli-contract.md` §Elapsed time).",
   "type": "object",
-  "required": ["ok", "kind", "counts", "issues", "warnings", "elapsedMs"],
+  "required": ["ok", "kind", "counts", "issues", "warnings", "contributionErrors", "elapsedMs"],
   "additionalProperties": false,
   "properties": {
     "ok": {
@@ -84,6 +84,49 @@
           "message": {
             "type": "string",
             "description": "Sanitised human-readable explanation."
+          }
+        }
+      }
+    },
+    "contributionErrors": {
+      "type": "array",
+      "description": "View contributions the last persisted scan REJECTED at emit time (the \"off-shape visible\" follow-up): an `ctx.emitContribution(...)` call whose ref was not a declared contribution, or whose payload failed the target slot's payload schema. Read from `scan_contribution_errors`; empty when the last scan had no rejected emissions, or when no scan has run yet (fresh project / missing DB). Each entry gates the exit code (any contribution error → exit 1). Iteration order matches the human renderer (`pluginId`, `extensionId`, `nodePath`, `emittedAt` ASC).",
+      "items": {
+        "type": "object",
+        "required": ["pluginId", "extensionId", "nodePath", "reason", "message"],
+        "additionalProperties": false,
+        "properties": {
+          "pluginId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Plugin id of the extension whose emission was rejected."
+          },
+          "extensionId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Extension id (within the plugin) that emitted the rejected contribution."
+          },
+          "nodePath": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Target node path the contribution was emitted against."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Rejection reason: the literal `undeclared-contribution-ref`, or the AJV error string when the payload failed the slot's payload schema."
+          },
+          "message": {
+            "type": "string",
+            "description": "Sanitised human-readable diagnostic (mirrors the ephemeral `extension.error` event of kind `contribution-rejected`)."
+          },
+          "contributionId": {
+            "type": "string",
+            "description": "Resolved contribution id. Absent for the `undeclared-contribution-ref` shape (no contribution was resolved)."
+          },
+          "slot": {
+            "type": "string",
+            "description": "Resolved target slot. Absent for the `undeclared-contribution-ref` shape."
           }
         }
       }

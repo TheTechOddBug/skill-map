@@ -28,6 +28,7 @@
 import { Command, Option } from 'clipanion';
 
 import { builtInPlugins } from '../../../plugins/built-ins.js';
+import type { IContributionErrorRecord } from '../../../kernel/adapters/sqlite/contributions.js';
 import type {
   IExtractor,
   IProvider,
@@ -42,8 +43,11 @@ import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
 import { tx } from '../../../kernel/util/tx.js';
 import { PLUGINS_TEXTS } from '../../i18n/plugins.texts.js';
 import type { IAnsi } from '../../util/ansi.js';
+import { resolveDbPath } from '../../util/db-path.js';
 import { ExitCode } from '../../util/exit-codes.js';
+import { defaultRuntimeContext } from '../../util/runtime-context.js';
 import { SmCommand } from '../../util/sm-command.js';
+import { tryWithSqlite } from '../../util/with-sqlite.js';
 import {
   builtInRows,
   buildResolver,
@@ -82,8 +86,30 @@ interface IPluginsDoctorJsonEnvelope {
   };
   issues: Array<{ id: string; status: string; reason: string }>;
   warnings: Array<{ id: string; kind: 'applicable-kind-unknown' | 'unknown-slot'; message: string }>;
+  contributionErrors: Array<{
+    pluginId: string;
+    extensionId: string;
+    nodePath: string;
+    reason: string;
+    message: string;
+    contributionId?: string;
+    slot?: string;
+  }>;
   elapsedMs: number;
 }
+
+/** Per-plugin grouping of runtime contribution errors for the render pass. */
+interface IContributionErrorGroup {
+  pluginId: string;
+  errors: IContributionErrorRecord[];
+}
+
+/**
+ * Max sample lines rendered per plugin group in the human output. Doctor
+ * is a triage surface, not a full log dump; the `--json` envelope carries
+ * every error for tooling that needs the complete set.
+ */
+const CONTRIB_ERROR_SAMPLE_CAP = 3;
 
 /** Explicit ordering for the doctor table so the user-facing output
  *  does not depend on JS object insertion order. Keep aligned with
@@ -117,6 +143,11 @@ export class PluginsDoctorCommand extends SmCommand {
     const knownKinds = collectKnownKinds(plugins);
     const applicableKindWarnings = collectApplicableKindWarnings(plugins, knownKinds);
     const unknownSlotWarnings = collectUnknownSlotWarnings(plugins, KNOWN_SLOT_NAMES);
+    // "off-shape visible" follow-up. Read the last scan's persisted
+    // contribution rejections. Best-effort: a fresh project (no DB / no
+    // table yet) yields an empty list so doctor still runs cleanly.
+    const contribErrors = await loadContributionErrors();
+    const contribErrorGroups = groupContributionErrorsByPlugin(contribErrors);
 
     const bad = plugins.filter((p) => p.status !== 'enabled' && p.status !== 'disabled');
     const totalWarnings = applicableKindWarnings.length + unknownSlotWarnings.length;
@@ -128,25 +159,65 @@ export class PluginsDoctorCommand extends SmCommand {
         applicableKindWarnings,
         unknownSlotWarnings,
         totalWarnings,
+        contribErrors,
         elapsedMs: this.elapsed!.ms(),
       });
       this.printer!.data(JSON.stringify(envelope) + '\n');
-      return bad.length > 0 ? ExitCode.Issues : ExitCode.Ok;
+      return bad.length > 0 || contribErrors.length > 0 ? ExitCode.Issues : ExitCode.Ok;
     }
 
+    this.#renderHumanReport({
+      counts,
+      builtInCount: builtIns.length,
+      userCount: plugins.length,
+      applicableKindWarnings,
+      unknownSlotWarnings,
+      totalWarnings,
+      bad,
+      contribErrorGroups,
+      contribErrorCount: contribErrors.length,
+    });
+    // Both the bad-plugin set AND any runtime contribution error gate
+    // the exit code (the same posture as the load-error states above).
+    return bad.length > 0 || contribErrors.length > 0 ? ExitCode.Issues : ExitCode.Ok;
+  }
+
+  /**
+   * Render the full human-mode report in section order: summary header,
+   * source + status tables, then the gated warnings / issues / runtime
+   * contribution-error sections. Pulled out of `run` so the verb body
+   * stays a linear pipeline (load → aggregate → render → exit code)
+   * under the complexity cap.
+   */
+  #renderHumanReport(args: {
+    counts: TStatusCounts;
+    builtInCount: number;
+    userCount: number;
+    applicableKindWarnings: IApplicableKindWarning[];
+    unknownSlotWarnings: IUnknownSlotWarning[];
+    totalWarnings: number;
+    bad: IDiscoveredPlugin[];
+    contribErrorGroups: IContributionErrorGroup[];
+    contribErrorCount: number;
+  }): void {
     const ansi = this.ansiFor('stdout');
-
-    this.#renderSummaryHeader(counts.enabled, bad.length, totalWarnings);
-    this.#renderSourceBreakdown(builtIns.length, plugins.length);
-    this.#renderStatusBreakdown(counts, ansi);
-    if (totalWarnings > 0) {
-      this.#renderWarnings(applicableKindWarnings, unknownSlotWarnings, totalWarnings, ansi);
+    this.#renderSummaryHeader(args.counts.enabled, args.bad.length, args.totalWarnings);
+    this.#renderSourceBreakdown(args.builtInCount, args.userCount);
+    this.#renderStatusBreakdown(args.counts, ansi);
+    if (args.totalWarnings > 0) {
+      this.#renderWarnings(
+        args.applicableKindWarnings,
+        args.unknownSlotWarnings,
+        args.totalWarnings,
+        ansi,
+      );
     }
-    if (bad.length > 0) {
-      this.#renderIssues(bad, ansi);
-      return ExitCode.Issues;
+    if (args.bad.length > 0) {
+      this.#renderIssues(args.bad, ansi);
     }
-    return ExitCode.Ok;
+    if (args.contribErrorCount > 0) {
+      this.#renderContributionErrors(args.contribErrorGroups, args.contribErrorCount, ansi);
+    }
   }
 
   #renderSummaryHeader(
@@ -263,6 +334,47 @@ export class PluginsDoctorCommand extends SmCommand {
         for (const line of wrapText(reason, 64)) {
           this.printer!.data(tx(PLUGINS_TEXTS.doctorIssueBody, { line: ansi.dim(line) }));
         }
+      }
+    }
+  }
+
+  /**
+   * "off-shape visible" follow-up. Render the last scan's runtime
+   * contribution rejections grouped by plugin: one red entry per plugin
+   * (id + this plugin's error count), then up to
+   * `CONTRIB_ERROR_SAMPLE_CAP` wrapped sample messages, then a dimmed
+   * "... and N more" note when the group overflows the cap. The full
+   * set is always available via `--json`.
+   */
+  #renderContributionErrors(
+    groups: IContributionErrorGroup[],
+    total: number,
+    ansi: IAnsi,
+  ): void {
+    this.printer!.data(tx(PLUGINS_TEXTS.doctorContribErrorsHeader, { count: total }));
+    const glyph = ansi.red(PLUGINS_TEXTS.rowGlyphOff);
+    for (const group of groups) {
+      this.printer!.data(
+        tx(PLUGINS_TEXTS.doctorContribErrorEntry, {
+          glyph,
+          pluginId: sanitizeForTerminal(group.pluginId),
+          count: group.errors.length,
+        }),
+      );
+      for (const err of group.errors.slice(0, CONTRIB_ERROR_SAMPLE_CAP)) {
+        for (const line of wrapText(sanitizeForTerminal(err.message), 64)) {
+          this.printer!.data(
+            tx(PLUGINS_TEXTS.doctorContribErrorBody, { line: ansi.dim(line) }),
+          );
+        }
+      }
+      const hidden = group.errors.length - CONTRIB_ERROR_SAMPLE_CAP;
+      if (hidden > 0) {
+        this.printer!.data(
+          tx(PLUGINS_TEXTS.doctorContribErrorMore, {
+            line: ansi.dim(tx(PLUGINS_TEXTS.doctorContribErrorMoreText, { count: hidden })),
+          }),
+        );
       }
     }
   }
@@ -597,6 +709,7 @@ function buildDoctorJsonEnvelope(args: {
   applicableKindWarnings: IApplicableKindWarning[];
   unknownSlotWarnings: IUnknownSlotWarning[];
   totalWarnings: number;
+  contribErrors: IContributionErrorRecord[];
   elapsedMs: number;
 }): IPluginsDoctorJsonEnvelope {
   const issues = args.bad.map((p) => ({
@@ -631,6 +744,17 @@ function buildDoctorJsonEnvelope(args: {
   // raw `IDiscoveredPlugin['status']` enum into the four error buckets
   // (`loaded` / `incompatible` / `invalid` / `loadError`) so consumers
   // do not have to track the kernel-side label catalog.
+  const contributionErrors = args.contribErrors.map((e) => ({
+    pluginId: sanitizeForTerminal(e.pluginId),
+    extensionId: sanitizeForTerminal(e.extensionId),
+    nodePath: sanitizeForTerminal(e.nodePath),
+    reason: sanitizeForTerminal(e.reason),
+    message: sanitizeForTerminal(e.message),
+    ...(e.contributionId !== undefined
+      ? { contributionId: sanitizeForTerminal(e.contributionId) }
+      : {}),
+    ...(e.slot !== undefined ? { slot: sanitizeForTerminal(e.slot) } : {}),
+  }));
   return {
     ok: true,
     kind: 'plugins.doctor',
@@ -645,6 +769,58 @@ function buildDoctorJsonEnvelope(args: {
     },
     issues,
     warnings,
+    contributionErrors,
     elapsedMs: args.elapsedMs,
   };
+}
+
+// --- runtime contribution errors (last scan) ----------------------------
+
+/**
+ * "off-shape visible" follow-up. Read the last scan's persisted
+ * contribution rejections from `scan_contribution_errors`. Best-effort:
+ *
+ *   - `tryWithSqlite` returns `null` when the DB file is absent (fresh
+ *     project, no scan yet) → treated as `[]`.
+ *   - The try/catch swallows a missing-table error (a DB written before
+ *     this feature shipped, or `--no-built-ins` runs that never persist)
+ *     so doctor still completes on a partially-provisioned DB.
+ *
+ * Scope is always project-local (`<cwd>/.skill-map/skill-map.db`); the
+ * verb honours no `--db` override (none is declared on it), so the path
+ * resolves from the runtime cwd context per
+ * `spec/cli-contract.md` §Scope is always project-local.
+ */
+async function loadContributionErrors(): Promise<IContributionErrorRecord[]> {
+  const ctx = defaultRuntimeContext();
+  const dbPath = resolveDbPath({ db: undefined, cwd: ctx.cwd });
+  try {
+    const rows = await tryWithSqlite(
+      { databasePath: dbPath, autoBackup: false },
+      (adapter) => adapter.contributions.listAllErrors(),
+    );
+    return rows ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Group contribution errors by plugin id, preserving the load order
+ * (the loader already sorts `pluginId` ASC then `emittedAt` ASC), so
+ * the rendered groups stay stable across runs.
+ */
+function groupContributionErrorsByPlugin(
+  errors: readonly IContributionErrorRecord[],
+): IContributionErrorGroup[] {
+  const byPlugin = new Map<string, IContributionErrorGroup>();
+  for (const err of errors) {
+    let group = byPlugin.get(err.pluginId);
+    if (!group) {
+      group = { pluginId: err.pluginId, errors: [] };
+      byPlugin.set(err.pluginId, group);
+    }
+    group.errors.push(err);
+  }
+  return [...byPlugin.values()];
 }

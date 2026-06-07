@@ -178,6 +178,16 @@ export interface StoragePort {
      * the disabled plugin's chips before the next scan.
      */
     purgeByPlugin(pluginId: string, extensionId?: string): Promise<number>;
+    /**
+     * "off-shape visible" follow-up, every view contribution the last
+     * scan REJECTED at emit time (undeclared ref, or payload failed the
+     * slot's AJV schema), ordered by `(pluginId, extensionId, nodePath,
+     * emittedAt)` ASC. Consumed by `sm plugins doctor` to surface
+     * runtime contribution rejections per plugin (and later the BFF).
+     */
+    listAllErrors(): Promise<
+      import('../adapters/sqlite/contributions.js').IContributionErrorRecord[]
+    >;
   };
 
   // --- tags namespace ----------------------------------------------------

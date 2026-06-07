@@ -98,6 +98,7 @@ import {
 } from './scan-load.js';
 import { persistScanResult } from './scan-persistence.js';
 import {
+  listAllContributionErrors,
   loadContributionsForNode,
   loadContributionsForPaths,
   loadContributionLookup,
@@ -281,6 +282,7 @@ export class SqliteStorageAdapter implements StoragePort {
         loadContributionLookup(this.db, pluginId, contributionId, nodePath, extensionId),
       purgeByPlugin: (pluginId, extensionId) =>
         purgeContributionsByPlugin(this.db, pluginId, extensionId),
+      listAllErrors: () => listAllContributionErrors(this.db),
     };
 
     this.tags = {
@@ -387,6 +389,7 @@ async function persistScansThroughNonTx(
     defaults.contributions,
     defaults.registeredContributionKeys,
     defaults.freshlyRunTuples,
+    defaults.contributionErrors,
   );
 }
 
@@ -408,6 +411,7 @@ function applyPersistDefaults(opts?: IPersistOptions): {
   contributions: NonNullable<IPersistOptions['contributions']>;
   registeredContributionKeys: NonNullable<IPersistOptions['registeredContributionKeys']>;
   freshlyRunTuples: NonNullable<IPersistOptions['freshlyRunTuples']>;
+  contributionErrors: NonNullable<IPersistOptions['contributionErrors']>;
 } {
   return {
     renameOps: [],
@@ -416,6 +420,7 @@ function applyPersistDefaults(opts?: IPersistOptions): {
     contributions: [],
     registeredContributionKeys: new Set(),
     freshlyRunTuples: new Set(),
+    contributionErrors: [],
     ...opts,
   };
 }
@@ -729,6 +734,7 @@ function buildTxSubset(trx: Transaction<IDatabase>): ITransactionalStorage {
           d.contributions,
           d.registeredContributionKeys,
           d.freshlyRunTuples,
+          d.contributionErrors,
         ).then(() => undefined);
       },
     },

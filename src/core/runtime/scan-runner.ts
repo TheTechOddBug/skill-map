@@ -20,7 +20,10 @@ import type {
   RenameOp,
   ScanResult,
 } from '../../kernel/index.js';
-import type { IContributionRecord } from '../../kernel/adapters/sqlite/contributions.js';
+import type {
+  IContributionErrorRecord,
+  IContributionRecord,
+} from '../../kernel/adapters/sqlite/contributions.js';
 import type { IPriorExtractorRun } from '../../kernel/adapters/sqlite/scan-load.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { findOrphanJobFiles } from '../../kernel/jobs/orphan-files.js';
@@ -543,6 +546,7 @@ function makeScanRunner(
     extractorRuns: IExtractorRunRecord[];
     enrichments: IEnrichmentRecord[];
     contributions: IContributionRecord[];
+    contributionErrors: IContributionErrorRecord[];
     freshlyRunTuples: ReadonlySet<string>;
   }> => {
     if (opts.changed && prior === null) {
@@ -691,6 +695,7 @@ async function runPersistPath(
     extractorRuns: IExtractorRunRecord[];
     enrichments: IEnrichmentRecord[];
     contributions: IContributionRecord[];
+    contributionErrors: IContributionErrorRecord[];
     freshlyRunTuples: ReadonlySet<string>;
   }>,
   extensions?: ReturnType<typeof composeScanExtensions>,
@@ -703,6 +708,7 @@ async function runPersistPath(
         extractorRuns: IExtractorRunRecord[];
         enrichments: IEnrichmentRecord[];
         contributions: IContributionRecord[];
+        contributionErrors: IContributionErrorRecord[];
       }
     | { kind: 'scan-error'; message: string }
     | { kind: 'guard'; existing: number };
@@ -746,6 +752,7 @@ async function runPersistPath(
         extractorRuns: scanned.extractorRuns,
         enrichments: scanned.enrichments,
         contributions: scanned.contributions,
+        contributionErrors: scanned.contributionErrors,
         registeredContributionKeys: collectRegisteredContributionKeys(extensions),
         freshlyRunTuples: scanned.freshlyRunTuples,
       });

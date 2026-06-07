@@ -50,6 +50,7 @@ import {
   composeResolver as composeResolverFromOverrides,
 } from '../../core/runtime/fresh-resolver.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
+import type { IContributionErrorRecord } from '../../kernel/adapters/sqlite/contributions.js';
 import { isPluginLocked } from '../../kernel/config/locked-plugins.js';
 import type { IDiscoveredPlugin } from '../../kernel/index.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
@@ -73,6 +74,26 @@ export interface IPluginExtensionItem {
    *  the PATCH route returns 403 `locked`. Omitted when false to keep
    *  the wire shape lean for the common case. */
   locked?: boolean;
+}
+
+/**
+ * One runtime contribution-rejection from the last scan, embedded per
+ * plugin on the `GET /api/plugins` list item. Projected from
+ * `IContributionErrorRecord` (the kernel's `scan_contribution_errors`
+ * row) minus `pluginId` (it is the grouping key) and `emittedAt` (the
+ * SPA panel does not surface a timestamp). The optional `contributionId`
+ * / `slot` are absent for the `undeclared-contribution-ref` rejection
+ * shape, present for an AJV payload failure. Wire shape only, the
+ * rest-envelope schema leaves list `items` open, mirroring how
+ * `extensions` / `locked` / `startsAsDisabled` stay typed-only.
+ */
+export interface IPluginRuntimeContributionError {
+  extensionId: string;
+  nodePath: string;
+  reason: string;
+  message: string;
+  contributionId?: string;
+  slot?: string;
 }
 
 export interface IPluginListItem {
@@ -104,6 +125,15 @@ export interface IPluginListItem {
    * shape lean for the common case.
    */
   startsAsDisabled?: boolean;
+  /**
+   * Runtime view-contribution rejections from the LAST scan that the
+   * kernel attributed to this plugin (read from `scan_contribution_errors`
+   * via `port.contributions.listAllErrors()`, grouped by `pluginId`).
+   * Usually absent (a clean scan emits none); the SPA's plugin panel
+   * renders the list when present. Omitted (not `[]`) when the plugin
+   * has no rejections, keeping the wire shape lean for the common case.
+   */
+  runtimeContributionErrors?: IPluginRuntimeContributionError[];
 }
 
 interface IBulkChange {
@@ -192,6 +222,13 @@ export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
     // SPA can surface a per-row hint for that case.
     const resolveEnabled = await buildFreshResolver(deps);
     const items = listItems(deps, resolveEnabled);
+    // Embed the last scan's runtime contribution-rejections per plugin
+    // (read-only). The errors are read from `scan_contribution_errors`
+    // via the storage port and grouped by `pluginId`; usually zero, so
+    // the common case adds no field. The list is the surface the SPA
+    // already fetches, so embedding here saves it a second round-trip.
+    const errorsByPlugin = await loadRuntimeContributionErrors(deps);
+    attachRuntimeContributionErrors(items, errorsByPlugin);
     return c.json(
       buildListEnvelope({
         kind: 'plugins',
@@ -491,6 +528,77 @@ function classifyPluginSource(
   // project-scoped. The helper is kept (with a constant return) to
   // preserve the caller shape and leave room for future scopes.
   return 'project';
+}
+
+// --- runtime contribution errors (last scan) ------------------------------
+
+/**
+ * Load the last scan's runtime contribution-rejections from
+ * `scan_contribution_errors` (via the storage port) and group them by
+ * `pluginId` into the per-item wire shape. Cold-start posture mirrors
+ * the rest of the read routes: a missing DB file (`tryWithSqlite`
+ * returns `null`) degrades to an empty map, so a fresh project with no
+ * scan yet renders cleanly. The port read itself tolerates a missing
+ * table (returns `[]`).
+ */
+async function loadRuntimeContributionErrors(
+  deps: IRouteDeps,
+): Promise<Map<string, IPluginRuntimeContributionError[]>> {
+  try {
+    const rows = await tryWithSqlite(
+      { databasePath: deps.options.dbPath, autoBackup: false },
+      (adapter) => adapter.contributions.listAllErrors(),
+    );
+    if (rows === null) return new Map();
+    return groupContributionErrorsByPlugin(rows);
+  } catch {
+    // Best-effort, same posture as `sm plugins doctor`: a missing table
+    // (a DB written before this feature shipped) must not 500 the whole
+    // plugins list. The errors are an advisory overlay, degrade to none.
+    return new Map();
+  }
+}
+
+/**
+ * Group raw `IContributionErrorRecord` rows by `pluginId`, projecting
+ * each onto the per-item wire shape (`pluginId` dropped, it is the
+ * grouping key; `emittedAt` dropped, the panel surfaces no timestamp).
+ * Row order is preserved (the port already sorts by `(pluginId,
+ * extensionId, nodePath, emittedAt)` ASC for a stable render).
+ */
+function groupContributionErrorsByPlugin(
+  rows: readonly IContributionErrorRecord[],
+): Map<string, IPluginRuntimeContributionError[]> {
+  const out = new Map<string, IPluginRuntimeContributionError[]>();
+  for (const row of rows) {
+    const projected: IPluginRuntimeContributionError = {
+      extensionId: row.extensionId,
+      nodePath: row.nodePath,
+      reason: row.reason,
+      message: row.message,
+      ...(row.contributionId !== undefined ? { contributionId: row.contributionId } : {}),
+      ...(row.slot !== undefined ? { slot: row.slot } : {}),
+    };
+    const list = out.get(row.pluginId);
+    if (list) list.push(projected);
+    else out.set(row.pluginId, [projected]);
+  }
+  return out;
+}
+
+/**
+ * Attach each plugin's grouped runtime contribution-errors to its list
+ * item in place. Plugins with no rejections keep the field absent (not
+ * `[]`) so the wire shape stays lean for the common clean-scan case.
+ */
+function attachRuntimeContributionErrors(
+  items: IPluginListItem[],
+  errorsByPlugin: ReadonlyMap<string, IPluginRuntimeContributionError[]>,
+): void {
+  for (const item of items) {
+    const errors = errorsByPlugin.get(item.id);
+    if (errors && errors.length > 0) item.runtimeContributionErrors = errors;
+  }
 }
 
 // --- write side -----------------------------------------------------------

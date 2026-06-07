@@ -16,7 +16,10 @@ import {
 } from '../extensions/hook-dispatcher.js';
 import type { IAnalyzer } from '../extensions/index.js';
 import { loadSchemaValidators } from '../adapters/schema-validators.js';
-import type { IContributionRecord } from '../adapters/sqlite/contributions.js';
+import type {
+  IContributionErrorRecord,
+  IContributionRecord,
+} from '../adapters/sqlite/contributions.js';
 import { ORCHESTRATOR_TEXTS } from '../i18n/orchestrator.texts.js';
 import type {
   ProgressEmitterPort,
@@ -66,9 +69,16 @@ export async function runAnalyzers(
   // them too. Excluded from the return so the caller's merge logic
   // does not double-count.
   seedIssues: readonly Issue[] = [],
-): Promise<{ issues: Issue[]; contributions: IContributionRecord[] }> {
+): Promise<{
+  issues: Issue[];
+  contributions: IContributionRecord[];
+  contributionErrors: IContributionErrorRecord[];
+}> {
   const issues: Issue[] = [...seedIssues];
   const contributions: IContributionRecord[] = [];
+  // "off-shape visible" follow-up, analyzer-side buffer of rejected
+  // emissions. Same shape + persistence path as the extractor buffer.
+  const contributionErrors: IContributionErrorRecord[] = [];
   const validators = loadSchemaValidators();
   // Recommended-actions validation lived here; the relationship is now
   // declared from the Action side via `precondition.analyzerIds` (Modelo B),
@@ -100,30 +110,50 @@ export async function runAnalyzers(
       const declared =
         typeof ref === 'object' && ref !== null ? declaredContributions.get(ref) : undefined;
       if (!declared) {
+        const message = tx(ORCHESTRATOR_TEXTS.extensionErrorContributionUndeclaredRef, {
+          extractorId: qualifiedId,
+          nodePath,
+        });
         emitExtensionError(emitter, qualifiedId, nodePath, {
           phase: 'emitContribution',
           reason: 'undeclared-contribution-ref',
-          message: tx(ORCHESTRATOR_TEXTS.extensionErrorContributionUndeclaredRef, {
-            extractorId: qualifiedId,
-            nodePath,
-          }),
+          message,
+        });
+        contributionErrors.push({
+          pluginId: analyzer.pluginId,
+          extensionId: analyzer.id,
+          nodePath,
+          reason: 'undeclared-contribution-ref',
+          message,
+          emittedAt: Date.now(),
         });
         return;
       }
       const result = validators.validateContributionPayload(declared.slot, payload);
       if (!result.ok) {
+        const message = tx(ORCHESTRATOR_TEXTS.extensionErrorContributionPayloadInvalid, {
+          extractorId: qualifiedId,
+          contributionId: declared.id,
+          nodePath,
+          slot: declared.slot,
+          errors: result.errors,
+        });
         emitExtensionError(emitter, qualifiedId, nodePath, {
           phase: 'emitContribution',
           contributionId: declared.id,
           slot: declared.slot,
           reason: result.errors,
-          message: tx(ORCHESTRATOR_TEXTS.extensionErrorContributionPayloadInvalid, {
-            extractorId: qualifiedId,
-            contributionId: declared.id,
-            nodePath,
-            slot: declared.slot,
-            errors: result.errors,
-          }),
+          message,
+        });
+        contributionErrors.push({
+          pluginId: analyzer.pluginId,
+          extensionId: analyzer.id,
+          nodePath,
+          reason: result.errors,
+          message,
+          contributionId: declared.id,
+          slot: declared.slot,
+          emittedAt: Date.now(),
         });
         return;
       }
@@ -168,7 +198,7 @@ export async function runAnalyzers(
     emitter.emit(evt);
     await hookDispatcher.dispatch('analyzer.completed', evt);
   }
-  return { issues, contributions };
+  return { issues, contributions, contributionErrors };
 }
 
 /**

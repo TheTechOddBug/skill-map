@@ -22,7 +22,11 @@ import type { Insertable, Kysely, Selectable, Transaction } from 'kysely';
 
 import { stripPrototypePollution } from '../../util/strip-prototype-pollution.js';
 import type { IPersistedContribution } from '../../types/storage.js';
-import type { IDatabase, IScanContributionsTable } from './schema.js';
+import type {
+  IDatabase,
+  IScanContributionErrorsTable,
+  IScanContributionsTable,
+} from './schema.js';
 
 // Re-export so existing consumers that import `IPersistedContribution`
 // from the adapter path keep resolving. The canonical declaration
@@ -49,6 +53,37 @@ export interface IContributionRecord {
   slot: string;
   /** Already-validated payload. Serialised via `JSON.stringify` at write. */
   payload: unknown;
+  emittedAt: number;
+}
+
+/**
+ * In-memory record of a view contribution REJECTED at emit time,
+ * buffered during scan and flushed to `scan_contribution_errors` by
+ * `persistScanResult`. The "off-shape visible" follow-up to the
+ * ephemeral `extension.error` event (kind `contribution-rejected`):
+ * the orchestrator still fires the event, AND pushes one of these so
+ * the rejection survives the scan and surfaces in `sm plugins doctor`.
+ *
+ * Two rejection shapes share the record:
+ *   - `undeclared-contribution-ref`, the `ref` passed to
+ *     `ctx.emitContribution` was not one of the extension's declared
+ *     `viewContributions` objects. `contributionId` / `slot` absent.
+ *   - AJV failure, the payload failed the slot's payload schema.
+ *     `reason` is the AJV error string; `contributionId` / `slot` name
+ *     the resolved target.
+ */
+export interface IContributionErrorRecord {
+  pluginId: string;
+  extensionId: string;
+  nodePath: string;
+  /** `undeclared-contribution-ref` literal, or the AJV error string. */
+  reason: string;
+  /** Rendered diagnostic (mirrors the `extension.error` event message). */
+  message: string;
+  /** Absent for the `undeclared-contribution-ref` shape. */
+  contributionId?: string;
+  /** Absent for the `undeclared-contribution-ref` shape. */
+  slot?: string;
   emittedAt: number;
 }
 
@@ -98,6 +133,86 @@ export async function replaceAllScanContributions(
   await sweepCatalogContributions(trx, registeredKeys);
   await sweepPerTupleContributions(trx, contributions, freshlyRunTuples);
   await upsertContributionsBuffer(trx, contributions);
+}
+
+/**
+ * Persist the per-scan contribution-error buffer. Plain REPLACE-ALL
+ * (delete every prior row, then insert), the same posture as
+ * `scan_issues` and unlike the orphan/catalog/per-tuple sweep that
+ * `replaceAllScanContributions` runs. A rejected emission is a
+ * transient scan finding: every scan re-runs the full extractor +
+ * analyzer pass and re-derives the complete error set, so there is no
+ * cached-node row to preserve (the cache short-circuits BEFORE
+ * `emitContribution` fires, so a cached node simply contributes no
+ * fresh error rows AND its prior rows are not worth keeping; the scan
+ * that cached it already had a clean error pass).
+ *
+ * Empty buffer wipes the table (the common case: a scan with no
+ * rejected emissions clears any stale rows from a prior bad scan).
+ *
+ * ≤ 400 rows per chunk to stay under SQLite's 999-binding limit
+ * (8 columns × 400 = 3200 bindings).
+ */
+export async function replaceAllScanContributionErrors(
+  trx: Transaction<IDatabase>,
+  contributionErrors: readonly IContributionErrorRecord[],
+): Promise<void> {
+  await trx.deleteFrom('scan_contribution_errors').execute();
+  if (contributionErrors.length === 0) return;
+  const CHUNK = 400;
+  for (let i = 0; i < contributionErrors.length; i += CHUNK) {
+    const slice = contributionErrors.slice(i, i + CHUNK);
+    const rows: Insertable<IScanContributionErrorsTable>[] = slice.map((e) => ({
+      pluginId: e.pluginId,
+      extensionId: e.extensionId,
+      nodePath: e.nodePath,
+      reason: e.reason,
+      message: e.message,
+      contributionId: e.contributionId ?? null,
+      slot: e.slot ?? null,
+      emittedAt: e.emittedAt,
+    }));
+    await trx.insertInto('scan_contribution_errors').values(rows).execute();
+  }
+}
+
+/**
+ * Load every contribution-error row from the last scan, grouped by
+ * `(pluginId, extensionId, nodePath)` ASC then `emittedAt` ASC for a
+ * stable render order. Consumed by `sm plugins doctor` (and later the
+ * BFF) to surface runtime contribution rejections per plugin.
+ *
+ * Cold-start posture: the caller wraps this in `tryWithSqlite` (returns
+ * `null` when the DB file is absent) and a try/catch (treats a missing
+ * table as empty) so a fresh project with no scan yet renders cleanly.
+ */
+export async function listAllContributionErrors(
+  db: Kysely<IDatabase>,
+): Promise<IContributionErrorRecord[]> {
+  const rows = await db
+    .selectFrom('scan_contribution_errors')
+    .selectAll()
+    .orderBy('pluginId', 'asc')
+    .orderBy('extensionId', 'asc')
+    .orderBy('nodePath', 'asc')
+    .orderBy('emittedAt', 'asc')
+    .execute();
+  return rows.map(rowToContributionError);
+}
+
+function rowToContributionError(
+  row: Selectable<IScanContributionErrorsTable>,
+): IContributionErrorRecord {
+  return {
+    pluginId: row.pluginId,
+    extensionId: row.extensionId,
+    nodePath: row.nodePath,
+    reason: row.reason,
+    message: row.message,
+    ...(row.contributionId !== null ? { contributionId: row.contributionId } : {}),
+    ...(row.slot !== null ? { slot: row.slot } : {}),
+    emittedAt: row.emittedAt,
+  };
 }
 
 /**
