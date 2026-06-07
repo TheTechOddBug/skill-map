@@ -2,6 +2,67 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.53.0",
+      "date": "2026-06-07",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "The inspector now offers Supersede, Set stability and Edit tags buttons; each opens a small form pre-filled with the node's current value.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "The inspector now renders the Bump button and the stale indicator from a plugin instead of hardcoded UI. Writing a `.sm` sidecar now asks for consent every time, with an \"always allow\" checkbox that persists the permission for the project.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Plugin contributions in the inspector now appear as one collapsed section per plugin, ordered by the new `order` fields you can set in `plugin.json` and your extension manifest. The inspector also shows every action button a plugin contributes.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "`sm plugins doctor` now reports view-contribution errors from your last scan (and exits non-zero if any), and the Settings plugin panel shows a per-plugin warning badge with the failed emissions, so a plugin whose chips silently vanished now tells you why.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Clearer plugin errors: a wrong view-slot name now gives a short message linking to the slot catalog, and the warning spells out that the plugin and all its extensions were skipped. It also no longer appears twice when the server starts.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "The interactive tutorial (`sm tutorial`) now walks a full campaign: you build a real static portfolio site and the `.claude/` harness that maintains it, from `sm init` to the live site, picking parts from the in-skill menu.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "In the interactive tutorial you can now jump straight into any part of the portfolio campaign from the menu (say the maintenance or MCP part). If you skipped the earlier parts, the tutorial sets the project up for you so you can start right there.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "`sm tutorial master` is gone. Run `sm tutorial`: the advanced parts (plugins, settings, view-slots) and the CLI in depth are now chapters you pick from a menu inside the tutorial, after the live-UI prologue.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.52.0",
       "date": "2026-06-05",
       "kind": "user-facing",
