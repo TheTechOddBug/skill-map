@@ -1,5 +1,21 @@
 # skill-map
 
+## 0.53.4
+
+### Patch Changes
+
+- Part 8 (`cli`) of the bundled `sm-tutorial` skill now self-seeds its own copy of the Part 0 demo fixture (`preflight: seed`, new `prologue-built` snapshot) instead of assuming it is still on disk. Before, running the campaign after the prologue deleted that fixture, yet Part 8 stayed in the menu and ran against the wrong project. Now it rebuilds the fixture on entry (resetting the portfolio if present) and, like the campaign parts, is always shown.
+
+  ## User-facing
+
+  The built-in tutorial's CLI deep-dive now rebuilds its own demo fixture when you enter it, so it works correctly even after you have run the project campaign, and it always appears in the menu instead of staying hidden until the prologue is done.
+
+- The workspace files-panel collapse button now shows a left chevron instead of an `✕`, so it no longer reads as a clear-search control sitting next to the search box. The bundled `sm-tutorial` skill drops the slashed `# /publish` / `# /init` headers from its command fixtures (the slash token produced a spurious self-loop link the tester saw before it was explained) and adds a third-terminal heads-up to the maintenance part, where the live server and one-off `sm` commands run side by side.
+
+  ## User-facing
+
+  The files panel's collapse button is now a chevron instead of an `✕`, so it clearly hides the panel rather than clearing the search. The built-in tutorial fixes a stray self-link in its command examples and reminds you to open a third terminal during the maintenance part.
+
 ## 0.53.3
 
 ### Patch Changes
