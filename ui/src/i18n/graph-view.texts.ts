@@ -15,7 +15,7 @@ export const GRAPH_VIEW_TEXTS = {
     zoomOut: 'Zoom out',
     fitToScreen: 'Fit to screen',
     resetLayoutLabel: 'Re-arrange layout',
-    resetLayoutTooltip: 'Re-arrange the visible nodes (re-run auto layout)',
+    resetLayoutTooltip: 'Re-arrange the visible nodes',
     showAllLabel: 'Show all',
     showAllTooltip: 'Clear the map selection and show every node again',
     showAllAria: 'Show all nodes on the map',

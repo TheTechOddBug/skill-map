@@ -88,7 +88,12 @@ import {
 import { setupNodeDrag } from './node-drag.controller';
 import { setupExpansion } from './expansion.controller';
 import { setupLayoutFit } from './layout-fit.controller';
-import { animateViewport, computeCenterTransform, computeFitTransform } from './viewport-animation';
+import {
+  animateViewport,
+  computeCenterTransform,
+  computeFitTransform,
+  TAG_FIT_MAX_ZOOM,
+} from './viewport-animation';
 
 const ZOOM_BUTTON_STEP = 0.2;
 
@@ -733,8 +738,13 @@ export class GraphView implements OnInit {
     afterNextRender(
       () => {
         const scale = canvas.transform.scale;
-        if (scale <= this.zoomMax && scale >= this.zoomMin) return;
-        const clamped = Math.max(this.zoomMin, Math.min(scale, this.zoomMax));
+        // Clamp the fit to the fit-to-content ceiling (`TAG_FIT_MAX_ZOOM`),
+        // NOT the wheel-zoom max (`zoomMax`): Foblex's `fitToScreen`
+        // ignores the zoom bounds and magnifies a lone node far past
+        // natural size, so a one-node project would otherwise open
+        // gigantic. Zoom-out (many nodes) is bounded by `zoomMin`.
+        if (scale <= TAG_FIT_MAX_ZOOM && scale >= this.zoomMin) return;
+        const clamped = Math.max(this.zoomMin, Math.min(scale, TAG_FIT_MAX_ZOOM));
         const step = Math.abs(scale - clamped);
         const direction = scale > clamped ? EFZoomDirection.ZOOM_OUT : EFZoomDirection.ZOOM_IN;
         // `FZoomDirective.setZoom` clamps via `SetZoom._clamp` (the same

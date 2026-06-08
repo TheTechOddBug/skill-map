@@ -132,7 +132,7 @@
         <div class="hero__head">
           <h1 class="hero__title">
             <span data-i18n="hero.title.1">From multi-agent chaos</span><br>
-            <span class="hero__title-soft" data-i18n="hero.title.2">to predictable agents and skills.</span>
+            <span class="hero__title-soft" data-i18n="hero.title.2">to a harness of predictable agents and skills.</span>
           </h1>
 
           <p class="hero__sub">
@@ -308,7 +308,7 @@
       <header class="section-header section-header--center">
         <div>
           <h2 class="section-title">
-            <span data-i18n="shots.title.1">Your whole agent ecosystem,</span><br>
+            <span data-i18n="shots.title.1">Your whole agent harness,</span><br>
             <span class="section-title-soft" data-i18n="shots.title.2">on a single screen!</span>
           </h2>
         </div>
@@ -619,16 +619,15 @@
             <h3 class="peco__brief-title" data-i18n="pe.provider.title">Provider</h3>
             <p class="peco__brief-one"   data-i18n="pe.provider.one">Defines an agent (Claude, Codex, etc)</p>
             <p class="peco__brief-body"  data-i18n="pe.provider.brief">Declares the file kinds an agent exposes (skill / agent / command for Claude), where its content lives on disk, the frontmatter schema each kind follows, and how the UI renders it (label, color, icon). The Claude provider ships built-in; write one for Codex, Copilot, or your own runner.</p>
-            <pre class="peco__brief-code"><code>export const claude: IProvider = {
-  id: 'claude', kind: 'provider',
-  explorationDir: '~/.claude',
+            <pre class="peco__brief-code"><code>// claude/provider.ts (kinds live in claude/kinds/&lt;name&gt;/)
+// id and kind come from the folder, you never write them.
+export default {
+  version: '0.1.0',
+  description: 'Claude Code agents, commands, and skills',
+  presentation: { label: 'Claude', color: '#cc785c' },
+  detect: { markers: ['.claude'] },
   read: { extensions: ['.md'], parser: 'frontmatter-yaml' },
-  kinds: {
-    skill:   { schema: './schemas/skill.schema.json',   /* … */ },
-    agent:   { schema: './schemas/agent.schema.json',   /* … */ },
-    command: { schema: './schemas/command.schema.json', /* … */ },
-  },
-  classify: (path, fm) =&gt; /* skill | agent | command */,
+  classify: (path, fm) =&gt; /* 'agent' | 'command' | 'skill' | null */,
 };</code></pre>
           </article>
 
@@ -640,12 +639,17 @@
             <h3 class="peco__brief-title" data-i18n="pe.extractor.title">Extractor</h3>
             <p class="peco__brief-one"   data-i18n="pe.extractor.one">Extracts data from a node</p>
             <p class="peco__brief-body"  data-i18n="pe.extractor.brief">Each file is a node; an Extractor turns it into data. Links to other nodes, attributes that enrich the node, or signals you stash in your own KV store. Pure code, deterministic, runs in milliseconds inside `sm scan`, no LLM, no cost.</p>
-            <pre class="peco__brief-code"><code>export const slash: IExtractor = {
-  id: 'slash', kind: 'extractor',
-  emitsLinkKinds: ['invokes'],
-  extract: (ctx) =&gt; {
-    for (const m of ctx.body.matchAll(SLASH_RE))
-      ctx.emitLink({ kind: 'invokes', target: m[1] });
+            <pre class="peco__brief-code"><code>// claude/extractors/slash/index.ts
+export default {
+  version: '0.1.0',
+  description: 'Link /command invocations to their target',
+  scope: 'body',
+  extract(ctx) {
+    for (const [, cmd] of ctx.body.matchAll(SLASH_RE))
+      ctx.emitLink({
+        source: ctx.node.path, target: cmd,
+        kind: 'invokes', confidence: 0.8,
+      });
   },
 };</code></pre>
           </article>
@@ -658,11 +662,19 @@
             <h3 class="peco__brief-title" data-i18n="pe.analyzer.title">Analyzer</h3>
             <p class="peco__brief-one"   data-i18n="pe.analyzer.one">Finds problems in the graph</p>
             <p class="peco__brief-body"  data-i18n="pe.analyzer.brief">Looks at the whole graph and spots problems: trigger collisions, orphans, dead dependencies, broken references. Write an analyzer, run it on any project, or publish it for others to use.</p>
-            <pre class="peco__brief-code"><code>export const triggerCollisions: IAnalyzer = {
-  id: 'trigger-collisions', kind: 'analyzer',
-  evaluate: (graph) =&gt; byTrigger(graph)
-    .filter(([, ns]) =&gt; ns.length &gt; 1)
-    .map(toCollisionIssue),
+            <pre class="peco__brief-code"><code>// example/analyzers/trigger-collisions/index.ts
+export default {
+  version: '0.1.0',
+  description: 'Flags two nodes that share one trigger',
+  evaluate(ctx) {
+    return [...byTrigger(ctx.nodes)]
+      .filter(([, ns]) =&gt; ns.length &gt; 1)
+      .map(([trigger, ns]) =&gt; ({
+        severity: 'warn',
+        nodeIds: ns.map((n) =&gt; n.path),
+        message: `"${trigger}" claimed by ${ns.length} nodes`,
+      }));
+  },
 };</code></pre>
           </article>
 
@@ -674,11 +686,17 @@
             <h3 class="peco__brief-title" data-i18n="pe.action.title">Action</h3>
             <p class="peco__brief-one"   data-i18n="pe.action.one">Improves your agents and skills automatically</p>
             <p class="peco__brief-body"  data-i18n="pe.action.brief">Actions are the only plugin kind that touches disk. Deterministic mode: straight code (rename a trigger, tweak frontmatter). Probabilistic: a prompt run by the LLM (regenerate a summary, rewrite text).</p>
-            <pre class="peco__brief-code"><code>export const renameTrigger: IAction = {
-  id: 'rename-trigger', kind: 'action', mode: 'deterministic',
-  run: async (node, { newTrigger }) =&gt; {
-    node.frontmatter.trigger = newTrigger;
-    await node.save();
+            <pre class="peco__brief-code"><code>// core/actions/rename-trigger/index.ts
+export default {
+  version: '0.1.0',
+  description: 'Rename a node trigger',
+  mode: 'deterministic',
+  invoke(input, ctx) {
+    return {
+      report: { ok: true, trigger: input.trigger },
+      writes: [{ kind: 'sidecar', path: ctx.nodeAbsolutePath,
+        changes: { annotations: { trigger: input.trigger } } }],
+    };
   },
 };</code></pre>
           </article>
@@ -691,10 +709,14 @@
             <h3 class="peco__brief-title" data-i18n="pe.formatter.title">Formatter</h3>
             <p class="peco__brief-one"   data-i18n="pe.formatter.one">Exports the graph to other formats</p>
             <p class="peco__brief-body"  data-i18n="pe.formatter.brief">The graph lives in memory; a Formatter ships it out. ASCII for terminal, Mermaid for your README, DOT for Graphviz, JSON for your pipeline. Built-ins cover the common cases; write your own for the rest.</p>
-            <pre class="peco__brief-code"><code>export const mermaid: IFormatter = {
-  id: 'mermaid', kind: 'formatter',
-  format: (graph) =&gt; 'graph LR\n' +
-    graph.edges.map(e =&gt; `  ${e.src} --&gt; ${e.dst}`).join('\n'),
+            <pre class="peco__brief-code"><code>// core/formatters/mermaid/index.ts
+export default {
+  version: '0.1.0',
+  description: 'Render the graph as Mermaid',
+  format(ctx) {
+    return 'graph LR\n' + ctx.links
+      .map((l) =&gt; `  ${l.source} --&gt; ${l.target}`).join('\n');
+  },
 };</code></pre>
           </article>
 
@@ -705,11 +727,15 @@
             </div>
             <h3 class="peco__brief-title" data-i18n="pe.hook.title">Hook</h3>
             <p class="peco__brief-one"   data-i18n="pe.hook.one">Notifies and integrates with other tools</p>
-            <p class="peco__brief-body"  data-i18n="pe.hook.brief">When something happens in skill-map (scan finished, action executed, job failed), a Hook reacts. Send it to Slack, fire a webhook, gate a spawn before it starts. There are eight events you can subscribe to.</p>
-            <pre class="peco__brief-code"><code>export const slackOnFailure: IHook = {
-  id: 'slack-on-failure', kind: 'hook',
+            <p class="peco__brief-body"  data-i18n="pe.hook.brief">When something happens in skill-map (scan finished, action executed, job failed), a Hook reacts. Send it to Slack, fire a webhook, gate a spawn before it starts. There are ten events you can subscribe to.</p>
+            <pre class="peco__brief-code"><code>// integrations/hooks/slack-on-failure/index.ts
+export default {
+  version: '0.1.0',
+  description: 'Post to Slack when a job fails',
   triggers: ['job.failed'],
-  on: async (event) =&gt; slack.post('#alerts', event.error),
+  on(ctx) {
+    slack.post('#alerts', ctx.jobResult);
+  },
 };</code></pre>
           </article>
 
@@ -889,7 +915,7 @@
           <span data-i18n="cta.title.1">Stop reading dirs.</span><br>
           <span data-i18n="cta.title.2">Start reading graphs.</span>
         </h2>
-        <p class="cta-bar__sub" data-i18n="cta.sub">See your entire agent ecosystem at a glance. No config, no server, no LLM required.</p>
+        <p class="cta-bar__sub" data-i18n="cta.sub">See your entire agent harness at a glance. No config, no server, no LLM required.</p>
 
         <div class="cta-bar__ctas">
           <button type="button" class="btn btn--accent btn--xl js-copy" data-copy="npm i -g @skill-map/cli" data-i18n-aria-label="copy.aria">

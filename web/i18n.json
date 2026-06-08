@@ -20,7 +20,7 @@
   "nav.listen":     { "en": "Podcast",      "es": "Podcast" },
 
   "hero.title.1":   { "en": "From multi-agent chaos", "es": "Del caos multiagente" },
-  "hero.title.2":   { "en": "to predictable agents and skills.", "es": "a agentes y skills predecibles." },
+  "hero.title.2":   { "en": "to a harness of predictable agents and skills.", "es": "a un harness de agentes y skills predecibles." },
   "hero.sub.1":     { "en": "Reclaim tokens (and money!), save time, and make your Markdowns deterministic. Detects collisions, orphans, semantic duplicates, and bloated skills.",
                       "es": "Recupera tokens (¡y dinero!), ahorra tiempo y vuelve determinísticos a tus Markdowns. Detecta colisiones, huérfanos, duplicados semánticos y skills obesas." },
   "hero.sub.2":     { "en": "All on the same graph: deterministic and semantic (LLM) analysis for your agent harness.",
@@ -52,7 +52,7 @@
   "qs.claude.cmd":   { "en": "run the tutorial", "es": "ejecuta el tutorial" },
   "qs.claude.aria":  { "en": "Copy the tutorial prompt to clipboard", "es": "Copiar el prompt del tutorial al portapapeles" },
 
-  "shots.title.1":   { "en": "Your whole agent ecosystem,", "es": "Todo tu ecosistema de agentes," },
+  "shots.title.1":   { "en": "Your whole agent harness,", "es": "Todo tu harness de agentes," },
   "shots.title.2":   { "en": "on a single screen!",         "es": "¡en una única pantalla!" },
   "shots.alt.1":     { "en": "skill-map main screen", "es": "skill-map pantalla principal" },
   "shots.zoom.aria":  { "en": "View screenshot full size", "es": "Ver captura en tamaño completo" },
@@ -102,8 +102,8 @@
 
   "pe.hook.title": { "en": "Hook", "es": "Hook" },
   "pe.hook.one":   { "en": "Notifies and integrates with other tools", "es": "Notifica e integra con otras herramientas" },
-  "pe.hook.brief": { "en": "When something happens in skill-map (scan finished, action executed, job failed), a Hook reacts. Send it to Slack, fire a webhook, gate a spawn before it starts. There are eight events you can subscribe to.",
-                     "es": "Cuando algo pasa en skill-map (scan terminado, action ejecutada, job fallido), un Hook reacciona. Mándalo a Slack, dispara un webhook, bloquea un spawn antes de que arranque. Hay ocho eventos a los que te puedes suscribir." },
+  "pe.hook.brief": { "en": "When something happens in skill-map (scan finished, action executed, job failed), a Hook reacts. Send it to Slack, fire a webhook, gate a spawn before it starts. There are ten events you can subscribe to.",
+                     "es": "Cuando algo pasa en skill-map (scan terminado, action ejecutada, job fallido), un Hook reacciona. Mándalo a Slack, dispara un webhook, bloquea un spawn antes de que arranque. Hay diez eventos a los que te puedes suscribir." },
 
   "feat.eyebrow":    { "en": "Features", "es": "Features" },
   "feat.title":      { "en": "Deterministic. Semantic. Same graph.", "es": "Determinístico. Semántico. Mismo grafo." },
@@ -174,8 +174,8 @@
 
   "cta.title.1":     { "en": "Stop reading dirs.",  "es": "Deja de leer carpetas." },
   "cta.title.2":     { "en": "Start reading graphs.",  "es": "Empieza a leer grafos." },
-  "cta.sub":         { "en": "See your entire agent ecosystem at a glance. No config, no server, no LLM required.",
-                       "es": "Mira todo tu ecosistema de agentes en un solo vistazo. Sin config, sin servidor, sin LLM obligatorio." },
+  "cta.sub":         { "en": "See your entire agent harness at a glance. No config, no server, no LLM required.",
+                       "es": "Mira todo tu harness de agentes en un solo vistazo. Sin config, sin servidor, sin LLM obligatorio." },
   "cta.btn.repo":    { "en": "View on GitHub", "es": "Ver en GitHub" },
   "cta.fineprint":   { "en": "Works offline · Zero telemetry · Apache + MIT skills welcome",
                        "es": "Funciona offline · Sin telemetría · Skills Apache + MIT bienvenidas" },

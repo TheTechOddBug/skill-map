@@ -24,9 +24,13 @@ const NODE_W = 260;
 const NODE_H = 120;
 /** Padding (px) from the visible canvas edge to the bbox after fit. */
 const VIEWPORT_PAD = 80;
-/** Soft cap on tag-fit zoom. Lower than `ZOOM_MAX` so a single-match
- *  tag doesn't catapult one card to fill the entire screen. */
-const TAG_FIT_MAX_ZOOM = 2;
+/** Soft cap on fit-to-content zoom: a fit never magnifies content past
+ *  natural size, so opening a project with one (or a few) node(s) does
+ *  not catapult a card to fill the screen. Strictly lower than
+ *  `ZOOM_MAX` (the wheel-zoom max), the user can still zoom in by hand.
+ *  Exported so the snap-fit path (`fitToScreenClamped`) clamps to the
+ *  same ceiling instead of `ZOOM_MAX`. */
+export const TAG_FIT_MAX_ZOOM = 1;
 
 export interface IWrapDims {
   width: number;

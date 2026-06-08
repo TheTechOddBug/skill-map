@@ -34,8 +34,8 @@ The plugin author **picks a slot**. The slot fixes both the renderer (which Angu
 | `card.footer.left` | NodeCounter | `node-card.html` (footer left cluster) |
 | `card.footer.right` | NodeCounter | `node-card.html` (footer right cluster) |
 | `graph.node.alert` | NodeAlert | `graph-view.html` (corner badge inside `[fNode]`). **Reserved**: catalog keeps the surface available for special-case signals, NO built-in core analyzer emits here. Routine "this node has a problem" findings (`reference-broken`, `annotation-field-unknown`, `schema-violation`) ship as chips on `card.footer.right` instead. See the policy note on the slot entry in `ui/src/app/slots/slot-config.ts`. |
-| `inspector.header.badge.counter` | NodeCounter | `inspector-view.html` (badge row under title) |
-| `inspector.header.badge.tag` | NodeTag | `inspector-view.html` (badge row, adjacent to counter sub-slot) |
+| `inspector.header.badge` | NodeBadge | `inspector-view.html` (unified badge row under title: icon and/or label and/or count, optional severity). Replaces the retired `inspector.header.badge.counter` / `.tag` sub-slots. |
+| `inspector.action.button` | NodeActionButton | `inspector-view.html` (action buttons; click dispatches a kernel Action by qualified id via `POST /api/actions/:id`) |
 | `inspector.body.panel.breakdown` | NodeBreakdown | `inspector-plugin-sections` (grouped one section per plugin) |
 | `inspector.body.panel.records` | NodeRecords | `inspector-plugin-sections` (grouped one section per plugin) |
 | `inspector.body.panel.tree` | NodeTree | `inspector-plugin-sections` (grouped one section per plugin) |
@@ -46,28 +46,28 @@ The plugin author **picks a slot**. The slot fixes both the renderer (which Angu
 
 Default order across the catalog (when `SLOT_REGISTRY[slot].order === 'alphabetical'`): `pluginId` ASC → `extensionId` ASC → `contributionId` ASC. Deterministic. Slots with `order: 'priority'` sort by the manifest-declared `priority` (default 100) with alphabetical tie-break.
 
-`strategy: 'replace-with-warning'` is opt-in by the kernel/UI per slot, never by the plugin. When two plugins compete for a single-cardinality slot: last-load-wins; emit one console warning per slot per scan AND surface in the UI plugin-doctor dialog.
+`strategy: 'replace-with-warning'` is opt-in by the kernel/UI per slot, never by the plugin. When two plugins compete for a single-cardinality slot: last-load-wins; emit one console warning per slot per scan AND surface it in `sm plugins doctor`.
 
 ## Renderer catalog
 
-One Angular component per slot under `ui/src/app/renderers/<renderer-id>/`. The renderer id is the historical name of the visual primitive (e.g. `node-counter`, `node-tag`); multiple slots may bind to the same renderer (NodeCounter is reused across `card.subtitle.left`, `card.footer.right`, `card.footer.left`, and `inspector.header.badge.counter`). Mapping lives in `ui/src/app/slots/slot-renderer-map.ts`:
+One Angular component per slot under `ui/src/app/renderers/<renderer-id>/`. The renderer id is the historical name of the visual primitive (e.g. `node-counter`, `node-badge`); multiple slots may bind to the same renderer (NodeCounter is reused across `card.subtitle.left`, `card.footer.left`, and `card.footer.right`). Mapping lives in `ui/src/app/slots/slot-renderer-map.ts`:
 
 ```ts
-export const SLOT_RENDERERS: Record<TSlotId, ComponentType> = {
+export const SLOT_RENDERERS: Record<TSlotId, Type<unknown>> = {
   'card.title.right':                NodeIcon,
   'card.subtitle.left':              NodeCounter,
-  'card.footer.left':        NodeCounter,
+  'card.footer.left':                NodeCounter,
   'card.footer.right':               NodeCounter,
   'graph.node.alert':                NodeAlert,
-  'inspector.header.badge.counter':  NodeCounter,
-  'inspector.header.badge.tag':      NodeTag,
+  'inspector.header.badge':          NodeBadge,
+  'inspector.action.button':         NodeActionButton,
   'inspector.body.panel.breakdown':  NodeBreakdown,
   'inspector.body.panel.records':    NodeRecords,
   'inspector.body.panel.tree':       NodeTree,
   'inspector.body.panel.key-values': NodeKeyValues,
   'inspector.body.panel.link-list':  NodeLinkList,
   'inspector.body.panel.markdown':   NodeMarkdown,
-  'topbar.nav.start':        ScopeStat,
+  'topbar.nav.start':                ScopeStat,
 };
 ```
 
