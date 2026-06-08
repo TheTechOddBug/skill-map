@@ -148,25 +148,28 @@ Apply §Provider detection from `_core.md`. Persist the result into
 > Got the second terminal open and anchored to the folder? Confirm
 > before we move on.
 
-### 5. Lay the Part 0 fixture and route
+### 5. Write the universal files and show the menu
 
-Part 0 (`fundamentals`) is `preflight: taught-init`: pre-lay its
-fixture now (silently), so the tester's `sm init` in the `init`
-chapter produces a clean scan, but the tester runs `sm init`
-themselves. Write, substituting `<provider_dir>` per detection:
+Pre-flight does NOT pre-lay any part's fixture and does NOT auto-enter
+a part. It writes only the two files every part needs, then routes to
+the menu:
 
-- `<provider_dir>/agents/demo-agent.md` (the single boot node).
-- `.skillmapignore` (block below). Write it NOW, before `sm init`,
-  so the first scan never sees the tutorial's own files. `sm init`
-  only writes `.skillmapignore` when absent, so this stays put.
 - `findings.md` (block below).
-- `tutorial-state.yml` (template below).
+- `tutorial-state.yml` (template below; it starts with `parts: {}`,
+  empty, a part's entry is added the first time the tester picks it).
 
-Then **route** per §Routing in `_core.md`: no prior state → enter
-Part 0 at chapter `init`, **with no menu**. After Part 0 closes,
-render the ToC menu.
+Then **route** per §Routing + menu in `_core.md`: render the **start
+menu** (numbered, Part 0 the prologue as option 1, the recommended
+first pick). The tester picks a part by number; that part's own
+`preflight` (see §Entering a part) lays its fixture when it begins.
+Part 0's demo fixture (the `demo-agent` + the demo `.skillmapignore`,
+blocks below) is laid by its `taught-init` entry, not here.
 
-## Fixture blocks (Part 0 / `taught-init`)
+## Fixture and state templates
+
+The `findings.md` and `tutorial-state.yml` here are universal (written
+in pre-flight); the `demo-agent.md` + the demo `.skillmapignore` are
+Part 0's fixture (laid by its `taught-init` entry).
 
 `<provider_dir>/agents/demo-agent.md`:
 ```markdown
@@ -245,33 +248,39 @@ tutorial:
   provider: "<claude | agent-skills | antigravity>"
 tester:
   level: 2
-parts:
-  fundamentals:
-    status: "in_progress"   # not_started | in_progress | done | declined
-    chapters:
-      init:        { status: "pending" }   # pending | done | failed | skipped
-      kinds:       { status: "pending" }
-      first-edit:  { status: "pending" }
-      connectors:  { status: "pending" }
-      inspector:   { status: "pending" }
-      edit-link:   { status: "pending" }
-      workspace:   { status: "pending" }
-      ignore:      { status: "pending" }
+parts: {}   # filled in as the tester picks parts from the menu
 findings_file: "./findings.md"
 ```
 
-When the tester enters another part from the menu, add a
-`parts.<id>` entry for it (with a `chapters` map seeded from the
-manifest) the first time it starts. Planned parts are not tracked
-until they have content.
+When the tester picks a part from the menu, add its `parts.<id>`
+entry the first time it starts, seeded from the manifest, e.g.:
+
+```yaml
+parts:
+  fundamentals:
+    status: "in_progress"   # not_started | in_progress | done | declined | skipped
+    chapters:
+      init:        { status: "pending" }   # pending | done | failed | skipped
+      kinds:       { status: "pending" }
+      # … one row per chapter in the part's manifest entry
+```
+
+Planned parts are not tracked until they have content. Parts the
+`seed` mechanism fast-forwards past are recorded with `status:
+"skipped"`.
 
 ## Entering a part
 
 When a part begins, honour its `preflight` from the manifest:
 
-- **`taught-init`** (Part 0): the fixture + `.skillmapignore` were
-  pre-laid in pre-flight; the tester runs `sm init` inside the
-  first chapter. Nothing to do here.
+- **`taught-init`** (Part 0): silently, before the tester's `sm init`
+  in the `init` chapter, `Write` the demo fixture (the
+  `<provider_dir>/agents/demo-agent.md` boot node + the demo
+  `.skillmapignore`, both in the §Fixture blocks above), substituting
+  `<provider_dir>` per detection. Write `.skillmapignore` BEFORE the
+  tester runs `sm init` so the first scan never sees the tutorial's
+  own files (`sm init` only writes that file when absent). The tester
+  runs `sm init` themselves in the first chapter.
 - **`portfolio-init`** (Part 1 `project-kickoff`): the campaign's
   real project begins. Backstage, before the tester's `sm init` in
   the `kickoff` chapter: (1) if the prologue ran first in this dir,
@@ -337,11 +346,13 @@ and the part's `pace`.
 
 All three are specified in `_core.md`:
 
-- **Routing + menu**: §Routing + menu. The first-timer skips the
-  menu and lands in Part 0; the menu (the ToC rendered from
-  `_manifest.yml`, completed chapters ticked, `planned` parts hidden,
-  `prereq` gating only the parts that have no `seed`) appears after a
-  part closes or on resume.
+- **Routing + menu**: §Routing + menu. The session always starts at
+  the **numbered start menu** (Part 0 is option 1, the recommended
+  first pick); the menu (the ToC from `_manifest.yml`, numbered,
+  completed parts ticked, `planned` parts hidden, `prereq` gating only
+  the parts that have no `seed`) is the entry point on the first
+  invocation and after every part closes / on resume. Render it with
+  the format in `_core.md` §Menu format.
 - **Resume / restart**: §Resume / restart. On start-over, the exact
   wipe list is whatever the tester's parts actually created:
   `tutorial-state.yml`, `findings.md`, `.skillmapignore`,

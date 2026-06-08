@@ -38,8 +38,11 @@ loanwords embedded in Spanish prose:
 - `connector` / `edge` → `conector` (**NEVER** `arista`, even
   though it is the common graph translation; skill-map's house
   word is `conector` everywhere).
-- `watcher` → `observador` (or rephrase: "skill-map sigue tus
-  cambios").
+- `watcher` and `browser` stay **English**, do NOT translate them to
+  `observador` / `navegador`. They are words the tester reads in
+  skill-map's own UI and docs, keep them recognisable. If a bare
+  English noun reads oddly mid-sentence, rephrase ("skill-map sigue
+  tus cambios" instead of forcing "el watcher detecta...").
 - `scan` (verb) → `escanear`; `scan` (noun) → `escaneo`.
 - `node` → `nodo`; `link` → `enlace` or `vínculo`; `fixture` →
   `set de prueba`; `pre-flight` → `preparación inicial`;
@@ -49,10 +52,9 @@ loanwords embedded in Spanish prose:
   …), CLI verbs (`sm init`, `sm watch`), and code identifiers stay
   English, that's the public surface, not jargon.
 
-Anti-pattern (do NOT emit): "aparecen los otros tres kinds", "el
-watcher detectó el cambio", "vamos a hacer un scan ahora". Correct:
-"aparecen los otros tres tipos", "skill-map detectó el cambio",
-"vamos a escanear ahora". These translations apply to **chapter
+Anti-pattern (do NOT emit): "aparecen los otros tres kinds", "vamos a
+hacer un scan ahora". Correct: "aparecen los otros tres tipos", "vamos
+a escanear ahora" (and `watcher` / `browser` stay as-is in English). These translations apply to **chapter
 titles** too: a `title` like `"First scan of the fixture"` is
 announced as `"Primer escaneo del set de prueba"`. Never emit a
 chapter title (or any tester-facing prose) in English while the
@@ -175,9 +177,10 @@ first kind quoted, the second kind never.
    the output or replies "OK" / "done". Only then advance.
 4. **Persist progress after every chapter.** Update the state file
    (`parts.<id>.chapters.<id>.status` = `done` / `failed` /
-   `skipped` + a timestamp). Mirror the same status on the harness
-   task via `TaskUpdate`; the harness list is the in-session view,
-   the state file is the cross-session source of truth.
+   `skipped` + a timestamp). The state file is the ONLY progress
+   tracker. Do NOT create harness tasks (`TaskCreate` / `TaskUpdate`)
+   for tutorial progress, they clutter the tester's task list and add
+   nothing the state file does not already hold.
 5. **If the tester reports anything weird**, offer to record it in
    `findings.md` (in the cwd). Reactive, not proactive: only offer
    the findings log when the tester flags something, asks "is that
@@ -242,46 +245,85 @@ today. The detection wiring is here so mirrored skills at
 
 ## Per-step cycle (inside a chapter)
 
-When you enter a part, call `TaskCreate` once with one task per
-chapter in that part's `chapters` list. Update each to
-`in_progress` when its block begins and `completed` when it ends.
+A **chapter is the unit of confirmation**. Walk it as ONE beat:
+announce it, do the preparation, hand the tester everything they need
+to do, and ask for confirmation **exactly once, at the end**. Do NOT
+pepper a chapter with several "tell me when…" / "¿viste X?" prompts,
+bundle the actions into a single instruction ("hacé A, después B, y
+avisame cuando el mapa muestre …"). Split a chapter's confirmation
+ONLY when a later action genuinely cannot start until the tester
+finished an earlier one (e.g. they must have the browser open before
+they can watch a node change), and even then keep it to the minimum.
+Never call `TaskCreate` / `TaskUpdate` (Inviolable rule #4).
 
-For every step in a chapter:
+For every chapter:
 
 1. **Announcement**: "Capítulo N: `<title>`. ~M min." then a blank
    line, then (optionally) one sentence of context on its own
    paragraph. `N` is the 1-based index of the chapter inside its
-   part; it resets per part. The context paragraph renders ONLY
-   when the source has a `**Context**:` field; if omitted, announce
-   the title alone. The title comes from the chapter's `title` in
+   part; it resets per part. The context paragraph renders ONLY when
+   the source has a `**Context**:` field; if omitted, announce the
+   title alone. The title comes from the chapter's `title` in
    `_manifest.yml` (translated per §Tone), not the internal id.
-2. **Preparation** (if applicable): create or modify files, show
-   the path and a short preview.
-3. **Commands to run**: a ` ```bash ` block.
-4. **Pause**: "Run that and paste me the output (or say OK)."
-5. **Verification**: read their reply. If something errored,
-   suggest a fix before advancing. If fine, mark `done`. Honour the
-   part's `pace`: `auto-advance` moves straight into the next
-   chapter's Announcement; `per-step` asks "¿seguimos?" first.
+2. **Preparation** (if applicable): create or modify the fixture
+   files the chapter calls for (silently, per §Silence).
+3. **The tester's part**: the command block(s) and instructions,
+   bundled into one flow, closed by the single confirmation.
+4. **Verification**: read their reply. If something errored, suggest
+   a fix before advancing. If fine, mark `done`. Honour the part's
+   `pace`: `auto-advance` moves straight into the next chapter's
+   Announcement; `per-step` asks "¿seguimos?" first.
 
 ## Routing + menu (orchestrator)
 
-- **No state (first-timer)**: enter the first `spine` part of
-  lowest `order` (Part 0) at its chapter 1, **with no ToC** (the
-  onboarding flow is a single continuous path; never expose the
-  part split).
-- **After a part closes, or state exists**: render the **ToC menu**
-  from `_manifest.yml`, parts in `order` with their chapters,
-  completed chapters prefixed `✓ `. A part with a `seed` (the campaign
-  parts) is **always shown**, even out of order: its `preflight: seed`
-  fast-forwards the project into it (SKILL.md §Entering a part). A part
-  with a `prereq` but NO `seed` (Part 7 `cli`) is shown only once its
-  `prereq` is `done`. Parts with `status: planned` (no `step_file`) are
-  NOT shown. Let the tester pick; walk that part; return to the menu
-  when it ends.
-- **Adding content** is data-only: a new chapter in a part (or a
-  new `part-<id>.md` + a manifest row). Keep chapter-id prefixes
-  matching the file name so dispatch stays mechanical.
+- **Always start at the menu.** On the first invocation (no state)
+  AND after any part closes / on resume, render the **start menu**:
+  the book ToC, numbered, and let the tester pick a part by number.
+  Part 0 (the prologue) is option 1, the recommended starting point,
+  so a brand-new tester just types `1`. Do NOT auto-enter a part; the
+  menu is the entry point every time. On later renders, prefix any
+  completed part's title with `✓ `.
+- **Which parts to list**: parts in `order`, `status: active` only
+  (`planned` parts are hidden). A part with a `seed` (the campaign
+  parts) is always shown, even out of order, its `preflight: seed`
+  fast-forwards the project into it (SKILL.md §Entering a part). A
+  part with a `prereq` but NO `seed` (Part 7 `cli`) is shown only once
+  its `prereq` is `done`.
+- **After the tester picks**: walk that part; when it ends, return to
+  this menu.
+- **Adding content** is data-only: a new chapter in a part (or a new
+  `part-<id>.md` + a manifest row). Keep chapter-id prefixes matching
+  the file name so dispatch stays mechanical.
+
+### Menu format
+
+Render the menu numbered and formatted (NOT a bare list), translated
+to the tester's language. A one-line intro, then per part a **bold
+numbered title line** (number + title + `(~M min)`) as plain prose,
+immediately followed by a single-level `> ` blockquote one-line
+description (what the part covers, derived from its title + chapters).
+NO blank line between a title and its description; ONE blank line
+between parts; NO outer blockquote around the whole menu. Close with a
+short "¿Cuál?" / "Which one?" on its own line. Sample (Claude variant,
+fill the parts and durations from `_manifest.yml`):
+
+```
+¿Por dónde querés arrancar? Podés volver al menú cuando termines cada parte.
+
+**1. El mapa en vivo** (~12 min)
+> El prólogo: corrés `sm`, abrís el browser y ves el mapa actualizarse en vivo mientras editás `.md`. Si es tu primera vez, empezá por acá.
+
+**2. El proyecto desde cero** (~8 min)
+> Arrancás un proyecto real (un portfolio) y su harness `.claude/`.
+
+¿Cuál?
+```
+
+This menu is the ONE exception to the "wrap tester-facing prose in a
+single blockquote" rule: the intro, the bold titles and the trailing
+"¿Cuál?" are plain prose; only the description lines carry `> `. On
+non-Claude hosts the `> ` collapses to plain prose, indent each
+description two spaces so it stays subordinate to its title.
 
 ## Resume / restart
 

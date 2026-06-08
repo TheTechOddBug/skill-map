@@ -13,42 +13,20 @@ ls -la .skill-map/
 
 Expected: `.skill-map/skill-map.db` appears (plus config files). The initial scan reports a small node / link / issue count from the demo-agent fixture, NOT 14+ phantom issues from the tutorial's own prose: pre-flight already wrote `.skillmapignore` with the right exclusions in place, so `sm init` leaves that file alone (it only writes when absent) and the scan never sees `sm-tutorial.md` / `findings.md` / `tutorial-state.yml`.
 
-Before launching the server, ask the tester to set up a **side-by-side view** so they can watch the magic happen without alt-tabbing every step. Tell the tester:
+Before launching the server, ask the tester to set up a **side-by-side view** so they can watch the magic happen without alt-tabbing every step, then launch the server and open the link it prints. Don't hardcode the URL here, the verb itself is the source of truth (it logs the bound `http://host:port` after listen). Tell the tester:
 
-> Now arrange your screen so the **browser** (where the **Map**
-> updates in real time) and **this chat** are both visible at once
->, typical layout is browser on the left half, chat on the right
+> First, arrange your screen so the **browser** (where the **Map**
+> updates in real time) and **this chat** are both visible at once,
+> typical layout is browser on the left half, chat on the right
 > (or any split that lets you see both). The terminal running
 > `sm` can stay off to the side; it just prints scan progress
 > lines and you don't need to read them.
 >
-> Tell me when you're set up and we start.
-
-Wait for confirmation before moving on. Once they're ready, prompt them to launch the server and open the link it prints, without hardcoding the URL here, since the verb itself is the source of truth (it logs the bound `http://host:port` after listen):
-
-> Run `sm`. After a couple of seconds it will print a line with the
-> URL where the UI is listening, copy that link and open it in the
-> browser you just arranged. Tell me when you see the page load.
-
-Wait for confirmation that the page loaded. Then tell the tester:
-
-> You'll see exactly **one node** in the **Map**: `demo-agent`
-> (kind `agent`). That's our starting point.
+> Then run `sm`. After a couple of seconds it will print a line
+> with the URL where the UI is listening, copy that link and open
+> it in the browser you just arranged.
 >
-> The workspace opens **map-first**: the canvas fills the screen and
-> the **Files** panel sits collapsed against the left edge. Click the
-> expand handle on the far left (the `>` arrow, its tooltip reads
-> "Expand files panel") to open it.
->
-> Now walk the two views before we go on:
-> 1. **Map**: the single agent node on the canvas.
-> 2. **Files**: one row, with path / kind / metadata.
->
-> Then, back in **Map**, click the node: the **Inspector** panel
-> slides out with its frontmatter (the YAML block at the top of
-> every `.md`, between the two `---` lines) and its links.
->
-> Did the node show up?
+> Tell me when the page is open showing one node, `demo-agent`.
 
 Wait for confirmation. Mark `init`: done.
 
@@ -182,11 +160,6 @@ Tell the tester:
 > the field you'll edit next, so leave the card open and the
 > change will be obvious.
 >
-> ⚠ Heads-up: the inspector header shows a couple of action
-> buttons (**Bump version**, **Refresh body**). **Don't click
-> them yet**, they write files to your project and we cover that
-> flow deliberately in the annotations chapter. For now, just look.
->
 > Now open `.claude/agents/demo-agent.md` in your editor of
 > choice. In the **frontmatter** at the top of the file, change
 > the `description:` field to any text you want, the actual
@@ -236,18 +209,17 @@ Tell the tester:
 > - `notes/todo → demo-guideline` (kind: `references`)
 >
 > The kind comes from the syntax in the bullet: an `@handle` is
-> always a mention, a `/command` is always an invoke, a markdown
-> link is always a reference. Four arrows, three kinds, three
-> colours on the canvas (the two `invokes` share a colour, as you
-> would expect).
+> always a mention, a `/skill` or `/command` is always an invoke, a
+> markdown link is always a reference. Four arrows, three kinds,
+> three colours on the canvas (the two `invokes` share a colour, as
+> you would expect).
 >
 > Notice too that the connectors have different transparency.
 > Skill-map estimates how sure it is of each connection: a
 > `[text](file.md)` that points at a real file (confidence 1.00,
-> now that the target exists) looks solid, while an `@handle` that
-> resolves to no node sits at 0.5 (ambiguous) and looks
-> translucent. The opacity tells that story at a glance: the more
-> solid the arrow, the more reliable the inference.
+> now that the target exists) looks solid. The opacity tells that
+> story at a glance: the more solid the arrow, the more reliable
+> the inference.
 >
 > Confirm when you see it. If a connector is missing, refresh the
 > browser and let me know.
@@ -258,25 +230,25 @@ If a connector is missing, do not advance, the next chapter inspects the same hu
 
 The connector opacity tells the confidence story at a glance; the exact per-link breakdown lives in the Inspector. Open it on the hub so the tester registers the surface before the `edit-link` chapter changes topology.
 
-> 🆕 Open the Inspector for `notes/todo` (click the node on the
-> map). Scroll down to the **Linked nodes** panel: it has two
-> sections, **Outgoing** and **Incoming**. `notes/todo` lists 4
-> links under Outgoing (it's the hub pointing at four nodes) and 0
-> under Incoming; if you open the Inspector for any of the four
-> targeted nodes, you'll see 1 under Incoming. Each row shows the
-> link kind (`mentions`, `invokes`, `references`) and a badge with
-> its confidence: the numeric value (`1.00`, `0.50`, …).
+> 🆕 Open the Inspector for **Demo TODO list** (click the node on
+> the map). **Expand** the **Connections** section (it's collapsed
+> by default): it has two sections, **Outgoing** and **Incoming**.
+> Demo TODO list lists 4 links under Outgoing (it's the hub pointing
+> at four nodes) and 0 under Incoming; if you open the Inspector for
+> any of the four targeted nodes, you'll see 1 under Incoming. Each
+> row shows the link kind (`mentions`, `invokes`, `references`) and
+> a badge with its confidence: the numeric value (`1.00`, `0.50`,
+> …).
+>
+> 💡 Tip: if all these changes left the nodes crowded together, the
+> map toolbar has a **Re-arrange layout** button (tooltip "Re-arrange
+> the visible nodes (re-run auto layout)"): it re-runs the
+> auto-layout so everything reads better. If you've moved nodes by
+> hand it asks for confirmation first, otherwise it just re-arranges.
 >
 > Let me know when you see it.
 
-After the tester confirms, drop this tip:
-
-> 💡 Tip: if all these changes left the nodes crowded together,
-> the map toolbar has a **Reset layout** button: it re-runs the
-> auto-layout so everything reads better. It asks for confirmation
-> because it discards any positions you moved by hand.
-
-Wait for confirmation. Mark `inspector`: done.
+Mark `inspector`: done.
 
 ## Chapter `edit-link` - Edit a link, the topology changes (~3 min)
 
@@ -296,7 +268,7 @@ You verify by reading `notes/todo.md` to confirm the change was applied. (On `ag
 
 ## Chapter `workspace` - Navigate the workspace (files, search, isolate) (~2 min)
 
-**Context**: you've built the graph and understood it; this beat is about *moving around* it. The workspace has two halves: the **Map** you've been working in, and a **Files** panel, a folder tree of every node. You'll open that tree, filter it with the search box, and use **isolate** to collapse the map down to a single node and the things it touches. No file edits here, pure navigation, and the same `sm` session you booted back in the `init` chapter is still running.
+**Context**: you've built the graph and understood it; this beat is about *moving around* it. The workspace has two halves: the **Map** you've been working in, and a **Files** panel, a folder tree of every node. You'll open that tree and filter it with the search box. No file edits here, pure navigation, and the same `sm` session you booted back in the `init` chapter is still running.
 
 Per §Provider detection, on `agent-skills` / Antigravity the fixture has fewer nodes (`demo-skill` plus the two `notes/` files), so swap the node names below for ones that exist in that set; the gestures are identical.
 
@@ -318,8 +290,7 @@ Per §Provider detection, on `agent-skills` / Antigravity the fixture has fewer 
 > `Search…`). Type `guideline`. Watch both halves at once: the tree
 > narrows down to `demo-guideline` and the **Map** drops every node
 > except `demo-guideline`. The search matches a node's name, path,
-> tags or description, and filters live as you type, no Enter
-> needed.
+> or description, and filters live as you type, no Enter needed.
 >
 > Now clear the box. All five nodes come back, in both the tree and
 > the Map. Confirm you saw it filter and then restore.
@@ -369,7 +340,7 @@ description: |
 API_TOKEN: example-not-real
 ```
 
-Confirm the file appears in the map as a sixth node (`notes/private-credentials`). The watcher sees it like any other `.md`, that's the point of the demo.
+Confirm the file appears in the map as a sixth node (`notes/private-credentials`). The watcher sees it like any other `.md`, that's the point of the demo. (If the tester doesn't see it, they may need to click **Show all** in the map toolbar to clear any leftover selection.)
 
 **Beat 2, you show the project structure (the agent does this).**
 
