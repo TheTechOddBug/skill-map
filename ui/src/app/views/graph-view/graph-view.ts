@@ -911,10 +911,18 @@ export class GraphView implements OnInit {
    * neighborhood rather than centering the single origin node. Public
    * because the rail reaches it through `MAP_ISOLATE_INTENT` (the workspace
    * provides an implementation that forwards here).
+   *
+   * Re-invoking it for the same node while the map still shows exactly that
+   * neighborhood toggles back to the pre-isolate visibility (see
+   * `MapVisibilityService.isolate`); the service owns that bookkeeping.
    */
   isolateNeighborhood(path: string): void {
-    this.mapVisibility.setOnly(directNeighborhood(this.fullAdjacency(), path));
-    this.selectedNodeId.set(path);
+    const outcome = this.mapVisibility.isolate(path, directNeighborhood(this.fullAdjacency(), path));
+    // A toggle-back (re-isolating the same node while the map still shows its
+    // neighborhood) restores the prior visibility; leave selection alone so it
+    // reads as an undo. A fresh isolate selects the origin so the re-fit effect
+    // frames the neighborhood.
+    if (outcome === 'isolated') this.selectedNodeId.set(path);
   }
 
   onNodePositionChange(id: string, position: IPoint): void {

@@ -176,6 +176,25 @@ describe('WorkspaceView isolate wiring', () => {
     // and applies the 1-hop scope, not the whole connected component.
     expect(new Set(mapVisibility.paths())).toEqual(new Set(['a.md', 'b.md']));
   });
+
+  it('a second sitemap click on the same node toggles the map back to show-all', async () => {
+    localStorage.setItem('sm.workspace.rail-collapsed', '0');
+    const a = makeNode('a.md', 'a');
+    const b = makeNode('b.md', 'b');
+    const links: ILinkApi[] = [
+      { source: 'a.md', target: 'b.md', kind: 'references', confidence: 1, sources: ['x'] },
+    ];
+    const { fixture, mapVisibility } = await bootstrap([a, b], links);
+
+    click(fixture, 'files-leaf-graph-a.md');
+    expect(new Set(mapVisibility.paths())).toEqual(new Set(['a.md', 'b.md']));
+
+    // Re-isolating the same node while the map still shows its neighborhood
+    // restores the prior (empty == show-all) visibility.
+    click(fixture, 'files-leaf-graph-a.md');
+    expect(mapVisibility.paths().size).toBe(0);
+    expect(mapVisibility.isActive()).toBe(false);
+  });
 });
 
 describe('WorkspaceView files rail collapse default', () => {

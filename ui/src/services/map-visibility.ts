@@ -8,6 +8,13 @@ import { readStoredVisiblePaths, writeStoredVisiblePaths } from './map-visibilit
  */
 export type TFolderVisibility = 'all' | 'none' | 'some';
 
+/** Value-equality for two path sets (order- and identity-independent). */
+function setsEqual(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
+  if (a.size !== b.size) return false;
+  for (const value of a) if (!b.has(value)) return false;
+  return true;
+}
+
 /**
  * Shared, project-local store for the MAP visibility curation set.
  *
@@ -91,9 +98,58 @@ export class MapVisibilityService {
     return included === total ? 'all' : 'some';
   }
 
-  /** Replace the whole set (used by the isolate gesture). */
+  /** Replace the whole set (the isolate gesture's apply primitive). */
   setOnly(paths: Iterable<string>): void {
     this._paths.set(new Set(paths));
+  }
+
+  // --- isolate toggle bookkeeping -----------------------------------------
+  // In-memory only (NOT persisted): a reload starts a fresh isolate cycle,
+  // which is the sane default. The snapshot holds the inclusion set as it was
+  // right before the last isolate; the origin + result let a re-isolate of the
+  // SAME node decide whether the map is still showing exactly what that isolate
+  // produced (strict toggle) or whether the user edited curation in between.
+  private _isolateOrigin: string | null = null;
+  private _isolateSnapshot: ReadonlySet<string> | null = null;
+  private _isolateResult: ReadonlySet<string> | null = null;
+
+  private resetIsolateMemory(): void {
+    this._isolateOrigin = null;
+    this._isolateSnapshot = null;
+    this._isolateResult = null;
+  }
+
+  /**
+   * Isolate gesture with toggle-back. The first call snapshots the current
+   * inclusion set, then narrows the map to `neighborhood`. A second call for
+   * the SAME `origin`, while the map is still showing exactly that
+   * neighborhood, restores the snapshot (the visibility from before the
+   * isolate). Any other call (a different `origin`, or the curation was edited
+   * in between so the live set no longer matches) starts a fresh isolate and
+   * re-snapshots. Returns the action taken so the caller can keep node
+   * selection in sync (`isolated` selects the origin; `restored` leaves
+   * selection untouched).
+   *
+   * The neighborhood itself is computed by the graph view, which owns the link
+   * graph, keeping this service decoupled from topology.
+   */
+  isolate(origin: string, neighborhood: Iterable<string>): 'isolated' | 'restored' {
+    const result = new Set(neighborhood);
+    const isToggleBack =
+      this._isolateOrigin === origin &&
+      this._isolateResult !== null &&
+      setsEqual(this._paths(), this._isolateResult);
+    if (isToggleBack) {
+      const snapshot = this._isolateSnapshot ?? new Set<string>();
+      this.resetIsolateMemory();
+      this.setOnly(snapshot);
+      return 'restored';
+    }
+    this._isolateSnapshot = this._paths();
+    this._isolateOrigin = origin;
+    this._isolateResult = result;
+    this.setOnly(result);
+    return 'isolated';
   }
 
   /** Clear curation; the map returns to "show all". */

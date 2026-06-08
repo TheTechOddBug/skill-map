@@ -178,6 +178,67 @@ describe('MapVisibilityService, setOnly / clear', () => {
   });
 });
 
+describe('MapVisibilityService, isolate toggle', () => {
+  it('narrows to the neighborhood, then a re-isolate of the same node restores show-all', () => {
+    const service = inject();
+
+    const first = service.isolate('a.md', ['a.md', 'b.md']);
+    expect(first).toBe('isolated');
+    expect(members(service.paths())).toEqual(['a.md', 'b.md']);
+
+    const second = service.isolate('a.md', ['a.md', 'b.md']);
+    expect(second).toBe('restored');
+    expect(members(service.paths())).toEqual([]); // back to the pre-isolate (empty) state
+    expect(service.isActive()).toBe(false);
+  });
+
+  it('restores a non-empty curated set that was active before the isolate', () => {
+    const service = inject();
+    service.setOnly(['x.md', 'y.md', 'z.md']); // hand-curated baseline
+
+    service.isolate('a.md', ['a.md', 'b.md']);
+    expect(members(service.paths())).toEqual(['a.md', 'b.md']);
+
+    expect(service.isolate('a.md', ['a.md', 'b.md'])).toBe('restored');
+    expect(members(service.paths())).toEqual(['x.md', 'y.md', 'z.md']);
+  });
+
+  it('isolating a different node is a fresh isolate, not a restore', () => {
+    const service = inject();
+    service.isolate('a.md', ['a.md', 'b.md']);
+
+    const outcome = service.isolate('b.md', ['b.md', 'c.md']);
+    expect(outcome).toBe('isolated');
+    expect(members(service.paths())).toEqual(['b.md', 'c.md']);
+
+    // ...and re-isolating b now toggles back to a's neighborhood (the state
+    // captured right before b's isolate).
+    expect(service.isolate('b.md', ['b.md', 'c.md'])).toBe('restored');
+    expect(members(service.paths())).toEqual(['a.md', 'b.md']);
+  });
+
+  it('treats a re-isolate as fresh when curation was edited in between', () => {
+    const service = inject();
+    service.isolate('a.md', ['a.md', 'b.md']);
+    service.toggleLeaf('c.md'); // the live set no longer matches a's neighborhood
+
+    const outcome = service.isolate('a.md', ['a.md', 'b.md']);
+    expect(outcome).toBe('isolated'); // strict toggle: not a blind restore
+    expect(members(service.paths())).toEqual(['a.md', 'b.md']);
+  });
+
+  it('the restore reference differs from the snapshot so signal consumers re-run', () => {
+    const service = inject();
+    service.setOnly(['x.md']);
+    const snapshot = service.paths();
+    service.isolate('a.md', ['a.md', 'b.md']);
+    service.isolate('a.md', ['a.md', 'b.md']); // restore
+
+    expect(members(service.paths())).toEqual(['x.md']);
+    expect(service.paths()).not.toBe(snapshot); // fresh Set, identity changed
+  });
+});
+
 describe('MapVisibilityService, prune', () => {
   it('drops paths absent from the valid set', () => {
     const service = inject();
