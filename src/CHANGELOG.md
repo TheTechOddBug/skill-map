@@ -1,5 +1,27 @@
 # skill-map
 
+## 0.53.1
+
+### Patch Changes
+
+- The cache-rebuild prompt shown on a version skew (re-scanning a DB written by a different CLI version) is reworded to be shorter and calmer: it no longer recites the pre-1.0 derived-cache rationale or uses "delete" / "deleted" phrasing. The post-rebuild receipt is now suppressed after an interactive y/N confirm (the operator already answered) and only prints for automatic rebuilds (`--yes`, non-TTY, the BFF), where it is the only signal the cache was wiped.
+
+  ## User-facing
+
+  When you upgrade and re-scan, the cache-rebuild prompt is short and reassuring, and once you confirm it no longer prints a redundant "rebuilt" notice. Automatic rebuilds (for example with `--yes`) still show a one-line confirmation.
+
+- The default graph layout direction is now left-to-right instead of top-to-bottom. The "Balanced" (dagre network-simplex) algorithm was already the default, so only the direction changed: a fresh map with no saved layout preference now flows horizontally. Users who already picked a direction keep their choice.
+
+  ## User-facing
+
+  New maps now lay out left-to-right by default (with the Balanced algorithm), so the skill dependency chain reads along the natural left-to-right axis. You can switch back to top-to-bottom from the graph toolbar or Settings.
+
+- Tutorial polish for `sm tutorial` (the prologue and shared conventions): the session now opens on a numbered menu where you pick the part to run, each chapter asks for confirmation once instead of several times in a row, and the prologue's references to the live UI are refreshed to the current names (the "Connections" panel, "Re-arrange layout"). The watcher/browser are no longer translated in the Spanish flow, and the tutorial no longer creates harness tasks.
+
+  ## User-facing
+
+  The interactive tutorial now opens on a numbered menu to pick where to start, and walks each step with a single confirmation instead of several. Its references to the live UI match what is on screen.
+
 ## 0.53.0
 
 ### Minor Changes
