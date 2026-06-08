@@ -177,8 +177,8 @@
   "cta.sub":         { "en": "See your entire agent harness at a glance. No config, no server, no LLM required.",
                        "es": "Mira todo tu harness de agentes en un solo vistazo. Sin config, sin servidor, sin LLM obligatorio." },
   "cta.btn.repo":    { "en": "View on GitHub", "es": "Ver en GitHub" },
-  "cta.fineprint":   { "en": "Works offline · Zero telemetry · Apache + MIT skills welcome",
-                       "es": "Funciona offline · Sin telemetría · Skills Apache + MIT bienvenidas" },
+  "cta.fineprint":   { "en": "Works offline · Opt-in telemetry · Apache + MIT skills welcome",
+                       "es": "Funciona offline · Telemetría opt-in · Skills Apache + MIT bienvenidas" },
 
   "rm.eyebrow":      { "en": "Roadmap", "es": "Roadmap" },
   "rm.title":        { "en": "Roadmap.", "es": "Roadmap." },
