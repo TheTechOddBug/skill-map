@@ -6,6 +6,16 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>0.53.1</b> · 2026-06-08</summary>
+
+### CLI Patch
+- The cache-rebuild prompt shown on a version skew (re-scanning a DB written by a different CLI version) is reworded to be shorter and calmer: it no longer recites the pre-1.0 derived-cache rationale or uses "delete" / "deleted" phrasing. The post-rebuild receipt is now suppressed after an interactive y/N confirm (the operator already answered) and only prints for automatic rebuilds (`--yes`, non-TTY, the BFF), where it is the only signal the cache was wiped.
+- The default graph layout direction is now left-to-right instead of top-to-bottom. The "Balanced" (dagre network-simplex) algorithm was already the default, so only the direction changed: a fresh map with no saved layout preference now flows horizontally. Users who already picked a direction keep their choice.
+- Tutorial polish for `sm tutorial` (the prologue and shared conventions): the session now opens on a numbered menu where you pick the part to run, each chapter asks for confirmation once instead of several times in a row, and the prologue's references to the live UI are refreshed to the current names (the "Connections" panel, "Re-arrange layout"). The watcher/browser are no longer translated in the Spanish flow, and the tutorial no longer creates harness tasks.
+
+</details>
+
+<details>
 <summary><b>0.53.0</b> · 2026-06-07</summary>
 
 ### CLI Minor

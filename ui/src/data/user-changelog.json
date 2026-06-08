@@ -2,6 +2,31 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.53.1",
+      "date": "2026-06-08",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "When you upgrade and re-scan, the cache-rebuild prompt is short and reassuring, and once you confirm it no longer prints a redundant \"rebuilt\" notice. Automatic rebuilds (for example with `--yes`) still show a one-line confirmation.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "New maps now lay out left-to-right by default (with the Balanced algorithm), so the skill dependency chain reads along the natural left-to-right axis. You can switch back to top-to-bottom from the graph toolbar or Settings.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "The interactive tutorial now opens on a numbered menu to pick where to start, and walks each step with a single confirmation instead of several. Its references to the live UI match what is on screen.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.53.0",
       "date": "2026-06-07",
       "kind": "user-facing",
