@@ -1,0 +1,360 @@
+/* skill-map neon-red theme. The red sibling of the `neon` theme: same
+ * glow treatment (rim-lit cards, light-emitting connections, radial-
+ * gradient canvas) on an electric-red palette instead of cyan.
+ * Activated by `ThemeService` when `extraTheme === 'neon-red'` (the
+ * service toggles `.app-neon-red` on `<html>`, alongside `.app-dark`
+ * + `.dark` so PrimeNG / Foblex run their dark base). Self-contained:
+ * removing this file from `angular.json`'s `styles` array fully
+ * disables the theme.
+ *
+ * Note on the red clash: the `--sm-severity-*` tokens are left on the
+ * dark base (error stays a pale red), so the vivid crimson accent reads
+ * distinct from the error tint. Body text stays a soft red-white and
+ * red is reserved for accents, borders, glow and edges, so the map
+ * reads instead of glaring.
+ *
+ * Selector prefix:
+ *   - `:root.app-neon-red`   for the var palette (beats PrimeNG's
+ *                            runtime `:root,:host` injection).
+ *   - `html.app-neon-red .X` for per-element retints (beats Angular's
+ *                            emulated-encapsulation rewrite of component
+ *                            CSS, which lands later).
+ */
+
+/* === Base palette, SM tokens + PrimeNG retint + shadows === */
+:root.app-neon-red {
+  --sm-nred-accent: #ff3355;        /* electric crimson, primary accent */
+  --sm-nred-accent-bright: #ff859b; /* hotter rose for active states */
+  --sm-nred-accent-dim: #f43f5e;    /* rose, secondary accent */
+  --sm-nred-muted: #fda4af;         /* light rose, calm accent */
+  --sm-nred-border: #591225;        /* deep crimson hairline */
+
+  --sm-bg-page: #0f0407;            /* red-black void */
+  --sm-bg-content: #1b0a0f;         /* card red-black */
+  --sm-bg-hover: #2e151b;           /* lifted red-black */
+  --sm-border: var(--sm-nred-border);
+  --sm-nav-active-bg: color-mix(in srgb, var(--sm-nred-accent) 14%, transparent);
+
+  /* Soft red-white body text + muted rose-grey, so red never has to
+     carry legibility. Both `--p-text-*` (PrimeNG surfaces) and
+     `--sm-text-muted` (node cards, chips, paths) are retuned for the
+     red-black surface. */
+  --sm-text-muted: #c79aa1;
+
+  /* Edge kind ramp: warm grey (`supersedes`, weakest semantic)
+     brightening toward crimson (`invokes`, strongest), so the four
+     kinds read as one gradient instead of four competing neons. Active
+     variants run the same interpolation between brighter endpoints. */
+  --sm-edge-neutral: #6b555c;
+  --sm-edge-supersedes: var(--sm-edge-neutral);
+  --sm-edge-mentions: color-mix(in srgb, var(--sm-nred-accent-dim) 33%, var(--sm-edge-neutral));
+  --sm-edge-references: color-mix(in srgb, var(--sm-nred-accent-dim) 67%, var(--sm-edge-neutral));
+  --sm-edge-invokes: var(--sm-nred-accent-dim);
+  --sm-edge-supersedes-active: #b39aa2;
+  --sm-edge-mentions-active: color-mix(in srgb, var(--sm-nred-accent-bright) 33%, #b39aa2);
+  --sm-edge-references-active: color-mix(in srgb, var(--sm-nred-accent-bright) 67%, #b39aa2);
+  --sm-edge-invokes-active: var(--sm-nred-accent-bright);
+
+  --sm-link-in-bg: color-mix(in srgb, var(--sm-nred-accent) 14%, transparent);
+  --sm-link-in-fg: var(--sm-nred-accent);
+  --sm-link-out-bg: color-mix(in srgb, var(--sm-nred-muted) 14%, transparent);
+  --sm-link-out-fg: var(--sm-nred-muted);
+
+  --p-text-color: #ffe1e7;
+  --p-text-muted-color: var(--sm-text-muted);
+  --p-primary-color: var(--sm-nred-accent);
+  --p-primary-contrast-color: #1a0408;
+  --p-content-background: var(--sm-bg-content);
+  --p-content-hover-background: var(--sm-bg-hover);
+  --p-content-border-color: var(--sm-nred-border);
+  --p-surface-900: var(--sm-bg-page);
+
+  /* Physical-stat chip tints, re-keyed to the red-black surface. */
+  --sm-stat-tokens-bg: color-mix(in srgb, var(--sm-nred-accent-dim) 22%, transparent);
+  --sm-stat-bytes-bg: color-mix(in srgb, var(--sm-nred-muted) 18%, transparent);
+
+  /* Glow elevation. The card halo IS the neon identity: idle carries a
+     soft red bloom, hover bumps opacity + radius for a clear delta. */
+  --sm-shadow-topbar: 0 1px 2px rgba(0, 0, 0, 0.55);
+  --sm-shadow-eventlog: 0 -4px 18px color-mix(in srgb, var(--sm-nred-accent) 14%, transparent);
+  --sm-shadow-floating: 0 4px 18px color-mix(in srgb, var(--sm-nred-accent) 22%, transparent);
+  --sm-shadow-card: 0 0 20px color-mix(in srgb, var(--sm-nred-accent) 22%, transparent);
+  --sm-shadow-card-hover: 0 0 28px color-mix(in srgb, var(--sm-nred-accent) 62%, transparent);
+  --sm-shadow-panel: 0 4px 28px color-mix(in srgb, var(--sm-nred-accent) 20%, transparent);
+
+  /* Tooltip retint: PrimeNG tooltips live in `<body>` (appended out of
+     any wrapper), so the vars MUST be set at `:root` to reach them via
+     the cascade. Red-black surface, light-rose text, soft red glow. */
+  --p-tooltip-background: var(--sm-bg-content);
+  --p-tooltip-color: var(--sm-nred-muted);
+  --p-tooltip-shadow: 0 0 14px color-mix(in srgb, var(--sm-nred-accent) 30%, transparent);
+}
+
+/* === Topbar palette === */
+html.app-neon-red .shell__topbar {
+  --shell-topbar-bg: var(--sm-bg-page);
+  --shell-topbar-border: color-mix(in srgb, var(--sm-nred-accent) 18%, transparent);
+  --shell-topbar-text: #ffe1e7;
+  --shell-topbar-text-strong: var(--sm-nred-accent);
+  --shell-topbar-text-muted: var(--sm-nred-muted);
+  --shell-topbar-hover-bg: color-mix(in srgb, var(--sm-nred-accent) 18%, transparent);
+  --shell-topbar-active-bg: color-mix(in srgb, var(--sm-nred-accent) 26%, transparent);
+  --shell-topbar-active-text: var(--sm-nred-accent);
+  --shell-topbar-badge-bg: color-mix(in srgb, var(--sm-nred-accent) 16%, transparent);
+}
+
+/* Nav links pick up a red glow on hover: text-shadow on the label plus
+   a soft box-shadow halo around the pill. Both fade in alongside the
+   existing `background` / `color` transition declared in `app.css`. */
+html.app-neon-red .shell__nav a {
+  transition: background 0.15s ease, color 0.15s ease, text-shadow 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+html.app-neon-red .shell__nav a:hover {
+  text-shadow: 0 0 8px color-mix(in srgb, var(--sm-nred-accent) 55%, transparent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--sm-nred-accent) 30%, transparent);
+}
+
+html.app-neon-red .shell__nav a.is-active {
+  text-shadow: 0 0 10px color-mix(in srgb, var(--sm-nred-accent) 50%, transparent);
+}
+
+/* Settings modal sidebar: mirror the topbar nav active state
+   (translucent accent fill + glowing label) so the active section reads
+   as red on red-black instead of the default violet highlight. */
+html.app-neon-red .settings-modal__sidebar-item:hover {
+  background: color-mix(in srgb, var(--sm-nred-accent) 10%, transparent);
+}
+
+html.app-neon-red .settings-modal__sidebar-item.is-active {
+  background: color-mix(in srgb, var(--sm-nred-accent) 20%, transparent);
+  color: var(--sm-nred-accent);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--sm-nred-accent) 50%, transparent);
+}
+
+/* === Topbar chips (alpha / version / update), one-off palettes === */
+html.app-neon-red .shell__alpha {
+  color: var(--sm-nred-accent);
+  background: color-mix(in srgb, var(--sm-nred-accent) 12%, transparent);
+}
+
+html.app-neon-red .shell__version {
+  color: var(--sm-nred-muted);
+  background: color-mix(in srgb, var(--sm-nred-accent) 10%, transparent);
+}
+
+html.app-neon-red .shell__update-chip {
+  color: var(--sm-nred-accent);
+  background: color-mix(in srgb, var(--sm-nred-accent) 8%, transparent);
+  border-color: color-mix(in srgb, var(--sm-nred-accent) 35%, transparent);
+}
+
+html.app-neon-red .shell__update-chip:hover,
+html.app-neon-red .shell__update-chip:focus-visible {
+  background: color-mix(in srgb, var(--sm-nred-accent) 18%, transparent);
+  color: var(--sm-nred-accent);
+}
+
+html.app-neon-red .shell__update-npm-link {
+  color: var(--sm-nred-accent-dim);
+}
+
+html.app-neon-red .shell__update-npm-link:hover,
+html.app-neon-red .shell__update-npm-link:focus-visible {
+  color: var(--sm-nred-accent);
+  background: color-mix(in srgb, var(--sm-nred-accent) 14%, transparent);
+}
+
+/* === Form fields ===
+   The togglebutton / selectbutton + native `<select>` PrimeNG tokens
+   trace back to the global `surface.*` / `form.field.*` palette, which
+   this theme does NOT retint at `:root.app-neon-red`. Without these the
+   Theme picker (Settings) and the provider `<select>` keep the default
+   greys and read as foreign surfaces inside the red shell. */
+html.app-neon-red {
+  --p-form-field-background: var(--sm-bg-content);
+  --p-form-field-disabled-background: var(--sm-bg-content);
+  --p-form-field-filled-background: var(--sm-bg-content);
+  --p-form-field-filled-hover-background: var(--sm-bg-hover);
+  --p-form-field-filled-focus-background: var(--sm-bg-hover);
+  --p-form-field-border-color: var(--sm-nred-border);
+  --p-form-field-hover-border-color: color-mix(in srgb, var(--sm-nred-accent) 50%, transparent);
+  --p-form-field-focus-border-color: var(--sm-nred-accent);
+  --p-form-field-color: #ffe1e7;
+  --p-form-field-disabled-color: var(--sm-nred-muted);
+  --p-form-field-placeholder-color: var(--sm-nred-muted);
+  --p-form-field-icon-color: var(--sm-nred-accent-dim);
+  --p-form-field-float-label-color: var(--sm-nred-muted);
+  --p-form-field-float-label-focus-color: var(--sm-nred-accent);
+}
+
+/* Selectbutton selected pill, retinted on both layers (root surface +
+   inner content) so the active option reads as red on a translucent
+   accent fill instead of a light-grey card. */
+html.app-neon-red .p-togglebutton {
+  background: transparent;
+  border-color: var(--sm-nred-border);
+  color: var(--sm-nred-muted);
+}
+
+html.app-neon-red .p-togglebutton:hover {
+  background: color-mix(in srgb, var(--sm-nred-accent) 10%, transparent);
+  color: var(--sm-nred-accent-dim);
+}
+
+html.app-neon-red .p-togglebutton-checked {
+  background: color-mix(in srgb, var(--sm-nred-accent) 18%, transparent);
+  border-color: var(--sm-nred-accent);
+  color: var(--sm-nred-accent);
+}
+
+html.app-neon-red .p-togglebutton-checked .p-togglebutton-content {
+  background: transparent;
+  color: var(--sm-nred-accent);
+  box-shadow: none;
+}
+
+/* Outlined secondary buttons (Project tab row "Remove" actions). The
+   aura preset wires their palette to `surface.*` which this theme does
+   not retint, so retint border + label + hover to the red story. */
+html.app-neon-red .p-button-outlined.p-button-secondary {
+  color: var(--sm-nred-muted);
+  border-color: var(--sm-nred-border);
+  background: transparent;
+}
+
+html.app-neon-red .p-button-outlined.p-button-secondary:enabled:hover,
+html.app-neon-red .p-button-outlined.p-button-secondary:enabled:focus-visible {
+  color: var(--sm-nred-accent);
+  border-color: var(--sm-nred-accent);
+  background: color-mix(in srgb, var(--sm-nred-accent) 12%, transparent);
+}
+
+html.app-neon-red .p-button-outlined.p-button-secondary:enabled:active {
+  background: color-mix(in srgb, var(--sm-nred-accent) 20%, transparent);
+}
+
+/* === Graph view ===
+   Foblex tokens overridden per the foblex-flow skill (rules 5 + 7):
+   per-view tweaks set stroke / background tokens at the wrap, no
+   `::ng-deep`, no rolling our own SVG. */
+
+/* Canvas: a red-black radial gradient (lighter core, darker rim) carries
+   the "console" depth, the faint red grid sits on top.
+   `--ff-flow-background-color: transparent` lets the wrap gradient show
+   through Foblex's own flow background layer. */
+html.app-neon-red .graph__canvas-wrap {
+  background: radial-gradient(
+    ellipse 120% 90% at 50% 34%,
+    #20060c 0%,
+    #14050a 55%,
+    #0d0306 100%
+  );
+  --ff-flow-background-color: transparent;
+  --ff-background-line-color: color-mix(in srgb, var(--sm-nred-accent) 8%, transparent);
+
+  /* Minimap: dim red ramp on a near-void surface. Auxiliary navigator,
+     not the primary signal, so every accent is muted. Selected node and
+     viewport border keep a touch more chroma than idle dots. */
+  --ff-minimap-background-color: #120509;
+  --ff-minimap-border-color: color-mix(in srgb, var(--sm-nred-accent) 20%, transparent);
+  --ff-minimap-node-color: color-mix(in srgb, var(--sm-nred-accent-dim) 45%, var(--sm-bg-content));
+  --ff-minimap-node-selected-color: var(--sm-nred-accent);
+  --ff-minimap-view-color: color-mix(in srgb, var(--sm-nred-accent) 8%, transparent);
+  --ff-minimap-view-border-color: color-mix(in srgb, var(--sm-nred-accent-dim) 60%, transparent);
+  --ff-minimap-shadow: var(--sm-shadow-floating);
+}
+
+/* Node cards: a crisp red rim on top of the box-shadow halo so the card
+   reads as rim-lit glass. Higher specificity than the component
+   `:host { border-color: var(--sm-border) }`. */
+html.app-neon-red sm-node-card {
+  border-color: color-mix(in srgb, var(--sm-nred-accent) 30%, var(--sm-nred-border));
+}
+
+/* Light-emitting connection lines, the signature of the neon look. A
+   soft drop-shadow on each connection host makes the stroke read as
+   emitted light; highlighted / selected edges bump to a brighter, wider
+   halo. Kept low-radius (3px) so GPU compositing stays cheap.
+   PERFORMANCE NOTE: the always-on glow is the costly part on very dense
+   maps; if FPS drops, restrict the first rule to `.f-conn--highlighted,
+   .f-connection.f-selected` only. */
+html.app-neon-red .f-connection {
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--sm-nred-accent-dim) 70%, transparent));
+}
+
+html.app-neon-red .f-conn--highlighted,
+html.app-neon-red .f-connection.f-selected {
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--sm-nred-accent) 85%, transparent));
+}
+
+/* Floating zoom toolbar: PrimeNG `severity="secondary" [text]` reads the
+   `--p-button-text-secondary-*` chain. Override at the wrapper so the
+   red tint propagates without fighting specificity inside the button.
+   Shares the card glow shape so the pill reads as another neon surface. */
+html.app-neon-red .graph__toolbar {
+  --p-button-text-secondary-color: var(--sm-nred-accent-dim);
+  --p-button-text-secondary-hover-color: var(--sm-nred-accent);
+  --p-button-text-secondary-hover-background: color-mix(in srgb, var(--sm-nred-accent) 18%, transparent);
+  --p-button-text-secondary-active-background: color-mix(in srgb, var(--sm-nred-accent) 26%, transparent);
+  box-shadow: var(--sm-shadow-card);
+  background: var(--sm-bg-page);
+}
+
+html.app-neon-red .graph__toolbar .p-button {
+  transition: background 0.15s ease, color 0.15s ease, text-shadow 0.15s ease;
+}
+
+html.app-neon-red .graph__toolbar .p-button:hover {
+  text-shadow: 0 0 8px color-mix(in srgb, var(--sm-nred-accent) 60%, transparent);
+}
+
+html.app-neon-red .graph__toolbar:has(.p-button:hover) {
+  box-shadow: var(--sm-shadow-card-hover);
+}
+
+/* Floating filter palettes (kind-palette + link-kind-palette), anchored
+   top-left of the canvas. Keep the glass but on the red-black page
+   surface so the red accents stay the only chroma. */
+html.app-neon-red .graph__filter-stack .kind-palette,
+html.app-neon-red .graph__filter-stack .link-kind-palette {
+  background: color-mix(in srgb, var(--sm-bg-page) 80%, transparent);
+}
+
+html.app-neon-red .graph__filter-stack .kind-palette__btn,
+html.app-neon-red .graph__filter-stack .link-kind-palette__btn,
+html.app-neon-red .graph__filter-stack .severity-palette__btn {
+  border-color: color-mix(in srgb, var(--sm-nred-accent-dim) 14%, transparent);
+}
+
+html.app-neon-red .graph__filter-stack .kind-palette__btn[aria-pressed='true'],
+html.app-neon-red .graph__filter-stack .link-kind-palette__btn[aria-pressed='true'],
+html.app-neon-red .graph__filter-stack .severity-palette__btn[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--sm-nred-accent-dim) 12%, transparent);
+  border-color: color-mix(in srgb, var(--sm-nred-accent-dim) 55%, transparent);
+}
+
+/* Perf HUD widget chrome (bottom-left of canvas). Diagnostic readout,
+   not an active-state pill, so it sits well under the palette items:
+   faint accent-dim wash near the void, one shared dim-red foreground
+   pinned across every token the cells flow through. */
+html.app-neon-red sm-perf-hud .perf-hud {
+  --perf-fg: color-mix(in oklab, var(--sm-nred-accent-dim) 72%, #0f0407);
+  background: color-mix(in srgb, var(--sm-bg-page) 55%, transparent);
+  border-color: color-mix(in srgb, var(--sm-nred-accent-dim) 22%, transparent);
+  color: var(--perf-fg);
+  --p-text-color: var(--perf-fg);
+  --p-text-muted-color: var(--perf-fg);
+  --p-togglebutton-color: var(--perf-fg);
+  --p-togglebutton-checked-color: var(--perf-fg);
+  --p-togglebutton-hover-color: var(--perf-fg);
+  --p-togglebutton-background: var(--sm-bg-page);
+  --p-togglebutton-checked-background: var(--sm-bg-page);
+  --p-togglebutton-hover-background: var(--sm-bg-page);
+}
+
+html.app-neon-red sm-perf-hud .perf-hud .perf-hud__header .perf-hud__cell,
+html.app-neon-red sm-perf-hud .perf-hud .perf-hud__expandable-inner .perf-hud__cell {
+  color: var(--perf-fg);
+}

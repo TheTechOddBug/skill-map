@@ -54,6 +54,27 @@ export const EXTRA_THEMES: readonly IExtraThemeDescriptor[] = [
     label: 'Matrix',
     description: 'Cyber-green retint on the dark palette.',
   },
+  {
+    id: 'neon-red',
+    htmlClass: 'app-neon-red',
+    forcesDark: true,
+    label: 'Neon R',
+    description: 'Electric-red glow on a deep console.',
+  },
+  {
+    id: 'neon-green',
+    htmlClass: 'app-neon-green',
+    forcesDark: true,
+    label: 'Neon G',
+    description: 'Electric-green glow on a deep console.',
+  },
+  {
+    id: 'neon',
+    htmlClass: 'app-neon',
+    forcesDark: true,
+    label: 'Neon B',
+    description: 'Electric-cyan glow on a deep-navy console.',
+  },
 ] as const;
 
 /** Union of every theme id in the registry, plus `null` for the

@@ -1,0 +1,372 @@
+/* skill-map neon theme. Activated by `ThemeService` when
+ * `extraTheme === 'neon'` (the service toggles `.app-neon` on
+ * `<html>`, alongside `.app-dark` + `.dark` so PrimeNG / Foblex run
+ * their dark base). Self-contained: removing this file from
+ * `angular.json`'s `styles` array fully disables the theme.
+ *
+ * Visual target: deep-navy "sci-fi console" with electric-cyan glow
+ * on cards and light-emitting connection lines (the n8n-style graph
+ * look). Mirrors the matrix theme's structure, the differences are
+ * deliberate:
+ *   - text stays a soft blue-white (cyan is reserved for accents,
+ *     borders, glow and edges), so the map reads instead of glaring;
+ *   - severity + syntax-highlight palettes are NOT retinted, danger
+ *     stays red and code keeps the dark catalog;
+ *   - no font swap (a display font can land later behind `fontHref`).
+ *
+ * Selector prefix:
+ *   - `:root.app-neon`   for the var palette (beats PrimeNG's runtime
+ *                        `:root,:host` injection).
+ *   - `html.app-neon .X` for per-element retints (beats Angular's
+ *                        emulated-encapsulation rewrite of component
+ *                        CSS, which lands later in the source order).
+ */
+
+/* === Base palette, SM tokens + PrimeNG retint + shadows === */
+:root.app-neon {
+  --sm-neon-accent: #22d3ee;       /* electric cyan, primary accent */
+  --sm-neon-accent-bright: #67e8f9; /* hotter cyan for active states */
+  --sm-neon-accent-dim: #38bdf8;   /* sky blue, secondary accent */
+  --sm-neon-muted: #7dd3fc;        /* light sky, calm accent */
+  --sm-neon-border: #123a5c;       /* deep cyan-blue hairline */
+
+  --sm-bg-page: #04070f;           /* navy void */
+  --sm-bg-content: #0a1326;        /* card navy */
+  --sm-bg-hover: #16264a;          /* lifted navy */
+  --sm-border: var(--sm-neon-border);
+  --sm-nav-active-bg: color-mix(in srgb, var(--sm-neon-accent) 14%, transparent);
+
+  /* Soft blue-white body text + muted blue-grey, so cyan never has to
+     carry legibility. Both `--p-text-*` (PrimeNG surfaces) and
+     `--sm-text-muted` (node cards, chips, paths) are retuned for the
+     navy surface, the zinc-tuned dark values read slightly cold here. */
+  --sm-text-muted: #7e9ac0;
+
+  /* Edge kind ramp: slate (`supersedes`, weakest semantic) brightening
+     toward cyan (`invokes`, strongest), so the four kinds read as one
+     blue gradient instead of four competing neons. Active variants run
+     the same interpolation between brighter endpoints. */
+  --sm-edge-neutral: #475569;
+  --sm-edge-supersedes: var(--sm-edge-neutral);
+  --sm-edge-mentions: color-mix(in srgb, var(--sm-neon-accent-dim) 33%, var(--sm-edge-neutral));
+  --sm-edge-references: color-mix(in srgb, var(--sm-neon-accent-dim) 67%, var(--sm-edge-neutral));
+  --sm-edge-invokes: var(--sm-neon-accent-dim);
+  --sm-edge-supersedes-active: #94a3b8;
+  --sm-edge-mentions-active: color-mix(in srgb, var(--sm-neon-accent-bright) 33%, #94a3b8);
+  --sm-edge-references-active: color-mix(in srgb, var(--sm-neon-accent-bright) 67%, #94a3b8);
+  --sm-edge-invokes-active: var(--sm-neon-accent-bright);
+
+  --sm-link-in-bg: color-mix(in srgb, var(--sm-neon-accent) 14%, transparent);
+  --sm-link-in-fg: var(--sm-neon-accent);
+  --sm-link-out-bg: color-mix(in srgb, var(--sm-neon-muted) 14%, transparent);
+  --sm-link-out-fg: var(--sm-neon-muted);
+
+  --p-text-color: #d6e9ff;
+  --p-text-muted-color: var(--sm-text-muted);
+  --p-primary-color: var(--sm-neon-accent);
+  --p-primary-contrast-color: #04121c;
+  --p-content-background: var(--sm-bg-content);
+  --p-content-hover-background: var(--sm-bg-hover);
+  --p-content-border-color: var(--sm-neon-border);
+  --p-surface-900: var(--sm-bg-page);
+
+  /* Physical-stat chip tints, re-keyed to the navy surface so the
+     footer chips sit on it instead of the zinc-tuned dark values. */
+  --sm-stat-tokens-bg: color-mix(in srgb, var(--sm-neon-accent-dim) 22%, transparent);
+  --sm-stat-bytes-bg: color-mix(in srgb, var(--sm-neon-muted) 18%, transparent);
+
+  /* Glow elevation. The card halo IS the neon identity: idle carries a
+     soft cyan bloom, hover bumps opacity + radius for a clear delta.
+     Pushed harder than matrix (wider radius, higher alpha) to read as
+     emitted light rather than a drop shadow. */
+  --sm-shadow-topbar: 0 1px 2px rgba(0, 0, 0, 0.55);
+  --sm-shadow-eventlog: 0 -4px 18px color-mix(in srgb, var(--sm-neon-accent) 14%, transparent);
+  --sm-shadow-floating: 0 4px 18px color-mix(in srgb, var(--sm-neon-accent) 22%, transparent);
+  --sm-shadow-card: 0 0 20px color-mix(in srgb, var(--sm-neon-accent) 22%, transparent);
+  --sm-shadow-card-hover: 0 0 28px color-mix(in srgb, var(--sm-neon-accent) 62%, transparent);
+  --sm-shadow-panel: 0 4px 28px color-mix(in srgb, var(--sm-neon-accent) 20%, transparent);
+
+  /* Tooltip retint: PrimeNG tooltips live in `<body>` (appended out of
+     any wrapper), so the vars MUST be set at `:root` to reach them via
+     the cascade. Navy surface, sky-blue text, soft cyan glow instead of
+     the default popover drop shadow. */
+  --p-tooltip-background: var(--sm-bg-content);
+  --p-tooltip-color: var(--sm-neon-muted);
+  --p-tooltip-shadow: 0 0 14px color-mix(in srgb, var(--sm-neon-accent) 30%, transparent);
+}
+
+/* === Topbar palette === */
+html.app-neon .shell__topbar {
+  --shell-topbar-bg: var(--sm-bg-page);
+  --shell-topbar-border: color-mix(in srgb, var(--sm-neon-accent) 18%, transparent);
+  --shell-topbar-text: #d6e9ff;
+  --shell-topbar-text-strong: var(--sm-neon-accent);
+  --shell-topbar-text-muted: var(--sm-neon-muted);
+  --shell-topbar-hover-bg: color-mix(in srgb, var(--sm-neon-accent) 18%, transparent);
+  --shell-topbar-active-bg: color-mix(in srgb, var(--sm-neon-accent) 26%, transparent);
+  --shell-topbar-active-text: var(--sm-neon-accent);
+  --shell-topbar-badge-bg: color-mix(in srgb, var(--sm-neon-accent) 16%, transparent);
+}
+
+/* Nav links pick up a cyan glow on hover: text-shadow on the label plus
+   a soft box-shadow halo around the pill. Both fade in alongside the
+   existing `background` / `color` transition declared in `app.css`, so
+   the gesture animates as a single beat. */
+html.app-neon .shell__nav a {
+  transition: background 0.15s ease, color 0.15s ease, text-shadow 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+html.app-neon .shell__nav a:hover {
+  text-shadow: 0 0 8px color-mix(in srgb, var(--sm-neon-accent) 55%, transparent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--sm-neon-accent) 30%, transparent);
+}
+
+html.app-neon .shell__nav a.is-active {
+  text-shadow: 0 0 10px color-mix(in srgb, var(--sm-neon-accent) 50%, transparent);
+}
+
+/* Settings modal sidebar: mirror the topbar nav active state (translucent
+   accent fill + glowing label) so the active section reads as cyan on
+   navy instead of the default violet highlight chain. */
+html.app-neon .settings-modal__sidebar-item:hover {
+  background: color-mix(in srgb, var(--sm-neon-accent) 10%, transparent);
+}
+
+html.app-neon .settings-modal__sidebar-item.is-active {
+  background: color-mix(in srgb, var(--sm-neon-accent) 20%, transparent);
+  color: var(--sm-neon-accent);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--sm-neon-accent) 50%, transparent);
+}
+
+/* === Topbar chips (alpha / version / update), one-off palettes === */
+html.app-neon .shell__alpha {
+  color: var(--sm-neon-accent);
+  background: color-mix(in srgb, var(--sm-neon-accent) 12%, transparent);
+}
+
+html.app-neon .shell__version {
+  color: var(--sm-neon-muted);
+  background: color-mix(in srgb, var(--sm-neon-accent) 10%, transparent);
+}
+
+html.app-neon .shell__update-chip {
+  color: var(--sm-neon-accent);
+  background: color-mix(in srgb, var(--sm-neon-accent) 8%, transparent);
+  border-color: color-mix(in srgb, var(--sm-neon-accent) 35%, transparent);
+}
+
+html.app-neon .shell__update-chip:hover,
+html.app-neon .shell__update-chip:focus-visible {
+  background: color-mix(in srgb, var(--sm-neon-accent) 18%, transparent);
+  color: var(--sm-neon-accent);
+}
+
+html.app-neon .shell__update-npm-link {
+  color: var(--sm-neon-accent-dim);
+}
+
+html.app-neon .shell__update-npm-link:hover,
+html.app-neon .shell__update-npm-link:focus-visible {
+  color: var(--sm-neon-accent);
+  background: color-mix(in srgb, var(--sm-neon-accent) 14%, transparent);
+}
+
+/* === Form fields ===
+   The togglebutton / selectbutton + native `<select>` PrimeNG tokens
+   trace back to the global `surface.*` / `form.field.*` palette, which
+   neon does NOT retint at `:root.app-neon` (the surface scale is shared
+   across themes to keep contrast ratios deterministic). Without these
+   the Theme picker (Settings) and the provider `<select>` keep the
+   default greys and read as foreign surfaces inside the navy shell. */
+html.app-neon {
+  --p-form-field-background: var(--sm-bg-content);
+  --p-form-field-disabled-background: var(--sm-bg-content);
+  --p-form-field-filled-background: var(--sm-bg-content);
+  --p-form-field-filled-hover-background: var(--sm-bg-hover);
+  --p-form-field-filled-focus-background: var(--sm-bg-hover);
+  --p-form-field-border-color: var(--sm-neon-border);
+  --p-form-field-hover-border-color: color-mix(in srgb, var(--sm-neon-accent) 50%, transparent);
+  --p-form-field-focus-border-color: var(--sm-neon-accent);
+  --p-form-field-color: #d6e9ff;
+  --p-form-field-disabled-color: var(--sm-neon-muted);
+  --p-form-field-placeholder-color: var(--sm-neon-muted);
+  --p-form-field-icon-color: var(--sm-neon-accent-dim);
+  --p-form-field-float-label-color: var(--sm-neon-muted);
+  --p-form-field-float-label-focus-color: var(--sm-neon-accent);
+}
+
+/* Selectbutton selected pill, retinted on both layers (root surface +
+   inner content) so the active option reads as cyan on a translucent
+   accent fill instead of a light-grey card. */
+html.app-neon .p-togglebutton {
+  background: transparent;
+  border-color: var(--sm-neon-border);
+  color: var(--sm-neon-muted);
+}
+
+html.app-neon .p-togglebutton:hover {
+  background: color-mix(in srgb, var(--sm-neon-accent) 10%, transparent);
+  color: var(--sm-neon-accent-dim);
+}
+
+html.app-neon .p-togglebutton-checked {
+  background: color-mix(in srgb, var(--sm-neon-accent) 18%, transparent);
+  border-color: var(--sm-neon-accent);
+  color: var(--sm-neon-accent);
+}
+
+html.app-neon .p-togglebutton-checked .p-togglebutton-content {
+  background: transparent;
+  color: var(--sm-neon-accent);
+  box-shadow: none;
+}
+
+/* Outlined secondary buttons (Project tab row "Remove" actions). The
+   aura preset wires their palette to `surface.*` which neon does not
+   retint, so retint border + label + hover to the navy/cyan story. */
+html.app-neon .p-button-outlined.p-button-secondary {
+  color: var(--sm-neon-muted);
+  border-color: var(--sm-neon-border);
+  background: transparent;
+}
+
+html.app-neon .p-button-outlined.p-button-secondary:enabled:hover,
+html.app-neon .p-button-outlined.p-button-secondary:enabled:focus-visible {
+  color: var(--sm-neon-accent);
+  border-color: var(--sm-neon-accent);
+  background: color-mix(in srgb, var(--sm-neon-accent) 12%, transparent);
+}
+
+html.app-neon .p-button-outlined.p-button-secondary:enabled:active {
+  background: color-mix(in srgb, var(--sm-neon-accent) 20%, transparent);
+}
+
+/* === Graph view ===
+   Foblex tokens overridden per the foblex-flow skill (rules 5 + 7):
+   per-view tweaks set stroke / background tokens at the wrap, no
+   `::ng-deep`, no rolling our own SVG. */
+
+/* Canvas: a navy radial gradient (lighter core, darker rim) carries the
+   "console" depth the reference image has, the faint cyan grid sits on
+   top. `--ff-flow-background-color: transparent` lets the wrap gradient
+   show through Foblex's own flow background layer. */
+html.app-neon .graph__canvas-wrap {
+  background: radial-gradient(
+    ellipse 120% 90% at 50% 34%,
+    #0b1830 0%,
+    #06101f 55%,
+    #03070f 100%
+  );
+  --ff-flow-background-color: transparent;
+  --ff-background-line-color: color-mix(in srgb, var(--sm-neon-accent) 8%, transparent);
+
+  /* Minimap: dim cyan ramp on a near-void surface. Auxiliary navigator,
+     not the primary signal, so every accent is muted (mixed with the
+     bg, dropped to accent-dim, or held under 20% alpha). Selected node
+     and viewport border keep a touch more chroma than idle dots. */
+  --ff-minimap-background-color: #050b16;
+  --ff-minimap-border-color: color-mix(in srgb, var(--sm-neon-accent) 20%, transparent);
+  --ff-minimap-node-color: color-mix(in srgb, var(--sm-neon-accent-dim) 45%, var(--sm-bg-content));
+  --ff-minimap-node-selected-color: var(--sm-neon-accent);
+  --ff-minimap-view-color: color-mix(in srgb, var(--sm-neon-accent) 8%, transparent);
+  --ff-minimap-view-border-color: color-mix(in srgb, var(--sm-neon-accent-dim) 60%, transparent);
+  --ff-minimap-shadow: var(--sm-shadow-floating);
+}
+
+/* Node cards: add a crisp cyan rim on top of the box-shadow halo so the
+   card reads as rim-lit glass (the reference nodes have a glowing
+   outline, the glow alone leaves the edge soft). Higher specificity
+   than the component `:host { border-color: var(--sm-border) }`. */
+html.app-neon sm-node-card {
+  border-color: color-mix(in srgb, var(--sm-neon-accent) 30%, var(--sm-neon-border));
+}
+
+/* Light-emitting connection lines, the signature of the neon look. A
+   soft drop-shadow on each connection host makes the stroke read as
+   emitted light instead of a flat line; highlighted / selected edges
+   bump to a brighter, wider halo. Kept low-radius (3px) so GPU
+   compositing stays cheap. PERFORMANCE NOTE: the always-on glow is the
+   costly part on very dense maps, if FPS drops, restrict the first rule
+   to `.f-conn--highlighted, .f-connection.f-selected` only. */
+html.app-neon .f-connection {
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--sm-neon-accent-dim) 70%, transparent));
+}
+
+html.app-neon .f-conn--highlighted,
+html.app-neon .f-connection.f-selected {
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--sm-neon-accent) 85%, transparent));
+}
+
+/* Floating zoom toolbar: PrimeNG `severity="secondary" [text]` reads the
+   `--p-button-text-secondary-*` chain. Override at the wrapper so the
+   cyan tint propagates without fighting specificity inside the button.
+   Auxiliary navigation, so accents drop one notch (accent to
+   accent-dim) and share the card glow shape so the pill reads as another
+   neon surface, not a brighter outlier. */
+html.app-neon .graph__toolbar {
+  --p-button-text-secondary-color: var(--sm-neon-accent-dim);
+  --p-button-text-secondary-hover-color: var(--sm-neon-accent);
+  --p-button-text-secondary-hover-background: color-mix(in srgb, var(--sm-neon-accent) 18%, transparent);
+  --p-button-text-secondary-active-background: color-mix(in srgb, var(--sm-neon-accent) 26%, transparent);
+  box-shadow: var(--sm-shadow-card);
+  background: var(--sm-bg-page);
+}
+
+html.app-neon .graph__toolbar .p-button {
+  transition: background 0.15s ease, color 0.15s ease, text-shadow 0.15s ease;
+}
+
+html.app-neon .graph__toolbar .p-button:hover {
+  text-shadow: 0 0 8px color-mix(in srgb, var(--sm-neon-accent) 60%, transparent);
+}
+
+html.app-neon .graph__toolbar:has(.p-button:hover) {
+  box-shadow: var(--sm-shadow-card-hover);
+}
+
+/* Floating filter palettes (kind-palette + link-kind-palette), anchored
+   top-left of the canvas. The base styles paint them as 80%
+   content-surface glass with an 8px blur. Neon keeps the glass but on
+   the navy page surface so the cyan accents stay the only chroma. */
+html.app-neon .graph__filter-stack .kind-palette,
+html.app-neon .graph__filter-stack .link-kind-palette {
+  background: color-mix(in srgb, var(--sm-bg-page) 80%, transparent);
+}
+
+html.app-neon .graph__filter-stack .kind-palette__btn,
+html.app-neon .graph__filter-stack .link-kind-palette__btn,
+html.app-neon .graph__filter-stack .severity-palette__btn {
+  border-color: color-mix(in srgb, var(--sm-neon-accent-dim) 14%, transparent);
+}
+
+html.app-neon .graph__filter-stack .kind-palette__btn[aria-pressed='true'],
+html.app-neon .graph__filter-stack .link-kind-palette__btn[aria-pressed='true'],
+html.app-neon .graph__filter-stack .severity-palette__btn[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--sm-neon-accent-dim) 12%, transparent);
+  border-color: color-mix(in srgb, var(--sm-neon-accent-dim) 55%, transparent);
+}
+
+/* Perf HUD widget chrome (bottom-left of canvas). Diagnostic readout,
+   not an active-state pill, so it sits well under the palette items:
+   faint accent-dim wash near the void, one shared dim-cyan foreground
+   pinned across every token the cells flow through. */
+html.app-neon sm-perf-hud .perf-hud {
+  --perf-fg: color-mix(in oklab, var(--sm-neon-accent-dim) 72%, #04070f);
+  background: color-mix(in srgb, var(--sm-bg-page) 55%, transparent);
+  border-color: color-mix(in srgb, var(--sm-neon-accent-dim) 22%, transparent);
+  color: var(--perf-fg);
+  --p-text-color: var(--perf-fg);
+  --p-text-muted-color: var(--perf-fg);
+  --p-togglebutton-color: var(--perf-fg);
+  --p-togglebutton-checked-color: var(--perf-fg);
+  --p-togglebutton-hover-color: var(--perf-fg);
+  --p-togglebutton-background: var(--sm-bg-page);
+  --p-togglebutton-checked-background: var(--sm-bg-page);
+  --p-togglebutton-hover-background: var(--sm-bg-page);
+}
+
+html.app-neon sm-perf-hud .perf-hud .perf-hud__header .perf-hud__cell,
+html.app-neon sm-perf-hud .perf-hud .perf-hud__expandable-inner .perf-hud__cell {
+  color: var(--perf-fg);
+}

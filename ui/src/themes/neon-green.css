@@ -1,0 +1,359 @@
+/* skill-map neon-green theme. The green sibling of the `neon` theme:
+ * same glow treatment (rim-lit cards, light-emitting connections,
+ * radial-gradient canvas) on an electric-green palette instead of cyan.
+ * Activated by `ThemeService` when `extraTheme === 'neon-green'` (the
+ * service toggles `.app-neon-green` on `<html>`, alongside `.app-dark`
+ * + `.dark` so PrimeNG / Foblex run their dark base). Self-contained:
+ * removing this file from `angular.json`'s `styles` array fully
+ * disables the theme.
+ *
+ * Distinct from the `matrix` theme on purpose: matrix retints ALL text
+ * green and swaps to JetBrains Mono; this one keeps body text a soft
+ * green-white and reserves green for accents, borders, glow and edges,
+ * so the map reads instead of glaring.
+ *
+ * Selector prefix:
+ *   - `:root.app-neon-green`   for the var palette (beats PrimeNG's
+ *                              runtime `:root,:host` injection).
+ *   - `html.app-neon-green .X` for per-element retints (beats Angular's
+ *                              emulated-encapsulation rewrite of
+ *                              component CSS, which lands later).
+ */
+
+/* === Base palette, SM tokens + PrimeNG retint + shadows === */
+:root.app-neon-green {
+  --sm-ngreen-accent: #2bf57e;        /* electric green, primary accent */
+  --sm-ngreen-accent-bright: #7dffb0; /* hotter green for active states */
+  --sm-ngreen-accent-dim: #22c55e;    /* emerald, secondary accent */
+  --sm-ngreen-muted: #86efac;         /* light green, calm accent */
+  --sm-ngreen-border: #0e4d33;        /* deep green hairline */
+
+  --sm-bg-page: #04100a;              /* green-black void */
+  --sm-bg-content: #0a1c13;           /* card green-black */
+  --sm-bg-hover: #14301f;             /* lifted green-black */
+  --sm-border: var(--sm-ngreen-border);
+  --sm-nav-active-bg: color-mix(in srgb, var(--sm-ngreen-accent) 14%, transparent);
+
+  /* Soft green-white body text + muted green-grey, so green never has
+     to carry legibility. Both `--p-text-*` (PrimeNG surfaces) and
+     `--sm-text-muted` (node cards, chips, paths) are retuned for the
+     green-black surface. */
+  --sm-text-muted: #82a591;
+
+  /* Edge kind ramp: green-grey (`supersedes`, weakest semantic)
+     brightening toward green (`invokes`, strongest), so the four kinds
+     read as one gradient instead of four competing neons. Active
+     variants run the same interpolation between brighter endpoints. */
+  --sm-edge-neutral: #566b5e;
+  --sm-edge-supersedes: var(--sm-edge-neutral);
+  --sm-edge-mentions: color-mix(in srgb, var(--sm-ngreen-accent-dim) 33%, var(--sm-edge-neutral));
+  --sm-edge-references: color-mix(in srgb, var(--sm-ngreen-accent-dim) 67%, var(--sm-edge-neutral));
+  --sm-edge-invokes: var(--sm-ngreen-accent-dim);
+  --sm-edge-supersedes-active: #9bb3a4;
+  --sm-edge-mentions-active: color-mix(in srgb, var(--sm-ngreen-accent-bright) 33%, #9bb3a4);
+  --sm-edge-references-active: color-mix(in srgb, var(--sm-ngreen-accent-bright) 67%, #9bb3a4);
+  --sm-edge-invokes-active: var(--sm-ngreen-accent-bright);
+
+  --sm-link-in-bg: color-mix(in srgb, var(--sm-ngreen-accent) 14%, transparent);
+  --sm-link-in-fg: var(--sm-ngreen-accent);
+  --sm-link-out-bg: color-mix(in srgb, var(--sm-ngreen-muted) 14%, transparent);
+  --sm-link-out-fg: var(--sm-ngreen-muted);
+
+  --p-text-color: #d9ffe9;
+  --p-text-muted-color: var(--sm-text-muted);
+  --p-primary-color: var(--sm-ngreen-accent);
+  --p-primary-contrast-color: #04140b;
+  --p-content-background: var(--sm-bg-content);
+  --p-content-hover-background: var(--sm-bg-hover);
+  --p-content-border-color: var(--sm-ngreen-border);
+  --p-surface-900: var(--sm-bg-page);
+
+  /* Physical-stat chip tints, re-keyed to the green-black surface. */
+  --sm-stat-tokens-bg: color-mix(in srgb, var(--sm-ngreen-accent-dim) 22%, transparent);
+  --sm-stat-bytes-bg: color-mix(in srgb, var(--sm-ngreen-muted) 18%, transparent);
+
+  /* Glow elevation. The card halo IS the neon identity: idle carries a
+     soft green bloom, hover bumps opacity + radius for a clear delta. */
+  --sm-shadow-topbar: 0 1px 2px rgba(0, 0, 0, 0.55);
+  --sm-shadow-eventlog: 0 -4px 18px color-mix(in srgb, var(--sm-ngreen-accent) 14%, transparent);
+  --sm-shadow-floating: 0 4px 18px color-mix(in srgb, var(--sm-ngreen-accent) 22%, transparent);
+  --sm-shadow-card: 0 0 20px color-mix(in srgb, var(--sm-ngreen-accent) 22%, transparent);
+  --sm-shadow-card-hover: 0 0 28px color-mix(in srgb, var(--sm-ngreen-accent) 62%, transparent);
+  --sm-shadow-panel: 0 4px 28px color-mix(in srgb, var(--sm-ngreen-accent) 20%, transparent);
+
+  /* Tooltip retint: PrimeNG tooltips live in `<body>` (appended out of
+     any wrapper), so the vars MUST be set at `:root` to reach them via
+     the cascade. Green-black surface, light-green text, soft green glow. */
+  --p-tooltip-background: var(--sm-bg-content);
+  --p-tooltip-color: var(--sm-ngreen-muted);
+  --p-tooltip-shadow: 0 0 14px color-mix(in srgb, var(--sm-ngreen-accent) 30%, transparent);
+}
+
+/* === Topbar palette === */
+html.app-neon-green .shell__topbar {
+  --shell-topbar-bg: var(--sm-bg-page);
+  --shell-topbar-border: color-mix(in srgb, var(--sm-ngreen-accent) 18%, transparent);
+  --shell-topbar-text: #d9ffe9;
+  --shell-topbar-text-strong: var(--sm-ngreen-accent);
+  --shell-topbar-text-muted: var(--sm-ngreen-muted);
+  --shell-topbar-hover-bg: color-mix(in srgb, var(--sm-ngreen-accent) 18%, transparent);
+  --shell-topbar-active-bg: color-mix(in srgb, var(--sm-ngreen-accent) 26%, transparent);
+  --shell-topbar-active-text: var(--sm-ngreen-accent);
+  --shell-topbar-badge-bg: color-mix(in srgb, var(--sm-ngreen-accent) 16%, transparent);
+}
+
+/* Nav links pick up a green glow on hover: text-shadow on the label
+   plus a soft box-shadow halo around the pill. Both fade in alongside
+   the existing `background` / `color` transition declared in `app.css`. */
+html.app-neon-green .shell__nav a {
+  transition: background 0.15s ease, color 0.15s ease, text-shadow 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+html.app-neon-green .shell__nav a:hover {
+  text-shadow: 0 0 8px color-mix(in srgb, var(--sm-ngreen-accent) 55%, transparent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--sm-ngreen-accent) 30%, transparent);
+}
+
+html.app-neon-green .shell__nav a.is-active {
+  text-shadow: 0 0 10px color-mix(in srgb, var(--sm-ngreen-accent) 50%, transparent);
+}
+
+/* Settings modal sidebar: mirror the topbar nav active state
+   (translucent accent fill + glowing label) so the active section reads
+   as green on green-black instead of the default violet highlight. */
+html.app-neon-green .settings-modal__sidebar-item:hover {
+  background: color-mix(in srgb, var(--sm-ngreen-accent) 10%, transparent);
+}
+
+html.app-neon-green .settings-modal__sidebar-item.is-active {
+  background: color-mix(in srgb, var(--sm-ngreen-accent) 20%, transparent);
+  color: var(--sm-ngreen-accent);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--sm-ngreen-accent) 50%, transparent);
+}
+
+/* === Topbar chips (alpha / version / update), one-off palettes === */
+html.app-neon-green .shell__alpha {
+  color: var(--sm-ngreen-accent);
+  background: color-mix(in srgb, var(--sm-ngreen-accent) 12%, transparent);
+}
+
+html.app-neon-green .shell__version {
+  color: var(--sm-ngreen-muted);
+  background: color-mix(in srgb, var(--sm-ngreen-accent) 10%, transparent);
+}
+
+html.app-neon-green .shell__update-chip {
+  color: var(--sm-ngreen-accent);
+  background: color-mix(in srgb, var(--sm-ngreen-accent) 8%, transparent);
+  border-color: color-mix(in srgb, var(--sm-ngreen-accent) 35%, transparent);
+}
+
+html.app-neon-green .shell__update-chip:hover,
+html.app-neon-green .shell__update-chip:focus-visible {
+  background: color-mix(in srgb, var(--sm-ngreen-accent) 18%, transparent);
+  color: var(--sm-ngreen-accent);
+}
+
+html.app-neon-green .shell__update-npm-link {
+  color: var(--sm-ngreen-accent-dim);
+}
+
+html.app-neon-green .shell__update-npm-link:hover,
+html.app-neon-green .shell__update-npm-link:focus-visible {
+  color: var(--sm-ngreen-accent);
+  background: color-mix(in srgb, var(--sm-ngreen-accent) 14%, transparent);
+}
+
+/* === Form fields ===
+   The togglebutton / selectbutton + native `<select>` PrimeNG tokens
+   trace back to the global `surface.*` / `form.field.*` palette, which
+   this theme does NOT retint at `:root.app-neon-green`. Without these
+   the Theme picker (Settings) and the provider `<select>` keep the
+   default greys and read as foreign surfaces inside the green shell. */
+html.app-neon-green {
+  --p-form-field-background: var(--sm-bg-content);
+  --p-form-field-disabled-background: var(--sm-bg-content);
+  --p-form-field-filled-background: var(--sm-bg-content);
+  --p-form-field-filled-hover-background: var(--sm-bg-hover);
+  --p-form-field-filled-focus-background: var(--sm-bg-hover);
+  --p-form-field-border-color: var(--sm-ngreen-border);
+  --p-form-field-hover-border-color: color-mix(in srgb, var(--sm-ngreen-accent) 50%, transparent);
+  --p-form-field-focus-border-color: var(--sm-ngreen-accent);
+  --p-form-field-color: #d9ffe9;
+  --p-form-field-disabled-color: var(--sm-ngreen-muted);
+  --p-form-field-placeholder-color: var(--sm-ngreen-muted);
+  --p-form-field-icon-color: var(--sm-ngreen-accent-dim);
+  --p-form-field-float-label-color: var(--sm-ngreen-muted);
+  --p-form-field-float-label-focus-color: var(--sm-ngreen-accent);
+}
+
+/* Selectbutton selected pill, retinted on both layers (root surface +
+   inner content) so the active option reads as green on a translucent
+   accent fill instead of a light-grey card. */
+html.app-neon-green .p-togglebutton {
+  background: transparent;
+  border-color: var(--sm-ngreen-border);
+  color: var(--sm-ngreen-muted);
+}
+
+html.app-neon-green .p-togglebutton:hover {
+  background: color-mix(in srgb, var(--sm-ngreen-accent) 10%, transparent);
+  color: var(--sm-ngreen-accent-dim);
+}
+
+html.app-neon-green .p-togglebutton-checked {
+  background: color-mix(in srgb, var(--sm-ngreen-accent) 18%, transparent);
+  border-color: var(--sm-ngreen-accent);
+  color: var(--sm-ngreen-accent);
+}
+
+html.app-neon-green .p-togglebutton-checked .p-togglebutton-content {
+  background: transparent;
+  color: var(--sm-ngreen-accent);
+  box-shadow: none;
+}
+
+/* Outlined secondary buttons (Project tab row "Remove" actions). The
+   aura preset wires their palette to `surface.*` which this theme does
+   not retint, so retint border + label + hover to the green story. */
+html.app-neon-green .p-button-outlined.p-button-secondary {
+  color: var(--sm-ngreen-muted);
+  border-color: var(--sm-ngreen-border);
+  background: transparent;
+}
+
+html.app-neon-green .p-button-outlined.p-button-secondary:enabled:hover,
+html.app-neon-green .p-button-outlined.p-button-secondary:enabled:focus-visible {
+  color: var(--sm-ngreen-accent);
+  border-color: var(--sm-ngreen-accent);
+  background: color-mix(in srgb, var(--sm-ngreen-accent) 12%, transparent);
+}
+
+html.app-neon-green .p-button-outlined.p-button-secondary:enabled:active {
+  background: color-mix(in srgb, var(--sm-ngreen-accent) 20%, transparent);
+}
+
+/* === Graph view ===
+   Foblex tokens overridden per the foblex-flow skill (rules 5 + 7):
+   per-view tweaks set stroke / background tokens at the wrap, no
+   `::ng-deep`, no rolling our own SVG. */
+
+/* Canvas: a green-black radial gradient (lighter core, darker rim)
+   carries the "console" depth, the faint green grid sits on top.
+   `--ff-flow-background-color: transparent` lets the wrap gradient show
+   through Foblex's own flow background layer. */
+html.app-neon-green .graph__canvas-wrap {
+  background: radial-gradient(
+    ellipse 120% 90% at 50% 34%,
+    #0a2016 0%,
+    #06140d 55%,
+    #030f08 100%
+  );
+  --ff-flow-background-color: transparent;
+  --ff-background-line-color: color-mix(in srgb, var(--sm-ngreen-accent) 8%, transparent);
+
+  /* Minimap: dim green ramp on a near-void surface. Auxiliary navigator,
+     not the primary signal, so every accent is muted. Selected node and
+     viewport border keep a touch more chroma than idle dots. */
+  --ff-minimap-background-color: #05120b;
+  --ff-minimap-border-color: color-mix(in srgb, var(--sm-ngreen-accent) 20%, transparent);
+  --ff-minimap-node-color: color-mix(in srgb, var(--sm-ngreen-accent-dim) 45%, var(--sm-bg-content));
+  --ff-minimap-node-selected-color: var(--sm-ngreen-accent);
+  --ff-minimap-view-color: color-mix(in srgb, var(--sm-ngreen-accent) 8%, transparent);
+  --ff-minimap-view-border-color: color-mix(in srgb, var(--sm-ngreen-accent-dim) 60%, transparent);
+  --ff-minimap-shadow: var(--sm-shadow-floating);
+}
+
+/* Node cards: a crisp green rim on top of the box-shadow halo so the
+   card reads as rim-lit glass. Higher specificity than the component
+   `:host { border-color: var(--sm-border) }`. */
+html.app-neon-green sm-node-card {
+  border-color: color-mix(in srgb, var(--sm-ngreen-accent) 30%, var(--sm-ngreen-border));
+}
+
+/* Light-emitting connection lines, the signature of the neon look. A
+   soft drop-shadow on each connection host makes the stroke read as
+   emitted light; highlighted / selected edges bump to a brighter, wider
+   halo. Kept low-radius (3px) so GPU compositing stays cheap.
+   PERFORMANCE NOTE: the always-on glow is the costly part on very dense
+   maps; if FPS drops, restrict the first rule to `.f-conn--highlighted,
+   .f-connection.f-selected` only. */
+html.app-neon-green .f-connection {
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--sm-ngreen-accent-dim) 70%, transparent));
+}
+
+html.app-neon-green .f-conn--highlighted,
+html.app-neon-green .f-connection.f-selected {
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--sm-ngreen-accent) 85%, transparent));
+}
+
+/* Floating zoom toolbar: PrimeNG `severity="secondary" [text]` reads the
+   `--p-button-text-secondary-*` chain. Override at the wrapper so the
+   green tint propagates without fighting specificity inside the button.
+   Shares the card glow shape so the pill reads as another neon surface. */
+html.app-neon-green .graph__toolbar {
+  --p-button-text-secondary-color: var(--sm-ngreen-accent-dim);
+  --p-button-text-secondary-hover-color: var(--sm-ngreen-accent);
+  --p-button-text-secondary-hover-background: color-mix(in srgb, var(--sm-ngreen-accent) 18%, transparent);
+  --p-button-text-secondary-active-background: color-mix(in srgb, var(--sm-ngreen-accent) 26%, transparent);
+  box-shadow: var(--sm-shadow-card);
+  background: var(--sm-bg-page);
+}
+
+html.app-neon-green .graph__toolbar .p-button {
+  transition: background 0.15s ease, color 0.15s ease, text-shadow 0.15s ease;
+}
+
+html.app-neon-green .graph__toolbar .p-button:hover {
+  text-shadow: 0 0 8px color-mix(in srgb, var(--sm-ngreen-accent) 60%, transparent);
+}
+
+html.app-neon-green .graph__toolbar:has(.p-button:hover) {
+  box-shadow: var(--sm-shadow-card-hover);
+}
+
+/* Floating filter palettes (kind-palette + link-kind-palette), anchored
+   top-left of the canvas. Keep the glass but on the green-black page
+   surface so the green accents stay the only chroma. */
+html.app-neon-green .graph__filter-stack .kind-palette,
+html.app-neon-green .graph__filter-stack .link-kind-palette {
+  background: color-mix(in srgb, var(--sm-bg-page) 80%, transparent);
+}
+
+html.app-neon-green .graph__filter-stack .kind-palette__btn,
+html.app-neon-green .graph__filter-stack .link-kind-palette__btn,
+html.app-neon-green .graph__filter-stack .severity-palette__btn {
+  border-color: color-mix(in srgb, var(--sm-ngreen-accent-dim) 14%, transparent);
+}
+
+html.app-neon-green .graph__filter-stack .kind-palette__btn[aria-pressed='true'],
+html.app-neon-green .graph__filter-stack .link-kind-palette__btn[aria-pressed='true'],
+html.app-neon-green .graph__filter-stack .severity-palette__btn[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--sm-ngreen-accent-dim) 12%, transparent);
+  border-color: color-mix(in srgb, var(--sm-ngreen-accent-dim) 55%, transparent);
+}
+
+/* Perf HUD widget chrome (bottom-left of canvas). Diagnostic readout,
+   not an active-state pill, so it sits well under the palette items:
+   faint accent-dim wash near the void, one shared dim-green foreground
+   pinned across every token the cells flow through. */
+html.app-neon-green sm-perf-hud .perf-hud {
+  --perf-fg: color-mix(in oklab, var(--sm-ngreen-accent-dim) 72%, #04100a);
+  background: color-mix(in srgb, var(--sm-bg-page) 55%, transparent);
+  border-color: color-mix(in srgb, var(--sm-ngreen-accent-dim) 22%, transparent);
+  color: var(--perf-fg);
+  --p-text-color: var(--perf-fg);
+  --p-text-muted-color: var(--perf-fg);
+  --p-togglebutton-color: var(--perf-fg);
+  --p-togglebutton-checked-color: var(--perf-fg);
+  --p-togglebutton-hover-color: var(--perf-fg);
+  --p-togglebutton-background: var(--sm-bg-page);
+  --p-togglebutton-checked-background: var(--sm-bg-page);
+  --p-togglebutton-hover-background: var(--sm-bg-page);
+}
+
+html.app-neon-green sm-perf-hud .perf-hud .perf-hud__header .perf-hud__cell,
+html.app-neon-green sm-perf-hud .perf-hud .perf-hud__expandable-inner .perf-hud__cell {
+  color: var(--perf-fg);
+}
