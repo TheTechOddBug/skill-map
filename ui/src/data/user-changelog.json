@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.53.2",
+      "date": "2026-06-08",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "Opening a project with one node no longer zooms in too far: the map fits content at natural size (you can still wheel-zoom in). The \"Re-arrange layout\" tooltip is shorter.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.53.1",
       "date": "2026-06-08",
       "kind": "user-facing",

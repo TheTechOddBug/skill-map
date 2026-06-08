@@ -6,6 +6,14 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>0.53.2</b> · 2026-06-08</summary>
+
+### CLI Patch
+- Graph view: "Fit to screen" (and the boot / auto fit) now caps zoom at natural size instead of magnifying, so opening a project with a single node no longer renders it gigantic; the wheel still zooms in to 2x. The "Re-arrange layout" toolbar tooltip also drops its redundant "(re-run auto layout)" tail.
+
+</details>
+
+<details>
 <summary><b>0.53.1</b> · 2026-06-08</summary>
 
 ### CLI Patch
