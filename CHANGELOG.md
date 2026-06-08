@@ -6,6 +6,14 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>0.53.3</b> · 2026-06-08</summary>
+
+### CLI Patch
+- Graph view gains three Neon themes (R/G/B) with a glow treatment, selectable from the theme picker. The toolbar tooltips were trimmed and the "edge style" control renamed to "connector style". The bundled `sm-tutorial` skill adds part 3 ("run the harness") and reworks the finale.
+
+</details>
+
+<details>
 <summary><b>0.53.2</b> · 2026-06-08</summary>
 
 ### CLI Patch
