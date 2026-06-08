@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.53.3",
+      "date": "2026-06-08",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "Three new Neon graph themes (red/green/blue) with a glow effect in the map's theme picker. Toolbar tooltips are shorter and \"edge style\" is now \"connector style\". The built-in tutorial adds a third part and a reworked ending.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.53.2",
       "date": "2026-06-08",
       "kind": "user-facing",
