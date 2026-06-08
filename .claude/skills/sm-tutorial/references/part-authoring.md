@@ -11,11 +11,11 @@ view-slot, and confirm the contribution lands in the UI.
 
 ## Precondition check
 
-Verify that `.skill-map/` exists in the cwd (pre-flight step 4 of
-the `SKILL.md` orchestrator ran `sm init --no-scan` and appended
-the master-tutorial's internal entries to `.skillmapignore`, so
-this is the expected state regardless of whether the tester ran
-the plugins chapters first). If `.skill-map/` is missing, the fixture
+Verify that `.skill-map/` exists in the cwd (the `extend` part's
+`backstage-init` preflight ran `sm init --no-scan` to provision it;
+the universal `.skillmapignore` from pre-flight keeps the tutorial's
+own files out of the scan, so this is the expected state regardless
+of whether the tester ran the plugins chapters first). If `.skill-map/` is missing, the fixture
 is corrupted: surface the mismatch ("the project bootstrap is
 gone, re-invoke the tutorial from an empty dir") and stop.
 

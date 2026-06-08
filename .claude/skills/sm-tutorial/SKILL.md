@@ -160,9 +160,19 @@ cd <cwd>
 ### 5. Write the universal files and show the menu
 
 Pre-flight does NOT pre-lay any part's fixture and does NOT auto-enter
-a part. It writes only the two files every part needs, then routes to
-the menu:
+a part. It writes only the universal files every part needs, then
+routes to the menu:
 
+- `.skillmapignore` (block below). Universal, not a part fixture:
+  every part scans, and every part needs the tutorial's own machinery
+  kept out of the map (this skill's `.claude/skills/sm-tutorial/` dir,
+  `findings.md`, `tutorial-state.yml`, the CLI part's
+  `link-validation/`, and so on). Writing it here, once, before any
+  `sm init`, is what guarantees no part-entry can forget it on a
+  direct jump from the menu. `sm init` only writes `.skillmapignore`
+  when it is absent, so the tester's later `sm init` leaves this one
+  intact. Parts that need more append their own lines on entry (the
+  portfolio's `node_modules/` and `public/`).
 - `findings.md` (block below).
 - `tutorial-state.yml` (template below; it starts with `parts: {}`,
   empty, a part's entry is added the first time the tester picks it).
@@ -171,14 +181,30 @@ Then **route** per §Routing + menu in `_core.md`: render the **start
 menu** (numbered, Part 0 the prologue as option 1, the recommended
 first pick). The tester picks a part by number; that part's own
 `preflight` (see §Entering a part) lays its fixture when it begins.
-Part 0's demo fixture (the `demo-agent` + the demo `.skillmapignore`,
-blocks below) is laid by its `taught-init` entry, not here.
+Part 0's demo fixture (the `demo-agent` block below) is laid by its
+`taught-init` entry, not here.
 
 ## Fixture and state templates
 
-The `findings.md` and `tutorial-state.yml` here are universal (written
-in pre-flight); the `demo-agent.md` + the demo `.skillmapignore` are
-Part 0's fixture (laid by its `taught-init` entry).
+The `.skillmapignore`, `findings.md`, and `tutorial-state.yml` here are
+universal (written in pre-flight); the `demo-agent.md` is Part 0's
+fixture (laid by its `taught-init` entry).
+
+The **full Part 0 demo fixture** is the boot `demo-agent.md` above plus
+the files the prologue's own chapters lay as taught steps, exactly this
+set: `<provider_dir>/agents/demo-agent.md`,
+`<provider_dir>/skills/demo-skill/`,
+`<provider_dir>/commands/demo-command.md`, `notes/todo.md`,
+`notes/demo-guideline.md`, `notes/private-credentials.md`. This is the
+single source for that list. Four entry points delete exactly this set
+when the prologue ran first in the dir: `portfolio-init`, the campaign
+`seed` fast-forward, and `backstage-init` (Part 7), each so the part's
+own fixture starts from a clean slate, plus start-over (§Menu, resume,
+wrap-up). Part 8 `cli` is the inverse
+consumer: its `prologue-built` seed *lays* this fixture (the
+connector-chapter subset, without `notes/private-credentials.md`)
+instead of deleting it, see `fixtures.md` §Seed snapshots. Keep the list
+here in sync if a prologue chapter adds or drops a demo file.
 
 `<provider_dir>/agents/demo-agent.md`:
 ```markdown
@@ -284,45 +310,64 @@ When a part begins, honour its `preflight` from the manifest:
 
 - **`taught-init`** (Part 0): silently, before the tester's `sm init`
   in the `init` chapter, `Write` the demo fixture (the
-  `<provider_dir>/agents/demo-agent.md` boot node + the demo
-  `.skillmapignore`, both in the §Fixture blocks above), substituting
-  `<provider_dir>` per detection. Write `.skillmapignore` BEFORE the
-  tester runs `sm init` so the first scan never sees the tutorial's
-  own files (`sm init` only writes that file when absent). The tester
-  runs `sm init` themselves in the first chapter.
+  `<provider_dir>/agents/demo-agent.md` boot node, in the §Fixture
+  blocks above), substituting `<provider_dir>` per detection. The
+  universal `.skillmapignore` is already on disk from pre-flight, so
+  the first scan never sees the tutorial's own files; nothing to lay
+  here for it. The tester runs `sm init` themselves in the first
+  chapter (`sm init` only writes `.skillmapignore` when absent, so it
+  leaves the pre-flight one intact).
 - **`portfolio-init`** (Part 1 `project-kickoff`): the campaign's
   real project begins. Backstage, before the tester's `sm init` in
   the `kickoff` chapter: (1) if the prologue ran first in this dir,
-  clear its demo fixture so the map starts clean, delete ONLY the
-  Part 0 fixture files (`<provider_dir>/agents/demo-agent.md`,
-  `<provider_dir>/skills/demo-skill/`,
-  `<provider_dir>/commands/demo-command.md`, `notes/todo.md`,
-  `notes/demo-guideline.md`, `notes/private-credentials.md`) plus the
+  clear its demo fixture so the map starts clean, delete ONLY the full
+  Part 0 demo fixture set (§Fixture and state templates) plus the
   stale `.skill-map/` DB (a fresh `sm init` rebuilds it), never the
   tester's own files; (2) `Write` the portfolio fixture from
   `references/fixtures.md` (the Express skeleton + the handbook
-  `AGENTS.md`); (3) ensure `.skillmapignore` carries the portfolio
-  additions (`node_modules/`, `public/`). The tester runs `sm init`
+  `AGENTS.md`); (3) append the portfolio additions (`node_modules/`,
+  `public/`) to the universal `.skillmapignore` pre-flight already
+  wrote (its tutorial internals are already there). The tester runs `sm init`
   themselves in the first chapter. (The later campaign parts use
   `preflight: seed` to fast-forward into them directly, see the `seed`
   case below; `portfolio-init` is just Part 1's flavour of that,
   handling the Part 0 to Part 1 transition.)
-- **`backstage-init`** (Part 7 `extend`): silently, with no
-  narration: run `sm init --no-scan` from the cwd, then `Edit` the
-  freshly created `.skillmapignore` to append the tutorial's
-  internal entries (the `sm-tutorial.md` / `findings.md` /
-  `tutorial-state.yml` / skill-dir block above), then `Write` the
-  part's fixture (read `references/fixtures.md` for the verbatim
-  `master-agent` / `master-skill` / `notes/ideas` files; skip kinds
-  the provider doesn't claim). If `sm init --no-scan` fails because
-  the dir was already initialised by an earlier part, that is fine:
-  the DB already exists, skip the init and just ensure the fixture
+- **`backstage-init`** (Part 7 `extend`): the part teaches plugins on
+  its own **master fixture**, distinct from both the demo and the
+  portfolio, so on entry make the master fixture the only one on disk.
+  Silently, with no narration: (1) clear whatever prior-part fixture is
+  present so the master map starts clean (never the tester's own files;
+  the universal `.skillmapignore` stays):
+  - Part 0 demo fixture present (the tester came from the prologue) →
+    delete the full Part 0 demo fixture set (§Fixture and state
+    templates);
+  - portfolio fixture present instead (the tester ran the campaign) →
+    delete everything `portfolio-init` and the campaign chapters lay
+    (see `fixtures.md` §Portfolio fixture + §Seed snapshots);
+  - in either of those cases also drop the stale `.skill-map/` DB so a
+    fresh init rebuilds it.
+  (2) run `sm init --no-scan` from the cwd (the universal
+  `.skillmapignore` from pre-flight is already on disk, so init leaves
+  it intact and the tutorial's own files stay out of the scan); (3)
+  `Write` the part's fixture (read `references/fixtures.md` for the
+  verbatim `master-agent` / `master-skill` / `notes/ideas` files; skip
+  kinds the provider doesn't claim). If nothing needed clearing and the
+  dir was already initialised with the master fixture in place (Part 7
+  re-entry), that is fine: skip the init and just ensure the fixture
   files are present.
-- **`reuse`** (Part 8 `cli`): assumes the prologue fixture and
-  `.skill-map/` already exist; nothing to lay. The menu offers Part 8
-  only once its `prereq` (`fundamentals`) is done, so the state is
-  there. If `.skill-map/` is somehow missing, point the tester back to
-  the prologue rather than re-initialising mid-part.
+- **`seed: prologue-built`** (Part 8 `cli`): the part reads the **Part 0
+  demo fixture**, NOT the cumulative portfolio, so on entry make that
+  fixture the one on disk. Read the state, then:
+  - Demo fixture already present (the tester came straight from the
+    prologue) → just `sm scan`, nothing to lay.
+  - **Portfolio** fixture present instead (the tester ran the campaign)
+    → clear it first (the inverse of `portfolio-init`: delete the
+    portfolio fixture, everything `portfolio-init` and the campaign
+    chapters lay, see `fixtures.md` §Portfolio fixture + §Seed snapshots,
+    plus the stale `.skill-map/` DB; never the tester's own files), then
+    lay the `prologue-built` snapshot from `fixtures.md` (§Seed
+    snapshots), `sm init`, `sm scan`.
+  - Nothing there → lay the snapshot, `sm init`, `sm scan`.
 - **`seed`** (the campaign parts `connect-harness` / `run-harness` /
   `maintain` / `mcp` / `live-site`): the part builds on the accumulating portfolio
   harness, but the tester may have jumped straight here from the menu.
@@ -331,13 +376,22 @@ When a part begins, honour its `preflight` from the manifest:
     → reuse the accumulated state; an `sm scan` to refresh is enough,
     nothing to lay.
   - Else → **fast-forward, silently** (backstage, do not narrate the
-    plumbing): lay the part's `seed` snapshot from
+    plumbing): first, if the prologue ran first in this dir, clear the
+    full Part 0 demo fixture set (§Fixture and state templates) so the
+    seeded campaign map does not carry the prologue's demo nodes (the
+    `sm scan` below reconciles the removed files out of the DB). Then
+    lay the part's `seed` snapshot from
     `references/fixtures.md` (§Seed snapshots) by following its
     checklist, copy each file's canonical content from the chapter the
     row names, apply the `EDIT` rows on top, substituting
     `<provider_dir>` and skipping provider-unsupported kinds per
-    `_core.md`. Then run `sm init` if `.skill-map/` is missing, then
-    `sm scan` so the map reflects the seeded harness. Mark the skipped
+    `_core.md`. The snapshot's `.skillmapignore` additions
+    (`node_modules/`, `public/`) are appended to the universal
+    `.skillmapignore` pre-flight already wrote, so the tutorial's own
+    `.claude/skills/sm-tutorial/` files stay out of the scan even on a
+    direct jump here. Then run `sm init` if `.skill-map/` is missing
+    (it will not overwrite that `.skillmapignore`), then `sm scan` so
+    the map reflects the seeded harness. Mark the skipped
     predecessor campaign parts `skipped` in the state (they stay in the
     menu for later). Then emit exactly ONE tester-facing line:
 
@@ -359,18 +413,15 @@ All three are specified in `_core.md`:
   the **numbered start menu** (Part 0 is option 1, the recommended
   first pick); the menu (the ToC from `_manifest.yml`, numbered,
   completed parts ticked, `planned` parts hidden, `prereq` gating only
-  the parts that have no `seed`) is the entry point on the first
+  seedless parts, none today since Part 8 `cli` now self-seeds) is the
+  entry point on the first
   invocation and after every part closes / on resume. Render it with
   the format in `_core.md` §Menu format.
 - **Resume / restart**: §Resume / restart. On start-over, the exact
   wipe list is whatever the tester's parts actually created:
   `tutorial-state.yml`, `findings.md`, `.skillmapignore`,
-  `.skill-map/`, the Part 0 fixture
-  (`<provider_dir>/agents/demo-agent.md`,
-  `<provider_dir>/skills/demo-skill/`,
-  `<provider_dir>/commands/demo-command.md`, `notes/todo.md`,
-  `notes/demo-guideline.md`, `notes/private-credentials.md`), the
-  Part 7 fixture if `extend` ran
+  `.skill-map/`, the full Part 0 demo fixture set (§Fixture and state
+  templates), the Part 7 fixture if `extend` ran
   (`<provider_dir>/agents/master-agent.md`,
   `<provider_dir>/skills/master-skill/`, `notes/ideas.md`,
   `.skill-map/plugins/`), `link-validation/` if the CLI part ran,

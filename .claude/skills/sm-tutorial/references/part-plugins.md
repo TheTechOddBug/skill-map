@@ -13,9 +13,10 @@ which verbs reach which surface.
 Before announcing the first step, verify the fixture is initialised
 (the cwd has `.claude/agents/master-agent.md`,
 `.claude/skills/master-skill/SKILL.md`, AND `.skill-map/` with
-`settings.json` and `skill-map.db`). Pre-flight already ran
-`sm init --no-scan` and appended the master entries to
-`.skillmapignore`. If any of that is missing, surface the
+`settings.json` and `skill-map.db`). The `extend` part's
+`backstage-init` preflight ran `sm init --no-scan` to provision it;
+the universal `.skillmapignore` from pre-flight keeps the tutorial's
+own files out of the scan. If any of that is missing, surface the
 bootstrap mismatch ("tutorial-state.yml says we are running, but
 the bootstrap is missing. Re-run the tutorial from an empty dir or
 restore the files.") and stop.

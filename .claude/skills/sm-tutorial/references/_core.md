@@ -149,9 +149,10 @@ first kind quoted, the second kind never.
    pre-flight only (both silent, no narration):
    - `sm version` ONCE to verify the install.
    - `sm init --no-scan` ONCE for parts whose manifest entry is
-     `preflight: backstage-init`, to provision `.skill-map/` and the
-     bundled `.skillmapignore` BEFORE any scan, so you can append the
-     tutorial's internal entries before the scanner sees the fixture.
+     `preflight: backstage-init`, to provision `.skill-map/` BEFORE
+     any scan. The universal `.skillmapignore` written in pre-flight
+     already keeps the tutorial's own files out, so there is nothing
+     to append here.
    Parts with `preflight: taught-init` (e.g. Part 0) do NOT run
    `sm init` in pre-flight, the tester runs it as the first taught
    step. You also DO NOT run `sm plugins create` on their behalf;
@@ -162,10 +163,10 @@ first kind quoted, the second kind never.
    `Read` files to verify what the tester modified. Everything else
    the tester runs.
 2. **Configuration files have two-mode access.**
-   - **Backstage setup (you DO edit)**: appending the tutorial's
-     internal entries to `.skillmapignore` right after a backstage
-     `sm init --no-scan`; writing the state file; writing fixture
-     `.md` files.
+   - **Backstage setup (you DO edit)**: writing the universal
+     `.skillmapignore` in pre-flight and appending a part's own
+     additions on entry (the portfolio's `node_modules/` / `public/`);
+     writing the state file; writing fixture `.md` files.
    - **Teach moment (you DO NOT edit)**: any change to
      `.skill-map/settings.json`, `.skill-map/settings.local.json`,
      `.skillmapignore`, or `.gitignore` that is part of a chapter
@@ -292,10 +293,11 @@ For every chapter:
   §Menu format).
 - **Which parts to list**: parts in `order`, `status: active` only
   (`planned` parts are hidden). A part with a `seed` (the campaign
-  parts) is always shown, even out of order, its `preflight: seed`
-  fast-forwards the project into it (SKILL.md §Entering a part). A
-  part with a `prereq` but NO `seed` (Part 8 `cli`) is shown only once
-  its `prereq` is `done`.
+  parts plus Part 8 `cli`) is always shown, even out of order, its
+  `preflight: seed` fast-forwards the project into it (SKILL.md
+  §Entering a part). A part with a `prereq` but NO `seed` would be
+  shown only once its `prereq` is `done`; no active part is in that
+  state today (Part 8 `cli` used to be, now it self-seeds).
 - **After the tester picks**: walk that part; when it ends, run
   §Closing a part (a tester-facing close, then this menu).
 - **Adding content** is data-only: a new chapter in a part (or a new

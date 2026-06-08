@@ -15,11 +15,12 @@
 #   step_files   list form when a part spans several files; dispatch
 #                by chapter-id prefix.
 #   pace         per-step | auto-advance  (see _core.md per-step cycle).
-#   preflight    taught-init | backstage-init | portfolio-init | seed |
-#                reuse  (see _core.md rule #1 + SKILL.md §Entering a part).
-#   seed         which cumulative snapshot to fast-forward to when this
-#                part is entered out of order (see fixtures.md §Seed
-#                snapshot:*). Campaign parts only.
+#   preflight    taught-init | backstage-init | portfolio-init | seed
+#                (see _core.md rule #1 + SKILL.md §Entering a part).
+#   seed         which snapshot to fast-forward to when this part is
+#                entered out of order (see fixtures.md §Seed snapshot:*).
+#                Campaign parts use a cumulative portfolio snapshot;
+#                Part 8 `cli` uses the standalone `prologue-built` demo.
 #   prereq       recommended predecessor. Gates the menu ONLY for a part
 #                with NO `seed`; a seedable part is always shown (its
 #                seed bridges the gap, predecessors get marked `skipped`).
@@ -84,8 +85,9 @@ parts:
     title: "The CLI in depth"
     step_file: part-cli.md
     pace: auto-advance
-    preflight: reuse           # reuses the fundamentals fixture + DB
-    prereq: fundamentals       # menu offers this only after Part 0
+    preflight: seed            # self-seeds the Part 0 demo fixture
+    seed: prologue-built       # the prologue demo fixture (not the cumulative portfolio)
+    prereq: fundamentals       # recommended predecessor; cli self-seeds, so it is always shown
     status: active
     chapters:
       - id: browse           ; title: "list / show / check" ; est_min: 3

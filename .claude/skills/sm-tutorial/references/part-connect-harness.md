@@ -1,6 +1,6 @@
 # Part 2: Connect the harness (step library, `connect-harness`)
 
-This is the wiring part. Part 1 grew a small set of standalone nodes around the handbook (the portfolio harness); here the tester turns that scatter of dots into a connected graph: a link checker, a publish command that pulls three pieces together, the handbook becoming a real hub, and a close-up on how sure skill-map is of each connection. `pace: auto-advance` (walk straight into the next chapter once one is marked done), `preflight: reuse` (it builds on the portfolio harness from Part 1, no fresh fixture of its own). Shared conventions (tone, provider detection / substitution, the `> ` rendering rule, the per-step cycle) live in `_core.md`; do not restate them here.
+This is the wiring part. Part 1 grew a small set of standalone nodes around the handbook (the portfolio harness); here the tester turns that scatter of dots into a connected graph: a link checker, a publish command that pulls three pieces together, the handbook becoming a real hub, and a close-up on how sure skill-map is of each connection. `pace: auto-advance` (walk straight into the next chapter once one is marked done), `preflight: seed` (it builds on the portfolio harness from Part 1, reusing the accumulated state when its predecessors are done, no fresh fixture of its own). Shared conventions (tone, provider detection / substitution, the `> ` rendering rule, the per-step cycle) live in `_core.md`; do not restate them here.
 
 ## Chapter `check-links` - The link checker (~3 min)
 
@@ -73,7 +73,7 @@ args:
     required: true
 ---
 
-# /publish
+# publish
 
 The one command you run when the site is ready to go out.
 

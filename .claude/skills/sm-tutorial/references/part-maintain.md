@@ -1,6 +1,6 @@
 # Part 4: Maintain the site (step library, `maintain`)
 
-This is the upkeep part. The harness from Part 2 is wired and clean; real projects drift, links break, drafts pile up, names collide. Here the tester breaks something on purpose and fixes it, meets the analyzer catalogue that catches those problems, finds an orphan nobody links to, clears a reserved-name warning, and learns the `.sm` companion files that carry the tool's bookkeeping. `pace: auto-advance` (walk straight into the next chapter once one is marked done), `preflight: reuse` (it builds on the portfolio harness from Parts 1 and 2, no fresh fixture of its own). Shared conventions (tone, provider detection / substitution, the `> ` rendering rule, the per-step cycle) live in `_core.md`; do not restate them here.
+This is the upkeep part. The harness from Part 2 is wired and clean; real projects drift, links break, drafts pile up, names collide. Here the tester breaks something on purpose and fixes it, meets the analyzer catalogue that catches those problems, finds an orphan nobody links to, clears a reserved-name warning, and learns the `.sm` companion files that carry the tool's bookkeeping. `pace: auto-advance` (walk straight into the next chapter once one is marked done), `preflight: seed` (it builds on the portfolio harness from Parts 1 and 2, reusing the accumulated state when its predecessors are done, no fresh fixture of its own). Shared conventions (tone, provider detection / substitution, the `> ` rendering rule, the per-step cycle) live in `_core.md`; do not restate them here.
 
 ## Chapter `broken-ref` - A link breaks (~3 min)
 
@@ -11,6 +11,21 @@ This chapter is the tester's hands the whole way (renaming and editing their own
 ```bash
 sm
 ```
+
+This part is the first time the live server and one-off `sm` commands run side by side, so give the tester the third-terminal heads-up below (substitute `<cwd>` with the tester's actual cwd, same substitution as every other `<cwd>` mention):
+
+> ⚠️ Heads up: from here you run one-off commands (`sm scan`, `sm
+> check`, the `mv` below) **while the `sm` server keeps running**. The
+> server holds its terminal until you Ctrl+C it, so open a **third
+> terminal** and anchor it to this same folder, that is where every
+> one-off command from here on goes:
+
+```bash
+cd <cwd>
+```
+
+> Three terminals now: this chat, the one running the live `sm` server
+> (leave it alone), and this new one for the one-off commands.
 
 > Open the URL `sm` prints, same as before. Now break something on
 > purpose. Rename your deploy runbook from `docs/DEPLOY.md` to
@@ -167,7 +182,7 @@ args:
     required: true
 ---
 
-# /init
+# init
 
 Sets up the empty folders a new portfolio needs.
 ```

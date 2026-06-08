@@ -1,10 +1,22 @@
 # Fixture templates
 
-Fixtures the orchestrator lays for the auto-fixtured parts. Two sets
-today: the **master fixture** (Part 7, "Extend skill-map",
-`backstage-init`) right below, and the **portfolio fixture** (Part 1,
-"The project from zero", `portfolio-init`) at the end of this file.
-Read the set for the part being entered.
+Fixtures the orchestrator lays for the auto-fixtured parts. Two full
+templates live here: the **master fixture** (Part 7, "Extend
+skill-map", `backstage-init`) right below, and the **portfolio
+fixture** (Part 1, "The project from zero", `portfolio-init`) at the
+end of this file. The **Part 0 demo fixture** is not templated here:
+its content lives in `SKILL.md` (§Fixture and state templates) and
+`part-fundamentals.md`, and the `prologue-built` seed snapshot below
+just points at those. Read the set for the part being entered.
+
+**Authoring note (command fixtures).** A `command` node's H1 is a plain
+title (`# publish`), never the slash form (`# /publish`). The `slash`
+extractor reads a `/name` token anywhere in the body, the H1 included,
+as an `invoke`, so `# /publish` makes the command invoke itself and
+`sm check` emits a spurious `core/link-self-loop` the tester has no
+context for. Holds for every command fixture wherever it is defined
+(today: the prologue `demo-command`, the `publish` command, and the
+`reserved` chapter's `init`).
 
 ## Master fixture (Part 7): layout (per provider)
 
@@ -205,15 +217,16 @@ app.listen(port, () => console.log(`Portfolio live at http://localhost:${port}`)
 
 ### `.skillmapignore` additions
 
-Append to the portfolio `.skillmapignore` (on top of the tutorial
-internals from `SKILL.md`): `node_modules/` (the Express install) and
-`public/` (generated HTML, not part of the harness graph).
+Append to the universal `.skillmapignore` (written in pre-flight, see
+`SKILL.md`): `node_modules/` (the Express install) and `public/`
+(generated HTML, not part of the harness graph).
 
-## Seed snapshots (for `preflight: seed`, jumping into a campaign part)
+## Seed snapshots (for `preflight: seed`)
 
-When the orchestrator enters a campaign part out of order (its
-predecessors are not `done`), it fast-forwards the project by laying
-the snapshot below, then `sm init` (if `.skill-map/` is missing) +
+When the orchestrator enters a seedable part out of order (the campaign
+parts when their predecessors are not `done`, or Part 8 `cli` when the
+demo fixture is not the one on disk), it fast-forwards the project by
+laying the snapshot below, then `sm init` (if `.skill-map/` is missing) +
 `sm scan`. These are **checklists, not content**: each row names a file
 and the chapter that holds its canonical content. Lay each file by
 copying the content from the named chapter (substitute `<provider_dir>`
@@ -243,6 +256,19 @@ Everything in `harness-built`, PLUS the Part 2 wiring:
 7. EDIT `AGENTS.md`: append the two hub bullets (mention `@content-editor`, invoke `/publish`)  <-  part-connect-harness.md, chapter `links`.
 8. EDIT `<provider_dir>/agents/content-editor.md`: add the `[style guide](../../docs/STYLE.md)` line  <-  part-connect-harness.md, chapter `links`.
 
-After laying a snapshot the map matches the state a tester would have at
-the END of the part just before the one being entered.
+After laying a campaign snapshot the map matches the state a tester would
+have at the END of the part just before the one being entered.
+
+### Seed snapshot: `prologue-built` (Part 8 `cli`)
+
+NOT cumulative and NOT the portfolio: this is the **Part 0 demo
+fixture**, the five standalone demo nodes with `notes/todo` wired as the
+hub, the clean state (`✓ No issues`) at the end of the prologue's
+connector chapters. Part 8 only reads it. Because it is a different
+fixture from the portfolio, entry first resets any portfolio on disk
+(see SKILL.md §Entering a part, the `cli` case).
+
+1. `<provider_dir>/agents/demo-agent.md`  <-  SKILL.md §Fixture and state templates. (The `.skillmapignore` is universal, already on disk from pre-flight; the snapshot does not lay it.)
+2. `<provider_dir>/skills/demo-skill/SKILL.md`, `<provider_dir>/commands/demo-command.md`, `notes/todo.md`, `notes/demo-guideline.md`  <-  part-fundamentals.md, chapter `kinds`.
+3. EDIT `notes/todo.md`: wire the hub bullets pointing at the four other nodes  <-  part-fundamentals.md, chapter `connectors`.
 

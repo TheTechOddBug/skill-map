@@ -14,9 +14,10 @@ system and the `sm config` verbs.
 ## Precondition check
 
 Same as the authoring chapters: `.skill-map/` must exist in the
-cwd (the orchestrator's backstage-init pre-flight ran `sm init
---no-scan` and appended the tutorial's internal entries to
-`.skillmapignore`, so this is the expected state). If
+cwd (the `extend` part's `backstage-init` preflight ran `sm init
+--no-scan` to provision it; the universal `.skillmapignore` from
+pre-flight keeps the tutorial's own files out of the scan, so this
+is the expected state). If
 `.skill-map/` is missing, surface the bootstrap mismatch and
 stop, do not try to re-init mid-chapter.
 
