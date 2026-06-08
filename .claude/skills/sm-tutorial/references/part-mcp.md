@@ -1,4 +1,4 @@
-# Part 4: MCP (step library, `mcp-*` ids)
+# Part 5: MCP (step library, `mcp-*` ids)
 
 This is a chapter apart, the one just before the finale. Pace
 `auto-advance`, preflight `reuse` (it builds straight on the
@@ -73,6 +73,6 @@ Tell the tester:
 Wait for confirmation. If the node did not appear, have the tester
 save the file again (the watcher reacts on save) or refresh the
 browser, then re-check; the `tools:` line must be valid YAML on one
-line. Mark `mcp-node`: done. This closes Part 4; the orchestrator
-returns to the ToC menu (Part 5, "The site, live", the finale, is
-next on the spine).
+line. Mark `mcp-node`: done. Last chapter of the part: apply §Closing
+a part (the close names the part by its title and routes back to the
+menu; the full publish finale is next on the spine).

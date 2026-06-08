@@ -53,7 +53,11 @@ Wait for confirmation. Mark `check-links`: done.
 
 **Context**: this is the chapter where the graph comes alive. The `/publish` command ties three pieces together in one body: it invokes the link checker, mentions the content editor, and references the deploy runbook. Three connectors light up from a single new node, one per link syntax.
 
-`Write` `.claude/commands/publish.md` (substitute `<provider_dir>` per `_core.md`; on `agent-skills` / Antigravity there is no `command` kind, so skip this whole chapter and fold its purpose into the prose of the next one):
+On `agent-skills` / Antigravity there is no `command` kind, so skip this whole chapter and fold its purpose into the prose of the next one.
+
+Tell the tester to create the file themselves (it is their project's file, Inviolable rule #2). Substitute `<provider_dir>` per `_core.md` in the path you give them:
+
+> Create `.claude/commands/publish.md` with exactly this content:
 
 ```markdown
 ---
@@ -79,12 +83,11 @@ The one command you run when the site is ready to go out.
 3. Follow the [deploy runbook](../../docs/DEPLOY.md) to ship.
 ```
 
-Tell the tester:
+Continue the tester message:
 
-> I added the `/publish` command, the single entry point you run when
-> the site is ready to go live. Watch the **Map**: **three** new
-> arrows light up at once from the new `publish` node, and each one is
-> a different colour because each one is a different kind of link:
+> Save it. Watch the **Map**: **three** new arrows light up at once
+> from the new `publish` node, and each one is a different colour
+> because each one is a different kind of link:
 >
 > - `publish -> check-links` (kind: `invokes`), from the `/check-links`
 >   token in the body.
@@ -98,7 +101,7 @@ Tell the tester:
 >
 > Did the three arrows appear?
 
-Wait for confirmation. Mark `publish`: done.
+Wait for confirmation. You MAY use `Read` on the file afterwards to verify it landed. Mark `publish`: done.
 
 ## Chapter `links` - The handbook becomes the hub (~4 min)
 
@@ -159,7 +162,7 @@ Tell the tester:
 > the more solid the arrow; the less sure, the more translucent.
 >
 > Open the Inspector for the `publish` node (click it on the **Map**).
-> Scroll down to the **Linked nodes** panel and read the **Outgoing**
+> Scroll down to the **Connections** panel and read the **Outgoing**
 > rows. Each row shows the link kind and a confidence badge:
 >
 > - `publish -> docs/DEPLOY.md` (`references`) reads **1.00** and looks
@@ -177,4 +180,4 @@ Tell the tester:
 >
 > Do you see the confidence badges in the Inspector?
 
-Wait for confirmation. Mark `confidence`: done. This closes Part 2; the orchestrator returns to the ToC menu (Part 3, "Maintain the site", is next on the spine).
+Wait for confirmation. Mark `confidence`: done. Last chapter of the part: apply §Closing a part (the close names the part by its title and routes back to the menu; do NOT lead into the next part from here).

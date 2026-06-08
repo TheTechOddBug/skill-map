@@ -229,7 +229,7 @@ Tell the tester:
 
 If a connector is missing, do not advance, the next chapter inspects the same hub edit. Mark `connectors`: done.
 
-## Chapter `inspector` - The inspector and linked nodes (~1 min)
+## Chapter `inspector` - The inspector and connections (~1 min)
 
 The connector opacity tells the confidence story at a glance; the exact per-link breakdown lives in the Inspector. Open it on the hub so the tester registers the surface before the `edit-link` chapter changes topology.
 
@@ -324,9 +324,9 @@ Leave the server running, the next chapter (`.skillmapignore`) is the last one t
 
 Earlier chapters showed the watcher picking up new files and edits (yours and theirs). This chapter flips the direction: a file the tester DOES NOT want in the map (a draft, a scratch file, a secret) gets hidden by a single line in `.skillmapignore`. Same live mechanism, no restart.
 
-`sm init` already wrote a starter `.skillmapignore` at the scope root. The flow has three beats:
+`sm init` already wrote a starter `.skillmapignore` at the scope root. The chapter is one step with a single confirmation (the node vanishing): the agent seeds a file the tester would never want public, shows where it lives, and the tester hides it with one glob.
 
-**Beat 1, you create one new fixture file (the agent does this).**
+**The agent seeds the file (no tester action, no separate pause).**
 
 `Write` `notes/private-credentials.md`, kind `markdown`, simulates a file the tester would never want surfacing publicly:
 
@@ -344,13 +344,15 @@ description: |
 API_TOKEN: example-not-real
 ```
 
-Confirm the file appears in the map as a sixth node (`notes/private-credentials`). The watcher sees it like any other `.md`, that's the point of the demo. (If the tester doesn't see it, they may need to click **Show all** in the map toolbar to clear any leftover selection.)
+It lands in the map as a sixth node (`notes/private-credentials`); the watcher sees it like any other `.md`. Do NOT pause to confirm the appearance, it folds into the single vanish confirmation at the end of this step.
 
-**Beat 2, you show the project structure (the agent does this).**
+**The tester hides it (single tester-facing message, one confirmation).**
 
-Before asking the tester to touch `.skillmapignore`, give them a mental map of the folder so they know where the file lives and what's around it. Use `Bash` (`ls -la` and `ls -la notes/` if a deeper view helps) and present the listing as a tester-facing message (apply the host-dependent rendering rule) so the tester sees what their cwd holds:
+Give the tester a mental map of the folder so they know where the file lives, then the glob that hides it, all in ONE message. Use `Bash` (`ls -la`, plus `ls -la notes/` if a deeper view helps) for the real listing and apply the host-dependent rendering rule. Per Inviolable rule #2, the agent does NOT touch `.skillmapignore` with its `Edit` tool, the tester edits it from their own editor:
 
-> One last step. Here's what your directory looks like right now:
+> One last step. Your `private-credentials` note just popped into
+> the map as a sixth node, that's the watcher again. Now let's hide
+> it. Here's what your directory looks like right now:
 
 ```
 .                            ← your cwd
@@ -368,19 +370,10 @@ Before asking the tester to touch `.skillmapignore`, give them a mental map of t
     └── private-credentials.md   ← what we want to hide
 ```
 
-> The `.skillmapignore` at the root is the file we'll touch
-> next. Same syntax as `.gitignore`. Anything matching a pattern
-> there is invisible to skill-map's scan.
-
-Adjust the actual tree shown to whatever `ls -la` returns, the goal is "tester recognises their own filesystem", not a copy of the snippet above.
-
-**Beat 3, the tester edits `.skillmapignore` (NOT the agent).**
-
-Per Inviolable rule #2, the agent does NOT touch `.skillmapignore` with your `Edit` tool. Tell the tester to do it from their editor:
-
-> Last step. Open `.skillmapignore` (it's at the cwd root) in your
-> editor of choice. At the end of the file, on a new line, append
-> this pattern:
+> The `.skillmapignore` at the root uses the same syntax as
+> `.gitignore`: anything matching a pattern there is invisible to
+> skill-map's scan. Open it in your editor (it's at the cwd root)
+> and append this pattern on a new line at the end:
 
 ```
 notes/private-*.md
@@ -399,6 +392,7 @@ notes/private-*.md
 >
 > Did the node vanish?
 
-After they confirm, you MAY use `Read` on `.skillmapignore` to verify the appended pattern landed correctly (in case `sm check` later reports something odd), that is read-only and allowed. Once confirmed, ask them to stop the server with **Ctrl+C** in the terminal before continuing.
+Adjust the actual tree shown to whatever `ls -la` returns, the goal is "tester recognises their own filesystem", not a copy of the snippet above. After they confirm, you MAY use `Read` on `.skillmapignore` to verify the appended pattern landed correctly (in case `sm check` later reports something odd), that is read-only and allowed. Once confirmed, ask them to stop the server with **Ctrl+C** in the terminal before continuing.
 
-Mark `ignore`: done.
+Mark `ignore`: done. Last chapter of the part: apply §Closing a part
+(the close names the part by its title and routes back to the menu).

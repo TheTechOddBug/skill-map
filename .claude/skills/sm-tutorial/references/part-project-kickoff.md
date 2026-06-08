@@ -5,8 +5,8 @@ starts an actual project: a tiny personal **portfolio website**,
 fully static, served by a ~15-line Express server, plus the
 `.claude/` **harness** that maintains it. skill-map maps the harness
 (the `.md` assets and how they reference each other); the site itself
-is plain HTML the harness produces (Part 5 generates it and runs the
-server). `pace: per-step`, `preflight: portfolio-init`. Shared
+is plain HTML the harness produces (Part 3 runs it, Part 6 ships it).
+`pace: per-step`, `preflight: portfolio-init`. Shared
 conventions live in `_core.md`.
 
 The orchestrator's `portfolio-init` pre-flight (backstage, silent)
@@ -125,7 +125,7 @@ Wait for confirmation. Mark `first-agent`: done.
 **Context**: the prologue showed the four kinds on abstract demo
 nodes. Now name them on the real project, and add the two markdown
 docs the harness references later (the style guide and the deploy
-runbook), so Part 3's maintenance beats have something to point at.
+runbook), so Part 4's maintenance beats have something to point at.
 
 `Write` two docs (markdown kind):
 
@@ -171,16 +171,14 @@ Tell the tester:
 > - **agent**: `content-editor` (does work on your behalf).
 > - **markdown**: `AGENTS.md`, `CLAUDE.md`, the two docs (plain notes
 >   and manuals).
-> - **skill** and **command**: coming in the next part, when we add
->   the link checker and the publish command and wire everything
->   together.
+> - **skill** and **command**: you add these (the link checker and
+>   the publish command) in a later part.
 >
-> Your handbook now has a real harness around it. Next we connect it:
-> the agent reaching the style guide, the command invoking the
-> skill, the whole graph lighting up.
+> Your handbook now has a real harness around it: a `content-editor`
+> agent plus its docs, all on the map.
 >
-> Ready to connect the harness?
+> See the agent and the docs in the map?
 
-Wait for confirmation. Mark `real-kinds`: done. This closes Part 1;
-the orchestrator returns to the ToC menu (Part 2, "Connect the
-harness", is next on the spine).
+Wait for confirmation. Mark `real-kinds`: done. Last chapter of the
+part: apply §Closing a part (the close names the part by its title and
+routes back to the menu; do NOT lead into the next part from here).

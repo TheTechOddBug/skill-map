@@ -1,4 +1,4 @@
-# Part 3: Maintain the site (step library, `maintain`)
+# Part 4: Maintain the site (step library, `maintain`)
 
 This is the upkeep part. The harness from Part 2 is wired and clean; real projects drift, links break, drafts pile up, names collide. Here the tester breaks something on purpose and fixes it, meets the analyzer catalogue that catches those problems, finds an orphan nobody links to, clears a reserved-name warning, and learns the `.sm` companion files that carry the tool's bookkeeping. `pace: auto-advance` (walk straight into the next chapter once one is marked done), `preflight: reuse` (it builds on the portfolio harness from Parts 1 and 2, no fresh fixture of its own). Shared conventions (tone, provider detection / substitution, the `> ` rendering rule, the per-step cycle) live in `_core.md`; do not restate them here.
 
@@ -283,4 +283,4 @@ sm history content-editor
 >
 > Does `sm history` show the bump you just made?
 
-Wait for confirmation. Mark `versions`: done. This closes Part 3; the orchestrator returns to the ToC menu.
+Wait for confirmation. Mark `versions`: done. Last chapter of the part: apply §Closing a part (the close names the part by its title and routes back to the menu).

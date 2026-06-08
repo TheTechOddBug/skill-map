@@ -1,12 +1,12 @@
 # Fixture templates
 
 Fixtures the orchestrator lays for the auto-fixtured parts. Two sets
-today: the **master fixture** (Part 6, "Extend skill-map",
+today: the **master fixture** (Part 7, "Extend skill-map",
 `backstage-init`) right below, and the **portfolio fixture** (Part 1,
 "The project from zero", `portfolio-init`) at the end of this file.
 Read the set for the part being entered.
 
-## Master fixture (Part 6): layout (per provider)
+## Master fixture (Part 7): layout (per provider)
 
 Per §Provider detection in `SKILL.md`, the `<provider_dir>`
 placeholder resolves to `.claude/` or `.agents/skills/` depending
@@ -134,7 +134,7 @@ Per finding:
 Laid backstage before the tester's `sm init` in Part 1. The Express
 skeleton (`server.js`, `package.json`, `public/index.html`) is plain
 scaffolding, not `.md`, so the scan ignores it; it makes the project
-real and runnable (Part 5 starts it). The one boot node is the
+real and runnable (Part 3 runs it, Part 6 ships it). The one boot node is the
 handbook `AGENTS.md`. On `agent-skills` / Antigravity (no `agent`
 kind) the harness still works: the agent member is created as a skill
 in a later chapter.
@@ -154,15 +154,12 @@ Layout:
 
 ### File: `AGENTS.md` (kind: markdown, the boot node)
 
-```markdown
----
-name: portfolio-handbook
-description: |
-  Operating manual for this portfolio site: how its pages get
-  written, checked, and published by the .claude/ harness.
-tags: [docs, portfolio]
----
+No frontmatter: a real handbook is plain prose (this repo's own
+`AGENTS.md` and the tutorial's `CLAUDE.md` carry none either), and a
+`name:` that differs from the filename only confuses the tester. The
+node displays by its path, `AGENTS.md`.
 
+```markdown
 # Portfolio handbook
 
 A small static portfolio site, served by Express (`server.js`). The
@@ -196,7 +193,7 @@ app.listen(port, () => console.log(`Portfolio live at http://localhost:${port}`)
 }
 ```
 
-### File: `public/index.html` (not scanned; placeholder until Part 5)
+### File: `public/index.html` (not scanned; placeholder until Part 3)
 
 ```html
 <!doctype html>
@@ -237,7 +234,7 @@ any cross-links:
 3. `<provider_dir>/agents/content-editor.md`  <-  part-project-kickoff.md, chapter `first-agent`.
 4. `docs/STYLE.md` and `docs/DEPLOY.md`  <-  part-project-kickoff.md, chapter `real-kinds`.
 
-### Seed snapshot: `harness-connected` (start of Parts 3, 4, 5)
+### Seed snapshot: `harness-connected` (start of Parts 3-6)
 
 Everything in `harness-built`, PLUS the Part 2 wiring:
 

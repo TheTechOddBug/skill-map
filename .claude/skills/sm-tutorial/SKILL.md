@@ -132,18 +132,27 @@ Apply §Provider detection from `_core.md`. Persist the result into
 
 ### 4. Two-terminals heads-up (one time)
 
+Agent-only: in the `cd` block below, substitute `<cwd>` with the
+tester's actual cwd (the absolute path of the folder the tutorial is
+running in) so the command is copy-pasteable, same substitution as
+every other `<cwd>` mention.
+
 > ⚠️ Heads up: throughout the tutorial you'll be using **two
 > terminals**.
 >
 > 1. **This terminal**: the one you're using right now to talk to
 >    me (Claude Code). I show you the commands, you paste me the
 >    output, and I verify.
-> 2. **A second terminal**: open it now (new window or tab). In it
->    run `cd <cwd>` so it's anchored **exactly to this folder**.
+> 2. **A second terminal**: open it now (new window or tab), then run
+>    the command below so it's anchored **exactly to this folder**.
 >    That's where you copy and paste every `sm` command.
->
+
+```bash
+cd <cwd>
+```
+
 > Keep both terminals open until the end. If you accidentally close
-> the second one, reopen it and `cd <cwd>` again.
+> the second one, reopen it and run that `cd` again.
 >
 > Got the second terminal open and anchored to the folder? Confirm
 > before we move on.
@@ -298,7 +307,7 @@ When a part begins, honour its `preflight` from the manifest:
   `preflight: seed` to fast-forward into them directly, see the `seed`
   case below; `portfolio-init` is just Part 1's flavour of that,
   handling the Part 0 to Part 1 transition.)
-- **`backstage-init`** (Part 6 `extend`): silently, with no
+- **`backstage-init`** (Part 7 `extend`): silently, with no
   narration: run `sm init --no-scan` from the cwd, then `Edit` the
   freshly created `.skillmapignore` to append the tutorial's
   internal entries (the `sm-tutorial.md` / `findings.md` /
@@ -309,13 +318,13 @@ When a part begins, honour its `preflight` from the manifest:
   the dir was already initialised by an earlier part, that is fine:
   the DB already exists, skip the init and just ensure the fixture
   files are present.
-- **`reuse`** (Part 7 `cli`): assumes the prologue fixture and
-  `.skill-map/` already exist; nothing to lay. The menu offers Part 7
+- **`reuse`** (Part 8 `cli`): assumes the prologue fixture and
+  `.skill-map/` already exist; nothing to lay. The menu offers Part 8
   only once its `prereq` (`fundamentals`) is done, so the state is
   there. If `.skill-map/` is somehow missing, point the tester back to
   the prologue rather than re-initialising mid-part.
-- **`seed`** (the campaign parts `connect-harness` / `maintain` /
-  `mcp` / `live-site`): the part builds on the accumulating portfolio
+- **`seed`** (the campaign parts `connect-harness` / `run-harness` /
+  `maintain` / `mcp` / `live-site`): the part builds on the accumulating portfolio
   harness, but the tester may have jumped straight here from the menu.
   On entry, read the state file:
   - If every predecessor campaign part up the `prereq` chain is `done`
@@ -361,7 +370,7 @@ All three are specified in `_core.md`:
   `<provider_dir>/skills/demo-skill/`,
   `<provider_dir>/commands/demo-command.md`, `notes/todo.md`,
   `notes/demo-guideline.md`, `notes/private-credentials.md`), the
-  Part 6 fixture if `extend` ran
+  Part 7 fixture if `extend` ran
   (`<provider_dir>/agents/master-agent.md`,
   `<provider_dir>/skills/master-skill/`, `notes/ideas.md`,
   `.skill-map/plugins/`), `link-validation/` if the CLI part ran,

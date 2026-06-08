@@ -1,6 +1,6 @@
-# Parte 6 (a): Extender skill-map - settings (step library, `settings-*` ids)
+# Parte 7 (a): Extender skill-map - settings (step library, `settings-*` ids)
 
-Step bodies for the settings chapters of Part 6 (config layers, the
+Step bodies for the settings chapters of Part 7 (config layers, the
 `sm config` verbs, the active provider lens), plus the shared step
 `settings-6-contributions` that the plugin-authoring chapters reuse.
 The SKILL.md orchestrator dispatches each `settings-*` chapter id

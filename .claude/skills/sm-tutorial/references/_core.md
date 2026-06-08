@@ -287,19 +287,51 @@ For every chapter:
   the book ToC, numbered, and let the tester pick a part by number.
   Part 0 (the prologue) is option 1, the recommended starting point,
   so a brand-new tester just types `1`. Do NOT auto-enter a part; the
-  menu is the entry point every time. On later renders, prefix any
-  completed part's title with `✓ `.
+  menu is the entry point every time. On later renders, mark completed
+  parts with a `✓` in their description line, not on the title (see
+  §Menu format).
 - **Which parts to list**: parts in `order`, `status: active` only
   (`planned` parts are hidden). A part with a `seed` (the campaign
   parts) is always shown, even out of order, its `preflight: seed`
   fast-forwards the project into it (SKILL.md §Entering a part). A
-  part with a `prereq` but NO `seed` (Part 7 `cli`) is shown only once
+  part with a `prereq` but NO `seed` (Part 8 `cli`) is shown only once
   its `prereq` is `done`.
-- **After the tester picks**: walk that part; when it ends, return to
-  this menu.
+- **After the tester picks**: walk that part; when it ends, run
+  §Closing a part (a tester-facing close, then this menu).
 - **Adding content** is data-only: a new chapter in a part (or a new
   `part-<id>.md` + a manifest row). Keep chapter-id prefixes matching
   the file name so dispatch stays mechanical.
+
+### Closing a part
+
+A part must FEEL finished before the menu comes back: the tester
+should never slide into the next part as if it auto-continued. When a
+part's last chapter (the last in `_manifest.yml` order) is confirmed,
+before re-rendering the menu emit a short tester-facing close:
+
+- A `✓` line naming the part just finished BY ITS TITLE (from
+  `_manifest.yml`), not the internal "Part N" index, which is off by
+  one from the menu numbering the tester sees.
+- One line recapping what they built or learned (same source as the
+  menu description).
+- A hand-off line: back to the menu, pick the next part.
+
+Then render the menu (§Menu format) with this part now marked done (a
+`✓` in its description line, not on the title); its intro may lean to
+"what's next" on a post-part render. The last
+chapter's own confirmation stays scoped to that chapter, it does NOT
+promise or pre-announce the next part, the close and the menu own the
+transition. Sample (Claude variant, mirror the tester's language,
+apply the host rendering rule):
+
+> ✓ Listo, terminaste **El proyecto desde cero**. Levantaste un
+> proyecto real, su handbook y el harness `.claude/` con sus primeros
+> nodos.
+>
+> Volvés al menú, elegí con qué seguir.
+
+If every active part is now `✓` (nothing left to pick), skip the menu
+and go straight to §Final wrap-up.
 
 ### Menu format
 
@@ -308,6 +340,11 @@ to the tester's language. A one-line intro, then per part a **bold
 numbered title line** (number + title + `(~M min)`) as plain prose,
 immediately followed by a single-level `> ` blockquote one-line
 description (what the part covers, derived from its title + chapters).
+A **completed part** keeps its plain title (NO `✓` on the title line)
+and swaps its description for the done marker: `> ✓ ` plus a short
+"already done" note (e.g. `✓ Ya la hiciste.`). The green check lives
+inside the content, mirroring the `✓` confirmations used elsewhere,
+never as a title prefix.
 NO blank line between a title and its description; ONE blank line
 between parts; NO outer blockquote around the whole menu. Close with a
 short "¿Cuál?" / "Which one?" on its own line. Sample (Claude variant,
@@ -330,6 +367,17 @@ single blockquote" rule: the intro, the bold titles and the trailing
 "¿Cuál?" are plain prose; only the description lines carry `> `. On
 non-Claude hosts the `> ` collapses to plain prose, indent each
 description two spaces so it stays subordinate to its title.
+
+Same menu after Part 1 is done (the `✓` sits in the description line,
+the title stays plain):
+
+```
+**1. El mapa en vivo** (~12 min)
+> ✓ Ya la hiciste.
+
+**2. El proyecto desde cero** (~8 min)
+> Arrancás un proyecto real (un portfolio) y su harness `.claude/`.
+```
 
 ## Resume / restart
 

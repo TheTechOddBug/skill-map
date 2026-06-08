@@ -44,13 +44,13 @@ parts:
       - id: kinds           ; title: "The other kinds appear"               ; est_min: 1
       - id: first-edit      ; title: "Your first edit (the watcher reacts)" ; est_min: 1
       - id: connectors      ; title: "The connectors light up"             ; est_min: 2
-      - id: inspector       ; title: "The inspector and linked nodes"      ; est_min: 1
+      - id: inspector       ; title: "The inspector and connections"       ; est_min: 1
       - id: edit-link       ; title: "Edit a link, the topology changes"   ; est_min: 3
       - id: workspace       ; title: "Navigate the workspace (files, search, isolate)" ; est_min: 2
       - id: ignore          ; title: "Silence a file via .skillmapignore"  ; est_min: 2
 
   - id: extend
-    order: 6
+    order: 7
     title: "Extend skill-map for the site"
     # Spans three chapter libraries; dispatch by chapter-id prefix:
     #   settings-*  -> part-settings.md
@@ -80,7 +80,7 @@ parts:
       - id: authoring-6-upgrade      ; title: "Try `sm plugins upgrade`" ; est_min: 2
 
   - id: cli
-    order: 7
+    order: 8
     title: "The CLI in depth"
     step_file: part-cli.md
     pace: auto-advance
@@ -130,8 +130,21 @@ parts:
       - id: links       ; title: "Mentions (@) and references between assets" ; est_min: 3
       - id: confidence  ; title: "Connector confidence (opacity = certainty)" ; est_min: 2
 
-  - id: maintain
+  - id: run-harness
     order: 3
+    title: "Run the harness (your site, live)"
+    step_file: part-run-harness.md
+    pace: auto-advance
+    preflight: seed
+    seed: harness-connected   # fast-forward to here if the earlier parts are not done
+    prereq: connect-harness
+    status: active
+    chapters:
+      - id: generate ; title: "The agent generates the HTML in public/" ; est_min: 3
+      - id: serve    ; title: "node server.js: your portfolio, live next to the graph" ; est_min: 3
+
+  - id: maintain
+    order: 4
     title: "Maintain the site"
     step_file: part-maintain.md
     pace: auto-advance
@@ -148,7 +161,7 @@ parts:
       - id: versions     ; title: "Versions: sm bump and history" ; est_min: 2
 
   - id: mcp
-    order: 4
+    order: 5
     title: "MCP"            # a chapter apart, just before the finale
     step_file: part-mcp.md
     pace: auto-advance
@@ -160,8 +173,8 @@ parts:
       - id: mcp-node ; title: "content-editor declares an MCP tool; the mcp:// node appears" ; est_min: 3
 
   - id: live-site
-    order: 5
-    title: "The site, live"  # the finale / climax
+    order: 6
+    title: "Ship the site (the full publish pipeline)"  # the finale / climax
     step_file: part-live-site.md
     pace: auto-advance
     preflight: seed
@@ -169,7 +182,7 @@ parts:
     prereq: connect-harness
     status: active
     chapters:
-      - id: generate ; title: "The agent generates the HTML in public/" ; est_min: 3
-      - id: serve    ; title: "node server.js: your portfolio, live, next to the graph" ; est_min: 3
+      - id: pipeline ; title: "Run /publish end to end (check-links, brief, deploy runbook)" ; est_min: 4
+      - id: golive   ; title: "Ship it: the richer site live next to the full graph" ; est_min: 3
 
 findings_file: "./findings.md"
