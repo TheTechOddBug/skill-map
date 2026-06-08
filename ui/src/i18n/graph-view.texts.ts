@@ -28,23 +28,23 @@ export const GRAPH_VIEW_TEXTS = {
      * tooltip and the popover items.
      */
     layoutAlgorithmLabel: 'Layout algorithm',
-    layoutAlgorithmTooltip: 'Layout algorithm (balanced, stretched or organic)',
+    layoutAlgorithmTooltip: 'Layout algorithm',
     layoutDirectionLabel: 'Layout direction',
-    layoutDirectionTooltip: 'Layout direction (TB, BT, LR, RL)',
+    layoutDirectionTooltip: 'Layout direction',
     layoutDirectionUnavailableTooltip:
       'Direction does not apply to the Organic layout. Switch to Balanced or Stretched to set it.',
     layoutSpacingLabel: 'Layout spacing',
-    layoutSpacingTooltip: 'Layout spacing (compact, normal, spacious)',
+    layoutSpacingTooltip: 'Layout spacing',
     layoutSpacingUnavailableTooltip:
       'Spacing does not apply to the Organic layout. Switch to Balanced or Stretched to set it.',
     /**
-     * Edge style popover, migrated from `Settings → General` so the
-     * operator can switch connector shapes live without opening a
+     * Connector style popover, migrated from `Settings → General` so
+     * the operator can switch connector shapes live without opening a
      * modal. Mirrors the layout-direction / layout-spacing pattern:
      * one toolbar button + an icon-row popover.
      */
-    connectionTypeLabel: 'Edge style',
-    connectionTypeTooltip: 'Edge style (orthogonal, straight, bezier or adaptive curve)',
+    connectionTypeLabel: 'Connector style',
+    connectionTypeTooltip: 'Connector style',
   },
   /**
    * Per-option labels for the three layout popovers. Same shape the
