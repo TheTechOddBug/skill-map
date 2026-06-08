@@ -119,11 +119,13 @@ export const LAYOUT_SPACING_VALUES: Readonly<Record<TLayoutSpacing, ILayoutSpaci
 export const DEFAULT_LAYOUT_ALGORITHM: TLayoutAlgorithm = 'network-simplex';
 
 /**
- * Default direction is top-to-bottom, this mirrors the visual flow
- * skill-map already used with the d3-force layout (cards stacked
- * vertically with edges coming out the bottom of the source).
+ * Default direction is left-to-right. Skill graphs are wide and
+ * shallow (a handful of stages, many leaf skills per stage), so a
+ * horizontal flow reads the dependency chain along the natural
+ * left-to-right reading axis and keeps the 260px-wide cards from
+ * stacking into a tall, scroll-heavy column.
  */
-export const DEFAULT_LAYOUT_DIRECTION: TLayoutDirection = 'TOP_BOTTOM';
+export const DEFAULT_LAYOUT_DIRECTION: TLayoutDirection = 'LEFT_RIGHT';
 
 export const DEFAULT_LAYOUT_SPACING: TLayoutSpacing = 'normal';
 

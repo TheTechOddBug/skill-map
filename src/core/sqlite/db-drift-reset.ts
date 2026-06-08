@@ -115,12 +115,19 @@ export async function maybeResetOnDrift(
   // to a stable placeholder so the message stays well-formed.
   const dbVersion = readScannedByVersion(dbPath) ?? 'unknown';
 
-  const confirmed = await confirmDriftReset(dbVersion, reason, policy);
+  // Prompt only when an interactive operator is present; otherwise the
+  // rebuild is automatic (assumeYes / non-TTY / BFF / watcher).
+  const prompted = shouldPromptForReset(policy);
+  const confirmed = prompted ? await askDriftReset(dbVersion, reason, policy) : true;
   if (!confirmed) {
     return { kind: 'aborted', dbVersion, currentVersion: policy.currentVersion, reason };
   }
   await removeDbFiles(dbPath);
-  renderResetReceipt(dbVersion, reason, policy);
+  // Receipt only when the rebuild was automatic. After an interactive
+  // y/N confirm the operator already knows the cache was rebuilt, so
+  // repeating it just adds noise; a silent rebuild gets the one-line
+  // notice because nothing else signalled the wipe.
+  if (!prompted) renderResetReceipt(dbVersion, policy);
   return { kind: 'reset', dbVersion, currentVersion: policy.currentVersion, reason };
 }
 
@@ -171,20 +178,6 @@ function readScannedByVersion(dbPath: string): string | null {
   }
 }
 
-/**
- * Resolve whether to proceed with the rebuild. `assumeYes` and a
- * non-TTY (or stream-less) stdin both auto-confirm: a piped / CI /
- * server scan must not block on a prompt. Otherwise ask interactively.
- */
-async function confirmDriftReset(
-  dbVersion: string,
-  reason: TDriftReason,
-  policy: IDriftResetPolicy,
-): Promise<boolean> {
-  if (!shouldPromptForReset(policy)) return true;
-  return askDriftReset(dbVersion, reason, policy);
-}
-
 /** Render the human reason fragment interpolated as `{{reason}}`. */
 function reasonText(reason: TDriftReason): string {
   return reason === 'version'
@@ -233,7 +226,6 @@ async function askDriftReset(
 /** Print the post-rebuild receipt when the caller supplied a printer. */
 function renderResetReceipt(
   dbVersion: string,
-  reason: TDriftReason,
   policy: IDriftResetPolicy,
 ): void {
   if (!policy.printer) return;
@@ -244,7 +236,6 @@ function renderResetReceipt(
       glyph: warnGlyph,
       dbVersion,
       currentVersion: policy.currentVersion,
-      reason: reasonText(reason),
       hint: dim(DB_DRIFT_TEXTS.driftResetHint),
     }),
   );
