@@ -1,4 +1,4 @@
-# Parte 7 (a): Extender skill-map - settings (step library, `settings-*` ids)
+# Part 7 (a): Extend skill-map - settings (step library, `settings-*` ids)
 
 Step bodies for the settings chapters of Part 7 (config layers, the
 `sm config` verbs, the active provider lens), plus the shared step
