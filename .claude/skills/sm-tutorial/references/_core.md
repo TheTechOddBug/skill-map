@@ -185,12 +185,16 @@ first kind quoted, the second kind never.
    `findings.md` (in the cwd). Reactive, not proactive: only offer
    the findings log when the tester flags something, asks "is that
    normal?", or pastes an error. Never on a clean OK.
-6. **One step at a time inside a chapter.** Finish a chapter (mark
-   it `done`), then **auto-advance** to the next chapter's
-   Announcement in the same response, unless the manifest entry is
-   `pace: per-step` (then ask "¿seguimos?" between steps, as the
-   fundamentals part does today). The continue-prompt at a **part
-   boundary** routes back to the ToC menu.
+6. **The chapter's confirmation IS the go-ahead.** When the tester
+   confirms a chapter, mark it `done` and advance straight to the next
+   chapter's Announcement. NEVER ask a separate "¿seguimos?" / "shall
+   we continue?" between chapters, the per-chapter confirmation already
+   gates advancement and a second question is exactly the redundancy
+   testers complain about. The ONLY continue-prompt is at a **part
+   boundary**, where you route back to the ToC menu. (`pace` controls
+   batching only, see the per-step cycle: `per-step` walks one chapter
+   per exchange, `auto-advance` may chain chapters that need no tester
+   action; neither asks "¿seguimos?".)
 7. **If the state file already exists** when invoked, do not
    overwrite anything. Read it, show progress, offer to continue,
    pick another part, or start over (the last requires explicit
@@ -270,9 +274,11 @@ For every chapter:
 3. **The tester's part**: the command block(s) and instructions,
    bundled into one flow, closed by the single confirmation.
 4. **Verification**: read their reply. If something errored, suggest
-   a fix before advancing. If fine, mark `done`. Honour the part's
-   `pace`: `auto-advance` moves straight into the next chapter's
-   Announcement; `per-step` asks "¿seguimos?" first.
+   a fix before advancing. If fine, mark `done` and move straight into
+   the next chapter's Announcement (the confirmation is the go-ahead,
+   Inviolable rule #6, NO "¿seguimos?"). `pace` only decides batching:
+   `per-step` presents one chapter per exchange, `auto-advance` may
+   chain chapters that need no tester action into one response.
 
 ## Routing + menu (orchestrator)
 

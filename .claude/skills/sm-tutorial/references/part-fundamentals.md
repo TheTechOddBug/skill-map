@@ -1,6 +1,6 @@
 # Part 0: The live map (prologue) - step library
 
-The live-UI prologue: the tester runs `sm init`, opens the browser, and watches the map update in real time as files are written and edited. `pace: per-step` (ask "¿seguimos?" between steps), `preflight: taught-init` (the tester runs `sm init` as the first taught step, not pre-flight), and the chapters lay the basics fixture progressively, one node at a time. Shared conventions (tone, provider detection / substitution, the `> ` rendering rule, the per-step cycle) live in `_core.md`; do not restate them here.
+The live-UI prologue: the tester runs `sm init`, opens the browser, and watches the map update in real time as files are written and edited. `pace: per-step` (one chapter per exchange; the chapter's own confirmation advances to the next, NO separate "¿seguimos?"), `preflight: taught-init` (the tester runs `sm init` as the first taught step, not pre-flight), and the chapters lay the basics fixture progressively, one node at a time. Shared conventions (tone, provider detection / substitution, the `> ` rendering rule, the per-step cycle) live in `_core.md`; do not restate them here.
 
 ## Chapter `init` - Your first node (~2 min)
 
@@ -8,25 +8,25 @@ The live-UI prologue: the tester runs `sm init`, opens the browser, and watches 
 
 ```bash
 sm init
-ls -la .skill-map/
+sm
 ```
 
-Expected: `.skill-map/skill-map.db` appears (plus config files). The initial scan reports a small node / link / issue count from the demo-agent fixture, NOT 14+ phantom issues from the tutorial's own prose: pre-flight already wrote `.skillmapignore` with the right exclusions in place, so `sm init` leaves that file alone (it only writes when absent) and the scan never sees `sm-tutorial.md` / `findings.md` / `tutorial-state.yml`.
+Expected: `.skill-map/skill-map.db` appears (plus config files), and the initial scan reports a small node / link count from the demo-agent fixture. `sm init` runs and exits; `sm` then starts the UI server and stays running. (Agent context, do not narrate: pre-flight's `.skillmapignore` keeps the tutorial's own files, `sm-tutorial.md` / `findings.md` / `tutorial-state.yml`, out of the scan; `sm init` leaves that file alone since it only writes when absent.)
 
-Before launching the server, ask the tester to set up a **side-by-side view** so they can watch the magic happen without alt-tabbing every step, then launch the server and open the link it prints. Don't hardcode the URL here, the verb itself is the source of truth (it logs the bound `http://host:port` after listen). Tell the tester:
+Give the tester the whole flow in one message with ONE confirmation, do NOT pause for the `sm init` output separately. Don't hardcode the URL, the verb logs the bound `http://host:port` after listen. Tell the tester:
 
-> First, arrange your screen so the **browser** (where the **Map**
-> updates in real time) and **this chat** are both visible at once,
-> typical layout is browser on the left half, chat on the right
-> (or any split that lets you see both). The terminal running
-> `sm` can stay off to the side; it just prints scan progress
-> lines and you don't need to read them.
+> First, **open your browser** and put it side by side with this
+> chat (browser on one half, chat on the other, any split that lets
+> you see both) so you can watch the **Map** update in real time.
 >
-> Then run `sm`. After a couple of seconds it will print a line
-> with the URL where the UI is listening, copy that link and open
-> it in the browser you just arranged.
+> Then, in your second terminal, run the two commands above: `sm
+> init` sets the project up (it creates `.skill-map/` and runs a
+> first scan), and `sm` boots the live UI. After a couple of seconds
+> `sm` prints a URL, copy it and open it in your browser. The
+> terminal keeps printing scan lines, you don't need to read them.
 >
-> Tell me when the page is open showing one node, `demo-agent`.
+> You'll see one node in the **Map**: `demo-agent`. Tell me when the
+> page is open showing it.
 
 Wait for confirmation. Mark `init`: done.
 
@@ -127,7 +127,7 @@ Create these four files (with `Write`), exactly in this order. Per §Provider de
 Tell the tester:
 
 > Look at the browser. Four new nodes should have popped in:
-> `demo-skill`, `demo-command`, `notes/todo`, and `demo-guideline`.
+> `demo-skill`, `demo-command`, **Demo TODO list**, and `demo-guideline`.
 > Five total now, **still unconnected**: they're floating dots.
 > The viewport auto-fits whenever a node is added or removed, so
 > all five should be visible without panning.
@@ -183,9 +183,9 @@ You edit `notes/todo.md` so it becomes the **hub** that points to each of the ot
 - a `/slash` token → kind `invokes`
 - a markdown link `[text](path)` → kind `references`
 
-Four bullets, three kinds (the `invokes` kind shows up twice because both the command and the skill are addressed by slash).
+Five bullets, three kinds: `invokes` and `mentions` each appear twice, `references` once. The last two bullets both point at the **same** node (`demo-guideline`), on purpose: a markdown link AND an `@`-mention of it, so the next beat can contrast their confidence (the file link is certain, the name drop is a softer guess).
 
-Apply with `Edit` on `notes/todo.md` (do not rewrite the file). Per §Provider detection, **substitute `.claude/` with the detected `<provider_dir>` and drop any bullet whose target node was not created in the `kinds` chapter** (on `agent-skills` / Antigravity there is no agent and no command → skip the `@demo-agent` and `/demo-command` bullets, two connectors land).
+Apply with `Edit` on `notes/todo.md` (do not rewrite the file). Per §Provider detection, **substitute `.claude/` with the detected `<provider_dir>` and drop any bullet whose target node was not created in the `kinds` chapter** (on `agent-skills` / Antigravity there is no agent and no command → skip the `@demo-agent` and `/demo-command` bullets; the `@demo-guideline` mention stays and is the faint connector on those providers too).
 
 **Edit `notes/todo.md`**: append these bullets after the `# Pending` heading:
 
@@ -195,31 +195,34 @@ Apply with `Edit` on `notes/todo.md` (do not rewrite the file). Per §Provider d
 - [ ] Trigger /demo-skill when the input lands.
 - [ ] Re-read the
       [demo-guideline](./demo-guideline.md) before shipping.
+- [ ] Ping @demo-guideline if the conventions change.
 ```
 
 Tell the tester:
 
-> Look at the magic again. `notes/todo` is now the hub: four
-> arrows light up between it and the other nodes, and the UI
-> palette colours each arrow by the link kind it carries:
+> Look at the magic again. **Demo TODO list** is now the hub: five
+> arrows light up between it and the other nodes, and the UI palette
+> colours each arrow by the link kind it carries:
 >
-> - `notes/todo → demo-agent` (kind: `mentions`)
-> - `notes/todo → demo-command` (kind: `invokes`)
-> - `notes/todo → demo-skill` (kind: `invokes`)
-> - `notes/todo → demo-guideline` (kind: `references`)
+> - `Demo TODO list → demo-agent` (kind: `mentions`)
+> - `Demo TODO list → demo-command` (kind: `invokes`)
+> - `Demo TODO list → demo-skill` (kind: `invokes`)
+> - `Demo TODO list → demo-guideline` (kind: `references`, the markdown link)
+> - `Demo TODO list → demo-guideline` (kind: `mentions`, the @ handle)
 >
 > The kind comes from the syntax in the bullet: an `@handle` is
 > always a mention, a `/skill` or `/command` is always an invoke, a
-> markdown link is always a reference. Four arrows, three kinds,
-> three colours on the canvas (the two `invokes` share a colour, as
-> you would expect).
+> markdown link is always a reference. Five arrows, three kinds.
 >
-> Notice too that the connectors have different transparency.
-> Skill-map estimates how sure it is of each connection: a
-> `[text](file.md)` that points at a real file (confidence 1.00,
-> now that the target exists) looks solid. The opacity tells that
-> story at a glance: the more solid the arrow, the more reliable
-> the inference.
+> Now look closely: the two arrows to **demo-guideline** are not
+> equally solid. Skill-map draws each connector's **confidence** as
+> opacity, how sure it is the link is real. The markdown link
+> `[demo-guideline](./demo-guideline.md)` points at a real file, so
+> it's certain (1.00) and looks solid; the `@demo-guideline` mention
+> is a looser name drop, a softer guess (0.50), so it's drawn fainter.
+> A glance at the map tells you which links are rock solid and which
+> are skill-map's best guess; the exact number per link is in the
+> inspector, next chapter.
 >
 > Confirm when you see it. If a connector is missing, refresh the
 > browser and let me know.
@@ -233,18 +236,20 @@ The connector opacity tells the confidence story at a glance; the exact per-link
 > 🆕 Open the Inspector for **Demo TODO list** (click the node on
 > the map). **Expand** the **Connections** section (it's collapsed
 > by default): it has two sections, **Outgoing** and **Incoming**.
-> Demo TODO list lists 4 links under Outgoing (it's the hub pointing
-> at four nodes) and 0 under Incoming; if you open the Inspector for
-> any of the four targeted nodes, you'll see 1 under Incoming. Each
-> row shows the link kind (`mentions`, `invokes`, `references`) and
-> a badge with its confidence: the numeric value (`1.00`, `0.50`,
-> …).
+> Demo TODO list lists **5 links** under Outgoing (the hub) and 0
+> under Incoming; open the Inspector for a targeted node to see its
+> Incoming count (demo-guideline shows **2**, the reference plus the
+> mention; the others 1 each). Each row shows the link kind
+> (`mentions`, `invokes`, `references`) and a badge with its
+> confidence: the numeric value. Here you'll see the contrast in
+> numbers, the `references` to demo-guideline reads `1.00`, the
+> `mentions` of it reads `0.50`.
 >
 > 💡 Tip: if all these changes left the nodes crowded together, the
 > map toolbar has a **Re-arrange layout** button (tooltip "Re-arrange
-> the visible nodes (re-run auto layout)"): it re-runs the
-> auto-layout so everything reads better. If you've moved nodes by
-> hand it asks for confirmation first, otherwise it just re-arranges.
+> the visible nodes"): it tidies the layout so everything reads
+> better. If you've moved nodes by hand it asks for confirmation
+> first, otherwise it just re-arranges.
 >
 > Let me know when you see it.
 
@@ -260,7 +265,7 @@ The server has been live since the `init` chapter, leave it running; this chapte
 > delete the bullet that contains `@demo-agent`. Save. Watch the
 > UI.
 >
-> Expected: the `notes/todo → demo-agent` connector (kind:
+> Expected: the `Demo TODO list → demo-agent` connector (kind:
 > `mentions`) disappears in real time. The two nodes stay in the
 > **Map**; only the edge goes.
 
@@ -274,13 +279,12 @@ Per §Provider detection, on `agent-skills` / Antigravity the fixture has fewer 
 
 **Beat 1, open the Files panel (tester does this).**
 
-> Make sure the **Files** panel is open, the one you expanded back
-> in the first chapter on the left edge. If you collapsed it since,
-> click the expand handle (the `>` arrow, tooltip "Expand files
-> panel") to reopen it. The sidebar shows a **folder tree** (a
-> nested view of your folders and the nodes inside them): your five
-> nodes grouped under `.claude/` and `notes/`, each row showing its
-> kind and how many links go in and out.
+> Open the **Files** panel. It sits collapsed against the left edge
+> by default: click the expand handle there (the `>` arrow, its
+> tooltip reads "Expand files panel"). The sidebar opens into a
+> **folder tree** (a nested view of your folders and the nodes inside
+> them): your five nodes grouped under `.claude/` and `notes/`, each
+> row showing its kind and how many links go in and out.
 >
 > Tell me when the tree is open.
 
@@ -297,19 +301,19 @@ Per §Provider detection, on `agent-skills` / Antigravity the fixture has fewer 
 
 **Beat 3, isolate (tester does this).**
 
-> Last one. In the tree, find the `notes/todo` row: at its right
-> edge there's a small **sitemap** icon (its tooltip reads "Isolate
-> this node and its direct links on the map"). Click it.
+> Last one. In the tree, find the **Demo TODO list** row: at its
+> right edge there's a small **sitemap** icon (its tooltip reads
+> "Isolate this node and its direct links on the map"). Click it.
 >
-> The Map collapses to `notes/todo` plus only the nodes it links to
-> (`demo-command`, `demo-skill`, `demo-guideline`). `demo-agent`,
-> which lost its only connector back in the last step, drops out of
-> view, and the Inspector opens on `notes/todo`. That's how you
+> The Map collapses to **Demo TODO list** plus only the nodes it
+> links to (`demo-command`, `demo-skill`, `demo-guideline`).
+> `demo-agent`, which lost its only connector back in the last step,
+> drops out of view, and the Inspector opens on **Demo TODO list**.
+> That's how you
 > focus on one node's neighborhood when a map gets busy.
 >
 > To bring the rest back, look at the toolbar along the bottom of
-> the Map: there's a **Show all** button (an eye icon, tooltip
-> "Clear the map selection and show every node again"). Click it and
+> the Map: there's a **Show all** button (an eye icon). Click it and
 > all five nodes return.
 >
 > Did the map isolate and then restore?
@@ -374,14 +378,19 @@ Adjust the actual tree shown to whatever `ls -la` returns, the goal is "tester r
 
 Per Inviolable rule #2, the agent does NOT touch `.skillmapignore` with your `Edit` tool. Tell the tester to do it from their editor:
 
-> Last step. Open `.skillmapignore` (it's at the cwd root) in
-> your editor of choice. At the end of the file, on a new line,
-> append the literal pattern `notes/private-*.md`. Save the
-> file. The pattern uses a glob (same as `.gitignore`):
+> Last step. Open `.skillmapignore` (it's at the cwd root) in your
+> editor of choice. At the end of the file, on a new line, append
+> this pattern:
+
+```
+notes/private-*.md
+```
+
+> Save the file. It's a glob (same as `.gitignore`):
 > `notes/private-*.md` matches `private-credentials.md` and any
 > future sibling `private-*.md`. A literal path
-> (`notes/private-credentials.md`) would also work, the glob
-> teaches the broader habit.
+> (`notes/private-credentials.md`) would also work, the glob teaches
+> the broader habit.
 >
 > Watch the browser when you save. The
 > `notes/private-credentials` node should disappear from the
