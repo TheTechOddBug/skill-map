@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.53.6",
+      "date": "2026-06-09",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "`sm --help` now opens with a pointer to `sm tutorial`, the guided hands-on walkthrough. The tutorial reads cleaner too: the maintain part is renamed, chapters are numbered (5.1, 5.2…), and the annotations lesson no longer repeats across parts.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.53.5",
       "date": "2026-06-09",
       "kind": "internal",
