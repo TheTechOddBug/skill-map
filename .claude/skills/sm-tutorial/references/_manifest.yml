@@ -148,7 +148,7 @@ parts:
 
   - id: maintain
     order: 4
-    title: "Maintain the site"
+    title: "Maintain the harness"
     step_file: part-maintain.md
     pace: auto-advance
     preflight: seed

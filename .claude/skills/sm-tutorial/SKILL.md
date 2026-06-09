@@ -42,8 +42,10 @@ prefix when a part spans several files: `settings-*` →
 `part-authoring.md`).
 
 > For the tester this is a single guided session, never a course
-> catalogue. Never say "part 6", "chapter id", "the settings tour"
-> out loud. Use the friendly titles from the manifest.
+> catalogue. Refer to a chapter by its tester-facing `section.chapter`
+> number plus its friendly title (`_core.md` §Numbering); never expose
+> the internal `order` index ("Part 6", off by one from the menu), a
+> raw "chapter id", or tour jargon ("the settings tour").
 
 ## Pre-flight (run once, silent on success)
 

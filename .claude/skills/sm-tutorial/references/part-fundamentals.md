@@ -43,15 +43,6 @@ Create these five files (with `Write`), exactly in this order. Per §Provider de
    description: |
      Example skill that walks a file and returns a Markdown report.
      Showcases the `skill` kind in the demo map.
-   inputs:
-     - name: target
-       type: path
-       description: File to process.
-       required: true
-   outputs:
-     - name: report
-       type: string
-       description: Markdown summary.
    ---
 
    # demo-skill
@@ -70,20 +61,14 @@ Create these five files (with `Write`), exactly in this order. Per §Provider de
    ---
    name: demo-command
    description: |
-     Example slash-style command that wraps the demo-skill behind
-     a keyboard shortcut. Showcases the `command` kind.
-   shortcut: "ctrl+alt+d"
-   args:
-     - name: target
-       type: path
-       description: File the command will hand off to the skill.
-       required: true
+     Example slash command that wraps the demo-skill. Showcases the
+     `command` kind.
    ---
 
    # demo-command
 
-   Quick keyboard entry point for running the demo flow on a
-   target file. Connectors land in the next sub-step.
+   Quick entry point for running the demo flow on a target file.
+   Connectors land in the next sub-step.
    ```
 
 3. `notes/todo.md`, classified as `kind: markdown` today
@@ -96,7 +81,6 @@ Create these five files (with `Write`), exactly in this order. Per §Provider de
      Live list of things to review in the demo. Will become the
      hub that points to the rest of the fixture in the next
      sub-step.
-   tags: [notes, demo]
    ---
 
    # Pending
@@ -112,7 +96,6 @@ Create these five files (with `Write`), exactly in this order. Per §Provider de
      Static reference notes the rest of the demo points at. The hub
      reaches it with a bare `@`-mention, which stays a faint guess
      (0.50) because it can't resolve to a known entity.
-   tags: [notes, demo]
    ---
 
    # Demo Guideline
@@ -135,7 +118,6 @@ Create these five files (with `Write`), exactly in this order. Per §Provider de
      Sibling of demo-guideline. The hub reaches it with an
      `@`-mention that carries the `.md` extension, so the link
      resolves to this file and lands certain (1.00).
-   tags: [notes, demo]
    ---
 
    # Demo Guideline 2

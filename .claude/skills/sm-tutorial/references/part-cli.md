@@ -63,50 +63,28 @@ sm check --json
 
 Expected: the error surfaces the dangling link from `notes/todo.md` to the non-existent `missing-page.md`. The `--analyzers` filter lets you focus on a single issue type; `--json` emits the structured payload (useful for CI / scripting). When done, the tester can leave the bullet in place or delete it, the rest of the deep-dive doesn't depend on it.
 
-If the tester asks about `sm orphans` vs `sm check`:
-
-- `sm check` reports broken-refs and other rule-driven issues
-  (the deterministic catalog).
-- `sm orphans` is a **different scope**: auto-rename / orphan-node
-  detection (a node whose file disappeared, or a candidate rename
-  the kernel is still unsure about). Our fixture doesn't produce
-  orphans of that kind, so `sm orphans` will print "No orphan /
-  auto-rename issues", that's expected, not a bug.
-
 Mark `issues`: done.
 
 ## Chapter `annotations` - Annotations and the .sm consent prompt (~3 min)
 
-**Context**: every `.md` skill-map tracks gets a sibling **companion file** with extension `.sm` that carries **all of the tool's metadata about that markdown, so your `.md` stays clean and uncluttered**. Version, history, tags, annotations, anything that does not belong in the human-authored body lives in the `.sm`. The `.md` is content you write for Claude or humans; the `.sm` is bookkeeping the tool writes. They are ordinary source files, committed to git like everything else, and you'll encounter them often once you start working with the project.
+**Context**: skill-map keeps each tracked `.md`'s metadata (version, history, tags, annotations) in a sibling **`.sm` companion file** so the `.md` stays clean, and the first time it writes one in a project it asks for consent (remembered in the gitignored `settings.local.json`). The Maintain part walks that consent flow in full; this chapter does not re-teach it. The CLI focus here is what Maintain does not cover: the **three sidecar verbs** and the `--yes` non-interactive switch. A tester who jumped straight here gets a one-line refresher in the demo below.
 
-The first time skill-map wants to write one in a new project it asks for your consent, it never touches your filesystem without permission. After you say yes, the choice is saved to the project's `settings.local.json` (part of your project config, gitignored) and the prompt never appears again.
-
-We'll demonstrate by creating an empty annotation scaffold for `notes/todo.md`. **Reset any prior consent state first** so the prompt actually appears (an earlier step may have flipped the flag without you noticing, in which case `sm sidecar annotate` would skip straight past the prompt and the lesson would not land):
+Create a scaffold for `notes/todo.md` so there is a `.sm` on disk to talk about. **Reset any prior consent state first** so the prompt appears (an earlier step may have flipped the flag, in which case the verb skips straight past it):
 
 ```bash
 rm -f notes/todo.sm .skill-map/settings.local.json
 sm sidecar annotate notes/todo.md
 ```
 
-Expected: a short explanation paragraph appears in the terminal, followed by a `[Y/n]` prompt (capital Y = default Yes, you can just hit Enter). After accepting, `notes/todo.sm` appears next to `notes/todo.md` carrying an `identity:` block plus an empty `annotations: {}` block, and `.skill-map/settings.local.json` now contains `{ "allowEditSmFiles": true }`.
+Expected: a short explanation, then a `[Y/n]` prompt (capital Y = default Yes, just hit Enter). After accepting, `notes/todo.sm` appears with an `identity:` block plus an empty `annotations: {}`, and `.skill-map/settings.local.json` records `{ "allowEditSmFiles": true }` so it never asks again on this checkout (the choice is per-user, per-project, gitignored).
 
-```bash
-cat notes/todo.sm
-cat .skill-map/settings.local.json
-```
+The part the CLI adds on top, the three sidecar verbs (all share that same consent gate):
 
-**Why the prompt?** The choice is **per-user, per-project**: stored in the gitignored `settings.local.json` so each contributor consents independently and nothing about the choice travels via the repo. Once accepted, the flag stays set and skill-map will never ask again on this checkout (the next `sm sidecar annotate` or `sm bump` goes through silently). On a CI / non-interactive session, pass `--yes` to grant up-front.
+- `sm sidecar annotate <node>` is the scaffold verb you just ran (creates a fresh `.sm`).
+- `sm bump <node>` is the day-to-day verb: it increments the sidecar's version and refreshes its hashes.
+- `sm sidecar refresh <node>` is the hash-only update (no version bump).
 
-If the tester asks about `sm bump` vs `sm sidecar annotate` vs `sm sidecar refresh`:
-
-- `sm sidecar annotate` is the scaffold verb (creates a fresh
-  `.sm`).
-- `sm bump <node>` is the day-to-day verb that increments the
-  sidecar's version and refreshes its hashes, same consent gate.
-- `sm sidecar refresh <node>` is the hash-only update (no version
-  bump).
-
-If the tester ever asks about reserved names (e.g. `commands/help.md`): if they name a file after a built-in (`/help`, `/clear`, `/init`, `/agents`, `/model`, or one of the documented agent reservations like `general-purpose`), `sm check` surfaces a `reserved-name` warning. The vendor runtime ignores user-owned files that shadow its built-ins, so the warning is not a bug, it's skill-map telling the operator "Claude will never invoke this file; pick another name". Incoming links to the shadowed file resolve at confidence `0.1` instead of `1.0`, so the **Map** also visually de-emphasises them. Rename the file and the warning clears on the next scan.
+And for automation: a CI / non-interactive session has no one to answer the `[Y/n]`, so pass `--yes` to grant consent up front (`sm sidecar annotate <node> --yes`).
 
 Mark `annotations`: done.
 
@@ -131,7 +109,6 @@ name: note-with-external-link
 description: |
   Demo note that links out to a sibling project (hijoB) sitting
   next to this one. Used to teach scan.referencePaths.
-tags: [demo, link-validation]
 ---
 
 # Note with external link
@@ -147,7 +124,6 @@ description: |
   Target of the cross-folder link. Lives outside hijoA's scan
   scope on purpose: that is precisely what scan.referencePaths
   is designed to bridge.
-tags: [demo, link-validation]
 ---
 
 # External spec

@@ -62,8 +62,6 @@ description: |
   tools so the `core/tools-counter` extractor emits a count.
 tools: [Read, Bash, Edit]
 model: sonnet
-metadata:
-  version: "1.0.0"
 ---
 
 # master-agent
@@ -82,17 +80,6 @@ description: |
   Example skill paired with the master-agent for the advanced
   tutorial. Links to the agent so extractors and analyzers have
   something to chew on.
-inputs:
-  - name: target
-    type: path
-    description: File to process.
-    required: true
-outputs:
-  - name: report
-    type: string
-    description: Markdown summary.
-metadata:
-  version: "1.0.0"
 ---
 
 # master-skill
@@ -115,9 +102,6 @@ name: Ideas backlog
 description: |
   Free-form notes for the advanced tutorial. Demonstrates the
   catch-all markdown kind alongside the agent and skill.
-tags: [notes, master]
-metadata:
-  version: "1.0.0"
 ---
 
 # Ideas

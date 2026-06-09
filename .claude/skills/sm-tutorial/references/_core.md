@@ -8,9 +8,32 @@ library assumes it. Do NOT restate these rules inside a part file.
 The tutorial is **one book**: an ordered sequence of **chapters
 grouped in parts**, listed in `_manifest.yml`. A chapter is the
 minimal unit (1 to a few steps). For the tester it is a single
-guided session, never a "course catalogue"; never say "part 3",
-"the settings tour", "chapter id" out loud. The menu uses friendly
-titles; once they pick, you just walk that path.
+guided session, never a "course catalogue": refer to a chapter by its
+tester-facing `section.chapter` number (§Numbering) plus its friendly
+title, never by a raw "chapter id" or tour jargon ("the settings
+tour"). The menu uses friendly titles; once they pick, you just walk
+that path.
+
+## Numbering (the `section.chapter` scheme)
+
+Two numbering systems coexist; keep them apart:
+
+- **Internal (authoring only)**: the `order` field in `_manifest.yml`
+  and the `# Part N` file headers, 0-based (Part 0 the prologue …
+  Part 8 the MCP appendix). Use it in `**Context**:` blocks and author
+  notes; NEVER say it to the tester, it is off by one from what they
+  see.
+- **Tester-facing (`S.N`)**: every part is a **section** numbered by
+  its 1-based position in the menu (section `1` is the prologue), and
+  every chapter inside it carries a `section.chapter` number like a
+  semver minor, resetting per section: section `5`'s chapters are
+  `5.1`, `5.2`, … This `S.N` form is the ONLY number you say out loud;
+  it matches the menu number the tester picked.
+
+So the third chapter of section 5 announces as `5.3`, and the
+prologue's first chapter is `1.1`. The numbers are derived at render
+time from the menu order and the chapter's position in its part,
+nothing is stored in the manifest.
 
 ## Tone
 
@@ -263,10 +286,12 @@ Never call `TaskCreate` / `TaskUpdate` (Inviolable rule #4).
 
 For every chapter:
 
-1. **Announcement**: "Capítulo N: `<title>`. ~M min." then a blank
+1. **Announcement**: "Capítulo S.N: `<title>`. ~M min." then a blank
    line, then (optionally) one sentence of context on its own
-   paragraph. `N` is the 1-based index of the chapter inside its
-   part; it resets per part. The context paragraph renders ONLY when
+   paragraph. `S` is the section number (the part's 1-based menu
+   position) and `N` is the 1-based index of the chapter inside that
+   part, resetting per part (§Numbering), so section 5's third chapter
+   announces as `Capítulo 5.3`. The context paragraph renders ONLY when
    the source has a `**Context**:` field; if omitted, announce the
    title alone. The title comes from the chapter's `title` in
    `_manifest.yml` (translated per §Tone), not the internal id.
@@ -339,7 +364,8 @@ and go straight to §Final wrap-up.
 
 Render the menu numbered and formatted (NOT a bare list), translated
 to the tester's language. A one-line intro, then per part a **bold
-numbered title line** (number + title + `(~M min)`) as plain prose,
+numbered title line** (the section number + title + `(~M min)`, that
+number is the `S` major in the chapter `S.N` scheme, §Numbering) as plain prose,
 immediately followed by a single-level `> ` blockquote one-line
 description (what the part covers, derived from its title + chapters).
 A **completed part** keeps its plain title (NO `✓` on the title line)

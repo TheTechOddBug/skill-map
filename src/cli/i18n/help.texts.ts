@@ -95,6 +95,14 @@ export const HELP_TEXTS = {
    * Tagline mirrors README.md "In a sentence", keep them in sync.
    */
   compactHeader: '{{binary}} {{version}}:  the missing map for Markdown-based generative-AI ecosystems',
+  /**
+   * Tutorial call-to-action rendered at the very top of the compact
+   * overview, directly under the header and above USAGE, to point new
+   * users at `sm tutorial`. `{{glyph}}` is a green `▶` when color is on,
+   * a bare `▶` otherwise.
+   */
+  compactTutorialCta:
+    '{{glyph}}  New to skill-map? Run `sm tutorial` for a hands-on, guided walkthrough.',
   compactUsageHeading: 'USAGE',
   compactUsageLine: '  sm <command> [options]',
   compactExamplesHeading: 'EXAMPLES',

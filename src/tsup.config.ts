@@ -1,4 +1,4 @@
-import { cpSync, existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { defineConfig } from 'tsup';
 
@@ -95,7 +95,13 @@ function copySkillFolder(slug: string): void {
     );
     return;
   }
-  cpSync(source, `dist/cli/tutorial/${slug}`, { recursive: true });
+  const dest = `dist/cli/tutorial/${slug}`;
+  // Clear the destination first: `cpSync` merges but never prunes, so a
+  // file deleted from source (e.g. a stray scratch dir) would otherwise
+  // linger in `dist/` across incremental builds. tsup's own clean does
+  // not reach this post-build copy target.
+  rmSync(dest, { recursive: true, force: true });
+  cpSync(source, dest, { recursive: true });
 }
 
 /**

@@ -14,15 +14,6 @@ name: check-links
 description: |
   Validates the portfolio's internal links before publishing. Walks
   every generated page and reports any link whose target is missing.
-inputs:
-  - name: root
-    type: path
-    description: Folder of generated pages to check.
-    required: true
-outputs:
-  - name: report
-    type: string
-    description: List of broken links, empty when all resolve.
 ---
 
 # check-links
@@ -55,7 +46,7 @@ Wait for confirmation. Mark `check-links`: done.
 
 On `agent-skills` / Antigravity there is no `command` kind, so skip this whole chapter and fold its purpose into the prose of the next one.
 
-Tell the tester to create the file themselves (it is their project's file, Inviolable rule #2). Substitute `<provider_dir>` per `_core.md` in the path you give them. The frontmatter fence (`---`) MUST sit on column 0 with no leading spaces: present the block below exactly as written, and if the tester pastes it indented, have them strip the leading whitespace. An indented `---` does not parse as YAML, so the `publish` node would land without its `name`, `description`, or `shortcut`.
+Tell the tester to create the file themselves (it is their project's file, Inviolable rule #2). Substitute `<provider_dir>` per `_core.md` in the path you give them. The frontmatter fence (`---`) MUST sit on column 0 with no leading spaces: present the block below exactly as written, and if the tester pastes it indented, have them strip the leading whitespace. An indented `---` does not parse as YAML, so the `publish` node would land without its `name` or `description`.
 
 > Create `.claude/commands/publish.md` with exactly this content (the first line is `---`, nothing before it):
 
@@ -65,12 +56,6 @@ name: publish
 description: |
   Publishes the portfolio: runs the link check, hands off to the
   content editor for any last fixes, then follows the deploy runbook.
-shortcut: "ctrl+alt+p"
-args:
-  - name: root
-    type: path
-    description: Folder of generated pages to publish.
-    required: true
 ---
 
 # publish

@@ -1,4 +1,4 @@
-# Part 4: Maintain the site (step library, `maintain`)
+# Part 4: Maintain the harness (step library, `maintain`)
 
 This is the upkeep part. The harness from Part 2 is wired and clean; real projects drift, links break, drafts pile up, names collide. Here the tester breaks something on purpose and fixes it, meets the analyzer catalogue that catches those problems, finds an orphan nobody links to, clears a reserved-name warning, and learns the `.sm` companion files that carry the tool's bookkeeping. `pace: auto-advance` (walk straight into the next chapter once one is marked done), `preflight: seed` (it builds on the portfolio harness from Parts 1 and 2, reusing the accumulated state when its predecessors are done, no fresh fixture of its own). Shared conventions (tone, provider detection / substitution, the `> ` rendering rule, the per-step cycle) live in `_core.md`; do not restate them here.
 
@@ -113,7 +113,7 @@ Wait for confirmation. Mark `analyzers`: done.
 
 ## Chapter `orphans` - A page nobody links to (~3 min)
 
-**Context**: a different kind of loose end. A node can be perfectly valid and still be an orphan: nothing in the harness links to it. We create a draft page that no one references; it lands on the **Map** as a floating dot, and `sm show` confirms it has no incoming links. The point is to separate three ideas the tester now has names for: orphan (nothing points at it) vs broken-ref (a link with no target) vs issue (a rule violation). Note: orphan-ness is a property of the graph (visible on the Map / inspector), there is no `sm check` analyzer for it. The separate `sm orphans` verb is unrelated, it surfaces history stranded by a rename, not unlinked pages, so do NOT use it here.
+**Context**: a different kind of loose end. A node can be perfectly valid and still be an orphan: nothing in the harness links to it. We create a draft page that no one references; it lands on the **Map** as a floating dot, and `sm show` confirms it has no incoming links. The point is to separate three ideas the tester now has names for: orphan (nothing points at it) vs broken-ref (a link with no target) vs issue (a rule violation). Note: orphan-ness is a property of the graph (visible on the Map / inspector), there is no `sm check` analyzer for it. The separate `sm orphans` verb is unrelated (it surfaces history stranded by a rename, not unlinked pages), so do NOT run it or bring it up with the tester here.
 
 `Write` `docs/draft.md` (markdown kind), a half-finished page nobody has wired up yet:
 
@@ -123,7 +123,6 @@ name: draft
 description: |
   Half-finished page nobody links to yet. Here to show what an
   orphan looks like: a valid node with no incoming connectors.
-tags: [docs, portfolio, draft]
 ---
 
 # Draft page
@@ -163,16 +162,12 @@ Tell the tester:
 > - **issue**: any rule violation `sm check` reports (broken-ref is
 >   one family; name-reserved, self-loop and the rest are others).
 >
-> An orphan is not automatically a problem (a draft you have not wired
-> up yet is fine), it is just skill-map pointing out the page is not
-> reachable from anywhere. When you link to it later, it stops being
-> an orphan.
->
-> (Heads up: there is also an `sm orphans` command, but it is a
-> different tool. It tracks history left stranded when you rename a
-> file that had tracked state, not pages with no links, so it will
-> not list `docs/draft`. Running it here prints "no orphan issues",
-> which is correct.)
+> An orphan is not automatically a problem. Sometimes it is a draft you
+> have not wired up yet; sometimes it is a node you deliberately keep on
+> its own, isolated on purpose, and that is just as valid. skill-map is
+> only pointing out that the page is not reachable from anywhere, not
+> telling you to fix it: if you link to it later it stops being an
+> orphan, and if you never do, that was your call, not an error.
 >
 > Did `docs/draft` land as a floating dot, with `sm show` confirming
 > no links in?
@@ -191,11 +186,6 @@ name: init
 description: |
   Bootstraps a fresh portfolio scaffold. Named init on purpose, to
   collide with the runtime built-in and trigger name-reserved.
-args:
-  - name: target
-    type: path
-    description: Folder to scaffold into.
-    required: true
 ---
 
 # init
@@ -279,6 +269,15 @@ sm sidecar annotate AGENTS.md
 > `{ "allowEditSmFiles": true }`. That flag lives in the local config
 > layer (gitignored), so each contributor consents on their own
 > checkout and the choice never travels through git.
+>
+> **Tip:** that `.sm` is also where the inspector gets a node's
+> **Metadata**. With the live `sm` still running, click the `AGENTS`
+> node on the **Map**: the inspector now shows a **Metadata** section
+> that was not there before you created the companion file. It reads
+> straight from `AGENTS.sm`, so a node with no `.sm` has no Metadata
+> section at all. For now it reads **never bumped**, because you only
+> scaffolded the file; once you start running `sm bump AGENTS.md` that
+> panel fills in **Created** and **Last bumped**.
 >
 > Did the prompt appear, and does `AGENTS.sm` exist now?
 

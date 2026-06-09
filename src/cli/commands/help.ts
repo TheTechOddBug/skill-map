@@ -19,7 +19,7 @@ import { resolve } from 'node:path';
 
 import { Cli, Command, Option } from 'clipanion';
 
-import { ansiFor } from '../util/ansi.js';
+import { ansiFor, type IAnsi } from '../util/ansi.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { BINARY_LABEL, VERSION } from '../version.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -105,6 +105,13 @@ export class HelpCommand extends Command {
 
   verbParts = Option.Rest({ required: 0 });
   format = Option.String('--format', 'human');
+  // `HelpCommand` extends Clipanion's `Command` directly (see block
+  // comment), so it does not inherit `SmCommand`'s `--no-color`. Declared
+  // here because the human overview now emits a coloured tutorial glyph;
+  // `ansiFor` still layers `NO_COLOR` / `FORCE_COLOR` / TTY on top.
+  noColor = Option.Boolean('--no-color', false, {
+    description: 'Disable ANSI color codes.',
+  });
 
   async execute(): Promise<number> {
     // Resolve colour at the seam, `HelpCommand` extends Clipanion's
@@ -113,7 +120,7 @@ export class HelpCommand extends Command {
     // CLI uses to keep the precedence (`--no-color` > `NO_COLOR` >
     // `FORCE_COLOR` > TTY) consistent.
     const stderr = this.context.stderr as NodeJS.WriteStream;
-    const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: false });
+    const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
     const errGlyph = ansi.red('✕');
 
     const format = normalizeFormat(this.format);
@@ -157,7 +164,9 @@ export class HelpCommand extends Command {
     }
 
     if (format === 'human') {
-      this.context.stdout.write(renderCompactOverview(verbs));
+      const stdout = this.context.stdout as NodeJS.WriteStream;
+      const stdoutAnsi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+      this.context.stdout.write(renderCompactOverview(verbs, stdoutAnsi));
       return ExitCode.Ok;
     }
 
@@ -597,15 +606,19 @@ function padRight(value: string, width: number): string {
 
 /**
  * Render the compact top-level overview. Replaces Clipanion's default
- * `cli.usage()` ANSI banner. Format: header tagline, USAGE block,
- * EXAMPLES block, then per-category two-column command listing, then a
- * footer pointing to per-verb help. Per-category column width is
- * computed independently so a single long verb in one category does not
- * widen every other section.
+ * `cli.usage()` ANSI banner. Format: header tagline, a green-glyph
+ * tutorial call-to-action, USAGE block, EXAMPLES block, then
+ * per-category two-column command listing, then a footer pointing to
+ * per-verb help. Per-category column width is computed independently so
+ * a single long verb in one category does not widen every other
+ * section. The `ansi` helper colours the call-to-action glyph; pass a
+ * no-op (`ansiFor` with color disabled) to render plain.
  */
-export function renderCompactOverview(verbs: IHelpVerb[]): string {
+export function renderCompactOverview(verbs: IHelpVerb[], ansi: IAnsi): string {
   const lines: string[] = [];
   lines.push(tx(HELP_TEXTS.compactHeader, { binary: BINARY_LABEL, version: VERSION }));
+  lines.push('');
+  lines.push(tx(HELP_TEXTS.compactTutorialCta, { glyph: ansi.green('▶') }));
   lines.push('');
   lines.push(HELP_TEXTS.compactUsageHeading);
   lines.push(HELP_TEXTS.compactUsageLine);
@@ -672,9 +685,18 @@ export function renderCompactOverview(verbs: IHelpVerb[]): string {
 export class RootHelpCommand extends Command {
   static override paths = [['-h'], ['--help']];
 
+  // Mirrors `HelpCommand.noColor`: this command extends Clipanion's
+  // `Command` directly, so the flag is declared here to gate the
+  // coloured tutorial glyph in the overview.
+  noColor = Option.Boolean('--no-color', false, {
+    description: 'Disable ANSI color codes.',
+  });
+
   async execute(): Promise<number> {
     const verbs = buildVerbCatalog(this.cli);
-    this.context.stdout.write(renderCompactOverview(verbs));
+    const stdout = this.context.stdout as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    this.context.stdout.write(renderCompactOverview(verbs, ansi));
     return ExitCode.Ok;
   }
 }

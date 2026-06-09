@@ -80,8 +80,8 @@ Tell the tester:
 >
 > **Step 2, brief the editor** (`@content-editor`). The check found
 > nothing to fix, so there is no brief to hand off this time, that is
-> the happy path. (Part 4 is where a link actually breaks and this
-> step earns its keep.)
+> the happy path. (Maintaining the harness is where a link actually
+> breaks, and that is where this step earns its keep.)
 >
 > **Step 3, follow the deploy runbook** (`docs/DEPLOY.md`). It lists:
 > generate the pages (done), run the link check (done), start the
@@ -122,7 +122,7 @@ Tell the tester:
 > Last step, the fun one. In your terminal, run these two commands:
 >
 > `npm install` downloads the one small library the server needs
-> (Express). If you already ran it in Part 3 it just confirms it is
+> (Express). If you already ran it earlier it just confirms it is
 > there. Then `node server.js` starts the server; it prints a line
 > like `Listening on http://localhost:3000`.
 >

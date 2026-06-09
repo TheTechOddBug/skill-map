@@ -139,7 +139,6 @@ runbook), so Part 4's maintenance beats have something to point at.
 name: style-guide
 description: |
   Writing and markup conventions every portfolio page follows.
-tags: [docs, portfolio]
 ---
 
 # Style guide
@@ -155,7 +154,6 @@ tags: [docs, portfolio]
 name: deploy-runbook
 description: |
   How the portfolio gets published once the pages are written.
-tags: [docs, portfolio]
 ---
 
 # Deploy runbook
