@@ -6,6 +6,14 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>0.53.6</b> · 2026-06-09</summary>
+
+### CLI Patch
+- Tutorial-review pass on the bundled `sm-tutorial`: the example fixtures stop inventing frontmatter fields skill-map ignores (`args`/`shortcut` on commands, `inputs`/`outputs`/`metadata`/`version`/`tags` on skills and notes, which live in the `.sm` sidecar or nowhere); the `.sm` annotations lesson is de-duplicated across parts; the Maintain section is retitled "Maintain the harness"; and chapters now carry `section.chapter` numbers. `sm --help` also leads with a tutorial call-to-action.
+
+</details>
+
+<details>
 <summary><b>0.53.5</b> · 2026-06-09</summary>
 
 ### CLI Patch
