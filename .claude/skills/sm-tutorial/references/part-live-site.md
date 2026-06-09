@@ -1,4 +1,4 @@
-# Part 6: Ship the site (the full publish pipeline) (step library, finale, `pipeline` + `golive`)
+# Part 5: Ship the site (the full publish pipeline) (step library, finale, `pipeline` + `golive`)
 
 The finale, the climax of the whole campaign. In Part 3 you ran the
 harness once, the simple way (generate two pages, serve them). Here you
@@ -134,7 +134,7 @@ Tell the tester:
 > Now take it all in at once. On one side, the real running site you
 > can click through. On the other, the skill-map graph of the harness
 > that built it: the handbook, the content editor, the style guide,
-> the publish command, the link checker, the MCP tool, all wired
+> the publish command, the link checker, all wired
 > together. You started in an empty folder with nothing, and you have
 > ended with a real, running site and a living map of how it all fits.
 >

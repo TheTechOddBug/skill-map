@@ -293,11 +293,11 @@ For every chapter:
   §Menu format).
 - **Which parts to list**: parts in `order`, `status: active` only
   (`planned` parts are hidden). A part with a `seed` (the campaign
-  parts plus Part 8 `cli`) is always shown, even out of order, its
+  parts plus Part 7 `cli`) is always shown, even out of order, its
   `preflight: seed` fast-forwards the project into it (SKILL.md
   §Entering a part). A part with a `prereq` but NO `seed` would be
   shown only once its `prereq` is `done`; no active part is in that
-  state today (Part 8 `cli` used to be, now it self-seeds).
+  state today (Part 7 `cli` used to be, now it self-seeds).
 - **After the tester picks**: walk that part; when it ends, run
   §Closing a part (a tester-facing close, then this menu).
 - **Adding content** is data-only: a new chapter in a part (or a new

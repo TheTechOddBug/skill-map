@@ -5,7 +5,7 @@ starts an actual project: a tiny personal **portfolio website**,
 fully static, served by a ~15-line Express server, plus the
 `.claude/` **harness** that maintains it. skill-map maps the harness
 (the `.md` assets and how they reference each other); the site itself
-is plain HTML the harness produces (Part 3 runs it, Part 6 ships it).
+is plain HTML the harness produces (Part 3 runs it, Part 5 ships it).
 `pace: per-step`, `preflight: portfolio-init`. Shared
 conventions live in `_core.md`.
 
@@ -54,8 +54,9 @@ Wait for confirmation. Mark `kickoff`: done.
 
 **Context**: the dogfood beat. Real Claude Code projects keep a
 `CLAUDE.md` that just points at `AGENTS.md` (this very repo does).
-That one-line pointer is a real `mentions` link, the tester's first
-connector on the real project.
+That one-line pointer is a real `references` link (the `.md` extension
+makes `@AGENTS.md` a file pointer, not a bare mention), the tester's
+first connector on the real project.
 
 Tell the tester to create the file themselves (it is their project's
 file, Inviolable rule #2):
@@ -68,10 +69,13 @@ file, Inviolable rule #2):
 > ```
 >
 > Save it. Watch the map: a new `CLAUDE.md` node appears, with a
-> `mentions` connector pointing at `AGENTS.md`. The `@name` token is
-> the same mention syntax from the prologue, now doing real work: it
-> tells anyone (and skill-map) that `CLAUDE.md` defers to the
-> handbook. This is exactly how this tool's own repo is wired.
+> `references` connector pointing at `AGENTS.md`, solid at 1.00.
+> Because `@AGENTS.md` carries the `.md` extension, skill-map reads it
+> as a file pointer (the same `@name.md` reference you met in the
+> prologue, not a bare mention), and since the handbook is right there
+> the link resolves with full confidence. It tells anyone (and
+> skill-map) that `CLAUDE.md` defers to the handbook. This is exactly
+> how this tool's own repo is wired.
 >
 > Did the connector light up?
 

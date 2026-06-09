@@ -55,9 +55,9 @@ Wait for confirmation. Mark `check-links`: done.
 
 On `agent-skills` / Antigravity there is no `command` kind, so skip this whole chapter and fold its purpose into the prose of the next one.
 
-Tell the tester to create the file themselves (it is their project's file, Inviolable rule #2). Substitute `<provider_dir>` per `_core.md` in the path you give them:
+Tell the tester to create the file themselves (it is their project's file, Inviolable rule #2). Substitute `<provider_dir>` per `_core.md` in the path you give them. The frontmatter fence (`---`) MUST sit on column 0 with no leading spaces: present the block below exactly as written, and if the tester pastes it indented, have them strip the leading whitespace. An indented `---` does not parse as YAML, so the `publish` node would land without its `name`, `description`, or `shortcut`.
 
-> Create `.claude/commands/publish.md` with exactly this content:
+> Create `.claude/commands/publish.md` with exactly this content (the first line is `---`, nothing before it):
 
 ```markdown
 ---
@@ -98,6 +98,12 @@ Continue the tester message:
 >
 > One node, three connectors, three link kinds. The harness is
 > starting to look like a real graph.
+>
+> 💡 Tip: to tidy every node into a clean layout, click the
+> **Re-arrange layout** button in the map toolbar (tooltip
+> "Re-arrange the visible nodes"). Handy whenever the graph starts to
+> look crowded. If you've dragged nodes by hand it asks for
+> confirmation first, otherwise it just re-arranges.
 >
 > Did the three arrows appear?
 
@@ -150,34 +156,43 @@ Wait for confirmation. You MAY use `Read` on the two files afterwards to verify 
 
 ## Chapter `confidence` - How sure is each link (~3 min)
 
-**Context**: the connectors do not all look equally solid, and that is on purpose. Skill-map estimates how sure it is of every connection and shows that as opacity. Here we open the Inspector on a real harness node and read the per-link confidence numbers, mirroring the prologue's connectors beat but on the portfolio.
+**Context**: skill-map estimates how sure it is of every connection and shows that as opacity. In this harness every link resolves to a real node, so they all read solid (1.00); the faint, low-confidence case is the one the tester met in the prologue (the bare `@demo-guideline` mention that had nothing to resolve to). Here we open the Inspector on a real harness node, read the all-solid numbers, and point back to that prologue contrast. Mirrors the prologue's connectors beat on the portfolio.
 
 No file edits in this chapter, pure observation on the graph the tester just built.
 
 Tell the tester:
 
 > Last beat of this part: how sure is skill-map about each connection?
-> Look closely at the **Map** and you'll notice the arrows are not all
-> equally solid. The more confident skill-map is that a link is real,
-> the more solid the arrow; the less sure, the more translucent.
+> It estimates a **confidence** for every link and draws it as opacity:
+> the surer a connection is real, the more solid the arrow; the less
+> sure, the more translucent.
 >
 > Open the Inspector for the `publish` node (click it on the **Map**).
 > Scroll down to the **Connections** panel and read the **Outgoing**
-> rows. Each row shows the link kind and a confidence badge:
+> rows. Each row shows the link kind and a confidence badge, and here
+> every one reads **1.00**:
 >
-> - `publish -> docs/DEPLOY.md` (`references`) reads **1.00** and looks
->   solid: it is a markdown link to a file that really exists on disk,
->   so skill-map is certain.
-> - `publish -> content-editor` (`mentions`) and `publish ->
->   check-links` (`invokes`) read high too, because each `@handle` and
->   `/slash` token resolves cleanly to a node that exists in your
->   harness.
+> - `publish -> docs/DEPLOY.md` (`references`) is a markdown link to a
+>   file that exists on disk, so skill-map is certain.
+> - `publish -> content-editor` (`mentions`) resolves to the real
+>   content-editor agent, and `publish -> check-links` (`invokes`)
+>   resolves to the real check-links skill, so both are certain too.
+>
+> Your whole harness reads solid because every link lands on a real
+> node, that is what a clean, fully wired graph looks like. So what
+> does a *low*-confidence connector look like? You saw one back in the
+> prologue: `@demo-guideline` was a bare `@`-mention pointing at a
+> note, and a bare `@handle` only firmly resolves to an agent, so it
+> had nothing to land on and stayed a soft guess at **0.50**, drawn
+> translucent. The fix there was one character: `@demo-guideline2.md`,
+> the same handle plus a `.md`, resolved to the real file and jumped to
+> **1.00**.
 >
 > The number is the certainty, and the opacity on the canvas is just
 > that number drawn as transparency: a glance at the **Map** tells you
 > which connections are rock solid and which are skill-map's best
 > guess.
 >
-> Do you see the confidence badges in the Inspector?
+> Do you see every badge reading 1.00 in the Inspector?
 
 Wait for confirmation. Mark `confidence`: done. Last chapter of the part: apply §Closing a part (the close names the part by its title and routes back to the menu; do NOT lead into the next part from here).

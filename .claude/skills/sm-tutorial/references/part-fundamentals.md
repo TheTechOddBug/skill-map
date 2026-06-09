@@ -32,9 +32,9 @@ Wait for confirmation. Mark `init`: done.
 
 ## Chapter `kinds` - The other kinds appear (~1 min)
 
-Leave the browser open and the terminal with `sm` running. You create four more nodes **without any cross-fixture links** yet, pure standalone nodes, so the tester sees four new dots pop in. Three new **kinds** show up in this step (skill, command, markdown), the fourth file is a second `markdown` node that the hub in the `connectors` chapter will point at via a real `references` link.
+Leave the browser open and the terminal with `sm` running. You create five more nodes **without any cross-fixture links** yet, pure standalone nodes, so the tester sees five new dots pop in. Three new **kinds** show up in this step (skill, command, markdown); the last two files are sibling `markdown` notes (`demo-guideline`, `demo-guideline2`) the hub in the `connectors` chapter reaches two ways, a faint mention that can't resolve and the same handle plus `.md` that resolves to a real file.
 
-Create these four files (with `Write`), exactly in this order. Per §Provider detection, **substitute `.claude/` with the detected `<provider_dir>` and skip files whose kind is not in the provider's supported set** (`agent-skills` / Antigravity: skip both `demo-agent` and `demo-command`, only the skill + the two markdown notes remain). Adjust the node count, the "four new nodes" message, and the file list shown to the tester in the sample below accordingly:
+Create these five files (with `Write`), exactly in this order. Per §Provider detection, **substitute `.claude/` with the detected `<provider_dir>` and skip files whose kind is not in the provider's supported set** (`agent-skills` / Antigravity: skip both `demo-agent` and `demo-command`, only the skill + the three markdown notes remain). Adjust the node count, the "five new nodes" message, and the file list shown to the tester in the sample below accordingly:
 
 1. `.claude/skills/demo-skill/SKILL.md` (kind: skill):
    ```markdown
@@ -102,16 +102,16 @@ Create these four files (with `Write`), exactly in this order. Per §Provider de
    # Pending
    ```
 
-4. `notes/demo-guideline.md`, second `kind: markdown` node, the
-   one the hub will reach via a real markdown link in the
-   `connectors` chapter:
+4. `notes/demo-guideline.md`, second `kind: markdown` node, reached
+   in the `connectors` chapter by a bare `@`-mention that can't
+   resolve, so it stays skill-map's faintest connector:
    ```markdown
    ---
    name: demo-guideline
    description: |
-     Static reference notes that the rest of the demo points at.
-     Showcases a second markdown node so the demo can exercise
-     the `references` link kind without ambiguity.
+     Static reference notes the rest of the demo points at. The hub
+     reaches it with a bare `@`-mention, which stays a faint guess
+     (0.50) because it can't resolve to a known entity.
    tags: [notes, demo]
    ---
 
@@ -124,27 +124,49 @@ Create these four files (with `Write`), exactly in this order. Per §Provider de
    - Body stays minimal, only what's needed to teach the kind.
    ```
 
+5. `notes/demo-guideline2.md`, a sibling `markdown` node identical
+   to `demo-guideline`, reached by the same handle plus a `.md`
+   extension (`@demo-guideline2.md`), which makes it a file reference
+   that resolves to this node and lands at full confidence:
+   ```markdown
+   ---
+   name: demo-guideline2
+   description: |
+     Sibling of demo-guideline. The hub reaches it with an
+     `@`-mention that carries the `.md` extension, so the link
+     resolves to this file and lands certain (1.00).
+   tags: [notes, demo]
+   ---
+
+   # Demo Guideline 2
+
+   Same conventions as demo-guideline; it exists so the hub can
+   reach it with a resolved reference instead of a bare mention.
+   ```
+
 Tell the tester:
 
-> Look at the browser. Four new nodes should have popped in:
-> `demo-skill`, `demo-command`, **Demo TODO list**, and `demo-guideline`.
-> Five total now, **still unconnected**: they're floating dots.
+> Look at the browser. Five new nodes should have popped in:
+> `demo-skill`, `demo-command`, **Demo TODO list**, `demo-guideline`,
+> and `demo-guideline2`.
+> Six total now, **still unconnected**: they're floating dots.
 > The viewport auto-fits whenever a node is added or removed, so
-> all five should be visible without panning.
+> all six should be visible without panning.
 >
-> What I just did behind the scenes: I created four new files in
+> What I just did behind the scenes: I created five new files in
 > your project, and the watcher picked them up on its own, that's
-> why four new dots appeared without you running anything:
+> why five new dots appeared without you running anything:
 >
 > - `.claude/skills/demo-skill/SKILL.md` (kind: skill)
 > - `.claude/commands/demo-command.md` (kind: command)
 > - `notes/todo.md` (kind: markdown)
 > - `notes/demo-guideline.md` (kind: markdown)
+> - `notes/demo-guideline2.md` (kind: markdown)
 >
 > Same loop you'll use yourself in the next step, only this time
 > the writes came from me.
 >
-> Did the four appear? Confirm so we can wire them up.
+> Did the five appear? Confirm so we can wire them up.
 
 Wait for confirmation. Mark `kinds`: done.
 
@@ -168,24 +190,24 @@ Tell the tester:
 >
 > Watch the browser. The `demo-agent` card should refresh its
 > description in real time, no reload, no Ctrl+C, same watcher
-> that picked up the four new nodes a moment ago, this time
+> that picked up the five new nodes a moment ago, this time
 > reacting to YOUR edit.
 >
-> Confirm so we wire the five up.
+> Confirm so we wire the six up.
 
 Wait for confirmation. You MAY use `Read` on the file afterwards to verify the change landed (read-only, allowed under Inviolable rule #1) before moving on. Mark `first-edit`: done.
 
 ## Chapter `connectors` - The connectors light up (~2 min)
 
-You edit `notes/todo.md` so it becomes the **hub** that points to each of the other four nodes. Each bullet uses a syntax that maps to a specific **link kind**:
+You edit `notes/todo.md` so it becomes the **hub** that points to each of the other five nodes. Each bullet uses a syntax that maps to a specific **link kind**:
 
 - an `@handle` token → kind `mentions`
+- an `@handle.md` token (a `@` handle that ends in a file extension) → kind `references`
 - a `/slash` token → kind `invokes`
-- a markdown link `[text](path)` → kind `references`
 
-Five bullets, three kinds: `invokes` and `mentions` each appear twice, `references` once. The last two bullets both point at the **same** node (`demo-guideline`), on purpose: a markdown link AND an `@`-mention of it, so the next beat can contrast their confidence (the file link is certain, the name drop is a softer guess).
+Five bullets, three kinds: `invokes` and `mentions` each appear twice, `references` once. The last two bullets are the confidence lesson: a bare `@demo-guideline` mention (which can't resolve, so it stays a faint guess) next to `@demo-guideline2.md`, the same handle shape plus a `.md` extension that points at a real sibling file (so it resolves and lands certain). Two separate nodes, two clearly different confidences.
 
-Apply with `Edit` on `notes/todo.md` (do not rewrite the file). Per §Provider detection, **substitute `.claude/` with the detected `<provider_dir>` and drop any bullet whose target node was not created in the `kinds` chapter** (on `agent-skills` / Antigravity there is no agent and no command → skip the `@demo-agent` and `/demo-command` bullets; the `@demo-guideline` mention stays and is the faint connector on those providers too).
+Apply with `Edit` on `notes/todo.md` (do not rewrite the file). Per §Provider detection, **substitute `.claude/` with the detected `<provider_dir>` and drop any bullet whose target node was not created in the `kinds` chapter** (on `agent-skills` / Antigravity there is no agent and no command → skip the `@demo-agent` and `/demo-command` bullets; the two guideline bullets stay, so the confidence contrast, faint mention 0.50 vs resolved reference 1.00, is intact on those providers too).
 
 **Edit `notes/todo.md`**: append these bullets after the `# Pending` heading:
 
@@ -193,9 +215,8 @@ Apply with `Edit` on `notes/todo.md` (do not rewrite the file). Per §Provider d
 - [ ] Brief @demo-agent on the rough edges.
 - [ ] Run /demo-command before publishing.
 - [ ] Trigger /demo-skill when the input lands.
-- [ ] Re-read the
-      [demo-guideline](./demo-guideline.md) before shipping.
 - [ ] Ping @demo-guideline if the conventions change.
+- [ ] Ping @demo-guideline2.md if the conventions change.
 ```
 
 Tell the tester:
@@ -207,22 +228,32 @@ Tell the tester:
 > - `Demo TODO list → demo-agent` (kind: `mentions`)
 > - `Demo TODO list → demo-command` (kind: `invokes`)
 > - `Demo TODO list → demo-skill` (kind: `invokes`)
-> - `Demo TODO list → demo-guideline` (kind: `references`, the markdown link)
-> - `Demo TODO list → demo-guideline` (kind: `mentions`, the @ handle)
+> - `Demo TODO list → demo-guideline` (kind: `mentions`, the bare `@` handle)
+> - `Demo TODO list → demo-guideline2` (kind: `references`, the `@` handle with a `.md` extension)
 >
-> The kind comes from the syntax in the bullet: an `@handle` is
-> always a mention, a `/skill` or `/command` is always an invoke, a
-> markdown link is always a reference. Five arrows, three kinds.
+> The kind comes from the syntax in the bullet: an `@handle` is a
+> mention, a `/skill` or `/command` is an invoke, and an `@handle`
+> that ends in a file extension (`@name.md`) is a reference, the
+> extension turns the name drop into a file pointer. Five arrows,
+> three kinds.
 >
-> Now look closely: the two arrows to **demo-guideline** are not
-> equally solid. Skill-map draws each connector's **confidence** as
-> opacity, how sure it is the link is real. The markdown link
-> `[demo-guideline](./demo-guideline.md)` points at a real file, so
-> it's certain (1.00) and looks solid; the `@demo-guideline` mention
-> is a looser name drop, a softer guess (0.50), so it's drawn fainter.
-> A glance at the map tells you which links are rock solid and which
-> are skill-map's best guess; the exact number per link is in the
-> inspector, next chapter.
+> Now look closely: the two guideline arrows are not equally solid.
+> Skill-map draws each connector's **confidence** as opacity, how
+> sure it is the link resolves to something real:
+>
+> - `@demo-guideline` is a bare `@`-mention. A bare mention only
+>   firmly resolves to an *agent*, and `demo-guideline` is a note,
+>   not an agent, so skill-map keeps it a soft guess (0.50), drawn
+>   faint. (That's also why `@demo-agent` above is solid: it does
+>   resolve to a real agent.)
+> - `@demo-guideline2.md` adds the `.md`, so skill-map reads a file
+>   pointer, finds the real `demo-guideline2.md` node, and is certain
+>   (1.00), drawn solid.
+>
+> Same handle, one `.md` apart, and the confidence jumps from a guess
+> to a certainty. A glance at the map tells you which links are rock
+> solid and which are skill-map's best guess; the exact number per
+> link is in the inspector, next chapter.
 >
 > Confirm when you see it. If a connector is missing, refresh the
 > browser and let me know.
@@ -238,12 +269,11 @@ The connector opacity tells the confidence story at a glance; the exact per-link
 > by default): it has two sections, **Outgoing** and **Incoming**.
 > Demo TODO list lists **5 links** under Outgoing (the hub) and 0
 > under Incoming; open the Inspector for a targeted node to see its
-> Incoming count (demo-guideline shows **2**, the reference plus the
-> mention; the others 1 each). Each row shows the link kind
-> (`mentions`, `invokes`, `references`) and a badge with its
-> confidence: the numeric value. Here you'll see the contrast in
-> numbers, the `references` to demo-guideline reads `1.00`, the
-> `mentions` of it reads `0.50`.
+> Incoming count (each node the hub points at shows **1**). Each row
+> shows the link kind (`mentions`, `invokes`, `references`) and a
+> badge with its confidence: the numeric value. Here you'll see the
+> contrast in numbers, the `mentions` to `demo-guideline` reads
+> `0.50`, while the `references` to `demo-guideline2` reads `1.00`.
 >
 > 💡 Tip: if all these changes left the nodes crowded together, the
 > map toolbar has a **Re-arrange layout** button (tooltip "Re-arrange
@@ -283,7 +313,7 @@ Per §Provider detection, on `agent-skills` / Antigravity the fixture has fewer 
 > by default: click the expand handle there (the `>` arrow, its
 > tooltip reads "Expand files panel"). The sidebar opens into a
 > **folder tree** (a nested view of your folders and the nodes inside
-> them): your five nodes grouped under `.claude/` and `notes/`, each
+> them): your six nodes grouped under `.claude/` and `notes/`, each
 > row showing its kind and how many links go in and out.
 >
 > Tell me when the tree is open.
@@ -292,11 +322,12 @@ Per §Provider detection, on `agent-skills` / Antigravity the fixture has fewer 
 
 > At the top of that sidebar there's a search box (placeholder
 > `Search…`). Type `guideline`. Watch both halves at once: the tree
-> narrows down to `demo-guideline` and the **Map** drops every node
-> except `demo-guideline`. The search matches a node's name, path,
+> narrows down to the two guideline nodes (`demo-guideline` and
+> `demo-guideline2`) and the **Map** drops every node except those
+> two. The search matches a node's name, path,
 > or description, and filters live as you type, no Enter needed.
 >
-> Now clear the box. All five nodes come back, in both the tree and
+> Now clear the box. All six nodes come back, in both the tree and
 > the Map. Confirm you saw it filter and then restore.
 
 **Beat 3, isolate (tester does this).**
@@ -306,7 +337,8 @@ Per §Provider detection, on `agent-skills` / Antigravity the fixture has fewer 
 > "Isolate this node and its direct links on the map"). Click it.
 >
 > The Map collapses to **Demo TODO list** plus only the nodes it
-> links to (`demo-command`, `demo-skill`, `demo-guideline`).
+> links to (`demo-command`, `demo-skill`, `demo-guideline`,
+> `demo-guideline2`).
 > `demo-agent`, which lost its only connector back in the last step,
 > drops out of view, and the Inspector opens on **Demo TODO list**.
 > That's how you
@@ -314,7 +346,7 @@ Per §Provider detection, on `agent-skills` / Antigravity the fixture has fewer 
 >
 > To bring the rest back, look at the toolbar along the bottom of
 > the Map: there's a **Show all** button (an eye icon). Click it and
-> all five nodes return.
+> all six nodes return.
 >
 > Did the map isolate and then restore?
 
@@ -344,14 +376,14 @@ description: |
 API_TOKEN: example-not-real
 ```
 
-It lands in the map as a sixth node (`notes/private-credentials`); the watcher sees it like any other `.md`. Do NOT pause to confirm the appearance, it folds into the single vanish confirmation at the end of this step.
+It lands in the map as a seventh node (`notes/private-credentials`); the watcher sees it like any other `.md`. Do NOT pause to confirm the appearance, it folds into the single vanish confirmation at the end of this step.
 
 **The tester hides it (single tester-facing message, one confirmation).**
 
 Give the tester a mental map of the folder so they know where the file lives, then the glob that hides it, all in ONE message. Use `Bash` (`ls -la`, plus `ls -la notes/` if a deeper view helps) for the real listing and apply the host-dependent rendering rule. Per Inviolable rule #2, the agent does NOT touch `.skillmapignore` with its `Edit` tool, the tester edits it from their own editor:
 
 > One last step. Your `private-credentials` note just popped into
-> the map as a sixth node, that's the watcher again. Now let's hide
+> the map as a seventh node, that's the watcher again. Now let's hide
 > it. Here's what your directory looks like right now:
 
 ```
@@ -367,6 +399,7 @@ Give the tester a mental map of the folder so they know where the file lives, th
 └── notes/
     ├── todo.md
     ├── demo-guideline.md
+    ├── demo-guideline2.md
     └── private-credentials.md   ← what we want to hide
 ```
 
@@ -387,8 +420,8 @@ notes/private-*.md
 >
 > Watch the browser when you save. The
 > `notes/private-credentials` node should disappear from the
-> **Map** in real time, without restarting anything. Six nodes
-> back to five.
+> **Map** in real time, without restarting anything. Seven nodes
+> back to six.
 >
 > Did the node vanish?
 

@@ -113,7 +113,7 @@ Wait for confirmation. Mark `analyzers`: done.
 
 ## Chapter `orphans` - A page nobody links to (~3 min)
 
-**Context**: a different kind of loose end. A node can be perfectly valid and still be an orphan: nothing in the harness links to it. We create a draft page that no one references, and `sm orphans` finds it. The point is to separate three ideas the tester now has names for: orphan (nothing points at it) vs broken-ref (a link with no target) vs issue (a rule violation).
+**Context**: a different kind of loose end. A node can be perfectly valid and still be an orphan: nothing in the harness links to it. We create a draft page that no one references; it lands on the **Map** as a floating dot, and `sm show` confirms it has no incoming links. The point is to separate three ideas the tester now has names for: orphan (nothing points at it) vs broken-ref (a link with no target) vs issue (a rule violation). Note: orphan-ness is a property of the graph (visible on the Map / inspector), there is no `sm check` analyzer for it. The separate `sm orphans` verb is unrelated, it surfaces history stranded by a rename, not unlinked pages, so do NOT use it here.
 
 `Write` `docs/draft.md` (markdown kind), a half-finished page nobody has wired up yet:
 
@@ -138,19 +138,28 @@ Tell the tester:
 > I dropped a new note into your project, `docs/draft.md`, a
 > half-finished page. Look at the **Map**: it shows up as a floating
 > dot with no arrows touching it. Nothing in your harness links to it,
-> which makes it an **orphan**.
+> which makes it an **orphan**. Click the dot, the inspector shows no
+> connections in or out.
+>
+> You can confirm the same thing from the CLI:
 >
 > ```bash
-> sm orphans
+> sm show docs/draft.md
 > ```
 >
-> `sm orphans` lists exactly that: nodes nothing points at. It is
-> worth keeping three ideas apart, because they are easy to confuse:
+> It prints the node's details, and there is **no "Links in"
+> section**, nothing references it. That absence is exactly what
+> "orphan" means here.
+>
+> It is worth keeping three ideas apart, because they are easy to
+> confuse:
 >
 > - **orphan**: a real, valid node that simply has no incoming link
->   (your `docs/draft`). Not an error, just unreferenced.
+>   (your `docs/draft`). Not an error, just unreferenced, and visible
+>   on the Map as a floating dot.
 > - **broken-ref**: a link whose target file does not exist (the one
->   you triggered by renaming the runbook). That is a real issue.
+>   you triggered by renaming the runbook). That is a real issue
+>   `sm check` reports.
 > - **issue**: any rule violation `sm check` reports (broken-ref is
 >   one family; name-reserved, self-loop and the rest are others).
 >
@@ -159,7 +168,14 @@ Tell the tester:
 > reachable from anywhere. When you link to it later, it stops being
 > an orphan.
 >
-> Did `sm orphans` list `docs/draft`?
+> (Heads up: there is also an `sm orphans` command, but it is a
+> different tool. It tracks history left stranded when you rename a
+> file that had tracked state, not pages with no links, so it will
+> not list `docs/draft`. Running it here prints "no orphan issues",
+> which is correct.)
+>
+> Did `docs/draft` land as a floating dot, with `sm show` confirming
+> no links in?
 
 Wait for confirmation. Mark `orphans`: done.
 
@@ -266,36 +282,4 @@ sm sidecar annotate AGENTS.md
 >
 > Did the prompt appear, and does `AGENTS.sm` exist now?
 
-Wait for confirmation. You MAY use `Read` on `AGENTS.sm` to verify it landed. Mark `sidecar`: done.
-
-## Chapter `versions` - Bump a version, read its history (~3 min)
-
-**Context**: now that the consent is granted, the day-to-day versioning verbs go through silently. `sm bump` increments a node's frontmatter version and appends a record to its `.sm` companion; `sm history` reads that trail back. We bump the content editor and read its history. Same consent gate as the previous chapter, already satisfied.
-
-This is a CLI beat, the tester runs everything (substitute `<provider_dir>` in the path per `_core.md`):
-
-```bash
-sm bump content-editor
-sm history content-editor
-```
-
-> `sm bump <node>` is the everyday versioning verb: it nudges the
-> `version` field in the node's frontmatter up by one and appends an
-> entry to that node's `.sm` companion file, recording that the bump
-> happened. Because you already granted consent in the last chapter,
-> it runs without prompting (the `.sm` write is pre-authorized for
-> this checkout).
->
-> `sm history <node>` reads that trail back: it prints the version
-> entries skill-map has recorded for the content editor, so you can
-> see how it has changed over time. Right after one bump you will see
-> the single entry the bump just wrote.
->
-> The two verbs are a pair: `sm bump` writes a version checkpoint into
-> the companion file, `sm history` reads the checkpoints back out.
-> Your `.md` body never gets cluttered with this, it all lives in the
-> `.sm` alongside it.
->
-> Does `sm history` show the bump you just made?
-
-Wait for confirmation. Mark `versions`: done. Last chapter of the part: apply §Closing a part (the close names the part by its title and routes back to the menu).
+Wait for confirmation. You MAY use `Read` on `AGENTS.sm` to verify it landed. Mark `sidecar`: done. Last chapter of the part: apply §Closing a part (the close names the part by its title and routes back to the menu).

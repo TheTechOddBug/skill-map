@@ -51,7 +51,7 @@ parts:
       - id: ignore          ; title: "Silence a file via .skillmapignore"  ; est_min: 2
 
   - id: extend
-    order: 7
+    order: 6
     title: "Extend skill-map for the site"
     # Spans three chapter libraries; dispatch by chapter-id prefix:
     #   settings-*  -> part-settings.md
@@ -81,7 +81,7 @@ parts:
       - id: authoring-6-upgrade      ; title: "Try `sm plugins upgrade`" ; est_min: 2
 
   - id: cli
-    order: 8
+    order: 7
     title: "The CLI in depth"
     step_file: part-cli.md
     pace: auto-advance
@@ -142,8 +142,9 @@ parts:
     prereq: connect-harness
     status: active
     chapters:
-      - id: generate ; title: "The agent generates the HTML in public/" ; est_min: 3
-      - id: serve    ; title: "node server.js: your portfolio, live next to the graph" ; est_min: 3
+      - id: generate    ; title: "The agent generates the HTML in public/" ; est_min: 3
+      - id: serve       ; title: "node server.js: your portfolio, live next to the graph" ; est_min: 3
+      - id: editor-live ; title: "Let the content-editor agent write a posts page (optional)" ; est_min: 3
 
   - id: maintain
     order: 4
@@ -157,14 +158,13 @@ parts:
     chapters:
       - id: broken-ref   ; title: "A ref breaks (you rename DEPLOY.md)" ; est_min: 3
       - id: analyzers    ; title: "The analyzer catalogue (what sm check catches)" ; est_min: 3
-      - id: orphans      ; title: "Orphans (sm orphans)" ; est_min: 2
+      - id: orphans      ; title: "Orphans (a page nobody links to)" ; est_min: 2
       - id: reserved     ; title: "Reserved names" ; est_min: 2
       - id: sidecar      ; title: "Annotations .sm and consent" ; est_min: 3
-      - id: versions     ; title: "Versions: sm bump and history" ; est_min: 2
 
   - id: mcp
-    order: 5
-    title: "MCP"            # a chapter apart, just before the finale
+    order: 8
+    title: "MCP"            # standalone appendix, ordered last; ALWAYS re-seeds harness-connected (extend/cli wipe the portfolio before it)
     step_file: part-mcp.md
     pace: auto-advance
     preflight: seed
@@ -175,7 +175,7 @@ parts:
       - id: mcp-node ; title: "content-editor declares an MCP tool; the mcp:// node appears" ; est_min: 3
 
   - id: live-site
-    order: 6
+    order: 5
     title: "Ship the site (the full publish pipeline)"  # the finale / climax
     step_file: part-live-site.md
     pace: auto-advance

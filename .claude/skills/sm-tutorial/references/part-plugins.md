@@ -1,4 +1,4 @@
-# Part 7 (b): Extend skill-map - plugins (step library, `tour-*` ids)
+# Part 6 (b): Extend skill-map - plugins (step library, `tour-*` ids)
 
 Guided tour of the **built-in plugins** that ship with `sm`. Three
 steps: a quick mental model of what plugins are plus a peek at

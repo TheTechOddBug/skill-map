@@ -145,7 +145,7 @@ every other `<cwd>` mention.
 >    output, and I verify.
 > 2. **A second terminal**: open it now (new window or tab), then run
 >    the command below so it's anchored **exactly to this folder**.
->    That's where you copy and paste every `sm` command.
+>    That's where you copy and paste every command I give you to run.
 
 ```bash
 cd <cwd>
@@ -195,12 +195,13 @@ the files the prologue's own chapters lay as taught steps, exactly this
 set: `<provider_dir>/agents/demo-agent.md`,
 `<provider_dir>/skills/demo-skill/`,
 `<provider_dir>/commands/demo-command.md`, `notes/todo.md`,
-`notes/demo-guideline.md`, `notes/private-credentials.md`. This is the
+`notes/demo-guideline.md`, `notes/demo-guideline2.md`,
+`notes/private-credentials.md`. This is the
 single source for that list. Four entry points delete exactly this set
 when the prologue ran first in the dir: `portfolio-init`, the campaign
-`seed` fast-forward, and `backstage-init` (Part 7), each so the part's
+`seed` fast-forward, and `backstage-init` (Part 6), each so the part's
 own fixture starts from a clean slate, plus start-over (§Menu, resume,
-wrap-up). Part 8 `cli` is the inverse
+wrap-up). Part 7 `cli` is the inverse
 consumer: its `prologue-built` seed *lays* this fixture (the
 connector-chapter subset, without `notes/private-credentials.md`)
 instead of deleting it, see `fixtures.md` §Seed snapshots. Keep the list
@@ -332,7 +333,7 @@ When a part begins, honour its `preflight` from the manifest:
   `preflight: seed` to fast-forward into them directly, see the `seed`
   case below; `portfolio-init` is just Part 1's flavour of that,
   handling the Part 0 to Part 1 transition.)
-- **`backstage-init`** (Part 7 `extend`): the part teaches plugins on
+- **`backstage-init`** (Part 6 `extend`): the part teaches plugins on
   its own **master fixture**, distinct from both the demo and the
   portfolio, so on entry make the master fixture the only one on disk.
   Silently, with no narration: (1) clear whatever prior-part fixture is
@@ -352,10 +353,10 @@ When a part begins, honour its `preflight` from the manifest:
   `Write` the part's fixture (read `references/fixtures.md` for the
   verbatim `master-agent` / `master-skill` / `notes/ideas` files; skip
   kinds the provider doesn't claim). If nothing needed clearing and the
-  dir was already initialised with the master fixture in place (Part 7
+  dir was already initialised with the master fixture in place (Part 6
   re-entry), that is fine: skip the init and just ensure the fixture
   files are present.
-- **`seed: prologue-built`** (Part 8 `cli`): the part reads the **Part 0
+- **`seed: prologue-built`** (Part 7 `cli`): the part reads the **Part 0
   demo fixture**, NOT the cumulative portfolio, so on entry make that
   fixture the one on disk. Read the state, then:
   - Demo fixture already present (the tester came straight from the
@@ -374,7 +375,15 @@ When a part begins, honour its `preflight` from the manifest:
   On entry, read the state file:
   - If every predecessor campaign part up the `prereq` chain is `done`
     → reuse the accumulated state; an `sm scan` to refresh is enough,
-    nothing to lay.
+    nothing to lay. **`mcp` is the exception**: it is ordered last,
+    after `extend` (Part 6) and `cli` (Part 7), which both replace the
+    portfolio on disk with their own master / demo fixture, so its
+    accumulated state cannot be trusted to still be the portfolio.
+    `mcp` therefore ALWAYS re-lays its `harness-connected` snapshot on
+    entry (clearing a master / demo fixture first if one is present,
+    the same clears the `backstage-init` and `prologue-built` cases
+    do), then `sm init` if `.skill-map/` is missing and `sm scan`,
+    exactly like the fast-forward branch below.
   - Else → **fast-forward, silently** (backstage, do not narrate the
     plumbing): first, if the prologue ran first in this dir, clear the
     full Part 0 demo fixture set (§Fixture and state templates) so the
@@ -413,7 +422,7 @@ All three are specified in `_core.md`:
   the **numbered start menu** (Part 0 is option 1, the recommended
   first pick); the menu (the ToC from `_manifest.yml`, numbered,
   completed parts ticked, `planned` parts hidden, `prereq` gating only
-  seedless parts, none today since Part 8 `cli` now self-seeds) is the
+  seedless parts, none today since Part 7 `cli` now self-seeds) is the
   entry point on the first
   invocation and after every part closes / on resume. Render it with
   the format in `_core.md` §Menu format.
@@ -421,7 +430,7 @@ All three are specified in `_core.md`:
   wipe list is whatever the tester's parts actually created:
   `tutorial-state.yml`, `findings.md`, `.skillmapignore`,
   `.skill-map/`, the full Part 0 demo fixture set (§Fixture and state
-  templates), the Part 7 fixture if `extend` ran
+  templates), the Part 6 fixture if `extend` ran
   (`<provider_dir>/agents/master-agent.md`,
   `<provider_dir>/skills/master-skill/`, `notes/ideas.md`,
   `.skill-map/plugins/`), `link-validation/` if the CLI part ran,

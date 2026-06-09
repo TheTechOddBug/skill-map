@@ -1,11 +1,12 @@
-# Part 3: Run the harness (your site, live) (step library, `generate` + `serve`)
+# Part 3: Run the harness (your site, live) (step library, `generate` + `serve` + `editor-live`)
 
 The first payoff: the harness you built and wired in the earlier parts
 finally does its job and you see a real site running, without waiting
 for the finale. Pace `auto-advance`, preflight `seed` (`harness-connected`,
-so a tester can jump straight here). Two chapters, in order:
-`generate` (the agent writes the HTML pages) then `serve` (the tester
-runs the site and sees it next to the graph). This is a deliberately
+so a tester can jump straight here). Three chapters: `generate` (the
+agent writes the HTML pages), `serve` (the tester runs the site next to
+the graph), then an optional `editor-live` (the tester lets the real
+`content-editor` agent write a posts page). This is a deliberately
 simple, working pass: maintenance, MCP and the full publish pipeline
 come in the parts after it. Shared conventions live in `_core.md`.
 
@@ -149,7 +150,32 @@ stop the server with Ctrl+C and the edge case for ports applies the
 same as elsewhere. Remind them they can leave the server running or
 stop it with Ctrl+C; either way the next parts do not need it.
 
-Mark `serve`: done. Last chapter of the part: apply §Closing a part
-(the close names the part by its title and routes back to the menu;
-this is a mid-campaign payoff, NOT the campaign finale, so do not
-sign the campaign off here).
+Mark `serve`: done. Auto-advance to the optional `editor-live` chapter.
+
+## Chapter `editor-live` - Let the content-editor agent write a posts page for real (optional) (~3 min)
+
+**Context**: optional payoff, and the first time the tester runs a harness member for real instead of playing it. In `generate` the tester (as the agent) wrote the HTML by hand; here the actual `content-editor` agent does the job. The tester asks for a new **posts** page, the tutorial invokes the agent, and a real `public/posts.html` lands, proof that the nodes on the map are runnable, not just a diagram. The Layer-1 / Layer-2 split still holds: the new HTML does NOT move the graph (HTML is not `.md`). Fully skippable; run it or skip it, the part closes either way.
+
+On `agent-skills` / Antigravity the `content-editor` member is a **skill**, not an `agent`; invoke it as a skill and keep everything else identical.
+
+This chapter is OPTIONAL and the tester opts in. Offer it; if they skip, go straight to the part close below.
+
+Tell the tester:
+
+> Optional last beat, and the fun one: so far you have *played* the
+> `content-editor` yourself. Want to see it run for real? Ask me to add
+> a **posts** page with your agent, for example: "use the
+> content-editor agent to add a posts page". I'll invoke the real
+> `content-editor` in your project; it reads its own rules and the
+> style guide, then writes a new static page into `public/`.
+>
+> Watch two things: the new page lands in `public/` (and shows on the
+> live site when you open it), and the **Map does NOT move**, same
+> Layer-1 / Layer-2 split as before, the agent's HTML output is not
+> part of the harness graph.
+>
+> Or just tell me to skip it and we'll wrap up this part.
+
+If the tester opts in: invoke the project's `content-editor` (the `<provider_dir>/agents/content-editor.md` agent, or the skill on `agent-skills`) via the Task tool to write ONE new static page `public/posts.html`, following the agent's own rules and `docs/STYLE.md` (plain HTML, no framework, no client JS, one page per file, a nav link back to Home), holding two or three short sample posts (a heading plus a sentence or two each). Do NOT edit `public/index.html` or any `.md` harness file, and do NOT edit the agent definition. If the subagent is not invocable in the tester's setup, act as the `content-editor` yourself following the same rules so the beat still lands. Then tell the tester to open `http://localhost:3000/posts.html` (refresh and navigate there), confirm the posts page is live and links back home, and confirm the **Map stayed still**.
+
+Wait for confirmation (ran it or skipped). Mark `editor-live`: done. Last chapter of the part: apply §Closing a part (the close names the part by its title and routes back to the menu; this is a mid-campaign payoff, NOT the campaign finale, so do not sign the campaign off here).

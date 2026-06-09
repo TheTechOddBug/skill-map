@@ -1,7 +1,7 @@
 # Fixture templates
 
 Fixtures the orchestrator lays for the auto-fixtured parts. Two full
-templates live here: the **master fixture** (Part 7, "Extend
+templates live here: the **master fixture** (Part 6, "Extend
 skill-map", `backstage-init`) right below, and the **portfolio
 fixture** (Part 1, "The project from zero", `portfolio-init`) at the
 end of this file. The **Part 0 demo fixture** is not templated here:
@@ -18,7 +18,7 @@ context for. Holds for every command fixture wherever it is defined
 (today: the prologue `demo-command`, the `publish` command, and the
 `reserved` chapter's `init`).
 
-## Master fixture (Part 7): layout (per provider)
+## Master fixture (Part 6): layout (per provider)
 
 Per §Provider detection in `SKILL.md`, the `<provider_dir>`
 placeholder resolves to `.claude/` or `.agents/skills/` depending
@@ -146,7 +146,7 @@ Per finding:
 Laid backstage before the tester's `sm init` in Part 1. The Express
 skeleton (`server.js`, `package.json`, `public/index.html`) is plain
 scaffolding, not `.md`, so the scan ignores it; it makes the project
-real and runnable (Part 3 runs it, Part 6 ships it). The one boot node is the
+real and runnable (Part 3 runs it, Part 5 ships it). The one boot node is the
 handbook `AGENTS.md`. On `agent-skills` / Antigravity (no `agent`
 kind) the harness still works: the agent member is created as a skill
 in a later chapter.
@@ -224,7 +224,7 @@ Append to the universal `.skillmapignore` (written in pre-flight, see
 ## Seed snapshots (for `preflight: seed`)
 
 When the orchestrator enters a seedable part out of order (the campaign
-parts when their predecessors are not `done`, or Part 8 `cli` when the
+parts when their predecessors are not `done`, or Part 7 `cli` when the
 demo fixture is not the one on disk), it fast-forwards the project by
 laying the snapshot below, then `sm init` (if `.skill-map/` is missing) +
 `sm scan`. These are **checklists, not content**: each row names a file
@@ -259,16 +259,16 @@ Everything in `harness-built`, PLUS the Part 2 wiring:
 After laying a campaign snapshot the map matches the state a tester would
 have at the END of the part just before the one being entered.
 
-### Seed snapshot: `prologue-built` (Part 8 `cli`)
+### Seed snapshot: `prologue-built` (Part 7 `cli`)
 
 NOT cumulative and NOT the portfolio: this is the **Part 0 demo
-fixture**, the five standalone demo nodes with `notes/todo` wired as the
+fixture**, the six standalone demo nodes with `notes/todo` wired as the
 hub, the clean state (`✓ No issues`) at the end of the prologue's
-connector chapters. Part 8 only reads it. Because it is a different
+connector chapters. Part 7 only reads it. Because it is a different
 fixture from the portfolio, entry first resets any portfolio on disk
 (see SKILL.md §Entering a part, the `cli` case).
 
 1. `<provider_dir>/agents/demo-agent.md`  <-  SKILL.md §Fixture and state templates. (The `.skillmapignore` is universal, already on disk from pre-flight; the snapshot does not lay it.)
-2. `<provider_dir>/skills/demo-skill/SKILL.md`, `<provider_dir>/commands/demo-command.md`, `notes/todo.md`, `notes/demo-guideline.md`  <-  part-fundamentals.md, chapter `kinds`.
-3. EDIT `notes/todo.md`: wire the hub bullets pointing at the four other nodes  <-  part-fundamentals.md, chapter `connectors`.
+2. `<provider_dir>/skills/demo-skill/SKILL.md`, `<provider_dir>/commands/demo-command.md`, `notes/todo.md`, `notes/demo-guideline.md`, `notes/demo-guideline2.md`  <-  part-fundamentals.md, chapter `kinds`.
+3. EDIT `notes/todo.md`: wire the hub bullets pointing at the five other nodes  <-  part-fundamentals.md, chapter `connectors`.
 

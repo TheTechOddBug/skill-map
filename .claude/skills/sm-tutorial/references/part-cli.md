@@ -1,4 +1,4 @@
-# Part 8: The CLI in depth - step library
+# Part 7: The CLI in depth - step library
 
 The deep-dive into the rest of the CLI: browsing verbs, ASCII graph + export, broken-ref issues, the `.sm` annotation consent prompt, and validating links to folders outside the scan scope. `pace: auto-advance` (walk straight into the next chapter's Announcement once one is marked done) and `preflight: seed` with the `prologue-built` snapshot: it self-seeds its own copy of the Part 0 demo fixture, so it works even if the campaign already replaced that fixture with the portfolio (see SKILL.md §Entering a part, the `cli` case). Shared conventions (tone, provider detection / substitution, the `> ` rendering rule, the per-step cycle) live in `_core.md`; do not restate them here.
 
@@ -13,7 +13,7 @@ sm show .claude/skills/demo-skill/SKILL.md
 sm check
 ```
 
-Expected: you see the 5 fixture nodes listed with their kind: `demo-skill` (skill), `demo-agent` (agent), `demo-command` (command), `notes/todo` (`markdown`, the catch-all per the `kinds` chapter), and `notes/demo-guideline` (`markdown` as well, the target of the hub's `references` link). `check` reads the persisted `scan_issues` table, it does NOT re-walk the filesystem. The fixture is clean (the connector / inspector chapters captured the latest state before Ctrl+C), so the verb prints `✓ No issues`. We will plant one in the `issues` chapter and watch the rule catch it after a fresh `sm scan`.
+Expected: you see the 6 fixture nodes listed with their kind: `demo-skill` (skill), `demo-agent` (agent), `demo-command` (command), `notes/todo` (`markdown`, the catch-all per the `kinds` chapter), and the two guideline notes `notes/demo-guideline` and `notes/demo-guideline2` (both `markdown`, the hub's confidence pair: a faint `mentions` at 0.50 and a resolved `references` at 1.00). `check` reads the persisted `scan_issues` table, it does NOT re-walk the filesystem. The fixture is clean (the connector / inspector chapters captured the latest state before Ctrl+C), so the verb prints `✓ No issues`. We will plant one in the `issues` chapter and watch the rule catch it after a fresh `sm scan`.
 
 Mark `browse`: done.
 

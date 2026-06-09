@@ -1,10 +1,10 @@
-# Part 5: MCP (step library, `mcp-*` ids)
+# Part 8: MCP (step library, `mcp-*` ids)
 
-This is a chapter apart, the one just before the finale. Pace
-`auto-advance`, preflight `reuse` (it builds straight on the
-connected portfolio harness from the earlier parts, same cwd, same
-live `sm` session). One chapter only. Shared conventions live in
-`_core.md`.
+This is a chapter apart, a standalone appendix that comes last in the
+book. Pace `auto-advance`, preflight `seed` (`harness-connected`, so it
+fast-forwards onto the connected portfolio harness whether the campaign
+was just run in this directory or you jumped straight here). One chapter
+only. Shared conventions live in `_core.md`.
 
 ## Chapter `mcp-node` - The agent reaches for an MCP tool (~3 min)
 
