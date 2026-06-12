@@ -1,5 +1,49 @@
 # skill-map
 
+## 0.54.0
+
+### Minor Changes
+
+- Adds the `core/backtick-path` extractor: relative `.md` paths written inside inline code spans and fenced blocks become edges, resolved like markdown links. The token grammar is pinned in `spec/architecture.md` (new section "Extractor: code-region file references"), unresolved targets surface via `core/reference-broken`, and the kernel exports `extractCodeRegions`, the exact inverse mask of `stripCodeBlocks`.
+
+  ## User-facing
+
+  Skills that tell the agent to read a bundled doc with a backtick path (like `references/rules.md`) now show those arrows on the map, and a backtick path pointing at a missing file is flagged as a broken reference.
+
+- Extensions can declare an optional `stability` lifecycle label (`experimental`, `beta`, `stable`, `deprecated`) in their manifest. Presentation-only: non-default values render as a badge in `sm plugins list` / `sm plugins show` and the Settings plugins panel; missing means `stable` and the kernel never gates behaviour on it. Declared in the spec's extension base schema and threaded through the loader, the BFF, and the SPA. `core/mcp-tools` is the first built-in flagged `experimental`.
+
+  ## User-facing
+
+  **Plugin maturity at a glance.** Extensions can now carry an experimental, beta, or deprecated badge next to their name in the Settings plugins panel and in `sm plugins list`, so you can tell which parts of a plugin are still settling before relying on them.
+
+- Adds the `points` link kind to the closed enum: `core/backtick-path` now emits `points` instead of `references`, so a backtick path and a markdown link to the same target persist as two coexisting edges instead of merging, and `core/link-conflict` treats `points` as compatible with every other kind (no false conflict warns). `core/reference-broken` labels the kind "pointer".
+
+  ## User-facing
+
+  Backtick paths get their own "Points" connector kind: a new palette toggle with a backtick glyph, its own edge colour per theme, and arrows separate from markdown-link references on the map.
+
+- The `tools-counter` extractor moved from the `core` plugin into the `claude` plugin: its qualified id is now `claude/tools-counter` (settings toggles keyed `core/tools-counter` no longer match), and disabling the `claude` plugin now drops the agent tools chip together with the provider it serves.
+
+### Patch Changes
+
+- Reworks every built-in analyzer message into a compact finding grammar: the involved artifact (target, trigger, sidecar) leads on its own line, followed by a short label, count, detail, and a `(line N)` location suffix wherever the link records one (broken references, self-loops, reserved-name downgrades); duplicate occurrences group by trigger, and messages about the node itself drop the redundant path. The inspector renders the line break and `sm check` flattens it to one row.
+
+  ## User-facing
+
+  Findings are shorter and clearer: the file or trigger involved leads on its own line, duplicates collapse to `Duplicate reference (2): \`refs/x.md\` (124, 145)`, broken references name the line they sit on, and messages no longer repeat the node's own path.
+
+- Downgrades the `core/reference-redundant` analyzer severity from `warn` to `info`: a multi-form reference to the same target is a consolidation hint, not a defect, so it no longer shares the visual bucket of actionable warnings like `reference-broken`.
+
+  ## User-facing
+
+  Referencing the same file twice in different forms (a markdown link plus a backtick path, for example) now shows as an info note instead of a warning, so the warning chips on cards only count things worth fixing.
+
+- Decouples the workspace text search from the map: `FilterStoreService.apply()` gains an `includeSearch` option and the graph view only applies the query when the new persisted `searchAffectsMap` preference (toggle next to the rail search input, default off) is enabled. The files rail keeps filtering on every query.
+
+  ## User-facing
+
+  Searching no longer rips nodes out of the map: by default the query narrows only the files list while the map keeps its layout. A new toggle next to the search box brings back the old filter-everything behavior, and your choice is remembered.
+
 ## 0.53.6
 
 ### Patch Changes
