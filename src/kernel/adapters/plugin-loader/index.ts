@@ -46,6 +46,7 @@ import type {
   ILoadedExtension,
   IPluginManifest,
 } from '../../types/plugin.js';
+import type { TExtensionStability } from '../../extensions/base.js';
 import type { PluginLoaderPort } from '../../ports/plugin-loader.js';
 import { PLUGIN_LOADER_TEXTS, SPEC_GITHUB_BASE } from '../../i18n/plugin-loader.texts.js';
 import { tx } from '../../util/tx.js';
@@ -587,11 +588,17 @@ export class PluginLoader implements PluginLoaderPort {
       instance['kinds'] = discoveredKinds;
     }
 
+    // `stability` passed the kind schema's AJV check above (enum or
+    // absent), so the cast is safe. Stamped as a typed field so list /
+    // show / BFF consumers never shape-check `instance` for it.
+    const stability = exported['stability'] as TExtensionStability | undefined;
+
     return { ok: true, extension: {
       kind,
       id: pathId,
       pluginId,
       version: exported['version'] as string,
+      ...(stability !== undefined ? { stability } : {}),
       entryPath: abs,
       module: mod,
       instance,

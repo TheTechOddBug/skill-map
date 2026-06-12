@@ -16,6 +16,20 @@ import type { TSettingValue, IViewContribution } from '../types/view-catalog.js'
 import type { TSettingDeclaration } from '../types/view-catalog.js';
 
 /**
+ * Lifecycle label an extension manifest MAY declare. Presentation-only
+ * metadata: the non-default values render as a badge next to the
+ * extension in `sm plugins list` / `sm plugins show` and the Settings
+ * plugins panel, and the kernel never gates behaviour on it (a
+ * `deprecated` extension still runs). Default: missing == `stable`,
+ * and `stable` (declared or defaulted) renders no badge. Mirrors
+ * `spec/schemas/extensions/base.schema.json#/properties/stability`.
+ * Deliberately a superset of the node-level annotations enum (which has
+ * no `beta`): this describes the maturity of the extension itself, not
+ * of a scanned node.
+ */
+export type TExtensionStability = 'experimental' | 'beta' | 'stable' | 'deprecated';
+
+/**
  * Single declaration of an extension's optional sidecar annotation
  * contribution. The annotation key is the extension's id (the leaf folder
  * name); to contribute additional keys, split into additional extensions.
@@ -68,6 +82,12 @@ export interface IExtensionBase {
   version: string;
   /** Required short description shown by `sm <kind>s list` / UI. */
   description: string;
+  /**
+   * Optional lifecycle label (`experimental` / `beta` / `stable` /
+   * `deprecated`). Missing == `stable`, no badge rendered. See
+   * `TExtensionStability` for the full semantics.
+   */
+  stability?: TExtensionStability;
   /**
    * Optional inspector-only ordering hint (default 100). Inside the
    * owning plugin's inspector section, orders this extension's

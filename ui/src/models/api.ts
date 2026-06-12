@@ -417,6 +417,13 @@ export interface IPluginRuntimeContributionErrorApi {
   slot?: string;
 }
 
+/**
+ * Lifecycle label an extension manifest may declare. Mirrors the BFF's
+ * `TExtensionStability` (spec `extensions/base.schema.json#/properties/
+ * stability`). Missing on the wire means `stable` (the default).
+ */
+export type TExtensionStabilityApi = 'experimental' | 'beta' | 'stable' | 'deprecated';
+
 export interface IPluginExtensionApi {
   id: string;
   kind: string;
@@ -425,6 +432,10 @@ export interface IPluginExtensionApi {
   /** Per-extension manifest description. Surfaced as muted secondary
    *  text in Settings; included in the substring search. */
   description?: string;
+  /** Per-extension lifecycle label. Missing means `stable`. Settings
+   *  badges only the non-default values (`experimental` / `beta` /
+   *  `deprecated`); `stable` renders nothing. */
+  stability?: TExtensionStabilityApi;
   /** Host-enforced lock (BFF `src/server/locked-plugins.ts`). When true,
    *  Settings renders the toggle disabled with a "locked" tag and the
    *  PATCH route returns 403. */

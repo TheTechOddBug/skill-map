@@ -11,6 +11,7 @@
  * this scale (17 schemas) and flagged in the roadmap.
  */
 
+import type { TExtensionStability } from '../extensions/base.js';
 import type { ExtensionKind } from '../registry.js';
 
 export type { ExtensionKind } from '../registry.js';
@@ -130,6 +131,14 @@ export interface ILoadedExtension {
    */
   pluginId: string;
   version: string;
+  /**
+   * Optional lifecycle label copied verbatim from the validated
+   * manifest (`IExtensionBase.stability`). Stamped here by the loader
+   * so consumers (CLI list/show, BFF projection) read a typed field
+   * instead of shape-checking `instance`. Absent when the manifest
+   * does not declare it.
+   */
+  stability?: TExtensionStability;
   entryPath: string;
   /** Raw module namespace as returned by the dynamic `import()`. */
   module: unknown;

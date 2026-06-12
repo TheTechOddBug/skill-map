@@ -301,6 +301,30 @@
   color: color-mix(in oklab, var(--kind-color) 80%, var(--p-surface-50));
 }
 
+/* Lifecycle badge (`beta` / `experimental` / `deprecated`): same pill
+   recipe as the kind tag, seeded by `--stability-color` (a severity
+   token the component resolves per value). Renders only for the
+   non-default stages; `stable` (declared or defaulted) shows no badge. */
+.settings-plugins__subrow-stability {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--sm-radius-pill);
+  white-space: nowrap;
+  background: color-mix(in oklab, var(--stability-color) 14%, transparent);
+  border: 1px solid color-mix(in oklab, var(--stability-color) 38%, transparent);
+  color: color-mix(in oklab, var(--stability-color) 70%, var(--p-surface-900));
+}
+
+:host-context(.app-dark) .settings-plugins__subrow-stability {
+  background: color-mix(in oklab, var(--stability-color) 22%, transparent);
+  border-color: color-mix(in oklab, var(--stability-color) 55%, transparent);
+  color: color-mix(in oklab, var(--stability-color) 80%, var(--p-surface-50));
+}
+
 .settings-plugins__row-status {
   font-weight: 500;
 }

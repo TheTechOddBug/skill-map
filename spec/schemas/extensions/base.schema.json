@@ -15,6 +15,11 @@
       "minLength": 1,
       "description": "Required short description (1-3 sentences) shown by `sm <kind>s list` and the UI inspector. English-only per AGENTS.md."
     },
+    "stability": {
+      "type": "string",
+      "enum": ["experimental", "beta", "stable", "deprecated"],
+      "description": "Optional lifecycle label for the extension. Presentation-only metadata: it drives a badge next to the extension in `sm plugins list` / `sm plugins show` and the Settings plugins panel, and the loader never gates behaviour on it (a `deprecated` extension still runs). Default: missing == `stable`. Only the non-default values (`experimental`, `beta`, `deprecated`) render a badge; `stable`, declared or defaulted, renders nothing, so authors only declare the field while the extension is NOT stable. Deliberately a superset of the node-level enum at `annotations.schema.json#/properties/stability` (which has no `beta`): this field describes the maturity of the extension itself, not of a scanned node."
+    },
     "order": {
       "type": "number",
       "description": "Optional visual ordering hint, inspector-only. Inside a plugin's inspector section (which groups the plugin's `inspector.body.panel.*` contributions), the bricks contributed by each extension are sorted ASC by this value (default 100), tie-break by the contribution's `priority` then qualified id. Does NOT affect execution order, which is governed by `phase` (analyzers) and registration order."

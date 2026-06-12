@@ -159,6 +159,22 @@ describe('CLI binary', () => {
     assert.match(r.stdout, /Run `sm plugins <command> --help` for flags and arguments\./);
   });
 
+  it('`sm plugins list` tags non-stable extensions with their lifecycle stage', () => {
+    // `core/mcp-tools` ships `stability: 'experimental'`; the names
+    // line renders it as `mcp-tools (experimental)`. Stable extensions
+    // (missing == stable per spec) render untagged.
+    const r = sm(['plugins', 'list'], EMPTY_DIR);
+    assert.equal(r.status, 0);
+    assert.match(r.stdout, /mcp-tools \(experimental\)/);
+    assert.match(r.stdout, /link-counter(?!\s*\()/);
+  });
+
+  it('`sm plugins show core/mcp-tools` surfaces the Stability field', () => {
+    const r = sm(['plugins', 'show', 'core/mcp-tools'], EMPTY_DIR);
+    assert.equal(r.status, 0);
+    assert.match(r.stdout, /^\s+Stability\s+experimental$/m);
+  });
+
   it('`sm help <namespace>` matches `sm <namespace> --help`', () => {
     const viaHelp = sm(['help', 'db']);
     const viaFlag = sm(['db', '--help']);

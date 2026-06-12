@@ -320,6 +320,14 @@
                         class="settings-plugins__subrow-kind"
                         [style.--kind-color]="kindTint(ext.kind)"
                       >{{ ext.kind }}</span>
+                      @if (stabilityLabel(ext.stability); as stabilityBadge) {
+                        <span
+                          class="settings-plugins__subrow-stability"
+                          [style.--stability-color]="stabilityTint(ext.stability)"
+                          [title]="texts.stability.tooltip"
+                          [attr.data-testid]="'settings-extrow-stability-' + plugin.id + '-' + ext.id"
+                        >{{ stabilityBadge }}</span>
+                      }
                       @if (plugin.source === 'project') {
                         <span class="settings-plugins__subrow-version">v{{ ext.version }}</span>
                       }

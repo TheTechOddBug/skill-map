@@ -22,6 +22,7 @@ import {
   buildResolver,
   loadAll,
   omitModule,
+  withStabilityTag,
   type IBuiltInPluginRow,
 } from './shared.js';
 
@@ -134,10 +135,12 @@ function builtInToListRow(b: IBuiltInPluginRow): IListRow {
   // `<plugin>/<ext>`. Surface that state in the names line by prefixing
   // disabled extensions with the `✕` glyph so the user sees per-extension
   // status at a glance without having to run `sm plugins show` or
-  // `sm plugins doctor`.
-  const names = b.extensions.map((e) =>
-    e.enabled ? e.id : `${PLUGINS_TEXTS.rowGlyphOff} ${e.id}`,
-  );
+  // `sm plugins doctor`. Non-default lifecycle labels (`beta`, ...)
+  // render as a ` (beta)`-style tag after the name.
+  const names = b.extensions.map((e) => {
+    const name = withStabilityTag(e.id, e.stability);
+    return e.enabled ? name : `${PLUGINS_TEXTS.rowGlyphOff} ${name}`;
+  });
   return {
     id: b.id,
     enabled: b.enabled,
@@ -166,7 +169,7 @@ function pluginToListRow(
     ? extensions.length === 0 || extensions.some((e) => resolveEnabled(qualifiedExtensionId(p.id, e.id)))
     : false;
   const names = extensions.map((e) => {
-    const safeId = sanitizeForTerminal(e.id);
+    const safeId = withStabilityTag(sanitizeForTerminal(e.id), e.stability);
     return resolveEnabled(qualifiedExtensionId(p.id, e.id))
       ? safeId
       : `${PLUGINS_TEXTS.rowGlyphOff} ${safeId}`;

@@ -114,6 +114,61 @@ describe('PluginLoader', () => {
     strictEqual(only.extensions?.length, 1);
     strictEqual(only.extensions?.[0]?.kind, 'extractor');
     strictEqual(only.extensions?.[0]?.id, 'url-counter');
+    // No `stability` declared → the loader stamps nothing (missing
+    // means `stable` per the spec default, no value is synthesized).
+    strictEqual(only.extensions?.[0]?.stability, undefined);
+  });
+
+  it('stamps the declared stability lifecycle label on the loaded extension', async () => {
+    const root = makePluginsDir('stability-beta');
+    const extractorSource = `
+      export default {
+        version: '1.0.0',
+        description: 'Counts external URLs',
+        stability: 'beta',
+      };
+    `;
+    writePlugin(
+      root,
+      'beta-plugin',
+      {
+        version: '0.1.0',
+        description: 'test',
+        specCompat: '>=0.0.0',
+        catalogCompat: '*',
+      },
+      { 'extractor/url-counter.mjs': extractorSource },
+    );
+
+    const result = await loaderFor(root).discoverAndLoadAll();
+    strictEqual(result[0]!.status, 'enabled');
+    strictEqual(result[0]!.extensions?.[0]?.stability, 'beta');
+  });
+
+  it('invalid-manifest: stability outside the closed enum', async () => {
+    const root = makePluginsDir('stability-invalid');
+    const extractorSource = `
+      export default {
+        version: '1.0.0',
+        description: 'Counts external URLs',
+        stability: 'alpha',
+      };
+    `;
+    writePlugin(
+      root,
+      'alpha-plugin',
+      {
+        version: '0.1.0',
+        description: 'test',
+        specCompat: '>=0.0.0',
+        catalogCompat: '*',
+      },
+      { 'extractor/url-counter.mjs': extractorSource },
+    );
+
+    const result = await loaderFor(root).discoverAndLoadAll();
+    strictEqual(result[0]!.status, 'invalid-manifest');
+    match(result[0]!.reason!, /stability/);
   });
 
   it('invalid-manifest: missing required fields', async () => {

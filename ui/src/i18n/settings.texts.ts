@@ -315,6 +315,19 @@ export const SETTINGS_TEXTS = {
   collapseLabel: 'Hide extensions',
 
   /**
+   * Per-extension lifecycle badge (`IPluginExtensionApi.stability`).
+   * Only the non-default values render a badge; a missing field or an
+   * explicit `stable` shows nothing, per the spec's "missing == stable"
+   * contract (`extensions/base.schema.json#/properties/stability`).
+   */
+  stability: {
+    experimental: 'experimental',
+    beta: 'beta',
+    deprecated: 'deprecated',
+    tooltip: 'Lifecycle stage declared by the extension manifest.',
+  },
+
+  /**
    * Runtime contribution errors, per-plugin diagnostics recorded by the
    * last scan when an extension emitted a view contribution the kernel
    * rejected (undeclared slot ref, or a payload that failed the slot's

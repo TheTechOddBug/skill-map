@@ -36,9 +36,13 @@ import {
 } from '../../../kernel/adapters/plugin-loader.js';
 import { loadSchemaValidators } from '../../../kernel/adapters/schema-validators.js';
 import { loadConfig } from '../../../kernel/config/loader.js';
+import type { TExtensionStability } from '../../../kernel/extensions/index.js';
 import { makeEnabledResolver } from '../../../kernel/config/plugin-resolver.js';
 import { qualifiedExtensionId } from '../../../kernel/registry.js';
 import type { IDiscoveredPlugin } from '../../../kernel/types/plugin.js';
+import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
+import { tx } from '../../../kernel/util/tx.js';
+import { PLUGINS_TEXTS } from '../../i18n/plugins.texts.js';
 import {
   defaultProjectPluginsDir,
   resolveDbPath,
@@ -121,10 +125,12 @@ export interface IBuiltInPluginRow {
     /**
      * Per-extension metadata used by the single-extension detail view
      * (`sm plugins show <plugin>/<ext>`). `description` is required by
-     * the new manifest contract; `entry` is the runtime entry path
-     * preserved for diagnostics.
+     * the new manifest contract; `stability` is the optional lifecycle
+     * label (`IExtensionBase.stability`); `entry` is the runtime entry
+     * path preserved for diagnostics.
      */
     description: string;
+    stability?: TExtensionStability;
     entry?: string;
   }>;
   /** Per-extension version+kind catalogue, used by `sm plugins show`. */
@@ -182,8 +188,22 @@ function extensionRowFromBuiltIn(
     enabled: resolveEnabled(qualifiedExtensionId(plugin.id, ext.id)),
     description: ext.description ?? '',
   };
+  if (ext.stability !== undefined) row.stability = ext.stability;
   if (ext.entry !== undefined) row.entry = ext.entry;
   return row;
+}
+
+/**
+ * Append the lifecycle tag (` (beta)`, ` (experimental)`, ...) to an
+ * extension name when the manifest declares a non-default `stability`.
+ * `stable` (declared or defaulted) returns the name untouched, per the
+ * spec's "missing == stable, no badge" contract. The value passed AJV's
+ * closed enum at load time, but it still runs through
+ * `sanitizeForTerminal` for defense in depth (kernel annex rule).
+ */
+export function withStabilityTag(name: string, stability?: TExtensionStability): string {
+  if (!stability || stability === 'stable') return name;
+  return name + tx(PLUGINS_TEXTS.stabilityTag, { stability: sanitizeForTerminal(stability) });
 }
 
 /**

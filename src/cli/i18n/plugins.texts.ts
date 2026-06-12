@@ -185,6 +185,13 @@ export const PLUGINS_TEXTS = {
    * the visible output stay in sync.
    */
   pluginSubIndent: '       ',
+  /**
+   * Lifecycle tag appended to an extension name in list / show rows
+   * when the manifest declares a non-default `stability` (anything but
+   * `stable`). Inherits the surrounding line's color; `stable`
+   * (declared or defaulted) renders no tag.
+   */
+  stabilityTag: ' ({{stability}})',
   listTipShow:
     '\nTip: `sm plugins show <id>` for kinds, versions, and per-extension status.\n',
   /** Show command, built-in header (no version row, no path). */

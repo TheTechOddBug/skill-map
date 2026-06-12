@@ -414,4 +414,23 @@ export class SettingsPlugins {
   protected kindTint(kind: string): string {
     return kindTint(kind);
   }
+
+  /**
+   * Badge label for an extension's lifecycle stage. `null` (no badge)
+   * for a missing field, an explicit `stable`, or an unknown value
+   * from a newer wire shape; only the non-default stages render.
+   */
+  protected stabilityLabel(stability: IPluginExtensionApi['stability']): string | null {
+    if (!stability || stability === 'stable') return null;
+    return this.texts.stability[stability] ?? null;
+  }
+
+  /** Severity token backing the stability badge's tint, threaded into
+   *  the template as `--stability-color` (same pattern as the kind
+   *  chip's `--kind-color`). */
+  protected stabilityTint(stability: IPluginExtensionApi['stability']): string {
+    if (stability === 'deprecated') return 'var(--sm-severity-error)';
+    if (stability === 'experimental') return 'var(--sm-severity-warn)';
+    return 'var(--sm-severity-info)';
+  }
 }

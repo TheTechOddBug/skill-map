@@ -52,6 +52,7 @@ import {
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import type { IContributionErrorRecord } from '../../kernel/adapters/sqlite/contributions.js';
 import { isPluginLocked } from '../../kernel/config/locked-plugins.js';
+import type { TExtensionStability } from '../../kernel/extensions/index.js';
 import type { IDiscoveredPlugin } from '../../kernel/index.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -69,6 +70,11 @@ export interface IPluginExtensionItem {
   /** Per-extension manifest description (`IExtensionBase.description`).
    *  Surfaced in the SPA and used as a substring-search target. */
   description?: string;
+  /** Per-extension lifecycle label (`IExtensionBase.stability`).
+   *  Carried verbatim when the manifest declares it; missing means
+   *  `stable`. The SPA badges only the non-default values
+   *  (`experimental` / `beta` / `deprecated`). */
+  stability?: TExtensionStability;
   /** Host-enforced lock (mirrors `src/server/locked-plugins.ts`). When
    *  true, the SPA renders the toggle disabled with a "locked" tag and
    *  the PATCH route returns 403 `locked`. Omitted when false to keep
@@ -375,6 +381,7 @@ function buildBuiltInItems(
         version: ext.version,
         enabled: resolveEnabled(qualified),
         ...(ext.description ? { description: ext.description } : {}),
+        ...(ext.stability ? { stability: ext.stability } : {}),
         ...(extLocked ? { locked: true } : {}),
       };
     });
@@ -469,6 +476,7 @@ function projectExtensionRows(
       version: ext.version,
       enabled: resolveEnabled(qualified),
       ...(description ? { description } : {}),
+      ...(ext.stability ? { stability: ext.stability } : {}),
       ...(extLocked ? { locked: true } : {}),
     };
   });

@@ -53,6 +53,10 @@ export const mcpToolsExtractor: IBuiltInManifest<IExtractor> = {
   kind: 'extractor',
   description:
     'Turns `tools: [mcp__<server>__<tool>]` entries in a node\'s frontmatter into an MCP node per unique server and an arrow from the source to each one.',
+  // Claude-convention pattern only; per-vendor flavours and the
+  // config-side MCP declaration (Phase 5b) are still pending, so the
+  // extractor ships flagged as experimental in list / show / Settings.
+  stability: 'experimental',
   scope: 'frontmatter',
 
   extract(ctx: IExtractorContext): void {

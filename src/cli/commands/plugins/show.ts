@@ -35,6 +35,7 @@ import {
   buildResolver,
   loadAll,
   omitModule,
+  withStabilityTag,
   type IBuiltInPluginRow,
 } from './shared.js';
 
@@ -280,7 +281,7 @@ function renderBuiltInDetail(b: IBuiltInPluginRow, ansi: IAnsi): string {
       ? ansi.green(PLUGINS_TEXTS.rowGlyphOk)
       : ansi.red(PLUGINS_TEXTS.rowGlyphOff),
     kind: ext.kind,
-    name: `${b.id}/${ext.id}`,
+    name: withStabilityTag(`${b.id}/${ext.id}`, ext.stability),
   }));
   return (
     tx(PLUGINS_TEXTS.detailHeaderBuiltIn, {
@@ -382,7 +383,7 @@ function collectPluginExtensionItems(
       // status header above (✕ on the row).
       glyph: ansi.green(PLUGINS_TEXTS.rowGlyphOk),
       kind: sanitizeForTerminal(ext.kind),
-      name: `${safePluginId}/${safeExtId}`,
+      name: withStabilityTag(`${safePluginId}/${safeExtId}`, ext.stability),
       version: sanitizeForTerminal(ext.version),
     };
   });
@@ -443,7 +444,9 @@ function renderBuiltInExtensionDetail(
   });
   // Built-in extensions inherit the CLI version, the Version field is
   // intentionally omitted from human output (see also `renderBuiltInDetail`).
+  // Stability surfaces only when non-default (`stable` == no row).
   const meta: IExtensionFieldInput = { kind: ext.kind };
+  if (ext.stability && ext.stability !== 'stable') meta.stability = ext.stability;
   if (ext.description) meta.description = ext.description;
   if (ext.entry !== undefined) meta.entry = ext.entry;
   return header + '\n' + renderExtensionFields(meta);
@@ -475,7 +478,10 @@ function renderUserExtensionDetail(
     version: ext.version,
     entry: ext.entryPath,
   };
-  if (meta.stability !== undefined) input.stability = meta.stability;
+  // `stability` is loader-stamped (typed) on `ILoadedExtension`, no
+  // instance shape-check needed. Non-default values only (`stable`,
+  // declared or defaulted, renders no row).
+  if (ext.stability && ext.stability !== 'stable') input.stability = ext.stability;
   if (meta.description !== undefined) input.description = meta.description;
   if (meta.preconditions !== undefined) input.preconditions = meta.preconditions;
   return header + '\n' + renderExtensionFields(input);
@@ -483,7 +489,6 @@ function renderUserExtensionDetail(
 
 interface IExtensionMeta {
   description?: string;
-  stability?: string;
   preconditions?: ReadonlyArray<string>;
 }
 
@@ -506,7 +511,6 @@ function readInstanceMeta(instance: unknown): IExtensionMeta {
   const obj = instance as Record<string, unknown>;
   const out: IExtensionMeta = {};
   if (typeof obj['description'] === 'string') out.description = obj['description'];
-  if (typeof obj['stability'] === 'string') out.stability = obj['stability'];
   if (Array.isArray(obj['preconditions'])) {
     out.preconditions = (obj['preconditions'] as unknown[]).filter(
       (p): p is string => typeof p === 'string',

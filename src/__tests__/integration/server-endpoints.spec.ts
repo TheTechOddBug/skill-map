@@ -772,6 +772,24 @@ describe('/api/plugins', () => {
       assert.ok((superseded?.description ?? '').length > 0);
     });
   });
+
+  it('carries stability on per-extension entries only when declared', async () => {
+    // `core/mcp-tools` declares `stability: 'experimental'` in its
+    // manifest; everything else omits the field (missing == `stable`
+    // per `extensions/base.schema.json`), so the wire must omit it too.
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const env = (await (await fetch(url(handle, '/api/plugins'))).json()) as IListEnvelope<{
+        id: string;
+        extensions?: Array<{ id: string; stability?: string }>;
+      }>;
+      const core = env.items.find((p) => p.id === 'core');
+      const mcpTools = (core?.extensions ?? []).find((e) => e.id === 'mcp-tools');
+      assert.equal(mcpTools?.stability, 'experimental');
+      const superseded = (core?.extensions ?? []).find((e) => e.id === 'node-superseded');
+      assert.ok(superseded, 'expected core/node-superseded');
+      assert.equal(superseded.stability, undefined);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
