@@ -34,6 +34,7 @@ export type TSeverityFilter = 'error' | 'warn';
 export const ALL_LINK_KINDS: readonly TLinkKindApi[] = [
   'invokes',
   'references',
+  'points',
   'mentions',
   'supersedes',
 ];

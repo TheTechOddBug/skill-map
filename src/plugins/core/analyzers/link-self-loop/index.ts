@@ -27,7 +27,7 @@
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { Issue, Link } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
-import { linkLines } from '../../../../kernel/util/link-lines.js';
+import { linkWhere } from '../../../../kernel/util/link-lines.js';
 import { LINK_SELF_LOOP_TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
@@ -46,7 +46,6 @@ export const linkSelfLoopAnalyzer: IBuiltInManifest<IAnalyzer> = {
     const issues: Issue[] = [];
     for (const link of ctx.links) {
       if (!isSelfLoop(link)) continue;
-      const lines = linkLines(link);
       issues.push({
         analyzerId: ID,
         severity: 'warn',
@@ -54,15 +53,10 @@ export const linkSelfLoopAnalyzer: IBuiltInManifest<IAnalyzer> = {
         message: tx(LINK_SELF_LOOP_TEXTS.message, {
           trigger: link.trigger?.originalTrigger ?? link.target,
           kind: link.kind,
-          where:
-            lines.length === 0
-              ? ''
-              : tx(
-                  lines.length === 1
-                    ? LINK_SELF_LOOP_TEXTS.whereSingle
-                    : LINK_SELF_LOOP_TEXTS.wherePlural,
-                  { lines: lines.join(', ') },
-                ),
+          where: linkWhere(link, {
+            single: LINK_SELF_LOOP_TEXTS.whereSingle,
+            plural: LINK_SELF_LOOP_TEXTS.wherePlural,
+          }),
         }),
         data: {
           target: link.target,

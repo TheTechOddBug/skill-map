@@ -1,7 +1,7 @@
 /**
  * Backtick-path extractor. Scans the node body's CODE REGIONS (inline
  * backtick spans + fenced blocks) for relative `.md` file paths and
- * emits one `references` link per distinct resolved target. Normative
+ * emits one `points` link per distinct resolved target. Normative
  * contract: `spec/architecture.md` §Extractor · code-region file
  * references (`core/backtick-path`).
  *
@@ -49,12 +49,16 @@
  *
  * Confidence / kind
  * -----------------
- * `references`, at `0.85`: a strong file signal with one degree of
- * inference (the author wrote a path, not an explicit link syntax),
- * the same value and rationale as a path-style at-directive. The
- * candidate's `normalizedTrigger` is the resolved target so the
- * post-resolver link dedup merges a prose `[x](refs/a.md)` and a
- * backticked `` `refs/a.md` `` into one Link with unioned sources.
+ * `points` (the code-region path pointer kind, Decision #127), at
+ * `0.85`: a strong file signal with one degree of inference (the
+ * author wrote a path, not an explicit link syntax), the same value
+ * and rationale as a path-style at-directive. The candidate's
+ * `normalizedTrigger` is the resolved target so resolution and the
+ * confidence lift behave exactly like `markdown-link`. Because the
+ * kind differs from `references`, a prose `[x](refs/a.md)` and a
+ * backticked `` `refs/a.md` `` to the same target COEXIST as two Link
+ * rows (the dedup keys on kind); `core/link-conflict` excludes
+ * `points` from disagreement detection, so the pair never warns.
  */
 
 import { posix as pathPosix } from 'node:path';
@@ -116,7 +120,7 @@ export const backtickPathExtractor: IBuiltInManifest<IExtractor> = {
         candidates: [
           {
             extractorId: ID,
-            kind: 'references',
+            kind: 'points',
             target: resolved,
             // 0.85: a strong file signal with one degree of inference,
             // the author wrote a path inside a code region rather than

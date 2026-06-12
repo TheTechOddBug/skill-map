@@ -457,14 +457,21 @@ function buildVirtualNode(
   return node;
 }
 
+/**
+ * Global closed enum of link kinds, mirroring
+ * `spec/schemas/link.schema.json#/properties/kind/enum`. Single source
+ * for both the Link and the Signal-candidate validation below.
+ */
+const KNOWN_LINK_KINDS: readonly LinkKind[] = ['invokes', 'references', 'mentions', 'supersedes', 'points'];
+
 function validateLink(extractor: IExtractor, link: Link, emitter: ProgressEmitterPort): Link | null {
   // Structure-as-truth: the per-extractor `emitsLinkKinds` allowlist was
   // retired; the global closed enum of link kinds (`invokes`, `references`,
-  // `mentions`, `supersedes`) is the contract. AJV / persistence at
-  // higher layers reject off-enum kinds; this stage validates only that
+  // `mentions`, `supersedes`, `points`) is the contract. AJV / persistence
+  // at higher layers reject off-enum kinds; this stage validates only that
   // the kind is a known enum member, surfacing an `extension.error` so
   // plugin authors see WHY a link they expected vanished.
-  const knownKinds: readonly LinkKind[] = ['invokes', 'references', 'mentions', 'supersedes'];
+  const knownKinds = KNOWN_LINK_KINDS;
   if (!knownKinds.includes(link.kind as LinkKind)) {
     const qualifiedId = `${extractor.pluginId}/${extractor.id}`;
     emitter.emit(
@@ -506,8 +513,6 @@ function validateLink(extractor: IExtractor, link: Link, emitter: ProgressEmitte
   const confidence: Confidence = c ?? ConfidenceTier.MEDIUM;
   return { ...link, confidence };
 }
-
-const KNOWN_LINK_KINDS: readonly LinkKind[] = ['invokes', 'references', 'mentions', 'supersedes'];
 
 /**
  * Validate a Signal emitted via `ctx.emitSignal()`. Phase 2 scaffold:

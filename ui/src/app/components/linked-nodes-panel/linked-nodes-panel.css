@@ -134,7 +134,7 @@ button.linked-nodes-panel__path:focus-visible {
  * Kind chip: lowercase, tinted with the SAME per-link-kind colour the
  * graph paints the connection edge (`--sm-edge-<kind>`), so the chip and
  * the line on the map read as the same thing. Outlined (border + text in
- * the hue, no fill) to stay subtle. The four kinds are a closed union
+ * the hue, no fill) to stay subtle. The five kinds are a closed union
  * (`TLinkKindApi`), so enumerating them keeps the binding static.
  */
 .linked-nodes-panel__chip--kind {
@@ -150,6 +150,11 @@ button.linked-nodes-panel__path:focus-visible {
 .linked-nodes-panel__chip--kind[data-kind='references'] {
   border-color: var(--sm-edge-references);
   color: var(--sm-edge-references);
+}
+
+.linked-nodes-panel__chip--kind[data-kind='points'] {
+  border-color: var(--sm-edge-points);
+  color: var(--sm-edge-points);
 }
 
 .linked-nodes-panel__chip--kind[data-kind='mentions'] {

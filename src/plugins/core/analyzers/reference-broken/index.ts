@@ -28,7 +28,7 @@ import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../
 import type { Issue, Link, Node } from '../../../../kernel/types.js';
 import { normalizeTrigger } from '../../../../kernel/trigger-normalize.js';
 import { tx } from '../../../../kernel/util/tx.js';
-import { linkLines } from '../../../../kernel/util/link-lines.js';
+import { linkWhere } from '../../../../kernel/util/link-lines.js';
 import { REFERENCE_BROKEN_TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
@@ -79,22 +79,6 @@ export const referenceBrokenAnalyzer: IBuiltInManifest<IAnalyzer> = {
   },
 };
 
-/**
- * Pre-rendered ` (line N)` / ` (lines N, M)` suffix naming where the
- * broken reference sits in the source body. Empty when the link
- * carries no line info (frontmatter / sidecar-derived edges).
- */
-function whereSuffix(link: Link): string {
-  const lines = linkLines(link);
-  if (lines.length === 0) return '';
-  return tx(
-    lines.length === 1
-      ? REFERENCE_BROKEN_TEXTS.whereSingle
-      : REFERENCE_BROKEN_TEXTS.wherePlural,
-    { lines: lines.join(', ') },
-  );
-}
-
 function buildIssue(link: Link, hintCandidates: Node[] = []): Issue {
   const data: Record<string, unknown> = {
     target: link.target,
@@ -116,35 +100,50 @@ function buildIssue(link: Link, hintCandidates: Node[] = []): Issue {
       kindLabel:
         REFERENCE_BROKEN_TEXTS.kindLabels[link.kind] ??
         tx(REFERENCE_BROKEN_TEXTS.kindLabelFallback, { kind: link.kind }),
-      where: whereSuffix(link),
+      where: linkWhere(link, {
+        single: REFERENCE_BROKEN_TEXTS.whereSingle,
+        plural: REFERENCE_BROKEN_TEXTS.wherePlural,
+      }),
     }),
     data,
   };
-  if (hintCandidates.length > 0) {
-    const suggestedName = (link.trigger?.normalizedTrigger ?? '')
-      .replace(/^[/@]/, '')
-      .trim();
-    const candidatePaths = hintCandidates.map((n) => n.path);
-    data['hint'] = {
-      kind: 'missing-frontmatter-name',
-      suggestedName,
-      candidates: candidatePaths,
-    };
-    issue.fix = {
-      summary:
-        candidatePaths.length === 1
-          ? tx(REFERENCE_BROKEN_TEXTS.hintSummarySingle, {
-              name: suggestedName,
-              candidate: candidatePaths[0]!,
-            })
-          : tx(REFERENCE_BROKEN_TEXTS.hintSummaryMany, {
-              name: suggestedName,
-              candidates: candidatePaths.join(', '),
-            }),
-      autofixable: false,
-    };
-  }
+  if (hintCandidates.length > 0) attachHint(issue, data, link, hintCandidates);
   return issue;
+}
+
+/**
+ * Attach the "add `name:` to this file" nudge when the broken trigger
+ * has same-named candidate files on disk: a structured `data.hint`
+ * block for programmatic consumers plus a human `fix.summary`.
+ */
+function attachHint(
+  issue: Issue,
+  data: Record<string, unknown>,
+  link: Link,
+  hintCandidates: Node[],
+): void {
+  const suggestedName = (link.trigger?.normalizedTrigger ?? '')
+    .replace(/^[/@]/, '')
+    .trim();
+  const candidatePaths = hintCandidates.map((n) => n.path);
+  data['hint'] = {
+    kind: 'missing-frontmatter-name',
+    suggestedName,
+    candidates: candidatePaths,
+  };
+  issue.fix = {
+    summary:
+      candidatePaths.length === 1
+        ? tx(REFERENCE_BROKEN_TEXTS.hintSummarySingle, {
+            name: suggestedName,
+            candidate: candidatePaths[0]!,
+          })
+        : tx(REFERENCE_BROKEN_TEXTS.hintSummaryMany, {
+            name: suggestedName,
+            candidates: candidatePaths.join(', '),
+          }),
+    autofixable: false,
+  };
 }
 
 /**

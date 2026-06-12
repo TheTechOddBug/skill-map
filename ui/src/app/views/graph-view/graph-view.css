@@ -300,6 +300,11 @@
   --ff-connection-width: 1.25px;
   --ff-marker-color: var(--sm-edge-references);
 }
+.f-conn--points {
+  --ff-connection-color: var(--sm-edge-points);
+  --ff-connection-width: 1.25px;
+  --ff-marker-color: var(--sm-edge-points);
+}
 .f-conn--mentions {
   --ff-connection-color: var(--sm-edge-mentions);
   --ff-connection-width: 1px;
@@ -366,6 +371,11 @@
   --ff-connection-color: var(--sm-edge-references-active);
   --ff-connection-selected-color: var(--sm-edge-references-active);
   --ff-marker-color: var(--sm-edge-references-active);
+}
+.f-conn--points.f-selected {
+  --ff-connection-color: var(--sm-edge-points-active);
+  --ff-connection-selected-color: var(--sm-edge-points-active);
+  --ff-marker-color: var(--sm-edge-points-active);
 }
 .f-conn--mentions.f-selected {
   --ff-connection-color: var(--sm-edge-mentions-active);

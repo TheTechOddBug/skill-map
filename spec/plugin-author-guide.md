@@ -242,13 +242,15 @@ The kernel knows six categories. Each has a JSON Schema under [`schemas/extensio
 
 The runtime instance you `export default` includes both the manifest fields (`version`, `description`, plus kind-specific metadata) AND the runtime method. The kernel strips function-typed properties before AJV-validating the manifest, so the method lives alongside metadata.
 
+Base manifest fields shared by every kind (normative shape in [`schemas/extensions/base.schema.json`](./schemas/extensions/base.schema.json)): `version` (required for external plugins), `description` (required), and the optional `stability`, `order`, `annotation`, `settings`. `stability` (`'experimental' | 'beta' | 'stable' | 'deprecated'`, default `stable`) is a presentation-only lifecycle label: the non-default values render as a badge next to the extension in `sm plugins list` / `sm plugins show` and the Settings plugins panel, and the kernel never gates behaviour on it (a `deprecated` extension still runs). A stable extension simply omits the field; declaring `stability: 'stable'` is valid but renders nothing.
+
 ### Extractors
 
 Pure single-node analysis. **Never** read another node, the graph, or the database, cross-node reasoning is for analyzers. Manifest fields beyond the base: `scope` (`'frontmatter'` | `'body'` | `'both'`), optional `precondition`, optional `ui` (view contributions). Spec at [`schemas/extensions/extractor.schema.json`](./schemas/extensions/extractor.schema.json).
 
 `extract(ctx) → void`. Output flows through callbacks the kernel binds onto `ctx`:
 
-- **`ctx.emitLink(link)`**, append a `Link`. The kernel validates `link.kind` against the **global closed enum** (`invokes`, `references`, `mentions`, `supersedes`); off-enum kinds drop as `extension.error`. Confidence is declared per emit (default `'medium'`). URL-shaped targets are partitioned into `node.externalRefsCount` and never persisted. (There is no per-extractor `emitsLinkKinds` allowlist anymore.)
+- **`ctx.emitLink(link)`**, append a `Link`. The kernel validates `link.kind` against the **global closed enum** (`invokes`, `references`, `mentions`, `supersedes`, `points`); off-enum kinds drop as `extension.error`. Confidence is declared per emit (default `'medium'`). URL-shaped targets are partitioned into `node.externalRefsCount` and never persisted. (There is no per-extractor `emitsLinkKinds` allowlist anymore.)
 - **`ctx.enrichNode(partial)`**, merge kernel-curated properties onto the node's enrichment layer (persisted into `node_enrichments`). **Strictly separate from the author frontmatter**, which is immutable from any Extractor. Use it for inferred facts (computed titles, summaries) the author did not write.
 - **`ctx.emitContribution(id, payload)`**, view contributions (see [View contributions](#view-contributions)).
 - **`ctx.store`**, plugin-scoped persistence, present only when `plugin.json` declares `storage.mode`. See [`plugin-kv-api.md`](./plugin-kv-api.md).

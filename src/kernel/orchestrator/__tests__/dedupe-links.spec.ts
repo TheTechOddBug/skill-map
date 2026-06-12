@@ -55,6 +55,27 @@ describe('dedupeLinks', () => {
     strictEqual(out.length, 2);
   });
 
+  it('keeps references + points rows with identical endpoints AND trigger (Decision #127)', () => {
+    // The markdown-link + backtick-path coexistence contract: both
+    // extractors resolve the same target (same normalizedTrigger), but
+    // the kinds differ, so the rows MUST survive as two edges with
+    // their own attributions, never a sources union.
+    const prose = mockLink({
+      kind: 'references',
+      sources: ['markdown-link'],
+      trigger: { originalTrigger: 'refs/a.md', normalizedTrigger: 'skills/demo/refs/a.md' },
+    });
+    const backtick = mockLink({
+      kind: 'points',
+      sources: ['backtick-path'],
+      trigger: { originalTrigger: 'refs/a.md', normalizedTrigger: 'skills/demo/refs/a.md' },
+    });
+    const out = dedupeLinks([prose, backtick]);
+    strictEqual(out.length, 2);
+    deepStrictEqual(out[0]!.sources, ['markdown-link']);
+    deepStrictEqual(out[1]!.sources, ['backtick-path']);
+  });
+
   it('keeps edges that differ in direction (A→B vs B→A)', () => {
     const ab = mockLink({ source: 'a.md', target: 'b.md' });
     const ba = mockLink({ source: 'b.md', target: 'a.md' });

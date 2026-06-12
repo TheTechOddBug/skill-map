@@ -41,16 +41,20 @@
   --sm-text-muted: #82a591;
 
   /* Edge kind ramp: green-grey (`supersedes`, weakest semantic)
-     brightening toward green (`invokes`, strongest), so the four kinds
-     read as one gradient instead of four competing neons. Active
-     variants run the same interpolation between brighter endpoints. */
+     brightening toward green (`invokes`, strongest), so the five kinds
+     read as one gradient instead of five competing neons. `points`
+     (code-region path pointer) sits at 50%, between `mentions` and
+     `references`. Active variants run the same interpolation between
+     brighter endpoints. */
   --sm-edge-neutral: #566b5e;
   --sm-edge-supersedes: var(--sm-edge-neutral);
   --sm-edge-mentions: color-mix(in srgb, var(--sm-ngreen-accent-dim) 33%, var(--sm-edge-neutral));
+  --sm-edge-points: color-mix(in srgb, var(--sm-ngreen-accent-dim) 50%, var(--sm-edge-neutral));
   --sm-edge-references: color-mix(in srgb, var(--sm-ngreen-accent-dim) 67%, var(--sm-edge-neutral));
   --sm-edge-invokes: var(--sm-ngreen-accent-dim);
   --sm-edge-supersedes-active: #9bb3a4;
   --sm-edge-mentions-active: color-mix(in srgb, var(--sm-ngreen-accent-bright) 33%, #9bb3a4);
+  --sm-edge-points-active: color-mix(in srgb, var(--sm-ngreen-accent-bright) 50%, #9bb3a4);
   --sm-edge-references-active: color-mix(in srgb, var(--sm-ngreen-accent-bright) 67%, #9bb3a4);
   --sm-edge-invokes-active: var(--sm-ngreen-accent-bright);
 

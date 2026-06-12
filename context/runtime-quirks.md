@@ -160,6 +160,6 @@ signals.
 
 The file-path half of this gap is closed: a backticked relative `.md`
 path is no longer discarded, `core/backtick-path` (§5) turns it into a
-real `references` edge, and a path pointing at a missing file surfaces
-through `core/reference-broken`. The remaining gap is invocation
-tokens only.
+real `points` edge (Decision #127), and a path pointing at a missing
+file surfaces through `core/reference-broken`. The remaining gap is
+invocation tokens only.

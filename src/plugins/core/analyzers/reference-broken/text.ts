@@ -31,6 +31,7 @@ export const REFERENCE_BROKEN_TEXTS = {
     mentions: 'mention',
     invokes: 'invocation',
     supersedes: 'supersession',
+    points: 'pointer',
   } as Record<string, string>,
   kindLabelFallback: '{{kind}} link',
   // Tooltips for the per-node view-contribution badges. Singular vs

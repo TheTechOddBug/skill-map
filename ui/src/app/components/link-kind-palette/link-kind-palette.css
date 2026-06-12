@@ -90,6 +90,13 @@
   color: var(--sm-edge-references-active);
 }
 
+:host ::ng-deep .link-kind-palette__btn--points .link-kind-palette__glyph {
+  color: var(--sm-edge-points);
+}
+:host ::ng-deep .link-kind-palette__btn--points[aria-pressed='true'] .link-kind-palette__glyph {
+  color: var(--sm-edge-points-active);
+}
+
 :host ::ng-deep .link-kind-palette__btn--mentions .link-kind-palette__glyph {
   color: var(--sm-edge-mentions);
 }
@@ -105,7 +112,7 @@
 }
 
 /* Multi-line tooltip: each entry embeds `\n` between the label and one
-   syntax example per line (References lists three forms). Default
+   syntax example per line (References lists two forms). Default
    PrimeNG text collapses whitespace and caps the tooltip at 12.5rem,
    too narrow for the example paths, so we honor `pre-line`, widen the
    container, and left-align so the example list reads as a stack. */

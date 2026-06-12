@@ -50,6 +50,8 @@
   --sm-edge-invokes-active: #f59e0b;
   --sm-edge-references: #7daa90;
   --sm-edge-references-active: #10b981;
+  --sm-edge-points: #8f7cb8;
+  --sm-edge-points-active: #7c3aed;
   --sm-edge-mentions: #6fa2c0;
   --sm-edge-mentions-active: #0ea5e9;
   --sm-edge-supersedes: #9ca3af;

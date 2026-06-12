@@ -104,7 +104,7 @@ One row per detected link, matching [`schemas/link.schema.json`](./schemas/link.
 | `id` | INTEGER | PRIMARY KEY AUTOINCREMENT | |
 | `source_path` | TEXT | NOT NULL | FK semantically; MAY be unenforced for performance. |
 | `target_path` | TEXT | NOT NULL | MAY point to a missing node (broken ref). |
-| `kind` | TEXT | NOT NULL, CHECK in (`invokes`, `references`, `mentions`, `supersedes`) | |
+| `kind` | TEXT | NOT NULL, CHECK in (`invokes`, `references`, `mentions`, `supersedes`, `points`) | |
 | `confidence` | TEXT | NOT NULL, CHECK in (`high`, `medium`, `low`) | |
 | `sources_json` | TEXT | NOT NULL | JSON array of extractor ids. |
 | `original_trigger` | TEXT | NULL | |

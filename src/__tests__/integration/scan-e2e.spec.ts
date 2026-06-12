@@ -269,12 +269,13 @@ describe('scan end-to-end', () => {
     }
   });
 
-  it('extracts backtick code-region paths: path-match lift, prose-link merge, broken flag', async () => {
+  it('extracts backtick code-region paths: path-match lift, points/references coexistence, broken flag', async () => {
     // Isolated fixture: a skill whose body references its bundled docs the
     // way agent-authored skills do, backtick-wrapped relative paths in
     // prose and inside a fenced block (`core/backtick-path` territory),
     // plus one prose markdown link to the same target as a backticked one
-    // so the post-resolver dedup merge is locked end-to-end.
+    // so the points/references coexistence (Decision #127: two rows, no
+    // merge, no link-conflict warn) is locked end-to-end.
     const local = mkdtempSync(join(tmpdir(), 'skill-map-e2e-backtick-'));
     try {
       const writeLocal = (rel: string, content: string) => {
@@ -305,28 +306,38 @@ describe('scan end-to-end', () => {
       const result = await runScan(kernel, { roots: [local], extensions: builtIns() });
 
       const src = '.claude/skills/demo/SKILL.md';
-      const find = (target: string) =>
-        result.links.filter((l) => l.source === src && l.kind === 'references' && l.target === target);
+      const find = (target: string, kind: string) =>
+        result.links.filter((l) => l.source === src && l.kind === kind && l.target === target);
 
-      // 1) Backtick-only path resolving to a scanned markdown node lifts
-      //    to 1.0 via the universal path-match rule.
-      const rules = find('.claude/skills/demo/references/rules.md');
-      strictEqual(rules.length, 1, 'one link to references/rules.md');
+      // 1) Backtick-only path resolving to a scanned markdown node emits a
+      //    `points` link and lifts to 1.0 via the universal path-match rule.
+      const rules = find('.claude/skills/demo/references/rules.md', 'points');
+      strictEqual(rules.length, 1, 'one points link to references/rules.md');
       strictEqual(rules[0]!.confidence, 1.0, 'resolved backtick path lifts to 1.0');
       strictEqual(rules[0]!.sources[0], 'backtick-path');
 
-      // 2) Prose markdown link + backticked path to the SAME target merge
-      //    into ONE link with unioned sources (normalizedTrigger parity).
-      const guide = find('.claude/skills/demo/references/guide.md');
-      strictEqual(guide.length, 1, 'prose link and backtick path merged into one link');
-      ok(guide[0]!.sources.includes('markdown-link'), 'merged link keeps markdown-link attribution');
-      ok(guide[0]!.sources.includes('backtick-path'), 'merged link keeps backtick-path attribution');
-      strictEqual(guide[0]!.confidence, 1.0);
+      // 2) Prose markdown link + backticked path to the SAME target COEXIST
+      //    as two rows (kinds differ, the dedup keys on kind): one
+      //    `references` from markdown-link, one `points` from backtick-path.
+      const guideRef = find('.claude/skills/demo/references/guide.md', 'references');
+      strictEqual(guideRef.length, 1, 'one references link from the prose markdown link');
+      strictEqual(guideRef[0]!.sources[0], 'markdown-link');
+      ok(!guideRef[0]!.sources.includes('backtick-path'), 'sources are NOT unioned across kinds');
+      strictEqual(guideRef[0]!.confidence, 1.0);
+      const guidePts = find('.claude/skills/demo/references/guide.md', 'points');
+      strictEqual(guidePts.length, 1, 'one points link from the backticked path');
+      strictEqual(guidePts[0]!.sources[0], 'backtick-path');
+      strictEqual(guidePts[0]!.confidence, 1.0);
+      // The coexisting pair is compatible by design: no link-conflict warn.
+      const conflicts = result.issues.filter(
+        (i) => i.analyzerId === 'link-conflict' && i.nodeIds.includes(src),
+      );
+      strictEqual(conflicts.length, 0, 'points + references on one pair is not a conflict');
 
       // 3) Backticked path to a missing file persists at the emit floor
       //    and is flagged by reference-broken (the chosen contract:
       //    broken detection over silent drop).
-      const missing = find('.claude/skills/demo/references/missing.md');
+      const missing = find('.claude/skills/demo/references/missing.md', 'points');
       strictEqual(missing.length, 1, 'unresolved backtick path persists');
       strictEqual(missing[0]!.confidence, 0.85, 'unresolved path stays at the emit floor');
       const broken = result.issues.filter(
@@ -336,6 +347,10 @@ describe('scan end-to-end', () => {
       ok(
         broken.some((i) => `${i.message} ${i.detail ?? ''}`.includes('references/missing.md')),
         'the broken issue names the missing target',
+      );
+      ok(
+        broken.some((i) => i.message.includes('pointer')),
+        'the broken issue uses the points kind label',
       );
     } finally {
       rmSync(local, { recursive: true, force: true });

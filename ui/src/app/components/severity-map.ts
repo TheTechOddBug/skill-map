@@ -27,6 +27,7 @@ export const STABILITY_SEVERITY: Record<TStability, 'success' | 'info' | 'warn'>
 export const KIND_SEVERITY: Record<TLinkKindApi, 'info' | 'success' | 'warn' | 'danger' | 'secondary'> = {
   invokes: 'warn',
   references: 'info',
+  points: 'info',
   mentions: 'secondary',
   supersedes: 'success',
 };

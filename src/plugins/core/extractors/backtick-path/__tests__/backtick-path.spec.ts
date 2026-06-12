@@ -62,7 +62,7 @@ async function runAndResolve(helper: ReturnType<typeof makeContext>): Promise<vo
 }
 
 describe('backtick-path extractor', () => {
-  it('emits a references link for a .md path inside an inline span, resolved against the source dir', async () => {
+  it('emits a points link for a .md path inside an inline span, resolved against the source dir', async () => {
     const helper = makeContext(
       mockNode('skills/demo/SKILL.md'),
       'Read `references/rules.md` before doing anything else.',
@@ -72,7 +72,7 @@ describe('backtick-path extractor', () => {
     const link = helper.links[0]!;
     strictEqual(link.source, 'skills/demo/SKILL.md');
     strictEqual(link.target, 'skills/demo/references/rules.md');
-    strictEqual(link.kind, 'references');
+    strictEqual(link.kind, 'points');
     strictEqual(link.confidence, 0.85);
     strictEqual(link.sources[0], 'backtick-path');
   });
@@ -153,13 +153,13 @@ describe('backtick-path extractor', () => {
     strictEqual(second!.range!.line, 5);
   });
 
-  it('candidate carries kind references, confidence 0.85, normalizedTrigger = resolved target', async () => {
+  it('candidate carries kind points, confidence 0.85, normalizedTrigger = resolved target', async () => {
     const helper = makeContext(mockNode('skills/demo/SKILL.md'), 'Read `refs/a.md` now.');
     await runAndResolve(helper);
     strictEqual(helper.signals.length, 1);
     const candidate = helper.signals[0]!.candidates[0]!;
     strictEqual(candidate.extractorId, 'backtick-path');
-    strictEqual(candidate.kind, 'references');
+    strictEqual(candidate.kind, 'points');
     strictEqual(candidate.confidence, 0.85);
     strictEqual(candidate.trigger!.originalTrigger, 'refs/a.md');
     strictEqual(candidate.trigger!.normalizedTrigger, 'skills/demo/refs/a.md');

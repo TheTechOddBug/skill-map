@@ -102,7 +102,7 @@
  */
 export type NodeKind = 'skill' | 'agent' | 'command' | 'markdown';
 
-export type LinkKind = 'invokes' | 'references' | 'mentions' | 'supersedes';
+export type LinkKind = 'invokes' | 'references' | 'mentions' | 'supersedes' | 'points';
 
 /**
  * Extractor's self-assessed confidence, normalized to `[0..1]`. Drives

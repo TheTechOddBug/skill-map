@@ -13,7 +13,8 @@ import type { TLinkKindApi } from '../../../models/api';
  * class string, rendered as `<i>`) OR `text` (literal character,
  * rendered as a styled span). Mutually exclusive at the template
  * level. The choice per kind is intentional: kinds that surface from
- * a literal markdown glyph (`/`, `@`) carry that exact character so
+ * a literal markdown glyph (`/`, `@`, the backtick) carry that exact
+ * character so
  * the operator recognises the source syntax instantly; kinds that
  * live in sidecar YAML (`supersedes`) or in `[text](path)` markdown
  * (`references`) use a representative PrimeIcon because their
@@ -39,6 +40,12 @@ const ENTRY_CATALOG: readonly ILinkKindEntry[] = [
     label: LINK_KIND_PALETTE_TEXTS.kinds.references,
     tooltip: LINK_KIND_PALETTE_TEXTS.tooltips.references,
     icon: 'pi pi-link',
+  },
+  {
+    kind: 'points',
+    label: LINK_KIND_PALETTE_TEXTS.kinds.points,
+    tooltip: LINK_KIND_PALETTE_TEXTS.tooltips.points,
+    text: '`',
   },
   {
     kind: 'mentions',
@@ -70,7 +77,7 @@ for (const e of ENTRY_CATALOG) {
  *
  * Differences vs the node-kind palette:
  *   - No counter, the operator cares about visibility, not totals.
- *   - Icon-only chassis with tooltip (the closed catalog of 4 link
+ *   - Icon-only chassis with tooltip (the closed catalog of 5 link
  *     kinds is easy to memorise; counts would clutter without adding
  *     information).
  *

@@ -17,6 +17,7 @@
  */
 
 import type { Link } from '../types.js';
+import { tx } from './tx.js';
 
 export function linkLines(link: Link): number[] {
   const lines = new Set<number>();
@@ -29,4 +30,23 @@ export function linkLines(link: Link): number[] {
     if (typeof line === 'number') lines.add(line);
   }
   return [...lines].sort((a, b) => a - b);
+}
+
+/**
+ * Render the shared ` (line N)` / ` (lines N, M)` location suffix for a
+ * finding message. Returns `''` when the link carries no line info, so
+ * callers interpolate the result unconditionally. Each analyzer keeps
+ * its own `whereSingle` / `wherePlural` templates in its `text.ts`
+ * catalog and passes them here; this helper only owns the
+ * singular-vs-plural pick so the three consumers cannot drift.
+ */
+export function linkWhere(
+  link: Link,
+  texts: { readonly single: string; readonly plural: string },
+): string {
+  const lines = linkLines(link);
+  if (lines.length === 0) return '';
+  return tx(lines.length === 1 ? texts.single : texts.plural, {
+    lines: lines.join(', '),
+  });
 }

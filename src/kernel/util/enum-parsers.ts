@@ -51,6 +51,7 @@ const LINK_KIND_VALUES: readonly LinkKind[] = Object.freeze([
   'references',
   'mentions',
   'supersedes',
+  'points',
 ]);
 
 const SEVERITY_VALUES: readonly Severity[] = Object.freeze([

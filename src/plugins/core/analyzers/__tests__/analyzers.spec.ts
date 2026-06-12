@@ -347,4 +347,39 @@ describe('link-conflict rule', () => {
     const issues = await run(linkConflictAnalyzer, { nodes: [], links });
     strictEqual(issues.length, 0);
   });
+
+  it('stays silent for references + points on the same pair (compatible by design)', async () => {
+    // Decision #127: a markdown link and a backticked path to the same
+    // target are two complementary surfaces, not detector disagreement.
+    const links = [
+      rawLink('skill.md', 'refs/a.md', 'references', 'markdown-link'),
+      rawLink('skill.md', 'refs/a.md', 'points', 'backtick-path'),
+    ];
+    const issues = await run(linkConflictAnalyzer, { nodes: [], links });
+    strictEqual(issues.length, 0);
+  });
+
+  it('a points row never appears as a variant of somebody else\'s dispute', async () => {
+    // invokes vs references is still a real conflict; the points row on
+    // the same pair stays invisible to the rule (2 variants, not 3).
+    const links = [
+      rawLink('a.md', 'b.md', 'invokes', 'slash'),
+      rawLink('a.md', 'b.md', 'references', 'annotations'),
+      rawLink('a.md', 'b.md', 'points', 'backtick-path'),
+    ];
+    const issues = await run(linkConflictAnalyzer, { nodes: [], links });
+    strictEqual(issues.length, 1);
+    const data = issues[0]!.data as { variants: Array<{ kind: string }> };
+    strictEqual(data.variants.length, 2);
+    ok(data.variants.every((v) => v.kind !== 'points'));
+  });
+
+  it('stays silent for two points rows on the same pair', async () => {
+    const links = [
+      rawLink('a.md', 'b.md', 'points', 'backtick-path'),
+      rawLink('a.md', 'b.md', 'points', 'backtick-path'),
+    ];
+    const issues = await run(linkConflictAnalyzer, { nodes: [], links });
+    strictEqual(issues.length, 0);
+  });
 });
