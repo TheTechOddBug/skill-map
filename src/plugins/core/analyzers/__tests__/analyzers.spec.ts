@@ -276,7 +276,9 @@ describe('link-conflict rule', () => {
     strictEqual(issue.nodeIds.length, 2);
     strictEqual(issue.nodeIds[0], 'audit-flow');
     strictEqual(issue.nodeIds[1], 'security-scanner');
-    ok(issue.message.includes('audit-flow'));
+    // Compact finding grammar: the target leads the message; the
+    // source is the finding's own node and never appears.
+    ok(!issue.message.includes('audit-flow'));
     ok(issue.message.includes('security-scanner'));
     ok(issue.message.includes('invokes'));
     ok(issue.message.includes('references'));

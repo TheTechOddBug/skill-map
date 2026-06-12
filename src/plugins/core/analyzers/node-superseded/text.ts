@@ -7,6 +7,10 @@
  */
 
 export const NODE_SUPERSEDED_TEXTS = {
-  /** `<path> is superseded by <supersededBy>` */
-  message: '{{path}} is superseded by {{supersededBy}}',
+  /**
+   * Compact finding grammar: line 1 = the superseding artifact, line
+   * 2 = what it means. The superseded node is the finding's own node,
+   * so its path never appears in the message.
+   */
+  message: '{{supersededBy}}:\nSupersedes this node.',
 } as const;

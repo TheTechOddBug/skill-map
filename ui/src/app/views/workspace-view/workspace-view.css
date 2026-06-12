@@ -72,6 +72,13 @@
   color: var(--p-text-color);
 }
 
+/* Search → map coupling toggle: lit when the query also filters the
+   canvas (legacy mode), muted in the default files-only mode. */
+.workspace__search-map-toggle.is-active {
+  color: var(--p-primary-color);
+  background: var(--p-highlight-background);
+}
+
 .workspace__rail-body {
   display: flex;
   flex-direction: column;

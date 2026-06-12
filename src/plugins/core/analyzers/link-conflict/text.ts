@@ -7,6 +7,10 @@
  */
 
 export const LINK_CONFLICT_TEXTS = {
-  /** `Detectors disagree on link kind for <source> → <target> (<kindList>)` */
-  message: 'Detectors disagree on link kind for {{source}} → {{target}} ({{kindList}})',
+  /**
+   * Compact finding grammar: line 1 = the disputed target, line 2 =
+   * the short diagnosis. The source is the finding's own node, so it
+   * never appears in the message.
+   */
+  message: '{{target}}:\nDetectors disagree on link kind ({{kindList}}).',
 } as const;

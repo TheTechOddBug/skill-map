@@ -7,14 +7,16 @@
  */
 
 export const SCHEMA_VIOLATION_TEXTS = {
-  /** `Node <path> failed schema validation: <errors>` */
-  nodeFailure: 'Node {{path}} failed schema validation: {{errors}}',
+  // Compact finding grammar: the affected node (or the link's source)
+  // is the finding's own node, so its path never appears.
+  /** `Schema validation failed: <errors>` */
+  nodeFailure: 'Schema validation failed: {{errors}}',
 
-  /** `Link <source> → <target> failed schema validation: <errors>` */
-  linkFailure: 'Link {{source}} → {{target}} failed schema validation: {{errors}}',
+  /** `<target>:\nLink failed schema validation: <errors>` */
+  linkFailure: '{{target}}:\nLink failed schema validation: {{errors}}',
 
-  /** `Node <path> is missing required frontmatter fields: <missing>` */
-  frontmatterBaseFailure: 'Node {{path}} is missing required frontmatter fields: {{missing}}.',
+  /** `Missing required frontmatter: <missing>.` */
+  frontmatterBaseFailure: 'Missing required frontmatter: {{missing}}.',
 
   /** Singular tooltip on the alert / chip when a node has exactly one validation failure. */
   alertTooltipSingle: 'Frontmatter or schema validation failed.',

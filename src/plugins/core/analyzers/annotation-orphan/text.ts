@@ -7,7 +7,11 @@
  */
 
 export const ANNOTATION_ORPHAN_TEXTS = {
-  /** Sidecar `<path>.sm` has no matching `<path>.md`. */
-  message:
-    'Orphan sidecar: {{sidecarPath}} has no matching markdown node at {{expectedMdPath}}.',
+  /**
+   * Compact finding grammar: line 1 = the orphan sidecar file, line 2
+   * = the diagnosis. The expected markdown path IS the finding's
+   * `nodeIds[0]` (the issue files under the path the sidecar points
+   * at), so it never appears in the message.
+   */
+  message: '{{sidecarPath}}:\nOrphan sidecar; no matching markdown node.',
 } as const;

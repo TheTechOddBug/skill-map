@@ -104,11 +104,16 @@
   color: var(--sm-edge-supersedes-active);
 }
 
-/* Two-line tooltip: each entry embeds `\n` between the label and the
-   syntax example. Default PrimeNG text collapses whitespace, so we
-   honor `pre-line` here and center the two rows for a clean stack. */
+/* Multi-line tooltip: each entry embeds `\n` between the label and one
+   syntax example per line (References lists three forms). Default
+   PrimeNG text collapses whitespace and caps the tooltip at 12.5rem,
+   too narrow for the example paths, so we honor `pre-line`, widen the
+   container, and left-align so the example list reads as a stack. */
+:host ::ng-deep .link-kind-palette__tooltip {
+  max-width: 26rem;
+}
 :host ::ng-deep .link-kind-palette__tooltip .p-tooltip-text {
   white-space: pre-line;
-  text-align: center;
+  text-align: left;
   line-height: 1.35;
 }

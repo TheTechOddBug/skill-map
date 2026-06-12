@@ -26,6 +26,7 @@ import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../
 import type { Issue, Link, Node } from '../../../../kernel/types.js';
 import { RESERVED_TARGET_CONFIDENCE } from '../../../../kernel/orchestrator/lift-resolved-link-confidence.js';
 import { tx } from '../../../../kernel/util/tx.js';
+import { linkLines } from '../../../../kernel/util/link-lines.js';
 import { NAME_RESERVED_TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
@@ -81,12 +82,12 @@ export const nameReservedAnalyzer: IBuiltInManifest<IAnalyzer> = {
         severity: 'warn',
         nodeIds: [link.source],
         message: tx(NAME_RESERVED_TEXTS.linkMessage, {
-          kind: link.kind,
           target: link.target,
           provider: reservedNode.provider,
           reservedKind: reservedNode.kind,
           reservedPath: reservedNode.path,
           confidence: RESERVED_TARGET_CONFIDENCE.toFixed(2),
+          where: linkWhereSuffix(link),
         }),
         data: {
           target: link.target,
@@ -102,6 +103,20 @@ export const nameReservedAnalyzer: IBuiltInManifest<IAnalyzer> = {
     return issues;
   },
 };
+
+/**
+ * Pre-rendered ` (line N)` / ` (lines N, M)` suffix naming where the
+ * downgraded link sits in the source body; empty when the link carries
+ * no line info (frontmatter / sidecar-derived edges).
+ */
+function linkWhereSuffix(link: Link): string {
+  const lines = linkLines(link);
+  if (lines.length === 0) return '';
+  return tx(
+    lines.length === 1 ? NAME_RESERVED_TEXTS.whereSingle : NAME_RESERVED_TEXTS.wherePlural,
+    { lines: lines.join(', ') },
+  );
+}
 
 /**
  * Best-effort lookup for the reserved node a downgraded link resolves

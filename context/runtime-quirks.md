@@ -102,8 +102,25 @@ inline spans with same-length whitespace before any body extractor
 matches. Callers (`core/markdown-link`, `core/external-url-counter`,
 `claude/slash-command`, `claude/at-directive`) inherit the policy uniformly.
 Do not bypass `stripCodeBlocks` to "recover" tokens hidden inside
-backticks; the discard is correct because the runtime would never
-follow them.
+backticks; for invocation tokens (`@handle`, `/command`, URLs) the
+discard is correct because the runtime never resolves them from code
+regions.
+
+**The one sanctioned exception: relative `.md` file paths.** The
+original "the runtime would never follow them" rationale is FALSE for
+file paths: prose like ``Read `references/rules.md` `` is the dominant
+cross-reference shape in agent-authored skills, the Agent Skills open
+standard mandates that agents "load these on demand", and every major
+harness (Claude Code, Codex, Gemini CLI / Antigravity, Copilot, Cursor)
+documents the model following them. Verified empirically in-repo:
+12/12 runs across opus / sonnet / haiku / fable followed backtick path
+references, including multiple paths inside a single fenced block.
+`core/backtick-path` covers exactly that class, matching ONLY inside
+code regions via `extractCodeRegions` (the exact inverse mask of
+`stripCodeBlocks`, exported from the same module), `.md`-only, with a
+spec-pinned grammar. It never recovers `@` / `/` tokens. Normative
+contract: `spec/architecture.md` §Extractor · code-region file
+references.
 
 Per-extractor `precondition.provider` gates do **not** override this
 policy. They scope **which** prose surface gets scanned, never
@@ -114,7 +131,9 @@ on the body it inspects.
 If you ever feel the urge to "fix" the strip because the LLM might
 still notice a backticked `@foo`, re-read §1. The LLM might, but the
 runtime never resolves it deterministically, and the graph models
-deterministic edges.
+deterministic edges. File paths earned their exception by meeting that
+bar: the follow-through is documented, cross-vendor, normative
+behaviour, not a maybe.
 
 ## 6. Cursor, community-pending
 
@@ -138,3 +157,9 @@ tokens which would have matched if the body had no backticks; that
 analyzer is intentionally out of scope right now. Mark it as the
 follow-up to revisit alongside the next pass over link-graph quality
 signals.
+
+The file-path half of this gap is closed: a backticked relative `.md`
+path is no longer discarded, `core/backtick-path` (§5) turns it into a
+real `references` edge, and a path pointing at a missing file surfaces
+through `core/reference-broken`. The remaining gap is invocation
+tokens only.

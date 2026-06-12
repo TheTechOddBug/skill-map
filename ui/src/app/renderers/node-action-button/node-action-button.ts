@@ -10,6 +10,7 @@ import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
 
 import type { IRendererInputs } from '../../slots/slot-renderer-map';
+import { resolveIcon } from '../../slots/icon';
 import { ActionDispatchService } from '../../../services/action-dispatch';
 import { ActionPromptDialog } from './action-prompt-dialog';
 import type { IInputTypeDescriptor } from '../input-type-control/input-type-control';
@@ -82,8 +83,14 @@ interface INodeActionButtonPayload {
   prompt?: IActionPrompt;
 }
 
-/** Map the contribution severity vocabulary onto p-button severities. */
-type TButtonSeverity = 'secondary' | 'info' | 'warn' | 'success' | 'danger';
+/**
+ * Map the contribution severity vocabulary onto p-button severities.
+ * `undefined` (no severity declared) leaves p-button on its default
+ * PRIMARY styling so the button follows the active theme color; the
+ * earlier `'secondary'` fallback painted every neutral action gray
+ * regardless of theme.
+ */
+type TButtonSeverity = 'info' | 'warn' | 'success' | 'danger' | undefined;
 
 @Component({
   selector: 'sm-node-action-button',
@@ -177,10 +184,19 @@ export class NodeActionButton {
     () => this.typed().label ?? this.inputs().label ?? this.texts.fallbackLabel,
   );
 
-  /** Icon prefers the payload, then the manifest-declared icon. */
-  protected readonly icon = computed<string | undefined>(
-    () => this.typed().icon ?? this.inputs().icon,
-  );
+  /**
+   * Icon prefers the payload, then the manifest-declared icon. The raw
+   * value is an `IconString` shorthand (`pi-tags`), but `<p-button
+   * [icon]>` sets the class VERBATIM: without the PrimeIcons base class
+   * (`pi`) the glyph codepoint renders in the default font as an empty
+   * box. Compose through `resolveIcon`, the same resolver `<sm-icon>`
+   * uses, so pi / fa shorthands behave identically across renderers.
+   * Emoji icons have no class form; the button degrades to label-only.
+   */
+  protected readonly icon = computed<string | undefined>(() => {
+    const resolved = resolveIcon(this.typed().icon ?? this.inputs().icon);
+    return resolved && resolved.kind !== 'emoji' ? resolved.cls : undefined;
+  });
 
   /** Enabled unless the payload explicitly opts out. */
   protected readonly enabled = computed<boolean>(() => this.typed().enabled !== false);
@@ -196,7 +212,8 @@ export class NodeActionButton {
       case 'danger':
         return 'danger';
       default:
-        return 'secondary';
+        // No declared severity: theme primary, not gray secondary.
+        return undefined;
     }
   });
 

@@ -3,8 +3,9 @@
  * (`plugins/core/analyzers/reference-redundant/index.ts`).
  *
  * Behaviour pinned by these tests:
- *   - One `warn` per (source, resolved-target) pair whose combined
- *     occurrences across all links sum to >= 2.
+ *   - One `info` issue per (source, resolved-target) pair whose
+ *     combined occurrences across all links sum to >= 2 (downgraded
+ *     from `warn`: consolidation hint, not a defect).
  *   - Cross-extractor multi-form (one edge, sources `[at-directive,
  *     markdown-link]`, two occurrences): fires.
  *   - Cross-kind multi-edge (different kinds but same resolved target,
@@ -104,7 +105,7 @@ describe('core/reference-redundant rule', () => {
     );
     assert.equal(issues.length, 1);
     const issue = issues[0]!;
-    assert.equal(issue.severity, 'warn');
+    assert.equal(issue.severity, 'info');
     assert.equal(issue.analyzerId, 'reference-redundant');
     assert.deepEqual(issue.nodeIds, [src.path]);
     const data = issue.data as Record<string, unknown>;
@@ -112,7 +113,8 @@ describe('core/reference-redundant rule', () => {
     assert.equal(data['resolvedTarget'], tgt.path);
     const occs = data['occurrences'] as Array<Record<string, unknown>>;
     assert.equal(occs.length, 2);
-    assert.match(issue.message, /3 occurrences|2 occurrences/);
+    // Compact grammar: `<target>:\nDuplicate reference (2): ...`.
+    assert.match(issue.message, /^tgt\.md:\nDuplicate reference \(2\)/);
   });
 
   it('fires for cross-kind multi-edge (same resolved target via different kinds)', async () => {

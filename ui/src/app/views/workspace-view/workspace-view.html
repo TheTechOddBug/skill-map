@@ -24,6 +24,22 @@
             data-testid="workspace-search"
           />
         </p-iconfield>
+        <!-- Search → map coupling. OFF (default): the query narrows only
+             the files rail and the map keeps its layout. ON: legacy
+             behavior, the map filters down to the matches too. -->
+        <button
+          type="button"
+          class="workspace__rail-btn workspace__search-map-toggle"
+          [class.is-active]="searchAffectsMap()"
+          [pTooltip]="searchAffectsMap() ? texts.rail.searchMapOn : texts.rail.searchMapOff"
+          tooltipPosition="bottom"
+          [attr.aria-label]="searchAffectsMap() ? texts.rail.searchMapOn : texts.rail.searchMapOff"
+          [attr.aria-pressed]="searchAffectsMap()"
+          (click)="onToggleSearchMap()"
+          data-testid="workspace-search-map-toggle"
+        >
+          <i class="pi pi-map" aria-hidden="true"></i>
+        </button>
       }
       <button
         type="button"

@@ -12,7 +12,7 @@ export const TRIGGER_COLLISION_TEXTS = {
    * cause part. Used for the advertiser-ambiguous-only, invocation-
    * ambiguous-only, and cross-kind-only branches.
    */
-  messageOnePart: 'Trigger "{{normalized}}" has {{part}}.',
+  messageOnePart: '"{{normalized}}":\nTrigger collision: {{part}}.',
 
   /**
    * Top-level message when `analyzeTriggerBucket` accumulated two cause
@@ -20,13 +20,13 @@ export const TRIGGER_COLLISION_TEXTS = {
    * The joiner lives inside the template so future locales can adapt it
    * (e.g. `'; y '` in Spanish) without touching the rule code.
    */
-  messageTwoParts: 'Trigger "{{normalized}}" has {{first}}; and {{second}}.',
+  messageTwoParts: '"{{normalized}}":\nTrigger collision: {{first}}; and {{second}}.',
 
-  /** `<n> nodes advertise it: <list>` part, fires on the advertiser-ambiguous branch. */
-  partAdvertisers: '{{count}} nodes advertise it: {{paths}}',
+  /** `<n> advertisers: <list>` part, fires on the advertiser-ambiguous branch. */
+  partAdvertisers: '{{count}} advertisers: {{paths}}',
 
-  /** `<n> distinct invocation forms: <list>` part, fires on the invocation-ambiguous branch. */
-  partInvocations: '{{count}} distinct invocation forms: {{forms}}',
+  /** `<n> invocation forms: <list>` part, fires on the invocation-ambiguous branch. */
+  partInvocations: '{{count}} invocation forms: {{forms}}',
 
   /** Singular cross-kind cause: `non-canonical invocation <form> against advertiser <path>`. */
   partNonCanonicalSingular: 'non-canonical invocation {{forms}} against advertiser {{advertiser}}',

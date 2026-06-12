@@ -23,6 +23,7 @@ import { openaiProvider as _openaiProvider } from './openai/providers/openai/ind
 import { agentSkillsProvider as _agentSkillsProvider } from './agent-skills/providers/agent-skills/index.js';
 import { coreMarkdownProvider as _coreMarkdownProvider } from './core/providers/core-markdown/index.js';
 import { annotationsExtractor as _annotationsExtractor } from './core/extractors/annotations/index.js';
+import { backtickPathExtractor as _backtickPathExtractor } from './core/extractors/backtick-path/index.js';
 import { externalUrlCounterExtractor as _externalUrlCounterExtractor } from './core/extractors/external-url-counter/index.js';
 import { markdownLinkExtractor as _markdownLinkExtractor } from './core/extractors/markdown-link/index.js';
 import { mcpToolsExtractor as _mcpToolsExtractor } from './core/extractors/mcp-tools/index.js';
@@ -62,6 +63,7 @@ const openaiProvider = { ..._openaiProvider, pluginId: 'openai', version: VERSIO
 const agentSkillsProvider = { ..._agentSkillsProvider, pluginId: 'agent-skills', version: VERSION };
 const coreMarkdownProvider = { ..._coreMarkdownProvider, pluginId: 'core', version: VERSION };
 const annotationsExtractor = { ..._annotationsExtractor, pluginId: 'core', version: VERSION };
+const backtickPathExtractor = { ..._backtickPathExtractor, pluginId: 'core', version: VERSION };
 const externalUrlCounterExtractor = { ..._externalUrlCounterExtractor, pluginId: 'core', version: VERSION };
 const markdownLinkExtractor = { ..._markdownLinkExtractor, pluginId: 'core', version: VERSION };
 const mcpToolsExtractor = { ..._mcpToolsExtractor, pluginId: 'core', version: VERSION };
@@ -147,6 +149,7 @@ export const builtInPlugins: IBuiltInPlugin[] = [
     extensions: [
       coreMarkdownProvider,
       annotationsExtractor,
+      backtickPathExtractor,
       externalUrlCounterExtractor,
       markdownLinkExtractor,
       mcpToolsExtractor,

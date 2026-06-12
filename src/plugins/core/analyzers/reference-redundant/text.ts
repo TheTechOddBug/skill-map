@@ -8,20 +8,21 @@
 
 export const REFERENCE_REDUNDANT_TEXTS = {
   /**
-   * Multi-form / multi-occurrence reference message. Short and direct:
-   * names the duplicated target + count and lists each occurrence
-   * (trigger + line) so the operator sees the offending spots at a
-   * glance. The source node is the finding's own node, so it is not
-   * repeated here.
+   * Compact finding grammar (subject first, `\n` renders as a line
+   * break in the inspector and flattens to a space in `sm check`):
+   *
+   *   <resolvedTarget>:
+   *   Duplicate reference (2): `references/x.md` (124, 145).
+   *
+   * Occurrences are grouped BY TRIGGER: each distinct trigger text
+   * appears once with its line numbers collapsed into one paren list.
+   * The source node is the finding's own node, so it never appears.
    */
-  message:
-    'Duplicate reference to {{resolvedTarget}} ({{count}} occurrences): {{occurrences}}.',
-  /** Inline separator between occurrences in the message. */
+  message: '{{resolvedTarget}}:\nDuplicate reference ({{count}}): {{occurrences}}.',
+  /** Inline separator between trigger groups in the message. */
   occurrenceSeparator: ', ',
-  /** Per-occurrence formatting (trigger + line). */
-  occurrence:
-    '`{{trigger}}` ({{kind}}, line {{line}})',
-  /** Per-occurrence formatting when the extractor did not record a line. */
-  occurrenceUnknownLine:
-    '`{{trigger}}` ({{kind}}, unknown line)',
+  /** Per-trigger formatting: the trigger once, its lines grouped. */
+  occurrence: '`{{trigger}}` ({{lines}})',
+  /** Placeholder for an occurrence whose extractor recorded no line. */
+  lineUnknown: '?',
 } as const;

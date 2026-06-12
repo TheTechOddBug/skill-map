@@ -13,7 +13,7 @@ export const NAME_RESERVED_TEXTS = {
    * source-side link finding landed.
    */
   message:
-    '{{path}} shadows a built-in {{provider}} {{kind}}. The runtime ignores this file in favour of its own built-in. Rename the file or `frontmatter.name` to a non-reserved value.',
+    'Built-in {{provider}} {{kind}}:\nShadowed by this file; the runtime uses its built-in instead. Rename the file or its `frontmatter.name`.',
   /**
    * Source-side message: emitted on the node that AUTHORED a link
    * whose target resolves to a reserved name. Explains WHY the link's
@@ -22,5 +22,9 @@ export const NAME_RESERVED_TEXTS = {
    * the edge so the operator notices.
    */
   linkMessage:
-    'Link `{{kind}} {{target}}` resolves to a name reserved by the {{provider}} runtime ({{reservedKind}} `{{reservedPath}}`). The runtime shadows the user file, so this edge is downgraded to confidence {{confidence}} instead of 1.0. Rename the target file or its `frontmatter.name` to a non-reserved value.',
+    '{{target}}:\nResolves to a {{provider}} built-in ({{reservedKind}} `{{reservedPath}}`){{where}}; edge downgraded to confidence {{confidence}}. Rename the target file or its `frontmatter.name`.',
+  /** Location suffix after the built-in parens, one detection site. */
+  whereSingle: ' (line {{lines}})',
+  /** Location suffix after the built-in parens, several detection sites. */
+  wherePlural: ' (lines {{lines}})',
 } as const;

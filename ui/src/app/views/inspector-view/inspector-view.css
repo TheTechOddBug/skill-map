@@ -568,6 +568,11 @@
   margin: 0;
   font-size: 0.88rem;
   color: var(--p-text-color);
+  /* The compact finding grammar separates subject and detail with a
+     `\n`; render it as a real line break. Long paths on the subject
+     line wrap instead of overflowing the panel. */
+  white-space: pre-line;
+  overflow-wrap: anywhere;
 }
 
 .inspector__finding-hint {

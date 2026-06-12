@@ -9,8 +9,9 @@
 export const JOB_FILE_ORPHAN_TEXTS = {
   /**
    * `<path>.md` lives under `.skill-map/jobs/` but no `state_jobs.filePath`
-   * row references it. Run `sm job prune --orphan-files` to remove.
+   * row references it. Compact finding grammar: the file IS the
+   * finding's own node, so its path never appears in the message.
    */
   message:
-    'Orphan job file: {{filePath}} is not referenced by any state_jobs row. Run `sm job prune --orphan-files` to remove it.',
+    'Orphan job file; not referenced by any job. Run `sm job prune --orphan-files` to remove it.',
 } as const;

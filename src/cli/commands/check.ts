@@ -382,7 +382,7 @@ function renderHuman(issues: Issue[], ansi: IAnsi): string {
         tx(CHECK_TEXTS.issueRow, {
           glyph: severityGlyph(row.severity, ansi),
           analyzerId: ansi.dim(row.analyzerId.padEnd(analyzerWidth)),
-          message: trimRedundantPath(row.message, row.primary),
+          message: flattenMessage(trimRedundantPath(row.message, row.primary)),
         }),
       );
     }
@@ -457,15 +457,27 @@ function severityGlyph(severity: Severity, ansi: IAnsi): string {
 }
 
 /**
- * The file path is already in the section header, so the rule's prose
- * `Broken X reference from <path> → <target>` repeats it. Strip the
- * substring `" from <primary>"` when present, the message stays
- * grammatical (`Broken X reference → <target>`) and the section header
- * carries the file context.
+ * The file path is already in the section header, so a rule's prose
+ * that repeats `" from <primary>"` is trimmed. Mostly a legacy
+ * safeguard: the built-in analyzers moved to the compact finding
+ * grammar (subject first, no source path), so the needle rarely
+ * matches anymore; kept for third-party analyzers that still embed
+ * the source path in their messages.
  */
 function trimRedundantPath(message: string, primary: string): string {
   if (primary === '(no file)') return message;
   const needle = ` from ${primary}`;
   if (!message.includes(needle)) return message;
   return message.replace(needle, '');
+}
+
+/**
+ * Issue rows render one line each; the compact finding grammar uses a
+ * `\n` between the subject and the detail (the inspector renders it as
+ * a real break via `white-space: pre-line`). In the CLI table the
+ * newline flattens to a single space so the row stays aligned:
+ * `<subject>: <detail>`.
+ */
+function flattenMessage(message: string): string {
+  return message.replace(/\n+/g, ' ');
 }

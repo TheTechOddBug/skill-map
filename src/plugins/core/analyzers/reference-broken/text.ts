@@ -10,8 +10,29 @@
  */
 
 export const REFERENCE_BROKEN_TEXTS = {
-  /** `Broken <kind> reference from <source> → <target>` */
-  message: 'Broken {{kind}} reference from {{source}} → {{target}}',
+  /**
+   * Compact finding grammar: line 1 = the unresolved target, line 2 =
+   * the short diagnosis plus WHERE the reference sits (`{{where}}` is
+   * the pre-rendered location suffix below, or empty when the link
+   * carries no line info). The source is the finding's own node, so it
+   * never appears in the message.
+   */
+  message: '{{target}}:\nBroken {{kindLabel}}{{where}}.',
+  /** Location suffix, one detection site. */
+  whereSingle: ' (line {{lines}})',
+  /** Location suffix, several detection sites. */
+  wherePlural: ' (lines {{lines}})',
+  /**
+   * Human noun per link kind for the message above. Fallback for an
+   * off-catalog kind: `<kind> link` (composed in the analyzer).
+   */
+  kindLabels: {
+    references: 'reference',
+    mentions: 'mention',
+    invokes: 'invocation',
+    supersedes: 'supersession',
+  } as Record<string, string>,
+  kindLabelFallback: '{{kind}} link',
   // Tooltips for the per-node view-contribution badges. Singular vs
   // plural keeps the count grammar correct without a sub-template.
   alertTooltipSingle:

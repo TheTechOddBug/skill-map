@@ -28,8 +28,11 @@
  *      flags those.
  *   2. Group links by `(source, resolvedTarget)`.
  *   3. Sum the `occurrences[]` lengths across every link in the group.
- *      A group with `total >= 2` emits one warn on the source naming
- *      every occurrence (kind + trigger + line) and the resolved target.
+ *      A group with `total >= 2` emits one info issue on the source.
+ *      Message shape (compact finding grammar, subject first):
+ *      `<resolvedTarget>:\nDuplicate reference (2): \`refs/x.md\`
+ *      (124, 145).`, occurrences grouped by trigger with their line
+ *      numbers collapsed.
  *
  * Why occurrences sum (not edge count) drives detection: extractor-level
  * dedup collapses repeated same-form sites (e.g. `@./foo.md` twice in
@@ -39,7 +42,11 @@
  * Today the typical case is two extractors converging on one edge
  * (`sources.length === 2`, `occurrences.length === 2`).
  *
- * Severity is `warn` (matches `reference-broken` / `name-reserved`). Mitigation
+ * Severity is `info` (downgraded from `warn`): a multi-form reference
+ * is a consolidation hint, not a defect, nothing breaks at runtime and
+ * keeping both forms can be deliberate. `warn` put it in the same
+ * visual bucket as genuinely actionable issues (`reference-broken`,
+ * `name-reserved`) and inflated the per-card warning chips. Mitigation
  * is operator-driven (delete the redundant occurrence(s) or keep them
  * deliberately), no autofix ships today.
  */
@@ -87,13 +94,12 @@ export const referenceRedundantAnalyzer: IBuiltInManifest<IAnalyzer> = {
       const flat = flattenOccurrences(links);
       issues.push({
         analyzerId: ID,
-        severity: 'warn',
+        severity: 'info',
         nodeIds: [source],
         message: tx(TEXTS.message, {
-          source,
           resolvedTarget,
           count: flat.length,
-          occurrences: flat.map(formatOccurrence).join(TEXTS.occurrenceSeparator),
+          occurrences: formatGroupedOccurrences(flat),
         }),
         data: {
           target: resolvedTarget,
@@ -120,7 +126,7 @@ interface IFlatOccurrence {
 
 /**
  * Collapse every link's `occurrences[]` into a single chronological
- * list for the warn message. When a link has no `occurrences[]`
+ * list for the issue message. When a link has no `occurrences[]`
  * (legacy emit path), we synthesise one entry from the link's primary
  * `trigger` / `location` so the analyzer still produces a usable
  * message instead of dropping the link.
@@ -159,11 +165,31 @@ function flattenOccurrences(links: readonly Link[]): IFlatOccurrence[] {
   return out;
 }
 
-function formatOccurrence(occ: IFlatOccurrence): string {
-  if (occ.line === null) {
-    return tx(TEXTS.occurrenceUnknownLine, { trigger: occ.originalTrigger, kind: occ.kind });
+/**
+ * Group the chronological occurrence list BY TRIGGER text: each
+ * distinct trigger renders once with its line numbers collapsed into a
+ * single paren list (`` `refs/x.md` (124, 145) ``). Insertion order
+ * follows each trigger's first appearance (the flat list is already
+ * line-sorted), and an occurrence without a recorded line contributes
+ * the `lineUnknown` placeholder.
+ */
+function formatGroupedOccurrences(occurrences: readonly IFlatOccurrence[]): string {
+  const byTrigger = new Map<string, IFlatOccurrence[]>();
+  for (const occ of occurrences) {
+    const bucket = byTrigger.get(occ.originalTrigger);
+    if (bucket) bucket.push(occ);
+    else byTrigger.set(occ.originalTrigger, [occ]);
   }
-  return tx(TEXTS.occurrence, { trigger: occ.originalTrigger, kind: occ.kind, line: occ.line });
+  return [...byTrigger.entries()]
+    .map(([trigger, occs]) =>
+      tx(TEXTS.occurrence, {
+        trigger,
+        lines: occs
+          .map((o) => (o.line === null ? TEXTS.lineUnknown : String(o.line)))
+          .join(', '),
+      }),
+    )
+    .join(TEXTS.occurrenceSeparator);
 }
 
 /**

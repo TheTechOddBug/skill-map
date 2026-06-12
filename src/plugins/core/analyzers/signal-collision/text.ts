@@ -21,7 +21,7 @@ export const SIGNAL_COLLISION_TEXTS = {
    * silently disappears without this warning).
    */
   message:
-    '{{loserExtractor}} detected `{{loserRaw}}` at offset {{loserRange}} but {{winnerExtractor}}\'s detection at {{winnerRange}} won the overlap collision ({{reason}}). The graph shows the winning edge only; the loser is not persisted.',
+    '`{{loserRaw}}`:\nOverlap collision: {{loserExtractor}} (at {{loserRange}}) lost to {{winnerExtractor}} (at {{winnerRange}}) by {{reason}}; only the winning edge persists.',
 
   /**
    * Same warn but for the rare case the resolver rejected a Signal
@@ -32,7 +32,7 @@ export const SIGNAL_COLLISION_TEXTS = {
    * with the upcoming filter pass.
    */
   messageExtractorDisabled:
-    'Extension `{{extractorId}}` is disabled; its detection `{{loserRaw}}` (offset {{loserRange}}) did not produce a Link. Re-enable the extension in Settings or via `sm plugins enable` to surface its edges.',
+    '`{{loserRaw}}`:\nDropped: extension `{{extractorId}}` is disabled. Re-enable it in Settings or via `sm plugins enable`.',
 
   /**
    * Same warn but for the future confidence floor case. Phase 4+ stub:
@@ -41,5 +41,5 @@ export const SIGNAL_COLLISION_TEXTS = {
    * forward compatibility.
    */
   messageBelowFloor:
-    'Detection `{{loserRaw}}` (offset {{loserRange}}, confidence {{confidence}}) fell below the configured threshold {{threshold}} and was dropped.',
+    '`{{loserRaw}}`:\nDropped: confidence {{confidence}} is below the threshold {{threshold}}.',
 } as const;

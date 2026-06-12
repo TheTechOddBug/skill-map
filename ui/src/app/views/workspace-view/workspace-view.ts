@@ -82,6 +82,14 @@ export class WorkspaceView implements IMapIsolateIntent {
   /** Compact search, shared with the table and the map via the store. */
   protected readonly searchText = this.store.searchText;
 
+  /**
+   * Search → map coupling preference (persisted by the store). Drives
+   * the toggle button next to the search input: OFF (default) keeps
+   * the map intact while the rail narrows; ON restores the legacy
+   * filter-everything behavior.
+   */
+  protected readonly searchAffectsMap = this.store.searchAffectsMap;
+
   /** The mounted map, reached so the rail's isolate gesture (routed
    *  here via `MAP_ISOLATE_INTENT`) forwards to it. */
   private readonly graphView = viewChild(GraphView);
@@ -109,6 +117,10 @@ export class WorkspaceView implements IMapIsolateIntent {
 
   protected onSearchChange(value: string): void {
     this.store.setSearchText(value);
+  }
+
+  protected onToggleSearchMap(): void {
+    this.store.toggleSearchAffectsMap();
   }
 
   private readStoredWidth(): number {

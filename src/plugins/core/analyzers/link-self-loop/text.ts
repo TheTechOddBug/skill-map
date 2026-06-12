@@ -16,5 +16,9 @@ export const LINK_SELF_LOOP_TEXTS = {
    * surface a count.
    */
   message:
-    '{{source}} references itself via `{{trigger}}` ({{kind}}). Self-loops typically come from the file\'s own heading or label and are noise rather than intent. Either remove the in-body token or treat this finding as expected and acknowledged.',
+    '`{{trigger}}`:\nSelf-reference ({{kind}}{{where}}); typically the file\'s own heading or label. Remove the token or ignore deliberately.',
+  /** Location suffix inside the kind parens, one detection site. */
+  whereSingle: ', line {{lines}}',
+  /** Location suffix inside the kind parens, several detection sites. */
+  wherePlural: ', lines {{lines}}',
 } as const;

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "id": "backtick-path-extraction",
+  "description": "Code-region file references, end-to-end. A body whose ONLY references are a backtick-wrapped relative `.md` path in prose and the same path repeated inside a fenced block MUST produce exactly ONE Link via `core/backtick-path` (per-node dedup on the resolved target), lifted to confidence 1.0 by the path-match rule. The URL-in-backticks bait in the same body MUST NOT produce a link (the pinned token grammar rejects URL interiors).",
+  "fixture": "backtick-path",
+  "invoke": {
+    "verb": "scan",
+    "flags": ["--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "json-path", "path": "$.schemaVersion", "equals": 1 },
+    { "type": "json-path", "path": "$.stats.linksCount", "equals": 1 },
+    { "type": "json-path", "path": "$.links[0].source", "equals": "source.md" },
+    { "type": "json-path", "path": "$.links[0].target", "equals": "docs/target.md" },
+    { "type": "json-path", "path": "$.links[0].kind", "equals": "references" },
+    { "type": "json-path", "path": "$.links[0].confidence", "equals": 1.0 },
+    { "type": "json-path", "path": "$.links[0].sources[0]", "equals": "backtick-path" }
+  ]
+}

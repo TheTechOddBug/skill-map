@@ -16,17 +16,23 @@ export const LINK_KIND_PALETTE_TEXTS = {
     supersedes: 'Supersedes',
   },
   /**
-   * Two-line tooltip per link kind. Format: `<Label>:\n<example>`.
+   * Multi-line tooltip per link kind. Format: `<Label>:` followed by
+   * one example line per syntactic form that produces the kind.
    * The `\n` is rendered as a real line break by the
    * `link-kind-palette__tooltip` styleClass (`white-space: pre-line`).
    * The label is included inside the tooltip string (not concatenated
    * by the component) so each entry can drift independently (singular
    * vs plural, punctuation, etc.) without coupling to the `kinds` map.
+   * The `references` entry lists the three body forms: markdown link
+   * (`core/markdown-link`), path-style at-directive
+   * (`claude/at-directive`), and backtick path inside code regions
+   * (`core/backtick-path`). A mention example must NOT carry a file
+   * extension: `@agent.md` is dispatched as a reference, not a mention.
    */
   tooltips: {
     invokes: 'Invokes:\n"/skill-command"',
-    references: 'References:\n"[link](./link.md)"',
-    mentions: 'Mention:\n"@agent.md"',
+    references: 'References:\n"[link](./link.md)"\n"@./link.md"\n"`references/link.md`" (in backticks or code blocks)',
+    mentions: 'Mention:\n"@agent"',
     supersedes: 'Supersedes:\n.sm annotation',
   },
 } as const;

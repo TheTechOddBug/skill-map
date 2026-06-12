@@ -122,7 +122,7 @@ describe('core/link-self-loop rule', () => {
     assert.equal(data['target'], '/real-command');
     assert.equal(data['resolvedTarget'], cmd.path);
     assert.equal(data['selfLoop'], true);
-    assert.match(issue.message, /references itself/);
+    assert.match(issue.message, /Self-reference/);
   });
 
   it('does NOT emit for normal cross-node links', async () => {

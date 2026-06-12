@@ -149,7 +149,7 @@ describe('core/name-reserved (source side, end-to-end through runScan)', () => {
     );
     assert.equal(data['reservedProvider'], 'claude');
     assert.equal(data['reservedKind'], 'command');
-    assert.match(sourceSide.message, /resolves to a name reserved by the claude runtime/);
+    assert.match(sourceSide.message, /Resolves to a claude built-in/);
     assert.match(sourceSide.message, /confidence 0\.10/);
   });
 

@@ -28,6 +28,7 @@ import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../
 import type { Issue, Link, Node } from '../../../../kernel/types.js';
 import { normalizeTrigger } from '../../../../kernel/trigger-normalize.js';
 import { tx } from '../../../../kernel/util/tx.js';
+import { linkLines } from '../../../../kernel/util/link-lines.js';
 import { REFERENCE_BROKEN_TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
@@ -78,6 +79,22 @@ export const referenceBrokenAnalyzer: IBuiltInManifest<IAnalyzer> = {
   },
 };
 
+/**
+ * Pre-rendered ` (line N)` / ` (lines N, M)` suffix naming where the
+ * broken reference sits in the source body. Empty when the link
+ * carries no line info (frontmatter / sidecar-derived edges).
+ */
+function whereSuffix(link: Link): string {
+  const lines = linkLines(link);
+  if (lines.length === 0) return '';
+  return tx(
+    lines.length === 1
+      ? REFERENCE_BROKEN_TEXTS.whereSingle
+      : REFERENCE_BROKEN_TEXTS.wherePlural,
+    { lines: lines.join(', ') },
+  );
+}
+
 function buildIssue(link: Link, hintCandidates: Node[] = []): Issue {
   const data: Record<string, unknown> = {
     target: link.target,
@@ -95,9 +112,11 @@ function buildIssue(link: Link, hintCandidates: Node[] = []): Issue {
     severity: 'error',
     nodeIds: [link.source],
     message: tx(REFERENCE_BROKEN_TEXTS.message, {
-      kind: link.kind,
-      source: link.source,
       target: link.target,
+      kindLabel:
+        REFERENCE_BROKEN_TEXTS.kindLabels[link.kind] ??
+        tx(REFERENCE_BROKEN_TEXTS.kindLabelFallback, { kind: link.kind }),
+      where: whereSuffix(link),
     }),
     data,
   };

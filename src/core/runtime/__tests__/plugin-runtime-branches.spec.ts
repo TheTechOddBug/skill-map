@@ -183,6 +183,7 @@ describe('plugin-runtime, branch coverage', () => {
       const extractorIds = composed.extractors.map((d) => d.id).sort();
       assert.deepEqual(extractorIds, [
         'annotations',
+        'backtick-path',
         'external-url-counter',
         'markdown-link',
         'mcp-tools',
@@ -226,7 +227,7 @@ describe('plugin-runtime, branch coverage', () => {
       // claude / antigravity / openai / agent-skills / core-markdown providers
       // untouched; core extractors unaffected.
       assert.equal(composed.providers.length, 5);
-      assert.equal(composed.extractors.length, 7, 'all 7 core extractors stay');
+      assert.equal(composed.extractors.length, 8, 'all 8 core extractors stay');
       // Formatter composer also respects the filter.
       const formatters = composeFormatters({ pluginRuntime: runtime });
       // ascii + json formatters; superseded toggle is unrelated to either.
@@ -240,7 +241,7 @@ describe('plugin-runtime, branch coverage', () => {
       });
       assert.ok(composed);
       assert.equal(composed.providers.length, 5, 'claude + antigravity + openai + agent-skills + core-markdown providers loaded');
-      assert.equal(composed.extractors.length, 7, 'all 7 core extractors loaded (stability moved to analyzers)');
+      assert.equal(composed.extractors.length, 8, 'all 8 core extractors loaded (stability moved to analyzers)');
       assert.equal(composed.analyzers.length, 19, 'all 19 rules loaded (18 detect-phase analyzers including the tags button projector + the issue-counter aggregate)');
       const formatters = composeFormatters({ pluginRuntime: emptyPluginRuntime() });
       assert.equal(formatters.length, 2, 'ascii + json formatters loaded');
@@ -327,7 +328,7 @@ describe('plugin-runtime, branch coverage', () => {
       });
       assert.ok(composed);
       assert.equal(composed.providers.length, 0);
-      assert.equal(composed.extractors.length, 7, 'extractors untouched');
+      assert.equal(composed.extractors.length, 8, 'extractors untouched');
       assert.equal(composed.analyzers.length, 19, 'rules untouched');
     });
 
@@ -351,7 +352,7 @@ describe('plugin-runtime, branch coverage', () => {
       });
       assert.ok(composed);
       assert.equal(composed.providers.length, 5);
-      assert.equal(composed.extractors.length, 7);
+      assert.equal(composed.extractors.length, 8);
       assert.equal(composed.analyzers.length, 0);
     });
 

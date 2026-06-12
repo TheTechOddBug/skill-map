@@ -114,13 +114,14 @@ Concrete examples for the reference impl's built-in extensions:
 | Slash-command extractor | `slash-command` | `claude/slash-command` |
 | At-directive extractor | `at-directive` | `claude/at-directive` |
 | Markdown-link extractor | `markdown-link` | `core/markdown-link` |
+| Backtick-path extractor | `backtick-path` | `core/backtick-path` |
 | External-URL counter | `external-url-counter` | `core/external-url-counter` |
 | Reference-broken analyzer | `reference-broken` | `core/reference-broken` |
 | ASCII formatter | `ascii` | `core/ascii` |
 
 Built-ins split between two namespaces:
 
-- **`core/`**, kernel-internal primitives, platform-agnostic: every built-in analyzer, the ASCII formatter, the cross-vendor extractors (`annotations`, `markdown-link`, `external-url-counter`), the universal `markdown` Provider fallback, and the `update-check` hook.
+- **`core/`**, kernel-internal primitives, platform-agnostic: every built-in analyzer, the ASCII formatter, the cross-vendor extractors (`annotations`, `markdown-link`, `backtick-path`, `external-url-counter`), the universal `markdown` Provider fallback, and the `update-check` hook.
 - **`claude/`**, the Claude Code Provider plugin: the Provider plus the Claude-flavoured extractors (`slash-command`, `at-directive`). Other vendor plugins (`antigravity`, `openai`, `agent-skills`) follow the same shape (Provider only).
 
 ### Extension id shape
@@ -254,7 +255,7 @@ Pure single-node analysis. **Never** read another node, the graph, or the databa
 
 You can read `ctx.node.sidecar.*` freely: the per-`(node, extractor)` cache hashes the sidecar `annotations` block alongside the body, so a `.sm`-only edit invalidates the cached run automatically.
 
-> **Pick a syntax that doesn't collide with built-ins.** `core/at-directive` claims `@`, `core/slash-command` claims `/`, both with LLM-aligned semantics (and both strip fenced code blocks + inline backticks before matching). A new extractor matching one of those prefixes will fire on the same input and, if it emits a different `target` shape, raises a `trigger-collision`. The example below uses a wikilink-style `[[ref:<name>]]` pattern to side-step this. See [`architecture.md` §Extractor · trigger normalization](./architecture.md#extractor--trigger-normalization) for the normalization pipeline.
+> **Pick a syntax that doesn't collide with built-ins.** `core/at-directive` claims `@`, `core/slash-command` claims `/`, both with LLM-aligned semantics (and both strip fenced code blocks + inline backticks before matching). `core/backtick-path` is the deliberate inverse: it matches relative `.md` paths ONLY inside those stripped code regions, so by construction it cannot overlap the prose-side extractors. A new extractor matching one of those prefixes will fire on the same input and, if it emits a different `target` shape, raises a `trigger-collision`. The example below uses a wikilink-style `[[ref:<name>]]` pattern to side-step this. See [`architecture.md` §Extractor · trigger normalization](./architecture.md#extractor--trigger-normalization) for the normalization pipeline.
 
 ```javascript
 export default {

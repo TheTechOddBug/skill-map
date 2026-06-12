@@ -38,6 +38,30 @@ export const ALL_LINK_KINDS: readonly TLinkKindApi[] = [
   'supersedes',
 ];
 
+/** localStorage key for the search → map coupling preference. */
+const SEARCH_AFFECTS_MAP_KEY = 'sm.workspace.search-affects-map';
+
+/**
+ * Search → map coupling preference, read once at store construction.
+ * Default OFF: searching narrows the files rail while the map keeps
+ * its full layout (an explicit product decision; filtering the canvas
+ * on every keystroke rips nodes out of the layout the operator is
+ * looking at). `'1'` opts back into the old filter-everything mode.
+ */
+function readStoredSearchAffectsMap(): boolean {
+  if (typeof localStorage === 'undefined') return false;
+  return localStorage.getItem(SEARCH_AFFECTS_MAP_KEY) === '1';
+}
+
+function writeStoredSearchAffectsMap(value: boolean): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(SEARCH_AFFECTS_MAP_KEY, value ? '1' : '0');
+  } catch {
+    // localStorage disabled / quota exceeded; the preference just won't persist.
+  }
+}
+
 @Injectable({ providedIn: 'root' })
 export class FilterStoreService {
   private readonly _searchText = signal<string>('');
@@ -86,8 +110,16 @@ export class FilterStoreService {
    */
   private readonly _severityErrorActive = signal<boolean>(false);
   private readonly _severityWarnActive = signal<boolean>(false);
+  /**
+   * Whether the text search also filters the MAP (graph view). The
+   * files rail always honours the search; the map only does when this
+   * is on. A persisted preference, not a filter: `reset()` leaves it
+   * untouched and `isActive` does not consult it.
+   */
+  private readonly _searchAffectsMap = signal<boolean>(readStoredSearchAffectsMap());
 
   readonly searchText = this._searchText.asReadonly();
+  readonly searchAffectsMap = this._searchAffectsMap.asReadonly();
   readonly selectedKinds = this._selectedKinds.asReadonly();
   readonly favoritesOnly = this._favoritesOnly.asReadonly();
   readonly selectedLinkKinds = this._selectedLinkKinds.asReadonly();
@@ -115,6 +147,13 @@ export class FilterStoreService {
 
   setSearchText(value: string): void {
     this._searchText.set(value);
+  }
+
+  /** Flip the search → map coupling and persist the choice. */
+  toggleSearchAffectsMap(): void {
+    const next = !this._searchAffectsMap();
+    this._searchAffectsMap.set(next);
+    writeStoredSearchAffectsMap(next);
   }
 
   setKinds(kinds: TNodeKind[]): void {
@@ -262,12 +301,19 @@ export class FilterStoreService {
    * and pass it in. When `severityCtx` is omitted, both severity
    * toggles behave as `allow all` (used by demo harnesses / tests that
    * don't have a scan in scope).
+   *
+   * `opts.includeSearch` (default `true`) lets a caller skip tier (1)
+   * while keeping every other filter: the graph view passes
+   * `searchAffectsMap()` here so the map can stay intact while the
+   * files rail narrows on the same query.
    */
   apply(
     nodes: INodeView[],
     severityCtx?: { errors: ReadonlySet<string>; warns: ReadonlySet<string> },
+    opts?: { includeSearch?: boolean },
   ): INodeView[] {
-    const text = this.searchText().trim().toLowerCase();
+    const includeSearch = opts?.includeSearch ?? true;
+    const text = includeSearch ? this.searchText().trim().toLowerCase() : '';
     const kinds = this.selectedKinds();
     const kindsExplicitlyEmpty = this._kindToggleExplicitEmpty();
     const favoritesOnly = this.favoritesOnly();

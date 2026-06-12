@@ -34,6 +34,44 @@ export function stripCodeBlocks(input: string): string {
   return stripInline(fenceless);
 }
 
+/**
+ * The exact inverse mask of `stripCodeBlocks`: code-region characters
+ * survive, everything else (prose) is blanked to same-length whitespace.
+ * Newlines are preserved everywhere, so byte offsets and line numbers
+ * computed against the mask map 1:1 onto the original body.
+ *
+ * Consumer: the `core/backtick-path` extractor, which matches relative
+ * `.md` file paths ONLY inside code regions, the deliberate, bounded
+ * exception to the code-strip policy (see
+ * `spec/architecture.md` §Extractor · code-region file references and
+ * `context/runtime-quirks.md`). Implemented as a character diff against
+ * `stripCodeBlocks` output so the mask can never drift from the
+ * blanking rules: a position belongs to a code region exactly when the
+ * stripped text differs from the input there.
+ *
+ * Two intentional artifacts of the diff approach, both harmless to the
+ * pinned path regex and pinned by tests:
+ *
+ *  - The backtick / fence characters themselves resurrect in the mask
+ *    (stripCodeBlocks blanks them, so they differ from the input).
+ *  - Fence info-strings (` ```bash `) resurrect for the same reason.
+ *
+ * Whitespace INSIDE a code region is indistinguishable from blanked
+ * prose (both are whitespace in the stripped text), so it stays
+ * whitespace in the mask. Fine for path matching: paths carry no
+ * spaces, and newlines survive untouched.
+ */
+export function extractCodeRegions(input: string): string {
+  if (!input) return input;
+  const stripped = stripCodeBlocks(input);
+  let out = '';
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i]!;
+    out += ch === stripped[i] ? (ch === '\n' ? '\n' : ' ') : ch;
+  }
+  return out;
+}
+
 function stripFences(input: string): string {
   const out: string[] = [];
   const lines = input.split('\n');
