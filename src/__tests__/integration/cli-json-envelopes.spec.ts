@@ -219,7 +219,7 @@ describe('sm plugins doctor --json', () => {
   });
 
   it('does NOT raise a false-positive applicableKinds warning for built-in extractors gated on a provider-declared kind', () => {
-    // Regression: `core/tools-counter` declares `precondition.kind:
+    // Regression: `claude/tools-counter` declares `precondition.kind:
     // ['claude/agent']`. The doctor previously seeded its known-kinds
     // set with only the bare kind keys (`agent`, `command`, `skill`)
     // from `IProvider.kinds`, so the qualified form never matched and

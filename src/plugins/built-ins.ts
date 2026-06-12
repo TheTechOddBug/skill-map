@@ -18,6 +18,7 @@ import { VERSION } from '../version.js';
 import { claudeProvider as _claudeProvider } from './claude/providers/claude/index.js';
 import { atDirectiveExtractor as _atDirectiveExtractor } from './claude/extractors/at-directive/index.js';
 import { slashCommandExtractor as _slashCommandExtractor } from './claude/extractors/slash-command/index.js';
+import { toolsCounterExtractor as _toolsCounterExtractor } from './claude/extractors/tools-counter/index.js';
 import { antigravityProvider as _antigravityProvider } from './antigravity/providers/antigravity/index.js';
 import { openaiProvider as _openaiProvider } from './openai/providers/openai/index.js';
 import { agentSkillsProvider as _agentSkillsProvider } from './agent-skills/providers/agent-skills/index.js';
@@ -27,7 +28,6 @@ import { backtickPathExtractor as _backtickPathExtractor } from './core/extracto
 import { externalUrlCounterExtractor as _externalUrlCounterExtractor } from './core/extractors/external-url-counter/index.js';
 import { markdownLinkExtractor as _markdownLinkExtractor } from './core/extractors/markdown-link/index.js';
 import { mcpToolsExtractor as _mcpToolsExtractor } from './core/extractors/mcp-tools/index.js';
-import { toolsCounterExtractor as _toolsCounterExtractor } from './core/extractors/tools-counter/index.js';
 import { annotationFieldUnknownAnalyzer as _annotationFieldUnknownAnalyzer } from './core/analyzers/annotation-field-unknown/index.js';
 import { annotationOrphanAnalyzer as _annotationOrphanAnalyzer } from './core/analyzers/annotation-orphan/index.js';
 import { annotationStaleAnalyzer as _annotationStaleAnalyzer } from './core/analyzers/annotation-stale/index.js';
@@ -58,6 +58,7 @@ import { updateCheckHook as _updateCheckHook } from './core/hooks/update-check/i
 const claudeProvider = { ..._claudeProvider, pluginId: 'claude', version: VERSION };
 const atDirectiveExtractor = { ..._atDirectiveExtractor, pluginId: 'claude', version: VERSION };
 const slashCommandExtractor = { ..._slashCommandExtractor, pluginId: 'claude', version: VERSION };
+const toolsCounterExtractor = { ..._toolsCounterExtractor, pluginId: 'claude', version: VERSION };
 const antigravityProvider = { ..._antigravityProvider, pluginId: 'antigravity', version: VERSION };
 const openaiProvider = { ..._openaiProvider, pluginId: 'openai', version: VERSION };
 const agentSkillsProvider = { ..._agentSkillsProvider, pluginId: 'agent-skills', version: VERSION };
@@ -67,7 +68,6 @@ const backtickPathExtractor = { ..._backtickPathExtractor, pluginId: 'core', ver
 const externalUrlCounterExtractor = { ..._externalUrlCounterExtractor, pluginId: 'core', version: VERSION };
 const markdownLinkExtractor = { ..._markdownLinkExtractor, pluginId: 'core', version: VERSION };
 const mcpToolsExtractor = { ..._mcpToolsExtractor, pluginId: 'core', version: VERSION };
-const toolsCounterExtractor = { ..._toolsCounterExtractor, pluginId: 'core', version: VERSION };
 const annotationFieldUnknownAnalyzer = { ..._annotationFieldUnknownAnalyzer, pluginId: 'core', version: VERSION };
 const annotationOrphanAnalyzer = { ..._annotationOrphanAnalyzer, pluginId: 'core', version: VERSION };
 const annotationStaleAnalyzer = { ..._annotationStaleAnalyzer, pluginId: 'core', version: VERSION };
@@ -120,6 +120,7 @@ export const builtInPlugins: IBuiltInPlugin[] = [
       claudeProvider,
       atDirectiveExtractor,
       slashCommandExtractor,
+      toolsCounterExtractor,
     ],
   },
   {
@@ -153,7 +154,6 @@ export const builtInPlugins: IBuiltInPlugin[] = [
       externalUrlCounterExtractor,
       markdownLinkExtractor,
       mcpToolsExtractor,
-      toolsCounterExtractor,
       annotationFieldUnknownAnalyzer,
       annotationOrphanAnalyzer,
       annotationStaleAnalyzer,

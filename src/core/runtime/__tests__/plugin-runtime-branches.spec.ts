@@ -171,14 +171,19 @@ describe('plugin-runtime, branch coverage', () => {
     it('(a) disable every claude extension by qualified id → claude plugin skips compose; core extensions untouched', () => {
       const runtime = emptyPluginRuntime();
       runtime.resolveEnabled = (id: string) =>
-        !['claude/claude', 'claude/at-directive', 'claude/slash-command'].includes(id);
+        ![
+          'claude/claude',
+          'claude/at-directive',
+          'claude/slash-command',
+          'claude/tools-counter',
+        ].includes(id);
       const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: runtime });
       assert.ok(composed, 'core extensions still keep the pipeline non-empty');
       // The `claude` provider drops; the other vendor providers and the
       // markdown fallback stay.
       const providerIds = composed.providers.map((p) => p.id).sort();
       assert.deepEqual(providerIds, ['agent-skills', 'antigravity', 'markdown', 'openai']);
-      // The two claude-bundled extractors drop alongside the provider;
+      // The three claude-bundled extractors drop alongside the provider;
       // the surviving extractors are the truly universal ones in `core`.
       const extractorIds = composed.extractors.map((d) => d.id).sort();
       assert.deepEqual(extractorIds, [
@@ -187,7 +192,6 @@ describe('plugin-runtime, branch coverage', () => {
         'external-url-counter',
         'markdown-link',
         'mcp-tools',
-        'tools-counter',
       ]);
       // core/* rules unaffected.
       assert.ok(composed.analyzers.length >= 5, 'every core rule should survive');

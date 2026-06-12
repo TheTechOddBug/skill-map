@@ -1,15 +1,16 @@
 /**
- * Tools count extractor. Reads `frontmatter.tools` on agent-kind nodes
- * (Claude Code agents + Codex sub-agents, both providers declare the
- * field as `string[]`) and surfaces the count as a `card.footer.left`
- * counter chip with a wrench icon.
+ * Tools count extractor. Reads `frontmatter.tools` on Claude Code
+ * agent nodes (declared as `string[]`) and surfaces the count as a
+ * `card.footer.left` counter chip with a wrench icon.
  *
  * Per-node, frontmatter-scope, no link emissions, the only output is
- * a single view contribution. Kept narrow to agents only via
- * `applicableKinds: ['agent']`: skills and commands declare their tool
- * surface under `allowed-tools` (different shape, different semantics),
- * and would deserve their own extractor if the chip is ever wanted
- * there too.
+ * a single view contribution. Bundled in the `claude` plugin because
+ * its precondition is `claude/agent` only: skills and commands declare
+ * their tool surface under `allowed-tools` (different shape, different
+ * semantics) and would deserve their own extractor if the chip is ever
+ * wanted there; Codex sub-agents declare a similar `tools: string[]`
+ * in their TOML, but that is deliberately out of scope today and would
+ * belong to an `openai`-bundled extractor, not this one.
  *
  * Replaces the hardcoded wrench + count block that used to live in
  * `node-card.html` (legacy `toolsCount()` computed in `node-card.ts`).
@@ -22,7 +23,7 @@
 
 import type { IBuiltInManifest, IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
 import type { IViewContribution } from '../../../../kernel/types/view-catalog.js';
-import { CORE_PLUGIN_ID } from '../../../ids.js';
+import { CLAUDE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'tools-counter';
 
@@ -43,7 +44,7 @@ const TOOLTIP_MAX = 255;
 
 export const toolsCounterExtractor: IBuiltInManifest<IExtractor> = {
   id: ID,
-  pluginId: CORE_PLUGIN_ID,
+  pluginId: CLAUDE_PLUGIN_ID,
   kind: 'extractor',
   description:
     'Counts the tools an agent declares in its frontmatter and shows the count on the agent card.',

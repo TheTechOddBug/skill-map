@@ -1274,7 +1274,8 @@ describe('boot-cached registries include built-ins regardless of enabled state',
   /**
    * Plant a `.skill-map/settings.json` under a fresh fixture cwd that
    * disables one built-in plugin (claude) AND one built-in extension
-   * that contributes views (core/tools-counter). The server boots against
+   * that contributes views (claude/tools-counter, disabled by its own
+   * qualified id on top of its host plugin). The server boots against
    * that cwd via the `runtimeContext` override and the registries must
    * still expose both items so a mid-session re-enable would surface
    * correctly.
@@ -1289,7 +1290,7 @@ describe('boot-cached registries include built-ins regardless of enabled state',
       JSON.stringify({
         plugins: {
           claude: { enabled: false },
-          'core/tools-counter': { enabled: false },
+          'claude/tools-counter': { enabled: false },
         },
       }),
     );
@@ -1324,14 +1325,15 @@ describe('boot-cached registries include built-ins regardless of enabled state',
       const body = (await res.json()) as {
         contributionsRegistry: Record<string, unknown>;
       };
-      // core/tools-counter is disabled in settings.json; its `count`
-      // contribution MUST still be in the registry.
+      // claude/tools-counter is disabled in settings.json (both via its
+      // host plugin and its own qualified id); its `count` contribution
+      // MUST still be in the registry.
       assert.ok(
         Object.prototype.hasOwnProperty.call(
           body.contributionsRegistry,
-          'core/tools-counter/count',
+          'claude/tools-counter/count',
         ),
-        'expected `core/tools-counter/count` in contributionsRegistry even though the extension is disabled',
+        'expected `claude/tools-counter/count` in contributionsRegistry even though the extension is disabled',
       );
     });
   });
