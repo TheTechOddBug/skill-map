@@ -2,6 +2,52 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.54.0",
+      "date": "2026-06-12",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "Skills that tell the agent to read a bundled doc with a backtick path (like `references/rules.md`) now show those arrows on the map, and a backtick path pointing at a missing file is flagged as a broken reference.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Findings are shorter and clearer: the file or trigger involved leads on its own line, duplicates collapse to `Duplicate reference (2): \\`refs/x.md\\` (124, 145)`, broken references name the line they sit on, and messages no longer repeat the node's own path.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Plugin maturity at a glance.** Extensions can now carry an experimental, beta, or deprecated badge next to their name in the Settings plugins panel and in `sm plugins list`, so you can tell which parts of a plugin are still settling before relying on them.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Backtick paths get their own \"Points\" connector kind: a new palette toggle with a backtick glyph, its own edge colour per theme, and arrows separate from markdown-link references on the map.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Referencing the same file twice in different forms (a markdown link plus a backtick path, for example) now shows as an info note instead of a warning, so the warning chips on cards only count things worth fixing.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Searching no longer rips nodes out of the map: by default the query narrows only the files list while the map keeps its layout. A new toggle next to the search box brings back the old filter-everything behavior, and your choice is remembered.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.53.6",
       "date": "2026-06-09",
       "kind": "user-facing",
