@@ -133,8 +133,10 @@ export interface IExtensionBase {
    * `viewContributions` with the structure-as-truth refactor. Each
    * entry maps a local contribution id (kebab-case, unique within the
    * extension) to an `IViewContribution` that picks a view slot by
-   * name from the closed catalog. Only `extractor` and `analyzer` kinds
-   * may declare this field.
+   * name from the closed catalog. Declared by `extractor` and
+   * `analyzer` kinds (emitted during scan / graph evaluation) and by
+   * `action` kinds (emitted from the Action's scan-time `project()`
+   * self-projection, see `IActionProjectionContext`).
    */
   ui?: Record<string, IViewContribution>;
   /** Runtime-only, absolute path of the extension entry file. */

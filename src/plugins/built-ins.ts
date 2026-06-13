@@ -44,8 +44,6 @@ import { referenceBrokenAnalyzer as _referenceBrokenAnalyzer } from './core/anal
 import { referenceRedundantAnalyzer as _referenceRedundantAnalyzer } from './core/analyzers/reference-redundant/index.js';
 import { schemaViolationAnalyzer as _schemaViolationAnalyzer } from './core/analyzers/schema-violation/index.js';
 import { signalCollisionAnalyzer as _signalCollisionAnalyzer } from './core/analyzers/signal-collision/index.js';
-import { supersedeAnalyzer as _supersedeAnalyzer } from './core/analyzers/supersede/index.js';
-import { tagsAnalyzer as _tagsAnalyzer } from './core/analyzers/tags/index.js';
 import { triggerCollisionAnalyzer as _triggerCollisionAnalyzer } from './core/analyzers/trigger-collision/index.js';
 import { asciiFormatter as _asciiFormatter } from './core/formatters/ascii/index.js';
 import { jsonFormatter as _jsonFormatter } from './core/formatters/json/index.js';
@@ -84,8 +82,6 @@ const referenceBrokenAnalyzer = { ..._referenceBrokenAnalyzer, pluginId: 'core',
 const referenceRedundantAnalyzer = { ..._referenceRedundantAnalyzer, pluginId: 'core', version: VERSION };
 const schemaViolationAnalyzer = { ..._schemaViolationAnalyzer, pluginId: 'core', version: VERSION };
 const signalCollisionAnalyzer = { ..._signalCollisionAnalyzer, pluginId: 'core', version: VERSION };
-const supersedeAnalyzer = { ..._supersedeAnalyzer, pluginId: 'core', version: VERSION };
-const tagsAnalyzer = { ..._tagsAnalyzer, pluginId: 'core', version: VERSION };
 const triggerCollisionAnalyzer = { ..._triggerCollisionAnalyzer, pluginId: 'core', version: VERSION };
 const asciiFormatter = { ..._asciiFormatter, pluginId: 'core', version: VERSION };
 const jsonFormatter = { ..._jsonFormatter, pluginId: 'core', version: VERSION };
@@ -170,8 +166,6 @@ export const builtInPlugins: IBuiltInPlugin[] = [
       referenceRedundantAnalyzer,
       schemaViolationAnalyzer,
       signalCollisionAnalyzer,
-      supersedeAnalyzer,
-      tagsAnalyzer,
       triggerCollisionAnalyzer,
       asciiFormatter,
       jsonFormatter,

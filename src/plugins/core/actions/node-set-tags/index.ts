@@ -10,24 +10,37 @@
  * and returns it for the kernel to materialise through `ISidecarStore`
  * after the call returns.
  *
- * Whole-array replace: the prompt the `core/tags` analyzer projects
- * pre-loads the current tags, so an edit (add / remove / modify) is just
- * the new full array written back over the old one. There is no
+ * Whole-array replace: the prompt this action's scan-time `project()`
+ * emits pre-loads the current tags, so an edit (add / remove / modify) is
+ * just the new full array written back over the old one. There is no
  * per-element merge.
  *
- * The companion `core/tags` analyzer projects the inspector button that
- * dispatches this Action.
+ * Dual surface:
+ *   - `project(ctx)` (scan-time, deterministic, read-only graph): emits
+ *     one `inspector.action.button` per node that already has a sidecar
+ *     (`node.sidecar.present === true`). Nodes with no sidecar are
+ *     skipped so the inspector never offers to scaffold a `.sm` (creation
+ *     is CLI-only). The `string-list` prompt's `defaultValue` pre-loads
+ *     the node's current `annotations.tags` so the edit reads as
+ *     add / remove / modify over the existing set. The button lives with
+ *     the action that dispatches it (no separate projector analyzer).
+ *   - `invoke(input, ctx)` (on-demand executor): writes
+ *     `annotations.tags`, see below.
  */
 
 import type {
   IAction,
   IActionContext,
+  IActionProjectionContext,
   IActionResult,
   IBuiltInManifest,
   TActionWrite,
 } from '../../../../kernel/extensions/index.js';
 import { sidecarPathFor } from '../../../../kernel/sidecar/parse.js';
+import type { Node } from '../../../../kernel/types.js';
+import type { IViewContribution } from '../../../../kernel/types/view-catalog.js';
 import { CORE_PLUGIN_ID as PLUGIN_ID } from '../../../ids.js';
+import { TAGS_TEXTS } from './text.js';
 
 /**
  * Input parameters accepted by `node-set-tags`.
@@ -54,6 +67,16 @@ export interface INodeSetTagsReport {
 
 const ID = 'node-set-tags';
 
+// Inspector action button this action self-projects. Module-level const
+// so the manifest `ui` map and the `project()` emit reference the SAME
+// object (the orchestrator recovers the contribution id + slot by object
+// identity). Emitted for every node that already has a sidecar; the
+// prompt pre-loads the current tags as its `defaultValue`.
+const setTagsButton = {
+  slot: 'inspector.action.button',
+  priority: 15,
+} satisfies IViewContribution;
+
 export const nodeSetTagsAction: IBuiltInManifest<IAction> = {
   id: ID,
   pluginId: PLUGIN_ID,
@@ -61,6 +84,15 @@ export const nodeSetTagsAction: IBuiltInManifest<IAction> = {
   description:
     'Sets the taxonomy tags of the current node (writes `tags` to the sidecar; whole-array replace).',
   mode: 'deterministic',
+
+  ui: { setTagsButton },
+
+  project(ctx: IActionProjectionContext): void {
+    for (const node of ctx.nodes) {
+      if (node.sidecar?.present !== true) continue;
+      emitSetTagsButton(ctx, node);
+    }
+  },
 
   // The runtime contract uses generic <TInput, TReport>; this narrows
   // both. The cast is the standard pattern for built-ins that want
@@ -73,6 +105,34 @@ export const nodeSetTagsAction: IBuiltInManifest<IAction> = {
     return invokeSetTags(input, ctx) as IActionResult<TReport>;
   },
 };
+
+function emitSetTagsButton(ctx: IActionProjectionContext, node: Node): void {
+  ctx.emitContribution(node.path, setTagsButton, {
+    actionId: 'core/node-set-tags',
+    label: TAGS_TEXTS.editLabel,
+    icon: 'pi-tags',
+    enabled: true,
+    prompt: {
+      inputType: 'string-list',
+      paramKey: 'tags',
+      label: TAGS_TEXTS.promptLabel,
+      defaultValue: currentTags(node),
+    },
+  });
+}
+
+/**
+ * The node's current `annotations.tags` from its sidecar overlay, or
+ * `[]` when absent / malformed. Drives the prompt's `defaultValue` so
+ * the editor opens pre-loaded with the existing taxonomy.
+ */
+function currentTags(node: Node): string[] {
+  const ann = node.sidecar?.annotations;
+  if (!ann || typeof ann !== 'object' || Array.isArray(ann)) return [];
+  const value = (ann as Record<string, unknown>)['tags'];
+  if (!Array.isArray(value)) return [];
+  return value.filter((t): t is string => typeof t === 'string');
+}
 
 function invokeSetTags(
   input: INodeSetTagsInput,

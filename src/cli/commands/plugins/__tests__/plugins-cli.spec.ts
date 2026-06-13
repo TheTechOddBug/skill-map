@@ -574,11 +574,13 @@ describe('sm plugins doctor, disabled is not a failure', () => {
     const r = sm(['plugins', 'doctor'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     // Disabled is intentional, never an error: exit stays 0. The count
-    // is 5, the disabled `mock-h` drop-in plus the four experimental
+    // is 4, the disabled `mock-h` drop-in plus the three experimental
     // built-ins that ship disabled by default: `core/mcp-tools` and the
-    // supersession family (`core/supersede`, `core/node-supersede`,
-    // `core/node-superseded`).
-    assert.match(r.stdout, /disabled\s+5/);
+    // supersession family (`core/node-supersede`, `core/node-superseded`).
+    // The former `core/supersede` projector analyzer was deleted (its
+    // button now self-projects from the `core/node-supersede` action),
+    // so the disabled count dropped by one.
+    assert.match(r.stdout, /disabled\s+4/);
   });
 });
 

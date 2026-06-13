@@ -157,10 +157,11 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // `core/link-self-loop` (analyzer that flags links whose source is their own resolved target, hidden from the UI by default) brings it to 32.
     // `core/signal-collision` (analyzer that surfaces Signal IR resolver rejections, range-overlap losers, as warn issues) brings it to 33.
     // `core/issue-counter` (aggregate analyzer that runs after the detect phase and emits the per-card error / warn count chips on `card.footer.right`, replacing the hand-rolled chip block in `<sm-node-card>`) brings it to 34.
-    // `core/supersede` (analyzer that projects the inspector `Supersede` action button to `inspector.action.button` for non-virtual nodes, dispatching `core/node-supersede`) brings it to 35.
-    // `core/node-set-stability` + `core/node-set-tags` (two deterministic actions writing `annotations.stability` / `annotations.tags` to the sidecar) and `core/tags` (analyzer that projects the inspector `Edit tags` action button) bring it to 38.
-    // `core/backtick-path` (extractor that turns relative `.md` paths inside code spans / fences into `points` edges, the inverse-mask exception to the code-strip policy) brings it to 39.
-    assert.equal(rows.length, 39);
+    // `core/supersede` (analyzer that projected the inspector `Supersede` action button) brought it to 35.
+    // `core/node-set-stability` + `core/node-set-tags` (two deterministic actions writing `annotations.stability` / `annotations.tags` to the sidecar) and `core/tags` (analyzer that projected the inspector `Edit tags` action button) brought it to 38.
+    // `core/backtick-path` (extractor that turns relative `.md` paths inside code spans / fences into `points` edges, the inverse-mask exception to the code-strip policy) brought it to 39.
+    // Actions self-project their inspector button via scan-time `project()`: the two pure projector analyzers `core/supersede` + `core/tags` were deleted (their buttons moved onto `core/node-supersede` / `core/node-set-tags`), dropping the total back to 37.
+    assert.equal(rows.length, 37);
   });
 
   // `defaultRefreshAction` was retired with the structure-as-truth

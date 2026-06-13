@@ -35,7 +35,7 @@ The plugin author **picks a slot**. The slot fixes both the renderer (which Angu
 | `card.footer.right` | NodeCounter | `node-card.html` (footer right cluster) |
 | `graph.node.alert` | NodeAlert | `graph-view.html` (corner badge inside `[fNode]`). **Reserved**: catalog keeps the surface available for special-case signals, NO built-in core analyzer emits here. Routine "this node has a problem" findings (`reference-broken`, `annotation-field-unknown`, `schema-violation`) ship as chips on `card.footer.right` instead. See the policy note on the slot entry in `ui/src/app/slots/slot-config.ts`. |
 | `inspector.header.badge` | NodeBadge | `inspector-view.html` (unified badge row under title: icon and/or label and/or count, optional severity). Replaces the retired `inspector.header.badge.counter` / `.tag` sub-slots. |
-| `inspector.action.button` | NodeActionButton | `inspector-view.html` (action buttons; click dispatches a kernel Action by qualified id via `POST /api/actions/:id`) |
+| `inspector.action.button` | NodeActionButton | `inspector-view.html` (action buttons; click dispatches a kernel Action by qualified id via `POST /api/actions/:id`). **Self-projected by the dispatching Action's own scan-time `project(ctx)`** (deterministic, read-only graph), not by a separate projector Analyzer; the Action computes per-node `enabled` / prompt `options` from the graph and is itself the dispatch target. |
 | `inspector.body.panel.breakdown` | NodeBreakdown | `inspector-plugin-sections` (grouped one section per plugin) |
 | `inspector.body.panel.records` | NodeRecords | `inspector-plugin-sections` (grouped one section per plugin) |
 | `inspector.body.panel.tree` | NodeTree | `inspector-plugin-sections` (grouped one section per plugin) |
@@ -176,7 +176,7 @@ The two systems are independent: annotation contributions write to the sidecar `
 The `scan_contributions` table is **NOT pure replace-all** like `scan_links` / `scan_issues`. The watcher's cached pass leaves the contributions buffer empty for cached nodes (no `extract()` → no `emitContribution`); a wipe-all would silently drop their valid prior rows on every watcher boot. The persist runs three passes inside the same tx:
 
 1. **Orphan sweep**, drop rows whose `node_path` is NOT in `livePaths` (derived from `result.nodes`).
-2. **Catalog sweep**, drop rows whose qualified id is NOT in `registeredContributionKeys` (derived from `composed.extractors + composed.analyzers` via `collectRegisteredContributionKeys`).
+2. **Catalog sweep**, drop rows whose qualified id is NOT in `registeredContributionKeys` (derived from `composed.extractors + composed.analyzers + composed.actions` via `collectRegisteredContributionKeys`; actions are included because an Action with a scan-time `project()` self-projects its own contributions).
 3. **Upsert**, `INSERT ... ON CONFLICT DO UPDATE SET payload_json = excluded.payload_json, slot = excluded.slot` for every buffer row.
 
 When extending the persist path:

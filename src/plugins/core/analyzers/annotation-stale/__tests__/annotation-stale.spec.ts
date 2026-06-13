@@ -5,13 +5,13 @@
  *     chip via `value: 0`; tooltip differentiates body / frontmatter / both).
  *   - `staleBadge` view contribution to `inspector.header.badge` (the
  *     clock that used to be hardcoded in the inspector header), stale-only.
- *   - `bumpButton` view contribution to `inspector.action.button`,
- *     emitted for EVERY node that has a sidecar (the payload `enabled`
- *     flag carries the dynamic gate: true when stale, false when fresh).
  *
- * Nodes without a sidecar overlay emit nothing (the inspector never
- * offers to scaffold a `.sm`). Fresh nodes still emit the disabled bump
- * button so the affordance is always present.
+ * The `Bump` button on `inspector.action.button` no longer lives here;
+ * it self-projects from the `core/node-bump` action's scan-time
+ * `project()` (see `actions/node-bump/__tests__/node-bump-projection.spec.ts`).
+ *
+ * Nodes without a sidecar overlay emit nothing; fresh nodes emit nothing
+ * either (the badge / chip are stale-only).
  */
 
 import { describe, it } from 'node:test';
@@ -60,22 +60,7 @@ function sidecar(status: SidecarStatus | null | undefined): ISidecarOverlay {
   return { present: true, status: status ?? null };
 }
 
-const ENABLED_BUMP = {
-  actionId: 'core/node-bump',
-  label: ANNOTATION_STALE_TEXTS.bumpLabel,
-  icon: 'pi-arrow-up-right',
-  enabled: true,
-};
-
-const DISABLED_BUMP = {
-  actionId: 'core/node-bump',
-  label: ANNOTATION_STALE_TEXTS.bumpLabel,
-  icon: 'pi-arrow-up-right',
-  enabled: false,
-  disabledReason: ANNOTATION_STALE_TEXTS.bumpDisabledReason,
-};
-
-describe('annotation-stale analyzer, surfaces (issue + footer chip + header badge + bump button)', () => {
+describe('annotation-stale analyzer, surfaces (issue + footer chip + header badge)', () => {
   it('emits nothing for a node without a sidecar overlay', async () => {
     const node = mockNode('notes/x.md', undefined);
     const { ctx: c, contributions } = ctx([node]);
@@ -84,37 +69,31 @@ describe('annotation-stale analyzer, surfaces (issue + footer chip + header badg
     strictEqual(contributions.length, 0);
   });
 
-  it('emits only a disabled bump button when status is fresh', async () => {
+  it('emits nothing when status is fresh (badge / chip are stale-only)', async () => {
     const node = mockNode('notes/x.md', sidecar('fresh'));
     const { ctx: c, contributions } = ctx([node]);
     const issues = await annotationStaleAnalyzer.evaluate(c);
     strictEqual(issues.length, 0);
-    strictEqual(contributions.length, 1);
-    strictEqual(contributions[0]!.nodePath, 'notes/x.md');
-    strictEqual(contributions[0]!.ref, annotationStaleAnalyzer.ui!['bumpButton']);
-    deepStrictEqual(contributions[0]!.payload, DISABLED_BUMP);
+    strictEqual(contributions.length, 0);
   });
 
-  it('emits enabled bump button + issue + footer chip + header badge on stale-body', async () => {
+  it('emits issue + footer chip + header badge on stale-body', async () => {
     const node = mockNode('notes/x.md', sidecar('stale-body'));
     const { ctx: c, contributions } = ctx([node]);
     const issues = await annotationStaleAnalyzer.evaluate(c);
     strictEqual(issues.length, 1);
     strictEqual(issues[0]!.severity, 'info');
     deepStrictEqual(issues[0]!.nodeIds, ['notes/x.md']);
-    strictEqual(contributions.length, 3);
+    strictEqual(contributions.length, 2);
     strictEqual(contributions[0]!.nodePath, 'notes/x.md');
-    strictEqual(contributions[0]!.ref, annotationStaleAnalyzer.ui!['bumpButton']);
-    deepStrictEqual(contributions[0]!.payload, ENABLED_BUMP);
+    strictEqual(contributions[0]!.ref, annotationStaleAnalyzer.ui!['staleIcon']);
+    deepStrictEqual(contributions[0]!.payload, { value: 0, tooltip: ANNOTATION_STALE_TEXTS.bodyTooltip });
     strictEqual(contributions[1]!.nodePath, 'notes/x.md');
-    strictEqual(contributions[1]!.ref, annotationStaleAnalyzer.ui!['staleIcon']);
-    deepStrictEqual(contributions[1]!.payload, { value: 0, tooltip: ANNOTATION_STALE_TEXTS.bodyTooltip });
-    strictEqual(contributions[2]!.nodePath, 'notes/x.md');
-    strictEqual(contributions[2]!.ref, annotationStaleAnalyzer.ui!['staleBadge']);
-    deepStrictEqual(contributions[2]!.payload, { icon: 'pi-clock', tooltip: ANNOTATION_STALE_TEXTS.bodyTooltip });
+    strictEqual(contributions[1]!.ref, annotationStaleAnalyzer.ui!['staleBadge']);
+    deepStrictEqual(contributions[1]!.payload, { icon: 'pi-clock', tooltip: ANNOTATION_STALE_TEXTS.bodyTooltip });
   });
 
-  it('emits the same three contributions on stale-frontmatter', async () => {
+  it('emits the same two contributions on stale-frontmatter', async () => {
     const node = mockNode('notes/x.md', sidecar('stale-frontmatter'));
     const { ctx: c, contributions } = ctx([node]);
     const issues = await annotationStaleAnalyzer.evaluate(c);
@@ -122,22 +101,21 @@ describe('annotation-stale analyzer, surfaces (issue + footer chip + header badg
     deepStrictEqual(
       contributions.map((c2) => c2.ref),
       [
-        annotationStaleAnalyzer.ui!['bumpButton'],
         annotationStaleAnalyzer.ui!['staleIcon'],
         annotationStaleAnalyzer.ui!['staleBadge'],
       ],
     );
-    deepStrictEqual(contributions[1]!.payload, {
+    deepStrictEqual(contributions[0]!.payload, {
       value: 0,
       tooltip: ANNOTATION_STALE_TEXTS.frontmatterTooltip,
     });
-    deepStrictEqual(contributions[2]!.payload, {
+    deepStrictEqual(contributions[1]!.payload, {
       icon: 'pi-clock',
       tooltip: ANNOTATION_STALE_TEXTS.frontmatterTooltip,
     });
   });
 
-  it('emits the same three contributions on stale-both', async () => {
+  it('emits the same two contributions on stale-both', async () => {
     const node = mockNode('notes/x.md', sidecar('stale-both'));
     const { ctx: c, contributions } = ctx([node]);
     const issues = await annotationStaleAnalyzer.evaluate(c);
@@ -145,18 +123,17 @@ describe('annotation-stale analyzer, surfaces (issue + footer chip + header badg
     deepStrictEqual(
       contributions.map((c2) => c2.ref),
       [
-        annotationStaleAnalyzer.ui!['bumpButton'],
         annotationStaleAnalyzer.ui!['staleIcon'],
         annotationStaleAnalyzer.ui!['staleBadge'],
       ],
     );
-    deepStrictEqual(contributions[2]!.payload, {
+    deepStrictEqual(contributions[1]!.payload, {
       icon: 'pi-clock',
       tooltip: ANNOTATION_STALE_TEXTS.bothTooltip,
     });
   });
 
-  it('declares three contribution slots (footer chip, header badge, action button)', () => {
+  it('declares two contribution slots (footer chip, header badge)', () => {
     deepStrictEqual(annotationStaleAnalyzer.ui, {
       staleIcon: {
         slot: 'card.footer.right',
@@ -168,10 +145,6 @@ describe('annotation-stale analyzer, surfaces (issue + footer chip + header badg
         slot: 'inspector.header.badge',
         emitWhenEmpty: false,
         priority: 20,
-      },
-      bumpButton: {
-        slot: 'inspector.action.button',
-        priority: 10,
       },
     });
   });

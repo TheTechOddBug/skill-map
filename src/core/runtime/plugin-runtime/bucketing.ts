@@ -24,11 +24,13 @@ import type { IPluginRuntime } from './index.js';
  * `pluginId` injected (spec § A.6), so this function never mutates.
  *
  * Shares the dispatch table with `plugins/built-ins.ts:
- * bucketBuiltIn` via `bucketByKind`. Actions are intentionally NOT
- * passed a destination array, they dispatch via the job subsystem
- * (Step 10), not the scan pipeline. The manifest row still records
- * regardless of kind so `sm plugins list` / `sm actions list` see
- * every extension that loaded.
+ * bucketBuiltIn` via `bucketByKind`. Actions ARE bucketed now: an
+ * Action with a scan-time `project()` self-projection emits its own
+ * view contributions during the contribution phase, so the scan
+ * composer hands enabled actions to the orchestrator's projection
+ * pass. The on-demand `invoke` dispatch still runs outside the scan
+ * pipeline. The manifest row records regardless of kind so
+ * `sm plugins list` / `sm actions list` see every extension that loaded.
  */
 export function bucketLoaded(
   loaded: ILoadedExtension[],
@@ -44,7 +46,7 @@ export function bucketLoaded(
       analyzer: runtime.extensions.analyzers,
       formatter: runtime.extensions.formatters,
       hook: runtime.extensions.hooks,
-      // `action` intentionally absent, see docstring.
+      action: runtime.extensions.actions,
     });
     runtime.manifests.push({
       id: ext.id,

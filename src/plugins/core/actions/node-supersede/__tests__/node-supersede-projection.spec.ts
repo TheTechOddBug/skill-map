@@ -1,6 +1,8 @@
 /**
- * Unit coverage for the `supersede` analyzer:
- *   - Emits NO issues (the declaration is owned by `core/node-superseded`).
+ * Coverage for the `node-supersede` action's scan-time `project()`
+ * self-projection (the button formerly emitted by the deleted
+ * `core/supersede` projector analyzer, now folded into the action that
+ * dispatches it):
  *   - Emits one `inspector.action.button` per NON-virtual node dispatching
  *     `core/node-supersede`, with an `enum-pick` prompt whose options are
  *     the OTHER non-virtual nodes (node-picker + live-set validation by
@@ -13,9 +15,9 @@
 import { describe, it } from 'node:test';
 import { deepStrictEqual, strictEqual } from 'node:assert';
 
-import { supersedeAnalyzer } from '../index.js';
+import { nodeSupersedeAction } from '../index.js';
 import { SUPERSEDE_TEXTS } from '../text.js';
-import type { IAnalyzerContext } from '../../../../../kernel/extensions/index.js';
+import type { IActionProjectionContext } from '../../../../../kernel/extensions/index.js';
 import type { ISidecarOverlay, Node } from '../../../../../kernel/types.js';
 
 function mockNode(path: string, overrides: Partial<Node> = {}): Node {
@@ -34,7 +36,7 @@ function mockNode(path: string, overrides: Partial<Node> = {}): Node {
 }
 
 function ctx(nodes: Node[]): {
-  ctx: IAnalyzerContext;
+  ctx: IActionProjectionContext;
   contributions: { nodePath: string; ref: unknown; payload: unknown }[];
 } {
   const contributions: { nodePath: string; ref: unknown; payload: unknown }[] = [];
@@ -44,9 +46,14 @@ function ctx(nodes: Node[]): {
       links: [],
       emitContribution: (nodePath: string, ref: unknown, payload: unknown) =>
         contributions.push({ nodePath, ref, payload }),
-    } as unknown as IAnalyzerContext,
+    } as unknown as IActionProjectionContext,
     contributions,
   };
+}
+
+function project(c: IActionProjectionContext): void {
+  if (!nodeSupersedeAction.project) throw new Error('nodeSupersedeAction.project missing');
+  nodeSupersedeAction.project(c);
 }
 
 function supersededSidecar(supersededBy: string): ISidecarOverlay {
@@ -77,19 +84,13 @@ function button(opts: {
   };
 }
 
-describe('supersede analyzer, inspector action button', () => {
-  it('emits no issues', async () => {
-    const { ctx: c } = ctx([mockNode('docs/a.md'), mockNode('docs/b.md')]);
-    const issues = await supersedeAnalyzer.evaluate(c);
-    strictEqual(issues.length, 0);
-  });
-
-  it('disables the button when there is no other node to point at', async () => {
+describe('node-supersede action, project() inspector button', () => {
+  it('disables the button when there is no other node to point at', () => {
     const { ctx: c, contributions } = ctx([mockNode('docs/a.md')]);
-    await supersedeAnalyzer.evaluate(c);
+    project(c);
     strictEqual(contributions.length, 1);
     strictEqual(contributions[0]!.nodePath, 'docs/a.md');
-    strictEqual(contributions[0]!.ref, supersedeAnalyzer.ui!['supersedeButton']);
+    strictEqual(contributions[0]!.ref, nodeSupersedeAction.ui!['supersedeButton']);
     deepStrictEqual(
       contributions[0]!.payload,
       button({
@@ -100,27 +101,27 @@ describe('supersede analyzer, inspector action button', () => {
     );
   });
 
-  it('enables the button with the OTHER nodes as picker options', async () => {
+  it('enables the button with the OTHER nodes as picker options', () => {
     const { ctx: c, contributions } = ctx([mockNode('docs/a.md'), mockNode('docs/b.md')]);
-    await supersedeAnalyzer.evaluate(c);
+    project(c);
     strictEqual(contributions.length, 2);
     strictEqual(contributions[0]!.nodePath, 'docs/a.md');
-    strictEqual(contributions[0]!.ref, supersedeAnalyzer.ui!['supersedeButton']);
+    strictEqual(contributions[0]!.ref, nodeSupersedeAction.ui!['supersedeButton']);
     deepStrictEqual(contributions[0]!.payload, button({ enabled: true, options: options('docs/b.md') }));
     strictEqual(contributions[1]!.nodePath, 'docs/b.md');
-    strictEqual(contributions[1]!.ref, supersedeAnalyzer.ui!['supersedeButton']);
+    strictEqual(contributions[1]!.ref, nodeSupersedeAction.ui!['supersedeButton']);
     deepStrictEqual(contributions[1]!.payload, button({ enabled: true, options: options('docs/a.md') }));
   });
 
-  it('disables the button when the node is already superseded (regardless of targets)', async () => {
+  it('disables the button when the node is already superseded (regardless of targets)', () => {
     const { ctx: c, contributions } = ctx([
       mockNode('docs/a.md', { sidecar: supersededSidecar('docs/b.md') }),
       mockNode('docs/b.md'),
     ]);
-    await supersedeAnalyzer.evaluate(c);
+    project(c);
     strictEqual(contributions.length, 2);
     strictEqual(contributions[0]!.nodePath, 'docs/a.md');
-    strictEqual(contributions[0]!.ref, supersedeAnalyzer.ui!['supersedeButton']);
+    strictEqual(contributions[0]!.ref, nodeSupersedeAction.ui!['supersedeButton']);
     deepStrictEqual(
       contributions[0]!.payload,
       button({
@@ -130,21 +131,21 @@ describe('supersede analyzer, inspector action button', () => {
       }),
     );
     strictEqual(contributions[1]!.nodePath, 'docs/b.md');
-    strictEqual(contributions[1]!.ref, supersedeAnalyzer.ui!['supersedeButton']);
+    strictEqual(contributions[1]!.ref, nodeSupersedeAction.ui!['supersedeButton']);
     deepStrictEqual(contributions[1]!.payload, button({ enabled: true, options: options('docs/a.md') }));
   });
 
-  it('skips virtual nodes entirely (not emitted, not offered as a target)', async () => {
+  it('skips virtual nodes entirely (not emitted, not offered as a target)', () => {
     const { ctx: c, contributions } = ctx([
       mockNode('docs/a.md'),
       mockNode('virtual/group', { virtual: true }),
     ]);
-    await supersedeAnalyzer.evaluate(c);
+    project(c);
     // The only non-virtual node has no other non-virtual target, so it is
     // disabled, and the virtual node is neither emitted nor offered.
     strictEqual(contributions.length, 1);
     strictEqual(contributions[0]!.nodePath, 'docs/a.md');
-    strictEqual(contributions[0]!.ref, supersedeAnalyzer.ui!['supersedeButton']);
+    strictEqual(contributions[0]!.ref, nodeSupersedeAction.ui!['supersedeButton']);
     deepStrictEqual(
       contributions[0]!.payload,
       button({
@@ -156,7 +157,7 @@ describe('supersede analyzer, inspector action button', () => {
   });
 
   it('declares the inspector.action.button contribution slot', () => {
-    deepStrictEqual(supersedeAnalyzer.ui, {
+    deepStrictEqual(nodeSupersedeAction.ui, {
       supersedeButton: { slot: 'inspector.action.button', priority: 10 },
     });
   });

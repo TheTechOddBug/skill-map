@@ -84,6 +84,7 @@ import {
   type IHookDispatcher,
 } from '../extensions/hook-dispatcher.js';
 import type {
+  IAction,
   IAnalyzer,
   IExtractor,
   IHook,
@@ -107,6 +108,7 @@ import type { IRegisteredAnnotationKey } from '../types/annotation-catalog.js';
 import type { IRegisteredViewContribution } from '../types/view-catalog.js';
 import { tx } from '../util/tx.js';
 import { detectProvidersFromFilesystem } from '../scan/detect-providers.js';
+import { runActionProjections } from './action-projections.js';
 import { runAnalyzers } from './analyzers.js';
 import {
   indexPriorSnapshot,
@@ -206,6 +208,16 @@ export interface IScanExtensions {
    * advisory until the job subsystem ships once the job subsystem ships.
    */
   hooks?: IHook[];
+  /**
+   * Optional enabled actions. When supplied, the orchestrator runs the
+   * action-projection pass right after the analyzer pass: every action
+   * carrying a scan-time `project()` self-projection emits its own view
+   * contributions (e.g. `inspector.action.button`) onto the merged
+   * graph. Actions without `project` (only `invoke`) ride along inert.
+   * Absent → no projection pass runs (the gate is the composed enabled
+   * set, so a disabled / experimental action never reaches here).
+   */
+  actions?: IAction[];
 }
 
 export interface RunScanOptions {
@@ -603,6 +615,24 @@ async function runScanInternal(
     walked.frontmatterIssues,
   );
   mergeAnalyzerEmissions(walked, analyzerResult, exts.analyzers);
+
+  // Action self-projection pass. Runs right after analyzers so the
+  // merged graph is final: every enabled action carrying a scan-time
+  // `project()` emits its own view contributions (e.g. the
+  // `inspector.action.button` that dispatches it) onto the live nodes.
+  // The enabled gate is already applied (`exts.actions` is the composed
+  // enabled set), so a disabled / experimental action never projects.
+  // Accepted contributions + rejected emissions fold into the same
+  // per-scan buffers analyzer emissions use, so persistence treats them
+  // identically (`replaceAllScanContributions`).
+  const projectionResult = runActionProjections(
+    exts.actions ?? [],
+    walked.nodes,
+    walked.internalLinks,
+    emitter,
+  );
+  mergeActionProjections(walked, projectionResult, exts.actions);
+
   const issues = analyzerResult.issues;
 
   // Rename heuristic runs after analyzers so the merged graph is final. The
@@ -891,6 +921,41 @@ function mergeAnalyzerEmissions(
       // `lastIndexOf('/')` to chop the wrong segment, leaving
       // analyzer-emitted rows orphaned on disable / state-flip.
       walked.freshlyRunTuples.add(`${analyzer.pluginId}\0${analyzer.id}\0${node.path}`);
+    }
+  }
+}
+
+/**
+ * Merge action-projection emissions into the walk's accumulators,
+ * mirroring `mergeAnalyzerEmissions`:
+ *
+ *   - action-emitted view contributions ride into the same per-scan
+ *     buffer extractor- / analyzer-emitted contributions populate;
+ *   - rejected emissions fold into the same `contributionErrors` buffer;
+ *   - a tuple per `(action × node)` is folded into `freshlyRunTuples`
+ *     for every action that both declares `ui` AND carries a `project`
+ *     method, so the persist layer's per-tuple sweep drops stale
+ *     action-emitted rows when an action stops emitting for a
+ *     previously-emitting node (e.g. its enabled gate flips, or the
+ *     action is toggled off). Actions with no `project` never emit, so
+ *     they contribute no tuples.
+ */
+function mergeActionProjections(
+  walked: IWalkAndExtractResult,
+  projectionResult: {
+    contributions: IContributionRecord[];
+    contributionErrors: IContributionErrorRecord[];
+  },
+  actions: readonly IAction[] | undefined,
+): void {
+  for (const c of projectionResult.contributions) walked.contributions.push(c);
+  for (const e of projectionResult.contributionErrors) walked.contributionErrors.push(e);
+  for (const action of actions ?? []) {
+    if (action.ui === undefined || typeof action.project !== 'function') continue;
+    for (const node of walked.nodes) {
+      // NUL-separated to match `mergeAnalyzerEmissions` (and the parse in
+      // `replaceAllScanContributions`): `nodePath` segments carry slashes.
+      walked.freshlyRunTuples.add(`${action.pluginId}\0${action.id}\0${node.path}`);
     }
   }
 }

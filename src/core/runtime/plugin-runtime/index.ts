@@ -33,6 +33,7 @@ import type {
   IFormatter,
   IHook,
   IAnalyzer,
+  IAction,
 } from '../../../kernel/extensions/index.js';
 import type { IRegisteredAnnotationKey } from '../../../kernel/types/annotation-catalog.js';
 import type { IRegisteredViewContribution } from '../../../kernel/types/view-catalog.js';
@@ -94,6 +95,15 @@ export interface IPluginRuntime {
      * hooks land separately when demand surfaces).
      */
     hooks: IHook[];
+    /**
+     * Loaded action extensions. Surfaced so the scan composer can hand
+     * enabled actions to the orchestrator's projection pass: an Action
+     * with a scan-time `project()` self-projection emits its own
+     * `inspector.action.button` during the contribution phase. Actions
+     * that only carry `invoke` (no `project`) still bucket here, the
+     * projection pass simply skips them.
+     */
+    actions: IAction[];
   };
   /**
    * Step 9.6.6, flat catalog of plugin-contributed annotation keys.
@@ -198,7 +208,7 @@ export async function loadPluginRuntime(
   const discovered = await loader.discoverAndLoadAll();
 
   const runtime: IPluginRuntime = {
-    extensions: { providers: [], extractors: [], analyzers: [], formatters: [], hooks: [] },
+    extensions: { providers: [], extractors: [], analyzers: [], formatters: [], hooks: [], actions: [] },
     annotationContributions: [],
     viewContributions: [],
     manifests: [],
@@ -290,7 +300,7 @@ function enforceRootExclusivity(catalog: readonly IRegisteredAnnotationKey[]): v
  */
 export function emptyPluginRuntime(): IPluginRuntime {
   const runtime: IPluginRuntime = {
-    extensions: { providers: [], extractors: [], analyzers: [], formatters: [], hooks: [] },
+    extensions: { providers: [], extractors: [], analyzers: [], formatters: [], hooks: [], actions: [] },
     annotationContributions: [],
     viewContributions: [],
     manifests: [],

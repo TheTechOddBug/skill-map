@@ -117,6 +117,7 @@ describe('plugin-runtime, branch coverage', () => {
       analyzers: [],
       formatters: [],
       hooks: [],
+      actions: [],
     });
     assert.deepEqual(empty.manifests, []);
     assert.deepEqual(empty.warnings, []);
@@ -198,17 +199,19 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed.analyzers.length >= 5, 'every core rule should survive');
     });
 
-    it('(b) disable core/node-superseded → only that rule skips; other 17 core extensions stay', () => {
+    it('(b) disable core/node-superseded → only that rule skips; other 15 core analyzers stay', () => {
       const runtime = emptyPluginRuntime();
       runtime.resolveEnabled = (id: string) => id !== 'core/node-superseded';
       const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: runtime });
       assert.ok(composed);
       const analyzerIds = composed.analyzers.map((r) => r.id).sort();
-      // The 19 built-in rules: 18 detect-phase analyzers plus the
-      // `issue-counter` aggregate analyzer that emits the per-card
-      // severity chips post-walk. Disabling `core/node-superseded`
-      // drops only one; the surviving 18 are listed below in
-      // alphabetical order.
+      // 17 built-in analyzers ship now (the former projector analyzers
+      // `core/supersede` + `core/tags` were deleted, their inspector
+      // buttons self-project from the `core/node-supersede` /
+      // `core/node-set-tags` actions). This custom resolver enables every
+      // id except `core/node-superseded`, so 16 compose, listed below in
+      // alphabetical order (`issue-counter` is the lone aggregate-phase
+      // analyzer in the set).
       assert.deepEqual(analyzerIds, [
         'annotation-field-unknown',
         'annotation-orphan',
@@ -225,8 +228,6 @@ describe('plugin-runtime, branch coverage', () => {
         'reference-redundant',
         'schema-violation',
         'signal-collision',
-        'supersede',
-        'tags',
         'trigger-collision',
       ]);
       // claude / antigravity / openai / agent-skills / core-markdown providers
@@ -247,7 +248,20 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 5, 'claude + antigravity + openai + agent-skills + core-markdown providers loaded');
       assert.equal(composed.extractors.length, 7, '7 of 8 extractors loaded; core/mcp-tools is experimental so it ships disabled by default');
-      assert.equal(composed.analyzers.length, 17, '17 of 19 rules loaded; the experimental supersession analyzers core/supersede (button projector) and core/node-superseded (surfaces declarations) both ship disabled by default');
+      assert.equal(composed.analyzers.length, 16, '16 of 17 analyzers loaded; only the experimental core/node-superseded ships disabled by default (the former projector analyzers core/supersede + core/tags were deleted, their buttons now self-project from the actions)');
+      // Actions are surfaced for the orchestrator's projection pass. The
+      // two projecting actions whose buttons replaced the deleted
+      // analyzers (`core/node-bump`, `core/node-set-tags`) are stable and
+      // load by default; `core/node-supersede` is experimental so it
+      // ships disabled and stays out of the composed set.
+      const actionIds = composed.actions.map((a) => a.id).sort();
+      assert.ok(actionIds.includes('node-bump'), 'core/node-bump is surfaced for projection');
+      assert.ok(actionIds.includes('node-set-tags'), 'core/node-set-tags is surfaced for projection');
+      assert.equal(
+        actionIds.includes('node-supersede'),
+        false,
+        'experimental core/node-supersede ships disabled, so it is not surfaced by default',
+      );
       const formatters = composeFormatters({ pluginRuntime: emptyPluginRuntime() });
       assert.equal(formatters.length, 2, 'ascii + json formatters loaded');
     });
@@ -362,7 +376,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 0);
       assert.equal(composed.extractors.length, 7, 'extractors untouched (7: core/mcp-tools ships disabled, experimental)');
-      assert.equal(composed.analyzers.length, 17, 'rules untouched (17: core/supersede + core/node-superseded ship disabled, experimental supersession family)');
+      assert.equal(composed.analyzers.length, 16, 'analyzers untouched (16: only core/node-superseded ships disabled, experimental; the projector analyzers core/supersede + core/tags were deleted)');
     });
 
     it('(b) killSwitches.extractors empties only the extractors bucket', () => {
@@ -374,7 +388,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 5);
       assert.equal(composed.extractors.length, 0);
-      assert.equal(composed.analyzers.length, 17);
+      assert.equal(composed.analyzers.length, 16);
     });
 
     it('(c) killSwitches.analyzers empties only the rules bucket', () => {

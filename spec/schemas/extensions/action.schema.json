@@ -83,6 +83,16 @@
         }
       },
       "description": "Reserved (Steps 3+). When set, a parametrized Action declares the single user input it needs; the UI renders the matching input-type control before dispatch and places the value under `paramKey` in the dispatch body. Deterministic no-prompt actions (e.g. `node-bump`) omit it. Mirrors `view-slots.schema.json#/$defs/payloads/_ActionPrompt`."
+    },
+    "ui": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "../view-slots.schema.json#/$defs/IViewContribution"
+      },
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+      },
+      "description": "Plugin-contributed view contributions. Same contract as Extractor.ui / Analyzer.ui (slot-driven, payload-validated). An Action emits these during its scan-time `project()` self-projection (deterministic, side-effect-free, runs in the contribution phase), supplying the target node path explicitly per emission via `ctx.emitContribution(<nodePath>, <contributionId>, payload)`, the same signature Analyzer uses because the Action sees the full graph, not a single node. The canonical use is an Action declaring its OWN `inspector.action.button` so the button lives with the Action that dispatches it (no separate projector analyzer). `extractor`, `analyzer`, and `action` kinds may declare this field."
     }
   },
   "allOf": [

@@ -24,17 +24,34 @@
  * the 9.6.2 reader to decide stale-vs-fresh. The kernel populates that
  * overlay during the scan that precedes the bump invocation; tests
  * stub it directly.
+ *
+ * Dual surface:
+ *   - `project(ctx)` (scan-time, deterministic, read-only graph): emits
+ *     one `inspector.action.button` per node that already has a sidecar
+ *     (`node.sidecar.present === true`). Nodes with no sidecar are
+ *     skipped so the inspector never offers to scaffold a `.sm` (creation
+ *     is CLI-only). The payload's `enabled` flag carries the dynamic gate
+ *     (stale => enabled). The button lives with the action that
+ *     dispatches it; the `core/annotation-stale` analyzer keeps emitting
+ *     the stale footer chip / header badge + the drift issue, but no
+ *     longer the button.
+ *   - `invoke(input, ctx)` (on-demand executor): bumps the sidecar, see
+ *     below.
  */
 
 import type {
   IAction,
   IActionContext,
+  IActionProjectionContext,
   IActionResult,
   IBuiltInManifest,
   TActionWrite,
 } from '../../../../kernel/extensions/index.js';
 import { sidecarPathFor } from '../../../../kernel/sidecar/parse.js';
+import type { ISidecarOverlay, SidecarStatus } from '../../../../kernel/types.js';
+import type { IViewContribution } from '../../../../kernel/types/view-catalog.js';
 import { CORE_PLUGIN_ID as PLUGIN_ID } from '../../../ids.js';
+import { BUMP_TEXTS } from './text.js';
 
 /**
  * Input parameters accepted by `node-bump`.
@@ -60,6 +77,16 @@ export interface INodeBumpReport {
 
 const ID = 'node-bump';
 
+// Inspector action button this action self-projects. Module-level const
+// so the manifest `ui` map and the `project()` emit reference the SAME
+// object (the orchestrator recovers the contribution id + slot by object
+// identity). Emitted for every node that already has a sidecar; the
+// payload's `enabled` flag carries the dynamic gate (stale => enabled).
+const bumpButton = {
+  slot: 'inspector.action.button',
+  priority: 10,
+} satisfies IViewContribution;
+
 export const nodeBumpAction: IBuiltInManifest<IAction> = {
   id: ID,
   pluginId: PLUGIN_ID,
@@ -67,6 +94,18 @@ export const nodeBumpAction: IBuiltInManifest<IAction> = {
   description:
     'Marks a node as updated: bumps `annotations.version`, refreshes sidecar hashes, and records the timestamp.',
   mode: 'deterministic',
+
+  ui: { bumpButton },
+
+  project(ctx: IActionProjectionContext): void {
+    for (const node of ctx.nodes) {
+      // Present for every node that already has a sidecar, enabled only
+      // when stale. Nodes with no sidecar are skipped so the inspector
+      // never offers to scaffold a `.sm` (creation is CLI-only).
+      if (node.sidecar?.present !== true) continue;
+      emitBumpButton(ctx, node.path, staleStatus(node.sidecar) !== null);
+    }
+  },
 
   // The runtime contract uses generic <TInput, TReport>; bump narrows
   // both. The cast is the standard pattern for built-ins that want
@@ -79,6 +118,34 @@ export const nodeBumpAction: IBuiltInManifest<IAction> = {
     return invokeBump(input, ctx) as IActionResult<TReport>;
   },
 };
+
+function emitBumpButton(
+  ctx: IActionProjectionContext,
+  nodePath: string,
+  enabled: boolean,
+): void {
+  ctx.emitContribution(nodePath, bumpButton, {
+    actionId: 'core/node-bump',
+    label: BUMP_TEXTS.bumpLabel,
+    icon: 'pi-arrow-up-right',
+    enabled,
+    ...(enabled ? {} : { disabledReason: BUMP_TEXTS.bumpDisabledReason }),
+  });
+}
+
+/**
+ * Narrow a sidecar overlay to its stale status, or `null` when the node
+ * has no sidecar / is fresh. Mirrors `core/annotation-stale`'s read so
+ * the button's enabled gate and the analyzer's drift surfaces agree on
+ * what "stale" means.
+ */
+function staleStatus(
+  overlay: ISidecarOverlay | null | undefined,
+): Exclude<SidecarStatus, 'fresh'> | null {
+  const status = overlay?.status;
+  if (status === undefined || status === null || status === 'fresh') return null;
+  return status;
+}
 
 function invokeBump(
   input: INodeBumpInput,

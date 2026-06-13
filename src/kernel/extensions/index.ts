@@ -5,10 +5,12 @@
  * `@skill-map/spec/schemas/extensions/`, and (b) the runtime method(s) the
  * kernel calls on an instance of the extension.
  *
- * `IAction` is manifest-only at present; the runtime invocation surface
- * (deterministic in-process call vs probabilistic runner dispatch) lands
- * with the job subsystem. See `kernel/extensions/action.ts` for the
- * detailed deferral note.
+ * `IAction` carries two optional runtime surfaces: a scan-time
+ * `project(ctx)` self-projection (deterministic, emits the Action's own
+ * view contributions during the contribution phase) and the on-demand
+ * `invoke(input, ctx)` executor (deterministic in-process call;
+ * probabilistic runner dispatch lands with the job subsystem). See
+ * `kernel/extensions/action.ts` for the detailed contract.
  *
  * A plugin's default export IS the runtime instance: an extractor exports
  * `{ ...manifest, extract: (ctx) => void }`, not a class. This keeps ESM
@@ -40,6 +42,7 @@ export type {
   IAction,
   IActionPrecondition,
   IActionContext,
+  IActionProjectionContext,
   IActionResult,
   TActionWrite,
 } from './action.js';

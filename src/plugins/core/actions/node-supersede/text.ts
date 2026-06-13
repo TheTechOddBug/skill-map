@@ -1,11 +1,12 @@
 /**
- * User-facing strings emitted by the `supersede` built-in analyzer
- * (`plugins/core/analyzers/supersede/index.ts`).
+ * User-facing strings for the `node-supersede` built-in action's
+ * inspector button (`plugins/core/actions/node-supersede/index.ts`).
  *
- * The analyzer surfaces no issues; it only projects the inspector
- * action button that dispatches `core/node-supersede`. These strings
- * are the button label, the prompt label, and the disabled-reason
- * tooltip.
+ * The action's scan-time `project()` emits the `inspector.action.button`
+ * that declares the current node superseded by another (the former
+ * `core/supersede` projector analyzer, now folded into the action that
+ * dispatches the button). These strings are the button label, the prompt
+ * label, and the disabled-reason tooltips.
  *
  * Convention: flat string templates. The `tx` helper at
  * `kernel/util/tx.ts` does the interpolation (none needed here today).

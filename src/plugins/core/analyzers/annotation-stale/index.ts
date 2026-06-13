@@ -1,17 +1,17 @@
 /**
  * `annotation-stale` rule (Step 9.6.2). Surfaces sidecar drift across
- * four surfaces:
+ * three surfaces:
  *   - an `info` issue per node whose `.sm` sidecar is stale relative to
  *     the current node hashes (`node.sidecar.status` ∈ {`stale-body`,
  *     `stale-frontmatter`, `stale-both`});
  *   - a `pi-clock` icon-only chip on `card.footer.right` (card / list);
  *   - a `pi-clock` badge on `inspector.header.badge` (the clock that
- *     used to be hardcoded in the inspector header), stale-only;
- *   - a `Bump` button on `inspector.action.button` that dispatches
- *     `core/node-bump`. Always emitted for nodes that already have a
- *     sidecar; the payload's `enabled` flag carries the dynamic gate
- *     (stale => enabled), so the contributions upsert refreshes it each
- *     scan with no per-node sweep.
+ *     used to be hardcoded in the inspector header), stale-only.
+ *
+ * The `Bump` button on `inspector.action.button` USED to live here too;
+ * it now self-projects from the `core/node-bump` action's scan-time
+ * `project()` (the button lives with the action that dispatches it).
+ * This analyzer keeps the drift detection surfaces above.
  *
  * The kernel computes drift status at scan time (pure function over
  * `node.{bodyHash, frontmatterHash}` and the sidecar's stored hashes);
@@ -51,14 +51,6 @@ const staleBadge = {
   priority: 20,
 } satisfies IViewContribution;
 
-// Inspector action button that dispatches `core/node-bump`. Always
-// emitted for nodes that already have a sidecar; the payload's `enabled`
-// flag carries the dynamic gate (stale => enabled).
-const bumpButton = {
-  slot: 'inspector.action.button',
-  priority: 10,
-} satisfies IViewContribution;
-
 export const annotationStaleAnalyzer: IBuiltInManifest<IAnalyzer> = {
   id: ID,
   pluginId: CORE_PLUGIN_ID,
@@ -67,21 +59,15 @@ export const annotationStaleAnalyzer: IBuiltInManifest<IAnalyzer> = {
   mode: 'deterministic',
   // The natural fix is to bump the node: refreshes the sidecar hashes,
   // increments `annotations.version`, and stamps the audit block. The
-  // inspector surfaces `core/node-bump` as the `bumpButton` contribution.
+  // inspector surfaces that affordance via the `core/node-bump` action's
+  // own scan-time `project()` self-projection, not from this analyzer.
 
-  ui: { staleIcon, staleBadge, bumpButton },
+  ui: { staleIcon, staleBadge },
 
   evaluate(ctx: IAnalyzerContext): Issue[] {
     const issues: Issue[] = [];
     for (const node of ctx.nodes) {
       const status = staleStatus(node.sidecar);
-
-      // Bump button: present for every node that already has a sidecar,
-      // enabled only when stale. Nodes with no sidecar are skipped so the
-      // inspector never offers to scaffold a `.sm` (creation is CLI-only).
-      if (node.sidecar?.present === true) {
-        emitBumpButton(ctx, node.path, status !== null);
-      }
 
       if (status === null) continue;
 
@@ -128,16 +114,6 @@ function messageFor(status: Exclude<SidecarStatus, 'fresh'>, path: string): stri
     case 'stale-both':
       return tx(ANNOTATION_STALE_TEXTS.bothDrift, { path });
   }
-}
-
-function emitBumpButton(ctx: IAnalyzerContext, nodePath: string, enabled: boolean): void {
-  ctx.emitContribution(nodePath, bumpButton, {
-    actionId: 'core/node-bump',
-    label: ANNOTATION_STALE_TEXTS.bumpLabel,
-    icon: 'pi-arrow-up-right',
-    enabled,
-    ...(enabled ? {} : { disabledReason: ANNOTATION_STALE_TEXTS.bumpDisabledReason }),
-  });
 }
 
 function tooltipFor(status: Exclude<SidecarStatus, 'fresh'>): string {

@@ -20,6 +20,7 @@ import {
   type IFormatter,
   type IHook,
   type IAnalyzer,
+  type IAction,
 } from '../../../kernel/extensions/index.js';
 import type { IRegisteredAnnotationKey } from '../../../kernel/types/annotation-catalog.js';
 import type { IRegisteredViewContribution } from '../../../kernel/types/view-catalog.js';
@@ -113,6 +114,7 @@ export function composeScanExtensions(opts: {
   extractors: IExtractor[];
   analyzers: IAnalyzer[];
   hooks: IHook[];
+  actions: IAction[];
 } | undefined {
   const resolveEnabled = opts.resolveEnabled ?? opts.pluginRuntime.resolveEnabled;
 
@@ -120,10 +122,11 @@ export function composeScanExtensions(opts: {
   const extractors: IExtractor[] = [];
   const analyzers: IAnalyzer[] = [];
   const hooks: IHook[] = [];
+  const actions: IAction[] = [];
 
   if (!opts.noBuiltIns) {
     accumulateBuiltInScanExtensions(
-      { providers, extractors, analyzers, hooks },
+      { providers, extractors, analyzers, hooks, actions },
       resolveEnabled,
     );
   }
@@ -143,6 +146,9 @@ export function composeScanExtensions(opts: {
   for (const ext of opts.pluginRuntime.extensions.hooks) {
     if (isPluginExtensionEnabled(ext, resolveEnabled)) hooks.push(ext);
   }
+  for (const ext of opts.pluginRuntime.extensions.actions) {
+    if (isPluginExtensionEnabled(ext, resolveEnabled)) actions.push(ext);
+  }
 
   // Conformance kill-switches. Applied last so they trump every other
   // gate (per-extension toggles, --no-built-ins, plugin enable/disable).
@@ -152,15 +158,18 @@ export function composeScanExtensions(opts: {
 
   // `kernel-empty-boot` invariant (spec § Boot invariant): zero
   // Providers + Extractors + Analyzers → return `undefined` so the
-  // orchestrator follows its zero-extension code path. Hooks are
-  // intentionally excluded from this check: a hook that subscribes
+  // orchestrator follows its zero-extension code path. Hooks AND actions
+  // are intentionally excluded from this check: a hook that subscribes
   // ONLY to CLI-driven triggers (`boot`, `shutdown`) reaches this
   // composer through the built-in plugins but the scan dispatcher
   // would never invoke it (those triggers fire from
-  // `cli/entry.ts`, not from `runScan`). Preserving the empty-boot
-  // shape regardless of hook presence keeps the conformance case
-  // honest while letting `core/update-check` (the first such hook)
-  // ride along for the CLI-side dispatcher to pick up.
+  // `cli/entry.ts`, not from `runScan`); an action's scan-time
+  // `project()` only emits view contributions onto existing nodes, so
+  // an actions-only set has nothing to project over and does not keep
+  // the pipeline alive. Preserving the empty-boot shape regardless of
+  // hook / action presence keeps the conformance case honest while
+  // letting `core/update-check` (the first such hook) ride along for
+  // the CLI-side dispatcher to pick up.
   if (
     finalProviders.length === 0 &&
     finalExtractors.length === 0 &&
@@ -173,6 +182,7 @@ export function composeScanExtensions(opts: {
     extractors: finalExtractors,
     analyzers: finalAnalyzers,
     hooks,
+    actions,
   };
 }
 
@@ -188,7 +198,7 @@ export function composeScanExtensions(opts: {
 // the dispatch table without making the algorithm clearer.
 // eslint-disable-next-line complexity
 export function accumulateBuiltInScanExtensions(
-  buckets: { providers: IProvider[]; extractors: IExtractor[]; analyzers: IAnalyzer[]; hooks: IHook[] },
+  buckets: { providers: IProvider[]; extractors: IExtractor[]; analyzers: IAnalyzer[]; hooks: IHook[]; actions: IAction[] },
   resolveEnabled: (id: string) => boolean,
 ): void {
   for (const plugin of builtInPlugins) {
@@ -208,8 +218,11 @@ export function accumulateBuiltInScanExtensions(
           buckets.hooks.push(ext);
           break;
         case 'action':
-          // Actions dispatch via the job subsystem (Step 10), not the
-          // scan pipeline. Skip here; their manifests still register.
+          // Actions surface for the orchestrator's projection pass: an
+          // action with a scan-time `project()` emits its own view
+          // contributions during the contribution phase. The on-demand
+          // `invoke` dispatch still runs outside the scan pipeline.
+          buckets.actions.push(ext);
           break;
         case 'formatter':
           // Formatters are consumed by `composeFormatters`, not scan.

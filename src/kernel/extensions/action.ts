@@ -32,7 +32,8 @@
  */
 
 import type { IExtensionBase } from './base.js';
-import type { TExecutionMode, Node } from '../types.js';
+import type { TExecutionMode, Link, Node } from '../types.js';
+import type { IViewContribution } from '../types/view-catalog.js';
 
 export type TActionWrite =
   | {
@@ -56,6 +57,33 @@ export interface IActionContext {
    * settings are declared on the manifest.
    */
   settings: Record<string, unknown>;
+}
+
+/**
+ * Read-only graph context handed to an Action's scan-time `project()`
+ * method. Mirrors the Analyzer emit path (`IAnalyzerContext`): the
+ * Action sees the full merged graph (`nodes` + `links`) and emits its
+ * own per-node view contributions via `emitContribution`, supplying the
+ * target node path explicitly because, like the Analyzer, it walks the
+ * whole graph rather than running per-node.
+ *
+ * The contribution is declared in the Action's manifest `ui` map and
+ * passed BY REFERENCE (same object-identity model as Extractor /
+ * Analyzer emit). The orchestrator validates the payload against the
+ * slot's schema at call time, dropping invalid emissions with an
+ * `extension.error` event.
+ *
+ * `project()` is strictly DETERMINISTIC and side-effect-free: no writes,
+ * no runner, no IO. It runs during the scan's contribution phase on
+ * EVERY scan, exactly like an Analyzer's emit path, so its cost is the
+ * same per-scan cost as today's projector analyzers. Even an Action
+ * whose `invoke` is `mode: 'probabilistic'` MUST keep `project()`
+ * deterministic, only `invoke` may be probabilistic.
+ */
+export interface IActionProjectionContext {
+  readonly nodes: readonly Node[];
+  readonly links: readonly Link[];
+  emitContribution(nodePath: string, ref: IViewContribution, payload: unknown): void;
 }
 
 /**
@@ -118,4 +146,21 @@ export interface IAction extends IExtensionBase {
     input: TInput,
     ctx: IActionContext,
   ) => IActionResult<TReport>;
+  /**
+   * Optional scan-time self-projection. When present, the orchestrator
+   * calls it during the contribution phase (right after the analyzer
+   * pass) with read-only graph access, and the Action emits its OWN
+   * `inspector.action.button` (or any declared `ui` contribution) per
+   * node. This replaces the former "projector analyzer" pattern: the
+   * button now lives with the Action that dispatches it, not in a
+   * sibling Analyzer.
+   *
+   * MUST be deterministic and side-effect-free (no writes, no runner,
+   * no IO), exactly like an Analyzer's emit path. The button declares
+   * its own qualified id as `actionId` in the payload. Actions that ship
+   * for the future probabilistic runner / record path leave it absent;
+   * an Action MAY declare both `project` and `invoke` (advertiser +
+   * executor), or only one.
+   */
+  project?(ctx: IActionProjectionContext): void;
 }
