@@ -1,4 +1,4 @@
-# Part 7: The CLI in depth - step library
+# Part 5: The CLI in depth - step library
 
 The deep-dive into the rest of the CLI: browsing verbs, ASCII graph + export, broken-ref issues, the `.sm` annotation consent prompt, and validating links to folders outside the scan scope. `pace: auto-advance` (walk straight into the next chapter's Announcement once one is marked done) and `preflight: seed` with the `prologue-built` snapshot: it self-seeds its own copy of the Part 0 demo fixture, so it works even if the campaign already replaced that fixture with the portfolio (see SKILL.md §Entering a part, the `cli` case). Shared conventions (tone, provider detection / substitution, the `> ` rendering rule, the per-step cycle) live in `_core.md`; do not restate them here.
 

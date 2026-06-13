@@ -18,14 +18,13 @@ description: |
 
 # check-links
 
-Runs as the last gate before the site goes out. Reads each page under
-the given root, follows every internal link, and reports the ones that
-point at a file that does not exist.
+The last gate before the site goes out.
 
 ## Steps
-1. Read every page under `root`.
-2. Collect the internal links from each page.
-3. Report any link whose target is missing.
+1. List every HTML file under `public/`.
+2. For each page, collect its internal links (every `href` to `/` or to a `.html` file).
+3. Check the target exists under `public/` (treat `/` as `public/index.html`).
+4. Report any link whose target is missing; if none, report "0 broken links".
 ```
 
 Tell the tester:
@@ -63,9 +62,9 @@ description: |
 The one command you run when the site is ready to go out.
 
 ## Steps
-1. Run /check-links on the generated pages first.
-2. If anything needs a fix, brief @content-editor on it.
-3. Follow the [deploy runbook](../../docs/DEPLOY.md) to ship.
+1. Run /check-links on the pages in public/. If it reports broken links, stop and fix them first.
+2. If a page needs a content fix, brief @content-editor with the change.
+3. Follow the [deploy runbook](../../docs/DEPLOY.md): regenerate pages, run the link check, start the server.
 ```
 
 Continue the tester message:
@@ -107,7 +106,7 @@ Apply both edits with `Edit` (do not rewrite the files).
 - When the site is ready to go out, run /publish.
 ```
 
-**Edit `.claude/agents/content-editor.md`**: add this line to the body, right after the "Turns a short brief..." paragraph (substitute `<provider_dir>` per `_core.md`):
+**Edit `.claude/agents/content-editor.md`**: add this line at the end of the body, after the `Rules:` line (substitute `<provider_dir>` per `_core.md`):
 
 ```markdown
 Every page follows the [style guide](../../docs/STYLE.md).

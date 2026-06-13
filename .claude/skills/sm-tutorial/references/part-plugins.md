@@ -1,4 +1,4 @@
-# Part 6 (b): Extend skill-map - plugins (step library, `tour-*` ids)
+# Part 4 (b): Extend skill-map - plugins (step library, `tour-*` ids)
 
 Guided tour of the **built-in plugins** that ship with `sm`. Three
 steps: a quick mental model of what plugins are plus a peek at
@@ -115,10 +115,10 @@ Mark `tour-1-intro: done`.
 > in your second terminal:
 
 ```bash
-sm plugins show core
+sm plugins list core
 ```
 
-Expected: the 28 extensions grouped by kind, each row showing its
+Expected: the extensions grouped by kind, each row showing its
 kind and qualified id (e.g. `extractor  core/markdown-link`). You
 can spot at least one of each of the six kinds you just read about,
 all packed into a single plugin.
@@ -161,12 +161,12 @@ spec-compatibility mismatch, `doctor` is the verb that flags it.
 
 ```bash
 sm plugins disable core/external-url-counter
-sm plugins show core
+sm plugins list core
 sm plugins enable core/external-url-counter
-sm plugins show core
+sm plugins list core
 ```
 
-Expected: between the two `show core` calls, the
+Expected: between the two `list core` calls, the
 `core/external-url-counter` row flips its marker from `✓` (enabled)
 to `✕` (disabled) and back. The change persists in the project DB;
 if you restarted `sm`, the disabled state would still be there.

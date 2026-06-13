@@ -44,7 +44,7 @@ prefix when a part spans several files: `settings-*` →
 > For the tester this is a single guided session, never a course
 > catalogue. Refer to a chapter by its tester-facing `section.chapter`
 > number plus its friendly title (`_core.md` §Numbering); never expose
-> the internal `order` index ("Part 6", off by one from the menu), a
+> the internal `order` index ("Part 4", off by one from the menu), a
 > raw "chapter id", or tour jargon ("the settings tour").
 
 ## Pre-flight (run once, silent on success)
@@ -201,9 +201,9 @@ set: `<provider_dir>/agents/demo-agent.md`,
 `notes/private-credentials.md`. This is the
 single source for that list. Four entry points delete exactly this set
 when the prologue ran first in the dir: `portfolio-init`, the campaign
-`seed` fast-forward, and `backstage-init` (Part 6), each so the part's
+`seed` fast-forward, and `backstage-init` (Part 4), each so the part's
 own fixture starts from a clean slate, plus start-over (§Menu, resume,
-wrap-up). Part 7 `cli` is the inverse
+wrap-up). Part 5 `cli` is the inverse
 consumer: its `prologue-built` seed *lays* this fixture (the
 connector-chapter subset, without `notes/private-credentials.md`)
 instead of deleting it, see `fixtures.md` §Seed snapshots. Keep the list
@@ -286,6 +286,8 @@ tutorial:
   provider: "<claude | agent-skills | antigravity>"
 tester:
   level: 2
+  # site_identity: { name, tagline } is added by the daily-loop `setup`
+  # chapter when the tester names their portfolio; absent until then.
 parts: {}   # filled in as the tester picks parts from the menu
 findings_file: "./findings.md"
 ```
@@ -335,7 +337,7 @@ When a part begins, honour its `preflight` from the manifest:
   `preflight: seed` to fast-forward into them directly, see the `seed`
   case below; `portfolio-init` is just Part 1's flavour of that,
   handling the Part 0 to Part 1 transition.)
-- **`backstage-init`** (Part 6 `extend`): the part teaches plugins on
+- **`backstage-init`** (Part 4 `extend`): the part teaches plugins on
   its own **master fixture**, distinct from both the demo and the
   portfolio, so on entry make the master fixture the only one on disk.
   Silently, with no narration: (1) clear whatever prior-part fixture is
@@ -355,10 +357,10 @@ When a part begins, honour its `preflight` from the manifest:
   `Write` the part's fixture (read `references/fixtures.md` for the
   verbatim `master-agent` / `master-skill` / `notes/ideas` files; skip
   kinds the provider doesn't claim). If nothing needed clearing and the
-  dir was already initialised with the master fixture in place (Part 6
+  dir was already initialised with the master fixture in place (Part 4
   re-entry), that is fine: skip the init and just ensure the fixture
   files are present.
-- **`seed: prologue-built`** (Part 7 `cli`): the part reads the **Part 0
+- **`seed: prologue-built`** (Part 5 `cli`): the part reads the **Part 0
   demo fixture**, NOT the cumulative portfolio, so on entry make that
   fixture the one on disk. Read the state, then:
   - Demo fixture already present (the tester came straight from the
@@ -371,21 +373,13 @@ When a part begins, honour its `preflight` from the manifest:
     lay the `prologue-built` snapshot from `fixtures.md` (§Seed
     snapshots), `sm init`, `sm scan`.
   - Nothing there → lay the snapshot, `sm init`, `sm scan`.
-- **`seed`** (the campaign parts `connect-harness` / `run-harness` /
-  `maintain` / `mcp` / `live-site`): the part builds on the accumulating portfolio
-  harness, but the tester may have jumped straight here from the menu.
-  On entry, read the state file:
+- **`seed`** (the campaign parts `connect-harness` and `daily-loop`):
+  the part builds on the accumulating portfolio harness, but the tester
+  may have jumped straight here from the menu. On entry, read the state
+  file:
   - If every predecessor campaign part up the `prereq` chain is `done`
     → reuse the accumulated state; an `sm scan` to refresh is enough,
-    nothing to lay. **`mcp` is the exception**: it is ordered last,
-    after `extend` (Part 6) and `cli` (Part 7), which both replace the
-    portfolio on disk with their own master / demo fixture, so its
-    accumulated state cannot be trusted to still be the portfolio.
-    `mcp` therefore ALWAYS re-lays its `harness-connected` snapshot on
-    entry (clearing a master / demo fixture first if one is present,
-    the same clears the `backstage-init` and `prologue-built` cases
-    do), then `sm init` if `.skill-map/` is missing and `sm scan`,
-    exactly like the fast-forward branch below.
+    nothing to lay.
   - Else → **fast-forward, silently** (backstage, do not narrate the
     plumbing): first, if the prologue ran first in this dir, clear the
     full Part 0 demo fixture set (§Fixture and state templates) so the
@@ -423,16 +417,20 @@ All three are specified in `_core.md`:
 - **Routing + menu**: §Routing + menu. The session always starts at
   the **numbered start menu** (Part 0 is option 1, the recommended
   first pick); the menu (the ToC from `_manifest.yml`, numbered,
-  completed parts ticked, `planned` parts hidden, `prereq` gating only
-  seedless parts, none today since Part 7 `cli` now self-seeds) is the
-  entry point on the first
+  completed parts ticked, `planned` parts hidden (so `mcp` stays out of
+  the menu), `prereq` gating only seedless parts, none today since
+  `cli` now self-seeds) is the entry point on the first
   invocation and after every part closes / on resume. Render it with
   the format in `_core.md` §Menu format.
 - **Resume / restart**: §Resume / restart. On start-over, the exact
   wipe list is whatever the tester's parts actually created:
   `tutorial-state.yml`, `findings.md`, `.skillmapignore`,
   `.skill-map/`, the full Part 0 demo fixture set (§Fixture and state
-  templates), the Part 6 fixture if `extend` ran
+  templates), the portfolio fixture if any campaign part ran (see
+  `fixtures.md` §Portfolio fixture + §Seed snapshots, including the Daily
+  Loop's own additions: `docs/draft.md`, `public/style.css` and the
+  generated pages, the renamed `new-page` command, `AGENTS.sm`, and
+  `.skill-map/settings.local.json`), the Part 4 fixture if `extend` ran
   (`<provider_dir>/agents/master-agent.md`,
   `<provider_dir>/skills/master-skill/`, `notes/ideas.md`,
   `.skill-map/plugins/`), `link-validation/` if the CLI part ran,

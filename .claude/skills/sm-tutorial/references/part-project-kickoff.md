@@ -5,7 +5,7 @@ starts an actual project: a tiny personal **portfolio website**,
 fully static, served by a ~15-line Express server, plus the
 `.claude/` **harness** that maintains it. skill-map maps the harness
 (the `.md` assets and how they reference each other); the site itself
-is plain HTML the harness produces (Part 3 runs it, Part 5 ships it).
+is plain HTML the harness produces (the daily loop, Part 3, runs and ships it).
 `pace: per-step`, `preflight: portfolio-init`. Shared
 conventions live in `_core.md`.
 
@@ -104,13 +104,16 @@ model: sonnet
 
 # content-editor
 
-Turns a short brief into a finished portfolio page. Follows the
-conventions in the style guide and writes the result as static HTML
-under public/.
+Turns a short brief into a finished portfolio page.
 
-Rules:
-- One page per file under public/.
-- Keep the markup plain; no framework, no client JS.
+## How to write a page
+1. Read the style guide and the shared stylesheet in public/.
+2. Write one HTML file under public/, named after the page (a projects page becomes `public/projects.html`).
+3. Start from `<!doctype html>`, link the stylesheet with `<link rel="stylesheet" href="/style.css">`, and set a `<title>`.
+4. Use one `<h1>`, group sections under `<h2>`, and reuse the shared header, nav, and footer so every page matches.
+5. Add a link back to Home, and link the new page from the home nav.
+
+Rules: plain static HTML, no framework, no client JS, one page per file.
 ```
 
 Tell the tester:
@@ -129,7 +132,7 @@ Wait for confirmation. Mark `first-agent`: done.
 **Context**: the prologue showed the four kinds on abstract demo
 nodes. Now name them on the real project, and add the two markdown
 docs the harness references later (the style guide and the deploy
-runbook), so Part 4's maintenance beats have something to point at.
+runbook), so the Daily Loop's maintenance beats have something to point at.
 
 `Write` two docs (markdown kind):
 
@@ -143,9 +146,18 @@ description: |
 
 # Style guide
 
+## Voice
 - Short, plain sentences. No marketing fluff.
+
+## Structure
 - One H1 per page; sections under H2.
-- Every page links back to the home page.
+- Every page shares the same header, nav, and footer.
+- Every page links back to Home.
+
+## Markup
+- Plain static HTML: no framework, no client JS.
+- Link the shared stylesheet `/style.css` in every page head.
+- Use semantic tags: header, nav, main, footer.
 ```
 
 `docs/DEPLOY.md`:
@@ -158,9 +170,9 @@ description: |
 
 # Deploy runbook
 
-1. Generate the pages into public/.
-2. Run the link check.
-3. Start the server: `node server.js`.
+1. Generate or update the pages in public/.
+2. Run the link check and fix anything it reports.
+3. Start the server with `node server.js`, then open the site in your browser.
 ```
 
 Tell the tester:

@@ -1,4 +1,8 @@
-# Part 8: MCP (step library, `mcp-*` ids)
+# MCP (parked appendix, `mcp-*` ids)
+
+> Parked: this part is `status: planned` in `_manifest.yml` (hidden from
+> the menu) while MCP is reworked as its own iteration. The body below is
+> kept intact; re-enable by flipping the status back to `active`.
 
 This is a chapter apart, a standalone appendix that comes last in the
 book. Pace `auto-advance`, preflight `seed` (`harness-connected`, so it
