@@ -45,16 +45,6 @@ export interface IExtraThemeDescriptor {
 
 export const EXTRA_THEMES: readonly IExtraThemeDescriptor[] = [
   {
-    id: 'matrix',
-    htmlClass: 'app-matrix',
-    forcesDark: true,
-    favicon: 'favicon-matrix.svg',
-    fontHref: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono&display=swap',
-    fontLinkId: 'sm-matrix-font',
-    label: 'Matrix',
-    description: 'Cyber-green retint on the dark palette.',
-  },
-  {
     id: 'neon-red',
     htmlClass: 'app-neon-red',
     forcesDark: true,
@@ -74,6 +64,16 @@ export const EXTRA_THEMES: readonly IExtraThemeDescriptor[] = [
     forcesDark: true,
     label: 'Neon B',
     description: 'Electric-cyan glow on a deep-navy console.',
+  },
+  {
+    id: 'matrix',
+    htmlClass: 'app-matrix',
+    forcesDark: true,
+    favicon: 'favicon-matrix.svg',
+    fontHref: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono&display=swap',
+    fontLinkId: 'sm-matrix-font',
+    label: 'Matrix',
+    description: 'Cyber-green retint on the dark palette.',
   },
 ] as const;
 
