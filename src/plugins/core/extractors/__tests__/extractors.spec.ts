@@ -501,7 +501,10 @@ describe('markdown-link extractor', () => {
     strictEqual(links.length, 1);
     strictEqual(links[0]?.target, 'docs/api.md');
     strictEqual(links[0]?.kind, 'references');
-    strictEqual(links[0]?.confidence, 1.0);
+    // Emit value is 0.95 (spec "unambiguous syntax" tier), NOT 1.0. The
+    // post-walk lift transform raises it to 1.0 only when the target
+    // resolves; this isolated extractor test sees the pre-lift value.
+    strictEqual(links[0]?.confidence, 0.95);
     strictEqual(links[0]?.trigger?.originalTrigger, './api.md');
   });
 

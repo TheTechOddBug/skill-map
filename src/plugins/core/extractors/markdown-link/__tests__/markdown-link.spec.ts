@@ -68,7 +68,10 @@ describe('markdown-link extractor', () => {
     strictEqual(link.source, 'docs/index.md');
     strictEqual(link.target, 'docs/overview.md');
     strictEqual(link.kind, 'references');
-    strictEqual(link.confidence, 1);
+    // Emit value (post signal-resolution, pre post-walk lift) is 0.95,
+    // the spec "unambiguous syntax" tier. The lift to 1.0 / downgrade to
+    // 0.5 happens later against the full node graph, not here.
+    strictEqual(link.confidence, 0.95);
     strictEqual(link.sources[0], 'markdown-link');
   });
 

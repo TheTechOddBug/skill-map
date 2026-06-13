@@ -10,5 +10,5 @@ metadata:
 # Rename high body
 
 Body content kept identical between the before and after fixtures so
-the body hash matches across the rename. Move it to `bar.md` to trigger
+the body hash matches across the rename. Move it to bar.md to trigger
 a high-confidence auto-rename.

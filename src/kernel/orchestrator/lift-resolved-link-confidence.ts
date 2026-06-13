@@ -4,12 +4,21 @@
  * Sits as a post-walk transform (see `post-walk-transforms.ts`), runs
  * AFTER `dedupeLinks` so the merged edge state is final.
  *
- * Three outcomes per link below confidence 1.0:
+ * Four outcomes per link below confidence 1.0:
  *
- *   - **Unresolved**: target neither matches a node path nor a name in
- *     the index (with the source Provider's `resolution` matrix
- *     applied). Confidence stays at the extractor-emitted value (the
- *     `core/reference-broken` analyzer flags the link separately).
+ *   - **Genuinely broken**: target matches no node path AND the
+ *     stripped trigger matches no entry in the cross-kind name index
+ *     (the same kind-agnostic notion `core/reference-broken` uses).
+ *     Confidence is lowered to `BROKEN_TARGET_CONFIDENCE` (capped, only
+ *     lowered) so a dangling edge renders fainter than a resolved one.
+ *     The `core/reference-broken` analyzer still flags the link as an
+ *     issue separately; this is the matching visual signal.
+ *
+ *   - **Not broken, not bumped**: the strict kind/lens rule below did
+ *     not bump the link, but its trigger DOES match a name in the
+ *     index (it resolves to a real node, just not as a valid target
+ *     for this `link.kind`). Confidence stays at the extractor-emitted
+ *     value, the edge is not broken, so it is not demoted.
  *
  *   - **Resolved to a non-reserved target**: confidence is bumped to
  *     `1.0`. The graph reflects "this edge points at a real entity the
@@ -55,6 +64,17 @@ import type { IPostWalkTransformCtx } from './post-walk-transforms.js';
 export const RESERVED_TARGET_CONFIDENCE = 0.1;
 
 /**
+ * Confidence assigned to a genuinely-broken link (target resolves to
+ * nothing: no node path, no name-index entry). Sits ABOVE
+ * `RESERVED_TARGET_CONFIDENCE = 0.1` on purpose: a reserved target
+ * resolves to a real-but-runtime-ignored file (the subtler trap, flagged
+ * most faintly), whereas a broken target merely points at nothing.
+ * Below the typical 0.8 / 0.85 / 0.95 emit floors so the dangling edge
+ * is visibly demoted, while staying well above reserved.
+ */
+export const BROKEN_TARGET_CONFIDENCE = 0.5;
+
+/**
  * Per-candidate row stored in the name index. Carries the kind for the
  * strict-kind filter and the candidate's path so the resolved-target
  * "is this reserved?" lookup runs in O(1).
@@ -78,7 +98,16 @@ export function liftResolvedLinkConfidence(
   for (const link of links) {
     if (link.confidence >= 1) continue;
     const resolution = resolve(link, indexes, ctx);
-    if (resolution === 'none') continue;
+    if (resolution === 'none') {
+      // Strict resolution failed. Demote to the broken floor ONLY when
+      // the link is genuinely broken (no path, no name match), mirroring
+      // core/reference-broken. A link that matches a name but failed the
+      // strict kind/lens bump (not-broken + not-bumped) keeps its emit.
+      if (isGenuinelyBroken(link, indexes)) {
+        link.confidence = Math.min(link.confidence, BROKEN_TARGET_CONFIDENCE);
+      }
+      continue;
+    }
     link.confidence = ctx.reservedNodePaths.has(resolution)
       ? RESERVED_TARGET_CONFIDENCE
       : 1.0;
@@ -120,6 +149,25 @@ function buildIndexes(nodes: readonly Node[], ctx: IPostWalkTransformCtx): IInde
 function resolve(link: Link, indexes: IIndexes, ctx: IPostWalkTransformCtx): string | 'none' {
   if (indexes.byPath.has(link.target)) return link.target;
   return resolveByName(link, indexes, ctx);
+}
+
+/**
+ * A link is genuinely broken when its target resolves to nothing: no
+ * node path matches `link.target` AND the stripped trigger handle
+ * matches no entry in the cross-kind name index. This is the same
+ * kind-agnostic "the name exists nowhere" notion `core/reference-broken`
+ * uses, deliberately broader than the strict kind/lens rule in
+ * `resolve`: a link that matches a name but fails the kind matrix
+ * (not-broken + not-bumped) is NOT broken and keeps its emit value.
+ * Only called on the `resolution === 'none'` path, so `byPath` is
+ * already known to miss; the name check is what discriminates broken
+ * from not-broken-not-bumped.
+ */
+function isGenuinelyBroken(link: Link, indexes: IIndexes): boolean {
+  if (indexes.byPath.has(link.target)) return false;
+  const stripped = stripTriggerSigil(link.trigger?.normalizedTrigger);
+  if (stripped !== null && indexes.byName.has(stripped)) return false;
+  return true;
 }
 
 function resolveByName(

@@ -24,17 +24,26 @@
  * -----------------------------------
  * Captured (relative `.md` paths inside spans / fences):
  *   - ``Read `references/rules.md` ``            , prose-wrapped span
+ *   - ``lee el archivo: `algo4.md` ``            , bare sibling filename (no `/`)
  *   - `` `cat refs/a.md refs/b.md` ``            , several paths in ONE span
  *   - fenced blocks, every line, same grammar
  *   - `./` and `../` prefixes, POSIX-normalised away
+ *
+ * A bare filename is captured because the consuming runtime follows it
+ * (`lee el archivo: ` + "`algo4.md`" is an instruction the LLM resolves
+ * against the skill dir, verified empirically). A self-referential
+ * `SKILL.md` resolves to the node's own sibling, a self-loop excluded
+ * from card chips by `core/link-self-loop`; any other unresolved bare
+ * filename is flagged by `core/reference-broken`.
  *
  * Skipped (the pinned grammar rejects them by construction):
  *   - URL interiors (`https://example.com/docs/x.md`), the lookbehind
  *     refuses a match start after `/`, `:`, `.` or a word char.
  *   - Template placeholders / globs (`{PROJECT}-x.md`, `*-S.md`), `{`,
- *     `}` and `*` are outside the segment character class.
+ *     `}` and `*` are outside the segment class AND the leading-word-char
+ *     anchor refuses the `-x.md` / `-S.md` tail that would otherwise leak
+ *     once the `/` separator became optional.
  *   - Near-miss suffixes (`.mdx`, `.md_var`), the `\b` + lookahead pair.
- *   - Slashless filenames (`SKILL.md`), at least one `/` is required.
  *   - Absolute paths (`/abs/x.md`), the leading `/` fails the lookbehind.
  *
  * Path resolution mirrors `core/markdown-link`: POSIX-normalised against
@@ -76,13 +85,18 @@ const ID = 'backtick-path';
 //                           mid-word; backticks and whitespace qualify
 //                           as boundaries, `/` `:` `.` `-` do not.
 //   - `(?:\.{1,2}\/)?`    , optional `./` or `../` prefix.
-//   - `[\w.-]+(?:\/[\w.-]+)+`, two or more `/`-separated segments, so a
-//                           slashless `SKILL.md` never matches. `{`,
-//                           `}`, `*` are deliberately outside the class
-//                           (placeholders and globs drop here).
+//   - `[\w][\w.-]*(?:\/[\w.-]+)*`, a first segment that MUST start with a
+//                           word char, then ZERO or more `/`-separated
+//                           segments. A bare `algo4.md` matches (the
+//                           runtime follows it); the leading-word-char
+//                           anchor still drops the `-x.md` / `-S.md` tail
+//                           a glob / placeholder (`{PROJECT}-x.md`,
+//                           `*-S.md`) would otherwise leak once the `/`
+//                           became optional. `{`, `}`, `*` stay outside
+//                           the class.
 //   - `\.md\b(?![\w/])`   , a real `.md` suffix: `.mdx`, `.md_var` and
 //                           `x.md/y` tails are refused.
-const PATH_RE = /(?<![\w/:.-])(?:\.{1,2}\/)?[\w.-]+(?:\/[\w.-]+)+\.md\b(?![\w/])/g;
+const PATH_RE = /(?<![\w/:.-])(?:\.{1,2}\/)?[\w][\w.-]*(?:\/[\w.-]+)*\.md\b(?![\w/])/g;
 
 export const backtickPathExtractor: IBuiltInManifest<IExtractor> = {
   id: ID,

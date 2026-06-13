@@ -39,8 +39,16 @@
  * -----------------
  * `references` is the closest semantic match in the spec's link.kind
  * enum: a markdown link IS a reference, by definition. Confidence is
- * `high`, the syntax `[text](path)` is unambiguous authorial intent,
- * not a heuristic guess.
+ * emitted at `0.95` (the spec's "unambiguous syntax" tier for
+ * `[text](file.md)`), NOT `1.0`: the syntax is unambiguous, but `1.0`
+ * is reserved for structured input (sidecar annotations) and is earned
+ * on the merged graph by the post-walk confidence-lift transform when
+ * the target resolves to a real node. A markdown link whose target
+ * does not resolve stays below `1.0` and is downgraded to the broken
+ * floor (`0.5`) by that transform, so a dangling reference renders
+ * visibly fainter than a resolved one. Resolution itself remains the
+ * `core/reference-broken` analyzer's concern for issue reporting; the
+ * confidence value is the graph's visual signal of the same fact.
  *
  * Per-node dedup: the first occurrence of a normalized resolved target
  * wins; later duplicates within the same body are skipped. Matches the
@@ -110,13 +118,15 @@ export const markdownLinkExtractor: IBuiltInManifest<IExtractor> = {
             extractorId: ID,
             kind: 'references',
             target: resolved,
-            // 1.0: the `[text](path)` syntax is unambiguous. Markdown
-            // explicitly designates an out-link via the brackets +
-            // parentheses pair; there is no inference left to discount.
-            // Whether the path resolves to a real node is a separate
-            // concern (the `core/reference-broken` analyzer flags unresolved
-            // targets), not a confidence question.
-            confidence: 1.0,
+            // 0.95: the `[text](path)` syntax is unambiguous (the spec's
+            // "unambiguous syntax" tier), but NOT 1.0. `1.0` is reserved
+            // for structured input and is earned post-walk by the
+            // confidence-lift transform when `target` resolves to a real
+            // node; an unresolved (broken) target is downgraded to the
+            // broken floor (0.5) by the same transform. Emitting 1.0 here
+            // would short-circuit the lift and make a broken link
+            // indistinguishable from a resolved one.
+            confidence: 0.95,
             rationale: 'unambiguous markdown link syntax',
             trigger: {
               originalTrigger: original,

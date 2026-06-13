@@ -13,6 +13,12 @@
  *     `filename-basename`, `dirname`) AND the candidate node's kind
  *     is in `provider.resolution[link.kind]` for the SOURCE node's
  *     provider ⇒ bumped to 1.0.
+ *   - Rule 3 (broken downgrade, any link.kind): neither rule bumped the
+ *     link AND it is genuinely broken (no path match AND the stripped
+ *     trigger matches no name-index entry) ⇒ confidence lowered to
+ *     `BROKEN_TARGET_CONFIDENCE` (0.5), capped so an emit already below
+ *     0.5 is not raised. A link that matches a name but failed the
+ *     strict kind/lens bump (not-broken + not-bumped) keeps its emit.
  *   - Links already at >= 1.0 are untouched (cheap idempotency).
  *   - Empty / missing trigger short-circuits the name rule.
  *   - Empty / missing source-provider resolution map → no name-rule
@@ -25,6 +31,7 @@ import { strictEqual, deepStrictEqual } from 'node:assert';
 import {
   liftResolvedLinkConfidence,
   RESERVED_TARGET_CONFIDENCE,
+  BROKEN_TARGET_CONFIDENCE,
 } from '../lift-resolved-link-confidence.js';
 import type { IPostWalkTransformCtx } from '../post-walk-transforms.js';
 import type { IProviderKind } from '../../extensions/index.js';
@@ -398,7 +405,7 @@ describe('liftResolvedLinkConfidence', () => {
     ];
     liftResolvedLinkConfidence(links, nodes, makeCtx());
     strictEqual(links[0]!.confidence, 1.0); // resolved mention
-    strictEqual(links[1]!.confidence, 0.8); // unresolved slash
+    strictEqual(links[1]!.confidence, BROKEN_TARGET_CONFIDENCE); // /unknown genuinely broken → demoted from 0.8
     strictEqual(links[2]!.confidence, 1.0); // untouched
   });
 
@@ -492,9 +499,11 @@ describe('liftResolvedLinkConfidence', () => {
     strictEqual(links[0]!.confidence, 1.0);
   });
 
-  it('leaves unresolved links untouched even when other reserved nodes exist', () => {
+  it('demotes a genuinely-broken slash to the broken floor even when other reserved nodes exist', () => {
     // A reserved node exists but the link does not point at it (path
-    // mismatch + name not matching). Confidence stays at emit value.
+    // mismatch + name not in the index). `/something-else` resolves to
+    // nothing → genuinely broken → demoted from the 0.8 slash emit to
+    // the broken floor.
     const nodes = [
       mockNode({ path: '.claude/agents/src.md', kind: 'agent', frontmatter: { name: 'src' } }),
       mockNode({
@@ -506,6 +515,61 @@ describe('liftResolvedLinkConfidence', () => {
     const links = [mockSlash('/something-else', '/something-else', '.claude/agents/src.md')];
     const ctx = makeCtx({ reservedNodePaths: new Set(['.claude/commands/help.md']) });
     liftResolvedLinkConfidence(links, nodes, ctx);
+    strictEqual(links[0]!.confidence, BROKEN_TARGET_CONFIDENCE);
+  });
+
+  it('demotes a markdown references link whose target resolves to nothing', () => {
+    // `[x](./missing.md)` from `src.md`: the extractor emits a path-style
+    // `references` link at 0.95 with the resolved path as the trigger.
+    // No node has that path, and the trigger (a path, not a handle) is
+    // not in the name index ⇒ genuinely broken ⇒ demoted to 0.5.
+    const nodes = [
+      mockNode({ path: 'src.md', kind: 'markdown', provider: 'core', frontmatter: {} }),
+    ];
+    const links: Link[] = [
+      {
+        source: 'src.md',
+        target: 'missing.md',
+        kind: 'references',
+        confidence: 0.95,
+        sources: ['markdown-link'],
+        trigger: { originalTrigger: './missing.md', normalizedTrigger: 'missing.md' },
+      },
+    ];
+    liftResolvedLinkConfidence(links, nodes, makeCtx());
+    strictEqual(links[0]!.confidence, BROKEN_TARGET_CONFIDENCE);
+  });
+
+  it('lifts a markdown references link (emit 0.95) to 1.0 when its target resolves by path', () => {
+    const nodes = [
+      mockNode({ path: 'src.md', kind: 'markdown', provider: 'core', frontmatter: {} }),
+      mockNode({ path: 'guide.md', kind: 'markdown', provider: 'core', frontmatter: {} }),
+    ];
+    const links: Link[] = [
+      {
+        source: 'src.md',
+        target: 'guide.md',
+        kind: 'references',
+        confidence: 0.95,
+        sources: ['markdown-link'],
+        trigger: { originalTrigger: './guide.md', normalizedTrigger: 'guide.md' },
+      },
+    ];
+    liftResolvedLinkConfidence(links, nodes, makeCtx());
+    strictEqual(links[0]!.confidence, 1.0);
+  });
+
+  it('does NOT demote a not-broken-not-bumped slash (name matches, kind matrix rejects)', () => {
+    // `/foo` matches an agent named `foo` by name, but claude.invokes =
+    // [command, skill] rejects agent ⇒ not bumped. The name DOES exist
+    // in the index, so the link is NOT broken: it keeps its 0.8 emit
+    // rather than being demoted to the broken floor.
+    const nodes = [
+      mockNode({ path: '.claude/agents/src.md', kind: 'agent', frontmatter: { name: 'src' } }),
+      mockNode({ path: '.claude/agents/foo.md', kind: 'agent', frontmatter: { name: 'foo' } }),
+    ];
+    const links = [mockSlash('/foo', '/foo', '.claude/agents/src.md')];
+    liftResolvedLinkConfidence(links, nodes, makeCtx());
     strictEqual(links[0]!.confidence, 0.8);
   });
 });

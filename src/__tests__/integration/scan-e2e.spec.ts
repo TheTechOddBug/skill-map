@@ -162,10 +162,10 @@ describe('scan end-to-end', () => {
     strictEqual(deployInvoke!.confidence, 1.0, '/deploy must lift to 1.0 (resolves to deploy command)');
     const unknownInvoke = findLink('invokes', '/unknown');
     ok(unknownInvoke, 'expected /unknown invokes link from architect');
-    strictEqual(unknownInvoke!.confidence, 0.8, '/unknown must stay at slash emit floor (broken)');
+    strictEqual(unknownInvoke!.confidence, 0.5, '/unknown is genuinely broken: demoted from the 0.8 slash emit to the broken floor (0.5)');
     const backendMention = findLink('mentions', '@backend-lead');
     ok(backendMention, 'expected @backend-lead mentions link from architect');
-    strictEqual(backendMention!.confidence, 0.5, '@backend-lead must stay at at-directive emit floor (broken)');
+    strictEqual(backendMention!.confidence, 0.5, '@backend-lead is genuinely broken: the 0.5 emit equals the broken floor, so the cap leaves it unchanged');
   });
 
   it('produces zero-filled result with --no-built-ins parity (empty extensions)', async () => {
@@ -334,12 +334,12 @@ describe('scan end-to-end', () => {
       );
       strictEqual(conflicts.length, 0, 'points + references on one pair is not a conflict');
 
-      // 3) Backticked path to a missing file persists at the emit floor
-      //    and is flagged by reference-broken (the chosen contract:
-      //    broken detection over silent drop).
+      // 3) Backticked path to a missing file persists (the chosen
+      //    contract: broken detection over silent drop) and is demoted to
+      //    the broken floor, plus flagged by reference-broken.
       const missing = find('.claude/skills/demo/references/missing.md', 'points');
       strictEqual(missing.length, 1, 'unresolved backtick path persists');
-      strictEqual(missing[0]!.confidence, 0.85, 'unresolved path stays at the emit floor');
+      strictEqual(missing[0]!.confidence, 0.5, 'genuinely-broken backtick path is demoted from its 0.85 emit to the broken floor (0.5)');
       const broken = result.issues.filter(
         (i) => i.analyzerId === 'reference-broken' && i.nodeIds.includes(src),
       );

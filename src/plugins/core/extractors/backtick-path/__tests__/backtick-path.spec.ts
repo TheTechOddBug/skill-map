@@ -117,7 +117,34 @@ describe('backtick-path extractor', () => {
     strictEqual(targets[1], 'docs/guide/local.md');
   });
 
-  it('bait suite emits nothing: placeholder, glob, URL, near-miss suffixes, absolute, slashless', async () => {
+  it('emits a points link for a BARE sibling filename (no slash): the runtime follows it', async () => {
+    // `lee el archivo: ` + "`algo4.md`" is an instruction the runtime
+    // resolves against the skill dir (verified empirically, every tested
+    // model read the bare-referenced file), so the graph models the edge.
+    const helper = makeContext(
+      mockNode('skills/demo/SKILL.md'),
+      'lee el archivo: `algo4.md` y devolve el codigo.',
+    );
+    await runAndResolve(helper);
+    strictEqual(helper.links.length, 1);
+    const link = helper.links[0]!;
+    strictEqual(link.target, 'skills/demo/algo4.md');
+    strictEqual(link.kind, 'points');
+    strictEqual(link.confidence, 0.85);
+  });
+
+  it('captures a bare convention filename (`SKILL.md`); the self-ref surfaces downstream as a self-loop', async () => {
+    // Slashless convention names now match (the runtime follows them).
+    // A `SKILL.md` in a skill body resolves to the node's own sibling;
+    // the extractor emits unconditionally, `core/link-self-loop` is the
+    // one that excludes the self-edge from card chips downstream.
+    const helper = makeContext(mockNode('skills/demo/SKILL.md'), 'ver `SKILL.md` para el formato.');
+    await runAndResolve(helper);
+    strictEqual(helper.links.length, 1);
+    strictEqual(helper.links[0]!.target, 'skills/demo/SKILL.md');
+  });
+
+  it('bait suite emits nothing: placeholder, glob, URL, near-miss suffixes, absolute', async () => {
     const body = [
       'Placeholder: `context/tech/{PROJECT}-technical.md`',
       'Glob: `context/use-cases/*-S.md`',
@@ -125,7 +152,7 @@ describe('backtick-path extractor', () => {
       'Var suffix: `const x = ref/b.md_var`',
       'Near miss: `5/3.mdx`',
       'Absolute: `/abs/x.md`',
-      'Slashless: `SKILL.md`',
+      'Bare extension word: `formato .md solo`',
     ].join('\n');
     const helper = makeContext(mockNode('skills/demo/SKILL.md'), body);
     await runAndResolve(helper);

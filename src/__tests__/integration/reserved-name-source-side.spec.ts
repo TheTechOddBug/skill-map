@@ -156,10 +156,11 @@ describe('core/name-reserved (source side, end-to-end through runScan)', () => {
   it('emits no source-side warn for a slash link that does NOT resolve to a reserved name', async () => {
     // Negative guard: a separate fixture invokes `/no-such-command`,
     // which has no on-disk target and is not in `reservedNames`. The
-    // lift transform leaves the link at the slash extractor's emit
-    // floor (0.8), the reserved-name analyzer must NOT synthesise a
-    // source-side issue on this confidence value. Without the sentinel
-    // check the rule would over-fire on every broken slash trigger.
+    // lift transform demotes the genuinely-broken link to the broken
+    // floor (0.5, not the reserved 0.1), the reserved-name analyzer must
+    // NOT synthesise a source-side issue on this confidence value.
+    // Without the sentinel check the rule would over-fire on every
+    // broken slash trigger.
     const localFixture = mkdtempSync(join(tmpdir(), 'skill-map-reserved-name-neg-'));
     try {
       const write = (rel: string, content: string): void => {
@@ -209,8 +210,8 @@ describe('core/name-reserved (source side, end-to-end through runScan)', () => {
       assert.ok(slashLink, 'expected the /no-such-command slash link');
       assert.equal(
         slashLink.confidence,
-        0.8,
-        '/no-such-command stays at the slash emit floor (no resolution)',
+        0.5,
+        '/no-such-command is genuinely broken: demoted from the 0.8 slash emit to the broken floor (0.5)',
       );
 
       const reservedNameIssues = result.issues.filter((i) => i.analyzerId === 'name-reserved');
