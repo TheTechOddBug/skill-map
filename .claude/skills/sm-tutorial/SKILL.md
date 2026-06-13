@@ -11,7 +11,7 @@ description: |
   `tutorial-state.yml` for pause/resume. Triggers: "tutorial",
   "sm-tutorial", "tutorial me", "run the tutorial", "ejecuta el
   tutorial", "test skill-map", "advanced tutorial", "go deeper",
-  "tutorial avanzado", "ejecuta el tutorial maestro".
+  "tutorial avanzado".
 ---
 
 # sm-tutorial: the skill-map book

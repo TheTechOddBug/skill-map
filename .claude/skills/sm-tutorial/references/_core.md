@@ -1,9 +1,9 @@
 # Core conventions (shared by every part)
 
-This file is the single home for the conventions that used to be
-duplicated across the two old skills (`sm-tutorial` + `sm-master`).
-The orchestrator `SKILL.md` loads it once; every `part-*.md` step
-library assumes it. Do NOT restate these rules inside a part file.
+This file is the single home for the conventions shared by every part
+of the tutorial. The orchestrator `SKILL.md` loads it once; every
+`part-*.md` step library assumes it. Do NOT restate these rules inside
+a part file.
 
 The tutorial is **one book**: an ordered sequence of **chapters
 grouped in parts**, listed in `_manifest.yml`. A chapter is the
