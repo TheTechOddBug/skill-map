@@ -19,6 +19,7 @@ interface INodeOpts {
   linksOut?: number;
   tokens?: number;
   stale?: boolean;
+  modified?: number;
 }
 
 function makeNode(path: string, opts: INodeOpts = {}): INodeView {
@@ -29,6 +30,7 @@ function makeNode(path: string, opts: INodeOpts = {}): INodeView {
     linksInCount: opts.linksIn,
     linksOutCount: opts.linksOut,
     tokensTotal: opts.tokens,
+    modifiedAtMs: opts.modified,
     sidecar: opts.stale ? { status: 'stale-body' } : undefined,
   } as unknown as INodeView;
 }
@@ -192,6 +194,28 @@ describe('issueWeight', () => {
     expect(leaves(rowsFor(nodes, { column: 'issues', dir: 'desc' }, m)).map((l) => l.name)).toEqual(
       ['err', 'warn', 'stale', 'clean'],
     );
+  });
+
+  it('orders the Modified column by mtime and sinks fileless nodes to the bottom both ways', () => {
+    const nodes = [
+      makeNode('old.md', { name: 'old', modified: 1_000 }),
+      makeNode('new.md', { name: 'new', modified: 9_000 }),
+      makeNode('mid.md', { name: 'mid', modified: 5_000 }),
+      makeNode('none.md', { name: 'none' }), // no mtime → always last
+    ];
+    expect(leaves(rowsFor(nodes, { column: 'modified', dir: 'desc' })).map((l) => l.name)).toEqual(
+      ['new', 'mid', 'old', 'none'],
+    );
+    expect(leaves(rowsFor(nodes, { column: 'modified', dir: 'asc' })).map((l) => l.name)).toEqual(
+      ['old', 'mid', 'new', 'none'],
+    );
+  });
+
+  it('renders the Modified cell as an ISO short date with a full-datetime tooltip', () => {
+    const nodes = [makeNode('a.md', { name: 'a', modified: 1_749_823_967_000 })];
+    const [leaf] = leaves(rowsFor(nodes, { column: 'modified', dir: 'desc' }));
+    expect(leaf?.modifiedAt).toBe('2025-06-13');
+    expect(leaf?.modifiedAtFull).toBe('2025-06-13 14:12:47Z');
   });
 });
 

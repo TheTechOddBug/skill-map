@@ -44,6 +44,11 @@
       "$ref": "#/$defs/tripleSplit",
       "description": "Size breakdown in tokens (via `js-tiktoken`): frontmatter, body, total. Optional; MAY be absent if tokenization was disabled."
     },
+    "modifiedAtMs": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "File modification time (`mtime`) in Unix milliseconds, captured at scan time from the on-disk `lstat` that already guards the read. Optional and nullable: virtual / derived nodes (`virtual: true`) have no backing file and omit it. Surfaced via `/api/nodes` and `/api/scan` so the UI can show and sort a 'last modified' column; sorting uses this raw value, the display format is a UI concern. NOT content: it never participates in `bodyHash` / `frontmatterHash`."
+    },
     "linksOutCount": {
       "type": "integer",
       "minimum": 0,

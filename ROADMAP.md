@@ -736,6 +736,8 @@ Two enrichment models coexist. **Model A, provenance enrichment** (GitHub today,
 
 `scan_nodes` carries three denormalized integer columns computed at scan time, `links_out_count`, `links_in_count`, and `external_refs_count` (distinct http/https URLs in the body, normalized). They surface in `sm show` ("N in · M out · K external") and `sm list --sort-by external-refs`. There is no URL-list table (the user cares about the count, not identity) and no liveness check pre-v1.0. Column contract: [`spec/db-schema.md`](./spec/db-schema.md).
 
+Alongside the counts, `scan_nodes.modified_at_ms` records each file's on-disk modification time (`mtime`, Unix ms), captured for free from the walker's existing TOCTOU `lstat` (no extra syscall) and exposed on the node wire shape as `modifiedAtMs` (nullable, virtual / derived nodes have no backing file). It backs the files-view "Modified" column (ISO short date in the cell, full date+time on hover) which sorts by the raw timestamp and sinks fileless nodes to the bottom. It is pure file metadata: it never participates in `body_hash` / `frontmatter_hash`, so touching a file without changing content does not flag drift.
+
 ---
 
 ## Trigger normalization

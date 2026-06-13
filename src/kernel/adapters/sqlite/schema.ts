@@ -130,6 +130,14 @@ export interface IScanNodesTable {
    */
   externalRefsJson: string | null;
   scannedAt: number;
+  /**
+   * File modification time (`mtime`) in Unix ms, captured at scan time
+   * from the walker's `lstat`. NULL for virtual / derived nodes (no
+   * backing file). Written by `nodeToRow`, read by `rowToNode`. Maps to
+   * the `modified_at_ms` column via Kysely's CamelCasePlugin (same
+   * bridge as `bytesTotal` / `scannedAt`).
+   */
+  modifiedAtMs: number | null;
 }
 
 export interface IScanLinksTable {

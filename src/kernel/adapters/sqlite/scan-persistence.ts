@@ -418,6 +418,9 @@ function nodeToRow(node: Node, scannedAt: number): Insertable<IScanNodesTable> {
         ? JSON.stringify(node.externalRefs)
         : null,
     scannedAt,
+    // File mtime (Unix ms) from the walker; NULL for virtual / derived
+    // nodes that carry no backing file. Round-tripped by `rowToNode`.
+    modifiedAtMs: node.modifiedAtMs ?? null,
   };
 }
 

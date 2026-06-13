@@ -161,6 +161,12 @@ export interface INodeView {
   bytesTotal?: number;
   tokensTotal?: number;
   /**
+   * File modification time (`mtime`) in Unix milliseconds, projected
+   * from `INodeApi.modifiedAtMs`. Absent for virtual / derived nodes.
+   * Drives the files-view "Modified" column (ISO date + sortable).
+   */
+  modifiedAtMs?: number;
+  /**
    * Live hashes used by the inspector debug panel to diff against the
    * sidecar's stored `for.bodyHash` / `for.frontmatterHash` and surface
    * which side drifted. Optional, absent when the BFF / static bundle

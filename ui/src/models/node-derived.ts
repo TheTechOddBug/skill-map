@@ -186,3 +186,25 @@ export function relativeTime(iso: string): string {
   const year = Math.floor(day / 365);
   return `${year} year${year === 1 ? '' : 's'} ago`;
 }
+
+/**
+ * Compact "last modified" cell for the files-view column: a file's
+ * `mtime` (Unix ms) rendered as an ISO short date (`2026-06-13`, UTC).
+ * The format seam, swapping the column to relative / long form is a
+ * one-line change here. Non-finite input yields the empty string so a
+ * bad value never throws `RangeError` from `toISOString()`.
+ */
+export function formatModifiedAt(ms: number): string {
+  if (!Number.isFinite(ms)) return '';
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+/**
+ * Full "last modified" tooltip: the same `mtime` with the wall-clock
+ * time appended (`2026-06-13 14:32:47Z`, UTC). Mirrors the CLI history
+ * timestamp shape. Empty string on non-finite input.
+ */
+export function formatModifiedAtFull(ms: number): string {
+  if (!Number.isFinite(ms)) return '';
+  return `${new Date(ms).toISOString().slice(0, 19).replace('T', ' ')}Z`;
+}

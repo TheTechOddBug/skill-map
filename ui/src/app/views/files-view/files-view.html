@@ -194,6 +194,26 @@
                 ></i>
               </button>
             </th>
+            <th style="width: 120px" class="files__col-num" [attr.aria-sort]="ariaSortFor('modified')" data-testid="files-col-modified">
+              <button
+                type="button"
+                class="files__sort-btn files__sort-btn--num"
+                [class.files__sort-btn--active]="sortState().column === 'modified'"
+                [pTooltip]="texts.modifiedHeaderTooltip"
+                tooltipPosition="top"
+                [attr.aria-label]="texts.sortAriaLabel(texts.columns.modified)"
+                (click)="onSortColumn('modified')"
+              >
+                {{ texts.columns.modified }}
+                <i
+                  class="pi files__sort-icon"
+                  [class.pi-sort-amount-up]="sortState().column === 'modified' && sortState().dir === 'asc'"
+                  [class.pi-sort-amount-down]="sortState().column === 'modified' && sortState().dir === 'desc'"
+                  [class.pi-sort-alt]="sortState().column !== 'modified'"
+                  aria-hidden="true"
+                ></i>
+              </button>
+            </th>
           </tr>
         </ng-template>
         <ng-template pTemplate="body" let-row>
@@ -246,6 +266,7 @@
                   <span class="files__count" [attr.aria-label]="row.nodeCount + ' nodes'">{{ texts.folderCount(row.nodeCount) }}</span>
                 </span>
               </td>
+              <td></td>
               <td></td>
               <td></td>
               <td></td>
@@ -330,6 +351,7 @@
                   }
                 </span>
               </td>
+              <td class="files__cell-num files__cell-modified" [attr.title]="row.modifiedAtFull || null">{{ row.modifiedAt }}</td>
             </tr>
           }
         </ng-template>

@@ -33,9 +33,12 @@ export const FILES_VIEW_TEXTS = {
     linksOut: 'out',
     tokens: 'Tokens',
     issues: 'Issues',
+    /** File modification date (sortable, ISO short date in the cell). */
+    modified: 'Modified',
   },
   linksInHeaderTooltip: 'Incoming references: how many other nodes link to this one.',
   linksOutHeaderTooltip: 'Outgoing references: how many nodes this one links to.',
+  modifiedHeaderTooltip: 'Last modified on disk (file mtime). Hover a cell for the exact time.',
   /** Aria-label for a sortable data-column header. */
   sortAriaLabel: (column: string) => `Sort by ${column}`,
   /** Aria-label for the structural header that restores the folder tree. */

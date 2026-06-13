@@ -468,6 +468,13 @@
   color: var(--p-text-muted-color);
 }
 
+/* Modified column: ISO short date, kept on one line with tabular digits
+   so the column edge stays aligned across rows. */
+.files__cell-modified {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Issues column, same dual-signal shape + hue as files-view. */
 .files__stale-icon {
   font-size: var(--files-fs-sm);

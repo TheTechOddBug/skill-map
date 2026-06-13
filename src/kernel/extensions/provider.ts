@@ -41,6 +41,15 @@ export interface IRawNode {
   /** Parsed frontmatter, or `{}` when absent / unparseable. */
   frontmatter: Record<string, unknown>;
   /**
+   * File modification time (`mtime`) in Unix milliseconds, captured by
+   * the kernel walker from the same `lstat` that guards the read (zero
+   * extra syscalls). Threaded onto the persisted `Node` as
+   * `modifiedAtMs`. Optional: a Provider that ships its own `walk()` and
+   * does not stat its sources MAY omit it; virtual / derived nodes carry
+   * no file and never set it.
+   */
+  modifiedAtMs?: number;
+  /**
    * Parser diagnostics (audit L1). Populated by the walker when the
    * parser surfaced `IParseIssue` entries (e.g. malformed YAML).
    * Carried through `processRawNode` and converted into warn-level

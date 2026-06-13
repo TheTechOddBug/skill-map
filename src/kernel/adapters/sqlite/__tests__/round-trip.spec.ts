@@ -263,6 +263,40 @@ describe('persistence round-trip for link-matrix fields', () => {
       await adapter.close();
     }
   });
+
+  it('persists and re-reads `Node.modifiedAtMs` verbatim', async () => {
+    const path = freshDbPath('node-modified-at');
+    const adapter = new SqliteStorageAdapter({ databasePath: path });
+    await adapter.init();
+    try {
+      const node = baseNode({ path: 'a.md', modifiedAtMs: 1_749_823_967_000 });
+      await adapter.scans.persist(makeScanResult([node], []));
+
+      const loaded = await adapter.scans.load();
+      ok(loaded);
+      strictEqual(loaded.nodes[0]?.modifiedAtMs, 1_749_823_967_000);
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('leaves `Node.modifiedAtMs` absent when the source node carries no mtime (NULL column)', async () => {
+    const path = freshDbPath('node-no-modified-at');
+    const adapter = new SqliteStorageAdapter({ databasePath: path });
+    await adapter.init();
+    try {
+      // `baseNode` omits `modifiedAtMs`; `nodeToRow` writes NULL and the
+      // loader maps NULL back to an absent domain field (virtual nodes).
+      const node = baseNode({ path: 'virtual.md' });
+      await adapter.scans.persist(makeScanResult([node], []));
+
+      const loaded = await adapter.scans.load();
+      ok(loaded);
+      strictEqual(loaded.nodes[0]?.modifiedAtMs, undefined);
+    } finally {
+      await adapter.close();
+    }
+  });
 });
 
 describe('persistence round-trip for the file-size skip envelope', () => {

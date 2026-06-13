@@ -63,6 +63,17 @@ describe('walkContent', () => {
     deepStrictEqual(collected, ['docs/a.md', 'docs/b.md', 'nested/inner/c.md']);
   });
 
+  it('stamps each node with the file mtime in whole Unix ms', async () => {
+    for await (const n of walkContent([root], {
+      extensions: ['.md'],
+      parser: 'frontmatter-yaml',
+    })) {
+      ok(typeof n.modifiedAtMs === 'number', `${n.path} carries a numeric mtime`);
+      ok(n.modifiedAtMs! > 0, `${n.path} mtime is positive`);
+      strictEqual(n.modifiedAtMs, Math.round(n.modifiedAtMs!), `${n.path} mtime is integral`);
+    }
+  });
+
   it('parses frontmatter via the configured parser', async () => {
     for await (const n of walkContent([root], {
       extensions: ['.md'],

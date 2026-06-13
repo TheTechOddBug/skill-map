@@ -256,6 +256,16 @@ export interface Node {
   frontmatter?: Record<string, unknown>;
   tokens?: TripleSplit;
   /**
+   * File modification time (`mtime`) in Unix milliseconds, captured at
+   * scan time from the on-disk `lstat`. Absent for virtual / derived
+   * nodes (`virtual === true`, no backing file) and for nodes built by a
+   * Provider `walk()` that does not stat its sources. Persisted to
+   * `scan_nodes.modified_at_ms` and surfaced on `/api/nodes` /
+   * `/api/scan` so the UI can show and sort a "last modified" column.
+   * NOT content: never participates in `bodyHash` / `frontmatterHash`.
+   */
+  modifiedAtMs?: number;
+  /**
    * Step 9.6.2, sidecar denormalisation surface. Populated by the
    * orchestrator at scan time; absent when the orchestrator did not
    * inspect sidecars (legacy code paths) or when no sidecar accompanies

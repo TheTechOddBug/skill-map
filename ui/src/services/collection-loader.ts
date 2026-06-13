@@ -315,6 +315,7 @@ function projectNode(api: INodeApi): INodeView {
     externalRefsCount: api.externalRefsCount,
     bytesTotal: api.bytes?.total,
     tokensTotal: api.tokens?.total,
+    modifiedAtMs: api.modifiedAtMs ?? undefined,
     bodyHash: api.bodyHash,
     frontmatterHash: api.frontmatterHash,
     isFavorite: api.isFavorite === true,

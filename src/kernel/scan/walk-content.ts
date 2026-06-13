@@ -110,11 +110,11 @@ export async function* walkContent(
   const extensions = options.extensions;
   const sizeLimit = buildSizeLimit(options);
   for (const root of roots) {
-    for await (const file of walkRoot(root, root, filter, extensions, sizeLimit)) {
-      const relPath = relative(root, file).split(sep).join('/');
+    for await (const entry of walkRoot(root, root, filter, extensions, sizeLimit)) {
+      const relPath = relative(root, entry.full).split(sep).join('/');
       let raw: string;
       try {
-        raw = await readFile(file, 'utf8');
+        raw = await readFile(entry.full, 'utf8');
       } catch {
         // silently skip unreadable files
         continue;
@@ -125,6 +125,9 @@ export async function* walkContent(
         body: parsed.body,
         frontmatterRaw: parsed.frontmatterRaw,
         frontmatter: parsed.frontmatter,
+        // File mtime from the TOCTOU `lstat` (zero extra syscalls).
+        // Threaded onto the persisted `Node` as `modifiedAtMs`.
+        modifiedAtMs: entry.modifiedAtMs,
         // Audit L1: forward parser diagnostics (e.g. malformed YAML)
         // through the IRawNode surface so the orchestrator can
         // convert them into warn-level kernel `Issue` rows. Omitted
@@ -144,6 +147,17 @@ export async function* walkContent(
 interface IWalkSizeLimit {
   maxFileSizeBytes?: number;
   onOversizedFile?: (info: { path: string; bytes: number }) => void;
+}
+
+/**
+ * One file surfaced by the recursive walker: its absolute path plus the
+ * `mtime` (Unix ms, rounded to a whole millisecond) read from the
+ * TOCTOU `lstat`. Bundled so `walkContent` threads the modification time
+ * onto the emitted `IRawNode` without a second `stat`.
+ */
+interface IWalkEntry {
+  full: string;
+  modifiedAtMs: number;
 }
 
 /**
@@ -172,7 +186,7 @@ async function* walkRoot(
   filter: IIgnoreFilter,
   extensions: readonly string[],
   sizeLimit: IWalkSizeLimit,
-): AsyncIterable<string> {
+): AsyncIterable<IWalkEntry> {
   let entries;
   try {
     entries = await readdir(current, { withFileTypes: true, encoding: 'utf8' });
@@ -212,7 +226,9 @@ async function* walkRoot(
           sizeLimit.onOversizedFile?.({ path: rel, bytes: s.size });
           continue;
         }
-        yield full;
+        // `mtimeMs` is a float on some platforms; round to whole millis
+        // so the value satisfies the spec's `integer` node field.
+        yield { full, modifiedAtMs: Math.round(s.mtimeMs) };
       } catch {
         // silently skip unreadable files
       }

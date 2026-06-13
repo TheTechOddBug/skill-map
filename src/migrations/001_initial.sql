@@ -38,6 +38,11 @@ CREATE TABLE scan_nodes (
   -- inspector can list every external URL without a second round-trip.
   external_refs_json TEXT,
   scanned_at INTEGER NOT NULL,
+  -- File modification time (`mtime`) in Unix ms, captured at scan time
+  -- from the walker's `lstat`. NULL for virtual / derived nodes (no
+  -- backing file). Drives the UI "last modified" sortable column; never
+  -- participates in `body_hash` / `frontmatter_hash`.
+  modified_at_ms INTEGER,
   -- Sidecar denormalisation (Step 9.6.2 — Decision #3, option (a)):
   --   - `sidecar_present` — 1 when a co-located `.sm` file accompanies
   --     this node, 0 otherwise.

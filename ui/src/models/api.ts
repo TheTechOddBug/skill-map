@@ -58,6 +58,13 @@ export interface INodeApi {
   frontmatterHash: string;
   bytes: ITripleSplit;
   tokens?: ITripleSplit;
+  /**
+   * File modification time (`mtime`) in Unix milliseconds, captured at
+   * scan time. NULL / absent for virtual / derived nodes (no backing
+   * file). Mirrors `node.schema.json#/properties/modifiedAtMs`; drives
+   * the files-view "Modified" sortable column.
+   */
+  modifiedAtMs?: number | null;
   linksOutCount: number;
   linksInCount: number;
   externalRefsCount: number;

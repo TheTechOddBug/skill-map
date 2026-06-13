@@ -251,6 +251,9 @@ export function rowToNode(row: Selectable<IScanNodesTable>): Node {
     const parsed = JSON.parse(row.externalRefsJson) as IExternalRef[];
     if (Array.isArray(parsed) && parsed.length > 0) node.externalRefs = parsed;
   }
+  // File mtime: NULL for virtual / derived nodes (and legacy pre-column
+  // rows) leaves `node.modifiedAtMs` absent.
+  if (row.modifiedAtMs !== null) node.modifiedAtMs = row.modifiedAtMs;
   return node;
 }
 

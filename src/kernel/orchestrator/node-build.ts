@@ -38,6 +38,13 @@ export interface IBuildNodeArgs {
   bodyHash: string;
   frontmatterHash: string;
   encoder: Tiktoken | null;
+  /**
+   * File mtime (Unix ms) from the walker's `lstat`. Accepts `undefined`
+   * (not just absent) so the pass-through from `IRawNode.modifiedAtMs`
+   * compiles under `exactOptionalPropertyTypes`; `buildNode` only
+   * attaches it to the Node when it is a real number.
+   */
+  modifiedAtMs?: number | undefined;
 }
 
 export function buildNode(args: IBuildNodeArgs): Node {
@@ -67,6 +74,9 @@ export function buildNode(args: IBuildNodeArgs): Node {
     externalRefsCount: 0,
     frontmatter: args.frontmatter,
   };
+  // Guarded so `exactOptionalPropertyTypes` keeps the field absent (not
+  // `undefined`) for sources that never supply an mtime.
+  if (args.modifiedAtMs !== undefined) node.modifiedAtMs = args.modifiedAtMs;
   if (args.encoder) {
     node.tokens = countTokens(args.encoder, args.frontmatterRaw, args.body);
   }
@@ -324,6 +334,9 @@ export function buildFreshNodeAndValidateFrontmatter(opts: {
     bodyHash: opts.bodyHash,
     frontmatterHash: opts.frontmatterHash,
     encoder: opts.encoder,
+    // Thread the walker's mtime through; `buildNode` only attaches it
+    // when present, so virtual / walk()-without-stat sources stay absent.
+    modifiedAtMs: opts.raw.modifiedAtMs,
   });
 
   const frontmatterIssues: Issue[] = [];

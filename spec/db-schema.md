@@ -92,6 +92,7 @@ One row per detected node, matching [`schemas/node.schema.json`](./schemas/node.
 | `links_in_count` | INTEGER | NOT NULL DEFAULT 0 | |
 | `external_refs_count` | INTEGER | NOT NULL DEFAULT 0 | |
 | `scanned_at` | INTEGER | NOT NULL | Unix ms. |
+| `modified_at_ms` | INTEGER | NULL | File `mtime` in Unix ms, captured at scan time from `lstat`. NULL for virtual / derived nodes (no backing file). Drives the UI "last modified" sortable column; never participates in hashing. |
 
 Indexes: `ix_scan_nodes_kind`, `ix_scan_nodes_provider`, `ix_scan_nodes_body_hash` (rename heuristic).
 

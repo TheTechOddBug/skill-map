@@ -19,6 +19,8 @@ import {
   effectiveIsStale,
   effectiveStaleTooltip,
   effectiveStability,
+  formatModifiedAt,
+  formatModifiedAtFull,
 } from '../../../models/node-derived';
 import { pathBasenameForLink } from '../../../services/trigger-resolve';
 import { STABILITY_SEVERITY, type TTagSeverity } from '../../components/severity-map';
@@ -45,11 +47,20 @@ export interface IFolderLeaf {
   readonly linksIn: string;
   readonly linksOut: string;
   readonly tokens: string;
+  /** ISO short date (`2026-06-13`) for the Modified cell, or `·` when the
+   *  node carries no file mtime (virtual / derived nodes). */
+  readonly modifiedAt: string;
+  /** Full date + time (`2026-06-13 14:32:47Z`) for the cell tooltip;
+   *  empty string when there is no mtime. */
+  readonly modifiedAtFull: string;
   /** Raw counts for the comparators; `undefined` mirrors a missing
    *  count (`·`) and always sorts to the bottom. */
   readonly linksInRaw: number | undefined;
   readonly linksOutRaw: number | undefined;
   readonly tokensRaw: number | undefined;
+  /** Raw mtime (Unix ms) for the Modified comparator; `undefined` sinks
+   *  fileless nodes to the bottom regardless of direction. */
+  readonly modifiedAtRaw: number | undefined;
   readonly errors: number;
   readonly warns: number;
   readonly isStale: boolean;
@@ -167,6 +178,7 @@ export function makeLeafRow(
 ): IFolderLeaf {
   const stability = rowStability(node);
   const isStale = effectiveIsStale(node);
+  const modifiedRaw = node.modifiedAtMs;
   return {
     type: 'leaf',
     path: node.path,
@@ -177,9 +189,12 @@ export function makeLeafRow(
     linksOut:
       node.linksOutCount !== undefined ? String(node.linksOutCount) : FILES_VIEW_TEXTS.missing,
     tokens: node.tokensTotal !== undefined ? compactNumber(node.tokensTotal) : FILES_VIEW_TEXTS.missing,
+    modifiedAt: modifiedRaw !== undefined ? formatModifiedAt(modifiedRaw) : FILES_VIEW_TEXTS.missing,
+    modifiedAtFull: modifiedRaw !== undefined ? formatModifiedAtFull(modifiedRaw) : '',
     linksInRaw: node.linksInCount,
     linksOutRaw: node.linksOutCount,
     tokensRaw: node.tokensTotal,
+    modifiedAtRaw: modifiedRaw,
     errors: maps.errorCounts.get(node.path) ?? 0,
     warns: maps.warnCounts.get(node.path) ?? 0,
     isStale,
@@ -305,6 +320,8 @@ function sortValue(leaf: IFolderLeaf, column: Exclude<TSortColumn, 'tree'>): num
       return leaf.tokensRaw;
     case 'issues':
       return issueWeight(leaf);
+    case 'modified':
+      return leaf.modifiedAtRaw;
   }
 }
 
