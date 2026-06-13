@@ -851,6 +851,27 @@ describe('sm plugins list <id> + show <plugin>/<ext>, extension detail', () => {
     assert.match(r.stdout, /\bexternal-url-counter\b/);
   });
 
+  it('list rejects a qualified <plugin>/<ext> id with a redirect to show', () => {
+    const scope = freshScope('list-qualified-redirect');
+    sm(['init', '--no-scan'], scope);
+
+    // `list` is plugin-level; a qualified id targets one extension, so the
+    // verb redirects to `sm plugins show`. The id shape alone decides.
+    const r = sm(['plugins', 'list', 'core/reference-broken'], scope);
+    assert.equal(r.status, 2, `stderr: ${r.stderr}`);
+    assert.match(r.stderr, /takes a plugin id, not a qualified/);
+    assert.match(r.stderr, /sm plugins show core\/reference-broken/);
+  });
+
+  it('list <id> on an unknown plugin id exits NotFound', () => {
+    const scope = freshScope('list-unknown-plugin');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['plugins', 'list', 'no-such-plugin'], scope);
+    assert.equal(r.status, 5);
+    assert.match(r.stderr, /Plugin not found: no-such-plugin/);
+  });
+
   it('show rejects qualified id with unknown extension under known plugin', () => {
     const scope = freshScope('show-qualified-unknown-ext');
     sm(['init', '--no-scan'], scope);
