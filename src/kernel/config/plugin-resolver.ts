@@ -36,15 +36,27 @@ import { isPluginLocked } from './locked-plugins.js';
 export type EnabledResolver = (id: string, installedDefault?: boolean) => boolean;
 
 /**
+ * Lifecycle labels whose extensions ship DISABLED by default:
+ * `experimental` (not ready yet, opt in to try) and `deprecated` (on
+ * its way out, opt in to keep using during the transition). Both
+ * require an explicit enable to run; `beta` / `stable` / undefined stay
+ * enabled.
+ */
+const SHIPS_DISABLED: ReadonlySet<TExtensionStability> = new Set([
+  'experimental',
+  'deprecated',
+]);
+
+/**
  * Installed default-enabled state for an extension given its declared
- * `stability`. `experimental` ships OFF (the operator opts in via the
- * Settings toggle / `sm plugins enable`); every other lifecycle value
- * (`beta`, `stable`, `deprecated`, or undefined) ships ON. This is the
- * ONLY place the experimental-ships-disabled policy lives; the resolver
- * stays manifest-agnostic and consumes the boolean this returns.
+ * `stability`. `experimental` and `deprecated` ship OFF (the operator
+ * opts in via the Settings toggle / `sm plugins enable`); every other
+ * value (`beta`, `stable`, or undefined) ships ON. This is the ONLY
+ * place the ships-disabled policy lives; the resolver stays
+ * manifest-agnostic and consumes the boolean this returns.
  */
 export function installedDefaultEnabled(stability?: TExtensionStability): boolean {
-  return stability !== 'experimental';
+  return stability === undefined || !SHIPS_DISABLED.has(stability);
 }
 
 export function resolvePluginEnabled(

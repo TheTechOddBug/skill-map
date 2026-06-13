@@ -20,16 +20,17 @@ import type { TSettingDeclaration } from '../types/view-catalog.js';
  * next to the extension in `sm plugins list` / `sm plugins show` and the
  * Settings plugins panel for the non-default values.
  *
- * `experimental` is the one value that ALSO changes behaviour: it flips
- * the extension's installed default to DISABLED, so an experimental
- * extension does not load (does not run, does not register) unless the
- * operator opts in (`sm plugins enable <plugin>/<ext>`, the Settings
- * toggle, or a `settings.json` / `config_plugins` override). The opt-in
- * is a plain enable override, once set it wins over the installed
- * default exactly like any other extension. The other values are
- * presentation-only and default to ENABLED: `beta` runs by default with
- * a badge, `deprecated` still runs (badge only), `stable` (declared or
- * defaulted) runs with no badge. Missing == `stable` == enabled, no
+ * Two values ALSO change behaviour: `experimental` (not ready yet) and
+ * `deprecated` (on its way out) flip the extension's installed default
+ * to DISABLED, so the extension does not load (does not run, does not
+ * register) unless the operator opts in (`sm plugins enable
+ * <plugin>/<ext>`, the Settings toggle, or a `settings.json` /
+ * `config_plugins` override). The opt-in is a plain enable override,
+ * once set it wins over the installed default exactly like any other
+ * extension (so a deprecated extension can still be kept running during
+ * a migration). The remaining values are presentation-only and default
+ * to ENABLED: `beta` runs by default with a badge, `stable` (declared
+ * or defaulted) runs with no badge. Missing == `stable` == enabled, no
  * badge. Mirrors
  * `spec/schemas/extensions/base.schema.json#/properties/stability`.
  *
@@ -95,8 +96,8 @@ export interface IExtensionBase {
   /**
    * Optional lifecycle label (`experimental` / `beta` / `stable` /
    * `deprecated`). Missing == `stable`, no badge rendered. `experimental`
-   * additionally flips the installed default to disabled. See
-   * `TExtensionStability` for the full semantics.
+   * and `deprecated` additionally flip the installed default to disabled.
+   * See `TExtensionStability` for the full semantics.
    */
   stability?: TExtensionStability;
   /**

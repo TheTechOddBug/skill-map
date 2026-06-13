@@ -147,9 +147,9 @@ describe('resolvePluginEnabled, precedence', () => {
     assert.equal(resolver('baz'), true);    // default
   });
 
-  it('installedDefault flips the no-override fall-back (experimental ships off)', () => {
+  it('installedDefault flips the no-override fall-back (experimental / deprecated ship off)', () => {
     // No DB row, no settings entry: the caller-supplied installed
-    // default decides. Experimental extensions pass `false`.
+    // default decides. Experimental / deprecated extensions pass `false`.
     assert.equal(resolvePluginEnabled('exp', cfg({}), new Map(), false), false);
     assert.equal(resolvePluginEnabled('ord', cfg({}), new Map(), true), true);
     // An explicit enable override still wins over a `false` default.
@@ -165,11 +165,11 @@ describe('resolvePluginEnabled, precedence', () => {
     assert.equal(resolver('exp', true), true);
   });
 
-  it('installedDefaultEnabled: only experimental ships disabled', () => {
+  it('installedDefaultEnabled: experimental and deprecated ship disabled', () => {
     assert.equal(installedDefaultEnabled('experimental'), false);
+    assert.equal(installedDefaultEnabled('deprecated'), false);
     assert.equal(installedDefaultEnabled('beta'), true);
     assert.equal(installedDefaultEnabled('stable'), true);
-    assert.equal(installedDefaultEnabled('deprecated'), true);
     assert.equal(installedDefaultEnabled(undefined), true);
   });
 });
