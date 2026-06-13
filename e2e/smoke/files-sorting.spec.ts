@@ -47,13 +47,16 @@ const folderRows = (page: Page): Locator => page.locator('tr[data-testid^="files
 
 /** Token value per leaf row in DOM order; non-numeric (`·`) cells are
  *  dropped so the monotonicity check ignores missing-value rows (which
- *  always sink to the bottom). */
+ *  always sink to the bottom). Target the tokens cell by its dedicated
+ *  `files__cell-tokens` hook: it shares `files__cell-num` (right-align
+ *  styling) with the links and modified-date cells, so a positional
+ *  `.last()` would pick the trailing date column instead. */
 async function tokenSequence(page: Page): Promise<number[]> {
   const rows = leafRows(page);
   const count = await rows.count();
   const values: number[] = [];
   for (let i = 0; i < count; i++) {
-    const text = (await rows.nth(i).locator('.files__cell-num').last().innerText()).trim();
+    const text = (await rows.nth(i).locator('.files__cell-tokens').innerText()).trim();
     const value = text.endsWith('k')
       ? Number(text.slice(0, -1)) * 1000
       : Number(text);

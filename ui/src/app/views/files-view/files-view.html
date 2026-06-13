@@ -323,7 +323,7 @@
               </td>
               <td class="files__cell-num">{{ row.linksIn }}</td>
               <td class="files__cell-num">{{ row.linksOut }}</td>
-              <td class="files__cell-num" [attr.title]="(row.tokensRaw ?? 0) > 0 ? texts.tokensTooltip(row.tokensRaw!) : null">{{ row.tokens }}</td>
+              <td class="files__cell-num files__cell-tokens" [attr.title]="(row.tokensRaw ?? 0) > 0 ? texts.tokensTooltip(row.tokensRaw!) : null">{{ row.tokens }}</td>
               <td class="files__cell-issues">
                 <span class="files__issues-row">
                   @if (row.isStale) {
