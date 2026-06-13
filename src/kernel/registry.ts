@@ -18,6 +18,7 @@
  * `kernel-empty-boot` conformance contract.
  */
 
+import type { TExtensionStability } from './extensions/base.js';
 import { REGISTRY_TEXTS } from './i18n/registry.texts.js';
 import { tx } from './util/tx.js';
 
@@ -47,6 +48,12 @@ export interface IExtension {
   version: string;
   /** Required short description; surfaced in `sm <kind>s list` and the UI. */
   description: string;
+  /**
+   * Optional lifecycle label (`IExtensionBase.stability`). Carried on the
+   * registry view so the enabled-resolver can read it: `experimental`
+   * flips an extension's installed default to disabled. Absent == stable.
+   */
+  stability?: TExtensionStability;
   entry?: string;
 }
 

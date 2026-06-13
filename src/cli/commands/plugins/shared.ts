@@ -37,7 +37,11 @@ import {
 import { loadSchemaValidators } from '../../../kernel/adapters/schema-validators.js';
 import { loadConfig } from '../../../kernel/config/loader.js';
 import type { TExtensionStability } from '../../../kernel/extensions/index.js';
-import { makeEnabledResolver } from '../../../kernel/config/plugin-resolver.js';
+import {
+  installedDefaultEnabled,
+  makeEnabledResolver,
+  type EnabledResolver,
+} from '../../../kernel/config/plugin-resolver.js';
 import { qualifiedExtensionId } from '../../../kernel/registry.js';
 import type { IDiscoveredPlugin } from '../../../kernel/types/plugin.js';
 import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
@@ -70,7 +74,7 @@ export function resolveSearchPaths(opts: IPluginDirOption, cwd: string): string[
  * overrides (config_plugins). Either layer may be absent (no
  * settings.json, no DB), both fall through gracefully.
  */
-export async function buildResolver(): Promise<(id: string) => boolean> {
+export async function buildResolver(): Promise<EnabledResolver> {
   const ctx = defaultRuntimeContext();
   const { effective: cfg } = loadConfig({ cwd: ctx.cwd });
   const dbPath = resolveDbPath({ db: undefined, cwd: ctx.cwd });
@@ -144,7 +148,7 @@ export interface IBuiltInPluginRow {
  * `enabled` is just an aggregate ("any child enabled") so the row
  * renderer can pick a glyph at a glance.
  */
-export function builtInRows(resolveEnabled: (id: string) => boolean): IBuiltInPluginRow[] {
+export function builtInRows(resolveEnabled: EnabledResolver): IBuiltInPluginRow[] {
   // Presentation order: `core` first, then the vendor plugins. Runtime
   // iteration of `builtInPlugins` keeps `core` last so `core/markdown`
   // stays the terminal fallback provider; the CLI listing surface
@@ -175,7 +179,7 @@ export function builtInRows(resolveEnabled: (id: string) => boolean): IBuiltInPl
 function extensionRowFromBuiltIn(
   ext: TBuiltInExtension,
   plugin: { id: string },
-  resolveEnabled: (id: string) => boolean,
+  resolveEnabled: EnabledResolver,
 ): IBuiltInPluginRow['extensions'][number] {
   // `exactOptionalPropertyTypes` rejects assigning `undefined` to an
   // optional field, so we build the row in two steps: required fields
@@ -185,7 +189,7 @@ function extensionRowFromBuiltIn(
     id: ext.id,
     kind: ext.kind,
     version: ext.version,
-    enabled: resolveEnabled(qualifiedExtensionId(plugin.id, ext.id)),
+    enabled: resolveEnabled(qualifiedExtensionId(plugin.id, ext.id), installedDefaultEnabled(ext.stability)),
     description: ext.description ?? '',
   };
   if (ext.stability !== undefined) row.stability = ext.stability;

@@ -52,6 +52,10 @@ import {
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import type { IContributionErrorRecord } from '../../kernel/adapters/sqlite/contributions.js';
 import { isPluginLocked } from '../../kernel/config/locked-plugins.js';
+import {
+  installedDefaultEnabled,
+  type EnabledResolver,
+} from '../../kernel/config/plugin-resolver.js';
 import type { TExtensionStability } from '../../kernel/extensions/index.js';
 import type { IDiscoveredPlugin } from '../../kernel/index.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
@@ -363,7 +367,7 @@ function listItems(
 }
 
 function buildBuiltInItems(
-  resolveEnabled: (id: string) => boolean,
+  resolveEnabled: EnabledResolver,
 ): IPluginListItem[] {
   // Presentation order: `core` first, then vendor plugins. Mirrors
   // `sm plugins list` and the SPA's `PINNED_PLUGIN_ORDER`. Runtime
@@ -379,7 +383,7 @@ function buildBuiltInItems(
         id: ext.id,
         kind: ext.kind,
         version: ext.version,
-        enabled: resolveEnabled(qualified),
+        enabled: resolveEnabled(qualified, installedDefaultEnabled(ext.stability)),
         ...(ext.description ? { description: ext.description } : {}),
         ...(ext.stability ? { stability: ext.stability } : {}),
         ...(extLocked ? { locked: true } : {}),
@@ -462,7 +466,7 @@ function optionalDiscoveredFields(
 
 function projectExtensionRows(
   plugin: IDiscoveredPlugin,
-  resolveEnabled: (id: string) => boolean,
+  resolveEnabled: EnabledResolver,
   pluginLocked: boolean,
 ): IPluginExtensionItem[] | undefined {
   if (!plugin.extensions || plugin.extensions.length === 0) return undefined;
@@ -474,7 +478,7 @@ function projectExtensionRows(
       id: ext.id,
       kind: ext.kind,
       version: ext.version,
-      enabled: resolveEnabled(qualified),
+      enabled: resolveEnabled(qualified, installedDefaultEnabled(ext.stability)),
       ...(description ? { description } : {}),
       ...(ext.stability ? { stability: ext.stability } : {}),
       ...(extLocked ? { locked: true } : {}),

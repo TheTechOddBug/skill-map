@@ -9,6 +9,7 @@ import type {
   IExtractor,
   IAnalyzer,
 } from '../../../kernel/extensions/index.js';
+import type { EnabledResolver } from '../../../kernel/config/plugin-resolver.js';
 import type { IExtension } from '../../../kernel/registry.js';
 import {
   builtInPlugins,
@@ -64,7 +65,7 @@ export function collectRegisteredContributionKeys(
  */
 export function filterBuiltInManifests(
   manifests: IExtension[],
-  resolveEnabled: (id: string) => boolean,
+  resolveEnabled: EnabledResolver,
 ): IExtension[] {
   // Build a per-plugin index so the filter can hand `isPluginEntryEnabled`
   // a stable plugin reference. The index is rebuilt every call (cheap,
@@ -75,6 +76,9 @@ export function filterBuiltInManifests(
   return manifests.filter((m) => {
     const plugin = pluginById.get(m.pluginId);
     if (!plugin) return true; // not a built-in row, leave it alone.
-    return isPluginEntryEnabled(plugin, m.id, resolveEnabled);
+    // `m.stability` flows the experimental gate into the installed
+    // default so a disabled-by-default extension stays out of the
+    // registry (and therefore `sm help`) until the operator enables it.
+    return isPluginEntryEnabled(plugin, m.id, resolveEnabled, m.stability);
   });
 }

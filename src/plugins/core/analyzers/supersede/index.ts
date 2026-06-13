@@ -58,6 +58,11 @@ export const supersedeAnalyzer: IBuiltInManifest<IAnalyzer> = {
   pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
   description: 'Projects the inspector "Supersede" button (declares a node replaced by another).',
+  // Experimental: ships disabled by default so the button is not
+  // projected until the operator opts in. Gates as a unit with the
+  // action it dispatches (`core/node-supersede`), also experimental, an
+  // enabled button pointing at a disabled action would error on click.
+  stability: 'experimental',
   mode: 'deterministic',
 
   ui: { supersedeButton },

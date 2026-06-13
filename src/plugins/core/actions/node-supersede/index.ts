@@ -78,6 +78,10 @@ export const nodeSupersedeAction: IBuiltInManifest<IAction> = {
   kind: 'action',
   description:
     'Declares the current node as superseded by another (writes `supersededBy` to the sidecar).',
+  // Ships disabled by default (the declarer feature is still settling its
+  // node-picker UX). Gates as a unit with its button projector
+  // `core/supersede`, which is experimental for the same reason.
+  stability: 'experimental',
   mode: 'deterministic',
 
   // The runtime contract uses generic <TInput, TReport>; supersede

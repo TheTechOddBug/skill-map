@@ -143,7 +143,7 @@ Two id shapes resolve at the toggle surface:
 
 `--all` is the cascade variant: it expands to every extension in every discovered plugin and applies the same `--yes` / TTY-confirm gate.
 
-Resolution order per id: DB override (`config_plugins`) > `settings.json#/plugins/<id>/enabled` > installed default (`true`). Persisted toggle keys are always qualified `<plugin>/<ext>` ids (the bundle macro path expands at write time).
+Resolution order per id: DB override (`config_plugins`) > `settings.json#/plugins/<id>/enabled` > installed default. The installed default is `true` for ordinary extensions and `false` for extensions declaring `stability: 'experimental'` (they ship disabled until the operator opts in; see [Extension manifests](#extension-manifests)). Persisted toggle keys are always qualified `<plugin>/<ext>` ids (the bundle macro path expands at write time).
 
 There is no `granularity` manifest field; per-extension toggling is the only model.
 
@@ -242,7 +242,7 @@ The kernel knows six categories. Each has a JSON Schema under [`schemas/extensio
 
 The runtime instance you `export default` includes both the manifest fields (`version`, `description`, plus kind-specific metadata) AND the runtime method. The kernel strips function-typed properties before AJV-validating the manifest, so the method lives alongside metadata.
 
-Base manifest fields shared by every kind (normative shape in [`schemas/extensions/base.schema.json`](./schemas/extensions/base.schema.json)): `version` (required for external plugins), `description` (required), and the optional `stability`, `order`, `annotation`, `settings`. `stability` (`'experimental' | 'beta' | 'stable' | 'deprecated'`, default `stable`) is a presentation-only lifecycle label: the non-default values render as a badge next to the extension in `sm plugins list` / `sm plugins show` and the Settings plugins panel, and the kernel never gates behaviour on it (a `deprecated` extension still runs). A stable extension simply omits the field; declaring `stability: 'stable'` is valid but renders nothing.
+Base manifest fields shared by every kind (normative shape in [`schemas/extensions/base.schema.json`](./schemas/extensions/base.schema.json)): `version` (required for external plugins), `description` (required), and the optional `stability`, `order`, `annotation`, `settings`. `stability` (`'experimental' | 'beta' | 'stable' | 'deprecated'`, default `stable`) is a lifecycle label: the non-default values render as a badge next to the extension in `sm plugins list` / `sm plugins show` and the Settings plugins panel. It is presentation-only for every value EXCEPT `experimental`, which additionally flips the extension's installed default to DISABLED, an experimental extension does not load (does not run, does not register, shows its toggle off) until the operator opts in via `sm plugins enable <plugin>/<ext>`, the Settings toggle, or a `settings.json` / `config_plugins` override. `beta` and `deprecated` still run by default (a deprecated extension keeps running, badge only). A stable extension simply omits the field; declaring `stability: 'stable'` is valid but renders nothing.
 
 ### Extractors
 

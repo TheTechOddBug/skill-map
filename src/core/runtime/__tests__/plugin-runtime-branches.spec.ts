@@ -164,7 +164,8 @@ describe('plugin-runtime, branch coverage', () => {
   //   (a) disable every claude extension by qualified id → claude
   //       provider + extractors all skip compose; core stays.
   //   (b) disable `core/node-superseded` → only that rule disappears.
-  //   (c) default, every built-in runs.
+  //   (c) default: every built-in runs EXCEPT experimental ones, which
+  //       ship disabled (`core/mcp-tools` stays out until opted in).
   //   (d) `--no-built-ins` overrides everything.
   //   (e) disable one extension inside a multi-extension plugin.
   describe('per-extension toggle filter', () => {
@@ -238,15 +239,15 @@ describe('plugin-runtime, branch coverage', () => {
       assert.equal(formatters.length, 2, 'ascii + json formatters still on; superseded toggle is unrelated');
     });
 
-    it('(c) default, every built-in runs', () => {
+    it('(c) default: every built-in runs except experimental ones', () => {
       const composed = composeScanExtensions({
         noBuiltIns: false,
         pluginRuntime: emptyPluginRuntime(),
       });
       assert.ok(composed);
       assert.equal(composed.providers.length, 5, 'claude + antigravity + openai + agent-skills + core-markdown providers loaded');
-      assert.equal(composed.extractors.length, 8, 'all 8 core extractors loaded (stability moved to analyzers)');
-      assert.equal(composed.analyzers.length, 19, 'all 19 rules loaded (18 detect-phase analyzers including the tags button projector + the issue-counter aggregate)');
+      assert.equal(composed.extractors.length, 7, '7 of 8 extractors loaded; core/mcp-tools is experimental so it ships disabled by default');
+      assert.equal(composed.analyzers.length, 18, '18 of 19 rules loaded; core/supersede (the Supersede button projector) is experimental so it ships disabled by default');
       const formatters = composeFormatters({ pluginRuntime: emptyPluginRuntime() });
       assert.equal(formatters.length, 2, 'ascii + json formatters loaded');
     });
@@ -284,6 +285,34 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(
         providerIds.includes('claude'),
         'claude provider stays live (no override on its qualified id)',
+      );
+    });
+
+    it('(f) experimental extension ships disabled by default; an explicit enable override turns it on', () => {
+      // `core/mcp-tools` is the only experimental built-in. With the
+      // default resolver (no overrides) it must NOT compose; an explicit
+      // enable override for its qualified id beats the installed default
+      // and brings it back, just like any other extension.
+      const off = composeScanExtensions({
+        noBuiltIns: false,
+        pluginRuntime: emptyPluginRuntime(),
+      });
+      assert.ok(off);
+      assert.equal(
+        off.extractors.some((e) => e.id === 'mcp-tools'),
+        false,
+        'experimental core/mcp-tools is excluded from the default pipeline',
+      );
+
+      const runtime = emptyPluginRuntime();
+      // An explicit override is a 2-arg-aware enable: it ignores the
+      // installed default and returns true for the opted-in id only.
+      runtime.resolveEnabled = (id: string) => id === 'core/mcp-tools';
+      const on = composeScanExtensions({ noBuiltIns: false, pluginRuntime: runtime });
+      assert.ok(on);
+      assert.ok(
+        on.extractors.some((e) => e.id === 'mcp-tools'),
+        'an explicit enable override restores the experimental extractor',
       );
     });
 
@@ -332,8 +361,8 @@ describe('plugin-runtime, branch coverage', () => {
       });
       assert.ok(composed);
       assert.equal(composed.providers.length, 0);
-      assert.equal(composed.extractors.length, 8, 'extractors untouched');
-      assert.equal(composed.analyzers.length, 19, 'rules untouched');
+      assert.equal(composed.extractors.length, 7, 'extractors untouched (7: core/mcp-tools ships disabled, experimental)');
+      assert.equal(composed.analyzers.length, 18, 'rules untouched (18: core/supersede ships disabled, experimental)');
     });
 
     it('(b) killSwitches.extractors empties only the extractors bucket', () => {
@@ -345,7 +374,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 5);
       assert.equal(composed.extractors.length, 0);
-      assert.equal(composed.analyzers.length, 19);
+      assert.equal(composed.analyzers.length, 18);
     });
 
     it('(c) killSwitches.analyzers empties only the rules bucket', () => {
@@ -356,7 +385,7 @@ describe('plugin-runtime, branch coverage', () => {
       });
       assert.ok(composed);
       assert.equal(composed.providers.length, 5);
-      assert.equal(composed.extractors.length, 8);
+      assert.equal(composed.extractors.length, 7);
       assert.equal(composed.analyzers.length, 0);
     });
 

@@ -9,6 +9,11 @@
 
 import { Command, Option } from 'clipanion';
 
+import {
+  installedDefaultEnabled,
+  type EnabledResolver,
+} from '../../../kernel/config/plugin-resolver.js';
+import type { TExtensionStability } from '../../../kernel/extensions/index.js';
 import { qualifiedExtensionId } from '../../../kernel/registry.js';
 import type { IDiscoveredPlugin } from '../../../kernel/types/plugin.js';
 import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
@@ -87,7 +92,7 @@ interface IListRow {
 function renderListHuman(
   builtIns: IBuiltInPluginRow[],
   plugins: IDiscoveredPlugin[],
-  resolveEnabled: (id: string) => boolean,
+  resolveEnabled: EnabledResolver,
   ansi: IAnsi,
 ): string {
   const rows: IListRow[] = [
@@ -151,7 +156,7 @@ function builtInToListRow(b: IBuiltInPluginRow): IListRow {
 
 function pluginToListRow(
   p: IDiscoveredPlugin,
-  resolveEnabled: (id: string) => boolean,
+  resolveEnabled: EnabledResolver,
 ): IListRow {
   // Every field that originates from the plugin manifest (`id`,
   // per-ext ids, `reason`) is user-controlled and runs through
@@ -165,12 +170,14 @@ function pluginToListRow(
   // toggle axis.
   const isLoaded = p.status === 'enabled';
   const extensions = p.extensions ?? [];
+  const extEnabled = (e: { id: string; stability?: TExtensionStability }): boolean =>
+    resolveEnabled(qualifiedExtensionId(p.id, e.id), installedDefaultEnabled(e.stability));
   const enabled = isLoaded
-    ? extensions.length === 0 || extensions.some((e) => resolveEnabled(qualifiedExtensionId(p.id, e.id)))
+    ? extensions.length === 0 || extensions.some((e) => extEnabled(e))
     : false;
   const names = extensions.map((e) => {
     const safeId = withStabilityTag(sanitizeForTerminal(e.id), e.stability);
-    return resolveEnabled(qualifiedExtensionId(p.id, e.id))
+    return extEnabled(e)
       ? safeId
       : `${PLUGINS_TEXTS.rowGlyphOff} ${safeId}`;
   });

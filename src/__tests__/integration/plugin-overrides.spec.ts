@@ -24,6 +24,7 @@ import {
   setPluginEnabled,
 } from '../../kernel/adapters/sqlite/plugins.js';
 import {
+  installedDefaultEnabled,
   makeEnabledResolver,
   resolvePluginEnabled,
 } from '../../kernel/config/plugin-resolver.js';
@@ -144,6 +145,32 @@ describe('resolvePluginEnabled, precedence', () => {
     assert.equal(resolver('foo'), false);   // settings.json wins
     assert.equal(resolver('bar'), true);    // DB wins
     assert.equal(resolver('baz'), true);    // default
+  });
+
+  it('installedDefault flips the no-override fall-back (experimental ships off)', () => {
+    // No DB row, no settings entry: the caller-supplied installed
+    // default decides. Experimental extensions pass `false`.
+    assert.equal(resolvePluginEnabled('exp', cfg({}), new Map(), false), false);
+    assert.equal(resolvePluginEnabled('ord', cfg({}), new Map(), true), true);
+    // An explicit enable override still wins over a `false` default.
+    assert.equal(
+      resolvePluginEnabled('exp', cfg({ exp: { enabled: true } }), new Map(), false),
+      true,
+    );
+    const dbOn = new Map<string, boolean>([['exp', true]]);
+    assert.equal(resolvePluginEnabled('exp', cfg({}), dbOn, false), true);
+    // The curried resolver forwards the installed default verbatim.
+    const resolver = makeEnabledResolver(cfg({}), new Map());
+    assert.equal(resolver('exp', false), false);
+    assert.equal(resolver('exp', true), true);
+  });
+
+  it('installedDefaultEnabled: only experimental ships disabled', () => {
+    assert.equal(installedDefaultEnabled('experimental'), false);
+    assert.equal(installedDefaultEnabled('beta'), true);
+    assert.equal(installedDefaultEnabled('stable'), true);
+    assert.equal(installedDefaultEnabled('deprecated'), true);
+    assert.equal(installedDefaultEnabled(undefined), true);
   });
 });
 

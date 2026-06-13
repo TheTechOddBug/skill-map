@@ -16,13 +16,23 @@ import type { TSettingValue, IViewContribution } from '../types/view-catalog.js'
 import type { TSettingDeclaration } from '../types/view-catalog.js';
 
 /**
- * Lifecycle label an extension manifest MAY declare. Presentation-only
- * metadata: the non-default values render as a badge next to the
- * extension in `sm plugins list` / `sm plugins show` and the Settings
- * plugins panel, and the kernel never gates behaviour on it (a
- * `deprecated` extension still runs). Default: missing == `stable`,
- * and `stable` (declared or defaulted) renders no badge. Mirrors
+ * Lifecycle label an extension manifest MAY declare. Renders as a badge
+ * next to the extension in `sm plugins list` / `sm plugins show` and the
+ * Settings plugins panel for the non-default values.
+ *
+ * `experimental` is the one value that ALSO changes behaviour: it flips
+ * the extension's installed default to DISABLED, so an experimental
+ * extension does not load (does not run, does not register) unless the
+ * operator opts in (`sm plugins enable <plugin>/<ext>`, the Settings
+ * toggle, or a `settings.json` / `config_plugins` override). The opt-in
+ * is a plain enable override, once set it wins over the installed
+ * default exactly like any other extension. The other values are
+ * presentation-only and default to ENABLED: `beta` runs by default with
+ * a badge, `deprecated` still runs (badge only), `stable` (declared or
+ * defaulted) runs with no badge. Missing == `stable` == enabled, no
+ * badge. Mirrors
  * `spec/schemas/extensions/base.schema.json#/properties/stability`.
+ *
  * Deliberately a superset of the node-level annotations enum (which has
  * no `beta`): this describes the maturity of the extension itself, not
  * of a scanned node.
@@ -84,7 +94,8 @@ export interface IExtensionBase {
   description: string;
   /**
    * Optional lifecycle label (`experimental` / `beta` / `stable` /
-   * `deprecated`). Missing == `stable`, no badge rendered. See
+   * `deprecated`). Missing == `stable`, no badge rendered. `experimental`
+   * additionally flips the installed default to disabled. See
    * `TExtensionStability` for the full semantics.
    */
   stability?: TExtensionStability;

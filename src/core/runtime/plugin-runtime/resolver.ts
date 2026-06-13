@@ -14,15 +14,25 @@ import type {
   TBuiltInExtension,
 } from '../../../plugins/built-ins.js';
 import { loadConfig } from '../../../kernel/config/loader.js';
-import { makeEnabledResolver } from '../../../kernel/config/plugin-resolver.js';
+import {
+  installedDefaultEnabled,
+  makeEnabledResolver,
+  type EnabledResolver,
+} from '../../../kernel/config/plugin-resolver.js';
+import type { TExtensionStability } from '../../../kernel/extensions/base.js';
 import { qualifiedExtensionId } from '../../../kernel/registry.js';
 import { resolveDbPath } from '../../paths/db-path.js';
 import { tryWithSqlite } from '../../sqlite/with-sqlite.js';
 import type { IRuntimeContext } from '../runtime-context.js';
 
-/** Default-enabled fall-back: every id is enabled when no overrides exist. */
-export function defaultResolveEnabled(_id: string): boolean {
-  return true;
+/**
+ * Default-enabled fall-back used when no config / DB is available.
+ * Honours the caller-supplied installed default so an `experimental`
+ * extension stays OFF even on a bare project with zero overrides
+ * (`installedDefault` is `false` for those, see `installedDefaultEnabled`).
+ */
+export function defaultResolveEnabled(_id: string, installedDefault = true): boolean {
+  return installedDefault;
 }
 
 /**
@@ -30,15 +40,15 @@ export function defaultResolveEnabled(_id: string): boolean {
  * promise that "no extension is privileged", every built-in is
  * removable via `config_plugins` / `settings.json`. The plugin row is a
  * presentational grouping only; the lookup key is always the qualified
- * extension id `<plugin.id>/<ext.id>`. Defaults to `true` for any id
- * without an explicit override.
+ * extension id `<plugin.id>/<ext.id>`. The installed default comes from
+ * the extension's `stability` (experimental ships disabled).
  */
 export function isBuiltInExtensionEnabled(
   plugin: IBuiltInPlugin,
   ext: TBuiltInExtension,
-  resolveEnabled: (id: string) => boolean,
+  resolveEnabled: EnabledResolver,
 ): boolean {
-  return isPluginEntryEnabled(plugin, ext.id, resolveEnabled);
+  return isPluginEntryEnabled(plugin, ext.id, resolveEnabled, ext.stability);
 }
 
 /**
@@ -46,27 +56,34 @@ export function isBuiltInExtensionEnabled(
  * a typed extension instance, so it can be reused from manifest-side
  * filters (`filterBuiltInManifests`) where the value is `IPluginManifest`,
  * not `TBuiltInExtension`. Same toggle semantics as
- * `isBuiltInExtensionEnabled`.
+ * `isBuiltInExtensionEnabled`. `stability` drives the installed default
+ * (experimental ships disabled); omit it for plugin-level callers that
+ * want the plain enabled-by-default.
  */
 export function isPluginEntryEnabled(
   plugin: IBuiltInPlugin,
   extId: string,
-  resolveEnabled: (id: string) => boolean,
+  resolveEnabled: EnabledResolver,
+  stability?: TExtensionStability,
 ): boolean {
-  return resolveEnabled(qualifiedExtensionId(plugin.id, extId));
+  return resolveEnabled(qualifiedExtensionId(plugin.id, extId), installedDefaultEnabled(stability));
 }
 
 /**
  * Decide whether a loaded user-plugin extension is enabled under a
  * (possibly fresh) resolver. The lookup key is the qualified extension
  * id `<pluginId>/<extId>`, mirroring `isPluginEntryEnabled` for
- * built-ins. There is no plugin-level kill-switch anymore.
+ * built-ins. There is no plugin-level kill-switch anymore. The
+ * extension's `stability` (when carried) drives the installed default.
  */
 export function isPluginExtensionEnabled(
-  ext: { pluginId: string; id: string },
-  resolveEnabled: (id: string) => boolean,
+  ext: { pluginId: string; id: string; stability?: TExtensionStability },
+  resolveEnabled: EnabledResolver,
 ): boolean {
-  return resolveEnabled(qualifiedExtensionId(ext.pluginId, ext.id));
+  return resolveEnabled(
+    qualifiedExtensionId(ext.pluginId, ext.id),
+    installedDefaultEnabled(ext.stability),
+  );
 }
 
 /**
@@ -77,7 +94,7 @@ export function isPluginExtensionEnabled(
  */
 export async function buildEnabledResolver(
   ctx: IRuntimeContext,
-): Promise<(id: string) => boolean> {
+): Promise<EnabledResolver> {
   const { effective: cfg } = loadConfig({ ...ctx });
   const dbPath = resolveDbPath({
     db: undefined,

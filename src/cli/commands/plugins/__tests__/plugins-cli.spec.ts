@@ -575,7 +575,11 @@ describe('sm plugins doctor, disabled is not a failure', () => {
 
     const r = sm(['plugins', 'doctor'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    assert.match(r.stdout, /disabled\s+1/);
+    // Disabled is intentional, never an error: exit stays 0. The count
+    // is 4, the disabled `mock-h` drop-in plus the three experimental
+    // built-ins that ship disabled by default (`core/mcp-tools`,
+    // `core/supersede`, `core/node-supersede`).
+    assert.match(r.stdout, /disabled\s+4/);
   });
 });
 
