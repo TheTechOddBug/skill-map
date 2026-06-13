@@ -89,7 +89,7 @@ export const backtickPathExtractor: IBuiltInManifest<IExtractor> = {
   pluginId: CORE_PLUGIN_ID,
   kind: 'extractor',
   description:
-    'Turns relative .md paths written inside code spans and fenced blocks into arrows between nodes in the graph.',
+    'Turns relative .md paths written inside code spans and fenced blocks into arrows between nodes in the graph. Example: a backticked `references/rules.md` path draws an arrow to that file.',
   scope: 'body',
 
   extract(ctx: IExtractorContext): void {

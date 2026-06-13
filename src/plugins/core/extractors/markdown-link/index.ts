@@ -76,7 +76,7 @@ export const markdownLinkExtractor: IBuiltInManifest<IExtractor> = {
   pluginId: CORE_PLUGIN_ID,
   kind: 'extractor',
   description:
-    'Turns markdown links (`[text](path)`) in a node\'s body into arrows between nodes in the graph.',
+    'Turns markdown links (`[text](path)`) in a node\'s body into arrows between nodes in the graph. Example: `[the guide](docs/guide.md)` draws an arrow to `docs/guide.md`.',
   scope: 'body',
 
   extract(ctx: IExtractorContext): void {

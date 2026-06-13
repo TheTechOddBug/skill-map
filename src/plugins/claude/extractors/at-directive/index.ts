@@ -74,7 +74,7 @@ export const atDirectiveExtractor: IBuiltInManifest<IExtractor> = {
   id: ID,
   pluginId: CLAUDE_PLUGIN_ID,
   kind: 'extractor',
-  description: 'Detects `@<token>` directives in a node\'s body using Claude Code rules. A bare handle (e.g. `@team`) becomes a `mentions` link; a file-flavoured token (e.g. `@docs/api.md`, `@./readme.md`) becomes a `references` link.',
+  description: 'Detects `@<token>` directives in a node\'s body using Claude Code rules, choosing the link kind by token shape. Example: a bare handle `@team` becomes a `mentions` link, while a file-flavoured token `@docs/api.md` becomes a `references` link.',
   scope: 'body',
   precondition: { provider: ['claude'] },
 

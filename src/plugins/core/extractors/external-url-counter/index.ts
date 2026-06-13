@@ -58,7 +58,7 @@ export const externalUrlCounterExtractor: IBuiltInManifest<IExtractor> = {
   pluginId: CORE_PLUGIN_ID,
   kind: 'extractor',
   description:
-    'Counts the distinct external URLs in a node\'s body and shows the count on the card.',
+    'Counts the distinct external URLs in a node\'s body and shows the count on the card. Example: a body linking `https://example.com` and `https://docs.rs` shows a count of 2.',
   scope: 'body',
 
   /**

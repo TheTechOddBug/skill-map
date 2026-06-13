@@ -52,7 +52,7 @@ export const mcpToolsExtractor: IBuiltInManifest<IExtractor> = {
   pluginId: CORE_PLUGIN_ID,
   kind: 'extractor',
   description:
-    'Turns `tools: [mcp__<server>__<tool>]` entries in a node\'s frontmatter into an MCP node per unique server and an arrow from the source to each one.',
+    'Turns `tools: [mcp__<server>__<tool>]` entries in a node\'s frontmatter into an MCP node per unique server and an arrow from the source to each one. Example: `tools: [mcp__github__create_pr]` adds an `mcp://github` node and an arrow to it.',
   // Claude-convention pattern only; per-vendor flavours and the
   // config-side MCP declaration (Phase 5b) are still pending, so the
   // extractor ships flagged as experimental in list / show / Settings.

@@ -23,7 +23,7 @@ export const annotationsExtractor: IBuiltInManifest<IExtractor> = {
   pluginId: CORE_PLUGIN_ID,
   kind: 'extractor',
   description:
-    'Turns the `supersedes` and `supersededBy` entries from a node\'s `.sm` sidecar into arrows between nodes in the graph.',
+    'Turns the `supersedes` and `supersededBy` entries from a node\'s `.sm` sidecar into arrows between nodes in the graph. Example: `supersededBy: v1-skill.md` in a `.sm` sidecar draws an arrow to `v1-skill.md`.',
   scope: 'frontmatter',
 
   extract(ctx: IExtractorContext): void {

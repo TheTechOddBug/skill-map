@@ -79,10 +79,13 @@ test.describe('sidecar UI surface (Step 9.6.5)', () => {
     await gotoWorkspace(page);
 
     // The bump button is no longer a hardcoded toolbar element: it is a
-    // plugin contribution to the `inspector.action.button` slot, emitted
-    // by `core/annotation-stale` for nodes that have a sidecar. Deep-link
-    // to the stale demo node so the button is present, via the shared
-    // `?path=` query param (there is no `/map` route anymore).
+    // plugin contribution to the `inspector.action.button` slot,
+    // self-projected by the `core/node-bump` Action's scan-time
+    // `project(ctx)` for nodes that have a sidecar (the dispatching
+    // Action owns its button; `core/annotation-stale` keeps only the
+    // stale badge + issue). Deep-link to the stale demo node so the
+    // button is present, via the shared `?path=` query param (there is
+    // no `/map` route anymore).
     await page.goto(`./?path=${encodeURIComponent(STALE_PATH)}`);
     await page.waitForLoadState('networkidle');
 

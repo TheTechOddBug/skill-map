@@ -164,6 +164,26 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     assert.equal(rows.length, 37);
   });
 
+  // Convention guard: every built-in EXTRACTOR description ends with a
+  // concrete `Example:` clause (the operator reads these in
+  // `sm plugins list` / `sm plugins show` / the Settings panel, and a
+  // worked example makes an abstract "turns X into Y" description
+  // legible). Enforced here so a future extractor cannot silently ship
+  // without one. Scoped to extractors deliberately: analyzers / actions
+  // / providers describe behaviour that a syntax example does not always
+  // clarify.
+  it('every built-in extractor description carries an `Example:`', () => {
+    const offenders = listBuiltIns()
+      .filter((row) => row.kind === 'extractor')
+      .filter((row) => !/\bExample:/.test(row.description ?? ''))
+      .map((row) => `${row.pluginId}/${row.id}`);
+    assert.deepEqual(
+      offenders,
+      [],
+      `extractor descriptions missing an \`Example:\` clause: ${offenders.join(', ')}`,
+    );
+  });
+
   // `defaultRefreshAction` was retired with the structure-as-truth
   // refactor along with the UI's Refresh button. The replacement UX is
   // TBD; this test was removed accordingly.

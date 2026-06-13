@@ -47,7 +47,7 @@ export const toolsCounterExtractor: IBuiltInManifest<IExtractor> = {
   pluginId: CLAUDE_PLUGIN_ID,
   kind: 'extractor',
   description:
-    'Counts the tools an agent declares in its frontmatter and shows the count on the agent card.',
+    'Counts the tools an agent declares in its frontmatter and shows the count on the agent card. Example: an agent with `tools: [Bash, Read, Grep]` shows a count of 3.',
   scope: 'frontmatter',
   precondition: { kind: ['claude/agent'] },
 

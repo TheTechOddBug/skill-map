@@ -72,7 +72,7 @@ export const slashCommandExtractor: IBuiltInManifest<IExtractor> = {
   id: ID,
   pluginId: CLAUDE_PLUGIN_ID,
   kind: 'extractor',
-  description: 'Turns `/command` invocations in a node\'s body into arrows that point at the resolved slash command or skill, using Claude Code routing rules.',
+  description: 'Turns `/command` invocations in a node\'s body into arrows that point at the resolved slash command or skill, using Claude Code routing rules. Example: `/deploy` in the body draws an arrow to the `deploy` command.',
   scope: 'body',
   precondition: { provider: ['claude'] },
 

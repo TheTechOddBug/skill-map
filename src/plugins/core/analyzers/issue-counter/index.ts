@@ -27,6 +27,14 @@
  * complete. Today this is enforced by ordering in the built-ins
  * registry (`src/plugins/built-ins.ts`); a future phase mechanism
  * would make the ordering declarative.
+ *
+ * Dependency note: this analyzer only aggregates, it never detects. Its
+ * output is exactly as complete as the set of ENABLED detect analyzers.
+ * If a detector such as `core/reference-broken` is disabled
+ * (`config_plugins.enabled = 0`), its findings never reach
+ * `accumulatedIssues` and this chip silently omits them, even though the
+ * underlying signal (e.g. a broken markdown link) is still extracted.
+ * Re-enable the detector for its findings to be counted here.
  */
 
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';

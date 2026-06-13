@@ -236,7 +236,7 @@ The kernel knows six categories. Each has a JSON Schema under [`schemas/extensio
 | `provider` | `walk` / `classify` | filesystem roots, candidate path | `{ kind, provider } \| null` | deterministic only |
 | `extractor` | `extract(ctx)` | one node + body + frontmatter + callbacks | `void` (via `ctx.emitLink` / `ctx.enrichNode` / `ctx.emitContribution` / `ctx.store`) | deterministic only |
 | `analyzer` | `evaluate(ctx)` | full graph | `Issue[]` | dual-mode |
-| `action` | `run(ctx)` | one or more nodes | report / rendered prompt | dual-mode |
+| `action` | `invoke(input, ctx)` + optional `project(ctx)` | `invoke`: one node + input; `project`: full graph + `emitContribution` | `invoke`: report / rendered prompt; `project`: `void` (its own view contributions) | `invoke`: dual-mode; `project`: deterministic |
 | `formatter` | `format(ctx)` | full graph | `string` | deterministic only |
 | `hook` | `on(ctx)` | a curated lifecycle event payload | `void` (side effects) | **deterministic only** |
 
@@ -374,7 +374,12 @@ my-provider/
 
 ### Actions
 
-Operate on one or more nodes. Dual-mode (`mode` optional, default `'deterministic'`). Files-by-convention: every Action carries `<action-dir>/report.schema.json`; probabilistic Actions additionally carry `<action-dir>/prompt.md`. Probabilistic estimates go in `probExpectedDurationSeconds` (drives job TTL). Optional `precondition` (including `analyzerIds`, the Modelo B link). These ship later in the v1.x line as bundled built-ins; until Step 10 lands the job subsystem, test them with a live kernel via `sm scan` against a fixture rather than in unit tests. Spec at [`schemas/extensions/action.schema.json`](./schemas/extensions/action.schema.json).
+Operate on one or more nodes. Dual-mode (`mode` optional, default `'deterministic'`). Files-by-convention: every Action carries `<action-dir>/report.schema.json`; probabilistic Actions additionally carry `<action-dir>/prompt.md`. Probabilistic estimates go in `probExpectedDurationSeconds` (drives job TTL). Optional `precondition` (including `analyzerIds`, the Modelo B link). Spec at [`schemas/extensions/action.schema.json`](./schemas/extensions/action.schema.json).
+
+An Action has two independent surfaces:
+
+- **`invoke(input, ctx)`**, the on-demand executor the user triggers (deterministic in-process code, or a probabilistic rendered prompt the runner executes). Unit-test deterministic ones by calling `invoke(input, ctx)` with a fake context; probabilistic ones still need a live kernel until Step 10 lands the job subsystem.
+- **`project(ctx)`** (optional), a deterministic, side-effect-free, scan-time method with read-only graph access (`ctx.nodes`, `ctx.links`) plus `ctx.emitContribution(nodePath, ref, payload)`. Use it to self-project the Action's own UI affordance, typically an `inspector.action.button` declared in the manifest `ui` map (see [View contributions](#view-contributions)), computing the per-node `enabled` / prompt `options` from the live graph. `project()` is always deterministic, even when `invoke` is probabilistic, and runs every scan (same cost as an analyzer's emit). This is how built-in buttons like Supersede / Edit tags / Bump are produced: the dispatching Action owns its button, there is no separate "projector" analyzer. Unit-test it by calling `project(ctx)` with a fake `{ nodes, links, emitContribution }` and asserting the captured payload.
 
 ---
 
