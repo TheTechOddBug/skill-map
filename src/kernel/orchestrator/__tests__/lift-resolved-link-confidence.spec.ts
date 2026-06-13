@@ -572,4 +572,29 @@ describe('liftResolvedLinkConfidence', () => {
     liftResolvedLinkConfidence(links, nodes, makeCtx());
     strictEqual(links[0]!.confidence, 0.8);
   });
+
+  it('does NOT bump a link resolving to a virtual node; it keeps its emit confidence', () => {
+    // A `references` link to an `mcp://images` node (virtual: true,
+    // fabricated from frontmatter, unverified on disk) resolves by path,
+    // so resolvedTarget is set, but confidence stays at the 0.85 emit
+    // instead of bumping to 1.0: an unverified entity is not full
+    // certainty (mirrors the reserved-target downgrade).
+    const nodes = [
+      mockNode({ path: '.claude/agents/src.md', kind: 'agent', frontmatter: { name: 'src' } }),
+      mockNode({ path: 'mcp://images', kind: 'mcp', virtual: true, frontmatter: { name: 'images' } }),
+    ];
+    const links: Link[] = [
+      {
+        source: '.claude/agents/src.md',
+        target: 'mcp://images',
+        kind: 'references',
+        confidence: 0.85,
+        sources: ['mcp-tools'],
+        trigger: { originalTrigger: 'mcp__images__*', normalizedTrigger: 'mcp://images' },
+      },
+    ];
+    liftResolvedLinkConfidence(links, nodes, makeCtx());
+    strictEqual(links[0]!.confidence, 0.85);
+    strictEqual(links[0]!.resolvedTarget, 'mcp://images');
+  });
 });

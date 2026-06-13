@@ -4,7 +4,7 @@
  * Sits as a post-walk transform (see `post-walk-transforms.ts`), runs
  * AFTER `dedupeLinks` so the merged edge state is final.
  *
- * Four outcomes per link below confidence 1.0:
+ * Five outcomes per link below confidence 1.0:
  *
  *   - **Genuinely broken**: target matches no node path AND the
  *     stripped trigger matches no entry in the cross-kind name index
@@ -23,6 +23,12 @@
  *   - **Resolved to a non-reserved target**: confidence is bumped to
  *     `1.0`. The graph reflects "this edge points at a real entity the
  *     runtime can act on".
+ *
+ *   - **Resolved to a VIRTUAL target** (the target node carries
+ *     `virtual: true`, e.g. an `mcp://` server node fabricated from
+ *     frontmatter, never verified on disk): `resolvedTarget` is set so
+ *     the edge stays navigable, but confidence stays at the extractor
+ *     emit value, an unverified entity is not full certainty.
  *
  *   - **Resolved to a RESERVED target** (target node's name normalises
  *     to an entry in its Provider's `reservedNames[kind]` list): the
@@ -96,30 +102,43 @@ export function liftResolvedLinkConfidence(
   if (!links.some((l) => l.confidence < 1)) return;
   const indexes = buildIndexes(nodes, ctx);
   for (const link of links) {
-    if (link.confidence >= 1) continue;
-    const resolution = resolve(link, indexes, ctx);
-    if (resolution === 'none') {
-      // Strict resolution failed. Demote to the broken floor ONLY when
-      // the link is genuinely broken (no path, no name match), mirroring
-      // core/reference-broken. A link that matches a name but failed the
-      // strict kind/lens bump (not-broken + not-bumped) keeps its emit.
-      if (isGenuinelyBroken(link, indexes)) {
-        link.confidence = Math.min(link.confidence, BROKEN_TARGET_CONFIDENCE);
-      }
-      continue;
-    }
-    link.confidence = ctx.reservedNodePaths.has(resolution)
-      ? RESERVED_TARGET_CONFIDENCE
-      : 1.0;
-    // Record the resolved node path so consumers reading the link
-    // (BFF incoming query, rename / refactor tooling, the UI's
-    // incoming list) can navigate by node identity even when
-    // `link.target` keeps a trigger-style string like `@foo` or
-    // `/deploy`. Path-style links also write this (it equals
-    // `link.target`); keeping the field set unconditionally simplifies
-    // the query layer (single column to filter on).
-    link.resolvedTarget = resolution;
+    if (link.confidence < 1) applyResolution(link, indexes, ctx);
   }
+}
+
+/**
+ * Per-link confidence decision against the resolved graph, mutating the
+ * link in place. Split out of `liftResolvedLinkConfidence` to keep that
+ * function's branch count under the lint complexity cap; the five
+ * outcomes are documented on the exported function above.
+ */
+function applyResolution(link: Link, indexes: IIndexes, ctx: IPostWalkTransformCtx): void {
+  const resolution = resolve(link, indexes, ctx);
+  if (resolution === 'none') {
+    // Strict resolution failed. Demote to the broken floor ONLY when the
+    // link is genuinely broken (no path, no name match), mirroring
+    // core/reference-broken. A name match that failed the strict kind/lens
+    // bump (not-broken + not-bumped) keeps its emit.
+    if (isGenuinelyBroken(link, indexes)) {
+      link.confidence = Math.min(link.confidence, BROKEN_TARGET_CONFIDENCE);
+    }
+    return;
+  }
+  // The edge resolves to a real graph node. Record the resolved path so
+  // consumers (BFF incoming query, rename tooling, the UI's incoming list)
+  // can navigate by node identity even when `link.target` keeps a trigger
+  // string like `@foo` / `/deploy`. Set unconditionally, regardless of the
+  // confidence outcome below.
+  link.resolvedTarget = resolution;
+  // Virtual target (e.g. an `mcp://<server>` node fabricated from
+  // frontmatter, never verified on disk): the edge resolves and stays
+  // navigable, but an unverified entity is not full certainty, so the link
+  // keeps its extractor emit value instead of bumping to 1.0. Mirrors the
+  // reserved-target downgrade.
+  if (indexes.nodeByPath.get(resolution)?.virtual) return;
+  link.confidence = ctx.reservedNodePaths.has(resolution)
+    ? RESERVED_TARGET_CONFIDENCE
+    : 1.0;
 }
 
 interface IIndexes {
