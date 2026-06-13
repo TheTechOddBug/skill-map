@@ -47,7 +47,7 @@ function invocation(source: string, target: string, normalized: string, kind: 'i
 // Rules' evaluate() returns Issue[] | Promise<Issue[]>. Await resolves both
 // shapes uniformly and keeps each test's assertions typed as Issue[].
 async function run(rule: typeof triggerCollisionAnalyzer, ctx: { nodes: Node[]; links: Link[] }): Promise<Issue[]> {
-  return await rule.evaluate({ ...ctx, emitContribution: noopEmitContribution });
+  return await rule.evaluate({ ...ctx, settings: {}, emitContribution: noopEmitContribution });
 }
 
 /** Stub for tests that don't exercise the contribution emit channel. */

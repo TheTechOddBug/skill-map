@@ -62,6 +62,7 @@ import {
   type IIssuesQuery,
   type ILinksQuery,
   type INodesQuery,
+  type IPluginChange,
   type ISidecarBumpOpts,
   type TGraphFormat,
   type TPluginItem,
@@ -229,7 +230,7 @@ export class RestDataSource implements IDataSourcePort {
   }
 
   async applyPluginChanges(
-    changes: ReadonlyArray<{ id: string; enabled: boolean }>,
+    changes: ReadonlyArray<IPluginChange>,
   ): Promise<IListEnvelopeApi<TPluginItem>> {
     const envelope = await this.patchJson<IListEnvelopeApi<TPluginItem>>(
       `${BASE}/plugins`,

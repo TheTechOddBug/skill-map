@@ -426,10 +426,171 @@ export interface IPluginRuntimeContributionErrorApi {
 
 /**
  * Lifecycle label an extension manifest may declare. Mirrors the BFF's
- * `TExtensionStability` (spec `extensions/base.schema.json#/properties/
+ * `TExtensionStabilityApi` (spec `extensions/base.schema.json#/properties/
  * stability`). Missing on the wire means `stable` (the default).
  */
 export type TExtensionStabilityApi = 'experimental' | 'beta' | 'stable' | 'deprecated';
+
+/**
+ * Closed catalog of input-type names for an extension setting. Mirrors
+ * the kernel's `TInputTypeName` (generated from
+ * `spec/schemas/input-types.schema.json`). The 11-member set is the v1
+ * surface; the UI's `<sm-input-type-control>` renders one PrimeNG widget
+ * per member.
+ */
+export type TSettingTypeApi =
+  | 'string-list'
+  | 'single-string'
+  | 'boolean-flag'
+  | 'integer'
+  | 'number'
+  | 'enum-pick'
+  | 'enum-multipick'
+  | 'path-glob'
+  | 'regex'
+  | 'secret'
+  | 'key-value-list';
+
+/** A single `{ value, label }` choice for the enum input-types. */
+export interface ISettingEnumOptionApi {
+  value: string;
+  label: string;
+}
+
+/** A single `{ key, value }` row for the `key-value-list` input-type. */
+export interface ISettingKeyValueEntryApi {
+  key: string;
+  value: string;
+}
+
+/**
+ * Fields shared by every setting declaration shape. The discriminated
+ * union `TSettingDeclarationApi` extends one of these per `type`.
+ */
+interface ISettingCommonApi {
+  /** Short human-readable label. English-only. */
+  label: string;
+  /** Optional helper text shown below the control. English-only. */
+  description?: string;
+}
+
+export interface ISettingStringListApi extends ISettingCommonApi {
+  type: 'string-list';
+  default?: string[];
+  min?: number;
+  max?: number;
+  itemMaxLength?: number;
+}
+
+export interface ISettingSingleStringApi extends ISettingCommonApi {
+  type: 'single-string';
+  default?: string;
+  minLength?: number;
+  maxLength?: number;
+  /** ECMAScript regex pattern (no flags). */
+  pattern?: string;
+}
+
+export interface ISettingBooleanFlagApi extends ISettingCommonApi {
+  type: 'boolean-flag';
+  default?: boolean;
+}
+
+export interface ISettingIntegerApi extends ISettingCommonApi {
+  type: 'integer';
+  default?: number;
+  min?: number;
+  max?: number;
+  step?: number;
+}
+
+export interface ISettingNumberApi extends ISettingCommonApi {
+  type: 'number';
+  default?: number;
+  min?: number;
+  max?: number;
+  step?: number;
+}
+
+export interface ISettingEnumPickApi extends ISettingCommonApi {
+  type: 'enum-pick';
+  options: ISettingEnumOptionApi[];
+  default?: string;
+}
+
+export interface ISettingEnumMultipickApi extends ISettingCommonApi {
+  type: 'enum-multipick';
+  options: ISettingEnumOptionApi[];
+  default?: string[];
+  min?: number;
+  max?: number;
+}
+
+export interface ISettingPathGlobApi extends ISettingCommonApi {
+  type: 'path-glob';
+  default?: string;
+  /** When true, the value is `string[]`; when false (default), a single string. */
+  multiple?: boolean;
+}
+
+export interface ISettingRegexApi extends ISettingCommonApi {
+  type: 'regex';
+  default?: string;
+  /** Subset of `gimsuy`. Shown as a static suffix, never edited. */
+  flags?: string;
+}
+
+export interface ISettingSecretApi extends ISettingCommonApi {
+  type: 'secret';
+  /** Optional uppercase-ASCII env var that overrides any stored value. */
+  envVar?: string;
+}
+
+export interface ISettingKeyValueListApi extends ISettingCommonApi {
+  type: 'key-value-list';
+  keyLabel?: string;
+  valueLabel?: string;
+  default?: ISettingKeyValueEntryApi[];
+  min?: number;
+  max?: number;
+}
+
+/**
+ * Discriminated union of every setting declaration shape, mirror of the
+ * kernel's `TSettingDeclaration` (`view-catalog.ts`). The author picks a
+ * `type` and supplies per-type params; the UI never reads JSON Schema.
+ */
+export type TSettingDeclarationApi =
+  | ISettingStringListApi
+  | ISettingSingleStringApi
+  | ISettingBooleanFlagApi
+  | ISettingIntegerApi
+  | ISettingNumberApi
+  | ISettingEnumPickApi
+  | ISettingEnumMultipickApi
+  | ISettingPathGlobApi
+  | ISettingRegexApi
+  | ISettingSecretApi
+  | ISettingKeyValueListApi;
+
+/**
+ * One declared setting on the `GET /api/plugins` extension projection:
+ * the full manifest declaration plus its `id` (the settingId key).
+ * Mirror of the BFF's `ISettingDeclarationApi`.
+ */
+export type IPluginExtensionSettingApi = TSettingDeclarationApi & { id: string };
+
+/**
+ * Runtime value a setting can hold, derived from its declaration. The
+ * buffer stores values of these shapes; the apply payload ships them as
+ * real JSON. `secret`-typed settings carry a `string` (blank = unchanged).
+ */
+export type TSettingValueApi =
+  | string
+  | string[]
+  | boolean
+  | number
+  | ISettingKeyValueEntryApi[];
 
 export interface IPluginExtensionApi {
   id: string;
@@ -447,6 +608,28 @@ export interface IPluginExtensionApi {
    *  Settings renders the toggle disabled with a "locked" tag and the
    *  PATCH route returns 403. */
   locked?: boolean;
+  /**
+   * Operator-configurable settings declared by the extension manifest,
+   * in manifest order, each carrying its `id` (the settingId). Omitted
+   * (not `[]`) when the extension declares none. The Settings panel
+   * renders one control per entry from `type` + the per-type params.
+   */
+  settings?: IPluginExtensionSettingApi[];
+  /**
+   * Resolved EFFECTIVE values keyed by settingId (manifest default
+   * overlaid by the merged config). `secret`-typed settings are NEVER
+   * present here (their value never crosses the wire); their stored-ness
+   * is signalled via `secretSettingsSet`. Omitted when the extension
+   * declares no settings.
+   */
+  settingValues?: Record<string, unknown>;
+  /**
+   * settingIds of `secret`-typed settings that currently hold a stored
+   * value, so the panel can show "set" vs "empty" without the secret
+   * value crossing the wire. Present only when at least one secret is
+   * set; omitted otherwise.
+   */
+  secretSettingsSet?: string[];
 }
 
 export interface IPluginItemApi {

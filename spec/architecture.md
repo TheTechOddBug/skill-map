@@ -633,6 +633,10 @@ One locality class constrains which layers a given key MAY live in. It is enforc
 
 Adding a new entry is a behaviour change for older installs that wrote the key into a committed file, the value gets stripped at read time. The changeset that adds the entry MUST document the migration.
 
+### Extension settings resolution
+
+Plugin extensions declare user-configurable `settings` in their manifest (per-extension, see `plugin-author-guide.md` §Settings); the operator's values for them live in the config tree under `plugins.<pluginId>.extensions.<extId>.settings.<settingId>` and therefore flow through the same four-layer merge as any other key. The kernel's settings resolver runs once per scan, while composing the enabled extensions: for each declared setting it takes the manifest `default`, overlays the merged config value, and validates the result against the input-type's value schema (`input-types.schema.json#/$defs/ISettingDeclaration`); a value that fails validation falls back to the default with a warning, so the scan never aborts on a bad setting. The resolved object reaches the extension's runtime methods as `ctx.settings.<settingId>`. The `project-config.schema.json` keeps the `settings` object permissive (`additionalProperties: true`) on purpose: the static schema cannot know which input-type a given `settingId` picked, so per-value validation is the resolver's responsibility, not AJV's. `secret`-typed settings are still config-layer values, but the kernel forces them into the project-local layer (`settings.local.json`, gitignored), never the committed `settings.json`, the dynamic equivalent of `PROJECT_LOCAL_ONLY_KEYS` (the destination follows the declared type, not a fixed key list). There is no encryption in v1: the protection is that the value never travels via the shared repo (see `input-types.schema.json#/$defs/Setting_Secret`).
+
 ---
 
 ## Annotation system

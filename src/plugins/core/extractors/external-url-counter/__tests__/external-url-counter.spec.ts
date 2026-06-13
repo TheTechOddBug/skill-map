@@ -20,7 +20,7 @@ function mockNode(path: string): Node {
   };
 }
 
-function makeContext(node: Node, body: string): {
+function makeContext(node: Node, body: string, settings: Record<string, unknown> = {}): {
   ctx: IExtractorContext;
   signals: Signal[];
   contributions: Array<{ payload: unknown }>;
@@ -32,7 +32,7 @@ function makeContext(node: Node, body: string): {
     node,
     body,
     frontmatter: node.frontmatter ?? {},
-    settings: {},
+    settings,
     emitLink: () => undefined,
     enrichNode: () => undefined,
     emitContribution: (_contribution, payload) => contributions.push({ payload }),
@@ -47,8 +47,8 @@ function makeContext(node: Node, body: string): {
  * counts then drops, so the unit assertions target the emitted Signals and
  * the footer-count contribution directly rather than resolved Links.
  */
-function run(body: string): ReturnType<typeof makeContext> {
-  const helper = makeContext(mockNode('docs/x.md'), body);
+function run(body: string, settings: Record<string, unknown> = {}): ReturnType<typeof makeContext> {
+  const helper = makeContext(mockNode('docs/x.md'), body, settings);
   externalUrlCounterExtractor.extract(helper.ctx);
   return helper;
 }
@@ -99,5 +99,47 @@ describe('external-url-counter extractor', () => {
     const h = run('no links here, just prose');
     strictEqual(h.signals.length, 0);
     strictEqual(h.contributions.length, 0);
+  });
+
+  it('declares an `ignored-domains` string-list setting', () => {
+    const declared = externalUrlCounterExtractor.settings ?? {};
+    const setting = declared['ignored-domains'];
+    strictEqual(setting?.type, 'string-list');
+    deepStrictEqual(setting && 'default' in setting ? setting.default : undefined, []);
+  });
+
+  describe('ignored-domains setting', () => {
+    const body = 'see https://example.com/a and http://other.org/b and https://keep.me/c';
+
+    it('counts every domain when the ignore list is empty', () => {
+      const h = run(body, { 'ignored-domains': [] });
+      strictEqual(h.signals.length, 3);
+      deepStrictEqual(h.contributions[0]!.payload, { value: 3 });
+    });
+
+    it('skips a listed domain: no Signal, lower chip count', () => {
+      const h = run(body, { 'ignored-domains': ['example.com'] });
+      strictEqual(h.signals.length, 2);
+      const targets = h.signals.map((s) => s.candidates[0]!.target).sort();
+      deepStrictEqual(targets, ['http://other.org/b', 'https://keep.me/c']);
+      deepStrictEqual(h.contributions[0]!.payload, { value: 2 });
+    });
+
+    it('matches the hostname case-insensitively', () => {
+      const h = run('https://EXAMPLE.com/a and https://keep.me/c', { 'ignored-domains': ['Example.COM'] });
+      strictEqual(h.signals.length, 1);
+      strictEqual(h.signals[0]!.candidates[0]!.target, 'https://keep.me/c');
+    });
+
+    it('drops the chip entirely when every URL is ignored', () => {
+      const h = run('https://example.com/a and https://example.com/b', { 'ignored-domains': ['example.com'] });
+      strictEqual(h.signals.length, 0);
+      strictEqual(h.contributions.length, 0);
+    });
+
+    it('ignores a non-array setting value (degrades to counting all)', () => {
+      const h = run(body, { 'ignored-domains': 'not-an-array' });
+      strictEqual(h.signals.length, 3);
+    });
   });
 });

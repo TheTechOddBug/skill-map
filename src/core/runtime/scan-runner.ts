@@ -29,6 +29,7 @@ import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js
 import { findOrphanJobFiles } from '../../kernel/jobs/orphan-files.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
 import { loadConfig } from '../../kernel/config/loader.js';
+import { buildSettingsResolver } from '../config/plugin-settings.js';
 import { buildIgnoreFilter, readIgnoreFileText } from '../../kernel/scan/ignore.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -243,11 +244,16 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<TScanRunRes
 
   const kernel = createKernel();
   const pluginRuntime = await preparePluginRuntime(opts, opts.printer);
-  const extensions = registerExtensions(kernel, pluginRuntime, opts);
 
+  // Load the merged config BEFORE registering extensions so the settings
+  // resolver can be built from it and threaded into the composer (every
+  // composed extension gets its `resolvedSettings` populated, reaching
+  // extractors / analyzers / hooks as `ctx.settings.<id>`).
   const scanInputs = loadScanInputs(opts, ctx);
   if ('kind' in scanInputs) return scanInputs;
   const { cfg, ignoreFilter, strict, effectiveRoots } = scanInputs;
+
+  const extensions = registerExtensions(kernel, pluginRuntime, opts, cfg);
 
   // Walk reference paths into a side set. Lazy: skip the walk when the
   // operator left `scan.referencePaths` empty (the common case).
@@ -431,10 +437,12 @@ function registerExtensions(
   kernel: ReturnType<typeof createKernel>,
   pluginRuntime: Awaited<ReturnType<typeof preparePluginRuntime>>,
   opts: IScanRunOpts,
+  cfg: ReturnType<typeof loadConfig>['effective'],
 ): ReturnType<typeof composeScanExtensions> {
   const composeOpts: Parameters<typeof composeScanExtensions>[0] = {
     noBuiltIns: opts.noBuiltIns,
     pluginRuntime,
+    resolveSettings: buildSettingsResolver(cfg),
   };
   if (opts.killSwitches) composeOpts.killSwitches = opts.killSwitches;
   if (opts.resolveEnabledOverride) composeOpts.resolveEnabled = opts.resolveEnabledOverride;

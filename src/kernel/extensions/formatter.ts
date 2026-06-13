@@ -20,6 +20,12 @@ export interface IFormatterContext {
   links: Link[];
   issues: Issue[];
   /**
+   * Resolved values of the formatter's declared `settings`, populated
+   * from project config + user overrides. Empty object when no settings
+   * are declared.
+   */
+  settings: Record<string, unknown>;
+  /**
    * Full persisted scan, when the caller has it on hand. Optional so
    * formatters that only consume (nodes, links, issues) keep working
    * unchanged; formatters whose output mirrors a `ScanResult` envelope

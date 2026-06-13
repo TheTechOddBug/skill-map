@@ -18,6 +18,7 @@ The `settings` field on `IPluginManifest` lives in [`schemas/plugins-registry.sc
 | [`single-string`](#single-string) | `string` | URLs, names, identifiers |
 | [`boolean-flag`](#boolean-flag) | `boolean` | on/off toggles |
 | [`integer`](#integer) | `number` (always integer) | counts, thresholds, limits |
+| [`number`](#number) | `number` (decimal) | thresholds, ratios, confidence floors |
 | [`enum-pick`](#enum-pick) | `string` | pick one from a closed set |
 | [`enum-multipick`](#enum-multipick) | `string[]` | pick zero or more |
 | [`path-glob`](#path-glob) | `string` or `string[]` | file path patterns |
@@ -32,6 +33,8 @@ The `settings` field on `IPluginManifest` lives in [`schemas/plugins-registry.sc
 **Default values**: most types accept a `default` parameter. The kernel uses it when the user has not yet configured the setting.
 
 **Validation**: the kernel validates the resolved value against the per-type value schema at extractor invocation. Validation failure surfaces as `invalid-settings` plugin status.
+
+**CLI coercion**: `sm plugins config <plugin>/<ext> <settingId> <value>` receives the value as a shell string and coerces it to the declared type before validating and writing (`integer` / `number` parsed numerically, `boolean-flag` from `true` / `false`, `string-list` / `enum-multipick` / `key-value-list` parsed as JSON). A value that cannot be coerced or fails validation is rejected at write time with a typed error, not deferred to the next scan.
 
 **English-only labels**: per [`AGENTS.md`](../AGENTS.md), the project externalizes texts but does not internationalize. Use English `label` and `description` strings.
 
@@ -130,6 +133,30 @@ The `settings` field on `IPluginManifest` lives in [`schemas/plugins-registry.sc
 **Value type**: `number` (always integer).
 
 **UI**: PrimeNG `<p-inputnumber>` with spinner.
+
+---
+
+## `number`
+
+**Use for**: decimal numbers with optional bounds, thresholds (`0.3`), ratios, confidence floors.
+
+**Declaration**:
+```jsonc
+{
+  "type": "number",
+  "label": "Confidence floor",
+  "default": 0.5,
+  "min": 0,
+  "max": 1,
+  "step": 0.05
+}
+```
+
+**Parameters**: `label` (required), `description?`, `default?: number`, `min?`, `max?`, `step?` (default 1, must be > 0).
+
+**Value type**: `number` (whole or fractional; use [`integer`](#integer) when the value must be a whole number). `NaN` / `Infinity` are rejected.
+
+**UI**: PrimeNG `<p-inputnumber>` with `mode="decimal"`.
 
 ---
 
@@ -249,7 +276,7 @@ The `settings` field on `IPluginManifest` lives in [`schemas/plugins-registry.sc
 
 **UI**: `<input type="password">` with reveal toggle.
 
-**Storage**: encrypted at rest (kernel-managed key in `state_secrets`). Logged as `<redacted>` in CLI output. Triggers an `audit.secret-read` event on every read.
+**Storage**: project-local `settings.local.json` (gitignored), never the committed `settings.json`. The protection is that the value never travels via the shared repo, NOT encryption, it is kept as plain text on the local machine. The kernel routes any `secret`-typed setting to the project-local layer automatically (the dynamic equivalent of `PROJECT_LOCAL_ONLY_KEYS`, the destination follows the declared type, not a fixed key list). Logged as `<redacted>` in CLI output.
 
 ---
 
@@ -282,8 +309,8 @@ The `settings` field on `IPluginManifest` lives in [`schemas/plugins-registry.sc
 
 ## Stability
 
-- The catalog of 10 input-types is the v1 surface.
+- The catalog of 11 input-types is the v1 surface.
 - Adding a new input-type is a **catalog-minor bump**; renaming or removing one is a **catalog-major bump** and triggers `sm plugins upgrade` migration.
 - The `ISettingDeclaration` discriminated-union shape is stable. Adding a new optional parameter to an existing type is a minor bump; making a parameter required or removing one is a catalog-major bump.
 - Value-type promises (the "Value type" entry per type above) are stable. Changing the runtime value type for an existing input-type is a catalog-major bump.
-- The `secret` storage and audit-event behaviors are stable; the encryption scheme is internal and may change without a manifest-visible bump.
+- The `secret` storage behavior (project-local `settings.local.json`, gitignored, plain text) is stable; secret values are never written to the committed layer. There is no encryption-at-rest in v1: the contract is "does not travel via the repo", not "encrypted on disk".

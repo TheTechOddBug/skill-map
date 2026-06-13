@@ -296,62 +296,111 @@
               @for (ext of plugin.extensions; track ext.id) {
                 <li
                   class="settings-plugins__subrow"
-                  role="button"
-                  tabindex="0"
                   [class.is-clickable]="extensionToggleInteractive(ext)"
                   [class.is-dirty]="isDirty(qualifiedExt(plugin.id, ext.id))"
-                  [attr.aria-label]="texts.a11y.extensionRow(qualifiedExt(plugin.id, ext.id))"
-                  (click)="onSubrowClick(plugin.id, ext, $event)"
-                  (keydown.enter)="onSubrowClick(plugin.id, ext, $event)"
-                  (keydown.space)="$event.preventDefault(); onSubrowClick(plugin.id, ext, $event)"
                   [attr.data-testid]="'settings-extrow-' + plugin.id + '-' + ext.id"
                 >
-                  <div class="settings-plugins__subrow-text">
-                    <div class="settings-plugins__subrow-headline">
-                      <span
-                        class="settings-plugins__dirty-dot"
-                        [class.settings-plugins__dirty-dot--visible]="isDirty(qualifiedExt(plugin.id, ext.id))"
-                        aria-hidden="true"
-                        [attr.data-testid]="'settings-extrow-dirty-' + plugin.id + '-' + ext.id"
-                      ></span>
-                      <span class="settings-plugins__subrow-id">{{ ext.id }}</span>
-                      <span
-                        class="settings-plugins__subrow-kind"
-                        [style.--kind-color]="kindTint(ext.kind)"
-                      >{{ ext.kind }}</span>
-                      @if (stabilityLabel(ext.stability); as stabilityBadge) {
+                  <div
+                    class="settings-plugins__subrow-main"
+                    role="button"
+                    tabindex="0"
+                    [attr.aria-label]="texts.a11y.extensionRow(qualifiedExt(plugin.id, ext.id))"
+                    (click)="onSubrowClick(plugin.id, ext, $event)"
+                    (keydown.enter)="onSubrowClick(plugin.id, ext, $event)"
+                    (keydown.space)="$event.preventDefault(); onSubrowClick(plugin.id, ext, $event)"
+                  >
+                    <div class="settings-plugins__subrow-text">
+                      <div class="settings-plugins__subrow-headline">
                         <span
-                          class="settings-plugins__subrow-stability"
-                          [style.--stability-color]="stabilityTint(ext.stability)"
-                          [title]="texts.stability.tooltip"
-                          [attr.data-testid]="'settings-extrow-stability-' + plugin.id + '-' + ext.id"
-                        >{{ stabilityBadge }}</span>
-                      }
-                      @if (plugin.source === 'project') {
-                        <span class="settings-plugins__subrow-version">v{{ ext.version }}</span>
-                      }
-                      @if (ext.locked) {
+                          class="settings-plugins__dirty-dot"
+                          [class.settings-plugins__dirty-dot--visible]="isDirty(qualifiedExt(plugin.id, ext.id))"
+                          aria-hidden="true"
+                          [attr.data-testid]="'settings-extrow-dirty-' + plugin.id + '-' + ext.id"
+                        ></span>
+                        <span class="settings-plugins__subrow-id">{{ ext.id }}</span>
                         <span
-                          class="settings-plugins__row-locked"
-                          [title]="texts.lockedTooltip"
-                          [attr.data-testid]="'settings-extrow-locked-' + plugin.id + '-' + ext.id"
-                        >
-                          <i class="fa-solid fa-lock" aria-hidden="true"></i>
-                          {{ texts.lockedLabel }}
-                        </span>
+                          class="settings-plugins__subrow-kind"
+                          [style.--kind-color]="kindTint(ext.kind)"
+                        >{{ ext.kind }}</span>
+                        @if (stabilityLabel(ext.stability); as stabilityBadge) {
+                          <span
+                            class="settings-plugins__subrow-stability"
+                            [style.--stability-color]="stabilityTint(ext.stability)"
+                            [title]="texts.stability.tooltip"
+                            [attr.data-testid]="'settings-extrow-stability-' + plugin.id + '-' + ext.id"
+                          >{{ stabilityBadge }}</span>
+                        }
+                        @if (plugin.source === 'project') {
+                          <span class="settings-plugins__subrow-version">v{{ ext.version }}</span>
+                        }
+                        @if (ext.locked) {
+                          <span
+                            class="settings-plugins__row-locked"
+                            [title]="texts.lockedTooltip"
+                            [attr.data-testid]="'settings-extrow-locked-' + plugin.id + '-' + ext.id"
+                          >
+                            <i class="fa-solid fa-lock" aria-hidden="true"></i>
+                            {{ texts.lockedLabel }}
+                          </span>
+                        }
+                      </div>
+                      @if (ext.description) {
+                        <p class="settings-plugins__subrow-description">{{ ext.description }}</p>
                       }
                     </div>
-                    @if (ext.description) {
-                      <p class="settings-plugins__subrow-description">{{ ext.description }}</p>
-                    }
+                    <div class="settings-plugins__subrow-controls">
+                      @if (hasSettings(ext)) {
+                        <button
+                          type="button"
+                          class="settings-plugins__settings-toggle"
+                          (click)="toggleSettings(qualifiedExt(plugin.id, ext.id)); $event.stopPropagation()"
+                          [attr.aria-expanded]="isSettingsExpanded(qualifiedExt(plugin.id, ext.id))"
+                          [attr.aria-label]="texts.extensionSettings.toggleA11y(qualifiedExt(plugin.id, ext.id))"
+                          [attr.data-testid]="'settings-ext-options-toggle-' + plugin.id + '-' + ext.id"
+                        >
+                          <i
+                            class="fa-solid"
+                            [class.fa-chevron-down]="isSettingsExpanded(qualifiedExt(plugin.id, ext.id))"
+                            [class.fa-chevron-right]="!isSettingsExpanded(qualifiedExt(plugin.id, ext.id))"
+                            aria-hidden="true"
+                          ></i>
+                          {{ isSettingsExpanded(qualifiedExt(plugin.id, ext.id)) ? texts.extensionSettings.collapseLabel : texts.extensionSettings.expandLabel }}
+                        </button>
+                      }
+                      <p-toggleswitch
+                        [ngModel]="pendingEnabled(qualifiedExt(plugin.id, ext.id))"
+                        (ngModelChange)="onExtensionToggle(plugin.id, ext, $event)"
+                        [disabled]="applying() || !!ext.locked"
+                        [ariaLabel]="texts.a11y.extensionToggle(qualifiedExt(plugin.id, ext.id), !pendingEnabled(qualifiedExt(plugin.id, ext.id)))"
+                        [attr.data-testid]="'settings-ext-toggle-' + plugin.id + '-' + ext.id"
+                      />
+                    </div>
                   </div>
-                  <p-toggleswitch
-                    [ngModel]="pendingEnabled(qualifiedExt(plugin.id, ext.id))"
-                    (ngModelChange)="onExtensionToggle(plugin.id, ext, $event)"
-                    [disabled]="applying() || !!ext.locked"
-                    [ariaLabel]="texts.a11y.extensionToggle(qualifiedExt(plugin.id, ext.id), !pendingEnabled(qualifiedExt(plugin.id, ext.id)))"
-                    [attr.data-testid]="'settings-ext-toggle-' + plugin.id + '-' + ext.id"
-                  />
+
+                  @if (hasSettings(ext) && isSettingsExpanded(qualifiedExt(plugin.id, ext.id))) {
+                    <div
+                      class="settings-plugins__settings"
+                      role="group"
+                      [attr.aria-label]="texts.extensionSettings.formA11y(qualifiedExt(plugin.id, ext.id))"
+                      [attr.data-testid]="'settings-ext-options-' + plugin.id + '-' + ext.id"
+                    >
+                      @for (decl of ext.settings; track decl.id) {
+                        <div
+                          class="settings-plugins__setting"
+                          [attr.data-testid]="'settings-ext-setting-' + plugin.id + '-' + ext.id + '-' + decl.id"
+                        >
+                          <sm-input-type-control
+                            [descriptor]="settingDescriptor(ext, decl)"
+                            [value]="settingValue(qualifiedExt(plugin.id, ext.id), decl.id)"
+                            (valueChange)="onSettingChange(plugin.id, ext, decl.id, $event)"
+                          />
+                          @if (settingDescription(decl); as description) {
+                            <p class="settings-plugins__setting-description">{{ description }}</p>
+                          }
+                        </div>
+                      }
+                    </div>
+                  }
                 </li>
               }
             </ul>

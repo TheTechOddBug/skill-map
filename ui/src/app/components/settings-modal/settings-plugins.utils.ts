@@ -21,7 +21,9 @@ import {
 import { DataSourceError } from '../../../services/data-source/data-source.port';
 import type {
   IPluginExtensionApi,
+  IPluginExtensionSettingApi,
   IPluginItemApi,
+  TSettingValueApi,
 } from '../../../models/api';
 
 /**
@@ -120,6 +122,205 @@ export function buildStateFromPlugins(
     }
   }
   return out;
+}
+
+/**
+ * A single extension's editable settings buffer: settingId -> value.
+ * Mirrors the resolved `settingValues` shape, with secrets carried as a
+ * plain string (`''` = blank = unchanged). One of these per extension
+ * that declares settings, keyed by the qualified `<plugin>/<ext>` id.
+ */
+export type TSettingsBuffer = Map<string, Record<string, TSettingValueApi>>;
+
+/**
+ * Seed the editable settings buffer for one extension from its declared
+ * settings + the resolved `settingValues` the GET shipped. Each setting
+ * starts at: the resolved effective value when present, else the
+ * declaration `default`, else a type-appropriate blank. Secrets ALWAYS
+ * start blank (their value never crosses the wire); the "set" / "empty"
+ * hint is driven separately by `secretSettingsSet`, and a blank secret
+ * on apply means "leave unchanged".
+ */
+export function seedExtensionSettings(
+  ext: IPluginExtensionApi,
+): Record<string, TSettingValueApi> {
+  const out: Record<string, TSettingValueApi> = {};
+  for (const decl of ext.settings ?? []) {
+    out[decl.id] = seedSettingValue(decl, ext.settingValues?.[decl.id]);
+  }
+  return out;
+}
+
+/**
+ * Resolve the seed value for a single setting: prefer the resolved
+ * effective value (coerced into the declared shape), fall back to the
+ * declaration `default`, finally a type-appropriate blank. Secret values
+ * are never seeded from `resolved` (they are stripped on the wire), so
+ * they always start blank.
+ */
+function seedSettingValue(
+  decl: IPluginExtensionSettingApi,
+  resolved: unknown,
+): TSettingValueApi {
+  if (decl.type === 'secret') return '';
+  if (resolved !== undefined) return coerceToDeclared(decl, resolved);
+  if (decl.default !== undefined) return coerceToDeclared(decl, decl.default);
+  return blankForType(decl);
+}
+
+/** Type-appropriate empty value for a setting with no seed and no default. */
+function blankForType(decl: IPluginExtensionSettingApi): TSettingValueApi {
+  switch (decl.type) {
+    case 'boolean-flag':
+      return false;
+    case 'string-list':
+    case 'enum-multipick':
+      return [];
+    case 'key-value-list':
+      return [];
+    case 'path-glob':
+      return decl.multiple ? [] : '';
+    case 'integer':
+    case 'number':
+      // No numeric blank exists; the control treats `''` as "unset" and
+      // the buffer round-trips it as not-sent (see `changedSettings`).
+      return '';
+    default:
+      return '';
+  }
+}
+
+/**
+ * Coerce an arbitrary JSON value (from `settingValues` or a `default`)
+ * into the runtime shape the control + buffer expect for the declared
+ * type. Defensive: a wire value of the wrong shape degrades to the
+ * type's blank rather than throwing.
+ */
+export function coerceToDeclared(
+  decl: IPluginExtensionSettingApi,
+  raw: unknown,
+): TSettingValueApi {
+  switch (decl.type) {
+    case 'boolean-flag':
+      return raw === true;
+    case 'integer':
+    case 'number':
+      return typeof raw === 'number' && Number.isFinite(raw) ? raw : '';
+    case 'string-list':
+    case 'enum-multipick':
+      return Array.isArray(raw) ? raw.filter((e): e is string => typeof e === 'string') : [];
+    case 'path-glob':
+      if (decl.multiple) {
+        return Array.isArray(raw) ? raw.filter((e): e is string => typeof e === 'string') : [];
+      }
+      return typeof raw === 'string' ? raw : '';
+    case 'key-value-list':
+      return Array.isArray(raw)
+        ? raw
+            .filter(
+              (e): e is { key: unknown; value: unknown } =>
+                typeof e === 'object' && e !== null && 'key' in e && 'value' in e,
+            )
+            .map((e) => ({ key: String(e.key ?? ''), value: String(e.value ?? '') }))
+        : [];
+    default:
+      // single-string / enum-pick / regex / secret
+      return typeof raw === 'string' ? raw : '';
+  }
+}
+
+/**
+ * Build the full settings buffer (one entry per extension that declares
+ * settings) for the whole plugin list. Failure rows are skipped (same as
+ * the toggle state). Keyed by qualified `<plugin>/<ext>` id.
+ */
+export function buildSettingsFromPlugins(
+  plugins: readonly IPluginItemApi[],
+): TSettingsBuffer {
+  const out: TSettingsBuffer = new Map();
+  for (const plugin of plugins) {
+    if (isFailureStatus(plugin.status)) continue;
+    for (const ext of plugin.extensions ?? []) {
+      if (!ext.settings || ext.settings.length === 0) continue;
+      out.set(qualifiedKey(plugin.id, ext.id), seedExtensionSettings(ext));
+    }
+  }
+  return out;
+}
+
+/**
+ * Compute the per-setting patch to ship for one extension: the keys
+ * whose pending value differs from the original snapshot. Returns
+ * `null` when nothing changed (so the caller can skip the `settings`
+ * field entirely).
+ *
+ * Secret semantics: a blank pending value (`''`) is "unchanged", so it
+ * is NEVER included (even though the original was also blank). A typed
+ * secret value is always a change.
+ *
+ * Numeric "unset" (`''`) is dropped to avoid shipping an empty string
+ * where a number is expected; clearing a number to re-derive the default
+ * is out of scope (the operator types a value to change it).
+ */
+export function changedSettings(
+  declarations: readonly IPluginExtensionSettingApi[] | undefined,
+  original: Record<string, TSettingValueApi> | undefined,
+  pending: Record<string, TSettingValueApi> | undefined,
+): Record<string, TSettingValueApi> | null {
+  if (!declarations || declarations.length === 0) return null;
+  if (!pending) return null;
+  const patch: Record<string, TSettingValueApi> = {};
+  for (const decl of declarations) {
+    const id = decl.id;
+    const next = pending[id];
+    if (decl.type === 'secret') {
+      // Blank secret = leave unchanged; only ship a typed value.
+      if (typeof next === 'string' && next.length > 0) patch[id] = next;
+      continue;
+    }
+    // Numeric "unset" sentinel never ships.
+    if ((decl.type === 'integer' || decl.type === 'number') && next === '') continue;
+    const prev = original?.[id];
+    if (!settingValuesEqual(prev, next)) patch[id] = next as TSettingValueApi;
+  }
+  return Object.keys(patch).length > 0 ? patch : null;
+}
+
+/**
+ * Whether one extension's settings buffer is dirty (any non-secret value
+ * changed, or any secret carries a typed value). Drives the per-row
+ * dirty dot alongside the toggle diff.
+ */
+export function extensionSettingsDirty(
+  declarations: readonly IPluginExtensionSettingApi[] | undefined,
+  original: Record<string, TSettingValueApi> | undefined,
+  pending: Record<string, TSettingValueApi> | undefined,
+): boolean {
+  return changedSettings(declarations, original, pending) !== null;
+}
+
+/**
+ * Structural equality for two setting values. Arrays compare element-wise
+ * (order-sensitive, matching how the UI presents them); key-value rows
+ * compare by `(key, value)` pairs; scalars compare by `===`. Used by the
+ * dirty diff so a no-op edit (typing then deleting) clears the marker.
+ */
+export function settingValuesEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    return a.every((el, i) => settingValuesEqual(el, b[i]));
+  }
+  if (
+    typeof a === 'object' && a !== null &&
+    typeof b === 'object' && b !== null &&
+    'key' in a && 'value' in a && 'key' in b && 'value' in b
+  ) {
+    const ra = a as { key: unknown; value: unknown };
+    const rb = b as { key: unknown; value: unknown };
+    return ra.key === rb.key && ra.value === rb.value;
+  }
+  return false;
 }
 
 /**

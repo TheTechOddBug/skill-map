@@ -43,6 +43,7 @@ function ctxWith(over: Partial<IAnalyzerContext>): IAnalyzerContext {
   return {
     nodes: [],
     links: [],
+    settings: {},
     emitContribution: () => {
       /* unused */
     },

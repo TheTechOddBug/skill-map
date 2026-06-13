@@ -138,6 +138,21 @@ export type TGraphFormat = 'ascii' | 'json' | 'md';
  */
 export type TPluginItem = IPluginItemApi;
 
+/**
+ * One entry in the bulk `PATCH /api/plugins` body. Mirrors the BFF's
+ * `IBulkChange`: an `id` (a bare plugin id `claude` for the cascade
+ * macro, or a qualified `<plugin>/<ext>` id `core/superseded`) plus at
+ * least one of `enabled` (toggle delta) / `settings` (per-setting value
+ * patch). `settings` REQUIRES a qualified id; values are real JSON,
+ * already coerced to the declared input-type by the client. A change
+ * carries whichever axis actually moved, never an `{ id }`-only entry.
+ */
+export interface IPluginChange {
+  id: string;
+  enabled?: boolean;
+  settings?: Record<string, unknown>;
+}
+
 export interface IDataSourcePort {
   /** Liveness + version probe. Returns the BFF's health payload. */
   health(): Promise<IHealthResponseApi>;
@@ -229,23 +244,26 @@ export interface IDataSourcePort {
   ): Promise<IListEnvelopeApi<TPluginItem>>;
 
   /**
-   * Apply a buffered batch of plugin toggle changes atomically. Mirrors
-   * the bulk `PATCH /api/plugins` endpoint. Each `id` is either a
-   * plugin id (`claude`) or a qualified `<plugin>/<ext>` id
-   * (`core/superseded`); the BFF dispatcher branches on the slash
-   * the same way the per-id PATCHes do.
+   * Apply a buffered batch of plugin changes atomically. Mirrors the
+   * bulk `PATCH /api/plugins` endpoint. Each change carries an `id`
+   * (plugin id `claude`, or qualified `<plugin>/<ext>` id
+   * `core/superseded`) plus a toggle delta (`enabled`), a per-setting
+   * value patch (`settings`), or both; the BFF dispatcher branches on
+   * the slash the same way the per-id PATCHes do. `settings` requires a
+   * qualified id and ships only the keys that changed, as real JSON.
    *
    * All-or-nothing: a single invalid entry (unknown id, granularity
-   * mismatch, lock) rejects the whole batch and the DB is not touched.
-   * The error's `details.id` carries the offending entry so the
-   * Settings modal can pinpoint the row that broke the apply.
+   * mismatch, lock, bad setting value) rejects the whole batch and the
+   * DB is not touched. The error's `details.id` carries the offending
+   * entry so the Settings modal can pinpoint the row that broke the
+   * apply.
    *
    * Returns the same `IListEnvelopeApi<TPluginItem>` shape as
    * `listPlugins()` with the post-write state. Demo mode rejects with
    * `code: 'demo-readonly'`.
    */
   applyPluginChanges(
-    changes: ReadonlyArray<{ id: string; enabled: boolean }>,
+    changes: ReadonlyArray<IPluginChange>,
   ): Promise<IListEnvelopeApi<TPluginItem>>;
 
   /**

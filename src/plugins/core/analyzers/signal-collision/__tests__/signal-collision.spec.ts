@@ -31,6 +31,7 @@ function runAnalyzer(signals: readonly Signal[]): Issue[] {
   const result = signalCollisionAnalyzer.evaluate({
     nodes: [],
     links: [],
+    settings: {},
     orphanSidecars: [],
     sidecarRoots: new Map(),
     annotationContributions: [],

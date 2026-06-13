@@ -11,10 +11,9 @@ import {
 /**
  * InputTypeControl, the reusable widget that renders the PrimeNG control
  * matching an input-type descriptor and reports the collected value via
- * the two-way `value` model. Coverage: the three implemented types
- * (single-string / enum-pick / string-list) each mount their own
- * `data-testid`, and the value model reflects what the protected change
- * handlers write.
+ * the two-way `value` model. Coverage: every one of the eleven catalog
+ * types mounts its own `data-testid`, and the value model reflects what
+ * the protected change handlers write.
  */
 
 function bootstrap(
@@ -40,10 +39,24 @@ function el(fixture: ComponentFixture<InputTypeControl>, testid: string): HTMLEl
 function asAny(fixture: ComponentFixture<InputTypeControl>): {
   onStringChange(v: string): void;
   onListChange(v: string[]): void;
+  onNumberChange(v: number | null): void;
+  onBooleanChange(v: boolean): void;
+  onPathGlobChange(v: string | string[]): void;
+  onKeyChange(index: number, v: string): void;
+  onValueChange(index: number, v: string): void;
+  addRow(): void;
+  removeRow(index: number): void;
 } {
   return fixture.componentInstance as unknown as {
     onStringChange(v: string): void;
     onListChange(v: string[]): void;
+    onNumberChange(v: number | null): void;
+    onBooleanChange(v: boolean): void;
+    onPathGlobChange(v: string | string[]): void;
+    onKeyChange(index: number, v: string): void;
+    onValueChange(index: number, v: string): void;
+    addRow(): void;
+    removeRow(index: number): void;
   };
 }
 
@@ -83,11 +96,80 @@ describe('InputTypeControl, rendering', () => {
     expect(el(fixture, 'input-type-control-select')).toBeNull();
   });
 
-  it('renders the unsupported notice for an unknown input-type', () => {
-    const fixture = bootstrap({ inputType: 'integer', label: 'Count' });
+  it('renders an inputnumber for integer', () => {
+    const fixture = bootstrap({ inputType: 'integer', label: 'Count' }, '');
+    expect(el(fixture, 'input-type-control-integer')).not.toBeNull();
+    expect(el(fixture, 'input-type-control-unsupported')).toBeNull();
+  });
+
+  it('renders a decimal inputnumber for number', () => {
+    const fixture = bootstrap({ inputType: 'number', label: 'Floor' }, '');
+    expect(el(fixture, 'input-type-control-number')).not.toBeNull();
+  });
+
+  it('renders a toggle for boolean-flag', () => {
+    const fixture = bootstrap({ inputType: 'boolean-flag', label: 'On' }, false);
+    expect(el(fixture, 'input-type-control-boolean')).not.toBeNull();
+  });
+
+  it('renders a multiselect for enum-multipick', () => {
+    const fixture = bootstrap(
+      {
+        inputType: 'enum-multipick',
+        label: 'Severities',
+        options: [
+          { value: 'warn', label: 'Warning' },
+          { value: 'danger', label: 'Danger' },
+        ],
+      },
+      [],
+    );
+    expect(el(fixture, 'input-type-control-multiselect')).not.toBeNull();
+  });
+
+  it('renders a text input for single path-glob and a tag input for multiple', () => {
+    const single = bootstrap({ inputType: 'path-glob', label: 'Glob' });
+    expect(el(single, 'input-type-control-path-glob-single')).not.toBeNull();
+    expect(el(single, 'input-type-control-path-glob-multiple')).toBeNull();
+
+    const multi = bootstrap({ inputType: 'path-glob', label: 'Globs', multiple: true }, []);
+    expect(el(multi, 'input-type-control-path-glob-multiple')).not.toBeNull();
+    expect(el(multi, 'input-type-control-path-glob-single')).toBeNull();
+  });
+
+  it('renders the regex body input plus the static flags suffix', () => {
+    const fixture = bootstrap({ inputType: 'regex', label: 'Pattern', flags: 'gi' }, '');
+    expect(el(fixture, 'input-type-control-regex')).not.toBeNull();
+    const flags = el(fixture, 'input-type-control-regex-flags');
+    expect(flags).not.toBeNull();
+    expect(flags!.textContent).toContain('gi');
+  });
+
+  it('renders a password field with the set / empty status for secret', () => {
+    const set = bootstrap({ inputType: 'secret', label: 'Token', secretIsSet: true }, '');
+    expect(el(set, 'input-type-control-secret')).not.toBeNull();
+    expect(el(set, 'input-type-control-secret-status')!.textContent!.trim()).toBe('Set');
+
+    const empty = bootstrap({ inputType: 'secret', label: 'Token' }, '');
+    expect(el(empty, 'input-type-control-secret-status')!.textContent!.trim()).toBe('Empty');
+  });
+
+  it('renders the editable rows table for key-value-list', () => {
+    const fixture = bootstrap(
+      { inputType: 'key-value-list', label: 'Headers' },
+      [{ key: 'Authorization', value: 'Bearer x' }],
+    );
+    expect(el(fixture, 'input-type-control-key-value')).not.toBeNull();
+    expect(el(fixture, 'input-type-control-key-value-key-0')).not.toBeNull();
+    expect(el(fixture, 'input-type-control-key-value-value-0')).not.toBeNull();
+    expect(el(fixture, 'input-type-control-key-value-add')).not.toBeNull();
+  });
+
+  it('renders the unsupported notice for a not-yet-built input-type', () => {
+    const fixture = bootstrap({ inputType: 'future-type', label: 'Count' });
     const note = el(fixture, 'input-type-control-unsupported');
     expect(note).not.toBeNull();
-    expect(note!.textContent).toContain('integer');
+    expect(note!.textContent).toContain('future-type');
   });
 });
 
@@ -125,6 +207,48 @@ describe('InputTypeControl, value model', () => {
   it('coerces a null list change to an empty array', () => {
     const fixture = bootstrap({ inputType: 'string-list', label: 'Tags' }, []);
     asAny(fixture).onListChange(null as unknown as string[]);
+    expect(fixture.componentInstance.value()).toEqual([]);
+  });
+
+  it('emits a number when the inputnumber control changes', () => {
+    const fixture = bootstrap({ inputType: 'integer', label: 'N' }, '');
+    asAny(fixture).onNumberChange(7);
+    expect(fixture.componentInstance.value()).toBe(7);
+  });
+
+  it('collapses a cleared inputnumber to the blank sentinel', () => {
+    const fixture = bootstrap({ inputType: 'integer', label: 'N' }, 3);
+    asAny(fixture).onNumberChange(null);
+    expect(fixture.componentInstance.value()).toBe('');
+  });
+
+  it('emits a boolean when the toggle changes', () => {
+    const fixture = bootstrap({ inputType: 'boolean-flag', label: 'On' }, false);
+    asAny(fixture).onBooleanChange(true);
+    expect(fixture.componentInstance.value()).toBe(true);
+  });
+
+  it('routes a single path-glob change to a scalar string', () => {
+    const fixture = bootstrap({ inputType: 'path-glob', label: 'Glob' }, '');
+    asAny(fixture).onPathGlobChange('**/*.md');
+    expect(fixture.componentInstance.value()).toBe('**/*.md');
+  });
+
+  it('routes a multiple path-glob change to a string[]', () => {
+    const fixture = bootstrap({ inputType: 'path-glob', label: 'Globs', multiple: true }, []);
+    asAny(fixture).onPathGlobChange(['a', 'b']);
+    expect(fixture.componentInstance.value()).toEqual(['a', 'b']);
+  });
+
+  it('adds, edits, and removes key-value rows', () => {
+    const fixture = bootstrap({ inputType: 'key-value-list', label: 'Map' }, []);
+    const ctl = asAny(fixture);
+    ctl.addRow();
+    expect(fixture.componentInstance.value()).toEqual([{ key: '', value: '' }]);
+    ctl.onKeyChange(0, 'Header');
+    ctl.onValueChange(0, 'Value');
+    expect(fixture.componentInstance.value()).toEqual([{ key: 'Header', value: 'Value' }]);
+    ctl.removeRow(0);
     expect(fixture.componentInstance.value()).toEqual([]);
   });
 });

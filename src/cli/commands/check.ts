@@ -261,6 +261,11 @@ async function loadAnalyzerCatalog(opts: ILoadAnalyzerCatalogOptions): Promise<I
     ? emptyPluginRuntime()
     : await loadPluginRuntime();
   pluginRuntime.emitWarnings(opts.printer);
+  // `resolveSettings` is intentionally omitted: this compose only
+  // enumerates the Analyzer catalog (ids for `--analyzers` validation /
+  // `--include-prob` filtering). No analyzer is invoked here, so its
+  // `ctx.settings` never matters, and `sm check` has no merged config
+  // in hand at this call site. Per the wiring contract, leave it unset.
   const composed = composeScanExtensions({
     noBuiltIns: false,
     pluginRuntime,

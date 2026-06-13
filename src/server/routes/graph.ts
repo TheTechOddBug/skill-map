@@ -100,17 +100,22 @@ export function registerGraphRoute(app: Hono, deps: IRouteDeps): void {
  * only the three primary arrays.
  */
 function renderGraphPayload(
-  formatter: { format: (ctx: import('../../kernel/extensions/index.js').IFormatterContext) => string },
+  formatter: {
+    format: (ctx: import('../../kernel/extensions/index.js').IFormatterContext) => string;
+    resolvedSettings?: Record<string, unknown>;
+  },
   loaded: import('../../kernel/types.js').ScanResult | null,
 ): string {
   const scan = loaded ?? { nodes: [], links: [], issues: [] };
+  const settings = formatter.resolvedSettings ?? {};
   if (loaded === null) {
-    return formatter.format({ nodes: scan.nodes, links: scan.links, issues: scan.issues });
+    return formatter.format({ nodes: scan.nodes, links: scan.links, issues: scan.issues, settings });
   }
   return formatter.format({
     nodes: scan.nodes,
     links: scan.links,
     issues: scan.issues,
+    settings,
     scanResult: loaded,
   });
 }

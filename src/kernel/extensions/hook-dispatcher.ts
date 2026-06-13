@@ -124,6 +124,10 @@ function buildHookContext(
 ): IHookContext {
   const data = (event.data ?? {}) as Record<string, unknown>;
   const ctx: IHookContext = {
+    // `settings` is always populated (possibly empty) so hooks can read
+    // `ctx.settings.<id>` without a presence check. The composer
+    // populated `resolvedSettings` on each composed hook.
+    settings: _hook.resolvedSettings ?? {},
     event: {
       type: trigger,
       timestamp: event.timestamp,

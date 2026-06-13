@@ -25,6 +25,7 @@ import type { IHookContext } from '../../../../../kernel/extensions/index.js';
 
 function bootCtx(data: unknown): IHookContext {
   return {
+    settings: {},
     event: {
       type: 'boot',
       timestamp: new Date().toISOString(),

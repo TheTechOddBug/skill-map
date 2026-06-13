@@ -45,6 +45,7 @@ function run(nodes: Node[], links: Link[]): { issues: Issue[]; captured: ICaptur
   const issues = linkCounterAnalyzer.evaluate({
     nodes,
     links,
+    settings: {},
     emitContribution(nodePath, ref, payload) {
       captured.push({ nodePath, ref, payload });
     },

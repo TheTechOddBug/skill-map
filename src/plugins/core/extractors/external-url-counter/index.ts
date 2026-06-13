@@ -30,7 +30,7 @@
  */
 
 import type { IBuiltInManifest, IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
-import type { IViewContribution } from '../../../../kernel/types/view-catalog.js';
+import type { IViewContribution, TSettingDeclaration } from '../../../../kernel/types/view-catalog.js';
 import { stripCodeBlocks } from '../../../../kernel/util/strip-code-blocks.js';
 import { computeLineStarts, lineFor } from '../../../../kernel/util/line-tracking.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
@@ -44,6 +44,18 @@ const count = {
   emitWhenEmpty: false,
   priority: 30,
 } satisfies IViewContribution;
+
+const SETTING_IGNORED_DOMAINS = 'ignored-domains';
+
+const settings = {
+  [SETTING_IGNORED_DOMAINS]: {
+    type: 'string-list',
+    label: 'Ignored domains',
+    description:
+      'Hostnames to exclude from the external-URL count (e.g. internal mirrors, link shorteners).',
+    default: [],
+  },
+} satisfies Record<string, TSettingDeclaration>;
 
 // Greedy match of http(s) URLs. Stops at whitespace and the markdown
 // delimiters that commonly wrap URLs: `<`, `>`, `"`, `'`, backtick,
@@ -60,6 +72,15 @@ export const externalUrlCounterExtractor: IBuiltInManifest<IExtractor> = {
   description:
     'Counts the distinct external URLs in a node\'s body and shows the count on the card. Example: a body linking `https://example.com` and `https://docs.rs` shows a count of 2.',
   scope: 'body',
+
+  /**
+   * Operator-configurable hostnames to exclude from the count. A URL
+   * whose normalized `hostname` is in this list is skipped entirely:
+   * no Signal, no contribution increment. Default empty (count every
+   * external URL). The operator sets it via
+   * `sm plugins config core/external-url-counter ignored-domains '["…"]'`.
+   */
+  settings,
 
   /**
    * Phase 6 / View contribution system, surface the distinct-URL
@@ -81,6 +102,10 @@ export const externalUrlCounterExtractor: IBuiltInManifest<IExtractor> = {
 
   extract(ctx: IExtractorContext): void {
     const seen = new Set<string>();
+    // Operator-supplied ignore list (resolved by the kernel settings
+    // resolver, already validated to `string[]`). Lowercased once so the
+    // per-URL hostname check is case-insensitive and deterministic.
+    const ignoredDomains = readIgnoredDomains(ctx.settings[SETTING_IGNORED_DOMAINS]);
     // Strip fenced blocks and inline code spans before matching so a
     // URL written for documentation purposes (e.g. ``http://example.com``
     // inside a README table) does NOT inflate the external-ref count.
@@ -98,8 +123,11 @@ export const externalUrlCounterExtractor: IBuiltInManifest<IExtractor> = {
 
       const normalized = normalizeUrl(original);
       if (normalized === null) continue;
-      if (seen.has(normalized)) continue;
-      seen.add(normalized);
+      // Skip operator-ignored hostnames before dedup / count so an
+      // excluded domain never contributes a Signal nor inflates the chip.
+      if (ignoredDomains.has(normalized.host)) continue;
+      if (seen.has(normalized.href)) continue;
+      seen.add(normalized.href);
 
       const offset = match.index ?? 0;
       const line = lineFor(lineStarts, offset);
@@ -112,12 +140,12 @@ export const externalUrlCounterExtractor: IBuiltInManifest<IExtractor> = {
           {
             extractorId: ID,
             kind: 'references',
-            target: normalized,
+            target: normalized.href,
             confidence: 0.3,
             rationale: 'external URL pseudo-link, counted then dropped',
             trigger: {
               originalTrigger: original,
-              normalizedTrigger: normalized,
+              normalizedTrigger: normalized.href,
             },
           },
         ],
@@ -134,14 +162,29 @@ function stripTrailingPunctuation(raw: string): string {
   return raw.replace(TRAILING_PUNCT, '');
 }
 
-function normalizeUrl(raw: string): string | null {
+/**
+ * Coerce the resolved `ignored-domains` setting into a lowercased Set.
+ * The kernel resolver already validated it to `string[]`, but the
+ * extractor stays defensive (a missing override or a malformed manual
+ * config that slipped through degrades to "ignore nothing").
+ */
+function readIgnoredDomains(value: unknown): ReadonlySet<string> {
+  if (!Array.isArray(value)) return new Set();
+  const out = new Set<string>();
+  for (const entry of value) {
+    if (typeof entry === 'string' && entry.length > 0) out.add(entry.toLowerCase());
+  }
+  return out;
+}
+
+function normalizeUrl(raw: string): { href: string; host: string } | null {
   try {
     const url = new URL(raw);
     // URL already lowercases host on parse, but be explicit so future
     // refactors don't regress.
     url.hostname = url.hostname.toLowerCase();
     url.hash = '';
-    return url.href;
+    return { href: url.href, host: url.hostname };
   } catch {
     return null;
   }

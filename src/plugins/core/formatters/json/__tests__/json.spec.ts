@@ -71,6 +71,7 @@ describe('json formatter', () => {
       nodes: scanResult.nodes,
       links: scanResult.links,
       issues: scanResult.issues,
+      settings: {},
       scanResult,
     });
     const parsed = JSON.parse(out) as ScanResult;
@@ -83,6 +84,7 @@ describe('json formatter', () => {
       nodes: [node],
       links: [],
       issues: [],
+      settings: {},
     });
     const parsed = JSON.parse(out) as Record<string, unknown>;
     ok(Array.isArray(parsed['nodes']));

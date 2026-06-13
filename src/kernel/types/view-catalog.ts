@@ -185,6 +185,14 @@ export interface ISetting_Integer extends ISettingCommon {
   step?: number;
 }
 
+export interface ISetting_Number extends ISettingCommon {
+  type: 'number';
+  default?: number;
+  min?: number;
+  max?: number;
+  step?: number;
+}
+
 export interface ISetting_EnumOption {
   value: string;
   label: string;
@@ -254,6 +262,7 @@ export type TSettingDeclaration =
   | ISetting_SingleString
   | ISetting_BooleanFlag
   | ISetting_Integer
+  | ISetting_Number
   | ISetting_EnumPick
   | ISetting_EnumMultipick
   | ISetting_PathGlob

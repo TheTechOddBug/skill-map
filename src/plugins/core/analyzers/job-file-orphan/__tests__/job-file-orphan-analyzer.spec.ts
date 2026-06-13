@@ -25,6 +25,7 @@ function emptyCtx(overrides: Partial<IAnalyzerContext> = {}): IAnalyzerContext {
   return {
     nodes: [],
     links: [],
+    settings: {},
     emitContribution: () => {
       /* unused, the rule emits issues only */
     },

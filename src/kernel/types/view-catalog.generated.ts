@@ -64,6 +64,7 @@ export type TInputTypeName =
   | 'single-string'
   | 'boolean-flag'
   | 'integer'
+  | 'number'
   | 'enum-pick'
   | 'enum-multipick'
   | 'path-glob'
@@ -77,6 +78,7 @@ export const ALL_INPUT_TYPE_NAMES: ReadonlyArray<TInputTypeName> = [
   'single-string',
   'boolean-flag',
   'integer',
+  'number',
   'enum-pick',
   'enum-multipick',
   'path-glob',
@@ -204,6 +206,7 @@ export interface ActionPrompt {
     | 'single-string'
     | 'boolean-flag'
     | 'integer'
+    | 'number'
     | 'enum-pick'
     | 'enum-multipick'
     | 'path-glob'

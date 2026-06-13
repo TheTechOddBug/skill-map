@@ -21,7 +21,7 @@ function node(path: string, kind: Node['kind'], name?: string): Node {
 
 describe('ascii formatter', () => {
   it('renders an empty graph with header-only content', () => {
-    const out = asciiFormatter.format({ nodes: [], links: [], issues: [] });
+    const out = asciiFormatter.format({ nodes: [], links: [], issues: [], settings: {} });
     match(out, /skill-map graph: 0 nodes, 0 links, 0 issues/);
   });
 
@@ -31,7 +31,7 @@ describe('ascii formatter', () => {
       node('commands/b.md', 'command', 'Build'),
       node('agents/z.md', 'agent'),
     ];
-    const out = asciiFormatter.format({ nodes, links: [], issues: [] });
+    const out = asciiFormatter.format({ nodes, links: [], issues: [], settings: {} });
     match(out, /## agent \(2\)/);
     match(out, /agents\/a.md: "Architect"/);
     match(out, /agents\/z.md/);
@@ -46,7 +46,7 @@ describe('ascii formatter', () => {
       confidence: 0.9,
       sources: ['annotations'],
     };
-    const out = asciiFormatter.format({ nodes: [], links: [link], issues: [] });
+    const out = asciiFormatter.format({ nodes: [], links: [link], issues: [], settings: {} });
     match(out, /a\.md --references--> b\.md\s+\[0\.9\]/);
   });
 
@@ -57,7 +57,7 @@ describe('ascii formatter', () => {
       nodeIds: ['a.md'],
       message: 'Broken reference',
     };
-    const out = asciiFormatter.format({ nodes: [], links: [], issues: [issue] });
+    const out = asciiFormatter.format({ nodes: [], links: [], issues: [issue], settings: {} });
     match(out, /\[warn\] reference-broken: Broken reference/);
   });
 
@@ -66,6 +66,7 @@ describe('ascii formatter', () => {
       nodes: [node('a.md', 'markdown')],
       links: [],
       issues: [],
+      settings: {},
     });
     ok(!out.includes('## agent'));
     match(out, /## markdown \(1\)/);
@@ -84,7 +85,7 @@ describe('ascii formatter', () => {
       nodeIds: ['a.md'],
       message: 'Hostile analyzer id should not repaint the terminal.',
     };
-    const out = asciiFormatter.format({ nodes: [], links: [], issues: [issue] });
+    const out = asciiFormatter.format({ nodes: [], links: [], issues: [issue], settings: {} });
     ok(!out.includes('\x1b'), `expected no ESC byte; got ${JSON.stringify(out)}`);
     ok(out.includes('evil'), 'visible portion of analyzerId survives sanitization');
   });

@@ -9,6 +9,7 @@
  *   sm plugins create  <plugin-id>   scaffold a new plugin directory
  *   sm plugins slots list            print the closed slot / input-type catalogs
  *   sm plugins upgrade [<id>]        apply catalog migrations (no-op today)
+ *   sm plugins config <plugin>/<ext> [<settingId> [<value>] | --reset]  read / write extension settings
  *
  * Step 6.6 wires the enable/disable verbs and respects the resolution
  * order spec'd in `kernel/config/plugin-resolver.ts`:
@@ -38,6 +39,7 @@ export { PluginsEnableCommand, PluginsDisableCommand } from './plugins/toggle.js
 export { PluginsCreateCommand } from './plugins/create.js';
 export { PluginsSlotsListCommand } from './plugins/slots.js';
 export { PluginsUpgradeCommand } from './plugins/upgrade.js';
+export { PluginsConfigCommand } from './plugins/config.js';
 
 import { PluginsListCommand } from './plugins/list.js';
 import { PluginsShowCommand } from './plugins/show.js';
@@ -46,6 +48,7 @@ import { PluginsEnableCommand, PluginsDisableCommand } from './plugins/toggle.js
 import { PluginsCreateCommand } from './plugins/create.js';
 import { PluginsSlotsListCommand } from './plugins/slots.js';
 import { PluginsUpgradeCommand } from './plugins/upgrade.js';
+import { PluginsConfigCommand } from './plugins/config.js';
 
 export const PLUGIN_COMMANDS = [
   PluginsListCommand,
@@ -56,4 +59,5 @@ export const PLUGIN_COMMANDS = [
   PluginsCreateCommand,
   PluginsSlotsListCommand,
   PluginsUpgradeCommand,
+  PluginsConfigCommand,
 ];

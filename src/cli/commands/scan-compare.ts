@@ -45,6 +45,7 @@ import { computeScanDelta, createKernel, isEmptyDelta, runScan } from '../../ker
 import type { IScanDelta, ScanResult } from '../../kernel/index.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { loadConfig } from '../../kernel/config/loader.js';
+import { buildSettingsResolver } from '../../core/config/plugin-settings.js';
 import { buildIgnoreFilter, readIgnoreFileText } from '../../kernel/scan/ignore.js';
 import { tx } from '../../kernel/util/tx.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
@@ -163,6 +164,7 @@ export class ScanCompareCommand extends SmCommand {
     const composedExtensions = composeScanExtensions({
       noBuiltIns: false,
       pluginRuntime,
+      resolveSettings: buildSettingsResolver(cfg),
       killSwitches: readConformanceKillSwitches(),
     });
     let current: ScanResult;

@@ -65,11 +65,18 @@ import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
 import type {
   IPluginExtensionApi,
+  IPluginExtensionSettingApi,
   IPluginItemApi,
+  TSettingValueApi,
 } from '../../../models/api';
 import { DATA_SOURCE } from '../../../services/data-source/data-source.port';
 import { kindTint } from '../../../services/extension-kind-tints';
 import { ScanTriggerService } from '../../services/scan-trigger';
+import {
+  InputTypeControl,
+  type IInputTypeDescriptor,
+  type TInputTypeValue,
+} from '../../renderers/input-type-control/input-type-control';
 
 import {
   clickedInteractive,
@@ -88,7 +95,7 @@ import { SettingsBufferService, type IBufferOwner } from './settings-buffer.serv
 
 @Component({
   selector: 'sm-settings-plugins',
-  imports: [FormsModule, ButtonModule, IconFieldModule, InputIconModule, InputTextModule, MessageModule, ToggleButtonModule, ToggleSwitchModule],
+  imports: [FormsModule, ButtonModule, IconFieldModule, InputIconModule, InputTextModule, MessageModule, ToggleButtonModule, ToggleSwitchModule, InputTypeControl],
   templateUrl: './settings-plugins.html',
   styleUrl: './settings-plugins.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -142,6 +149,7 @@ export class SettingsPlugins {
   protected readonly hasFailureRows = this.pluginState.hasFailureRows;
   protected readonly originalState = this.pluginState.originalState;
   protected readonly pendingState = this.pluginState.pendingState;
+  protected readonly pendingSettings = this.pluginState.pendingSettings;
   /** Public so the modal host can size its confirm-on-close dialog
    *  and pre-fill the "N unsaved changes" copy. */
   readonly dirtyIds = this.pluginState.dirtyIds;
@@ -281,6 +289,95 @@ export class SettingsPlugins {
     nextValue: boolean,
   ): void {
     this.pluginState.onExtensionToggle(pluginId, ext, nextValue);
+  }
+
+  /**
+   * Qualified ids of the extensions whose per-extension settings
+   * ("Options") section is expanded. Collapsed by DEFAULT (like the
+   * runtime-errors panel), so this set is empty until the user opens
+   * one. Not persisted: settings editing is a transient, per-open
+   * activity, re-collapsing on reopen keeps the list tidy.
+   */
+  private readonly settingsExpanded = signal<ReadonlySet<string>>(new Set());
+
+  /** Whether the extension declares at least one operator setting. */
+  protected hasSettings(ext: IPluginExtensionApi): boolean {
+    return (ext.settings?.length ?? 0) > 0;
+  }
+
+  /** Whether the per-extension settings section is open. */
+  protected isSettingsExpanded(key: string): boolean {
+    return this.settingsExpanded().has(key);
+  }
+
+  /** Toggle the per-extension settings section (collapsed by default). */
+  protected toggleSettings(key: string): void {
+    const next = new Set(this.settingsExpanded());
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    this.settingsExpanded.set(next);
+  }
+
+  /** True when the row's buffered settings differ from the snapshot.
+   *  Drives the same dirty dot the toggle uses. */
+  protected isSettingsDirty(key: string, ext: IPluginExtensionApi): boolean {
+    return this.pluginState.isSettingsDirty(key, ext.settings);
+  }
+
+  /**
+   * Build the `IInputTypeDescriptor` for one declared setting: maps the
+   * declaration's per-type params onto the control's flat descriptor
+   * shape and threads the secret "is set" flag (from `secretSettingsSet`)
+   * so the secret control shows the right "Set" / "Empty" hint.
+   */
+  protected settingDescriptor(
+    ext: IPluginExtensionApi,
+    decl: IPluginExtensionSettingApi,
+  ): IInputTypeDescriptor {
+    const descriptor: IInputTypeDescriptor = {
+      inputType: decl.type,
+      label: decl.label,
+    };
+    if ('options' in decl) descriptor.options = decl.options;
+    if ('min' in decl && decl.min !== undefined) descriptor.min = decl.min;
+    if ('max' in decl && decl.max !== undefined) descriptor.max = decl.max;
+    if ('step' in decl && decl.step !== undefined) descriptor.step = decl.step;
+    if ('multiple' in decl && decl.multiple !== undefined) descriptor.multiple = decl.multiple;
+    if ('flags' in decl && decl.flags !== undefined) descriptor.flags = decl.flags;
+    if ('keyLabel' in decl && decl.keyLabel !== undefined) descriptor.keyLabel = decl.keyLabel;
+    if ('valueLabel' in decl && decl.valueLabel !== undefined) descriptor.valueLabel = decl.valueLabel;
+    if (decl.type === 'secret') {
+      descriptor.secretIsSet = ext.secretSettingsSet?.includes(decl.id) ?? false;
+    }
+    return descriptor;
+  }
+
+  /** Current buffered value for one setting (or the empty-string blank
+   *  the control treats as "unset"). */
+  protected settingValue(key: string, settingId: string): TInputTypeValue {
+    const v = this.pluginState.pendingSettingValue(key, settingId);
+    return (v ?? '') as TInputTypeValue;
+  }
+
+  /** Buffer a single setting edit. Coerces through the shared value
+   *  union; the control already emits the declared runtime type. */
+  protected onSettingChange(
+    pluginId: string,
+    ext: IPluginExtensionApi,
+    settingId: string,
+    nextValue: TInputTypeValue,
+  ): void {
+    this.pluginState.onSettingChange(
+      pluginId,
+      ext.id,
+      settingId,
+      nextValue as TSettingValueApi,
+    );
+  }
+
+  /** Helper for the optional secondary description line under a control. */
+  protected settingDescription(decl: IPluginExtensionSettingApi): string | undefined {
+    return decl.description;
   }
 
   /**

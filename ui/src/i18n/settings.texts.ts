@@ -357,6 +357,29 @@ export const SETTINGS_TEXTS = {
     },
   },
 
+  /**
+   * Per-extension operator settings form. An extension that declares
+   * `settings` in its manifest gets an inline collapsible "Options"
+   * section below its subrow, rendering one control per declared
+   * setting. Values are BUFFERED alongside the enable/disable toggles
+   * and shipped in the same bulk Apply (no separate save).
+   */
+  extensionSettings: {
+    /** Collapsible-section toggle labels (collapsed by default). */
+    expandLabel: 'Show options',
+    collapseLabel: 'Hide options',
+    /** Section heading inside the expanded panel. */
+    heading: 'Options',
+    /** Aria for the collapsible toggle button. */
+    toggleA11y: (qualifiedId: string): string => `Options for ${qualifiedId}`,
+    /** Aria wrapper for the settings form region. */
+    formA11y: (qualifiedId: string): string => `Settings for ${qualifiedId}`,
+    /** Secret "set" / "empty" indicator hints (also surfaced inline by
+     *  the control; duplicated here for the subrow context). */
+    secretSetHint: 'A value is stored. Leave blank to keep it.',
+    secretEmptyHint: 'No value stored yet.',
+  },
+
   /** Status overrides, non-toggleable rows surface their failure mode. */
   statusFailure: {
     'incompatible-spec': 'Incompatible spec version',

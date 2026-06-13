@@ -28,10 +28,11 @@ export const INPUT_TYPES_CATALOG = [
   { id: 'single-string', summary: 'Single text input.' },
   { id: 'boolean-flag', summary: 'On/off toggle.' },
   { id: 'integer', summary: 'Integer with optional bounds.' },
+  { id: 'number', summary: 'Decimal number with optional bounds.' },
   { id: 'enum-pick', summary: 'Pick one from a closed set.' },
   { id: 'enum-multipick', summary: 'Pick zero or more from a closed set.' },
   { id: 'path-glob', summary: 'Glob pattern (single or multiple).' },
   { id: 'regex', summary: 'ECMAScript regex pattern body.' },
-  { id: 'secret', summary: 'Sensitive string (encrypted at rest).' },
+  { id: 'secret', summary: 'Sensitive string, forced into project-local storage (gitignored), not encrypted.' },
   { id: 'key-value-list', summary: 'Editable mapping of strings to strings.' },
 ] as const;

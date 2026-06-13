@@ -102,6 +102,9 @@ export class GraphCommand extends SmCommand {
         nodes: scan.nodes,
         links: scan.links,
         issues: scan.issues,
+        // Resolved settings of the formatter (empty when the formatter
+        // declares none, or when the composer did not populate them).
+        settings: formatter.resolvedSettings ?? {},
         // Pass the full persisted scan so format-specific renderers
         // that mirror a `ScanResult` envelope (today: built-in `json`)
         // can emit it verbatim without re-deriving fields like

@@ -7,6 +7,7 @@ import type {
 } from '../../../../services/data-source/data-source.port';
 import type {
   IListEnvelopeApi,
+  IPluginExtensionApi,
   IPluginItemApi,
 } from '../../../../models/api';
 
@@ -248,6 +249,176 @@ describe('plugin-state.controller, discardChanges', () => {
     handle.discardChanges();
     expect(handle.hasPendingChanges()).toBe(false);
     expect(handle.pendingState().get("claude/claude")).toBe(true);
+  });
+});
+
+/**
+ * Build a single-extension plugin whose extension declares settings. The
+ * extension id equals the plugin id (mirrors `openai/openai`), so the
+ * qualified buffer key is `<id>/<id>`.
+ */
+function pluginWithSettings(
+  id: string,
+  settings: IPluginExtensionApi['settings'],
+  settingValues?: Record<string, unknown>,
+  secretSettingsSet?: string[],
+): IPluginItemApi {
+  return {
+    id,
+    version: '1.0.0',
+    kinds: ['extractor'],
+    status: 'enabled',
+    reason: null,
+    source: 'built-in',
+    extensions: [
+      {
+        id,
+        kind: 'extractor',
+        version: '1.0.0',
+        enabled: true,
+        settings,
+        ...(settingValues ? { settingValues } : {}),
+        ...(secretSettingsSet ? { secretSettingsSet } : {}),
+      },
+    ],
+  };
+}
+
+describe('plugin-state.controller, settings buffering', () => {
+  it('seeds pendingSettings from settingValues / defaults and tracks dirtiness', async () => {
+    const items = [
+      pluginWithSettings(
+        'beacon',
+        [
+          { id: 'name', type: 'single-string', label: 'Name', default: 'a' },
+          { id: 'limit', type: 'integer', label: 'Limit' },
+        ],
+        { name: 'configured' },
+      ),
+    ];
+    const handle = make(
+      setupDeps({ listPlugins: vi.fn().mockResolvedValue(pluginsEnvelope(items)) }),
+    );
+    await handle.refresh();
+
+    expect(handle.pendingSettingValue('beacon/beacon', 'name')).toBe('configured');
+    expect(handle.dirtyIds().size).toBe(0);
+
+    handle.onSettingChange('beacon', 'beacon', 'name', 'edited');
+    expect(handle.pendingSettingValue('beacon/beacon', 'name')).toBe('edited');
+    expect(handle.dirtyIds().has('beacon/beacon')).toBe(true);
+    expect(handle.hasPendingChanges()).toBe(true);
+
+    // Editing back to the original clears the marker.
+    handle.onSettingChange('beacon', 'beacon', 'name', 'configured');
+    expect(handle.dirtyIds().has('beacon/beacon')).toBe(false);
+  });
+
+  it('ships only the changed settings keys in the bulk patch', async () => {
+    const items = [
+      pluginWithSettings(
+        'beacon',
+        [
+          { id: 'name', type: 'single-string', label: 'Name', default: 'a' },
+          { id: 'tag', type: 'single-string', label: 'Tag', default: 'b' },
+        ],
+        { name: 'a', tag: 'b' },
+      ),
+    ];
+    const applyPluginChanges = vi.fn().mockResolvedValue(pluginsEnvelope(items));
+    const deps = setupDeps({
+      listPlugins: vi.fn().mockResolvedValue(pluginsEnvelope(items)),
+      applyPluginChanges,
+    });
+    const handle = make(deps);
+    await handle.refresh();
+
+    handle.onSettingChange('beacon', 'beacon', 'name', 'changed');
+    const result = await handle.applyChanges();
+
+    expect(result.ok).toBe(true);
+    expect(applyPluginChanges).toHaveBeenCalledWith([
+      { id: 'beacon/beacon', settings: { name: 'changed' } },
+    ]);
+    expect(deps.scanRun).toHaveBeenCalledTimes(1);
+  });
+
+  it('combines a toggle and a settings edit into one change for the same row', async () => {
+    const items = [
+      pluginWithSettings(
+        'beacon',
+        [{ id: 'name', type: 'single-string', label: 'Name', default: 'a' }],
+        { name: 'a' },
+      ),
+    ];
+    const applyPluginChanges = vi.fn().mockResolvedValue(pluginsEnvelope(items));
+    const handle = make(
+      setupDeps({
+        listPlugins: vi.fn().mockResolvedValue(pluginsEnvelope(items)),
+        applyPluginChanges,
+      }),
+    );
+    await handle.refresh();
+
+    handle.onExtensionToggle('beacon', items[0].extensions![0], false);
+    handle.onSettingChange('beacon', 'beacon', 'name', 'changed');
+    await handle.applyChanges();
+
+    expect(applyPluginChanges).toHaveBeenCalledWith([
+      { id: 'beacon/beacon', enabled: false, settings: { name: 'changed' } },
+    ]);
+  });
+
+  it('treats a blank secret as unchanged and a typed secret as a change', async () => {
+    const items = [
+      pluginWithSettings(
+        'beacon',
+        [{ id: 'tok', type: 'secret', label: 'Token' }],
+        {},
+        ['tok'],
+      ),
+    ];
+    const applyPluginChanges = vi.fn().mockResolvedValue(pluginsEnvelope(items));
+    const handle = make(
+      setupDeps({
+        listPlugins: vi.fn().mockResolvedValue(pluginsEnvelope(items)),
+        applyPluginChanges,
+      }),
+    );
+    await handle.refresh();
+
+    // Secret opens blank; no dirty marker yet even though it is "set".
+    expect(handle.pendingSettingValue('beacon/beacon', 'tok')).toBe('');
+    expect(handle.dirtyIds().has('beacon/beacon')).toBe(false);
+
+    handle.onSettingChange('beacon', 'beacon', 'tok', 'new-secret');
+    expect(handle.dirtyIds().has('beacon/beacon')).toBe(true);
+    await handle.applyChanges();
+
+    expect(applyPluginChanges).toHaveBeenCalledWith([
+      { id: 'beacon/beacon', settings: { tok: 'new-secret' } },
+    ]);
+  });
+
+  it('discardChanges reverts buffered settings edits', async () => {
+    const items = [
+      pluginWithSettings(
+        'beacon',
+        [{ id: 'name', type: 'single-string', label: 'Name', default: 'a' }],
+        { name: 'a' },
+      ),
+    ];
+    const handle = make(
+      setupDeps({ listPlugins: vi.fn().mockResolvedValue(pluginsEnvelope(items)) }),
+    );
+    await handle.refresh();
+
+    handle.onSettingChange('beacon', 'beacon', 'name', 'changed');
+    expect(handle.hasPendingChanges()).toBe(true);
+
+    handle.discardChanges();
+    expect(handle.hasPendingChanges()).toBe(false);
+    expect(handle.pendingSettingValue('beacon/beacon', 'name')).toBe('a');
   });
 });
 

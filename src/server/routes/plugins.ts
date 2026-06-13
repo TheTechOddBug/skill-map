@@ -57,6 +57,7 @@ import {
   type EnabledResolver,
 } from '../../kernel/config/plugin-resolver.js';
 import type { TExtensionStability } from '../../kernel/extensions/index.js';
+import type { TSettingDeclaration } from '../../kernel/types/view-catalog.js';
 import type { IDiscoveredPlugin } from '../../kernel/index.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -65,6 +66,14 @@ import { buildListEnvelope } from '../envelope.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
 import { makeBodyValidator } from '../util/parse-body.js';
 import type { IRouteDeps } from './deps.js';
+import {
+  persistSettingsPatch,
+  projectExtensionSettings,
+  readManifestSettings,
+  validateSettingsPatch,
+  type ISettingDeclarationApi,
+} from './plugins-settings.js';
+import type { IEffectiveConfig } from '../../kernel/config/loader.js';
 
 export interface IPluginExtensionItem {
   id: string;
@@ -84,6 +93,28 @@ export interface IPluginExtensionItem {
    *  the PATCH route returns 403 `locked`. Omitted when false to keep
    *  the wire shape lean for the common case. */
   locked?: boolean;
+  /**
+   * Declared user-configurable settings for this extension, in manifest
+   * order, each = the manifest declaration plus its `id` (the settingId
+   * key). Omitted entirely when the extension declares no settings, so
+   * the wire shape stays lean for the common case. The SPA renders one
+   * control per entry from `type` + the per-type params.
+   */
+  settings?: ISettingDeclarationApi[];
+  /**
+   * Resolved EFFECTIVE values keyed by settingId (manifest default
+   * overlaid by the merged config, validated). `secret`-typed settings
+   * are NEVER present here, their stored-ness is signalled via
+   * `secretSettingsSet`. Omitted when the extension declares no settings.
+   */
+  settingValues?: Record<string, unknown>;
+  /**
+   * settingIds of `secret`-typed settings that currently hold a stored
+   * value. Lets the SPA show "set" vs "empty" without the secret value
+   * crossing the wire. Listed only when a value exists; omitted when no
+   * secret is set.
+   */
+  secretSettingsSet?: string[];
 }
 
 /**
@@ -148,7 +179,19 @@ export interface IPluginListItem {
 
 interface IBulkChange {
   id: string;
-  enabled: boolean;
+  /**
+   * Toggle the extension(s). Optional: a change MAY carry settings only.
+   * Bare plugin ids cascade across every child (the macro); qualified
+   * `<plugin>/<ext>` ids apply verbatim.
+   */
+  enabled?: boolean;
+  /**
+   * Per-setting value patch keyed by settingId. REQUIRES a qualified
+   * `<plugin>/<ext>` id (a bare plugin id carrying settings is rejected).
+   * Values are real JSON (no shell coercion). Secret-typed values route
+   * to `settings.local.json`; others to `settings.json`.
+   */
+  settings?: Record<string, unknown>;
 }
 
 interface IPatchBody {
@@ -189,10 +232,18 @@ const BULK_PATCH_BODY_SCHEMA = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['id', 'enabled'],
+        // `id` is the only mandatory field; a change carries `enabled`,
+        // `settings`, or both. `minProperties: 2` enforces at least one
+        // of the two beyond `id` (an `{ id }`-only entry is a no-op the
+        // client should not send). Per-setting type validation runs in
+        // code against the manifest, so `settings` is a permissive
+        // object here (the body schema only fixes its container shape).
+        required: ['id'],
+        minProperties: 2,
         properties: {
           id: { type: 'string', minLength: 1 },
           enabled: { type: 'boolean' },
+          settings: { type: 'object' },
         },
       },
     },
@@ -206,6 +257,12 @@ const parseBulkPatchBody = makeBodyValidator<IBulkPatchBody>(BULK_PATCH_BODY_SCH
   mapping: {
     '/changes:required': SERVER_TEXTS.pluginsChangesRequired,
     '/changes:type:array': SERVER_TEXTS.pluginsChangesRequired,
+    // A change with neither `enabled` nor `settings` (just `id`) trips
+    // `minProperties`; surface the same "malformed entry" message.
+    '/changes/*:minProperties': SERVER_TEXTS.pluginsChangeMalformed,
+    '/changes/*:type:object': SERVER_TEXTS.pluginsChangeMalformed,
+    '/changes/*/settings:type:object': SERVER_TEXTS.pluginsChangeMalformed,
+    '/changes/*/enabled:type:boolean': SERVER_TEXTS.pluginsChangeMalformed,
   },
 });
 
@@ -360,14 +417,20 @@ function listItems(
   deps: IRouteDeps,
   resolveEnabled: (id: string) => boolean,
 ): IPluginListItem[] {
+  // Merged effective config, read once per list build so every
+  // extension's `settingValues` projects off the same snapshot. Routes
+  // that mutate the config call `configService.reload()` before
+  // re-projecting, so this view is always current for the response.
+  const config = deps.configService.effective();
   return [
-    ...(deps.options.noBuiltIns ? [] : buildBuiltInItems(resolveEnabled)),
-    ...buildDiscoveredItems(deps.pluginRuntime.discovered, deps, resolveEnabled),
+    ...(deps.options.noBuiltIns ? [] : buildBuiltInItems(resolveEnabled, config)),
+    ...buildDiscoveredItems(deps.pluginRuntime.discovered, deps, resolveEnabled, config),
   ];
 }
 
 function buildBuiltInItems(
   resolveEnabled: EnabledResolver,
+  config: IEffectiveConfig,
 ): IPluginListItem[] {
   // Presentation order: `core` first, then vendor plugins. Mirrors
   // `sm plugins list` and the SPA's `PINNED_PLUGIN_ORDER`. Runtime
@@ -379,6 +442,14 @@ function buildBuiltInItems(
     const extensions: IPluginExtensionItem[] = plugin.extensions.map((ext) => {
       const qualified = qualifiedExtensionId(plugin.id, ext.id);
       const extLocked = pluginLocked || isPluginLocked(qualified);
+      // Built-in extension objects ARE the manifest, so the declared
+      // `settings` map is read directly off `ext`.
+      const settings = projectExtensionSettings(
+        plugin.id,
+        ext.id,
+        readManifestSettings(ext),
+        config,
+      );
       return {
         id: ext.id,
         kind: ext.kind,
@@ -387,6 +458,7 @@ function buildBuiltInItems(
         ...(ext.description ? { description: ext.description } : {}),
         ...(ext.stability ? { stability: ext.stability } : {}),
         ...(extLocked ? { locked: true } : {}),
+        ...settings,
       };
     });
     // Aggregate plugin status: `enabled` when at least one extension is
@@ -411,17 +483,19 @@ function buildDiscoveredItems(
   discovered: IDiscoveredPlugin[],
   deps: IRouteDeps,
   resolveEnabled: (id: string) => boolean,
+  config: IEffectiveConfig,
 ): IPluginListItem[] {
-  return discovered.map((plugin) => buildDiscoveredItem(plugin, deps, resolveEnabled));
+  return discovered.map((plugin) => buildDiscoveredItem(plugin, deps, resolveEnabled, config));
 }
 
 function buildDiscoveredItem(
   plugin: IDiscoveredPlugin,
   deps: IRouteDeps,
   resolveEnabled: (id: string) => boolean,
+  config: IEffectiveConfig,
 ): IPluginListItem {
   const pluginLocked = isPluginLocked(plugin.id);
-  const extensions = projectExtensionRows(plugin, resolveEnabled, pluginLocked);
+  const extensions = projectExtensionRows(plugin, resolveEnabled, pluginLocked, config);
   const optional = optionalDiscoveredFields(plugin, extensions);
   // `startsAsDisabled` snapshots the BOOT-time loader verdict, NOT the
   // current resolver projection. A plugin can be `status === 'disabled'`
@@ -468,12 +542,22 @@ function projectExtensionRows(
   plugin: IDiscoveredPlugin,
   resolveEnabled: EnabledResolver,
   pluginLocked: boolean,
+  config: IEffectiveConfig,
 ): IPluginExtensionItem[] | undefined {
   if (!plugin.extensions || plugin.extensions.length === 0) return undefined;
   return plugin.extensions.map((ext) => {
     const description = readInstanceDescription(ext.instance);
     const qualified = qualifiedExtensionId(plugin.id, ext.id);
     const extLocked = pluginLocked || isPluginLocked(qualified);
+    // Discovered extensions carry the cloned manifest on `instance`; the
+    // declared `settings` map is read off it the same way `description`
+    // is.
+    const settings = projectExtensionSettings(
+      plugin.id,
+      ext.id,
+      readManifestSettings(ext.instance),
+      config,
+    );
     return {
       id: ext.id,
       kind: ext.kind,
@@ -482,6 +566,7 @@ function projectExtensionRows(
       ...(description ? { description } : {}),
       ...(ext.stability ? { stability: ext.stability } : {}),
       ...(extLocked ? { locked: true } : {}),
+      ...settings,
     };
   });
 }
@@ -760,25 +845,57 @@ function validateBulkChange(
   change: IBulkChange,
   deps: IRouteDeps,
 ): IBulkValidationFailure | null {
-  const slash = change.id.indexOf('/');
-  if (slash < 0) {
-    const handle = findHandle(change.id, deps);
-    if (!handle) {
-      return {
-        status: 404,
-        code: 'not-found',
-        message: tx(SERVER_TEXTS.pluginsUnknown, { id: change.id }),
-      };
-    }
-    if (isPluginLocked(change.id)) {
-      return {
-        status: 403,
-        code: 'locked',
-        message: tx(SERVER_TEXTS.pluginsLocked, { id: change.id }),
-      };
-    }
-    return null;
+  return change.id.includes('/')
+    ? validateQualifiedBulkChange(change, deps)
+    : validateBareBulkChange(change, deps);
+}
+
+/**
+ * Validate a bare-plugin-id bulk change (the cascade macro). Settings
+ * are per-extension, so a bare id carrying `settings` is the wrong
+ * granularity and is rejected. Otherwise only plugin existence + the
+ * row-level lock are checked (the cascade itself happens at write time).
+ */
+function validateBareBulkChange(
+  change: IBulkChange,
+  deps: IRouteDeps,
+): IBulkValidationFailure | null {
+  if (change.settings !== undefined) {
+    return {
+      status: 400,
+      code: 'bad-query',
+      message: tx(SERVER_TEXTS.pluginsSettingsRequireQualifiedId, { id: change.id }),
+    };
   }
+  const handle = findHandle(change.id, deps);
+  if (!handle) {
+    return {
+      status: 404,
+      code: 'not-found',
+      message: tx(SERVER_TEXTS.pluginsUnknown, { id: change.id }),
+    };
+  }
+  if (isPluginLocked(change.id)) {
+    return {
+      status: 403,
+      code: 'locked',
+      message: tx(SERVER_TEXTS.pluginsLocked, { id: change.id }),
+    };
+  }
+  return null;
+}
+
+/**
+ * Validate a qualified `<plugin>/<ext>` bulk change: plugin + extension
+ * existence, the lock gate, and, when present, the `settings` patch
+ * (every settingId declared, every value type-checks). Done before any
+ * write (all-or-nothing batch).
+ */
+function validateQualifiedBulkChange(
+  change: IBulkChange,
+  deps: IRouteDeps,
+): IBulkValidationFailure | null {
+  const slash = change.id.indexOf('/');
   const pluginId = change.id.slice(0, slash);
   const extensionId = change.id.slice(slash + 1);
   const handle = findHandle(pluginId, deps);
@@ -808,7 +925,65 @@ function validateBulkChange(
       message: tx(SERVER_TEXTS.pluginsExtensionLocked, { pluginId, extensionId }),
     };
   }
+  if (change.settings !== undefined) {
+    return validateChangeSettings(handle, pluginId, extensionId, change.settings);
+  }
   return null;
+}
+
+/**
+ * Validate the `settings` patch of one qualified-id bulk change. The
+ * extension must declare settings, every settingId must be declared, and
+ * every value must pass its input-type's per-value rules (reusing the
+ * kernel resolver via `validateSettingsPatch`). Returns `null` on
+ * success, else the 400 descriptor the route maps into the bulk envelope.
+ */
+function validateChangeSettings(
+  handle: TPluginHandle,
+  pluginId: string,
+  extensionId: string,
+  patch: Record<string, unknown>,
+): IBulkValidationFailure | null {
+  const declarations = handleExtensionSettings(handle, extensionId);
+  if (!declarations || Object.keys(declarations).length === 0) {
+    return {
+      status: 400,
+      code: 'bad-query',
+      message: tx(SERVER_TEXTS.pluginsSettingsNoneDeclared, { pluginId, extensionId }),
+    };
+  }
+  const failure = validateSettingsPatch(pluginId, extensionId, declarations, patch);
+  if (failure !== null) {
+    return {
+      status: 400,
+      code: 'bad-query',
+      message: tx(SERVER_TEXTS.pluginsSettingsInvalid, {
+        settingId: failure.settingId,
+        pluginId,
+        extensionId,
+        reason: failure.reason,
+      }),
+    };
+  }
+  return null;
+}
+
+/**
+ * Read the declared `settings` map for one extension off a plugin
+ * handle. Built-in extension objects ARE the manifest; discovered
+ * extensions carry it on `instance`. Returns `undefined` when the
+ * extension cannot be found or declares no settings.
+ */
+function handleExtensionSettings(
+  handle: TPluginHandle,
+  extensionId: string,
+): Record<string, TSettingDeclaration> | undefined {
+  if (handle.kind === 'built-in') {
+    const ext = handle.plugin.extensions.find((e) => e.id === extensionId);
+    return readManifestSettings(ext);
+  }
+  const ext = (handle.plugin.extensions ?? []).find((e) => e.id === extensionId);
+  return readManifestSettings(ext?.instance);
 }
 
 /**
@@ -826,10 +1001,16 @@ async function persistBulkAndProject(
   deps: IRouteDeps,
   changes: readonly IBulkChange[],
 ): Promise<Response> {
+  // 1. Enabled toggles land in `config_plugins` (SQLite). Only changes
+  //    carrying `enabled` participate; a settings-only change skips the
+  //    toggle pass entirely. Opening the DB here also confirms its
+  //    presence BEFORE any settings file write, so a missing DB fails
+  //    fast (db-missing) without leaving a half-applied config on disk.
   const overrides = await tryWithSqlite(
     { databasePath: deps.options.dbPath, autoBackup: false },
     async (adapter) => {
       for (const change of changes) {
+        if (change.enabled === undefined) continue;
         // Bare plugin ids cascade across every child extension (same
         // semantic as the single-id `PATCH /api/plugins/:id` macro);
         // qualified `<plugin>/<ext>` ids are applied verbatim.
@@ -841,7 +1022,68 @@ async function persistBulkAndProject(
       return await adapter.pluginConfig.loadOverrideMap();
     },
   );
+  // DB absent ⇒ fail fast before any settings write touches disk.
+  if (overrides === null) {
+    throw new DbMissingError(
+      tx(SERVER_TEXTS.pluginsDbMissing, { path: deps.options.dbPath }),
+    );
+  }
+
+  // 2. Settings writes land in settings.json / settings.local.json via
+  //    `writeConfigValue` (file writes, AJV-revalidated per write).
+  //    `cwd` comes from the runtime context the composition root
+  //    threaded in.
+  const settingsTouched = persistBulkSettings(deps, changes);
+
+  // 3. Settings writes mutated the on-disk config; drop the cached
+  //    layered view so the projection below (and any later read) sees
+  //    the fresh values. Toggle writes go to SQLite, not the config
+  //    layers, so they need no reload.
+  if (settingsTouched) deps.configService.reload();
+
   return projectListResponse(c, deps, overrides);
+}
+
+/**
+ * Apply every change's `settings` patch to the config files. Each value
+ * routes to `settings.local.json` (secret-typed) or `settings.json`
+ * (everything else) via `persistSettingsPatch`. Returns `true` when at
+ * least one settings value was written, so the caller can decide whether
+ * to invalidate the config cache. Assumes every patch already passed
+ * `validateBulkChange` (qualified id, declared settingIds, valid values).
+ *
+ * A persist failure (AJV revalidation rejecting the merged file) is
+ * surfaced as a `DbMissingError`-sibling 500 via `HTTPException`; the
+ * batch is all-or-nothing on validation but settings writes are applied
+ * sequentially, so a mid-batch failure leaves earlier writes in place.
+ * In practice validation already guarantees acceptance, so this is a
+ * defence-in-depth path.
+ */
+function persistBulkSettings(deps: IRouteDeps, changes: readonly IBulkChange[]): boolean {
+  const cwd = deps.runtimeContext.cwd;
+  let touched = false;
+  for (const change of changes) {
+    if (change.settings === undefined) continue;
+    const slash = change.id.indexOf('/');
+    // Validation guarantees a qualified id here; guard defensively.
+    if (slash < 0) continue;
+    const pluginId = change.id.slice(0, slash);
+    const extensionId = change.id.slice(slash + 1);
+    const handle = findHandle(pluginId, deps);
+    const declarations = handle ? handleExtensionSettings(handle, extensionId) : undefined;
+    try {
+      persistSettingsPatch(pluginId, extensionId, declarations, change.settings, cwd);
+    } catch (err) {
+      throw new HTTPException(500, {
+        message: tx(SERVER_TEXTS.pluginsSettingsPersistFailed, {
+          id: change.id,
+          message: err instanceof Error ? err.message : String(err),
+        }),
+      });
+    }
+    if (Object.keys(change.settings).length > 0) touched = true;
+  }
+  return touched;
 }
 
 /**

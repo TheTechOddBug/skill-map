@@ -39,6 +39,8 @@ import {
   type ScanResult,
 } from '../../kernel/index.js';
 import { InMemoryProgressEmitter } from '../../kernel/adapters/in-memory-progress.js';
+import { loadConfig } from '../../kernel/config/loader.js';
+import { buildSettingsResolver } from '../../core/config/plugin-settings.js';
 import { tx } from '../../kernel/util/tx.js';
 import { REFRESH_TEXTS } from '../i18n/refresh.texts.js';
 import type { IAnsi } from '../util/ansi.js';
@@ -156,9 +158,16 @@ export class RefreshCommand extends SmCommand {
     // be a no-op, and the listBuiltIns import below keeps the registry
     // shape parity with `sm scan`).
     listBuiltIns(); // touch the built-in registry to surface load errors early.
+    // Refresh re-invokes extractors per node, so resolved settings must
+    // reach `ctx.settings.<id>` exactly as they would during `sm scan`.
+    // Load the merged config and thread its settings resolver into the
+    // composer (a tolerant load: a malformed layer degrades to defaults
+    // rather than aborting the refresh).
+    const refreshCfg = loadConfig({ cwd: ctx.cwd }).effective;
     const composed = composeScanExtensions({
       noBuiltIns: false,
       pluginRuntime,
+      resolveSettings: buildSettingsResolver(refreshCfg),
       killSwitches: readConformanceKillSwitches(),
     });
     const allExtractors: IExtractor[] = composed?.extractors ?? [];

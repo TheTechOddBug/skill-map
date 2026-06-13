@@ -170,6 +170,10 @@ export async function runAnalyzers(
     const emitted = await analyzer.evaluate({
       nodes,
       links: internalLinks,
+      // `settings` is always populated (possibly empty) so analyzers can
+      // read `ctx.settings.<id>` without a presence check. The composer
+      // populated `resolvedSettings` on each composed analyzer.
+      settings: analyzer.resolvedSettings ?? {},
       orphanSidecars: analyzerOrphans,
       sidecarRoots,
       annotationContributions,

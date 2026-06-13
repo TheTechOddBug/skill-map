@@ -27,7 +27,7 @@ import {
   loadPluginRuntime,
 } from '../../../cli/util/plugin-runtime.js';
 import { readConformanceKillSwitches } from '../../../cli/util/conformance-env.js';
-import { listBuiltIns } from '../../../plugins/built-ins.js';
+import { builtInPlugins, listBuiltIns } from '../../../plugins/built-ins.js';
 
 let root: string;
 let counter = 0;
@@ -141,6 +141,32 @@ describe('plugin-runtime, branch coverage', () => {
     assert.ok(composed.providers.length >= 1, 'expected at least the claude provider');
     assert.ok(composed.extractors.length >= 1, 'expected at least one built-in extractor');
     assert.ok(composed.analyzers.length >= 1, 'expected at least one built-in rule');
+  });
+
+  it('composeScanExtensions populates resolvedSettings without mutating the built-in singleton', () => {
+    const TARGET = 'core/external-url-counter';
+    // A resolver that stamps a sentinel only on the target extractor.
+    const composed = composeScanExtensions({
+      noBuiltIns: false,
+      pluginRuntime: emptyPluginRuntime(),
+      resolveSettings: (ext) =>
+        `${ext.pluginId}/${ext.id}` === TARGET ? { 'ignored-domains': ['sentinel.test'] } : {},
+    });
+    assert.ok(composed);
+    const target = composed.extractors.find((e) => `${e.pluginId}/${e.id}` === TARGET);
+    assert.ok(target, 'expected the external-url-counter extractor in the composed set');
+    assert.deepEqual(target.resolvedSettings, { 'ignored-domains': ['sentinel.test'] });
+
+    // The composed instance MUST be a shallow copy, not the module-level
+    // singleton: the shared singleton in `builtInPlugins` keeps its
+    // original (un-stamped) `resolvedSettings` so one scan's operator
+    // values never leak into the next invocation.
+    const singleton = builtInPlugins
+      .flatMap((p) => p.extensions)
+      .find((e) => `${e.pluginId}/${e.id}` === TARGET);
+    assert.ok(singleton);
+    assert.notEqual(singleton, target, 'composed extension must be a copy, not the singleton');
+    assert.equal(singleton.resolvedSettings, undefined, 'singleton must not be mutated by compose');
   });
 
   it('composeFormatters({ noBuiltIns: true }) excludes built-in formatters', async () => {

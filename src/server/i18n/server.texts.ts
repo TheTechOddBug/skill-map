@@ -288,9 +288,31 @@ export const SERVER_TEXTS = {
   // (unknown id, granularity mismatch, lock); these cover the
   // body-shape level.
   pluginsChangesRequired:
-    'Request body must include a `changes` array of `{ id, enabled }` entries.',
+    'Request body must include a `changes` array of `{ id, enabled?, settings? }` entries.',
   pluginsChangeMalformed:
-    'Each entry in `changes` must have a string `id` and a boolean `enabled`.',
+    'Each entry in `changes` must have a string `id` plus at least one of `enabled` (boolean) or `settings` (object).',
+
+  // 400, a bulk change carries `settings` against a bare plugin id.
+  // Settings are per-extension, so they require a qualified
+  // `<plugin>/<ext>` id; a bare plugin id is the wrong granularity.
+  pluginsSettingsRequireQualifiedId:
+    'Settings can only be written on a qualified `<plugin>/<ext>` id, not the bare plugin id "{{id}}".',
+
+  // 400, a bulk change carries `settings` for an extension that declares
+  // none in its manifest.
+  pluginsSettingsNoneDeclared:
+    'Extension "{{pluginId}}/{{extensionId}}" declares no configurable settings.',
+
+  // 400, a `settings` entry names a settingId the extension does not
+  // declare, or its value fails the declared input-type's rules. The
+  // `{{reason}}` is the resolver's per-type validation message.
+  pluginsSettingsInvalid:
+    'Invalid setting "{{settingId}}" for "{{pluginId}}/{{extensionId}}": {{reason}}.',
+
+  // 500, a settings write failed at persist time (AJV revalidation of
+  // the merged config file rejected the result).
+  pluginsSettingsPersistFailed:
+    'Failed to persist settings for "{{id}}": {{message}}.',
 
   // ---- preferences route (routes/preferences.ts) --------------------------
   //

@@ -30,7 +30,7 @@ function validNode(): Node {
 
 describe('validate-all rule', () => {
   it('emits no issues on an empty graph', async () => {
-    const issues = await schemaViolationAnalyzer.evaluate({ nodes: [], links: [], emitContribution: noopEmit });
+    const issues = await schemaViolationAnalyzer.evaluate({ nodes: [], links: [], settings: {}, emitContribution: noopEmit });
     strictEqual(issues.length, 0);
   });
 
@@ -43,7 +43,7 @@ describe('validate-all rule', () => {
       confidence: 0.9,
       sources: ['annotations'],
     };
-    const issues = await schemaViolationAnalyzer.evaluate({ nodes: [node], links: [link], emitContribution: noopEmit });
+    const issues = await schemaViolationAnalyzer.evaluate({ nodes: [node], links: [link], settings: {}, emitContribution: noopEmit });
     strictEqual(issues.length, 0);
   });
 
@@ -56,7 +56,7 @@ describe('validate-all rule', () => {
       confidence: 0.9,
       sources: ['x'],
     };
-    const issues = await schemaViolationAnalyzer.evaluate({ nodes: [], links: [bad], emitContribution: noopEmit });
+    const issues = await schemaViolationAnalyzer.evaluate({ nodes: [], links: [bad], settings: {}, emitContribution: noopEmit });
     strictEqual(issues.length, 1);
     strictEqual(issues[0]?.severity, 'error');
     strictEqual(issues[0]?.analyzerId, 'schema-violation');
@@ -77,7 +77,7 @@ describe('validate-all rule', () => {
       linksInCount: 0,
       externalRefsCount: 0,
     } as unknown as Node;
-    const issues = await schemaViolationAnalyzer.evaluate({ nodes: [bad], links: [], emitContribution: noopEmit });
+    const issues = await schemaViolationAnalyzer.evaluate({ nodes: [bad], links: [], settings: {}, emitContribution: noopEmit });
     ok(issues.length >= 1);
     strictEqual(issues[0]?.analyzerId, 'schema-violation');
   });
@@ -112,6 +112,7 @@ describe('validate-all rule, frontmatter base check', () => {
     const issues = await schemaViolationAnalyzer.evaluate({
       nodes: [node],
       links: [],
+      settings: {},
       emitContribution: noopEmit,
     });
     const base = issues.find((i) => i.data?.['target'] === 'frontmatter');
@@ -125,6 +126,7 @@ describe('validate-all rule, frontmatter base check', () => {
     const issues = await schemaViolationAnalyzer.evaluate({
       nodes: [node],
       links: [],
+      settings: {},
       emitContribution: noopEmit,
     });
     const base = issues.find((i) => i.data?.['target'] === 'frontmatter');
@@ -137,6 +139,7 @@ describe('validate-all rule, frontmatter base check', () => {
     const issues = await schemaViolationAnalyzer.evaluate({
       nodes: [node],
       links: [],
+      settings: {},
       emitContribution: noopEmit,
     });
     const base = issues.find((i) => i.data?.['target'] === 'frontmatter');
@@ -150,6 +153,7 @@ describe('validate-all rule, frontmatter base check', () => {
     const issues = await schemaViolationAnalyzer.evaluate({
       nodes: [node],
       links: [],
+      settings: {},
       emitContribution: noopEmit,
     });
     const base = issues.find((i) => i.data?.['target'] === 'frontmatter');
@@ -161,6 +165,7 @@ describe('validate-all rule, frontmatter base check', () => {
     const issues = await schemaViolationAnalyzer.evaluate({
       nodes: [node],
       links: [],
+      settings: {},
       emitContribution: noopEmit,
     });
     const base = issues.find((i) => i.data?.['target'] === 'frontmatter');
@@ -191,7 +196,7 @@ describe('validate-all rule, contribution surface', () => {
       externalRefsCount: 0,
       frontmatter: {},
     } as Node;
-    await schemaViolationAnalyzer.evaluate({ nodes: [broken], links: [], emitContribution: emit });
+    await schemaViolationAnalyzer.evaluate({ nodes: [broken], links: [], settings: {}, emitContribution: emit });
     strictEqual(log.length, 0, 'analyzer must not emit any contribution');
   });
 
@@ -211,6 +216,7 @@ describe('validate-all rule, contribution surface', () => {
     const issues = await schemaViolationAnalyzer.evaluate({
       nodes: [broken],
       links: [],
+      settings: {},
       emitContribution: () => {},
     });
     ok(issues.length >= 1, 'analyzer keeps emitting issue records');

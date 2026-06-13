@@ -108,6 +108,22 @@ export function composeScanExtensions(opts: {
    * the exception explicitly so the SPA can surface a per-row hint.
    */
   resolveEnabled?: (id: string) => boolean;
+  /**
+   * Optional per-extension settings resolver. When set, every extension
+   * pushed into the buckets is replaced by a shallow copy with its
+   * `resolvedSettings` populated (`{ ...ext, resolvedSettings: ... }`),
+   * so the orchestrator hands `ctx.settings.<id>` to extractors,
+   * analyzers, and hooks. The shared built-in singletons are NEVER
+   * mutated (they are module-level objects reused across invocations),
+   * the copy keeps each scan's resolved values local. When omitted,
+   * extensions flow through verbatim and the consumer falls back to
+   * `{}` via the existing `ext.resolvedSettings ?? {}` reads.
+   *
+   * Call sites build this via `buildSettingsResolver(config)` from the
+   * merged config they already loaded (mirrors how `resolveEnabled` is
+   * threaded). See `core/config/plugin-settings.ts`.
+   */
+  resolveSettings?: (ext: { pluginId: string; id: string }) => Record<string, unknown>;
   killSwitches?: IConformanceKillSwitches;
 }): {
   providers: IProvider[];
@@ -117,6 +133,7 @@ export function composeScanExtensions(opts: {
   actions: IAction[];
 } | undefined {
   const resolveEnabled = opts.resolveEnabled ?? opts.pluginRuntime.resolveEnabled;
+  const resolveSettings = opts.resolveSettings;
 
   const providers: IProvider[] = [];
   const extractors: IExtractor[] = [];
@@ -128,23 +145,25 @@ export function composeScanExtensions(opts: {
     accumulateBuiltInScanExtensions(
       { providers, extractors, analyzers, hooks, actions },
       resolveEnabled,
+      resolveSettings,
     );
   }
   // User-plugin extensions: gated by the same resolver so a fresh
   // toggle silences an already-loaded plugin without a restart. Walk
   // each kind once instead of `push(...src)` so we can branch per
-  // extension on the resolver verdict.
+  // extension on the resolver verdict. Each survivor is replaced by a
+  // settings-resolved shallow copy when `resolveSettings` is set.
   for (const ext of opts.pluginRuntime.extensions.providers) {
-    if (isPluginExtensionEnabled(ext, resolveEnabled)) providers.push(ext);
+    if (isPluginExtensionEnabled(ext, resolveEnabled)) providers.push(withResolvedSettings(ext, resolveSettings));
   }
   for (const ext of opts.pluginRuntime.extensions.extractors) {
-    if (isPluginExtensionEnabled(ext, resolveEnabled)) extractors.push(ext);
+    if (isPluginExtensionEnabled(ext, resolveEnabled)) extractors.push(withResolvedSettings(ext, resolveSettings));
   }
   for (const ext of opts.pluginRuntime.extensions.analyzers) {
-    if (isPluginExtensionEnabled(ext, resolveEnabled)) analyzers.push(ext);
+    if (isPluginExtensionEnabled(ext, resolveEnabled)) analyzers.push(withResolvedSettings(ext, resolveSettings));
   }
   for (const ext of opts.pluginRuntime.extensions.hooks) {
-    if (isPluginExtensionEnabled(ext, resolveEnabled)) hooks.push(ext);
+    if (isPluginExtensionEnabled(ext, resolveEnabled)) hooks.push(withResolvedSettings(ext, resolveSettings));
   }
   for (const ext of opts.pluginRuntime.extensions.actions) {
     if (isPluginExtensionEnabled(ext, resolveEnabled)) actions.push(ext);
@@ -187,10 +206,34 @@ export function composeScanExtensions(opts: {
 }
 
 /**
+ * Replace an extension with a shallow copy carrying its resolved
+ * settings, or pass it through verbatim when no resolver is supplied.
+ *
+ * The copy is mandatory for built-in singletons: `builtInPlugins[*]
+ * .extensions[*]` are module-level objects reused across every scan in
+ * the process, mutating `ext.resolvedSettings` in place would leak one
+ * invocation's operator values into the next. `{ ...ext, resolvedSettings }`
+ * keeps each scan's resolved values local. User-plugin instances are
+ * loader-cloned per discovery, but the same copy keeps the contract
+ * uniform.
+ */
+function withResolvedSettings<T extends { pluginId: string; id: string }>(
+  ext: T,
+  resolveSettings: ((ext: { pluginId: string; id: string }) => Record<string, unknown>) | undefined,
+): T {
+  if (!resolveSettings) return ext;
+  return { ...ext, resolvedSettings: resolveSettings(ext) };
+}
+
+/**
  * Walk every built-in plugin, drop disabled extensions per the
  * resolver, and bucket the survivors into the per-kind arrays.
  * Formatters are consumed by `composeFormatters`, not scan, so they
  * are skipped here even if the plugin ships them.
+ *
+ * `resolveSettings` (optional) mirrors `composeScanExtensions`: every
+ * bucketed survivor is replaced by a settings-resolved shallow copy so
+ * the shared built-in singletons are never mutated.
  */
 // Discriminated-union dispatcher, one branch per `ext.kind` plus the
 // disabled-guard up front. Cyclomatic count comes from the six-kind
@@ -200,22 +243,23 @@ export function composeScanExtensions(opts: {
 export function accumulateBuiltInScanExtensions(
   buckets: { providers: IProvider[]; extractors: IExtractor[]; analyzers: IAnalyzer[]; hooks: IHook[]; actions: IAction[] },
   resolveEnabled: (id: string) => boolean,
+  resolveSettings?: (ext: { pluginId: string; id: string }) => Record<string, unknown>,
 ): void {
   for (const plugin of builtInPlugins) {
     for (const ext of plugin.extensions) {
       if (!isBuiltInExtensionEnabled(plugin, ext, resolveEnabled)) continue;
       switch (ext.kind) {
         case 'provider':
-          buckets.providers.push(ext);
+          buckets.providers.push(withResolvedSettings(ext, resolveSettings));
           break;
         case 'extractor':
-          buckets.extractors.push(ext);
+          buckets.extractors.push(withResolvedSettings(ext, resolveSettings));
           break;
         case 'analyzer':
-          buckets.analyzers.push(ext);
+          buckets.analyzers.push(withResolvedSettings(ext, resolveSettings));
           break;
         case 'hook':
-          buckets.hooks.push(ext);
+          buckets.hooks.push(withResolvedSettings(ext, resolveSettings));
           break;
         case 'action':
           // Actions surface for the orchestrator's projection pass: an
@@ -258,21 +302,30 @@ export function composeFormatters(opts: {
    * restarting the process.
    */
   resolveEnabled?: (id: string) => boolean;
+  /**
+   * Optional per-extension settings resolver (same semantics as in
+   * `composeScanExtensions`). When set, each composed formatter is a
+   * settings-resolved shallow copy so `ctx.settings.<id>` reaches
+   * `format()`. No built-in formatter declares settings today, so the
+   * common case leaves this undefined and formatters see `{}`.
+   */
+  resolveSettings?: (ext: { pluginId: string; id: string }) => Record<string, unknown>;
 }): IFormatter[] {
   const noBuiltIns = opts.noBuiltIns ?? false;
   const resolveEnabled = opts.resolveEnabled ?? opts.pluginRuntime.resolveEnabled;
+  const resolveSettings = opts.resolveSettings;
   const out: IFormatter[] = [];
   if (!noBuiltIns) {
     for (const plugin of builtInPlugins) {
       for (const ext of plugin.extensions) {
         if (ext.kind !== 'formatter') continue;
         if (!isBuiltInExtensionEnabled(plugin, ext, resolveEnabled)) continue;
-        out.push(ext);
+        out.push(withResolvedSettings(ext, resolveSettings));
       }
     }
   }
   for (const ext of opts.pluginRuntime.extensions.formatters) {
-    if (isPluginExtensionEnabled(ext, resolveEnabled)) out.push(ext);
+    if (isPluginExtensionEnabled(ext, resolveEnabled)) out.push(withResolvedSettings(ext, resolveSettings));
   }
   return out;
 }

@@ -99,6 +99,12 @@ export const HOOK_TRIGGERS: readonly THookTrigger[] = Object.freeze([
  * Deterministic hooks SHOULD ignore the field.
  */
 export interface IHookContext {
+  /**
+   * Resolved values of the hook's declared `settings`, populated from
+   * project config + user overrides. Empty object when no settings are
+   * declared.
+   */
+  settings: Record<string, unknown>;
   /** The raw event the dispatcher matched. */
   event: {
     type: THookTrigger;

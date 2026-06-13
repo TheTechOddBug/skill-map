@@ -72,12 +72,27 @@
     },
     "plugins": {
       "type": "object",
-      "description": "Per-plugin enable/disable overrides. Keys are plugin ids. Absent = use installed default (enabled).",
+      "description": "Per-plugin overrides. Keys are plugin ids. Carries the enable/disable toggle and, under `extensions.<extId>.settings`, the operator-supplied values for the settings each extension declares in its manifest. Absent = installed defaults (enabled, declared setting defaults).",
       "additionalProperties": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "enabled": { "type": "boolean" }
+          "enabled": { "type": "boolean" },
+          "extensions": {
+            "type": "object",
+            "description": "Per-extension overrides, keyed by extension id (the leaf folder name, NOT the qualified `<plugin>/<ext>` id, the plugin is already the parent key). Today only `settings`; a future per-extension `enabled` filter (the deferred Phase 4+ work) would slot in alongside it.",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "settings": {
+                  "type": "object",
+                  "description": "Operator-supplied values for the extension's declared settings, keyed by settingId. Values are intentionally NOT validated by this schema: the kernel's settings resolver validates each value against the per-type value schema of the input-type the manifest declares (`input-types.schema.json#/$defs/ISettingDeclaration`), since this schema cannot know which type a given settingId picked. A non-`secret` setting lands here in `settings.json` (team-shared) or `settings.local.json` (per-checkout override) via the normal config layering; `secret` settings are NOT stored here, they ride the dedicated encrypted `state_secrets` path (see `input-types.schema.json#/$defs/Setting_Secret`).",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
         }
       }
     },

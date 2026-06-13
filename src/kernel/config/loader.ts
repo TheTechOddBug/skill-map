@@ -59,6 +59,24 @@ export interface IJobsConfig {
 
 export interface IPluginConfigEntry {
   enabled?: boolean;
+  /**
+   * Per-extension overrides keyed by extension id (the leaf folder
+   * name, NOT the qualified `<plugin>/<ext>` id, the plugin is already
+   * the parent key). Today only `settings`; mirrors
+   * `project-config.schema.json#/properties/plugins/.../extensions`.
+   */
+  extensions?: Record<string, IPluginExtensionConfigEntry>;
+}
+
+export interface IPluginExtensionConfigEntry {
+  /**
+   * Operator-supplied values for the extension's declared settings,
+   * keyed by `settingId`. Intentionally permissive (`unknown` value):
+   * the static schema cannot know which input-type a given `settingId`
+   * picked, so per-value validation is the settings resolver's job
+   * (`core/config/plugin-settings.ts`), not AJV's.
+   */
+  settings?: Record<string, unknown>;
 }
 
 export interface IScanWatchConfig {

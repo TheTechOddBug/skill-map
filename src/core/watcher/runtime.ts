@@ -62,6 +62,7 @@ import { dirname } from 'node:path';
 
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { loadConfig } from '../../kernel/config/loader.js';
+import { buildSettingsResolver } from '../config/plugin-settings.js';
 import { walkReferencePaths } from '../runtime/reference-paths-walker.js';
 import {
   buildIgnoreFilter,
@@ -480,6 +481,7 @@ export function createWatcherRuntime(
         noBuiltIns: opts.noBuiltIns,
         pluginRuntime,
         resolveEnabled: resolveEnabledOverride,
+        resolveSettings: buildSettingsResolver(cfg),
       };
       if (opts.killSwitches) composeOpts.killSwitches = opts.killSwitches;
       const composed = composeScanExtensions(composeOpts);

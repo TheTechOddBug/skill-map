@@ -32,6 +32,12 @@ export interface IAnalyzerContext {
   nodes: Node[];
   links: Link[];
   /**
+   * Resolved values of the analyzer's declared `settings`, populated
+   * from project config + user overrides. Empty object when no settings
+   * are declared.
+   */
+  settings: Record<string, unknown>;
+  /**
    * Step 9.6.2, orphaned sidecars discovered during the scan walk.
    * Empty when sidecar discovery did not run (legacy callers) or
    * when no orphans exist.

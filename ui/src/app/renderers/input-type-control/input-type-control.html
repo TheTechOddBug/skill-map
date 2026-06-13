@@ -1,0 +1,238 @@
+<div class="itc" [attr.data-testid]="'input-type-control-' + inputType()">
+  <label class="itc__label" [attr.for]="fieldId()">{{ label() }}</label>
+
+  @switch (inputType()) {
+    @case ('single-string') {
+      <input
+        type="text"
+        pInputText
+        class="itc__string"
+        [id]="fieldId()"
+        [ngModel]="stringValue()"
+        (ngModelChange)="onStringChange($event)"
+        [placeholder]="texts.stringPlaceholder"
+        [attr.aria-label]="label()"
+        data-testid="input-type-control-string-input"
+      />
+    }
+    @case ('integer') {
+      <p-inputnumber
+        class="itc__number"
+        [inputId]="fieldId()"
+        [ngModel]="numberValue()"
+        (ngModelChange)="onNumberChange($event)"
+        [min]="min()"
+        [max]="max()"
+        [step]="step()"
+        [showButtons]="true"
+        [maxFractionDigits]="0"
+        [useGrouping]="false"
+        [placeholder]="texts.stringPlaceholder"
+        [ariaLabel]="label()"
+        data-testid="input-type-control-integer"
+      />
+    }
+    @case ('number') {
+      <p-inputnumber
+        class="itc__number"
+        mode="decimal"
+        [inputId]="fieldId()"
+        [ngModel]="numberValue()"
+        (ngModelChange)="onNumberChange($event)"
+        [min]="min()"
+        [max]="max()"
+        [step]="step()"
+        [minFractionDigits]="0"
+        [maxFractionDigits]="6"
+        [useGrouping]="false"
+        [placeholder]="texts.stringPlaceholder"
+        [ariaLabel]="label()"
+        data-testid="input-type-control-number"
+      />
+    }
+    @case ('boolean-flag') {
+      <p-toggleswitch
+        class="itc__toggle"
+        [inputId]="fieldId()"
+        [ngModel]="booleanValue()"
+        (ngModelChange)="onBooleanChange($event)"
+        [ariaLabel]="label()"
+        data-testid="input-type-control-boolean"
+      />
+    }
+    @case ('enum-pick') {
+      <p-select
+        class="itc__select"
+        [inputId]="fieldId()"
+        [options]="options()"
+        optionLabel="label"
+        optionValue="value"
+        [ngModel]="stringValue()"
+        (ngModelChange)="onStringChange($event)"
+        [placeholder]="texts.selectPlaceholder"
+        appendTo="body"
+        [attr.aria-label]="label()"
+        data-testid="input-type-control-select"
+      />
+    }
+    @case ('enum-multipick') {
+      <p-multiselect
+        class="itc__multiselect"
+        [inputId]="fieldId()"
+        [options]="options()"
+        optionLabel="label"
+        optionValue="value"
+        [ngModel]="listValue()"
+        (ngModelChange)="onListChange($event)"
+        [placeholder]="texts.multiSelectPlaceholder"
+        appendTo="body"
+        [showToggleAll]="false"
+        [ariaLabel]="label()"
+        data-testid="input-type-control-multiselect"
+      />
+    }
+    @case ('string-list') {
+      <p-autocomplete
+        class="itc__list"
+        [inputId]="fieldId()"
+        [multiple]="true"
+        [typeahead]="false"
+        [addOnBlur]="true"
+        [unique]="true"
+        [ngModel]="listValue()"
+        (ngModelChange)="onListChange($event)"
+        [placeholder]="texts.listPlaceholder"
+        [attr.aria-label]="label()"
+        data-testid="input-type-control-list"
+      />
+    }
+    @case ('path-glob') {
+      @if (multiple()) {
+        <p-autocomplete
+          class="itc__list"
+          [inputId]="fieldId()"
+          [multiple]="true"
+          [typeahead]="false"
+          [addOnBlur]="true"
+          [unique]="true"
+          [ngModel]="listValue()"
+          (ngModelChange)="onPathGlobChange($event)"
+          [placeholder]="texts.listPlaceholder"
+          [attr.aria-label]="label()"
+          data-testid="input-type-control-path-glob-multiple"
+        />
+      } @else {
+        <input
+          type="text"
+          pInputText
+          class="itc__string"
+          [id]="fieldId()"
+          [ngModel]="stringValue()"
+          (ngModelChange)="onPathGlobChange($event)"
+          [placeholder]="texts.stringPlaceholder"
+          [attr.aria-label]="label()"
+          data-testid="input-type-control-path-glob-single"
+        />
+      }
+    }
+    @case ('regex') {
+      <div class="itc__regex">
+        <input
+          type="text"
+          pInputText
+          class="itc__string itc__regex-body"
+          [id]="fieldId()"
+          [ngModel]="stringValue()"
+          (ngModelChange)="onStringChange($event)"
+          [placeholder]="texts.stringPlaceholder"
+          [attr.aria-label]="label()"
+          data-testid="input-type-control-regex"
+        />
+        @if (flags()) {
+          <span
+            class="itc__regex-flags"
+            [title]="texts.regexFlagsLabel"
+            [attr.aria-label]="texts.regexFlagsLabel"
+            data-testid="input-type-control-regex-flags"
+          >/{{ flags() }}</span>
+        }
+      </div>
+    }
+    @case ('secret') {
+      <div class="itc__secret">
+        <p-password
+          class="itc__secret-input"
+          [inputId]="fieldId()"
+          [feedback]="false"
+          [toggleMask]="true"
+          [ngModel]="stringValue()"
+          (ngModelChange)="onStringChange($event)"
+          [placeholder]="secretIsSet() ? texts.secretSetPlaceholder : texts.secretEmptyPlaceholder"
+          [ariaLabel]="label()"
+          data-testid="input-type-control-secret"
+        />
+        <span
+          class="itc__secret-status"
+          [class.itc__secret-status--set]="secretIsSet()"
+          data-testid="input-type-control-secret-status"
+        >{{ secretIsSet() ? texts.secretSet : texts.secretEmpty }}</span>
+      </div>
+    }
+    @case ('key-value-list') {
+      <div class="itc__kv" data-testid="input-type-control-key-value">
+        @if (keyValueRows().length > 0) {
+          <div class="itc__kv-head" aria-hidden="true">
+            <span class="itc__kv-col">{{ keyLabel() }}</span>
+            <span class="itc__kv-col">{{ valueLabel() }}</span>
+            <span class="itc__kv-actions-head"></span>
+          </div>
+        }
+        @for (row of keyValueRows(); track $index) {
+          <div class="itc__kv-row" [attr.data-testid]="'input-type-control-key-value-row-' + $index">
+            <input
+              type="text"
+              pInputText
+              class="itc__kv-input"
+              [ngModel]="row.key"
+              (ngModelChange)="onKeyChange($index, $event)"
+              [attr.aria-label]="keyLabel()"
+              [attr.data-testid]="'input-type-control-key-value-key-' + $index"
+            />
+            <input
+              type="text"
+              pInputText
+              class="itc__kv-input"
+              [ngModel]="row.value"
+              (ngModelChange)="onValueChange($index, $event)"
+              [attr.aria-label]="valueLabel()"
+              [attr.data-testid]="'input-type-control-key-value-value-' + $index"
+            />
+            <button
+              type="button"
+              class="itc__kv-remove"
+              (click)="removeRow($index)"
+              [attr.aria-label]="texts.keyValueRemove"
+              [attr.data-testid]="'input-type-control-key-value-remove-' + $index"
+            >
+              <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+            </button>
+          </div>
+        }
+        <button
+          type="button"
+          class="itc__kv-add"
+          (click)="addRow()"
+          data-testid="input-type-control-key-value-add"
+        >
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>
+          {{ texts.keyValueAdd }}
+        </button>
+      </div>
+    }
+    @default {
+      <span class="itc__unsupported" role="note" data-testid="input-type-control-unsupported">
+        {{ texts.unsupportedPrefix }} {{ inputType() }}
+      </span>
+    }
+  }
+</div>

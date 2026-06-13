@@ -442,20 +442,87 @@
 
 .settings-plugins__subrow {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 0.5rem;
   padding: 0.375rem 0.5rem;
   border-radius: var(--p-border-radius);
 }
 
-.settings-plugins__subrow.is-clickable {
-  cursor: pointer;
-  transition: background 0.12s ease;
+/* The headline + controls live on one row; the options form (when
+ * expanded) stacks beneath it as a full-width sibling. */
+.settings-plugins__subrow-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
-.settings-plugins__subrow.is-clickable:hover {
+.settings-plugins__subrow.is-clickable .settings-plugins__subrow-main {
+  cursor: pointer;
+  transition: background 0.12s ease;
+  border-radius: var(--p-border-radius);
+}
+
+.settings-plugins__subrow.is-clickable:hover .settings-plugins__subrow-main {
   background: var(--p-content-hover-background);
+}
+
+/* Right-hand cluster: the optional "Options" disclosure + the toggle. */
+.settings-plugins__subrow-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  flex-shrink: 0;
+}
+
+/* "Show / hide options" disclosure, neutral-toned (the settings panel is
+ * not a warning surface, unlike the runtime-errors toggle). */
+.settings-plugins__settings-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--p-text-muted-color);
+}
+
+.settings-plugins__settings-toggle:hover {
+  color: var(--p-text-color);
+}
+
+.settings-plugins__settings-toggle i {
+  font-size: 0.7rem;
+}
+
+/* Expanded settings form: one control per declared setting, indented
+ * to align under the subrow text and bordered like the sublist so the
+ * grouping reads clearly. */
+.settings-plugins__settings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  padding: 0.5rem 0 0.25rem 0.25rem;
+  border-left: 2px solid var(--p-content-border-color);
+  margin-left: 0.25rem;
+  padding-left: 0.75rem;
+}
+
+.settings-plugins__setting {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.settings-plugins__setting-description {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--p-text-muted-color);
 }
 
 .settings-plugins__subrow-text {

@@ -44,6 +44,7 @@ function evaluate(
   const out = annotationFieldUnknownAnalyzer.evaluate({
     nodes: [node],
     links: [],
+    settings: {},
     sidecarRoots,
     annotationContributions: contributions,
     emitContribution: () => undefined,
@@ -143,7 +144,7 @@ describe('core/annotation-field-unknown rule (Step 9.6.6)', () => {
   });
 
   it('absent sidecarRoots map → empty issue list (no false positives)', () => {
-    const out = annotationFieldUnknownAnalyzer.evaluate({ nodes: [fakeNode('a.md')], links: [], emitContribution: () => undefined });
+    const out = annotationFieldUnknownAnalyzer.evaluate({ nodes: [fakeNode('a.md')], links: [], settings: {}, emitContribution: () => undefined });
     const issues = Array.isArray(out) ? out : [];
     strictEqual(issues.length, 0);
   });

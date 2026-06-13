@@ -3,32 +3,47 @@
  * PrimeNG widget matching an input-type descriptor and reports the
  * collected value back through a two-way `value` model.
  *
- * It is the transversal piece behind the parametrized-action prompt
- * flow (Pasos 2-3): a `prompt` payload on an `inspector.action.button`
- * contribution names an `inputType` + `paramKey`; the action button's
- * dialog hosts this control to gather the value before dispatching.
+ * Two consumers:
+ *   - the parametrized-action prompt flow (Pasos 2-3): a `prompt`
+ *     payload names an `inputType` + `paramKey`; the action dialog hosts
+ *     this control to gather the value before dispatching.
+ *   - the Settings → Plugins per-extension settings form: one control
+ *     per declared setting, seeded from the resolved effective value.
  *
- * Catalog coverage (closed catalog in `spec/input-types.md`): this
- * control implements the THREE types the action prompts need today; the
- * other seven are out of scope until a prompt references them.
+ * Catalog coverage (closed catalog in `spec/input-types.md`): all ELEVEN
+ * types render a real control, no read-only fallback.
  *
- *   - `single-string`  -> `<input pInputText>`           value: string
- *   - `enum-pick`      -> `<p-select>` over `options`     value: string
- *   - `string-list`    -> `<p-autocomplete multiple>`     value: string[]
+ *   - `single-string`   -> `<input pInputText>`               value: string
+ *   - `integer`         -> `<p-inputnumber>` (whole)          value: number
+ *   - `number`          -> `<p-inputnumber mode="decimal">`   value: number
+ *   - `boolean-flag`    -> `<p-toggleswitch>`                 value: boolean
+ *   - `enum-pick`       -> `<p-select>` over `options`        value: string
+ *   - `enum-multipick`  -> `<p-multiselect>` over `options`   value: string[]
+ *   - `string-list`     -> `<p-autocomplete multiple>`        value: string[]
+ *   - `path-glob`       -> text input OR tag input (`multiple`) value: string | string[]
+ *   - `regex`           -> `<input pInputText>` + flags suffix value: string
+ *   - `secret`          -> `<p-password>` + set/empty hint     value: string
+ *   - `key-value-list`  -> small editable rows table           value: { key, value }[]
  *
- * On the `string-list` widget: `spec/input-types.md` names `<p-chips>` as
- * the canonical tag input, but PrimeNG 21 (the pinned 21.1.6) retired
- * the standalone Chips component and folded tag-input into AutoComplete
- * via `[multiple]="true" [typeahead]="false"`. That is the official
- * PrimeNG 21 replacement (Enter adds the trimmed input as a tag, with
- * built-in dedup) and the `[(ngModel)]` value is a `string[]`, exactly
- * the contract the spec promises. Wiring the actually-installed
- * component (not a removed one) is the no-hack path.
+ * On the tag inputs (`string-list`, multiple `path-glob`):
+ * `spec/input-types.md` names `<p-chips>` as the canonical tag input, but
+ * PrimeNG 21 (the pinned 21.1.6) retired the standalone Chips component
+ * and folded tag-input into AutoComplete via `[multiple]="true"
+ * [typeahead]="false"`. That is the official PrimeNG 21 replacement
+ * (Enter adds the trimmed input as a tag, with built-in dedup) and the
+ * `[(ngModel)]` value is a `string[]`, exactly the contract the spec
+ * promises. Wiring the actually-installed component (not a removed one)
+ * is the no-hack path.
+ *
+ * For `secret`: the current value is NEVER received (the BFF strips it),
+ * so the field opens blank. Leaving it blank means "do not change"; a
+ * typed value means "set". The descriptor's `secretIsSet` drives the
+ * "Set" / "Empty" hint and the placeholder.
  *
  * LINT (renderer attr-sanitization, see context/ui.md / view-slots.md):
  * no `[innerHTML]` / `[style]` / `[src]` / `[href]` is bound from
  * descriptor data. The label is interpolated, option labels are
- * interpolated by `<p-select>`, the value rides `[(ngModel)]`.
+ * interpolated by the PrimeNG widgets, the value rides `[(ngModel)]`.
  */
 
 import {
@@ -40,117 +55,92 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AutoCompleteModule } from 'primeng/autocomplete';
+import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
+import { MultiSelectModule } from 'primeng/multiselect';
+import { PasswordModule } from 'primeng/password';
 import { SelectModule } from 'primeng/select';
+import { ToggleSwitchModule } from 'primeng/toggleswitch';
 
+import type {
+  ISettingEnumOptionApi,
+  ISettingKeyValueEntryApi,
+} from '../../../models/api';
 import { INPUT_TYPE_CONTROL_TEXTS } from './input-type-control.texts';
 
-/** A single choice for the `enum-pick` widget. */
-export interface IInputTypeOption {
-  value: string;
-  label: string;
-}
+/** A single choice for the `enum-pick` / `enum-multipick` widgets. */
+export type IInputTypeOption = ISettingEnumOptionApi;
+
+/** A single `{ key, value }` row for the `key-value-list` widget. */
+export type IInputTypeKeyValueEntry = ISettingKeyValueEntryApi;
 
 /**
- * The subset of `_ActionPrompt` (`view-slots.schema.json`) this control
- * needs: the input-type id, the field label, and (for `enum-pick`) the
- * option list. `paramKey` is the caller's concern, not the control's.
+ * The subset of a setting declaration this control needs to render: the
+ * input-type id, the field label, and the per-type parameters
+ * (`options`, numeric bounds, `multiple`, regex `flags`, key/value
+ * column labels). `paramKey` / `settingId` are the caller's concern, not
+ * the control's.
  *
- * `defaultValue` is the optional pre-filled value the prompt dialog
- * seeds the control with when it opens (e.g. a node's current stability
- * for an `enum-pick`, or its current tags for a `string-list`). The
- * control itself never reads it, the dialog seeds the two-way `value`
- * before the control mounts, so the field arrives pre-populated.
+ * `defaultValue` is the optional pre-filled value the host seeds the
+ * control with before it mounts (the host writes the two-way `value`
+ * directly, so this field is informational only).
  */
 export interface IInputTypeDescriptor {
   inputType: string;
   label: string;
+  /** Choices for `enum-pick` / `enum-multipick`. */
   options?: IInputTypeOption[];
+  /** Numeric bounds + spinner step for `integer` / `number`. */
+  min?: number;
+  max?: number;
+  step?: number;
+  /** `path-glob`: when true the value is a `string[]` (tag input). */
+  multiple?: boolean;
+  /** `regex`: flags shown as a static, non-editable suffix. */
+  flags?: string;
+  /** `key-value-list`: per-column header labels. */
+  keyLabel?: string;
+  valueLabel?: string;
+  /** `secret`: whether a stored value already exists (drives the hint). */
+  secretIsSet?: boolean;
   defaultValue?: TInputTypeValue;
 }
 
-/** Value shapes the control can hold. `string-list` is `string[]`. */
-export type TInputTypeValue = string | string[];
+/** Value shapes the control can hold across the eleven input-types. */
+export type TInputTypeValue =
+  | string
+  | string[]
+  | boolean
+  | number
+  | IInputTypeKeyValueEntry[];
 
 @Component({
   selector: 'sm-input-type-control',
-  imports: [FormsModule, InputTextModule, SelectModule, AutoCompleteModule],
+  imports: [
+    FormsModule,
+    InputTextModule,
+    InputNumberModule,
+    SelectModule,
+    MultiSelectModule,
+    AutoCompleteModule,
+    PasswordModule,
+    ToggleSwitchModule,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div class="itc" [attr.data-testid]="'input-type-control-' + inputType()">
-      <label class="itc__label" [attr.for]="fieldId()">{{ label() }}</label>
-
-      @switch (inputType()) {
-        @case ('single-string') {
-          <input
-            type="text"
-            pInputText
-            class="itc__string"
-            [id]="fieldId()"
-            [ngModel]="stringValue()"
-            (ngModelChange)="onStringChange($event)"
-            [placeholder]="texts.stringPlaceholder"
-            [attr.aria-label]="label()"
-            data-testid="input-type-control-string-input"
-          />
-        }
-        @case ('enum-pick') {
-          <p-select
-            class="itc__select"
-            [inputId]="fieldId()"
-            [options]="options()"
-            optionLabel="label"
-            optionValue="value"
-            [ngModel]="stringValue()"
-            (ngModelChange)="onStringChange($event)"
-            [placeholder]="texts.selectPlaceholder"
-            appendTo="body"
-            [attr.aria-label]="label()"
-            data-testid="input-type-control-select"
-          />
-        }
-        @case ('string-list') {
-          <p-autocomplete
-            class="itc__list"
-            [inputId]="fieldId()"
-            [multiple]="true"
-            [typeahead]="false"
-            [addOnBlur]="true"
-            [unique]="true"
-            [ngModel]="listValue()"
-            (ngModelChange)="onListChange($event)"
-            [placeholder]="texts.listPlaceholder"
-            [attr.aria-label]="label()"
-            data-testid="input-type-control-list"
-          />
-        }
-        @default {
-          <span class="itc__unsupported" role="note" data-testid="input-type-control-unsupported">
-            {{ texts.unsupportedPrefix }} {{ inputType() }}
-          </span>
-        }
-      }
-    </div>
-  `,
-  styles: [`
-    .itc { display: flex; flex-direction: column; gap: 0.4rem; }
-    .itc__label { font-weight: 600; font-size: 0.9rem;
-      color: var(--p-text-color); }
-    .itc__string, .itc__select, .itc__list { width: 100%; }
-    .itc__unsupported { font-size: 0.85rem;
-      color: var(--p-text-muted-color); }
-  `],
+  templateUrl: './input-type-control.html',
+  styleUrl: './input-type-control.css',
 })
 export class InputTypeControl {
   protected readonly texts = INPUT_TYPE_CONTROL_TEXTS;
 
-  /** The input-type + label (+ options) to render. */
+  /** The input-type + label (+ per-type params) to render. */
   readonly descriptor = input.required<IInputTypeDescriptor>();
 
   /**
    * Two-way bound collected value. Callers read it via `[(value)]` or
-   * the `valueChange` output. `string-list` carries a `string[]`; the
-   * scalar types carry a `string`.
+   * the `valueChange` output. The value shape matches the input-type's
+   * spec runtime type (string / string[] / boolean / number /
+   * key-value rows).
    */
   readonly value = model<TInputTypeValue>('');
 
@@ -159,22 +149,53 @@ export class InputTypeControl {
   protected readonly options = computed<IInputTypeOption[]>(
     () => this.descriptor().options ?? [],
   );
+  protected readonly min = computed(() => this.descriptor().min);
+  protected readonly max = computed(() => this.descriptor().max);
+  protected readonly step = computed(() => this.descriptor().step ?? 1);
+  protected readonly multiple = computed(() => this.descriptor().multiple === true);
+  protected readonly flags = computed(() => this.descriptor().flags ?? '');
+  protected readonly keyLabel = computed(
+    () => this.descriptor().keyLabel ?? this.texts.keyValueKeyDefault,
+  );
+  protected readonly valueLabel = computed(
+    () => this.descriptor().valueLabel ?? this.texts.keyValueValueDefault,
+  );
+  protected readonly secretIsSet = computed(() => this.descriptor().secretIsSet === true);
 
   /** Stable id linking the `<label>` to the rendered widget. */
   protected readonly fieldId = computed(
     () => `itc-${this.inputType()}-${this.label().replace(/\s+/g, '-').toLowerCase()}`,
   );
 
-  /** Scalar projection of the value for the string / select widgets. */
+  /** Scalar projection of the value for the string / select / password widgets. */
   protected readonly stringValue = computed<string>(() => {
     const v = this.value();
     return typeof v === 'string' ? v : '';
   });
 
-  /** Array projection of the value for the tag-input widget. */
+  /** Array projection of the value for the tag-input / multiselect widgets. */
   protected readonly listValue = computed<string[]>(() => {
     const v = this.value();
-    return Array.isArray(v) ? v : [];
+    return Array.isArray(v) ? (v.filter((e) => typeof e === 'string') as string[]) : [];
+  });
+
+  /** Numeric projection for the inputnumber widgets. `null` clears it. */
+  protected readonly numberValue = computed<number | null>(() => {
+    const v = this.value();
+    return typeof v === 'number' ? v : null;
+  });
+
+  /** Boolean projection for the toggle widget. */
+  protected readonly booleanValue = computed<boolean>(() => this.value() === true);
+
+  /** Key-value rows projection for the editable table. */
+  protected readonly keyValueRows = computed<IInputTypeKeyValueEntry[]>(() => {
+    const v = this.value();
+    if (!Array.isArray(v)) return [];
+    return v.filter(
+      (e): e is IInputTypeKeyValueEntry =>
+        typeof e === 'object' && e !== null && 'key' in e && 'value' in e,
+    );
   });
 
   protected onStringChange(next: string): void {
@@ -183,5 +204,51 @@ export class InputTypeControl {
 
   protected onListChange(next: string[]): void {
     this.value.set(Array.isArray(next) ? next : []);
+  }
+
+  protected onNumberChange(next: number | null): void {
+    // PrimeNG emits `null` when the field is cleared; collapse to the
+    // empty-string sentinel the host treats as "unset" so a cleared
+    // numeric field round-trips as a blank rather than `0`.
+    this.value.set(next === null || next === undefined ? '' : next);
+  }
+
+  protected onBooleanChange(next: boolean): void {
+    this.value.set(next === true);
+  }
+
+  /** `path-glob`: route the change to scalar / list per `multiple`. */
+  protected onPathGlobChange(next: string | string[]): void {
+    if (this.multiple()) {
+      this.value.set(Array.isArray(next) ? next : []);
+    } else {
+      this.value.set(typeof next === 'string' ? next : '');
+    }
+  }
+
+  protected onKeyChange(index: number, next: string): void {
+    this.updateRow(index, { key: next ?? '' });
+  }
+
+  protected onValueChange(index: number, next: string): void {
+    this.updateRow(index, { value: next ?? '' });
+  }
+
+  protected addRow(): void {
+    this.value.set([...this.keyValueRows(), { key: '', value: '' }]);
+  }
+
+  protected removeRow(index: number): void {
+    const rows = this.keyValueRows().slice();
+    rows.splice(index, 1);
+    this.value.set(rows);
+  }
+
+  private updateRow(index: number, patch: Partial<IInputTypeKeyValueEntry>): void {
+    const rows = this.keyValueRows().slice();
+    const current = rows[index];
+    if (!current) return;
+    rows[index] = { ...current, ...patch };
+    this.value.set(rows);
   }
 }

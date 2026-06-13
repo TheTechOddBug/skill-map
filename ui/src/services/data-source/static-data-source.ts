@@ -70,6 +70,7 @@ import {
   type IIssuesQuery,
   type ILinksQuery,
   type INodesQuery,
+  type IPluginChange,
   type ISidecarBumpOpts,
   type TGraphFormat,
   type TPluginItem,
@@ -338,7 +339,7 @@ export class StaticDataSource implements IDataSourcePort {
   }
 
   async applyPluginChanges(
-    _changes: ReadonlyArray<{ id: string; enabled: boolean }>,
+    _changes: ReadonlyArray<IPluginChange>,
   ): Promise<IListEnvelopeApi<TPluginItem>> {
     throw new DataSourceError(
       'demo-readonly',

@@ -12,11 +12,12 @@
         { "const": "single-string", "description": "Single text input." },
         { "const": "boolean-flag", "description": "On/off toggle." },
         { "const": "integer", "description": "Integer with optional bounds." },
+        { "const": "number", "description": "Decimal number with optional bounds." },
         { "const": "enum-pick", "description": "Pick one from a closed set." },
         { "const": "enum-multipick", "description": "Pick zero or more from a closed set." },
         { "const": "path-glob", "description": "Glob pattern (single or multiple)." },
         { "const": "regex", "description": "ECMAScript regex pattern body." },
-        { "const": "secret", "description": "Sensitive string (encrypted at rest)." },
+        { "const": "secret", "description": "Sensitive string, forced into project-local storage (gitignored), not encrypted." },
         { "const": "key-value-list", "description": "Editable mapping of strings to strings." }
       ],
       "description": "Closed enum of input-type identifiers. Adding an entry requires the full spec/UI/CLI/tests round-trip. Removing or renaming an entry is a catalog-major-bump and triggers `sm plugins upgrade` migration. Each member's `description` is the catalog summary surfaced by `sm plugins slots list` and is the single source of truth for the generated kernel + CLI mirrors (see `scripts/generate-view-catalog.js`)."
@@ -28,6 +29,7 @@
         { "$ref": "#/$defs/Setting_SingleString" },
         { "$ref": "#/$defs/Setting_BooleanFlag" },
         { "$ref": "#/$defs/Setting_Integer" },
+        { "$ref": "#/$defs/Setting_Number" },
         { "$ref": "#/$defs/Setting_EnumPick" },
         { "$ref": "#/$defs/Setting_EnumMultipick" },
         { "$ref": "#/$defs/Setting_PathGlob" },
@@ -119,6 +121,22 @@
         "step": { "type": "integer", "minimum": 1, "default": 1 }
       },
       "description": "Integer input with optional bounds. Renders as PrimeNG `<p-inputnumber>` with spinner. Value type at runtime: `number` (always integer)."
+    },
+    "Setting_Number": {
+      "allOf": [{ "$ref": "#/$defs/_Common" }],
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "label"],
+      "properties": {
+        "type": { "const": "number" },
+        "label": true,
+        "description": true,
+        "default": { "type": "number" },
+        "min": { "type": "number" },
+        "max": { "type": "number" },
+        "step": { "type": "number", "exclusiveMinimum": 0, "default": 1 }
+      },
+      "description": "Decimal number input with optional bounds (a threshold like 0.3, a ratio, a confidence floor). Renders as PrimeNG `<p-inputnumber>` with `mode=\"decimal\"`. Value type at runtime: `number` (whole OR fractional accepted; pick `integer` instead when the value must be a whole number). Validation rejects `NaN` / `Infinity`."
     },
     "Setting_EnumPick": {
       "allOf": [{ "$ref": "#/$defs/_Common" }],
@@ -223,10 +241,10 @@
         "envVar": {
           "type": "string",
           "pattern": "^[A-Z][A-Z0-9_]*$",
-          "description": "Optional env var name the kernel checks first; if set in the process environment, that value wins over any stored value (lets CI inject without writing to disk). The user-supplied value is stored encrypted at rest."
+          "description": "Optional env var name the kernel checks first; if set in the process environment, that value wins over any stored value, letting CI inject the secret without writing it to disk at all."
         }
       },
-      "description": "Sensitive string (token, password, API key). Renders as `<input type=\"password\">` with reveal toggle. Stored encrypted at rest (kernel-managed key in `state_secrets` table). Logged as `<redacted>` in CLI output. Value type at runtime: `string`. Triggers an `audit.secret-read` event on every read."
+      "description": "Sensitive string (token, password, API key). Renders as `<input type=\"password\">` with reveal toggle. **Stored in project-local `settings.local.json` (gitignored), never in the committed `settings.json`**: the protection is that the value never travels via the shared repo, NOT encryption, it is kept as plain text on the local machine. The kernel routes any `secret`-typed setting to the project-local layer automatically, the dynamic equivalent of `PROJECT_LOCAL_ONLY_KEYS` (the destination follows the declared type, not a fixed key list), so `sm plugins config` writes a secret to `settings.local.json` even without an explicit local flag. Logged as `<redacted>` in CLI output. Value type at runtime: `string`."
     },
     "Setting_KeyValueList": {
       "allOf": [{ "$ref": "#/$defs/_Common" }],

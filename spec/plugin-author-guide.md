@@ -695,6 +695,22 @@ The ten input-types: `string-list`, `single-string`, `boolean-flag`, `integer`, 
 
 The kernel exposes resolved settings via `ctx.settings.<settingId>`. Settings are read once at extension invocation; **changing a setting requires `sm scan` to re-emit** affected contributions (the UI surfaces a "settings changed, rescan needed" indicator).
 
+### Setting values and the operator
+
+The manifest declares the *shape* (label, type, default); the **operator** supplies the *values*. Non-`secret` values live in the project config under `plugins.<pluginId>.extensions.<extId>.settings.<settingId>` (the extension id is the leaf folder name, not the qualified `<plugin>/<ext>` id, the plugin is already the parent key), so a team can commit them in `settings.json` or keep a per-checkout override in `settings.local.json`. The kernel's settings resolver builds the runtime `ctx.settings` object by taking each declared setting's `default`, overlaying the merged config value, and validating the result against the input-type's value schema; a value that fails validation is dropped back to the default with a warning (the scan never crashes on bad settings). The `project-config.schema.json` keeps the `settings` object deliberately permissive (`additionalProperties: true`), the per-type validation is the resolver's job because the static schema cannot know which type a given `settingId` picked.
+
+`secret` settings are the exception on WHERE they land: the kernel forces them into project-local `settings.local.json` (gitignored), never the committed `settings.json`, so a token never travels via the shared repo. There is **no encryption** (the value is plain text on the local machine); the only protection is "does not leave the checkout". An optional `envVar` lets CI inject the value without writing it to disk at all. See `input-types.schema.json#/$defs/Setting_Secret`.
+
+The operator reads and writes values through the CLI (UI form is the parallel surface):
+
+```text
+sm plugins config <plugin>/<ext>                      # table: declared setting · effective value · source layer
+sm plugins config <plugin>/<ext> <settingId> <value>  # validate against the input-type, then write
+sm plugins config <plugin>/<ext> <settingId> --reset  # remove the override (falls back to the manifest default)
+```
+
+A write lands in `settings.json` by default (or `settings.local.json` when the layering routes it per-checkout); the command prints a "re-scan to apply" footer because settings are read once per scan.
+
 ### Catalog version
 
 The slot + input-type catalog evolves on its own cadence. `catalogCompat` (required in the manifest) is the semver range you tested against, independent of `specCompat`. A mismatch surfaces as `incompatible-catalog`; resolution is `sm plugins upgrade <id>`, which runs registered migrations from the kernel's closed registry. When auto-migration is impossible (a slot you used was removed), the upgrade verb fails loud and your manifest needs a manual edit.
