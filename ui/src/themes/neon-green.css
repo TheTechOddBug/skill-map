@@ -67,6 +67,16 @@
   --p-text-muted-color: var(--sm-text-muted);
   --p-primary-color: var(--sm-ngreen-accent);
   --p-primary-contrast-color: #04140b;
+  /* Primary button hover/active states. Without these the base color is
+     themed but `--p-primary-hover-color` / `--p-primary-active-color`
+     fall back to the violet preset, so a themed button flashes violet on
+     hover. Mirrors the matrix danger-button idiom (lighter on hover,
+     darker on press). Secondary-text (e.g. the Discard button) gets a
+     themed hover/active wash so it stops using the neutral default. */
+  --p-primary-hover-color: color-mix(in srgb, var(--sm-ngreen-accent) 80%, #ffffff);
+  --p-primary-active-color: color-mix(in srgb, var(--sm-ngreen-accent) 70%, #000000);
+  --p-button-text-secondary-hover-background: color-mix(in srgb, var(--sm-ngreen-accent) 18%, transparent);
+  --p-button-text-secondary-active-background: color-mix(in srgb, var(--sm-ngreen-accent) 26%, transparent);
   --p-content-background: var(--sm-bg-content);
   --p-content-hover-background: var(--sm-bg-hover);
   --p-content-border-color: var(--sm-ngreen-border);

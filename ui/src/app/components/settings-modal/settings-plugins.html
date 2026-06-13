@@ -1,13 +1,20 @@
 <section class="settings-plugins" aria-labelledby="settings-plugins-heading">
   <!--
-    Two-zone layout: a scrollable wrapper for the section body and a
-    flex-end footer for the Discard / Apply buttons. The wrapper owns
-    `overflow-y: auto` so the footer stays outside the scroll
-    container, earlier attempts using `position: sticky` left a
-    visible gap where list rows scrolled past the host's padding box.
-    Structural separation is cheaper than juggling negative margins.
+    Three-zone flex column: a fixed top zone (heading + search +
+    filter), a scrollable wrapper for the plugin/extension list, and a
+    flex-end footer for the Discard / Apply buttons. The middle wrapper
+    owns `overflow-y: auto` so both the top zone and the footer stay
+    outside the scroll container; earlier attempts using
+    `position: sticky` left a visible gap where list rows scrolled past
+    the host's padding box. Structural separation is cheaper than
+    juggling negative margins.
   -->
-  <div class="settings-plugins__scroll">
+  <!--
+    Fixed top zone: heading + search + the kind/source filter chips stay
+    pinned; only the plugin/extension list below scrolls (the
+    `.settings-plugins__scroll` wrapper owns the overflow).
+  -->
+  <div class="settings-plugins__top">
   <header class="settings-plugins__header">
     <h2 id="settings-plugins-heading" class="settings-plugins__title">
       {{ texts.pluginsHeading }}
@@ -88,17 +95,9 @@
       </p-togglebutton>
     }
   </div>
+  </div>
 
-  @if (hasPendingChanges()) {
-    <p-message
-      severity="warn"
-      [closable]="false"
-      styleClass="settings-plugins__banner"
-      data-testid="settings-banner-unsaved"
-    >
-      {{ texts.unsavedChangesMessage(dirtyIds().size) }}
-    </p-message>
-  }
+  <div class="settings-plugins__scroll">
 
   @if (loading()) {
     <p class="settings-plugins__hint" data-testid="settings-loading">
@@ -367,14 +366,25 @@
       class="settings-plugins__footer"
       data-testid="settings-plugins-footer"
     >
-      @if (restartRecommended()) {
-        <em
-          class="settings-plugins__footer-hint"
-          data-testid="settings-plugins-restart-hint"
+      <!-- Left status cluster (pushes the buttons to the far end). The
+           unsaved-changes line lives here instead of a top banner so it
+           does not steal vertical space from the plugin list. -->
+      <div class="settings-plugins__footer-status">
+        <span
+          class="settings-plugins__footer-message"
+          data-testid="settings-banner-unsaved"
         >
-          {{ texts.startsAsDisabledFooterHint }}
-        </em>
-      }
+          {{ texts.unsavedChangesMessage(dirtyIds().size) }}
+        </span>
+        @if (restartRecommended()) {
+          <em
+            class="settings-plugins__footer-hint"
+            data-testid="settings-plugins-restart-hint"
+          >
+            {{ texts.startsAsDisabledFooterHint }}
+          </em>
+        }
+      </div>
       <p-button
         severity="secondary"
         [text]="true"

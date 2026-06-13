@@ -69,6 +69,14 @@
   --p-text-muted-color: var(--sm-text-muted);
   --p-primary-color: var(--sm-neon-accent);
   --p-primary-contrast-color: #04121c;
+  /* Primary button hover/active states, else they fall back to the
+     violet preset and a themed button flashes violet on hover. Mirrors
+     the matrix danger-button idiom (lighter on hover, darker on press);
+     secondary-text (Discard) gets a themed hover/active wash too. */
+  --p-primary-hover-color: color-mix(in srgb, var(--sm-neon-accent) 80%, #ffffff);
+  --p-primary-active-color: color-mix(in srgb, var(--sm-neon-accent) 70%, #000000);
+  --p-button-text-secondary-hover-background: color-mix(in srgb, var(--sm-neon-accent) 18%, transparent);
+  --p-button-text-secondary-active-background: color-mix(in srgb, var(--sm-neon-accent) 26%, transparent);
   --p-content-background: var(--sm-bg-content);
   --p-content-hover-background: var(--sm-bg-hover);
   --p-content-border-color: var(--sm-neon-border);

@@ -25,10 +25,25 @@
   min-height: 0;
 }
 
+/* Fixed top zone: heading + search + filter chips. Does NOT scroll
+   (flex: 0 0 auto); the list below owns the overflow. The hairline
+   bottom border separates it from the scrolling rows that slide under
+   it. Shares the scroll wrapper's horizontal padding so the two zones
+   line up; the bottom padding is tighter (the gap to the first row is
+   the scroll wrapper's top padding). */
+.settings-plugins__top {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem 1.5rem 0.75rem;
+  border-bottom: 1px solid var(--sm-border);
+}
+
 .settings-plugins__scroll {
   flex: 1;
   overflow-y: auto;
-  padding: 1.25rem 1.5rem;
+  padding: 0.75rem 1.5rem 1.25rem;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
@@ -135,14 +150,6 @@
   --p-togglebutton-color: color-mix(in oklab, var(--chip-accent) 80%, var(--p-text-color));
   --p-togglebutton-hover-color: color-mix(in oklab, var(--chip-accent) 80%, var(--p-text-color));
   --p-togglebutton-checked-color: var(--p-surface-900);
-}
-
-.settings-plugins__banner {
-  display: block;
-}
-
-.settings-plugins__banner-body {
-  font-weight: 400;
 }
 
 .settings-plugins__hint {
@@ -628,14 +635,36 @@
   background: var(--p-content-background);
 }
 
-/* Italic restart hint at the start of the footer. `margin-right: auto`
- * pushes the buttons to the far end while the hint sits flush-left
- * inside the footer's padding. Tone matches the warn palette used by
- * the per-row hint so the two surfaces feel coordinated. */
+/* Left status cluster: the unsaved-changes line plus the optional
+ * restart hint, stacked. `margin-right: auto` pushes the Discard /
+ * Apply buttons to the far end while the cluster sits flush-left inside
+ * the footer's padding. Replaces the former top banner so the message
+ * does not steal vertical space from the plugin list. */
+.settings-plugins__footer-status {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  margin-right: auto;
+  min-width: 0;
+}
+
+/* Unsaved-changes line. Compact, warn-toned, single line, ellipsised if
+ * the footer ever gets too narrow for it. */
+.settings-plugins__footer-message {
+  font-size: 0.8125rem;
+  line-height: 1.3;
+  color: color-mix(in oklab, var(--p-message-warn-color) 80%, var(--p-text-color));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Italic restart hint, sits under the unsaved-changes line. Tone
+ * matches the warn palette used by the per-row hint so the surfaces
+ * feel coordinated. */
 .settings-plugins__footer-hint {
   font-style: italic;
   font-size: 0.75rem;
   line-height: 1.4;
   color: var(--p-warn-color);
-  margin-right: auto;
 }
