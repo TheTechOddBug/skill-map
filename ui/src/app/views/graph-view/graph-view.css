@@ -193,7 +193,18 @@
   position: absolute;
   bottom: 16px;
   left: 50%;
-  transform: translateX(-50%);
+  /* Centre within the canvas area NOT covered by the inspector panel.
+     The panel is an absolute overlay pinned to the right edge (it never
+     shrinks `canvasWrap`), so a plain `translateX(-50%)` leaves the pill
+     centred on the full width, half-hidden behind the panel. The extra
+     `- var(--sm-graph-inspector-w) / 2` shifts it left by half the live
+     (resizable) panel width, fed from the component as `0px` when no
+     node is selected, so the toolbar glides back to true centre as the
+     panel slides out. The files rail needs no equivalent: it is a flex
+     sibling that already narrows the map, so `left: 50%` recomputes for
+     free. Transform keeps the slide on the compositor (no per-frame
+     layout). */
+  transform: translateX(calc(-50% - var(--sm-graph-inspector-w, 0px) / 2));
   display: flex;
   align-items: center;
   gap: 2px;
@@ -206,8 +217,9 @@
   pointer-events: auto;
   /* Transition lets theme stylesheets bump the shadow on
      `:has(.p-button:hover)` (matrix uses the same trick as card glow)
-     and animate the lift instead of snapping. */
-  transition: box-shadow 220ms ease;
+     and animate the lift instead of snapping; the `transform` leg keeps
+     the re-centre in lock-step with the panel's 220ms slide. */
+  transition: transform 220ms ease, box-shadow 220ms ease;
 }
 
 .graph__toolbar-sep {

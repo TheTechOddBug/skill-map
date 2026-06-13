@@ -248,7 +248,13 @@
         />
       }
 
-      <div class="graph__toolbar" role="toolbar" [attr.aria-label]="texts.a11y.toolbar" data-testid="graph-toolbar">
+      <div
+        class="graph__toolbar"
+        role="toolbar"
+        [attr.aria-label]="texts.a11y.toolbar"
+        [style.--sm-graph-inspector-w]="reservedPanelWidth() + 'px'"
+        data-testid="graph-toolbar"
+      >
         <p-button
           icon="pi pi-search-plus"
           [ariaLabel]="texts.toolbar.zoomIn"

@@ -394,3 +394,55 @@ describe('GraphView, isolate (1-hop neighborhood)', () => {
     expect(new Set(cmp.graph().nodes.map((n) => n.id))).toEqual(new Set(['a.md']));
   });
 });
+
+describe('GraphView, inspector width reservation', () => {
+  // `reservedPanelWidth` feeds both the panel-blind viewport math
+  // (auto-fit / center pan reserve it as `panelW`) and the floating
+  // toolbar's horizontal centering (it dodges the inspector overlay via
+  // `--sm-graph-inspector-w`). The CSS transform itself is verified
+  // visually, here we only pin the reactive value the centering depends
+  // on. Members are `protected`, so the cast reaches them the same way a
+  // template binding would. Foblex is never rendered (see the file
+  // header), so this stays in the JSDOM-safe API surface.
+  type WithReservation = { reservedPanelWidth: () => number; clampedPanelWidth: () => number };
+
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  it('reserves zero width while no node is selected', async () => {
+    const { fixture, cmp } = await bootstrap([makeNode('a.md', 'a')]);
+    await flushEffects(fixture);
+
+    expect(cmp.selectedNodeId()).toBeNull();
+    expect((cmp as unknown as WithReservation).reservedPanelWidth()).toBe(0);
+  });
+
+  it('reserves the live panel width once a node is selected', async () => {
+    const node = makeNode('a.md', 'a');
+    const { fixture, cmp } = await bootstrap([node]);
+    await flushEffects(fixture);
+
+    cmp.selectedNodeId.set(node.path);
+    await flushEffects(fixture);
+
+    const view = cmp as unknown as WithReservation;
+    expect(view.reservedPanelWidth()).toBe(view.clampedPanelWidth());
+    expect(view.reservedPanelWidth()).toBeGreaterThan(0);
+  });
+
+  it('drops the reservation back to zero when the panel closes', async () => {
+    const node = makeNode('a.md', 'a');
+    const { fixture, cmp } = await bootstrap([node]);
+    await flushEffects(fixture);
+
+    cmp.selectedNodeId.set(node.path);
+    await flushEffects(fixture);
+    expect((cmp as unknown as WithReservation).reservedPanelWidth()).toBeGreaterThan(0);
+
+    cmp.closePanel();
+    await flushEffects(fixture);
+
+    expect((cmp as unknown as WithReservation).reservedPanelWidth()).toBe(0);
+  });
+});

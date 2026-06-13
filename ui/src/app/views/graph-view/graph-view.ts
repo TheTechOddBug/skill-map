@@ -93,6 +93,7 @@ import {
   computeCenterTransform,
   computeFitTransform,
   TAG_FIT_MAX_ZOOM,
+  type IViewportTransform,
 } from './viewport-animation';
 
 const ZOOM_BUTTON_STEP = 0.2;
@@ -448,6 +449,20 @@ export class GraphView implements OnInit {
     const node = this.graph().nodes.find((n) => n.id === id);
     return node?.view.path;
   });
+
+  /**
+   * Width the inspector panel currently reserves over the canvas, its
+   * live (resizable) width while a node is selected, `0` otherwise. The
+   * panel is an absolute overlay pinned to the right edge, so it never
+   * shrinks `canvasWrap`; every "centre in the visible area" computation
+   * has to subtract this from the usable width by hand. Consumed by the
+   * auto-fit camera, the single-node center pan, and the floating
+   * toolbar's horizontal centering (so the pill glides clear of the
+   * panel instead of hiding behind it).
+   */
+  protected readonly reservedPanelWidth = computed(() =>
+    this.selectedNodeId() !== null ? this.clampedPanelWidth() : 0,
+  );
 
   /**
    * Drop the selection if the underlying graph no longer contains the
@@ -821,33 +836,7 @@ export class GraphView implements OnInit {
    * that one node when the WS scan brings in a sibling).
    */
   private runAnimatedFit(): void {
-    const host = this.canvasWrap()?.nativeElement;
-    if (!host) return;
-    const wrap = { width: host.clientWidth, height: host.clientHeight };
-    const layoutPositions = this.fullLayout().positions;
-    if (layoutPositions.size === 0) return;
-    // Resolve EFFECTIVE positions the same way `projectVisible` does:
-    // user-pinned (`nodePositions`) takes precedence over the dagre
-    // output, with the layout map as the fallback. Reading just the
-    // dagre map here would tween toward a bbox that doesn't match
-    // what's actually rendered after manual drags, producing the
-    // "zoom expanded too much" symptom the user reported.
-    const pinned = this.nodePositions();
-    // Fit over the SAME set the canvas renders (facet ∩ curation), so the
-    // camera frames exactly what is on screen, not the pre-curation set.
-    const points: IPoint[] = [];
-    for (const path of this.mapVisiblePaths()) {
-      const pt = pinned.get(path) ?? layoutPositions.get(path);
-      if (pt) points.push({ x: pt.x, y: pt.y });
-    }
-    if (points.length === 0) return;
-
-    const transform = computeFitTransform({
-      points,
-      wrap,
-      panelW: this.selectedNodeId() !== null ? this.clampedPanelWidth() : 0,
-      zoomMin: this.zoomMin,
-    });
+    const transform = this.computeVisibleFitTransform();
     if (!transform) return;
 
     const token = ++this.autoFitAnimToken;
@@ -862,6 +851,57 @@ export class GraphView implements OnInit {
       transform,
       AUTO_FIT_ANIM_MS,
     );
+  }
+
+  /**
+   * Compute the pan/zoom that fits the on-screen nodes inside the
+   * VISIBLE canvas, reserving the inspector panel's width when it is open
+   * so the camera frames the area the operator actually sees (left of
+   * the panel). Shared by the animated auto-fit and the snap-fit
+   * (re-arrange / fit button) so both honour the panel identically.
+   *
+   * Reads EFFECTIVE positions the way `projectVisible` does: user-pinned
+   * (`nodePositions`) wins over the dagre output, layout map as fallback,
+   * so the bbox matches what is actually rendered after manual drags
+   * (reading just the dagre map produced the "zoom expanded too much"
+   * symptom). Fits over the SAME set the canvas renders (facet ∩
+   * curation). The files rail needs no special handling: it is a flex
+   * sibling that already narrows `canvasWrap`, so `clientWidth` excludes
+   * it. Returns null when nothing is on screen or the host is unmounted.
+   */
+  private computeVisibleFitTransform(): IViewportTransform | null {
+    const host = this.canvasWrap()?.nativeElement;
+    if (!host) return null;
+    const layoutPositions = this.fullLayout().positions;
+    if (layoutPositions.size === 0) return null;
+    const pinned = this.nodePositions();
+    const points: IPoint[] = [];
+    for (const path of this.mapVisiblePaths()) {
+      const pt = pinned.get(path) ?? layoutPositions.get(path);
+      if (pt) points.push({ x: pt.x, y: pt.y });
+    }
+    if (points.length === 0) return null;
+    return computeFitTransform({
+      points,
+      wrap: { width: host.clientWidth, height: host.clientHeight },
+      panelW: this.reservedPanelWidth(),
+      zoomMin: this.zoomMin,
+    });
+  }
+
+  /**
+   * Snap (no tween) the camera to `computeVisibleFitTransform()`. Used by
+   * the re-arrange / fit button instead of Foblex's panel-blind
+   * `fitToScreen`, so the fit reserves the inspector panel width the same
+   * way the animated auto-fit does. Bumps the auto-fit token so any
+   * in-flight tween is cancelled before the snap lands.
+   */
+  private snapToVisibleFit(): void {
+    const transform = this.computeVisibleFitTransform();
+    if (!transform) return;
+    ++this.autoFitAnimToken;
+    this.viewportPosition.set(transform.position);
+    this.viewportScale.set(transform.scale);
   }
 
   /**
@@ -888,7 +928,7 @@ export class GraphView implements OnInit {
     const transform = computeCenterTransform({
       point: pt,
       wrap: { width: host.clientWidth, height: host.clientHeight },
-      panelW: this.selectedNodeId() !== null ? this.clampedPanelWidth() : 0,
+      panelW: this.reservedPanelWidth(),
       scale: this.viewportScale(),
     });
 
@@ -945,7 +985,7 @@ export class GraphView implements OnInit {
   }
 
   fitToScreen(): void {
-    this.fitToScreenClamped();
+    this.snapToVisibleFit();
   }
 
   resetLayout(): void {
@@ -988,11 +1028,11 @@ export class GraphView implements OnInit {
       // current full-graph auto-layout, reseeds every node, and persists.
       // That's the original delete → re-arrange → save loop.
       this.nodePositions.set(new Map());
-      this.fitToScreenClamped();
+      this.snapToVisibleFit();
       return;
     }
     void this.relayoutVisibleSubset(visiblePaths)
-      .then(() => this.fitToScreenClamped())
+      .then(() => this.snapToVisibleFit())
       .catch(() => {
         // Layout failure (e.g. dagre CJS interop missing in tests) must
         // not crash the view; the previous positions stay.
