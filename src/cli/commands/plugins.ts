@@ -1,8 +1,8 @@
 /**
  * `sm plugins`, discover, inspect, and toggle plugins.
  *
- *   sm plugins list      tabulate discovered plugins with status (and DB / settings overrides)
- *   sm plugins show X    dump one plugin's manifest + loaded extensions
+ *   sm plugins list [X]  tabulate discovered plugins (no id), or one plugin's extensions (bare id)
+ *   sm plugins show X    show one extension's detail (qualified <plugin>/<ext> id)
  *   sm plugins doctor    full load pass + summary by failure mode
  *   sm plugins enable  <id> | --all   write `enabled: true` to config_plugins
  *   sm plugins disable <id> | --all   write `enabled: false` to config_plugins

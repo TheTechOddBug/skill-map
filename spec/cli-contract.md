@@ -539,8 +539,8 @@ Authentication: the nonce is the sole credential. An implementation MUST reject 
 
 | Command | Purpose |
 |---|---|
-| `sm plugins list` | Auto-discovered plugins with status. `--json` emits an array of `DiscoveredPlugin`. |
-| `sm plugins show <id>` | Full manifest + compat detail. |
+| `sm plugins list [<id>]` | No id: auto-discovered plugins with status, one row per plugin (`--json` emits the aggregate discovered-plugin registry). With a bare plugin id: that plugin's manifest plus its extension detail (kind / version / per-extension status; `--json` emits the single `DiscoveredPlugin`). A qualified `<plugin>/<ext>` id is rejected with a redirect to `sm plugins show`. |
+| `sm plugins show <plugin>/<ext>` | Single-extension detail (Kind / Version / Stability / Description / Preconditions / Entry; `--json` emits the single extension object). Accepts only a qualified `<plugin>/<ext>` id; a bare plugin id is rejected with a redirect to `sm plugins list <id>`. |
 | `sm plugins enable <id>... \| --all` | Toggle on. Persists in `config_plugins`. Accepts one or more ids; batches are all-or-nothing (any unknown / mismatched id aborts before any write) and repeated ids are deduped. `--all` applies to every discovered plugin. |
 | `sm plugins disable <id>... \| --all` | Toggle off; does not delete the plugin directory. Eagerly purges each id's rows from `scan_contributions` so its UI chips disappear before the next scan (plugin-managed state in `state_plugin_kvs` / dedicated tables is preserved, see `plugin-kv-api.md`). Accepts one or more ids; batches are all-or-nothing and repeated ids are deduped. `--all` applies to every discovered plugin. |
 | `sm plugins doctor` | Revalidate all plugins against current spec version; update `status` fields. `--json` emits the report shape declared by [`plugins-doctor.schema.json`](./schemas/plugins-doctor.schema.json): `{ ok: true, kind: 'plugins.doctor', counts, issues[], warnings[], elapsedMs }`. |

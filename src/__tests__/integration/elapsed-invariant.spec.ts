@@ -185,6 +185,9 @@ describe('spec § Elapsed time, every read-side verb emits `done in <…>` on st
   it('sm plugins list', async () => {
     const c = build(PluginsListCommand, (cmd) => {
       cmd.pluginDir = undefined;
+      // No positional id: exercise the index path (clipanion leaves the
+      // Option token on a `new`'d instance, neutralize it like pluginDir).
+      cmd.id = undefined;
     });
     await c.cmd.execute();
     assert.match(c.capture.stderr(), ELAPSED_REGEX, c.capture.stderr());

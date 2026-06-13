@@ -47,6 +47,7 @@ import type { IDiscoveredPlugin } from '../../../kernel/types/plugin.js';
 import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
 import { tx } from '../../../kernel/util/tx.js';
 import { PLUGINS_TEXTS } from '../../i18n/plugins.texts.js';
+import type { IAnsi } from '../../util/ansi.js';
 import {
   defaultProjectPluginsDir,
   resolveDbPath,
@@ -116,7 +117,7 @@ export interface IBuiltInPluginRow {
   enabled: boolean;
   /**
    * One- to three-sentence summary of what the plugin ships. Carried so
-   * `sm plugins show <plugin>` can surface the same description the BFF
+   * `sm plugins list <plugin>` can surface the same description the BFF
    * publishes for the SPA without re-deriving it. Always populated for
    * built-ins (the plugin declaration in `built-ins.ts` requires it).
    */
@@ -137,7 +138,7 @@ export interface IBuiltInPluginRow {
     stability?: TExtensionStability;
     entry?: string;
   }>;
-  /** Per-extension version+kind catalogue, used by `sm plugins show`. */
+  /** Per-extension version+kind catalogue, surfaced in `sm plugins list <id> --json`. */
   manifestSummary: string;
 }
 
@@ -223,6 +224,90 @@ export function omitModule(key: string, value: unknown): unknown {
   if (value === null || typeof value !== 'object') return value;
   const tag = (value as { [Symbol.toStringTag]?: unknown })[Symbol.toStringTag];
   return tag === 'Module' ? undefined : value;
+}
+
+// --- qualified-id parsing (shared by show / list / enable / disable) -----
+
+/** A plugin reduced to its id + the ids of its declared extensions. */
+export interface IPluginCatalogueEntry {
+  id: string;
+  extensionIds: string[];
+}
+
+/**
+ * Build the canonical plugin catalogue: built-ins first, then loaded
+ * user plugins. Shared by `enable` / `disable` (bare-id expansion) and
+ * `show` / `list` (id validation + bare-plugin lookup). Plugins whose
+ * manifest never validated list with an empty `extensionIds` so a buggy
+ * plugin can still be addressed by its bare id.
+ */
+export function pluginCatalogue(plugins: IDiscoveredPlugin[]): IPluginCatalogueEntry[] {
+  const out: IPluginCatalogueEntry[] = [];
+  for (const plugin of builtInPlugins) {
+    out.push({ id: plugin.id, extensionIds: plugin.extensions.map((e) => e.id) });
+  }
+  for (const p of plugins) {
+    out.push({ id: p.id, extensionIds: p.extensions?.map((e) => e.id) ?? [] });
+  }
+  return out;
+}
+
+/** Outcome of parsing a qualified `<plugin>/<ext>` id against a catalogue. */
+export type TQualifiedIdResult =
+  | { ok: true; pluginId: string; extId: string }
+  | { ok: false; reason: 'malformed' | 'unknown-plugin' | 'unknown-extension'; pluginId?: string; extId?: string };
+
+/**
+ * Parse and validate a qualified `<plugin>/<ext>` id against the
+ * catalogue. Owns the split + existence checks that `show` and
+ * `enable` / `disable` would otherwise each reimplement; the caller
+ * renders the directed message for the returned `reason` via
+ * `renderQualifiedIdError` so every verb shares one error surface.
+ */
+export function parseQualifiedExtensionId(
+  id: string,
+  catalogue: IPluginCatalogueEntry[],
+): TQualifiedIdResult {
+  const [pluginId, extId, ...rest] = id.split('/');
+  if (!pluginId || !extId || rest.length > 0) return { ok: false, reason: 'malformed' };
+  const plugin = catalogue.find((p) => p.id === pluginId);
+  if (!plugin) return { ok: false, reason: 'unknown-plugin', pluginId };
+  if (!plugin.extensionIds.includes(extId)) {
+    return { ok: false, reason: 'unknown-extension', pluginId, extId };
+  }
+  return { ok: true, pluginId, extId };
+}
+
+/**
+ * Render the directed error for a failed `parseQualifiedExtensionId`.
+ * `rawId` is the user's original input (used verbatim for the malformed
+ * case, where there is no clean `pluginId` to quote). Mirrors the wording
+ * `enable` / `disable` and `show` printed independently before the helper
+ * was shared.
+ */
+export function renderQualifiedIdError(
+  result: Extract<TQualifiedIdResult, { ok: false }>,
+  rawId: string,
+  ansi: IAnsi,
+): string {
+  const glyph = ansi.red(PLUGINS_TEXTS.rowGlyphOff);
+  if (result.reason === 'unknown-extension') {
+    return tx(PLUGINS_TEXTS.qualifiedIdNotFound, {
+      glyph,
+      id: sanitizeForTerminal(rawId),
+      pluginId: sanitizeForTerminal(result.pluginId ?? ''),
+      extId: sanitizeForTerminal(result.extId ?? ''),
+      hint: ansi.dim(PLUGINS_TEXTS.qualifiedIdNotFoundHint),
+    });
+  }
+  // `malformed` has no clean plugin id to quote, so it echoes the raw
+  // input; `unknown-plugin` quotes the parsed plugin id. Both use the
+  // same "unknown plugin" template.
+  return tx(PLUGINS_TEXTS.qualifiedIdUnknownPlugin, {
+    glyph,
+    pluginId: sanitizeForTerminal(result.reason === 'unknown-plugin' ? (result.pluginId ?? rawId) : rawId),
+    hint: ansi.dim(PLUGINS_TEXTS.qualifiedIdUnknownPluginHint),
+  });
 }
 
 /**

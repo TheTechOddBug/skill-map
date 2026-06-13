@@ -533,17 +533,15 @@ describe('sm plugins enable / disable, bundle macro', () => {
 
     const r = sm(['plugins', 'list'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    // Each enabled plugin (built-in or user) gets its own ✓ row with the
-    // `built-in` / `user` source label. The new format collapses
-    // per-extension breakdown into a dim names line under the row, so
-    // the test matches the row + checks names appear nearby.
+    // The index renders one row per plugin (built-in or user) with the
+    // `built-in` / `user` source label. The per-extension breakdown moved
+    // to `sm plugins list <id>`, so the index no longer prints names.
     assert.match(r.stdout, /✓\s+claude\b.*built-in/);
     assert.match(r.stdout, /✓\s+core\b.*built-in/);
-    // `superseded` is one of core's extensions and lands in the dim
-    // names line below the `core` row.
-    assert.match(r.stdout, /\bnode-superseded\b/);
     // User plugin row carries `user` instead of `built-in`.
     assert.match(r.stdout, /✓\s+mock-list\b.*user/);
+    // Names no longer appear in the index, they live in `list <id>`.
+    assert.doesNotMatch(r.stdout, /\bnode-superseded\b/);
   });
 
   it('rejects qualified id under unknown plugin with directed message', () => {
@@ -576,10 +574,11 @@ describe('sm plugins doctor, disabled is not a failure', () => {
     const r = sm(['plugins', 'doctor'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     // Disabled is intentional, never an error: exit stays 0. The count
-    // is 4, the disabled `mock-h` drop-in plus the three experimental
-    // built-ins that ship disabled by default (`core/mcp-tools`,
-    // `core/supersede`, `core/node-supersede`).
-    assert.match(r.stdout, /disabled\s+4/);
+    // is 5, the disabled `mock-h` drop-in plus the four experimental
+    // built-ins that ship disabled by default: `core/mcp-tools` and the
+    // supersession family (`core/supersede`, `core/node-supersede`,
+    // `core/node-superseded`).
+    assert.match(r.stdout, /disabled\s+5/);
   });
 });
 
@@ -692,35 +691,36 @@ describe('sm plugins doctor, runtime contribution errors (last scan)', () => {
   });
 });
 
-// Spec § A.6, show / list still expose every loaded extension id so
-// the user knows what's actually running. Post-redesign the human
-// renderer drops the `<plugin>/<id>` qualified form (the plugin is
-// already the row header) and just prints the bare extension name,
-// the qualified form survives in `--json` for tooling consumers.
-describe('sm plugins show, extension visibility', () => {
-  it('show resolves on the plugin id and lists every extension by name', () => {
-    const scope = freshScope('show-qualified');
+// `sm plugins list <id>` renders a plugin's extensions as qualified
+// `<plugin>/<ext>` rows (kind / version / per-extension glyph) so the id
+// pastes straight into enable/disable/show. `sm plugins show
+// <plugin>/<ext>` renders one extension's detail block. The top-level
+// index (`sm plugins list`) carries no per-extension names; they live one
+// level down in `list <id>`.
+describe('sm plugins list <id> + show <plugin>/<ext>, extension detail', () => {
+  it('list <id> resolves on the plugin id and lists every extension by name', () => {
+    const scope = freshScope('list-plugin-detail');
     sm(['init', '--no-scan'], scope);
     dropMockPlugin(scope, 'mock-q');
 
-    const r = sm(['plugins', 'show', 'mock-q'], scope);
+    const r = sm(['plugins', 'list', 'mock-q'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    // New header line: `  ✓  mock-q   v0.1.0   user   1 extension`.
+    // Header line: `  ✓  mock-q   v0.1.0   user   1 extension`.
     assert.match(r.stdout, /✓\s+mock-q\s+v/);
     // Extension row uses qualified name + version: `extractor  mock-q/mock-q-extractor  v…`.
     assert.match(r.stdout, /extractor\s+mock-q\/mock-q-extractor\s+v/);
   });
 
-  it('list surfaces every loaded extension name under its plugin', () => {
-    const scope = freshScope('list-qualified');
+  it('list <id> surfaces every loaded extension name under its plugin', () => {
+    const scope = freshScope('list-plugin-extensions');
     sm(['init', '--no-scan'], scope);
     dropMockPlugin(scope, 'mock-l');
 
-    const r = sm(['plugins', 'list'], scope);
+    const r = sm(['plugins', 'list', 'mock-l'], scope);
     assert.equal(r.status, 0);
-    // The extension name shows up in the dim names line under the
-    // `mock-l` row (no `<plugin>/<id>` prefix in the human output).
-    assert.match(r.stdout, /\bmock-l-extractor\b/);
+    // The extension renders qualified (`<plugin>/<ext>`) in the detail
+    // block so the id pastes straight into enable/disable/show.
+    assert.match(r.stdout, /\bmock-l\/mock-l-extractor\b/);
   });
 
   // Qualified `<plugin>/<ext>` ids now render a single-extension detail
@@ -731,10 +731,12 @@ describe('sm plugins show, extension visibility', () => {
     const scope = freshScope('show-qualified-builtin');
     sm(['init', '--no-scan'], scope);
 
-    const r = sm(['plugins', 'show', 'core/node-superseded'], scope);
+    const r = sm(['plugins', 'show', 'core/reference-broken'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    // Header: qualified id + built-in source.
-    assert.match(r.stdout, /✓\s+core\/node-superseded\s+built-in/);
+    // Header: qualified id + built-in source. (`core/reference-broken`
+    // is a stable analyzer, enabled by default, used here as a generic
+    // built-in example since the supersession family is experimental.)
+    assert.match(r.stdout, /✓\s+core\/reference-broken\s+built-in/);
     // Field block: Kind is always present.
     assert.match(r.stdout, /Kind\s+analyzer/);
     // Version is intentionally omitted for built-ins (they inherit the
@@ -784,21 +786,23 @@ describe('sm plugins show, extension visibility', () => {
     const scope = freshScope('show-qualified-disabled-glyph');
     sm(['init', '--no-scan'], scope);
 
-    // Baseline: enabled → green ✓.
-    const before = sm(['plugins', 'show', 'core/node-superseded'], scope);
+    // Baseline: enabled → green ✓. (`core/reference-broken` is a stable
+    // analyzer, enabled by default; the supersession family is now
+    // experimental so it can't be the enabled baseline anymore.)
+    const before = sm(['plugins', 'show', 'core/reference-broken'], scope);
     assert.equal(before.status, 0, `stderr: ${before.stderr}`);
-    assert.match(before.stdout, /✓\s+core\/node-superseded/);
+    assert.match(before.stdout, /✓\s+core\/reference-broken/);
 
     // Disable the single extension via the qualified id.
-    const off = sm(['plugins', 'disable', 'core/node-superseded'], scope);
+    const off = sm(['plugins', 'disable', 'core/reference-broken'], scope);
     assert.equal(off.status, 0, `stderr: ${off.stderr}`);
 
     // The single-ext header glyph flips to ✕; bare-plugin output would
     // keep `core` itself ✓ and only mark the inner row, this test
     // guards that we render the EXTENSION header, not the plugin.
-    const after = sm(['plugins', 'show', 'core/node-superseded'], scope);
+    const after = sm(['plugins', 'show', 'core/reference-broken'], scope);
     assert.equal(after.status, 0, `stderr: ${after.stderr}`);
-    assert.match(after.stdout, /✕\s+core\/node-superseded/);
+    assert.match(after.stdout, /✕\s+core\/reference-broken/);
   });
 
   it('show with qualified id targeting a user-plugin extension renders the same field block', () => {
@@ -822,11 +826,23 @@ describe('sm plugins show, extension visibility', () => {
     assert.match(r.stdout, /Entry\s+\S+extractors\/mock-q-show-extractor\/index\.js/);
   });
 
-  it('show with bare plugin id still renders the full plugin detail (regression)', () => {
+  it('show with a bare plugin id is rejected with a redirect to list', () => {
     const scope = freshScope('show-bare-plugin');
     sm(['init', '--no-scan'], scope);
 
+    // `show` is extension-only; a bare plugin id is the wrong
+    // granularity, the verb redirects to `sm plugins list <id>`.
     const r = sm(['plugins', 'show', 'core'], scope);
+    assert.equal(r.status, 2, `stderr: ${r.stderr}`);
+    assert.match(r.stderr, /needs a qualified/);
+    assert.match(r.stderr, /sm plugins list core/);
+  });
+
+  it('list <id> renders the full plugin detail', () => {
+    const scope = freshScope('list-bare-plugin');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['plugins', 'list', 'core'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     // Plugin header signature: "N extensions" counter.
     assert.match(r.stdout, /✓\s+core\s+built-in\s+\d+\s+extensions/);
@@ -854,27 +870,28 @@ describe('sm plugins show, extension visibility', () => {
     assert.match(r.stderr, /Qualified extension id references unknown plugin/);
   });
 
-  it('list marks individually-disabled extensions with ✕', async () => {
+  it('list <id> marks individually-disabled extensions with ✕', () => {
     const scope = freshScope('list-disabled-ext-marker');
     sm(['init', '--no-scan'], scope);
 
-    // Baseline: every core extension visible without a marker.
-    const before = sm(['plugins', 'list'], scope);
+    // Baseline: a stable core extension shows ✓ on its detail row.
+    // (`reference-broken` is enabled by default; the supersession family
+    // is experimental so it already shows ✕ and can't be the baseline.)
+    const before = sm(['plugins', 'list', 'core'], scope);
     assert.equal(before.status, 0, `stderr: ${before.stderr}`);
-    assert.match(before.stdout, /\bnode-superseded\b/);
-    assert.doesNotMatch(before.stdout, /✕\s+node-superseded\b/);
+    assert.match(before.stdout, /✓\s+analyzer\s+core\/reference-broken\b/);
 
     // Disable one core extension by qualified id; siblings stay
-    // enabled and the plugin row aggregates ✓ (any child enabled).
-    const disable = sm(['plugins', 'disable', 'core/node-superseded'], scope);
+    // enabled and the plugin header aggregates ✓ (any child enabled).
+    const disable = sm(['plugins', 'disable', 'core/reference-broken'], scope);
     assert.equal(disable.status, 0, `stderr: ${disable.stderr}`);
 
-    // The list now shows the ✕ marker on the disabled name. The
-    // plugin row glyph stays ✓ because most of `core` is still on.
-    const after = sm(['plugins', 'list'], scope);
+    // The detail now shows the ✕ marker on the disabled row. The plugin
+    // header glyph stays ✓ because most of `core` is still on.
+    const after = sm(['plugins', 'list', 'core'], scope);
     assert.equal(after.status, 0, `stderr: ${after.stderr}`);
-    assert.match(after.stdout, /✓\s+core\b/);
-    assert.match(after.stdout, /✕\s+node-superseded\b/);
+    assert.match(after.stdout, /✓\s+core\s+built-in/);
+    assert.match(after.stdout, /✕\s+analyzer\s+core\/reference-broken\b/);
   });
 });
 

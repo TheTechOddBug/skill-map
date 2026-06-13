@@ -247,7 +247,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 5, 'claude + antigravity + openai + agent-skills + core-markdown providers loaded');
       assert.equal(composed.extractors.length, 7, '7 of 8 extractors loaded; core/mcp-tools is experimental so it ships disabled by default');
-      assert.equal(composed.analyzers.length, 18, '18 of 19 rules loaded; core/supersede (the Supersede button projector) is experimental so it ships disabled by default');
+      assert.equal(composed.analyzers.length, 17, '17 of 19 rules loaded; the experimental supersession analyzers core/supersede (button projector) and core/node-superseded (surfaces declarations) both ship disabled by default');
       const formatters = composeFormatters({ pluginRuntime: emptyPluginRuntime() });
       assert.equal(formatters.length, 2, 'ascii + json formatters loaded');
     });
@@ -362,7 +362,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 0);
       assert.equal(composed.extractors.length, 7, 'extractors untouched (7: core/mcp-tools ships disabled, experimental)');
-      assert.equal(composed.analyzers.length, 18, 'rules untouched (18: core/supersede ships disabled, experimental)');
+      assert.equal(composed.analyzers.length, 17, 'rules untouched (17: core/supersede + core/node-superseded ship disabled, experimental supersession family)');
     });
 
     it('(b) killSwitches.extractors empties only the extractors bucket', () => {
@@ -374,7 +374,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 5);
       assert.equal(composed.extractors.length, 0);
-      assert.equal(composed.analyzers.length, 18);
+      assert.equal(composed.analyzers.length, 17);
     });
 
     it('(c) killSwitches.analyzers empties only the rules bucket', () => {

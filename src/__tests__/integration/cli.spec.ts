@@ -159,11 +159,12 @@ describe('CLI binary', () => {
     assert.match(r.stdout, /Run `sm plugins <command> --help` for flags and arguments\./);
   });
 
-  it('`sm plugins list` tags non-stable extensions with their lifecycle stage', () => {
-    // `core/mcp-tools` ships `stability: 'experimental'`; the names
-    // line renders it as `mcp-tools (experimental)`. Stable extensions
-    // (missing == stable per spec) render untagged.
-    const r = sm(['plugins', 'list'], EMPTY_DIR);
+  it('`sm plugins list <id>` tags non-stable extensions with their lifecycle stage', () => {
+    // `core/mcp-tools` ships `stability: 'experimental'`; the detail row
+    // renders it as `core/mcp-tools (experimental)`. Stable extensions
+    // (missing == stable per spec) render untagged. The tag lives in the
+    // per-plugin detail (`list <id>`), the index carries no names.
+    const r = sm(['plugins', 'list', 'core'], EMPTY_DIR);
     assert.equal(r.status, 0);
     assert.match(r.stdout, /mcp-tools \(experimental\)/);
     assert.match(r.stdout, /link-counter(?!\s*\()/);

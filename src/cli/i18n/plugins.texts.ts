@@ -32,6 +32,24 @@ export const PLUGINS_TEXTS = {
   qualifiedIdUnknownPluginHint:
     'Run `sm plugins list` for known plugin ids.',
 
+  // --- verb-shape redirects (show is extension-only; list is plugin-only) ---
+  // `sm plugins show` takes a qualified `<plugin>/<ext>` id and renders a
+  // single extension. A bare plugin id is the wrong granularity, redirect
+  // to `sm plugins list <id>`, which renders the whole plugin.
+  showBareId:
+    '{{glyph}}  `sm plugins show` needs a qualified `<plugin>/<ext>` id; "{{id}}" is a plugin.\n' +
+    '   {{hint}}\n',
+  showBareIdHint:
+    'Run `sm plugins list {{id}}` for the plugin and its extensions, then `sm plugins show {{id}}/<ext>` for one.',
+  // `sm plugins list <id>` takes a bare plugin id. A qualified
+  // `<plugin>/<ext>` id targets a single extension, redirect to
+  // `sm plugins show`.
+  listQualifiedId:
+    '{{glyph}}  `sm plugins list` takes a plugin id, not a qualified `<plugin>/<ext>` id: {{id}}\n' +
+    '   {{hint}}\n',
+  listQualifiedIdHint:
+    'Run `sm plugins show {{id}}` for that extension, or `sm plugins list {{pluginId}}` for the whole plugin.',
+
   // Spec § A.10, `applicableKinds` filter on Extractors. When an extractor
   // declares a kind that no installed Provider emits, the load succeeds
   // (the Provider may arrive later) but `sm plugins doctor` surfaces a
@@ -193,7 +211,7 @@ export const PLUGINS_TEXTS = {
    */
   stabilityTag: ' ({{stability}})',
   listTipShow:
-    '\nTip: `sm plugins show <id>` for kinds, versions, and per-extension status.\n',
+    '\nTip: `sm plugins list <id>` for a plugin\'s extensions (kinds, versions, per-extension status), `sm plugins show <plugin>/<ext>` for one extension.\n',
   /** Show command, built-in header (no version row, no path). */
   detailHeaderBuiltIn: '  {{glyph}}  {{id}}   {{source}}   {{count}} extension{{plural}}\n',
   /**

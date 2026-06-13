@@ -135,10 +135,12 @@ describe('sm plugins create, scaffolder shape', () => {
     assert.equal(counts.invalid, 0, 'no invalid manifests');
     assert.equal(counts.loadError, 0, 'no load errors');
 
-    // The scaffolded plugin itself resolves to `enabled`.
-    const show = sm(['plugins', 'show', 'demo-highlight', '--json'], scope);
-    assert.equal(show.status, 0, `stderr: ${show.stderr}`);
-    assert.equal(JSON.parse(show.stdout).status, 'enabled');
+    // The scaffolded plugin itself resolves to `enabled`. The per-plugin
+    // JSON (with the `status` field) is emitted by `list <id> --json`;
+    // `show` is extension-only now.
+    const detail = sm(['plugins', 'list', 'demo-highlight', '--json'], scope);
+    assert.equal(detail.status, 0, `stderr: ${detail.stderr}`);
+    assert.equal(JSON.parse(detail.stdout).status, 'enabled');
   });
 
   it('scaffolded extractor emits its contribution on scan', () => {
@@ -190,9 +192,9 @@ describe('sm plugins create, every extension kind loads enabled', () => {
       assert.equal(counts.invalid, 0, `${kind}: no invalid manifests`);
       assert.equal(counts.loadError, 0, `${kind}: no load errors`);
 
-      const show = sm(['plugins', 'show', id, '--json'], scope);
-      assert.equal(show.status, 0, `show stderr: ${show.stderr}`);
-      assert.equal(JSON.parse(show.stdout).status, 'enabled', `${kind} resolves enabled`);
+      const detail = sm(['plugins', 'list', id, '--json'], scope);
+      assert.equal(detail.status, 0, `list stderr: ${detail.stderr}`);
+      assert.equal(JSON.parse(detail.stdout).status, 'enabled', `${kind} resolves enabled`);
 
       // The action kind ships a sibling report.schema.json (structure-as-truth:
       // every Action carries one, or it fails to load).

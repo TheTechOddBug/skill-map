@@ -33,6 +33,12 @@ export const nodeSupersededAnalyzer: IBuiltInManifest<IAnalyzer> = {
   pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
   description: 'Marks nodes replaced by a newer one via `supersededBy`.',
+  // Part of the experimental supersession feature: ships disabled by
+  // default alongside the declarer (`core/supersede` button +
+  // `core/node-supersede` action). With the declarer off by default a
+  // user rarely produces `supersededBy` data, so surfacing it stays
+  // experimental too; the operator opts the whole family in together.
+  stability: 'experimental',
   mode: 'deterministic',
 
   evaluate(ctx: IAnalyzerContext): Issue[] {

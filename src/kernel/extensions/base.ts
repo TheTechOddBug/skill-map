@@ -17,8 +17,8 @@ import type { TSettingDeclaration } from '../types/view-catalog.js';
 
 /**
  * Lifecycle label an extension manifest MAY declare. Renders as a badge
- * next to the extension in `sm plugins list` / `sm plugins show` and the
- * Settings plugins panel for the non-default values.
+ * next to the extension in `sm plugins list <id>` / `sm plugins show` and
+ * the Settings plugins panel for the non-default values.
  *
  * Two values ALSO change behaviour: `experimental` (not ready yet) and
  * `deprecated` (on its way out) flip the extension's installed default

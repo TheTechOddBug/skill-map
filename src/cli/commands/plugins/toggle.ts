@@ -32,10 +32,8 @@
 
 import { Command, Option } from 'clipanion';
 
-import { builtInPlugins } from '../../../plugins/built-ins.js';
 import { isPluginLocked } from '../../../kernel/config/locked-plugins.js';
 import { qualifiedExtensionId } from '../../../kernel/registry.js';
-import type { IDiscoveredPlugin } from '../../../kernel/types/plugin.js';
 import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
 import { tx } from '../../../kernel/util/tx.js';
 import { PLUGINS_TEXTS } from '../../i18n/plugins.texts.js';
@@ -48,13 +46,13 @@ import { ExitCode } from '../../util/exit-codes.js';
 import { defaultRuntimeContext } from '../../util/runtime-context.js';
 import { SmCommand } from '../../util/sm-command.js';
 import { withSqlite } from '../../util/with-sqlite.js';
-import { loadAll } from './shared.js';
-
-interface IPluginSlim {
-  id: string;
-  /** Qualified `<plugin>/<ext>` ids of every extension inside. */
-  extensionIds: string[];
-}
+import {
+  loadAll,
+  pluginCatalogue,
+  parseQualifiedExtensionId,
+  renderQualifiedIdError,
+  type IPluginCatalogueEntry,
+} from './shared.js';
 
 interface IResolvedTarget {
   /** Origin of the resolution, used by the macro-prompt path. */
@@ -153,7 +151,7 @@ abstract class TogglePluginsBase extends SmCommand {
    * The first unknown id aborts the batch before any DB write so the
    * user never lands in a partial state.
    */
-  #pickTargets(catalogue: IPluginSlim[], ansi: IAnsi): IResolvedTarget[] | number {
+  #pickTargets(catalogue: IPluginCatalogueEntry[], ansi: IAnsi): IResolvedTarget[] | number {
     if (this.all) {
       return catalogue.map((b) => ({
         origin: 'bare' as const,
@@ -409,34 +407,6 @@ export class PluginsDisableCommand extends TogglePluginsBase {
 }
 
 /**
- * Build the canonical plugin catalogue: built-ins first, then any
- * loaded user plugins. Used by `resolveToggleTarget` to expand a bare
- * plugin id into its qualified-extension child set.
- *
- * Plugins whose manifest never validated (`invalid-manifest` /
- * `load-error` without a manifest) are listed with an empty
- * `extensionIds` so the user can disable a buggy plugin by id; the
- * macro path then has zero children to flip and the verb reports the
- * lock state without writing anything.
- */
-function pluginCatalogue(plugins: IDiscoveredPlugin[]): IPluginSlim[] {
-  const out: IPluginSlim[] = [];
-  for (const plugin of builtInPlugins) {
-    out.push({
-      id: plugin.id,
-      extensionIds: plugin.extensions.map((e) => e.id),
-    });
-  }
-  for (const p of plugins) {
-    out.push({
-      id: p.id,
-      extensionIds: p.extensions?.map((e) => e.id) ?? [],
-    });
-  }
-  return out;
-}
-
-/**
  * Resolve a user-supplied `<id>` against the catalogue. Returns either
  * a `IResolvedTarget` describing what to flip, or a directed error
  * message that explains why the id was rejected (unknown plugin,
@@ -448,7 +418,7 @@ function pluginCatalogue(plugins: IDiscoveredPlugin[]): IPluginSlim[] {
  */
 function resolveToggleTarget(
   id: string,
-  catalogue: IPluginSlim[],
+  catalogue: IPluginCatalogueEntry[],
   ansi: IAnsi,
 ): IResolvedTarget | { error: string } {
   return id.includes('/')
@@ -458,50 +428,20 @@ function resolveToggleTarget(
 
 function resolveQualifiedToggle(
   id: string,
-  catalogue: IPluginSlim[],
+  catalogue: IPluginCatalogueEntry[],
   ansi: IAnsi,
 ): IResolvedTarget | { error: string } {
-  const errGlyph = ansi.red('✕');
-  const [pluginId, extId, ...rest] = id.split('/');
-  if (!pluginId || !extId || rest.length > 0) {
-    return {
-      error: tx(PLUGINS_TEXTS.qualifiedIdUnknownPlugin, {
-        glyph: errGlyph,
-        pluginId: sanitizeForTerminal(id),
-        hint: ansi.dim(PLUGINS_TEXTS.qualifiedIdUnknownPluginHint),
-      }),
-    };
-  }
-  const plugin = catalogue.find((b) => b.id === pluginId);
-  if (!plugin) {
-    return {
-      error: tx(PLUGINS_TEXTS.qualifiedIdUnknownPlugin, {
-        glyph: errGlyph,
-        pluginId: sanitizeForTerminal(pluginId),
-        hint: ansi.dim(PLUGINS_TEXTS.qualifiedIdUnknownPluginHint),
-      }),
-    };
-  }
-  if (!plugin.extensionIds.includes(extId)) {
-    return {
-      error: tx(PLUGINS_TEXTS.qualifiedIdNotFound, {
-        glyph: errGlyph,
-        id: sanitizeForTerminal(id),
-        pluginId: sanitizeForTerminal(pluginId),
-        extId: sanitizeForTerminal(extId),
-        hint: ansi.dim(PLUGINS_TEXTS.qualifiedIdNotFoundHint),
-      }),
-    };
-  }
+  const parsed = parseQualifiedExtensionId(id, catalogue);
+  if (!parsed.ok) return { error: renderQualifiedIdError(parsed, id, ansi) };
   return {
     origin: 'qualified',
-    keys: [qualifiedExtensionId(pluginId, extId)],
+    keys: [qualifiedExtensionId(parsed.pluginId, parsed.extId)],
   };
 }
 
 function resolveBareToggle(
   id: string,
-  catalogue: IPluginSlim[],
+  catalogue: IPluginCatalogueEntry[],
 ): IResolvedTarget | { error: string } {
   const plugin = catalogue.find((b) => b.id === id);
   if (!plugin) {

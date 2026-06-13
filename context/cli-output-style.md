@@ -147,7 +147,9 @@ column without competing for it.
 ### 3.3. Sectioned block (preferred for multi-section output)
 
 Used by `sm config list`, `sm plugins doctor`, `sm history stats`,
-`sm plugins show`. Section heading at indent 2, rows at indent 4:
+`sm plugins list <id>` (per-plugin detail) and `sm plugins show <plugin>/<ext>`
+(the narrower single-extension block). Section heading at indent 2, rows at
+indent 4:
 
 ```
   Section title

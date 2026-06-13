@@ -151,7 +151,7 @@ line (`✓ core/external-url-counter built-in`) plus its Kind
 sm plugins doctor
 ```
 
-Expected on a clean machine: `34 enabled extensions · 0 issues · 0 warnings`.
+Expected on a clean machine: `35 enabled extensions · 0 issues · 0 warnings`.
 If any plugin reports a load error, manifest validity issue, or
 spec-compatibility mismatch, `doctor` is the verb that flags it.
 
