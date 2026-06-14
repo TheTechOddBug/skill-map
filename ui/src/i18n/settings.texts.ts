@@ -284,11 +284,17 @@ export const SETTINGS_TEXTS = {
   startsAsDisabledFooterHint:
     'Some plugins were disabled when the server started. Consider restarting `sm serve` so they take effect.',
 
-  /** Footer actions for the buffered modal. */
+  /** Global footer actions for the buffered modal. The footer lives in
+   *  the chassis (`<sm-settings-modal>`); one Apply commits every
+   *  buffered surface (Plugins toggles + each plugin section's option
+   *  edits) in a single bulk PATCH. */
   discardChanges: 'Discard',
   applyAndClose: 'Apply',
-  discardA11y: 'Discard pending plugin changes',
-  applyA11y: 'Apply pending plugin changes and refresh the map',
+  discardA11y: 'Discard pending changes',
+  applyA11y: 'Apply pending changes and refresh the map',
+  /** Inline prefix when the global Apply's bulk PATCH fails; the buffers
+   *  stay dirty so the user can retry or discard. */
+  applyErrorPrefix: 'Could not apply changes:',
 
   /**
    * Confirm dialog presented when the user tries to close the modal
@@ -358,26 +364,22 @@ export const SETTINGS_TEXTS = {
   },
 
   /**
-   * Per-extension operator settings form. An extension that declares
-   * `settings` in its manifest gets an inline collapsible "Options"
-   * section below its subrow, rendering one control per declared
-   * setting. Values are BUFFERED alongside the enable/disable toggles
-   * and shipped in the same bulk Apply (no separate save).
+   * Per-plugin Settings section. Each plugin that declares operator
+   * settings on at least one extension gets its OWN sidebar section
+   * (listed below "About"), rendering the plugin id as a title and, per
+   * settings-declaring extension, the extension id as a subtitle followed
+   * by one control per declared setting. Edits are BUFFERED locally and
+   * shipped in the modal's single global Apply (no per-section save).
    */
-  extensionSettings: {
-    /** Collapsible-section toggle labels (collapsed by default). */
-    expandLabel: 'Show options',
-    collapseLabel: 'Hide options',
-    /** Section heading inside the expanded panel. */
-    heading: 'Options',
-    /** Aria for the collapsible toggle button. */
-    toggleA11y: (qualifiedId: string): string => `Options for ${qualifiedId}`,
-    /** Aria wrapper for the settings form region. */
+  pluginSection: {
+    /** Sidebar label for a plugin's settings section (the plugin id). */
+    navLabel: (pluginId: string): string => pluginId,
+    /** Intro line under the section title. */
+    intro: 'Configure this plugin\'s options. Changes apply when you click Apply.',
+    /** Aria wrapper for one extension's settings form region. */
     formA11y: (qualifiedId: string): string => `Settings for ${qualifiedId}`,
-    /** Secret "set" / "empty" indicator hints (also surfaced inline by
-     *  the control; duplicated here for the subrow context). */
-    secretSetHint: 'A value is stored. Leave blank to keep it.',
-    secretEmptyHint: 'No value stored yet.',
+    /** Aria label for the whole section. */
+    sectionA11y: (pluginId: string): string => `Settings for plugin ${pluginId}`,
   },
 
   /** Status overrides, non-toggleable rows surface their failure mode. */

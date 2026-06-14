@@ -19,7 +19,7 @@
       data-testid="settings-modal-sidebar"
     >
       <ul class="settings-modal__sidebar-list" role="list">
-        @for (section of sections; track section.id) {
+        @for (section of sections(); track section.id) {
           <li>
             <button
               type="button"
@@ -39,10 +39,7 @@
     <div class="settings-modal__main" data-testid="settings-modal-main">
       @switch (activeSection()) {
         @case ('plugins') {
-          <sm-settings-plugins
-            [visible]="pluginsVisible()"
-            (applied)="onPluginsApplied()"
-          />
+          <sm-settings-plugins [visible]="pluginsVisible()" />
         }
         @case ('general') {
           <sm-settings-general [visible]="generalVisible()" />
@@ -55,6 +52,11 @@
         }
         @case ('changelog') {
           <sm-settings-changelog />
+        }
+        @default {
+          @if (activePluginItem(); as pluginItem) {
+            <sm-settings-plugin-section [plugin]="pluginItem" />
+          }
         }
       }
     </div>
@@ -70,4 +72,59 @@
     dialog so `ConfirmationService` sees it.
   -->
   <p-confirmdialog />
+
+  <!--
+    Global footer (Discard / Apply). Renders only when at least one
+    buffered surface is dirty. One Apply commits every owner's pending
+    edits (Plugins toggles + each plugin section's option edits) in a
+    single bulk PATCH via `SettingsBufferService`. PrimeNG 21 surfaces
+    the footer via the `#footer` content-child template.
+  -->
+  <ng-template #footer>
+    @if (buffer.dirtyCount() > 0) {
+      <div class="settings-modal__footer" data-testid="settings-modal-footer">
+        <div class="settings-modal__footer-status">
+          <span
+            class="settings-modal__footer-message"
+            data-testid="settings-modal-unsaved"
+          >
+            {{ texts.unsavedChangesMessage(buffer.dirtyCount()) }}
+          </span>
+          @if (buffer.restartRecommended()) {
+            <em
+              class="settings-modal__footer-hint"
+              data-testid="settings-modal-restart-hint"
+            >
+              {{ texts.startsAsDisabledFooterHint }}
+            </em>
+          }
+          @if (buffer.applyError(); as applyError) {
+            <span
+              class="settings-modal__footer-error"
+              data-testid="settings-modal-apply-error"
+            >
+              {{ texts.applyErrorPrefix }} {{ applyError }}
+            </span>
+          }
+        </div>
+        <p-button
+          severity="secondary"
+          [text]="true"
+          [label]="texts.discardChanges"
+          [ariaLabel]="texts.discardA11y"
+          [disabled]="buffer.applying()"
+          (onClick)="discardChanges()"
+          data-testid="settings-modal-discard"
+        />
+        <p-button
+          [label]="texts.applyAndClose"
+          [ariaLabel]="texts.applyA11y"
+          [disabled]="buffer.applying()"
+          [loading]="buffer.applying()"
+          (onClick)="applyAndClose()"
+          data-testid="settings-modal-apply"
+        />
+      </div>
+    }
+  </ng-template>
 </p-dialog>

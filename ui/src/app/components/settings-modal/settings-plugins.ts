@@ -1,16 +1,18 @@
 /**
  * `<sm-settings-plugins>`, Plugins section of the Settings modal.
  *
- * Owns the full lifecycle: fetch on `(visible) === true`, render the
- * list with plugin / per-extension toggles, BUFFER pending changes in
- * `pendingState`, dispatch the bulk `PATCH /api/plugins` via
- * `applyChanges()` (or revert with `discardChanges()`), and trigger
- * a scan after a successful apply so the graph reflects the new state.
+ * Owns the plugin list lifecycle: fetch on `(visible) === true`, render
+ * the list with per-extension enable/disable toggles, BUFFER pending
+ * toggle changes in `pendingState`, and expose those dirty deltas to the
+ * chassis-level `SettingsBufferService` via an `IBufferOwner`. The panel
+ * no longer issues the bulk PATCH itself nor renders the global Apply /
+ * Discard footer (both moved to the chassis); it is one of several
+ * buffered owners whose changes the chassis merges into a single global
+ * Apply.
  *
- * Splitting this out of `SettingsModal` keeps the chassis (dialog +
- * sidebar) section-agnostic, adding `SettingsGeneral` / `SettingsAbout`
- * later is one new file and one entry in `SETTINGS_SECTIONS` rather
- * than a sprawling parent.
+ * Operator settings ("Options" forms) moved OUT of this panel into the
+ * dedicated per-plugin sections (`SettingsPluginSection`); the subrows
+ * here are toggle + metadata only.
  *
  * Buffered flow (no PATCH per click):
  *
@@ -18,21 +20,18 @@
  *      copies it into `pendingState`.
  *   2. Toggle handlers mutate `pendingState` only, the DB stays
  *      untouched until the user confirms.
- *   3. `dirtyIds` (computed) is the diff between the two maps.
- *      The template renders a dot per dirty row and an
- *      "N unsaved changes" banner.
- *   4. `applyChanges()` POSTs the dirty entries as a single
- *      `applyPluginChanges()` call, refreshes `originalState` /
- *      `pendingState` from the response, and triggers a scan.
- *   5. `discardChanges()` resets `pendingState = new Map(originalState)`
- *      so the user can bail without touching the DB.
+ *   3. `dirtyIds` (computed) is the diff between the two maps. The
+ *      template renders a dot per dirty row; the chassis renders the
+ *      aggregate "N unsaved changes" copy + the global footer.
+ *   4. `collectChanges()` projects the dirty entries to `IPluginChange[]`
+ *      for the chassis to merge + PATCH once.
+ *   5. `reseed(plugins)` refreshes the snapshot after a global Apply;
+ *      `discardChanges()` resets pending back to the snapshot.
  *
  * Per-row hint: when a plugin row carries `startsAsDisabled: true`
  * AND the user is re-enabling it in the buffered state, the template
  * shows an inline note that the plugin's handlers were not loaded at
- * boot, re-engaging needs an `sm serve` restart. The apply still
- * goes through (the override is persisted), it just doesn't take
- * effect live.
+ * boot, re-engaging needs an `sm serve` restart.
  *
  * Internal split:
  *   - `plugin-state.controller.ts`   → fetch + buffered toggle state.
@@ -50,11 +49,9 @@ import {
   effect,
   inject,
   input,
-  output,
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ButtonModule } from 'primeng/button';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
@@ -65,18 +62,10 @@ import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
 import type {
   IPluginExtensionApi,
-  IPluginExtensionSettingApi,
   IPluginItemApi,
-  TSettingValueApi,
 } from '../../../models/api';
 import { DATA_SOURCE } from '../../../services/data-source/data-source.port';
 import { kindTint } from '../../../services/extension-kind-tints';
-import { ScanTriggerService } from '../../services/scan-trigger';
-import {
-  InputTypeControl,
-  type IInputTypeDescriptor,
-  type TInputTypeValue,
-} from '../../renderers/input-type-control/input-type-control';
 
 import {
   clickedInteractive,
@@ -95,14 +84,13 @@ import { SettingsBufferService, type IBufferOwner } from './settings-buffer.serv
 
 @Component({
   selector: 'sm-settings-plugins',
-  imports: [FormsModule, ButtonModule, IconFieldModule, InputIconModule, InputTextModule, MessageModule, ToggleButtonModule, ToggleSwitchModule, InputTypeControl],
+  imports: [FormsModule, IconFieldModule, InputIconModule, InputTextModule, MessageModule, ToggleButtonModule, ToggleSwitchModule],
   templateUrl: './settings-plugins.html',
   styleUrl: './settings-plugins.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SettingsPlugins {
   private readonly dataSource = inject(DATA_SOURCE);
-  private readonly scanTrigger = inject(ScanTriggerService);
   private readonly buffer = inject(SettingsBufferService);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -115,29 +103,17 @@ export class SettingsPlugins {
    */
   readonly visible = input.required<boolean>();
 
-  /**
-   * Emitted after a successful `applyChanges()` so the modal host can
-   * close the dialog. The buffered flow's contract is "Apply commits +
-   * closes" (mirrored by the confirm-dialog Apply action and the
-   * footer Apply button); centralising the close trigger here lets the
-   * modal stay agnostic of which path fired the apply. NOT emitted on
-   * `discardChanges()` (the user explicitly chose not to persist) nor
-   * on apply errors (the buffer stays dirty so the user can retry).
-   */
-  readonly applied = output<void>();
-
   protected readonly texts = SETTINGS_TEXTS;
 
   /**
    * Buffered plugin-state machine, owns the `plugins` list, the
    * `originalState` snapshot, the editable `pendingState`, the
-   * `dirtyIds` diff, plus `refresh` / `applyChanges` / `discardChanges`.
-   * The component re-exposes signals + wraps imperative entry points
-   * so the template binds the same shapes it always has.
+   * `dirtyIds` diff, plus `refresh` / `collectChanges` / `reseed` /
+   * `discardChanges`. The component re-exposes signals + wraps imperative
+   * entry points so the template binds the same shapes it always has.
    */
   private readonly pluginState = setupPluginState({
     dataSource: this.dataSource,
-    scanTrigger: this.scanTrigger,
   });
 
   /** Raw plugin list, owned by the state controller. */
@@ -145,13 +121,10 @@ export class SettingsPlugins {
   protected readonly loading = this.pluginState.loading;
   protected readonly loadError = this.pluginState.loadError;
   protected readonly toggleError = this.pluginState.toggleError;
-  protected readonly applying = this.pluginState.applying;
   protected readonly hasFailureRows = this.pluginState.hasFailureRows;
   protected readonly originalState = this.pluginState.originalState;
   protected readonly pendingState = this.pluginState.pendingState;
-  protected readonly pendingSettings = this.pluginState.pendingSettings;
-  /** Public so the modal host can size its confirm-on-close dialog
-   *  and pre-fill the "N unsaved changes" copy. */
+  /** Public so the chassis-facing buffer owner can read the dirty set. */
   readonly dirtyIds = this.pluginState.dirtyIds;
   readonly hasPendingChanges = this.pluginState.hasPendingChanges;
   protected readonly restartRecommended = this.pluginState.restartRecommended;
@@ -168,9 +141,8 @@ export class SettingsPlugins {
 
   /**
    * Plugin ids whose runtime-contribution-errors section is expanded.
-   * The section is collapsed by DEFAULT (the opposite of the extension
-   * list, which defaults expanded), so this set is empty until the user
-   * opens a panel. Not persisted: a runtime error is a per-scan
+   * The section is collapsed by DEFAULT, so this set is empty until the
+   * user opens a panel. Not persisted: a runtime error is a per-scan
    * diagnostic, re-collapsing on reopen keeps the list tidy.
    */
   private readonly runtimeErrorsExpanded = signal<ReadonlySet<string>>(new Set());
@@ -210,17 +182,17 @@ export class SettingsPlugins {
     effect(() => {
       if (this.visible()) void this.pluginState.refresh();
     });
-    // Register with the chassis-facing buffer service so the close-confirm
-    // flow can read `dirtyIds().size` and invoke apply / discard without
-    // a `viewChild(SettingsPlugins)` reach across the boundary.
+    // Register with the chassis-facing buffer service so the global
+    // footer + close-confirm flow can read this owner's dirty toggle set,
+    // merge its `collectChanges()` into the one bulk PATCH, reseed it
+    // from the response, and discard it. No bulk PATCH or scan is issued
+    // here, the chassis owns the global Apply.
     const owner: IBufferOwner = {
       dirtyIds: this.pluginState.dirtyIds,
-      applyChanges: async () => {
-        const result = await this.pluginState.applyChanges();
-        if (result.ok) this.applied.emit();
-        return result;
-      },
+      collectChanges: () => this.pluginState.collectChanges(),
+      reseed: (plugins) => this.pluginState.reseed(plugins),
       discardChanges: () => this.pluginState.discardChanges(),
+      restartRecommended: this.pluginState.restartRecommended,
     };
     this.buffer.register(owner);
     this.destroyRef.onDestroy(() => this.buffer.deregister(owner));
@@ -289,116 +261,6 @@ export class SettingsPlugins {
     nextValue: boolean,
   ): void {
     this.pluginState.onExtensionToggle(pluginId, ext, nextValue);
-  }
-
-  /**
-   * Qualified ids of the extensions whose per-extension settings
-   * ("Options") section is expanded. Collapsed by DEFAULT (like the
-   * runtime-errors panel), so this set is empty until the user opens
-   * one. Not persisted: settings editing is a transient, per-open
-   * activity, re-collapsing on reopen keeps the list tidy.
-   */
-  private readonly settingsExpanded = signal<ReadonlySet<string>>(new Set());
-
-  /** Whether the extension declares at least one operator setting. */
-  protected hasSettings(ext: IPluginExtensionApi): boolean {
-    return (ext.settings?.length ?? 0) > 0;
-  }
-
-  /** Whether the per-extension settings section is open. */
-  protected isSettingsExpanded(key: string): boolean {
-    return this.settingsExpanded().has(key);
-  }
-
-  /** Toggle the per-extension settings section (collapsed by default). */
-  protected toggleSettings(key: string): void {
-    const next = new Set(this.settingsExpanded());
-    if (next.has(key)) next.delete(key);
-    else next.add(key);
-    this.settingsExpanded.set(next);
-  }
-
-  /** True when the row's buffered settings differ from the snapshot.
-   *  Drives the same dirty dot the toggle uses. */
-  protected isSettingsDirty(key: string, ext: IPluginExtensionApi): boolean {
-    return this.pluginState.isSettingsDirty(key, ext.settings);
-  }
-
-  /**
-   * Build the `IInputTypeDescriptor` for one declared setting: maps the
-   * declaration's per-type params onto the control's flat descriptor
-   * shape and threads the secret "is set" flag (from `secretSettingsSet`)
-   * so the secret control shows the right "Set" / "Empty" hint.
-   */
-  protected settingDescriptor(
-    ext: IPluginExtensionApi,
-    decl: IPluginExtensionSettingApi,
-  ): IInputTypeDescriptor {
-    const descriptor: IInputTypeDescriptor = {
-      inputType: decl.type,
-      label: decl.label,
-    };
-    if ('options' in decl) descriptor.options = decl.options;
-    if ('min' in decl && decl.min !== undefined) descriptor.min = decl.min;
-    if ('max' in decl && decl.max !== undefined) descriptor.max = decl.max;
-    if ('step' in decl && decl.step !== undefined) descriptor.step = decl.step;
-    if ('multiple' in decl && decl.multiple !== undefined) descriptor.multiple = decl.multiple;
-    if ('flags' in decl && decl.flags !== undefined) descriptor.flags = decl.flags;
-    if ('keyLabel' in decl && decl.keyLabel !== undefined) descriptor.keyLabel = decl.keyLabel;
-    if ('valueLabel' in decl && decl.valueLabel !== undefined) descriptor.valueLabel = decl.valueLabel;
-    if (decl.type === 'secret') {
-      descriptor.secretIsSet = ext.secretSettingsSet?.includes(decl.id) ?? false;
-    }
-    return descriptor;
-  }
-
-  /** Current buffered value for one setting (or the empty-string blank
-   *  the control treats as "unset"). */
-  protected settingValue(key: string, settingId: string): TInputTypeValue {
-    const v = this.pluginState.pendingSettingValue(key, settingId);
-    return (v ?? '') as TInputTypeValue;
-  }
-
-  /** Buffer a single setting edit. Coerces through the shared value
-   *  union; the control already emits the declared runtime type. */
-  protected onSettingChange(
-    pluginId: string,
-    ext: IPluginExtensionApi,
-    settingId: string,
-    nextValue: TInputTypeValue,
-  ): void {
-    this.pluginState.onSettingChange(
-      pluginId,
-      ext.id,
-      settingId,
-      nextValue as TSettingValueApi,
-    );
-  }
-
-  /** Helper for the optional secondary description line under a control. */
-  protected settingDescription(decl: IPluginExtensionSettingApi): string | undefined {
-    return decl.description;
-  }
-
-  /**
-   * Ship the dirty buffer as a single bulk PATCH (controller call) and
-   * emit `applied` on success so the modal host closes. Errors stay
-   * inside the controller's `toggleError` signal; the buffer is left
-   * intact so the user can retry or discard.
-   */
-  async applyChanges(): Promise<void> {
-    const result = await this.pluginState.applyChanges();
-    // Notify the modal host AFTER `applying` flips back so the close
-    // animation doesn't race with a still-busy state. Only fires on
-    // success, a failed apply keeps the modal open with the buffer
-    // intact so the user can retry or discard.
-    if (result.ok) this.applied.emit();
-  }
-
-  /** Revert every pending edit to the snapshot from the last refresh.
-   *  Does NOT touch the DB; the user can re-toggle freely afterwards. */
-  discardChanges(): void {
-    this.pluginState.discardChanges();
   }
 
   /**

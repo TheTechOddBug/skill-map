@@ -1,0 +1,44 @@
+<section
+  class="settings-plugin-section"
+  [attr.aria-label]="texts.pluginSection.sectionA11y(pluginId())"
+  [attr.data-testid]="'settings-plugin-section-' + pluginId()"
+>
+  <header class="settings-plugin-section__header">
+    <h2 class="settings-plugin-section__title" data-testid="settings-plugin-section-title">
+      {{ pluginId() }}
+    </h2>
+    <p class="settings-plugin-section__intro">{{ texts.pluginSection.intro }}</p>
+  </header>
+
+  <div class="settings-plugin-section__extensions">
+    @for (entry of settingsExtensions(); track entry.key) {
+      <div
+        class="settings-plugin-section__extension"
+        [attr.data-testid]="'settings-plugin-section-ext-' + entry.key"
+      >
+        <h3 class="settings-plugin-section__subtitle">{{ entry.ext.id }}</h3>
+        <div
+          class="settings-plugin-section__form"
+          role="group"
+          [attr.aria-label]="texts.pluginSection.formA11y(entry.key)"
+        >
+          @for (decl of entry.declarations; track decl.id) {
+            <div
+              class="settings-plugin-section__setting"
+              [attr.data-testid]="'settings-plugin-section-setting-' + entry.key + '-' + decl.id"
+            >
+              <sm-input-type-control
+                [descriptor]="settingDescriptor(entry.ext, decl)"
+                [value]="settingValue(entry.key, decl.id)"
+                (valueChange)="onSettingChange(entry.key, decl.id, $event)"
+              />
+              @if (settingDescription(decl); as description) {
+                <p class="settings-plugin-section__setting-description">{{ description }}</p>
+              }
+            </div>
+          }
+        </div>
+      </div>
+    }
+  </div>
+</section>

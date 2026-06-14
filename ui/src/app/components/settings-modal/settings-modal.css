@@ -105,3 +105,54 @@
   flex: 1;
   min-height: 0;
 }
+
+/* Global footer (Discard / Apply), rendered via the dialog's `#footer`
+ * content-child template. PrimeNG wraps it in `.p-dialog-footer`; this
+ * inner flex row holds the status cluster + the two buttons. Shown only
+ * when at least one buffered surface is dirty. */
+.settings-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+/* Left status cluster: the unsaved-changes line plus the optional
+ * restart hint / apply error, stacked. `margin-right: auto` pushes the
+ * Discard / Apply buttons to the far end. */
+.settings-modal__footer-status {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  margin-right: auto;
+  min-width: 0;
+}
+
+/* Unsaved-changes line. Compact, warn-toned, single line, ellipsised if
+ * the footer ever gets too narrow for it. */
+.settings-modal__footer-message {
+  font-size: 0.8125rem;
+  line-height: 1.3;
+  color: color-mix(in oklab, var(--p-message-warn-color) 80%, var(--p-text-color));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Italic restart hint, sits under the unsaved-changes line. Tone matches
+ * the warn palette used by the Plugins panel's per-row hint. */
+.settings-modal__footer-hint {
+  font-style: italic;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--p-warn-color);
+}
+
+/* Apply-failure line, error-toned, under the status cluster. The buffers
+ * stay dirty so the user can retry or discard. */
+.settings-modal__footer-error {
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--p-message-error-color);
+}

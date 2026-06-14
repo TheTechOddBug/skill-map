@@ -3,21 +3,25 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 
 import { SettingsPlugins } from '../settings-plugins';
+import { SettingsBufferService } from '../settings-buffer.service';
 import { ScanTriggerService } from '../../../services/scan-trigger';
 import {
   DATA_SOURCE,
   type IDataSourcePort,
+  type IPluginChange,
 } from '../../../../services/data-source/data-source.port';
 import type { IListEnvelopeApi, IPluginItemApi } from '../../../../models/api';
 
 /**
- * SettingsPlugins, coverage for the buffered-edit flow:
+ * SettingsPlugins, coverage for the buffered-toggle flow now that the
+ * panel is one of several buffered owners (operator settings moved into
+ * the per-plugin sections, and the global Apply lives in the chassis):
  *   - `visible()` flipping to true triggers `listPlugins()`.
  *   - plugin / extension toggles mutate `pendingState` only, they do
  *     NOT call the data-source's single-id PATCH endpoints.
  *   - `dirtyIds` tracks the diff against `originalState`.
- *   - `applyChanges()` ships the bulk PATCH and triggers a scan.
- *   - `discardChanges()` resets pending back to the original snapshot.
+ *   - the registered buffer owner's `collectChanges()` projects the
+ *     dirty deltas; `reseed()` clears them; `discardChanges()` reverts.
  *   - `startsAsDisabled` rows surface the per-row hint when the user
  *     re-enables them in the buffer.
  *
@@ -70,9 +74,8 @@ function plugin(
 
 /**
  * Convenience helper: flip the plugin's first extension via
- * `onExtensionToggle`. Replaces the legacy `onBundleToggle` calls now
- * that the plugin itself has no toggle axis. Returns the qualified id
- * the dirty-state tracking should report against.
+ * `onExtensionToggle`. Returns the qualified id the dirty-state tracking
+ * should report against.
  */
 function toggleBundleAggregate(
   cmp: SettingsPlugins,
@@ -111,34 +114,38 @@ function extensionPlugin(
 interface IBootstrapResult {
   cmp: SettingsPlugins;
   fixture: ReturnType<typeof TestBed.createComponent<SettingsPlugins>>;
-  scanRun: ReturnType<typeof vi.fn>;
+  buffer: SettingsBufferService;
 }
 
 function bootstrap(stub: Partial<IDataSourcePort>): IBootstrapResult {
   TestBed.resetTestingModule();
   // SettingsPlugins persists `kindFilter` and the `collapsed` set to
   // localStorage; a stale value from a previous test would silently
-  // bleed into the next bootstrap and cause filters to look mis-
-  // behaved (e.g. `kindFilter='analyzer'` would hide every
-  // granularity=bundle row with `kinds: ['provider']`). Clearing
-  // before each TestBed instance gives every spec a clean slate.
+  // bleed into the next bootstrap. Clearing before each TestBed instance
+  // gives every spec a clean slate.
   try {
     localStorage.clear();
   } catch {
     // jsdom should always have localStorage; guard defensively.
   }
-  const scanRun = vi.fn().mockResolvedValue(undefined);
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(),
       { provide: DATA_SOURCE, useValue: stub },
-      { provide: ScanTriggerService, useValue: { run: scanRun, scanning: () => false, scanError: () => null } },
+      // Stub the scan trigger so injecting the real SettingsBufferService
+      // does not pull the CollectionLoader / WS chain (whose
+      // `dataSource.events()` is not on these stubs) into construction.
+      {
+        provide: ScanTriggerService,
+        useValue: { run: vi.fn().mockResolvedValue(undefined), scanning: () => false, scanError: () => null },
+      },
     ],
   });
+  const buffer = TestBed.inject(SettingsBufferService);
   const fixture = TestBed.createComponent(SettingsPlugins);
   fixture.componentRef.setInput('visible', false);
   fixture.detectChanges();
-  return { cmp: fixture.componentInstance, fixture, scanRun };
+  return { cmp: fixture.componentInstance, fixture, buffer };
 }
 
 // Convenience: hop through two microtasks so the `effect` that calls
@@ -234,7 +241,6 @@ describe('SettingsPlugins, buffered toggle dispatch', () => {
     fixture.detectChanges();
     await flushAsync();
 
-    const toggles = cmp as unknown as ITogglesProtoApi;
     toggleBundleAggregate(cmp, items[0], false);
     expect(cmp.dirtyIds().has('claude/claude')).toBe(true);
     toggleBundleAggregate(cmp, items[0], true);
@@ -243,151 +249,95 @@ describe('SettingsPlugins, buffered toggle dispatch', () => {
   });
 });
 
-describe('SettingsPlugins, applyChanges', () => {
-  it('ships only the dirty entries in one bulk PATCH and triggers a scan', async () => {
-    const items = [
-      plugin('claude'),
-      plugin('gemini'),
-    ];
+describe('SettingsPlugins, buffer-owner registration', () => {
+  it('registers an owner whose collectChanges projects the dirty toggle deltas', async () => {
+    const items = [plugin('claude'), plugin('gemini')];
     const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
-    const applyPluginChanges = vi.fn().mockResolvedValue(
-      pluginsEnvelope([plugin('claude', 'disabled'), plugin('gemini')]),
-    );
-    const { cmp, fixture, scanRun } = bootstrap({
-      listPlugins,
-      applyPluginChanges,
-    } as Partial<IDataSourcePort>);
+    const { cmp, fixture, buffer } = bootstrap({ listPlugins } as Partial<IDataSourcePort>);
 
     fixture.componentRef.setInput('visible', true);
     fixture.detectChanges();
     await flushAsync();
 
-    toggleBundleAggregate(cmp, items[0], false);
-    // gemini stays at its original value, should NOT be in the diff.
-    await cmp.applyChanges();
+    // The chassis-facing service sees the owner's dirty count.
+    expect(buffer.dirtyCount()).toBe(0);
 
-    expect(applyPluginChanges).toHaveBeenCalledTimes(1);
-    // Bulk PATCH now ships qualified `<plugin>/<ext>` ids (the toggle
-    // axis lives on the extension, not the plugin).
-    expect(applyPluginChanges).toHaveBeenCalledWith([
+    toggleBundleAggregate(cmp, items[0], false);
+    // gemini stays unchanged, only claude/claude is collected.
+    expect(buffer.dirtyCount()).toBe(1);
+    expect(collectViaOwner(cmp)).toEqual([
       { id: 'claude/claude', enabled: false },
     ]);
-    expect(scanRun).toHaveBeenCalledTimes(1);
-    // Post-apply, dirty is cleared (originalState == pendingState).
+  });
+
+  it('reseed via the owner clears the dirty markers from a post-write list', async () => {
+    const before = [plugin('claude')];
+    const after = [plugin('claude', 'disabled')];
+    const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(before));
+    const { cmp, fixture } = bootstrap({ listPlugins } as Partial<IDataSourcePort>);
+
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+
+    toggleBundleAggregate(cmp, before[0], false);
+    expect(cmp.hasPendingChanges()).toBe(true);
+
+    reseedViaOwner(cmp, after);
     expect(cmp.hasPendingChanges()).toBe(false);
   });
 
-  it('does nothing when there are no dirty entries', async () => {
-    const items = [plugin('claude')];
-    const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
-    const applyPluginChanges = vi.fn();
-    const { cmp, fixture, scanRun } = bootstrap({
-      listPlugins,
-      applyPluginChanges,
-    } as Partial<IDataSourcePort>);
-
-    fixture.componentRef.setInput('visible', true);
-    fixture.detectChanges();
-    await flushAsync();
-
-    await cmp.applyChanges();
-
-    expect(applyPluginChanges).not.toHaveBeenCalled();
-    expect(scanRun).not.toHaveBeenCalled();
-  });
-
-  it('emits the `applied` output exactly once on a successful apply', async () => {
-    const items = [plugin('claude')];
-    const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
-    const applyPluginChanges = vi.fn().mockResolvedValue(
-      pluginsEnvelope([plugin('claude', 'disabled')]),
-    );
-    const { cmp, fixture } = bootstrap({
-      listPlugins,
-      applyPluginChanges,
-    } as Partial<IDataSourcePort>);
-    fixture.componentRef.setInput('visible', true);
-    fixture.detectChanges();
-    await flushAsync();
-
-    const appliedSpy = vi.fn();
-    cmp.applied.subscribe(appliedSpy);
-
-    toggleBundleAggregate(cmp, items[0], false);
-    await cmp.applyChanges();
-
-    expect(appliedSpy).toHaveBeenCalledTimes(1);
-  });
-
-  it('does NOT emit `applied` when applyChanges fails (modal stays open)', async () => {
-    const items = [plugin('claude')];
-    const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
-    const applyPluginChanges = vi.fn().mockRejectedValue(new Error('boom'));
-    const { cmp, fixture } = bootstrap({
-      listPlugins,
-      applyPluginChanges,
-    } as Partial<IDataSourcePort>);
-    fixture.componentRef.setInput('visible', true);
-    fixture.detectChanges();
-    await flushAsync();
-
-    const appliedSpy = vi.fn();
-    cmp.applied.subscribe(appliedSpy);
-
-    toggleBundleAggregate(cmp, items[0], false);
-    await cmp.applyChanges();
-
-    expect(appliedSpy).not.toHaveBeenCalled();
-    // Buffer stays dirty so the user can retry or discard.
-    expect(cmp.hasPendingChanges()).toBe(true);
-  });
-});
-
-describe('SettingsPlugins, restartRecommended footer hint', () => {
-  it('is true when a dirty row is re-enabling a startsAsDisabled plugin', async () => {
-    const items = [
-      plugin('was-off', 'disabled', undefined, { startsAsDisabled: true }),
-      plugin('claude'),
-    ];
-    const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
-    const { cmp, fixture } = bootstrap({ listPlugins } as Partial<IDataSourcePort>);
-    fixture.componentRef.setInput('visible', true);
-    fixture.detectChanges();
-    await flushAsync();
-
-    // No dirty rows yet, the hint is silent.
-    expect(
-      (cmp as unknown as { restartRecommended(): boolean }).restartRecommended(),
-    ).toBe(false);
-
-    // Toggle the startsAsDisabled plugin back on, hint fires.
-    toggleBundleAggregate(cmp, items[0], true);
-    expect(
-      (cmp as unknown as { restartRecommended(): boolean }).restartRecommended(),
-    ).toBe(true);
-  });
-
-  it('is false when only non-startsAsDisabled plugins are dirty', async () => {
+  it('discardChanges via the owner reverts pending toggles', async () => {
     const items = [plugin('claude')];
     const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
     const { cmp, fixture } = bootstrap({ listPlugins } as Partial<IDataSourcePort>);
+
     fixture.componentRef.setInput('visible', true);
     fixture.detectChanges();
     await flushAsync();
 
     toggleBundleAggregate(cmp, items[0], false);
     expect(cmp.hasPendingChanges()).toBe(true);
-    expect(
-      (cmp as unknown as { restartRecommended(): boolean }).restartRecommended(),
-    ).toBe(false);
+
+    discardViaOwner(cmp);
+    expect(cmp.hasPendingChanges()).toBe(false);
   });
 });
+
+/**
+ * Reach into the registered buffer owner. The component registers it on
+ * the service on construction; rather than mock the whole service we read
+ * back its captured contract through the private field exposed by the
+ * test cast (the public surface is the owner, not these methods).
+ */
+interface IOwnerProbe {
+  collectChanges(): IPluginChange[];
+  reseed(plugins: IPluginItemApi[]): void;
+  discardChanges(): void;
+}
+
+function ownerOf(cmp: SettingsPlugins): IOwnerProbe {
+  // The component wires the owner from its `pluginState` handle; the
+  // handle's methods are the same the owner delegates to, so probing the
+  // handle is equivalent to probing the owner the service holds.
+  const state = (cmp as unknown as { pluginState: IOwnerProbe }).pluginState;
+  return state;
+}
+
+function collectViaOwner(cmp: SettingsPlugins): IPluginChange[] {
+  return ownerOf(cmp).collectChanges();
+}
+
+function reseedViaOwner(cmp: SettingsPlugins, plugins: IPluginItemApi[]): void {
+  ownerOf(cmp).reseed(plugins);
+}
+
+function discardViaOwner(cmp: SettingsPlugins): void {
+  ownerOf(cmp).discardChanges();
+}
 
 describe('SettingsPlugins, chevron honours user choice over filter forcing', () => {
   it('toggleExpanded collapses a granularity=extension plugin even with an active kind filter', async () => {
-    // Regression for the bug where `forcedExpand` overrode `collapsed`
-    // while a filter was active, the chevron looked unresponsive
-    // because the row stayed visually expanded after the click.
     const items = [
       extensionPlugin(
         'core',
@@ -410,47 +360,17 @@ describe('SettingsPlugins, chevron honours user choice over filter forcing', () 
       toggleExpanded(id: string): void;
     };
     const view = cmp as unknown as IExpand;
-    // Activate a kind filter so the old code path's forcedExpand would
-    // have kicked in.
     view.kindFilter.set('analyzer');
     fixture.detectChanges();
-    // Default for granularity=extension plugins is expanded.
     expect(view.isExpanded('core')).toBe(true);
 
-    // Click the chevron, user wants to collapse.
     view.toggleExpanded('core');
     fixture.detectChanges();
     expect(view.isExpanded('core')).toBe(false);
 
-    // Click again, user wants to expand.
     view.toggleExpanded('core');
     fixture.detectChanges();
     expect(view.isExpanded('core')).toBe(true);
-  });
-});
-
-describe('SettingsPlugins, discardChanges', () => {
-  it('resets pendingState to originalState without calling the data-source', async () => {
-    const items = [plugin('claude')];
-    const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
-    const applyPluginChanges = vi.fn();
-    const { cmp, fixture, scanRun } = bootstrap({
-      listPlugins,
-      applyPluginChanges,
-    } as Partial<IDataSourcePort>);
-
-    fixture.componentRef.setInput('visible', true);
-    fixture.detectChanges();
-    await flushAsync();
-
-    toggleBundleAggregate(cmp, items[0], false);
-    expect(cmp.hasPendingChanges()).toBe(true);
-
-    cmp.discardChanges();
-
-    expect(cmp.hasPendingChanges()).toBe(false);
-    expect(applyPluginChanges).not.toHaveBeenCalled();
-    expect(scanRun).not.toHaveBeenCalled();
   });
 });
 
@@ -471,14 +391,11 @@ describe('SettingsPlugins, startsAsDisabled per-row hint', () => {
       showStartsAsDisabledHint(p: IPluginItemApi): boolean;
     };
 
-    // Initial state: was-off is still off in the buffer, no hint.
     expect(hint.showStartsAsDisabledHint(items[0])).toBe(false);
 
-    // Toggle was-off → on (re-enable). Hint should fire.
     toggleBundleAggregate(cmp, items[0], true);
     expect(hint.showStartsAsDisabledHint(items[0])).toBe(true);
 
-    // claude has no startsAsDisabled flag at any toggle state.
     expect(hint.showStartsAsDisabledHint(items[1])).toBe(false);
   });
 });
@@ -577,7 +494,6 @@ describe('SettingsPlugins, runtime contribution errors', () => {
     expect(badge).not.toBeNull();
     expect(badge?.textContent).toContain('1 runtime error');
 
-    // The clean plugin renders no badge.
     expect(
       host.querySelector('[data-testid="settings-row-runtime-errors-claude"]'),
     ).toBeNull();
@@ -606,7 +522,6 @@ describe('SettingsPlugins, runtime contribution errors', () => {
     fixture.detectChanges();
 
     const host = fixture.nativeElement as HTMLElement;
-    // Collapsed by default, the list is not rendered.
     expect(
       host.querySelector('[data-testid="settings-runtime-errors-beacon"]'),
     ).toBeNull();
@@ -638,27 +553,5 @@ describe('SettingsPlugins, error surface', () => {
 
     const protectedErr = (cmp as unknown as { loadError: { (): string | null } }).loadError();
     expect(protectedErr).toBe('boom');
-  });
-
-  it('surfaces applyChanges errors via toggleError', async () => {
-    const items = [plugin('claude')];
-    const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
-    const applyPluginChanges = vi.fn().mockRejectedValue(new Error('apply failed'));
-    const { cmp, fixture } = bootstrap({
-      listPlugins,
-      applyPluginChanges,
-    } as Partial<IDataSourcePort>);
-
-    fixture.componentRef.setInput('visible', true);
-    fixture.detectChanges();
-    await flushAsync();
-
-    toggleBundleAggregate(cmp, items[0], false);
-    await cmp.applyChanges();
-
-    const err = (cmp as unknown as { toggleError: { (): string | null } }).toggleError();
-    expect(err).toBe('apply failed');
-    // The buffer remains dirty so the user can retry or discard.
-    expect(cmp.hasPendingChanges()).toBe(true);
   });
 });
