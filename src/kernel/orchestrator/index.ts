@@ -126,6 +126,7 @@ import {
   applyPostWalkTransforms,
   type IPostWalkTransformCtx,
 } from './post-walk-transforms.js';
+import { collectBrokenLinks } from './lift-resolved-link-confidence.js';
 import { resolveSignals } from './resolver.js';
 import { normalizeTrigger } from '../trigger-normalize.js';
 import {
@@ -576,6 +577,11 @@ async function runScanInternal(
   // both feed into the same dedup / lift pipeline.
   const postWalkCtx = buildPostWalkTransformCtx(exts.providers, walked.nodes, activeProviderId);
   walked.internalLinks = applyPostWalkTransforms(walked.internalLinks, walked.nodes, postWalkCtx);
+  // Genuinely-broken verdict, computed once from the same name index the
+  // lift uses and threaded to analyzers so `core/reference-broken`
+  // projects it instead of re-deriving a narrower (frontmatter-name-only)
+  // index that disagreed with the lift on filename / dirname identifiers.
+  const brokenLinks = collectBrokenLinks(walked.internalLinks, walked.nodes, postWalkCtx);
 
   // External pseudo-links (target is http(s)://) drive `externalRefsCount`
   // and are then dropped: never persisted, never seen by analyzers, never in
@@ -607,6 +613,7 @@ async function runScanInternal(
     emitter,
     hookDispatcher,
     postWalkCtx.reservedNodePaths,
+    brokenLinks,
     walked.signals,
     // Seed the accumulator with orchestrator-emitted frontmatter
     // issues so the aggregate phase (`core/issue-counter`) counts

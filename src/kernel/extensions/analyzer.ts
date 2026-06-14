@@ -129,6 +129,20 @@ export interface IAnalyzerContext {
    */
   reservedNodePaths?: ReadonlySet<string>;
   /**
+   * Links the post-walk lift judged genuinely broken: target matches no
+   * node `path` AND the stripped trigger matches no entry in the cross-
+   * kind name index (`spec/architecture.md` §Provider · resolution
+   * rules). Computed once per scan by the orchestrator from the same
+   * `deriveNodeIdentifiers`-backed index the confidence-lift transform
+   * uses, so a link that resolves only via a filename / dirname
+   * identifier is NOT in the set. Membership is by object identity (the
+   * orchestrator threads the SAME link objects). The single consumer is
+   * `core/reference-broken`, which projects one issue per member (after
+   * its `referenceablePaths` escape hatch). Absent for legacy callers
+   * that never wired the field through, the rule then emits nothing.
+   */
+  brokenLinks?: ReadonlySet<Link>;
+  /**
    * Absolute path of the scan's project root (cwd of the invocation).
    * Threaded into the analyzer pass so an analyzer that needs to
    * resolve a relative `link.target` to an absolute filesystem path

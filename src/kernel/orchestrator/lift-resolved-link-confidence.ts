@@ -107,6 +107,39 @@ export function liftResolvedLinkConfidence(
 }
 
 /**
+ * Set of genuinely-broken links: those whose target resolves to no node
+ * at all (no `path` match, and the stripped `trigger.normalizedTrigger`
+ * matches no entry in the cross-kind name index). This is the kind-
+ * AGNOSTIC "the name exists nowhere" notion the spec pins for both the
+ * broken-confidence downgrade above and `core/reference-broken`
+ * (`spec/architecture.md` §Provider · resolution rules): the rule
+ * projects this verdict instead of re-deriving a narrower index. Built
+ * from the same `deriveNodeIdentifiers`-backed `byName` the lift uses,
+ * so a `@filed-agent` / `/nameless-skill` that resolves only via the
+ * filename / dirname identifier is NOT broken, matching what the lift
+ * resolved and the graph drew.
+ *
+ * Checks EVERY link regardless of confidence: annotation-derived links
+ * emit at `1.0` yet can still dangle, and `liftResolvedLinkConfidence`
+ * skips already-confident links. Membership is by object identity; the
+ * orchestrator threads the SAME link objects on to the analyzer phase,
+ * so `ctx.brokenLinks.has(link)` is exact.
+ */
+export function collectBrokenLinks(
+  links: readonly Link[],
+  nodes: readonly Node[],
+  ctx: IPostWalkTransformCtx,
+): Set<Link> {
+  const broken = new Set<Link>();
+  if (links.length === 0) return broken;
+  const indexes = buildIndexes(nodes, ctx);
+  for (const link of links) {
+    if (isGenuinelyBroken(link, indexes)) broken.add(link);
+  }
+  return broken;
+}
+
+/**
  * Per-link confidence decision against the resolved graph, mutating the
  * link in place. Split out of `liftResolvedLinkConfidence` to keep that
  * function's branch count under the lint complexity cap; the five

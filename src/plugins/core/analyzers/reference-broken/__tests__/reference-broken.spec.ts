@@ -44,7 +44,11 @@ function fakeLink(source: string, target: string): Link {
   };
 }
 
-function run(nodes: Node[], links: Link[]): {
+// `reference-broken` is a pure projector of the orchestrator's
+// genuinely-broken verdict, so the unit test supplies `brokenLinks`
+// directly (the kind-agnostic detection itself lives in the lift's
+// `collectBrokenLinks`, covered by that module's tests).
+function run(nodes: Node[], links: Link[], brokenLinks: Set<Link>): {
   issues: { nodeIds: readonly string[]; severity: string }[];
   contributions: { nodePath: string; id: string; payload: unknown }[];
 } {
@@ -52,6 +56,7 @@ function run(nodes: Node[], links: Link[]): {
   const result = referenceBrokenAnalyzer.evaluate({
     nodes,
     links,
+    brokenLinks,
     emitContribution: (nodePath: string, id: string, payload: unknown) =>
       contributions.push({ nodePath, id, payload }),
   } as unknown as IAnalyzerContext);
@@ -60,17 +65,18 @@ function run(nodes: Node[], links: Link[]): {
 }
 
 describe('broken-ref analyzer, issue emission', () => {
-  it('emits nothing when every link resolves', () => {
+  it('emits nothing when no link is in the broken set', () => {
     const a = fakeNode('a.md');
     const b = fakeNode('b.md');
-    const { issues, contributions } = run([a, b], [fakeLink('a.md', 'b.md')]);
+    const { issues, contributions } = run([a, b], [fakeLink('a.md', 'b.md')], new Set());
     strictEqual(issues.length, 0);
     strictEqual(contributions.length, 0);
   });
 
   it('emits 1 issue per broken ref', () => {
     const a = fakeNode('a.md');
-    const { issues, contributions } = run([a], [fakeLink('a.md', 'missing.md')]);
+    const link = fakeLink('a.md', 'missing.md');
+    const { issues, contributions } = run([a], [link], new Set([link]));
     strictEqual(issues.length, 1);
     strictEqual(issues[0]!.severity, 'error');
     deepStrictEqual(issues[0]!.nodeIds, ['a.md']);
@@ -86,9 +92,20 @@ describe('broken-ref analyzer, issue emission', () => {
       fakeLink('a.md', 'missing-2.md'),
       fakeLink('a.md', 'missing-3.md'),
     ];
-    const { issues, contributions } = run([a], links);
+    const { issues, contributions } = run([a], links, new Set(links));
     strictEqual(issues.length, 3, 'three issues, one per broken link');
     strictEqual(contributions.length, 0, 'no per-analyzer chip; aggregated by issue-counter');
+  });
+
+  it('skips a link that is NOT in the broken set even if its target looks unresolvable', () => {
+    // The projector trusts the orchestrator verdict: a link the lift
+    // resolved via a filename / dirname identifier is absent from
+    // `brokenLinks`, so the rule does not flag it (the old
+    // frontmatter-name-only index used to false-positive here).
+    const caller = fakeNode('caller.md');
+    const resolvedByFilename = fakeLink('caller.md', '@filed-agent');
+    const { issues } = run([caller], [resolvedByFilename], new Set());
+    strictEqual(issues.length, 0);
   });
 
   it('declares no `ui` surface (issue chip is owned by `core/issue-counter`)', () => {

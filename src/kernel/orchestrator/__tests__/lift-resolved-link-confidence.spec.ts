@@ -30,6 +30,7 @@ import { strictEqual, deepStrictEqual } from 'node:assert';
 
 import {
   liftResolvedLinkConfidence,
+  collectBrokenLinks,
   RESERVED_TARGET_CONFIDENCE,
   BROKEN_TARGET_CONFIDENCE,
 } from '../lift-resolved-link-confidence.js';
@@ -596,5 +597,68 @@ describe('liftResolvedLinkConfidence', () => {
     liftResolvedLinkConfidence(links, nodes, makeCtx());
     strictEqual(links[0]!.confidence, 0.85);
     strictEqual(links[0]!.resolvedTarget, 'mcp://images');
+  });
+});
+
+describe('collectBrokenLinks', () => {
+  it('does NOT mark a mention resolved via filename-basename as broken', () => {
+    // `@filed` resolves to `filed.md` via the filename identifier, even
+    // though the node's `frontmatter.name` is a different string. This
+    // is the case the old frontmatter-name-only reference-broken index
+    // false-flagged.
+    const nodes = [
+      mockNode({ path: '.claude/agents/src.md', kind: 'agent', frontmatter: { name: 'src' } }),
+      mockNode({
+        path: '.claude/agents/filed.md',
+        kind: 'agent',
+        frontmatter: { name: 'real-agent-name' },
+      }),
+    ];
+    const links = [mockMention('@filed', 'filed', '.claude/agents/src.md')];
+    const broken = collectBrokenLinks(links, nodes, makeCtx());
+    strictEqual(broken.has(links[0]!), false);
+  });
+
+  it('does NOT mark a slash resolved via dirname (skill without name) as broken', () => {
+    const nodes = [
+      mockNode({ path: 'src.md', kind: 'markdown', provider: 'core', frontmatter: {} }),
+      mockNode({ path: '.claude/skills/nameless/SKILL.md', kind: 'skill', frontmatter: {} }),
+    ];
+    const links = [mockSlash('/nameless', '/nameless', 'src.md')];
+    const broken = collectBrokenLinks(links, nodes, makeCtx());
+    strictEqual(broken.has(links[0]!), false);
+  });
+
+  it('marks a mention with no matching node anywhere as broken', () => {
+    const nodes = [
+      mockNode({ path: '.claude/agents/src.md', kind: 'agent', frontmatter: { name: 'src' } }),
+    ];
+    const links = [mockMention('@ghost', 'ghost', '.claude/agents/src.md')];
+    const broken = collectBrokenLinks(links, nodes, makeCtx());
+    strictEqual(broken.has(links[0]!), true);
+  });
+
+  it('checks path-style links at confidence 1.0 too (annotation dangling ref)', () => {
+    const nodes = [
+      mockNode({ path: 'a.md', kind: 'markdown', provider: 'core', frontmatter: {} }),
+      mockNode({ path: 'real.md', kind: 'markdown', provider: 'core', frontmatter: {} }),
+    ];
+    const good: Link = {
+      source: 'a.md',
+      target: 'real.md',
+      kind: 'references',
+      confidence: 1.0,
+      sources: ['annotations'],
+    };
+    const bad: Link = {
+      source: 'a.md',
+      target: 'ghost.md',
+      kind: 'references',
+      confidence: 1.0,
+      sources: ['annotations'],
+    };
+    const broken = collectBrokenLinks([good, bad], nodes, makeCtx());
+    strictEqual(broken.has(good), false);
+    strictEqual(broken.has(bad), true);
   });
 });

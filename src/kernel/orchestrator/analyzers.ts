@@ -62,6 +62,7 @@ export async function runAnalyzers(
   emitter: ProgressEmitterPort,
   hookDispatcher: IHookDispatcher,
   reservedNodePaths: ReadonlySet<string> | undefined,
+  brokenLinks: ReadonlySet<Link> | undefined,
   signals: readonly Signal[] | undefined,
   // Pre-analyzer issues (e.g. orchestrator-side
   // `frontmatter-parse-error` / `frontmatter-invalid`) seeded into the
@@ -187,6 +188,7 @@ export async function runAnalyzers(
       ...(referenceablePaths ? { referenceablePaths } : {}),
       ...(cwd ? { cwd } : {}),
       ...(reservedNodePaths ? { reservedNodePaths } : {}),
+      ...(brokenLinks ? { brokenLinks } : {}),
       ...(signals && signals.length > 0 ? { signals } : {}),
       emitContribution,
     });

@@ -96,7 +96,7 @@ describe('core/name-reserved rule', () => {
     assert.equal(helpIssue.severity, 'warn');
     assert.equal(helpIssue.analyzerId, 'name-reserved');
     assert.deepEqual(helpIssue.data, { provider: 'claude', kind: 'command', surface: 'target' });
-    assert.match(helpIssue.message, /Built-in claude command/);
+    assert.match(helpIssue.message, /Name collision: this command name is already used by the claude/);
     const generalIssue = byPath.get(generalAgent.path);
     assert.ok(generalIssue);
     assert.deepEqual(generalIssue.data, { provider: 'claude', kind: 'agent', surface: 'target' });
@@ -139,6 +139,9 @@ describe('core/name-reserved rule', () => {
         originalTrigger: '@general-purpose',
         normalizedTrigger: '@general purpose',
       },
+      // The lift stamps the reserved node's path before downgrading;
+      // the analyzer reads it back instead of re-deriving identifiers.
+      resolvedTarget: generalAgent.path,
     };
     const issues = await nameReservedAnalyzer.evaluate(
       ctxWith({
@@ -160,7 +163,7 @@ describe('core/name-reserved rule', () => {
     assert.equal(data['reservedPath'], generalAgent.path);
     assert.equal(data['reservedProvider'], 'claude');
     assert.equal(data['reservedKind'], 'agent');
-    assert.match(sourceSide.message, /Resolves to a claude built-in/);
+    assert.match(sourceSide.message, /Name collision: resolves to a claude built-in/);
     assert.match(sourceSide.message, /confidence 0\.10/);
   });
 

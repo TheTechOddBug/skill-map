@@ -71,11 +71,17 @@ export const nameReservedAnalyzer: IBuiltInManifest<IAnalyzer> = {
     // with `data.target` matching the link, so a UI listing the source's
     // outgoing links can correlate per-row. Sentinel sharing is
     // intentional: the lift sets EXACTLY this value when (and only when)
-    // a reserved-target resolution wins, so the analyzer reads the same
-    // signal without re-implementing the resolution logic.
+    // a reserved-target resolution wins, and stamps `link.resolvedTarget`
+    // with that reserved node's path in the same pass, so the analyzer
+    // reads the resolved path back instead of re-deriving any identifier.
     for (const link of ctx.links) {
       if (link.confidence !== RESERVED_TARGET_CONFIDENCE) continue;
-      const reservedNode = findReservedNodeForLink(link, reserved, byPath);
+      // A sentinel value that did not come from a reserved resolution (no
+      // `resolvedTarget`, or one pointing outside the reserved set) is
+      // left alone, the source-side finding would not be safe to synthesise.
+      const reservedPath = link.resolvedTarget;
+      if (!reservedPath || !reserved.has(reservedPath)) continue;
+      const reservedNode = byPath.get(reservedPath);
       if (!reservedNode) continue;
       issues.push({
         analyzerId: ID,
@@ -116,71 +122,3 @@ function linkWhereSuffix(link: Link): string {
   });
 }
 
-/**
- * Best-effort lookup for the reserved node a downgraded link resolves
- * to. Tries the path-style match first (`link.target` IS the reserved
- * node's path), then falls back to scanning the reserved set for a node
- * whose name matches the link's stripped normalised trigger. Returns
- * `null` only when neither path nor name evidence points at a reserved
- * node, which would mean the sentinel confidence came from a code path
- * outside the lift transform and the source-side finding is not safe to
- * synthesise.
- */
-// eslint-disable-next-line complexity
-function findReservedNodeForLink(
-  link: Link,
-  reserved: ReadonlySet<string>,
-  byPath: Map<string, Node>,
-): Node | null {
-  if (reserved.has(link.target)) {
-    const node = byPath.get(link.target);
-    if (node) return node;
-  }
-  const trigger = link.trigger?.normalizedTrigger;
-  if (!trigger) return null;
-  const stripped = trigger.replace(/^[/@]/, '').trim();
-  if (stripped.length === 0) return null;
-  for (const path of reserved) {
-    const node = byPath.get(path);
-    if (!node) continue;
-    if (matchesNodeIdentifier(node, stripped)) return node;
-  }
-  return null;
-}
-
-/**
- * Cheap identifier check, the analyzer is not in the post-walk indexes
- * loop so it cannot reuse `deriveNodeIdentifiers` directly without
- * threading the kindRegistry through. Hash-comparing the stripped
- * trigger against the node's `frontmatter.name`, filename basename, and
- * dirname covers every identifier source the closed-catalog
- * `TIdentifierSource` enum (`frontmatter.name` | `filename-basename` |
- * `dirname`) admits today. New sources land here when the enum grows.
- */
-// eslint-disable-next-line complexity
-function matchesNodeIdentifier(node: Node, stripped: string): boolean {
-  const candidates: string[] = [];
-  const fmName = node.frontmatter?.['name'];
-  if (typeof fmName === 'string' && fmName.length > 0) candidates.push(normaliseId(fmName));
-  const basename = node.path.split('/').pop() ?? '';
-  if (basename) {
-    const stem = basename.replace(/\.[^.]+$/, '');
-    if (stem) candidates.push(normaliseId(stem));
-  }
-  const segs = node.path.split('/');
-  if (segs.length >= 2) {
-    const dirBase = segs[segs.length - 2];
-    if (dirBase) candidates.push(normaliseId(dirBase));
-  }
-  return candidates.includes(stripped);
-}
-
-function normaliseId(raw: string): string {
-  return raw
-    .normalize('NFD')
-    .replace(/\p{Mn}+/gu, '')
-    .toLowerCase()
-    .replace(/[-_\s]+/g, ' ')
-    .replace(/  +/g, ' ')
-    .trim();
-}

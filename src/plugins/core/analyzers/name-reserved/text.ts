@@ -13,7 +13,7 @@ export const NAME_RESERVED_TEXTS = {
    * source-side link finding landed.
    */
   message:
-    'Built-in {{provider}} {{kind}}:\nShadowed by this file; the runtime uses its built-in instead. Rename the file or its `frontmatter.name`.',
+    'Name collision: this {{kind}} name is already used by the {{provider}} runtime built-in, which shadows this file. Rename the file or its `frontmatter.name`.',
   /**
    * Source-side message: emitted on the node that AUTHORED a link
    * whose target resolves to a reserved name. Explains WHY the link's
@@ -22,7 +22,7 @@ export const NAME_RESERVED_TEXTS = {
    * the edge so the operator notices.
    */
   linkMessage:
-    '{{target}}:\nResolves to a {{provider}} built-in ({{reservedKind}} `{{reservedPath}}`){{where}}; edge downgraded to confidence {{confidence}}. Rename the target file or its `frontmatter.name`.',
+    '{{target}}:\nName collision: resolves to a {{provider}} built-in ({{reservedKind}} `{{reservedPath}}`){{where}}; the built-in wins, so this edge drops to confidence {{confidence}}. Rename the target file or its `frontmatter.name`.',
   /** Location suffix after the built-in parens, one detection site. */
   whereSingle: ' (line {{lines}})',
   /** Location suffix after the built-in parens, several detection sites. */

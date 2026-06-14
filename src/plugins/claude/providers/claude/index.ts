@@ -45,6 +45,50 @@ import agentSchema from './schemas/agent.schema.json' with { type: 'json' };
 import commandSchema from './schemas/command.schema.json' with { type: 'json' };
 import { CLAUDE_PLUGIN_ID } from '../../../ids.js';
 
+// Built-in slash-command names documented at
+// https://docs.claude.com/en/docs/claude-code/slash-commands. These
+// occupy the `/` invocation namespace, which the claude resolution
+// matrix shares between `command` and `skill` (`invokes: ['command',
+// 'skill']`): typing `/help` runs the built-in, so a user `command` OR
+// `skill` named `help` is silently shadowed. Both kinds therefore
+// reserve the same list. The list drifts as Anthropic adds / removes
+// commands; updates ship via a kernel patch + changeset.
+const RESERVED_SLASH_NAMES = [
+  'help',
+  'clear',
+  'compact',
+  'cost',
+  'init',
+  'model',
+  'agents',
+  'login',
+  'logout',
+  'mcp',
+  'memory',
+  'config',
+  'doctor',
+  'permissions',
+  'add-dir',
+  'bug',
+  'pr-comments',
+  'release-notes',
+  'review',
+  'terminal-setup',
+  'vim',
+  'output-style',
+  'hooks',
+  'install-github-app',
+  'migrate-installer',
+  'upgrade',
+  'resume',
+  'exit',
+  'quit',
+  'security-review',
+  'statusline',
+  'usage',
+  'feedback',
+];
+
 export const claudeProvider: IBuiltInManifest<IProvider> = {
   id: 'claude',
   pluginId: CLAUDE_PLUGIN_ID,
@@ -204,53 +248,18 @@ export const claudeProvider: IBuiltInManifest<IProvider> = {
   // declaring one of these (e.g. `.claude/commands/help.md`) is
   // silently shadowed: the runtime runs the built-in instead.
   //
-  // - `command`: canonical list of built-in slash commands documented
-  //   at https://docs.claude.com/en/docs/claude-code/slash-commands.
-  //   The list will drift as Anthropic adds / removes commands;
-  //   updates ship via a kernel patch + changeset (the catalog is
-  //   considered API surface that users rely on the analyzer to
-  //   reflect).
-  // - `agent`: built-in agents Anthropic ships with the CLI. Smaller
+  // - `command` / `skill`: both reserve `RESERVED_SLASH_NAMES` (defined
+  //   above). Per the resolution matrix they share the `/` invocation
+  //   namespace, so a built-in slash command shadows a user node of
+  //   EITHER kind that claims its name (a `skill` named `help` is as
+  //   unreachable as a `command` named `help`). The catalog is API
+  //   surface users rely on the analyzer to reflect.
+  // - `agent`: built-in agents Anthropic ships with the CLI, invoked
+  //   through the `@` / Task namespace (separate from `/`). Smaller
   //   surface than commands today.
-  // - `skill`: no built-in skills today (skills are user-defined and
-  //   discovered from disk); the key is omitted on purpose, defaulting
-  //   to no reserved names for the kind.
   reservedNames: {
-    command: [
-      'help',
-      'clear',
-      'compact',
-      'cost',
-      'init',
-      'model',
-      'agents',
-      'login',
-      'logout',
-      'mcp',
-      'memory',
-      'config',
-      'doctor',
-      'permissions',
-      'add-dir',
-      'bug',
-      'pr-comments',
-      'release-notes',
-      'review',
-      'terminal-setup',
-      'vim',
-      'output-style',
-      'hooks',
-      'install-github-app',
-      'migrate-installer',
-      'upgrade',
-      'resume',
-      'exit',
-      'quit',
-      'security-review',
-      'statusline',
-      'usage',
-      'feedback',
-    ],
+    command: RESERVED_SLASH_NAMES,
+    skill: RESERVED_SLASH_NAMES,
     agent: [
       'general-purpose',
       'output-style-setup',

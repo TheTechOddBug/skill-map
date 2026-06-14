@@ -2,7 +2,6 @@ import { describe, it } from 'node:test';
 import { strictEqual, ok } from 'node:assert';
 
 import { triggerCollisionAnalyzer } from '../trigger-collision/index.js';
-import { referenceBrokenAnalyzer } from '../reference-broken/index.js';
 import { nodeSupersededAnalyzer } from '../node-superseded/index.js';
 import { linkConflictAnalyzer } from '../link-conflict/index.js';
 import type { Confidence, Issue, Link, LinkKind, Node, NodeKind } from '../../../../kernel/types.js';
@@ -155,42 +154,6 @@ describe('trigger-collision rule', () => {
       mockNode('b.md', 'deploy', {}, 'markdown'),
     ];
     const issues = await run(triggerCollisionAnalyzer, { nodes, links: [] });
-    strictEqual(issues.length, 0);
-  });
-});
-
-describe('broken-ref rule', () => {
-  it('resolves path-style targets against node.path', async () => {
-    const nodes = [mockNode('a.md'), mockNode('b.md')];
-    const links: Link[] = [
-      { source: 'a.md', target: 'b.md', kind: 'references', confidence: 0.9, sources: ['annotations'] },
-      { source: 'a.md', target: 'ghost.md', kind: 'references', confidence: 0.9, sources: ['annotations'] },
-    ];
-    const issues = await run(referenceBrokenAnalyzer, { nodes, links });
-    strictEqual(issues.length, 1);
-    strictEqual(issues[0]?.analyzerId, 'reference-broken');
-    strictEqual(issues[0]?.severity, 'error');
-    ok(issues[0]?.message.includes('ghost.md'));
-  });
-
-  it('resolves trigger-style targets against frontmatter.name', async () => {
-    const nodes = [mockNode('cmd/deploy.md', 'deploy')];
-    const links = [
-      invocation('a.md', '/deploy', '/deploy'),
-      invocation('a.md', '/unknown', '/unknown'),
-    ];
-    const issues = await run(referenceBrokenAnalyzer, { nodes, links });
-    strictEqual(issues.length, 1);
-    strictEqual(issues[0]?.message.includes('/unknown'), true);
-  });
-
-  it('strips the sigil + normalises before matching names', async () => {
-    const nodes = [mockNode('agents/backend.md', 'Backend-Architect')];
-    // Extractor output: @backend-architect normalizes to "@backend architect"
-    // (hyphen → space, @ preserved); rule strips the @ and matches the
-    // node whose name normalises to "backend architect".
-    const links = [invocation('note.md', '@backend-architect', '@backend architect', 'mentions')];
-    const issues = await run(referenceBrokenAnalyzer, { nodes, links });
     strictEqual(issues.length, 0);
   });
 });
