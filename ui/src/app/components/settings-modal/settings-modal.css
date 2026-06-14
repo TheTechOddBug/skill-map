@@ -173,15 +173,21 @@
   color: var(--p-message-error-color);
 }
 
-/* PrimeNG controls inside the Settings dialog, the option inputs and the
- * footer buttons, sit at a font-size larger than the dense modal chrome
- * even at size="small" (small only trims padding). Bring them to the
- * modal's scale. Scoped to this dialog so the shared InputTypeControl
+/* PrimeNG controls inside the Settings dialog, option inputs, footer
+ * buttons, the theme select-button (General), the active-provider select
+ * (Project), sit at a font-size larger than the dense modal chrome even at
+ * size="small" (small only trims padding). Bring them to the modal's
+ * scale. The select / multiselect carry their displayed value in a
+ * `*-label` child that does not inherit the host font-size, so those are
+ * listed explicitly. Scoped to this dialog so the shared InputTypeControl
  * stays full-size in the action-prompt dialog. */
 :host ::ng-deep .settings-modal__dialog .p-inputtext,
 :host ::ng-deep .settings-modal__dialog .p-button,
+:host ::ng-deep .settings-modal__dialog .p-togglebutton,
 :host ::ng-deep .settings-modal__dialog .p-select,
+:host ::ng-deep .settings-modal__dialog .p-select-label,
 :host ::ng-deep .settings-modal__dialog .p-multiselect,
+:host ::ng-deep .settings-modal__dialog .p-multiselect-label,
 :host ::ng-deep .settings-modal__dialog .p-autocomplete,
 :host ::ng-deep .settings-modal__dialog .p-password input {
   font-size: 0.8rem;
