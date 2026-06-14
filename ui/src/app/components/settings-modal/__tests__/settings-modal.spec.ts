@@ -17,9 +17,12 @@ import type {
 
 /**
  * SettingsModal chassis. Coverage for the new responsibilities:
- *   - on open, it fetches the plugin list and appends one dynamic
+ *   - on open, it fetches the plugin list and splices one dynamic
  *     `plugin:<id>` section per plugin that declares operator settings,
- *     AFTER the static sections (so below "About").
+ *     between the `plugins` and `changelog` static entries.
+ *   - the dynamic group is bracketed by `dividerBefore` flags (first
+ *     plugin section + `changelog`) only when at least one dynamic
+ *     section exists.
  *   - `activePluginItem()` resolves the plugin backing a `plugin:<id>`
  *     section.
  *   - the global Apply (`applyAndClose`) delegates to
@@ -98,14 +101,14 @@ async function flushAsync(): Promise<void> {
 }
 
 interface IChassisProbe {
-  sections(): readonly { id: TSettingsSection; label: string }[];
+  sections(): readonly { id: TSettingsSection; label: string; dividerBefore?: boolean }[];
   activeSection: { set(v: TSettingsSection): void };
   activePluginItem(): IPluginItemApi | null;
   applyAndClose(): Promise<void>;
 }
 
 describe('SettingsModal, dynamic plugin sections', () => {
-  it('appends a plugin:<id> section for each settings-declaring plugin, below the static sections', async () => {
+  it('splices a plugin:<id> section for each settings-declaring plugin, between Plugins and Changelog', async () => {
     const items = [
       pluginWithSettings('beacon', [
         { id: 'name', type: 'single-string', label: 'Name' },
@@ -125,21 +128,70 @@ describe('SettingsModal, dynamic plugin sections', () => {
     const probe = cmp as unknown as IChassisProbe;
     const ids = probe.sections().map((s) => s.id);
 
-    // Static sections come first, in their declared order.
-    expect(ids.slice(0, 5)).toEqual([
+    // Full render order: static general/project/plugins, then the
+    // dynamic plugin sections (core sorts before beacon by pin order),
+    // then the remaining static changelog/about.
+    expect(ids).toEqual([
+      'general',
+      'project',
+      'plugins',
+      'plugin:core',
+      'plugin:beacon',
+      'changelog',
+      'about',
+    ]);
+    // The plain plugin (no settings) gets no section.
+    expect(ids).not.toContain('plugin:claude');
+  });
+
+  it('brackets the dynamic group with dividerBefore on the first plugin section and on changelog', async () => {
+    const items = [
+      pluginWithSettings('beacon', [
+        { id: 'name', type: 'single-string', label: 'Name' },
+      ]),
+      pluginWithSettings('core', [
+        { id: 'limit', type: 'integer', label: 'Limit' },
+      ]),
+    ];
+    const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
+    const { cmp, fixture } = bootstrap({ listPlugins } as Partial<IDataSourcePort>);
+
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+
+    const probe = cmp as unknown as IChassisProbe;
+    const sections = probe.sections();
+    const flagged = sections
+      .filter((s) => s.dividerBefore === true)
+      .map((s) => s.id);
+
+    // Only the first dynamic section (plugin:core, sorted before beacon)
+    // and changelog carry the divider, bracketing the group.
+    expect(flagged).toEqual(['plugin:core', 'changelog']);
+    expect(sections.find((s) => s.id === 'plugin:beacon')?.dividerBefore).toBeFalsy();
+  });
+
+  it('renders no dividers when no plugin declares settings', async () => {
+    const items = [plainPlugin('claude')];
+    const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
+    const { cmp, fixture } = bootstrap({ listPlugins } as Partial<IDataSourcePort>);
+
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+
+    const probe = cmp as unknown as IChassisProbe;
+    const sections = probe.sections();
+
+    expect(sections.map((s) => s.id)).toEqual([
       'general',
       'project',
       'plugins',
       'changelog',
       'about',
     ]);
-    // Then the dynamic plugin sections (core sorts before beacon by pin
-    // order), all AFTER 'about'.
-    const aboutIdx = ids.indexOf('about');
-    const dynamic = ids.slice(aboutIdx + 1);
-    expect(dynamic).toEqual(['plugin:core', 'plugin:beacon']);
-    // The plain plugin (no settings) gets no section.
-    expect(ids).not.toContain('plugin:claude');
+    expect(sections.some((s) => s.dividerBefore === true)).toBe(false);
   });
 
   it('activePluginItem resolves the plugin backing the active plugin section', async () => {

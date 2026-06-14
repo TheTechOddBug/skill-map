@@ -114,6 +114,19 @@ export type TInputTypeValue =
   | number
   | IInputTypeKeyValueEntry[];
 
+/**
+ * Density of the rendered PrimeNG widgets. `'normal'` (default) leaves
+ * the controls at their standard size, used by the action-prompt dialog.
+ * `'small'` applies PrimeNG's official small sizing so the Settings
+ * plugin section's controls match the modal's compact density. Only the
+ * Settings host passes `'small'`, the action-prompt stays unchanged.
+ */
+export type TInputTypeSize = 'normal' | 'small';
+
+/** The `size` value PrimeNG widgets accept: `undefined` at normal
+ *  density, `'small'` when compacted. */
+type TPrimeNgSize = 'small' | undefined;
+
 @Component({
   selector: 'sm-input-type-control',
   imports: [
@@ -135,6 +148,14 @@ export class InputTypeControl {
 
   /** The input-type + label (+ per-type params) to render. */
   readonly descriptor = input.required<IInputTypeDescriptor>();
+
+  /**
+   * Widget density. Defaults to `'normal'`; the Settings plugin section
+   * passes `'small'` to match the modal's compact controls. The
+   * action-prompt dialog leaves the default so its prompt stays full
+   * size. Mapped to PrimeNG's `size` / `pSize` props via `pngSize`.
+   */
+  readonly size = input<TInputTypeSize>('normal');
 
   /**
    * Two-way bound collected value. Callers read it via `[(value)]` or
@@ -161,6 +182,17 @@ export class InputTypeControl {
     () => this.descriptor().valueLabel ?? this.texts.keyValueValueDefault,
   );
   protected readonly secretIsSet = computed(() => this.descriptor().secretIsSet === true);
+
+  /**
+   * The value bound to each PrimeNG widget's `size` / `pSize` prop:
+   * `'small'` when the host requested compact density, `undefined`
+   * otherwise (PrimeNG reads `undefined` as its default size). Binding
+   * `undefined` rather than omitting the prop keeps a single template
+   * shape for both densities.
+   */
+  protected readonly pngSize = computed<TPrimeNgSize>(() =>
+    this.size() === 'small' ? 'small' : undefined,
+  );
 
   /** Stable id linking the `<label>` to the rendered widget. */
   protected readonly fieldId = computed(

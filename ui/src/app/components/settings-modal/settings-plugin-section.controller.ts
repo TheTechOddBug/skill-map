@@ -141,11 +141,13 @@ export function setupPluginSection(plugin: IPluginItemApi): IPluginSectionHandle
   };
 }
 
-/** The plugin's settings-declaring extensions, in manifest order. */
+/** The plugin's ENABLED settings-declaring extensions, in manifest order.
+ *  A disabled extension does not run, so its options would not apply, it
+ *  is omitted from the section. */
 function collectSettingsExtensions(plugin: IPluginItemApi): ISettingsExtension[] {
   const out: ISettingsExtension[] = [];
   for (const ext of plugin.extensions ?? []) {
-    if (ext.settings && ext.settings.length > 0) {
+    if (ext.enabled && ext.settings && ext.settings.length > 0) {
       out.push({
         key: qualifiedKey(plugin.id, ext.id),
         ext,
@@ -161,7 +163,7 @@ function collectSettingsExtensions(plugin: IPluginItemApi): ISettingsExtension[]
 function seedBuffer(plugin: IPluginItemApi): TSettingsBuffer {
   const out: TSettingsBuffer = new Map();
   for (const ext of plugin.extensions ?? []) {
-    if (!ext.settings || ext.settings.length === 0) continue;
+    if (!ext.enabled || !ext.settings || ext.settings.length === 0) continue;
     out.set(qualifiedKey(plugin.id, ext.id), seedExtensionSettings(ext));
   }
   return out;
@@ -175,10 +177,14 @@ function cloneBuffer(source: TSettingsBuffer): TSettingsBuffer {
   return out;
 }
 
-/** Whether a plugin has at least one settings-declaring extension. The
- *  chassis uses this to decide which plugins get a sidebar section. */
+/** Whether an ACTIVE plugin exposes real options: the plugin itself is
+ *  enabled AND at least one of its ENABLED extensions declares settings.
+ *  The chassis uses this to decide which plugins get a sidebar section, so
+ *  a disabled plugin (or one whose only settings-declaring extensions are
+ *  disabled) never shows one. */
 export function pluginHasSettings(plugin: IPluginItemApi): boolean {
+  if (plugin.status !== 'enabled') return false;
   return (plugin.extensions ?? []).some(
-    (ext) => (ext.settings?.length ?? 0) > 0,
+    (ext) => ext.enabled && (ext.settings?.length ?? 0) > 0,
   );
 }

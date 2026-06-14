@@ -5,10 +5,11 @@
  * bulk PATCH. Sub-components (`SettingsPlugins`, `SettingsGeneral`,
  * `SettingsPluginSection`, future siblings) own each section's content.
  *
- * Static sections come from `SETTINGS_SECTIONS`; below "About" the
- * chassis appends one dynamic section per plugin that declares operator
- * settings (`plugin:<pluginId>` ids), discovered by fetching the plugin
- * list when the modal opens.
+ * Static sections come from `SETTINGS_SECTIONS`; between "Plugins" and
+ * "Changelog" the chassis splices one dynamic section per plugin that
+ * declares operator settings (`plugin:<pluginId>` ids), discovered by
+ * fetching the plugin list when the modal opens. A thin divider rule
+ * brackets the dynamic group when it is non-empty.
  *
  * Buffered edits: every buffered surface (the Plugins panel's toggles,
  * each plugin section's option edits) registers an `IBufferOwner` on the
@@ -61,6 +62,14 @@ export type TSettingsSection =
 interface ISettingsSection {
   id: TSettingsSection;
   label: string;
+  /**
+   * When true, the sidebar renders a thin divider rule immediately
+   * before this item. Set on the first dynamic plugin section and on
+   * `changelog` (only when dynamic sections exist), so the per-plugin
+   * group is delimited above and below. Static-only configurations
+   * never set it, no stray rule appears.
+   */
+  dividerBefore?: boolean;
 }
 
 const SETTINGS_SECTIONS: readonly ISettingsSection[] = [
@@ -117,19 +126,37 @@ export class SettingsModal {
   /**
    * Plugins that declare operator settings, discovered by fetching the
    * plugin list when the modal opens. Each becomes a dynamic sidebar
-   * section below "About". Empty until the first successful fetch.
+   * section between "Plugins" and "Changelog". Empty until the first
+   * successful fetch.
    */
   private readonly settingsPlugins = signal<readonly IPluginItemApi[]>([]);
 
-  /** Static sections + the dynamic per-plugin sections, in render order
-   *  (static first, then plugin sections sorted by the canonical pin
-   *  order so the rail matches the Plugins panel's ordering). */
+  /**
+   * Static sections + the dynamic per-plugin sections, in render order:
+   * general, project, plugins, [plugin:<id> sorted by pin order],
+   * changelog, about. The dynamic group is spliced immediately after
+   * the `plugins` static entry so the rail matches the Plugins panel's
+   * ordering and keeps the plugin material adjacent. When at least one
+   * dynamic section exists, the first one carries `dividerBefore` (rule
+   * between Plugins and the group) and `changelog` carries it too (rule
+   * between the group and the rest), bracketing the group visually.
+   */
   protected readonly sections = computed<readonly ISettingsSection[]>(() => {
-    const dynamic = this.settingsPlugins().map((plugin) => ({
+    const dynamic: ISettingsSection[] = this.settingsPlugins().map((plugin, index) => ({
       id: pluginSectionId(plugin.id),
       label: this.texts.pluginSection.navLabel(plugin.id),
+      dividerBefore: index === 0,
     }));
-    return [...SETTINGS_SECTIONS, ...dynamic];
+    const result: ISettingsSection[] = [];
+    for (const section of SETTINGS_SECTIONS) {
+      if (section.id === 'changelog' && dynamic.length > 0) {
+        result.push({ ...section, dividerBefore: true });
+      } else {
+        result.push({ ...section });
+      }
+      if (section.id === 'plugins') result.push(...dynamic);
+    }
+    return result;
   });
 
   /** The plugin item backing the active `plugin:<id>` section, or null
@@ -161,7 +188,8 @@ export class SettingsModal {
   constructor() {
     // Discover the per-plugin settings sections on open. Fires whenever
     // the modal becomes visible so a plugin enabled / created from
-    // another terminal surfaces its section on the next open.
+    // another terminal surfaces its section (between Plugins and
+    // Changelog) on the next open.
     effect(() => {
       if (this.visible()) void this.loadSettingsPlugins();
     });

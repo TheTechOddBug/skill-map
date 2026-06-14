@@ -42,11 +42,16 @@
   min-height: 0;
 }
 
+/* The rail scrolls independently of the main panel: it can grow long
+ * once many plugins surface their sections. `min-height: 0` lets the
+ * grid track shrink below its content so `overflow-y: auto` actually
+ * kicks in instead of stretching the dialog. */
 .settings-modal__sidebar {
   border-right: 1px solid var(--p-content-border-color);
   background: var(--p-content-background);
   padding: 0.5rem 0.5rem;
   overflow-y: auto;
+  min-height: 0;
 }
 
 .settings-modal__sidebar-list {
@@ -56,6 +61,16 @@
   display: flex;
   flex-direction: column;
   gap: 0.125rem;
+}
+
+/* Thin rule that brackets the dynamic per-plugin section group (one
+ * before the first plugin section, one before Changelog). Rendered only
+ * when at least one dynamic section exists. Inset so it reads as a group
+ * separator, not a full-bleed divider. */
+.settings-modal__divider {
+  height: 1px;
+  margin: 0.375rem 0.25rem;
+  background: var(--p-content-border-color);
 }
 
 .settings-modal__sidebar-item {
@@ -88,6 +103,7 @@
   flex: 1;
   font-size: 0.9rem;
   font-weight: 500;
+  text-transform: capitalize;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -155,4 +171,29 @@
   font-size: 0.75rem;
   line-height: 1.4;
   color: var(--p-message-error-color);
+}
+
+/* PrimeNG controls inside the Settings dialog, the option inputs and the
+ * footer buttons, sit at a font-size larger than the dense modal chrome
+ * even at size="small" (small only trims padding). Bring them to the
+ * modal's scale. Scoped to this dialog so the shared InputTypeControl
+ * stays full-size in the action-prompt dialog. */
+:host ::ng-deep .settings-modal__dialog .p-inputtext,
+:host ::ng-deep .settings-modal__dialog .p-button,
+:host ::ng-deep .settings-modal__dialog .p-select,
+:host ::ng-deep .settings-modal__dialog .p-multiselect,
+:host ::ng-deep .settings-modal__dialog .p-autocomplete,
+:host ::ng-deep .settings-modal__dialog .p-password input {
+  font-size: 0.8rem;
+}
+
+/* PrimeNG's theme gives the footer an asymmetric vertical padding
+ * (padding-top 0, padding-bottom ~20px), so the content sits flush at the
+ * top with the empty space below. Even the vertical padding out (same
+ * ~20px total, split top/bottom) so the content centers within the bar
+ * without changing its height. `!important` beats the runtime theme. */
+:host ::ng-deep .settings-modal__dialog .p-dialog-footer {
+  display: flex !important;
+  align-items: center !important;
+  padding-block: 0.625rem !important;
 }

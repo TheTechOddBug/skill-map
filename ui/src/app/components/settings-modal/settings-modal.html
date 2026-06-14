@@ -20,6 +20,9 @@
     >
       <ul class="settings-modal__sidebar-list" role="list">
         @for (section of sections(); track section.id) {
+          @if (section.dividerBefore) {
+            <li class="settings-modal__divider" aria-hidden="true"></li>
+          }
           <li>
             <button
               type="button"
@@ -109,6 +112,7 @@
         </div>
         <p-button
           severity="secondary"
+          size="small"
           [text]="true"
           [label]="texts.discardChanges"
           [ariaLabel]="texts.discardA11y"
@@ -117,6 +121,7 @@
           data-testid="settings-modal-discard"
         />
         <p-button
+          size="small"
           [label]="texts.applyAndClose"
           [ariaLabel]="texts.applyA11y"
           [disabled]="buffer.applying()"

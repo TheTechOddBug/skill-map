@@ -3,6 +3,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 
 import { SettingsPluginSection } from '../settings-plugin-section';
+import { pluginHasSettings } from '../settings-plugin-section.controller';
 import { SettingsBufferService } from '../settings-buffer.service';
 import { ScanTriggerService } from '../../../services/scan-trigger';
 import {
@@ -92,6 +93,34 @@ interface IHandleProbe {
 function handleOf(cmp: SettingsPluginSection): IHandleProbe {
   return (cmp as unknown as { handleRef: IHandleProbe }).handleRef;
 }
+
+describe('pluginHasSettings, sidebar-section gate', () => {
+  const opt: IPluginExtensionSettingApi = {
+    id: 'opt',
+    type: 'single-string',
+    label: 'Opt',
+  };
+
+  it('true: enabled plugin with an enabled settings-declaring extension', () => {
+    expect(pluginHasSettings(plugin('p', [ext('a', [opt])]))).toBe(true);
+  });
+
+  it('false: the plugin is disabled', () => {
+    expect(
+      pluginHasSettings({ ...plugin('p', [ext('a', [opt])]), status: 'disabled' }),
+    ).toBe(false);
+  });
+
+  it('false: the only settings-declaring extension is disabled', () => {
+    expect(
+      pluginHasSettings(plugin('p', [ext('a', [opt], { enabled: false })])),
+    ).toBe(false);
+  });
+
+  it('false: no enabled extension declares settings', () => {
+    expect(pluginHasSettings(plugin('p', [ext('a')]))).toBe(false);
+  });
+});
 
 describe('SettingsPluginSection, rendering', () => {
   it('renders the plugin id title and a subtitle per settings-declaring extension', () => {

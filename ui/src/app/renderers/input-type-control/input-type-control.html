@@ -6,6 +6,7 @@
       <input
         type="text"
         pInputText
+        [pSize]="pngSize()"
         class="itc__string"
         [id]="fieldId()"
         [ngModel]="stringValue()"
@@ -18,6 +19,7 @@
     @case ('integer') {
       <p-inputnumber
         class="itc__number"
+        [size]="pngSize()"
         [inputId]="fieldId()"
         [ngModel]="numberValue()"
         (ngModelChange)="onNumberChange($event)"
@@ -36,6 +38,7 @@
       <p-inputnumber
         class="itc__number"
         mode="decimal"
+        [size]="pngSize()"
         [inputId]="fieldId()"
         [ngModel]="numberValue()"
         (ngModelChange)="onNumberChange($event)"
@@ -53,6 +56,7 @@
     @case ('boolean-flag') {
       <p-toggleswitch
         class="itc__toggle"
+        [size]="pngSize()"
         [inputId]="fieldId()"
         [ngModel]="booleanValue()"
         (ngModelChange)="onBooleanChange($event)"
@@ -63,6 +67,7 @@
     @case ('enum-pick') {
       <p-select
         class="itc__select"
+        [size]="pngSize()"
         [inputId]="fieldId()"
         [options]="options()"
         optionLabel="label"
@@ -78,6 +83,7 @@
     @case ('enum-multipick') {
       <p-multiselect
         class="itc__multiselect"
+        [size]="pngSize()"
         [inputId]="fieldId()"
         [options]="options()"
         optionLabel="label"
@@ -94,6 +100,7 @@
     @case ('string-list') {
       <p-autocomplete
         class="itc__list"
+        [size]="pngSize()"
         [inputId]="fieldId()"
         [multiple]="true"
         [typeahead]="false"
@@ -110,6 +117,7 @@
       @if (multiple()) {
         <p-autocomplete
           class="itc__list"
+          [size]="pngSize()"
           [inputId]="fieldId()"
           [multiple]="true"
           [typeahead]="false"
@@ -125,6 +133,7 @@
         <input
           type="text"
           pInputText
+          [pSize]="pngSize()"
           class="itc__string"
           [id]="fieldId()"
           [ngModel]="stringValue()"
@@ -140,6 +149,7 @@
         <input
           type="text"
           pInputText
+          [pSize]="pngSize()"
           class="itc__string itc__regex-body"
           [id]="fieldId()"
           [ngModel]="stringValue()"
@@ -162,6 +172,7 @@
       <div class="itc__secret">
         <p-password
           class="itc__secret-input"
+          [size]="pngSize()"
           [inputId]="fieldId()"
           [feedback]="false"
           [toggleMask]="true"
@@ -192,6 +203,7 @@
             <input
               type="text"
               pInputText
+              [pSize]="pngSize()"
               class="itc__kv-input"
               [ngModel]="row.key"
               (ngModelChange)="onKeyChange($index, $event)"
@@ -201,6 +213,7 @@
             <input
               type="text"
               pInputText
+              [pSize]="pngSize()"
               class="itc__kv-input"
               [ngModel]="row.value"
               (ngModelChange)="onValueChange($index, $event)"

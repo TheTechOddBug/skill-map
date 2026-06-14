@@ -28,6 +28,7 @@
               [attr.data-testid]="'settings-plugin-section-setting-' + entry.key + '-' + decl.id"
             >
               <sm-input-type-control
+                size="small"
                 [descriptor]="settingDescriptor(entry.ext, decl)"
                 [value]="settingValue(entry.key, decl.id)"
                 (valueChange)="onSettingChange(entry.key, decl.id, $event)"
