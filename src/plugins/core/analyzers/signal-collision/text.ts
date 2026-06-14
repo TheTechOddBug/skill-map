@@ -21,7 +21,7 @@ export const SIGNAL_COLLISION_TEXTS = {
    * silently disappears without this warning).
    */
   message:
-    '`{{loserRaw}}`:\nOverlap collision: {{loserExtractor}} (at {{loserRange}}) lost to {{winnerExtractor}} (at {{winnerRange}}) by {{reason}}; only the winning edge persists.',
+    'Overlap collision; {{loserExtractor}} (at {{loserRange}}) lost to {{winnerExtractor}} (at {{winnerRange}}) by {{reason}}, only the winning edge persists',
 
   /**
    * Same warn but for the rare case the resolver rejected a Signal
@@ -29,10 +29,13 @@ export const SIGNAL_COLLISION_TEXTS = {
    * `plugins.<id>.extensions.<extId>.enabled`. Phase 4+ stub: today the
    * filter is not wired so this template is unreachable from the
    * resolver; documented now so the analyzer stays forward-compatible
-   * with the upcoming filter pass.
+   * with the upcoming filter pass. The remediation hint moves to
+   * `Issue.fix.summary`.
    */
-  messageExtractorDisabled:
-    '`{{loserRaw}}`:\nDropped: extension `{{extractorId}}` is disabled. Re-enable it in Settings or via `sm plugins enable`.',
+  messageExtractorDisabled: 'Dropped; extractor `{{extractorId}}` is disabled',
+  /** Remediation hint for the `extractorDisabled` finding. */
+  extractorDisabledFixSummary:
+    'Re-enable it in Settings or via `sm plugins enable`.',
 
   /**
    * Same warn but for the future confidence floor case. Phase 4+ stub:
@@ -41,5 +44,5 @@ export const SIGNAL_COLLISION_TEXTS = {
    * forward compatibility.
    */
   messageBelowFloor:
-    '`{{loserRaw}}`:\nDropped: confidence {{confidence}} is below the threshold {{threshold}}.',
+    'Dropped; confidence {{confidence}} is below the threshold {{threshold}}',
 } as const;

@@ -8,10 +8,12 @@
 
 export const JOB_FILE_ORPHAN_TEXTS = {
   /**
-   * `<path>.md` lives under `.skill-map/jobs/` but no `state_jobs.filePath`
-   * row references it. Compact finding grammar: the file IS the
-   * finding's own node, so its path never appears in the message.
+   * Diagnosis body (`<what>; <why>`): a `.md` under `.skill-map/jobs/`
+   * that no `state_jobs.filePath` row references. The shared
+   * `formatFinding` helper emits no subject (the file IS the finding's
+   * own node); the remediation hint moves to `Issue.fix.summary` below.
    */
-  message:
-    'Orphan job file; not referenced by any job. Run `sm job prune --orphan-files` to remove it.',
+  message: 'Orphan job file; not referenced by any job',
+  /** Remediation hint surfaced via `Issue.fix.summary`. */
+  fixSummary: 'Run `sm job prune --orphan-files` to remove it.',
 } as const;

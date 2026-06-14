@@ -23,6 +23,7 @@
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { Issue, Node } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
+import { formatFinding } from '../../../../kernel/util/finding-format.js';
 import { NODE_SUPERSEDED_TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
@@ -50,9 +51,9 @@ export const nodeSupersededAnalyzer: IBuiltInManifest<IAnalyzer> = {
         analyzerId: ID,
         severity: 'info',
         nodeIds: [node.path],
-        message: tx(NODE_SUPERSEDED_TEXTS.message, {
-          path: node.path,
-          supersededBy,
+        message: formatFinding({
+          subject: supersededBy,
+          body: tx(NODE_SUPERSEDED_TEXTS.message),
         }),
         data: { supersededBy },
       });

@@ -29,6 +29,8 @@
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { Issue, Node } from '../../../../kernel/types.js';
 import type { IViewContribution } from '../../../../kernel/types/view-catalog.js';
+import { tx } from '../../../../kernel/util/tx.js';
+import { formatFinding } from '../../../../kernel/util/finding-format.js';
 import { NODE_STABILITY_TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
@@ -96,7 +98,7 @@ export const nodeStabilityAnalyzer: IBuiltInManifest<IAnalyzer> = {
           analyzerId: ID,
           severity: 'info',
           nodeIds: [node.path],
-          message: `Node '${node.path}' is marked experimental: API may change.`,
+          message: formatFinding({ body: tx(NODE_STABILITY_TEXTS.experimental) }),
           data: { stability },
         });
       } else if (stability === 'deprecated') {
@@ -109,7 +111,7 @@ export const nodeStabilityAnalyzer: IBuiltInManifest<IAnalyzer> = {
           analyzerId: ID,
           severity: 'warn',
           nodeIds: [node.path],
-          message: `Node '${node.path}' is marked deprecated: avoid in new code.`,
+          message: formatFinding({ body: tx(NODE_STABILITY_TEXTS.deprecated) }),
           data: { stability },
         });
       }

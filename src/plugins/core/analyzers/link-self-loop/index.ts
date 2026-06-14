@@ -32,7 +32,8 @@
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { Issue } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
-import { isSelfLoop, linkWhere } from '../../../../kernel/util/link-lines.js';
+import { isSelfLoop, linkLines } from '../../../../kernel/util/link-lines.js';
+import { formatFinding } from '../../../../kernel/util/finding-format.js';
 import { LINK_SELF_LOOP_TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
@@ -47,7 +48,6 @@ export const linkSelfLoopAnalyzer: IBuiltInManifest<IAnalyzer> = {
   mode: 'deterministic',
 
   evaluate(ctx: IAnalyzerContext): Issue[] {
-    if (ctx.links.length === 0) return [];
     const issues: Issue[] = [];
     for (const link of ctx.links) {
       if (!isSelfLoop(link)) continue;
@@ -55,14 +55,12 @@ export const linkSelfLoopAnalyzer: IBuiltInManifest<IAnalyzer> = {
         analyzerId: ID,
         severity: 'warn',
         nodeIds: [link.source],
-        message: tx(LINK_SELF_LOOP_TEXTS.message, {
-          trigger: link.trigger?.originalTrigger ?? link.target,
-          kind: link.kind,
-          where: linkWhere(link, {
-            single: LINK_SELF_LOOP_TEXTS.whereSingle,
-            plural: LINK_SELF_LOOP_TEXTS.wherePlural,
-          }),
+        message: formatFinding({
+          subject: link.trigger?.originalTrigger ?? link.target,
+          lines: linkLines(link),
+          body: tx(LINK_SELF_LOOP_TEXTS.message),
         }),
+        fix: { summary: tx(LINK_SELF_LOOP_TEXTS.fixSummary) },
         data: {
           target: link.target,
           resolvedTarget: link.resolvedTarget ?? link.target,

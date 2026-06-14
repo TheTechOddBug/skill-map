@@ -30,7 +30,7 @@
     },
     "message": {
       "type": "string",
-      "description": "Short one-line description, human-readable."
+      "description": "Human-readable finding in the canonical shape: an optional backtick-quoted subject line (the offending token / path / name), then the diagnosis `L<line>: <what>; <why>`. The `L<line>: ` location prefix (`L2: ` / `L2, 5: `) appears only when the finding maps to body line(s); it is omitted for sidecar / frontmatter / abstract checks (and the subject line is omitted when there is no single offending token). The body reads `<what>; <why>` (what was detected, then why it matters), in English. Remediation hints do NOT belong here, they go in `fix.summary`. Built-in analyzers assemble this via the shared `formatFinding` helper. Multi-line via `\\n`."
     },
     "detail": {
       "type": ["string", "null"],
@@ -41,7 +41,7 @@
       "description": "Machine-readable fix hint. Stability: experimental, shape may change before v1.",
       "additionalProperties": false,
       "properties": {
-        "summary": { "type": "string" },
+        "summary": { "type": "string", "description": "Human-readable remediation hint (e.g. `Rename the file or its frontmatter.name`). This is the home for the actionable advice that used to be appended to `message`." },
         "autofixable": { "type": "boolean" }
       }
     },

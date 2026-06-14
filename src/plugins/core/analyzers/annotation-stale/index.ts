@@ -26,6 +26,7 @@ import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../
 import type { ISidecarOverlay, Issue, SidecarStatus } from '../../../../kernel/types.js';
 import type { IViewContribution } from '../../../../kernel/types/view-catalog.js';
 import { tx } from '../../../../kernel/util/tx.js';
+import { formatFinding } from '../../../../kernel/util/finding-format.js';
 import { ANNOTATION_STALE_TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
@@ -75,7 +76,8 @@ export const annotationStaleAnalyzer: IBuiltInManifest<IAnalyzer> = {
         analyzerId: ID,
         severity: 'info',
         nodeIds: [node.path],
-        message: messageFor(status, node.path),
+        message: formatFinding({ body: messageFor(status) }),
+        fix: { summary: tx(ANNOTATION_STALE_TEXTS.fixSummary) },
         data: { status },
       });
       // `value: 0` yields an icon-only footer chip (no count). No
@@ -105,14 +107,14 @@ function staleStatus(overlay: ISidecarOverlay | null | undefined): Exclude<Sidec
   return status;
 }
 
-function messageFor(status: Exclude<SidecarStatus, 'fresh'>, path: string): string {
+function messageFor(status: Exclude<SidecarStatus, 'fresh'>): string {
   switch (status) {
     case 'stale-body':
-      return tx(ANNOTATION_STALE_TEXTS.bodyDrift, { path });
+      return tx(ANNOTATION_STALE_TEXTS.bodyDrift);
     case 'stale-frontmatter':
-      return tx(ANNOTATION_STALE_TEXTS.frontmatterDrift, { path });
+      return tx(ANNOTATION_STALE_TEXTS.frontmatterDrift);
     case 'stale-both':
-      return tx(ANNOTATION_STALE_TEXTS.bothDrift, { path });
+      return tx(ANNOTATION_STALE_TEXTS.bothDrift);
   }
 }
 

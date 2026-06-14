@@ -8,10 +8,13 @@
 
 export const ANNOTATION_ORPHAN_TEXTS = {
   /**
-   * Compact finding grammar: line 1 = the orphan sidecar file, line 2
-   * = the diagnosis. The expected markdown path IS the finding's
-   * `nodeIds[0]` (the issue files under the path the sidecar points
-   * at), so it never appears in the message.
+   * Diagnosis body (`<what>; <why>`). The shared `formatFinding` helper
+   * wraps it with the backtick subject (the orphan sidecar file); the
+   * expected markdown path IS the finding's `nodeIds[0]`, so it never
+   * appears in the message. The remediation hint moves to
+   * `Issue.fix.summary` below.
    */
-  message: '{{sidecarPath}}:\nOrphan sidecar; no matching markdown node.',
+  message: 'Orphan sidecar; no matching markdown node',
+  /** Remediation hint surfaced via `Issue.fix.summary`. */
+  fixSummary: 'Run `sm sidecar prune` to remove orphan sidecars.',
 } as const;

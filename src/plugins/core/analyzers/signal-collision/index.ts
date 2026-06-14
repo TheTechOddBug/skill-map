@@ -29,6 +29,7 @@
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { Issue, Signal } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
+import { formatFinding } from '../../../../kernel/util/finding-format.js';
 import { SIGNAL_COLLISION_TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
@@ -70,13 +71,15 @@ function makeIssue(signal: Signal): Issue | null {
       analyzerId: ID,
       severity: 'warn',
       nodeIds: [signal.source],
-      message: tx(SIGNAL_COLLISION_TEXTS.message, {
-        loserExtractor: winnerCandidate.extractorId,
-        loserRaw: signal.raw,
-        loserRange,
-        winnerExtractor: winner.extractorId,
-        winnerRange,
-        reason: winner.reason,
+      message: formatFinding({
+        subject: signal.raw,
+        body: tx(SIGNAL_COLLISION_TEXTS.message, {
+          loserExtractor: winnerCandidate.extractorId,
+          loserRange,
+          winnerExtractor: winner.extractorId,
+          winnerRange,
+          reason: winner.reason,
+        }),
       }),
       data: {
         loser: {
@@ -99,18 +102,17 @@ function makeIssue(signal: Signal): Issue | null {
   }
 
   if (resolution.extractorDisabled) {
-    const loserRange = signal.range
-      ? `${signal.range.start}-${signal.range.end}`
-      : 'unknown';
     return {
       analyzerId: ID,
       severity: 'warn',
       nodeIds: [signal.source],
-      message: tx(SIGNAL_COLLISION_TEXTS.messageExtractorDisabled, {
-        extractorId: resolution.extractorDisabled.extractorId,
-        loserRaw: signal.raw,
-        loserRange,
+      message: formatFinding({
+        subject: signal.raw,
+        body: tx(SIGNAL_COLLISION_TEXTS.messageExtractorDisabled, {
+          extractorId: resolution.extractorDisabled.extractorId,
+        }),
       }),
+      fix: { summary: tx(SIGNAL_COLLISION_TEXTS.extractorDisabledFixSummary) },
       data: {
         extractorDisabled: resolution.extractorDisabled,
         raw: signal.raw,
@@ -120,19 +122,17 @@ function makeIssue(signal: Signal): Issue | null {
   }
 
   if (resolution.belowFloor) {
-    const loserRange = signal.range
-      ? `${signal.range.start}-${signal.range.end}`
-      : 'unknown';
     const topCandidate = signal.candidates[0]!;
     return {
       analyzerId: ID,
       severity: 'warn',
       nodeIds: [signal.source],
-      message: tx(SIGNAL_COLLISION_TEXTS.messageBelowFloor, {
-        loserRaw: signal.raw,
-        loserRange,
-        confidence: topCandidate.confidence,
-        threshold: resolution.belowFloor.threshold,
+      message: formatFinding({
+        subject: signal.raw,
+        body: tx(SIGNAL_COLLISION_TEXTS.messageBelowFloor, {
+          confidence: topCandidate.confidence,
+          threshold: resolution.belowFloor.threshold,
+        }),
       }),
       data: {
         belowFloor: resolution.belowFloor,

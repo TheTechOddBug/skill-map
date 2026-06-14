@@ -8,9 +8,9 @@
 
 export const NODE_SUPERSEDED_TEXTS = {
   /**
-   * Compact finding grammar: line 1 = the superseding artifact, line
-   * 2 = what it means. The superseded node is the finding's own node,
-   * so its path never appears in the message.
+   * Diagnosis body (`<what>; <why>`). The shared `formatFinding` helper
+   * wraps it with the backtick subject (the superseding artifact); the
+   * superseded node is the finding's own node, so its path never appears.
    */
-  message: '{{supersededBy}}:\nSupersedes this node.',
+  message: 'Superseded; a newer node supersedes this one',
 } as const;

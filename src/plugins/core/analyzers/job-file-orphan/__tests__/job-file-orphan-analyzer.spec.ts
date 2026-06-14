@@ -57,7 +57,8 @@ describe('core/job-file-orphan rule', () => {
       assert.deepEqual(issue.nodeIds, [orphans[i]]);
       assert.equal((issue.data as { filePath: string }).filePath, orphans[i]);
       assert.match(issue.message, /Orphan job file/);
-      assert.match(issue.message, /sm job prune --orphan-files/);
+      // Remediation moved out of the diagnosis body into `fix.summary`.
+      assert.match(issue.fix!.summary!, /sm job prune --orphan-files/);
     }
   });
 

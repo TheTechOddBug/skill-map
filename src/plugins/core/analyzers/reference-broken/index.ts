@@ -37,7 +37,8 @@ import { resolve } from 'node:path';
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { Issue, Link } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
-import { linkWhere } from '../../../../kernel/util/link-lines.js';
+import { linkLines } from '../../../../kernel/util/link-lines.js';
+import { formatFinding } from '../../../../kernel/util/finding-format.js';
 import { REFERENCE_BROKEN_TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
@@ -101,14 +102,13 @@ function buildIssue(link: Link): Issue {
     // and the global error count on the card.
     severity: 'error',
     nodeIds: [link.source],
-    message: tx(REFERENCE_BROKEN_TEXTS.message, {
-      target: link.target,
-      kindLabel:
-        REFERENCE_BROKEN_TEXTS.kindLabels[link.kind] ??
-        tx(REFERENCE_BROKEN_TEXTS.kindLabelFallback, { kind: link.kind }),
-      where: linkWhere(link, {
-        single: REFERENCE_BROKEN_TEXTS.whereSingle,
-        plural: REFERENCE_BROKEN_TEXTS.wherePlural,
+    message: formatFinding({
+      subject: link.target,
+      lines: linkLines(link),
+      body: tx(REFERENCE_BROKEN_TEXTS.message, {
+        kindLabel:
+          REFERENCE_BROKEN_TEXTS.kindLabels[link.kind] ??
+          tx(REFERENCE_BROKEN_TEXTS.kindLabelFallback, { kind: link.kind }),
       }),
     }),
     data: {

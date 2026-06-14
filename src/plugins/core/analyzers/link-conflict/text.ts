@@ -8,9 +8,9 @@
 
 export const LINK_CONFLICT_TEXTS = {
   /**
-   * Compact finding grammar: line 1 = the disputed target, line 2 =
-   * the short diagnosis. The source is the finding's own node, so it
-   * never appears in the message.
+   * Diagnosis body (`<what>; <why>`). The shared `formatFinding` helper
+   * wraps it with the backtick subject (the disputed target); the source
+   * is the finding's own node, so it never appears in the message.
    */
-  message: '{{target}}:\nDetectors disagree on link kind ({{kindList}}).',
+  message: 'Conflicting link kind; detectors disagree ({{kindList}})',
 } as const;

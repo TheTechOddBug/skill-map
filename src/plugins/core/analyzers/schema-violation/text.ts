@@ -7,16 +7,18 @@
  */
 
 export const SCHEMA_VIOLATION_TEXTS = {
-  // Compact finding grammar: the affected node (or the link's source)
-  // is the finding's own node, so its path never appears.
-  /** `Schema validation failed: <errors>` */
-  nodeFailure: 'Schema validation failed: {{errors}}',
+  // Diagnosis bodies (`<what>; <why>`). The shared `formatFinding` helper
+  // owns the subject / location chrome: the node + frontmatter findings
+  // carry no subject (the affected node IS the finding's own node), the
+  // link finding uses the link target as its subject.
+  /** `Schema validation failed; <errors>` */
+  nodeFailure: 'Schema validation failed; {{errors}}',
 
-  /** `<target>:\nLink failed schema validation: <errors>` */
-  linkFailure: '{{target}}:\nLink failed schema validation: {{errors}}',
+  /** `<target>` subject + `Link failed schema validation; <errors>` */
+  linkFailure: 'Link failed schema validation; {{errors}}',
 
-  /** `Missing required frontmatter: <missing>.` */
-  frontmatterBaseFailure: 'Missing required frontmatter: {{missing}}.',
+  /** `Missing required frontmatter; <missing>` */
+  frontmatterBaseFailure: 'Missing required frontmatter; {{missing}}',
 
   /** Singular tooltip on the alert / chip when a node has exactly one validation failure. */
   alertTooltipSingle: 'Frontmatter or schema validation failed.',

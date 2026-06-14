@@ -39,6 +39,7 @@
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { Issue } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
+import { formatFinding } from '../../../../kernel/util/finding-format.js';
 import { JOB_FILE_ORPHAN_TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
@@ -61,7 +62,8 @@ export const jobFileOrphanAnalyzer: IBuiltInManifest<IAnalyzer> = {
         analyzerId: ID,
         severity: 'warn',
         nodeIds: [filePath],
-        message: tx(JOB_FILE_ORPHAN_TEXTS.message, { filePath }),
+        message: formatFinding({ body: tx(JOB_FILE_ORPHAN_TEXTS.message) }),
+        fix: { summary: tx(JOB_FILE_ORPHAN_TEXTS.fixSummary) },
         data: { filePath },
       });
     }

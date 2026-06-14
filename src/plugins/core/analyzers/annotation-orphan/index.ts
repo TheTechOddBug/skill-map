@@ -18,6 +18,7 @@
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { Issue } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
+import { formatFinding } from '../../../../kernel/util/finding-format.js';
 import { ANNOTATION_ORPHAN_TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
@@ -47,10 +48,11 @@ export const annotationOrphanAnalyzer: IBuiltInManifest<IAnalyzer> = {
         analyzerId: ID,
         severity: 'warn',
         nodeIds: [expectedMdRelative],
-        message: tx(ANNOTATION_ORPHAN_TEXTS.message, {
-          sidecarPath: orphan.relativePath,
-          expectedMdPath: orphan.expectedMdPath,
+        message: formatFinding({
+          subject: orphan.relativePath,
+          body: tx(ANNOTATION_ORPHAN_TEXTS.message),
         }),
+        fix: { summary: tx(ANNOTATION_ORPHAN_TEXTS.fixSummary) },
         data: {
           sidecarPath: orphan.relativePath,
           expectedMdPath: orphan.expectedMdPath,

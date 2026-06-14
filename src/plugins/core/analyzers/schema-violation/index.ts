@@ -26,6 +26,7 @@ import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../
 import type { Issue, Link, Node } from '../../../../kernel/types.js';
 import { loadSchemaValidators, type ISchemaValidators } from '../../../../kernel/adapters/schema-validators.js';
 import { tx } from '../../../../kernel/util/tx.js';
+import { formatFinding } from '../../../../kernel/util/finding-format.js';
 import { SCHEMA_VIOLATION_TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
@@ -111,9 +112,10 @@ function collectNodeFindings(v: ISchemaValidators, node: Node, out: Issue[]): vo
     analyzerId: ID,
     severity: 'error',
     nodeIds: [node.path],
-    message: tx(SCHEMA_VIOLATION_TEXTS.nodeFailure, {
-      path: node.path,
-      errors: result.errors,
+    message: formatFinding({
+      body: tx(SCHEMA_VIOLATION_TEXTS.nodeFailure, {
+        errors: result.errors,
+      }),
     }),
     data: { target: 'node', path: node.path },
   });
@@ -148,9 +150,10 @@ function collectFrontmatterBaseFindings(node: Node, out: Issue[]): void {
     // the `frontmatter-invalid` severity policy of the orchestrator.
     severity: 'warn',
     nodeIds: [node.path],
-    message: tx(SCHEMA_VIOLATION_TEXTS.frontmatterBaseFailure, {
-      path: node.path,
-      missing: missing.join(', '),
+    message: formatFinding({
+      body: tx(SCHEMA_VIOLATION_TEXTS.frontmatterBaseFailure, {
+        missing: missing.join(', '),
+      }),
     }),
     data: { target: 'frontmatter', path: node.path, missing },
   });
@@ -174,10 +177,11 @@ function collectLinkFindings(v: ISchemaValidators, link: Link, out: Issue[]): vo
     analyzerId: ID,
     severity: 'error',
     nodeIds: [link.source],
-    message: tx(SCHEMA_VIOLATION_TEXTS.linkFailure, {
-      source: link.source,
-      target: link.target,
-      errors: result.errors,
+    message: formatFinding({
+      subject: link.target,
+      body: tx(SCHEMA_VIOLATION_TEXTS.linkFailure, {
+        errors: result.errors,
+      }),
     }),
     data: { target: 'link', source: link.source, to: link.target },
   });

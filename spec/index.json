@@ -253,7 +253,7 @@
       "schemas/frontmatter/base.schema.json": "cff81510ed94824dfd12ab8b30ce9fbac65e42d61ae0edf3fbb6bbb6bb8bcb8c",
       "schemas/history-stats.schema.json": "436aa0ffe744bdb699000447e86b45724fbd2cc4642781074eb1527522b9058c",
       "schemas/input-types.schema.json": "93b27a1cbd1f131d42730eb9a89cf3af6889e9f17b20a48ce36133885503e01b",
-      "schemas/issue.schema.json": "d173aa5c5312b3d2a2cd249f55c10943c8f3cd5799e4645ae3c66316221e12d1",
+      "schemas/issue.schema.json": "2bdc0ca45ad1e41c93d4767abd51ae3145d18b209f696248c30b86b41708a7bb",
       "schemas/job.schema.json": "dbcedf137de03fde38f74686f594e600c627bf808f2aad23511a26617a663a02",
       "schemas/link.schema.json": "02d9d8b2a1cdd1c6672e6b5821e08f09e43c298c8d602520a95decaffabfd1d3",
       "schemas/node.schema.json": "1ebba38e0c0ae022fccbc0cdf7c298da1720a68d4cb375f0baf9f0847998a0d8",

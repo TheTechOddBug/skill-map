@@ -45,6 +45,7 @@
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { Confidence, Issue, Link, LinkKind } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
+import { formatFinding } from '../../../../kernel/util/finding-format.js';
 import { LINK_CONFLICT_TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
@@ -141,10 +142,11 @@ export const linkConflictAnalyzer: IBuiltInManifest<IAnalyzer> = {
         analyzerId: ID,
         severity: 'warn',
         nodeIds: [source, target],
-        message: tx(LINK_CONFLICT_TEXTS.message, {
-          source,
-          target,
-          kindList,
+        message: formatFinding({
+          subject: target,
+          body: tx(LINK_CONFLICT_TEXTS.message, {
+            kindList,
+          }),
         }),
         data: { source, target, variants },
       });

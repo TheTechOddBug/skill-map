@@ -56,6 +56,7 @@
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { Issue, Link } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
+import { formatFinding } from '../../../../kernel/util/finding-format.js';
 import { REFERENCE_REDUNDANT_TEXTS as TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
@@ -94,11 +95,14 @@ export const referenceRedundantAnalyzer: IBuiltInManifest<IAnalyzer> = {
         analyzerId: ID,
         severity: 'info',
         nodeIds: [source],
-        message: tx(TEXTS.message, {
-          resolvedTarget,
-          count: flat.length,
-          occurrences: formatGroupedOccurrences(flat),
+        message: formatFinding({
+          subject: resolvedTarget,
+          body: tx(TEXTS.message, {
+            count: flat.length,
+            occurrences: formatGroupedOccurrences(flat),
+          }),
         }),
+        fix: { summary: tx(TEXTS.fixSummary) },
         data: {
           target: resolvedTarget,
           resolvedTarget,

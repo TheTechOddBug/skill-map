@@ -23,10 +23,11 @@
  */
 
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
-import type { Issue, Link, Node } from '../../../../kernel/types.js';
+import type { Issue, Node } from '../../../../kernel/types.js';
 import { RESERVED_TARGET_CONFIDENCE } from '../../../../kernel/orchestrator/confidence-constants.js';
 import { tx } from '../../../../kernel/util/tx.js';
-import { linkWhere } from '../../../../kernel/util/link-lines.js';
+import { linkLines } from '../../../../kernel/util/link-lines.js';
+import { formatFinding } from '../../../../kernel/util/finding-format.js';
 import { NAME_RESERVED_TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
@@ -57,11 +58,13 @@ export const nameReservedAnalyzer: IBuiltInManifest<IAnalyzer> = {
         analyzerId: ID,
         severity: 'warn',
         nodeIds: [node.path],
-        message: tx(NAME_RESERVED_TEXTS.message, {
-          path: node.path,
-          provider: node.provider,
-          kind: node.kind,
+        message: formatFinding({
+          body: tx(NAME_RESERVED_TEXTS.message, {
+            provider: node.provider,
+            kind: node.kind,
+          }),
         }),
+        fix: { summary: tx(NAME_RESERVED_TEXTS.fixSummary) },
         data: { provider: node.provider, kind: node.kind, surface: 'target' },
       });
     }
@@ -87,14 +90,17 @@ export const nameReservedAnalyzer: IBuiltInManifest<IAnalyzer> = {
         analyzerId: ID,
         severity: 'warn',
         nodeIds: [link.source],
-        message: tx(NAME_RESERVED_TEXTS.linkMessage, {
-          target: link.target,
-          provider: reservedNode.provider,
-          reservedKind: reservedNode.kind,
-          reservedPath: reservedNode.path,
-          confidence: RESERVED_TARGET_CONFIDENCE.toFixed(2),
-          where: linkWhereSuffix(link),
+        message: formatFinding({
+          subject: link.target,
+          lines: linkLines(link),
+          body: tx(NAME_RESERVED_TEXTS.linkMessage, {
+            provider: reservedNode.provider,
+            reservedKind: reservedNode.kind,
+            reservedPath: reservedNode.path,
+            confidence: RESERVED_TARGET_CONFIDENCE.toFixed(2),
+          }),
         }),
+        fix: { summary: tx(NAME_RESERVED_TEXTS.linkFixSummary) },
         data: {
           target: link.target,
           kind: link.kind,
@@ -109,16 +115,4 @@ export const nameReservedAnalyzer: IBuiltInManifest<IAnalyzer> = {
     return issues;
   },
 };
-
-/**
- * Pre-rendered ` (line N)` / ` (lines N, M)` suffix naming where the
- * downgraded link sits in the source body; empty when the link carries
- * no line info (frontmatter / sidecar-derived edges).
- */
-function linkWhereSuffix(link: Link): string {
-  return linkWhere(link, {
-    single: NAME_RESERVED_TEXTS.whereSingle,
-    plural: NAME_RESERVED_TEXTS.wherePlural,
-  });
-}
 

@@ -36,6 +36,7 @@ import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../
 import { normalizeTrigger } from '../../../../kernel/trigger-normalize.js';
 import type { Issue } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
+import { formatFinding } from '../../../../kernel/util/finding-format.js';
 import { TRIGGER_COLLISION_TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
@@ -215,17 +216,16 @@ function analyzeTriggerBucket(normalized: string, claims: TClaim[]): Issue | nul
   // `parts.length` ∈ {1, 2}: advertiserAmbiguous and crossKindAmbiguous
   // are mutually exclusive (the latter requires advertiserPaths.length===1),
   // so the two-part path is exactly advertiserAmbiguous + invocationAmbiguous.
-  const message =
+  const body =
     parts.length === 2
       ? tx(TRIGGER_COLLISION_TEXTS.messageTwoParts, {
-          normalized,
           first: parts[0]!,
           second: parts[1]!,
         })
       : tx(TRIGGER_COLLISION_TEXTS.messageOnePart, {
-          normalized,
           part: parts[0]!,
         });
+  const message = formatFinding({ subject: normalized, body });
 
   return {
     analyzerId: ID,

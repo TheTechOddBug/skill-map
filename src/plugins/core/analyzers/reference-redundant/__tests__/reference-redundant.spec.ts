@@ -115,8 +115,8 @@ describe('core/reference-redundant rule', () => {
     assert.equal(data['resolvedTarget'], tgt.path);
     const occs = data['occurrences'] as Array<Record<string, unknown>>;
     assert.equal(occs.length, 2);
-    // Compact grammar: `<target>:\nDuplicate reference (2): ...`.
-    assert.match(issue.message, /^tgt\.md:\nDuplicate reference \(2\)/);
+    // Canonical finding grammar: `` `<target>`:\nDuplicate reference (2); ... ``.
+    assert.match(issue.message, /^`tgt\.md`:\nDuplicate reference \(2\)/);
   });
 
   it('fires for cross-kind multi-edge (same resolved target via different kinds)', async () => {

@@ -8,19 +8,21 @@
 
 export const TRIGGER_COLLISION_TEXTS = {
   /**
-   * Top-level message when `analyzeTriggerBucket` accumulated exactly one
-   * cause part. Used for the advertiser-ambiguous-only, invocation-
-   * ambiguous-only, and cross-kind-only branches.
+   * Diagnosis body (`<what>; <why>`) when `analyzeTriggerBucket`
+   * accumulated exactly one cause part. Used for the advertiser-
+   * ambiguous-only, invocation-ambiguous-only, and cross-kind-only
+   * branches. The shared `formatFinding` helper wraps it with the
+   * backtick subject (the normalized trigger).
    */
-  messageOnePart: '"{{normalized}}":\nTrigger collision: {{part}}.',
+  messageOnePart: 'Trigger collision; {{part}}',
 
   /**
-   * Top-level message when `analyzeTriggerBucket` accumulated two cause
+   * Diagnosis body when `analyzeTriggerBucket` accumulated two cause
    * parts (advertiser-ambiguous AND invocation-ambiguous fire together).
    * The joiner lives inside the template so future locales can adapt it
-   * (e.g. `'; y '` in Spanish) without touching the rule code.
+   * (e.g. `', y '` in Spanish) without touching the rule code.
    */
-  messageTwoParts: '"{{normalized}}":\nTrigger collision: {{first}}; and {{second}}.',
+  messageTwoParts: 'Trigger collision; {{first}}, and {{second}}',
 
   /** `<n> advertisers: <list>` part, fires on the advertiser-ambiguous branch. */
   partAdvertisers: '{{count}} advertisers: {{paths}}',

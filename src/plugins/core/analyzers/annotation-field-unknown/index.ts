@@ -36,6 +36,7 @@ import type { IRegisteredAnnotationKey } from '../../../../kernel/types/annotati
 import type { Issue } from '../../../../kernel/types.js';
 import { applyAjvFormats } from '../../../../kernel/util/ajv-interop.js';
 import { tx } from '../../../../kernel/util/tx.js';
+import { formatFinding } from '../../../../kernel/util/finding-format.js';
 import { ANNOTATION_FIELD_UNKNOWN_TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
@@ -101,9 +102,9 @@ export const annotationFieldUnknownAnalyzer: IBuiltInManifest<IAnalyzer> = {
               analyzerId: ID,
               severity: 'warn',
               nodeIds: [node.path],
-              message: tx(ANNOTATION_FIELD_UNKNOWN_TEXTS.unknownAnnotationKey, {
-                path: node.path,
-                key,
+              message: formatFinding({
+                subject: key,
+                body: tx(ANNOTATION_FIELD_UNKNOWN_TEXTS.unknownAnnotationKey),
               }),
               data: { surface: 'annotations', key },
             });
@@ -137,11 +138,11 @@ export const annotationFieldUnknownAnalyzer: IBuiltInManifest<IAnalyzer> = {
               analyzerId: ID,
               severity: 'warn',
               nodeIds: [node.path],
-              message: tx(ANNOTATION_FIELD_UNKNOWN_TEXTS.pluginNamespaceInvalid, {
-                path: node.path,
-                pluginId: key,
-                key: contribKey,
-                errors,
+              message: formatFinding({
+                subject: `${key}.${contribKey}`,
+                body: tx(ANNOTATION_FIELD_UNKNOWN_TEXTS.pluginNamespaceInvalid, {
+                  errors,
+                }),
               }),
               data: { surface: 'plugin-namespace', pluginId: key, key: contribKey },
             });
@@ -154,9 +155,9 @@ export const annotationFieldUnknownAnalyzer: IBuiltInManifest<IAnalyzer> = {
           analyzerId: ID,
           severity: 'warn',
           nodeIds: [node.path],
-          message: tx(ANNOTATION_FIELD_UNKNOWN_TEXTS.unknownRootKey, {
-            path: node.path,
-            key,
+          message: formatFinding({
+            subject: key,
+            body: tx(ANNOTATION_FIELD_UNKNOWN_TEXTS.unknownRootKey),
           }),
           data: { surface: 'root', key },
         });

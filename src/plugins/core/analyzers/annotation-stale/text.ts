@@ -7,14 +7,17 @@
  */
 
 export const ANNOTATION_STALE_TEXTS = {
-  // Compact finding grammar: the affected node is the finding's own
-  // node, so its path never appears in the message.
+  // Diagnosis bodies (`<what>; <why>`). The shared `formatFinding` helper
+  // emits no subject (the affected node IS the finding's own node); the
+  // remediation hint moves to `Issue.fix.summary` below.
   /** body changed since last bump */
-  bodyDrift: 'Sidecar `.sm` is stale: body changed since last bump.',
+  bodyDrift: 'Sidecar stale; body changed since last bump',
   /** frontmatter changed since last bump */
-  frontmatterDrift: 'Sidecar `.sm` is stale: frontmatter changed since last bump.',
+  frontmatterDrift: 'Sidecar stale; frontmatter changed since last bump',
   /** both body and frontmatter changed */
-  bothDrift: 'Sidecar `.sm` is stale: body and frontmatter changed since last bump.',
+  bothDrift: 'Sidecar stale; body and frontmatter changed since last bump',
+  /** Remediation hint surfaced via `Issue.fix.summary`. */
+  fixSummary: 'Run `sm bump <path>` to refresh the sidecar.',
   // Tooltips for the `card.footer.right` clock chip emitted alongside
   // the issue. Lists only the drifted face(s), in-sync faces are
   // omitted so the operator immediately sees what's modified without
