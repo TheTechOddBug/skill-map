@@ -73,18 +73,18 @@
   color: var(--shell-topbar-text-strong);
 }
 
-/* "Alpha" warning banner next to the wordmark. Rectangular chip with a
+/* "Beta" warning banner next to the wordmark. Rectangular chip with a
    solid red fill so the longer "do not use in production" copy stays
    legible, replaces the earlier rotated stencil seal. Light theme is
    the default; dark override below. */
-.shell__alpha {
+.shell__beta {
   font-family: var(--sm-font-display-brand);
   font-weight: 600;
   font-size: 10px;
   line-height: 1;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  /* alpha-warning chip; one-off brand red, not tokenised. */
+  /* beta-warning chip; one-off brand red, not tokenised. */
   color: #ad322b;
   background: rgba(173, 50, 43, 0.08);
   border-radius: var(--sm-radius-sm);
@@ -96,14 +96,14 @@
   white-space: nowrap;
 }
 
-:host-context(.app-dark) .shell__alpha {
+:host-context(.app-dark) .shell__beta {
   color: #e07570;
   background: rgba(207, 70, 64, 0.14);
 }
 
-/* Version chip, sits next to the Alpha stamp so a screenshot from a
+/* Version chip, sits next to the Beta stamp so a screenshot from a
    tester self-identifies which CLI / server version is running.
-   Quieter than the Alpha stamp (no rotation, muted color), it's
+   Quieter than the Beta stamp (no rotation, muted color), it's
    support metadata, not a brand mark. */
 .shell__version {
   display: inline-block;
@@ -176,7 +176,7 @@
   background: color-mix(in srgb, var(--provider-color-dark) 24%, transparent);
 }
 
-/* "Update available" chip, appears immediately after the Alpha stamp
+/* "Update available" chip, appears immediately after the Beta stamp
    when the BFF reports `/api/update-status -> isOutdated: true`. The
    anchor opens npm in a new tab so the user can read release notes
    before upgrading. Visual language follows PrimeNG's primary ramp so

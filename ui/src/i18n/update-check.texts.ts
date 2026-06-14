@@ -18,7 +18,7 @@ export const UPDATE_CHECK_TEXTS = {
   npmLinkTooltip: 'Open on npm',
   npmLinkA11y: 'Open the @skill-map/cli package page on npm',
   a11yLabel: (latest: string) => `Update available: version ${latest}, click to copy the install command`,
-  /** Topbar version chip, shown next to the Alpha badge so screenshots are self-identifying. */
+  /** Topbar version chip, shown next to the Beta badge so screenshots are self-identifying. */
   versionLabel: (current: string) => `v${current}`,
   versionTooltip: (current: string) => `skill-map CLI v${current}`,
   versionA11yLabel: (current: string) => `Running version ${current}`,

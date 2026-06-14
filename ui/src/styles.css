@@ -47,7 +47,7 @@
      metadata values across components. */
   --sm-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
-  /* Display brand font, used for the "Alpha" warning chip and any
+  /* Display brand font, used for the "Beta" warning chip and any
      other one-off brand-adjacent label. Geist is not bundled; the
      system fallback keeps the chip legible on machines without it. */
   --sm-font-display-brand: 'Geist', system-ui, sans-serif;

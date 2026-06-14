@@ -30,7 +30,7 @@ html.app-matrix body {
 /* Font tokens: every component that picks its font via the shared
    `--sm-font-mono` / `--sm-font-display-brand` SM vars (node cards,
    inspector chips, vendor frontmatter, list view, plugin contributions,
-   demo banner, the brand "Alpha" chip, settings panels, dialog code
+   demo banner, the brand "Beta" chip, settings panels, dialog code
    blocks) flips to JetBrains Mono via the cascade. Every mono surface
    reads `--sm-font-mono`, so retinting that single var reaches them all.
    No per-component override needed, the var swap reaches them. */
@@ -205,7 +205,7 @@ html.app-matrix .settings-modal__sidebar-item.is-active {
 }
 
 /* === Topbar chips (alpha / version / update), one-off palettes === */
-html.app-matrix .shell__alpha {
+html.app-matrix .shell__beta {
   color: var(--sm-matrix-accent);
   background: color-mix(in srgb, var(--sm-matrix-accent) 12%, transparent);
 }

@@ -152,7 +152,7 @@ html.app-neon .settings-modal__sidebar-item.is-active {
 }
 
 /* === Topbar chips (alpha / version / update), one-off palettes === */
-html.app-neon .shell__alpha {
+html.app-neon .shell__beta {
   color: var(--sm-neon-accent);
   background: color-mix(in srgb, var(--sm-neon-accent) 12%, transparent);
 }
