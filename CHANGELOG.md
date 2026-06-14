@@ -6,6 +6,25 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>0.56.0</b> · 2026-06-14</summary>
+
+### CLI Minor
+- Plugin extensions declare operator-configurable `settings` in their manifest, read at scan time via `ctx.settings` and resolved through the config layers under `plugins.<id>.extensions.<extId>.settings`. The `sm plugins config <plugin>/<ext>` verb, `GET`/`PATCH /api/plugins`, and per-plugin sections in Settings all read and write them; `secret` values route to the gitignored project-local file (no encryption). Adds a `number` (decimal) input-type to the catalog.
+
+### CLI Patch
+- Reserve the claude built-in slash names under `skill` as well as `command`. The two kinds share the `/` invocation namespace (`invokes: ['command','skill']`), so a built-in like `/help` shadows a user skill named `help` just as it shadows a command; the list is extracted to a shared `RESERVED_SLASH_NAMES` const. The `core/name-reserved` warnings are reworded around "Name collision: ..." so the operator reads what happened instead of internal shadowing terms.
+- Consolidate link-target resolution onto the kernel's authoritative `link.resolvedTarget` (stamped by the post-walk lift). `core/link-counter` now tallies footer chips by that field and shares a single `isSelfLoop` helper with `core/link-self-loop`, and the graph view reads `resolvedTarget` instead of recomputing its own name index. The duplicate kernel and UI resolvers are gone, so footer chip counts, drawn graph edges, and the incoming panel can no longer disagree.
+- Remove the dead `data.selfLoop: true` flag from `core/link-self-loop` issues. No consumer ever read it: the graph view recomputes the `source === resolvedTarget` predicate independently in its render-pipeline mirror, so the flag (and its "authoritative detector" doc claim) was vestigial. The doc comment now states the rule reports and the layout draws as deliberately independent paths, and the two obsolete `data.selfLoop` test assertions are dropped.
+- Fix `core/link-conflict` embedding two literal NUL bytes (0x00) as the `(source, target)` group-key separator: git treated the file as binary so its diffs were hidden in review and grep skipped it. The separator is now a plain JS unicode escape (still NUL at runtime, identical behavior) and the hardcoded `pluginId: 'core'` reads the shared `CORE_PLUGIN_ID` const like the other core analyzers.
+- Make `core/reference-broken` a pure projector of the kernel's broken-link verdict. The post-walk lift now computes the genuinely-broken set (the kind-agnostic "the name exists nowhere" notion of `spec/architecture.md` §Provider · resolution rules) and threads it via `IAnalyzerContext.brokenLinks`. The rule projects that set instead of re-deriving a frontmatter-name-only index that false-flagged links resolving via a filename / dirname identifier; `core/name-reserved` reads `link.resolvedTarget`.
+- Consolidate `core/reference-redundant` onto the kernel's `link.resolvedTarget` (stamped by the post-walk lift) instead of rebuilding its own name index, deleting the duplicated `buildNameIndex` / `collectIdentifiers` / `resolveTargetPath` machinery. Grouping now tracks the resolved graph; a trigger that matches a name but fails the strict kind matrix is no longer grouped as redundant (that mismatch is `core/link-conflict`'s concern). The three documented redundancy cases are preserved.
+
+### Spec Minor (0.50.0)
+- Plugin extensions declare operator-configurable `settings` in their manifest, read at scan time via `ctx.settings` and resolved through the config layers under `plugins.<id>.extensions.<extId>.settings`. The `sm plugins config <plugin>/<ext>` verb, `GET`/`PATCH /api/plugins`, and per-plugin sections in Settings all read and write them; `secret` values route to the gitignored project-local file (no encryption). Adds a `number` (decimal) input-type to the catalog.
+
+</details>
+
+<details>
 <summary><b>0.55.0</b> · 2026-06-13</summary>
 
 ### CLI Minor
