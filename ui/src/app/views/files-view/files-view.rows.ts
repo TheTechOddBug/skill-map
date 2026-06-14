@@ -22,7 +22,7 @@ import {
   formatModifiedAt,
   formatModifiedAtFull,
 } from '../../../models/node-derived';
-import { pathBasenameForLink } from '../../../services/trigger-resolve';
+import { pathBasenameForLink } from '../../../services/path-basename';
 import { STABILITY_SEVERITY, type TTagSeverity } from '../../components/severity-map';
 import { FILES_VIEW_TEXTS } from '../../../i18n/files-view.texts';
 import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';

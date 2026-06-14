@@ -39,7 +39,7 @@
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { Issue, LinkKind } from '../../../../kernel/types.js';
 import type { IViewContribution } from '../../../../kernel/types/view-catalog.js';
-import { buildNameIndex, resolveLinkTargetToPath } from '../../../../kernel/util/trigger-resolve.js';
+import { isSelfLoop } from '../../../../kernel/util/link-lines.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'link-counter';
@@ -70,35 +70,36 @@ export const linkCounterAnalyzer: IBuiltInManifest<IAnalyzer> = {
   ui: { linksIn, linksOut },
 
   evaluate(ctx: IAnalyzerContext): Issue[] {
-    // Two passes over `ctx.links`: one tallying by `target` (incoming)
-    // and one by `source` (outgoing). Each tally is split by `Link.kind`
-    // so the chip tooltip can surface the per-kind breakdown
+    // Two passes over `ctx.links`: one tallying by resolved target
+    // (incoming) and one by `source` (outgoing). Each tally is split by
+    // `Link.kind` so the chip tooltip can surface the per-kind breakdown
     // ("invokes: 2\nmentions: 1\nreferences: 3"). Cap the totals at 99
     // to match the `_counter` slot schema's conventional ceiling.
     //
-    // Trigger-style targets (`/<cmd>` from the slash extractor,
-    // `@<handle>` from at-directive) arrive as bare names; resolve
-    // them to the real node path via the shared `trigger-resolve`
-    // helper before counting so a `/stale-skill` invocation lands
-    // on `.claude/skills/stale-skill/SKILL.md`'s `linksIn` chip,
-    // matching what the graph view renders. Path-style targets
-    // (markdown-link, annotations) pass through untouched.
-    const nameIndex = buildNameIndex(ctx.nodes);
+    // Count by `link.resolvedTarget`, the authoritative path the post-
+    // walk lift transform (`lift-resolved-link-confidence.ts`) stamps on
+    // every edge that resolves to a real node. The lift resolution is
+    // kind/lens-aware, so a `/stale-skill` invocation lands on
+    // `.claude/skills/stale-skill/SKILL.md` via that node's `dirname`
+    // identifier; path-style links lift left untouched carry no
+    // `resolvedTarget`, so fall back to `link.target`. Reading the lift's
+    // result instead of recomputing a name lookup keeps the footer chip
+    // in lock-step with the BFF incoming list and rename tooling, which
+    // navigate by the same field.
     const perTarget = new Map<string, Map<LinkKind, number>>();
     const perSource = new Map<string, Map<LinkKind, number>>();
     for (const link of ctx.links) {
-      const resolvedTarget = resolveLinkTargetToPath(link, nameIndex);
       // Skip self-loops: a node that links back to itself (directly via
-      // `link.target` or transitively via the resolved trigger) used to
+      // `link.target` or transitively via the resolved trigger) would
       // bump both `linksIn` and `linksOut` of the same node, inflating
       // the footer chips and disagreeing with the `LinkedNodesPanel`
-      // sidecar (which already filters self-loops out of its outgoing
-      // / incoming lists via `isSelfLoop`). The self-reference is still
-      // surfaced as a warning by the `core/link-self-loop` analyzer, so
-      // dropping it here only removes the misleading count, not the
-      // signal that the loop exists.
-      if (link.source === link.target || link.source === resolvedTarget) continue;
-      bump(perTarget, resolvedTarget, link.kind);
+      // sidecar (which filters self-loops via the same `isSelfLoop`). The
+      // self-reference is still surfaced as a warning by the
+      // `core/link-self-loop` analyzer, so dropping it here only removes
+      // the misleading count, not the signal that the loop exists.
+      if (isSelfLoop(link)) continue;
+      const target = link.resolvedTarget ?? link.target;
+      bump(perTarget, target, link.kind);
       bump(perSource, link.source, link.kind);
     }
     for (const node of ctx.nodes) {

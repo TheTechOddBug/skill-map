@@ -19,6 +19,25 @@
 import type { Link } from '../types.js';
 import { tx } from './tx.js';
 
+/**
+ * A link is a self-loop when its source node is also its own target,
+ * either directly (`source === target`, a path-style link pointing at
+ * its own file) or after trigger resolution (`source === resolvedTarget`,
+ * e.g. a `# /deploy` heading inside the file that defines `/deploy`).
+ *
+ * The resolved arm reads `link.resolvedTarget`, the authoritative path
+ * the post-walk lift transform (`lift-resolved-link-confidence.ts`)
+ * stamps onto every edge that resolves to a real node. Both the
+ * `core/link-self-loop` analyzer (which warns) and `core/link-counter`
+ * (which skips the loop when tallying footer chips) call this, so the two
+ * cannot drift on what "self-loop" means.
+ */
+export function isSelfLoop(link: Link): boolean {
+  if (link.source === link.target) return true;
+  if (link.resolvedTarget && link.source === link.resolvedTarget) return true;
+  return false;
+}
+
 export function linkLines(link: Link): number[] {
   const lines = new Set<number>();
   for (const occ of link.occurrences ?? []) {

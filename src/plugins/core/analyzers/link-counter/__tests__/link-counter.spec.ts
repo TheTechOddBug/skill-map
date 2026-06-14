@@ -141,20 +141,14 @@ describe('core/link-counter analyzer, paired in/out chips', () => {
   });
 });
 
-describe('core/link-counter analyzer, trigger resolution', () => {
-  function namedNode(path: string, name: string): Node {
-    return {
-      ...mockNode(path),
-      frontmatter: { name, description: '' },
-    };
-  }
-
-  it('resolves a `/foo` slash invocation against `frontmatter.name` before counting', () => {
-    // The slash extractor emits `target: '/foo'` (a bare trigger).
-    // The analyzer must resolve it to the path of the node whose
-    // `frontmatter.name` normalises to `foo` and credit the chip
-    // there, NOT against the literal `/foo` string.
-    const nodes = [namedNode('commands/foo.md', 'foo'), mockNode('callers.md')];
+describe('core/link-counter analyzer, resolved-target counting', () => {
+  it('credits the incoming chip at `link.resolvedTarget` for a slash trigger', () => {
+    // The slash extractor emits `target: '/foo'` (a bare trigger) and
+    // the post-walk lift resolves it to `commands/foo.md`, stamping
+    // `resolvedTarget`. The analyzer credits the chip there, NOT against
+    // the literal `/foo` string. Resolution is the lift's job; this rule
+    // only honours the path it produced.
+    const nodes = [mockNode('commands/foo.md'), mockNode('callers.md')];
     const link: Link = {
       source: 'callers.md',
       target: '/foo',
@@ -162,6 +156,7 @@ describe('core/link-counter analyzer, trigger resolution', () => {
       confidence: 0.6,
       sources: ['slash'],
       trigger: { originalTrigger: '/foo', normalizedTrigger: '/foo' },
+      resolvedTarget: 'commands/foo.md',
     };
     const { captured } = run(nodes, [link]);
     const fooLinksIn = captured.find(
@@ -173,12 +168,12 @@ describe('core/link-counter analyzer, trigger resolution', () => {
     });
   });
 
-  it('resolves via the path-basename fallback when frontmatter.name is empty', () => {
-    // Mirrors the local-scope bug: `stale-skill.md` has no
-    // `frontmatter.name` (parse error in description), and a sibling
-    // markdown invokes it via `/stale-skill`. The chip must still
-    // surface 1 incoming so the operator sees the same number the
-    // graph view draws via its own basename fallback.
+  it('honours a `resolvedTarget` the lift derived from the node dirname', () => {
+    // Mirrors the local-scope bug: `stale-skill/SKILL.md` has no
+    // `frontmatter.name` (parse error in description), so the lift
+    // resolves the sibling's `/stale-skill` invocation via that node's
+    // `dirname` identifier and stamps `resolvedTarget`. The chip honours
+    // it and surfaces 1 incoming, matching the BFF incoming list.
     const nodes = [
       mockNode('.claude/skills/stale-skill/SKILL.md'),
       mockNode('caller.md'),
@@ -190,6 +185,7 @@ describe('core/link-counter analyzer, trigger resolution', () => {
       confidence: 0.6,
       sources: ['slash'],
       trigger: { originalTrigger: '/stale-skill', normalizedTrigger: '/stale skill' },
+      resolvedTarget: '.claude/skills/stale-skill/SKILL.md',
     };
     const { captured } = run(nodes, [link]);
     const inChip = captured.find(
@@ -214,11 +210,11 @@ describe('core/link-counter analyzer, trigger resolution', () => {
   });
 
   it('skips a self-loop reached through trigger resolution (`source === resolvedTarget`)', () => {
-    // `commands/foo.md` is named `foo` and invokes itself via `/foo`.
-    // `resolveLinkTargetToPath` resolves `/foo` to `commands/foo.md`,
-    // which equals `link.source`, so the analyzer must skip the link
-    // the same way it skips a literal-path self-loop.
-    const nodes = [namedNode('commands/foo.md', 'foo')];
+    // `commands/foo.md` invokes itself via `/foo`; the lift resolves the
+    // trigger back to `commands/foo.md`, which equals `link.source`, so
+    // the shared `isSelfLoop` predicate fires and the analyzer skips the
+    // link the same way it skips a literal-path self-loop.
+    const nodes = [mockNode('commands/foo.md')];
     const link: Link = {
       source: 'commands/foo.md',
       target: '/foo',
@@ -226,6 +222,7 @@ describe('core/link-counter analyzer, trigger resolution', () => {
       confidence: 0.6,
       sources: ['slash'],
       trigger: { originalTrigger: '/foo', normalizedTrigger: '/foo' },
+      resolvedTarget: 'commands/foo.md',
     };
     const { captured } = run(nodes, [link]);
     deepStrictEqual(captured, []);

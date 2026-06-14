@@ -30,9 +30,9 @@
  */
 
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
-import type { Issue, Link } from '../../../../kernel/types.js';
+import type { Issue } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
-import { linkWhere } from '../../../../kernel/util/link-lines.js';
+import { isSelfLoop, linkWhere } from '../../../../kernel/util/link-lines.js';
 import { LINK_SELF_LOOP_TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
@@ -73,9 +73,3 @@ export const linkSelfLoopAnalyzer: IBuiltInManifest<IAnalyzer> = {
     return issues;
   },
 };
-
-function isSelfLoop(link: Link): boolean {
-  if (link.source === link.target) return true;
-  if (link.resolvedTarget && link.source === link.resolvedTarget) return true;
-  return false;
-}

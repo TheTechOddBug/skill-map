@@ -54,7 +54,6 @@ import type {
   TSummary,
 } from '../../../models/node';
 import type { ILinkApi, INodeApi, IScanResultApi, TLinkKindApi } from '../../../models/api';
-import { buildNameIndex, resolveTargetToPath } from '../../../services/trigger-resolve';
 import {
   LAYOUT_SPACING_VALUES,
   toFoblexAlgorithm,
@@ -185,11 +184,11 @@ export interface ILayoutPreferences {
  *                  renders, assuming no kind / visibility filters).
  *   brokenSource = links whose `source` is not a loaded node (rare,
  *                  the kernel guarantees the source is a real node).
- *   brokenTarget = links whose `target` (after trigger / name
- *                  resolution) is not a loaded node. The kernel-side
- *                  `core/reference-broken` already flags these as
- *                  issues, the graph just declines to draw a dangling
- *                  arrow.
+ *   brokenTarget = links whose kernel-resolved target
+ *                  (`link.resolvedTarget`, else the raw `target`) is not
+ *                  a loaded node. The kernel-side `core/reference-broken`
+ *                  already flags these as issues, the graph just declines
+ *                  to draw a dangling arrow.
  *   selfLoops    = links where `source === resolvedTarget`. Drawing
  *                  them would either congest the layout (a tiny loop
  *                  on top of the node) or render invisibly.
@@ -207,6 +206,23 @@ export interface ILinkAnalysis {
 }
 
 /**
+ * The node path an edge lands on. Reads `link.resolvedTarget`, the
+ * authoritative path the kernel's post-walk lift stamped (kind/lens-
+ * aware, the same field the `LinkedNodesPanel` and the BFF incoming
+ * list navigate by). Path-style links and unresolved triggers carry no
+ * `resolvedTarget`, so fall back to the raw `link.target`, which the
+ * caller's `validPaths` check then drops if it names no loaded node.
+ *
+ * The graph view no longer recomputes trigger resolution with its own
+ * name index: resolution happens once in the kernel and rides along in
+ * the API payload, so the drawn topology cannot drift from what the
+ * kernel resolved.
+ */
+function edgeTargetPath(link: ILinkApi): string {
+  return link.resolvedTarget ?? link.target;
+}
+
+/**
  * Mirror of `resolveTopology`'s edge filtering, returning per-reason
  * counts instead of the edge set. Kept as a sibling helper so the
  * topbar can present the breakdown without recomputing the dedupe
@@ -220,7 +236,6 @@ export function analyzeLinks(
 ): ILinkAnalysis {
   const links: ILinkApi[] = scan?.links ?? [];
   const validPaths = new Set(allNodes.map((n) => n.path));
-  const nameIndex = buildNameIndex(allNodes);
   const seenEdgeIds = new Set<string>();
   let brokenSource = 0;
   let brokenTarget = 0;
@@ -232,11 +247,7 @@ export function analyzeLinks(
       brokenSource++;
       continue;
     }
-    const resolvedTarget = resolveTargetToPath(
-      link.target,
-      link.trigger?.normalizedTrigger ?? null,
-      nameIndex,
-    );
+    const resolvedTarget = edgeTargetPath(link);
     if (!validPaths.has(resolvedTarget)) {
       brokenTarget++;
       continue;
@@ -296,23 +307,17 @@ export function resolveTopology(
   scan: IScanResultApi | null,
 ): ITopology {
   const validPaths = new Set(allNodes.map((n) => n.path));
-  // Trigger → path index built from the same source-of-truth the
-  // kernel's `broken-ref` uses (`frontmatter.name` normalised). The
-  // `slash` and `at-directive` extractors emit `link.target` as a
-  // bare trigger (`/full-command-claude`, `@my-agent`), so the graph
-  // needs this lookup to draw the arrow between the real node cards.
-  // Path-style targets (markdown-link, annotations) bypass the
-  // resolver and go through unchanged.
-  const nameIndex = buildNameIndex(allNodes);
+  // Edge endpoints come from `link.resolvedTarget`, the path the kernel
+  // already resolved each `slash` / `at-directive` trigger to (see
+  // `edgeTargetPath`). The graph draws the arrow between the real node
+  // cards without re-running resolution; path-style targets and
+  // unresolved triggers fall back to `link.target` and get dropped by
+  // the `validPaths` check below when they name no loaded node.
   const byId = new Map<string, IGraphEdge>();
   const links: ILinkApi[] = scan?.links ?? [];
   for (const link of links) {
     if (!validPaths.has(link.source)) continue;
-    const resolvedTarget = resolveTargetToPath(
-      link.target,
-      link.trigger?.normalizedTrigger ?? null,
-      nameIndex,
-    );
+    const resolvedTarget = edgeTargetPath(link);
     if (!validPaths.has(resolvedTarget)) continue;
     if (link.source === resolvedTarget) continue;
     const id = edgeId(link.kind, link.source, resolvedTarget);

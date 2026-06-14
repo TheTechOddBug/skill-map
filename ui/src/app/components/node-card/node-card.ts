@@ -20,7 +20,7 @@ import {
   effectiveUserTags,
   effectiveVersion,
 } from '../../../models/node-derived';
-import { pathBasenameForLink } from '../../../services/trigger-resolve';
+import { pathBasenameForLink } from '../../../services/path-basename';
 import { cssColorOrNull } from '../../../services/css-guard';
 import type { ISelectionView } from '../../views/graph-view/selection-state';
 import { KindIcon } from '../kind-icon/kind-icon';
