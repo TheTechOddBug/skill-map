@@ -18,14 +18,16 @@
  *
  * Detection model:
  *
- *   1. For each link, compute the RESOLVED target node path. Path-style
- *      targets resolve trivially (`link.target` IS a node path).
- *      Trigger-style targets (sigil prefix) resolve via the same name
- *      index `liftResolvedLinkConfidence` consults: strip the leading
- *      `@` / `/`, match against `frontmatter.name` / filename basename
- *      / dirname normalised through `normalizeTrigger`. Links that do
- *      not resolve to any node are skipped, `core/reference-broken` already
- *      flags those.
+ *   1. For each link, read `link.resolvedTarget`, the path the post-walk
+ *      lift already resolved the edge to (path-style targets and trigger-
+ *      style `@foo` / `/foo` resolved through the kind/lens matrix plus
+ *      the filename / dirname identifiers all land there). Links the lift
+ *      left unresolved carry no `resolvedTarget` and are skipped,
+ *      `core/reference-broken` flags those. Reading the lift's result
+ *      instead of re-deriving a name index keeps grouping in lock-step
+ *      with the resolved graph; a trigger that matches a name but fails
+ *      the strict kind matrix is deliberately NOT grouped here, that kind
+ *      mismatch is `core/link-conflict`'s concern.
  *   2. Group links by `(source, resolvedTarget)`.
  *   3. Sum the `occurrences[]` lengths across every link in the group.
  *      A group with `total >= 2` emits one info issue on the source.
@@ -52,8 +54,7 @@
  */
 
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
-import type { Issue, Link, Node } from '../../../../kernel/types.js';
-import { normalizeTrigger } from '../../../../kernel/trigger-normalize.js';
+import type { Issue, Link } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { REFERENCE_REDUNDANT_TEXTS as TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
@@ -70,15 +71,12 @@ export const referenceRedundantAnalyzer: IBuiltInManifest<IAnalyzer> = {
 
   evaluate(ctx: IAnalyzerContext): Issue[] {
     if (ctx.links.length === 0) return [];
-    const byPath = new Map<string, Node>();
-    for (const node of ctx.nodes) byPath.set(node.path, node);
-    const byName = buildNameIndex(ctx.nodes);
 
     // Group key: `${source}\x00${resolvedTarget}`. Each entry holds the
     // links that reached the same destination from one source.
     const groups = new Map<string, Link[]>();
     for (const link of ctx.links) {
-      const resolved = resolveTargetPath(link, byPath, byName);
+      const resolved = link.resolvedTarget;
       if (!resolved) continue; // unresolved links are broken-ref's concern
       const key = `${link.source}\x00${resolved}`;
       const bucket = groups.get(key);
@@ -192,70 +190,4 @@ function formatGroupedOccurrences(occurrences: readonly IFlatOccurrence[]): stri
     .join(TEXTS.occurrenceSeparator);
 }
 
-/**
- * Map<normalised-name, candidate node paths>. Mirrors what the post-walk
- * `liftResolvedLinkConfidence` builds, but the analyzer constructs its
- * own copy because the resolved-target index is not threaded through
- * the analyzer context. Names come from `frontmatter.name`, filename
- * basename (extension stripped), and dirname; all three run through
- * the same `normalizeTrigger` pipeline as the lift's identifier
- * derivation so the lookup keys agree.
- */
-function buildNameIndex(nodes: readonly Node[]): Map<string, string[]> {
-  const out = new Map<string, string[]>();
-  for (const node of nodes) {
-    for (const candidate of collectIdentifiers(node)) {
-      const normalised = normalizeTrigger(candidate);
-      if (!normalised) continue;
-      const bucket = out.get(normalised);
-      if (bucket) bucket.push(node.path);
-      else out.set(normalised, [node.path]);
-    }
-  }
-  return out;
-}
-
-// eslint-disable-next-line complexity
-function collectIdentifiers(node: Node): string[] {
-  const out: string[] = [];
-  const fmName = node.frontmatter?.['name'];
-  if (typeof fmName === 'string' && fmName.length > 0) out.push(fmName);
-  const segs = node.path.split('/');
-  const last = segs[segs.length - 1] ?? '';
-  if (last) {
-    const stem = last.replace(/\.[^.]+$/, '');
-    if (stem) out.push(stem);
-  }
-  if (segs.length >= 2) {
-    const dirBase = segs[segs.length - 2];
-    if (dirBase) out.push(dirBase);
-  }
-  return out;
-}
-
-/**
- * Path-style target shortcut: `link.target` already IS a node path.
- * Trigger-style targets carry a sigil; strip and look up in the name
- * index. Returns `null` when neither evidence path leads to a real
- * node (the link is broken; `core/reference-broken` flags it separately).
- */
-function resolveTargetPath(
-  link: Link,
-  byPath: Map<string, Node>,
-  byName: Map<string, string[]>,
-): string | null {
-  if (byPath.has(link.target)) return link.target;
-  const trigger = link.trigger?.normalizedTrigger;
-  if (!trigger) return null;
-  const stripped = trigger.replace(/^[/@]/, '').trim();
-  if (!stripped) return null;
-  const candidates = byName.get(stripped);
-  if (!candidates || candidates.length === 0) return null;
-  // Multiple candidates can share a name (a `command` and a `skill`
-  // both named `deploy`, for instance). For the redundancy check we
-  // do not need to disambiguate, ANY single resolution suffices to
-  // know that the source has at least one valid edge to that path.
-  // The lift transform's strict-kind filter is not relevant here.
-  return candidates[0] ?? null;
-}
 

@@ -13,9 +13,8 @@
  *   - Single occurrence (no redundancy): silent.
  *   - Unresolved (broken) links: silent (the `reference-broken` rule is the
  *     authoritative signal there).
- *   - Path-style and trigger-style links resolve uniformly through
- *     `byPath` (direct) or `byName` (frontmatter.name / filename /
- *     dirname) before grouping.
+ *   - Links group by `link.resolvedTarget` (the path the post-walk lift
+ *     resolved the edge to); links the lift left unresolved are skipped.
  */
 
 import { strict as assert } from 'node:assert';
@@ -77,6 +76,7 @@ describe('core/reference-redundant rule', () => {
     const link = mockLink({
       source: src.path,
       target: tgt.path,
+      resolvedTarget: tgt.path,
       sources: ['markdown-link'],
       occurrences: [{ extractor: 'markdown-link', originalTrigger: './tgt.md', location: { line: 5 } }],
     });
@@ -95,6 +95,7 @@ describe('core/reference-redundant rule', () => {
     const mergedLink = mockLink({
       source: src.path,
       target: tgt.path,
+      resolvedTarget: tgt.path,
       sources: ['at-directive', 'markdown-link'],
       occurrences: [
         { extractor: 'at-directive', originalTrigger: '@./tgt.md', location: { line: 3 } },
@@ -132,6 +133,7 @@ describe('core/reference-redundant rule', () => {
     const refLink = mockLink({
       source: hub.path,
       target: agent.path,
+      resolvedTarget: agent.path,
       kind: 'references',
       sources: ['at-directive'],
       occurrences: [{ extractor: 'at-directive', originalTrigger: '@./real-agent.md', location: { line: 4 } }],
@@ -139,6 +141,7 @@ describe('core/reference-redundant rule', () => {
     const mentLink = mockLink({
       source: hub.path,
       target: '@real-agent',
+      resolvedTarget: agent.path,
       kind: 'mentions',
       sources: ['at-directive'],
       trigger: { originalTrigger: '@real-agent', normalizedTrigger: '@real agent' },
@@ -177,9 +180,11 @@ describe('core/reference-redundant rule', () => {
     assert.deepEqual(issues, []);
   });
 
-  it('resolves trigger-style targets via the name index (dirname + frontmatter.name)', async () => {
-    // The skill node has no `frontmatter.name` but its dirname matches
-    // the trigger. Mirrors Anthropic's documented skills convention.
+  it('groups a trigger and a path-style link that share a resolvedTarget', async () => {
+    // A `/explore` invocation and a `[md](./explore/SKILL.md)` reference
+    // both resolved (by the lift) to the same skill node. The rule reads
+    // `link.resolvedTarget`; it no longer re-derives the name index, so
+    // the dirname/frontmatter.name resolution is the lift's job.
     const hub = mockNode({ path: 'hub.md' });
     const skill = mockNode({
       path: '.claude/skills/explore/SKILL.md',
@@ -189,6 +194,7 @@ describe('core/reference-redundant rule', () => {
     const slashLink = mockLink({
       source: hub.path,
       target: '/explore',
+      resolvedTarget: skill.path,
       kind: 'invokes',
       sources: ['slash'],
       trigger: { originalTrigger: '/explore', normalizedTrigger: '/explore' },
@@ -197,6 +203,7 @@ describe('core/reference-redundant rule', () => {
     const markdownLink = mockLink({
       source: hub.path,
       target: skill.path,
+      resolvedTarget: skill.path,
       kind: 'references',
       sources: ['markdown-link'],
       occurrences: [{ extractor: 'markdown-link', originalTrigger: './explore/SKILL.md', location: { line: 5 } }],
