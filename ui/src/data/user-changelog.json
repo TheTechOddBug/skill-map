@@ -2,6 +2,32 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.56.0",
+      "date": "2026-06-14",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "**Skills that shadow a built-in slash command are now flagged.** A skill named like a built-in (e.g. `/help`) is reported as a name collision, the same as a command was, and the collision warnings are reworded to read more plainly.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Plugin extensions can expose options: edit them per plugin in Settings (one global Apply) or via `sm plugins config <plugin>/<ext>` (saved in `.skill-map/settings.json`; secrets stay local, never committed). Run `sm scan` to apply. New decimal `number` option type.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**Fewer false broken-reference errors.** A `@name` or `/name` that points at a same-named file no longer reports as broken, even when that file has no `name:` in its frontmatter; the reference resolves like the runtime follows it.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.55.0",
       "date": "2026-06-13",
       "kind": "user-facing",
