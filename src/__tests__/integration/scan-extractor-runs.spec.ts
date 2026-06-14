@@ -192,7 +192,10 @@ async function runOnce(args: IRunOnceArgs): Promise<IRunOnceResult> {
     }
     if (priorRuns) runOptions.priorExtractorRuns = priorRuns;
     const ran = await runScanWithRenames(kernel, runOptions);
-    await persistScanResult(adapter.db, ran.result, ran.renameOps, ran.extractorRuns);
+    await persistScanResult(adapter.db, ran.result, {
+      renameOps: ran.renameOps,
+      extractorRuns: ran.extractorRuns,
+    });
     const out: IRunOnceResult = {
       result: ran.result,
       extractorRuns: ran.extractorRuns,

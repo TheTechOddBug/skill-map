@@ -1,28 +1,36 @@
 /**
- * Unit tests for the provider-aware post-resolution confidence bump
+ * Unit tests for the provider-aware post-resolution lift
  * (formerly `liftMentionConfidence`, generalised in bd-4k5 to cover
  * `invokes` and `references` per the source Provider's `resolution`
  * matrix and the target kind's declared `identifiers`).
  *
- * Contract:
+ * The lift now ONLY records the resolution outcome on
+ * `link.resolvedTarget`; the confidence VALUE that used to ride along
+ * (resolved → 1.0, reserved → 0.1, broken → cap 0.5, virtual → keep
+ * emit) is assigned downstream by the built-in `core/score-resolution`
+ * scorer, which reads this `resolvedTarget` plus `ctx.reservedNodePaths`
+ * / `ctx.brokenLinks`. These tests therefore assert the RESOLUTION the
+ * lift owns; the confidence numbers are pinned in
+ * `plugins/core/analyzers/score-resolution/__tests__`.
+ *
+ * Resolution contract:
  *   - Rule 1 (path match, any link.kind): `link.target` equals some
- *     node's `path` ⇒ confidence bumped to 1.0.
+ *     node's `path` ⇒ `resolvedTarget = link.target`.
  *   - Rule 2 (name match, links with `trigger.normalizedTrigger`):
  *     stripped trigger matches a node's identifier (per the kind's
  *     declared `identifiers` sources: `frontmatter.name`,
  *     `filename-basename`, `dirname`) AND the candidate node's kind
- *     is in `provider.resolution[link.kind]` for the SOURCE node's
- *     provider ⇒ bumped to 1.0.
- *   - Rule 3 (broken downgrade, any link.kind): neither rule bumped the
- *     link AND it is genuinely broken (no path match AND the stripped
- *     trigger matches no name-index entry) ⇒ confidence lowered to
- *     `BROKEN_TARGET_CONFIDENCE` (0.5), capped so an emit already below
- *     0.5 is not raised. A link that matches a name but failed the
- *     strict kind/lens bump (not-broken + not-bumped) keeps its emit.
- *   - Links already at >= 1.0 are untouched (cheap idempotency).
+ *     is in `provider.resolution[link.kind]` for the ACTIVE LENS ⇒
+ *     `resolvedTarget = <matched node path>`.
+ *   - Neither rule fires (genuinely broken, or name-matched but
+ *     kind-matrix-rejected) ⇒ `resolvedTarget` stays `undefined`. The
+ *     broken-vs-not-broken split lives in `collectBrokenLinks` (its
+ *     own describe block below), not in the resolved-target outcome.
+ *   - Links already at >= 1.0 are not visited (cheap gate); their
+ *     `resolvedTarget` stays whatever it was (`undefined` here).
  *   - Empty / missing trigger short-circuits the name rule.
- *   - Empty / missing source-provider resolution map → no name-rule
- *     bump (path-rule still fires independently).
+ *   - Empty / missing lens resolution map → no name-rule resolution
+ *     (path-rule still fires independently).
  */
 
 import { describe, it } from 'node:test';
@@ -31,8 +39,6 @@ import { strictEqual, deepStrictEqual } from 'node:assert';
 import {
   liftResolvedLinkConfidence,
   collectBrokenLinks,
-  RESERVED_TARGET_CONFIDENCE,
-  BROKEN_TARGET_CONFIDENCE,
 } from '../lift-resolved-link-confidence.js';
 import type { IPostWalkTransformCtx } from '../post-walk-transforms.js';
 import type { IProviderKind } from '../../extensions/index.js';
@@ -118,7 +124,7 @@ function makeCtx(over?: Partial<IPostWalkTransformCtx>): IPostWalkTransformCtx {
 }
 
 describe('liftResolvedLinkConfidence', () => {
-  it('bumps an at-directive references link whose target matches a node path', () => {
+  it('resolves an at-directive references link whose target matches a node path', () => {
     const nodes = [
       mockNode({ path: '.claude/agents/reviewer.md', kind: 'agent', frontmatter: { name: 'reviewer' } }),
       mockNode({ path: '.claude/agents/src.md', kind: 'agent', frontmatter: { name: 'src' } }),
@@ -137,10 +143,10 @@ describe('liftResolvedLinkConfidence', () => {
       },
     ];
     liftResolvedLinkConfidence(links, nodes, makeCtx());
-    strictEqual(links[0]!.confidence, 1.0);
+    strictEqual(links[0]!.resolvedTarget, '.claude/agents/reviewer.md');
   });
 
-  it('bumps a mention via frontmatter.name on an agent target', () => {
+  it('resolves a mention via frontmatter.name on an agent target', () => {
     const nodes = [
       mockNode({ path: '.claude/agents/src.md', kind: 'agent', frontmatter: { name: 'src' } }),
       mockNode({
@@ -151,10 +157,10 @@ describe('liftResolvedLinkConfidence', () => {
     ];
     const links = [mockMention('@reviewer', 'reviewer', '.claude/agents/src.md')];
     liftResolvedLinkConfidence(links, nodes, makeCtx());
-    strictEqual(links[0]!.confidence, 1.0);
+    strictEqual(links[0]!.resolvedTarget, '.claude/agents/reviewer.md');
   });
 
-  it('bumps a mention via filename-basename when the target lacks frontmatter.name', () => {
+  it('resolves a mention via filename-basename when the target lacks frontmatter.name', () => {
     // `.claude/agents/orphan.md` without a `name:` field still resolves
     // because `claude/agent.identifiers` includes `filename-basename`.
     const nodes = [
@@ -163,10 +169,10 @@ describe('liftResolvedLinkConfidence', () => {
     ];
     const links = [mockMention('@orphan', 'orphan', '.claude/agents/src.md')];
     liftResolvedLinkConfidence(links, nodes, makeCtx());
-    strictEqual(links[0]!.confidence, 1.0);
+    strictEqual(links[0]!.resolvedTarget, '.claude/agents/orphan.md');
   });
 
-  it('bumps a slash invokes against a command via frontmatter.name', () => {
+  it('resolves a slash invokes against a command via frontmatter.name', () => {
     const nodes = [
       mockNode({ path: '.claude/agents/src.md', kind: 'agent', frontmatter: { name: 'src' } }),
       mockNode({
@@ -177,10 +183,10 @@ describe('liftResolvedLinkConfidence', () => {
     ];
     const links = [mockSlash('/deploy', '/deploy', '.claude/agents/src.md')];
     liftResolvedLinkConfidence(links, nodes, makeCtx());
-    strictEqual(links[0]!.confidence, 1.0);
+    strictEqual(links[0]!.resolvedTarget, '.claude/commands/deploy.md');
   });
 
-  it('bumps a slash invokes against a skill via dirname (Anthropic skills convention)', () => {
+  it('resolves a slash invokes against a skill via dirname (Anthropic skills convention)', () => {
     // No frontmatter.name on the skill; only the dirname between
     // `.claude/skills/` and `/SKILL.md` resolves the trigger.
     const nodes = [
@@ -189,11 +195,11 @@ describe('liftResolvedLinkConfidence', () => {
     ];
     const links = [mockSlash('/explore', '/explore', '.claude/agents/src.md')];
     liftResolvedLinkConfidence(links, nodes, makeCtx());
-    strictEqual(links[0]!.confidence, 1.0);
+    strictEqual(links[0]!.resolvedTarget, '.claude/skills/explore/SKILL.md');
   });
 
-  it('does NOT bump slash invokes against an agent (strict kind matrix)', () => {
-    // `/foo` matching an agent named `foo` must NOT bump: Claude's
+  it('does NOT resolve slash invokes against an agent (strict kind matrix)', () => {
+    // `/foo` matching an agent named `foo` must NOT resolve: Claude's
     // resolution map for `invokes` lists only ['command', 'skill'].
     // Mentions surface (@foo) is the right link.kind for an agent;
     // the link-conflict / kind-mismatch analyzers handle the rest.
@@ -203,11 +209,11 @@ describe('liftResolvedLinkConfidence', () => {
     ];
     const links = [mockSlash('/foo', '/foo', '.claude/agents/src.md')];
     liftResolvedLinkConfidence(links, nodes, makeCtx());
-    strictEqual(links[0]!.confidence, 0.8);
+    strictEqual(links[0]!.resolvedTarget, undefined);
   });
 
-  it('does NOT bump a mention pointing at a command (strict kind matrix)', () => {
-    // `@deploy` resolving to a command (not an agent) stays unbumped.
+  it('does NOT resolve a mention pointing at a command (strict kind matrix)', () => {
+    // `@deploy` resolving to a command (not an agent) stays unresolved.
     const nodes = [
       mockNode({ path: '.claude/agents/src.md', kind: 'agent', frontmatter: { name: 'src' } }),
       mockNode({
@@ -218,10 +224,10 @@ describe('liftResolvedLinkConfidence', () => {
     ];
     const links = [mockMention('@deploy', 'deploy', '.claude/agents/src.md')];
     liftResolvedLinkConfidence(links, nodes, makeCtx());
-    strictEqual(links[0]!.confidence, 0.5);
+    strictEqual(links[0]!.resolvedTarget, undefined);
   });
 
-  it('bumps a mention sourced from a universal-provider body under the active lens', () => {
+  it('resolves a mention sourced from a universal-provider body under the active lens', () => {
     // Per `spec/architecture.md` §Provider · resolution rules, the
     // resolver authority is the ACTIVE PROVIDER LENS, not the source
     // node's provider. A `@handle` in `CLAUDE.md` (classified by
@@ -229,7 +235,7 @@ describe('liftResolvedLinkConfidence', () => {
     // mention (extractor gate) AND resolves against
     // claude's `resolution.mentions` (resolver gate). The two gates
     // mirror so trigger-style links emitted from universal-provider
-    // bodies never get stuck at the extractor-emitted confidence.
+    // bodies never get stuck unresolved.
     const nodes = [
       mockNode({
         path: 'CLAUDE.md',
@@ -246,11 +252,10 @@ describe('liftResolvedLinkConfidence', () => {
     ];
     const links = [mockMention('@reviewer', 'reviewer', 'CLAUDE.md')];
     liftResolvedLinkConfidence(links, nodes, makeCtx());
-    strictEqual(links[0]!.confidence, 1);
     strictEqual(links[0]!.resolvedTarget, '.claude/agents/reviewer.md');
   });
 
-  it('does NOT bump trigger-style links when the project is unlensed (activeProvider === null)', () => {
+  it('does NOT resolve trigger-style links when the project is unlensed (activeProvider === null)', () => {
     // An unlensed project (no `activeProvider` setting, no filesystem
     // marker) short-circuits the name path uniformly. Path-match still
     // fires independently; this case asserts the trigger path alone
@@ -265,7 +270,7 @@ describe('liftResolvedLinkConfidence', () => {
     ];
     const links = [mockMention('@reviewer', 'reviewer', '.claude/agents/src.md')];
     liftResolvedLinkConfidence(links, nodes, makeCtx({ activeProvider: null }));
-    strictEqual(links[0]!.confidence, 0.5);
+    strictEqual(links[0]!.resolvedTarget, undefined);
   });
 
   it('Finding 2 regression: /command from a markdown body resolves to the matching command node', () => {
@@ -311,11 +316,10 @@ describe('liftResolvedLinkConfidence', () => {
       },
     ];
     liftResolvedLinkConfidence(links, nodes, makeCtx());
-    strictEqual(links[0]!.confidence, 1);
     strictEqual(links[0]!.resolvedTarget, '.claude/commands/demo-command.md');
   });
 
-  it('leaves a link already at 1.0 untouched', () => {
+  it('leaves a link already at 1.0 unvisited (no resolvedTarget written)', () => {
     const nodes = [
       mockNode({ path: '.claude/agents/src.md', kind: 'agent', frontmatter: { name: 'src' } }),
       mockNode({
@@ -338,10 +342,13 @@ describe('liftResolvedLinkConfidence', () => {
       },
     ];
     liftResolvedLinkConfidence(links, nodes, makeCtx());
+    // Already at 1.0 → not visited → confidence untouched and no
+    // resolvedTarget written (resolution only runs below the gate).
     strictEqual(links[0]!.confidence, 1.0);
+    strictEqual(links[0]!.resolvedTarget, undefined);
   });
 
-  it('is idempotent: re-running on the same input does not change confidences', () => {
+  it('is idempotent: re-running on the same input does not change resolvedTarget', () => {
     const nodes = [
       mockNode({ path: '.claude/agents/src.md', kind: 'agent', frontmatter: { name: 'src' } }),
       mockNode({
@@ -352,14 +359,14 @@ describe('liftResolvedLinkConfidence', () => {
     ];
     const links = [mockMention('@reviewer', 'reviewer', '.claude/agents/src.md')];
     liftResolvedLinkConfidence(links, nodes, makeCtx());
-    const after1 = links[0]!.confidence;
+    const after1 = links[0]!.resolvedTarget;
     liftResolvedLinkConfidence(links, nodes, makeCtx());
-    strictEqual(links[0]!.confidence, after1);
+    strictEqual(links[0]!.resolvedTarget, after1);
   });
 
   it('short-circuits when no link is below 1.0', () => {
     // Cheap guard: if every link is already at 1.0, the indexes are
-    // never built. Observable via the confidences staying equal.
+    // never built and no resolvedTarget is written.
     const nodes = [
       mockNode({ path: '.claude/agents/src.md', kind: 'agent', frontmatter: { name: 'src' } }),
     ];
@@ -374,8 +381,8 @@ describe('liftResolvedLinkConfidence', () => {
     ];
     liftResolvedLinkConfidence(links, nodes, makeCtx());
     deepStrictEqual(
-      links.map((l) => l.confidence),
-      [1.0],
+      links.map((l) => l.resolvedTarget),
+      [undefined],
     );
   });
 
@@ -405,9 +412,9 @@ describe('liftResolvedLinkConfidence', () => {
       },
     ];
     liftResolvedLinkConfidence(links, nodes, makeCtx());
-    strictEqual(links[0]!.confidence, 1.0); // resolved mention
-    strictEqual(links[1]!.confidence, BROKEN_TARGET_CONFIDENCE); // /unknown genuinely broken → demoted from 0.8
-    strictEqual(links[2]!.confidence, 1.0); // untouched
+    strictEqual(links[0]!.resolvedTarget, '.claude/agents/reviewer.md'); // resolved mention
+    strictEqual(links[1]!.resolvedTarget, undefined); // /unknown unresolved (broken)
+    strictEqual(links[2]!.resolvedTarget, undefined); // already-1.0 → not visited
   });
 
   it('normalises identifiers against the pre-normalised trigger', () => {
@@ -424,14 +431,15 @@ describe('liftResolvedLinkConfidence', () => {
     ];
     const links = [mockMention('Senior Reviewer', 'senior reviewer', '.claude/agents/src.md')];
     liftResolvedLinkConfidence(links, nodes, makeCtx());
-    strictEqual(links[0]!.confidence, 1.0);
+    strictEqual(links[0]!.resolvedTarget, '.claude/agents/sr.md');
   });
 
-  it('downgrades a slash invokes resolving to a reserved command (name match)', () => {
+  it('resolves a slash invokes to a reserved command (name match)', () => {
     // User-authored `.claude/commands/help.md` is shadowed by Claude's
-    // built-in `/help`. The slash still resolves by name (and kind
-    // matrix permits command), so the bump runs, but the result is
-    // RESERVED_TARGET_CONFIDENCE, not 1.0.
+    // built-in `/help`. The slash still RESOLVES by name (kind matrix
+    // permits command); whether the resolved target is reserved (and
+    // the downgrade to 0.1 that follows) is the scorer's call, not the
+    // lift's. The lift only records the resolution.
     const nodes = [
       mockNode({ path: '.claude/agents/src.md', kind: 'agent', frontmatter: { name: 'src' } }),
       mockNode({
@@ -443,13 +451,13 @@ describe('liftResolvedLinkConfidence', () => {
     const links = [mockSlash('/help', '/help', '.claude/agents/src.md')];
     const ctx = makeCtx({ reservedNodePaths: new Set(['.claude/commands/help.md']) });
     liftResolvedLinkConfidence(links, nodes, ctx);
-    strictEqual(links[0]!.confidence, RESERVED_TARGET_CONFIDENCE);
+    strictEqual(links[0]!.resolvedTarget, '.claude/commands/help.md');
   });
 
-  it('downgrades an at-directive references resolving to a reserved target (path match)', () => {
-    // `@./help.md` resolves by path to the reserved file. Path match
-    // is the rule that fires; the downgrade still applies because the
-    // resolved target is in reservedNodePaths.
+  it('resolves an at-directive references to a reserved target (path match)', () => {
+    // `@./help.md` resolves by path to the reserved file. Path match is
+    // the rule that fires; the lift records the resolution regardless of
+    // whether the target is reserved (the downgrade is the scorer's).
     const nodes = [
       mockNode({ path: '.claude/agents/src.md', kind: 'agent', frontmatter: { name: 'src' } }),
       mockNode({
@@ -473,17 +481,15 @@ describe('liftResolvedLinkConfidence', () => {
     ];
     const ctx = makeCtx({ reservedNodePaths: new Set(['.claude/commands/help.md']) });
     liftResolvedLinkConfidence(links, nodes, ctx);
-    strictEqual(links[0]!.confidence, RESERVED_TARGET_CONFIDENCE);
+    strictEqual(links[0]!.resolvedTarget, '.claude/commands/help.md');
   });
 
-  it('does NOT downgrade when the trigger has multiple candidates and a non-reserved one wins', () => {
+  it('resolves to the non-reserved candidate when the trigger has multiple candidates', () => {
     // Two candidates for `/help`: a reserved command, AND a skill
     // (also resolves under claude.invokes = [command, skill]). The
-    // candidate finder picks the first one whose kind is allowed; if
-    // it happens to be the non-reserved skill, the bump goes to 1.0.
-    // Order matters; the resolver visits candidates in node-iteration
-    // order. Test the explicit case where the non-reserved skill is
-    // FIRST in the candidate array.
+    // candidate finder picks the first one whose kind is allowed; the
+    // non-reserved skill is FIRST in the candidate array, so resolution
+    // lands on it (and the scorer never sees a reserved target).
     const nodes = [
       mockNode({ path: '.claude/agents/src.md', kind: 'agent', frontmatter: { name: 'src' } }),
       // Skill comes first → wins the `find()` call.
@@ -497,14 +503,13 @@ describe('liftResolvedLinkConfidence', () => {
     const links = [mockSlash('/help', '/help', '.claude/agents/src.md')];
     const ctx = makeCtx({ reservedNodePaths: new Set(['.claude/commands/help.md']) });
     liftResolvedLinkConfidence(links, nodes, ctx);
-    strictEqual(links[0]!.confidence, 1.0);
+    strictEqual(links[0]!.resolvedTarget, '.claude/skills/help/SKILL.md');
   });
 
-  it('demotes a genuinely-broken slash to the broken floor even when other reserved nodes exist', () => {
+  it('does NOT resolve a genuinely-broken slash even when other reserved nodes exist', () => {
     // A reserved node exists but the link does not point at it (path
     // mismatch + name not in the index). `/something-else` resolves to
-    // nothing → genuinely broken → demoted from the 0.8 slash emit to
-    // the broken floor.
+    // nothing → resolvedTarget stays undefined.
     const nodes = [
       mockNode({ path: '.claude/agents/src.md', kind: 'agent', frontmatter: { name: 'src' } }),
       mockNode({
@@ -516,14 +521,14 @@ describe('liftResolvedLinkConfidence', () => {
     const links = [mockSlash('/something-else', '/something-else', '.claude/agents/src.md')];
     const ctx = makeCtx({ reservedNodePaths: new Set(['.claude/commands/help.md']) });
     liftResolvedLinkConfidence(links, nodes, ctx);
-    strictEqual(links[0]!.confidence, BROKEN_TARGET_CONFIDENCE);
+    strictEqual(links[0]!.resolvedTarget, undefined);
   });
 
-  it('demotes a markdown references link whose target resolves to nothing', () => {
+  it('does NOT resolve a markdown references link whose target resolves to nothing', () => {
     // `[x](./missing.md)` from `src.md`: the extractor emits a path-style
     // `references` link at 0.95 with the resolved path as the trigger.
     // No node has that path, and the trigger (a path, not a handle) is
-    // not in the name index ⇒ genuinely broken ⇒ demoted to 0.5.
+    // not in the name index ⇒ resolvedTarget stays undefined.
     const nodes = [
       mockNode({ path: 'src.md', kind: 'markdown', provider: 'core', frontmatter: {} }),
     ];
@@ -538,10 +543,10 @@ describe('liftResolvedLinkConfidence', () => {
       },
     ];
     liftResolvedLinkConfidence(links, nodes, makeCtx());
-    strictEqual(links[0]!.confidence, BROKEN_TARGET_CONFIDENCE);
+    strictEqual(links[0]!.resolvedTarget, undefined);
   });
 
-  it('lifts a markdown references link (emit 0.95) to 1.0 when its target resolves by path', () => {
+  it('resolves a markdown references link (emit 0.95) when its target matches by path', () => {
     const nodes = [
       mockNode({ path: 'src.md', kind: 'markdown', provider: 'core', frontmatter: {} }),
       mockNode({ path: 'guide.md', kind: 'markdown', provider: 'core', frontmatter: {} }),
@@ -557,29 +562,30 @@ describe('liftResolvedLinkConfidence', () => {
       },
     ];
     liftResolvedLinkConfidence(links, nodes, makeCtx());
-    strictEqual(links[0]!.confidence, 1.0);
+    strictEqual(links[0]!.resolvedTarget, 'guide.md');
   });
 
-  it('does NOT demote a not-broken-not-bumped slash (name matches, kind matrix rejects)', () => {
+  it('does NOT resolve a not-broken-not-bumped slash (name matches, kind matrix rejects)', () => {
     // `/foo` matches an agent named `foo` by name, but claude.invokes =
-    // [command, skill] rejects agent ⇒ not bumped. The name DOES exist
-    // in the index, so the link is NOT broken: it keeps its 0.8 emit
-    // rather than being demoted to the broken floor.
+    // [command, skill] rejects agent ⇒ no resolution. The name DOES
+    // exist in the index, so the link is NOT broken (see the
+    // `collectBrokenLinks` block); the lift still leaves resolvedTarget
+    // undefined because the kind matrix rejected the candidate.
     const nodes = [
       mockNode({ path: '.claude/agents/src.md', kind: 'agent', frontmatter: { name: 'src' } }),
       mockNode({ path: '.claude/agents/foo.md', kind: 'agent', frontmatter: { name: 'foo' } }),
     ];
     const links = [mockSlash('/foo', '/foo', '.claude/agents/src.md')];
     liftResolvedLinkConfidence(links, nodes, makeCtx());
-    strictEqual(links[0]!.confidence, 0.8);
+    strictEqual(links[0]!.resolvedTarget, undefined);
   });
 
-  it('does NOT bump a link resolving to a virtual node; it keeps its emit confidence', () => {
+  it('resolves a link pointing at a virtual node (resolvedTarget set; scorer keeps the emit)', () => {
     // A `references` link to an `mcp://images` node (virtual: true,
     // fabricated from frontmatter, unverified on disk) resolves by path,
-    // so resolvedTarget is set, but confidence stays at the 0.85 emit
-    // instead of bumping to 1.0: an unverified entity is not full
-    // certainty (mirrors the reserved-target downgrade).
+    // so resolvedTarget is set. The confidence outcome (keep the 0.85
+    // emit rather than bump to 1.0) is the scorer's call, pinned in the
+    // score-resolution spec.
     const nodes = [
       mockNode({ path: '.claude/agents/src.md', kind: 'agent', frontmatter: { name: 'src' } }),
       mockNode({ path: 'mcp://images', kind: 'mcp', virtual: true, frontmatter: { name: 'images' } }),
@@ -595,7 +601,6 @@ describe('liftResolvedLinkConfidence', () => {
       },
     ];
     liftResolvedLinkConfidence(links, nodes, makeCtx());
-    strictEqual(links[0]!.confidence, 0.85);
     strictEqual(links[0]!.resolvedTarget, 'mcp://images');
   });
 });

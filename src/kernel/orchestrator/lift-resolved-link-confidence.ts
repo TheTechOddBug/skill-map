@@ -61,24 +61,6 @@ import { deriveNodeIdentifiers } from './node-identifiers.js';
 import type { Link, Node } from '../types.js';
 import type { IPostWalkTransformCtx } from './post-walk-transforms.js';
 
-/**
- * Floor confidence value assigned to a link whose target is reserved
- * by its Provider runtime. Chosen low enough to be visually obvious in
- * the UI (well below the typical 0.5 / 0.8 emit floors) while staying
- * non-zero so the edge keeps rendering, downgraded but visible.
- */
-export const RESERVED_TARGET_CONFIDENCE = 0.1;
-
-/**
- * Confidence assigned to a genuinely-broken link (target resolves to
- * nothing: no node path, no name-index entry). Sits ABOVE
- * `RESERVED_TARGET_CONFIDENCE = 0.1` on purpose: a reserved target
- * resolves to a real-but-runtime-ignored file (the subtler trap, flagged
- * most faintly), whereas a broken target merely points at nothing.
- * Below the typical 0.8 / 0.85 / 0.95 emit floors so the dangling edge
- * is visibly demoted, while staying well above reserved.
- */
-export const BROKEN_TARGET_CONFIDENCE = 0.5;
 
 /**
  * Per-candidate row stored in the name index. Carries the kind for the
@@ -147,31 +129,17 @@ export function collectBrokenLinks(
  */
 function applyResolution(link: Link, indexes: IIndexes, ctx: IPostWalkTransformCtx): void {
   const resolution = resolve(link, indexes, ctx);
-  if (resolution === 'none') {
-    // Strict resolution failed. Demote to the broken floor ONLY when the
-    // link is genuinely broken (no path, no name match), mirroring
-    // core/reference-broken. A name match that failed the strict kind/lens
-    // bump (not-broken + not-bumped) keeps its emit.
-    if (isGenuinelyBroken(link, indexes)) {
-      link.confidence = Math.min(link.confidence, BROKEN_TARGET_CONFIDENCE);
-    }
-    return;
-  }
+  if (resolution === 'none') return;
   // The edge resolves to a real graph node. Record the resolved path so
-  // consumers (BFF incoming query, rename tooling, the UI's incoming list)
-  // can navigate by node identity even when `link.target` keeps a trigger
-  // string like `@foo` / `/deploy`. Set unconditionally, regardless of the
-  // confidence outcome below.
+  // consumers (BFF incoming query, rename tooling, the UI's incoming
+  // list, and the built-in `core/score-resolution` scorer that assigns
+  // confidence) can navigate by node identity even when `link.target`
+  // keeps a trigger string like `@foo` / `/deploy`. The confidence
+  // outcome (resolved → 1.0, reserved → 0.1, virtual → keep emit, broken
+  // → cap 0.5) is no longer applied here: `core/score-resolution` reads
+  // this `resolvedTarget` plus `ctx.reservedNodePaths` / `ctx.brokenLinks`
+  // and dogfoods the public `adjustConfidence` API.
   link.resolvedTarget = resolution;
-  // Virtual target (e.g. an `mcp://<server>` node fabricated from
-  // frontmatter, never verified on disk): the edge resolves and stays
-  // navigable, but an unverified entity is not full certainty, so the link
-  // keeps its extractor emit value instead of bumping to 1.0. Mirrors the
-  // reserved-target downgrade.
-  if (indexes.nodeByPath.get(resolution)?.virtual) return;
-  link.confidence = ctx.reservedNodePaths.has(resolution)
-    ? RESERVED_TARGET_CONFIDENCE
-    : 1.0;
 }
 
 interface IIndexes {

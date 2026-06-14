@@ -225,19 +225,22 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed.analyzers.length >= 5, 'every core rule should survive');
     });
 
-    it('(b) disable core/node-superseded → only that rule skips; other 15 core analyzers stay', () => {
+    it('(b) disable core/node-superseded → only that rule skips; other 16 core analyzers stay', () => {
       const runtime = emptyPluginRuntime();
       runtime.resolveEnabled = (id: string) => id !== 'core/node-superseded';
       const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: runtime });
       assert.ok(composed);
       const analyzerIds = composed.analyzers.map((r) => r.id).sort();
-      // 17 built-in analyzers ship now (the former projector analyzers
+      // 18 built-in analyzers ship now (the former projector analyzers
       // `core/supersede` + `core/tags` were deleted, their inspector
       // buttons self-project from the `core/node-supersede` /
-      // `core/node-set-tags` actions). This custom resolver enables every
-      // id except `core/node-superseded`, so 16 compose, listed below in
-      // alphabetical order (`issue-counter` is the lone aggregate-phase
-      // analyzer in the set).
+      // `core/node-set-tags` actions; `core/score-resolution`, the
+      // `score`-phase scorer that assigns link confidence from the
+      // kernel resolution facts, was added). This custom resolver enables
+      // every id except `core/node-superseded`, so 17 compose, listed
+      // below in alphabetical order (`issue-counter` is the lone
+      // aggregate-phase analyzer, `score-resolution` the lone score-phase
+      // one).
       assert.deepEqual(analyzerIds, [
         'annotation-field-unknown',
         'annotation-orphan',
@@ -253,6 +256,7 @@ describe('plugin-runtime, branch coverage', () => {
         'reference-broken',
         'reference-redundant',
         'schema-violation',
+        'score-resolution',
         'signal-collision',
         'trigger-collision',
       ]);
@@ -274,7 +278,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 5, 'claude + antigravity + openai + agent-skills + core-markdown providers loaded');
       assert.equal(composed.extractors.length, 7, '7 of 8 extractors loaded; core/mcp-tools is experimental so it ships disabled by default');
-      assert.equal(composed.analyzers.length, 16, '16 of 17 analyzers loaded; only the experimental core/node-superseded ships disabled by default (the former projector analyzers core/supersede + core/tags were deleted, their buttons now self-project from the actions)');
+      assert.equal(composed.analyzers.length, 17, '17 of 18 analyzers loaded; only the experimental core/node-superseded ships disabled by default (the former projector analyzers core/supersede + core/tags were deleted, their buttons now self-project from the actions; core/score-resolution, the score-phase confidence scorer, ships enabled)');
       // Actions are surfaced for the orchestrator's projection pass. The
       // two projecting actions whose buttons replaced the deleted
       // analyzers (`core/node-bump`, `core/node-set-tags`) are stable and
@@ -402,7 +406,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 0);
       assert.equal(composed.extractors.length, 7, 'extractors untouched (7: core/mcp-tools ships disabled, experimental)');
-      assert.equal(composed.analyzers.length, 16, 'analyzers untouched (16: only core/node-superseded ships disabled, experimental; the projector analyzers core/supersede + core/tags were deleted)');
+      assert.equal(composed.analyzers.length, 17, 'analyzers untouched (17: only core/node-superseded ships disabled, experimental; the projector analyzers core/supersede + core/tags were deleted; core/score-resolution ships enabled)');
     });
 
     it('(b) killSwitches.extractors empties only the extractors bucket', () => {
@@ -414,7 +418,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 5);
       assert.equal(composed.extractors.length, 0);
-      assert.equal(composed.analyzers.length, 16);
+      assert.equal(composed.analyzers.length, 17);
     });
 
     it('(c) killSwitches.analyzers empties only the rules bucket', () => {

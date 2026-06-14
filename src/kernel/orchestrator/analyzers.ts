@@ -26,7 +26,8 @@ import type {
 } from '../ports/progress-emitter.js';
 import type { IOrphanSidecar } from '../sidecar/index.js';
 import { qualifiedExtensionId } from '../registry.js';
-import type { Issue, Link, Node, Severity, Signal } from '../types.js';
+import type { Issue, Link, Node, Severity, Signal, TConfidenceOp } from '../types.js';
+import { applyConfidenceAdjustments, type IConfidenceAdjustment } from './confidence-score.js';
 import type { IRegisteredAnnotationKey } from '../types/annotation-catalog.js';
 import type { IRegisteredViewContribution, IViewContribution } from '../types/view-catalog.js';
 import { tx } from '../util/tx.js';
@@ -74,6 +75,11 @@ export async function runAnalyzers(
   issues: Issue[];
   contributions: IContributionRecord[];
   contributionErrors: IContributionErrorRecord[];
+  // Attributed confidence adjustments buffered by `score`-phase analyzers
+  // and folded into `link.confidence`. Returned so the persistence layer
+  // can write the `scan_link_scores` audit trail ("why is this link at
+  // X?"). The fold already happened; these are the per-op attribution.
+  linkScores: IConfidenceAdjustment[];
 }> {
   const issues: Issue[] = [...seedIssues];
   const contributions: IContributionRecord[] = [];
@@ -100,7 +106,22 @@ export async function runAnalyzers(
   // emitting alphabetical orders, the orchestrator imposes the run
   // sequence at execution time.
   const scheduled = orderAnalyzersByPhase(analyzers);
+  // `score`-phase analyzers (scheduled first) buffer attributed confidence
+  // ops; the orchestrator folds them into `link.confidence` ONCE, before
+  // the read-only `detect` phase, so detect analyzers (e.g.
+  // `core/name-reserved`, keyed on `confidence === 0.1`) read the final
+  // value. Links matched by object identity.
+  const scoreAdjustments: IConfidenceAdjustment[] = [];
+  const scorableLinks = new Set<Link>(internalLinks);
+  let scoresFolded = false;
+  const foldScores = (): void => {
+    if (scoresFolded) return;
+    scoresFolded = true;
+    applyConfidenceAdjustments(scoreAdjustments);
+  };
   for (const analyzer of scheduled) {
+    // Barrier: fold score ops before the first non-`score` analyzer.
+    if (analyzer.phase !== 'score') foldScores();
     const qualifiedId = qualifiedExtensionId(analyzer.pluginId, analyzer.id);
     const declaredContributions = readDeclaredContributionRefs(analyzer);
     const emitContribution = (
@@ -168,6 +189,23 @@ export async function runAnalyzers(
         emittedAt: Date.now(),
       });
     };
+    // Only `score`-phase analyzers may write confidence. Buffer their
+    // attributed ops by link object identity; `foldScores` applies them.
+    const adjustConfidence =
+      analyzer.phase === 'score'
+        ? (link: Link, op: TConfidenceOp): void => {
+            if (scorableLinks.has(link)) {
+              scoreAdjustments.push({
+                link,
+                pluginId: analyzer.pluginId,
+                extensionId: analyzer.id,
+                op,
+              });
+            }
+            // A link not in the merged graph is ignored (a third-party
+            // diagnostic lands with the score-phase external surface).
+          }
+        : undefined;
     const emitted = await analyzer.evaluate({
       nodes,
       links: internalLinks,
@@ -190,6 +228,7 @@ export async function runAnalyzers(
       ...(reservedNodePaths ? { reservedNodePaths } : {}),
       ...(brokenLinks ? { brokenLinks } : {}),
       ...(signals && signals.length > 0 ? { signals } : {}),
+      ...(adjustConfidence ? { adjustConfidence } : {}),
       emitContribution,
     });
     for (const issue of emitted) {
@@ -204,7 +243,14 @@ export async function runAnalyzers(
     emitter.emit(evt);
     await hookDispatcher.dispatch('analyzer.completed', evt);
   }
-  return { issues, contributions, contributionErrors };
+  // Fold once more in case the schedule held only `score` analyzers (no
+  // later phase triggered the barrier above).
+  foldScores();
+  // `scoreAdjustments` carries one entry per attributed `adjustConfidence`
+  // call; by here the fold has written the final value into each
+  // `adj.link.confidence`, so the buffer doubles as the audit trail the
+  // persistence layer mirrors into `scan_link_scores`.
+  return { issues, contributions, contributionErrors, linkScores: scoreAdjustments };
 }
 
 /**
@@ -223,7 +269,9 @@ function orderAnalyzersByPhase(analyzers: IAnalyzer[]): IAnalyzer[] {
 }
 
 function phaseRank(a: IAnalyzer): number {
-  return a.phase === 'aggregate' ? 1 : 0;
+  if (a.phase === 'score') return 0;
+  if (a.phase === 'aggregate') return 2;
+  return 1; // 'detect' (default)
 }
 
 function validateIssue(analyzer: IAnalyzer, issue: Issue, emitter: ProgressEmitterPort): Issue | null {

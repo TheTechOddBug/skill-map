@@ -67,11 +67,11 @@ export interface INodeCounts {
 }
 
 /**
- * Lightweight option bag for `port.scans.persist`. Mirrors the trailing
- * arguments of the legacy `persistScanResult(db, result, renameOps,
- * extractorRuns, enrichments)` free function so the adapter
- * implementation is a one-line delegation today; the named-bag shape
- * tomorrow lets new optional inputs land without breaking callers.
+ * Lightweight option bag for `port.scans.persist`. Mirrors the optional
+ * inputs of the `persistScanResult(db, result, inputs)` free function
+ * (`IPersistScanInputs` in `kernel/adapters/sqlite/scan-persistence.ts`),
+ * so the adapter implementation is a one-line delegation; the named-bag
+ * shape lets new optional inputs land without breaking callers.
  */
 export interface IPersistOptions {
   renameOps?: import('../orchestrator.js').RenameOp[];
@@ -87,6 +87,18 @@ export interface IPersistOptions {
    * scan clears any stale rows). Surfaced by `sm plugins doctor`.
    */
   contributionErrors?: import('../adapters/sqlite/contributions.js').IContributionErrorRecord[];
+  /**
+   * Per-op confidence-attribution audit trail for `scan_link_scores`.
+   * One entry per attributed `ctx.adjustConfidence(link, op)` call a
+   * `score`-phase analyzer buffered this scan; the orchestrator already
+   * folded them into `link.confidence`, so these rows are the attribution
+   * (which plugin / extension / op moved a given link, plus the folded
+   * `result_confidence`). Plain REPLACE-ALL into `scan_link_scores`
+   * (delete all, then insert), the same posture as `scan_issues`. Empty /
+   * absent wipes the table (a scan whose scorers touched nothing clears
+   * any stale rows).
+   */
+  linkScores?: import('../adapters/sqlite/link-scores.js').IConfidenceAdjustment[];
   /**
    * Phase 3 / View contribution system, active runtime catalog of
    * registered view contributions, keyed by qualified id

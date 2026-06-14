@@ -36,6 +36,8 @@ import {
   replaceAllScanContributionErrors,
   replaceAllScanContributions,
 } from './contributions.js';
+import type { IConfidenceAdjustment } from './link-scores.js';
+import { replaceAllScanLinkScores } from './link-scores.js';
 import { schemaFingerprint } from './schema-fingerprint.js';
 import type { ITagRecord } from './tags.js';
 import { replaceAllScanTags } from './tags.js';
@@ -57,24 +59,52 @@ import type {
   IScanNodesTable,
 } from './schema.js';
 
-// Complexity counter ticks up with each optional sweep parameter; the
-// algorithm is a single linear flow (rename heuristic → orphan stranding
-// detection → replace-all scan zone → contributions sweep → tags →
-// favorites). Splitting it into helpers would scatter the txn-bound
-// invariant ("everything in one transaction or nothing") for no real
-// clarity win.
+/**
+ * Optional side inputs `persistScanResult` writes alongside the core
+ * `ScanResult`. Bundled into one bag (rather than a long positional
+ * default list) so the function stays under the cyclomatic cap: each
+ * default-valued parameter would count as a branch, and the persist
+ * surface keeps growing (the latest addition is `linkScores`). Every
+ * field is optional; `resolvePersistInputs` fills the empties so the
+ * transaction body reads a fully-populated record. Mirror of the
+ * `IPersistOptions` bag one layer up in `kernel/types/storage.ts`.
+ */
+export interface IPersistScanInputs {
+  renameOps?: RenameOp[];
+  extractorRuns?: IExtractorRunRecord[];
+  enrichments?: IEnrichmentRecord[];
+  contributions?: IContributionRecord[];
+  registeredContributionKeys?: ReadonlySet<string>;
+  freshlyRunTuples?: ReadonlySet<string>;
+  /** View contributions REJECTED at emit time, surfaced by doctor. */
+  contributionErrors?: IContributionErrorRecord[];
+  /** Per-op confidence-attribution audit trail (`scan_link_scores`). */
+  linkScores?: readonly IConfidenceAdjustment[];
+}
+
+/**
+ * Persist a scan into the `scan_*` / `state_*` zones inside one
+ * transaction. The algorithm is a single linear flow (rename heuristic →
+ * orphan stranding → replace-all scan zone → contribution sweeps →
+ * link-score / tag replace-all → enrichment layer); the optional side
+ * inputs ride in `inputs` so the signature stays under the complexity cap.
+ */
 export async function persistScanResult(
   db: Kysely<IDatabase>,
   result: ScanResult,
-  renameOps: RenameOp[] = [],
-  extractorRuns: IExtractorRunRecord[] = [],
-  enrichments: IEnrichmentRecord[] = [],
-  contributions: IContributionRecord[] = [],
-  registeredContributionKeys: ReadonlySet<string> = new Set(),
-  freshlyRunTuples: ReadonlySet<string> = new Set(),
-  contributionErrors: IContributionErrorRecord[] = [],
+  inputs: IPersistScanInputs = {},
 ): Promise<{ renames: IMigrateNodeFksReport[] }> {
   const scannedAt = validateScannedAt(result.scannedAt);
+  const {
+    renameOps,
+    extractorRuns,
+    enrichments,
+    contributions,
+    registeredContributionKeys,
+    freshlyRunTuples,
+    contributionErrors,
+    linkScores,
+  } = resolvePersistInputs(inputs);
 
   const renames: IMigrateNodeFksReport[] = [];
   await db.transaction().execute(async (trx) => {
@@ -113,6 +143,14 @@ export async function persistScanResult(
     // full on every scan, so there is no cached row to preserve.
     await replaceAllScanContributionErrors(trx, contributionErrors);
 
+    // Confidence-attribution audit trail, `scan_link_scores`. Plain
+    // REPLACE-ALL, same posture as `scan_contribution_errors`: each row
+    // is one attributed `adjustConfidence` op a `score`-phase analyzer
+    // emitted this scan, re-derived in full on every analyzer pass. The
+    // fold into `link.confidence` already happened upstream; this only
+    // PERSISTS the per-op attribution ("why is this link at X?").
+    await replaceAllScanLinkScores(trx, linkScores);
+
     // Tags · single-source, `scan_node_tags`. Replace-all per scan;
     // projected from `sidecar.annotations.tags` (the only tag source)
     // for every live node. Cached nodes' tag rows are projected the
@@ -149,6 +187,28 @@ export async function persistScanResult(
   await sql`PRAGMA wal_checkpoint(TRUNCATE)`.execute(db);
 
   return { renames };
+}
+
+/**
+ * Fill every optional side input with its empty default so the persist
+ * transaction body reads a fully-populated record. Object-spread merge
+ * (not per-field `??`) keeps the cyclomatic count at 1, the same trick
+ * `applyPersistDefaults` uses one layer up. Fresh `[]` / `new Set()`
+ * instances per call so a consumer that mutates an accumulator cannot
+ * leak state into a later persist.
+ */
+function resolvePersistInputs(inputs: IPersistScanInputs): Required<IPersistScanInputs> {
+  return {
+    renameOps: [],
+    extractorRuns: [],
+    enrichments: [],
+    contributions: [],
+    registeredContributionKeys: new Set(),
+    freshlyRunTuples: new Set(),
+    contributionErrors: [],
+    linkScores: [],
+    ...inputs,
+  };
 }
 
 /**

@@ -380,17 +380,7 @@ async function persistScansThroughNonTx(
   opts?: IPersistOptions,
 ): Promise<void> {
   const defaults = applyPersistDefaults(opts);
-  await persistScanResult(
-    db,
-    result,
-    defaults.renameOps,
-    defaults.extractorRuns,
-    defaults.enrichments,
-    defaults.contributions,
-    defaults.registeredContributionKeys,
-    defaults.freshlyRunTuples,
-    defaults.contributionErrors,
-  );
+  await persistScanResult(db, result, defaults);
 }
 
 /**
@@ -412,6 +402,7 @@ function applyPersistDefaults(opts?: IPersistOptions): {
   registeredContributionKeys: NonNullable<IPersistOptions['registeredContributionKeys']>;
   freshlyRunTuples: NonNullable<IPersistOptions['freshlyRunTuples']>;
   contributionErrors: NonNullable<IPersistOptions['contributionErrors']>;
+  linkScores: NonNullable<IPersistOptions['linkScores']>;
 } {
   return {
     renameOps: [],
@@ -421,6 +412,7 @@ function applyPersistDefaults(opts?: IPersistOptions): {
     registeredContributionKeys: new Set(),
     freshlyRunTuples: new Set(),
     contributionErrors: [],
+    linkScores: [],
     ...opts,
   };
 }
@@ -725,17 +717,7 @@ function buildTxSubset(trx: Transaction<IDatabase>): ITransactionalStorage {
     scans: {
       persist: (result, opts) => {
         const d = applyPersistDefaults(opts);
-        return persistScanResult(
-          trx,
-          result,
-          d.renameOps,
-          d.extractorRuns,
-          d.enrichments,
-          d.contributions,
-          d.registeredContributionKeys,
-          d.freshlyRunTuples,
-          d.contributionErrors,
-        ).then(() => undefined);
+        return persistScanResult(trx, result, d).then(() => undefined);
       },
     },
     issues: {

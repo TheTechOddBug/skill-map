@@ -177,13 +177,11 @@ describe('open-node-kinds end-to-end (Phase E)', () => {
     const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
     await adapter.init();
     try {
-      await persistScanResult(
-        adapter.db,
-        scan.result,
-        scan.renameOps,
-        scan.extractorRuns,
-        scan.enrichments,
-      );
+      await persistScanResult(adapter.db, scan.result, {
+        renameOps: scan.renameOps,
+        extractorRuns: scan.extractorRuns,
+        enrichments: scan.enrichments,
+      });
 
       // 3. Read the snapshot back. `rowToNode` no longer casts to a
       //    closed `NodeKind`; the open string survives the round-trip.

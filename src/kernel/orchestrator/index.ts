@@ -77,6 +77,7 @@ import type {
   IContributionErrorRecord,
   IContributionRecord,
 } from '../adapters/sqlite/contributions.js';
+import type { IConfidenceAdjustment } from '../adapters/sqlite/link-scores.js';
 import type { IPriorExtractorRun } from '../adapters/sqlite/scan-load.js';
 import {
   makeHookDispatcher,
@@ -463,6 +464,7 @@ export async function runScanWithRenames(
   enrichments: IEnrichmentRecord[];
   contributions: IContributionRecord[];
   contributionErrors: IContributionErrorRecord[];
+  linkScores: IConfidenceAdjustment[];
   freshlyRunTuples: ReadonlySet<string>;
 }> {
   return runScanInternal(_kernel, options);
@@ -487,6 +489,7 @@ async function runScanInternal(
   enrichments: IEnrichmentRecord[];
   contributions: IContributionRecord[];
   contributionErrors: IContributionErrorRecord[];
+  linkScores: IConfidenceAdjustment[];
   freshlyRunTuples: ReadonlySet<string>;
 }> {
   validateRoots(options.roots);
@@ -664,7 +667,7 @@ async function runScanInternal(
   emitter.emit(scanCompletedEvent);
   await hookDispatcher.dispatch('scan.completed', scanCompletedEvent);
 
-  return buildScanReturn(walked, issues, renameOps, stats, options, setup);
+  return buildScanReturn(walked, issues, renameOps, stats, options, setup, analyzerResult.linkScores);
 }
 
 /**
@@ -996,6 +999,7 @@ function buildScanReturn(
   stats: ScanResult['stats'],
   options: RunScanOptions,
   setup: IScanSetup,
+  linkScores: IConfidenceAdjustment[],
 ): {
   result: ScanResult;
   renameOps: RenameOp[];
@@ -1003,6 +1007,7 @@ function buildScanReturn(
   enrichments: IEnrichmentRecord[];
   contributions: IContributionRecord[];
   contributionErrors: IContributionErrorRecord[];
+  linkScores: IConfidenceAdjustment[];
   freshlyRunTuples: ReadonlySet<string>;
 } {
   return {
@@ -1026,6 +1031,7 @@ function buildScanReturn(
     enrichments: walked.enrichments,
     contributions: walked.contributions,
     contributionErrors: walked.contributionErrors,
+    linkScores,
     freshlyRunTuples: walked.freshlyRunTuples,
   };
 }

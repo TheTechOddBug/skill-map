@@ -129,8 +129,12 @@ describe('applyPostWalkTransforms', () => {
 
   it('default registry runs dedupe BEFORE lift-resolved-link-confidence', () => {
     // Two identical mention emits AND a node that resolves the
-    // trigger. The bump must run AFTER dedup so it sees one merged
-    // link, not two unmerged duplicates.
+    // trigger. The lift must run AFTER dedup so it sees one merged
+    // link, not two unmerged duplicates. The lift only records the
+    // resolution (`resolvedTarget`); the confidence VALUE is assigned
+    // later by the `core/score-resolution` analyzer, which is outside
+    // the post-walk transform registry, so confidence stays at the
+    // 0.5 emit here.
     const nodes: Node[] = [
       {
         path: 'src.md',
@@ -168,7 +172,7 @@ describe('applyPostWalkTransforms', () => {
       });
     const out = applyPostWalkTransforms([dup(), dup()], nodes, makeCtx());
     strictEqual(out.length, 1);
-    strictEqual(out[0]!.confidence, 1);
+    strictEqual(out[0]!.resolvedTarget, 'reviewer.md');
   });
 
   it('default registry exposes dedupe-links and lift-resolved-link-confidence in that order', () => {

@@ -189,13 +189,11 @@ async function runOnce(args: IRunOnceArgs): Promise<IRunOnceResult> {
     }
     if (priorRuns) runOptions.priorExtractorRuns = priorRuns;
     const ran = await runScanWithRenames(kernel, runOptions);
-    await persistScanResult(
-      adapter.db,
-      ran.result,
-      ran.renameOps,
-      ran.extractorRuns,
-      ran.enrichments,
-    );
+    await persistScanResult(adapter.db, ran.result, {
+      renameOps: ran.renameOps,
+      extractorRuns: ran.extractorRuns,
+      enrichments: ran.enrichments,
+    });
     const persistedEnrichments = await loadNodeEnrichments(adapter.db);
     return {
       result: ran.result,

@@ -16,6 +16,12 @@
       "default": "deterministic",
       "description": "`deterministic` (default): pure code, byte-for-byte reproducible, runs during `sm check` and `sm scan`. `probabilistic`: invokes an LLM via `ctx.runner` and runs only as a queued job; never participates in scan-time pipelines. The kernel rejects probabilistic analyzers that try to register scan-time hooks at load time."
     },
+    "phase": {
+      "type": "string",
+      "enum": ["score", "detect", "aggregate"],
+      "default": "detect",
+      "description": "Execution phase the orchestrator schedules this analyzer in. `score` runs FIRST and is the ONLY phase permitted to WRITE: it adjusts link confidence via `ctx.adjustConfidence(link, op)`, the orchestrator folds every score-phase op into `link.confidence` (clamped to [0,1], deterministic) before the read-only phases run. `detect` (default) is the main read-only pass that walks the merged graph and emits `Issue[]`. `aggregate` runs LAST and reads `ctx.accumulatedIssues` so an analyzer can compute cross-analyzer summaries (per-node severity totals, etc.) without re-reading the DB. The kernel dogfoods the `score` phase through the built-in `core/score-resolution` analyzer (resolved -> 1.0, reserved -> 0.1, broken -> cap 0.5). Writing confidence is NOT a filesystem write: the consent-gate / no-write invariant for Analyzers still holds (see `architecture.md` §Analyzer phases)."
+    },
     "precondition": {
       "type": "object",
       "additionalProperties": false,

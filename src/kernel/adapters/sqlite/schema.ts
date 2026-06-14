@@ -376,6 +376,42 @@ export interface IScanContributionErrorsTable {
 }
 
 /**
+ * Per-op confidence-attribution audit trail, `scan_link_scores`.
+ *
+ * One row per attributed `ctx.adjustConfidence(link, op)` call buffered
+ * by a `score`-phase analyzer during the scan (the kernel's own
+ * `core/score-resolution` scorer dogfoods the API). Answers "why is this
+ * link at X?" by listing the plugin / extension / op that moved it.
+ *
+ *   - `sourcePath` / `target` / `kind` / `normalizedTrigger`, the link's
+ *     structural identity (the same key `scan_links` dedups on).
+ *     `normalizedTrigger` is NULL for path-style links with no trigger.
+ *   - `opKind`, the algebra bucket (`set` / `delta` / `ceil` / `floor`);
+ *     `opValue`, its operand.
+ *   - `resultConfidence`, the FOLDED final `link.confidence` after every
+ *     op for this link was applied (denormalised, equal across all rows
+ *     for one link, mirror of `scan_links.confidence`).
+ *   - `emittedAt`, wall-clock ms at fold time.
+ *
+ * Belongs to the `scan_*` family, plain REPLACE-ALL per scan (the same
+ * posture as `scan_issues` / `scan_contribution_errors`; NOT the sweep
+ * model `scan_contributions` uses). Index on `source_path` for the
+ * per-node "why this link?" lookup.
+ */
+export interface IScanLinkScoresTable {
+  pluginId: string;
+  extensionId: string;
+  sourcePath: string;
+  target: string;
+  kind: string;
+  normalizedTrigger: string | null;
+  opKind: string;
+  opValue: number;
+  resultConfidence: number;
+  emittedAt: number;
+}
+
+/**
  * Tags · single-source, `scan_node_tags`.
  *
  * One row per `(node_path, tag)` pair. Projected at persist time from
@@ -507,6 +543,7 @@ export interface IDatabase {
   scan_extractor_runs: IScanExtractorRunsTable;
   scan_contributions: IScanContributionsTable;
   scan_contribution_errors: IScanContributionErrorsTable;
+  scan_link_scores: IScanLinkScoresTable;
   scan_node_tags: IScanNodeTagsTable;
   node_enrichments: INodeEnrichmentsTable;
 

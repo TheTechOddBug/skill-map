@@ -24,7 +24,7 @@
 
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { Issue, Link, Node } from '../../../../kernel/types.js';
-import { RESERVED_TARGET_CONFIDENCE } from '../../../../kernel/orchestrator/lift-resolved-link-confidence.js';
+import { RESERVED_TARGET_CONFIDENCE } from '../../../../kernel/orchestrator/confidence-constants.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { linkWhere } from '../../../../kernel/util/link-lines.js';
 import { NAME_RESERVED_TEXTS } from './text.js';

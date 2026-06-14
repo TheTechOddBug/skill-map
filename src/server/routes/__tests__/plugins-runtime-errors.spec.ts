@@ -86,8 +86,8 @@ async function prime(errors: IContributionErrorRecord[]): Promise<void> {
   await adapter.init();
   try {
     // `persistScanResult` REPLACE-ALLs `scan_contribution_errors` from
-    // the trailing `contributionErrors` arg (8th positional).
-    await persistScanResult(adapter.db, result, [], [], [], [], new Set(), new Set(), errors);
+    // the inputs bag's `contributionErrors` field.
+    await persistScanResult(adapter.db, result, { contributionErrors: errors });
   } finally {
     await adapter.close();
   }

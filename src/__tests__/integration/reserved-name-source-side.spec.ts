@@ -27,7 +27,7 @@ import { after, before, describe, it } from 'node:test';
 
 import { createKernel, runScan } from '../../kernel/index.js';
 import { builtIns, listBuiltIns } from '../../plugins/built-ins.js';
-import { RESERVED_TARGET_CONFIDENCE } from '../../kernel/orchestrator/lift-resolved-link-confidence.js';
+import { RESERVED_TARGET_CONFIDENCE } from '../../kernel/orchestrator/confidence-constants.js';
 
 let fixture: string;
 

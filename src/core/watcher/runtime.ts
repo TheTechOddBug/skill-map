@@ -527,6 +527,7 @@ export function createWatcherRuntime(
         enrichments,
         contributions,
         contributionErrors,
+        linkScores,
         freshlyRunTuples,
       } = ran;
 
@@ -537,6 +538,7 @@ export function createWatcherRuntime(
           enrichments,
           contributions,
           contributionErrors,
+          linkScores,
           registeredContributionKeys: collectRegisteredContributionKeys(composed),
           freshlyRunTuples,
         }),

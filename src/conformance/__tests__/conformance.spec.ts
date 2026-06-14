@@ -40,7 +40,7 @@ const CLAUDE_FIXTURES_DIR = resolve(CLAUDE_CONFORMANCE_DIR, 'fixtures');
  * conformance in one go (same as what `sm conformance run --scope all`
  * delivers to external consumers).
  */
-const SPEC_CASES = ['kernel-empty-boot'] as const;
+const SPEC_CASES = ['kernel-empty-boot', 'score-phase-confidence'] as const;
 const PROVIDER_CLAUDE_CASES = ['rename-high', 'orphan-detection'] as const;
 
 describe('conformance suite (Step 0b subset)', () => {

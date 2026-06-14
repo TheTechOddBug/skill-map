@@ -126,6 +126,22 @@ export type LinkKind = 'invokes' | 'references' | 'mentions' | 'supersedes' | 'p
 export type Confidence = number;
 
 /**
+ * A single confidence-scoring operation a `score`-phase analyzer
+ * contributes via `ctx.adjustConfidence(link, op)`. The orchestrator
+ * folds every op on a link into the final `confidence` (see
+ * `orchestrator/confidence-score.ts` for the algebra):
+ *   - `set`   hard override (resolved → 1.0, reserved → 0.1)
+ *   - `delta` additive, may be negative (third-party heuristics)
+ *   - `ceil`  upper cap, lowers only (broken → 0.5)
+ *   - `floor` lower bound, raises only
+ */
+export type TConfidenceOp =
+  | { readonly kind: 'set'; readonly value: number }
+  | { readonly kind: 'delta'; readonly value: number }
+  | { readonly kind: 'ceil'; readonly value: number }
+  | { readonly kind: 'floor'; readonly value: number };
+
+/**
  * Named buckets for the numeric Confidence range. Use these instead of
  * raw literals when the extractor genuinely thinks in tiers (e.g. the
  * rename heuristic: body-hash match = HIGH, frontmatter-hash match =

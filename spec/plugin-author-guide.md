@@ -308,6 +308,41 @@ export default {
 
 > Until the job subsystem ships (Step 10), probabilistic analyzers are skipped silently by `sm scan`; `sm check --include-prob` loads them, lists them on stderr, and the `--async` companion is a reserved no-op.
 
+### Score-phase analyzers
+
+An analyzer that declares `phase: 'score'` runs in the kernel's write-capable phase, BEFORE every read-only (`detect` / `aggregate`) analyzer. It is the only place a plugin may adjust link confidence. Declare the phase in the manifest and call `ctx.adjustConfidence(link, op)` from `evaluate` (the callback is present ONLY in the `score` phase; guard for `undefined` so the same code is inert if it ever runs outside it):
+
+```javascript
+// analyzers/demote-mentions/index.js → phase: 'score'
+export default {
+  version: '1.0.0',
+  description: 'Demotes low-signal mention edges by a fixed delta.',
+  phase: 'score',
+  evaluate(ctx) {
+    for (const link of ctx.links) {
+      if (link.kind === 'mentions') {
+        ctx.adjustConfidence?.(link, { kind: 'delta', value: -0.3 });
+        ctx.adjustConfidence?.(link, { kind: 'floor', value: 0.2 });
+      }
+    }
+    return []; // a scorer emits no issues; its output is the confidence ops
+  },
+};
+```
+
+The `op` is one of four kinds:
+
+| `op.kind` | Effect | Direction |
+|---|---|---|
+| `set`   | Hard override to `value`. | replaces |
+| `delta` | Add `value` (may be negative). | additive |
+| `floor` | Raise to at least `value`. | raises only |
+| `ceil`  | Lower to at most `value`. | lowers only |
+
+`link` MUST be one of `ctx.links` (matched by object identity). The kernel **folds** every op contributed to a link (across all scorers) into the final `link.confidence`, deterministically and order-independently: from the extractor-emitted base it applies `set` (last in canonical order wins), then sums `delta`, then `floor` (raise), then `ceil` (cap), and clamps to `[0,1]` exactly once at the end (so a `-0.4` then `+0.4` round-trips to the base instead of clipping mid-fold). Across scorers the ops are sorted by `(pluginId, extensionId)`, so two scans always produce the same value and the same adjustment ordering. Each applied op is attributed to your plugin / extension and persisted to the `scan_link_scores` audit table (the "why is this link at X?" trail).
+
+The kernel **dogfoods this exact API** through the built-in `core/score-resolution` analyzer, which assigns the kernel's own resolution confidences (resolved → `set 1.0`, reserved → `set 0.1`, broken → `ceil 0.5`). Your scorer composes ON TOP of that baseline: it runs in the same phase, against the same links, and its ops fold together with the built-in's. To subtract from an already-resolved edge, use a `delta`; to never let your value exceed a ceiling, use `ceil`. See [`architecture.md` §Analyzer phases](./architecture.md#analyzer-phases) for the normative fold semantics.
+
 ### Formatters
 
 Graph-to-string serializers, invoked by `sm graph --format <name>`. The format **name** comes from the formatter's folder name; the manifest declares `contentType` (MIME hint). Output **MUST** be byte-deterministic for the same input graph (the snapshot suite relies on it). Spec at [`schemas/extensions/formatter.schema.json`](./schemas/extensions/formatter.schema.json).

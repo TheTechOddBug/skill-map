@@ -1,0 +1,21 @@
+{
+  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "id": "score-phase-confidence",
+  "description": "Score-phase confidence composition, end-to-end. A drop-in plugin ships an analyzer declaring `phase: 'score'` that calls `ctx.adjustConfidence(link, op)`. A `[text](./target.md)` link resolves to `target.md`, so the built-in `core/score-resolution` scorer sets it to `1.0`; the drop-in then folds a `delta -0.4` (→ 0.6) and a no-op `floor 0.5` on top. The fold is deterministic and clamped to [0,1], so the persisted `scan_links.confidence` MUST be exactly `0.6`. Locks that a third-party `score`-phase analyzer loads from a manifest, composes confidence ops on top of the kernel baseline, and the folded value reaches the scan output.",
+  "fixture": "score-phase-confidence",
+  "invoke": {
+    "verb": "scan",
+    "flags": ["--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "json-path", "path": "$.schemaVersion", "equals": 1 },
+    { "type": "json-path", "path": "$.stats.nodesCount", "equals": 2 },
+    { "type": "json-path", "path": "$.stats.linksCount", "equals": 1 },
+    { "type": "json-path", "path": "$.links[0].source", "equals": "source.md" },
+    { "type": "json-path", "path": "$.links[0].target", "equals": "target.md" },
+    { "type": "json-path", "path": "$.links[0].kind", "equals": "references" },
+    { "type": "json-path", "path": "$.links[0].resolvedTarget", "equals": "target.md" },
+    { "type": "json-path", "path": "$.links[0].confidence", "equals": 0.6 }
+  ]
+}

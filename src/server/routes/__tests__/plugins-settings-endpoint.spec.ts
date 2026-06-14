@@ -80,7 +80,7 @@ async function primeDb(dbPath: string): Promise<void> {
   const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
   await adapter.init();
   try {
-    await persistScanResult(adapter.db, result, [], [], [], [], new Set(), new Set(), []);
+    await persistScanResult(adapter.db, result);
   } finally {
     await adapter.close();
   }

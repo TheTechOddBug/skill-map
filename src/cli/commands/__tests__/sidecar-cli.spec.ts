@@ -121,7 +121,7 @@ async function runScanAndPersist(
   const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
   await adapter.init();
   try {
-    await persistScanResult(adapter.db, ran.result, ran.renameOps);
+    await persistScanResult(adapter.db, ran.result, { renameOps: ran.renameOps });
   } finally {
     await adapter.close();
   }

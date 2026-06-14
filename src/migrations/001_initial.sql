@@ -472,6 +472,50 @@ CREATE TABLE scan_contribution_errors (
 CREATE INDEX ix_scan_contribution_errors_plugin_id ON scan_contribution_errors(plugin_id);
 CREATE INDEX ix_scan_contribution_errors_node_path ON scan_contribution_errors(node_path);
 
+-- scan_link_scores: per-op confidence-attribution audit trail. One row
+-- per attributed `ctx.adjustConfidence(link, op)` call buffered by a
+-- `score`-phase analyzer during the scan (the kernel's own
+-- `core/score-resolution` scorer dogfoods the API). Lets an operator
+-- answer "why is this link at 0.3?" by listing the plugin / extension /
+-- op that moved it, with the FOLDED final value denormalised onto every
+-- row (`result_confidence` mirrors `scan_links.confidence`).
+--
+-- The link is identified by its structural identity fields
+-- (`source_path`, `target`, `kind`, `normalized_trigger`), the same key
+-- `scan_links` dedups on; `normalized_trigger` is NULL for path-style
+-- links that carry no trigger. `op_kind` is the algebra bucket
+-- (`set` / `delta` / `ceil` / `floor`) and `op_value` its operand.
+--
+-- Belongs to the `scan_*` family. Plain REPLACE-ALL per scan (delete
+-- all, then insert), the same posture as `scan_issues` and
+-- `scan_contribution_errors` — NOT the sweep model `scan_contributions`
+-- uses. A score adjustment is a transient scan finding re-derived in
+-- full on every analyzer pass, so there is no cached-node row to
+-- preserve and no compound PK (multiple ops can land on one link). Index
+-- on `source_path` for the per-node "why this link?" lookup + the rename
+-- heuristic-adjacent reads.
+CREATE TABLE scan_link_scores (
+  plugin_id TEXT NOT NULL,
+  extension_id TEXT NOT NULL,
+  source_path TEXT NOT NULL,
+  target TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  -- NULL for path-style links that carry no trigger (the structural
+  -- identity key mirrors `scan_links`'s dedup tuple).
+  normalized_trigger TEXT,
+  -- Confidence-algebra bucket: `set` / `delta` / `ceil` / `floor`. Kept
+  -- open at the SQL layer (no CHECK) so the op catalog can evolve as a
+  -- kernel + spec change without a DDL migration.
+  op_kind TEXT NOT NULL,
+  op_value REAL NOT NULL,
+  -- Denormalised FOLDED final `link.confidence` after every op for this
+  -- link was applied. Equal across all rows for one link; carried per
+  -- row so the audit read needs no join back to `scan_links`.
+  result_confidence REAL NOT NULL,
+  emitted_at INTEGER NOT NULL
+);
+CREATE INDEX ix_scan_link_scores_source_path ON scan_link_scores(source_path);
+
 -- scan_node_tags: tag system. One row per (node_path, tag) pair.
 -- Projected at persist time from `sidecar.annotations.tags`. Tags are
 -- a skill-map concept (no vendor carries `tags` in frontmatter), so the

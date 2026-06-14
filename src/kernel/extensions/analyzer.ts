@@ -11,7 +11,7 @@
 
 import type { IExtensionBase } from './base.js';
 import type { IExtensionPrecondition } from './extractor.js';
-import type { Issue, Link, Node, Signal, TExecutionMode } from '../types.js';
+import type { Issue, Link, Node, Signal, TConfidenceOp, TExecutionMode } from '../types.js';
 import type { IRegisteredAnnotationKey } from '../types/annotation-catalog.js';
 import type { IRegisteredViewContribution, IViewContribution, SlotPayload } from '../types/view-catalog.js';
 
@@ -190,6 +190,17 @@ export interface IAnalyzerContext {
     ref: C,
     payload: SlotPayload<C['slot']>,
   ): void;
+  /**
+   * Contribute a confidence adjustment to a link. Usable ONLY from a
+   * `score`-phase analyzer; the orchestrator records it attributed to
+   * the calling extension (`pluginId` / `extensionId`, like
+   * `emitContribution`) and folds every op on a link into the final
+   * `link.confidence` before the `detect` phase. `link` must be one of
+   * `ctx.links` (matched by object identity). Present ONLY in the
+   * `score` phase (absent for `detect` / `aggregate` and legacy
+   * callers), mirroring the other orchestrator-injected ctx fields.
+   */
+  adjustConfidence?(link: Link, op: TConfidenceOp): void;
 }
 
 export interface IAnalyzer extends IExtensionBase {
@@ -217,21 +228,29 @@ export interface IAnalyzer extends IExtensionBase {
    * Execution phase. Drives the order the orchestrator schedules
    * analyzers in:
    *
+   *   - `'score'`, runs strictly BEFORE every `detect`-phase analyzer.
+   *     The ONLY phase permitted to write: it adjusts link confidence
+   *     via `ctx.adjustConfidence(link, op)`. The orchestrator folds
+   *     every score-phase op into `link.confidence` before the read-
+   *     only `detect` phase runs, so detect analyzers (e.g.
+   *     `core/name-reserved`, which reads `confidence === 0.1`) see the
+   *     final value. The kernel's own resolution rules dogfood this via
+   *     the built-in `core/score-resolution` scorer.
    *   - `'detect'` (default), the main pass. Walks nodes / links and
-   *     emits its own findings. Most analyzers live here.
+   *     emits its own findings. Most analyzers live here. Read-only.
    *   - `'aggregate'`, runs strictly AFTER every `detect`-phase
    *     analyzer has finished. The orchestrator passes the full
    *     issue accumulator on `ctx.accumulatedIssues`, so an
    *     aggregator can compute cross-analyzer summaries (per-node
    *     severity totals, etc.) without re-reading the persisted DB.
    *     Aggregators emit contributions; emitting issues is allowed
-   *     but uncommon.
+   *     but uncommon. Read-only.
    *
-   * Two-phase scheduling is the clean alternative to ordering
-   * analyzers by hand in the built-ins registry: filesystem-sorted
-   * generators can keep their alphabetical output, the orchestrator
-   * applies the phase sort at run-time.
+   * Phase scheduling is the clean alternative to ordering analyzers by
+   * hand in the built-ins registry: filesystem-sorted generators can
+   * keep their alphabetical output, the orchestrator applies the phase
+   * sort (`score` < `detect` < `aggregate`) at run-time.
    */
-  phase?: 'detect' | 'aggregate';
+  phase?: 'score' | 'detect' | 'aggregate';
   evaluate(ctx: IAnalyzerContext): Issue[] | Promise<Issue[]>;
 }

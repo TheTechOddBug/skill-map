@@ -25,7 +25,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
-import { createKernel, runScan } from '../../kernel/index.js';
+import { createKernel, runScan, runScanWithRenames } from '../../kernel/index.js';
 import { builtIns, listBuiltIns } from '../../plugins/built-ins.js';
 import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import { persistScanResult } from '../../kernel/adapters/sqlite/scan-persistence.js';
@@ -499,6 +499,57 @@ describe('persistScanResult', () => {
           );
         },
       );
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('writes scan_link_scores rows attributed to the built-in core/score-resolution scorer', async () => {
+    const kernel = createKernel();
+    for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
+    // `runScanWithRenames` (not `runScan`) surfaces the `linkScores`
+    // buffer the `score`-phase analyzers produced; the architect body
+    // (`Run /deploy or /unknown, consult @backend-lead.`) drives at least
+    // one resolved (`/deploy` → set 1.0) and one broken (`/unknown`,
+    // `@backend-lead` → ceil 0.5) adjustment through `core/score-resolution`.
+    const ran = await runScanWithRenames(kernel, { roots: [fixture], extensions: builtIns() });
+    ok(ran.linkScores.length > 0, 'score-resolution should buffer at least one adjustment');
+
+    const adapter = new SqliteStorageAdapter({
+      databasePath: freshDbPath('link-scores'),
+      autoBackup: false,
+    });
+    await adapter.init();
+    try {
+      await persistScanResult(adapter.db, ran.result, {
+        renameOps: ran.renameOps,
+        linkScores: ran.linkScores,
+      });
+
+      const scoreRows = await adapter.db.selectFrom('scan_link_scores').selectAll().execute();
+      strictEqual(scoreRows.length, ran.linkScores.length);
+
+      // Every row is attributed to the dogfooded built-in scorer, and the
+      // denormalised `result_confidence` mirrors the persisted
+      // `scan_links.confidence` for the same structural edge.
+      const linkRows = await adapter.db.selectFrom('scan_links').selectAll().execute();
+      for (const row of scoreRows) {
+        strictEqual(row.pluginId, 'core');
+        strictEqual(row.extensionId, 'score-resolution');
+        ok(
+          row.opKind === 'set' || row.opKind === 'ceil',
+          `unexpected op kind ${row.opKind} from score-resolution`,
+        );
+        const matchingLink = linkRows.find(
+          (l) =>
+            l.sourcePath === row.sourcePath &&
+            l.targetPath === row.target &&
+            l.kind === row.kind &&
+            l.normalizedTrigger === row.normalizedTrigger,
+        );
+        ok(matchingLink, `score row for ${row.sourcePath}→${row.target} should match a scan_links edge`);
+        strictEqual(row.resultConfidence, matchingLink!.confidence);
+      }
     } finally {
       await adapter.close();
     }
