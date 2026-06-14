@@ -14,9 +14,14 @@
  *
  * Surface: one warn issue per self-looping link, attached to the
  * source. The kernel does NOT drop the link, persistence stays
- * lossless. UI consumers read the issue (or check the predicate
- * directly) and hide self-loops by default; this analyzer is the
- * authoritative detector so multiple consumers stay in sync.
+ * lossless; the issue is the operator-facing signal that a self-
+ * reference exists. The graph view does NOT consume this issue: it
+ * runs its own render-pipeline mirror (`analyzeLinks` in
+ * `ui/src/app/views/graph-view/graph-layout.ts`) that recomputes the
+ * `source === resolvedTarget` predicate to decide which edges to draw
+ * and to count self-loops in the topbar. The two are deliberately
+ * independent (this rule reports, the layout draws); there is no
+ * shared `data` flag to keep in sync.
  *
  * Severity is `warn` (matches the other "consider consolidating"
  * analyzers like `reference-redundant`). No autofix today,
@@ -62,10 +67,6 @@ export const linkSelfLoopAnalyzer: IBuiltInManifest<IAnalyzer> = {
           target: link.target,
           resolvedTarget: link.resolvedTarget ?? link.target,
           kind: link.kind,
-          // Mark explicitly so UI / downstream consumers can read this
-          // single field instead of re-computing the `source === target`
-          // predicate themselves.
-          selfLoop: true,
         },
       });
     }

@@ -7,9 +7,8 @@
  *     `target` (path-style self-loop) or its `resolvedTarget` (trigger-
  *     style self-loop resolved by name).
  *   - Links that are not self-loops are silently skipped.
- *   - The issue's `data.target` matches the link's `target` so UI
- *     consumers can correlate per-row; `data.selfLoop` carries an
- *     explicit `true` flag for downstream filters.
+ *   - The issue's `data.target` matches the link's `target` so
+ *     consumers can correlate per-row.
  *   - Empty links list yields zero issues (cheap no-op).
  */
 
@@ -91,7 +90,6 @@ describe('core/link-self-loop rule', () => {
     assert.deepEqual(issue.nodeIds, [cmd.path]);
     const data = issue.data as Record<string, unknown>;
     assert.equal(data['target'], cmd.path);
-    assert.equal(data['selfLoop'], true);
   });
 
   it('emits a warn per trigger-style self-loop (resolved by name)', async () => {
@@ -122,7 +120,6 @@ describe('core/link-self-loop rule', () => {
     const data = issue.data as Record<string, unknown>;
     assert.equal(data['target'], '/real-command');
     assert.equal(data['resolvedTarget'], cmd.path);
-    assert.equal(data['selfLoop'], true);
     assert.match(issue.message, /Self-reference/);
   });
 
