@@ -316,6 +316,29 @@ body, and put ONLY the visible-to-user part in `## User-facing` —
 "The X chip moved from the footer to the subtitle row". Never describe
 the developer migration in the user section.
 
+**No internal jargon, even when the effect IS visible.** The section
+speaks the operator's vocabulary, not the codebase's. A change can be
+genuinely visible (new arrows on the map, a new finding) yet still
+read as internal because it is *framed* in terms only a plugin author
+or spec reader knows. Rephrase around what the operator sees and does.
+Red-flag vocabulary that almost never belongs in `## User-facing`:
+`extractor`, an `analyzer` / extension id rename (`core/...`),
+`view-slot` / slot catalog / contribution / emission, `confidence` /
+emit floor / byte range, `bundle`, `BFF`, `SPA`, and "backtick path"
+as a concept. A "dev build" only change is never user-facing (the
+operator runs the published build). The canonical miss this rule
+prevents (removed from the shipped changelog in v0.54.0):
+
+> Skills that tell the agent to read a bundled doc with a backtick
+> path (like `references/rules.md`) now show those arrows on the map,
+> and a backtick path pointing at a missing file is flagged as a
+> broken reference.
+
+The visible facts (new arrows, a broken-reference finding) are real,
+but the framing is pure extraction-mechanics. Omit it, or rewrite to
+the operator's view ("The map's palette adds a toggle to show or hide
+a separate kind of reference arrow").
+
 **Default — omit.** When in doubt, leave the section out. Releases
 with zero user-facing sections still appear in the changelog as a
 `kind: 'internal'` placeholder line; that's preferable to a noisy entry

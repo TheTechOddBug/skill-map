@@ -7,13 +7,6 @@
       "kind": "user-facing",
       "highlights": [
         {
-          "body": "Skills that tell the agent to read a bundled doc with a backtick path (like `references/rules.md`) now show those arrows on the map, and a backtick path pointing at a missing file is flagged as a broken reference.",
-          "packages": [
-            "@skill-map/cli",
-            "@skill-map/spec"
-          ]
-        },
-        {
           "body": "Findings are shorter and clearer: the file or trigger involved leads on its own line, duplicates collapse to `Duplicate reference (2): \\`refs/x.md\\` (124, 145)`, broken references name the line they sit on, and messages no longer repeat the node's own path.",
           "packages": [
             "@skill-map/cli"
@@ -27,14 +20,14 @@
           ]
         },
         {
-          "body": "Backtick paths get their own \"Points\" connector kind: a new palette toggle with a backtick glyph, its own edge colour per theme, and arrows separate from markdown-link references on the map.",
+          "body": "The map's palette adds a toggle (marked with a backtick glyph) that shows or hides a separate kind of reference arrow, each with its own colour per theme, so those links no longer mix in with your regular link arrows.",
           "packages": [
             "@skill-map/cli",
             "@skill-map/spec"
           ]
         },
         {
-          "body": "Referencing the same file twice in different forms (a markdown link plus a backtick path, for example) now shows as an info note instead of a warning, so the warning chips on cards only count things worth fixing.",
+          "body": "Linking to the same file twice from one node is now an info note instead of a warning, so the warning count on a card reflects only issues worth fixing.",
           "packages": [
             "@skill-map/cli"
           ]
@@ -149,28 +142,28 @@
           ]
         },
         {
-          "body": "The inspector now renders the Bump button and the stale indicator from a plugin instead of hardcoded UI. Writing a `.sm` sidecar now asks for consent every time, with an \"always allow\" checkbox that persists the permission for the project.",
+          "body": "Writing a `.sm` sidecar now asks for consent every time, with an \"always allow\" checkbox that remembers your choice for the project.",
           "packages": [
             "@skill-map/cli",
             "@skill-map/spec"
           ]
         },
         {
-          "body": "Plugin contributions in the inspector now appear as one collapsed section per plugin, ordered by the new `order` fields you can set in `plugin.json` and your extension manifest. The inspector also shows every action button a plugin contributes.",
+          "body": "In the inspector, the extra panels and buttons a plugin adds now group into one collapsed section per plugin, and every action button a plugin contributes is shown.",
           "packages": [
             "@skill-map/cli",
             "@skill-map/spec"
           ]
         },
         {
-          "body": "`sm plugins doctor` now reports view-contribution errors from your last scan (and exits non-zero if any), and the Settings plugin panel shows a per-plugin warning badge with the failed emissions, so a plugin whose chips silently vanished now tells you why.",
+          "body": "`sm plugins doctor` now reports plugin display errors from your last scan (and exits non-zero if any), and the Settings plugins panel shows a per-plugin warning badge, so when a plugin's chips fail to appear you can see why.",
           "packages": [
             "@skill-map/cli",
             "@skill-map/spec"
           ]
         },
         {
-          "body": "Clearer plugin errors: a wrong view-slot name now gives a short message linking to the slot catalog, and the warning spells out that the plugin and all its extensions were skipped. It also no longer appears twice when the server starts.",
+          "body": "Clearer plugin errors: a misconfigured plugin now gives a short message that spells out the plugin and all its extensions were skipped, and the warning no longer appears twice when the server starts.",
           "packages": [
             "@skill-map/cli",
             "@skill-map/spec"
@@ -531,7 +524,7 @@
           ]
         },
         {
-          "body": "**Cleaner Plugins view.** Settings → Plugins and `sm plugins show <bundle>` no longer print a per-extension version chip for built-in plugins (they all share the CLI version). External (user-authored) plugins are unchanged and still show per-extension semver.",
+          "body": "**Cleaner Plugins view.** Built-in plugins no longer show a separate version chip on each of their parts in Settings → Plugins and `sm plugins show` (they all share the CLI version), so the panel reads cleaner. Your own plugins still show their version.",
           "packages": [
             "@skill-map/cli"
           ]
@@ -570,23 +563,17 @@
       "kind": "user-facing",
       "highlights": [
         {
-          "body": "Renamed `core/field-unknown` to `core/annotation-field-unknown` so the sidecar typo-guard rule groups with the other `core/annotation-*` rules. Update references in `settings.json` or `sm check --analyzers <id>` to the new name.",
+          "body": "The check rule `core/field-unknown` is renamed to `core/annotation-field-unknown`. If you reference it by id in `settings.json` or `sm check --analyzers <id>`, update it to the new name.",
           "packages": [
             "@skill-map/cli",
             "@skill-map/spec"
           ]
         },
         {
-          "body": "Renamed 14 built-in extension ids to a `<area>-<detail>` shape (e.g. `core/broken-ref` is now `core/reference-broken`). If you reference these by qualified id in `settings.json` or via `sm check --analyzers <id>`, update to the new names.",
+          "body": "Several built-in rules were renamed for consistency (for example `core/broken-ref` is now `core/reference-broken`). If you reference them by id in `settings.json` or `sm check --analyzers <id>`, update to the new names.",
           "packages": [
             "@skill-map/cli",
             "@skill-map/spec"
-          ]
-        },
-        {
-          "body": "In dev builds the topbar and the `sm serve` banner now show only the `dev` marker instead of pairing it with the published version number.",
-          "packages": [
-            "@skill-map/cli"
           ]
         },
         {
@@ -609,7 +596,7 @@
           ]
         },
         {
-          "body": "Plugins always list `core` first across CLI, BFF, and Settings; the project path stays visible in the topbar (truncated with `…` on the LEFT so the project name reaches the eye); and the SPA reconnects on its own when `sm serve` restarts.",
+          "body": "Plugins always list `core` first in the CLI and Settings; the project path stays visible in the topbar (truncated with `…` on the left so the project name is what you see); and the UI reconnects on its own when `sm serve` restarts.",
           "packages": [
             "@skill-map/cli"
           ]
@@ -666,7 +653,7 @@
           ]
         },
         {
-          "body": "**Two scan-time bugs fixed.** Resolved `/slash` and `@mention` links now correctly land at confidence `1.0` (were stuck at the emit floor), and the markdown-link extractor no longer flags `[label](path)` shown inside backticks or fenced code blocks as broken references.",
+          "body": "**Two scan bugs fixed.** Resolved `/slash` and `@mention` links now count as fully resolved instead of weaker than they should be, and a `[label](path)` shown inside backticks or a code block is no longer wrongly flagged as a broken reference.",
           "packages": [
             "@skill-map/cli"
           ]
@@ -698,7 +685,7 @@
           ]
         },
         {
-          "body": "`sm scan` now warns when two extractors detect overlapping byte ranges. The graph keeps the winner; the issue panel explains which detection lost and why, so a markdown link wrapping an `@`-directive no longer looks like silent disappearing intent.",
+          "body": "`sm scan` now warns when two kinds of link are detected on the same piece of text. The map keeps one, and the issue panel explains which detection was dropped and why, so an overlapping link no longer disappears silently.",
           "packages": [
             "@skill-map/cli",
             "@skill-map/spec"
