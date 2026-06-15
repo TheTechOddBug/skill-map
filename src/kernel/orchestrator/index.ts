@@ -363,21 +363,6 @@ export interface RunScanOptions {
    */
   pluginStores?: ReadonlyMap<string, TPluginStore>;
   /**
-   * Pre-computed absolute paths of orphan job MD files (files under
-   * `.skill-map/jobs/` whose absolute path appears nowhere in
-   * `state_jobs.filePath`). Threaded into the rule pass so the
-   * built-in `core/job-file-orphan` rule can project each as a `warn`
-   * issue without the kernel reaching for the storage port or doing
-   * its own FS walk. The driving adapter (CLI, BFF) computes this
-   * inside its already-open storage transaction via
-   * `findOrphanJobFiles(jobsDir, await port.jobs.listReferencedFilePaths())`
-   * mirrors the `orphanSidecars` model where detection lives
-   * outside the rule and the rule only projects. Absent / empty when
-   * the caller has no jobs context (out-of-band tests, fresh DB,
-   * `--no-built-ins`).
-   */
-  orphanJobFiles?: readonly string[];
-  /**
    * Side set of absolute file paths the operator opted into for
    * link-validation purposes via `scan.referencePaths`. Threaded
    * through to `IAnalyzerContext.referenceablePaths` so the built-in
@@ -612,7 +597,6 @@ async function runScanInternal(
     walked.sidecarRoots,
     options.annotationContributions ?? [],
     options.viewContributions ?? [],
-    options.orphanJobFiles ?? [],
     options.referenceablePaths,
     options.cwd,
     registeredActionIds,

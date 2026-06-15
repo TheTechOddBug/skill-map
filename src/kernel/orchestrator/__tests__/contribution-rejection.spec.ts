@@ -190,7 +190,6 @@ describe('orchestrator, emitContribution rejection (analyzer)', () => {
       new Map(), // sidecarRoots
       [], // annotationContributions
       [], // viewContributions
-      [], // orphanJobFiles
       undefined, // referenceablePaths
       undefined, // cwd
       new Set<string>(), // registeredActionIds

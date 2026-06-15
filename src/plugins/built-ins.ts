@@ -34,7 +34,6 @@ import { annotationStaleAnalyzer as _annotationStaleAnalyzer } from './core/anal
 import { contributionOrphanAnalyzer as _contributionOrphanAnalyzer } from './core/analyzers/contribution-orphan/index.js';
 import { extractorCollisionAnalyzer as _extractorCollisionAnalyzer } from './core/analyzers/extractor-collision/index.js';
 import { issueCounterAnalyzer as _issueCounterAnalyzer } from './core/analyzers/issue-counter/index.js';
-import { jobFileOrphanAnalyzer as _jobFileOrphanAnalyzer } from './core/analyzers/job-file-orphan/index.js';
 import { linkCounterAnalyzer as _linkCounterAnalyzer } from './core/analyzers/link-counter/index.js';
 import { linkKindConflictAnalyzer as _linkKindConflictAnalyzer } from './core/analyzers/link-kind-conflict/index.js';
 import { linkSelfLoopAnalyzer as _linkSelfLoopAnalyzer } from './core/analyzers/link-self-loop/index.js';
@@ -72,7 +71,6 @@ const annotationStaleAnalyzer = { ..._annotationStaleAnalyzer, pluginId: 'core',
 const contributionOrphanAnalyzer = { ..._contributionOrphanAnalyzer, pluginId: 'core', version: VERSION };
 const extractorCollisionAnalyzer = { ..._extractorCollisionAnalyzer, pluginId: 'core', version: VERSION };
 const issueCounterAnalyzer = { ..._issueCounterAnalyzer, pluginId: 'core', version: VERSION };
-const jobFileOrphanAnalyzer = { ..._jobFileOrphanAnalyzer, pluginId: 'core', version: VERSION };
 const linkCounterAnalyzer = { ..._linkCounterAnalyzer, pluginId: 'core', version: VERSION };
 const linkKindConflictAnalyzer = { ..._linkKindConflictAnalyzer, pluginId: 'core', version: VERSION };
 const linkSelfLoopAnalyzer = { ..._linkSelfLoopAnalyzer, pluginId: 'core', version: VERSION };
@@ -156,7 +154,6 @@ export const builtInPlugins: IBuiltInPlugin[] = [
       contributionOrphanAnalyzer,
       extractorCollisionAnalyzer,
       issueCounterAnalyzer,
-      jobFileOrphanAnalyzer,
       linkCounterAnalyzer,
       linkKindConflictAnalyzer,
       linkSelfLoopAnalyzer,

@@ -162,7 +162,8 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // `core/backtick-path` (extractor that turns relative `.md` paths inside code spans / fences into `points` edges, the inverse-mask exception to the code-strip policy) brought it to 39.
     // Actions self-project their inspector button via scan-time `project()`: the two pure projector analyzers `core/supersede` + `core/tags` were deleted (their buttons moved onto `core/node-supersede` / `core/node-set-tags`), dropping the total back to 37.
     // `core/score-resolution` (a former `score`-phase analyzer that assigned the resolved-link 1.0 confidence) was briefly added (38) then deleted: the kernel now seeds the 1.0 confidence baseline on every link directly, and only the `core/name-reserved` / `core/reference-broken` detectors apply penalty deltas on top, dropping the total back to 37.
-    assert.equal(rows.length, 37);
+    // `core/job-file-orphan` (the rule that flagged orphan MD files under .skill-map/jobs/) was removed, to be reintroduced later under a probabilistic evaluation model; the `findOrphanJobFiles` helper + `sm job prune --orphan-files` verb stay, dropping the total to 36.
+    assert.equal(rows.length, 36);
   });
 
   // Convention guard: every built-in EXTRACTOR description ends with a

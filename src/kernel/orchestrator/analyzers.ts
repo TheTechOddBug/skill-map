@@ -56,7 +56,6 @@ export async function runAnalyzers(
   sidecarRoots: ReadonlyMap<string, Record<string, unknown>>,
   annotationContributions: readonly IRegisteredAnnotationKey[],
   viewContributions: readonly IRegisteredViewContribution[],
-  orphanJobFiles: readonly string[],
   referenceablePaths: ReadonlySet<string> | undefined,
   cwd: string | undefined,
   registeredActionIds: ReadonlySet<string>,
@@ -218,7 +217,6 @@ export async function runAnalyzers(
       sidecarRoots,
       annotationContributions,
       viewContributions,
-      orphanJobFiles,
       // `issues` is the live accumulator, mutated by `issues.push(...)`
       // below as each analyzer's emission lands. Late-phase analyzers
       // (`core/issue-counter`) read it to compute cross-analyzer

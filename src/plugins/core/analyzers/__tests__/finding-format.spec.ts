@@ -23,7 +23,6 @@ import { ANNOTATION_FIELD_UNKNOWN_TEXTS } from '../annotation-field-unknown/text
 import { ANNOTATION_ORPHAN_TEXTS } from '../annotation-orphan/text.js';
 import { ANNOTATION_STALE_TEXTS } from '../annotation-stale/text.js';
 import { EXTRACTOR_COLLISION_TEXTS } from '../extractor-collision/text.js';
-import { JOB_FILE_ORPHAN_TEXTS } from '../job-file-orphan/text.js';
 import { LINK_KIND_CONFLICT_TEXTS } from '../link-kind-conflict/text.js';
 import { LINK_SELF_LOOP_TEXTS } from '../link-self-loop/text.js';
 import { NAME_COLLISION_TEXTS } from '../name-collision/text.js';
@@ -44,7 +43,6 @@ const BODY_TEMPLATES: ReadonlyArray<readonly [string, string]> = [
   ['annotation-stale.frontmatterDrift', ANNOTATION_STALE_TEXTS.frontmatterDrift],
   ['annotation-stale.bothDrift', ANNOTATION_STALE_TEXTS.bothDrift],
   ['extractor-collision.message', EXTRACTOR_COLLISION_TEXTS.message],
-  ['job-file-orphan.message', JOB_FILE_ORPHAN_TEXTS.message],
   ['link-kind-conflict.message', LINK_KIND_CONFLICT_TEXTS.message],
   ['link-self-loop.message', LINK_SELF_LOOP_TEXTS.message],
   ['name-collision.message', NAME_COLLISION_TEXTS.message],

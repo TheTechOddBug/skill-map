@@ -36,7 +36,6 @@ function runAnalyzer(signals: readonly Signal[]): Issue[] {
     sidecarRoots: new Map(),
     annotationContributions: [],
     viewContributions: [],
-    orphanJobFiles: [],
     signals,
     emitContribution: () => undefined,
   });

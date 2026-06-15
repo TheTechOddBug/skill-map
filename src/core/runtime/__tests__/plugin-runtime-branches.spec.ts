@@ -231,18 +231,19 @@ describe('plugin-runtime, branch coverage', () => {
       const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: runtime });
       assert.ok(composed);
       const analyzerIds = composed.analyzers.map((r) => r.id).sort();
-      // 17 built-in analyzers ship now (the former projector analyzers
+      // 16 built-in analyzers ship now (the former projector analyzers
       // `core/supersede` + `core/tags` were deleted, their inspector
       // buttons self-project from the `core/node-supersede` /
       // `core/node-set-tags` actions; the `core/score-resolution`
       // score-phase scorer was deleted too, the kernel now seeds the 1.0
       // confidence baseline directly and the `core/name-reserved` /
       // `core/reference-broken` detectors apply their penalty deltas on
-      // top). This custom resolver enables every id except
-      // `core/node-superseded`, so 16 compose, listed below in
-      // alphabetical order (`issue-counter` is the lone aggregate-phase
-      // analyzer; `name-reserved` + `reference-broken` are the score-phase
-      // ones).
+      // top; `core/job-file-orphan` was removed, to be reintroduced under
+      // a probabilistic evaluation model). This custom resolver enables
+      // every id except `core/node-superseded`, so 15 compose, listed
+      // below in alphabetical order (`issue-counter` is the lone
+      // aggregate-phase analyzer; `name-reserved` + `reference-broken` are
+      // the score-phase ones).
       assert.deepEqual(analyzerIds, [
         'annotation-field-unknown',
         'annotation-orphan',
@@ -250,7 +251,6 @@ describe('plugin-runtime, branch coverage', () => {
         'contribution-orphan',
         'extractor-collision',
         'issue-counter',
-        'job-file-orphan',
         'link-counter',
         'link-kind-conflict',
         'link-self-loop',
@@ -279,7 +279,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 5, 'claude + antigravity + openai + agent-skills + core-markdown providers loaded');
       assert.equal(composed.extractors.length, 7, '7 of 8 extractors loaded; core/mcp-tools is experimental so it ships disabled by default');
-      assert.equal(composed.analyzers.length, 16, '16 of 17 analyzers loaded; only the experimental core/node-superseded ships disabled by default (the former projector analyzers core/supersede + core/tags were deleted, their buttons now self-project from the actions; core/score-resolution, the former score-phase confidence scorer, was deleted too, the kernel now seeds the 1.0 baseline directly)');
+      assert.equal(composed.analyzers.length, 15, '15 of 16 analyzers loaded; only the experimental core/node-superseded ships disabled by default (the former projector analyzers core/supersede + core/tags were deleted, their buttons now self-project from the actions; core/score-resolution, the former score-phase confidence scorer, was deleted too, the kernel now seeds the 1.0 baseline directly; core/job-file-orphan was removed, to return under a probabilistic evaluation model)');
       // Actions are surfaced for the orchestrator's projection pass. The
       // two projecting actions whose buttons replaced the deleted
       // analyzers (`core/node-bump`, `core/node-set-tags`) are stable and
@@ -407,7 +407,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 0);
       assert.equal(composed.extractors.length, 7, 'extractors untouched (7: core/mcp-tools ships disabled, experimental)');
-      assert.equal(composed.analyzers.length, 16, 'analyzers untouched (16: only core/node-superseded ships disabled, experimental; the projector analyzers core/supersede + core/tags were deleted; core/score-resolution was deleted, the kernel seeds the 1.0 baseline directly)');
+      assert.equal(composed.analyzers.length, 15, 'analyzers untouched (15: only core/node-superseded ships disabled, experimental; the projector analyzers core/supersede + core/tags were deleted; core/score-resolution was deleted, the kernel seeds the 1.0 baseline directly; core/job-file-orphan was removed)');
     });
 
     it('(b) killSwitches.extractors empties only the extractors bucket', () => {
@@ -419,7 +419,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 5);
       assert.equal(composed.extractors.length, 0);
-      assert.equal(composed.analyzers.length, 16);
+      assert.equal(composed.analyzers.length, 15);
     });
 
     it('(c) killSwitches.analyzers empties only the rules bucket', () => {

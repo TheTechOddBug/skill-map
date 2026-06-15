@@ -75,18 +75,6 @@ export interface IAnalyzerContext {
    */
   viewContributions?: readonly IRegisteredViewContribution[];
   /**
-   * Absolute paths of `*.md` files under the project's
-   * `.skill-map/jobs/` that no `state_jobs.filePath` references, the
-   * built-in `core/job-file-orphan` analyzer projects each as a `warn`
-   * issue. Pre-computed by the driving adapter (CLI / BFF) inside its
-   * already-open storage transaction (mirrors the `orphanSidecars`
-   * pattern: detection lives outside the analyzer, the analyzer only
-   * projects). Absent (or empty) when the caller does not maintain a
-   * jobs directory, when the storage path is unavailable, or when no
-   * orphan files exist. Treat as read-only.
-   */
-  orphanJobFiles?: readonly string[];
-  /**
    * Issues emitted by analyzers that already ran in the current pass.
    * Lets a late-phase analyzer (`core/issue-counter`) compute
    * cross-analyzer aggregates (per-node severity totals) without

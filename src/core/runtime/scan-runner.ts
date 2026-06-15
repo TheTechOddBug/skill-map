@@ -27,7 +27,6 @@ import type {
 import type { IConfidenceAdjustment } from '../../kernel/adapters/sqlite/link-scores.js';
 import type { IPriorExtractorRun } from '../../kernel/adapters/sqlite/scan-load.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
-import { findOrphanJobFiles } from '../../kernel/jobs/orphan-files.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { buildSettingsResolver } from '../config/plugin-settings.js';
@@ -37,7 +36,7 @@ import { tx } from '../../kernel/util/tx.js';
 import { createStderrProgressEmitter } from './progress-emitter.js';
 import type { IPrinter } from './printer.js';
 import { SCAN_RUNNER_TEXTS } from './i18n/scan-runner.texts.js';
-import { defaultProjectJobsDir, resolveDbPath } from '../paths/db-path.js';
+import { resolveDbPath } from '../paths/db-path.js';
 import { resolveScanRoots } from './scan-roots.js';
 import { walkReferencePaths } from './reference-paths-walker.js';
 import {
@@ -266,7 +265,6 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<TScanRunRes
   }
 
   const loadPrior = makePriorLoader(opts.noBuiltIns, strict);
-  const jobsDir = defaultProjectJobsDir(ctx);
   const lens = await resolveActiveLens(
     opts,
     ctx,
@@ -293,7 +291,7 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<TScanRunRes
 
   const willPersist = !opts.noBuiltIns && !opts.dryRun;
   const scanned = await (willPersist
-    ? runPersistPath(opts, dbPath, jobsDir, strict, loadPrior, runScanWith, extensions)
+    ? runPersistPath(opts, dbPath, strict, loadPrior, runScanWith, extensions)
     : runEphemeralPath(opts, dbPath, strict, loadPrior, runScanWith));
   // Thread the auto-detect outcome onto the public result so the CLI
   // can announce it next to the scan summary (same stream, in order).
@@ -548,7 +546,6 @@ function makeScanRunner(
   return async (
     prior: ScanResult | null,
     priorExtractorRuns?: Map<string, Map<string, IPriorExtractorRun>>,
-    orphanJobFiles?: readonly string[],
   ): Promise<{
     result: ScanResult;
     renameOps: RenameOp[];
@@ -576,7 +573,6 @@ function makeScanRunner(
       maxFileSizeBytes,
       tokenizer,
       ...(priorExtractorRuns ? { priorExtractorRuns } : {}),
-      ...(orphanJobFiles ? { orphanJobFiles } : {}),
     });
     return runScanWithRenames(kernel, runOptions);
   };
@@ -596,7 +592,6 @@ interface IBuildRunScanOptionsArgs {
   maxFileSizeBytes: number;
   tokenizer: string;
   priorExtractorRuns?: Map<string, Map<string, IPriorExtractorRun>>;
-  orphanJobFiles?: readonly string[];
 }
 
 /**
@@ -607,7 +602,7 @@ interface IBuildRunScanOptionsArgs {
  */
  
 function buildRunScanOptions(args: IBuildRunScanOptionsArgs): Parameters<typeof runScan>[1] {
-  const { opts, prior, priorExtractorRuns, orphanJobFiles, referenceablePaths } = args;
+  const { opts, prior, priorExtractorRuns, referenceablePaths } = args;
   const runOptions: Parameters<typeof runScan>[1] = {
     roots: args.effectiveRoots.slice(),
     tokenize: !opts.noTokens,
@@ -615,11 +610,6 @@ function buildRunScanOptions(args: IBuildRunScanOptionsArgs): Parameters<typeof 
     ignoreFilter: args.ignoreFilter,
     strict: args.strict,
     emitter: buildRunScanEmitter(opts),
-    // Orphan job-file detection, empty list means "no orphans
-    // visible from this caller" (legacy behaviour). The orchestrator
-    // defaults to `[]` when the field is absent; we always pass the
-    // array (possibly empty) to keep the wiring uniform.
-    orphanJobFiles: orphanJobFiles ?? [],
     activeProvider: args.activeProvider,
     recommendedNodeLimit: args.recommendedNodeLimit,
     overrideMaxNodes: opts.maxNodes ?? null,
@@ -692,13 +682,11 @@ async function rebuildOnDrift(
 async function runPersistPath(
   opts: IScanRunOpts,
   dbPath: string,
-  jobsDir: string,
   strict: boolean,
   loadPrior: (adapter: StoragePort) => Promise<ScanResult | null>,
   runScanWith: (
     prior: ScanResult | null,
     priorExtractorRuns?: Map<string, Map<string, IPriorExtractorRun>>,
-    orphanJobFiles?: readonly string[],
   ) => Promise<{
     result: ScanResult;
     renameOps: RenameOp[];
@@ -739,18 +727,9 @@ async function runPersistPath(
       const prior = await loadPrior(adapter);
       const priorExtractorRuns =
         opts.changed && prior ? await adapter.scans.loadExtractorRuns() : undefined;
-      // Orphan job-file detection runs inside the same withSqlite scope
-      // so the kernel can stay storage-port-free at rule time. The
-      // built-in `core/job-file-orphan` rule consumes the result via
-      // `IAnalyzerContext.orphanJobFiles`; the same `findOrphanJobFiles`
-      // helper backs `sm job prune --orphan-files` (the cleanup
-      // action), so detection and action stay in sync without sharing
-      // state.
-      const referencedJobFiles = await adapter.jobs.listReferencedFilePaths();
-      const orphanJobFiles = findOrphanJobFiles(jobsDir, referencedJobFiles).orphanFilePaths;
       let scanned;
       try {
-        scanned = await runScanWith(prior, priorExtractorRuns, orphanJobFiles);
+        scanned = await runScanWith(prior, priorExtractorRuns);
       } catch (err) {
         return { kind: 'scan-error', message: formatErrorMessage(err) } as IPersistOutcome;
       }
