@@ -27,6 +27,7 @@ import type { Issue, Link, Node } from '../../../../kernel/types.js';
 import { loadSchemaValidators, type ISchemaValidators } from '../../../../kernel/adapters/schema-validators.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { formatFinding } from '../../../../kernel/util/finding-format.js';
+import { FRONTMATTER_ISSUE_ANALYZERS } from '../../../../kernel/orchestrator/frontmatter-issue-ids.js';
 import { SCHEMA_VIOLATION_TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
@@ -62,6 +63,14 @@ export const schemaViolationAnalyzer: IBuiltInManifest<IAnalyzer> = {
     type TWorst = 'warn' | 'danger';
     const perNode = new Map<string, { count: number; worst: TWorst }>();
 
+    // Nodes the kernel already flagged with a frontmatter diagnostic
+    // (`frontmatter-invalid` / `-malformed` / `-parse-error`, seeded into
+    // `accumulatedIssues` before analyzers run). The base-field check
+    // below skips these so the operator never sees the same defect warned
+    // twice (kernel + this rule), the base check only adds value when the
+    // kernel said nothing.
+    const kernelFlaggedNodes = collectKernelFlaggedNodes(ctx.accumulatedIssues);
+
     for (const node of ctx.nodes) {
       const before = findings.length;
       collectNodeFindings(validators, node, findings);
@@ -73,8 +82,8 @@ export const schemaViolationAnalyzer: IBuiltInManifest<IAnalyzer> = {
       // dispatch fails the kernel surfaces a blank frontmatter
       // here. Catch that case explicitly so the operator sees the
       // alert badge even on nodes the per-kind validation never
-      // touched.
-      collectFrontmatterBaseFindings(node, findings);
+      // touched, but stay silent when the kernel already flagged it.
+      collectFrontmatterBaseFindings(node, findings, kernelFlaggedNodes);
       if (findings.length > before) {
         let worst: TWorst = 'warn';
         for (let i = before; i < findings.length; i++) {
@@ -121,7 +130,29 @@ function collectNodeFindings(v: ISchemaValidators, node: Node, out: Issue[]): vo
   });
 }
 
-function collectFrontmatterBaseFindings(node: Node, out: Issue[]): void {
+/**
+ * Collapse `accumulatedIssues` to the set of node paths the kernel itself
+ * already flagged with a frontmatter diagnostic. The base-field check below
+ * skips those paths so a node never carries both the kernel's
+ * `frontmatter-invalid` and this rule's "missing name/description" warning
+ * for the same underlying defect.
+ */
+function collectKernelFlaggedNodes(accumulated: readonly Issue[] | undefined): ReadonlySet<string> {
+  const flagged = new Set<string>();
+  for (const issue of accumulated ?? []) {
+    if (!FRONTMATTER_ISSUE_ANALYZERS.has(issue.analyzerId)) continue;
+    for (const id of issue.nodeIds) flagged.add(id);
+  }
+  return flagged;
+}
+
+function collectFrontmatterBaseFindings(node: Node, out: Issue[], kernelFlagged: ReadonlySet<string>): void {
+  // The kernel already surfaced a frontmatter diagnostic for this node
+  // (`frontmatter-invalid` / `-malformed` / `-parse-error`); a second
+  // "missing name/description" warning here would duplicate it. The kernel's
+  // AJV errors already enumerate the missing required props, so nothing is
+  // lost by staying silent.
+  if (kernelFlagged.has(node.path)) return;
   // Catch-all `markdown` nodes (README.md, CHANGELOG.md, notes/…)
   // legitimately ship with no `name` / `description` in their
   // frontmatter, vendor providers (`claude`, `openai`, `agent-skills`)

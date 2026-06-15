@@ -17,6 +17,7 @@ import type { IExtractor } from '../extensions/index.js';
 import type { IPriorExtractorRun } from '../adapters/sqlite/scan-load.js';
 import { qualifiedExtensionId } from '../registry.js';
 import type { IExtractorRunRecord } from './extractors.js';
+import { FRONTMATTER_ISSUE_ANALYZERS } from './frontmatter-issue-ids.js';
 
 export interface IPriorIndex {
   /** Prior nodes keyed by path so per-file lookup is O(1). */
@@ -78,18 +79,13 @@ function indexPriorLinks(
   }
 }
 
-const FRONTMATTER_ISSUE_ANALYZERS: ReadonlySet<string> = new Set([
-  'frontmatter-invalid',
-  'frontmatter-malformed',
-  // Audit L1: parser parse-error is emitted by
-  // `buildFreshNodeAndValidateFrontmatter` from `raw.parseIssues`. The
-  // raw.parseIssues only flows through the non-cache path; a cached
-  // node skips the rebuild, so the prior issue MUST survive the
-  // incremental scan or the warning silently disappears on a clean
-  // re-scan of an unchanged file.
-  'frontmatter-parse-error',
-]);
-
+// Audit L1: the parser parse-error is emitted by
+// `buildFreshNodeAndValidateFrontmatter` from `raw.parseIssues`, which
+// only flows through the non-cache path; a cached node skips the rebuild,
+// so the prior issue MUST survive the incremental scan or the warning
+// silently disappears on a clean re-scan of an unchanged file. The id set
+// itself lives in `frontmatter-issue-ids.ts` (shared with
+// `core/schema-violation`).
 function indexPriorFrontmatterIssues(
   issues: readonly Issue[],
   byNode: Map<string, Issue[]>,

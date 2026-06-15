@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import { strictEqual, ok } from 'node:assert';
 
 import { schemaViolationAnalyzer } from '../index.js';
-import type { Link, Node } from '../../../../../kernel/types.js';
+import type { Issue, Link, Node } from '../../../../../kernel/types.js';
 
 /** Stub for tests that don't exercise the contribution emit channel. */
 function noopEmit(): void {
@@ -170,6 +170,75 @@ describe('validate-all rule, frontmatter base check', () => {
     });
     const base = issues.find((i) => i.data?.['target'] === 'frontmatter');
     ok(base);
+  });
+});
+
+/**
+ * Kernel dedup. The kernel seeds `frontmatter-invalid` / `-malformed` /
+ * `-parse-error` into `accumulatedIssues` before analyzers run. When one
+ * already covers a node, the base-field check stays silent so the same
+ * defect is not warned twice (kernel + this rule).
+ */
+describe('validate-all rule, frontmatter base check kernel dedup', () => {
+  function missingDescription(path = 'agents/broken.md'): Node {
+    return {
+      path,
+      kind: 'agent',
+      provider: 'claude',
+      bodyHash: 'a'.repeat(64),
+      frontmatterHash: 'b'.repeat(64),
+      bytes: { frontmatter: 10, body: 100, total: 110 },
+      linksOutCount: 0,
+      linksInCount: 0,
+      externalRefsCount: 0,
+      frontmatter: { name: 'only-name' },
+    };
+  }
+
+  function kernelIssue(analyzerId: string, nodePath: string): Issue {
+    return { analyzerId, severity: 'warn', nodeIds: [nodePath], message: 'kernel-side frontmatter diagnostic' };
+  }
+
+  function baseFinding(issues: readonly Issue[]): Issue | undefined {
+    return issues.find((i) => i.data?.['target'] === 'frontmatter');
+  }
+
+  for (const kernelId of ['frontmatter-invalid', 'frontmatter-malformed', 'frontmatter-parse-error']) {
+    it(`suppresses the base finding when the kernel already emitted \`${kernelId}\` for the node`, async () => {
+      const node = missingDescription();
+      const issues = await schemaViolationAnalyzer.evaluate({
+        nodes: [node],
+        links: [],
+        settings: {},
+        accumulatedIssues: [kernelIssue(kernelId, node.path)],
+        emitContribution: noopEmit,
+      });
+      strictEqual(baseFinding(issues), undefined, 'base finding must be suppressed');
+    });
+  }
+
+  it('still emits the base finding when the kernel issue targets a DIFFERENT node', async () => {
+    const node = missingDescription();
+    const issues = await schemaViolationAnalyzer.evaluate({
+      nodes: [node],
+      links: [],
+      settings: {},
+      accumulatedIssues: [kernelIssue('frontmatter-invalid', 'agents/other.md')],
+      emitContribution: noopEmit,
+    });
+    ok(baseFinding(issues), 'base finding must still fire for the unflagged node');
+  });
+
+  it('still emits the base finding when the accumulated issue is not a frontmatter diagnostic', async () => {
+    const node = missingDescription();
+    const issues = await schemaViolationAnalyzer.evaluate({
+      nodes: [node],
+      links: [],
+      settings: {},
+      accumulatedIssues: [kernelIssue('reference-broken', node.path)],
+      emitContribution: noopEmit,
+    });
+    ok(baseFinding(issues), 'an unrelated issue on the node must not suppress the base check');
   });
 });
 
