@@ -115,8 +115,12 @@ describe('core/reference-redundant rule', () => {
     assert.equal(data['resolvedTarget'], tgt.path);
     const occs = data['occurrences'] as Array<Record<string, unknown>>;
     assert.equal(occs.length, 2);
-    // Canonical finding grammar: `` `<target>`:\nDuplicate reference (2); ... ``.
-    assert.match(issue.message, /^`tgt\.md`:\nDuplicate reference \(2\)/);
+    // Canonical finding grammar, kind-agnostic wording (no "reference"):
+    // `` `<target>`:\nRedundant links; the target is reached 2 times: ... ``.
+    assert.match(issue.message, /^`tgt\.md`:\nRedundant links; the target is reached 2 times/);
+    // Remediation lives in fix.summary, not the message, and reads as
+    // optional (severity is info; keeping both forms can be deliberate).
+    assert.ok(issue.fix?.summary?.includes('keep the overlap deliberately'));
   });
 
   it('fires for cross-kind multi-edge (same resolved target via different kinds)', async () => {
@@ -157,6 +161,9 @@ describe('core/reference-redundant rule', () => {
     assert.equal(data['resolvedTarget'], agent.path);
     const occs = data['occurrences'] as Array<Record<string, unknown>>;
     assert.equal(occs.length, 2);
+    // Nit guard: a cross-kind redundancy (references + mentions) still
+    // reads "Redundant links", never naming a single kind.
+    assert.match(issue.message, /Redundant links; the target is reached 2 times:/);
   });
 
   it('does NOT fire for unresolved (broken) links', async () => {
