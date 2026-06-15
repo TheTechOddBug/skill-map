@@ -151,12 +151,20 @@ export class CollectionLoaderService {
     // Re-seed on reconnect. `/ws` is a best-effort delta channel
     // (spec/cli-contract.md §WebSocket protocol: the server does not
     // replay missed events), so a `scan.completed` emitted while the
-    // socket was down is lost. Whenever the connection re-opens, do a
-    // full `load()` to resync. The FIRST open is skipped: startup
-    // already loads, and re-fetching there would just double the
-    // initial request.
+    // socket was down is lost. Whenever the connection RE-STABILISES, do
+    // a full `load()` to resync. The FIRST stable open is skipped:
+    // startup already loads, and re-fetching there would double it.
+    //
+    // We key on `stableConnected`, NOT `connectionState === 'open'`: a
+    // flapping connection (a `--watch` dev BFF restarting, a rolling
+    // deploy) opens then drops within the stability window, and re-seeding
+    // on every raw `'open'` storms `GET /api/scan` (+ the cascading
+    // nodes / issues fetches) against an about-to-die BFF with
+    // `ECONNREFUSED`. Stability gating fires at most one re-seed per
+    // genuinely-recovered connection; missed events in the meantime are
+    // still caught by the next `scan.completed` (the subscription above).
     effect(() => {
-      if (this.wsEvents.connectionState() !== 'open') return;
+      if (!this.wsEvents.stableConnected()) return;
       if (this.wsConnectedBefore) void this.load();
       this.wsConnectedBefore = true;
     });

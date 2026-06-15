@@ -209,6 +209,20 @@ export class WsEventStreamService implements OnDestroy {
   private readonly _connectionState = signal<TWsConnectionState>('connecting');
   readonly connectionState = this._connectionState.asReadonly();
 
+  /**
+   * `true` only after the socket has stayed open for
+   * `STABILITY_THRESHOLD_MS` (the same window that resets the backoff).
+   * Consumers that re-seed via `GET /api/scan` on reconnect MUST key on
+   * THIS, not on the raw `connectionState === 'open'`: a flapping
+   * connection (a `--watch` dev BFF restarting, a rolling deploy) opens
+   * then drops within the window, so keying on `'open'` re-seeds into a
+   * half-open / about-to-die socket on every cycle and storms the read
+   * endpoints with `ECONNREFUSED`. Gating on stability fires at most one
+   * re-seed per genuinely-recovered connection.
+   */
+  private readonly _stableConnected = signal(false);
+  readonly stableConnected = this._stableConnected.asReadonly();
+
   /** Socket constructor + target URL. Both injected so tests can swap them via DI; see `WS_SOCKET_FACTORY` / `WS_URL`. */
   private readonly socketFactory = inject(WS_SOCKET_FACTORY);
   private readonly url = inject(WS_URL);
@@ -352,6 +366,9 @@ export class WsEventStreamService implements OnDestroy {
       this.stabilityTimer = setTimeout(() => {
         this.stabilityTimer = null;
         this.reconnectAttempt = 0;
+        // The socket proved stable: only now is it safe for consumers to
+        // re-seed (see `stableConnected`). A flap never reaches here.
+        this._stableConnected.set(true);
       }, STABILITY_THRESHOLD_MS);
       // eslint-disable-next-line no-console -- developer log
       console.info(WS_TEXTS.connected(this.url));
@@ -420,6 +437,10 @@ export class WsEventStreamService implements OnDestroy {
 
   /** Cancel a pending stability reset, if any. Called on every close and on teardown. */
   private clearStabilityTimer(): void {
+    // Any close / teardown / pre-reopen clear drops the "stable" flag: the
+    // socket is no longer proven, so consumers must not re-seed until a
+    // fresh stability window elapses.
+    this._stableConnected.set(false);
     if (this.stabilityTimer !== null) {
       clearTimeout(this.stabilityTimer);
       this.stabilityTimer = null;

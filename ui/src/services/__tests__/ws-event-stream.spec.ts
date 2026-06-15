@@ -198,6 +198,23 @@ describe('WsEventStreamService, reconnect', () => {
     vi.restoreAllMocks();
   });
 
+  it('reports stableConnected only after the socket survives the stability window, clears it on close', () => {
+    harness = createHarness('live');
+    harness.service.events$.subscribe();
+    harness.sockets[0]!.simulateOpen();
+    // Just opened: NOT yet stable. A flap (open then drop < 10s) must not
+    // count as stable, that is what stops the reconnect re-seed storm.
+    expect(harness.service.stableConnected()).toBe(false);
+    vi.advanceTimersByTime(9_999);
+    expect(harness.service.stableConnected()).toBe(false);
+    // The 10s stability window elapses: now stable.
+    vi.advanceTimersByTime(1);
+    expect(harness.service.stableConnected()).toBe(true);
+    // An abnormal close drops the flag immediately.
+    harness.sockets[0]!.simulateClose(1006);
+    expect(harness.service.stableConnected()).toBe(false);
+  });
+
   it('does NOT reconnect on a normal close (code 1000)', () => {
     harness = createHarness('live');
     harness.service.events$.subscribe();

@@ -63,12 +63,14 @@ function makeWsStub(
   scanCompleted$: Subject<IWsScanCompletedEvent>,
   sidecarBumped$: Subject<IWsSidecarBumpedEvent> | null = null,
   connectionState: WritableSignal<TWsConnectionState> = signal('connecting'),
+  stableConnected: WritableSignal<boolean> = signal(false),
 ): WsEventStreamService {
   return {
     events$: EMPTY,
     scanCompleted$: scanCompleted$.asObservable(),
     sidecarBumped$: sidecarBumped$ ? sidecarBumped$.asObservable() : EMPTY,
     connectionState,
+    stableConnected,
   } as unknown as WsEventStreamService;
 }
 
@@ -324,11 +326,11 @@ describe('CollectionLoaderService, sidecar.bumped subscription', () => {
 describe('CollectionLoaderService, re-seed on reconnect', () => {
   let stub: IStubDataSource;
   let scanCompleted$: Subject<IWsScanCompletedEvent>;
-  let connectionState: WritableSignal<TWsConnectionState>;
+  let stableConnected: WritableSignal<boolean>;
   let ws: WsEventStreamService;
 
   // Effects only run on a flush; settle the effect + the async load() it
-  // kicks. `TestBed.tick()` flushes the connectionState effect.
+  // kicks. `TestBed.tick()` flushes the stableConnected effect.
   async function settle(): Promise<void> {
     TestBed.tick();
     await Promise.resolve();
@@ -337,44 +339,47 @@ describe('CollectionLoaderService, re-seed on reconnect', () => {
 
   beforeEach(() => {
     scanCompleted$ = new Subject<IWsScanCompletedEvent>();
-    connectionState = signal<TWsConnectionState>('connecting');
+    stableConnected = signal(false);
     stub = makeStub();
-    ws = makeWsStub(scanCompleted$, null, connectionState);
+    ws = makeWsStub(scanCompleted$, null, signal<TWsConnectionState>('connecting'), stableConnected);
   });
 
   afterEach(() => {
     scanCompleted$.complete();
   });
 
-  it('does NOT re-seed on the first open (startup load already covers it)', async () => {
+  it('does NOT re-seed on the first stable open (startup load already covers it)', async () => {
     const svc = bootstrap(stub, ws);
     await svc.load();
     expect(stub.loadScan).toHaveBeenCalledTimes(1);
 
-    connectionState.set('open');
+    stableConnected.set(true);
     await settle();
     expect(stub.loadScan).toHaveBeenCalledTimes(1);
   });
 
-  it('re-seeds via load() when the socket re-opens after a drop', async () => {
+  it('re-seeds only when the socket RE-STABILISES, never on a flap', async () => {
     const svc = bootstrap(stub, ws);
     await svc.load();
     stub.loadScan.mockClear();
 
-    // First open after startup: no re-seed (startup load already ran).
-    connectionState.set('open');
+    // First stable open after startup: no re-seed (startup load already ran).
+    stableConnected.set(true);
     await settle();
     expect(stub.loadScan).not.toHaveBeenCalled();
 
-    // The transient 'reconnecting' state does not re-seed on its own.
-    connectionState.set('reconnecting');
+    // A flap: the socket opened then dropped before the stability window,
+    // so it never reports stable. NO re-seed, this is the storm guard that
+    // keeps a restarting (`--watch`) BFF from being hammered with the
+    // re-seed trio on every up/down cycle.
+    stableConnected.set(false);
     await settle();
     expect(stub.loadScan).not.toHaveBeenCalled();
 
-    // Coming back to 'open' re-seeds, because `/ws` does not replay
-    // events missed while the socket was down. (load()'s coalesce may
-    // collapse a flush double-fire, so assert it ran, not an exact count.)
-    connectionState.set('open');
+    // A genuine reconnect that re-stabilises re-seeds, because `/ws` does
+    // not replay events missed while the socket was down. (load()'s
+    // coalesce may collapse a double-fire, so assert it ran, not a count.)
+    stableConnected.set(true);
     await settle();
     expect(stub.loadScan).toHaveBeenCalled();
   });
