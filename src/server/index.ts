@@ -27,12 +27,14 @@
  *      `/ws` route is registered against.
  *
  * `close()` shutdown order is intentional:
- *   1. `watcherService.stop()`, drains the in-flight scan batch
+ *   1. `heartbeat.stop()`, stop the keep-alive ping loop so no ping
+ *      races the shutdown close frames.
+ *   2. `watcherService.stop()`, drains the in-flight scan batch
  *      cleanly so chokidar is not torn down mid-`runScan`.
- *   2. `broadcaster.shutdown()`, closes every connected WS client
+ *   3. `broadcaster.shutdown()`, closes every connected WS client
  *      with code 1001 ('going away').
- *   3. `closeServer(server)`, closes the http listener.
- *   4. `wss.close()`, defensive belt-and-suspenders since node-server
+ *   4. `closeServer(server)`, closes the http listener.
+ *   5. `wss.close()`, defensive belt-and-suspenders since node-server
  *      auto-wires `server.on('close', () => wss.close())`.
  *
  * The server NEVER reads `process.env` / `process.cwd()` directly,
@@ -62,6 +64,7 @@ import { sanitizeForTerminal } from '../kernel/util/safe-text.js';
 import { tx } from '../kernel/util/tx.js';
 import { createApp } from './app.js';
 import { WsBroadcaster } from './broadcaster.js';
+import { startWsHeartbeat } from './heartbeat.js';
 import { resolveSpecVersion } from './health.js';
 import { SERVER_TEXTS } from './i18n/server.texts.js';
 import { buildKindRegistry } from './kind-registry.js';
@@ -81,6 +84,7 @@ export type { IHealthResponse, THealthDbState } from './health.js';
 export type { IErrorEnvelope, TErrorCode } from './app.js';
 export { DbMissingError, BulkValidationError, LoopbackGateError } from './app.js';
 export { WsBroadcaster, WS_BACKPRESSURE_BYTES, type IBroadcasterClient } from './broadcaster.js';
+export { startWsHeartbeat, WS_HEARTBEAT_INTERVAL_MS, type IWsHeartbeatHandle } from './heartbeat.js';
 export { createWatcherService, type IWatcherServiceHandle } from './watcher.js';
 
 export interface IServerAddress {
@@ -151,6 +155,14 @@ export async function createServer(
   const wss = new WebSocketServer({ noServer: true });
   const server = await listenAsync(app.fetch, wss, options.host, options.port);
 
+  // Transport-level keep-alive (see heartbeat.ts): periodic ping frames
+  // keep idle `/ws` connections from being dropped by an intermediary
+  // proxy, and reap half-open peers that stop ponging. Started after the
+  // listener is bound; `wss.clients` is populated by node-server's
+  // upgrade handler, and the timer is `unref`-ed so it never holds the
+  // process open on its own.
+  const heartbeat = startWsHeartbeat(wss);
+
   const addr = server.address();
   const address = normalizeAddress(addr, options.host, options.port);
 
@@ -195,6 +207,7 @@ export async function createServer(
     if (closed) return;
     closed = true;
     // Order matters, see file header §close().
+    heartbeat.stop();
     if (watcherService) {
       try {
         await watcherService.stop();

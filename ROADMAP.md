@@ -845,6 +845,7 @@ WebSocket `/ws` endpoint:
 - Server pushes the canonical event stream from `spec/job-events.md`: job family (stable) + `scan.*` + `issue.*` families (experimental in v0.x).
 - UI sends commands (rescan, submit, cancel) on the same channel.
 - REST HTTP reserved for discrete CRUD (config, exports).
+- Transport keep-alive: the server pings every connected client on a fixed interval (30s) so idle connections survive intermediary proxies (the dev-server proxy, hosted load balancers) and half-open peers get reaped; the browser auto-pongs, no client code or envelope involved. The client resets its reconnect backoff only after a connection proves stable, so a flapping endpoint escalates to a non-fatal "connection lost" banner instead of re-seeding `/api/scan` in a tight loop. See `spec/cli-contract.md` § WebSocket protocol.
 
 Inspector panel renders:
 ```

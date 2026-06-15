@@ -18,8 +18,11 @@
  *     go away.
  *   - On any other close, INCLUDING 1001 ('going away') that the server
  *     issues during shutdown, we reconnect with exponential backoff:
- *     1s, 2s, 4s, 8s, 16s, capped at 30s. Reset to 1s on a successful
- *     open. Cap at `MAX_RECONNECT_ATTEMPTS` total attempts before giving
+ *     1s, 2s, 4s, 8s, 16s, capped at 30s. The backoff resets to 1s only
+ *     after the socket stays open for `STABILITY_THRESHOLD_MS`, NOT on
+ *     `onopen` (a connection that opens then immediately drops keeps
+ *     escalating, see that constant for the flap-loop rationale). Cap at
+ *     `MAX_RECONNECT_ATTEMPTS` total attempts before giving
  *     up. Giving up is NOT a stream error: the data subject stays alive
  *     and the `connectionState` signal flips to `'lost'`, so the UI can
  *     render a non-fatal "connection lost" banner with a manual
@@ -96,6 +99,21 @@ import { WS_TEXTS } from '../i18n/ws.texts';
 const BACKOFF_SCHEDULE_MS = [1_000, 2_000, 4_000, 8_000, 16_000, 30_000];
 /** Hard cap on consecutive reconnect attempts before we flip `connectionState` to `'lost'` and stop (no stream error). */
 const MAX_RECONNECT_ATTEMPTS = 10;
+/**
+ * How long a socket must stay open before we treat it as *stable* and
+ * reset the backoff counter. The reset deliberately does NOT happen on
+ * `onopen`: a connection that opens and immediately drops (a flapping
+ * proxy, a half-open upgrade) would otherwise reset the counter every
+ * cycle, so it would never escalate the backoff and never reach `'lost'`.
+ * That turns a flap into a tight 1s reconnect loop, and because the
+ * loader re-seeds via `GET /api/scan` on every re-open, into a steady
+ * scan-poll storm. Requiring a stable window before the reset makes each
+ * flap count as a failed attempt, so the backoff grows and the loop
+ * eventually surfaces a non-fatal `'lost'` banner instead. 10s is well
+ * above any plausible flap and comfortably under the server's 30s
+ * keep-alive ping, so a genuinely healthy socket always crosses it.
+ */
+const STABILITY_THRESHOLD_MS = 10_000;
 /** RFC 6455 close codes that suppress the reconnect loop. Only 1000
  *  ('normal closure') qualifies: it's the code `disconnect()` issues
  *  when the client itself decided to tear down. Every other code
@@ -181,6 +199,8 @@ export class WsEventStreamService implements OnDestroy {
   private readonly subject = new Subject<IWsEvent>();
   private socket: IWsLike | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Pending "connection stayed open long enough to be stable" timer. Resets the backoff when it fires; cleared on any close / teardown. */
+  private stabilityTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempt = 0;
   /** Set true by `disconnect()` (and on `OnDestroy`). Suppresses any pending or future reconnect. */
   private disposed = false;
@@ -257,6 +277,7 @@ export class WsEventStreamService implements OnDestroy {
   disconnect(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.clearStabilityTimer();
     if (this.reconnectTimer !== null) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -284,6 +305,7 @@ export class WsEventStreamService implements OnDestroy {
    */
   reconnect(): void {
     if (this.disposed || this.socket) return;
+    this.clearStabilityTimer();
     if (this.reconnectTimer !== null) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -320,10 +342,17 @@ export class WsEventStreamService implements OnDestroy {
     this.socket = socket;
 
     socket.onopen = (): void => {
-      // Successful open resets the backoff so the next abnormal close
-      // doesn't inherit a long delay from a previous failure.
-      this.reconnectAttempt = 0;
       this._connectionState.set('open');
+      // Reset the backoff only after the socket proves stable. Resetting
+      // here (on `onopen`) would let a flapping connection clear the
+      // counter every cycle, so it would never escalate the delay nor
+      // reach 'lost', and the loader's re-seed on each re-open would
+      // hammer `GET /api/scan` in a tight loop. See STABILITY_THRESHOLD_MS.
+      this.clearStabilityTimer();
+      this.stabilityTimer = setTimeout(() => {
+        this.stabilityTimer = null;
+        this.reconnectAttempt = 0;
+      }, STABILITY_THRESHOLD_MS);
       // eslint-disable-next-line no-console -- developer log
       console.info(WS_TEXTS.connected(this.url));
     };
@@ -347,6 +376,10 @@ export class WsEventStreamService implements OnDestroy {
       // eslint-disable-next-line no-console -- developer log
       console.info(WS_TEXTS.closed(ev.code, ev.reason));
       this.socket = null;
+      // A close before the stability window elapsed means this open did
+      // NOT earn a backoff reset: cancel the pending reset so the attempt
+      // count carries into scheduleReconnect() and the delay escalates.
+      this.clearStabilityTimer();
       if (this.disposed) return;
       if (NORMAL_CLOSE_CODES.has(ev.code)) {
         // Client-initiated close (code 1000, from `disconnect()`). Do
@@ -383,6 +416,14 @@ export class WsEventStreamService implements OnDestroy {
       return;
     }
     this.subject.next(parsed);
+  }
+
+  /** Cancel a pending stability reset, if any. Called on every close and on teardown. */
+  private clearStabilityTimer(): void {
+    if (this.stabilityTimer !== null) {
+      clearTimeout(this.stabilityTimer);
+      this.stabilityTimer = null;
+    }
   }
 
   private scheduleReconnect(): void {

@@ -267,7 +267,7 @@ describe('WsEventStreamService, reconnect', () => {
     expect(harness.factory).toHaveBeenCalledTimes(7);
   });
 
-  it('resets backoff after a successful open', () => {
+  it('resets backoff only after the socket stays open for the stability window', () => {
     harness = createHarness('live');
     harness.service.events$.subscribe();
     harness.sockets[0]!.simulateClose(1006); // attempt 1 scheduled (1s)
@@ -275,14 +275,44 @@ describe('WsEventStreamService, reconnect', () => {
     expect(harness.factory).toHaveBeenCalledTimes(2);
     expect(harness.service._reconnectAttempt).toBe(1);
 
-    // Successful open resets the counter.
+    // A successful open does NOT reset the counter immediately, the
+    // connection has to survive the stability window first.
     harness.sockets[1]!.simulateOpen();
+    expect(harness.service._reconnectAttempt).toBe(1);
+
+    // After staying open for STABILITY_THRESHOLD_MS (10s) the reset fires.
+    vi.advanceTimersByTime(10_000);
     expect(harness.service._reconnectAttempt).toBe(0);
 
     // Next abnormal close starts the schedule from 1s again, not 2s.
     harness.sockets[1]!.simulateClose(1006);
     vi.advanceTimersByTime(1_000);
     expect(harness.factory).toHaveBeenCalledTimes(3);
+  });
+
+  it('does NOT reset backoff on a flapping open (open then immediate close escalates to lost)', () => {
+    // Regression: onopen used to reset reconnectAttempt to 0 immediately,
+    // so a socket that opened then dropped before the stability window
+    // cleared the counter every cycle, looping at 1s forever and (via the
+    // loader's re-seed on each re-open) hammering GET /api/scan. Now an
+    // open that does not survive the stability window counts as a failed
+    // attempt, so the backoff escalates and the loop terminates in 'lost'.
+    harness = createHarness('live');
+    harness.service.events$.subscribe();
+
+    for (let i = 0; i < 11; i += 1) {
+      const ws = harness.sockets[i]!;
+      ws.simulateOpen();
+      // Drop after 1s, far short of STABILITY_THRESHOLD_MS (10s), so the
+      // pending reset is cancelled and the attempt count carries forward.
+      vi.advanceTimersByTime(1_000);
+      ws.simulateClose(1006);
+      // Let the scheduled reconnect fire (the 30s cap covers every slot).
+      vi.advanceTimersByTime(30_000);
+      expect(harness.service._reconnectAttempt).toBe(Math.min(i + 1, 10));
+    }
+
+    expect(harness.service.connectionState()).toBe('lost');
   });
 
   it('gives up after MAX_RECONNECT_ATTEMPTS WITHOUT erroring the stream (connectionState → lost)', () => {

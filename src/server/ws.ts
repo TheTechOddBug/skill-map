@@ -26,9 +26,12 @@
  *      `WebSocket` from the `ws` package) and register it on the
  *      broadcaster.
  *   3. Server pushes events via the broadcaster. The client never sends
- *      frames at 14.4.a, `onMessage` is intentionally not registered.
- *      A future client-initiated heartbeat / subscribe / filter request
- *      lands at 14.4.b or later.
+ *      application frames, `onMessage` is intentionally not registered.
+ *      Transport-level keep-alive (server ping / browser auto-pong) is
+ *      handled out of band by `startWsHeartbeat` (see `heartbeat.ts`),
+ *      wired at the composition root over the shared `WebSocketServer`,
+ *      not here. A future client-initiated subscribe / filter request
+ *      lands in a follow-up.
  *   4. On `onClose` / `onError` we unregister the client. The broadcaster
  *      tolerates double-unregister (it's a `Set.delete`, idempotent).
  *   5. On server shutdown, `WsBroadcaster.shutdown()` closes every client
