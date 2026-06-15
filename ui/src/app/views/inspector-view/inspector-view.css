@@ -1,5 +1,8 @@
 :host {
   display: block;
+  /* Fill the panel scroll viewport so the node view can hold a fixed header
+   * and scroll its body internally (`.inspector--node` / `.inspector__scroll`). */
+  height: 100%;
 }
 
 /* ---------------------------------------------------------------------
@@ -20,6 +23,27 @@
   padding: 1rem 1.1rem 1.25rem;
   background: var(--sm-bg-content);
   color: var(--p-text-color);
+}
+
+/* Node view: fill the panel and clip so the `<sm-inspector-header>` stays
+ * fixed and only the inner `.inspector__scroll` scrolls (description on down).
+ * The base padding / gap above move onto the header + the scroll area. */
+.inspector--node {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+  gap: 0;
+}
+
+.inspector__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem 1.1rem 1.25rem;
 }
 
 .inspector--empty {

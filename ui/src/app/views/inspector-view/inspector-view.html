@@ -27,7 +27,7 @@
     the markdown kind var for kinds without a dedicated colour.
   -->
   <section
-    class="inspector"
+    class="inspector inspector--node"
     [style.--accent]="'var(--sm-kind-' + n.kind + ', var(--sm-kind-markdown))'"
     data-testid="inspector-view"
   >
@@ -39,6 +39,9 @@
       (tagClick)="tagSelect.emit($event)"
     />
 
+    <!-- Scroll area: the fixed header above stays put while everything from
+         the description down scrolls here. -->
+    <div class="inspector__scroll" data-testid="inspector-scroll">
     @if (fm.description) {
       <p class="inspector__desc" data-testid="inspector-description" [innerHTML]="descriptionHtml()"></p>
     }
@@ -234,6 +237,7 @@
         }
       </sm-collapsible-section>
     }
+    </div>
 
     <!--
       `.sm` write consent gate. Opened by `ActionDispatchService` when a

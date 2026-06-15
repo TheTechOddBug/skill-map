@@ -9,8 +9,14 @@
  * stability`) under the name; meta strip (bytes / tokens / links) under
  * the path so size + connectivity travel with the block.
  * ------------------------------------------------------------------------- */
+/* The header is a fixed strip OUTSIDE the inspector's scroll area: it sits
+ * above `.inspector__scroll` (which owns the vertical scroll) and never moves.
+ * `.inspector--node` drops the container padding, so the header carries its own
+ * top + side spacing here (the inner `.inspector__header` adds the rest). */
 :host {
   display: block;
+  flex: 0 0 auto;
+  padding: 1rem 1.1rem 0;
 }
 
 .inspector__header {
@@ -118,7 +124,6 @@
   font-size: 0.78rem;
   font-weight: 500;
   text-transform: lowercase;
-  cursor: help;
   white-space: nowrap;
 }
 
