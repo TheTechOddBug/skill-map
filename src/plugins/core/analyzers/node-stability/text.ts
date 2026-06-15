@@ -1,31 +1,18 @@
 /**
  * User-facing strings emitted by the `node-stability` built-in analyzer
- * (`plugins/core/analyzers/node-stability/index.ts`) for the inspector
- * action button that dispatches `core/node-set-stability`.
+ * (`plugins/core/analyzers/node-stability/index.ts`).
  *
- * The chip tooltips stay inline in `index.ts` (their own historical
- * home); this catalog covers the issue-message bodies plus the button
- * label and prompt strings added with the action-button affordance.
+ * Only `deprecated` raises a finding (experimental is a chip-only badge),
+ * so this catalog carries the one issue body. The inspector "Set stability"
+ * button strings live with the action that self-projects it
+ * (`plugins/core/actions/node-set-stability/text.ts`).
  *
- * Convention: flat string templates. The `tx` helper at
- * `kernel/util/tx.ts` does the interpolation (none needed here today).
- * The shared `formatFinding` helper wraps the issue bodies below; these
- * findings carry no subject (the node path lives in `nodeIds`).
+ * Convention: flat string templates. The shared `formatFinding` helper
+ * wraps the body below; the finding carries no subject (the node path lives
+ * in `nodeIds`).
  */
 
 export const NODE_STABILITY_TEXTS = {
-  /** Issue body (`<what>; <why>`) for an experimental-marked node. */
-  experimental: 'Marked experimental; API may change',
   /** Issue body (`<what>; <why>`) for a deprecated-marked node. */
-  deprecated: 'Marked deprecated; avoid in new code',
-  /** Label of the inspector action button that sets the lifecycle stage. */
-  setLabel: 'Set stability',
-  /** Prompt label for the enum-pick stability input. */
-  promptLabel: 'Stability',
-  /** Prompt option label for the `experimental` stage. */
-  optionExperimental: 'Experimental',
-  /** Prompt option label for the `stable` stage. */
-  optionStable: 'Stable',
-  /** Prompt option label for the `deprecated` stage. */
-  optionDeprecated: 'Deprecated',
+  deprecated: 'Marked deprecated; avoid using it',
 } as const;

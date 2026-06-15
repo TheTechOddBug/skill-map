@@ -48,7 +48,6 @@ const BODY_TEMPLATES: ReadonlyArray<readonly [string, string]> = [
   ['name-collision.message', NAME_COLLISION_TEXTS.message],
   ['name-reserved.message', NAME_RESERVED_TEXTS.message],
   ['name-reserved.linkMessage', NAME_RESERVED_TEXTS.linkMessage],
-  ['node-stability.experimental', NODE_STABILITY_TEXTS.experimental],
   ['node-stability.deprecated', NODE_STABILITY_TEXTS.deprecated],
   ['node-superseded.message', NODE_SUPERSEDED_TEXTS.message],
   ['reference-broken.message', REFERENCE_BROKEN_TEXTS.message],

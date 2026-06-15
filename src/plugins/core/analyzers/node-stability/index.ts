@@ -1,36 +1,43 @@
 /**
- * `stability` analyzer. Reads the lifecycle stage of each node
- * (`stability: experimental | deprecated`) from the sidecar
- * `annotations.stability` first (Decision #125 / Step 9.6 canonical
- * home), then falls back to legacy frontmatter `metadata.stability`
- * for un-migrated `.md` files. Surfaces two parallel signals:
+ * `node-stability` analyzer. Reads the lifecycle stage of each node via the
+ * shared `readEffectiveStability` helper (sidecar `annotations.stability`
+ * first, Decision #125 / Step 9.6 canonical home, then legacy frontmatter
+ * `metadata.stability` for un-migrated `.md` files) and surfaces it as a
+ * `card.footer.right` chip:
  *
- *   - **Issue**, `deprecated → warn`, `experimental → info`, so
- *     lifecycle state shows up in `sm check` and the inspector's
- *     issues panel.
- *   - **View contribution**, an icon-only chip on `card.footer.right`
- *     (`fa-flask` for experimental, `pi-ban` for deprecated) so the
- *     operator spots the state visually without opening the panel.
+ *   - `deprecated` -> a `pi-ban` chip (warn tint) PLUS a `warn` issue, so
+ *     the end-of-life state shows in `sm check` and the inspector's issues
+ *     panel.
+ *   - `experimental` -> an `fa-flask` chip ONLY. Experimental is a visual
+ *     badge, not a finding, so it raises no issue (it used to emit an
+ *     `info`; that was dropped as Findings noise).
+ *   - `stable` / unset -> nothing.
+ *
+ * The inspector "Set stability" button is NOT projected here: it
+ * self-projects from the `core/node-set-stability` action's scan-time
+ * `project()` (the button lives with the action that dispatches it, so a
+ * disabled action shows no button). This analyzer only READS the field.
  *
  * Moved from `extractors/` to `analyzers/`: this code never produced
- * structural data (no links, no derived fields), it interprets an
- * existing field, which is the analyzer pattern. Sits next to the
- * other `card.footer.right` analyzers (`annotation-stale`,
- * `annotation-field-unknown`, `reference-broken`). The plugin id stays `core/node-stability`
- * only the `kind` flips from `extractor` to `analyzer`.
+ * structural data (no links, no derived fields), it interprets an existing
+ * field, which is the analyzer pattern. Sits next to the other
+ * `card.footer.right` analyzers (`annotation-stale`,
+ * `annotation-field-unknown`, `reference-broken`). The plugin id stays
+ * `core/node-stability`; only the `kind` flipped from `extractor` to
+ * `analyzer`.
  *
- * The two stability values that produce a chip (`experimental` /
- * `deprecated`) are mutually exclusive on a given node, so at most
- * one contribution and one issue fire per node. The
- * `.sm-gnode--deprecated` host fade in the card component is
- * independent, it reads `effectiveStability(node)` directly.
+ * The two values that produce a chip (`experimental` / `deprecated`) are
+ * mutually exclusive on a node, so at most one chip (and, for `deprecated`,
+ * one issue) fires per node. The `.sm-gnode--deprecated` host fade in the
+ * card component is independent, it reads `effectiveStability(node)` directly.
  */
 
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
-import type { Issue, Node } from '../../../../kernel/types.js';
+import type { Issue } from '../../../../kernel/types.js';
 import type { IViewContribution } from '../../../../kernel/types/view-catalog.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { formatFinding } from '../../../../kernel/util/finding-format.js';
+import { readEffectiveStability } from '../../stability.js';
 import { NODE_STABILITY_TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
@@ -59,47 +66,25 @@ const deprecated = {
   priority: 10,
 } satisfies IViewContribution;
 
-// Inspector action button that dispatches `core/node-set-stability`.
-// Emitted for every node that already has a sidecar; the prompt
-// pre-loads the current stage (or `stable`) as its `defaultValue`.
-const setStabilityButton = {
-  slot: 'inspector.action.button',
-  priority: 15,
-} satisfies IViewContribution;
-
 export const nodeStabilityAnalyzer: IBuiltInManifest<IAnalyzer> = {
   id: ID,
   pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
   description:
-    'Reports a node\'s stability stage (`experimental`, `deprecated`) on the card.',
+    'Surfaces a node\'s stability stage on the card: `deprecated` as a chip plus a finding, `experimental` as a chip only; `stable` and unset stay silent.',
   mode: 'deterministic',
 
-  ui: { experimental, deprecated, setStabilityButton },
+  ui: { experimental, deprecated },
 
   evaluate(ctx: IAnalyzerContext): Issue[] {
     const issues: Issue[] = [];
     for (const node of ctx.nodes) {
-      const stability = readStability(node);
-
-      // Set-stability button: present for every node that already has a
-      // sidecar. Nodes with no sidecar are skipped so the inspector
-      // never offers to scaffold a `.sm` (creation is CLI-only).
-      if (node.sidecar?.present === true) {
-        emitSetStabilityButton(ctx, node.path, stability ?? 'stable');
-      }
+      const stability = readEffectiveStability(node);
 
       if (stability === 'experimental') {
         ctx.emitContribution(node.path, experimental, {
           value: 0,
           tooltip: EXPERIMENTAL_TOOLTIP,
-        });
-        issues.push({
-          analyzerId: ID,
-          severity: 'info',
-          nodeIds: [node.path],
-          message: formatFinding({ body: tx(NODE_STABILITY_TEXTS.experimental) }),
-          data: { stability },
         });
       } else if (stability === 'deprecated') {
         ctx.emitContribution(node.path, deprecated, {
@@ -119,56 +104,3 @@ export const nodeStabilityAnalyzer: IBuiltInManifest<IAnalyzer> = {
     return issues;
   },
 };
-
-/**
- * Sidecar `annotations.stability` wins over legacy frontmatter
- * `metadata.stability` (mirror of `effectiveStability` in
- * `ui/src/models/node-derived.ts`). Returns `null` when neither
- * source carries a recognised value.
- */
-function readStability(node: Node): 'experimental' | 'deprecated' | 'stable' | null {
-  const fromAnn = node.sidecar?.annotations?.['stability'];
-  if (isStability(fromAnn)) return fromAnn;
-  const legacy = readLegacyMetadataStability(node.frontmatter);
-  return isStability(legacy) ? legacy : null;
-}
-
-function readLegacyMetadataStability(fm: Record<string, unknown> | undefined): unknown {
-  if (!fm) return undefined;
-  const meta = fm['metadata'];
-  if (!meta || typeof meta !== 'object' || Array.isArray(meta)) return undefined;
-  return (meta as Record<string, unknown>)['stability'];
-}
-
-function isStability(value: unknown): value is 'experimental' | 'deprecated' | 'stable' {
-  return value === 'experimental' || value === 'deprecated' || value === 'stable';
-}
-
-/**
- * Project the inspector "Set stability" button. `defaultValue` pre-loads
- * the node's current lifecycle stage so the picker opens on the active
- * value (callers pass `'stable'` when nothing is set).
- */
-function emitSetStabilityButton(
-  ctx: IAnalyzerContext,
-  nodePath: string,
-  current: 'experimental' | 'deprecated' | 'stable',
-): void {
-  ctx.emitContribution(nodePath, setStabilityButton, {
-    actionId: 'core/node-set-stability',
-    label: NODE_STABILITY_TEXTS.setLabel,
-    icon: 'pi-flag',
-    enabled: true,
-    prompt: {
-      inputType: 'enum-pick',
-      paramKey: 'stability',
-      label: NODE_STABILITY_TEXTS.promptLabel,
-      options: [
-        { value: 'experimental', label: NODE_STABILITY_TEXTS.optionExperimental },
-        { value: 'stable', label: NODE_STABILITY_TEXTS.optionStable },
-        { value: 'deprecated', label: NODE_STABILITY_TEXTS.optionDeprecated },
-      ],
-      defaultValue: current,
-    },
-  });
-}

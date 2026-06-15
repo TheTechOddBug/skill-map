@@ -11,9 +11,19 @@
  * block, and returns it for the kernel to materialise through
  * `ISidecarStore` after the call returns.
  *
+ * Dual surface (mirrors `node-set-tags` / `node-supersede`):
+ *   - `project(ctx)` (scan-time, read-only graph): self-projects the
+ *     `inspector.action.button` that dispatches this Action, one per node
+ *     that already has a sidecar (`node.sidecar.present === true`). The
+ *     enum-pick prompt's `defaultValue` pre-loads the node's effective
+ *     stability. The button lives with the action that dispatches it, so a
+ *     disabled action projects no button (the enabled gate is applied by
+ *     `composeScanExtensions` before `runActionProjections`).
+ *   - `invoke(input, ctx)` (on-demand executor): writes `annotations.stability`.
+ *
  * The companion `core/node-stability` analyzer reads the resulting
- * `annotations.stability` and surfaces it (chip + issue), and projects
- * the inspector button that dispatches this Action.
+ * `annotations.stability` and surfaces it as a chip (plus a `deprecated`
+ * finding); it no longer projects the button.
  *
  * Behaviour:
  *
@@ -29,20 +39,19 @@
 import type {
   IAction,
   IActionContext,
+  IActionProjectionContext,
   IActionResult,
   IBuiltInManifest,
   TActionWrite,
 } from '../../../../kernel/extensions/index.js';
+import type { Node } from '../../../../kernel/types.js';
+import type { IViewContribution } from '../../../../kernel/types/view-catalog.js';
 import { sidecarPathFor } from '../../../../kernel/sidecar/parse.js';
 import { CORE_PLUGIN_ID as PLUGIN_ID } from '../../../ids.js';
+import { type TStability, STABILITY_VALUES, readEffectiveStability } from '../../stability.js';
+import { NODE_SET_STABILITY_TEXTS } from './text.js';
 
-/**
- * Recognised lifecycle stages, mirror of
- * `spec/schemas/annotations.schema.json#/properties/stability`.
- */
-export type TStability = 'experimental' | 'stable' | 'deprecated';
-
-const STABILITY_VALUES: readonly TStability[] = ['experimental', 'stable', 'deprecated'];
+export type { TStability };
 
 /**
  * Input parameters accepted by `node-set-stability`.
@@ -72,6 +81,16 @@ export interface INodeSetStabilityReport {
 
 const ID = 'node-set-stability';
 
+// Inspector action button this action self-projects. Module-level const
+// so the manifest `ui` map and the `project()` emit reference the SAME
+// object (the orchestrator recovers the contribution id + slot by object
+// identity). Emitted for every node that already has a sidecar; the
+// prompt pre-loads the current stability as its `defaultValue`.
+const setStabilityButton = {
+  slot: 'inspector.action.button',
+  priority: 15,
+} satisfies IViewContribution;
+
 export const nodeSetStabilityAction: IBuiltInManifest<IAction> = {
   id: ID,
   pluginId: PLUGIN_ID,
@@ -79,6 +98,15 @@ export const nodeSetStabilityAction: IBuiltInManifest<IAction> = {
   description:
     'Sets the lifecycle stage of the current node (writes `stability` to the sidecar).',
   mode: 'deterministic',
+
+  ui: { setStabilityButton },
+
+  project(ctx: IActionProjectionContext): void {
+    for (const node of ctx.nodes) {
+      if (node.sidecar?.present !== true) continue;
+      emitSetStabilityButton(ctx, node);
+    }
+  },
 
   // The runtime contract uses generic <TInput, TReport>; this narrows
   // both. The cast is the standard pattern for built-ins that want
@@ -91,6 +119,28 @@ export const nodeSetStabilityAction: IBuiltInManifest<IAction> = {
     return invokeSetStability(input, ctx) as IActionResult<TReport>;
   },
 };
+
+function emitSetStabilityButton(ctx: IActionProjectionContext, node: Node): void {
+  ctx.emitContribution(node.path, setStabilityButton, {
+    actionId: 'core/node-set-stability',
+    label: NODE_SET_STABILITY_TEXTS.setLabel,
+    icon: 'pi-flag',
+    enabled: true,
+    prompt: {
+      inputType: 'enum-pick',
+      paramKey: 'stability',
+      label: NODE_SET_STABILITY_TEXTS.promptLabel,
+      options: [
+        { value: 'experimental', label: NODE_SET_STABILITY_TEXTS.optionExperimental },
+        { value: 'stable', label: NODE_SET_STABILITY_TEXTS.optionStable },
+        { value: 'deprecated', label: NODE_SET_STABILITY_TEXTS.optionDeprecated },
+      ],
+      // Pre-load the node's current stage so the picker opens on the active
+      // value; `stable` when nothing is set yet.
+      defaultValue: readEffectiveStability(node) ?? 'stable',
+    },
+  });
+}
 
 function invokeSetStability(
   input: INodeSetStabilityInput,
