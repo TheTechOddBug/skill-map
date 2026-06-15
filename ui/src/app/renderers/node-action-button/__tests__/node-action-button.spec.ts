@@ -68,10 +68,13 @@ async function bootstrap(inputs: IRendererInputs): Promise<ComponentFixture<Node
   return fixture;
 }
 
-function el(fixture: ComponentFixture<NodeActionButton>, testid: string): HTMLElement | null {
-  return (fixture.nativeElement as HTMLElement).querySelector(
-    `[data-testid="${testid}"]`,
-  ) as HTMLElement | null;
+// The prompt dialog uses PrimeNG `appendTo="body"`, so its content (and the
+// inner control) mounts on `document.body`, NOT inside the detached fixture
+// host. Query the document so the assertions find it where it actually lands.
+// `TestBed.resetTestingModule()` in each `bootstrap` destroys the prior
+// component, so PrimeNG removes its body-appended DOM, no cross-test leak.
+function el(testid: string): HTMLElement | null {
+  return document.querySelector(`[data-testid="${testid}"]`) as HTMLElement | null;
 }
 
 /** Reach the protected click handlers without leaning on PrimeNG DOM. */
@@ -124,7 +127,7 @@ describe('NodeActionButton, direct dispatch (no prompt)', () => {
     );
     ctrl(fixture).run();
     fixture.detectChanges();
-    expect(el(fixture, 'action-prompt-dialog')).toBeNull();
+    expect(el('action-prompt-dialog')).toBeNull();
   });
 
   it('does not dispatch when the button is disabled', async () => {
@@ -147,8 +150,8 @@ describe('NodeActionButton, prompt flow', () => {
     fixture.detectChanges();
     expect(ctrl(fixture).promptOpen()).toBe(true);
     // The deferred dialog (Playthrough) renders its own + the control testid.
-    expect(el(fixture, 'action-prompt-dialog')).not.toBeNull();
-    expect(el(fixture, 'action-prompt-control')).not.toBeNull();
+    expect(el('action-prompt-dialog')).not.toBeNull();
+    expect(el('action-prompt-control')).not.toBeNull();
     expect(stub.dispatch).not.toHaveBeenCalled();
   });
 

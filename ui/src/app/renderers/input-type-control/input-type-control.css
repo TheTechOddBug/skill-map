@@ -1,3 +1,11 @@
+/* The component host defaults to `inline` (custom elements do), so it would
+ * shrink to its content and the inner field collapses (an enum-pick to roughly
+ * the chevron, ~20px). Block lets it fill its container so the field spans the
+ * full form column / dialog width. */
+:host {
+  display: block;
+}
+
 .itc {
   display: flex;
   flex-direction: column;
@@ -18,12 +26,14 @@
   width: 100%;
 }
 
-/* PrimeNG widgets that wrap an inner input need the host width set so
- * the field fills the form column rather than shrinking to content. */
+/* Do NOT force `display: block` on the PrimeNG dropdown widgets: their root
+ * (`.p-select` / `.p-multiselect`) is `inline-flex` so the inner label
+ * (`flex: 1 1 auto`) fills the trigger; flipping it to block collapses the
+ * label to `width: 1%` (the field shrinks to roughly the chevron, ~20px). The
+ * widgets already span the column from the `.itc` flex-column stretch plus the
+ * `width: 100%` rule above. The plain-input widgets keep block (no inner flex
+ * to break). */
 .itc__number,
-.itc__select,
-.itc__multiselect,
-.itc__list,
 .itc__secret-input {
   display: block;
 }

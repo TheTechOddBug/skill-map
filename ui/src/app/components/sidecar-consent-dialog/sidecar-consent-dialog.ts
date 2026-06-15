@@ -56,6 +56,7 @@ export interface ISidecarConsentDecision {
       [draggable]="false"
       [resizable]="false"
       [dismissableMask]="true"
+      appendTo="body"
       [header]="texts.header"
       [style]="{ width: '32rem' }"
       [attr.aria-label]="texts.ariaLabel"

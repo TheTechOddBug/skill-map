@@ -51,6 +51,7 @@ import { ACTION_PROMPT_DIALOG_TEXTS } from './action-prompt-dialog.texts';
       [draggable]="false"
       [resizable]="false"
       [dismissableMask]="true"
+      appendTo="body"
       [header]="header()"
       [style]="{ width: '28rem' }"
       [attr.aria-label]="texts.ariaLabel"
