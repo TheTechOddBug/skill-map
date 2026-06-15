@@ -130,7 +130,7 @@ describe('core/name-reserved rule', () => {
     assert.equal(helpIssue.severity, 'warn');
     assert.equal(helpIssue.analyzerId, 'name-reserved');
     assert.deepEqual(helpIssue.data, { provider: 'claude', kind: 'command', surface: 'target' });
-    assert.match(helpIssue.message, /Name collision; this command name is shadowed by the claude/);
+    assert.match(helpIssue.message, /Reserved name; this command name is shadowed by the claude/);
     const generalIssue = byPath.get(generalAgent.path);
     assert.ok(generalIssue);
     assert.deepEqual(generalIssue.data, { provider: 'claude', kind: 'agent', surface: 'target' });
@@ -205,7 +205,7 @@ describe('core/name-reserved rule', () => {
     assert.equal(data['reservedPath'], generalAgent.path);
     assert.equal(data['reservedProvider'], 'claude');
     assert.equal(data['reservedKind'], 'agent');
-    assert.match(sourceSide.message, /Name collision; resolves to the claude built-in/);
+    assert.match(sourceSide.message, /Reserved name; resolves to the claude built-in/);
     assert.match(sourceSide.message, /the built-in shadows this edge/);
     // Score side: exactly one op on the reserved-resolving link.
     assert.equal(ops.length, 1);

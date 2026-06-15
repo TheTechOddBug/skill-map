@@ -14,7 +14,7 @@ export const NAME_RESERVED_TEXTS = {
    * remediation hint moves to `Issue.fix.summary` below.
    */
   message:
-    'Name collision; this {{kind}} name is shadowed by the {{provider}} runtime built-in',
+    'Reserved name; this {{kind}} name is shadowed by the {{provider}} runtime built-in',
   /** Remediation hint for the target-side finding. */
   fixSummary: 'Rename the file or its frontmatter.name.',
   /**
@@ -27,7 +27,7 @@ export const NAME_RESERVED_TEXTS = {
    * the `L<line>:` location prefix.
    */
   linkMessage:
-    'Name collision; resolves to the {{provider}} built-in ({{reservedKind}} `{{reservedPath}}`), the built-in shadows this edge',
+    'Reserved name; resolves to the {{provider}} built-in ({{reservedKind}} `{{reservedPath}}`), the built-in shadows this edge',
   /** Remediation hint for the source-side finding. */
   linkFixSummary: 'Rename the target file or its frontmatter.name.',
 } as const;

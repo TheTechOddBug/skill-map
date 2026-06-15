@@ -160,7 +160,7 @@ describe('core/name-reserved (source side, end-to-end through runScan)', () => {
     );
     assert.equal(data['reservedProvider'], 'claude');
     assert.equal(data['reservedKind'], 'command');
-    assert.match(sourceSide.message, /Name collision; resolves to the claude built-in/);
+    assert.match(sourceSide.message, /Reserved name; resolves to the claude built-in/);
     assert.match(sourceSide.message, /the built-in shadows this edge/);
   });
 

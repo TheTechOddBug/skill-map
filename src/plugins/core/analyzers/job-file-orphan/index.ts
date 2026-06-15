@@ -62,7 +62,7 @@ export const jobFileOrphanAnalyzer: IBuiltInManifest<IAnalyzer> = {
         analyzerId: ID,
         severity: 'warn',
         nodeIds: [filePath],
-        message: formatFinding({ body: tx(JOB_FILE_ORPHAN_TEXTS.message) }),
+        message: formatFinding({ subject: filePath, body: tx(JOB_FILE_ORPHAN_TEXTS.message) }),
         fix: { summary: tx(JOB_FILE_ORPHAN_TEXTS.fixSummary) },
         data: { filePath },
       });
