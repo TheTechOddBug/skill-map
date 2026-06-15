@@ -13,16 +13,20 @@
  * to `target.md`. Through the pipeline:
  *
  *   1. `core/markdown-link` emits the link.
- *   2. the post-walk lift records `resolvedTarget = target.md`.
- *   3. the built-in `core/score-resolution` scorer sets it to `1.0`.
+ *   2. the kernel seeds the 1.0 baseline on every link, and the post-walk
+ *      lift records `resolvedTarget = target.md`.
+ *   3. NO built-in score-phase op fires on this clean resolved link (the
+ *      1.0 baseline is the kernel's, not an analyzer op): the reserved and
+ *      broken detectors only touch reserved / broken edges.
  *   4. the third-party scorer folds `delta -0.4` (→ 0.6) and a no-op
  *      `floor 0.5` on top.
  *
  * Asserts:
- *   (a) `scan_links.confidence` reflects the fold (`0.6`), not the bare
- *       built-in baseline (`1.0`) nor the bare third-party op;
- *   (b) a `scan_link_scores` row attributed to the external plugin
- *       (`pluginId` / `extensionId`) with its `delta` op;
+ *   (a) `scan_links.confidence` reflects the fold (`0.6`), the kernel 1.0
+ *       baseline plus the third-party `delta -0.4`;
+ *   (b) the ONLY `scan_link_scores` row for this link is attributed to the
+ *       external plugin (`pluginId` / `extensionId`) with its `delta` op;
+ *       no built-in op rides along on a clean resolved link;
  *   (c) determinism: two independent scans produce identical confidence
  *       AND identical adjustment ordering.
  *
@@ -38,8 +42,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { createKernel, runScanWithRenames } from '../../kernel/index.js';
-import { builtIns } from '../../plugins/built-ins.js';
+import { createKernel, runScan, runScanWithRenames } from '../../kernel/index.js';
+import { builtIns, listBuiltIns } from '../../plugins/built-ins.js';
 import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import { persistScanResult } from '../../kernel/adapters/sqlite/scan-persistence.js';
 import type { IAnalyzer } from '../../kernel/extensions/index.js';
@@ -148,11 +152,12 @@ async function scanWithThirdParty(): Promise<
 }
 
 describe('third-party score-phase analyzer (end-to-end)', () => {
-  it('folds the third-party delta on top of the built-in baseline and attributes the op in scan_link_scores', async () => {
+  it('folds the third-party delta on top of the kernel baseline and attributes the op in scan_link_scores', async () => {
     const ran = await scanWithThirdParty();
 
-    // The resolved markdown link: built-in sets 1.0, third-party folds
-    // delta -0.4 → 0.6, floor 0.5 is a no-op (0.6 > 0.5).
+    // The resolved markdown link: kernel seeds 1.0, third-party folds
+    // delta -0.4 → 0.6, floor 0.5 is a no-op (0.6 > 0.5). No built-in op
+    // fires on a clean resolved edge (the 1.0 baseline is the kernel's).
     const link = ran.result.links.find(
       (l) => l.source === 'source.md' && l.target === 'target.md',
     );
@@ -161,16 +166,33 @@ describe('third-party score-phase analyzer (end-to-end)', () => {
     strictEqual(
       link!.confidence,
       0.6,
-      'confidence must be the FOLD of built-in set 1.0 + third-party delta -0.4',
+      'confidence must be the FOLD of kernel baseline 1.0 + third-party delta -0.4',
     );
 
-    // The buffer carries both the built-in and the third-party op.
+    // The buffer carries the third-party ops (the delta -0.4 AND the no-op
+    // floor 0.5, both emitted by the scorer). A clean resolved link gets
+    // NO built-in score-phase op (the 1.0 baseline is the kernel's, and
+    // the reserved / broken detectors do not touch a clean edge).
     const thirdPartyOps = ran.linkScores.filter(
-      (a) => a.pluginId === THIRD_PARTY_PLUGIN_ID,
+      (a) => a.pluginId === THIRD_PARTY_PLUGIN_ID && a.link.target === 'target.md',
     );
-    ok(thirdPartyOps.length > 0, 'third-party scorer must contribute at least one op');
-    const builtInOps = ran.linkScores.filter((a) => a.pluginId === 'core');
-    ok(builtInOps.length > 0, 'built-in core/score-resolution must contribute the baseline op');
+    strictEqual(
+      thirdPartyOps.length,
+      2,
+      'the third-party scorer contributes its delta -0.4 and floor 0.5 on this link',
+    );
+    ok(
+      thirdPartyOps.some((a) => a.op.kind === 'delta' && a.op.value === -0.4),
+      'the third-party delta -0.4 is buffered',
+    );
+    const builtInOpsOnLink = ran.linkScores.filter(
+      (a) => a.pluginId === 'core' && a.link.target === 'target.md',
+    );
+    strictEqual(
+      builtInOpsOnLink.length,
+      0,
+      'no built-in op rides along on a clean resolved link (1.0 is the kernel baseline)',
+    );
 
     const adapter = new SqliteStorageAdapter({
       databasePath: freshDbPath('score-3p'),
@@ -215,17 +237,20 @@ describe('third-party score-phase analyzer (end-to-end)', () => {
         'denormalised result_confidence mirrors the folded scan_links.confidence',
       );
 
-      // The built-in baseline op is also attributed (the dogfood path).
+      // No built-in score-phase row for this clean resolved link: the 1.0
+      // baseline is the kernel's, not an analyzer op, so the third-party
+      // delta is the ONLY attribution on this edge.
       const builtInRow = scoreRows.find(
         (r) =>
           r.pluginId === 'core' &&
-          r.extensionId === 'score-resolution' &&
           r.sourcePath === 'source.md' &&
           r.target === 'target.md',
       );
-      ok(builtInRow, 'built-in core/score-resolution row must coexist with the third-party row');
-      strictEqual(builtInRow!.opKind, 'set');
-      strictEqual(builtInRow!.opValue, 1);
+      strictEqual(
+        builtInRow,
+        undefined,
+        'no built-in score row on a clean resolved link (kernel baseline, not an op)',
+      );
     } finally {
       await adapter.close();
     }
@@ -270,5 +295,85 @@ describe('third-party score-phase analyzer (end-to-end)', () => {
       projection(first).some((p) => p.pluginId === THIRD_PARTY_PLUGIN_ID),
       'the third-party op must be present in the deterministic buffer',
     );
+  });
+
+  // Positive-delta composition: deltas fold together AND a third-party
+  // scorer can RAISE confidence, even on a link a built-in already pushed
+  // down. A `/help` slash resolves to a reserved command, so
+  // `core/name-reserved` applies `delta -0.9` (kernel 1.0 baseline → 0.1).
+  // A third-party scorer adds `delta +0.3` on top; the fold sums every
+  // delta (1.0 - 0.9 + 0.3 = 0.4) before the single clamp, so the reserved
+  // edge lands at 0.4 instead of the bare 0.1. This pins that confidence is
+  // genuinely plugin-extensible in BOTH directions.
+  it('a positive third-party delta lifts a built-in-penalised (reserved) link: 0.1 folds to 0.4', async () => {
+    const local = mkdtempSync(join(tmpdir(), 'skill-map-score-3p-positive-'));
+    try {
+      const writeLocal = (rel: string, content: string): void => {
+        const abs = join(local, rel);
+        mkdirSync(join(abs, '..'), { recursive: true });
+        writeFileSync(abs, content);
+      };
+      writeLocal(
+        '.claude/agents/operator.md',
+        ['---', 'name: operator', 'description: The operator.', '---', 'Run /help.'].join('\n'),
+      );
+      // Plant the reserved-name target so `/help` resolves to it and
+      // `core/name-reserved` fires its -0.9 delta.
+      writeLocal(
+        '.claude/commands/help.md',
+        ['---', 'name: help', 'description: Shadow of built-in /help.', '---', 'Body.'].join('\n'),
+      );
+
+      const kernel = createKernel();
+      for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
+
+      // A third-party scorer that ADDS 0.3 to every link.
+      const positiveScorer: IAnalyzer = {
+        version: '1.0.0',
+        description: 'third-party scorer: delta +0.3 on every link',
+        mode: 'deterministic',
+        phase: 'score',
+        pluginId: 'thirdparty-booster',
+        kind: 'analyzer',
+        id: 'boost',
+        evaluate(ctx) {
+          for (const link of ctx.links) {
+            ctx.adjustConfidence?.(link, { kind: 'delta', value: 0.3 });
+          }
+          return [];
+        },
+      } as IAnalyzer;
+
+      const exts = builtIns();
+      const result = await runScan(kernel, {
+        roots: [local],
+        extensions: {
+          providers: exts.providers,
+          extractors: exts.extractors,
+          analyzers: [...exts.analyzers, positiveScorer],
+        },
+      });
+
+      const helpLink = result.links.find(
+        (l) =>
+          l.source === '.claude/agents/operator.md' &&
+          l.kind === 'invokes' &&
+          l.target === '/help',
+      );
+      ok(helpLink, 'expected the /help slash link');
+      strictEqual(
+        helpLink!.resolvedTarget,
+        '.claude/commands/help.md',
+        'the reserved command must resolve so core/name-reserved penalises it',
+      );
+      // fold = kernel 1.0 + name-reserved delta -0.9 + third-party delta
+      // +0.3 = 0.4 (float-tolerant: the delta sum is binary-FP).
+      ok(
+        Math.abs(helpLink!.confidence - 0.4) < 1e-9,
+        `expected ~0.4 (1.0 - 0.9 + 0.3), got ${helpLink!.confidence}`,
+      );
+    } finally {
+      rmSync(local, { recursive: true, force: true });
+    }
   });
 });

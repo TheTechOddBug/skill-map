@@ -39,6 +39,7 @@ import type { Issue, Link } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { linkLines } from '../../../../kernel/util/link-lines.js';
 import { formatFinding } from '../../../../kernel/util/finding-format.js';
+import { BROKEN_PENALTY } from '../../../../kernel/orchestrator/confidence-constants.js';
 import { REFERENCE_BROKEN_TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
@@ -50,6 +51,7 @@ export const referenceBrokenAnalyzer: IBuiltInManifest<IAnalyzer> = {
   kind: 'analyzer',
   description: 'Flags arrows pointing at a node not part of the current scan.',
   mode: 'deterministic',
+  phase: 'score',
 
   // No `ui` declaration: this analyzer used to emit a per-finding
   // counter chip on `card.footer.right`, but that chip duplicated the
@@ -67,11 +69,16 @@ export const referenceBrokenAnalyzer: IBuiltInManifest<IAnalyzer> = {
     const broken = ctx.brokenLinks;
     if (!broken || broken.size === 0) return [];
     const refIndex = buildReferenceIndex(ctx);
+    const adjust = ctx.adjustConfidence; // present only in the score phase
 
     const issues: Issue[] = [];
     for (const link of ctx.links) {
       if (!broken.has(link)) continue;
       if (refIndex && resolvesViaReferencePaths(link, refIndex)) continue;
+      // Score side: penalize a genuinely-broken edge (delta -0.5 → 0.5).
+      // The penalty follows the issue (both skip the reference-paths-
+      // resolved links above), so detection and scoring stay one decision.
+      penalizeBrokenConfidence(adjust, link);
       issues.push(buildIssue(link));
     }
     return issues;
@@ -89,6 +96,22 @@ function buildReferenceIndex(
 ): { paths: ReadonlySet<string>; cwd: string } | null {
   if (!ctx.referenceablePaths || ctx.referenceablePaths.size === 0 || !ctx.cwd) return null;
   return { paths: ctx.referenceablePaths, cwd: ctx.cwd };
+}
+
+/**
+ * Score side: subtract the broken penalty from the kernel's 1.0 baseline
+ * (delta -0.5 → 0.5). A fixed delta that composes with any other scorer;
+ * only gated on the score-phase `adjust` being present (the error issue
+ * fires regardless). Split out of `evaluate` to keep its branch count
+ * under the lint complexity cap.
+ */
+function penalizeBrokenConfidence(
+  adjust: IAnalyzerContext['adjustConfidence'],
+  link: Link,
+): void {
+  if (adjust) {
+    adjust(link, { kind: 'delta', value: -BROKEN_PENALTY });
+  }
 }
 
 function buildIssue(link: Link): Issue {

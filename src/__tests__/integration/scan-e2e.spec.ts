@@ -144,9 +144,9 @@ describe('scan end-to-end', () => {
     // therefore does not exercise the wiring; this test does.
     //
     // Asserts: `/deploy` from architect.md (resolves to the deploy command
-    // node) lifts to 1.0, while `/unknown` (no target) stays at the slash
-    // extractor's emit floor (0.8) and `@backend-lead` (no target) stays
-    // at the at-directive emit floor (0.5).
+    // node) keeps the kernel's 1.0 baseline (no penalty), while `/unknown`
+    // (no target) and `@backend-lead` (no target) are genuinely broken and
+    // fold to the broken floor (1.0 - BROKEN_PENALTY = 0.5).
     const kernel = createKernel();
     for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
     const result = await runScan(kernel, {
@@ -159,13 +159,13 @@ describe('scan end-to-end', () => {
       );
     const deployInvoke = findLink('invokes', '/deploy');
     ok(deployInvoke, 'expected /deploy invokes link from architect');
-    strictEqual(deployInvoke!.confidence, 1.0, '/deploy must lift to 1.0 (resolves to deploy command)');
+    strictEqual(deployInvoke!.confidence, 1.0, '/deploy resolves to the deploy command: keeps the kernel 1.0 baseline (no penalty)');
     const unknownInvoke = findLink('invokes', '/unknown');
     ok(unknownInvoke, 'expected /unknown invokes link from architect');
-    strictEqual(unknownInvoke!.confidence, 0.5, '/unknown is genuinely broken: demoted from the 0.8 slash emit to the broken floor (0.5)');
+    strictEqual(unknownInvoke!.confidence, 0.5, '/unknown is genuinely broken: kernel 1.0 baseline minus BROKEN_PENALTY → 0.5');
     const backendMention = findLink('mentions', '@backend-lead');
     ok(backendMention, 'expected @backend-lead mentions link from architect');
-    strictEqual(backendMention!.confidence, 0.5, '@backend-lead is genuinely broken: the 0.5 emit equals the broken floor, so the cap leaves it unchanged');
+    strictEqual(backendMention!.confidence, 0.5, '@backend-lead is genuinely broken: kernel 1.0 baseline minus BROKEN_PENALTY → 0.5');
   });
 
   it('produces zero-filled result with --no-built-ins parity (empty extensions)', async () => {
@@ -339,7 +339,7 @@ describe('scan end-to-end', () => {
       //    the broken floor, plus flagged by reference-broken.
       const missing = find('.claude/skills/demo/references/missing.md', 'points');
       strictEqual(missing.length, 1, 'unresolved backtick path persists');
-      strictEqual(missing[0]!.confidence, 0.5, 'genuinely-broken backtick path is demoted from its 0.85 emit to the broken floor (0.5)');
+      strictEqual(missing[0]!.confidence, 0.5, 'genuinely-broken backtick path: kernel 1.0 baseline minus BROKEN_PENALTY → 0.5');
       const broken = result.issues.filter(
         (i) => i.analyzerId === 'reference-broken' && i.nodeIds.includes(src),
       );

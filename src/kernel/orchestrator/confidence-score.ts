@@ -1,13 +1,16 @@
 /**
  * Combination algebra for plugin-contributed link-confidence adjustments.
  *
- * Confidence ([0,1]) starts at the extractor-emitted base. `score`-phase
- * analyzers then contribute attributed operations via
- * `ctx.adjustConfidence(link, op)`; the orchestrator buffers them and
- * folds all ops for a link into a final value with `foldConfidence`.
- * The kernel's own resolution rules dogfood this exact API through the
- * built-in `core/score-resolution` scorer (resolved → `set 1.0`,
- * reserved → `set 0.1`, broken → `ceil 0.5`).
+ * Confidence ([0,1]) starts at the kernel's 1.0 baseline (seeded on every
+ * link by `liftResolvedLinkConfidence`). `score`-phase analyzers then
+ * contribute attributed operations via `ctx.adjustConfidence(link, op)`;
+ * the orchestrator buffers them and folds all ops for a link into a final
+ * value with `foldConfidence`. The kernel dogfoods this exact API through
+ * two built-in score-phase detectors, each co-locating its penalty op
+ * with the finding it reports: `core/name-reserved`
+ * (reserved → `delta -0.9` → 0.1), `core/reference-broken`
+ * (broken → `delta -0.5` → 0.5). A clean-resolved or untouched link folds
+ * to `clamp(base)` and keeps the 1.0 baseline.
  *
  * The fold is deterministic and order-independent across the four
  * buckets (set / delta / floor / ceil are each commutative):
@@ -23,10 +26,12 @@
  *   6. clamp to [0,1] ONCE at the end, so opposing deltas round-trip
  *      (e.g. `-0.4` then `+0.4` returns to base, never clipped midway).
  *
- * A link no scorer touches folds to `clamp(base)`, identical to an
- * un-scored link. With only the built-in scorer active (which emits at
- * most one mutually-exclusive op per link), the fold reduces to the old
- * single assignment, so the migration is behaviour-identical.
+ * A link no scorer touches folds to `clamp(base)` (the kernel's 1.0
+ * baseline), identical to a clean-resolved link. With only the built-in
+ * detectors active a link is at most reserved OR broken (mutually
+ * exclusive), so it gets at most one penalty delta and folds to 0.1 / 0.5
+ * respectively; a clean link keeps the 1.0 base. Third-party scorers layer
+ * additional ops on top, summed deterministically before the single clamp.
  */
 
 import type { Link, TConfidenceOp } from '../types.js';

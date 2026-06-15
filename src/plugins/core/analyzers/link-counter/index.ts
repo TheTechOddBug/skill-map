@@ -41,13 +41,14 @@ import type { Issue, LinkKind } from '../../../../kernel/types.js';
 import type { IViewContribution } from '../../../../kernel/types/view-catalog.js';
 import { isSelfLoop } from '../../../../kernel/util/link-lines.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
+import { LINK_COUNTER_TEXTS } from './text.js';
 
 const ID = 'link-counter';
 
 const linksIn = {
   slot: 'card.footer.left',
   icon: 'pi-download',
-  label: 'incoming links',
+  label: LINK_COUNTER_TEXTS.linksInLabel,
   emitWhenEmpty: false,
   priority: 10,
 } satisfies IViewContribution;
@@ -55,7 +56,7 @@ const linksIn = {
 const linksOut = {
   slot: 'card.footer.left',
   icon: 'pi-upload',
-  label: 'outgoing links',
+  label: LINK_COUNTER_TEXTS.linksOutLabel,
   emitWhenEmpty: false,
   priority: 20,
 } satisfies IViewContribution;
@@ -154,5 +155,6 @@ function formatBreakdown(byKind: Map<LinkKind, number>, direction: 'in' | 'out')
   const lines = [...byKind.entries()]
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(([kind, n]) => `${kind}: ${n}`);
-  return [direction, ...lines].join('\n');
+  const dirLabel = direction === 'in' ? LINK_COUNTER_TEXTS.directionIn : LINK_COUNTER_TEXTS.directionOut;
+  return [dirLabel, ...lines].join('\n');
 }

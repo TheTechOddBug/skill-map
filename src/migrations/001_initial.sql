@@ -474,11 +474,12 @@ CREATE INDEX ix_scan_contribution_errors_node_path ON scan_contribution_errors(n
 
 -- scan_link_scores: per-op confidence-attribution audit trail. One row
 -- per attributed `ctx.adjustConfidence(link, op)` call buffered by a
--- `score`-phase analyzer during the scan (the kernel's own
--- `core/score-resolution` scorer dogfoods the API). Lets an operator
--- answer "why is this link at 0.3?" by listing the plugin / extension /
--- op that moved it, with the FOLDED final value denormalised onto every
--- row (`result_confidence` mirrors `scan_links.confidence`).
+-- `score`-phase analyzer during the scan (the kernel's own built-in
+-- `core/name-reserved` / `core/reference-broken` detectors dogfood the
+-- API, applying penalty deltas on top of the kernel's 1.0 baseline). Lets
+-- an operator answer "why is this link at 0.3?" by listing the plugin /
+-- extension / op that moved it, with the FOLDED final value denormalised
+-- onto every row (`result_confidence` mirrors `scan_links.confidence`).
 --
 -- The link is identified by its structural identity fields
 -- (`source_path`, `target`, `kind`, `normalized_trigger`), the same key

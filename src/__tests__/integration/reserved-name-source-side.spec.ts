@@ -2,21 +2,23 @@
  * End-to-end coverage for the `core/name-reserved` analyzer's
  * source-side surface, exercised through `runScan` so the full
  * orchestrator pipeline participates: discovery (claude provider) →
- * slash extractor (target=/help, confidence 0.8) → post-walk lift
+ * slash extractor (target=/help) → kernel 1.0 baseline + post-walk lift
  * (resolves `/help` against the planted `.claude/commands/help.md`,
- * confirms the resolved path is in `ctx.reservedNodePaths`, downgrades
- * to RESERVED_TARGET_CONFIDENCE 0.1) → reserved-name analyzer (emits
- * target-side + source-side warns).
+ * records the resolved path; the orchestrator confirms it is in
+ * `ctx.reservedNodePaths`) → `core/name-reserved` score phase (applies
+ * `delta -RESERVED_PENALTY`, folding the kernel baseline 1.0 down to 0.1)
+ * + reserved-name analyzer (emits target-side + source-side warns).
  *
  * Why a dedicated integration test (companion to the unit test in
  * `plugins/core/analyzers/reserved-name/__tests__/reserved-name.spec.ts`):
  * the unit test exercises `evaluate()` with a hand-built ctx whose
- * `reservedNodePaths` is preloaded and whose links are synthesised at
- * exactly `RESERVED_TARGET_CONFIDENCE`. A regression in any of the
- * upstream pieces (provider's `reservedNames` catalog, orchestrator's
- * `buildReservedNodePaths` intersection, the lift transform's sentinel
- * write) would leave the unit test green while the operator-visible
- * behaviour silently disappears. This file pins the WIRING end-to-end.
+ * `reservedNodePaths` is preloaded and whose links are synthesised. A
+ * regression in any of the upstream pieces (provider's `reservedNames`
+ * catalog, orchestrator's `buildReservedNodePaths` intersection, the
+ * lift transform's resolved-target write) would leave the unit test green
+ * while the operator-visible behaviour silently disappears. This file
+ * pins the WIRING end-to-end, including the final folded confidence
+ * (`RESERVED_TARGET = 1.0 - RESERVED_PENALTY = 0.1`).
  */
 
 import { strict as assert } from 'node:assert';
@@ -27,7 +29,15 @@ import { after, before, describe, it } from 'node:test';
 
 import { createKernel, runScan } from '../../kernel/index.js';
 import { builtIns, listBuiltIns } from '../../plugins/built-ins.js';
-import { RESERVED_TARGET_CONFIDENCE } from '../../kernel/orchestrator/confidence-constants.js';
+import {
+  BROKEN_PENALTY,
+  RESERVED_PENALTY,
+} from '../../kernel/orchestrator/confidence-constants.js';
+
+// Final folded confidences: every link starts at the kernel's 1.0
+// baseline and a built-in score-phase detector subtracts its penalty.
+const RESERVED_CONFIDENCE = 1.0 - RESERVED_PENALTY; // 0.1
+const BROKEN_CONFIDENCE = 1.0 - BROKEN_PENALTY; // 0.5
 
 let fixture: string;
 
@@ -41,8 +51,9 @@ before(() => {
 
   // Author file invokes a Claude-reserved slash command. The claude
   // provider lists `help` in `reservedNames.command` (see
-  // `plugins/claude/providers/claude/index.ts`), so the lift transform
-  // downgrades the resolved edge to `RESERVED_TARGET_CONFIDENCE`.
+  // `plugins/claude/providers/claude/index.ts`), so `core/name-reserved`
+  // subtracts `RESERVED_PENALTY` from the kernel's 1.0 baseline, folding
+  // the resolved edge down to 0.1.
   write(
     '.claude/agents/operator.md',
     [
@@ -84,8 +95,8 @@ describe('core/name-reserved (source side, end-to-end through runScan)', () => {
       extensions: builtIns(),
     });
 
-    // Sanity: the lift transform downgraded the slash link to the
-    // sentinel. If this fails the reserved-name analyzer would still
+    // Sanity: the score phase folded the slash link down to the reserved
+    // confidence. If this fails the reserved-name analyzer would still
     // see an empty trigger set and emit no source-side issue, which
     // would mask the real regression behind a confusing failure.
     const slashLink = result.links.find(
@@ -97,8 +108,8 @@ describe('core/name-reserved (source side, end-to-end through runScan)', () => {
     assert.ok(slashLink, 'expected the /help slash link from operator.md');
     assert.equal(
       slashLink.confidence,
-      RESERVED_TARGET_CONFIDENCE,
-      '/help must lift to RESERVED_TARGET_CONFIDENCE because help.md is reserved',
+      RESERVED_CONFIDENCE,
+      '/help must fold to 0.1 (kernel 1.0 baseline minus RESERVED_PENALTY) because help.md is reserved',
     );
     assert.equal(
       slashLink.resolvedTarget,
@@ -150,17 +161,17 @@ describe('core/name-reserved (source side, end-to-end through runScan)', () => {
     assert.equal(data['reservedProvider'], 'claude');
     assert.equal(data['reservedKind'], 'command');
     assert.match(sourceSide.message, /Name collision; resolves to the claude built-in/);
-    assert.match(sourceSide.message, /confidence 0\.10/);
+    assert.match(sourceSide.message, /the built-in shadows this edge/);
   });
 
   it('emits no source-side warn for a slash link that does NOT resolve to a reserved name', async () => {
     // Negative guard: a separate fixture invokes `/no-such-command`,
-    // which has no on-disk target and is not in `reservedNames`. The
-    // lift transform demotes the genuinely-broken link to the broken
-    // floor (0.5, not the reserved 0.1), the reserved-name analyzer must
-    // NOT synthesise a source-side issue on this confidence value.
-    // Without the sentinel check the rule would over-fire on every
-    // broken slash trigger.
+    // which has no on-disk target and is not in `reservedNames`.
+    // `core/reference-broken` subtracts BROKEN_PENALTY, folding the
+    // genuinely-broken link to the broken floor (0.5, not the reserved
+    // 0.1); the reserved-name analyzer must NOT synthesise a source-side
+    // issue on this confidence value. Without the resolved-target check
+    // the rule would over-fire on every broken slash trigger.
     const localFixture = mkdtempSync(join(tmpdir(), 'skill-map-reserved-name-neg-'));
     try {
       const write = (rel: string, content: string): void => {
@@ -210,8 +221,8 @@ describe('core/name-reserved (source side, end-to-end through runScan)', () => {
       assert.ok(slashLink, 'expected the /no-such-command slash link');
       assert.equal(
         slashLink.confidence,
-        0.5,
-        '/no-such-command is genuinely broken: demoted from the 0.8 slash emit to the broken floor (0.5)',
+        BROKEN_CONFIDENCE,
+        '/no-such-command is genuinely broken: kernel 1.0 baseline minus BROKEN_PENALTY → 0.5',
       );
 
       const reservedNameIssues = result.issues.filter((i) => i.analyzerId === 'name-reserved');
@@ -233,6 +244,72 @@ describe('core/name-reserved (source side, end-to-end through runScan)', () => {
       assert.deepEqual(targetSideIssues[0]?.nodeIds, ['.claude/commands/help.md']);
     } finally {
       rmSync(localFixture, { recursive: true, force: true });
+    }
+  });
+});
+
+// The decomposition's headline capability: each rule's confidence op
+// follows its detector, so DISABLING the detector also drops its score
+// effect (the link falls back to the kernel's 1.0 baseline, no penalty),
+// symmetric for reserved and broken. These pin "off = baseline"
+// end-to-end through `runScan`, the only place the toggle-out is
+// observable.
+
+/** The built-in extension set with one analyzer removed (the toggle-out). */
+function withoutAnalyzer(id: string): ReturnType<typeof builtIns> {
+  const exts = builtIns();
+  return { ...exts, analyzers: exts.analyzers.filter((a) => a.id !== id) };
+}
+
+describe('symmetric disable: confidence follows the detector', () => {
+  it('name-reserved disabled → the reserved link is NOT downgraded (keeps the kernel baseline)', async () => {
+    const kernel = createKernel();
+    for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
+    const result = await runScan(kernel, {
+      roots: [fixture],
+      extensions: withoutAnalyzer('name-reserved'),
+    });
+    const slashLink = result.links.find(
+      (l) => l.source === '.claude/agents/operator.md' && l.target === '/help',
+    );
+    assert.ok(slashLink, 'expected the /help slash link');
+    // name-reserved owns the -RESERVED_PENALTY delta now. With it off,
+    // nothing subtracts from the kernel's 1.0 baseline, so the resolved
+    // (but reserved) edge stays at 1.0, not 0.1.
+    assert.notEqual(slashLink.confidence, RESERVED_CONFIDENCE);
+    assert.equal(slashLink.confidence, 1.0);
+    // ...and the warn is gone too (the rule no longer runs).
+    const reservedWarns = result.issues.filter((i) => i.analyzerId === 'name-reserved');
+    assert.equal(reservedWarns.length, 0, 'no reserved warn when the detector is off');
+  });
+
+  it('reference-broken disabled → the broken link is NOT penalised (keeps the kernel baseline)', async () => {
+    const local = mkdtempSync(join(tmpdir(), 'skill-map-broken-disable-'));
+    try {
+      const abs = join(local, '.claude/agents/op.md');
+      mkdirSync(join(abs, '..'), { recursive: true });
+      writeFileSync(
+        abs,
+        ['---', 'name: op', 'description: op.', '---', 'Run /no-such-command.'].join('\n'),
+      );
+      const kernel = createKernel();
+      for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
+      const result = await runScan(kernel, {
+        roots: [local],
+        extensions: withoutAnalyzer('reference-broken'),
+      });
+      const brokenLink = result.links.find((l) => l.target === '/no-such-command');
+      assert.ok(brokenLink, 'expected the /no-such-command slash link');
+      // reference-broken owns the -BROKEN_PENALTY delta now. With it off,
+      // nothing subtracts from the kernel's 1.0 baseline, so the broken
+      // edge stays at 1.0, not 0.5.
+      assert.notEqual(brokenLink.confidence, BROKEN_CONFIDENCE);
+      assert.equal(brokenLink.confidence, 1.0);
+      // ...and no broken error either.
+      const brokenErrors = result.issues.filter((i) => i.analyzerId === 'reference-broken');
+      assert.equal(brokenErrors.length, 0, 'no broken error when the detector is off');
+    } finally {
+      rmSync(local, { recursive: true, force: true });
     }
   });
 });

@@ -65,11 +65,11 @@ export interface IPostWalkTransformCtx {
    * Paths of nodes whose normalised identifier(s) intersect the
    * Provider's `reservedNames[kind]` catalog. The set is computed once
    * per scan by the orchestrator (see `buildPostWalkTransformCtx`) and
-   * read here by `liftResolvedLinkConfidence` so a link resolving to a
-   * reserved target is downgraded to `RESERVED_TARGET_CONFIDENCE`
-   * instead of bumped to 1.0. The `core/name-reserved` analyzer
-   * consumes the same set through `IAnalyzerContext.reservedNodePaths`
-   * to emit its warn issue.
+   * threaded to the score phase: `core/name-reserved` reads it through
+   * `IAnalyzerContext.reservedNodePaths` to subtract its penalty (and
+   * emit its warn) on a link resolving to a reserved target. The lift
+   * sets the 1.0 baseline regardless; demoting a reserved edge is the
+   * detector's job, not the lift's.
    */
   readonly reservedNodePaths: ReadonlySet<string>;
 }

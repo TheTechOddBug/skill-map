@@ -4,14 +4,15 @@
  * `invokes` and `references` per the source Provider's `resolution`
  * matrix and the target kind's declared `identifiers`).
  *
- * The lift now ONLY records the resolution outcome on
- * `link.resolvedTarget`; the confidence VALUE that used to ride along
- * (resolved → 1.0, reserved → 0.1, broken → cap 0.5, virtual → keep
- * emit) is assigned downstream by the built-in `core/score-resolution`
- * scorer, which reads this `resolvedTarget` plus `ctx.reservedNodePaths`
- * / `ctx.brokenLinks`. These tests therefore assert the RESOLUTION the
- * lift owns; the confidence numbers are pinned in
- * `plugins/core/analyzers/score-resolution/__tests__`.
+ * The lift seeds the kernel's confidence baseline (`link.confidence =
+ * 1.0` for EVERY link, no gate) and records the resolution outcome on
+ * `link.resolvedTarget`. The penalty values that used to ride along
+ * (reserved → 0.1, broken → 0.5) are applied downstream by the built-in
+ * `core/name-reserved` / `core/reference-broken` score-phase analyzers,
+ * which read this `resolvedTarget` plus `ctx.reservedNodePaths` /
+ * `ctx.brokenLinks`. A clean-resolved or untouched link keeps the 1.0
+ * baseline. These tests therefore assert the RESOLUTION the lift owns; the
+ * penalty numbers are pinned in the analyzers' own specs.
  *
  * Resolution contract:
  *   - Rule 1 (path match, any link.kind): `link.target` equals some
@@ -26,8 +27,10 @@
  *     kind-matrix-rejected) ⇒ `resolvedTarget` stays `undefined`. The
  *     broken-vs-not-broken split lives in `collectBrokenLinks` (its
  *     own describe block below), not in the resolved-target outcome.
- *   - Links already at >= 1.0 are not visited (cheap gate); their
- *     `resolvedTarget` stays whatever it was (`undefined` here).
+ *   - EVERY link is visited regardless of its incoming confidence (no
+ *     gate): the lift sets the 1.0 baseline and records `resolvedTarget`
+ *     for every link that resolves, including annotation-derived links
+ *     that arrive at 1.0.
  *   - Empty / missing trigger short-circuits the name rule.
  *   - Empty / missing lens resolution map → no name-rule resolution
  *     (path-rule still fires independently).
@@ -319,7 +322,7 @@ describe('liftResolvedLinkConfidence', () => {
     strictEqual(links[0]!.resolvedTarget, '.claude/commands/demo-command.md');
   });
 
-  it('leaves a link already at 1.0 unvisited (no resolvedTarget written)', () => {
+  it('visits a link already at 1.0 too: resolvedTarget recorded, baseline stays 1.0 (no gate)', () => {
     const nodes = [
       mockNode({ path: '.claude/agents/src.md', kind: 'agent', frontmatter: { name: 'src' } }),
       mockNode({
@@ -342,10 +345,10 @@ describe('liftResolvedLinkConfidence', () => {
       },
     ];
     liftResolvedLinkConfidence(links, nodes, makeCtx());
-    // Already at 1.0 → not visited → confidence untouched and no
-    // resolvedTarget written (resolution only runs below the gate).
+    // No gate: the lift visits every link, seeds the 1.0 baseline (already
+    // 1.0 here), and records the path-match resolution.
     strictEqual(links[0]!.confidence, 1.0);
-    strictEqual(links[0]!.resolvedTarget, undefined);
+    strictEqual(links[0]!.resolvedTarget, '.claude/agents/reviewer.md');
   });
 
   it('is idempotent: re-running on the same input does not change resolvedTarget', () => {
@@ -364,9 +367,11 @@ describe('liftResolvedLinkConfidence', () => {
     strictEqual(links[0]!.resolvedTarget, after1);
   });
 
-  it('short-circuits when no link is below 1.0', () => {
-    // Cheap guard: if every link is already at 1.0, the indexes are
-    // never built and no resolvedTarget is written.
+  it('visits a 1.0 link with an unresolvable target: baseline stays 1.0, no resolvedTarget', () => {
+    // The lift visits every link (no confidence gate). This already-1.0
+    // link points at `whatever.md`, which matches no node and no name
+    // index entry, so resolution returns `none` and resolvedTarget stays
+    // undefined (the confidence baseline is still seeded to 1.0).
     const nodes = [
       mockNode({ path: '.claude/agents/src.md', kind: 'agent', frontmatter: { name: 'src' } }),
     ];
@@ -380,6 +385,7 @@ describe('liftResolvedLinkConfidence', () => {
       },
     ];
     liftResolvedLinkConfidence(links, nodes, makeCtx());
+    strictEqual(links[0]!.confidence, 1.0);
     deepStrictEqual(
       links.map((l) => l.resolvedTarget),
       [undefined],
@@ -414,7 +420,9 @@ describe('liftResolvedLinkConfidence', () => {
     liftResolvedLinkConfidence(links, nodes, makeCtx());
     strictEqual(links[0]!.resolvedTarget, '.claude/agents/reviewer.md'); // resolved mention
     strictEqual(links[1]!.resolvedTarget, undefined); // /unknown unresolved (broken)
-    strictEqual(links[2]!.resolvedTarget, undefined); // already-1.0 → not visited
+    // already-1.0 reference IS visited (no gate) and path-matches the
+    // deploy command, so its resolvedTarget is now recorded.
+    strictEqual(links[2]!.resolvedTarget, '.claude/commands/deploy.md');
   });
 
   it('normalises identifiers against the pre-normalised trigger', () => {
@@ -580,12 +588,12 @@ describe('liftResolvedLinkConfidence', () => {
     strictEqual(links[0]!.resolvedTarget, undefined);
   });
 
-  it('resolves a link pointing at a virtual node (resolvedTarget set; scorer keeps the emit)', () => {
+  it('resolves a link pointing at a virtual node (resolvedTarget set; baseline 1.0)', () => {
     // A `references` link to an `mcp://images` node (virtual: true,
     // fabricated from frontmatter, unverified on disk) resolves by path,
-    // so resolvedTarget is set. The confidence outcome (keep the 0.85
-    // emit rather than bump to 1.0) is the scorer's call, pinned in the
-    // score-resolution spec.
+    // so resolvedTarget is set and the link keeps the kernel's 1.0
+    // baseline like any clean resolution (no built-in penalty applies to a
+    // virtual target; it is never genuinely broken).
     const nodes = [
       mockNode({ path: '.claude/agents/src.md', kind: 'agent', frontmatter: { name: 'src' } }),
       mockNode({ path: 'mcp://images', kind: 'mcp', virtual: true, frontmatter: { name: 'images' } }),

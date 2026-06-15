@@ -2,9 +2,10 @@
  * `scan_link_scores` adapter, replace-all writer used by
  * `persistScanResult`. One row per attributed
  * `ctx.adjustConfidence(link, op)` call buffered by a `score`-phase
- * analyzer during the scan (the kernel's own `core/score-resolution`
- * scorer dogfoods the API). The audit trail an operator reads to answer
- * "why is this link at 0.3?".
+ * analyzer during the scan (the kernel's own built-in score-phase
+ * detectors `core/name-reserved`, `core/reference-broken` dogfood the
+ * API, applying penalty deltas on top of the kernel's 1.0 baseline). The
+ * audit trail an operator reads to answer "why is this link at 0.3?".
  *
  * See `spec/db-schema.md` § scan_link_scores and `migrations/001_initial.sql`
  * § scan_link_scores for the normative shape.

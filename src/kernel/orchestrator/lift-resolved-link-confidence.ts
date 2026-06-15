@@ -4,40 +4,27 @@
  * Sits as a post-walk transform (see `post-walk-transforms.ts`), runs
  * AFTER `dedupeLinks` so the merged edge state is final.
  *
- * Five outcomes per link below confidence 1.0:
+ * Two jobs per link:
  *
- *   - **Genuinely broken**: target matches no node path AND the
- *     stripped trigger matches no entry in the cross-kind name index
- *     (the same kind-agnostic notion `core/reference-broken` uses).
- *     Confidence is lowered to `BROKEN_TARGET_CONFIDENCE` (capped, only
- *     lowered) so a dangling edge renders fainter than a resolved one.
- *     The `core/reference-broken` analyzer still flags the link as an
- *     issue separately; this is the matching visual signal.
+ *   1. **Confidence baseline = 1.0.** The kernel owns the floor: every
+ *      link starts at full confidence, discarding the per-extractor emit.
+ *      The score-phase detectors then subtract their `delta` penalties on
+ *      top (`core/name-reserved` -0.9 for a reserved target → 0.1,
+ *      `core/reference-broken` -0.5 for a broken one → 0.5), folded and
+ *      clamped to `[0,1]`. A link no detector touches stays at 1.0.
  *
- *   - **Not broken, not bumped**: the strict kind/lens rule below did
- *     not bump the link, but its trigger DOES match a name in the
- *     index (it resolves to a real node, just not as a valid target
- *     for this `link.kind`). Confidence stays at the extractor-emitted
- *     value, the edge is not broken, so it is not demoted.
+ *   2. **Resolved target.** For a link that resolves to a real node,
+ *      record `link.resolvedTarget` so the detectors and downstream
+ *      consumers navigate by node identity even when `link.target` keeps
+ *      a trigger string like `@foo` / `/deploy`. A VIRTUAL target
+ *      (`virtual: true`, e.g. an `mcp://` node fabricated from
+ *      frontmatter) is still recorded so the edge stays navigable; it
+ *      keeps the 1.0 baseline (no detector penalises it).
  *
- *   - **Resolved to a non-reserved target**: confidence is bumped to
- *     `1.0`. The graph reflects "this edge points at a real entity the
- *     runtime can act on".
- *
- *   - **Resolved to a VIRTUAL target** (the target node carries
- *     `virtual: true`, e.g. an `mcp://` server node fabricated from
- *     frontmatter, never verified on disk): `resolvedTarget` is set so
- *     the edge stays navigable, but confidence stays at the extractor
- *     emit value, an unverified entity is not full certainty.
- *
- *   - **Resolved to a RESERVED target** (target node's name normalises
- *     to an entry in its Provider's `reservedNames[kind]` list): the
- *     edge is downgraded to `RESERVED_TARGET_CONFIDENCE` (today
- *     `0.1`). The file exists on disk but the runtime ignores it in
- *     favour of the built-in with the same name; the graph reflects
- *     "the edge resolves to something the runtime will NOT execute".
- *     The `core/name-reserved` analyzer emits the matching warn issue
- *     on the target node so the operator sees both signals.
+ * "Genuinely broken" (target resolves to no node AND no name-index entry)
+ * and "reserved target" (name in the Provider's `reservedNames[kind]`)
+ * are facts the detectors read via `ctx.brokenLinks` / `ctx.reservedNodePaths`;
+ * the lift no longer assigns their confidence.
  *
  * Two resolution rules feed the outcome above:
  *
@@ -73,18 +60,31 @@ interface INameIndexEntry {
 }
 
 /**
- * Apply the resolved-confidence transform to every link below 1.0
- * in place. No-op when every link is already at >= 1.0.
+ * Kernel confidence baseline + resolved-target lift, in place. Two jobs
+ * per link:
+ *   1. Set `link.confidence = 1.0` (the kernel owns the baseline; every
+ *      link starts at full confidence, the per-extractor emit floor is
+ *      discarded). The `score`-phase detectors then apply their `delta`
+ *      penalties on top (`core/name-reserved` -0.9, `core/reference-broken`
+ *      -0.5), folded and clamped to `[0,1]`.
+ *   2. Record `link.resolvedTarget` for every link that resolves to a real
+ *      node, so the detectors and downstream consumers navigate by node
+ *      identity (the lift no longer assigns the confidence VALUES, only
+ *      the baseline + the resolved path).
+ * Runs over EVERY link (no confidence gate): annotation-derived links
+ * emit at 1.0 yet still need their resolved target recorded and still
+ * participate in the score phase.
  */
 export function liftResolvedLinkConfidence(
   links: Link[],
   nodes: readonly Node[],
   ctx: IPostWalkTransformCtx,
 ): void {
-  if (!links.some((l) => l.confidence < 1)) return;
+  if (links.length === 0) return;
   const indexes = buildIndexes(nodes, ctx);
   for (const link of links) {
-    if (link.confidence < 1) applyResolution(link, indexes, ctx);
+    link.confidence = 1.0;
+    applyResolution(link, indexes, ctx);
   }
 }
 
@@ -132,13 +132,14 @@ function applyResolution(link: Link, indexes: IIndexes, ctx: IPostWalkTransformC
   if (resolution === 'none') return;
   // The edge resolves to a real graph node. Record the resolved path so
   // consumers (BFF incoming query, rename tooling, the UI's incoming
-  // list, and the built-in `core/score-resolution` scorer that assigns
-  // confidence) can navigate by node identity even when `link.target`
-  // keeps a trigger string like `@foo` / `/deploy`. The confidence
-  // outcome (resolved → 1.0, reserved → 0.1, virtual → keep emit, broken
-  // → cap 0.5) is no longer applied here: `core/score-resolution` reads
-  // this `resolvedTarget` plus `ctx.reservedNodePaths` / `ctx.brokenLinks`
-  // and dogfoods the public `adjustConfidence` API.
+  // list, and the score-phase detectors) can navigate by node identity
+  // even when `link.target` keeps a trigger string like `@foo` /
+  // `/deploy`. The confidence VALUES are no longer assigned here: the
+  // kernel sets the 1.0 baseline (above), and each detector reads this
+  // `resolvedTarget` plus `ctx.reservedNodePaths` / `ctx.brokenLinks` and
+  // applies its own `delta` via the public `adjustConfidence` API
+  // (`core/name-reserved` -0.9 for reserved, `core/reference-broken` -0.5
+  // for broken).
   link.resolvedTarget = resolution;
 }
 

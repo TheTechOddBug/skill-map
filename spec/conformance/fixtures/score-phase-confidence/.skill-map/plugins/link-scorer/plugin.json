@@ -2,5 +2,5 @@
   "version": "0.1.0",
   "specCompat": "*",
   "catalogCompat": "*",
-  "description": "Conformance fixture: a drop-in plugin shipping a score-phase analyzer that composes a confidence adjustment (delta -0.4, then a no-op floor 0.5) on top of the kernel's own core/score-resolution baseline."
+  "description": "Conformance fixture: a drop-in plugin shipping a score-phase analyzer that composes a confidence adjustment (delta -0.4, then a no-op floor 0.5) on top of the kernel's own 1.0 confidence baseline."
 }

@@ -130,11 +130,12 @@ describe('applyPostWalkTransforms', () => {
   it('default registry runs dedupe BEFORE lift-resolved-link-confidence', () => {
     // Two identical mention emits AND a node that resolves the
     // trigger. The lift must run AFTER dedup so it sees one merged
-    // link, not two unmerged duplicates. The lift only records the
-    // resolution (`resolvedTarget`); the confidence VALUE is assigned
-    // later by the `core/score-resolution` analyzer, which is outside
-    // the post-walk transform registry, so confidence stays at the
-    // 0.5 emit here.
+    // link, not two unmerged duplicates. The lift seeds the kernel's
+    // 1.0 confidence baseline and records the resolution
+    // (`resolvedTarget`); the penalty deltas (reserved / broken) are
+    // applied later by the `core/name-reserved` / `core/reference-broken`
+    // score-phase analyzers, which are outside the post-walk transform
+    // registry. This clean-resolving mention keeps the 1.0 baseline.
     const nodes: Node[] = [
       {
         path: 'src.md',

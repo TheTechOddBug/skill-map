@@ -43,7 +43,6 @@ import { nodeSupersededAnalyzer as _nodeSupersededAnalyzer } from './core/analyz
 import { referenceBrokenAnalyzer as _referenceBrokenAnalyzer } from './core/analyzers/reference-broken/index.js';
 import { referenceRedundantAnalyzer as _referenceRedundantAnalyzer } from './core/analyzers/reference-redundant/index.js';
 import { schemaViolationAnalyzer as _schemaViolationAnalyzer } from './core/analyzers/schema-violation/index.js';
-import { scoreResolutionAnalyzer as _scoreResolutionAnalyzer } from './core/analyzers/score-resolution/index.js';
 import { signalCollisionAnalyzer as _signalCollisionAnalyzer } from './core/analyzers/signal-collision/index.js';
 import { triggerCollisionAnalyzer as _triggerCollisionAnalyzer } from './core/analyzers/trigger-collision/index.js';
 import { asciiFormatter as _asciiFormatter } from './core/formatters/ascii/index.js';
@@ -82,7 +81,6 @@ const nodeSupersededAnalyzer = { ..._nodeSupersededAnalyzer, pluginId: 'core', v
 const referenceBrokenAnalyzer = { ..._referenceBrokenAnalyzer, pluginId: 'core', version: VERSION };
 const referenceRedundantAnalyzer = { ..._referenceRedundantAnalyzer, pluginId: 'core', version: VERSION };
 const schemaViolationAnalyzer = { ..._schemaViolationAnalyzer, pluginId: 'core', version: VERSION };
-const scoreResolutionAnalyzer = { ..._scoreResolutionAnalyzer, pluginId: 'core', version: VERSION };
 const signalCollisionAnalyzer = { ..._signalCollisionAnalyzer, pluginId: 'core', version: VERSION };
 const triggerCollisionAnalyzer = { ..._triggerCollisionAnalyzer, pluginId: 'core', version: VERSION };
 const asciiFormatter = { ..._asciiFormatter, pluginId: 'core', version: VERSION };
@@ -167,7 +165,6 @@ export const builtInPlugins: IBuiltInPlugin[] = [
       referenceBrokenAnalyzer,
       referenceRedundantAnalyzer,
       schemaViolationAnalyzer,
-      scoreResolutionAnalyzer,
       signalCollisionAnalyzer,
       triggerCollisionAnalyzer,
       asciiFormatter,

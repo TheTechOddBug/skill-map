@@ -106,7 +106,7 @@ One row per detected link, matching [`schemas/link.schema.json`](./schemas/link.
 | `source_path` | TEXT | NOT NULL | FK semantically; MAY be unenforced for performance. |
 | `target_path` | TEXT | NOT NULL | MAY point to a missing node (broken ref). |
 | `kind` | TEXT | NOT NULL, CHECK in (`invokes`, `references`, `mentions`, `supersedes`, `points`) | |
-| `confidence` | REAL | NOT NULL, CHECK `>= 0.0 AND <= 1.0` | Numeric `[0,1]` (`link.schema.json#/properties/confidence`). The extractor-emitted base, then the folded result of every `score`-phase `ctx.adjustConfidence` op (built-in `core/score-resolution` plus any third-party scorer); the per-op attribution lives in `scan_link_scores`. Migrated from the legacy `high`/`medium`/`low` TEXT enum. |
+| `confidence` | REAL | NOT NULL, CHECK `>= 0.0 AND <= 1.0` | Numeric `[0,1]` (`link.schema.json#/properties/confidence`). The kernel's 1.0 baseline, then the folded result of every `score`-phase `ctx.adjustConfidence` op (the built-in score-phase detectors `core/name-reserved`, `core/reference-broken`, plus any third-party scorer); the per-op attribution lives in `scan_link_scores`. Migrated from the legacy `high`/`medium`/`low` TEXT enum. |
 | `sources_json` | TEXT | NOT NULL | JSON array of extractor ids. |
 | `original_trigger` | TEXT | NULL | |
 | `normalized_trigger` | TEXT | NULL | |
@@ -249,11 +249,11 @@ NOT analogous to `state_plugin_kvs` (which is plugin-managed). Belongs to the `s
 
 ### `scan_link_scores`
 
-Per-op confidence-attribution audit trail. One row per attributed `ctx.adjustConfidence(link, op)` call buffered by a `score`-phase analyzer during the scan (the kernel's own `core/score-resolution` scorer dogfoods the API; third-party scorers add rows of their own). Lets an operator answer "why is this link at `0.3`?" by listing the plugin / extension / op that moved it, with the FOLDED final value denormalised onto every row.
+Per-op confidence-attribution audit trail. One row per attributed `ctx.adjustConfidence(link, op)` call buffered by a `score`-phase analyzer during the scan (the kernel's own built-in score-phase detectors `core/name-reserved`, `core/reference-broken` dogfood the API, applying penalty deltas on top of the kernel's 1.0 baseline; third-party scorers add rows of their own). Lets an operator answer "why is this link at `0.3`?" by listing the plugin / extension / op that moved it, with the FOLDED final value denormalised onto every row.
 
 | Column | Type | Constraint | Notes |
 |---|---|---|---|
-| `plugin_id` | TEXT | NOT NULL | Owning plugin namespace of the scorer (per spec § A.6). `core` for the built-in `score-resolution`. |
+| `plugin_id` | TEXT | NOT NULL | Owning plugin namespace of the scorer (per spec § A.6). `core` for the built-in detectors (`name-reserved` / `reference-broken`). |
 | `extension_id` | TEXT | NOT NULL | Scorer extension id within the plugin. |
 | `source_path` | TEXT | NOT NULL | The link's `source` (originating node path). Part of the structural identity key, the same tuple `scan_links` dedups on. |
 | `target` | TEXT | NOT NULL | The link's `target` (MAY be a missing node: broken refs get scored too). |

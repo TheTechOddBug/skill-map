@@ -379,9 +379,11 @@ export interface IScanContributionErrorsTable {
  * Per-op confidence-attribution audit trail, `scan_link_scores`.
  *
  * One row per attributed `ctx.adjustConfidence(link, op)` call buffered
- * by a `score`-phase analyzer during the scan (the kernel's own
- * `core/score-resolution` scorer dogfoods the API). Answers "why is this
- * link at X?" by listing the plugin / extension / op that moved it.
+ * by a `score`-phase analyzer during the scan (the kernel's own built-in
+ * score-phase detectors `core/name-reserved`, `core/reference-broken`
+ * dogfood the API, applying penalty deltas on top of the kernel's 1.0
+ * baseline). Answers "why is this link at X?" by listing the plugin /
+ * extension / op that moved it.
  *
  *   - `sourcePath` / `target` / `kind` / `normalizedTrigger`, the link's
  *     structural identity (the same key `scan_links` dedups on).

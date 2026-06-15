@@ -19,15 +19,15 @@ export const NAME_RESERVED_TEXTS = {
   fixSummary: 'Rename the file or its frontmatter.name.',
   /**
    * Source-side body (`<what>; <why>`): emitted on the node that
-   * AUTHORED a link whose target resolves to a reserved name. Explains
-   * WHY the link's confidence dropped to `RESERVED_TARGET_CONFIDENCE`
-   * (today `0.1`): the kernel saw the target match a runtime built-in
-   * and downgraded the edge so the operator notices. The shared
+   * AUTHORED a link whose target resolves to a reserved name. Reports the
+   * fact (the runtime built-in shadows this edge); it deliberately does
+   * NOT assert a confidence number, since the value is owned by the
+   * `score`-phase scorers and may vary or be absent. The shared
    * `formatFinding` helper wraps it with the backtick target subject and
    * the `L<line>:` location prefix.
    */
   linkMessage:
-    'Name collision; resolves to the {{provider}} built-in ({{reservedKind}} `{{reservedPath}}`), the built-in wins so this edge drops to confidence {{confidence}}',
+    'Name collision; resolves to the {{provider}} built-in ({{reservedKind}} `{{reservedPath}}`), the built-in shadows this edge',
   /** Remediation hint for the source-side finding. */
   linkFixSummary: 'Rename the target file or its frontmatter.name.',
 } as const;

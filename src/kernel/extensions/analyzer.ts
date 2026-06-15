@@ -232,10 +232,11 @@ export interface IAnalyzer extends IExtensionBase {
    *     The ONLY phase permitted to write: it adjusts link confidence
    *     via `ctx.adjustConfidence(link, op)`. The orchestrator folds
    *     every score-phase op into `link.confidence` before the read-
-   *     only `detect` phase runs, so detect analyzers (e.g.
-   *     `core/name-reserved`, which reads `confidence === 0.1`) see the
-   *     final value. The kernel's own resolution rules dogfood this via
-   *     the built-in `core/score-resolution` scorer.
+   *     only `detect` phase runs, so the `detect` analyzers see the
+   *     final value. The kernel seeds the 1.0 confidence baseline on
+   *     every link, then dogfoods this phase via two built-in score-phase
+   *     detectors (`core/name-reserved`, `core/reference-broken`), each
+   *     co-locating its penalty `delta` with the finding it reports.
    *   - `'detect'` (default), the main pass. Walks nodes / links and
    *     emits its own findings. Most analyzers live here. Read-only.
    *   - `'aggregate'`, runs strictly AFTER every `detect`-phase

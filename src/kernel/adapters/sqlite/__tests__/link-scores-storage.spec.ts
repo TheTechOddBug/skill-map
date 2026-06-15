@@ -100,13 +100,13 @@ describe('replaceAllScanLinkScores (scan_link_scores audit trail)', () => {
         {
           link: triggerLink,
           pluginId: 'core',
-          extensionId: 'score-resolution',
+          extensionId: 'reference-broken',
           op: { kind: 'ceil', value: 0.5 },
         },
         {
           link: pathLink,
           pluginId: 'core',
-          extensionId: 'score-resolution',
+          extensionId: 'reference-broken',
           op: { kind: 'set', value: 1 },
         },
       ];
@@ -135,7 +135,7 @@ describe('replaceAllScanLinkScores (scan_link_scores audit trail)', () => {
         },
         {
           pluginId: 'core',
-          extensionId: 'score-resolution',
+          extensionId: 'reference-broken',
           sourcePath: '.claude/agents/architect.md',
           target: '@reviewer',
           kind: 'invokes',
@@ -168,7 +168,7 @@ describe('replaceAllScanLinkScores (scan_link_scores audit trail)', () => {
         {
           link: makeLink({ source: 'x.md', confidence: 0.1 }),
           pluginId: 'core',
-          extensionId: 'score-resolution',
+          extensionId: 'reference-broken',
           op: { kind: 'set', value: 0.1 },
         },
       ];
@@ -180,7 +180,7 @@ describe('replaceAllScanLinkScores (scan_link_scores audit trail)', () => {
         {
           link: makeLink({ source: 'y.md', confidence: 1 }),
           pluginId: 'core',
-          extensionId: 'score-resolution',
+          extensionId: 'reference-broken',
           op: { kind: 'set', value: 1 },
         },
       ];

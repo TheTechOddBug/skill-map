@@ -1,23 +1,30 @@
 /**
  * Unit coverage for `reference-broken`:
- *   - Issue emission per unresolved link (warn severity, `nodeIds: [source]`).
- *   - View-contribution emission to `card.footer.right` aggregated
- *     per source node (one chip per node, value = number of broken
- *     refs).
+ *   - Issue emission per unresolved link (error severity, `nodeIds: [source]`).
+ *   - Score-phase confidence penalty: every broken link surfaced (i.e.
+ *     after the `referenceablePaths` escape hatch) gets a
+ *     `ctx.adjustConfidence(link, { kind: 'delta', value: -BROKEN_PENALTY })`.
+ *     The kernel seeds a 1.0 baseline on every link, so the penalty folds
+ *     to `1.0 - 0.5 = 0.5`. Detection and scoring travel together: a link
+ *     suppressed by the escape hatch gets neither an issue nor an op.
+ *     There is NO confidence gate: the delta fires regardless of the
+ *     link's confidence; only the score-phase `adjustConfidence` presence
+ *     bounds the adjustment (a detect/aggregate ctx supplies none).
  *
- * The aggregation is what makes the chip scale, a node with three
- * broken refs lights up once with `value: 3`. The historical corner
- * badge on `graph.node.alert` was dropped because that slot is now
- * reserved for special-case signals (see `slot-config.ts`).
+ * The per-node aggregate chip moved to `core/issue-counter`; this
+ * analyzer declares no `ui` surface. The recorded ops are captured via a
+ * recording `adjustConfidence`.
  */
 
+import { resolve } from 'node:path';
 import { describe, it } from 'node:test';
 import { deepStrictEqual, strictEqual } from 'node:assert';
 
 import { referenceBrokenAnalyzer } from '../index.js';
 import { REFERENCE_BROKEN_TEXTS } from '../text.js';
+import { BROKEN_PENALTY } from '../../../../../kernel/orchestrator/confidence-constants.js';
 import type { IAnalyzerContext } from '../../../../../kernel/extensions/index.js';
-import type { Link, Node } from '../../../../../kernel/types.js';
+import type { Link, Node, TConfidenceOp } from '../../../../../kernel/types.js';
 
 function fakeNode(path: string, name?: string): Node {
   return {
@@ -44,24 +51,52 @@ function fakeLink(source: string, target: string): Link {
   };
 }
 
+/**
+ * One recorded `adjustConfidence` call, by link object identity.
+ */
+interface IRecordedOp {
+  link: Link;
+  op: TConfidenceOp;
+}
+
 // `reference-broken` is a pure projector of the orchestrator's
 // genuinely-broken verdict, so the unit test supplies `brokenLinks`
 // directly (the kind-agnostic detection itself lives in the lift's
-// `collectBrokenLinks`, covered by that module's tests).
-function run(nodes: Node[], links: Link[], brokenLinks: Set<Link>): {
+// `collectBrokenLinks`, covered by that module's tests). `extra` carries
+// the optional score-phase wiring (`cwd` + `referenceablePaths` for the
+// escape hatch); pass `{ adjust: false }` to model a legacy/detect ctx
+// that supplies no `adjustConfidence` at all.
+function run(
+  nodes: Node[],
+  links: Link[],
+  brokenLinks: Set<Link>,
+  extra?: Partial<IAnalyzerContext> & { adjust?: boolean },
+): {
   issues: { nodeIds: readonly string[]; severity: string }[];
   contributions: { nodePath: string; id: string; payload: unknown }[];
+  ops: IRecordedOp[];
 } {
   const contributions: { nodePath: string; id: string; payload: unknown }[] = [];
-  const result = referenceBrokenAnalyzer.evaluate({
+  const ops: IRecordedOp[] = [];
+  const { adjust = true, ...ctxOver } = extra ?? {};
+  const ctx = {
     nodes,
     links,
     brokenLinks,
     emitContribution: (nodePath: string, id: string, payload: unknown) =>
       contributions.push({ nodePath, id, payload }),
-  } as unknown as IAnalyzerContext);
+    ...(adjust
+      ? {
+          adjustConfidence: (link: Link, op: TConfidenceOp) => {
+            ops.push({ link, op });
+          },
+        }
+      : {}),
+    ...ctxOver,
+  } as unknown as IAnalyzerContext;
+  const result = referenceBrokenAnalyzer.evaluate(ctx);
   const issues = Array.isArray(result) ? result : [];
-  return { issues, contributions };
+  return { issues, contributions, ops };
 }
 
 describe('broken-ref analyzer, issue emission', () => {
@@ -73,28 +108,38 @@ describe('broken-ref analyzer, issue emission', () => {
     strictEqual(contributions.length, 0);
   });
 
-  it('emits 1 issue per broken ref', () => {
+  it('emits 1 issue per broken ref and records 1 delta op', () => {
     const a = fakeNode('a.md');
     const link = fakeLink('a.md', 'missing.md');
-    const { issues, contributions } = run([a], [link], new Set([link]));
+    const { issues, contributions, ops } = run([a], [link], new Set([link]));
     strictEqual(issues.length, 1);
     strictEqual(issues[0]!.severity, 'error');
     deepStrictEqual(issues[0]!.nodeIds, ['a.md']);
     // Per-node chip emission moved out, the aggregate severity chip
     // (`core/issue-counter`) handles the visual surface now.
     strictEqual(contributions.length, 0);
+    // Score side: the broken edge gets the penalty delta (folds to 0.5
+    // on the kernel's 1.0 baseline).
+    strictEqual(ops.length, 1);
+    strictEqual(ops[0]!.link, link);
+    deepStrictEqual(ops[0]!.op, { kind: 'delta', value: -BROKEN_PENALTY });
   });
 
-  it('emits one issue per broken ref without aggregating into a chip', () => {
+  it('emits one issue per broken ref without aggregating into a chip (and one delta op each)', () => {
     const a = fakeNode('a.md');
     const links = [
       fakeLink('a.md', 'missing-1.md'),
       fakeLink('a.md', 'missing-2.md'),
       fakeLink('a.md', 'missing-3.md'),
     ];
-    const { issues, contributions } = run([a], links, new Set(links));
+    const { issues, contributions, ops } = run([a], links, new Set(links));
     strictEqual(issues.length, 3, 'three issues, one per broken link');
     strictEqual(contributions.length, 0, 'no per-analyzer chip; aggregated by issue-counter');
+    // One delta op per broken link, same shape.
+    strictEqual(ops.length, 3, 'three delta ops, one per broken link');
+    for (const recorded of ops) {
+      deepStrictEqual(recorded.op, { kind: 'delta', value: -BROKEN_PENALTY });
+    }
   });
 
   it('skips a link that is NOT in the broken set even if its target looks unresolvable', () => {
@@ -106,6 +151,52 @@ describe('broken-ref analyzer, issue emission', () => {
     const resolvedByFilename = fakeLink('caller.md', '@filed-agent');
     const { issues } = run([caller], [resolvedByFilename], new Set());
     strictEqual(issues.length, 0);
+  });
+
+  it('suppresses both the issue AND the op when the link resolves via referencePaths', () => {
+    // A path-style `references` link that IS in `brokenLinks`, but whose
+    // absolute resolution lands in the operator-configured side index.
+    // The escape hatch fires BEFORE issue + score, so detection and
+    // scoring skip together: no error, no ceil op.
+    const caller = fakeNode('caller.md');
+    const outsideLink = fakeLink('caller.md', './outside.md');
+    const { issues, ops } = run([caller], [outsideLink], new Set([outsideLink]), {
+      cwd: '/proj',
+      referenceablePaths: new Set([resolve('/proj', './outside.md')]),
+    });
+    strictEqual(issues.length, 0, 'reference-paths resolution suppresses the error');
+    strictEqual(ops.length, 0, 'no penalty when the link resolved outside the graph');
+  });
+
+  it('records the delta even when the broken link is already at confidence 1.0 (no gate)', () => {
+    // There is NO confidence gate: a full-confidence broken link (e.g. an
+    // annotation-derived link, or the kernel's 1.0 baseline) surfaces the
+    // structural error AND gets the penalty delta, which folds 1.0 down to
+    // the broken floor (0.5).
+    const a = fakeNode('a.md');
+    const fullLink: Link = {
+      source: 'a.md',
+      target: 'missing.md',
+      kind: 'references',
+      confidence: 1.0,
+      sources: ['annotations'],
+    };
+    const { issues, ops } = run([a], [fullLink], new Set([fullLink]));
+    strictEqual(issues.length, 1, 'the error fires regardless of confidence');
+    strictEqual(issues[0]!.severity, 'error');
+    strictEqual(ops.length, 1, 'the penalty delta fires at confidence 1.0: no gate');
+    deepStrictEqual(ops[0]!.op, { kind: 'delta', value: -BROKEN_PENALTY });
+  });
+
+  it('still emits errors and never throws when ctx has no adjustConfidence (legacy/detect caller)', () => {
+    // A detect/aggregate caller supplies no `adjustConfidence`; detection
+    // runs unchanged, the score side short-circuits, nothing throws.
+    const a = fakeNode('a.md');
+    const link = fakeLink('a.md', 'missing.md');
+    const { issues, ops } = run([a], [link], new Set([link]), { adjust: false });
+    strictEqual(issues.length, 1, 'the error still fires without a scorer');
+    strictEqual(issues[0]!.severity, 'error');
+    strictEqual(ops.length, 0, 'no op recorded with no adjustConfidence on ctx');
   });
 
   it('declares no `ui` surface (issue chip is owned by `core/issue-counter`)', () => {

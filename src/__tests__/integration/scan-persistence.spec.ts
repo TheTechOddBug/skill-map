@@ -504,16 +504,19 @@ describe('persistScanResult', () => {
     }
   });
 
-  it('writes scan_link_scores rows attributed to the built-in core/score-resolution scorer', async () => {
+  it('writes scan_link_scores rows attributed to the built-in core score-phase analyzers', async () => {
     const kernel = createKernel();
     for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
     // `runScanWithRenames` (not `runScan`) surfaces the `linkScores`
     // buffer the `score`-phase analyzers produced; the architect body
-    // (`Run /deploy or /unknown, consult @backend-lead.`) drives at least
-    // one resolved (`/deploy` → set 1.0) and one broken (`/unknown`,
-    // `@backend-lead` → ceil 0.5) adjustment through `core/score-resolution`.
+    // (`Run /deploy or /unknown, consult @backend-lead.`) drives broken
+    // adjustments only (`/unknown`, `@backend-lead` → `delta -BROKEN_PENALTY`,
+    // owned by `core/reference-broken`). `/deploy` resolves cleanly and gets
+    // NO op (the 1.0 baseline is the kernel's, not an analyzer op). The
+    // broken analyzer lives in the `core` plugin, so every row keeps
+    // `pluginId === 'core'` and `extensionId === 'reference-broken'`.
     const ran = await runScanWithRenames(kernel, { roots: [fixture], extensions: builtIns() });
-    ok(ran.linkScores.length > 0, 'score-resolution should buffer at least one adjustment');
+    ok(ran.linkScores.length > 0, 'the score phase should buffer at least one adjustment');
 
     const adapter = new SqliteStorageAdapter({
       databasePath: freshDbPath('link-scores'),
@@ -529,16 +532,25 @@ describe('persistScanResult', () => {
       const scoreRows = await adapter.db.selectFrom('scan_link_scores').selectAll().execute();
       strictEqual(scoreRows.length, ran.linkScores.length);
 
-      // Every row is attributed to the dogfooded built-in scorer, and the
-      // denormalised `result_confidence` mirrors the persisted
-      // `scan_links.confidence` for the same structural edge.
+      // Every row is attributed to a dogfooded built-in score-phase
+      // analyzer in the `core` plugin, and the denormalised
+      // `result_confidence` mirrors the persisted `scan_links.confidence`
+      // for the same structural edge. On this fixture the only score-phase
+      // ops come from `core/reference-broken` (`delta -BROKEN_PENALTY` on a
+      // genuinely-broken edge); a clean resolved edge keeps the kernel's
+      // 1.0 baseline and records no op.
       const linkRows = await adapter.db.selectFrom('scan_links').selectAll().execute();
       for (const row of scoreRows) {
         strictEqual(row.pluginId, 'core');
-        strictEqual(row.extensionId, 'score-resolution');
-        ok(
-          row.opKind === 'set' || row.opKind === 'ceil',
-          `unexpected op kind ${row.opKind} from score-resolution`,
+        strictEqual(
+          row.extensionId,
+          'reference-broken',
+          `unexpected score owner ${row.extensionId}; expected reference-broken`,
+        );
+        strictEqual(
+          row.opKind,
+          'delta',
+          `unexpected op kind ${row.opKind} from ${row.extensionId}`,
         );
         const matchingLink = linkRows.find(
           (l) =>
