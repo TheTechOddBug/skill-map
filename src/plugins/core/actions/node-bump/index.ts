@@ -27,11 +27,11 @@
  *
  * Dual surface:
  *   - `project(ctx)` (scan-time, deterministic, read-only graph): emits
- *     one `inspector.action.button` per node that already has a sidecar
- *     (`node.sidecar.present === true`). Nodes with no sidecar are
- *     skipped so the inspector never offers to scaffold a `.sm` (creation
- *     is CLI-only). The payload's `enabled` flag carries the dynamic gate
- *     (stale => enabled). The button lives with the action that
+ *     one `inspector.action.button` per real (non-virtual) node whether or
+ *     not it already has a sidecar (a bump on a node with no sidecar creates
+ *     it, gated by the write-consent flow). The payload's `enabled` flag
+ *     carries the dynamic gate (enabled with no sidecar or a stale one,
+ *     disabled on a fresh one). The button lives with the action that
  *     dispatches it; the `core/annotation-stale` analyzer keeps emitting
  *     the stale footer chip / header badge + the drift issue, but no
  *     longer the button.
@@ -80,8 +80,9 @@ const ID = 'node-bump';
 // Inspector action button this action self-projects. Module-level const
 // so the manifest `ui` map and the `project()` emit reference the SAME
 // object (the orchestrator recovers the contribution id + slot by object
-// identity). Emitted for every node that already has a sidecar; the
-// payload's `enabled` flag carries the dynamic gate (stale => enabled).
+// identity). Emitted for every real (non-virtual) node; the payload's
+// `enabled` flag carries the dynamic gate (enabled with no sidecar or a
+// stale one, disabled on a fresh sidecar).
 const bumpButton = {
   slot: 'inspector.action.button',
   priority: 10,
@@ -99,11 +100,13 @@ export const nodeBumpAction: IBuiltInManifest<IAction> = {
 
   project(ctx: IActionProjectionContext): void {
     for (const node of ctx.nodes) {
-      // Present for every node that already has a sidecar, enabled only
-      // when stale. Nodes with no sidecar are skipped so the inspector
-      // never offers to scaffold a `.sm` (creation is CLI-only).
-      if (node.sidecar?.present !== true) continue;
-      emitBumpButton(ctx, node.path, staleStatus(node.sidecar) !== null);
+      // Real nodes only (a synthetic node has no file to anchor a `.sm`).
+      // Enabled when there is something to write: no sidecar yet (the bump
+      // creates it) or a stale one (the bump refreshes it); disabled only on
+      // a fresh sidecar where there is nothing to bump.
+      if (node.virtual === true) continue;
+      const enabled = node.sidecar?.present !== true || staleStatus(node.sidecar) !== null;
+      emitBumpButton(ctx, node.path, enabled);
     }
   },
 

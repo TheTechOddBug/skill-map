@@ -13,10 +13,11 @@
  *
  * Dual surface (mirrors `node-set-tags` / `node-supersede`):
  *   - `project(ctx)` (scan-time, read-only graph): self-projects the
- *     `inspector.action.button` that dispatches this Action, one per node
- *     that already has a sidecar (`node.sidecar.present === true`). The
- *     enum-pick prompt's `defaultValue` pre-loads the node's effective
- *     stability. The button lives with the action that dispatches it, so a
+ *     `inspector.action.button` that dispatches this Action, one per real
+ *     (non-virtual) node whether or not it already has a sidecar (the write
+ *     creates the `.sm` when absent). The enum-pick prompt's `defaultValue`
+ *     pre-loads the node's effective stability. The button lives with the
+ *     action that dispatches it, so a
  *     disabled action projects no button (the enabled gate is applied by
  *     `composeScanExtensions` before `runActionProjections`).
  *   - `invoke(input, ctx)` (on-demand executor): writes `annotations.stability`.
@@ -103,7 +104,10 @@ export const nodeSetStabilityAction: IBuiltInManifest<IAction> = {
 
   project(ctx: IActionProjectionContext): void {
     for (const node of ctx.nodes) {
-      if (node.sidecar?.present !== true) continue;
+      // Skip synthetic nodes (no file on disk to anchor a `.sm`). Every real
+      // node gets the button whether or not it already has a sidecar; the
+      // write creates the `.sm` when absent (gated by the write-consent flow).
+      if (node.virtual === true) continue;
       emitSetStabilityButton(ctx, node);
     }
   },

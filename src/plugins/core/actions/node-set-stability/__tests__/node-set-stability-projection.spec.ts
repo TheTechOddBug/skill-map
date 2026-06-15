@@ -127,21 +127,31 @@ describe('node-set-stability action, project() inspector button', () => {
     deepStrictEqual(contributions[0]!.payload, button('stable'));
   });
 
-  it('skips nodes with no sidecar entirely (no contribution)', () => {
+  it('emits for a node with no sidecar (the write creates it), defaulting to stable', () => {
     const node = mockNode('docs/a.md');
+    const { ctx: c, contributions } = ctx([node]);
+    project(c);
+    strictEqual(contributions.length, 1);
+    strictEqual(contributions[0]!.nodePath, 'docs/a.md');
+    deepStrictEqual(contributions[0]!.payload, button('stable'));
+  });
+
+  it('skips synthetic (virtual) nodes (no file to anchor a `.sm`)', () => {
+    const node = mockNode('mcp://server', { virtual: true });
     const { ctx: c, contributions } = ctx([node]);
     project(c);
     strictEqual(contributions.length, 0);
   });
 
-  it('emits per node with a sidecar and skips those without in a mixed set', () => {
+  it('emits for every real node in a mixed set (with and without sidecar)', () => {
     const withSidecar = mockNode('docs/a.md', { sidecar: sidecarWithStability('experimental') });
     const noSidecar = mockNode('docs/b.md');
     const { ctx: c, contributions } = ctx([withSidecar, noSidecar]);
     project(c);
-    strictEqual(contributions.length, 1);
-    strictEqual(contributions[0]!.nodePath, 'docs/a.md');
+    strictEqual(contributions.length, 2);
     deepStrictEqual(contributions[0]!.payload, button('experimental'));
+    strictEqual(contributions[1]!.nodePath, 'docs/b.md');
+    deepStrictEqual(contributions[1]!.payload, button('stable'));
   });
 
   it('declares the inspector.action.button contribution slot', () => {

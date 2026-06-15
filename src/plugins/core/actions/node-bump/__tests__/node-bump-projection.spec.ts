@@ -4,11 +4,11 @@
  * `core/annotation-stale` analyzer, now folded into the action that
  * dispatches it; the analyzer keeps its stale chip / badge + drift
  * issue):
- *   - Emits one `inspector.action.button` per node that already has a
- *     sidecar (`node.sidecar.present === true`), dispatching
- *     `core/node-bump`. The payload's `enabled` flag carries the dynamic
- *     gate (stale => enabled, fresh => disabled with a reason).
- *   - Skips nodes with no sidecar entirely (creation is CLI-only).
+ *   - Emits one `inspector.action.button` per real (non-virtual) node,
+ *     dispatching `core/node-bump`. The payload's `enabled` flag carries
+ *     the dynamic gate: enabled with no sidecar (the bump creates it) or a
+ *     stale one (the bump refreshes it), disabled on a fresh sidecar.
+ *   - Skips synthetic (virtual) nodes (no file to anchor a `.sm`).
  */
 
 import { describe, it } from 'node:test';
@@ -19,7 +19,11 @@ import { BUMP_TEXTS } from '../text.js';
 import type { IActionProjectionContext } from '../../../../../kernel/extensions/index.js';
 import type { ISidecarOverlay, Node, SidecarStatus } from '../../../../../kernel/types.js';
 
-function mockNode(path: string, sidecar: ISidecarOverlay | undefined): Node {
+function mockNode(
+  path: string,
+  sidecar: ISidecarOverlay | undefined,
+  overrides: Partial<Node> = {},
+): Node {
   const node: Node = {
     path,
     kind: 'markdown',
@@ -30,6 +34,7 @@ function mockNode(path: string, sidecar: ISidecarOverlay | undefined): Node {
     linksOutCount: 0,
     linksInCount: 0,
     externalRefsCount: 0,
+    ...overrides,
   };
   if (sidecar) node.sidecar = sidecar;
   return node;
@@ -76,8 +81,17 @@ const DISABLED_BUMP = {
 };
 
 describe('node-bump action, project() inspector button', () => {
-  it('emits nothing for a node without a sidecar overlay', () => {
+  it('emits an enabled bump button for a node with no sidecar (the bump creates it)', () => {
     const { ctx: c, contributions } = ctx([mockNode('notes/x.md', undefined)]);
+    project(c);
+    strictEqual(contributions.length, 1);
+    strictEqual(contributions[0]!.nodePath, 'notes/x.md');
+    strictEqual(contributions[0]!.ref, nodeBumpAction.ui!['bumpButton']);
+    deepStrictEqual(contributions[0]!.payload, ENABLED_BUMP);
+  });
+
+  it('skips synthetic (virtual) nodes (no file to anchor a `.sm`)', () => {
+    const { ctx: c, contributions } = ctx([mockNode('mcp://server', undefined, { virtual: true })]);
     project(c);
     strictEqual(contributions.length, 0);
   });

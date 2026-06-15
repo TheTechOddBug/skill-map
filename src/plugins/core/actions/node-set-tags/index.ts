@@ -17,10 +17,10 @@
  *
  * Dual surface:
  *   - `project(ctx)` (scan-time, deterministic, read-only graph): emits
- *     one `inspector.action.button` per node that already has a sidecar
- *     (`node.sidecar.present === true`). Nodes with no sidecar are
- *     skipped so the inspector never offers to scaffold a `.sm` (creation
- *     is CLI-only). The `string-list` prompt's `defaultValue` pre-loads
+ *     one `inspector.action.button` per real (non-virtual) node whether or
+ *     not it already has a sidecar (the write creates the `.sm` when
+ *     absent, gated by the write-consent flow). The `string-list` prompt's
+ *     `defaultValue` pre-loads
  *     the node's current `annotations.tags` so the edit reads as
  *     add / remove / modify over the existing set. The button lives with
  *     the action that dispatches it (no separate projector analyzer).
@@ -89,7 +89,10 @@ export const nodeSetTagsAction: IBuiltInManifest<IAction> = {
 
   project(ctx: IActionProjectionContext): void {
     for (const node of ctx.nodes) {
-      if (node.sidecar?.present !== true) continue;
+      // Skip synthetic nodes (no file on disk to anchor a `.sm`). Every real
+      // node gets the button whether or not it already has a sidecar; the
+      // write creates the `.sm` when absent (gated by the write-consent flow).
+      if (node.virtual === true) continue;
       emitSetTagsButton(ctx, node);
     }
   },
