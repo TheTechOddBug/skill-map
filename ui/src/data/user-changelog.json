@@ -2,6 +2,98 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.57.0",
+      "date": "2026-06-15",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "**Finding messages now read the same way everywhere.** Each one shows the offending subject on its own line, then `L<line>: what; why`, with the fix hint shown separately instead of appended. Output in `sm check` and the Inspector is more consistent and easier to scan.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**Finding messages read more consistently.** Reserved-name findings no longer say \"Name collision\" (now \"Reserved name\"), and orphan-job-file findings name the file they point at, like the other findings.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Link confidence now starts at 1.0 and each rule subtracts a fixed amount.** A clean link reads 1.0, a reserved one 0.1, a broken one 0.5. Turning a rule off leaves its links at full confidence. The internal score-resolution scorer was retired.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**Broken-reference findings now suggest how to fix them.** Each one points at correcting the path or name, removing the link, or adding the file's folder under Folders for link validation in Settings, so links to files outside the project still validate.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Redundant-link findings read clearer.** The message no longer assumes the links are \"references\" (they may be a mix of kinds), and the fix hint now reads as optional: consolidate the links, or keep the overlap on purpose.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "The orphan-job-file check is gone from scans for now; it will come back with a smarter, probabilistic model. You can still remove leftover job files with `sm job prune --orphan-files`.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**The `link-conflict` rule is now `link-kind-conflict`.** If you enabled or disabled it via `sm plugins`, re-apply the toggle under the new id; the old id is no longer recognized. The warning it raises is unchanged.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**`signal-collision` is now `extractor-collision`** and reads clearer: it points at the body line, names the two extractors that overlapped, and suggests how to resolve it (rephrase one token, accept the winner, or flip the tiebreak).",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**`trigger-collision` is now `name-collision`** and fires only when two files declare the same resolvable name (a command and an agent both named `deploy`, say), across any name-resolvable kind. Plain notes, addressed by path, never collide.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "A file with invalid frontmatter now shows one warning instead of two. The schema check stops repeating what the per-kind validator already reported, so the issue list and the per-node warning count read cleaner.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Plugin authors can ship a `score`-phase analyzer that adds or subtracts link confidence.** Declare `phase: 'score'` and call `ctx.adjustConfidence(link, op)` to compose on top of the kernel's own scoring; every adjustment is recorded in `scan_link_scores` for auditing.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**The live view stops hammering the server on a dropped connection.** Idle tabs stay connected instead of silently dropping, and a connection that cannot recover now shows a clear 'connection lost' notice instead of retrying scans forever in the background.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**No more request storm when the dev server restarts.** The UI waits for the connection to stabilise before re-fetching, instead of hammering the API every time a restarting server flaps the socket.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.56.0",
       "date": "2026-06-14",
       "kind": "user-facing",
