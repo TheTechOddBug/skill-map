@@ -143,6 +143,20 @@ export interface IAnalyzerContext {
    */
   brokenLinks?: ReadonlySet<Link>;
   /**
+   * Names claimed by two or more distinct nodes, keyed by the normalised
+   * name. A node contributes only when its kind declares `frontmatter.name`
+   * as a resolution identifier (so plain `core/markdown` nodes, addressed
+   * by path, never collide) and it carries a non-empty `name`. Names that
+   * normalise to the same value (e.g. `Deploy` / `deploy`) collide, mirroring
+   * how the resolver keys on the normalised identifier. Computed once per
+   * scan by the orchestrator from the same kind registry the resolver uses,
+   * so analyzers project it without re-deriving (the `brokenLinks` /
+   * `reservedNodePaths` precompute-and-project pattern). The single consumer
+   * is `core/name-collision`, which emits one `error` per entry. Absent for
+   * legacy callers that never wired the field through.
+   */
+  nameCollisions?: ReadonlyMap<string, readonly { readonly path: string; readonly kind: string }[]>;
+  /**
    * Absolute path of the scan's project root (cwd of the invocation).
    * Threaded into the analyzer pass so an analyzer that needs to
    * resolve a relative `link.target` to an absolute filesystem path

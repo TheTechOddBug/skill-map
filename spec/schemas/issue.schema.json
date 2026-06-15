@@ -10,7 +10,7 @@
     "analyzerId": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
-      "description": "Kebab-case identifier of the analyzer that emitted this issue (e.g. `trigger-collision`, `broken-ref`, `superseded`)."
+      "description": "Kebab-case identifier of the analyzer that emitted this issue (e.g. `name-collision`, `broken-ref`, `superseded`)."
     },
     "severity": {
       "type": "string",
@@ -19,7 +19,7 @@
     },
     "nodeIds": {
       "type": "array",
-      "description": "`node.path` values involved in this issue. Most analyzers emit 1 or 2; trigger-collision may emit N. Field name uses `id` generically to remain stable across future identifier changes.",
+      "description": "`node.path` values involved in this issue. Most analyzers emit 1 or 2; name-collision may emit N. Field name uses `id` generically to remain stable across future identifier changes.",
       "minItems": 1,
       "items": { "type": "string" }
     },

@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import { strictEqual, ok } from 'node:assert';
 
-import { triggerCollisionAnalyzer } from '../trigger-collision/index.js';
+import { nameCollisionAnalyzer } from '../name-collision/index.js';
 import { nodeSupersededAnalyzer } from '../node-superseded/index.js';
 import { linkKindConflictAnalyzer } from '../link-kind-conflict/index.js';
 import type { Confidence, Issue, Link, LinkKind, Node, NodeKind } from '../../../../kernel/types.js';
@@ -32,20 +32,9 @@ function mockNode(
   };
 }
 
-function invocation(source: string, target: string, normalized: string, kind: 'invokes' | 'mentions' = 'invokes'): Link {
-  return {
-    source,
-    target,
-    kind,
-    confidence: 0.6,
-    sources: ['slash'],
-    trigger: { originalTrigger: target, normalizedTrigger: normalized },
-  };
-}
-
 // Rules' evaluate() returns Issue[] | Promise<Issue[]>. Await resolves both
 // shapes uniformly and keeps each test's assertions typed as Issue[].
-async function run(rule: typeof triggerCollisionAnalyzer, ctx: { nodes: Node[]; links: Link[] }): Promise<Issue[]> {
+async function run(rule: typeof nameCollisionAnalyzer, ctx: { nodes: Node[]; links: Link[] }): Promise<Issue[]> {
   return await rule.evaluate({ ...ctx, settings: {}, emitContribution: noopEmitContribution });
 }
 
@@ -54,107 +43,69 @@ function noopEmitContribution(): void {
   // no-op
 }
 
-describe('trigger-collision rule', () => {
-  it('emits nothing when every trigger is distinct', async () => {
-    const links = [
-      invocation('a.md', '/deploy', '/deploy'),
-      invocation('b.md', '/rollback', '/rollback'),
-    ];
-    const issues = await run(triggerCollisionAnalyzer, { nodes: [], links });
-    strictEqual(issues.length, 0);
+describe('name-collision rule', () => {
+  // The analyzer is a pure projector of the orchestrator's precomputed
+  // `ctx.nameCollisions` verdict. The kind-eligibility / normalization /
+  // dedup logic lives in `collectNameCollisions` (covered in
+  // node-identifiers.spec.ts), so these tests only assert the projection.
+  type Claims = ReadonlyMap<string, readonly { path: string; kind: string }[]>;
+  function runNameCollision(nameCollisions: Claims | undefined): Issue[] {
+    const result = nameCollisionAnalyzer.evaluate({
+      nodes: [],
+      links: [],
+      settings: {},
+      emitContribution: noopEmitContribution,
+      ...(nameCollisions ? { nameCollisions } : {}),
+    } as unknown as Parameters<typeof nameCollisionAnalyzer.evaluate>[0]);
+    return Array.isArray(result) ? result : [];
+  }
+
+  it('emits nothing when there are no name collisions', () => {
+    strictEqual(runNameCollision(undefined).length, 0);
+    strictEqual(runNameCollision(new Map()).length, 0);
   });
 
-  it('flags two distinct targets sharing a trigger', async () => {
-    const links = [
-      invocation('a.md', '/deploy', '/deploy'),
-      invocation('b.md', '/Deploy', '/deploy'), // same normalized, different original/target
-    ];
-    const issues = await run(triggerCollisionAnalyzer, { nodes: [], links });
+  it('flags one error per name claimed by two or more nodes', () => {
+    const collisions: Claims = new Map([
+      [
+        'deploy',
+        [
+          { path: '.claude/commands/deploy.md', kind: 'command' },
+          { path: '.claude/commands/deploy-v2.md', kind: 'command' },
+        ],
+      ],
+    ]);
+    const issues = runNameCollision(collisions);
     strictEqual(issues.length, 1);
-    strictEqual(issues[0]?.severity, 'error');
-    strictEqual(issues[0]?.analyzerId, 'trigger-collision');
-    ok(issues[0]?.message.includes('/deploy'));
+    const issue = issues[0]!;
+    strictEqual(issue.severity, 'error');
+    strictEqual(issue.analyzerId, 'name-collision');
+    // Subject is the bare normalised name, no `/` or `@` sigil (a sigil
+    // would make the subject `` `/deploy` `` instead of `` `deploy` ``).
+    ok(issue.message.startsWith('`deploy`:'));
+    ok(issue.message.includes('.claude/commands/deploy.md'));
+    ok(issue.message.includes('.claude/commands/deploy-v2.md'));
+    strictEqual(issue.nodeIds.length, 2);
+    ok(issue.nodeIds.includes('.claude/commands/deploy.md'));
+    ok(issue.nodeIds.includes('.claude/commands/deploy-v2.md'));
+    const data = issue.data as { name: string; claims: { path: string; kind: string }[] };
+    strictEqual(data.name, 'deploy');
+    strictEqual(data.claims.length, 2);
   });
 
-  it('ignores duplicates where multiple links point to the same target', async () => {
-    const links = [
-      invocation('a.md', '/deploy', '/deploy'),
-      invocation('b.md', '/deploy', '/deploy'),
-    ];
-    const issues = await run(triggerCollisionAnalyzer, { nodes: [], links });
-    strictEqual(issues.length, 0);
-  });
-
-  it('skips links without a trigger block', async () => {
-    const links: Link[] = [
-      { source: 'a.md', target: 'b.md', kind: 'references', confidence: 0.9, sources: ['annotations'] },
-    ];
-    const issues = await run(triggerCollisionAnalyzer, { nodes: [], links });
-    strictEqual(issues.length, 0);
-  });
-
-  it('flags two advertisers of the same name (no invocations)', async () => {
-    // Canonical example from the rule's doc: two commands declaring
-    // `name: deploy` from different files compete for `/deploy`. Before
-    // the Step 4.9 fix this slipped silently because the rule only
-    // looked at links.
-    const nodes = [
-      mockNode('.claude/commands/deploy.md', 'deploy', {}, 'command'),
-      mockNode('.claude/commands/deploy-v2.md', 'deploy', {}, 'command'),
-    ];
-    const issues = await run(triggerCollisionAnalyzer, { nodes, links: [] });
+  it('works across kinds (a command and an agent claiming one name)', () => {
+    const collisions: Claims = new Map([
+      [
+        'reviewer',
+        [
+          { path: '.claude/agents/reviewer.md', kind: 'agent' },
+          { path: '.claude/commands/reviewer.md', kind: 'command' },
+        ],
+      ],
+    ]);
+    const issues = runNameCollision(collisions);
     strictEqual(issues.length, 1);
-    strictEqual(issues[0]?.severity, 'error');
-    strictEqual(issues[0]?.analyzerId, 'trigger-collision');
-    ok(issues[0]?.message.includes('/deploy'));
-    ok(issues[0]?.message.includes('.claude/commands/deploy.md'));
-    ok(issues[0]?.message.includes('.claude/commands/deploy-v2.md'));
-    const data = issues[0]!.data as { advertiserPaths: string[]; invocationTargets: string[] };
-    strictEqual(data.advertiserPaths.length, 2);
-    strictEqual(data.invocationTargets.length, 0);
-    // Both advertising node paths show up in nodeIds.
-    ok(issues[0]!.nodeIds.includes('.claude/commands/deploy.md'));
-    ok(issues[0]!.nodeIds.includes('.claude/commands/deploy-v2.md'));
-  });
-
-  it('mixes claim kinds: one advertiser + one different-cased invocation → collision', async () => {
-    // The advertised path is `.claude/commands/deploy.md` (token A); the
-    // invocation target is `/Deploy` (token B). Both normalize to
-    // `/deploy`, two distinct claim tokens, rule fires.
-    const nodes = [mockNode('.claude/commands/deploy.md', 'deploy', {}, 'command')];
-    const links = [invocation('a.md', '/Deploy', '/deploy')];
-    const issues = await run(triggerCollisionAnalyzer, { nodes, links });
-    strictEqual(issues.length, 1);
-    strictEqual(issues[0]?.severity, 'error');
-    const data = issues[0]!.data as { advertiserPaths: string[]; invocationTargets: string[] };
-    ok(data.advertiserPaths.includes('.claude/commands/deploy.md'));
-    ok(data.invocationTargets.includes('/Deploy'));
-  });
-
-  it('does not fire when one advertiser is invoked by its canonical form', async () => {
-    // `name: deploy` advertised + `/deploy` invoked is the normal flow:
-    // the invocation's raw target equals the bucket-key (the normalized
-    // trigger), so it's the canonical form of the advertised name.
-    // Same logical claim, no ambiguity, no issue.
-    const nodes = [mockNode('.claude/commands/deploy.md', 'deploy', {}, 'command')];
-    const links = [
-      invocation('a.md', '/deploy', '/deploy'),
-      invocation('b.md', '/deploy', '/deploy'),
-      invocation('c.md', '/deploy', '/deploy'),
-    ];
-    const issues = await run(triggerCollisionAnalyzer, { nodes, links });
-    strictEqual(issues.length, 0);
-  });
-
-  it('ignores frontmatter.name on non-advertising kinds (note)', async () => {
-    // A `note` happening to carry `name: deploy` doesn't compete for
-    // `/deploy`. Only `command`, `skill`, `agent` advertise.
-    const nodes = [
-      mockNode('a.md', 'deploy', {}, 'markdown'),
-      mockNode('b.md', 'deploy', {}, 'markdown'),
-    ];
-    const issues = await run(triggerCollisionAnalyzer, { nodes, links: [] });
-    strictEqual(issues.length, 0);
+    ok(issues[0]!.message.startsWith('`reviewer`:'));
   });
 });
 

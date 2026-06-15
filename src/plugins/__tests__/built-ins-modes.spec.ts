@@ -110,7 +110,7 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     assert.equal(qualifiedByKindAndShort.get('extractor:slash-command'), 'claude/slash-command');
     assert.equal(qualifiedByKindAndShort.get('extractor:at-directive'), 'claude/at-directive');
     assert.equal(qualifiedByKindAndShort.get('extractor:external-url-counter'), 'core/external-url-counter');
-    assert.equal(qualifiedByKindAndShort.get('analyzer:trigger-collision'), 'core/trigger-collision');
+    assert.equal(qualifiedByKindAndShort.get('analyzer:name-collision'), 'core/name-collision');
     assert.equal(qualifiedByKindAndShort.get('analyzer:node-stability'), 'core/node-stability');
     assert.equal(qualifiedByKindAndShort.get('analyzer:reference-broken'), 'core/reference-broken');
     assert.equal(qualifiedByKindAndShort.get('analyzer:node-superseded'), 'core/node-superseded');

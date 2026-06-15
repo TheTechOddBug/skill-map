@@ -35,7 +35,7 @@ import { emitExtensionError, readDeclaredContributionRefs } from './extractors.j
 
 /**
  * Run every registered analyzer over the merged graph. Analyzers see internal
- * links only, broken-ref / trigger-collision / superseded all reason
+ * links only, broken-ref / name-collision / superseded all reason
  * about graph relations, not URLs.
  *
  * Analyzers MAY emit per-node view contributions via
@@ -64,6 +64,7 @@ export async function runAnalyzers(
   hookDispatcher: IHookDispatcher,
   reservedNodePaths: ReadonlySet<string> | undefined,
   brokenLinks: ReadonlySet<Link> | undefined,
+  nameCollisions: ReadonlyMap<string, readonly { readonly path: string; readonly kind: string }[]> | undefined,
   signals: readonly Signal[] | undefined,
   // Pre-analyzer issues (e.g. orchestrator-side
   // `frontmatter-parse-error` / `frontmatter-invalid`) seeded into the
@@ -227,6 +228,7 @@ export async function runAnalyzers(
       ...(cwd ? { cwd } : {}),
       ...(reservedNodePaths ? { reservedNodePaths } : {}),
       ...(brokenLinks ? { brokenLinks } : {}),
+      ...(nameCollisions && nameCollisions.size > 0 ? { nameCollisions } : {}),
       ...(signals && signals.length > 0 ? { signals } : {}),
       ...(adjustConfidence ? { adjustConfidence } : {}),
       emitContribution,

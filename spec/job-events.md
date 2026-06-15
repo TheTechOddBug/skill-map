@@ -456,7 +456,7 @@ Emitted by the scan after `scan.completed` when the new scan's issue set differs
   "runId": "...",
   "jobId": null,
   "data": {
-    "analyzerId": "trigger-collision",
+    "analyzerId": "name-collision",
     "severity": "warn",
     "nodeIds": ["skills/a.md", "skills/b.md"],
     "message": "..."

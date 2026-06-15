@@ -122,7 +122,7 @@ import {
   type IEnrichmentRecord,
   type IExtractorRunRecord,
 } from './extractors.js';
-import { deriveNodeIdentifiers } from './node-identifiers.js';
+import { collectNameCollisions, deriveNodeIdentifiers } from './node-identifiers.js';
 import {
   applyPostWalkTransforms,
   type IPostWalkTransformCtx,
@@ -585,6 +585,9 @@ async function runScanInternal(
   // projects it instead of re-deriving a narrower (frontmatter-name-only)
   // index that disagreed with the lift on filename / dirname identifiers.
   const brokenLinks = collectBrokenLinks(walked.internalLinks, walked.nodes, postWalkCtx);
+  // Names claimed by 2+ name-resolvable nodes, computed once from the same
+  // kind registry the resolver uses and threaded to `core/name-collision`.
+  const nameCollisions = collectNameCollisions(walked.nodes, postWalkCtx.kindRegistry);
 
   // External pseudo-links (target is http(s)://) drive `externalRefsCount`
   // and are then dropped: never persisted, never seen by analyzers, never in
@@ -617,6 +620,7 @@ async function runScanInternal(
     hookDispatcher,
     postWalkCtx.reservedNodePaths,
     brokenLinks,
+    nameCollisions,
     walked.signals,
     // Seed the accumulator with orchestrator-emitted frontmatter
     // issues so the aggregate phase (`core/issue-counter`) counts

@@ -26,7 +26,7 @@
  * + occasional `metadata.related[]`) and a body of ~1 KB containing one
  * slash invocation, one `@`-directive, and one http URL, exercising every
  * extractor. Ten of the agents intentionally share the same `name` so the
- * trigger-collision rule has work to do; a few commands cross-reference
+ * name-collision rule has work to do; a few commands cross-reference
  * each other via `metadata.related[]`.
  */
 
@@ -157,7 +157,7 @@ function generateFixture(root: string): void {
     ].join('\n');
 
   // 100 agents. Ten of them share the SAME `name: agent-shared` so the
-  // trigger-collision rule fires on the agent kind.
+  // name-collision rule fires on the agent kind.
   for (let i = 0; i < PER_KIND; i++) {
     const padded = i.toString().padStart(3, '0');
     const name = i < 10 ? 'agent-shared' : `agent-${padded}`;

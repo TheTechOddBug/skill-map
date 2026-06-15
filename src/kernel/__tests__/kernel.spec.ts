@@ -210,7 +210,7 @@ describe('runScan', () => {
     const kernel = createKernel();
     kernel.registry.register({ id: 'claude', pluginId: 'claude', kind: 'provider', version: '1.0.0', description: 'test' });
     kernel.registry.register({ id: 'annotations', pluginId: 'core', kind: 'extractor', version: '1.0.0', description: 'test' });
-    kernel.registry.register({ id: 'trigger-collision', pluginId: 'core', kind: 'analyzer', version: '1.0.0', description: 'test' });
+    kernel.registry.register({ id: 'name-collision', pluginId: 'core', kind: 'analyzer', version: '1.0.0', description: 'test' });
 
     const result = await runScan(kernel, { roots: ['.'] });
     assert.equal(result.stats.nodesCount, 0);

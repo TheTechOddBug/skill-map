@@ -688,9 +688,9 @@ describe('incremental scan via priorSnapshot', () => {
   });
 });
 
-// --- Gap G: trigger-collision interacts with --changed --------------------
+// --- Gap G: name-collision interacts with --changed --------------------
 
-describe('trigger-collision rule under --changed', () => {
+describe('name-collision rule under --changed', () => {
   function plantCollidingCommands(root: string, deployDescription: string): void {
     // Two commands both advertising `name: deploy`, the canonical
     // collision case from Step 4.9. The advertiser-detection branch of
@@ -717,8 +717,8 @@ describe('trigger-collision rule under --changed', () => {
     const fixture = freshFixture('collision-full');
     plantCollidingCommands(fixture, 'Deploy A');
     const first = await fullScan(fixture);
-    const collisions = first.issues.filter((i) => i.analyzerId === 'trigger-collision');
-    strictEqual(collisions.length, 1, 'two advertisers → exactly one trigger-collision issue');
+    const collisions = first.issues.filter((i) => i.analyzerId === 'name-collision');
+    strictEqual(collisions.length, 1, 'two advertisers → exactly one name-collision issue');
     ok(
       collisions[0]!.nodeIds.includes('.claude/commands/deploy-a.md'),
       'collision references deploy-a',
@@ -733,7 +733,7 @@ describe('trigger-collision rule under --changed', () => {
     const fixture = freshFixture('collision-edit');
     plantCollidingCommands(fixture, 'Deploy A');
     const first = await fullScan(fixture);
-    const firstCollisions = first.issues.filter((i) => i.analyzerId === 'trigger-collision');
+    const firstCollisions = first.issues.filter((i) => i.analyzerId === 'name-collision');
     strictEqual(firstCollisions.length, 1, 'precondition: full scan emits exactly one collision');
 
     // Mutate the description on ONE advertiser. The frontmatter still
@@ -751,7 +751,7 @@ describe('trigger-collision rule under --changed', () => {
     );
 
     const second = await incrementalScan(fixture, first);
-    const secondCollisions = second.issues.filter((i) => i.analyzerId === 'trigger-collision');
+    const secondCollisions = second.issues.filter((i) => i.analyzerId === 'name-collision');
     strictEqual(
       secondCollisions.length,
       1,
@@ -772,7 +772,7 @@ describe('trigger-collision rule under --changed', () => {
     plantCollidingCommands(fixture, 'Deploy A');
     const first = await fullScan(fixture);
     strictEqual(
-      first.issues.filter((i) => i.analyzerId === 'trigger-collision').length,
+      first.issues.filter((i) => i.analyzerId === 'name-collision').length,
       1,
       'precondition: full scan emits the collision',
     );
@@ -782,7 +782,7 @@ describe('trigger-collision rule under --changed', () => {
     unlinkSync(join(fixture, '.claude/commands/deploy-b.md'));
 
     const second = await incrementalScan(fixture, first);
-    const secondCollisions = second.issues.filter((i) => i.analyzerId === 'trigger-collision');
+    const secondCollisions = second.issues.filter((i) => i.analyzerId === 'name-collision');
     strictEqual(
       secondCollisions.length,
       0,

@@ -76,3 +76,81 @@ function readDirname(node: Node): string | null {
   const base = pathPosix.basename(dir);
   return base.length > 0 ? base : null;
 }
+
+/** One node's claim on a normalised name (path + the node's kind). */
+export interface INameClaim {
+  readonly path: string;
+  readonly kind: string;
+}
+
+/**
+ * Names claimed by two or more distinct nodes, keyed by the normalised
+ * name. A node contributes only when its kind declares `frontmatter.name`
+ * as a resolution identifier (so `core/markdown` nodes, addressed by path,
+ * never collide) and it carries a non-empty `name`. Names that normalise
+ * to the same value (`Deploy` / `deploy`) collide, mirroring how the
+ * resolver keys on the normalised identifier. Computed once per scan and
+ * threaded to `core/name-collision` via `IAnalyzerContext.nameCollisions`,
+ * the same precompute-and-project pattern as `collectBrokenLinks` /
+ * `buildReservedNodePaths`. The `kindRegistry` is keyed by the
+ * `<providerId>/<kindName>` tuple, matching the post-walk transform.
+ */
+export function collectNameCollisions(
+  nodes: readonly Node[],
+  kindRegistry: ReadonlyMap<string, IProviderKind>,
+): Map<string, INameClaim[]> {
+  const byName = indexNameClaims(nodes, kindRegistry);
+  // Keep only true collisions: two or more DISTINCT node paths.
+  const collisions = new Map<string, INameClaim[]>();
+  for (const [name, claims] of byName) {
+    const distinct = dedupeClaimsByPath(claims);
+    if (distinct.length >= 2) collisions.set(name, distinct);
+  }
+  return collisions;
+}
+
+/**
+ * Bucket every name-resolvable node by its normalised `frontmatter.name`.
+ * A node contributes only when its kind declares `frontmatter.name` as an
+ * identifier and it carries a non-empty name. Split from
+ * `collectNameCollisions` to keep both branch counts under the lint cap.
+ */
+function indexNameClaims(
+  nodes: readonly Node[],
+  kindRegistry: ReadonlyMap<string, IProviderKind>,
+): Map<string, INameClaim[]> {
+  const byName = new Map<string, INameClaim[]>();
+  for (const node of nodes) {
+    const name = resolvableName(node, kindRegistry);
+    if (name === null) continue;
+    const bucket = byName.get(name) ?? [];
+    bucket.push({ path: node.path, kind: node.kind });
+    byName.set(name, bucket);
+  }
+  return byName;
+}
+
+/**
+ * The node's normalised `frontmatter.name` when it is name-resolvable
+ * (its kind declares `frontmatter.name` as an identifier) and carries a
+ * non-empty name; `null` otherwise. Plain `core/markdown`, addressed by
+ * path, declares no `frontmatter.name` identifier and so returns `null`.
+ */
+function resolvableName(
+  node: Node,
+  kindRegistry: ReadonlyMap<string, IProviderKind>,
+): string | null {
+  const descriptor = kindRegistry.get(`${node.provider}/${node.kind}`);
+  if (!descriptor?.identifiers?.includes('frontmatter.name')) return null;
+  const raw = node.frontmatter?.['name'];
+  if (typeof raw !== 'string' || raw.length === 0) return null;
+  const normalised = normalizeTrigger(raw);
+  return normalised.length > 0 ? normalised : null;
+}
+
+/** Dedup claims by path (a node indexed twice never self-collides), sorted. */
+function dedupeClaimsByPath(claims: readonly INameClaim[]): INameClaim[] {
+  return [...new Map(claims.map((c) => [c.path, c])).values()].sort((a, b) =>
+    a.path.localeCompare(b.path),
+  );
+}

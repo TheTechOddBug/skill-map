@@ -658,19 +658,19 @@ describe('sm scan exit code', () => {
   });
 
   it('error-severity issue present → exit 1', async () => {
-    // Two nodes both invoke a slash trigger that normalises to the same
-    // command but with different `target` (`/Foo` vs `/foo`). The
-    // trigger-collision rule fires at severity `error`.
+    // Two commands both declare `name: deploy`, so both advertise
+    // `/deploy`. The name-collision rule fires at severity `error`
+    // (two advertisers of one trigger; the runtime must pick one).
     const fixture = freshFixture('scan-error');
     writeFixtureFile(
       fixture,
-      '.claude/agents/a.md',
-      ['---', 'name: a', '---', '', 'Run /Foo here.'].join('\n'),
+      '.claude/commands/deploy.md',
+      ['---', 'name: deploy', '---', '', 'Deploy the project.'].join('\n'),
     );
     writeFixtureFile(
       fixture,
-      '.claude/agents/b.md',
-      ['---', 'name: b', '---', '', 'Run /foo here.'].join('\n'),
+      '.claude/commands/deploy-v2.md',
+      ['---', 'name: deploy', '---', '', 'A second command claiming the deploy name.'].join('\n'),
     );
 
     const cap = captureContext();
@@ -681,8 +681,8 @@ describe('sm scan exit code', () => {
     strictEqual(code, 1, `expected exit 1 with error-severity issue, got ${code}; stderr=${cap.stderr()}`);
     const result = JSON.parse(cap.stdout()) as { issues: Array<{ severity: string; analyzerId: string }> };
     ok(
-      result.issues.some((i) => i.severity === 'error' && i.analyzerId === 'trigger-collision'),
-      'fixture must yield trigger-collision at error severity',
+      result.issues.some((i) => i.severity === 'error' && i.analyzerId === 'name-collision'),
+      'fixture must yield name-collision at error severity',
     );
   });
 });

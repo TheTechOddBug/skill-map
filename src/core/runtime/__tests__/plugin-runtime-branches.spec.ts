@@ -253,13 +253,13 @@ describe('plugin-runtime, branch coverage', () => {
         'link-counter',
         'link-kind-conflict',
         'link-self-loop',
+        'name-collision',
         'name-reserved',
         'node-stability',
         'reference-broken',
         'reference-redundant',
         'schema-violation',
         'signal-collision',
-        'trigger-collision',
       ]);
       // claude / antigravity / openai / agent-skills / core-markdown providers
       // untouched; core extractors unaffected.

@@ -1,7 +1,7 @@
 /**
  * Normative trigger normalisation pipeline. Shared utility used by every
  * extractor that emits invocation-style links (slash, at-directive,
- * command-name) and by the `trigger-collision` rule that keys on the
+ * command-name) and by the `name-collision` rule that keys on the
  * result.
  *
  * Defined by `spec/architecture.md` §Extractor · trigger normalization:

@@ -478,7 +478,7 @@ The invariant exists to keep `sm scan --changed` cheap on real corpora: re-parsi
 Extractors that emit invocation-style links (slashes, at-directives, command names) populate the `link.trigger` block defined in [`schemas/link.schema.json`](./schemas/link.schema.json):
 
 - `originalTrigger`, the exact source text the extractor saw, byte-for-byte. Used only for display.
-- `normalizedTrigger`, the output of the pipeline below. Used for equality and collision detection, the built-in `trigger-collision` analyzer keys on this field.
+- `normalizedTrigger`, the output of the pipeline below. Used for equality and resolution: the post-walk resolver keys on this field to match a trigger-style link against node identifiers. The same normalization (applied to `frontmatter.name`) backs the built-in `name-collision` analyzer's verdict.
 
 Both fields MUST be present whenever `link.trigger` is non-null. Implementations MUST produce byte-identical `normalizedTrigger` output for byte-identical input across platforms and locales.
 

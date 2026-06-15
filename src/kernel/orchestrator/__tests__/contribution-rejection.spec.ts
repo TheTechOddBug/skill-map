@@ -198,6 +198,7 @@ describe('orchestrator, emitContribution rejection (analyzer)', () => {
       makeHookDispatcher([], emitter),
       undefined, // reservedNodePaths
       undefined, // brokenLinks
+      undefined, // nameCollisions
       undefined, // signals
     );
 

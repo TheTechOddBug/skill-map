@@ -12,7 +12,7 @@
  * Failures become `Issue[]` like every other rule. The CLI / report
  * formatter wrapping is no longer this extension's concern; consumers
  * surface `schema-violation`-emitted issues the same way they surface
- * `reference-broken` / `trigger-collision` / etc.
+ * `reference-broken` / `name-collision` / etc.
  *
  * Manifest validation for registered extensions is already enforced at
  * load time by the PluginLoader, there's no need to redo it here. This

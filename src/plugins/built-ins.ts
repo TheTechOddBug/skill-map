@@ -37,6 +37,7 @@ import { jobFileOrphanAnalyzer as _jobFileOrphanAnalyzer } from './core/analyzer
 import { linkCounterAnalyzer as _linkCounterAnalyzer } from './core/analyzers/link-counter/index.js';
 import { linkKindConflictAnalyzer as _linkKindConflictAnalyzer } from './core/analyzers/link-kind-conflict/index.js';
 import { linkSelfLoopAnalyzer as _linkSelfLoopAnalyzer } from './core/analyzers/link-self-loop/index.js';
+import { nameCollisionAnalyzer as _nameCollisionAnalyzer } from './core/analyzers/name-collision/index.js';
 import { nameReservedAnalyzer as _nameReservedAnalyzer } from './core/analyzers/name-reserved/index.js';
 import { nodeStabilityAnalyzer as _nodeStabilityAnalyzer } from './core/analyzers/node-stability/index.js';
 import { nodeSupersededAnalyzer as _nodeSupersededAnalyzer } from './core/analyzers/node-superseded/index.js';
@@ -44,7 +45,6 @@ import { referenceBrokenAnalyzer as _referenceBrokenAnalyzer } from './core/anal
 import { referenceRedundantAnalyzer as _referenceRedundantAnalyzer } from './core/analyzers/reference-redundant/index.js';
 import { schemaViolationAnalyzer as _schemaViolationAnalyzer } from './core/analyzers/schema-violation/index.js';
 import { signalCollisionAnalyzer as _signalCollisionAnalyzer } from './core/analyzers/signal-collision/index.js';
-import { triggerCollisionAnalyzer as _triggerCollisionAnalyzer } from './core/analyzers/trigger-collision/index.js';
 import { asciiFormatter as _asciiFormatter } from './core/formatters/ascii/index.js';
 import { jsonFormatter as _jsonFormatter } from './core/formatters/json/index.js';
 import { nodeBumpAction as _nodeBumpAction } from './core/actions/node-bump/index.js';
@@ -75,6 +75,7 @@ const jobFileOrphanAnalyzer = { ..._jobFileOrphanAnalyzer, pluginId: 'core', ver
 const linkCounterAnalyzer = { ..._linkCounterAnalyzer, pluginId: 'core', version: VERSION };
 const linkKindConflictAnalyzer = { ..._linkKindConflictAnalyzer, pluginId: 'core', version: VERSION };
 const linkSelfLoopAnalyzer = { ..._linkSelfLoopAnalyzer, pluginId: 'core', version: VERSION };
+const nameCollisionAnalyzer = { ..._nameCollisionAnalyzer, pluginId: 'core', version: VERSION };
 const nameReservedAnalyzer = { ..._nameReservedAnalyzer, pluginId: 'core', version: VERSION };
 const nodeStabilityAnalyzer = { ..._nodeStabilityAnalyzer, pluginId: 'core', version: VERSION };
 const nodeSupersededAnalyzer = { ..._nodeSupersededAnalyzer, pluginId: 'core', version: VERSION };
@@ -82,7 +83,6 @@ const referenceBrokenAnalyzer = { ..._referenceBrokenAnalyzer, pluginId: 'core',
 const referenceRedundantAnalyzer = { ..._referenceRedundantAnalyzer, pluginId: 'core', version: VERSION };
 const schemaViolationAnalyzer = { ..._schemaViolationAnalyzer, pluginId: 'core', version: VERSION };
 const signalCollisionAnalyzer = { ..._signalCollisionAnalyzer, pluginId: 'core', version: VERSION };
-const triggerCollisionAnalyzer = { ..._triggerCollisionAnalyzer, pluginId: 'core', version: VERSION };
 const asciiFormatter = { ..._asciiFormatter, pluginId: 'core', version: VERSION };
 const jsonFormatter = { ..._jsonFormatter, pluginId: 'core', version: VERSION };
 const nodeBumpAction = { ..._nodeBumpAction, pluginId: 'core', version: VERSION };
@@ -159,6 +159,7 @@ export const builtInPlugins: IBuiltInPlugin[] = [
       linkCounterAnalyzer,
       linkKindConflictAnalyzer,
       linkSelfLoopAnalyzer,
+      nameCollisionAnalyzer,
       nameReservedAnalyzer,
       nodeStabilityAnalyzer,
       nodeSupersededAnalyzer,
@@ -166,7 +167,6 @@ export const builtInPlugins: IBuiltInPlugin[] = [
       referenceRedundantAnalyzer,
       schemaViolationAnalyzer,
       signalCollisionAnalyzer,
-      triggerCollisionAnalyzer,
       asciiFormatter,
       jsonFormatter,
       nodeBumpAction,

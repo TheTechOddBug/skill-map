@@ -128,7 +128,7 @@ export const atDirectiveExtractor: IBuiltInManifest<IExtractor> = {
         const target = resolveSourceRelative(sourceDir, bare);
         // Dedup against the lowercase form so `@foo.md` and `@FOO.MD`
         // collapse into one link rather than two siblings that later
-        // trip `trigger-collision`. The emitted `target` keeps the
+        // trip `reference-redundant`. The emitted `target` keeps the
         // original author casing; `normalizedTrigger` is the same
         // resolved path so cross-extractor merge sees identical keys
         // across `markdown-link` and `at-directive`.

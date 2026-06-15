@@ -118,7 +118,7 @@ describe('self-scan acceptance', () => {
     // severity (per the chip-vs-issue policy in `context/view-slots.md`),
     // gating on EVERY error would make this test perpetually red over
     // documentation noise. Other error-severity analyzers
-    // (`schema-violation`, `trigger-collision`, …) still gate.
+    // (`schema-violation`, `name-collision`, …) still gate.
     const errorIssues = result.issues.filter(
       (i) => i.severity === 'error' && i.analyzerId !== 'reference-broken',
     );
