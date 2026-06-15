@@ -8,6 +8,34 @@
         <p class="linked-nodes-panel__status linked-nodes-panel__status--warn" data-testid="linked-nodes-error">{{ texts.error }}</p>
       }
       @case ('ready') {
+        @if (incoming().length > 0) {
+          <section class="linked-nodes-panel__section" data-testid="linked-nodes-incoming">
+            <h4 class="linked-nodes-panel__section-title">
+              <sm-icon class="linked-nodes-panel__section-icon" icon="pi-download" />
+              <span class="linked-nodes-panel__section-count" data-testid="linked-nodes-incoming-count">{{ incoming().length }}</span>
+              <span class="linked-nodes-panel__section-label">{{ texts.incomingHeader }}</span>
+            </h4>
+            <ul class="linked-nodes-panel__table">
+              @for (link of incoming(); track link.source + '|' + link.target + '|' + link.kind + '|' + (link.trigger?.normalizedTrigger ?? '')) {
+                <li class="linked-nodes-panel__row" [attr.data-testid]="'linked-nodes-incoming-row-' + link.source">
+                  <button
+                    type="button"
+                    class="linked-nodes-panel__path"
+                    (click)="onOpen(link.source)"
+                    [attr.data-testid]="'linked-nodes-incoming-link-' + link.source"
+                  >{{ link.source }}</button>
+                  <span
+                    class="linked-nodes-panel__chip"
+                    [style.color]="confidenceColor(link.confidence)"
+                    [style.borderColor]="confidenceColor(link.confidence)"
+                    [pTooltip]="confidenceTooltip(link.confidence)"
+                  >{{ confidenceValue(link.confidence) }}</span>
+                  <span class="linked-nodes-panel__chip linked-nodes-panel__chip--kind" [attr.data-kind]="link.kind">{{ link.kind }}</span>
+                </li>
+              }
+            </ul>
+          </section>
+        }
         @if (outgoing().length > 0) {
           <section class="linked-nodes-panel__section" data-testid="linked-nodes-outgoing">
             <h4 class="linked-nodes-panel__section-title">
@@ -46,34 +74,6 @@
                       [attr.data-testid]="'linked-nodes-outgoing-issue-' + link.target"
                     >{{ issue.analyzerId }}</span>
                   }
-                </li>
-              }
-            </ul>
-          </section>
-        }
-        @if (incoming().length > 0) {
-          <section class="linked-nodes-panel__section" data-testid="linked-nodes-incoming">
-            <h4 class="linked-nodes-panel__section-title">
-              <sm-icon class="linked-nodes-panel__section-icon" icon="pi-download" />
-              <span class="linked-nodes-panel__section-count" data-testid="linked-nodes-incoming-count">{{ incoming().length }}</span>
-              <span class="linked-nodes-panel__section-label">{{ texts.incomingHeader }}</span>
-            </h4>
-            <ul class="linked-nodes-panel__table">
-              @for (link of incoming(); track link.source + '|' + link.target + '|' + link.kind + '|' + (link.trigger?.normalizedTrigger ?? '')) {
-                <li class="linked-nodes-panel__row" [attr.data-testid]="'linked-nodes-incoming-row-' + link.source">
-                  <button
-                    type="button"
-                    class="linked-nodes-panel__path"
-                    (click)="onOpen(link.source)"
-                    [attr.data-testid]="'linked-nodes-incoming-link-' + link.source"
-                  >{{ link.source }}</button>
-                  <span
-                    class="linked-nodes-panel__chip"
-                    [style.color]="confidenceColor(link.confidence)"
-                    [style.borderColor]="confidenceColor(link.confidence)"
-                    [pTooltip]="confidenceTooltip(link.confidence)"
-                  >{{ confidenceValue(link.confidence) }}</span>
-                  <span class="linked-nodes-panel__chip linked-nodes-panel__chip--kind" [attr.data-kind]="link.kind">{{ link.kind }}</span>
                 </li>
               }
             </ul>
