@@ -114,7 +114,7 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     assert.equal(qualifiedByKindAndShort.get('analyzer:node-stability'), 'core/node-stability');
     assert.equal(qualifiedByKindAndShort.get('analyzer:reference-broken'), 'core/reference-broken');
     assert.equal(qualifiedByKindAndShort.get('analyzer:node-superseded'), 'core/node-superseded');
-    assert.equal(qualifiedByKindAndShort.get('analyzer:link-conflict'), 'core/link-conflict');
+    assert.equal(qualifiedByKindAndShort.get('analyzer:link-kind-conflict'), 'core/link-kind-conflict');
     assert.equal(qualifiedByKindAndShort.get('analyzer:annotation-stale'), 'core/annotation-stale');
     assert.equal(qualifiedByKindAndShort.get('analyzer:annotation-orphan'), 'core/annotation-orphan');
     assert.equal(qualifiedByKindAndShort.get('formatter:ascii'), 'core/ascii');

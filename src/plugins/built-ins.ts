@@ -34,8 +34,8 @@ import { annotationStaleAnalyzer as _annotationStaleAnalyzer } from './core/anal
 import { contributionOrphanAnalyzer as _contributionOrphanAnalyzer } from './core/analyzers/contribution-orphan/index.js';
 import { issueCounterAnalyzer as _issueCounterAnalyzer } from './core/analyzers/issue-counter/index.js';
 import { jobFileOrphanAnalyzer as _jobFileOrphanAnalyzer } from './core/analyzers/job-file-orphan/index.js';
-import { linkConflictAnalyzer as _linkConflictAnalyzer } from './core/analyzers/link-conflict/index.js';
 import { linkCounterAnalyzer as _linkCounterAnalyzer } from './core/analyzers/link-counter/index.js';
+import { linkKindConflictAnalyzer as _linkKindConflictAnalyzer } from './core/analyzers/link-kind-conflict/index.js';
 import { linkSelfLoopAnalyzer as _linkSelfLoopAnalyzer } from './core/analyzers/link-self-loop/index.js';
 import { nameReservedAnalyzer as _nameReservedAnalyzer } from './core/analyzers/name-reserved/index.js';
 import { nodeStabilityAnalyzer as _nodeStabilityAnalyzer } from './core/analyzers/node-stability/index.js';
@@ -72,8 +72,8 @@ const annotationStaleAnalyzer = { ..._annotationStaleAnalyzer, pluginId: 'core',
 const contributionOrphanAnalyzer = { ..._contributionOrphanAnalyzer, pluginId: 'core', version: VERSION };
 const issueCounterAnalyzer = { ..._issueCounterAnalyzer, pluginId: 'core', version: VERSION };
 const jobFileOrphanAnalyzer = { ..._jobFileOrphanAnalyzer, pluginId: 'core', version: VERSION };
-const linkConflictAnalyzer = { ..._linkConflictAnalyzer, pluginId: 'core', version: VERSION };
 const linkCounterAnalyzer = { ..._linkCounterAnalyzer, pluginId: 'core', version: VERSION };
+const linkKindConflictAnalyzer = { ..._linkKindConflictAnalyzer, pluginId: 'core', version: VERSION };
 const linkSelfLoopAnalyzer = { ..._linkSelfLoopAnalyzer, pluginId: 'core', version: VERSION };
 const nameReservedAnalyzer = { ..._nameReservedAnalyzer, pluginId: 'core', version: VERSION };
 const nodeStabilityAnalyzer = { ..._nodeStabilityAnalyzer, pluginId: 'core', version: VERSION };
@@ -156,8 +156,8 @@ export const builtInPlugins: IBuiltInPlugin[] = [
       contributionOrphanAnalyzer,
       issueCounterAnalyzer,
       jobFileOrphanAnalyzer,
-      linkConflictAnalyzer,
       linkCounterAnalyzer,
+      linkKindConflictAnalyzer,
       linkSelfLoopAnalyzer,
       nameReservedAnalyzer,
       nodeStabilityAnalyzer,

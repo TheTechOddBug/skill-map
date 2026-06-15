@@ -275,7 +275,7 @@ describe('scan end-to-end', () => {
     // prose and inside a fenced block (`core/backtick-path` territory),
     // plus one prose markdown link to the same target as a backticked one
     // so the points/references coexistence (Decision #127: two rows, no
-    // merge, no link-conflict warn) is locked end-to-end.
+    // merge, no link-kind-conflict warn) is locked end-to-end.
     const local = mkdtempSync(join(tmpdir(), 'skill-map-e2e-backtick-'));
     try {
       const writeLocal = (rel: string, content: string) => {
@@ -328,9 +328,9 @@ describe('scan end-to-end', () => {
       strictEqual(guidePts.length, 1, 'one points link from the backticked path');
       strictEqual(guidePts[0]!.sources[0], 'backtick-path');
       strictEqual(guidePts[0]!.confidence, 1.0);
-      // The coexisting pair is compatible by design: no link-conflict warn.
+      // The coexisting pair is compatible by design: no link-kind-conflict warn.
       const conflicts = result.issues.filter(
-        (i) => i.analyzerId === 'link-conflict' && i.nodeIds.includes(src),
+        (i) => i.analyzerId === 'link-kind-conflict' && i.nodeIds.includes(src),
       );
       strictEqual(conflicts.length, 0, 'points + references on one pair is not a conflict');
 

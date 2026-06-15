@@ -18,6 +18,17 @@ export const REFERENCE_BROKEN_TEXTS = {
    */
   message: 'Broken {{kindLabel}}; target not found in the graph or on disk',
   /**
+   * Remediation hint surfaced via `Issue.fix.summary`. Not autofixable:
+   * the rule cannot tell which resolution the author wants. The folder
+   * option maps to `scan.referencePaths` ("Folders for link validation"
+   * in Settings), the rule's own escape hatch: it clears only PATH-style
+   * breaks (the file exists on disk outside the indexed graph). A
+   * trigger-style `/cmd` / `@agent` break is settled by the path/name or
+   * removal options instead.
+   */
+  fixSummary:
+    'Fix the path or name, remove the broken link, or add its folder under Folders for link validation.',
+  /**
    * Human noun per link kind for the message above. Fallback for an
    * off-catalog kind: `<kind> link` (composed in the analyzer).
    */

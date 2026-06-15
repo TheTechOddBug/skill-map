@@ -25,7 +25,7 @@ Every extension is independently toggle-able by its qualified id `<plugin>/<ext-
 | Rule | `core` | `trigger-collision` | Two nodes claim the same normalized trigger? Emits a `warn` Issue. |
 | Rule | `core` | `reference-broken` | Invocation links pointing at a target that doesn't exist? Emits an `error` Issue. |
 | Rule | `core` | `superseded` | A node marked `supersededBy` another that exists? Emits an `info` Issue. |
-| Rule | `core` | `link-conflict` | Two Extractors emit a link for the same `(source, target)` pair with different `kind` values? Emits a `warn` Issue per pair. |
+| Rule | `core` | `link-kind-conflict` | Two Extractors emit a link for the same `(source, target)` pair with different `kind` values? Emits a `warn` Issue per pair. |
 | Rule | `core` | `job-file-orphan` | A `*.md` file under `.skill-map/jobs/` that no `state_jobs.filePath` row references? Emits a `warn` Issue per orphan. Cleanup via `sm job prune --orphan-files`. |
 | Rule | `core` | `schema-violation` | Post-scan AJV revalidation of every persisted node / link / issue against the spec schemas. (Pre-0.8.0 this was an `Audit` kind; absorbed into Rule when Audit was removed.) |
 | Formatter | `core` | `ascii` | Plain-text dump grouped by node kind, then links, then issues. |

@@ -134,6 +134,7 @@ function buildIssue(link: Link): Issue {
           tx(REFERENCE_BROKEN_TEXTS.kindLabelFallback, { kind: link.kind }),
       }),
     }),
+    fix: { summary: tx(REFERENCE_BROKEN_TEXTS.fixSummary) },
     data: {
       target: link.target,
       kind: link.kind,

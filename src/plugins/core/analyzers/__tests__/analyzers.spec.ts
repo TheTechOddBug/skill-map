@@ -3,7 +3,7 @@ import { strictEqual, ok } from 'node:assert';
 
 import { triggerCollisionAnalyzer } from '../trigger-collision/index.js';
 import { nodeSupersededAnalyzer } from '../node-superseded/index.js';
-import { linkConflictAnalyzer } from '../link-conflict/index.js';
+import { linkKindConflictAnalyzer } from '../link-kind-conflict/index.js';
 import type { Confidence, Issue, Link, LinkKind, Node, NodeKind } from '../../../../kernel/types.js';
 
 function mockNode(
@@ -186,7 +186,7 @@ describe('superseded rule', () => {
 });
 
 // ---------------------------------------------------------------------------
-// link-conflict
+// link-kind-conflict
 // ---------------------------------------------------------------------------
 
 function rawLink(
@@ -205,15 +205,15 @@ function rawLink(
   };
 }
 
-describe('link-conflict rule', () => {
+describe('link-kind-conflict rule', () => {
   it('emits nothing for an empty graph', async () => {
-    const issues = await run(linkConflictAnalyzer, { nodes: [], links: [] });
+    const issues = await run(linkKindConflictAnalyzer, { nodes: [], links: [] });
     strictEqual(issues.length, 0);
   });
 
   it('stays silent when only one extractor emits the pair', async () => {
     const links = [rawLink('a.md', 'b.md', 'invokes', 'slash')];
-    const issues = await run(linkConflictAnalyzer, { nodes: [], links });
+    const issues = await run(linkKindConflictAnalyzer, { nodes: [], links });
     strictEqual(issues.length, 0);
   });
 
@@ -222,7 +222,7 @@ describe('link-conflict rule', () => {
       rawLink('audit-flow', 'security-scanner', 'references', 'annotations'),
       rawLink('audit-flow', 'security-scanner', 'references', 'slash'),
     ];
-    const issues = await run(linkConflictAnalyzer, { nodes: [], links });
+    const issues = await run(linkKindConflictAnalyzer, { nodes: [], links });
     strictEqual(issues.length, 0, 'agreement on kind must not emit findings');
   });
 
@@ -231,10 +231,10 @@ describe('link-conflict rule', () => {
       rawLink('audit-flow', 'security-scanner', 'references', 'annotations'),
       rawLink('audit-flow', 'security-scanner', 'invokes', 'slash'),
     ];
-    const issues = await run(linkConflictAnalyzer, { nodes: [], links });
+    const issues = await run(linkKindConflictAnalyzer, { nodes: [], links });
     strictEqual(issues.length, 1);
     const issue = issues[0]!;
-    strictEqual(issue.analyzerId, 'link-conflict');
+    strictEqual(issue.analyzerId, 'link-kind-conflict');
     strictEqual(issue.severity, 'warn');
     strictEqual(issue.nodeIds.length, 2);
     strictEqual(issue.nodeIds[0], 'audit-flow');
@@ -245,6 +245,8 @@ describe('link-conflict rule', () => {
     ok(issue.message.includes('security-scanner'));
     ok(issue.message.includes('invokes'));
     ok(issue.message.includes('references'));
+    // Remediation hint lives in `fix.summary`, not appended to message.
+    ok(issue.fix?.summary?.includes('single kind'));
     const data = issue.data as { variants: Array<{ kind: string; sources: string[] }> };
     strictEqual(data.variants.length, 2);
     // Variants are sorted alphabetically by kind for determinism.
@@ -262,7 +264,7 @@ describe('link-conflict rule', () => {
       rawLink('a.md', 'b.md', 'references', 'at-directive'),
       rawLink('a.md', 'b.md', 'invokes', 'slash'),
     ];
-    const issues = await run(linkConflictAnalyzer, { nodes: [], links });
+    const issues = await run(linkKindConflictAnalyzer, { nodes: [], links });
     strictEqual(issues.length, 1);
     const data = issues[0]!.data as { variants: Array<{ kind: string; sources: string[] }> };
     strictEqual(data.variants.length, 2);
@@ -279,7 +281,7 @@ describe('link-conflict rule', () => {
       rawLink('a.md', 'b.md', 'references', 'slash', 0.9),
       rawLink('a.md', 'b.md', 'invokes', 'at-directive', 0.6),
     ];
-    const issues = await run(linkConflictAnalyzer, { nodes: [], links });
+    const issues = await run(linkKindConflictAnalyzer, { nodes: [], links });
     strictEqual(issues.length, 1);
     const data = issues[0]!.data as { variants: Array<{ kind: string; confidence: number }> };
     const refs = data.variants.find((v) => v.kind === 'references')!;
@@ -293,7 +295,7 @@ describe('link-conflict rule', () => {
       rawLink('c.md', 'd.md', 'invokes', 'slash'),
       rawLink('c.md', 'd.md', 'mentions', 'at-directive'),
     ];
-    const issues = await run(linkConflictAnalyzer, { nodes: [], links });
+    const issues = await run(linkKindConflictAnalyzer, { nodes: [], links });
     strictEqual(issues.length, 2);
     const pairs = issues.map((i) => i.nodeIds.join('->')).sort();
     strictEqual(pairs[0], 'a.md->b.md');
@@ -307,7 +309,7 @@ describe('link-conflict rule', () => {
       rawLink('a.md', 'b.md', 'invokes', 'slash'),
       rawLink('a.md', 'c.md', 'references', 'annotations'),
     ];
-    const issues = await run(linkConflictAnalyzer, { nodes: [], links });
+    const issues = await run(linkKindConflictAnalyzer, { nodes: [], links });
     strictEqual(issues.length, 0);
   });
 
@@ -318,7 +320,7 @@ describe('link-conflict rule', () => {
       rawLink('skill.md', 'refs/a.md', 'references', 'markdown-link'),
       rawLink('skill.md', 'refs/a.md', 'points', 'backtick-path'),
     ];
-    const issues = await run(linkConflictAnalyzer, { nodes: [], links });
+    const issues = await run(linkKindConflictAnalyzer, { nodes: [], links });
     strictEqual(issues.length, 0);
   });
 
@@ -330,7 +332,7 @@ describe('link-conflict rule', () => {
       rawLink('a.md', 'b.md', 'references', 'annotations'),
       rawLink('a.md', 'b.md', 'points', 'backtick-path'),
     ];
-    const issues = await run(linkConflictAnalyzer, { nodes: [], links });
+    const issues = await run(linkKindConflictAnalyzer, { nodes: [], links });
     strictEqual(issues.length, 1);
     const data = issues[0]!.data as { variants: Array<{ kind: string }> };
     strictEqual(data.variants.length, 2);
@@ -342,7 +344,7 @@ describe('link-conflict rule', () => {
       rawLink('a.md', 'b.md', 'points', 'backtick-path'),
       rawLink('a.md', 'b.md', 'points', 'backtick-path'),
     ];
-    const issues = await run(linkConflictAnalyzer, { nodes: [], links });
+    const issues = await run(linkKindConflictAnalyzer, { nodes: [], links });
     strictEqual(issues.length, 0);
   });
 });

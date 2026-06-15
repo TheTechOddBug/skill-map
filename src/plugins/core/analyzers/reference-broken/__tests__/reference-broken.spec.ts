@@ -18,7 +18,7 @@
 
 import { resolve } from 'node:path';
 import { describe, it } from 'node:test';
-import { deepStrictEqual, strictEqual } from 'node:assert';
+import { deepStrictEqual, ok, strictEqual } from 'node:assert';
 
 import { referenceBrokenAnalyzer } from '../index.js';
 import { REFERENCE_BROKEN_TEXTS } from '../text.js';
@@ -72,7 +72,7 @@ function run(
   brokenLinks: Set<Link>,
   extra?: Partial<IAnalyzerContext> & { adjust?: boolean },
 ): {
-  issues: { nodeIds: readonly string[]; severity: string }[];
+  issues: { nodeIds: readonly string[]; severity: string; fix?: { summary?: string } | null }[];
   contributions: { nodePath: string; id: string; payload: unknown }[];
   ops: IRecordedOp[];
 } {
@@ -115,6 +115,9 @@ describe('broken-ref analyzer, issue emission', () => {
     strictEqual(issues.length, 1);
     strictEqual(issues[0]!.severity, 'error');
     deepStrictEqual(issues[0]!.nodeIds, ['a.md']);
+    // Remediation hint lives in `fix.summary`, not appended to message;
+    // it points at the `scan.referencePaths` escape hatch by its Settings label.
+    ok(issues[0]!.fix?.summary?.includes('Folders for link validation'));
     // Per-node chip emission moved out, the aggregate severity chip
     // (`core/issue-counter`) handles the visual surface now.
     strictEqual(contributions.length, 0);

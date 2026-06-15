@@ -221,7 +221,7 @@ Mirrors the interactive timeline on `skill-map.ai` (driven by `web/app.js` `PHAS
 ●  4    Scan end-to-end              sm scan persists · per-node tokens · external-url-counter · --changed · sm list/show/check
 ●  5    History + orphans            scan_meta · sm history + stats · auto-rename heuristic · sm orphans · canonical-YAML hash
 ●  6    Config + onboarding          settings(.local).json · 6-layer loader · sm config * · .skillmapignore · sm init · scan strict
-●  7    Robustness                   sm watch + chokidar · link-conflict analyzer · sm job prune · trigger normalization
+●  7    Robustness                   sm watch + chokidar · link-kind-conflict analyzer · sm job prune · trigger normalization
 ●  8    Diff + export                sm graph · sm scan compare-with · sm export with mini query language
 ●  9    Plugin author UX             plugin runtime · plugin migrations · author guide
 ●  ALm  Active-lens migration        Phases 1–6 (2026-05-19→05-23): active-provider lens · Signal IR scaffold · numeric `Confidence` · MCP virtual nodes + `core/mcp-tools` extractor · OpenAI Codex provider (`.codex/agents/*.toml`) · Antigravity onboarded + Gemini retired · lens-only extractor gating · provider-aware confidence bump on resolved links · reserved-name catalog + analyzer + confidence downgrade · observable link analysis (`core/link-counts` chips, in/out per-kind tooltip) · lens-drift warning · db-version skew detection · auto-detect on first scan
@@ -601,7 +601,7 @@ The `sm plugins` family (`list` / `show` / `enable` / `disable` / `doctor` / `cr
 
 ### Default plugin pack
 
-The reference impl bundles built-ins for each kind: one Provider (`claude`), several Extractors (`slash`, `at-directive`, `markdown-link`, `backtick-path`), several Analyzers (`trigger-collisions`, `dangling-refs`, `link-conflict`, `validate-all`), at least one Action, one Formatter (`ascii`). Hooks ship as needed for first-party integrations. `backtick-path` is the deliberate inverse of the code-strip policy: it extracts relative `.md` paths FROM code spans / fences (the Agent Skills standard's "load referenced files on demand" contract, the dominant reference shape in agent-authored skills) as `points` edges (Decision #127), normative in `spec/architecture.md` §Extractor · code-region file references.
+The reference impl bundles built-ins for each kind: one Provider (`claude`), several Extractors (`slash`, `at-directive`, `markdown-link`, `backtick-path`), several Analyzers (`trigger-collisions`, `dangling-refs`, `link-kind-conflict`, `validate-all`), at least one Action, one Formatter (`ascii`). Hooks ship as needed for first-party integrations. `backtick-path` is the deliberate inverse of the code-strip policy: it extracts relative `.md` paths FROM code spans / fences (the Agent Skills standard's "load referenced files on demand" contract, the dominant reference shape in agent-authored skills) as `points` edges (Decision #127), normative in `spec/architecture.md` §Extractor · code-region file references.
 
 `github-enrichment` remains the firm commitment for the Action lineup (needed for hash verify property). Third-party plugins (Snyk, Socket) install post-`v1.0` against `spec/interfaces/security-scanner.md`.
 

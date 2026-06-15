@@ -27,7 +27,7 @@
  *      instead of re-deriving a name index keeps grouping in lock-step
  *      with the resolved graph; a trigger that matches a name but fails
  *      the strict kind matrix is deliberately NOT grouped here, that kind
- *      mismatch is `core/link-conflict`'s concern.
+ *      mismatch is `core/link-kind-conflict`'s concern.
  *   2. Group links by `(source, resolvedTarget)`.
  *   3. Sum the `occurrences[]` lengths across every link in the group.
  *      A group with `total >= 2` emits one info issue on the source.

@@ -205,7 +205,7 @@ describe('liftResolvedLinkConfidence', () => {
     // `/foo` matching an agent named `foo` must NOT resolve: Claude's
     // resolution map for `invokes` lists only ['command', 'skill'].
     // Mentions surface (@foo) is the right link.kind for an agent;
-    // the link-conflict / kind-mismatch analyzers handle the rest.
+    // the link-kind-conflict / kind-mismatch analyzers handle the rest.
     const nodes = [
       mockNode({ path: '.claude/agents/src.md', kind: 'agent', frontmatter: { name: 'src' } }),
       mockNode({ path: '.claude/agents/foo.md', kind: 'agent', frontmatter: { name: 'foo' } }),

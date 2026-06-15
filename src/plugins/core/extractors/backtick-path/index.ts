@@ -66,7 +66,7 @@
  * confidence lift behave exactly like `markdown-link`. Because the
  * kind differs from `references`, a prose `[x](refs/a.md)` and a
  * backticked `` `refs/a.md` `` to the same target COEXIST as two Link
- * rows (the dedup keys on kind); `core/link-conflict` excludes
+ * rows (the dedup keys on kind); `core/link-kind-conflict` excludes
  * `points` from disagreement detection, so the pair never warns.
  */
 

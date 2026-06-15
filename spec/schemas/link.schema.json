@@ -18,7 +18,7 @@
     "kind": {
       "type": "string",
       "enum": ["invokes", "references", "mentions", "supersedes", "points"],
-      "description": "Nature of the relation. `invokes` = execution-level call (e.g. slash command). `references` = explicit link (e.g. wikilink, @-directive). `mentions` = informal textual mention. `supersedes` = replaces another node (from `metadata.supersedes`). `points` = relative file path written inside a code region (backtick span / fenced block); coexists with `references` on the same `(source, target)` pair as a separate Link row (no merge, and `core/link-conflict` does not treat the pair as a conflict)."
+      "description": "Nature of the relation. `invokes` = execution-level call (e.g. slash command). `references` = explicit link (e.g. wikilink, @-directive). `mentions` = informal textual mention. `supersedes` = replaces another node (from `metadata.supersedes`). `points` = relative file path written inside a code region (backtick span / fenced block); coexists with `references` on the same `(source, target)` pair as a separate Link row (no merge, and `core/link-kind-conflict` does not treat the pair as a conflict)."
     },
     "confidence": {
       "type": "number",

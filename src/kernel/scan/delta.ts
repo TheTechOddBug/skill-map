@@ -12,7 +12,7 @@
  *     a reason narrowing what diverged.
  *
  *   - **Link**: `(source, target, kind, normalizedTrigger ?? '')`. This
- *     mirrors the link-conflict rule and `sm show` aggregation,
+ *     mirrors the link-kind-conflict rule and `sm show` aggregation,
  *     two links with identical endpoints, kind, and (optional) trigger
  *     are the same link, even if emitted by different extractors. The
  *     `sources[]` union and confidence are NOT part of identity; they
@@ -175,7 +175,7 @@ function diffLinks(
 function linkIdentity(link: Link): string {
   // NUL separator, collision-free against any path (POSIX paths cannot
   // contain NUL) or trigger string. Same rule used by `sm show`'s
-  // aggregation and by the link-conflict rule.
+  // aggregation and by the link-kind-conflict rule.
   const trigger = link.trigger?.normalizedTrigger ?? '';
   return `${link.source}\x00${link.target}\x00${link.kind}\x00${trigger}`;
 }

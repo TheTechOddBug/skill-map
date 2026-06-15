@@ -1,5 +1,5 @@
 /**
- * `link-conflict` rule. Surfaces detector disagreement.
+ * `link-kind-conflict` rule. Surfaces detector disagreement.
  *
  * Two detectors that emit a link for the same `(source, target)` pair
  * coexist as separate rows in `scan_links`. No merge, no dedup. That
@@ -46,10 +46,10 @@ import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../
 import type { Confidence, Issue, Link, LinkKind } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { formatFinding } from '../../../../kernel/util/finding-format.js';
-import { LINK_CONFLICT_TEXTS } from './text.js';
+import { LINK_KIND_CONFLICT_TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
-const ID = 'link-conflict';
+const ID = 'link-kind-conflict';
 
 /**
  * Link kinds that never participate in disagreement detection. Per
@@ -69,7 +69,7 @@ interface ILinkVariant {
   confidence: Confidence;
 }
 
-export const linkConflictAnalyzer: IBuiltInManifest<IAnalyzer> = {
+export const linkKindConflictAnalyzer: IBuiltInManifest<IAnalyzer> = {
   id: ID,
   pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
@@ -144,10 +144,11 @@ export const linkConflictAnalyzer: IBuiltInManifest<IAnalyzer> = {
         nodeIds: [source, target],
         message: formatFinding({
           subject: target,
-          body: tx(LINK_CONFLICT_TEXTS.message, {
+          body: tx(LINK_KIND_CONFLICT_TEXTS.message, {
             kindList,
           }),
         }),
+        fix: { summary: tx(LINK_KIND_CONFLICT_TEXTS.fixSummary) },
         data: { source, target, variants },
       });
     }
