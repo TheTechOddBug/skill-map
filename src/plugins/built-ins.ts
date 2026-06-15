@@ -32,6 +32,7 @@ import { annotationFieldUnknownAnalyzer as _annotationFieldUnknownAnalyzer } fro
 import { annotationOrphanAnalyzer as _annotationOrphanAnalyzer } from './core/analyzers/annotation-orphan/index.js';
 import { annotationStaleAnalyzer as _annotationStaleAnalyzer } from './core/analyzers/annotation-stale/index.js';
 import { contributionOrphanAnalyzer as _contributionOrphanAnalyzer } from './core/analyzers/contribution-orphan/index.js';
+import { extractorCollisionAnalyzer as _extractorCollisionAnalyzer } from './core/analyzers/extractor-collision/index.js';
 import { issueCounterAnalyzer as _issueCounterAnalyzer } from './core/analyzers/issue-counter/index.js';
 import { jobFileOrphanAnalyzer as _jobFileOrphanAnalyzer } from './core/analyzers/job-file-orphan/index.js';
 import { linkCounterAnalyzer as _linkCounterAnalyzer } from './core/analyzers/link-counter/index.js';
@@ -44,7 +45,6 @@ import { nodeSupersededAnalyzer as _nodeSupersededAnalyzer } from './core/analyz
 import { referenceBrokenAnalyzer as _referenceBrokenAnalyzer } from './core/analyzers/reference-broken/index.js';
 import { referenceRedundantAnalyzer as _referenceRedundantAnalyzer } from './core/analyzers/reference-redundant/index.js';
 import { schemaViolationAnalyzer as _schemaViolationAnalyzer } from './core/analyzers/schema-violation/index.js';
-import { signalCollisionAnalyzer as _signalCollisionAnalyzer } from './core/analyzers/signal-collision/index.js';
 import { asciiFormatter as _asciiFormatter } from './core/formatters/ascii/index.js';
 import { jsonFormatter as _jsonFormatter } from './core/formatters/json/index.js';
 import { nodeBumpAction as _nodeBumpAction } from './core/actions/node-bump/index.js';
@@ -70,6 +70,7 @@ const annotationFieldUnknownAnalyzer = { ..._annotationFieldUnknownAnalyzer, plu
 const annotationOrphanAnalyzer = { ..._annotationOrphanAnalyzer, pluginId: 'core', version: VERSION };
 const annotationStaleAnalyzer = { ..._annotationStaleAnalyzer, pluginId: 'core', version: VERSION };
 const contributionOrphanAnalyzer = { ..._contributionOrphanAnalyzer, pluginId: 'core', version: VERSION };
+const extractorCollisionAnalyzer = { ..._extractorCollisionAnalyzer, pluginId: 'core', version: VERSION };
 const issueCounterAnalyzer = { ..._issueCounterAnalyzer, pluginId: 'core', version: VERSION };
 const jobFileOrphanAnalyzer = { ..._jobFileOrphanAnalyzer, pluginId: 'core', version: VERSION };
 const linkCounterAnalyzer = { ..._linkCounterAnalyzer, pluginId: 'core', version: VERSION };
@@ -82,7 +83,6 @@ const nodeSupersededAnalyzer = { ..._nodeSupersededAnalyzer, pluginId: 'core', v
 const referenceBrokenAnalyzer = { ..._referenceBrokenAnalyzer, pluginId: 'core', version: VERSION };
 const referenceRedundantAnalyzer = { ..._referenceRedundantAnalyzer, pluginId: 'core', version: VERSION };
 const schemaViolationAnalyzer = { ..._schemaViolationAnalyzer, pluginId: 'core', version: VERSION };
-const signalCollisionAnalyzer = { ..._signalCollisionAnalyzer, pluginId: 'core', version: VERSION };
 const asciiFormatter = { ..._asciiFormatter, pluginId: 'core', version: VERSION };
 const jsonFormatter = { ..._jsonFormatter, pluginId: 'core', version: VERSION };
 const nodeBumpAction = { ..._nodeBumpAction, pluginId: 'core', version: VERSION };
@@ -154,6 +154,7 @@ export const builtInPlugins: IBuiltInPlugin[] = [
       annotationOrphanAnalyzer,
       annotationStaleAnalyzer,
       contributionOrphanAnalyzer,
+      extractorCollisionAnalyzer,
       issueCounterAnalyzer,
       jobFileOrphanAnalyzer,
       linkCounterAnalyzer,
@@ -166,7 +167,6 @@ export const builtInPlugins: IBuiltInPlugin[] = [
       referenceBrokenAnalyzer,
       referenceRedundantAnalyzer,
       schemaViolationAnalyzer,
-      signalCollisionAnalyzer,
       asciiFormatter,
       jsonFormatter,
       nodeBumpAction,

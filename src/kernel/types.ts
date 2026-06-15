@@ -486,11 +486,10 @@ export interface Signal {
    * raw extractor emissions (before the resolver runs). When
    * `outcome === 'materialised'`, `winnerIndex` points into `candidates[]`
    * of the candidate the resolver chose; a corresponding `Link` was added
-   * to the graph. When `outcome === 'rejected'`, one of `rejectedBy` /
-   * `extractorDisabled` / `belowFloor` is set and no Link materialised.
-   * Both materialised and rejected Signals remain on
-   * `IAnalyzerContext.signals` so the `core/signal-collision` analyzer can
-   * surface losers as `warn` issues. Mirrors
+   * to the graph. When `outcome === 'rejected'`, `rejectedBy` is set and
+   * no Link materialised. Both materialised and rejected Signals remain on
+   * `IAnalyzerContext.signals` so the `core/extractor-collision` analyzer
+   * can surface losers as `warn` issues. Mirrors
    * `signal.schema.json#/properties/resolution`.
    */
   resolution?: ISignalResolution;
@@ -517,20 +516,6 @@ export interface ISignalResolution {
     extractorId: string;
     reason: 'kind-priority' | 'higher-confidence' | 'longer-range' | 'earlier-declaration';
   };
-  /**
-   * Phase 4+ stub: populated when every candidate of this Signal came from
-   * an extractor the operator disabled via
-   * `plugins.<id>.extensions.<extId>.enabled`. Today the resolver never
-   * sets this; documented so analyzer surfaces can be built when the filter
-   * lands.
-   */
-  extractorDisabled?: { extractorId: string };
-  /**
-   * Phase 4+ stub: populated when every candidate's `confidence` fell below
-   * the configured floor. Today the resolver materialises every Signal that
-   * survives overlap regardless of confidence.
-   */
-  belowFloor?: { threshold: number };
 }
 
 export interface IssueFix {

@@ -1,17 +1,17 @@
 /**
- * Unit tests for `core/signal-collision`. The analyzer reads
+ * Unit tests for `core/extractor-collision`. The analyzer reads
  * `IAnalyzerContext.signals` (populated by the kernel resolver) and
  * emits one `warn` issue per Signal whose `resolution.outcome === 'rejected'`.
  *
  * The tests build Signals with hand-crafted `resolution` objects to
- * exercise every rejection branch (range overlap, extractor disabled,
- * below floor) without going through the full orchestrator.
+ * exercise the range-overlap rejection (the only reason the resolver
+ * produces) without going through the full orchestrator.
  */
 
 import { describe, it } from 'node:test';
 import { strictEqual, deepStrictEqual, ok } from 'node:assert';
 
-import { signalCollisionAnalyzer } from '../index.js';
+import { extractorCollisionAnalyzer } from '../index.js';
 import type { Issue, Signal } from '../../../../../kernel/types.js';
 
 function makeSignal(opts: Partial<Signal> & { source: string; candidates: Signal['candidates'] }): Signal {
@@ -28,7 +28,7 @@ function makeSignal(opts: Partial<Signal> & { source: string; candidates: Signal
 }
 
 function runAnalyzer(signals: readonly Signal[]): Issue[] {
-  const result = signalCollisionAnalyzer.evaluate({
+  const result = extractorCollisionAnalyzer.evaluate({
     nodes: [],
     links: [],
     settings: {},
@@ -43,7 +43,7 @@ function runAnalyzer(signals: readonly Signal[]): Issue[] {
   return result as Issue[];
 }
 
-describe('signal-collision analyzer · empty + materialised signals', () => {
+describe('extractor-collision analyzer · empty + materialised signals', () => {
   it('emits nothing when ctx.signals is empty', () => {
     const issues = runAnalyzer([]);
     deepStrictEqual(issues, []);
@@ -67,7 +67,7 @@ describe('signal-collision analyzer · empty + materialised signals', () => {
     deepStrictEqual(runAnalyzer([signal]), []);
   });
 
-  it('emits nothing for rejected Signals whose `rejectedBy` / `extractorDisabled` / `belowFloor` are all absent (defensive)', () => {
+  it('emits nothing for a rejected Signal with no `rejectedBy` (defensive)', () => {
     const signal = makeSignal({
       source: 'a.md',
       raw: 'x',
@@ -79,7 +79,7 @@ describe('signal-collision analyzer · empty + materialised signals', () => {
   });
 });
 
-describe('signal-collision analyzer · range-overlap rejection (the primary surface)', () => {
+describe('extractor-collision analyzer · range-overlap rejection (the primary surface)', () => {
   it('emits a warn issue naming loser, winner, and reason for a longer-range tiebreak', () => {
     const loser = makeSignal({
       source: '.claude/agents/architect.md',
@@ -106,7 +106,7 @@ describe('signal-collision analyzer · range-overlap rejection (the primary surf
     const issues = runAnalyzer([loser]);
     strictEqual(issues.length, 1);
     const issue = issues[0]!;
-    strictEqual(issue.analyzerId, 'signal-collision');
+    strictEqual(issue.analyzerId, 'extractor-collision');
     strictEqual(issue.severity, 'warn');
     deepStrictEqual(issue.nodeIds, ['.claude/agents/architect.md']);
     ok(issue.message.includes('at-directive'));
@@ -115,6 +115,10 @@ describe('signal-collision analyzer · range-overlap rejection (the primary surf
     ok(issue.message.includes('@./api.md'));
     ok(issue.message.includes('15-24'));
     ok(issue.message.includes('10-30'));
+    // Canonical finding grammar: the loser's body line as an `L<line>:` prefix.
+    ok(issue.message.includes('\nL3:'));
+    // Remediation hint lives in `fix.summary` on the live rejection case.
+    ok(issue.fix?.summary?.includes('overlapping tokens'));
     const data = issue.data as Record<string, unknown>;
     strictEqual(data['reason'], 'longer-range');
   });
@@ -174,41 +178,5 @@ describe('signal-collision analyzer · range-overlap rejection (the primary surf
     });
     const issues = runAnalyzer([winner, loserA, loserB]);
     strictEqual(issues.length, 2);
-  });
-});
-
-describe('signal-collision analyzer · Phase 4+ stubs', () => {
-  it('emits a warn for `extractorDisabled` Signals naming the disabled extension', () => {
-    const signal = makeSignal({
-      source: 'a.md',
-      raw: 'x',
-      range: { start: 5, end: 10, line: 1 },
-      candidates: [{ extractorId: 'disabled-one', kind: 'references', target: 't.md', confidence: 0.5 }],
-      resolution: {
-        outcome: 'rejected',
-        extractorDisabled: { extractorId: 'disabled-one' },
-      },
-    });
-    const issues = runAnalyzer([signal]);
-    strictEqual(issues.length, 1);
-    ok(issues[0]!.message.includes('disabled-one'));
-    deepStrictEqual((issues[0]!.data as Record<string, unknown>)['extractorDisabled'], { extractorId: 'disabled-one' });
-  });
-
-  it('emits a warn for `belowFloor` Signals naming the threshold + confidence', () => {
-    const signal = makeSignal({
-      source: 'a.md',
-      raw: 'x',
-      range: { start: 0, end: 5, line: 1 },
-      candidates: [{ extractorId: 'weak', kind: 'mentions', target: 't', confidence: 0.05 }],
-      resolution: {
-        outcome: 'rejected',
-        belowFloor: { threshold: 0.1 },
-      },
-    });
-    const issues = runAnalyzer([signal]);
-    strictEqual(issues.length, 1);
-    ok(issues[0]!.message.includes('0.05'));
-    ok(issues[0]!.message.includes('0.1'));
   });
 });

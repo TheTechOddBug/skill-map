@@ -546,7 +546,7 @@ async function runScanInternal(
   // candidates as Links, annotates each Signal's `resolution` field
   // (winners with `winnerIndex`, losers with `rejectedBy` and a tiebreak
   // reason), and threads the annotated Signals through to analyzers via
-  // `IAnalyzerContext.signals` so `core/signal-collision` can surface
+  // `IAnalyzerContext.signals` so `core/extractor-collision` can surface
   // collisions as `warn` issues. Phase 2.A wires the call; extractor
   // migrations land in Phases 2.B and 2.C. With zero Signals emitted today
   // the call is a no-op that returns empty arrays.

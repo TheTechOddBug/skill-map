@@ -23,12 +23,6 @@
  * targets cannot conflict with internal-graph targets and cannot conflict
  * with each other (they leave the local graph regardless).
  *
- * Phase 4+ stubs that are deliberately NOT wired today:
- *   - Per-extension enable filter (`plugins.<id>.extensions.<extId>.enabled`).
- *     The Signal's `resolution.extractorDisabled` field exists for it.
- *   - Confidence floor (drop a Signal whose candidates all fall below a
- *     threshold). The Signal's `resolution.belowFloor` field exists for it.
- *
  * Off-Signal paths (`ctx.emitLink` direct) bypass this entirely; the
  * resolver only sees Signals. The caller merges the resolver's Links with
  * the direct-emit Links before `dedupeLinks` runs.
@@ -64,7 +58,7 @@ export interface IResolveSignalsResult {
   links: Link[];
   /**
    * Every input Signal with `resolution` populated. Winners and losers
-   * both stay in the array so analyzers (notably `core/signal-collision`)
+   * both stay in the array so analyzers (notably `core/extractor-collision`)
    * can surface the collisions to the operator.
    */
   resolvedSignals: Signal[];

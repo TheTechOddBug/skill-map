@@ -248,6 +248,7 @@ describe('plugin-runtime, branch coverage', () => {
         'annotation-orphan',
         'annotation-stale',
         'contribution-orphan',
+        'extractor-collision',
         'issue-counter',
         'job-file-orphan',
         'link-counter',
@@ -259,7 +260,6 @@ describe('plugin-runtime, branch coverage', () => {
         'reference-broken',
         'reference-redundant',
         'schema-violation',
-        'signal-collision',
       ]);
       // claude / antigravity / openai / agent-skills / core-markdown providers
       // untouched; core extractors unaffected.

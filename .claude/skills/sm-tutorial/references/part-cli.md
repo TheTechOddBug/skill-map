@@ -39,7 +39,7 @@ Mark `graph-export`: done.
 > different families: `core/name-reserved` (a file shadows a vendor
 > built-in like `/help`), `core/link-self-loop` (a node links to itself),
 > `core/reference-redundant` (two surfaces in the same body
-> point at the same target), `core/signal-collision` (two extractors
+> point at the same target), `core/extractor-collision` (two extractors
 > detected the SAME byte range with different interpretations, the
 > resolver picked one and the warning explains who lost and why).
 > Same `sm check --analyzers <id>` pattern works for any of them.

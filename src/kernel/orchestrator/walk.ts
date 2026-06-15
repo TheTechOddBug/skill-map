@@ -252,7 +252,7 @@ export interface IWalkAndExtractResult {
    * (`resolveSignals`) which materialises winning candidates as Links
    * and annotates each Signal's `resolution` field. The annotated
    * Signals later reach the rule pass via `IAnalyzerContext.signals`
-   * so the `core/signal-collision` analyzer can surface losers as
+   * so the `core/extractor-collision` analyzer can surface losers as
    * `warn` issues. Empty for scans where no extractor emitted Signals.
    */
   signals: Signal[];
