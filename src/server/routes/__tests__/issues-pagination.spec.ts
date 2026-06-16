@@ -121,6 +121,37 @@ async function primeIssuesDb(db: string): Promise<void> {
   }
 }
 
+/**
+ * Prime a DB with a single issue carrying a SHORT analyzer id, the real
+ * persisted form (`issue.schema.json` forbids `/`, and analyzers emit the
+ * short id). The 150-row fixture above seeds qualified ids, which do not
+ * reflect real data; this isolated row proves the `?analyzerId=` filter
+ * matches a qualified `<plugin>/<id>` query against the short stored id.
+ */
+async function primeShortIdDb(db: string): Promise<void> {
+  const adapter = new SqliteStorageAdapter({ databasePath: db, autoBackup: false });
+  await adapter.init();
+  try {
+    await adapter.db
+      .insertInto('scan_issues')
+      .values([
+        {
+          analyzerId: 'node-stability',
+          severity: 'warn',
+          nodeIdsJson: JSON.stringify(['agents/x.md']),
+          linkIndicesJson: null,
+          message: 'short-id-row',
+          detail: null,
+          fixJson: null,
+          dataJson: null,
+        },
+      ])
+      .execute();
+  } finally {
+    await adapter.close();
+  }
+}
+
 function defaultOptions(overrides: Partial<IServerOptions> = {}): IServerOptions {
   return {
     port: 0,
@@ -268,6 +299,25 @@ describe('/api/issues, pagination + filters', () => {
       const env = (await res.json()) as IListEnvelope<IIssueShape>;
       assert.equal(env.counts.total, 100);
       for (const issue of env.items) assert.equal(issue.analyzerId, 'core/reference-broken');
+    });
+  });
+
+  it('?analyzerId=core/node-stability (qualified form) matches a stored SHORT id', async () => {
+    // Real persisted analyzerIds are short (issue.schema.json forbids `/`).
+    // A qualified `<plugin>/<id>` query must still match the short stored
+    // id via the SQL suffix comparison (mirrors matchesAnalyzerFilter), so
+    // CLI and REST honor qualified ids alike.
+    const shortDb = join(tmpRoot, 'short-id-issues.db');
+    await primeShortIdDb(shortDb);
+    await bootAndUse(defaultOptions({ dbPath: shortDb }), async (handle) => {
+      const qualified = await fetch(url(handle, '/api/issues?analyzerId=core/node-stability'));
+      const qEnv = (await qualified.json()) as IListEnvelope<IIssueShape>;
+      assert.equal(qEnv.counts.total, 1);
+      assert.equal(qEnv.items[0]?.analyzerId, 'node-stability');
+      // The bare short form still matches the same row.
+      const short = await fetch(url(handle, '/api/issues?analyzerId=node-stability'));
+      const sEnv = (await short.json()) as IListEnvelope<IIssueShape>;
+      assert.equal(sEnv.counts.total, 1);
     });
   });
 

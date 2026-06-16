@@ -642,13 +642,23 @@ function applyIssueFilters<Q extends import('kysely').SelectQueryBuilder<IDataba
     const tokens = filter.analyzerIds;
     q = q.where(({ eb, or }) =>
       or(
-        tokens.flatMap((token) => [
-          eb('analyzerId', '=', token),
-          // `'%/' || ?` keeps the LIKE pattern's `%` literal in the
-          // template and binds `token` separately, no interpolation of
-          // user input into the SQL string.
-          eb('analyzerId', 'like', `%/${token}`),
-        ]),
+        tokens.flatMap((token) => {
+          const conds = [
+            eb('analyzerId', '=', token),
+            // `'%/' || ?` keeps the LIKE pattern's `%` literal in the
+            // template and binds `token` separately, no interpolation of
+            // user input into the SQL string.
+            eb('analyzerId', 'like', `%/${token}`),
+          ];
+          // The persisted analyzerId is SHORT (issue.schema.json forbids
+          // `/`). A qualified token (`core/foo`) must still match the
+          // stored short id (`foo`), so also compare the token's
+          // suffix-after-`/`. Mirrors `matchesAnalyzerFilter` (the CLI /
+          // shared-util path) so REST and CLI honor qualified ids alike.
+          const slash = token.indexOf('/');
+          if (slash >= 0) conds.push(eb('analyzerId', '=', token.slice(slash + 1)));
+          return conds;
+        }),
       ),
     ) as Q;
   }
