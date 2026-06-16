@@ -501,7 +501,26 @@ describe('InspectorView, annotations card (Step 9.6.5)', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="inspector-card-annotations"]')).toBeNull();
   });
 
-  it('renders the annotations card when sidecar overlay is present', async () => {
+  it('renders the annotations card when the sidecar carries renderable annotations', async () => {
+    const node = makeNodeWithSidecar({
+      present: true,
+      status: 'fresh',
+      annotations: { source: 'https://example.com/repo' },
+    });
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    expect(fixture.nativeElement.querySelector('[data-testid="inspector-card-annotations"]')).not.toBeNull();
+  });
+
+  it('does NOT render the annotations card when the sidecar is present but has no renderable annotations', async () => {
+    // version / stability are node properties shown elsewhere, not in the
+    // annotations panel (which renders provenance / repository / docs), so
+    // a sidecar carrying only those has nothing to show and the section is
+    // hidden entirely instead of rendering an empty panel.
     const node = makeNodeWithSidecar({
       present: true,
       status: 'fresh',
@@ -513,7 +532,7 @@ describe('InspectorView, annotations card (Step 9.6.5)', () => {
     const { fixture } = bootstrap({ loader, dataSource });
     fixture.componentRef.setInput('path', node.path);
     await flush(fixture);
-    expect(fixture.nativeElement.querySelector('[data-testid="inspector-card-annotations"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="inspector-card-annotations"]')).toBeNull();
   });
 });
 

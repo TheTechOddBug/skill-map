@@ -18,7 +18,6 @@ export const INSPECTOR_VIEW_TEXTS = {
     invalidFrontmatter: 'invalid frontmatter',
     invalidFrontmatterTooltip:
       'The YAML frontmatter could not be parsed, so name, description and other metadata are unavailable. Check the Findings section for the parser error.',
-    tagFilterAriaLabel: (tag: string) => `Select every node tagged ${tag} on the map`,
   },
   /**
    * Section headers the inspector body renders directly. Vendor-frontmatter
@@ -41,8 +40,6 @@ export const INSPECTOR_VIEW_TEXTS = {
   },
   /** Findings list, fix hint label rendered before the per-issue summary. */
   findingHintLabel: 'Hint:',
-  /** Aria label for the action-error banner dismiss button. */
-  actionErrorDismissAriaLabel: 'Dismiss',
   /**
    * Metadata section (the `audit:` sidecar block). Field labels for the
    * panel body; the section no longer shows an inline summary next to

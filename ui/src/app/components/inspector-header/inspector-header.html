@@ -79,27 +79,18 @@
   </div>
 
   <!--
-    Tags row, sidecar-curated `annotations.tags`. Each tag is a clickable
-    chip: clicking it selects every node carrying that tag on the map
-    (`tagClick` -> host -> graph `onTagSelect`) and the active one stays
-    highlighted. Replaces the former vendor-tools row.
+    Tags row, sidecar-curated `annotations.tags`, delegated to
+    `<sm-node-tags>`: it renders the clickable filter chips (each click
+    forwarded up via `tagClick` -> host -> graph `onTagSelect`, with the
+    active one highlighted) plus the inline editor (pencil -> add / remove,
+    dispatching `core/node-set-tags`). The header stays read-only and only
+    re-emits `tagClick`; the row always mounts so a tagless node can still
+    gain its first tag.
   -->
-  @if (headerTags().length > 0) {
-    <div class="inspector__tags" data-testid="inspector-header-tags">
-      @for (tag of headerTags(); track tag) {
-        <button
-          type="button"
-          class="inspector__tag"
-          [class.inspector__tag--active]="isActiveTag(tag)"
-          [attr.aria-pressed]="isActiveTag(tag)"
-          [attr.aria-label]="texts.header.tagFilterAriaLabel(tag)"
-          (click)="tagClick.emit(tag)"
-          data-testid="inspector-header-tag"
-        >
-          <i class="pi pi-tag" aria-hidden="true"></i>
-          {{ tag }}
-        </button>
-      }
-    </div>
-  }
+  <sm-node-tags
+    [tags]="headerTags()"
+    [activeTag]="activeTag()"
+    [nodePath]="n.path"
+    (tagClick)="tagClick.emit($event)"
+  />
 </header>

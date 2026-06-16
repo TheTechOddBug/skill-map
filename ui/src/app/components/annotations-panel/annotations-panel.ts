@@ -82,8 +82,8 @@ export class AnnotationsPanel {
    * sidecar" / "no annotations" placeholder; otherwise we render the
    * sections.
    */
-  protected readonly hasAnyContent = computed<boolean>(
-    () => this.hasProvenance() || this.hasRepository() || this.hasDocs(),
+  protected readonly hasAnyContent = computed<boolean>(() =>
+    overlayHasAnnotationsContent(this.overlay()),
   );
 
   protected readonly provenance = computed<IProvenanceSection>(() => {
@@ -114,6 +114,30 @@ export class AnnotationsPanel {
   });
   protected readonly hasDocs = computed<boolean>(() =>
     sectionHasContent(this.docs() as unknown as Record<string, unknown>),
+  );
+}
+
+/**
+ * Whether a sidecar overlay carries any annotations the panel would
+ * actually render (provenance authors / license, repository source /
+ * version, docs URL). Tags are NOT counted, they live in the inspector
+ * header, not this panel. Exported so the inspector can hide the whole
+ * "Annotations" section when there is nothing to show, instead of mounting
+ * the panel just to render its empty state.
+ */
+export function overlayHasAnnotationsContent(
+  overlay: ISidecarOverlay | null | undefined,
+): boolean {
+  if (!overlay || !overlay.present) return false;
+  const a = overlay.annotations;
+  if (!a || typeof a !== 'object' || Array.isArray(a)) return false;
+  const rec = a as Record<string, unknown>;
+  return (
+    stringArray(rec['authors']).length > 0 ||
+    stringOrNull(rec['license']) !== null ||
+    httpUrlOrNull(rec['source']) !== null ||
+    stringOrNull(rec['sourceVersion']) !== null ||
+    httpUrlOrNull(rec['docsUrl']) !== null
   );
 }
 

@@ -36,7 +36,7 @@ function el(fixture: ComponentFixture<InputTypeControl>, testid: string): HTMLEl
 }
 
 /** Reach the protected change handlers without leaning on PrimeNG's DOM. */
-function asAny(fixture: ComponentFixture<InputTypeControl>): {
+interface IControlInternals {
   onStringChange(v: string): void;
   onListChange(v: string[]): void;
   onNumberChange(v: number | null): void;
@@ -46,18 +46,13 @@ function asAny(fixture: ComponentFixture<InputTypeControl>): {
   onValueChange(index: number, v: string): void;
   addRow(): void;
   removeRow(index: number): void;
-} {
-  return fixture.componentInstance as unknown as {
-    onStringChange(v: string): void;
-    onListChange(v: string[]): void;
-    onNumberChange(v: number | null): void;
-    onBooleanChange(v: boolean): void;
-    onPathGlobChange(v: string | string[]): void;
-    onKeyChange(index: number, v: string): void;
-    onValueChange(index: number, v: string): void;
-    addRow(): void;
-    removeRow(index: number): void;
-  };
+  addSuggestion(tag: string): void;
+  hasSuggestions(): boolean;
+  unselectedSuggestions(): string[];
+}
+
+function asAny(fixture: ComponentFixture<InputTypeControl>): IControlInternals {
+  return fixture.componentInstance as unknown as IControlInternals;
 }
 
 describe('InputTypeControl, rendering', () => {
@@ -250,5 +245,35 @@ describe('InputTypeControl, value model', () => {
     expect(fixture.componentInstance.value()).toEqual([{ key: 'Header', value: 'Value' }]);
     ctl.removeRow(0);
     expect(fixture.componentInstance.value()).toEqual([]);
+  });
+});
+
+describe('InputTypeControl, string-list suggestion palette', () => {
+  it('reports no suggestions when the descriptor seeds none (plain chips input)', () => {
+    const fixture = bootstrap({ inputType: 'string-list', label: 'Tags' }, []);
+    expect(asAny(fixture).hasSuggestions()).toBe(false);
+    expect(asAny(fixture).unselectedSuggestions()).toEqual([]);
+  });
+
+  it('lists the seeded vocabulary minus the already-selected values', () => {
+    const fixture = bootstrap(
+      { inputType: 'string-list', label: 'Tags', suggestions: ['infra', 'review', 'docs'] },
+      ['infra'],
+    );
+    const ctl = asAny(fixture);
+    expect(ctl.hasSuggestions()).toBe(true);
+    expect(ctl.unselectedSuggestions()).toEqual(['review', 'docs']);
+  });
+
+  it('appends a clicked suggestion to the value, and never duplicates', () => {
+    const fixture = bootstrap(
+      { inputType: 'string-list', label: 'Tags', suggestions: ['infra', 'review'] },
+      ['infra'],
+    );
+    const ctl = asAny(fixture);
+    ctl.addSuggestion('review');
+    expect(fixture.componentInstance.value()).toEqual(['infra', 'review']);
+    ctl.addSuggestion('review'); // already present, no-op
+    expect(fixture.componentInstance.value()).toEqual(['infra', 'review']);
   });
 });

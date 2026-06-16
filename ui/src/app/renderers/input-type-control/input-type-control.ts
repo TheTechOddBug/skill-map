@@ -104,6 +104,14 @@ export interface IInputTypeDescriptor {
   /** `secret`: whether a stored value already exists (drives the hint). */
   secretIsSet?: boolean;
   defaultValue?: TInputTypeValue;
+  /**
+   * `string-list`: optional typeahead vocabulary the host seeds (e.g. the
+   * tags already present in the graph). When non-empty the autocomplete
+   * switches from a pure free-text chips input to a suggesting one (still
+   * free-text: a value not in the list is committed verbatim). Host-seeded
+   * and runtime-only, like `defaultValue`; not a manifest-declared field.
+   */
+  suggestions?: string[];
 }
 
 /** Value shapes the control can hold across the eleven input-types. */
@@ -211,6 +219,26 @@ export class InputTypeControl {
     return Array.isArray(v) ? (v.filter((e) => typeof e === 'string') as string[]) : [];
   });
 
+  /** `string-list`: true when the host seeded a suggestion vocabulary. */
+  protected readonly hasSuggestions = computed<boolean>(
+    () => (this.descriptor().suggestions?.length ?? 0) > 0,
+  );
+
+  /**
+   * The seeded `string-list` vocabulary minus the values already selected,
+   * rendered as a click-to-add palette below the chips input. PrimeNG's
+   * AutoComplete only commits typed text on Enter when `typeahead` is OFF
+   * (the `onEnterKey` handler gates the add behind `!typeahead`), so we keep
+   * the input a pure chips field (Enter / blur add a brand-new value, never
+   * blocked) and surface the suggestions as a palette instead of a typeahead
+   * dropdown. Clicking a palette entry appends it via `addSuggestion`.
+   */
+  protected readonly unselectedSuggestions = computed<string[]>(() => {
+    const all = this.descriptor().suggestions ?? [];
+    const selected = new Set(this.listValue());
+    return all.filter((s) => !selected.has(s));
+  });
+
   /** Numeric projection for the inputnumber widgets. `null` clears it. */
   protected readonly numberValue = computed<number | null>(() => {
     const v = this.value();
@@ -236,6 +264,16 @@ export class InputTypeControl {
 
   protected onListChange(next: string[]): void {
     this.value.set(Array.isArray(next) ? next : []);
+  }
+
+  /**
+   * `string-list` palette: append a clicked suggestion to the list value.
+   * Guards against a duplicate (the palette already hides selected entries,
+   * but a stale click is harmless this way).
+   */
+  protected addSuggestion(tag: string): void {
+    if (this.listValue().includes(tag)) return;
+    this.value.set([...this.listValue(), tag]);
   }
 
   protected onNumberChange(next: number | null): void {

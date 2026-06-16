@@ -112,6 +112,28 @@
         [attr.aria-label]="label()"
         data-testid="input-type-control-list"
       />
+      <!--
+        Suggestion palette: PrimeNG only commits typed text on Enter when
+        `typeahead` is off, so existing values are offered as click-to-add
+        chips here instead of a typeahead dropdown, leaving Enter free to
+        add brand-new values. Hidden when nothing is left to suggest.
+      -->
+      @if (unselectedSuggestions().length) {
+        <div class="itc__suggestions" data-testid="input-type-control-suggestions">
+          @for (s of unselectedSuggestions(); track s) {
+            <button
+              type="button"
+              class="itc__suggestion"
+              (click)="addSuggestion(s)"
+              [attr.aria-label]="texts.suggestionAddAriaLabel(s)"
+              data-testid="input-type-control-suggestion"
+            >
+              <i class="pi pi-plus" aria-hidden="true"></i>
+              {{ s }}
+            </button>
+          }
+        </div>
+      }
     }
     @case ('path-glob') {
       @if (multiple()) {

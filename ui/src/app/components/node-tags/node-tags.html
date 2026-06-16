@@ -1,0 +1,83 @@
+<!--
+  Two modes. VIEW: filter chips (click selects every node carrying the
+  tag on the map) plus a pencil that opens the inline editor; the pencil
+  is always shown so a node with no tags can still get its first one.
+  EDIT: the string-list control (add / remove) with Save / Cancel.
+-->
+@if (!editing()) {
+  <div class="node-tags" data-testid="node-tags">
+    @for (tag of tags(); track tag) {
+      <button
+        type="button"
+        class="node-tags__tag"
+        [class.node-tags__tag--active]="isActive(tag)"
+        [attr.aria-pressed]="isActive(tag)"
+        [attr.aria-label]="texts.tagFilterAriaLabel(tag)"
+        (click)="onChipClick(tag)"
+        data-testid="node-tags-tag"
+      >
+        <i class="pi pi-tag" aria-hidden="true"></i>
+        {{ tag }}
+      </button>
+    }
+    <button
+      type="button"
+      class="node-tags__edit"
+      [pTooltip]="editTooltip()"
+      [attr.aria-label]="editTooltip()"
+      (click)="startEdit()"
+      data-testid="node-tags-edit"
+    >
+      <i class="pi pi-pencil" aria-hidden="true"></i>
+    </button>
+  </div>
+} @else {
+  <div class="node-tags node-tags--editing" data-testid="node-tags-editor">
+    @defer (on immediate) {
+      <sm-input-type-control
+        class="node-tags__control"
+        size="small"
+        [descriptor]="descriptor()"
+        [value]="draft()"
+        (valueChange)="onDraftChange($event)"
+      />
+    }
+
+    <div class="node-tags__actions">
+      <p-button
+        size="small"
+        [label]="texts.save"
+        [loading]="inFlight()"
+        [disabled]="inFlight()"
+        (onClick)="save()"
+        [attr.aria-label]="texts.saveAriaLabel"
+        data-testid="node-tags-save"
+      />
+      <p-button
+        size="small"
+        severity="secondary"
+        [label]="texts.cancel"
+        [disabled]="inFlight()"
+        (onClick)="cancelEdit()"
+        [attr.aria-label]="texts.cancelAriaLabel"
+        data-testid="node-tags-cancel"
+      />
+    </div>
+
+    @if (error(); as err) {
+      <span class="node-tags__error" role="alert" data-testid="node-tags-error">
+        <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+        <span class="node-tags__error-text">{{ err }}</span>
+        <button
+          type="button"
+          class="node-tags__error-dismiss"
+          [attr.aria-label]="texts.dismissErrorAriaLabel"
+          (click)="dismissError()"
+          data-testid="node-tags-error-dismiss"
+        >
+          <i class="pi pi-times" aria-hidden="true"></i>
+        </button>
+      </span>
+    }
+  </div>
+}

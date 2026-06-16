@@ -4,11 +4,12 @@
  * Owns the visual fingerprint of the node currently in focus: kind
  * eyebrow + icon box + name (with version chip and stability tag) +
  * path + meta strip (bytes), plus the right-edge actions cluster
- * (favorite star, unified header-badge slot), and the tag chip row
- * (sidecar-curated tags; clicking one selects every node carrying that
- * tag on the map). The stale signal and any other header badge now
- * arrive as contributions on `inspector.header.badge`; the header
- * carries no hardcoded badge of its own.
+ * (favorite star, unified header-badge slot), and the tag row (delegated
+ * to `<sm-node-tags>`: clickable filter chips plus an inline add / remove
+ * editor; the header only sources the tags and re-emits `tagClick`). The
+ * stale signal and any other header badge now arrive as contributions on
+ * `inspector.header.badge`; the header carries no hardcoded badge of its
+ * own.
  *
  * Inputs are required: a non-null `node` is the precondition the host
  * already enforces before mounting the header (the `@else { ... }`
@@ -33,6 +34,7 @@ import {
   effectiveVersion,
 } from '../../../models/node-derived';
 import { KindIcon } from '../kind-icon/kind-icon';
+import { NodeTags } from '../node-tags/node-tags';
 import { ViewContributionsHost } from '../view-contributions-host/view-contributions-host';
 
 /**
@@ -53,7 +55,7 @@ const CLAUDE_VENDOR_COLORS: ReadonlySet<string> = new Set([
 
 @Component({
   selector: 'sm-inspector-header',
-  imports: [TooltipModule, KindIcon, ViewContributionsHost],
+  imports: [TooltipModule, KindIcon, NodeTags, ViewContributionsHost],
   templateUrl: './inspector-header.html',
   styleUrl: './inspector-header.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -126,14 +128,15 @@ export class InspectorHeader {
     return `var(--sm-kind-${n.kind})`;
   });
 
-  /** Sidecar-curated tags shown as clickable chips in the header. */
+  /**
+   * Sidecar-curated tags fed to `<sm-node-tags>` (the inline tag row,
+   * which owns both the filter chips and the editor). Highlight / edit
+   * state lives in that child; the header only sources the array and
+   * forwards `tagClick`.
+   */
   protected readonly headerTags = computed<readonly string[]>(() =>
     effectiveUserTags(this.node()),
   );
-
-  protected isActiveTag(tag: string): boolean {
-    return this.activeTag() === tag;
-  }
 
   protected onFavoriteClick(event: MouseEvent): void {
     event.stopPropagation();

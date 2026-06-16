@@ -1,0 +1,181 @@
+/*
+ * Inline tag row. The host carries the row separator + grid placement so
+ * the tags sit below the inspector header's identity grid; the inner
+ * `.node-tags` is the flex chip container. Migrated from the former
+ * `.inspector__tags` / `.inspector__tag` rules in inspector-header.css.
+ */
+:host {
+  display: block;
+  grid-column: 1 / -1;
+  margin-top: 0.55rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--sm-border);
+}
+
+.node-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.node-tags__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: var(--sm-radius-sm);
+  background: var(--sm-bg-hover);
+  color: var(--p-text-color);
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.35;
+  cursor: pointer;
+  transition: background 120ms ease-out, color 120ms ease-out, border-color 120ms ease-out;
+}
+
+.node-tags__tag .pi {
+  font-size: 0.62rem;
+  opacity: 0.7;
+}
+
+/* Hover affordance for INACTIVE chips only: tint the text/border toward
+   the primary. Scoped with `:not(--active)` so it never recolours an
+   active chip's text to the primary, which would match its primary
+   background and wipe out the contrast. */
+.node-tags__tag:not(.node-tags__tag--active):hover {
+  border-color: var(--sm-border);
+  color: var(--p-primary-color);
+}
+
+.node-tags__tag:focus-visible {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: 1px;
+}
+
+.node-tags__tag--active {
+  background: var(--p-primary-color);
+  color: var(--p-primary-contrast-color);
+  border-color: var(--p-primary-color);
+}
+
+/* Active chip hover: keep the contrast text (inherited from the rule
+   above) and lift the fill slightly, the same brightness affordance the
+   other curated chips use, instead of swapping the text colour. */
+.node-tags__tag--active:hover {
+  filter: brightness(1.08);
+}
+
+.node-tags__tag--active .pi {
+  opacity: 1;
+}
+
+/* Pencil affordance: a tight inline glyph button (per the inline-glyph
+   exception in context/ui.md), sized to sit flush with the chips. Always
+   visible so a node with no tags can still get its first one. */
+.node-tags__edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--sm-radius-sm);
+  background: var(--sm-bg-hover);
+  color: var(--p-text-color);
+  cursor: pointer;
+  transition: background 120ms ease-out, color 120ms ease-out, border-color 120ms ease-out;
+}
+
+.node-tags__edit:hover {
+  border-color: var(--sm-border);
+  color: var(--p-primary-color);
+}
+
+.node-tags__edit:focus-visible {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: 1px;
+}
+
+.node-tags__edit .pi {
+  font-size: 0.7rem;
+  opacity: 0.7;
+}
+
+.node-tags__edit:hover .pi {
+  opacity: 1;
+}
+
+/* Edit mode: stack the control over the action row. */
+.node-tags--editing {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+/* Hide the control's own "Tags" label inside the inline editor: it is
+ * redundant here (the editor replaces the tag row, the context is the
+ * tags). The label text survives as the autocomplete's `aria-label`, so
+ * accessibility is unaffected. Custom-child styling, see context/ui.md
+ * (the `.itc__label` lives in `<sm-input-type-control>`, outside this
+ * component's view encapsulation). */
+.node-tags__control ::ng-deep .itc__label {
+  display: none;
+}
+
+/* PrimeNG `size="small"` only trims padding, NOT the font (documented in
+ * settings-modal.css). The inline editor sits in the dense inspector, so
+ * pull the autocomplete (input + selected-tag tokens) and the Save /
+ * Cancel buttons down to the view-chip scale (0.72rem) so edit mode reads
+ * at the same size as the chips it replaces. `::ng-deep` because these
+ * PrimeNG internals expose no font-size token / pt slot; scoped to the
+ * editor so the shared control stays full-size elsewhere. */
+:host ::ng-deep .node-tags__control .p-autocomplete,
+:host ::ng-deep .node-tags__control .p-autocomplete-input,
+:host ::ng-deep .node-tags__actions .p-button {
+  font-size: 0.72rem;
+}
+
+.node-tags__actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+/* Banner-style callout (lifted from the former inspector-view action
+ * banner): a left warning icon, the message, and a dismiss button pushed
+ * to the right. The editing container is a stretch column, so this fills
+ * the row. */
+.node-tags__error {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.85rem;
+  color: var(--sm-severity-error);
+  background: var(--sm-severity-error-bg);
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--sm-radius-md);
+  border: 1px solid color-mix(in srgb, var(--sm-severity-error) 30%, transparent);
+}
+
+.node-tags__error-text {
+  min-width: 0;
+}
+
+.node-tags__error-dismiss {
+  margin-left: auto;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+}
+
+.node-tags__error-dismiss .pi {
+  font-size: 0.75rem;
+}

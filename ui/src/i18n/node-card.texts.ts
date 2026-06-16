@@ -54,6 +54,8 @@ export const NODE_CARD_TEXTS = {
   },
   /** Overflow chip on the tag row when more than 3 tags exist. */
   tagOverflow: (n: number) => `+${n} more`,
+  /** Aria-label for a clickable tag chip on the card (filters the map by that tag). */
+  tagFilterAriaLabel: (tag: string) => `Select every node tagged ${tag} on the map`,
   ariaExpand: 'Expand',
   ariaFavoriteAdd: 'Add to favorites',
   ariaFavoriteRemove: 'Remove from favorites',

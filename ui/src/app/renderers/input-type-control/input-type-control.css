@@ -150,3 +150,47 @@
   font-size: 0.85rem;
   color: var(--p-text-muted-color);
 }
+
+/* `string-list` suggestion palette: existing values offered as click-to-add
+ * chips below the chips input (PrimeNG only commits typed text on Enter with
+ * typeahead off, so suggestions are a palette, not a dropdown; see the
+ * template comment). Dashed outline marks them as "available to add", vs the
+ * solid selected chips inside the input. */
+.itc__suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  max-height: 6.5rem;
+  overflow-y: auto;
+}
+
+.itc__suggestion {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.1rem 0.45rem;
+  border: 1px dashed var(--p-content-border-color);
+  border-radius: var(--p-border-radius);
+  background: transparent;
+  color: var(--p-text-muted-color);
+  font-size: 0.72rem;
+  line-height: 1.35;
+  cursor: pointer;
+  transition: color 120ms ease-out, border-color 120ms ease-out, background 120ms ease-out;
+}
+
+.itc__suggestion:hover {
+  color: var(--p-primary-color);
+  border-color: var(--p-primary-color);
+  background: var(--p-content-hover-background);
+}
+
+.itc__suggestion:focus-visible {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: 1px;
+}
+
+.itc__suggestion .pi {
+  font-size: 0.6rem;
+  opacity: 0.7;
+}

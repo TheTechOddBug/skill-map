@@ -23,7 +23,10 @@ import {
 import { MarkdownRenderer } from '../../../services/markdown-renderer';
 import { setupInlineMarkdown } from '../../../services/markdown-inline-signal';
 import { ActionDispatchService } from '../../../services/action-dispatch';
-import { AnnotationsPanel } from '../../components/annotations-panel/annotations-panel';
+import {
+  AnnotationsPanel,
+  overlayHasAnnotationsContent,
+} from '../../components/annotations-panel/annotations-panel';
 import { LinkedNodesPanel } from '../../components/linked-nodes-panel/linked-nodes-panel';
 import { VendorFrontmatter } from '../../components/vendor-frontmatter/vendor-frontmatter';
 import { PluginContributions } from '../../components/plugin-contributions/plugin-contributions';
@@ -180,6 +183,18 @@ export class InspectorView implements OnInit {
     return s === 'loading' || s === 'ready';
   });
 
+  /**
+   * Whether the "Annotations" section has anything to render. Gates the
+   * section so it is hidden entirely (instead of showing an empty panel)
+   * when the sidecar carries no renderable annotations, matching how the
+   * other inspector sections (`hasConnections`, `showBody`, ...) hide when
+   * empty. A present sidecar with only `audit` / `identity` (no provenance
+   * / repository / docs, tags live in the header) counts as empty.
+   */
+  protected readonly hasAnnotations = computed<boolean>(() =>
+    overlayHasAnnotationsContent(this.node()?.sidecar),
+  );
+
   /** Active node's description rendered as inline markdown (emphasis / code / links). */
   protected readonly descriptionHtml = setupInlineMarkdown(
     () => this.node()?.frontmatter.description ?? '',
@@ -335,10 +350,10 @@ export class InspectorView implements OnInit {
   // Action dispatch. The toolbar's action buttons arrive as
   // contributions on `inspector.action.button`; each button dispatches
   // through the shared `ActionDispatchService`, which owns the `.sm`
-  // write-consent handshake. The template binds the service's state for
-  // the consent dialog + the error banner.
+  // write-consent handshake. The template binds the service's consent
+  // dialog state; dispatch errors are rendered inline by each dispatcher
+  // (the tag editor + each action button), not by a panel-level banner.
   protected readonly consentOpen = this.actionDispatch.consentOpen;
-  protected readonly actionError = this.actionDispatch.error;
 
   /**
    * Forwarded from `<sm-sidecar-consent-dialog (decision)>`. Hands the
@@ -348,9 +363,5 @@ export class InspectorView implements OnInit {
    */
   protected onConsentDecision(decision: ISidecarConsentDecision): void {
     this.actionDispatch.resolveConsent(decision);
-  }
-
-  protected dismissActionError(): void {
-    this.actionDispatch.dismissError();
   }
 }

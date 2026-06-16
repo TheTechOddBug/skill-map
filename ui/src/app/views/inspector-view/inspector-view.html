@@ -46,20 +46,12 @@
       <p class="inspector__desc" data-testid="inspector-description" [innerHTML]="descriptionHtml()"></p>
     }
 
-    @if (actionError(); as err) {
-      <div class="inspector__banner inspector__banner--error" data-testid="inspector-action-error">
-        <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
-        <span>{{ err }}</span>
-        <button
-          type="button"
-          class="inspector__banner-dismiss"
-          (click)="dismissActionError()"
-          [attr.aria-label]="texts.actionErrorDismissAriaLabel"
-        >
-          <i class="pi pi-times" aria-hidden="true"></i>
-        </button>
-      </div>
-    }
+    <!--
+      Action-dispatch errors are surfaced inline by each dispatcher
+      (the `<sm-node-tags>` editor in the header, `<sm-node-action-button>`
+      next to its button), so there is no separate banner here, it would
+      double-render the same shared `ActionDispatchService.error()`.
+    -->
 
     <!--
       Action toolbar. The bump button (and any other plugin-contributed
@@ -137,7 +129,7 @@
       </div>
     }
 
-    @if (n.sidecar?.present) {
+    @if (hasAnnotations()) {
       <sm-collapsible-section
         [title]="texts.sections.annotations"
         [expanded]="expanded('annotations')"

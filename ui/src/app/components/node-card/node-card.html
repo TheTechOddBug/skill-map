@@ -72,13 +72,21 @@
 
   <!-- Tag chips (top 3 + "N more" overflow). Hidden when no tags.
        Tags are single-source (sidecar `annotations.tags`); the card
-       renders one neutral chip style. Click handling lives on the
-       inspector chip, not here: card chips are read-only at this
-       surface. -->
+       renders one neutral chip style. Each chip is clickable: it selects
+       every node carrying that tag on the map (same as the inspector
+       header tags), emitting `tagClick` which the graph forwards to
+       `onTagSelect`. The click stops propagation so it filters instead of
+       selecting the node. -->
   @if (tagsList.length) {
     <div class="sm-gnode__tagrow" data-testid="node-card-tags">
       @for (tag of tagsList; track tag) {
-        <span class="sm-gnode__tag-chip">{{ tag }}</span>
+        <button
+          type="button"
+          class="sm-gnode__tag-chip"
+          (click)="onTagClick(tag, $event)"
+          [attr.aria-label]="texts.tagFilterAriaLabel(tag)"
+          data-testid="node-card-tag"
+        >{{ tag }}</button>
       }
       @if (moreTags > 0) {
         <span class="sm-gnode__tag-more" data-testid="node-card-tags-more">{{ texts.tagOverflow(moreTags) }}</span>

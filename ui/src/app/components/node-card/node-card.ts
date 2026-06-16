@@ -96,6 +96,15 @@ export class NodeCard {
   readonly isFavorite = input<boolean>(false);
   readonly favoriteToggle = output<{ path: string; value: boolean }>();
 
+  /**
+   * Emitted when the user clicks a tag chip on the card. Carries the tag
+   * string; the graph view forwards it to the same `onTagSelect` the
+   * inspector header tags use, so a card-tag click selects every node
+   * carrying that tag on the map (and frames them). Read-only contexts
+   * that mount the card without wiring this output just ignore it.
+   */
+  readonly tagClick = output<string>();
+
   protected readonly texts = NODE_CARD_TEXTS;
 
   /**
@@ -260,5 +269,13 @@ export class NodeCard {
     event.stopPropagation();
     const next = !this.isFavorite();
     this.favoriteToggle.emit({ path: this.node().path, value: next });
+  }
+
+  protected onTagClick(tag: string, event: MouseEvent): void {
+    // Stop propagation so the click does not bubble to the parent
+    // `[fNode]` host, which would select / open the node instead of
+    // filtering by the tag.
+    event.stopPropagation();
+    this.tagClick.emit(tag);
   }
 }

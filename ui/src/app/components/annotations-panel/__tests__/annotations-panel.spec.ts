@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 
-import { AnnotationsPanel } from '../annotations-panel';
+import { AnnotationsPanel, overlayHasAnnotationsContent } from '../annotations-panel';
 import type { ISidecarOverlay } from '../../../../models/node';
 
 /**
@@ -233,5 +233,38 @@ describe('AnnotationsPanel, audit L1, URL scheme allowlist', () => {
       .querySelector('[data-testid="annotations-section-docs"]')
       ?.querySelector('a[target="_blank"]') as HTMLAnchorElement | null;
     expect(anchor?.getAttribute('rel')).toBe('noopener noreferrer');
+  });
+});
+
+describe('overlayHasAnnotationsContent', () => {
+  const fresh = (annotations: Record<string, unknown>): ISidecarOverlay => ({
+    present: true,
+    status: 'fresh',
+    annotations,
+  });
+
+  it('is false for a missing / absent / not-present overlay', () => {
+    expect(overlayHasAnnotationsContent(undefined)).toBe(false);
+    expect(overlayHasAnnotationsContent(null)).toBe(false);
+    expect(overlayHasAnnotationsContent({ present: false } as ISidecarOverlay)).toBe(false);
+  });
+
+  it('is false when the sidecar carries no renderable annotations (only node props / audit / tags)', () => {
+    expect(overlayHasAnnotationsContent(fresh({}))).toBe(false);
+    expect(overlayHasAnnotationsContent(fresh({ version: 3, stability: 'stable' }))).toBe(false);
+    expect(overlayHasAnnotationsContent(fresh({ tags: ['infra'] }))).toBe(false);
+  });
+
+  it('is true when any provenance / repository / docs field is present', () => {
+    expect(overlayHasAnnotationsContent(fresh({ authors: ['alice'] }))).toBe(true);
+    expect(overlayHasAnnotationsContent(fresh({ license: 'MIT' }))).toBe(true);
+    expect(overlayHasAnnotationsContent(fresh({ source: 'https://example.com' }))).toBe(true);
+    expect(overlayHasAnnotationsContent(fresh({ sourceVersion: '1.2.3' }))).toBe(true);
+    expect(overlayHasAnnotationsContent(fresh({ docsUrl: 'https://docs.example.com' }))).toBe(true);
+  });
+
+  it('ignores a non-http source / docsUrl (allowlist guard)', () => {
+    expect(overlayHasAnnotationsContent(fresh({ source: 'javascript:alert(1)' }))).toBe(false);
+    expect(overlayHasAnnotationsContent(fresh({ docsUrl: 'ftp://x' }))).toBe(false);
   });
 });

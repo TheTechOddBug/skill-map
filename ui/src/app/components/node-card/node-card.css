@@ -575,6 +575,8 @@
 }
 
 .sm-gnode__tag-chip {
+  appearance: none;
+  margin: 0;
   font-size: 0.6rem;
   font-family: var(--sm-font-mono);
   padding: 0.05rem 0.35rem;
@@ -583,6 +585,18 @@
   color: var(--sm-text-muted);
   border: 1px solid var(--sm-border);
   line-height: 1.4;
+  cursor: pointer;
+  transition: color 120ms ease-out, border-color 120ms ease-out;
+}
+
+.sm-gnode__tag-chip:hover {
+  color: var(--p-primary-color);
+  border-color: var(--p-primary-color);
+}
+
+.sm-gnode__tag-chip:focus-visible {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: 1px;
 }
 
 .sm-gnode__tag-more {

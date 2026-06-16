@@ -8,6 +8,8 @@ export const INPUT_TYPE_CONTROL_TEXTS = {
   multiSelectPlaceholder: 'Select options',
   /** Placeholder for the `string-list` / multiple `path-glob` tag input. */
   listPlaceholder: 'Type and press Enter',
+  /** Aria-label for a click-to-add suggestion chip in the `string-list` palette. */
+  suggestionAddAriaLabel: (value: string) => `Add ${value}`,
   /** Placeholder for a `secret` field that already holds a stored value. */
   secretSetPlaceholder: 'Leave blank to keep current value',
   /** Placeholder for a `secret` field with no stored value. */

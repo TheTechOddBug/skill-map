@@ -157,6 +157,7 @@
                   [isFavorite]="node.view.isFavorite === true"
                   (expandedChange)="setExpanded(node.id, $event)"
                   (favoriteToggle)="onFavoriteToggle($event)"
+                  (tagClick)="onTagSelect($event)"
                 />
                 <!-- Phase 4 / View contribution system, graph.node.alert
                      slot, anchored to the north-east tip of the card. -->
@@ -195,6 +196,7 @@
                     [isFavorite]="node.view.isFavorite === true"
                     (expandedChange)="setExpanded(node.id, $event)"
                     (favoriteToggle)="onFavoriteToggle($event)"
+                    (tagClick)="onTagSelect($event)"
                   />
                   <!-- Phase 4 / View contribution system, graph.node.alert
                        slot, anchored to the north-east tip of the card. -->

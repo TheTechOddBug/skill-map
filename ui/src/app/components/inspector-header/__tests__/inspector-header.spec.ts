@@ -1,17 +1,34 @@
-import { describe, expect, it } from 'vitest';
-import { provideZonelessChangeDetection } from '@angular/core';
+import { describe, expect, it, vi } from 'vitest';
+import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 
 import { InspectorHeader } from '../inspector-header';
+import { NodeTags } from '../../node-tags/node-tags';
+import { ActionDispatchService } from '../../../../services/action-dispatch';
+import { CollectionLoaderService } from '../../../../services/collection-loader';
 import type { INodeView } from '../../../../models/node';
 
 /**
- * InspectorHeader tag row. Sidecar-curated `annotations.tags` render as
- * clickable chips in the header (they replaced the former vendor-tools
- * row). Clicking a chip emits `tagClick`; the host forwards it to the
- * graph's tag-selection, which selects every node carrying that tag.
- * The `activeTag` input lights the matching chip.
+ * InspectorHeader delegates the tag row to `<sm-node-tags>` (which owns
+ * the clickable filter chips AND the inline editor). The header is a pure
+ * read-only identity block: it only sources the node's tags + path and
+ * re-emits the child's `tagClick`. Chip rendering / active highlight /
+ * edit flow are covered in node-tags.spec; here we only assert the
+ * delegation and the event forwarding.
+ *
+ * `<sm-node-tags>` injects `ActionDispatchService` and
+ * `CollectionLoaderService`, so both are stubbed to keep the header's DI
+ * graph free of the data-source port.
  */
+
+function makeStub() {
+  return {
+    dispatch: vi.fn().mockResolvedValue(undefined),
+    error: vi.fn().mockReturnValue(null),
+    dismissError: vi.fn(),
+  };
+}
 
 function makeNode(overrides: Partial<INodeView> = {}): INodeView {
   return {
@@ -19,7 +36,7 @@ function makeNode(overrides: Partial<INodeView> = {}): INodeView {
     kind: 'agent',
     frontmatter: { name: 'architect', description: '', metadata: { version: '1.0.0' } },
     ...overrides,
-  };
+  } as INodeView;
 }
 
 function nodeWithTags(tags: string[]): INodeView {
@@ -28,54 +45,52 @@ function nodeWithTags(tags: string[]): INodeView {
 
 function bootstrap(node: INodeView): ComponentFixture<InspectorHeader> {
   TestBed.resetTestingModule();
-  TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+  TestBed.configureTestingModule({
+    providers: [
+      provideZonelessChangeDetection(),
+      { provide: ActionDispatchService, useValue: makeStub() },
+      { provide: CollectionLoaderService, useValue: { nodes: signal<INodeView[]>([]) } },
+    ],
+  });
   const fixture = TestBed.createComponent(InspectorHeader);
   fixture.componentRef.setInput('node', node);
   fixture.detectChanges();
   return fixture;
 }
 
-function tagButtons(fixture: ComponentFixture<InspectorHeader>): HTMLButtonElement[] {
-  return Array.from(
-    (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>(
-      '[data-testid="inspector-header-tag"]',
-    ),
-  );
+function nodeTags(fixture: ComponentFixture<InspectorHeader>): NodeTags {
+  return fixture.debugElement.query(By.directive(NodeTags)).componentInstance as NodeTags;
 }
 
-describe('InspectorHeader tag row', () => {
-  it('renders the sidecar tags as clickable chips, in order', () => {
+describe('InspectorHeader tag row delegation', () => {
+  it('mounts <sm-node-tags> with the node tags and path', () => {
     const fixture = bootstrap(nodeWithTags(['infra', 'review']));
-    expect(tagButtons(fixture).map((b) => b.textContent?.trim())).toEqual(['infra', 'review']);
+    const child = nodeTags(fixture);
+    expect(child.tags()).toEqual(['infra', 'review']);
+    expect(child.nodePath()).toBe('agents/architect.md');
   });
 
-  it('emits tagClick with the clicked tag', () => {
+  it('mounts the row even when the node has no tags (so the first can be added)', () => {
+    const fixture = bootstrap(makeNode());
+    const child = nodeTags(fixture);
+    expect(child).toBeTruthy();
+    expect(child.tags()).toEqual([]);
+  });
+
+  it('forwards the child tagClick through its own tagClick output', () => {
     const fixture = bootstrap(nodeWithTags(['infra', 'review']));
     const emitted: string[] = [];
     fixture.componentInstance.tagClick.subscribe((t: string) => emitted.push(t));
 
-    tagButtons(fixture)[1]!.click();
+    nodeTags(fixture).tagClick.emit('review');
 
     expect(emitted).toEqual(['review']);
   });
 
-  it('marks only the active tag (class + aria-pressed)', () => {
+  it('passes the active tag down to the child', () => {
     const fixture = bootstrap(nodeWithTags(['infra', 'review']));
     fixture.componentRef.setInput('activeTag', 'review');
     fixture.detectChanges();
-
-    const [infra, review] = tagButtons(fixture);
-    expect(review!.classList.contains('inspector__tag--active')).toBe(true);
-    expect(review!.getAttribute('aria-pressed')).toBe('true');
-    expect(infra!.classList.contains('inspector__tag--active')).toBe(false);
-    expect(infra!.getAttribute('aria-pressed')).toBe('false');
-  });
-
-  it('renders no tag row when the node has no tags', () => {
-    const fixture = bootstrap(makeNode());
-    expect(
-      (fixture.nativeElement as HTMLElement).querySelector('[data-testid="inspector-header-tags"]'),
-    ).toBeNull();
-    expect(tagButtons(fixture).length).toBe(0);
+    expect(nodeTags(fixture).activeTag()).toBe('review');
   });
 });

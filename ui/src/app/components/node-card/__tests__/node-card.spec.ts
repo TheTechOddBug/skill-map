@@ -133,6 +133,37 @@ describe('NodeCard, catalog curation surfaces (2026-05-07)', () => {
     expect(dom.querySelector('[data-testid="node-card-tags"]')).toBeNull();
   });
 
+  it('emits tagClick with the tag and stops propagation when a chip is clicked', () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({});
+    const node: INodeView = {
+      path: 'a.md',
+      kind: 'agent',
+      frontmatter: { name: 'a', description: '', metadata: { version: '' } },
+      sidecar: { present: true, status: 'fresh', annotations: { tags: ['infra', 'review'] } },
+    };
+    const fixture = TestBed.createComponent(NodeCard);
+    fixture.componentRef.setInput('node', node);
+    fixture.detectChanges();
+
+    const emitted: string[] = [];
+    fixture.componentInstance.tagClick.subscribe((t: string) => emitted.push(t));
+    // A click on a tag chip must NOT bubble to the parent [fNode] host
+    // (which selects the node); assert it stays contained.
+    let bubbled = false;
+    (fixture.nativeElement as HTMLElement).addEventListener('click', () => {
+      bubbled = true;
+    });
+
+    const chips = (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>(
+      '[data-testid="node-card-tag"]',
+    );
+    chips[1]!.click();
+
+    expect(emitted).toEqual(['review']);
+    expect(bubbled).toBe(false);
+  });
+
   it('renders the footer even when there are no stats to show', () => {
     // Empty footer remains in the DOM so the collapsed card has a
     // stable bottom strip across nodes (padding + border-top render).
