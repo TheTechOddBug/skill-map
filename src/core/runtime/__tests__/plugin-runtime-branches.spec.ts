@@ -190,7 +190,7 @@ describe('plugin-runtime, branch coverage', () => {
   // key). Five cases cover the model:
   //   (a) disable every claude extension by qualified id → claude
   //       provider + extractors all skip compose; core stays.
-  //   (b) disable `core/node-superseded` → only that rule disappears.
+  //   (b) disable `core/name-collision` → only that rule disappears.
   //   (c) default: every built-in runs EXCEPT experimental ones, which
   //       ship disabled (`core/mcp-tools` stays out until opted in).
   //   (d) `--no-built-ins` overrides everything.
@@ -215,7 +215,6 @@ describe('plugin-runtime, branch coverage', () => {
       // the surviving extractors are the truly universal ones in `core`.
       const extractorIds = composed.extractors.map((d) => d.id).sort();
       assert.deepEqual(extractorIds, [
-        'annotations',
         'backtick-path',
         'external-url-counter',
         'markdown-link',
@@ -225,25 +224,24 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed.analyzers.length >= 5, 'every core rule should survive');
     });
 
-    it('(b) disable core/node-superseded → only that rule skips; other 15 core analyzers stay', () => {
+    it('(b) disable core/name-collision → only that rule skips; other 14 core analyzers stay', () => {
       const runtime = emptyPluginRuntime();
-      runtime.resolveEnabled = (id: string) => id !== 'core/node-superseded';
+      runtime.resolveEnabled = (id: string) => id !== 'core/name-collision';
       const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: runtime });
       assert.ok(composed);
       const analyzerIds = composed.analyzers.map((r) => r.id).sort();
-      // 16 built-in analyzers ship now (the former projector analyzers
+      // 15 built-in analyzers ship now (the former projector analyzers
       // `core/supersede` + `core/tags` were deleted, their inspector
-      // buttons self-project from the `core/node-supersede` /
-      // `core/node-set-tags` actions; the `core/score-resolution`
-      // score-phase scorer was deleted too, the kernel now seeds the 1.0
-      // confidence baseline directly and the `core/name-reserved` /
-      // `core/reference-broken` detectors apply their penalty deltas on
-      // top; `core/job-file-orphan` was removed, to be reintroduced under
-      // a probabilistic evaluation model). This custom resolver enables
-      // every id except `core/node-superseded`, so 15 compose, listed
-      // below in alphabetical order (`issue-counter` is the lone
-      // aggregate-phase analyzer; `name-reserved` + `reference-broken` are
-      // the score-phase ones).
+      // buttons self-project from the `core/node-set-tags` action; the
+      // `core/score-resolution` score-phase scorer was deleted too, the
+      // kernel now seeds the 1.0 confidence baseline directly and the
+      // `core/name-reserved` / `core/reference-broken` detectors apply
+      // their penalty deltas on top; `core/job-file-orphan` was removed,
+      // to be reintroduced under a probabilistic evaluation model). This
+      // custom resolver enables every id except `core/name-collision`, so
+      // 14 compose, listed below in alphabetical order (`issue-counter` is
+      // the lone aggregate-phase analyzer; `name-reserved` +
+      // `reference-broken` are the score-phase ones).
       assert.deepEqual(analyzerIds, [
         'annotation-field-unknown',
         'annotation-orphan',
@@ -254,7 +252,6 @@ describe('plugin-runtime, branch coverage', () => {
         'link-counter',
         'link-kind-conflict',
         'link-self-loop',
-        'name-collision',
         'name-reserved',
         'node-stability',
         'reference-broken',
@@ -264,11 +261,11 @@ describe('plugin-runtime, branch coverage', () => {
       // claude / antigravity / openai / agent-skills / core-markdown providers
       // untouched; core extractors unaffected.
       assert.equal(composed.providers.length, 5);
-      assert.equal(composed.extractors.length, 8, 'all 8 core extractors stay');
+      assert.equal(composed.extractors.length, 7, 'all 7 extractors stay');
       // Formatter composer also respects the filter.
       const formatters = composeFormatters({ pluginRuntime: runtime });
-      // ascii + json formatters; superseded toggle is unrelated to either.
-      assert.equal(formatters.length, 2, 'ascii + json formatters still on; superseded toggle is unrelated');
+      // ascii + json formatters; name-collision toggle is unrelated to either.
+      assert.equal(formatters.length, 2, 'ascii + json formatters still on; name-collision toggle is unrelated');
     });
 
     it('(c) default: every built-in runs except experimental ones', () => {
@@ -278,21 +275,15 @@ describe('plugin-runtime, branch coverage', () => {
       });
       assert.ok(composed);
       assert.equal(composed.providers.length, 5, 'claude + antigravity + openai + agent-skills + core-markdown providers loaded');
-      assert.equal(composed.extractors.length, 7, '7 of 8 extractors loaded; core/mcp-tools is experimental so it ships disabled by default');
-      assert.equal(composed.analyzers.length, 15, '15 of 16 analyzers loaded; only the experimental core/node-superseded ships disabled by default (the former projector analyzers core/supersede + core/tags were deleted, their buttons now self-project from the actions; core/score-resolution, the former score-phase confidence scorer, was deleted too, the kernel now seeds the 1.0 baseline directly; core/job-file-orphan was removed, to return under a probabilistic evaluation model)');
+      assert.equal(composed.extractors.length, 6, '6 of 7 extractors loaded; core/mcp-tools is experimental so it ships disabled by default');
+      assert.equal(composed.analyzers.length, 15, 'all 15 analyzers loaded; none ship disabled by default (the former projector analyzers core/supersede + core/tags were deleted, their buttons now self-project from the actions; core/score-resolution, the former score-phase confidence scorer, was deleted too, the kernel now seeds the 1.0 baseline directly; core/job-file-orphan was removed, to return under a probabilistic evaluation model)');
       // Actions are surfaced for the orchestrator's projection pass. The
-      // two projecting actions whose buttons replaced the deleted
-      // analyzers (`core/node-bump`, `core/node-set-tags`) are stable and
-      // load by default; `core/node-supersede` is experimental so it
-      // ships disabled and stays out of the composed set.
+      // projecting actions whose buttons replaced the deleted analyzers
+      // (`core/node-bump`, `core/node-set-tags`) are stable and load by
+      // default.
       const actionIds = composed.actions.map((a) => a.id).sort();
       assert.ok(actionIds.includes('node-bump'), 'core/node-bump is surfaced for projection');
       assert.ok(actionIds.includes('node-set-tags'), 'core/node-set-tags is surfaced for projection');
-      assert.equal(
-        actionIds.includes('node-supersede'),
-        false,
-        'experimental core/node-supersede ships disabled, so it is not surfaced by default',
-      );
       const formatters = composeFormatters({ pluginRuntime: emptyPluginRuntime() });
       assert.equal(formatters.length, 2, 'ascii + json formatters loaded');
     });
@@ -364,19 +355,19 @@ describe('plugin-runtime, branch coverage', () => {
     it('filterBuiltInManifests narrows to the enabled extensions', () => {
       const all = listBuiltIns();
       // Disable every claude extension by qualified id AND
-      // `core/node-superseded`; everything else stays.
+      // `core/name-collision`; everything else stays.
       const claudeIds = new Set(['claude/claude', 'claude/at-directive', 'claude/slash-command']);
       const survivors = filterBuiltInManifests(all, (id: string) => {
         if (claudeIds.has(id)) return false;
-        if (id === 'core/node-superseded') return false;
+        if (id === 'core/name-collision') return false;
         return true;
       });
       const surviveIds = survivors.map((m) => `${m.pluginId}/${m.id}`).sort();
       assert.equal(surviveIds.includes('claude/claude'), false);
-      assert.equal(surviveIds.includes('core/node-superseded'), false);
+      assert.equal(surviveIds.includes('core/name-collision'), false);
       assert.equal(surviveIds.includes('claude/slash-command'), false);
       assert.equal(surviveIds.includes('claude/at-directive'), false);
-      assert.ok(surviveIds.includes('core/annotations'));
+      assert.ok(surviveIds.includes('core/markdown-link'));
       assert.ok(surviveIds.includes('core/reference-broken'));
       assert.ok(surviveIds.includes('core/external-url-counter'));
       assert.ok(surviveIds.includes('core/ascii'));
@@ -406,8 +397,8 @@ describe('plugin-runtime, branch coverage', () => {
       });
       assert.ok(composed);
       assert.equal(composed.providers.length, 0);
-      assert.equal(composed.extractors.length, 7, 'extractors untouched (7: core/mcp-tools ships disabled, experimental)');
-      assert.equal(composed.analyzers.length, 15, 'analyzers untouched (15: only core/node-superseded ships disabled, experimental; the projector analyzers core/supersede + core/tags were deleted; core/score-resolution was deleted, the kernel seeds the 1.0 baseline directly; core/job-file-orphan was removed)');
+      assert.equal(composed.extractors.length, 6, 'extractors untouched (6: core/mcp-tools ships disabled, experimental)');
+      assert.equal(composed.analyzers.length, 15, 'analyzers untouched (15: none ship disabled by default; the projector analyzers core/supersede + core/tags were deleted; core/score-resolution was deleted, the kernel seeds the 1.0 baseline directly; core/job-file-orphan was removed)');
     });
 
     it('(b) killSwitches.extractors empties only the extractors bucket', () => {
@@ -430,7 +421,7 @@ describe('plugin-runtime, branch coverage', () => {
       });
       assert.ok(composed);
       assert.equal(composed.providers.length, 5);
-      assert.equal(composed.extractors.length, 7);
+      assert.equal(composed.extractors.length, 6);
       assert.equal(composed.analyzers.length, 0);
     });
 

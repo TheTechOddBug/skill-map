@@ -9,7 +9,6 @@ annotations:
     - frontend
     - angular
     - legacy
-  supersededBy: .claude/agents/frontend-specialist.md
 settings: {}
 audit:
   createdAt: '2025-08-01T08:00:00.000Z'

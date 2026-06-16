@@ -4,7 +4,7 @@
  *
  * The action's scan-time `project()` emits the `inspector.action.button`
  * that sets the lifecycle stage of the current node (the button lives with
- * the action that dispatches it, mirroring `node-set-tags` / `node-supersede`).
+ * the action that dispatches it, mirroring `node-set-tags` / `node-bump`).
  * These strings are the button label, the prompt label, and the enum-pick
  * option labels.
  *

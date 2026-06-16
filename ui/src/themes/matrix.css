@@ -52,18 +52,16 @@ html.app-matrix body {
   --sm-border: var(--sm-matrix-border);
   --sm-nav-active-bg: color-mix(in srgb, var(--sm-matrix-accent) 12%, transparent);
 
-  /* Edge kind ramp: grey (`supersedes`, weakest semantic) → mild
-     green (`invokes`, strongest), so the five kinds read as a gradient
-     instead of five bright greens that compete with each other.
+  /* Edge kind ramp: grey base → mild green (`invokes`, strongest), with
+     `mentions` the weakest semantic, so the four kinds read as a gradient
+     instead of four bright greens that compete with each other.
      `points` (code-region path pointer) sits at 50%, between
      `mentions` and `references`. Active variants share the same
      interpolation between brighter endpoints. */
-  --sm-edge-supersedes: var(--sm-edge-neutral);
   --sm-edge-mentions: color-mix(in srgb, var(--sm-matrix-accent-dim) 33%, var(--sm-edge-neutral));
   --sm-edge-points: color-mix(in srgb, var(--sm-matrix-accent-dim) 50%, var(--sm-edge-neutral));
   --sm-edge-references: color-mix(in srgb, var(--sm-matrix-accent-dim) 67%, var(--sm-edge-neutral));
   --sm-edge-invokes: var(--sm-matrix-accent-dim);
-  --sm-edge-supersedes-active: #9ca3af;
   --sm-edge-mentions-active: color-mix(in srgb, #4ade80 33%, #9ca3af);
   --sm-edge-points-active: color-mix(in srgb, #4ade80 50%, #9ca3af);
   --sm-edge-references-active: color-mix(in srgb, #4ade80 67%, #9ca3af);

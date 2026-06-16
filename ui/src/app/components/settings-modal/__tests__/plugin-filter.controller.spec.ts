@@ -103,16 +103,16 @@ describe('plugin-filter.controller', () => {
       const plugins = signal<readonly IPluginItemApi[]>([
         extensionPlugin('core', [
           { id: 'broken-ref', kind: 'analyzer', description: 'flags missing targets' },
-          { id: 'superseded', kind: 'analyzer', description: 'flags supersededBy' },
+          { id: 'demo-ext', kind: 'analyzer', description: 'flags demo nodes' },
           { id: 'pretty', kind: 'formatter' },
         ]),
       ]);
       const handle = setupPluginFilter({ plugins });
       handle.setKindFilter('analyzer');
-      handle.searchText.set('superseded');
+      handle.searchText.set('demo-ext');
       const filtered = handle.filteredPlugins();
       expect(filtered.length).toBe(1);
-      expect(filtered[0].extensions?.map((e) => e.id)).toEqual(['superseded']);
+      expect(filtered[0].extensions?.map((e) => e.id)).toEqual(['demo-ext']);
     });
   });
 

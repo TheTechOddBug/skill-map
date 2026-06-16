@@ -54,8 +54,8 @@ function writeFixtureFile(root: string, rel: string, content: string): void {
 
 async function plantClaudeFixture(root: string): Promise<void> {
   // Same shape as scan-e2e.test.ts, three nodes, multiple link kinds,
-  // broken-ref + superseded issues. Keeps the surface representative
-  // without inventing new edge cases the rest of the suite already covers.
+  // broken-ref issues. Keeps the surface representative without inventing
+  // new edge cases the rest of the suite already covers.
   writeFixtureFile(
     root,
     '.claude/agents/architect.md',
@@ -84,46 +84,6 @@ async function plantClaudeFixture(root: string): Promise<void> {
       'Rollback body.',
     ].join('\n'),
   );
-  // Sidecar carriage for the supersededBy inversion. The previous
-  // `related` annotation was dropped from the catalog; the body-driven
-  // `references` link survives via the markdown-link in architect.md.
-  await writeAnnotationsSidecar(root, '.claude/commands/deploy.md', {
-    supersededBy: '.claude/commands/deploy-v2.md',
-  });
-}
-
-async function writeAnnotationsSidecar(
-  fixture: string,
-  nodeRel: string,
-  annotations: Record<string, unknown>,
-): Promise<void> {
-  const kernel = createKernel();
-  for (const m of listBuiltIns()) kernel.registry.register(m);
-  const baseline = await runScan(kernel, {
-    roots: [fixture],
-    extensions: builtIns(),
-    activeProvider: 'claude',
-  });
-  const node = baseline.nodes.find((n) => n.path === nodeRel);
-  if (!node) throw new Error(`baseline scan missing ${nodeRel}`);
-  const sidecarRel = nodeRel.replace(/\.md$/, '.sm');
-  const lines = [
-    'identity:',
-    `  path: ${nodeRel}`,
-    `  bodyHash: ${node.bodyHash}`,
-    `  frontmatterHash: ${node.frontmatterHash}`,
-    'annotations:',
-    '  version: 1',
-  ];
-  for (const [key, value] of Object.entries(annotations)) {
-    if (Array.isArray(value)) {
-      lines.push(`  ${key}:`);
-      for (const v of value) lines.push(`    - ${String(v)}`);
-    } else {
-      lines.push(`  ${key}: ${String(value)}`);
-    }
-  }
-  writeFixtureFile(fixture, sidecarRel, lines.join('\n') + '\n');
 }
 
 /**
@@ -444,9 +404,10 @@ describe('sm list', () => {
     const code = await cmd.execute();
 
     strictEqual(code, 0, `unexpected exit ${code}; stderr=${cap.stderr()}`);
-    // architect (broken-ref ×2) and deploy (superseded). rollback has no issues.
+    // architect (broken-ref ×2 from /unknown + @backend-lead). deploy and
+    // rollback have no issues.
     ok(cap.stdout().includes('.claude/agents/architect.md'));
-    ok(cap.stdout().includes('.claude/commands/deploy.md'));
+    ok(!cap.stdout().includes('.claude/commands/deploy.md'));
     ok(!cap.stdout().includes('.claude/commands/rollback.md'));
   });
 

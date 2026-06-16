@@ -85,14 +85,6 @@ async function fullFixture(root: string): Promise<void> {
     '.claude/commands/rollback.md',
     ['---', 'name: Rollback', '---', 'Rollback body.'].join('\n'),
   );
-  // Sidecar carrying a `supersedes` edge from the architect to the deploy
-  // command. The supersedes kind is the only `core/annotations` output now
-  // (the `requires`/`related`/`conflictsWith` annotations were dropped from
-  // the catalog). This still exercises path-style target resolution for
-  // broken-ref + the merge-graph behavior the incremental tests inspect.
-  await writeAnnotationsSidecar(root, '.claude/agents/architect.md', {
-    supersedes: ['.claude/commands/deploy.md'],
-  });
 }
 
 before(() => {
@@ -107,40 +99,6 @@ async function fullScan(fixture: string): Promise<ScanResult> {
   const kernel = createKernel();
   for (const m of listBuiltIns()) kernel.registry.register(m);
   return runScan(kernel, { roots: [fixture], extensions: builtIns() });
-}
-
-/**
- * Capture real `body` / `frontmatter` hashes via a baseline scan, then
- * write a co-located `.sm` sidecar carrying the given annotations.
- * Required surface for `core/annotations`-emitted links since the
- * legacy frontmatter `metadata:` fallback was dropped.
- */
-async function writeAnnotationsSidecar(
-  fixture: string,
-  nodeRel: string,
-  annotations: Record<string, unknown>,
-): Promise<void> {
-  const baseline = await fullScan(fixture);
-  const node = baseline.nodes.find((n) => n.path === nodeRel);
-  if (!node) throw new Error(`baseline scan missing ${nodeRel}`);
-  const sidecarRel = nodeRel.replace(/\.md$/, '.sm');
-  const lines = [
-    'identity:',
-    `  path: ${nodeRel}`,
-    `  bodyHash: ${node.bodyHash}`,
-    `  frontmatterHash: ${node.frontmatterHash}`,
-    'annotations:',
-    '  version: 1',
-  ];
-  for (const [key, value] of Object.entries(annotations)) {
-    if (Array.isArray(value)) {
-      lines.push(`  ${key}:`);
-      for (const v of value) lines.push(`    - ${String(v)}`);
-    } else {
-      lines.push(`  ${key}: ${String(value)}`);
-    }
-  }
-  writeFixtureFile(fixture, sidecarRel, lines.join('\n') + '\n');
 }
 
 async function incrementalScan(
@@ -293,9 +251,6 @@ describe('incremental scan via priorSnapshot', () => {
     ok(architectFirst);
 
     // Mutate one file's body; everything else stays bit-identical.
-    // The existing sidecar at architect.sm keeps the `annotations.supersedes`
-    // edge, its hashes go stale on the body change, but `core/annotations`
-    // ignores staleness for link emission.
     writeFixtureFile(
       fixture,
       '.claude/agents/architect.md',
@@ -379,9 +334,9 @@ describe('incremental scan via priorSnapshot', () => {
     const first = await fullScan(fixture);
     ok(first.nodes.find((n) => n.path === '.claude/commands/deploy.md'));
 
-    // Delete deploy.md, architect.md's sidecar still has a
-    // `supersedes` entry pointing at it, so broken-ref must fire on
-    // the merged graph.
+    // Delete deploy.md, architect.md's body still has a `/deploy`
+    // invocation pointing at it, so broken-ref must fire on the merged
+    // graph.
     unlinkSync(join(fixture, '.claude/commands/deploy.md'));
 
     const second = await incrementalScan(fixture, first);
@@ -510,54 +465,10 @@ describe('incremental scan via priorSnapshot', () => {
     }
   });
 
-  it('preserves supersedes-inversion links from cached nodes (B3 regression)', async () => {
-    // The annotations extractor emits an inverted `supersedes` link when
-    // a node's sidecar carries `annotations.supersededBy: <newer>`:
-    // source = <newer>, target = <this-node>. The cached-reuse filter
-    // previously keyed prior links by `link.source === node.path`, which
-    // dropped these inverted edges (their source is a DIFFERENT node,
-    // typically the supersedor that may not even exist on disk).
-    const fixture = freshFixture('supersedes-inversion');
-    writeFixtureFile(
-      fixture,
-      '.claude/agents/a.md',
-      ['---', 'name: a', '---', '', 'Old A.'].join('\n'),
-    );
-    // B is the NEWER node. It does NOT need to advertise `supersedes`,
-    // the inverted edge is emitted purely from A's sidecar annotations.
-    writeFixtureFile(
-      fixture,
-      '.claude/agents/b.md',
-      ['---', 'name: b', '---', '', 'New B.'].join('\n'),
-    );
-    await writeAnnotationsSidecar(fixture, '.claude/agents/a.md', {
-      supersededBy: '.claude/agents/b.md',
-    });
-
-    const first = await fullScan(fixture);
-    const supersedes = first.links.filter((l) => l.kind === 'supersedes');
-    strictEqual(supersedes.length, 1, 'precondition: full scan emits exactly one supersedes link');
-    strictEqual(supersedes[0]!.source, '.claude/agents/b.md');
-    strictEqual(supersedes[0]!.target, '.claude/agents/a.md');
-
-    const second = await incrementalScan(fixture, first);
-    strictEqual(
-      second.links.length,
-      first.links.length,
-      `incremental scan must preserve link count (was ${first.links.length}, got ${second.links.length})`,
-    );
-    const supersedesAfter = second.links.filter((l) => l.kind === 'supersedes');
-    strictEqual(supersedesAfter.length, 1, 'inverted supersedes link survived incremental scan');
-    strictEqual(supersedesAfter[0]!.source, '.claude/agents/b.md');
-    strictEqual(supersedesAfter[0]!.target, '.claude/agents/a.md');
-  });
-
   it('full scan and incremental scan over identical input yield set-equal links (structural invariant)', async () => {
-    // Codifies the invariant the supersedes-inversion bug violated. Use a
-    // fixture that exercises every extractor: forward `supersedes`,
-    // inverted `supersededBy`, slash, and at-directive. Both scans
-    // must yield the same set of (source, kind, target) tuples,
-    // incremental reuse must not lose links.
+    // Both scans must yield the same set of (source, kind, target) tuples;
+    // incremental reuse must not lose links. Use a fixture that exercises
+    // multiple extractors: slash invocations and at-directives.
     const fixture = freshFixture('set-equal');
     writeFixtureFile(
       fixture,
@@ -572,20 +483,9 @@ describe('incremental scan via priorSnapshot', () => {
     );
     writeFixtureFile(
       fixture,
-      '.claude/agents/architect-old.md',
-      ['---', 'name: architect-old', '---', '', 'Legacy.'].join('\n'),
-    );
-    writeFixtureFile(
-      fixture,
       '.claude/commands/deploy.md',
       ['---', 'name: deploy', '---', 'Deploy body.'].join('\n'),
     );
-    await writeAnnotationsSidecar(fixture, '.claude/agents/architect.md', {
-      supersedes: ['.claude/agents/architect-old.md'],
-    });
-    await writeAnnotationsSidecar(fixture, '.claude/agents/architect-old.md', {
-      supersededBy: '.claude/agents/architect.md',
-    });
 
     const first = await fullScan(fixture);
     const second = await incrementalScan(fixture, first);
@@ -655,10 +555,9 @@ describe('incremental scan via priorSnapshot', () => {
     await fullFixture(fixture);
     const first = await fullScan(fixture);
     ok(first.nodes.find((n) => n.path === '.claude/commands/deploy.md'));
-    // Predicate: a broken-ref whose target is the deploy command (path or
-    // slash trigger). Both forms exist on architect:
-    //   - frontmatter.related → `.claude/commands/deploy.md` (path-style)
-    //   - body `/deploy` (trigger-style, target stored as `/deploy`)
+    // Predicate: a broken-ref whose target is the deploy command. The
+    // architect body has `/deploy` (trigger-style, target stored as
+    // `/deploy`); the path-style form is tolerated but not produced here.
     const targetsDeploy = (issue: { data?: unknown }): boolean => {
       const data = issue.data as { target?: string } | undefined;
       const t = data?.target;

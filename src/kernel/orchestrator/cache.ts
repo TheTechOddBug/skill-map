@@ -22,15 +22,11 @@ import { FRONTMATTER_ISSUE_ANALYZERS } from './frontmatter-issue-ids.js';
 export interface IPriorIndex {
   /** Prior nodes keyed by path so per-file lookup is O(1). */
   priorNodesByPath: Map<string, Node>;
-  /** Set of every prior node path, used to disambiguate inverted
-   *  `supersedes` links (see `originatingNodeOf`). */
-  priorNodePaths: Set<string>;
   /**
    * Prior internal links bucketed by **originating node**, the node
    * whose body / frontmatter the extractor was processing when it emitted
-   * the link. For most kinds that equals `link.source`, but the
-   * frontmatter extractor emits inverted `supersedes` links where the
-   * originating node is `link.target`.
+   * the link. Every extractor emits from the node it is processing, so
+   * the originating node is always `link.source`.
    */
   priorLinksByOriginating: Map<string, Link[]>;
   /**
@@ -43,36 +39,32 @@ export interface IPriorIndex {
 
 export function indexPriorSnapshot(prior: ScanResult | null): IPriorIndex {
   const priorNodesByPath = new Map<string, Node>();
-  const priorNodePaths = new Set<string>();
   const priorLinksByOriginating = new Map<string, Link[]>();
   const priorFrontmatterIssuesByNode = new Map<string, Issue[]>();
   if (!prior) {
-    return { priorNodesByPath, priorNodePaths, priorLinksByOriginating, priorFrontmatterIssuesByNode };
+    return { priorNodesByPath, priorLinksByOriginating, priorFrontmatterIssuesByNode };
   }
-  indexPriorNodes(prior.nodes, priorNodesByPath, priorNodePaths);
-  indexPriorLinks(prior.links, priorNodePaths, priorLinksByOriginating);
+  indexPriorNodes(prior.nodes, priorNodesByPath);
+  indexPriorLinks(prior.links, priorLinksByOriginating);
   indexPriorFrontmatterIssues(prior.issues, priorFrontmatterIssuesByNode);
-  return { priorNodesByPath, priorNodePaths, priorLinksByOriginating, priorFrontmatterIssuesByNode };
+  return { priorNodesByPath, priorLinksByOriginating, priorFrontmatterIssuesByNode };
 }
 
 function indexPriorNodes(
   nodes: readonly Node[],
   byPath: Map<string, Node>,
-  paths: Set<string>,
 ): void {
   for (const node of nodes) {
     byPath.set(node.path, node);
-    paths.add(node.path);
   }
 }
 
 function indexPriorLinks(
   links: readonly Link[],
-  priorNodePaths: Set<string>,
   byOriginating: Map<string, Link[]>,
 ): void {
   for (const link of links) {
-    const key = originatingNodeOf(link, priorNodePaths);
+    const key = link.source;
     const list = byOriginating.get(key);
     if (list) list.push(link);
     else byOriginating.set(key, [link]);
@@ -98,37 +90,6 @@ function indexPriorFrontmatterIssues(
     if (list) list.push(issue);
     else byNode.set(path, [issue]);
   }
-}
-
-/**
- * The "originating node" of a link, the node whose body / frontmatter
- * the extractor was processing when it emitted the link. For most kinds
- * this equals `link.source`, but the frontmatter extractor emits inverted
- * `supersedes` links (from a node's `metadata.supersededBy`) where
- * `target` is the originating node and `source` is the (forward-pointing)
- * supersedor. The forward case (`metadata.supersedes`) keeps
- * `originating === source` like every other extractor.
- *
- * Discriminator: the supersedor path in an inverted edge is rarely a
- * real node (it points "forward" to a file that may or may not exist on
- * disk under that exact path); the originating node always exists in
- * the prior snapshot (it's the node whose extraction produced the link).
- * So for `kind === 'supersedes'`: prefer `source` when source is a known
- * prior node, otherwise fall back to `target`. This handles BOTH the
- * forward case (originating === source, which IS a known node) and the
- * inverted case (source not a node → fall through to target, the
- * originating older node).
- *
- * Frontmatter is the only extractor that emits cross-source links today;
- * if a future extractor adds another inversion case, escalate to a
- * persisted `Link.extractedFromPath` field with a schema bump rather
- * than extending this heuristic.
- */
-export function originatingNodeOf(link: Link, priorNodePaths: Set<string>): string {
-  if (link.kind === 'supersedes' && !priorNodePaths.has(link.source)) {
-    return link.target;
-  }
-  return link.source;
 }
 
 /**

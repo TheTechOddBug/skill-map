@@ -169,7 +169,7 @@ export interface ITripleSplit {
  * `Link` from `link.schema.json`. Persisted shape returned over `/api/scan`,
  * `/api/links`, and the `links` payload of `/api/nodes/:pathB64`.
  */
-export type TLinkKindApi = 'invokes' | 'references' | 'mentions' | 'supersedes' | 'points';
+export type TLinkKindApi = 'invokes' | 'references' | 'mentions' | 'points';
 /**
  * Numeric `[0..1]` after the Phase 4 confidence migration. The wire
  * shape from the BFF carries a number; UI helpers bucket it into tier

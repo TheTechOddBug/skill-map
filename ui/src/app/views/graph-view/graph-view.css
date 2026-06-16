@@ -322,20 +322,6 @@
   --ff-connection-width: 1px;
   --ff-marker-color: var(--sm-edge-mentions);
 }
-.f-conn--supersedes {
-  --ff-connection-color: var(--sm-edge-supersedes);
-  --ff-connection-width: 1.25px;
-  --ff-marker-color: var(--sm-edge-supersedes);
-}
-
-/* `supersedes` now uses a solid stroke; the grey colour token already
-   signals its lifecycle nature without needing a dash pattern. The
-   selector and the `::ng-deep` scope are kept so the rule remains a
-   single place to re-introduce a pattern if the visual story changes. */
-.graph__canvas-wrap ::ng-deep .f-conn--supersedes .f-connection-path {
-  stroke-dasharray: none;
-}
-
 
 /* Selection-driven edge states. Declared AFTER the per-kind selectors so
    the highlighted width override wins specificity by source order (both
@@ -393,11 +379,6 @@
   --ff-connection-color: var(--sm-edge-mentions-active);
   --ff-connection-selected-color: var(--sm-edge-mentions-active);
   --ff-marker-color: var(--sm-edge-mentions-active);
-}
-.f-conn--supersedes.f-selected {
-  --ff-connection-color: var(--sm-edge-supersedes-active);
-  --ff-connection-selected-color: var(--sm-edge-supersedes-active);
-  --ff-marker-color: var(--sm-edge-supersedes-active);
 }
 
 /* Phase 4 / View contribution system, graph.node.alert corner anchor.

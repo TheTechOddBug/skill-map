@@ -36,7 +36,6 @@ export const REFERENCE_BROKEN_TEXTS = {
     references: 'reference',
     mentions: 'mention',
     invokes: 'invocation',
-    supersedes: 'supersession',
     points: 'pointer',
   } as Record<string, string>,
   kindLabelFallback: '{{kind}} link',

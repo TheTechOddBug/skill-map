@@ -9,7 +9,7 @@ The toolkit splits responsibility across three layers: agents that hold context,
 
 ## Review path
 
-The review pipeline is the loudest cross-cutting concern in the demo. @frontend-specialist owns the Angular surface and defers to #code-review for diff-level rule enforcement. The retired @frontend-old agent is preserved as a deprecated node so the graph carries a `supersededBy` edge, useful for testing the inspector's banner without inventing fixtures on demand.
+The review pipeline is the loudest cross-cutting concern in the demo. @frontend-specialist owns the Angular surface and defers to #code-review for diff-level rule enforcement. The retired @frontend-old agent is preserved as a deprecated node (`stability: deprecated` in its sidecar), useful for showing how the inspector renders a deprecated node without inventing fixtures on demand.
 
 ## Deploy path
 

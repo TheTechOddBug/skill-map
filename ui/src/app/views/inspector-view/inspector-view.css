@@ -464,7 +464,7 @@
 }
 
 /* ---------------------------------------------------------------------
- * Banners (superseded, bump error). One-line callouts with a left icon
+ * Banners (bump / action error). One-line callouts with a left icon
  * and an optional dismiss button at the right.
  * ------------------------------------------------------------------- */
 .inspector__banner {

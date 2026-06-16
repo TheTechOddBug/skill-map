@@ -58,9 +58,9 @@ export interface IEmittedNode {
 export interface IExtractorCallbacks {
   /**
    * Emit a single Link. Validated against the global closed enum of
-   * link kinds (`invokes`, `references`, `mentions`, `supersedes`,
-   * `points`) before insertion; off-enum kinds drop silently with an
-   * `extension.error` event.
+   * link kinds (`invokes`, `references`, `mentions`, `points`) before
+   * insertion; off-enum kinds drop silently with an `extension.error`
+   * event.
    */
   emitLink(link: Link): void;
 

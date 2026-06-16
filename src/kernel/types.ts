@@ -102,7 +102,7 @@
  */
 export type NodeKind = 'skill' | 'agent' | 'command' | 'markdown';
 
-export type LinkKind = 'invokes' | 'references' | 'mentions' | 'supersedes' | 'points';
+export type LinkKind = 'invokes' | 'references' | 'mentions' | 'points';
 
 /**
  * Extractor's self-assessed confidence, normalized to `[0..1]`. Drives
@@ -114,7 +114,7 @@ export type LinkKind = 'invokes' | 'references' | 'mentions' | 'supersedes' | 'p
  *
  * Reference scoring (guideline, not contract):
  *
- *   `1.0`  structured input (sidecar `supersedes`)
+ *   `1.0`  structured input (sidecar annotation)
  *   `0.95` unambiguous syntax (`[text](file.md)`, `https://…`)
  *   `0.85` strong signal with one inference (`@file.md`)
  *   `0.5`  genuine ambiguity (`@bare-handle`)

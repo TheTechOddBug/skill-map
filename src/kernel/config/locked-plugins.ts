@@ -35,17 +35,6 @@ export const LOCKED_PLUGIN_IDS: ReadonlySet<string> = new Set<string>([
   // silently invisible, a foot-gun the host product does not want to
   // expose. Lock it in the enabled state.
   'core/markdown',
-  // `core/annotations` turns the `supersedes` / `supersededBy` /
-  // `requires` / `related` / `conflictsWith` entries of the sidecar
-  // `annotations:` block into the arrows the graph draws between nodes.
-  // It does NOT own the rest of the block (`version`, `stability`,
-  // `tags`, `description`, those live on the node bundle directly and
-  // keep rendering with the plugin off). Disabling it produces a
-  // confusing "edges disappear but the sidecar metadata stays" split
-  // that no operator actually wants; the lock makes the asymmetry
-  // unreachable from CLI / BFF / UI. Re-evaluate if a third-party ever
-  // ships a competing supersession extractor.
-  'core/annotations',
   // `core/schema-violation` validates every scanned Node against
   // `node.schema.json` and every Link against `link.schema.json` (the
   // authoritative @skill-map/spec). Disabling it makes the system

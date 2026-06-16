@@ -767,9 +767,9 @@ describe('/api/plugins', () => {
       assert.ok((claude?.description ?? '').length > 0);
       const core = env.items.find((p) => p.id === 'core');
       assert.ok(core?.description, 'core plugin must carry a description');
-      const superseded = (core?.extensions ?? []).find((e) => e.id === 'node-superseded');
-      assert.ok(superseded?.description, 'core/node-superseded must carry a description');
-      assert.ok((superseded?.description ?? '').length > 0);
+      const referenceBroken = (core?.extensions ?? []).find((e) => e.id === 'reference-broken');
+      assert.ok(referenceBroken?.description, 'core/reference-broken must carry a description');
+      assert.ok((referenceBroken?.description ?? '').length > 0);
     });
   });
 
@@ -777,8 +777,7 @@ describe('/api/plugins', () => {
     // `core/mcp-tools` declares `stability: 'experimental'` in its
     // manifest; a stable extension like `core/reference-broken` omits
     // the field (missing == `stable` per `extensions/base.schema.json`),
-    // so the wire must omit it too. (The supersession family, including
-    // `core/node-superseded`, is experimental and would carry the field.)
+    // so the wire must omit it too.
     await bootAndUse(defaultOptions(), async (handle) => {
       const env = (await (await fetch(url(handle, '/api/plugins'))).json()) as IListEnvelope<{
         id: string;
@@ -981,7 +980,7 @@ describe('PATCH /api/plugins/:pluginId/extensions/:extensionId', () => {
     await bootAndUse(defaultOptions(), async (handle) => {
       const out = await patchJson(
         handle,
-        '/api/plugins/core/extensions/node-superseded',
+        '/api/plugins/core/extensions/name-collision',
         { enabled: false },
       );
       assert.equal(out.status, 200);
@@ -990,10 +989,10 @@ describe('PATCH /api/plugins/:pluginId/extensions/:extensionId', () => {
         extensions?: Array<{ id: string; enabled: boolean }>;
       }>;
       const core = env.items.find((p) => p.id === 'core');
-      const ext = (core?.extensions ?? []).find((e) => e.id === 'node-superseded');
+      const ext = (core?.extensions ?? []).find((e) => e.id === 'name-collision');
       assert.equal(ext?.enabled, false);
       // Restore so subsequent tests see the default.
-      await patchJson(handle, '/api/plugins/core/extensions/node-superseded', { enabled: true });
+      await patchJson(handle, '/api/plugins/core/extensions/name-collision', { enabled: true });
     });
   });
 
@@ -1060,7 +1059,7 @@ describe('PATCH /api/plugins (bulk)', () => {
       const out = await patchJson(handle, '/api/plugins', {
         changes: [
           { id: 'claude', enabled: false },
-          { id: 'core/node-superseded', enabled: false },
+          { id: 'core/name-collision', enabled: false },
         ],
       });
       assert.equal(out.status, 200);
@@ -1071,14 +1070,14 @@ describe('PATCH /api/plugins (bulk)', () => {
       }>;
       const claude = env.items.find((p) => p.id === 'claude');
       const core = env.items.find((p) => p.id === 'core');
-      const superseded = (core?.extensions ?? []).find((e) => e.id === 'node-superseded');
+      const nameCollision = (core?.extensions ?? []).find((e) => e.id === 'name-collision');
       assert.equal(claude?.status, 'disabled');
-      assert.equal(superseded?.enabled, false);
+      assert.equal(nameCollision?.enabled, false);
       // Restore so subsequent tests see the defaults.
       await patchJson(handle, '/api/plugins', {
         changes: [
           { id: 'claude', enabled: true },
-          { id: 'core/node-superseded', enabled: true },
+          { id: 'core/name-collision', enabled: true },
         ],
       });
     });
@@ -1141,7 +1140,7 @@ describe('PATCH /api/plugins (bulk)', () => {
       const out = await patchJson(handle, '/api/plugins', {
         changes: [
           { id: 'claude', enabled: false },
-          { id: 'core/node-superseded', enabled: false },
+          { id: 'core/name-collision', enabled: false },
         ],
       });
       assert.equal(out.status, 200);
@@ -1149,7 +1148,7 @@ describe('PATCH /api/plugins (bulk)', () => {
       await patchJson(handle, '/api/plugins', {
         changes: [
           { id: 'claude', enabled: true },
-          { id: 'core/node-superseded', enabled: true },
+          { id: 'core/name-collision', enabled: true },
         ],
       });
     });

@@ -36,7 +36,6 @@ export const ALL_LINK_KINDS: readonly TLinkKindApi[] = [
   'references',
   'points',
   'mentions',
-  'supersedes',
 ];
 
 /** localStorage key for the search → map coupling preference. */

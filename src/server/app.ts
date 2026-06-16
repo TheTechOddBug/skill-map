@@ -230,8 +230,8 @@ export class ConflictError extends HTTPException {
  * `POST /api/actions/:id` route when an Action's report comes back
  * `ok: false`. Distinct from `ConflictError` because the refusal
  * `code` is open-ended: a plugin Action names its own refusal reason
- * (e.g. `sidecar-fresh`, `cycle-detected`, `supersede-self`), so the
- * code can't be a closed host union. The reason travels on the envelope
+ * (e.g. `sidecar-fresh`, `cycle-detected`), so the code can't be a
+ * closed host union. The reason travels on the envelope
  * `code` (sanitised); the full report ships under `details.report` so
  * the SPA can render the action-specific copy. When the report refuses
  * without naming a reason, the canonical `action-refused` is used.

@@ -53,7 +53,6 @@ import {
   type IInspectorDerivationsHandle,
 } from './inspector-derivations';
 import type { INodeView } from '../../../models/node';
-import { effectiveSupersededBy } from '../../../models/node-derived';
 
 @Component({
   selector: 'sm-inspector-view',
@@ -136,11 +135,6 @@ export class InspectorView implements OnInit {
     }
     return map;
   });
-
-  /** Banner: yellow strip when annotations.supersededBy is set. */
-  protected readonly headerSupersededBy = computed<string | null>(() =>
-    effectiveSupersededBy(this.node()),
-  );
 
   /**
    * Co-located `.sm` sidecar file name for the active node (the `.md`

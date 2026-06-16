@@ -92,24 +92,6 @@ export function effectiveIsStale(node: INodeView | null | undefined): boolean {
 }
 
 /**
- * Effective `supersededBy` reference (a sibling node path) for the
- * node, used by the filter store's deprecated-issues bucket and the
- * inspector's superseded-by banner.
- *
- * Source order: sidecar `annotations.supersededBy` → legacy
- * `metadata.supersededBy`. Returns `null` when both are absent or
- * the value is not a non-empty string.
- */
-export function effectiveSupersededBy(node: INodeView | null | undefined): string | null {
-  if (!node) return null;
-  const ann = node.sidecar?.annotations;
-  const fromAnn = ann?.['supersededBy'];
-  if (typeof fromAnn === 'string' && fromAnn.length > 0) return fromAnn;
-  const legacy = legacyFrontmatterMetadata(node.frontmatter)?.['supersededBy'];
-  return typeof legacy === 'string' && legacy.length > 0 ? legacy : null;
-}
-
-/**
  * Effective tag list (sidecar-curated). Tags are single-source: the
  * `.sm` sidecar `annotations.tags` is the canonical home; legacy
  * `frontmatter.metadata.tags` is the fallback for un-migrated `.md`

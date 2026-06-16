@@ -9,7 +9,7 @@
  * persisted to `scan_links` and never reach the rules layer.
  *
  * Design constraint: the spec's `link.kind` enum is locked to
- * `invokes / references / mentions / supersedes`. We reuse `references`
+ * `invokes / references / mentions / points`. We reuse `references`
  * (closest semantic match, a URL IS a reference, just to something
  * outside the graph) at low confidence to avoid bumping the spec for a
  * counter that the orchestrator strips before serialising.

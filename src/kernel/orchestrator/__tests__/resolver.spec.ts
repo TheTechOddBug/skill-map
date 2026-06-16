@@ -45,7 +45,7 @@ function makeCandidate(opts: Partial<SignalCandidate> & { extractorId: string })
   };
 }
 
-function makeProvider(opts?: { kindPriority?: readonly ('invokes' | 'references' | 'mentions' | 'supersedes')[] }): IProvider {
+function makeProvider(opts?: { kindPriority?: readonly ('invokes' | 'references' | 'mentions' | 'points')[] }): IProvider {
   return {
     id: 'test-provider',
     pluginId: 'test',
@@ -248,9 +248,9 @@ describe('resolveSignals · non-body scope pass-through', () => {
     const a = makeSignal({
       scope: 'sidecar',
       range: null,
-      candidates: [makeCandidate({ extractorId: 'annotations', kind: 'supersedes', target: 'old.md' })],
+      candidates: [makeCandidate({ extractorId: 'backtick-path', kind: 'references', target: 'old.md' })],
     });
-    const result = resolveSignals({ signals: [a], activeProvider: null, extractorOrder: ['annotations'] });
+    const result = resolveSignals({ signals: [a], activeProvider: null, extractorOrder: ['backtick-path'] });
     strictEqual(result.links.length, 1);
     strictEqual(a.resolution?.outcome, 'materialised');
   });

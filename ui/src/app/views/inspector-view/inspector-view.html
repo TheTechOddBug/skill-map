@@ -46,13 +46,6 @@
       <p class="inspector__desc" data-testid="inspector-description" [innerHTML]="descriptionHtml()"></p>
     }
 
-    @if (headerSupersededBy(); as sup) {
-      <div class="inspector__banner inspector__banner--warn" data-testid="inspector-superseded-banner">
-        <i class="pi pi-arrow-up-right" aria-hidden="true"></i>
-        <span>{{ texts.supersededByBanner(sup) }}</span>
-      </div>
-    }
-
     @if (actionError(); as err) {
       <div class="inspector__banner inspector__banner--error" data-testid="inspector-action-error">
         <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
@@ -156,11 +149,7 @@
           <code class="inspector__sidecar-file" smSectionTitleExtra data-testid="inspector-sidecar-file">({{ sf }})</code>
         }
         @if (expanded('annotations')) {
-          <sm-annotations-panel
-            [overlay]="n.sidecar"
-            [knownPaths]="pathSet()"
-            (openPath)="openPath($event)"
-          />
+          <sm-annotations-panel [overlay]="n.sidecar" />
         }
       </sm-collapsible-section>
     }

@@ -138,7 +138,6 @@ async function runWalk(opts: IWalkInvocation): Promise<void> {
     prior: null,
     priorIndex: {
       priorNodesByPath: new Map(),
-      priorNodePaths: new Set(),
       priorLinksByOriginating: new Map(),
       priorFrontmatterIssuesByNode: new Map(),
     },

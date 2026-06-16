@@ -28,7 +28,6 @@ import { LINK_SELF_LOOP_TEXTS } from '../link-self-loop/text.js';
 import { NAME_COLLISION_TEXTS } from '../name-collision/text.js';
 import { NAME_RESERVED_TEXTS } from '../name-reserved/text.js';
 import { NODE_STABILITY_TEXTS } from '../node-stability/text.js';
-import { NODE_SUPERSEDED_TEXTS } from '../node-superseded/text.js';
 import { REFERENCE_BROKEN_TEXTS } from '../reference-broken/text.js';
 import { REFERENCE_REDUNDANT_TEXTS } from '../reference-redundant/text.js';
 import { SCHEMA_VIOLATION_TEXTS } from '../schema-violation/text.js';
@@ -49,7 +48,6 @@ const BODY_TEMPLATES: ReadonlyArray<readonly [string, string]> = [
   ['name-reserved.message', NAME_RESERVED_TEXTS.message],
   ['name-reserved.linkMessage', NAME_RESERVED_TEXTS.linkMessage],
   ['node-stability.deprecated', NODE_STABILITY_TEXTS.deprecated],
-  ['node-superseded.message', NODE_SUPERSEDED_TEXTS.message],
   ['reference-broken.message', REFERENCE_BROKEN_TEXTS.message],
   ['reference-redundant.message', REFERENCE_REDUNDANT_TEXTS.message],
   ['schema-violation.nodeFailure', SCHEMA_VIOLATION_TEXTS.nodeFailure],

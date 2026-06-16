@@ -462,12 +462,12 @@ function buildVirtualNode(
  * `spec/schemas/link.schema.json#/properties/kind/enum`. Single source
  * for both the Link and the Signal-candidate validation below.
  */
-const KNOWN_LINK_KINDS: readonly LinkKind[] = ['invokes', 'references', 'mentions', 'supersedes', 'points'];
+const KNOWN_LINK_KINDS: readonly LinkKind[] = ['invokes', 'references', 'mentions', 'points'];
 
 function validateLink(extractor: IExtractor, link: Link, emitter: ProgressEmitterPort): Link | null {
   // Structure-as-truth: the per-extractor `emitsLinkKinds` allowlist was
   // retired; the global closed enum of link kinds (`invokes`, `references`,
-  // `mentions`, `supersedes`, `points`) is the contract. AJV / persistence
+  // `mentions`, `points`) is the contract. AJV / persistence
   // at higher layers reject off-enum kinds; this stage validates only that
   // the kind is a known enum member, surfacing an `extension.error` so
   // plugin authors see WHY a link they expected vanished.
@@ -582,13 +582,11 @@ function isValidSignalCandidate(
 }
 
 /**
- * Collapse duplicate links emitted by extractors that ran on different
- * nodes but produced the exact same edge. The classic case is
- * `core/annotations` when a relation is declared from BOTH sides
- * (`supersedes: [B]` on A.sm AND `supersededBy: A` on B.sm): each
- * extract pass is isolated per node, no shared dedup state, so the
- * same `(A → B, supersedes)` edge lands twice in the merged
- * link list. Without this pass, downstream consumers (the per-node
+ * Collapse duplicate links that resolve to the same edge. When two
+ * extractors converge on the same `(source, target, kind,
+ * normalizedTrigger)` (each extract pass is isolated, with no shared
+ * dedup state), the same edge lands more than once in the merged link
+ * list. Without this pass, downstream consumers (the per-node
  * `linksInCount` / `linksOutCount` denormalisations, the
  * `core/link-counter` chip, the `core/reference-broken` aggregator) inflate
  * proportionally.

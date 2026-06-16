@@ -16,7 +16,7 @@
  *   - commands/deploy.md, "Deploy"
  *
  *   ## links
- *   - agents/a.md --supersedes--> agents/b.md  [0.9]
+ *   - agents/a.md --invokes--> agents/b.md     [0.9]
  *   - notes/n.md --references--> notes/m.md    [0.85]
  *
  *   ## issues (1)

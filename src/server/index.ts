@@ -349,7 +349,7 @@ function assembleKernel(
   // runtime bucket today (`IPluginRuntime.extensions` has no `actions`
   // bucket), so only built-in actions are dispatchable over this route at
   // this step; that is sufficient for `core/node-bump` (Phase D's bump
-  // migration) and `core/node-supersede` (Step 2).
+  // migration).
   if (!noBuiltIns) {
     for (const action of builtIns().actions) {
       kernel.registry.register(action);

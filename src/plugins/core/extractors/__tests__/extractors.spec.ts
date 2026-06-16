@@ -1,7 +1,6 @@
 import { describe, it } from 'node:test';
 import { strictEqual, deepStrictEqual, ok } from 'node:assert';
 
-import { annotationsExtractor } from '../annotations/index.js';
 import { slashCommandExtractor } from '../../../claude/extractors/slash-command/index.js';
 import { atDirectiveExtractor } from '../../../claude/extractors/at-directive/index.js';
 import { externalUrlCounterExtractor } from '../external-url-counter/index.js';
@@ -60,15 +59,6 @@ function ctx(
   return { ctx: context, links, signals, enrichments };
 }
 
-/**
- * Compose a sidecar overlay with the given annotations block. Saves
- * each annotations test from spelling out `present: true` + `status`
- * + `root` boilerplate.
- */
-function withAnnotations(annotations: Record<string, unknown>): ISidecarOverlay {
-  return { present: true, status: 'fresh', annotations, root: { annotations } };
-}
-
 // Extractors' `extract()` returns `void | Promise<void>`. Await resolves
 // both uniformly and lets the test continue on the captured `links` array.
 //
@@ -103,86 +93,6 @@ async function extract(
     }
   }
 }
-
-describe('annotations extractor', () => {
-  it('emits supersedes links from annotations.supersedes[]', async () => {
-    const { ctx: context, links } = ctx(
-      'a.md',
-      '',
-      {},
-      withAnnotations({ supersedes: ['b.md', 'c.md'] }),
-    );
-    await extract(annotationsExtractor, context);
-    deepStrictEqual(
-      links.map((l) => ({ s: l.source, t: l.target, k: l.kind })),
-      [{ s: 'a.md', t: 'b.md', k: 'supersedes' }, { s: 'a.md', t: 'c.md', k: 'supersedes' }],
-    );
-  });
-
-  it('inverts supersededBy so the edge points from the new node', async () => {
-    const { ctx: context, links } = ctx(
-      'old.md',
-      '',
-      {},
-      withAnnotations({ supersededBy: 'new.md' }),
-    );
-    await extract(annotationsExtractor, context);
-    strictEqual(links.length, 1);
-    strictEqual(links[0]?.source, 'new.md');
-    strictEqual(links[0]?.target, 'old.md');
-    strictEqual(links[0]?.kind, 'supersedes');
-  });
-
-  it('emits nothing when no sidecar is present', async () => {
-    const { ctx: context, links } = ctx('a.md', '', {});
-    await extract(annotationsExtractor, context);
-    deepStrictEqual(links, []);
-  });
-
-  it('emits nothing when sidecar is present but the annotations block is empty', async () => {
-    const { ctx: context, links } = ctx(
-      'a.md',
-      '',
-      {},
-      { present: true, status: 'fresh', annotations: null, root: {} },
-    );
-    await extract(annotationsExtractor, context);
-    deepStrictEqual(links, []);
-  });
-
-  it('ignores legacy frontmatter `metadata:` (sidecar is the only source)', async () => {
-    // Post-fallback-drop guard: the legacy `metadata:` block in the
-    // frontmatter of unmigrated nodes used to feed this extractor;
-    // those edges must now be silently ignored.
-    const { ctx: context, links } = ctx(
-      'a.md',
-      '',
-      { metadata: { supersedes: ['b.md', 'c.md'] } },
-    );
-    await extract(annotationsExtractor, context);
-    deepStrictEqual(links, []);
-  });
-
-  it('filters out non-string entries silently', async () => {
-    const { ctx: context, links } = ctx(
-      'a.md',
-      '',
-      {},
-      withAnnotations({ supersedes: ['b.md', 42, null, ''] }),
-    );
-    await extract(annotationsExtractor, context);
-    strictEqual(links.length, 1);
-    strictEqual(links[0]?.target, 'b.md');
-  });
-
-  it('emits the right manifest shape', () => {
-    strictEqual(annotationsExtractor.id, 'annotations');
-    strictEqual(annotationsExtractor.pluginId, 'core');
-    // Structure-as-truth: `emitsLinkKinds` / `defaultConfidence` were
-    // retired. Per-emit confidence on `ctx.emitLink` is the contract.
-    strictEqual(annotationsExtractor.scope, 'frontmatter');
-  });
-});
 
 describe('slash extractor', () => {
   it('extracts /command tokens from body', async () => {

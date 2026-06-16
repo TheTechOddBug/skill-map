@@ -162,8 +162,7 @@ function resolvesViaReferencePaths(
  * `referenceablePaths` lookup. Trigger-style invocations carry a
  * `normalizedTrigger` that begins with a sigil (`/` for slash
  * commands, `@` for at-directives) and have no filesystem target,
- * so the side index doesn't apply. Everything else (frontmatter
- * annotations → `references` / `supersedes`, markdown links →
+ * so the side index doesn't apply. Everything else (markdown links →
  * `references`) is treated as path-style and gets the lookup.
  */
 function isPathStyleLink(link: Link): boolean {

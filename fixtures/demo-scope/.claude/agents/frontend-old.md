@@ -1,6 +1,6 @@
 ---
 name: frontend-old
-description: Deprecated Angular reviewer tuned for Angular 14. Superseded by @frontend-specialist.
+description: Deprecated Angular reviewer tuned for Angular 14. Replaced by @frontend-specialist.
 model: sonnet
 ---
 

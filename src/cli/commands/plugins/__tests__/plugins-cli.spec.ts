@@ -197,9 +197,9 @@ describe('sm plugins enable / disable', () => {
     const r = sm(['plugins', 'disable', '--all', '--yes'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     // Every extension lands as its own qualified id in the output.
-    // Built-in counts (per the current catalog): claude=3, antigravity=1,
-    // openai=1, agent-skills=1, core=27. User mocks: mock-c=1, mock-d=1.
-    // Total = 3+1+1+1+27+1+1 = 35 extensions cascaded.
+    // Built-in counts (per the current catalog): claude=4, antigravity=1,
+    // openai=1, agent-skills=1, core=26. User mocks: mock-c=1, mock-d=1.
+    // Total = 4+1+1+1+26+1+1 = 35 extensions cascaded.
     assert.match(r.stdout, /disabled: \d+ extension\(s\)/);
     assert.match(r.stdout, /- claude\/at-directive/);
     assert.match(r.stdout, /- core\/markdown-link/);
@@ -505,19 +505,19 @@ describe('sm plugins enable / disable, bundle macro', () => {
     assert.match(r.stderr, /Refusing to disable multiple extensions/);
   });
 
-  it('disable core/node-superseded (qualified id) flips just that analyzer', async () => {
+  it('disable core/name-collision (qualified id) flips just that analyzer', async () => {
     const scope = freshScope('macro-core-qualified');
     sm(['init', '--no-scan'], scope);
 
-    const r = sm(['plugins', 'disable', 'core/node-superseded'], scope);
+    const r = sm(['plugins', 'disable', 'core/name-collision'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    assert.match(r.stdout, /disabled: core\/node-superseded/);
+    assert.match(r.stdout, /disabled: core\/name-collision/);
 
     const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
     const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
     await adapter.init();
     try {
-      assert.equal(await getPluginEnabled(adapter.db, 'core/node-superseded'), false);
+      assert.equal(await getPluginEnabled(adapter.db, 'core/name-collision'), false);
       // Other core extensions and the claude plugin untouched.
       assert.equal(await getPluginEnabled(adapter.db, 'claude'), undefined);
       assert.equal(await getPluginEnabled(adapter.db, 'core/reference-broken'), undefined);
@@ -541,7 +541,7 @@ describe('sm plugins enable / disable, bundle macro', () => {
     // User plugin row carries `user` instead of `built-in`.
     assert.match(r.stdout, /✓\s+mock-list\b.*user/);
     // Names no longer appear in the index, they live in `list <id>`.
-    assert.doesNotMatch(r.stdout, /\bnode-superseded\b/);
+    assert.doesNotMatch(r.stdout, /\breference-broken\b/);
   });
 
   it('rejects qualified id under unknown plugin with directed message', () => {
@@ -574,13 +574,9 @@ describe('sm plugins doctor, disabled is not a failure', () => {
     const r = sm(['plugins', 'doctor'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     // Disabled is intentional, never an error: exit stays 0. The count
-    // is 4, the disabled `mock-h` drop-in plus the three experimental
-    // built-ins that ship disabled by default: `core/mcp-tools` and the
-    // supersession family (`core/node-supersede`, `core/node-superseded`).
-    // The former `core/supersede` projector analyzer was deleted (its
-    // button now self-projects from the `core/node-supersede` action),
-    // so the disabled count dropped by one.
-    assert.match(r.stdout, /disabled\s+4/);
+    // is 2, the disabled `mock-h` drop-in plus the one experimental
+    // built-in that ships disabled by default: `core/mcp-tools`.
+    assert.match(r.stdout, /disabled\s+2/);
   });
 });
 
@@ -849,7 +845,7 @@ describe('sm plugins list <id> + show <plugin>/<ext>, extension detail', () => {
     // Plugin header signature: "N extensions" counter.
     assert.match(r.stdout, /✓\s+core\s+built-in\s+\d+\s+extensions/);
     // Per-extension rows appear (at least one sibling we can spot-check).
-    assert.match(r.stdout, /\bnode-superseded\b/);
+    assert.match(r.stdout, /\breference-broken\b/);
     assert.match(r.stdout, /\bexternal-url-counter\b/);
   });
 

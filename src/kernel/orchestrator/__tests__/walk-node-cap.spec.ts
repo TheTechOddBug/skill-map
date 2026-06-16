@@ -93,7 +93,6 @@ async function runCapWalk(args: ICapRunArgs) {
     prior: null,
     priorIndex: {
       priorNodesByPath: new Map(),
-      priorNodePaths: new Set(),
       priorLinksByOriginating: new Map(),
       priorFrontmatterIssuesByNode: new Map(),
     },

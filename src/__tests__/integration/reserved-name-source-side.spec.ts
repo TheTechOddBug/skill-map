@@ -118,8 +118,8 @@ describe('core/name-reserved (source side, end-to-end through runScan)', () => {
     );
 
     // Filter to reserved-name issues only; other built-in analyzers
-    // (broken-ref, superseded, redundant-target-reference, ...) may
-    // also emit on this fixture and are out of scope here.
+    // (broken-ref, redundant-target-reference, ...) may also emit on
+    // this fixture and are out of scope here.
     const reservedNameIssues = result.issues.filter((i) => i.analyzerId === 'name-reserved');
     assert.equal(
       reservedNameIssues.length,

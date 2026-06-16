@@ -106,21 +106,18 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     assert.equal(qualifiedByKindAndShort.get('provider:agent-skills'), 'agent-skills/agent-skills');
 
     // Core kernel built-ins.
-    assert.equal(qualifiedByKindAndShort.get('extractor:annotations'), 'core/annotations');
     assert.equal(qualifiedByKindAndShort.get('extractor:slash-command'), 'claude/slash-command');
     assert.equal(qualifiedByKindAndShort.get('extractor:at-directive'), 'claude/at-directive');
     assert.equal(qualifiedByKindAndShort.get('extractor:external-url-counter'), 'core/external-url-counter');
     assert.equal(qualifiedByKindAndShort.get('analyzer:name-collision'), 'core/name-collision');
     assert.equal(qualifiedByKindAndShort.get('analyzer:node-stability'), 'core/node-stability');
     assert.equal(qualifiedByKindAndShort.get('analyzer:reference-broken'), 'core/reference-broken');
-    assert.equal(qualifiedByKindAndShort.get('analyzer:node-superseded'), 'core/node-superseded');
     assert.equal(qualifiedByKindAndShort.get('analyzer:link-kind-conflict'), 'core/link-kind-conflict');
     assert.equal(qualifiedByKindAndShort.get('analyzer:annotation-stale'), 'core/annotation-stale');
     assert.equal(qualifiedByKindAndShort.get('analyzer:annotation-orphan'), 'core/annotation-orphan');
     assert.equal(qualifiedByKindAndShort.get('formatter:ascii'), 'core/ascii');
     assert.equal(qualifiedByKindAndShort.get('analyzer:schema-violation'), 'core/schema-violation');
     assert.equal(qualifiedByKindAndShort.get('action:node-bump'), 'core/node-bump');
-    assert.equal(qualifiedByKindAndShort.get('action:node-supersede'), 'core/node-supersede');
     assert.equal(qualifiedByKindAndShort.get('action:node-set-stability'), 'core/node-set-stability');
     assert.equal(qualifiedByKindAndShort.get('action:node-set-tags'), 'core/node-set-tags');
   });
@@ -163,7 +160,8 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // Actions self-project their inspector button via scan-time `project()`: the two pure projector analyzers `core/supersede` + `core/tags` were deleted (their buttons moved onto `core/node-supersede` / `core/node-set-tags`), dropping the total back to 37.
     // `core/score-resolution` (a former `score`-phase analyzer that assigned the resolved-link 1.0 confidence) was briefly added (38) then deleted: the kernel now seeds the 1.0 confidence baseline on every link directly, and only the `core/name-reserved` / `core/reference-broken` detectors apply penalty deltas on top, dropping the total back to 37.
     // `core/job-file-orphan` (the rule that flagged orphan MD files under .skill-map/jobs/) was removed, to be reintroduced later under a probabilistic evaluation model; the `findOrphanJobFiles` helper + `sm job prune --orphan-files` verb stay, dropping the total to 36.
-    assert.equal(rows.length, 36);
+    // The supersede feature was removed wholesale: the `core/annotations` extractor (its only producer), the `core/node-supersede` action, and the `core/node-superseded` analyzer were all deleted, dropping the total to 33.
+    assert.equal(rows.length, 33);
   });
 
   // Convention guard: every built-in EXTRACTOR description ends with a

@@ -34,8 +34,6 @@
   --sm-edge-points-active: #a78bfa;
   --sm-edge-mentions: #8ec2db;
   --sm-edge-mentions-active: #38bdf8;
-  --sm-edge-supersedes: #6b7280;
-  --sm-edge-supersedes-active: #d1d5db;
 
   /* Neutral grey used by edge mixes; same hex as light today (the
      mid-grey reads the same on both surfaces) but kept here so the

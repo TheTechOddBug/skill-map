@@ -31,9 +31,9 @@
 
   /* === Edge palette (graph link kinds) ===
      One pair per spec link kind (invokes / references / mentions /
-     supersedes). The four kinds describe how a node refers to another:
+     points). The kinds describe how a node refers to another:
      execution (invokes), formal citation (references), plain-text
-     mention (mentions), or lifecycle replacement (supersedes).
+     mention (mentions), or a code-region path pointer (points).
      Saturation tuned down from the original Tailwind-500 hues so the
      graph reads as a calm reference network, not a Saturday-morning
      cartoon, kind hue stays recognisable, but the line/marker no
@@ -54,8 +54,6 @@
   --sm-edge-points-active: #7c3aed;
   --sm-edge-mentions: #6fa2c0;
   --sm-edge-mentions-active: #0ea5e9;
-  --sm-edge-supersedes: #9ca3af;
-  --sm-edge-supersedes-active: #4b5563;
 
   /* Neutral grey used by edge mixes (matrix interpolates against this)
      and by per-component muted strokes. Centralising it here keeps the

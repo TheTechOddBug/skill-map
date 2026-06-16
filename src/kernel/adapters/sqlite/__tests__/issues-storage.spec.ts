@@ -165,7 +165,7 @@ describe('port.issues.list (audit L6)', () => {
     try {
       await plantIssues(adapter, [
         { analyzerId: 'core/reference-broken', severity: 'error', nodeIds: ['n.md'], message: 'a' },
-        { analyzerId: 'core/node-superseded', severity: 'warn', nodeIds: ['n.md'], message: 'b' },
+        { analyzerId: 'core/name-collision', severity: 'warn', nodeIds: ['n.md'], message: 'b' },
         { analyzerId: 'plugin/x', severity: 'info', nodeIds: ['n.md'], message: 'c' },
       ]);
 
@@ -190,7 +190,7 @@ describe('port.issues.list (audit L6)', () => {
 
       // Mixed list (qualified + short) ORs across entries.
       const mixed = await adapter.issues.list({
-        analyzerIds: ['core/reference-broken', 'node-superseded'],
+        analyzerIds: ['core/reference-broken', 'name-collision'],
         offset: 0,
         limit: 100,
       });
@@ -275,7 +275,7 @@ describe('port.issues.list (audit L6)', () => {
         },
         // Same severity + node but wrong analyzer.
         {
-          analyzerId: 'core/node-superseded',
+          analyzerId: 'core/name-collision',
           severity: 'error',
           nodeIds: ['.claude/agents/architect.md'],
           message: 'no-analyzer',

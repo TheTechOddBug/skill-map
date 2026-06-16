@@ -127,7 +127,7 @@
           "description": "When present, the resolver ranks candidates whose `kind` appears earlier in this array ABOVE candidates whose `kind` appears later. Candidates whose `kind` is absent from the array drop to the end (after every listed kind). Example: a Provider that wants `invokes` edges to win against `mentions` and `references` of the same range declares `['invokes', 'references', 'mentions']`. Ties inside the same `kindPriority` bucket fall through to the confidence -> range length -> declaration order tiebreaks.",
           "items": {
             "type": "string",
-            "enum": ["invokes", "references", "mentions", "supersedes", "points"]
+            "enum": ["invokes", "references", "mentions", "points"]
           }
         }
       }

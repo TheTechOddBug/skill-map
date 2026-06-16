@@ -3,11 +3,11 @@
  * `walkAndExtract` and before `recomputeLinkCounts` / analyzers.
  *
  * The deduper is the single source of truth for "two extracts of the
- * same edge collapse into one persisted row"; the canonical case is
- * `core/annotations` declaring a bidirectional relation
- * (`supersedes[]` on A.sm + `supersededBy: A` on B.sm) which produces
- * two identical `(A→B, supersedes)` emits, one per node's extract
- * pass. Without dedup the link counters double-count.
+ * same edge collapse into one persisted row"; the canonical case is two
+ * extractors converging on the same edge (e.g. a body markdown-link and
+ * a sidecar annotation both resolving `A → B` as `references`), which
+ * produces two identical `(A→B, references)` emits. Without dedup the
+ * link counters double-count.
  */
 
 import { describe, it } from 'node:test';
@@ -40,10 +40,11 @@ describe('dedupeLinks', () => {
   });
 
   it('collapses two identical `(source, target, kind, trigger)` emissions', () => {
-    // The annotation-bidirectional pattern: both nodes' extract passes
-    // produced the same edge. After dedup, exactly one survives.
-    const a = mockLink({ kind: 'supersedes', sources: ['annotations'] });
-    const b = mockLink({ kind: 'supersedes', sources: ['annotations'] });
+    // Two extractors converged on the same edge: both produced an
+    // identical `(A→B, references)` emit. After dedup, exactly one
+    // survives.
+    const a = mockLink({ kind: 'references', sources: ['markdown-link'] });
+    const b = mockLink({ kind: 'references', sources: ['markdown-link'] });
     const out = dedupeLinks([a, b]);
     strictEqual(out.length, 1);
   });
@@ -102,21 +103,21 @@ describe('dedupeLinks', () => {
 
   it('unions `sources[]` from duplicate emissions, preserving first-seen order', () => {
     // Same edge surfaced by two extractors: body markdown-link AND
-    // sidecar annotation. The deduped row keeps both attributions so
-    // a future inspector can render "this edge comes from N sources".
+    // backtick-path. The deduped row keeps both attributions so a future
+    // inspector can render "this edge comes from N sources".
     const fromBody = mockLink({ sources: ['markdown-link'] });
-    const fromSidecar = mockLink({ sources: ['annotations'] });
-    const out = dedupeLinks([fromBody, fromSidecar]);
+    const fromBacktick = mockLink({ sources: ['backtick-path'] });
+    const out = dedupeLinks([fromBody, fromBacktick]);
     strictEqual(out.length, 1);
-    deepStrictEqual(out[0]!.sources, ['markdown-link', 'annotations']);
+    deepStrictEqual(out[0]!.sources, ['markdown-link', 'backtick-path']);
   });
 
   it('does not duplicate a source value when both occurrences already list it', () => {
-    const a = mockLink({ sources: ['annotations'] });
-    const b = mockLink({ sources: ['annotations'] });
+    const a = mockLink({ sources: ['markdown-link'] });
+    const b = mockLink({ sources: ['markdown-link'] });
     const out = dedupeLinks([a, b]);
     strictEqual(out.length, 1);
-    deepStrictEqual(out[0]!.sources, ['annotations']);
+    deepStrictEqual(out[0]!.sources, ['markdown-link']);
   });
 
   it('keeps the FIRST occurrence as the winner (deterministic order)', () => {
@@ -146,7 +147,7 @@ describe('dedupeLinks', () => {
 
   it('handles many duplicates of the same edge in one pass', () => {
     const links = Array.from({ length: 50 }, () =>
-      mockLink({ kind: 'supersedes', sources: ['annotations'] }),
+      mockLink({ kind: 'references', sources: ['markdown-link'] }),
     );
     const out = dedupeLinks(links);
     strictEqual(out.length, 1);

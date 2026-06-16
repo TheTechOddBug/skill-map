@@ -49,7 +49,7 @@ export type TStability = 'experimental' | 'stable' | 'deprecated';
  */
 export type TSidecarStatus = 'fresh' | 'stale-body' | 'stale-frontmatter' | 'stale-both';
 
-export type TLinkKind = 'invokes' | 'references' | 'mentions' | 'supersedes' | 'points';
+export type TLinkKind = 'invokes' | 'references' | 'mentions' | 'points';
 /**
  * Migrated 2026-05-18: confidence stored as REAL `[0..1]`. The named
  * tiers `'high' | 'medium' | 'low'` are exposed at the domain layer

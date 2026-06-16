@@ -23,7 +23,6 @@ import { antigravityProvider as _antigravityProvider } from './antigravity/provi
 import { openaiProvider as _openaiProvider } from './openai/providers/openai/index.js';
 import { agentSkillsProvider as _agentSkillsProvider } from './agent-skills/providers/agent-skills/index.js';
 import { coreMarkdownProvider as _coreMarkdownProvider } from './core/providers/core-markdown/index.js';
-import { annotationsExtractor as _annotationsExtractor } from './core/extractors/annotations/index.js';
 import { backtickPathExtractor as _backtickPathExtractor } from './core/extractors/backtick-path/index.js';
 import { externalUrlCounterExtractor as _externalUrlCounterExtractor } from './core/extractors/external-url-counter/index.js';
 import { markdownLinkExtractor as _markdownLinkExtractor } from './core/extractors/markdown-link/index.js';
@@ -40,7 +39,6 @@ import { linkSelfLoopAnalyzer as _linkSelfLoopAnalyzer } from './core/analyzers/
 import { nameCollisionAnalyzer as _nameCollisionAnalyzer } from './core/analyzers/name-collision/index.js';
 import { nameReservedAnalyzer as _nameReservedAnalyzer } from './core/analyzers/name-reserved/index.js';
 import { nodeStabilityAnalyzer as _nodeStabilityAnalyzer } from './core/analyzers/node-stability/index.js';
-import { nodeSupersededAnalyzer as _nodeSupersededAnalyzer } from './core/analyzers/node-superseded/index.js';
 import { referenceBrokenAnalyzer as _referenceBrokenAnalyzer } from './core/analyzers/reference-broken/index.js';
 import { referenceRedundantAnalyzer as _referenceRedundantAnalyzer } from './core/analyzers/reference-redundant/index.js';
 import { schemaViolationAnalyzer as _schemaViolationAnalyzer } from './core/analyzers/schema-violation/index.js';
@@ -49,7 +47,6 @@ import { jsonFormatter as _jsonFormatter } from './core/formatters/json/index.js
 import { nodeBumpAction as _nodeBumpAction } from './core/actions/node-bump/index.js';
 import { nodeSetStabilityAction as _nodeSetStabilityAction } from './core/actions/node-set-stability/index.js';
 import { nodeSetTagsAction as _nodeSetTagsAction } from './core/actions/node-set-tags/index.js';
-import { nodeSupersedeAction as _nodeSupersedeAction } from './core/actions/node-supersede/index.js';
 import { updateCheckHook as _updateCheckHook } from './core/hooks/update-check/index.js';
 
 const claudeProvider = { ..._claudeProvider, pluginId: 'claude', version: VERSION };
@@ -60,7 +57,6 @@ const antigravityProvider = { ..._antigravityProvider, pluginId: 'antigravity', 
 const openaiProvider = { ..._openaiProvider, pluginId: 'openai', version: VERSION };
 const agentSkillsProvider = { ..._agentSkillsProvider, pluginId: 'agent-skills', version: VERSION };
 const coreMarkdownProvider = { ..._coreMarkdownProvider, pluginId: 'core', version: VERSION };
-const annotationsExtractor = { ..._annotationsExtractor, pluginId: 'core', version: VERSION };
 const backtickPathExtractor = { ..._backtickPathExtractor, pluginId: 'core', version: VERSION };
 const externalUrlCounterExtractor = { ..._externalUrlCounterExtractor, pluginId: 'core', version: VERSION };
 const markdownLinkExtractor = { ..._markdownLinkExtractor, pluginId: 'core', version: VERSION };
@@ -77,7 +73,6 @@ const linkSelfLoopAnalyzer = { ..._linkSelfLoopAnalyzer, pluginId: 'core', versi
 const nameCollisionAnalyzer = { ..._nameCollisionAnalyzer, pluginId: 'core', version: VERSION };
 const nameReservedAnalyzer = { ..._nameReservedAnalyzer, pluginId: 'core', version: VERSION };
 const nodeStabilityAnalyzer = { ..._nodeStabilityAnalyzer, pluginId: 'core', version: VERSION };
-const nodeSupersededAnalyzer = { ..._nodeSupersededAnalyzer, pluginId: 'core', version: VERSION };
 const referenceBrokenAnalyzer = { ..._referenceBrokenAnalyzer, pluginId: 'core', version: VERSION };
 const referenceRedundantAnalyzer = { ..._referenceRedundantAnalyzer, pluginId: 'core', version: VERSION };
 const schemaViolationAnalyzer = { ..._schemaViolationAnalyzer, pluginId: 'core', version: VERSION };
@@ -86,7 +81,6 @@ const jsonFormatter = { ..._jsonFormatter, pluginId: 'core', version: VERSION };
 const nodeBumpAction = { ..._nodeBumpAction, pluginId: 'core', version: VERSION };
 const nodeSetStabilityAction = { ..._nodeSetStabilityAction, pluginId: 'core', version: VERSION };
 const nodeSetTagsAction = { ..._nodeSetTagsAction, pluginId: 'core', version: VERSION };
-const nodeSupersedeAction = { ..._nodeSupersedeAction, pluginId: 'core', version: VERSION };
 const updateCheckHook = { ..._updateCheckHook, pluginId: 'core', version: VERSION };
 
 export interface IBuiltIns {
@@ -143,7 +137,6 @@ export const builtInPlugins: IBuiltInPlugin[] = [
     description: 'Core extensions shared across providers: parsers, extractors, analyzers, actions, hooks, formatters, and the universal `.md` fallback provider.',
     extensions: [
       coreMarkdownProvider,
-      annotationsExtractor,
       backtickPathExtractor,
       externalUrlCounterExtractor,
       markdownLinkExtractor,
@@ -160,7 +153,6 @@ export const builtInPlugins: IBuiltInPlugin[] = [
       nameCollisionAnalyzer,
       nameReservedAnalyzer,
       nodeStabilityAnalyzer,
-      nodeSupersededAnalyzer,
       referenceBrokenAnalyzer,
       referenceRedundantAnalyzer,
       schemaViolationAnalyzer,
@@ -169,7 +161,6 @@ export const builtInPlugins: IBuiltInPlugin[] = [
       nodeBumpAction,
       nodeSetStabilityAction,
       nodeSetTagsAction,
-      nodeSupersedeAction,
       updateCheckHook,
     ],
   },

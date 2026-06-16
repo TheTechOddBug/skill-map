@@ -57,7 +57,7 @@ after(() => {
  *
  *   - 100 rows: `core/reference-broken`, severity `error`, node `target.md`
  *     plus a per-row unique companion.
- *   - 30 rows: `core/node-superseded`, severity `warn`, node mix.
+ *   - 30 rows: `core/name-collision`, severity `warn`, node mix.
  *   - 20 rows: `plugin/orphan`, severity `info`, unrelated nodes.
  *
  * Total 150 rows. Tests pick filters expecting specific subset sizes
@@ -92,11 +92,11 @@ async function primeIssuesDb(db: string): Promise<void> {
     }
     for (let i = 0; i < 30; i++) {
       inserts.push({
-        analyzerId: 'core/node-superseded',
+        analyzerId: 'core/name-collision',
         severity: 'warn',
         nodeIdsJson: JSON.stringify([`legacy-${i}.md`]),
         linkIndicesJson: null,
-        message: `superseded-${i}`,
+        message: `collision-${i}`,
         detail: null,
         fixJson: null,
         dataJson: null,
@@ -253,12 +253,12 @@ describe('/api/issues, pagination + filters', () => {
     });
   });
 
-  it('?analyzerId=core/node-superseded (qualified form) matches exactly that analyzer', async () => {
+  it('?analyzerId=core/name-collision (qualified form) matches exactly that analyzer', async () => {
     await bootAndUse(defaultOptions(), async (handle) => {
-      const res = await fetch(url(handle, '/api/issues?analyzerId=core/node-superseded'));
+      const res = await fetch(url(handle, '/api/issues?analyzerId=core/name-collision'));
       const env = (await res.json()) as IListEnvelope<IIssueShape>;
       assert.equal(env.counts.total, 30);
-      for (const issue of env.items) assert.equal(issue.analyzerId, 'core/node-superseded');
+      for (const issue of env.items) assert.equal(issue.analyzerId, 'core/name-collision');
     });
   });
 

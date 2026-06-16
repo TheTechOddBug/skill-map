@@ -2,35 +2,8 @@ import { describe, it } from 'node:test';
 import { strictEqual, ok } from 'node:assert';
 
 import { nameCollisionAnalyzer } from '../name-collision/index.js';
-import { nodeSupersededAnalyzer } from '../node-superseded/index.js';
 import { linkKindConflictAnalyzer } from '../link-kind-conflict/index.js';
-import type { Confidence, Issue, Link, LinkKind, Node, NodeKind } from '../../../../kernel/types.js';
-
-function mockNode(
-  path: string,
-  name?: string,
-  annotations: Record<string, unknown> = {},
-  kind: NodeKind = 'markdown',
-): Node {
-  return {
-    path,
-    kind,
-    provider: 'claude',
-    bodyHash: 'x'.repeat(64),
-    frontmatterHash: 'y'.repeat(64),
-    bytes: { frontmatter: 0, body: 0, total: 0 },
-    linksOutCount: 0,
-    linksInCount: 0,
-    externalRefsCount: 0,
-    frontmatter: { name },
-    sidecar: {
-      present: true,
-      status: 'fresh',
-      annotations: Object.keys(annotations).length === 0 ? null : annotations,
-      root: { annotations },
-    },
-  };
-}
+import type { Confidence, Issue, Link, LinkKind, Node } from '../../../../kernel/types.js';
 
 // Rules' evaluate() returns Issue[] | Promise<Issue[]>. Await resolves both
 // shapes uniformly and keeps each test's assertions typed as Issue[].
@@ -106,33 +79,6 @@ describe('name-collision rule', () => {
     const issues = runNameCollision(collisions);
     strictEqual(issues.length, 1);
     ok(issues[0]!.message.startsWith('`reviewer`:'));
-  });
-});
-
-describe('superseded rule', () => {
-  it('emits info per node declaring supersededBy', async () => {
-    const nodes = [
-      mockNode('old.md', 'old', { supersededBy: 'new.md' }),
-      mockNode('new.md', 'new'),
-      mockNode('other.md', 'other'),
-    ];
-    const issues = await run(nodeSupersededAnalyzer, { nodes, links: [] });
-    strictEqual(issues.length, 1);
-    strictEqual(issues[0]?.nodeIds[0], 'old.md');
-    strictEqual(issues[0]?.severity, 'info');
-    ok(issues[0]?.message.includes('new.md'));
-  });
-
-  it('ignores nodes with no sidecar annotations', async () => {
-    const node = mockNode('a.md', 'a'); // no annotations supplied
-    const issues = await run(nodeSupersededAnalyzer, { nodes: [node], links: [] });
-    strictEqual(issues.length, 0);
-  });
-
-  it('ignores non-string supersededBy values', async () => {
-    const nodes = [mockNode('a.md', 'a', { supersededBy: '' }), mockNode('b.md', 'b', { supersededBy: 42 })];
-    const issues = await run(nodeSupersededAnalyzer, { nodes, links: [] });
-    strictEqual(issues.length, 0);
   });
 });
 

@@ -104,13 +104,6 @@
   color: var(--sm-edge-mentions-active);
 }
 
-:host ::ng-deep .link-kind-palette__btn--supersedes .link-kind-palette__glyph {
-  color: var(--sm-edge-supersedes);
-}
-:host ::ng-deep .link-kind-palette__btn--supersedes[aria-pressed='true'] .link-kind-palette__glyph {
-  color: var(--sm-edge-supersedes-active);
-}
-
 /* Multi-line tooltip: each entry embeds `\n` between the label and one
    syntax example per line (References lists two forms). Default
    PrimeNG text collapses whitespace and caps the tooltip at 12.5rem,

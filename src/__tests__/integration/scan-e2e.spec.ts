@@ -39,39 +39,9 @@ before(async () => {
     '.claude/commands/deploy.md',
     ['---', 'name: deploy', 'description: Deploy', '---', 'Deploy body.'].join('\n'),
   );
-  // Note: .claude/commands/deploy-v2.md intentionally absent so the
-  // supersedes edge from annotations.supersededBy is a known "broken
-  // target" candidate, except that broken-ref doesn't fire on
-  // `supersedes` because the rule treats the inverted edge as
-  // authoritative (source is the new file, which doesn't yet exist).
-  // The superseded rule still fires on the old node.
   write(
     '.claude/commands/rollback.md',
     ['---', 'name: Rollback', '---', 'Rollback body.'].join('\n'),
-  );
-
-  // Baseline scan + sidecar for the structured-annotation link
-  // (`annotations.supersededBy`). Sidecar is the only surface for
-  // annotation-driven edges after `core/annotations` dropped the
-  // legacy frontmatter `metadata:` fallback. The body-driven
-  // `references` edge from architect → deploy now comes from the
-  // markdown-link in architect.md (see write() above).
-  const baselineKernel = createKernel();
-  for (const manifest of listBuiltIns()) baselineKernel.registry.register(manifest);
-  const baseline = await runScan(baselineKernel, { roots: [fixture], extensions: builtIns() });
-  const deploy = baseline.nodes.find((n) => n.path === '.claude/commands/deploy.md');
-  ok(deploy, 'baseline must yield deploy node');
-  write(
-    '.claude/commands/deploy.sm',
-    [
-      'identity:',
-      '  path: .claude/commands/deploy.md',
-      `  bodyHash: ${deploy!.bodyHash}`,
-      `  frontmatterHash: ${deploy!.frontmatterHash}`,
-      'annotations:',
-      '  version: 1',
-      '  supersededBy: .claude/commands/deploy-v2.md',
-    ].join('\n'),
   );
 });
 
@@ -109,21 +79,16 @@ describe('scan end-to-end', () => {
       strictEqual(node.provider, 'claude');
     }
 
-    // Links: markdown-link to deploy + slash /deploy + slash /unknown + at @backend-lead
-    //      + supersededBy inversion (deploy-v2 → deploy).
+    // Links: markdown-link to deploy + slash /deploy + slash /unknown + at @backend-lead.
     const linkSummaries = result.links.map((l) => `${l.source}|${l.kind}|${l.target}`).sort();
     ok(linkSummaries.includes('.claude/agents/architect.md|references|.claude/commands/deploy.md'));
     ok(linkSummaries.some((s) => s.startsWith('.claude/agents/architect.md|invokes|/deploy')));
     ok(linkSummaries.some((s) => s.startsWith('.claude/agents/architect.md|invokes|/unknown')));
     ok(linkSummaries.some((s) => s.startsWith('.claude/agents/architect.md|mentions|@backend-lead')));
-    ok(linkSummaries.some((s) => s.endsWith('|supersedes|.claude/commands/deploy.md')));
 
-    // Issues: reference-broken for /unknown + @backend-lead (deploy-v2 target
-    // isn't covered because the inversion points AT deploy.md, not FROM
-    // deploy-v2.md, the link source is what reference-broken checks).
+    // Issues: reference-broken for /unknown + @backend-lead.
     const issueIds = result.issues.map((i) => i.analyzerId).sort();
     ok(issueIds.includes('reference-broken'));
-    ok(issueIds.includes('node-superseded'));
 
     // Link counts denormalised onto nodes.
     const architect = result.nodes.find((n) => n.path === '.claude/agents/architect.md');
@@ -131,7 +96,7 @@ describe('scan end-to-end', () => {
     ok((architect?.linksOutCount ?? 0) >= 3, 'architect emits ≥3 outbound links');
     const deploy = result.nodes.find((n) => n.path === '.claude/commands/deploy.md');
     ok(deploy);
-    ok((deploy?.linksInCount ?? 0) >= 2, 'deploy receives markdown-link + supersedes edges');
+    ok((deploy?.linksInCount ?? 0) >= 1, 'deploy receives the markdown-link edge');
   });
 
   it('lifts resolved invocation links to confidence 1.0 in a real scan flow', async () => {

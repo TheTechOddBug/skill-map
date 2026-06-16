@@ -436,8 +436,8 @@ describe('external_refs_count lifecycle across body edits', () => {
 describe('replace-all ID rotation across re-scans', () => {
   it('scan_links and scan_issues IDs are non-stable across re-scans; natural keys round-trip', async () => {
     const fixture = freshFixture('id-rotation');
-    // Same shape as the canonical fixture: links + a broken-ref + a
-    // superseded issue. Enough rows to make ID rotation observable.
+    // Same shape as the canonical fixture: links + broken-ref issues.
+    // Enough rows to make ID rotation observable.
     writeFixtureFile(
       fixture,
       '.claude/agents/architect.md',
@@ -455,14 +455,7 @@ describe('replace-all ID rotation across re-scans', () => {
     writeFixtureFile(
       fixture,
       '.claude/commands/deploy.md',
-      [
-        '---',
-        'name: deploy',
-        'metadata:',
-        '  supersededBy: .claude/commands/deploy-v2.md',
-        '---',
-        'Deploy body.',
-      ].join('\n'),
+      ['---', 'name: deploy', '---', 'Deploy body.'].join('\n'),
     );
 
     const adapter = new SqliteStorageAdapter({

@@ -126,13 +126,13 @@ Built-ins split between two namespaces:
 
 ### Extension id shape
 
-The convention applied to every built-in extension id is **`<domain>-<detail>`** (general to specific): the leftmost segment names the entity the extension reasons about (`node`, `link`, `annotation`, `reference`, `name`, ...), the rest narrows the behaviour. Examples: `annotation-orphan`, `link-counter`, `node-stability`, `name-reserved`, `reference-broken`. Even Actions live under their entity domain (`node-bump`, `node-supersede`) rather than verb-style ids, so the catalog reads as a structured list.
+The convention applied to every built-in extension id is **`<domain>-<detail>`** (general to specific): the leftmost segment names the entity the extension reasons about (`node`, `link`, `annotation`, `reference`, `name`, ...), the rest narrows the behaviour. Examples: `annotation-orphan`, `link-counter`, `node-stability`, `name-reserved`, `reference-broken`. Even Actions live under their entity domain (`node-bump`, `node-set-tags`) rather than verb-style ids, so the catalog reads as a structured list.
 
 Authors are not required to follow this, but it makes `sm plugins list` self-grouping. In the extension file, declare only the short id-bearing **folder name**, not a prefixed id; the loader composes `<plugin-id>/<short-id>` from `plugin.json` (the directory name) and the extension folder. Any other cross-extension reference (`precondition.analyzerIds`, ...) uses the qualified id of the target.
 
 ### Toggle model
 
-Every extension is independently toggle-able by its qualified id `<plugin>/<ext-id>` (e.g. `claude/at-directive`, `core/node-superseded`). The **plugin row is a presentational grouping**, not the granular toggle target: the user sees a row per plugin in `sm plugins list` and the Settings UI, with each extension listed underneath with its own enabled / disabled state.
+Every extension is independently toggle-able by its qualified id `<plugin>/<ext-id>` (e.g. `claude/at-directive`, `core/reference-broken`). The **plugin row is a presentational grouping**, not the granular toggle target: the user sees a row per plugin in `sm plugins list` and the Settings UI, with each extension listed underneath with its own enabled / disabled state.
 
 Two id shapes resolve at the toggle surface:
 
@@ -250,7 +250,7 @@ Pure single-node analysis. **Never** read another node, the graph, or the databa
 
 `extract(ctx) → void`. Output flows through callbacks the kernel binds onto `ctx`:
 
-- **`ctx.emitLink(link)`**, append a `Link`. The kernel validates `link.kind` against the **global closed enum** (`invokes`, `references`, `mentions`, `supersedes`, `points`); off-enum kinds drop as `extension.error`. Confidence is declared per emit (default `'medium'`). URL-shaped targets are partitioned into `node.externalRefsCount` and never persisted. (There is no per-extractor `emitsLinkKinds` allowlist anymore.)
+- **`ctx.emitLink(link)`**, append a `Link`. The kernel validates `link.kind` against the **global closed enum** (`invokes`, `references`, `mentions`, `points`); off-enum kinds drop as `extension.error`. Confidence is declared per emit (default `'medium'`). URL-shaped targets are partitioned into `node.externalRefsCount` and never persisted. (There is no per-extractor `emitsLinkKinds` allowlist anymore.)
 - **`ctx.enrichNode(partial)`**, merge kernel-curated properties onto the node's enrichment layer (persisted into `node_enrichments`). **Strictly separate from the author frontmatter**, which is immutable from any Extractor. Use it for inferred facts (computed titles, summaries) the author did not write.
 - **`ctx.emitContribution(id, payload)`**, view contributions (see [View contributions](#view-contributions)).
 - **`ctx.store`**, plugin-scoped persistence, present only when `plugin.json` declares `storage.mode`. See [`plugin-kv-api.md`](./plugin-kv-api.md).
@@ -414,7 +414,7 @@ Operate on one or more nodes. Dual-mode (`mode` optional, default `'deterministi
 An Action has two independent surfaces:
 
 - **`invoke(input, ctx)`**, the on-demand executor the user triggers (deterministic in-process code, or a probabilistic rendered prompt the runner executes). Unit-test deterministic ones by calling `invoke(input, ctx)` with a fake context; probabilistic ones still need a live kernel until Step 10 lands the job subsystem.
-- **`project(ctx)`** (optional), a deterministic, side-effect-free, scan-time method with read-only graph access (`ctx.nodes`, `ctx.links`) plus `ctx.emitContribution(nodePath, ref, payload)`. Use it to self-project the Action's own UI affordance, typically an `inspector.action.button` declared in the manifest `ui` map (see [View contributions](#view-contributions)), computing the per-node `enabled` / prompt `options` from the live graph. `project()` is always deterministic, even when `invoke` is probabilistic, and runs every scan (same cost as an analyzer's emit). This is how built-in buttons like Supersede / Edit tags / Bump are produced: the dispatching Action owns its button, there is no separate "projector" analyzer. Unit-test it by calling `project(ctx)` with a fake `{ nodes, links, emitContribution }` and asserting the captured payload.
+- **`project(ctx)`** (optional), a deterministic, side-effect-free, scan-time method with read-only graph access (`ctx.nodes`, `ctx.links`) plus `ctx.emitContribution(nodePath, ref, payload)`. Use it to self-project the Action's own UI affordance, typically an `inspector.action.button` declared in the manifest `ui` map (see [View contributions](#view-contributions)), computing the per-node `enabled` / prompt `options` from the live graph. `project()` is always deterministic, even when `invoke` is probabilistic, and runs every scan (same cost as an analyzer's emit). This is how built-in buttons like Edit tags / Bump are produced: the dispatching Action owns its button, there is no separate "projector" analyzer. Unit-test it by calling `project(ctx)` with a fake `{ nodes, links, emitContribution }` and asserting the captured payload.
 
 ---
 

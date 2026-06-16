@@ -16,9 +16,8 @@ import type { TLinkKindApi } from '../../../models/api';
  * a literal markdown glyph (`/`, `@`, the backtick) carry that exact
  * character so
  * the operator recognises the source syntax instantly; kinds that
- * live in sidecar YAML (`supersedes`) or in `[text](path)` markdown
- * (`references`) use a representative PrimeIcon because their
- * source has no single-glyph signature.
+ * live in `[text](path)` markdown (`references`) use a representative
+ * PrimeIcon because their source has no single-glyph signature.
  */
 interface ILinkKindEntry {
   readonly kind: TLinkKindApi;
@@ -52,12 +51,6 @@ const ENTRY_CATALOG: readonly ILinkKindEntry[] = [
     label: LINK_KIND_PALETTE_TEXTS.kinds.mentions,
     tooltip: LINK_KIND_PALETTE_TEXTS.tooltips.mentions,
     text: '@',
-  },
-  {
-    kind: 'supersedes',
-    label: LINK_KIND_PALETTE_TEXTS.kinds.supersedes,
-    tooltip: LINK_KIND_PALETTE_TEXTS.tooltips.supersedes,
-    icon: 'pi pi-angle-double-right',
   },
 ];
 

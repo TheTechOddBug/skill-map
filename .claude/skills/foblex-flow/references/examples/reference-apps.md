@@ -20,5 +20,5 @@ Full example applications showing how Foblex Flow is used end-to-end. These are 
 ## For skill-map specifically
 
 - **Tournament Bracket** is the closest shape to `graph-view/`: static layout, read-only, no palette, no multi-select-driven editing. If you are polishing the read-only view, start there.
-- **UML Diagram** is the reference for per-kind connection styling and custom SVG markers (our `f-conn--supersedes`, `f-conn--related`, `f-conn--relates-to` mapping mirrors its approach).
+- **UML Diagram** is the reference for per-kind connection styling and custom SVG markers (our `f-conn--mentions`, `f-conn--related`, `f-conn--relates-to` mapping mirrors its approach).
 - **Schema Designer** is the reference if we ever render per-field connectors on a node (e.g. a task node exposing one input port per subtask).

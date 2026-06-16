@@ -43,12 +43,13 @@ describe('enum-parsers, type guards', () => {
     assert.equal(isStability({}), false);
   });
 
-  it('isLinkKind accepts invokes / references / mentions / supersedes / points', () => {
-    for (const v of ['invokes', 'references', 'mentions', 'supersedes', 'points']) {
+  it('isLinkKind accepts invokes / references / mentions / points', () => {
+    for (const v of ['invokes', 'references', 'mentions', 'points']) {
       assert.equal(isLinkKind(v), true, v);
     }
     assert.equal(isLinkKind('invoke'), false);
     assert.equal(isLinkKind('related'), false);
+    assert.equal(isLinkKind('supersedes'), false);
     assert.equal(isLinkKind(null), false);
   });
 
@@ -141,7 +142,7 @@ describe('enum-parsers, narrowing parsers', () => {
     assert.equal(parseLinkKind('invokes', 'ctx'), 'invokes');
     assert.throws(() => parseLinkKind('related', 'scan_links/123'), (err: Error) => {
       assert.match(err.message, /Invalid LinkKind value "related" at scan_links\/123/);
-      assert.match(err.message, /invokes \| references \| mentions \| supersedes \| points/);
+      assert.match(err.message, /invokes \| references \| mentions \| points/);
       return true;
     });
   });

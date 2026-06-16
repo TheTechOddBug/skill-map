@@ -50,7 +50,6 @@ const LINK_KIND_VALUES: readonly LinkKind[] = Object.freeze([
   'invokes',
   'references',
   'mentions',
-  'supersedes',
   'points',
 ]);
 

@@ -54,8 +54,8 @@ export class ScanCommand extends SmCommand {
     details: `
       Walks the given roots with the built-in claude Provider, runs the
       frontmatter / slash / at-directive / external-url-counter
-      extractors per node, then the name-collision / broken-ref /
-      superseded analyzers over the full graph. Emits a ScanResult
+      extractors per node, then the name-collision / broken-ref
+      analyzers over the full graph. Emits a ScanResult
       conforming to scan-result.schema.json.
 
       The result is persisted into <cwd>/.skill-map/skill-map.db

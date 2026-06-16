@@ -4,14 +4,14 @@
  * Per-node Action the user invokes to set the lifecycle stage of the
  * current node (`annotations.stability` ∈
  * {`experimental`, `stable`, `deprecated`}). Conceptually parallel to
- * `nodeBumpAction` / `nodeSupersedeAction`: the Action stays pure (no
+ * `nodeBumpAction` / `nodeSetTagsAction`: the Action stays pure (no
  * IO inside `invoke()`), computes a sidecar write payload
  * (`TActionWrite { kind: 'sidecar', ... }`) that sets
  * `annotations.stability` on the current node and stamps the audit
  * block, and returns it for the kernel to materialise through
  * `ISidecarStore` after the call returns.
  *
- * Dual surface (mirrors `node-set-tags` / `node-supersede`):
+ * Dual surface (mirrors `node-set-tags` / `node-bump`):
  *   - `project(ctx)` (scan-time, read-only graph): self-projects the
  *     `inspector.action.button` that dispatches this Action, one per real
  *     (non-virtual) node whether or not it already has a sidecar (the write
@@ -67,7 +67,7 @@ export interface INodeSetStabilityInput {
 
 /**
  * Report shape returned by the deterministic `invoke`. Parallels the
- * `node-bump` / `node-supersede` in-process reports (`ok` + payload),
+ * `node-bump` / `node-set-tags` in-process reports (`ok` + payload),
  * distinct from the probabilistic-record contract in
  * `report.schema.json`.
  *

@@ -28,55 +28,6 @@
       </dd>
     }
 
-    @if (hasSupersession()) {
-      @let sup = supersession();
-      <dt>{{ texts.sections.supersession }}</dt>
-      <dd class="sm-block__inline" data-testid="annotations-section-supersession">
-        @if (sup.supersededBy !== null) {
-          <span class="sm-block__meta">
-            <i class="pi pi-arrow-down" aria-hidden="true"></i>
-            <span>{{ texts.fields.supersededBy }}</span>
-          </span>
-          @if (!isBroken(sup.supersededBy)) {
-            <a
-              class="sm-node-link sm-node-link--known"
-              (click)="onOpenPath(sup.supersededBy)"
-              role="button"
-              tabindex="0"
-              (keydown.enter)="onOpenPath(sup.supersededBy)"
-              (keydown.space)="onOpenPath(sup.supersededBy); $event.preventDefault()"
-            >
-              {{ sup.supersededBy }}
-            </a>
-          } @else {
-            <span class="sm-node-link" [pTooltip]="texts.brokenRefTooltip">{{ sup.supersededBy }}</span>
-          }
-        }
-        @if (sup.supersedes.length) {
-          <span class="sm-block__meta">
-            <i class="pi pi-arrow-up" aria-hidden="true"></i>
-            <span>{{ texts.fields.supersedes }}</span>
-          </span>
-          @for (p of sup.supersedes; track p) {
-            @if (!isBroken(p)) {
-              <a
-                class="sm-node-link sm-node-link--known"
-                (click)="onOpenPath(p)"
-                role="button"
-                tabindex="0"
-                (keydown.enter)="onOpenPath(p)"
-                (keydown.space)="onOpenPath(p); $event.preventDefault()"
-              >
-                {{ p }}
-              </a>
-            } @else {
-              <span class="sm-node-link" [pTooltip]="texts.brokenRefTooltip">{{ p }}</span>
-            }
-          }
-        }
-      </dd>
-    }
-
     @if (hasRepository()) {
       @let rp = repository();
       <dt>{{ texts.sections.repository }}</dt>

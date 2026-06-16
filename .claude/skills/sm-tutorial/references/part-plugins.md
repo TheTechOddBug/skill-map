@@ -87,7 +87,7 @@ Mark `tour-1-intro: done`.
 >    Performs a write operation on a node, the graph, or the
 >    filesystem. May modify your `.md` files (frontmatter, body)
 >    ONLY with your explicit permission.
->    Examples: `node-bump`, `node-supersede`.
+>    Examples: `node-bump`, `node-set-stability`.
 >
 > 🎨 **formatter**
 >    Renders a result in a specific shape (`sm export --format md`

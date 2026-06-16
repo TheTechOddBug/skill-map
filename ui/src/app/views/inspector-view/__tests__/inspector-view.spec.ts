@@ -24,7 +24,7 @@ import type { INodeDetailApi, INodeApi } from '../../../../models/api';
  * the generic action-button toolbar (contribution-driven, the bump
  * button is no longer hardcoded), and the catalog curation 2026-05-07
  * surfaces (collapsible audit / plugin / debug; vendor frontmatter
- * tier card; supersededBy banner).
+ * tier card).
  */
 
 // Section collapse state persists in localStorage; clear it before each
@@ -688,39 +688,6 @@ describe('InspectorView, debug panel inside the merged metadata section', () => 
     toggle.click(); // collapse again
     await flush(fixture);
     expect(fixture.nativeElement.querySelector('[data-testid="inspector-debug-panel"]')).toBeNull();
-  });
-});
-
-describe('InspectorView, supersededBy banner (catalog curation)', () => {
-  it('renders the banner when annotations.supersededBy is set', async () => {
-    const node = makeNodeWithSidecar({
-      present: true,
-      status: 'fresh',
-      annotations: { supersededBy: 'agents/v2.md' },
-    });
-    const loader = makeStubLoader([node]);
-    const dataSource = makeStubDataSource();
-    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
-    const { fixture } = bootstrap({ loader, dataSource });
-    fixture.componentRef.setInput('path', node.path);
-    await flush(fixture);
-    const banner = fixture.nativeElement.querySelector('[data-testid="inspector-superseded-banner"]');
-    expect(banner).not.toBeNull();
-    expect(banner!.textContent).toContain('agents/v2.md');
-  });
-
-  it('hides the banner when supersededBy is absent', async () => {
-    const dom = await (async (): Promise<HTMLElement> => {
-      const node = makeNode();
-      const loader = makeStubLoader([node]);
-      const dataSource = makeStubDataSource();
-      dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
-      const { fixture } = bootstrap({ loader, dataSource });
-      fixture.componentRef.setInput('path', node.path);
-      await flush(fixture);
-      return fixture.nativeElement as HTMLElement;
-    })();
-    expect(dom.querySelector('[data-testid="inspector-superseded-banner"]')).toBeNull();
   });
 });
 

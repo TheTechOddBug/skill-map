@@ -163,16 +163,6 @@ button.linked-nodes-panel__path:focus-visible {
 }
 
 /*
- * `supersedes` keeps the grey edge hue but uses the `-active` (higher
- * contrast) variant: the muted base token is the right colour on the map
- * line but too faint to read as small chip text.
- */
-.linked-nodes-panel__chip--kind[data-kind='supersedes'] {
-  border-color: var(--sm-edge-supersedes-active);
-  color: var(--sm-edge-supersedes-active);
-}
-
-/*
  * Issue chip: same outlined pill chassis as the kind chip, tinted by
  * analyzer severity (`--sm-severity-<sev>`) so a warning / error reads
  * as one of the row's chips instead of a louder filled tag, while its

@@ -10,7 +10,7 @@
     "analyzerId": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
-      "description": "Kebab-case identifier of the analyzer that emitted this issue (e.g. `name-collision`, `broken-ref`, `superseded`)."
+      "description": "Kebab-case identifier of the analyzer that emitted this issue (e.g. `name-collision`, `broken-ref`, `node-stability`)."
     },
     "severity": {
       "type": "string",

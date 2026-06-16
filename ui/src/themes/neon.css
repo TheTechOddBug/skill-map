@@ -42,19 +42,17 @@
      navy surface, the zinc-tuned dark values read slightly cold here. */
   --sm-text-muted: #7e9ac0;
 
-  /* Edge kind ramp: slate (`supersedes`, weakest semantic) brightening
-     toward cyan (`invokes`, strongest), so the five kinds read as one
-     blue gradient instead of five competing neons. `points` (code-region
-     path pointer) sits at 50%, between `mentions` and `references`.
-     Active variants run the same interpolation between brighter
-     endpoints. */
+  /* Edge kind ramp: slate base brightening from `mentions` (weakest
+     semantic) toward cyan (`invokes`, strongest), so the four kinds read
+     as one blue gradient instead of four competing neons. `points`
+     (code-region path pointer) sits at 50%, between `mentions` and
+     `references`. Active variants run the same interpolation between
+     brighter endpoints. */
   --sm-edge-neutral: #475569;
-  --sm-edge-supersedes: var(--sm-edge-neutral);
   --sm-edge-mentions: color-mix(in srgb, var(--sm-neon-accent-dim) 33%, var(--sm-edge-neutral));
   --sm-edge-points: color-mix(in srgb, var(--sm-neon-accent-dim) 50%, var(--sm-edge-neutral));
   --sm-edge-references: color-mix(in srgb, var(--sm-neon-accent-dim) 67%, var(--sm-edge-neutral));
   --sm-edge-invokes: var(--sm-neon-accent-dim);
-  --sm-edge-supersedes-active: #94a3b8;
   --sm-edge-mentions-active: color-mix(in srgb, var(--sm-neon-accent-bright) 33%, #94a3b8);
   --sm-edge-points-active: color-mix(in srgb, var(--sm-neon-accent-bright) 50%, #94a3b8);
   --sm-edge-references-active: color-mix(in srgb, var(--sm-neon-accent-bright) 67%, #94a3b8);

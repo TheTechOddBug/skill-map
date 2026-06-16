@@ -2,7 +2,7 @@
  * Coverage for the `node-set-stability` action's scan-time `project()`
  * self-projection (the button formerly emitted by the `core/node-stability`
  * analyzer, now folded into the action that dispatches it, mirroring
- * `node-set-tags` / `node-supersede`):
+ * `node-set-tags` / `node-bump`):
  *   - Emits one `inspector.action.button` per node that already has a
  *     sidecar, dispatching `core/node-set-stability`, carrying an
  *     `enum-pick` prompt whose `defaultValue` pre-loads the node's effective

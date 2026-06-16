@@ -12,7 +12,7 @@ That is the quiet failure mode. Nothing breaks loudly; it just gets slower and f
 
 ## The map is the product
 
-Skill-map's bet is simple: give that mess a shape you can see. Point it at your project and it reads every skill, agent, command, hook, and note, then draws the whole thing as an interactive graph in your browser. Nodes are colored by type so your eyes do the sorting. The edges tell you the relationship: this one invokes that one, this references that by name, this supersedes the old version. A layout engine arranges it, you pan and zoom, and in seconds you understand a structure that used to take an afternoon of opening folders blind.
+Skill-map's bet is simple: give that mess a shape you can see. Point it at your project and it reads every skill, agent, command, hook, and note, then draws the whole thing as an interactive graph in your browser. Nodes are colored by type so your eyes do the sorting. The edges tell you the relationship: this one invokes that one, this references that by name, this points at a file by path. A layout engine arranges it, you pan and zoom, and in seconds you understand a structure that used to take an afternoon of opening folders blind.
 
 And it answers the questions the tangle was hiding. Which skills collide on the same trigger? What is orphaned and safe to delete? Where is the token weight concentrated? Which new skill replaced an old one that is somehow still live? You get a list view, a graph view, and a per-node inspector over the same data, all of it offline, all of it deterministic, none of it requiring a language model.
 

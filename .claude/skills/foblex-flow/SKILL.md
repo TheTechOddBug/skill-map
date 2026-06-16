@@ -102,10 +102,10 @@ If you catch yourself writing `<svg class="defs"><marker id="...">...</marker></
 The default theme reads `--ff-connection-color`, `--ff-connection-width`, `--ff-marker-color` (see `@foblex/flow/styles/tokens/_ff-aliases.scss`). Override the tokens on a class attached to `<f-connection>`:
 
 ```css
-.f-conn--supersedes {
-  --ff-connection-color: var(--sm-edge-supersedes);
+.f-conn--mentions {
+  --ff-connection-color: var(--sm-edge-mentions);
   --ff-connection-width: 2.5px;
-  --ff-marker-color: var(--sm-edge-supersedes);
+  --ff-marker-color: var(--sm-edge-mentions);
 }
 ```
 
@@ -309,10 +309,10 @@ If you catch yourself typing any of these, stop and re-read the rule in parenthe
   /* Token overrides: hide reassign rings, let library keep the DOM intact */
   --ff-connection-drag-handle-stroke: transparent;
 }
-.f-conn--supersedes {
-  --ff-connection-color: var(--sm-edge-supersedes);
+.f-conn--mentions {
+  --ff-connection-color: var(--sm-edge-mentions);
   --ff-connection-width: 2.5px;
-  --ff-marker-color: var(--sm-edge-supersedes);
+  --ff-marker-color: var(--sm-edge-mentions);
 }
 /* stroke-dasharray has no token — scoped ::ng-deep, component CSS only */
 .graph__canvas-wrap ::ng-deep .f-conn--related .f-connection-path {

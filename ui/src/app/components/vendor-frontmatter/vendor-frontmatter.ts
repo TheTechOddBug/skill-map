@@ -69,8 +69,8 @@ interface IHookRow {
  * silently. The sets also include the keys consumed elsewhere so the
  * catch-all does not re-dump them: `name` / `description` (inspector
  * header) and `metadata` (the legacy pre-9.5 block whose `version` /
- * `stability` / `supersededBy` already surface via the header chip,
- * stability tag, and derived signals, see `models/node-derived.ts`).
+ * `stability` already surface via the header chip, stability tag, and
+ * derived signals, see `models/node-derived.ts`).
  */
 const RENDERED_AGENT_KEYS: ReadonlySet<string> = new Set([
   'name', 'description', 'metadata', 'model', 'effort', 'permissionMode',

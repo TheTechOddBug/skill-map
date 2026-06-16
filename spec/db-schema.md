@@ -105,7 +105,7 @@ One row per detected link, matching [`schemas/link.schema.json`](./schemas/link.
 | `id` | INTEGER | PRIMARY KEY AUTOINCREMENT | |
 | `source_path` | TEXT | NOT NULL | FK semantically; MAY be unenforced for performance. |
 | `target_path` | TEXT | NOT NULL | MAY point to a missing node (broken ref). |
-| `kind` | TEXT | NOT NULL, CHECK in (`invokes`, `references`, `mentions`, `supersedes`, `points`) | |
+| `kind` | TEXT | NOT NULL, CHECK in (`invokes`, `references`, `mentions`, `points`) | |
 | `confidence` | REAL | NOT NULL, CHECK `>= 0.0 AND <= 1.0` | Numeric `[0,1]` (`link.schema.json#/properties/confidence`). The kernel's 1.0 baseline, then the folded result of every `score`-phase `ctx.adjustConfidence` op (the built-in score-phase detectors `core/name-reserved`, `core/reference-broken`, plus any third-party scorer); the per-op attribution lives in `scan_link_scores`. Migrated from the legacy `high`/`medium`/`low` TEXT enum. |
 | `sources_json` | TEXT | NOT NULL | JSON array of extractor ids. |
 | `original_trigger` | TEXT | NULL | |
@@ -257,7 +257,7 @@ Per-op confidence-attribution audit trail. One row per attributed `ctx.adjustCon
 | `extension_id` | TEXT | NOT NULL | Scorer extension id within the plugin. |
 | `source_path` | TEXT | NOT NULL | The link's `source` (originating node path). Part of the structural identity key, the same tuple `scan_links` dedups on. |
 | `target` | TEXT | NOT NULL | The link's `target` (MAY be a missing node: broken refs get scored too). |
-| `kind` | TEXT | NOT NULL | The link's `kind` (`invokes` / `references` / `mentions` / `supersedes` / `points`). |
+| `kind` | TEXT | NOT NULL | The link's `kind` (`invokes` / `references` / `mentions` / `points`). |
 | `normalized_trigger` | TEXT | NULL | The link's `trigger.normalizedTrigger`; NULL for path-style links that carry no trigger. Completes the structural identity key. |
 | `op_kind` | TEXT | NOT NULL | Confidence-algebra bucket: `set` / `delta` / `ceil` / `floor`. Kept open at the SQL layer (no CHECK) so the op catalog can evolve as a kernel + spec change without a DDL migration. |
 | `op_value` | REAL | NOT NULL | The op's operand. |

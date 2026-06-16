@@ -49,9 +49,8 @@ before(async () => {
   };
 
   // Same shape as scan-e2e.test.ts so we exercise nodes (3), links
-  // (annotations + slash + at-directive + supersedes inversion), and
-  // issues (broken-ref + superseded). Keeps the fixture surface small
-  // but representative.
+  // (slash + at-directive), and issues (broken-ref). Keeps the fixture
+  // surface small but representative.
   write(
     '.claude/agents/architect.md',
     [
@@ -70,43 +69,6 @@ before(async () => {
   write(
     '.claude/commands/rollback.md',
     ['---', 'name: Rollback', '---', 'Rollback body.'].join('\n'),
-  );
-
-  // Baseline scan to capture real `body` / `frontmatter` hashes so the
-  // sidecars below register as fresh. The structured-annotation links
-  // (`annotations.supersededBy`) live in the sidecar; the legacy
-  // frontmatter `metadata:` fallback was dropped when `core/annotations`
-  // became sidecar-only.
-  const baselineKernel = createKernel();
-  for (const manifest of listBuiltIns()) baselineKernel.registry.register(manifest);
-  const baseline = await runScan(baselineKernel, { roots: [fixture], extensions: builtIns() });
-  const architectBaseline = baseline.nodes.find((n) => n.path === '.claude/agents/architect.md');
-  const deployBaseline = baseline.nodes.find((n) => n.path === '.claude/commands/deploy.md');
-  ok(architectBaseline, 'baseline scan must classify the architect node');
-  ok(deployBaseline, 'baseline scan must classify the deploy node');
-
-  write(
-    '.claude/agents/architect.sm',
-    [
-      'identity:',
-      '  path: .claude/agents/architect.md',
-      `  bodyHash: ${architectBaseline!.bodyHash}`,
-      `  frontmatterHash: ${architectBaseline!.frontmatterHash}`,
-      'annotations:',
-      '  version: 1',
-    ].join('\n'),
-  );
-  write(
-    '.claude/commands/deploy.sm',
-    [
-      'identity:',
-      '  path: .claude/commands/deploy.md',
-      `  bodyHash: ${deployBaseline!.bodyHash}`,
-      `  frontmatterHash: ${deployBaseline!.frontmatterHash}`,
-      'annotations:',
-      '  version: 1',
-      '  supersededBy: .claude/commands/deploy-v2.md',
-    ].join('\n'),
   );
 });
 
@@ -164,13 +126,13 @@ describe('persistScanResult', () => {
       strictEqual(architectRow!.scannedAt, result.scannedAt);
       ok(Number.isInteger(result.scannedAt), 'scannedAt is an integer');
 
-      // Link round-trip: the supersedes-inverted edge keeps source/target
-      // and kind, sources[] survives the JSON column.
-      const supersedesRow = linkRows.find(
-        (r) => r.kind === 'supersedes' && r.targetPath === '.claude/commands/deploy.md',
+      // Link round-trip: a slash-invocation edge keeps source/target and
+      // kind, sources[] survives the JSON column.
+      const invokesRow = linkRows.find(
+        (r) => r.kind === 'invokes' && r.sourcePath === '.claude/agents/architect.md',
       );
-      ok(supersedesRow, 'supersedes inversion persisted');
-      const sources = JSON.parse(supersedesRow!.sourcesJson) as string[];
+      ok(invokesRow, 'slash invocation edge persisted');
+      const sources = JSON.parse(invokesRow!.sourcesJson) as string[];
       ok(Array.isArray(sources) && sources.length > 0, 'sourcesJson decodes to a non-empty array');
 
       // Issue round-trip: nodeIdsJson decodes back to the original array.

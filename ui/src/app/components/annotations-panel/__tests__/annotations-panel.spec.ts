@@ -12,15 +12,11 @@ import type { ISidecarOverlay } from '../../../../models/node';
  * `category`, `keywords`, `provides`, `created`, `updated`).
  */
 
-function bootstrap(
-  overlay?: ISidecarOverlay | null,
-  knownPaths?: ReadonlySet<string>,
-): HTMLElement {
+function bootstrap(overlay?: ISidecarOverlay | null): HTMLElement {
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({});
   const fixture = TestBed.createComponent(AnnotationsPanel);
   fixture.componentRef.setInput('overlay', overlay ?? null);
-  if (knownPaths) fixture.componentRef.setInput('knownPaths', knownPaths);
   fixture.detectChanges();
   return fixture.nativeElement as HTMLElement;
 }
@@ -50,7 +46,6 @@ describe('AnnotationsPanel, empty states', () => {
     // Provenance has an author, so it renders.
     expect(dom.querySelector('[data-testid="annotations-section-provenance"]')).not.toBeNull();
     // Other sections collapse.
-    expect(dom.querySelector('[data-testid="annotations-section-supersession"]')).toBeNull();
     expect(dom.querySelector('[data-testid="annotations-section-docs"]')).toBeNull();
   });
 
@@ -81,21 +76,6 @@ describe('AnnotationsPanel, empty states', () => {
 });
 
 describe('AnnotationsPanel, section rendering', () => {
-  it('renders supersedes + supersededBy as node links', () => {
-    const dom = bootstrap({
-      present: true,
-      status: 'fresh',
-      annotations: {
-        supersedes: ['old/agent.md', 'older/agent.md'],
-        supersededBy: 'new/agent.md',
-      },
-    });
-    const sec = dom.querySelector('[data-testid="annotations-section-supersession"]');
-    expect(sec).not.toBeNull();
-    // 2 supersedes + 1 supersededBy, all rendered as node links.
-    expect(sec!.querySelectorAll('.sm-node-link').length).toBe(3);
-  });
-
   it('renders source as an external link with rel=noopener', () => {
     const dom = bootstrap({
       present: true,
@@ -133,89 +113,6 @@ describe('AnnotationsPanel, section rendering', () => {
       annotations: { docsUrl: 'https://docs.example.com' },
     });
     expect(dom.querySelector('[data-testid="annotations-section-docs"]')).not.toBeNull();
-  });
-});
-
-describe('AnnotationsPanel, broken-ref chips (Step 9.6 catalog curation)', () => {
-  it('renders supersededBy dimmed (no link) when path is not in knownPaths', () => {
-    TestBed.resetTestingModule();
-    TestBed.configureTestingModule({});
-    const fixture = TestBed.createComponent(AnnotationsPanel);
-    fixture.componentRef.setInput('overlay', {
-      present: true,
-      status: 'fresh',
-      annotations: { supersededBy: 'old/agent.md' },
-    } as ISidecarOverlay);
-    fixture.componentRef.setInput('knownPaths', new Set<string>());
-    fixture.detectChanges();
-    const sec = fixture.nativeElement.querySelector(
-      '[data-testid="annotations-section-supersession"]',
-    ) as HTMLElement;
-    // Broken → dimmed node link, not the clickable `--known` variant.
-    expect(sec.querySelector('.sm-node-link')).not.toBeNull();
-    expect(sec.querySelector('.sm-node-link--known')).toBeNull();
-  });
-
-  it('does NOT emit openPath when a broken supersedes ref is clicked', () => {
-    TestBed.resetTestingModule();
-    TestBed.configureTestingModule({});
-    const fixture = TestBed.createComponent(AnnotationsPanel);
-    fixture.componentRef.setInput('overlay', {
-      present: true,
-      status: 'fresh',
-      annotations: { supersedes: ['old/agent.md'] },
-    } as ISidecarOverlay);
-    fixture.componentRef.setInput('knownPaths', new Set<string>());
-    fixture.detectChanges();
-    const emissions: string[] = [];
-    fixture.componentInstance.openPath.subscribe((p: string) => emissions.push(p));
-    const link = fixture.nativeElement.querySelector(
-      '[data-testid="annotations-section-supersession"] .sm-node-link',
-    ) as HTMLElement;
-    link.click();
-    expect(emissions).toEqual([]);
-  });
-});
-
-describe('AnnotationsPanel, openPath emission', () => {
-  it('emits openPath when a supersedes chip is clicked (path in knownPaths)', () => {
-    TestBed.resetTestingModule();
-    TestBed.configureTestingModule({});
-    const fixture = TestBed.createComponent(AnnotationsPanel);
-    fixture.componentRef.setInput('overlay', {
-      present: true,
-      status: 'fresh',
-      annotations: { supersedes: ['old/agent.md'] },
-    } as ISidecarOverlay);
-    fixture.componentRef.setInput('knownPaths', new Set(['old/agent.md']));
-    fixture.detectChanges();
-    const emissions: string[] = [];
-    fixture.componentInstance.openPath.subscribe((p: string) => emissions.push(p));
-    const link = fixture.nativeElement.querySelector(
-      '[data-testid="annotations-section-supersession"] .sm-node-link--known',
-    ) as HTMLElement;
-    expect(link).not.toBeNull();
-    link.click();
-    expect(emissions).toEqual(['old/agent.md']);
-  });
-
-  it('emits openPath when knownPaths is null (legacy / no resolution)', () => {
-    TestBed.resetTestingModule();
-    TestBed.configureTestingModule({});
-    const fixture = TestBed.createComponent(AnnotationsPanel);
-    fixture.componentRef.setInput('overlay', {
-      present: true,
-      status: 'fresh',
-      annotations: { supersedes: ['old/agent.md'] },
-    } as ISidecarOverlay);
-    fixture.detectChanges();
-    const emissions: string[] = [];
-    fixture.componentInstance.openPath.subscribe((p: string) => emissions.push(p));
-    const link = fixture.nativeElement.querySelector(
-      '[data-testid="annotations-section-supersession"] .sm-node-link--known',
-    ) as HTMLElement;
-    link.click();
-    expect(emissions).toEqual(['old/agent.md']);
   });
 });
 

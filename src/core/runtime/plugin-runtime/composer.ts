@@ -73,7 +73,7 @@ export interface IConformanceKillSwitches {
  * Built-ins are also gated by `pluginRuntime.resolveEnabled`: every
  * extension is independently toggle-able by its qualified id
  * `<plugin>/<ext>` (e.g. disabling `claude/at-directive` silences just
- * that extractor; disabling `core/node-superseded` drops just that
+ * that extractor; disabling `core/node-stability` drops just that
  * analyzer). The plugin row is presentational grouping only.
  * `--no-built-ins` is the macro override that wins when both layers say
  * "skip".

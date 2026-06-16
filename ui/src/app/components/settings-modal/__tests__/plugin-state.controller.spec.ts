@@ -143,15 +143,15 @@ describe('plugin-state.controller, toggle buffering', () => {
       reason: null,
       source: 'built-in',
       extensions: [
-        { id: 'superseded', kind: 'extractor', version: '1.0.0', enabled: true },
+        { id: 'demo-ext', kind: 'extractor', version: '1.0.0', enabled: true },
       ],
     };
     const handle = make({ listPlugins: vi.fn().mockResolvedValue(pluginsEnvelope([core])) });
     await handle.refresh();
 
     handle.onExtensionToggle('core', core.extensions![0], false);
-    expect(handle.pendingState().get('core/superseded')).toBe(false);
-    expect(handle.dirtyIds().has('core/superseded')).toBe(true);
+    expect(handle.pendingState().get('core/demo-ext')).toBe(false);
+    expect(handle.dirtyIds().has('core/demo-ext')).toBe(true);
   });
 });
 

@@ -3,7 +3,7 @@
  *
  * Per-node Action the user invokes to set the taxonomy tags of the
  * current node (`annotations.tags`, an array of strings). Conceptually
- * parallel to `nodeBumpAction` / `nodeSupersedeAction`: the Action
+ * parallel to `nodeBumpAction` / `nodeSetStabilityAction`: the Action
  * stays pure (no IO inside `invoke()`), computes a sidecar write
  * payload (`TActionWrite { kind: 'sidecar', ... }`) that sets
  * `annotations.tags` on the current node and stamps the audit block,
@@ -54,7 +54,7 @@ export interface INodeSetTagsInput {
 
 /**
  * Report shape returned by the deterministic `invoke`. Parallels the
- * `node-bump` / `node-supersede` in-process reports (`ok` + payload),
+ * `node-bump` / `node-set-stability` in-process reports (`ok` + payload),
  * distinct from the probabilistic-record contract in
  * `report.schema.json`.
  *

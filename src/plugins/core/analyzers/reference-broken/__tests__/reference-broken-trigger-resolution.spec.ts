@@ -11,8 +11,6 @@
  *   - `/deploy` link resolves to a node where `frontmatter.name === 'deploy'`
  *   - `@architect` link resolves to a node where `frontmatter.name === 'architect'`
  *   - Trigger normalisation applies on both sides (case, hyphens, accents)
- *   - Path-style targets (`.claude/commands/foo.md`) still resolve via
- *     verbatim path lookup (frontmatter extractor path)
  *   - When neither path lookup nor name index matches, broken-ref fires.
  *
  * The rule has unit-level coverage via the orchestrator-level scan test
@@ -193,73 +191,4 @@ describe('broken-ref, trigger resolution against frontmatter.name', () => {
     );
   });
 
-  it('path-style target (annotations extractor) still uses verbatim path lookup', async () => {
-    const fixture = freshFixture('path');
-    writeNode(
-      fixture,
-      '.claude/agents/architect.md',
-      ['---', 'name: architect', 'description: A.', '---', 'body'].join('\n'),
-    );
-    writeNode(
-      fixture,
-      '.claude/commands/deploy.md',
-      '---\nname: deploy\ndescription: D.\n---\nbody\n',
-    );
-    await writeAnnotationsSidecar(fixture, '.claude/agents/architect.md', {
-      supersedes: ['.claude/commands/deploy.md'],
-    });
-
-    const result = await scan(fixture);
-    const brokenRefs = result.issues.filter((i) => i.analyzerId === 'reference-broken');
-    assert.equal(
-      brokenRefs.length,
-      0,
-      `annotations.supersedes path resolves verbatim to .claude/commands/deploy.md.\n` +
-        `Issues: ${JSON.stringify(brokenRefs, null, 2)}`,
-    );
-  });
-
-  it('path-style target that does NOT exist fires broken-ref', async () => {
-    const fixture = freshFixture('path-missing');
-    writeNode(
-      fixture,
-      '.claude/agents/architect.md',
-      ['---', 'name: architect', 'description: A.', '---', 'body'].join('\n'),
-    );
-    await writeAnnotationsSidecar(fixture, '.claude/agents/architect.md', {
-      supersedes: ['.claude/commands/does-not-exist.md'],
-    });
-
-    const result = await scan(fixture);
-    const brokenRefs = result.issues.filter((i) => i.analyzerId === 'reference-broken');
-    assert.equal(brokenRefs.length, 1);
-    assert.match(brokenRefs[0]!.message, /does-not-exist\.md/);
-  });
 });
-
-/**
- * Helper: capture real `body` / `frontmatter` hashes via a baseline
- * scan, then write a co-located `.sm` sidecar with the given
- * annotations block. Used by tests that exercise the `core/annotations`
- * extractor through the sidecar surface (the only surface, post-fallback-drop).
- */
-async function writeAnnotationsSidecar(
-  fixture: string,
-  nodeRel: string,
-  annotations: Record<string, unknown>,
-): Promise<void> {
-  const baseline = await scan(fixture);
-  const node = baseline.nodes.find((n) => n.path === nodeRel);
-  assert.ok(node, `baseline scan must include ${nodeRel}`);
-  const sidecarRel = nodeRel.replace(/\.md$/, '.sm');
-  const lines = ['identity:', `  path: ${nodeRel}`, `  bodyHash: ${node!.bodyHash}`, `  frontmatterHash: ${node!.frontmatterHash}`, 'annotations:'];
-  for (const [key, value] of Object.entries(annotations)) {
-    if (Array.isArray(value)) {
-      lines.push(`  ${key}:`);
-      for (const v of value) lines.push(`    - ${String(v)}`);
-    } else {
-      lines.push(`  ${key}: ${String(value)}`);
-    }
-  }
-  writeNode(fixture, sidecarRel, lines.join('\n') + '\n');
-}

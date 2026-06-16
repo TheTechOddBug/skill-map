@@ -2,29 +2,19 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.ai/spec/v0/annotations.schema.json",
   "title": "Annotations",
-  "description": "Catalog of conventional annotation fields skill-map ships out of the box, written into the `annotations:` block of a sidecar (`<basename>.sm`). Every field is OPTIONAL, a sidecar with an empty `annotations: {}` is valid. Schema is `additionalProperties: true` so users / plugins can add custom keys without coordination; the built-in `unknown-field` analyzer emits a warning on unrecognized keys (typo guard). The curated catalog is the load-bearing 10 fields below, versioning + supersession (`version`, `stability`, `supersedes`, `supersededBy`), provenance (`authors`, `license`, `source`, `sourceVersion`), taxonomy (`tags`), docs (`docsUrl`). The activity timestamp lives in the reserved `audit:` block (`audit.lastBumpedAt`), not in `annotations:`. Plugins that want first-class custom keys with their own validation declare `annotationContributions` in their manifest (see Step 9.6.6).",
+  "description": "Catalog of conventional annotation fields skill-map ships out of the box, written into the `annotations:` block of a sidecar (`<basename>.sm`). Every field is OPTIONAL, a sidecar with an empty `annotations: {}` is valid. Schema is `additionalProperties: true` so users / plugins can add custom keys without coordination; the built-in `unknown-field` analyzer emits a warning on unrecognized keys (typo guard). The curated catalog is the load-bearing fields below, versioning (`version`, `stability`), provenance (`authors`, `license`, `source`, `sourceVersion`), taxonomy (`tags`), docs (`docsUrl`). The activity timestamp lives in the reserved `audit:` block (`audit.lastBumpedAt`), not in `annotations:`. Plugins that want first-class custom keys with their own validation declare `annotationContributions` in their manifest (see Step 9.6.6).",
   "type": "object",
   "additionalProperties": true,
   "properties": {
     "version": {
       "type": "integer",
       "minimum": 1,
-      "description": "Monotonic counter. Bumped via the built-in `bump` Action when the underlying node changes meaningfully. Orthogonal to `stability`, `stability` carries the lifecycle stage; `version` is just a counter. There is no major: a change so big it would justify a major bump uses the convention `create a new node, supersede the old one` instead. Default: missing == unversioned."
+      "description": "Monotonic counter. Bumped via the built-in `bump` Action when the underlying node changes meaningfully. Orthogonal to `stability`, `stability` carries the lifecycle stage; `version` is just a counter. There is no major: a change so big it would justify a major bump uses the convention `create a new node and retire the old one` instead. Default: missing == unversioned."
     },
     "stability": {
       "type": "string",
       "enum": ["experimental", "stable", "deprecated"],
       "description": "Lifecycle stage. Denormalized into `scan_nodes.stability` for fast queries (see `node.schema.json` #/properties/stability). Default: missing == unspecified."
-    },
-    "supersedes": {
-      "type": "array",
-      "items": { "type": "string", "minLength": 1 },
-      "description": "Paths (relative to scope root) of nodes this node replaces. Consumed by the built-in `superseded` analyzer and surfaces in `sm list --superseded`."
-    },
-    "supersededBy": {
-      "type": "string",
-      "minLength": 1,
-      "description": "Path (relative to scope root) of the node that replaces this one. When set, the current node is end-of-life and consumers should migrate."
     },
     "authors": {
       "type": "array",

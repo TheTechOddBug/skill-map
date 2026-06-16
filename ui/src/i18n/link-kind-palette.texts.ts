@@ -14,7 +14,6 @@ export const LINK_KIND_PALETTE_TEXTS = {
     references: 'References',
     points: 'Points',
     mentions: 'Mentions',
-    supersedes: 'Supersedes',
   },
   /**
    * Multi-line tooltip per link kind. Format: `<Label>:` followed by
@@ -36,6 +35,5 @@ export const LINK_KIND_PALETTE_TEXTS = {
     references: 'References:\n"[link](./link.md)"\n"@./link.md"',
     points: 'Points:\n"`references/link.md`" (path in backticks or code blocks)',
     mentions: 'Mention:\n"@agent"',
-    supersedes: 'Supersedes:\n.sm annotation',
   },
 } as const;

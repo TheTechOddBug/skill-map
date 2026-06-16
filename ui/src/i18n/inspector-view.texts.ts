@@ -58,6 +58,4 @@ export const INSPECTOR_VIEW_TEXTS = {
       createdBy: 'by',
     },
   },
-  /** Banner shown when `annotations.supersededBy` is set. */
-  supersededByBanner: (path: string) => `Superseded by ${path}`,
 } as const;

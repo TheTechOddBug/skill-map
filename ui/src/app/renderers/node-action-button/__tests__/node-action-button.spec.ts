@@ -93,15 +93,15 @@ function ctrl(fixture: ComponentFixture<NodeActionButton>): {
 }
 
 const PROMPT_INPUTS = makeInputs({
-  contributionId: 'supersedeButton',
+  contributionId: 'setTagsButton',
   payload: {
-    actionId: 'core/node-supersede',
-    label: 'Supersede',
+    actionId: 'core/node-set-tags',
+    label: 'Edit tags',
     enabled: true,
     prompt: {
       inputType: 'single-string',
-      paramKey: 'supersededBy',
-      label: 'Replacement node path',
+      paramKey: 'tag',
+      label: 'Tag',
     },
   },
 });
@@ -159,13 +159,13 @@ describe('NodeActionButton, prompt flow', () => {
     const fixture = await bootstrap(PROMPT_INPUTS);
     ctrl(fixture).run();
     fixture.detectChanges();
-    ctrl(fixture).onPromptConfirmed('agents/successor.md');
+    ctrl(fixture).onPromptConfirmed('release');
     await fixture.whenStable();
     expect(stub.dispatch).toHaveBeenCalledTimes(1);
     expect(stub.dispatch).toHaveBeenCalledWith(
-      'core/node-supersede',
+      'core/node-set-tags',
       'agents/architect.md',
-      { supersededBy: 'agents/successor.md' },
+      { tag: 'release' },
     );
   });
 
@@ -173,22 +173,22 @@ describe('NodeActionButton, prompt flow', () => {
     const fixture = await bootstrap(
       makeInputs({
         payload: {
-          actionId: 'core/node-supersede',
-          label: 'Supersede',
+          actionId: 'core/node-set-tags',
+          label: 'Edit tags',
           enabled: true,
           input: { reason: 'merge' },
-          prompt: { inputType: 'single-string', paramKey: 'supersededBy', label: 'Replacement' },
+          prompt: { inputType: 'single-string', paramKey: 'tag', label: 'Tag' },
         },
       }),
     );
     ctrl(fixture).run();
     fixture.detectChanges();
-    ctrl(fixture).onPromptConfirmed('agents/successor.md');
+    ctrl(fixture).onPromptConfirmed('release');
     await fixture.whenStable();
     expect(stub.dispatch).toHaveBeenCalledWith(
-      'core/node-supersede',
+      'core/node-set-tags',
       'agents/architect.md',
-      { reason: 'merge', supersededBy: 'agents/successor.md' },
+      { reason: 'merge', tag: 'release' },
     );
   });
 

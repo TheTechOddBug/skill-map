@@ -206,7 +206,7 @@ describe('SettingsPlugins, buffered toggle dispatch', () => {
   });
 
   it('extension toggle mutates pendingState only, no PATCH fires', async () => {
-    const core = extensionPlugin('core', [{ id: 'superseded', enabled: true }]);
+    const core = extensionPlugin('core', [{ id: 'demo-ext', enabled: true }]);
     const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope([core]));
     const setPluginExtensionEnabled = vi.fn();
     const applyPluginChanges = vi.fn();
@@ -222,14 +222,14 @@ describe('SettingsPlugins, buffered toggle dispatch', () => {
 
     (cmp as unknown as ITogglesProtoApi).onExtensionToggle(
       'core',
-      { id: 'superseded' },
+      { id: 'demo-ext' },
       false,
     );
     await flushAsync();
 
     expect(setPluginExtensionEnabled).not.toHaveBeenCalled();
     expect(applyPluginChanges).not.toHaveBeenCalled();
-    expect(cmp.dirtyIds().has('core/superseded')).toBe(true);
+    expect(cmp.dirtyIds().has('core/demo-ext')).toBe(true);
   });
 
   it('toggling back to the original value clears the dirty marker', async () => {
@@ -342,7 +342,7 @@ describe('SettingsPlugins, chevron honours user choice over filter forcing', () 
       extensionPlugin(
         'core',
         [
-          { id: 'superseded', enabled: true, description: 'rule' },
+          { id: 'demo-ext', enabled: true, description: 'rule' },
           { id: 'broken-ref', enabled: true, description: 'rule' },
         ],
         'Core extensions.',
@@ -429,19 +429,19 @@ describe('SettingsPlugins, search by description', () => {
       extensionPlugin(
         'core',
         [
-          { id: 'superseded', enabled: true, description: 'Surfaces nodes whose annotations declare a supersededBy replacement.' },
+          { id: 'demo-ext', enabled: true, description: 'Surfaces nodes whose annotations declare a demonstration marker.' },
           { id: 'broken-ref', enabled: true, description: 'Flags links whose target cannot be resolved.' },
         ],
         'Core extensions shared across providers.',
       ),
     ];
-    const view = await loadAndSearch(items, 'supersededBy');
+    const view = await loadAndSearch(items, 'demonstration');
     const filtered = view.filteredPlugins();
     expect(filtered.length).toBe(1);
     expect(filtered[0].id).toBe('core');
     const exts = filtered[0].extensions ?? [];
     expect(exts.length).toBe(1);
-    expect(exts[0].id).toBe('superseded');
+    expect(exts[0].id).toBe('demo-ext');
   });
 
   it('keeps every extension when the query hits the plugin (id or description) directly', async () => {
@@ -449,7 +449,7 @@ describe('SettingsPlugins, search by description', () => {
       extensionPlugin(
         'core',
         [
-          { id: 'superseded', enabled: true, description: 'A description.' },
+          { id: 'demo-ext', enabled: true, description: 'A description.' },
           { id: 'broken-ref', enabled: true, description: 'Another description.' },
         ],
         'Core extensions shared across providers.',

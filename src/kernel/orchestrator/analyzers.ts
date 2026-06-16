@@ -35,8 +35,8 @@ import { emitExtensionError, readDeclaredContributionRefs } from './extractors.j
 
 /**
  * Run every registered analyzer over the merged graph. Analyzers see internal
- * links only, broken-ref / name-collision / superseded all reason
- * about graph relations, not URLs.
+ * links only, broken-ref / name-collision all reason about graph
+ * relations, not URLs.
  *
  * Analyzers MAY emit per-node view contributions via
  * `ctx.emitContribution(nodePath, contributionId, payload)`. The

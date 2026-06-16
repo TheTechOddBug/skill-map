@@ -29,7 +29,6 @@ export const KIND_SEVERITY: Record<TLinkKindApi, 'info' | 'success' | 'warn' | '
   references: 'info',
   points: 'info',
   mentions: 'secondary',
-  supersedes: 'success',
 };
 
 /**

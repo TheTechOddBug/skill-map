@@ -68,9 +68,9 @@ export interface ISidecarBumpOpts {
  */
 export interface IActionDispatchOpts {
   /**
-   * Action-defined input bag (e.g. supersede's target node). Reserved
-   * for Steps 2+; the bump action ignores it. Passed verbatim to the
-   * kernel Action's `invoke()`.
+   * Action-defined input bag (e.g. set-stability's target enum value).
+   * Reserved for Steps 2+; the bump action ignores it. Passed verbatim
+   * to the kernel Action's `invoke()`.
    */
   input?: unknown;
   /**
@@ -141,7 +141,7 @@ export type TPluginItem = IPluginItemApi;
 /**
  * One entry in the bulk `PATCH /api/plugins` body. Mirrors the BFF's
  * `IBulkChange`: an `id` (a bare plugin id `claude` for the cascade
- * macro, or a qualified `<plugin>/<ext>` id `core/superseded`) plus at
+ * macro, or a qualified `<plugin>/<ext>` id `core/node-stability`) plus at
  * least one of `enabled` (toggle delta) / `settings` (per-setting value
  * patch). `settings` REQUIRES a qualified id; values are real JSON,
  * already coerced to the declared input-type by the client. A change
@@ -247,7 +247,7 @@ export interface IDataSourcePort {
    * Apply a buffered batch of plugin changes atomically. Mirrors the
    * bulk `PATCH /api/plugins` endpoint. Each change carries an `id`
    * (plugin id `claude`, or qualified `<plugin>/<ext>` id
-   * `core/superseded`) plus a toggle delta (`enabled`), a per-setting
+   * `core/node-stability`) plus a toggle delta (`enabled`), a per-setting
    * value patch (`settings`), or both; the BFF dispatcher branches on
    * the slash the same way the per-id PATCHes do. `settings` requires a
    * qualified id and ships only the keys that changed, as real JSON.
@@ -391,7 +391,7 @@ export interface IDataSourcePort {
   /**
    * `POST /api/actions/:qualifiedId`, the generic action-dispatch
    * endpoint. Resolves the kernel Action by qualified id (`core/node-bump`,
-   * `core/node-supersede`, ...), invokes it against `nodePath`, and
+   * `core/node-set-stability`, ...), invokes it against `nodePath`, and
    * materialises any `.sm` writes through the consent gate. Returns the
    * success envelope on 200; throws `DataSourceError` on any 4xx/5xx so
    * the caller branches on `code`.

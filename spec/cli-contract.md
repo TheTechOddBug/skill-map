@@ -376,10 +376,9 @@ identity:
 
 annotations:
   version: 3
-  # Deprecated because v0.6 architecture supersedes this skill.
+  # Deprecated because the v0.6 architecture replaced this skill.
   # See decision #142 in ROADMAP for context.
   stability: deprecated
-  supersededBy: agents/reviewer-v2.md
   tags:
     - review
     - typescript  # only TS, not JS
@@ -390,7 +389,6 @@ annotations:
 ```yaml
 annotations:
   stability: deprecated
-  supersededBy: agents/reviewer-v2.md
   tags:
     - review
     - typescript

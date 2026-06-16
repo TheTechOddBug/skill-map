@@ -18,8 +18,7 @@
  * any returned sidecar writes through the same consent-gated
  * `FilesystemSidecarStore` the CLI bump verb uses. The route is the
  * single entry point for every inspector action button (Phase D wires
- * `core/node-bump`; later steps add `core/node-supersede`, stability,
- * tags).
+ * `core/node-bump`; later steps add stability, tags).
  *
  * Behaviour matrix (mirrors the bump route's semantics, generically):
  *
@@ -121,9 +120,8 @@ interface IActionBody {
   nodePath: string;
   /**
    * Action-specific input, forwarded verbatim to `invoke(input, ctx)`.
-   * Reserved for Steps 2+ (supersede's `supersededBy`, stability's enum,
-   * tags); the bump migration (Phase D) omits it entirely. Defaults to
-   * `{}` when absent.
+   * Reserved for Steps 2+ (stability's enum, tags); the bump migration
+   * (Phase D) omits it entirely. Defaults to `{}` when absent.
    */
   input?: Record<string, unknown>;
   /**

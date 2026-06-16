@@ -4,7 +4,6 @@
  * declared in `spec/schemas/annotations.schema.json`:
  *
  *   - Authors: `authors[]`, `license`
- *   - Supersession: `supersedes`, `supersededBy`
  *   - Repository: `source` (upstream URL), `sourceVersion`
  *   - Docs: `docsUrl`
  *
@@ -13,11 +12,6 @@
  * node carrying that tag on the map).
  *
  * Each sub-section hides cleanly when its data is empty / absent.
- * Path-typed fields (`supersedes`, `supersededBy`) render as
- * clickable chips. When the target path is NOT in the local node
- * store the chip degrades to a muted / strikethrough state with a
- * "broken-ref" tooltip, the host (inspector) decides whether to
- * upgrade the heuristic via a verify round-trip.
  *
  * No editing in 9.6.5, the bump button (in the inspector action area)
  * mutates the sidecar via the BFF; this panel only displays.
@@ -30,7 +24,6 @@
  *     `authors[]` is the only surviving author-shape).
  *   - Taxonomy.category / Taxonomy.keywords → tags absorb the role.
  *   - The whole Display section (icon / color / priority).
- *   - Supersession.provides → curated out (no semantics yet).
  */
 
 import {
@@ -38,18 +31,12 @@ import {
   Component,
   computed,
   input,
-  output,
 } from '@angular/core';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { ANNOTATIONS_PANEL_TEXTS } from '../../../i18n/annotations-panel.texts';
 import type { ISidecarOverlay } from '../../../models/node';
 import { httpUrlOrNull } from '../../../services/url-guard';
-
-interface ISupersessionSection {
-  supersedes: readonly string[];
-  supersededBy: string | null;
-}
 
 interface IProvenanceSection {
   authors: readonly string[];
@@ -75,21 +62,6 @@ interface IDocsSection {
 export class AnnotationsPanel {
   readonly overlay = input<ISidecarOverlay | null | undefined>(undefined);
 
-  /**
-   * Set of node paths that exist in the local store. The panel uses it
-   * to mark broken-ref chips (paths that don't resolve to a known
-   * node). Empty / absent → all chips render in the live state and the
-   * host has to resolve breakage some other way.
-   */
-  readonly knownPaths = input<ReadonlySet<string> | null>(null);
-
-  /**
-   * Emitted when the user clicks a path-typed annotation chip
-   * (`supersedes`, `supersededBy`). The host (inspector) decides how
-   * to navigate, same pattern as the existing relations card.
-   */
-  readonly openPath = output<string>();
-
   protected readonly texts = ANNOTATIONS_PANEL_TEXTS;
 
   protected readonly annotations = computed<Record<string, unknown> | null>(() => {
@@ -111,22 +83,7 @@ export class AnnotationsPanel {
    * sections.
    */
   protected readonly hasAnyContent = computed<boolean>(
-    () =>
-      this.hasSupersession() ||
-      this.hasProvenance() ||
-      this.hasRepository() ||
-      this.hasDocs(),
-  );
-
-  protected readonly supersession = computed<ISupersessionSection>(() => {
-    const a = this.annotations() ?? {};
-    return {
-      supersedes: stringArray(a['supersedes']),
-      supersededBy: stringOrNull(a['supersededBy']),
-    };
-  });
-  protected readonly hasSupersession = computed<boolean>(() =>
-    sectionHasContent(this.supersession() as unknown as Record<string, unknown>),
+    () => this.hasProvenance() || this.hasRepository() || this.hasDocs(),
   );
 
   protected readonly provenance = computed<IProvenanceSection>(() => {
@@ -158,18 +115,6 @@ export class AnnotationsPanel {
   protected readonly hasDocs = computed<boolean>(() =>
     sectionHasContent(this.docs() as unknown as Record<string, unknown>),
   );
-
-  /** Heuristic: true when the path is NOT in the local node store. */
-  protected isBroken(path: string): boolean {
-    const known = this.knownPaths();
-    if (!known) return false;
-    return !known.has(path);
-  }
-
-  protected onOpenPath(p: string): void {
-    if (this.isBroken(p)) return;
-    this.openPath.emit(p);
-  }
 }
 
 function stringOrNull(v: unknown): string | null {

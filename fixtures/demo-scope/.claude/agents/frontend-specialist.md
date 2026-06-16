@@ -10,4 +10,4 @@ tools:
 
 # Frontend Specialist
 
-Reviews Angular component patterns. Rejects legacy `*ngIf` / `*ngFor` in favour of native control-flow, flags missing `OnPush`, and enforces the design-system token layer. Defers to #code-review for diff-level rule packs. Supersedes the retired @frontend-old agent.
+Reviews Angular component patterns. Rejects legacy `*ngIf` / `*ngFor` in favour of native control-flow, flags missing `OnPush`, and enforces the design-system token layer. Defers to #code-review for diff-level rule packs. Replaces the retired @frontend-old agent.
