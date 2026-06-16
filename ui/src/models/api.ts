@@ -855,6 +855,12 @@ export interface IPreferencesPatchApi {
  * more project-scope settings land.
  */
 export interface IProjectPreferencesApi {
+  /**
+   * Committed (team-shared) project policy. When `false`, every
+   * sidecar-writing extension is disabled and `.sm` writes are refused.
+   * Default `true`.
+   */
+  allowSidecarWriters: boolean;
   scan: {
     referencePaths: readonly string[];
   };
@@ -870,6 +876,8 @@ export interface IProjectPreferencesApi {
  */
 export interface IProjectPreferencesPatchApi {
   confirm?: boolean;
+  /** Flip the committed sidecar-writer policy (team-shared). */
+  allowSidecarWriters?: boolean;
   scan?: {
     referencePaths?: string[];
   };

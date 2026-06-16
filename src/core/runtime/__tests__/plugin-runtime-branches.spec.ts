@@ -169,6 +169,79 @@ describe('plugin-runtime, branch coverage', () => {
     assert.equal(singleton.resolvedSettings, undefined, 'singleton must not be mutated by compose');
   });
 
+  // `allowSidecarWriters: false` project policy. The composer drops
+  // every Action that declares `writes: ['sidecar']` so its inspector
+  // button never projects. Identified by the manifest capability, not
+  // an id list, so the gate covers external plugins too. The three
+  // core writer actions are `node-bump` / `node-set-stability`
+  // (experimental, off by default) + `node-set-tags`; the resolver
+  // override enables all of them so the filter, not the default
+  // experimental gate, is what removes them.
+  describe('forbidSidecarWriters policy filter', () => {
+    const WRITER_IDS = [
+      'core/node-bump',
+      'core/node-set-tags',
+      'core/node-set-stability',
+    ];
+    const enableAll = (): boolean => true;
+
+    it('keeps sidecar-writer actions when the policy permits writers', () => {
+      const composed = composeScanExtensions({
+        noBuiltIns: false,
+        pluginRuntime: emptyPluginRuntime(),
+        resolveEnabled: enableAll,
+      });
+      assert.ok(composed);
+      const ids = composed.actions.map((a) => `${a.pluginId}/${a.id}`);
+      for (const id of WRITER_IDS) {
+        assert.ok(ids.includes(id), `expected ${id} in composed actions`);
+      }
+    });
+
+    it('drops every sidecar-writer action when forbidSidecarWriters is true; other kinds untouched', () => {
+      const allowed = composeScanExtensions({
+        noBuiltIns: false,
+        pluginRuntime: emptyPluginRuntime(),
+        resolveEnabled: enableAll,
+      });
+      const forbidden = composeScanExtensions({
+        noBuiltIns: false,
+        pluginRuntime: emptyPluginRuntime(),
+        resolveEnabled: enableAll,
+        forbidSidecarWriters: true,
+      });
+      assert.ok(allowed && forbidden);
+      const forbiddenIds = forbidden.actions.map((a) => `${a.pluginId}/${a.id}`);
+      for (const id of WRITER_IDS) {
+        assert.ok(!forbiddenIds.includes(id), `expected ${id} dropped under the policy`);
+      }
+      // The policy is action-scoped: analyzers / extractors are intact.
+      assert.deepEqual(
+        forbidden.analyzers.map((a) => `${a.pluginId}/${a.id}`).sort(),
+        allowed.analyzers.map((a) => `${a.pluginId}/${a.id}`).sort(),
+      );
+      assert.deepEqual(
+        forbidden.extractors.map((e) => `${e.pluginId}/${e.id}`).sort(),
+        allowed.extractors.map((e) => `${e.pluginId}/${e.id}`).sort(),
+      );
+    });
+
+    it('the three core writer actions declare writes: [sidecar]', () => {
+      const composed = composeScanExtensions({
+        noBuiltIns: false,
+        pluginRuntime: emptyPluginRuntime(),
+        resolveEnabled: enableAll,
+      });
+      assert.ok(composed);
+      const actions = composed.actions;
+      for (const id of WRITER_IDS) {
+        const matches = actions.filter((a) => `${a.pluginId}/${a.id}` === id);
+        assert.equal(matches.length, 1, `expected exactly one ${id} in composed actions`);
+        assert.deepEqual(matches[0]!.writes, ['sidecar']);
+      }
+    });
+  });
+
   it('composeFormatters({ noBuiltIns: true }) excludes built-in formatters', async () => {
     const customDir = freshDir('formatter-only');
     plantFormatter(customDir, 'custom-formatter', 'csv');
@@ -231,8 +304,11 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       const analyzerIds = composed.analyzers.map((r) => r.id).sort();
       // 15 built-in analyzers ship now (the former projector analyzers
-      // `core/supersede` + `core/tags` were deleted, their inspector
-      // buttons self-project from the `core/node-set-tags` action; the
+      // `core/supersede` + `core/tags` were deleted; the inspector
+      // buttons that remain self-project from their own actions, e.g.
+      // `core/node-set-stability`. Tag editing moved inline into the
+      // inspector tag row, so `core/node-set-tags` no longer self-projects
+      // a button; the
       // `core/score-resolution` score-phase scorer was deleted too, the
       // kernel now seeds the 1.0 confidence baseline directly and the
       // `core/name-reserved` / `core/reference-broken` detectors apply
@@ -276,13 +352,16 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 5, 'claude + antigravity + openai + agent-skills + core-markdown providers loaded');
       assert.equal(composed.extractors.length, 6, '6 of 7 extractors loaded; core/mcp-tools is experimental so it ships disabled by default');
-      assert.equal(composed.analyzers.length, 14, '14 of 15 analyzers loaded; core/annotation-stale is experimental so it ships disabled by default (the former projector analyzers core/supersede + core/tags were deleted, their buttons now self-project from the actions; core/score-resolution was deleted, the kernel now seeds the 1.0 baseline directly; core/job-file-orphan was removed, to return under a probabilistic evaluation model)');
-      // Actions are surfaced for the orchestrator's projection pass.
-      // `core/node-set-tags` is stable and loads by default; `core/node-bump`
-      // is experimental, gated as a unit with the `core/annotation-stale`
-      // drift analyzer, so it ships disabled (no Bump button by default).
+      assert.equal(composed.analyzers.length, 14, '14 of 15 analyzers loaded; core/annotation-stale is experimental so it ships disabled by default (the former projector analyzers core/supersede + core/tags were deleted; the remaining inspector buttons self-project from their actions and tag editing moved inline; core/score-resolution was deleted, the kernel now seeds the 1.0 baseline directly; core/job-file-orphan was removed, to return under a probabilistic evaluation model)');
+      // Actions load into the pipeline as dispatch targets; those with a
+      // `project()` also self-project an inspector button (e.g.
+      // `core/node-set-stability`). `core/node-set-tags` is stable and
+      // loads by default but no longer self-projects a button (tag editing
+      // is inline in the inspector); `core/node-bump` is experimental,
+      // gated as a unit with the `core/annotation-stale` drift analyzer,
+      // so it ships disabled (no Bump button by default).
       const actionIds = composed.actions.map((a) => a.id).sort();
-      assert.ok(actionIds.includes('node-set-tags'), 'core/node-set-tags is surfaced for projection');
+      assert.ok(actionIds.includes('node-set-tags'), 'core/node-set-tags is stable and loads by default (dispatched on-demand)');
       assert.ok(
         !actionIds.includes('node-bump'),
         'core/node-bump is experimental → ships disabled, not in the default pipeline',

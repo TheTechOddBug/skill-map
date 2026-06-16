@@ -99,6 +99,10 @@ export const nodeSetStabilityAction: IBuiltInManifest<IAction> = {
   description:
     'Sets the lifecycle stage of the current node (writes `stability` to the sidecar).',
   mode: 'deterministic',
+  // Declares the sidecar-write capability: `invoke()` returns a
+  // `{ kind: 'sidecar' }` write, so the `allowSidecarWriters` policy can
+  // gate this action without invoking it.
+  writes: ['sidecar'],
 
   ui: { setStabilityButton },
 

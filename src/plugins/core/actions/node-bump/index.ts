@@ -100,6 +100,10 @@ export const nodeBumpAction: IBuiltInManifest<IAction> = {
   // the drift analyzer that motivates it.
   stability: 'experimental',
   mode: 'deterministic',
+  // Declares the sidecar-write capability: `invoke()` returns a
+  // `{ kind: 'sidecar' }` write, so consumers (the `allowSidecarWriters`
+  // policy) can gate this action without invoking it.
+  writes: ['sidecar'],
 
   ui: { bumpButton },
 

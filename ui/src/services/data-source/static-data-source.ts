@@ -381,7 +381,7 @@ export class StaticDataSource implements IDataSourcePort {
   }
 
   async getProjectPreferences(): Promise<IProjectPreferencesApi> {
-    return { scan: { referencePaths: [] } };
+    return { allowSidecarWriters: true, scan: { referencePaths: [] } };
   }
 
   async setProjectPreferences(

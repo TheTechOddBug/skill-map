@@ -352,8 +352,14 @@ export const SERVER_TEXTS = {
   projectPrefsBodyNotJson: 'Request body must be valid JSON.',
   projectPrefsBodyNotObject: 'Request body must be a JSON object.',
   projectPrefsBodyEmpty:
-    'Request body must contain a `scan` block with `referencePaths`.',
+    'Request body must contain `allowSidecarWriters` and/or a `scan` block with `referencePaths`.',
   projectPrefsConfirmNotBoolean: '`confirm` must be a boolean.',
+  projectPrefsSidecarWritersNotBoolean: '`allowSidecarWriters` must be a boolean.',
+  // Server-stderr advisory after `PATCH /api/project-preferences`
+  // toggles the committed sidecar-writer policy. Lets the operator see
+  // the team-shared change land without opening settings.json.
+  projectPrefsSidecarWritersSet:
+    'project-prefs: allowSidecarWriters = {{value}}',
   projectPrefsScanNotObject:
     '`scan` must be an object (e.g. `{"scan": {"referencePaths": ["~/Documents"]}}`).',
   projectPrefsListNotArray:

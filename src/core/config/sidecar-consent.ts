@@ -96,6 +96,48 @@ export class EConsentRequiredError extends Error {
 }
 
 /**
+ * Thrown when the project's `allowSidecarWriters` policy is `false` and a
+ * sidecar write is attempted anyway. Distinct from
+ * `EConsentRequiredError`: this is a team-level POLICY denial committed in
+ * `<cwd>/.skill-map/settings.json`, not a missing per-machine consent.
+ * It is a HARD gate, it wins over `allowEditSmFiles` and is NOT bypassable
+ * with `--yes` / `{ confirm: true }`, so the message carries no
+ * grant-on-the-fly hint. The CLI prints it verbatim; the BFF maps it to
+ * `403 sidecar-writers-forbidden`.
+ */
+export class ESidecarWritersForbiddenError extends Error {
+  readonly key: string;
+
+  constructor(init: { key: string }) {
+    super(
+      `Sidecar-writing extensions are disabled in this project ` +
+        `('${init.key}' is false in .skill-map/settings.json). ` +
+        `This is a team-level project policy and cannot be overridden.`,
+    );
+    this.name = 'ESidecarWritersForbiddenError';
+    this.key = init.key;
+  }
+}
+
+/**
+ * Project-policy gate for sidecar writers. Reads the committed
+ * `allowSidecarWriters` policy (default `true`); when `false` it throws
+ * `ESidecarWritersForbiddenError`. Exported so the invoke surfaces (BFF
+ * action dispatch, `sm bump`) can refuse a sidecar-writing action EARLY
+ * (before invoking) with a clean error, in addition to the backstop call
+ * inside `ensureSidecarWritesAllowed` at the store chokepoint.
+ */
+export function assertSidecarWritersAllowed(cwd: string): void {
+  const allowed = readConfigValue<boolean>('allowSidecarWriters', {
+    cwd,
+    default: true,
+  });
+  if (allowed === false) {
+    throw new ESidecarWritersForbiddenError({ key: 'allowSidecarWriters' });
+  }
+}
+
+/**
  * Pre-flight gate for any `.sm` write. Reads `allowEditSmFiles` from
  * the layered config; the decision ladder (Step 17, Decision #5):
  *
@@ -117,6 +159,12 @@ export class EConsentRequiredError extends Error {
 export function ensureSidecarWritesAllowed(
   opts: IEnsureSidecarWritesAllowedOpts,
 ): void {
+  // Rung 0, project policy: a committed `allowSidecarWriters: false`
+  // forbids every sidecar write outright. Checked BEFORE the consent
+  // ladder so the team policy is a HARD gate that wins over a local
+  // `allowEditSmFiles: true` and cannot be bypassed with `--yes` /
+  // `{ confirm: true }`.
+  assertSidecarWritersAllowed(opts.cwd);
   const allowed = readConfigValue<boolean>('allowEditSmFiles', {
     cwd: opts.cwd,
     default: false,

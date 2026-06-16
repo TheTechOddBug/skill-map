@@ -491,6 +491,48 @@ describe('POST /api/actions/:pluginId/:actionId', () => {
     });
   });
 
+  describe('allowSidecarWriters policy (hard gate)', () => {
+    beforeEach(() => {
+      // The outer beforeEach already primed with consent granted
+      // (settings.local.json: allowEditSmFiles=true). Layer the committed
+      // team policy on top: settings.json forbids sidecar writers. The
+      // policy must win over the local consent.
+      writeFileSync(
+        join(root.fixtureRoot, '.skill-map', 'settings.json'),
+        JSON.stringify({ allowSidecarWriters: false }),
+        'utf8',
+      );
+    });
+
+    it('403: sidecar-writers-forbidden even with allowEditSmFiles granted locally', async () => {
+      await bootAndUse(async (handle) => {
+        const client = makeFakeClient();
+        handle.broadcaster.register(client);
+
+        const res = await fetch(actionUrl(handle, BUMP_ACTION_ID), {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ nodePath: 'docs/stale.md', always: true }),
+        });
+        assert.equal(res.status, 403);
+        const body = (await res.json()) as {
+          ok: boolean;
+          error: { code: string; details: { key: string } };
+        };
+        assert.equal(body.ok, false);
+        assert.equal(body.error.code, 'sidecar-writers-forbidden');
+        assert.equal(body.error.details.key, 'allowSidecarWriters');
+
+        // Sidecar untouched + no broadcast: the policy refused the write.
+        const parsed = yaml.load(
+          readFileSync(join(root.fixtureRoot, 'docs/stale.sm'), 'utf8'),
+        ) as Record<string, unknown>;
+        assert.equal((parsed['annotations'] as Record<string, unknown>)['version'], 3);
+        assert.equal(client.sent.length, 0);
+      });
+    });
+  });
+
   it('400: missing nodePath -> bad-query', async () => {
     await bootAndUse(async (handle) => {
       const res = await fetch(actionUrl(handle, BUMP_ACTION_ID), {

@@ -70,7 +70,7 @@ import { resolve } from 'node:path';
 
 import { assertContained } from '../../core/paths/path-guard.js';
 import { ActionRefusedError } from '../app.js';
-import { EConsentRequiredError, ensureSidecarWritesAllowed } from '../../core/config/sidecar-consent.js';
+import { EConsentRequiredError, ESidecarWritersForbiddenError, ensureSidecarWritesAllowed } from '../../core/config/sidecar-consent.js';
 import type { IAction, IActionContext, IActionResult, TActionWrite } from '../../kernel/extensions/index.js';
 import type { Kernel } from '../../kernel/index.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
@@ -340,8 +340,9 @@ function invokeAction(
 /**
  * Materialise an Action's `sidecar` writes through the consent-gated
  * `FilesystemSidecarStore`. `EConsentRequiredError` is re-thrown so the
- * global `app.onError` maps it to 412 `confirm-required`; any other
- * failure surfaces as a 500.
+ * global `app.onError` maps it to 412 `confirm-required`, and
+ * `ESidecarWritersForbiddenError` so it maps to 403
+ * `sidecar-writers-forbidden`; any other failure surfaces as a 500.
  */
 async function materializeWrites(
   writes: TActionWrite[] | undefined,
@@ -361,6 +362,7 @@ async function materializeWrites(
     }
   } catch (err) {
     if (err instanceof EConsentRequiredError) throw err;
+    if (err instanceof ESidecarWritersForbiddenError) throw err;
     throw new HTTPException(500, { message: formatErrorMessage(err) });
   }
 }

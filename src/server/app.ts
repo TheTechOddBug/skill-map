@@ -64,7 +64,7 @@ import type { ContentfulStatusCode, StatusCode } from 'hono/utils/http-status';
 
 import { formatErrorMessage } from '../kernel/util/format-error.js';
 import { ConfigService } from '../core/config/service.js';
-import { EConsentRequiredError } from '../core/config/sidecar-consent.js';
+import { EConsentRequiredError, ESidecarWritersForbiddenError } from '../core/config/sidecar-consent.js';
 import type { IPluginRuntime } from '../core/runtime/plugin-runtime.js';
 import type { IRuntimeContext } from '../core/runtime/runtime-context.js';
 import { ExportQueryError } from '../kernel/index.js';
@@ -122,6 +122,7 @@ export type TErrorCode =
   | 'action-refused'
   | 'locked'
   | 'confirm-required'
+  | 'sidecar-writers-forbidden'
   | 'host-not-allowed'
   | 'origin-not-allowed'
   | 'payload-too-large'
@@ -646,26 +647,43 @@ export function formatError(err: unknown, c: Context): Response {
     return c.json(envelope, 400);
   }
 
-  // `EConsentRequiredError` is the kernel's contract for "the
-  // operator needs to grant consent before this write proceeds". Map
-  // to 412 `confirm-required` so the UI's bump call-path can branch
-  // on the envelope `code` and open a `ConfirmationService` dialog.
-  // `details.key` lets the UI render the right copy
-  // (`allowEditSmFiles` today; future expansions will reuse the same
-  // shape with their own key).
+  const sidecar = formatSidecarConsentError(err, c);
+  if (sidecar) return sidecar;
+
+  return formatInternalErrorFallThrough(err, c);
+}
+
+/**
+ * Format the two `.sm`-write gate errors into the canonical envelope.
+ * Returns `null` when `err` is neither, so `formatError` can fall
+ * through. Extracted alongside `formatConflict` so the dispatcher's
+ * cyclomatic complexity stays inside the lint budget.
+ *
+ *   - `EConsentRequiredError`         -> 412 `confirm-required`. The
+ *     operator needs to grant per-machine consent; the UI branches on
+ *     the code to open a `ConfirmationService` dialog and retry with
+ *     `confirm` / `always`. `details.key` names the consent key.
+ *   - `ESidecarWritersForbiddenError` -> 403 `sidecar-writers-forbidden`.
+ *     The project's committed `allowSidecarWriters` policy forbids
+ *     writers; unlike consent it is NOT recoverable from the UI (no
+ *     dialog, no retry). `details.key` names the policy key.
+ */
+function formatSidecarConsentError(err: unknown, c: Context): Response | null {
   if (err instanceof EConsentRequiredError) {
     const envelope: IErrorEnvelope = {
       ok: false,
-      error: {
-        code: 'confirm-required',
-        message: err.message,
-        details: { key: err.key },
-      },
+      error: { code: 'confirm-required', message: err.message, details: { key: err.key } },
     };
     return c.json(envelope, 412);
   }
-
-  return formatInternalErrorFallThrough(err, c);
+  if (err instanceof ESidecarWritersForbiddenError) {
+    const envelope: IErrorEnvelope = {
+      ok: false,
+      error: { code: 'sidecar-writers-forbidden', message: err.message, details: { key: err.key } },
+    };
+    return c.json(envelope, 403);
+  }
+  return null;
 }
 
 /**

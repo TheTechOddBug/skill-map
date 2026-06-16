@@ -110,9 +110,9 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
       telemetry: { errorsEnabled: false, usageCliEnabled: false, usageUiEnabled: false, anonymousId: null, environment: 'prod' },
     }),
   getProjectPreferences: () =>
-    Promise.resolve({ scan: { referencePaths: [] } }),
+    Promise.resolve({ allowSidecarWriters: true, scan: { referencePaths: [] } }),
   setProjectPreferences: () =>
-    Promise.resolve({ scan: { referencePaths: [] } }),
+    Promise.resolve({ allowSidecarWriters: true, scan: { referencePaths: [] } }),
   getProjectIgnore: () => Promise.resolve({ patterns: [] }),
   setProjectIgnore: () => Promise.resolve({ patterns: [] }),
   getActiveProvider: () =>

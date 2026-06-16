@@ -125,6 +125,17 @@ export function composeScanExtensions(opts: {
    */
   resolveSettings?: (ext: { pluginId: string; id: string }) => Record<string, unknown>;
   killSwitches?: IConformanceKillSwitches;
+  /**
+   * Project policy (`allowSidecarWriters === false`). When `true`, every
+   * Action whose manifest declares `writes: ['sidecar']` is dropped from
+   * the composed set (built-in and user-plugin alike), so it never
+   * projects its `inspector.action.button` and the orchestrator never
+   * runs its scan-time `project()`. The sidecar store still refuses the
+   * write as a backstop; this filter is the UX half (no dangling buttons
+   * for an action that could only fail). Call sites derive it from the
+   * loaded config: `forbidSidecarWriters: cfg.allowSidecarWriters === false`.
+   */
+  forbidSidecarWriters?: boolean;
 }): {
   providers: IProvider[];
   extractors: IExtractor[];
@@ -134,6 +145,7 @@ export function composeScanExtensions(opts: {
 } | undefined {
   const resolveEnabled = opts.resolveEnabled ?? opts.pluginRuntime.resolveEnabled;
   const resolveSettings = opts.resolveSettings;
+  const forbidSidecarWriters = opts.forbidSidecarWriters === true;
 
   const providers: IProvider[] = [];
   const extractors: IExtractor[] = [];
@@ -146,6 +158,7 @@ export function composeScanExtensions(opts: {
       { providers, extractors, analyzers, hooks, actions },
       resolveEnabled,
       resolveSettings,
+      forbidSidecarWriters,
     );
   }
   // User-plugin extensions: gated by the same resolver so a fresh
@@ -166,7 +179,9 @@ export function composeScanExtensions(opts: {
     if (isPluginExtensionEnabled(ext, resolveEnabled)) hooks.push(withResolvedSettings(ext, resolveSettings));
   }
   for (const ext of opts.pluginRuntime.extensions.actions) {
-    if (isPluginExtensionEnabled(ext, resolveEnabled)) actions.push(ext);
+    if (!isPluginExtensionEnabled(ext, resolveEnabled)) continue;
+    if (forbidSidecarWriters && isSidecarWriterAction(ext)) continue;
+    actions.push(ext);
   }
 
   // Conformance kill-switches. Applied last so they trump every other
@@ -226,6 +241,17 @@ function withResolvedSettings<T extends { pluginId: string; id: string }>(
 }
 
 /**
+ * True when an Action declares the sidecar-write capability
+ * (`writes: ['sidecar']`). The `allowSidecarWriters: false` policy uses
+ * this to drop every sidecar-writing Action from the composed set,
+ * built-in and user-plugin alike, so the gate covers external plugins
+ * without enumerating ids.
+ */
+function isSidecarWriterAction(ext: IAction): boolean {
+  return ext.writes?.includes('sidecar') === true;
+}
+
+/**
  * Walk every built-in plugin, drop disabled extensions per the
  * resolver, and bucket the survivors into the per-kind arrays.
  * Formatters are consumed by `composeFormatters`, not scan, so they
@@ -244,6 +270,7 @@ export function accumulateBuiltInScanExtensions(
   buckets: { providers: IProvider[]; extractors: IExtractor[]; analyzers: IAnalyzer[]; hooks: IHook[]; actions: IAction[] },
   resolveEnabled: (id: string) => boolean,
   resolveSettings?: (ext: { pluginId: string; id: string }) => Record<string, unknown>,
+  forbidSidecarWriters = false,
 ): void {
   for (const plugin of builtInPlugins) {
     for (const ext of plugin.extensions) {
@@ -266,6 +293,9 @@ export function accumulateBuiltInScanExtensions(
           // action with a scan-time `project()` emits its own view
           // contributions during the contribution phase. The on-demand
           // `invoke` dispatch still runs outside the scan pipeline.
+          // Sidecar writers are dropped under the `allowSidecarWriters`
+          // policy so they never project a button that could only fail.
+          if (forbidSidecarWriters && isSidecarWriterAction(ext)) break;
           buckets.actions.push(ext);
           break;
         case 'formatter':

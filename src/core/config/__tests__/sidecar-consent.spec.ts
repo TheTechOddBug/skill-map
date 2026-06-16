@@ -31,6 +31,8 @@ import { describe, it, beforeEach, afterEach } from 'node:test';
 
 import {
   EConsentRequiredError,
+  ESidecarWritersForbiddenError,
+  assertSidecarWritersAllowed,
   ensureSidecarWritesAllowed,
 } from '../sidecar-consent.js';
 
@@ -144,5 +146,80 @@ describe('ensureSidecarWritesAllowed', () => {
       caught2 = err;
     }
     assert.ok(caught2 instanceof EConsentRequiredError);
+  });
+});
+
+describe('allowSidecarWriters policy gate', () => {
+  /** Write the committed `project`-layer settings.json with the policy. */
+  function writeProjectPolicy(value: boolean): void {
+    writeFileSync(
+      join(cwd, '.skill-map/settings.json'),
+      JSON.stringify({ allowSidecarWriters: value }),
+      'utf8',
+    );
+  }
+
+  it('assertSidecarWritersAllowed is a no-op when the policy is absent (default true)', () => {
+    // Should not throw.
+    assertSidecarWritersAllowed(cwd);
+  });
+
+  it('assertSidecarWritersAllowed is a no-op when the policy is explicitly true', () => {
+    writeProjectPolicy(true);
+    assertSidecarWritersAllowed(cwd);
+  });
+
+  it('assertSidecarWritersAllowed throws ESidecarWritersForbiddenError when the policy is false', () => {
+    writeProjectPolicy(false);
+    let caught: unknown;
+    try {
+      assertSidecarWritersAllowed(cwd);
+    } catch (err) {
+      caught = err;
+    }
+    assert.ok(caught instanceof ESidecarWritersForbiddenError);
+    assert.equal((caught as ESidecarWritersForbiddenError).key, 'allowSidecarWriters');
+  });
+
+  it('is a HARD gate: ensureSidecarWritesAllowed throws even when allowEditSmFiles is true locally', () => {
+    // Team policy forbids writers (committed).
+    writeProjectPolicy(false);
+    // Local per-machine consent says "yes" (gitignored).
+    writeFileSync(
+      join(cwd, '.skill-map/settings.local.json'),
+      JSON.stringify({ allowEditSmFiles: true }),
+      'utf8',
+    );
+    let caught: unknown;
+    try {
+      ensureSidecarWritesAllowed({ confirm: false, cwd });
+    } catch (err) {
+      caught = err;
+    }
+    // The policy wins over the local consent: forbidden, not allowed.
+    assert.ok(caught instanceof ESidecarWritersForbiddenError);
+  });
+
+  it('is not bypassable with confirm/always when the policy forbids writers', () => {
+    writeProjectPolicy(false);
+    // Even a strong `always` grant cannot override the team policy.
+    let caught: unknown;
+    try {
+      ensureSidecarWritesAllowed({ confirm: true, always: true, cwd });
+    } catch (err) {
+      caught = err;
+    }
+    assert.ok(caught instanceof ESidecarWritersForbiddenError);
+    // The forbidden write never persisted a local consent flag.
+    assert.equal(
+      existsSync(join(cwd, '.skill-map/settings.local.json')),
+      false,
+    );
+  });
+
+  it('lets the consent ladder run normally when the policy permits writers', () => {
+    writeProjectPolicy(true);
+    // With the policy allowing writers, a one-shot confirm still works.
+    ensureSidecarWritesAllowed({ confirm: true, cwd });
   });
 });

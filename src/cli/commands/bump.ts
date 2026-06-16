@@ -48,7 +48,12 @@
 
 import { Command, Option } from 'clipanion';
 
-import { EConsentRequiredError, ensureSidecarWritesAllowed } from '../../core/config/sidecar-consent.js';
+import {
+  EConsentRequiredError,
+  ESidecarWritersForbiddenError,
+  assertSidecarWritersAllowed,
+  ensureSidecarWritesAllowed,
+} from '../../core/config/sidecar-consent.js';
 import { sidecarPathFor } from '../../kernel/sidecar/parse.js';
 import { FilesystemSidecarStore } from '../../kernel/sidecar/store.js';
 import type { Node } from '../../kernel/types.js';
@@ -165,6 +170,14 @@ export class BumpCommand extends SmCommand {
     if (flagError !== null) return flagError;
 
     const ctx = defaultRuntimeContext();
+
+    // Fail fast on the project policy: a committed `allowSidecarWriters:
+    // false` forbids every `.sm` write. Checked once here (not per node)
+    // so `sm bump --pending` does not repeat the same message for every
+    // pending node. The store gate re-checks as the backstop.
+    const policyError = this.#assertWritersAllowed(ansi, ctx.cwd);
+    if (policyError !== null) return policyError;
+
     const dbPath = resolveDbPath({ db: this.db, ...ctx });
 
     const persisted = await tryWithSqlite(
@@ -189,6 +202,23 @@ export class BumpCommand extends SmCommand {
           ? this.#runPending(persisted.nodes, ctx.cwd, ansi)
           : this.#runSingle(persisted.nodes, ctx.cwd, ansi),
     );
+  }
+
+  /**
+   * Fail-fast guard for the `allowSidecarWriters: false` project policy.
+   * Returns `ExitCode.Error` (after printing the policy message) when
+   * sidecar writers are forbidden, or `null` when writes may proceed.
+   * Re-throws any non-policy error so unexpected failures still surface.
+   */
+  #assertWritersAllowed(ansi: IAnsi, cwd: string): number | null {
+    try {
+      assertSidecarWritersAllowed(cwd);
+      return null;
+    } catch (err) {
+      if (!(err instanceof ESidecarWritersForbiddenError)) throw err;
+      this.printer!.error(`${ansi.red('✕')} ${err.message}`);
+      return ExitCode.Error;
+    }
   }
 
   /**

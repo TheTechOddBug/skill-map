@@ -442,6 +442,7 @@ function registerExtensions(
     noBuiltIns: opts.noBuiltIns,
     pluginRuntime,
     resolveSettings: buildSettingsResolver(cfg),
+    forbidSidecarWriters: cfg.allowSidecarWriters === false,
   };
   if (opts.killSwitches) composeOpts.killSwitches = opts.killSwitches;
   if (opts.resolveEnabledOverride) composeOpts.resolveEnabled = opts.resolveEnabledOverride;

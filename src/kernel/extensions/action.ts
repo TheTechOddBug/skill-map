@@ -42,6 +42,14 @@ export type TActionWrite =
       changes: Record<string, unknown>;
     };
 
+/**
+ * The discriminant kinds an Action may emit through `IActionResult.writes`.
+ * Today the union has a single member (`'sidecar'`); the alias keeps the
+ * manifest `writes` capability (`IAction.writes`) in lock-step with the
+ * runtime write union so a new write kind only has to be added in one place.
+ */
+export type TActionWriteKind = TActionWrite['kind'];
+
 export interface IActionResult<TReport = unknown> {
   report: TReport;
   writes?: TActionWrite[];
@@ -131,6 +139,19 @@ export interface IAction extends IExtensionBase {
    * `expectedDurationSeconds` with the `prob*` prefix convention.
    */
   probExpectedDurationSeconds?: number;
+  /**
+   * Declared persistent-write capability. Mirrors the `kind`s this
+   * Action's `invoke()` may return in `IActionResult.writes`. Today the
+   * only kind is `'sidecar'` (the Action creates / modifies a `.sm`
+   * annotation sidecar). An Action that returns a sidecar write MUST
+   * declare `['sidecar']` here: the manifest declaration is what
+   * consumers gate on WITHOUT invoking the action, so the
+   * `allowSidecarWriters: false` project policy can drop every
+   * sidecar-writer from the scan composer (its `inspector.action.button`
+   * never projects) and the sidecar store can refuse the write. Absent =
+   * the Action performs no persistent writes (read-only / report-only).
+   */
+  writes?: TActionWriteKind[];
   /**
    * Optional declarative filter; absent → applies to every node.
    */

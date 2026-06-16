@@ -27,6 +27,7 @@ import {
 } from '../../index.js';
 
 interface IProjectPrefsEnvelopeWire {
+  allowSidecarWriters: boolean;
   scan: { referencePaths: string[] };
 }
 
@@ -90,6 +91,7 @@ describe('GET /api/project-preferences', () => {
       assert.equal(res.status, 200);
       const env = (await res.json()) as IProjectPrefsEnvelopeWire;
       assert.deepEqual(env, {
+        allowSidecarWriters: true,
         scan: { referencePaths: [] },
       });
     });
@@ -221,6 +223,51 @@ describe('PATCH /api/project-preferences', () => {
       assert.equal(res.status, 400);
       const env = (await res.json()) as IErrorEnvelopeWire;
       assert.equal(env.error.code, 'bad-query');
+    });
+  });
+});
+
+describe('PATCH /api/project-preferences (allowSidecarWriters policy)', () => {
+  it('400 bad-query when allowSidecarWriters is not a boolean', async () => {
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/project-preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ allowSidecarWriters: 'nope' }),
+      });
+      assert.equal(res.status, 400);
+      const env = (await res.json()) as IErrorEnvelopeWire;
+      assert.equal(env.error.code, 'bad-query');
+      assert.match(env.error.message, /allowSidecarWriters/);
+    });
+  });
+
+  it('writes the policy to the committed settings.json (NOT settings.local.json), no confirm needed', async () => {
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/project-preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ allowSidecarWriters: false }),
+      });
+      assert.equal(res.status, 200);
+      const env = (await res.json()) as IProjectPrefsEnvelopeWire;
+      assert.equal(env.allowSidecarWriters, false);
+
+      // Team-shared policy: lands in the committed `settings.json`, not
+      // the per-machine `settings.local.json`.
+      const committed = JSON.parse(
+        readFileSync(join(cwd, '.skill-map/settings.json'), 'utf8'),
+      );
+      assert.equal(committed.allowSidecarWriters, false);
+    });
+  });
+
+  it('GET reflects the persisted policy', async () => {
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/project-preferences'));
+      assert.equal(res.status, 200);
+      const env = (await res.json()) as IProjectPrefsEnvelopeWire;
+      assert.equal(env.allowSidecarWriters, false);
     });
   });
 });

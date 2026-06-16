@@ -51,6 +51,7 @@ describe('config loader, defaults', () => {
 
     strictEqual(warnings.length, 0);
     strictEqual(effective.schemaVersion, 1);
+    strictEqual(effective.allowSidecarWriters, true);
     strictEqual(effective.tokenizer, 'cl100k_base');
     strictEqual(effective.scan.tokenize, true);
     strictEqual(effective.scan.maxFileSizeBytes, 1048576);

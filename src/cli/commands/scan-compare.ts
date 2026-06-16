@@ -165,6 +165,7 @@ export class ScanCompareCommand extends SmCommand {
       noBuiltIns: false,
       pluginRuntime,
       resolveSettings: buildSettingsResolver(cfg),
+      forbidSidecarWriters: cfg.allowSidecarWriters === false,
       killSwitches: readConformanceKillSwitches(),
     });
     let current: ScanResult;

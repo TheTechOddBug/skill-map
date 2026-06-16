@@ -18,6 +18,12 @@
       "minimum": 1,
       "description": "Best-effort estimate of wall-clock duration when `mode=probabilistic`. Drives TTL (`ttl = max(probExpectedDurationSeconds × graceMultiplier, minimumTtlSeconds)`). Required for `probabilistic`; ignored otherwise. Renamed from `expectedDurationSeconds` with the structure-as-truth refactor, the `prob` prefix makes it clear at a glance which mode the field belongs to."
     },
+    "writes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "enum": ["sidecar"] },
+      "description": "Declares the kinds of persistent writes this Action's `invoke()` may emit (mirrors `IActionResult.writes[].kind`). Today the only kind is `sidecar`: the Action creates or modifies a `.sm` annotation sidecar next to a source file. An Action whose `invoke()` returns a write of a given kind MUST declare that kind here; the declaration is the source of truth consumers gate on. When the `allowSidecarWriters: false` project policy is set, every Action that declares `sidecar` is dropped from the scan composer (its `inspector.action.button` never renders) and the sidecar store refuses the write. Absent = the Action performs no persistent writes (read-only / report-only)."
+    },
     "precondition": {
       "type": "object",
       "additionalProperties": false,

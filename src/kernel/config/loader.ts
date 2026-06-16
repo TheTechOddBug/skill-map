@@ -128,6 +128,18 @@ export interface IEffectiveConfig {
    * independently.
    */
   allowEditSmFiles: boolean;
+  /**
+   * **Project policy, team-shared** (committed in the `project` layer,
+   * NOT project-local). Default `true`. When `false`, every extension
+   * whose manifest declares `writes: ['sidecar']` is dropped from the
+   * scan composer (so its `inspector.action.button` never projects) and
+   * the sidecar store refuses the write with
+   * `ESidecarWritersForbiddenError`. HARD gate: it wins over the
+   * per-machine `allowEditSmFiles` consent and is not bypassable with
+   * `--yes`. Reads of existing `.sm` sidecars are unaffected, the policy
+   * governs writes / generation only.
+   */
+  allowSidecarWriters: boolean;
   tokenizer: string;
   roots: string[];
   ignore: string[];

@@ -39,6 +39,7 @@ import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { MessageModule } from 'primeng/message';
 import { SelectModule } from 'primeng/select';
+import { ToggleSwitchModule } from 'primeng/toggleswitch';
 
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
 import type {
@@ -72,6 +73,7 @@ const CONTROL_CHAR_RX = /[\n\r\x00-\x1F\x7F]/;
     InputTextModule,
     MessageModule,
     SelectModule,
+    ToggleSwitchModule,
   ],
   providers: [ConfirmationService],
   templateUrl: './settings-project.html',
@@ -100,6 +102,16 @@ export class SettingsProject {
   protected readonly referencePaths = computed<readonly string[]>(() => {
     const env = this.preferences();
     return env?.scan.referencePaths ?? [];
+  });
+
+  /**
+   * Committed sidecar-writer policy (team-shared). `true` (default)
+   * keeps writer actions; `false` disables every sidecar-writing
+   * extension and refuses `.sm` writes. Defaults to `true` before the
+   * envelope loads so the switch does not flash "off".
+   */
+  protected readonly allowSidecarWriters = computed<boolean>(() => {
+    return this.preferences()?.allowSidecarWriters ?? true;
   });
 
   // ---- ignore-patterns state -------------------------------------------
@@ -204,6 +216,14 @@ export class SettingsProject {
   protected onReferencePathRemove(path: string): void {
     const next = this.referencePaths().filter((p) => p !== path);
     void this.runPatch('scan.referencePaths', { scan: { referencePaths: [...next] } });
+  }
+
+  // -----------------------------------------------------------------
+  // Sidecar-writer policy handler
+  // -----------------------------------------------------------------
+
+  protected onSidecarWritersToggle(next: boolean): void {
+    void this.runPatch('allowSidecarWriters', { allowSidecarWriters: next });
   }
 
   // -----------------------------------------------------------------

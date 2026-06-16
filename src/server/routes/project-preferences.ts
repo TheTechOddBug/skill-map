@@ -42,6 +42,13 @@ import { makeBodyValidator } from '../util/parse-body.js';
 import type { IRouteDeps } from './deps.js';
 
 export interface IProjectPreferencesEnvelope {
+  /**
+   * Committed (team-shared) project policy: when `false`, every
+   * sidecar-writing extension is dropped from the scan and the sidecar
+   * store refuses the write. Default `true`. See
+   * `core/config/sidecar-consent:assertSidecarWritersAllowed`.
+   */
+  allowSidecarWriters: boolean;
   scan: {
     referencePaths: readonly string[];
   };
@@ -49,6 +56,7 @@ export interface IProjectPreferencesEnvelope {
 
 interface IPatchBody {
   confirm?: boolean;
+  allowSidecarWriters?: boolean;
   scan?: {
     referencePaths?: string[];
   };
@@ -69,6 +77,11 @@ export function registerProjectPreferencesRoute(app: Hono, deps: IRouteDeps): vo
 function buildEnvelope(deps: IRouteDeps): IProjectPreferencesEnvelope {
   const cwd = deps.runtimeContext.cwd;
   return {
+    allowSidecarWriters:
+      readConfigValue<boolean>('allowSidecarWriters', {
+        cwd,
+        default: true,
+      }) ?? true,
     scan: {
       referencePaths:
         readConfigValue<string[]>('scan.referencePaths', {
@@ -85,17 +98,56 @@ interface IPlannedWrite {
 }
 
 async function applyPatch(deps: IRouteDeps, body: IPatchBody): Promise<void> {
-  const writes = collectWrites(body);
-  if (writes.length === 0) return;
   const cwd = deps.runtimeContext.cwd;
 
-  // Existence gate: every NEW entry (not already present in the
-  // current config) must resolve to a directory on disk. Stops
-  // typos and stale paths at write time, the alternative would be
-  // a scan that silently logs a missing-root advisory and ignores
-  // the entry. Pre-existing entries are not re-validated so a path
-  // that disappeared from disk between sessions doesn't block the
-  // operator from removing OTHER paths.
+  // Committed sidecar-writer policy: a top-level boolean written to the
+  // team-shared `project` layer. No privacy / existence gate, it is a
+  // restriction, safe to commit.
+  const policyChanged =
+    typeof body.allowSidecarWriters === 'boolean' &&
+    writeSidecarWritersPolicy(body.allowSidecarWriters, cwd);
+
+  // scan.* writes carry their own existence + privacy gates (see
+  // `applyScanWrites`); `attempted` drives the cache reload, `mutated`
+  // (an actual add / remove) drives the watcher restart.
+  const scan = applyScanWrites(body, cwd);
+
+  // Best-effort watcher restart: the runtime re-reads config every
+  // batch so the next file edit picks the change up anyway, but the
+  // restart guarantees the operator sees the effect (new path list,
+  // dropped / restored writer buttons) without waiting for an
+  // unrelated edit. Failures here do not roll back the on-disk write.
+  if (policyChanged || scan.mutated) await maybeRestartWatcher(deps);
+  // Successful writes mutate the on-disk config; the cached view would
+  // now hand out stale state. Drop it so the next consumer re-reads
+  // from disk.
+  if (policyChanged || scan.attempted) deps.configService.reload();
+}
+
+/**
+ * Apply the `scan.*` sub-keys of the patch (today only
+ * `scan.referencePaths`). Runs the existence gate then the privacy gate
+ * before persisting, both throw `HTTPException` funnelled through the
+ * global `app.onError`. Extracted from `applyPatch` so the orchestrator
+ * stays inside the lint complexity budget once the policy branch landed
+ * alongside it.
+ *
+ * Returns `attempted` (any scan write was requested, so the config cache
+ * must reload) and `mutated` (an actual add / remove happened, so the
+ * watcher should restart).
+ */
+function applyScanWrites(
+  body: IPatchBody,
+  cwd: string,
+): { attempted: boolean; mutated: boolean } {
+  const writes = collectWrites(body);
+  if (writes.length === 0) return { attempted: false, mutated: false };
+
+  // Existence gate: every NEW entry (not already present in the current
+  // config) must resolve to a directory on disk. Stops typos and stale
+  // paths at write time; pre-existing entries are not re-validated so a
+  // path that disappeared between sessions does not block removing OTHER
+  // paths.
   const missingPaths = collectMissingPaths(writes, cwd);
   if (missingPaths.length > 0) {
     throw new HTTPException(400, {
@@ -105,9 +157,9 @@ async function applyPatch(deps: IRouteDeps, body: IPatchBody): Promise<void> {
     });
   }
 
-  // Privacy gate: aggregate every exposure across the patch and
-  // refuse the write when ANY sub-key expands the surface without
-  // an explicit `confirm: true`.
+  // Privacy gate: aggregate every exposure across the patch and refuse
+  // the write when ANY sub-key expands the surface without an explicit
+  // `confirm: true`.
   const exposures = writes
     .map((w) => projectPathExposure({ key: w.key, value: w.value, cwd }))
     .filter((e) => e.expandsSurface);
@@ -120,21 +172,39 @@ async function applyPatch(deps: IRouteDeps, body: IPatchBody): Promise<void> {
     });
   }
 
-  let scanSurfaceMutated = false;
+  let mutated = false;
   for (const w of writes) {
-    if (runWrite(w, cwd)) scanSurfaceMutated = true;
+    if (runWrite(w, cwd)) mutated = true;
   }
+  return { attempted: true, mutated };
+}
 
-  // Best-effort watcher restart: `scan.referencePaths` is re-walked on
-  // every batch by the runtime so the next file edit picks it up
-  // anyway, but the restart guarantees the operator sees the effect
-  // of a write without waiting for an unrelated edit. Failures here
-  // do not roll back the on-disk write.
-  if (scanSurfaceMutated) await maybeRestartWatcher(deps);
-  // Successful writes mutate the on-disk config; the cached view
-  // would now hand out stale state. Drop it so the next consumer
-  // re-reads from disk.
-  deps.configService.reload();
+/**
+ * Persist the committed `allowSidecarWriters` policy to the team-shared
+ * `project` layer (NOT project-local: the whole point is that the policy
+ * travels with the repo to every collaborator). Returns `true` when the
+ * value actually changed, so the caller can decide on the watcher
+ * restart. Throws `HTTPException(400)` on persist failure, funnelled
+ * through the global `app.onError` like the scan writes.
+ */
+function writeSidecarWritersPolicy(value: boolean, cwd: string): boolean {
+  const before =
+    readConfigValue<boolean>('allowSidecarWriters', { cwd, default: true }) ?? true;
+  if (before === value) return false;
+  try {
+    writeConfigValue('allowSidecarWriters', value, { target: 'project', cwd });
+  } catch (err) {
+    throw new HTTPException(400, {
+      message: tx(SERVER_TEXTS.projectPrefsPersistFailed, {
+        key: 'allowSidecarWriters',
+        message: formatErrorMessage(err),
+      }),
+    });
+  }
+  log.warn(
+    tx(SERVER_TEXTS.projectPrefsSidecarWritersSet, { value: String(value) }),
+  );
+  return true;
 }
 
 function collectWrites(body: IPatchBody): IPlannedWrite[] {
@@ -318,18 +388,20 @@ function isExistingDirectory(entry: string, cwd: string): boolean {
 }
 
 /**
- * Body schema for `PATCH /api/project-preferences`. Requires `scan`
- * with at least one of the two sub-keys present; rejects unknown
- * keys at every level (`additionalProperties: false`). The `confirm`
- * flag is optional and only consumed by the privacy gate when the
- * patch would expand disk access.
+ * Body schema for `PATCH /api/project-preferences`. Requires at least
+ * one mutable key (`allowSidecarWriters` and/or a `scan` block) via the
+ * `anyOf`; rejects unknown keys at every level
+ * (`additionalProperties: false`). The `confirm` flag is optional and
+ * only consumed by the privacy gate when the patch would expand disk
+ * access.
  */
 const PATCH_BODY_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['scan'],
+  anyOf: [{ required: ['allowSidecarWriters'] }, { required: ['scan'] }],
   properties: {
     confirm: { type: 'boolean' },
+    allowSidecarWriters: { type: 'boolean' },
     scan: {
       type: 'object',
       additionalProperties: false,
@@ -349,10 +421,11 @@ const parsePatchBody = makeBodyValidator<IPatchBody>(PATCH_BODY_SCHEMA, {
   notObject: SERVER_TEXTS.projectPrefsBodyNotObject,
   invalid: SERVER_TEXTS.projectPrefsBodyEmpty,
   mapping: {
-    '/scan:required': SERVER_TEXTS.projectPrefsBodyEmpty,
+    ':anyOf': SERVER_TEXTS.projectPrefsBodyEmpty,
     '/scan:minProperties': SERVER_TEXTS.projectPrefsBodyEmpty,
     '/scan:type:object': SERVER_TEXTS.projectPrefsScanNotObject,
     '/confirm:type:boolean': SERVER_TEXTS.projectPrefsConfirmNotBoolean,
+    '/allowSidecarWriters:type:boolean': SERVER_TEXTS.projectPrefsSidecarWritersNotBoolean,
     '/scan/referencePaths:type:array': tx(SERVER_TEXTS.projectPrefsListNotArray, { key: 'scan.referencePaths' }),
     '/scan/referencePaths/*:type:string': tx(SERVER_TEXTS.projectPrefsListEntryNotString, { key: 'scan.referencePaths' }),
     '/scan/referencePaths/*:pattern': SERVER_TEXTS.projectPrefsEntryHasComma,

@@ -482,6 +482,7 @@ export function createWatcherRuntime(
         pluginRuntime,
         resolveEnabled: resolveEnabledOverride,
         resolveSettings: buildSettingsResolver(cfg),
+        forbidSidecarWriters: cfg.allowSidecarWriters === false,
       };
       if (opts.killSwitches) composeOpts.killSwitches = opts.killSwitches;
       const composed = composeScanExtensions(composeOpts);
