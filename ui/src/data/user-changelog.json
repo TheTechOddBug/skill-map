@@ -2,6 +2,20 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.59.0",
+      "date": "2026-06-16",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "The Bump button and the sidecar drift (\"stale\") finding are off by default now. Staleness still shows on the node's status; re-enable with `sm plugins enable core/node-bump core/annotation-stale` or the Settings toggles.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.58.0",
       "date": "2026-06-16",
       "kind": "user-facing",

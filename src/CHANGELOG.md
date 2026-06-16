@@ -1,5 +1,19 @@
 # skill-map
 
+## 0.59.0
+
+### Minor Changes
+
+- Ship the `core/node-bump` action and the `core/annotation-stale` analyzer as `experimental`, so the sidecar bump/drift surface is disabled by default (Decision #128). Gated as a unit: with the action disabled no Bump button projects, and with the drift analyzer disabled no stale finding fires. The `sidecar-end-to-end` conformance case drops its `annotation-stale` assertion accordingly (a default scan now surfaces only `annotation-orphan`; the node still carries the derived `sidecar.status`).
+
+  ## User-facing
+
+  The Bump button and the sidecar drift ("stale") finding are off by default now. Staleness still shows on the node's status; re-enable with `sm plugins enable core/node-bump core/annotation-stale` or the Settings toggles.
+
+### Patch Changes
+
+- Remove a dead per-node aggregation loop from the `annotation-field-unknown` analyzer: it counted offending keys per node for a card chip that was already retired, then discarded the result via `void`. No behavior change; the emitted findings are unchanged.
+
 ## 0.58.0
 
 ### Minor Changes
