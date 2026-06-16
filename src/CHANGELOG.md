@@ -1,5 +1,27 @@
 # skill-map
 
+## 0.58.0
+
+### Minor Changes
+
+- Move the inspector Set stability button to the `core/node-set-stability` action's scan-time `project()`. The button now tracks the action's enabled state (a disabled action projects no button) instead of the `core/node-stability` analyzer emitting it unconditionally. The analyzer also stops raising an `info` for `experimental` nodes (only `deprecated` still raises a finding, experimental stays a chip) and ships a clearer plugins-list description.
+
+  ## User-facing
+
+  The Set stability button no longer shows when its action is turned off (it used to leave a dead button), and experimental files no longer add an info row to Findings; the experimental badge still shows on the card.
+
+- Remove the `supersede` feature end to end. The `supersedes` link kind is dropped from the global link-kind enum, the `annotations.supersedes` and `supersededBy` sidecar fields are removed from the spec, and the three built-ins that powered it (the `core/annotations` extractor, the `core/node-supersede` action, the `core/node-superseded` analyzer) are deleted. Scans no longer produce supersede links, and the inspector drops the Supersede button and the superseded-by banner.
+
+  ## User-facing
+
+  The Supersede inspector button, the "superseded by" banner, and supersede links on the map are gone. The `supersedes` and `supersededBy` keys in `.sm` sidecars are no longer recognized, remove them from any sidecar that still declares them.
+
+- The inspector sidecar action buttons (Set stability, Edit tags, Bump) now project on every real (non-virtual) node, not only nodes that already have a `.sm` sidecar. The write creates the sidecar when absent (gated by the write-consent flow), so a node can get its first annotation straight from the inspector. Bump is enabled on a node with no sidecar (it creates one) or a stale sidecar, and disabled only on a fresh one. Synthetic nodes stay excluded since there is no file to anchor a `.sm`.
+
+  ## User-facing
+
+  You can now set stability, edit tags, or bump any node straight from the inspector, even ones without a `.sm` yet. The action creates the sidecar for you, with the usual write consent.
+
 ## 0.57.0
 
 ### Minor Changes

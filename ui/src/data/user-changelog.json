@@ -2,6 +2,33 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.58.0",
+      "date": "2026-06-16",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "The Set stability button no longer shows when its action is turned off (it used to leave a dead button), and experimental files no longer add an info row to Findings; the experimental badge still shows on the card.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "The Supersede inspector button, the \"superseded by\" banner, and supersede links on the map are gone. The `supersedes` and `supersededBy` keys in `.sm` sidecars are no longer recognized, remove them from any sidecar that still declares them.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec",
+            "@skill-map/web"
+          ]
+        },
+        {
+          "body": "You can now set stability, edit tags, or bump any node straight from the inspector, even ones without a `.sm` yet. The action creates the sidecar for you, with the usual write consent.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.57.0",
       "date": "2026-06-15",
       "kind": "user-facing",
