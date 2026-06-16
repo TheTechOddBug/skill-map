@@ -82,13 +82,6 @@ export const annotationFieldUnknownAnalyzer: IBuiltInManifest<IAnalyzer> = {
     const knownPluginIds = collectPluginIds(contributions);
 
     const issues: Issue[] = [];
-    // Per-node aggregation so we emit ONE badge / chip per node, not
-    // one per offending key. The map counts across all three surfaces
-    // (annotations / root / plugin-namespace) the rule inspects below.
-    const perNode = new Map<string, number>();
-    const bump = (nodePath: string): void => {
-      perNode.set(nodePath, (perNode.get(nodePath) ?? 0) + 1);
-    };
     for (const node of ctx.nodes) {
       const root = sidecarRoots.get(node.path);
       if (!root) continue;
@@ -108,7 +101,6 @@ export const annotationFieldUnknownAnalyzer: IBuiltInManifest<IAnalyzer> = {
               }),
               data: { surface: 'annotations', key },
             });
-            bump(node.path);
           }
         }
       }
@@ -146,7 +138,6 @@ export const annotationFieldUnknownAnalyzer: IBuiltInManifest<IAnalyzer> = {
               }),
               data: { surface: 'plugin-namespace', pluginId: key, key: contribKey },
             });
-            bump(node.path);
           }
           continue;
         }
@@ -161,13 +152,8 @@ export const annotationFieldUnknownAnalyzer: IBuiltInManifest<IAnalyzer> = {
           }),
           data: { surface: 'root', key },
         });
-        bump(node.path);
       }
     }
-    // Per-node aggregation that fed the now-removed chip emission
-    // stays computed (cheap; N ≤ nodes) in case a future surface
-    // wants the count. Today the values are dropped after the loop.
-    void perNode;
     return issues;
   },
 };
