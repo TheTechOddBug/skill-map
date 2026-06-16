@@ -13,7 +13,7 @@ sm show .claude/skills/demo-skill/SKILL.md
 sm check
 ```
 
-Expected: you see the 6 fixture nodes listed with their kind: `demo-skill` (skill), `demo-agent` (agent), `demo-command` (command), `notes/todo` (`markdown`, the catch-all per the `kinds` chapter), and the two guideline notes `notes/demo-guideline` and `notes/demo-guideline2` (both `markdown`, the hub's confidence pair: a faint `mentions` at 0.50 and a resolved `references` at 1.00). `check` reads the persisted `scan_issues` table, it does NOT re-walk the filesystem. The fixture is clean (the connector / inspector chapters captured the latest state before Ctrl+C), so the verb prints `✓ No issues`. We will plant one in the `issues` chapter and watch the rule catch it after a fresh `sm scan`.
+Expected: you see the 6 fixture nodes listed with their kind: `demo-skill` (skill), `demo-agent` (agent), `demo-command` (command), `notes/todo` (`markdown`, the catch-all per the `kinds` chapter), and the two guideline notes `notes/demo-guideline` and `notes/demo-guideline2` (both `markdown`, the hub's resolution pair: a broken `mentions` at 0.50 and a resolved `references` at 1.00). `check` reads the persisted `scan_issues` table, it does NOT re-walk the filesystem. The prologue fixture carries one deliberate broken reference (the bare `@demo-guideline` mention from the `connectors` chapter resolves to no agent), so `sm check` reports `1 error` (`reference-broken` on `notes/todo.md`), NOT `✓ No issues`. The `issues` chapter plants a SECOND broken ref and watches the rule catch it after a fresh `sm scan`.
 
 Mark `browse`: done.
 
@@ -33,7 +33,7 @@ Mark `graph-export`: done.
 
 ## Chapter `issues` - Issues and broken refs (--analyzers, --json) (~3 min)
 
-`reference-broken` is one of the deterministic rules `sm check` runs. We'll plant one and watch it surface, that's the easiest way to internalise that it is an **issue** on a node, NOT a connector and NOT the same thing as an "orphan".
+`reference-broken` is one of the deterministic rules `sm check` runs. The hub already carries one broken reference from the prologue (the bare `@demo-guideline` mention that resolves to no agent); we'll plant a second, an explicit markdown link to a missing file, and watch the rule catch it too, that's the easiest way to internalise that it is an **issue** on a node, NOT a connector and NOT the same thing as an "orphan".
 
 > ℹ️ `reference-broken` is one of ~16 built-in rules. Others surface
 > different families: `core/name-reserved` (a file shadows a vendor
@@ -61,7 +61,7 @@ sm check --analyzers reference-broken
 sm check --json
 ```
 
-Expected: the error surfaces the dangling link from `notes/todo.md` to the non-existent `missing-page.md`. The `--analyzers` filter lets you focus on a single issue type; `--json` emits the structured payload (useful for CI / scripting). When done, the tester can leave the bullet in place or delete it, the rest of the deep-dive doesn't depend on it.
+Expected: `sm check` now reports **2 errors**, both `reference-broken` on `notes/todo.md`, the pre-existing `@demo-guideline` mention from the prologue plus the freshly planted `[flow diagram](./missing-page.md)` you just added (the dangling markdown link to the non-existent `missing-page.md`). The `--analyzers reference-broken` filter narrows `sm check` to a single rule (still both rows here, since both are that rule); `--json` emits the structured payload (useful for CI / scripting). When done, the tester can leave the bullet in place or delete it, the rest of the deep-dive doesn't depend on it.
 
 Mark `issues`: done.
 

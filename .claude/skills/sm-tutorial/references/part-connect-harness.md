@@ -140,16 +140,17 @@ Wait for confirmation. You MAY use `Read` on the two files afterwards to verify 
 
 ## Chapter `confidence` - How sure is each link (~3 min)
 
-**Context**: skill-map estimates how sure it is of every connection and shows that as opacity. In this harness every link resolves to a real node, so they all read solid (1.00); the faint, low-confidence case is the one the tester met in the prologue (the bare `@demo-guideline` mention that had nothing to resolve to). Here we open the Inspector on a real harness node, read the all-solid numbers, and point back to that prologue contrast. Mirrors the prologue's connectors beat on the portfolio.
+**Context**: skill-map records how sure it is of every connection and shows that as opacity. In this harness every link resolves to a real node, so they all read solid (1.00); the broken-reference case is the one the tester met in the prologue (the bare `@demo-guideline` mention that resolved to no agent, drawn as no arrow and flagged `reference-broken` at 0.50). Here we open the Inspector on a real harness node, read the all-solid numbers, and point back to that prologue contrast. Mirrors the prologue's connectors beat on the portfolio.
 
 No file edits in this chapter, pure observation on the graph the tester just built.
 
 Tell the tester:
 
 > Last beat of this part: how sure is skill-map about each connection?
-> It estimates a **confidence** for every link and draws it as opacity:
-> the surer a connection is real, the more solid the arrow; the less
-> sure, the more translucent.
+> It records a **confidence** for every link and draws it as opacity:
+> a link that resolves to a real node is solid (**1.00**), a link that
+> does not lands fainter, so a glance at the **Map** separates the
+> solid wiring from the problem links.
 >
 > Open the Inspector for the `publish` node (click it on the **Map**).
 > Scroll down to the **Connections** panel and read the **Outgoing**
@@ -164,18 +165,21 @@ Tell the tester:
 >
 > Your whole harness reads solid because every link lands on a real
 > node, that is what a clean, fully wired graph looks like. So what
-> does a *low*-confidence connector look like? You saw one back in the
-> prologue: `@demo-guideline` was a bare `@`-mention pointing at a
-> note, and a bare `@handle` only firmly resolves to an agent, so it
-> had nothing to land on and stayed a soft guess at **0.50**, drawn
-> translucent. The fix there was one character: `@demo-guideline2.md`,
-> the same handle plus a `.md`, resolved to the real file and jumped to
-> **1.00**.
+> does a link that does NOT resolve look like? You saw one back in the
+> prologue: `@demo-guideline` was a bare `@`-mention, and a bare
+> `@handle` only resolves to an agent. `demo-guideline` is a note, so
+> it had nothing to land on: skill-map drew no arrow and flagged it as
+> a **broken reference**, its confidence knocked down to **0.50** by
+> the broken penalty. The fix there was one character:
+> `@demo-guideline2.md`, the same handle plus a `.md`, resolved to the
+> real file and drew a solid arrow at **1.00**.
 >
-> The number is the certainty, and the opacity on the canvas is just
-> that number drawn as transparency: a glance at the **Map** tells you
-> which connections are rock solid and which are skill-map's best
-> guess.
+> So confidence here is really about resolution: **1.00** for a link
+> that lands on a real node, **0.50** for one flagged broken. There is
+> a third rung, **0.10**, for a link that resolves to a real file the
+> runtime would ignore (a reserved name); you meet that one in the
+> daily-loop part. The opacity on the canvas is just that number drawn
+> as transparency.
 >
 > Do you see every badge reading 1.00 in the Inspector?
 

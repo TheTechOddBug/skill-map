@@ -32,7 +32,7 @@ Wait for confirmation. Mark `init`: done.
 
 ## Chapter `kinds` - The other kinds appear (~1 min)
 
-Leave the browser open and the terminal with `sm` running. You create five more nodes **without any cross-fixture links** yet, pure standalone nodes, so the tester sees five new dots pop in. Three new **kinds** show up in this step (skill, command, markdown); the last two files are sibling `markdown` notes (`demo-guideline`, `demo-guideline2`) the hub in the `connectors` chapter reaches two ways, a faint mention that can't resolve and the same handle plus `.md` that resolves to a real file.
+Leave the browser open and the terminal with `sm` running. You create five more nodes **without any cross-fixture links** yet, pure standalone nodes, so the tester sees five new dots pop in. Three new **kinds** show up in this step (skill, command, markdown); the last two files are sibling `markdown` notes (`demo-guideline`, `demo-guideline2`) the hub in the `connectors` chapter reaches two ways, a bare mention that resolves to nothing (which lands as a broken reference, no arrow drawn) and the same handle plus `.md` that resolves to a real file (a solid arrow).
 
 Create these five files (with `Write`), exactly in this order. Per §Provider detection, **substitute `.claude/` with the detected `<provider_dir>` and skip files whose kind is not in the provider's supported set** (`agent-skills` / Antigravity: skip both `demo-agent` and `demo-command`, only the skill + the three markdown notes remain). Adjust the node count, the "five new nodes" message, and the file list shown to the tester in the sample below accordingly:
 
@@ -87,15 +87,17 @@ Create these five files (with `Write`), exactly in this order. Per §Provider de
    ```
 
 4. `notes/demo-guideline.md`, second `kind: markdown` node, reached
-   in the `connectors` chapter by a bare `@`-mention that can't
-   resolve, so it stays skill-map's faintest connector:
+   in the `connectors` chapter by a bare `@`-mention that resolves to
+   no agent, so it surfaces as a broken reference instead of a drawn
+   connector:
    ```markdown
    ---
    name: demo-guideline
    description: |
      Static reference notes the rest of the demo points at. The hub
-     reaches it with a bare `@`-mention, which stays a faint guess
-     (0.50) because it can't resolve to a known entity.
+     reaches it with a bare `@`-mention, which resolves to no agent,
+     so skill-map flags it as a broken reference (0.50) instead of
+     drawing an arrow.
    ---
 
    # Demo Guideline
@@ -187,9 +189,9 @@ You edit `notes/todo.md` so it becomes the **hub** that points to each of the ot
 - an `@handle.md` token (a `@` handle that ends in a file extension) → kind `references`
 - a `/slash` token → kind `invokes`
 
-Five bullets, three kinds: `invokes` and `mentions` each appear twice, `references` once. The last two bullets are the confidence lesson: a bare `@demo-guideline` mention (which can't resolve, so it stays a faint guess) next to `@demo-guideline2.md`, the same handle shape plus a `.md` extension that points at a real sibling file (so it resolves and lands certain). Two separate nodes, two clearly different confidences.
+Five bullets, three kinds: `invokes` and `mentions` each appear twice, `references` once. The last two bullets are the resolution lesson: a bare `@demo-guideline` mention (which resolves to no agent, so it lands as a broken reference and draws no arrow) next to `@demo-guideline2.md`, the same handle shape plus a `.md` extension that points at a real sibling file (so it resolves and draws a solid arrow). Two separate nodes, one broken and one resolved. Five bullets but only four arrows on the canvas.
 
-Apply with `Edit` on `notes/todo.md` (do not rewrite the file). Per §Provider detection, **substitute `.claude/` with the detected `<provider_dir>` and drop any bullet whose target node was not created in the `kinds` chapter** (on `agent-skills` / Antigravity there is no agent and no command → skip the `@demo-agent` and `/demo-command` bullets; the two guideline bullets stay, so the confidence contrast, faint mention 0.50 vs resolved reference 1.00, is intact on those providers too).
+Apply with `Edit` on `notes/todo.md` (do not rewrite the file). Per §Provider detection, **substitute `.claude/` with the detected `<provider_dir>` and drop any bullet whose target node was not created in the `kinds` chapter** (on `agent-skills` / Antigravity there is no agent and no command → skip the `@demo-agent` and `/demo-command` bullets; the two guideline bullets stay, so the resolution contrast, broken mention 0.50 (no arrow drawn) vs resolved reference 1.00 (solid arrow), is intact on those providers too).
 
 **Edit `notes/todo.md`**: append these bullets after the `# Pending` heading:
 
@@ -203,59 +205,70 @@ Apply with `Edit` on `notes/todo.md` (do not rewrite the file). Per §Provider d
 
 Tell the tester:
 
-> Look at the magic again. **Demo TODO list** is now the hub: five
-> arrows light up between it and the other nodes, and the UI palette
-> colours each arrow by the link kind it carries:
+> Look at the magic again. **Demo TODO list** is now the hub. You
+> wrote five linking bullets, and **four arrows** light up between it
+> and the other nodes, each coloured by the link kind it carries:
 >
-> - `Demo TODO list → demo-agent` (kind: `mentions`)
+> - `Demo TODO list → demo-agent` (kind: `mentions`, the bare `@` handle resolves to a real agent)
 > - `Demo TODO list → demo-command` (kind: `invokes`)
 > - `Demo TODO list → demo-skill` (kind: `invokes`)
-> - `Demo TODO list → demo-guideline` (kind: `mentions`, the bare `@` handle)
 > - `Demo TODO list → demo-guideline2` (kind: `references`, the `@` handle with a `.md` extension)
 >
 > The kind comes from the syntax in the bullet: an `@handle` is a
 > mention, a `/skill` or `/command` is an invoke, and an `@handle`
 > that ends in a file extension (`@name.md`) is a reference, the
-> extension turns the name drop into a file pointer. Five arrows,
-> three kinds.
+> extension turns the name drop into a file pointer.
 >
-> Now look closely: the two guideline arrows are not equally solid.
-> Skill-map draws each connector's **confidence** as opacity, how
-> sure it is the link resolves to something real:
+> So why four arrows for five bullets? The fifth bullet,
+> `@demo-guideline`, is a bare `@`-mention, and a bare mention only
+> resolves to an *agent*. `demo-guideline` is a note, not an agent, so
+> the mention resolves to nothing: skill-map draws no arrow (there is
+> no node for it to land on) and instead flags the hub with a
+> **broken reference**, a red error marker on the **Demo TODO list**
+> card. Compare it with the bullet right after: `@demo-guideline2.md`
+> adds the `.md`, so skill-map reads a file pointer, finds the real
+> `demo-guideline2.md` node, and draws a solid arrow to it. Same
+> handle, one `.md` apart, and one resolves while the other breaks.
+> (That is also why `@demo-agent` drew fine: a bare mention DOES
+> resolve when the target is a real agent.)
 >
-> - `@demo-guideline` is a bare `@`-mention. A bare mention only
->   firmly resolves to an *agent*, and `demo-guideline` is a note,
->   not an agent, so skill-map keeps it a soft guess (0.50), drawn
->   faint. (That's also why `@demo-agent` above is solid: it does
->   resolve to a real agent.)
-> - `@demo-guideline2.md` adds the `.md`, so skill-map reads a file
->   pointer, finds the real `demo-guideline2.md` node, and is certain
->   (1.00), drawn solid.
+> One word on solidity: skill-map draws each connector's
+> **confidence** as opacity, and every arrow you see here is fully
+> solid (1.00) because each one lands on a real node. The faint,
+> partial case (a link to a real file the runtime would ignore) shows
+> up later in the campaign; for now the rule is simple, a reference
+> that resolves draws a solid arrow, a reference that points at
+> nothing is not drawn at all and gets flagged instead. The exact
+> per-link numbers live in the inspector, next chapter.
 >
-> Same handle, one `.md` apart, and the confidence jumps from a guess
-> to a certainty. A glance at the map tells you which links are rock
-> solid and which are skill-map's best guess; the exact number per
-> link is in the inspector, next chapter.
->
-> Confirm when you see it. If a connector is missing, refresh the
-> browser and let me know.
+> Confirm when you see the four arrows plus the broken-reference
+> marker on the hub. If an arrow is missing, refresh the browser and
+> let me know.
 
-If a connector is missing, do not advance, the next chapter inspects the same hub edit. Mark `connectors`: done.
+Expected: four drawn arrows plus one `core/reference-broken` error on `notes/todo.md` for the unresolved `@demo-guideline` mention (the prologue carries this single deliberate error from here on; it is the broken-reference preview the campaign and CLI parts build on). If an arrow is missing, do not advance, the next chapter inspects the same hub edit. Mark `connectors`: done.
 
 ## Chapter `inspector` - The inspector and connections (~1 min)
 
-The connector opacity tells the confidence story at a glance; the exact per-link breakdown lives in the Inspector. Open it on the hub so the tester registers the surface before the `edit-link` chapter changes topology.
+The canvas only draws the resolved arrows; the full per-link breakdown, including the broken one that never drew, lives in the Inspector. Open it on the hub so the tester registers the surface before the `edit-link` chapter changes topology.
 
 > 🆕 Open the Inspector for **Demo TODO list** (click the node on
 > the map). **Expand** the **Connections** section (it's collapsed
 > by default): it has two sections, **Outgoing** and **Incoming**.
-> Demo TODO list lists **5 links** under Outgoing (the hub) and 0
-> under Incoming; open the Inspector for a targeted node to see its
-> Incoming count (each node the hub points at shows **1**). Each row
-> shows the link kind (`mentions`, `invokes`, `references`) and a
-> badge with its confidence: the numeric value. Here you'll see the
-> contrast in numbers, the `mentions` to `demo-guideline` reads
-> `0.50`, while the `references` to `demo-guideline2` reads `1.00`.
+> Demo TODO list lists **5 links** under Outgoing (the canvas drew
+> four arrows, but the data keeps the broken `@demo-guideline` mention
+> as a fifth row) and 0 under Incoming. Each row shows the link kind
+> (`mentions`, `invokes`, `references`) and a badge with its
+> confidence: the numeric value. Here you'll see the contrast, the
+> `references` to `demo-guideline2` reads `1.00` (resolved), while the
+> `mentions` to `demo-guideline` reads `0.50` and is marked broken,
+> that 0.5 is the broken-reference penalty, not a "halfway sure".
+>
+> Now open the Inspector for a couple of the targets to read their
+> Incoming count. The four resolved targets (`demo-agent`,
+> `demo-command`, `demo-skill`, `demo-guideline2`) each show **1**
+> incoming. Open `demo-guideline` and it shows **0**: the broken
+> mention never landed on it, so nothing points in. Five outgoing
+> links on the hub, but only four of them reach a node.
 >
 > 💡 Tip: if all these changes left the nodes crowded together, the
 > map toolbar has a **Re-arrange layout** button (tooltip "Re-arrange
@@ -319,10 +332,12 @@ Per §Provider detection, on `agent-skills` / Antigravity the fixture has fewer 
 > "Isolate this node and its direct links on the map"). Click it.
 >
 > The Map collapses to **Demo TODO list** plus only the nodes it
-> links to (`demo-command`, `demo-skill`, `demo-guideline`,
+> draws an arrow to (`demo-command`, `demo-skill`,
 > `demo-guideline2`).
-> `demo-agent`, which lost its only connector back in the last step,
-> drops out of view, and the Inspector opens on **Demo TODO list**.
+> Two nodes drop out of view: `demo-agent`, which lost its only
+> connector back in the last step, and `demo-guideline`, whose bare
+> mention never resolved so it has no drawn connector either. The
+> Inspector opens on **Demo TODO list**.
 > That's how you
 > focus on one node's neighborhood when a map gets busy.
 >

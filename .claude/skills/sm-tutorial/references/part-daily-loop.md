@@ -330,8 +330,10 @@ sm check
 > ```
 >
 > That is the `reference-broken` analyzer: a link whose target no longer exists.
-> On the Map the `publish → docs/DEPLOY.md` arrow has gone faint. `sm check` runs
-> the full analyzer catalogue (around a dozen rules); to narrow it to one rule:
+> On the Map the `publish → docs/DEPLOY.md` arrow has disappeared: a broken link
+> resolves to no node, so skill-map stops drawing it and flags the `publish` card
+> with a red error instead. `sm check` runs the full analyzer catalogue (around a
+> dozen rules); to narrow it to one rule:
 
 ```bash
 sm check --analyzers reference-broken

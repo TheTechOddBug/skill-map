@@ -28,6 +28,17 @@ disk. The orchestrator's `portfolio-init` already cleared it during
 pre-flight, so the tester sees only the portfolio. If anything demo
 lingers, mention it once and move on.
 
+**Context (agent, do not narrate the plumbing): the lens prompt.**
+Unlike the prologue (a pure `.claude/` project that auto-detected
+`claude` silently), this project has a root `AGENTS.md` (a filesystem
+marker for the `openai` lens) sitting next to the `.claude/` folder
+(the `claude` marker, where the tutorial skill itself lives). With two
+markers present, `sm init`'s first scan can NOT auto-pick a lens and
+asks the tester to choose (`⚠ Multiple provider markers detected`).
+The portfolio is a Claude project, so the answer is `claude`. The
+prompt is expected, blessed behaviour; the tester just needs to know
+which option to pick, so the message below previews it.
+
 ```bash
 sm init
 sm
@@ -39,6 +50,13 @@ Tell the tester:
 > static HTML served by a tiny Express server (`server.js`), and the
 > `.claude/` folder is the **harness** (the helpers that maintain the
 > site). skill-map maps that harness.
+>
+> Run `sm init`. This folder has both a root `AGENTS.md` and a
+> `.claude/` folder, so skill-map can't tell on its own which runtime
+> you're authoring for and asks:
+> `⚠ Multiple provider markers detected. Pick the active lens: 1) claude 2) openai`.
+> Type `1` (or `claude`) and press Enter, this is a Claude project.
+> Then run `sm` to boot the live UI.
 >
 > Open the URL `sm` printed. You'll see **one node**: `AGENTS.md`,
 > the project's handbook (the operating manual for the site).

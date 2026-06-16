@@ -163,13 +163,22 @@ No frontmatter: a real handbook is plain prose (this repo's own
 `name:` that differs from the filename only confuses the tester. The
 node displays by its path, `AGENTS.md`.
 
+**No backtick-wrapped relative `.md` paths in the body either.**
+`core/backtick-path` (Decision #127) turns a `` `docs/STYLE.md` `` written
+inside a code span into a `points` link, and at kickoff (before the
+`docs/` files exist) that link lands as a broken reference, which would
+break the "one lonely node" beat the `kickoff` chapter promises. Name the
+docs in prose (the style guide, the deploy runbook), never as backticked
+paths. They become real nodes in the `real-kinds` chapter and are wired
+in explicitly in Part 2.
+
 ```markdown
 # Portfolio handbook
 
 A small static portfolio site, served by Express (`server.js`). The
 `.claude/` harness maintains it: an agent writes the pages, a skill
-checks the links, a command publishes. The conventions live in
-`docs/STYLE.md`; the deploy steps in `docs/DEPLOY.md`.
+checks the links, a command publishes. The conventions live in the
+style guide; the deploy steps in the deploy runbook.
 ```
 
 ### File: `server.js` (not scanned; runnable scaffolding)
@@ -255,8 +264,10 @@ have at the END of the part just before the one being entered.
 
 NOT cumulative and NOT the portfolio: this is the **Part 0 demo
 fixture**, the six standalone demo nodes with `notes/todo` wired as the
-hub, the clean state (`✓ No issues`) at the end of the prologue's
-connector chapters. Part 5 only reads it. Because it is a different
+hub, the state at the end of the prologue's connector chapters: five hub
+links, one of them (`@demo-guideline`, a bare mention that resolves to no
+agent) a deliberate broken reference that `sm check` reports as a single
+`reference-broken` error. Part 5 only reads it. Because it is a different
 fixture from the portfolio, entry first resets any portfolio on disk
 (see SKILL.md §Entering a part, the `cli` case).
 

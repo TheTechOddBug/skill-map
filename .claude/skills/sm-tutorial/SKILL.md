@@ -394,11 +394,18 @@ When a part begins, honour its `preflight` from the manifest:
     (`node_modules/`, `public/`) are appended to the universal
     `.skillmapignore` pre-flight already wrote, so the tutorial's own
     `.claude/skills/sm-tutorial/` files stay out of the scan even on a
-    direct jump here. Then run `sm init` if `.skill-map/` is missing
-    (it will not overwrite that `.skillmapignore`), then `sm scan` so
-    the map reflects the seeded harness. Mark the skipped
-    predecessor campaign parts `skipped` in the state (they stay in the
-    menu for later). Then emit exactly ONE tester-facing line:
+    direct jump here. Then provision the DB if `.skill-map/` is missing,
+    with the **non-interactive lens recipe**: the seeded portfolio has
+    BOTH a root `AGENTS.md` (an `openai` marker) and `.claude/` (a
+    `claude` marker), so a plain `sm init` would stop on the
+    `⚠ Multiple provider markers detected` prompt with no tester to
+    answer it. Instead run `sm init --no-scan` (skips first-scan
+    detection, never prompts; it will not overwrite that
+    `.skillmapignore`), then `sm config set activeProvider claude`, then
+    `sm scan` so the map reflects the seeded harness under the claude
+    lens. (If `.skill-map/` already exists, just `sm scan`.) Mark the
+    skipped predecessor campaign parts `skipped` in the state (they stay
+    in the menu for later). Then emit exactly ONE tester-facing line:
 
     > I set the project up to where this part begins, so you can start
     > here. The earlier parts that build up to this are still in the
