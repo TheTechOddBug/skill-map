@@ -191,7 +191,7 @@
       "conformance/cases/orphan-markdown-fallback.json": "506119323ddde85c1fb4c986c7f6f40a345d44adb06de8d84002591df0e479ee",
       "conformance/cases/plugin-missing-ui-rejected.json": "2074fd71937feae136c999f76da81f334f2caf8b65bfe8dc9d7fb800699fb85c",
       "conformance/cases/score-phase-confidence.json": "aa3a06149d78ff056dd1a47852baaedc200e47b0d5b1e778d3459ae62f65f390",
-      "conformance/cases/sidecar-end-to-end.json": "0a0d941ab50bd7619e1021a6c6d6dc92918429c2efcf25236b42b5fac9eab901",
+      "conformance/cases/sidecar-end-to-end.json": "06374e619df1691f1593b0847b3671299318525d4a7bf4ff9bfda3ab03032a5f",
       "conformance/cases/view-action-button.json": "51331f725be1c3655351f8fca6fc9d3d301ae68ea1741ff6c79998332ba2dfeb",
       "conformance/cases/view-contribution-payloads.json": "e8f54ed62e64a2a0f86729866e507abb1f4246683f0e60d538280536f7cd3ecc",
       "conformance/cases/view-slots-all.json": "05284e0324dd2da72b6b21d397c11b355802229a68053e9dddc323f69b3a1eba",

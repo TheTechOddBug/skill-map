@@ -276,14 +276,17 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 5, 'claude + antigravity + openai + agent-skills + core-markdown providers loaded');
       assert.equal(composed.extractors.length, 6, '6 of 7 extractors loaded; core/mcp-tools is experimental so it ships disabled by default');
-      assert.equal(composed.analyzers.length, 15, 'all 15 analyzers loaded; none ship disabled by default (the former projector analyzers core/supersede + core/tags were deleted, their buttons now self-project from the actions; core/score-resolution, the former score-phase confidence scorer, was deleted too, the kernel now seeds the 1.0 baseline directly; core/job-file-orphan was removed, to return under a probabilistic evaluation model)');
-      // Actions are surfaced for the orchestrator's projection pass. The
-      // projecting actions whose buttons replaced the deleted analyzers
-      // (`core/node-bump`, `core/node-set-tags`) are stable and load by
-      // default.
+      assert.equal(composed.analyzers.length, 14, '14 of 15 analyzers loaded; core/annotation-stale is experimental so it ships disabled by default (the former projector analyzers core/supersede + core/tags were deleted, their buttons now self-project from the actions; core/score-resolution was deleted, the kernel now seeds the 1.0 baseline directly; core/job-file-orphan was removed, to return under a probabilistic evaluation model)');
+      // Actions are surfaced for the orchestrator's projection pass.
+      // `core/node-set-tags` is stable and loads by default; `core/node-bump`
+      // is experimental, gated as a unit with the `core/annotation-stale`
+      // drift analyzer, so it ships disabled (no Bump button by default).
       const actionIds = composed.actions.map((a) => a.id).sort();
-      assert.ok(actionIds.includes('node-bump'), 'core/node-bump is surfaced for projection');
       assert.ok(actionIds.includes('node-set-tags'), 'core/node-set-tags is surfaced for projection');
+      assert.ok(
+        !actionIds.includes('node-bump'),
+        'core/node-bump is experimental → ships disabled, not in the default pipeline',
+      );
       const formatters = composeFormatters({ pluginRuntime: emptyPluginRuntime() });
       assert.equal(formatters.length, 2, 'ascii + json formatters loaded');
     });
@@ -398,7 +401,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 0);
       assert.equal(composed.extractors.length, 6, 'extractors untouched (6: core/mcp-tools ships disabled, experimental)');
-      assert.equal(composed.analyzers.length, 15, 'analyzers untouched (15: none ship disabled by default; the projector analyzers core/supersede + core/tags were deleted; core/score-resolution was deleted, the kernel seeds the 1.0 baseline directly; core/job-file-orphan was removed)');
+      assert.equal(composed.analyzers.length, 14, 'analyzers untouched (14: core/annotation-stale is experimental so it ships disabled; the projector analyzers core/supersede + core/tags were deleted; core/score-resolution was deleted, the kernel seeds the 1.0 baseline directly; core/job-file-orphan was removed)');
     });
 
     it('(b) killSwitches.extractors empties only the extractors bucket', () => {
@@ -410,7 +413,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 5);
       assert.equal(composed.extractors.length, 0);
-      assert.equal(composed.analyzers.length, 15);
+      assert.equal(composed.analyzers.length, 14);
     });
 
     it('(c) killSwitches.analyzers empties only the rules bucket', () => {

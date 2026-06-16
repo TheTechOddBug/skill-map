@@ -57,6 +57,10 @@ export const annotationStaleAnalyzer: IBuiltInManifest<IAnalyzer> = {
   pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
   description: 'Marks sidecars (`.sm`) that are out of date with their `.md`.',
+  // Ships experimental (disabled by default, Decision #128), gated as a
+  // unit with the `core/node-bump` action that resolves the drift it
+  // reports.
+  stability: 'experimental',
   mode: 'deterministic',
   // The natural fix is to bump the node: refreshes the sidecar hashes,
   // increments `annotations.version`, and stamps the audit block. The

@@ -597,12 +597,39 @@ describe('sm show', () => {
 
 describe('sm scan exit code', () => {
   it('warn / info issues only → exit 0', async () => {
-    // Uses the stale helper, the default fixture's broken refs are
-    // now `error` (per the chip-vs-issue policy in `context/view-slots.md`),
-    // so we plant a minimal stale-sidecar scenario (annotation-stale, info)
-    // to exercise the "no errors → exit 0" branch in isolation.
+    // `annotation-stale` (the former info source here) now ships
+    // experimental / disabled by default, and this goes through the real
+    // scan resolver, so instead plant an ORPHAN sidecar: a `.sm` with no
+    // sibling `.md` makes the still-default-on `annotation-orphan`
+    // analyzer fire at `warn`, exercising the "no errors → exit 0" branch
+    // in isolation (the body carries no broken @ / triggers, so nothing
+    // escalates to `error`).
     const fixture = freshFixture('scan-warns');
-    await plantStaleFixture(fixture);
+    writeFixtureFile(
+      fixture,
+      '.claude/agents/architect.md',
+      [
+        '---',
+        'name: architect',
+        'description: Clean node, no broken refs.',
+        '---',
+        '',
+        'Body without any broken @ or / triggers.',
+      ].join('\n'),
+    );
+    writeFixtureFile(
+      fixture,
+      '.claude/agents/orphan.sm',
+      [
+        'identity:',
+        '  path: .claude/agents/orphan.md',
+        `  bodyHash: ${'a'.repeat(64)}`,
+        `  frontmatterHash: ${'a'.repeat(64)}`,
+        'annotations:',
+        '  version: 1',
+        '',
+      ].join('\n'),
+    );
 
     const cap = captureContext();
     const cmd = buildScan({ roots: [fixture], dryRun: true, json: true });

@@ -94,6 +94,11 @@ export const nodeBumpAction: IBuiltInManifest<IAction> = {
   kind: 'action',
   description:
     'Marks a node as updated: bumps `annotations.version`, refreshes sidecar hashes, and records the timestamp.',
+  // Ships experimental (disabled by default, Decision #128), gated as a
+  // unit with the companion `core/annotation-stale` analyzer: a disabled
+  // action projects no Bump button, so the button never appears without
+  // the drift analyzer that motivates it.
+  stability: 'experimental',
   mode: 'deterministic',
 
   ui: { bumpButton },
