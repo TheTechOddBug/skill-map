@@ -145,14 +145,14 @@ describe('stability analyzer', () => {
         slot: 'card.footer.right',
         icon: 'fa-solid fa-flask',
         label: 'experimental',
-        emitWhenEmpty: false,
+        emitWhenEmpty: true,
         priority: 10,
       },
       deprecated: {
         slot: 'card.footer.right',
         icon: 'pi-ban',
         label: 'deprecated',
-        emitWhenEmpty: false,
+        emitWhenEmpty: true,
         priority: 10,
       },
     });

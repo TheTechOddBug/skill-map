@@ -49,12 +49,16 @@ const DEPRECATED_TOOLTIP = 'Deprecated: avoid in new code';
 // First in the footer-right cluster: stability is the node's declared
 // lifecycle state, so it leads, followed by the drift chip and then the
 // severity counters. It's a state badge, not a count, so it stays left
-// of the numeric zone.
+// of the numeric zone. Both are icon-only badges emitted with `value: 0`
+// and `emitWhenEmpty: true` (the icon carries the meaning, not a count);
+// `card.footer.right` is a counter slot that treats `value === 0` as
+// empty, so without emit-when-empty the chip would be suppressed. Mirrors
+// `annotation-stale`'s staleIcon.
 const experimental = {
   slot: 'card.footer.right',
   icon: 'fa-solid fa-flask',
   label: 'experimental',
-  emitWhenEmpty: false,
+  emitWhenEmpty: true,
   priority: 10,
 } satisfies IViewContribution;
 
@@ -62,7 +66,7 @@ const deprecated = {
   slot: 'card.footer.right',
   icon: 'pi-ban',
   label: 'deprecated',
-  emitWhenEmpty: false,
+  emitWhenEmpty: true,
   priority: 10,
 } satisfies IViewContribution;
 
