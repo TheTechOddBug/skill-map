@@ -13,7 +13,9 @@
  * Whole-array replace: the prompt this action's scan-time `project()`
  * emits pre-loads the current tags, so an edit (add / remove / modify) is
  * just the new full array written back over the old one. There is no
- * per-element merge.
+ * per-element merge. The written array is sanitized first (strings only,
+ * trimmed, no empties, deduped) so a free-form input never produces a
+ * schema-violating sidecar.
  *
  * Dual surface:
  *   - `project(ctx)` (scan-time, deterministic, read-only graph): emits
@@ -137,11 +139,32 @@ function currentTags(node: Node): string[] {
   return value.filter((t): t is string => typeof t === 'string');
 }
 
+/**
+ * Sanitize the incoming tag array before it is written: keep strings only,
+ * trim whitespace, drop empties (`annotations.schema.json` requires
+ * `minLength: 1`), and dedup preserving first-seen order. The input is
+ * free-form (UI `string-list`, REST, CLI), so without this the action
+ * could write a schema-violating or messy `annotations.tags`.
+ */
+function sanitizeTags(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== 'string') continue;
+    const tag = entry.trim();
+    if (tag.length === 0 || seen.has(tag)) continue;
+    seen.add(tag);
+    out.push(tag);
+  }
+  return out;
+}
+
 function invokeSetTags(
   input: INodeSetTagsInput,
   ctx: IActionContext,
 ): IActionResult<INodeSetTagsReport> {
-  const tags = Array.isArray(input.tags) ? input.tags : [];
+  const tags = sanitizeTags(input.tags);
 
   const timestamp = ctx.now().toISOString();
   const write: TActionWrite = {

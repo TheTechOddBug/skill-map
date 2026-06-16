@@ -138,6 +138,18 @@ describe('built-in node-set-tags action, normal write produces a patch', () => {
     strictEqual(result.report.ok, true);
     deepStrictEqual(result.report.tags, []);
   });
+
+  it('sanitizes tags: trims, drops empties / non-strings, dedups in order', () => {
+    const node = makeNode();
+    const result = callSetTags(
+      { tags: ['  core  ', '', 'core', 'wip', 42, null, 'wip'] as unknown as string[] },
+      makeCtx(node, '/repo/docs/x.md', 'cli'),
+    );
+    strictEqual(result.report.ok, true);
+    deepStrictEqual(result.report.tags, ['core', 'wip']);
+    ok(result.writes && result.writes.length === 1);
+    deepStrictEqual(result.writes[0]!.changes['annotations'], { tags: ['core', 'wip'] });
+  });
 });
 
 describe('built-in node-set-tags action, round-trip through FilesystemSidecarStore', () => {
