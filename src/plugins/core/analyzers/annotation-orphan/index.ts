@@ -6,9 +6,10 @@
  * Orphan detection runs in the kernel walker (`discoverOrphanSidecars`);
  * this rule just projects the discovered list as graph-level issues so
  * the standard issue surface (CLI, UI, REST) reports them without
- * bespoke plumbing. `nodeIds` is empty because the orphan has no live
- * node to attribute against, consumers key on `data.sidecarPath`
- * instead.
+ * bespoke plumbing. The orphan has no live node, so `nodeIds` carries
+ * the would-be `.md` path (the missing sibling) to satisfy the schema's
+ * `minItems: 1`; consumers key on `data.sidecarPath` / `data.expectedMdPath`
+ * to tell an orphan from a real node.
  *
  * Severity is `warn` per Decision #4, orphan cleanup is gated by
  * `sm prune-annotations` (Step 9.6.4); the warning prompts the user
