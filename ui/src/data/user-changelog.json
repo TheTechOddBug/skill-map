@@ -2,6 +2,45 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.60.0",
+      "date": "2026-06-17",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "Shared projects can now turn off sidecar writers: a new Project setting stops actions from creating or editing the `.sm` files next to your notes. It is saved in the committed settings.json so it applies to the whole team and cannot be overridden locally.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "`sm check --analyzers core/<id>` now matches issues, not only the bare `<id>` form.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Edit a node's tags right where they are shown: click the pencil in the inspector's tag row to add or remove them inline, with one-click chips for tags already used in your graph (you can still type new ones). The separate Edit tags button is gone.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Editing a node's tags now drops blank and duplicate entries and trims whitespace, instead of saving them as-is.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "The experimental / deprecated badge on a node's card now shows again.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.59.0",
       "date": "2026-06-16",
       "kind": "user-facing",
