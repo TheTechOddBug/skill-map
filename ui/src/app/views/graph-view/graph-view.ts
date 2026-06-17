@@ -845,7 +845,10 @@ export class GraphView implements OnInit {
   }
 
   /**
-   * Run the deferred animated fit. Pure signal tween via
+   * Run the animated fit: the camera glides (pan + zoom) to frame the
+   * on-screen nodes. Drives both the deferred auto-fit (scan add / remove,
+   * curation re-fit) and the explicit re-arrange / fit buttons, so every
+   * fit in the view animates the same way. Pure signal tween via
    * `viewport-animation`: the clamp lives inside `computeFitTransform`
    * (returns the scale already clamped to `[zoomMin, TAG_FIT_MAX_ZOOM]`),
    * so we get the camera-glide UX without Foblex's `FitToFlow`
@@ -879,8 +882,9 @@ export class GraphView implements OnInit {
    * Compute the pan/zoom that fits the on-screen nodes inside the
    * VISIBLE canvas, reserving the inspector panel's width when it is open
    * so the camera frames the area the operator actually sees (left of
-   * the panel). Shared by the animated auto-fit and the snap-fit
-   * (re-arrange / fit button) so both honour the panel identically.
+   * the panel). Shared by every camera fit (the auto-fit on scan, the
+   * curation re-fit, and the explicit re-arrange / fit buttons) so they
+   * all honour the panel identically.
    *
    * Reads EFFECTIVE positions the way `projectVisible` does: user-pinned
    * (`nodePositions`) wins over the dagre output, layout map as fallback,
@@ -909,21 +913,6 @@ export class GraphView implements OnInit {
       panelW: this.reservedPanelWidth(),
       zoomMin: this.zoomMin,
     });
-  }
-
-  /**
-   * Snap (no tween) the camera to `computeVisibleFitTransform()`. Used by
-   * the re-arrange / fit button instead of Foblex's panel-blind
-   * `fitToScreen`, so the fit reserves the inspector panel width the same
-   * way the animated auto-fit does. Bumps the auto-fit token so any
-   * in-flight tween is cancelled before the snap lands.
-   */
-  private snapToVisibleFit(): void {
-    const transform = this.computeVisibleFitTransform();
-    if (!transform) return;
-    ++this.autoFitAnimToken;
-    this.viewportPosition.set(transform.position);
-    this.viewportScale.set(transform.scale);
   }
 
   /**
@@ -1007,7 +996,7 @@ export class GraphView implements OnInit {
   }
 
   fitToScreen(): void {
-    this.snapToVisibleFit();
+    this.runAnimatedFit();
   }
 
   resetLayout(): void {
@@ -1050,11 +1039,11 @@ export class GraphView implements OnInit {
       // current full-graph auto-layout, reseeds every node, and persists.
       // That's the original delete → re-arrange → save loop.
       this.nodePositions.set(new Map());
-      this.snapToVisibleFit();
+      this.runAnimatedFit();
       return;
     }
     void this.relayoutVisibleSubset(visiblePaths)
-      .then(() => this.snapToVisibleFit())
+      .then(() => this.runAnimatedFit())
       .catch(() => {
         // Layout failure (e.g. dagre CJS interop missing in tests) must
         // not crash the view; the previous positions stay.
