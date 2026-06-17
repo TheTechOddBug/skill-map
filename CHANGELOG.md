@@ -6,6 +6,14 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>0.60.1</b> · 2026-06-17</summary>
+
+### CLI Patch
+- The graph map's camera behaviour changes on two interactions. Clicking a tag chip on a card now curates the map in place without panning or zooming, so the operator stays on the card they clicked. The explicit re-arrange and fit-to-screen buttons now glide the camera to the new framing instead of snapping, matching the automatic auto-fit that already animated on scan add / remove. Which nodes get framed is unchanged.
+
+</details>
+
+<details>
 <summary><b>0.60.0</b> · 2026-06-17</summary>
 
 ### CLI Minor
