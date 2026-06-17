@@ -204,7 +204,7 @@ export class App {
       case 'light':
         return 'pi pi-sun';
       case 'dark':
-        return 'fa-regular fa-moon';
+        return 'pi pi-moon';
     }
   });
   protected readonly themeLabel = computed(() => {
