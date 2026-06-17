@@ -6,9 +6,12 @@
  *
  * Clicking a tag CURATES the map down to the nodes carrying that tag:
  * `mapVisibility.setOnly(taggedPaths)` hides every other node (same
- * mechanism the rail's isolate gesture uses). Framing is handled by the
- * graph view's existing curation re-fit effect, so this controller stays
- * a pure visibility state machine with no viewport / Foblex coupling.
+ * mechanism the rail's isolate gesture uses). Unlike the rail gestures, a
+ * tag curation deliberately does NOT reframe the camera: the graph view's
+ * curation re-fit effect detects the tag-driven change (via the
+ * `activeTagSelection` transition) and skips the glide, so the operator
+ * keeps looking at the card they clicked. This controller stays a pure
+ * visibility state machine with no viewport / Foblex coupling.
  *
  * Extracted from `graph-view.ts` so the view component focuses on
  * graph rendering + node-drag + filter concerns. Mirrors the

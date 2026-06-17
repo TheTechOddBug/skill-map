@@ -617,13 +617,35 @@ export class GraphView implements OnInit {
     });
 
     // Re-fit the camera when the map visibility curation changes (decision:
-    // refit on every change). Debounced so a burst of checkbox toggles
-    // coalesces into one glide. Topology is unchanged on a pure visibility
-    // edit, so `layoutComputedAt` does NOT tick; positions are already
-    // settled post-boot, so we drive `runAnimatedFit` via `afterNextRender`
-    // directly (which lets `projectVisible` render the new node set first).
+    // refit on every change) UNLESS that change rode in on a tag selection.
+    // A tag click curates in place (hides the non-matching cards) but
+    // deliberately leaves the camera where it is: the operator clicked a
+    // tag on a card they were already looking at, and a pan / zoom jump
+    // reads as the view running away from them. The genuine curation
+    // gestures (rail checkboxes, isolate) still glide. We tell the two
+    // apart by the `activeTagSelection` transition: when it changed since
+    // the last run (tag activated, swapped, or toggled off) the paths moved
+    // because of the tag and we skip the refit; when it held steady the
+    // paths moved for a non-tag reason and we frame the result. Debounced
+    // so a burst of checkbox toggles coalesces into one glide. Topology is
+    // unchanged on a pure visibility edit, so `layoutComputedAt` does NOT
+    // tick; positions are already settled post-boot, so we drive
+    // `runAnimatedFit` via `afterNextRender` directly (which lets
+    // `projectVisible` render the new node set first).
+    let lastTagForRefit: string | null = null;
     effect(() => {
-      this.mapVisibility.paths(); // the only dependency: refit on curation change
+      this.mapVisibility.paths(); // refit on curation change ...
+      const tag = this.activeTagSelection(); // ... but not when a tag drove it
+      const tagChanged = tag !== lastTagForRefit;
+      lastTagForRefit = tag;
+      if (tagChanged) {
+        // Tag selection curates in place and never reframes. It also
+        // cancels any refit a just-prior curation gesture queued, so the
+        // camera stays put across the tag click.
+        if (this.mapFitDebounce !== null) clearTimeout(this.mapFitDebounce);
+        this.mapFitDebounce = null;
+        return;
+      }
       // Gate, NOT a dependency: reading it tracked would also refit on the
       // boot flip of this flag (a redundant re-frame). `untracked` keeps the
       // effect firing only when the curation set actually changes.
