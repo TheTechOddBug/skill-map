@@ -6,6 +6,29 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>0.60.0</b> · 2026-06-17</summary>
+
+### CLI Minor
+- New committed project setting `allowSidecarWriters` (default `true`) lets shared projects forbid every extension that writes `.sm` annotation sidecars. Actions declare the capability via `writes: ['sidecar']` on their manifest; when the policy is `false` the scan composer drops those actions (buttons never render) and the sidecar store refuses the write (BFF 403 `sidecar-writers-forbidden`), a hard gate that wins over the per-machine `allowEditSmFiles` consent.
+- The inspector tag row (`<sm-node-tags>`) is now an inline editor: `core/node-set-tags` no longer self-projects an `inspector.action.button`; a pencil opens an add / remove editor (shown even with no tags) that offers the tags already present in the graph as click-to-add chips, derived live from the loaded scan; typing a brand-new tag still works. The author guide's self-projection example switched from Edit tags to Set stability.
+
+### CLI Patch
+- Fix the `--analyzers` (CLI) and `?analyzerId=` (BFF) filter so a qualified `<plugin>/<id>` form matches the persisted short analyzer id (issues store the short kebab id with no slash, per `issue.schema.json`). Before, only a short filter matched, so `sm check --analyzers core/node-stability` returned nothing while the bare `node-stability` worked. Both `matchesAnalyzerFilter` and the `/api/issues` SQL now reduce a qualified filter entry to its suffix; the short form is unchanged.
+- Fix a stale doc comment in the `annotation-orphan` analyzer: the header claimed `nodeIds` is empty, but the analyzer sets it to the orphan's would-be `.md` path (the missing sibling, to satisfy the issue schema's `minItems: 1`). Comment-only; no behavior change.
+- Sanitize the tags written by the `core/node-set-tags` action: it now keeps strings only, trims them, drops empty entries (the `annotations.tags` schema requires non-empty items), and dedups, instead of writing the free-form input verbatim. Prevents the Edit tags flow from producing a schema-violating or messy sidecar.
+- The `node-stability` experimental / deprecated card-footer chips were being suppressed: `card.footer.right` is a counter slot that treats `value: 0` as empty, and the contributions set `emitWhenEmpty: false`, so the badges never rendered. They now emit-when-empty and show again as icon-only badges (the `fa-flask` / `pi-ban` icon carries the meaning, value is always 0).
+
+### Spec Minor (0.54.0)
+- New committed project setting `allowSidecarWriters` (default `true`) lets shared projects forbid every extension that writes `.sm` annotation sidecars. Actions declare the capability via `writes: ['sidecar']` on their manifest; when the policy is `false` the scan composer drops those actions (buttons never render) and the sidecar store refuses the write (BFF 403 `sidecar-writers-forbidden`), a hard gate that wins over the per-machine `allowEditSmFiles` consent.
+
+### Spec Patch (0.54.0)
+- The inspector tag row (`<sm-node-tags>`) is now an inline editor: `core/node-set-tags` no longer self-projects an `inspector.action.button`; a pencil opens an add / remove editor (shown even with no tags) that offers the tags already present in the graph as click-to-add chips, derived live from the loaded scan; typing a brand-new tag still works. The author guide's self-projection example switched from Edit tags to Set stability.
+- Add a standalone plugin quickstart doc (a short scaffold then fill then run path with the plugin-lifecycle diagram and links into the full author guide), indexed in the spec README and published in the package. The now-redundant Quick start section was removed from the author guide and its unique co-located-files note (text.ts, the colocated test) folded into the Manifest section as a "Files by convention" paragraph.
+- Editorial pass tightening the spec prose docs for concision (lossless, no normative change: no schema, field, enum, exit code, or MUST/SHOULD touched, and the verbatim prompt preamble still matches the conformance fixture), plus a new non-normative "Plugin lifecycle at a glance" overview atop the plugin author guide with an ASCII diagram of the deterministic flow (Provider, Extractor, Analyzer, Action, Formatter) and Hook off to the side, each with a one-line purpose and short example.
+
+</details>
+
+<details>
 <summary><b>0.59.0</b> · 2026-06-16</summary>
 
 ### CLI Minor
