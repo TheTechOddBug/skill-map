@@ -6,9 +6,9 @@ annotations:
   version: 2
   stability: stable
   tags:
+    - harness
     - content
     - frontend
-    - pages
 settings: {}
 audit:
   createdAt: '2026-02-20T09:00:00.000Z'

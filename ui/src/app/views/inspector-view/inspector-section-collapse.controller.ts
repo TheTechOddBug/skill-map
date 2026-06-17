@@ -41,6 +41,8 @@ const STORAGE_KEY = 'skill-map.ui.inspector.sections';
  *     matching the always-visible toolbar it replaced (the section only
  *     renders when the node has `inspector.action.button` contributions,
  *     so this default never opens an empty section).
+ *   - `connections`: so a node's incoming / outgoing links are visible
+ *     immediately, the primary thing an operator inspects on a node.
  * Any id not listed here falls back to `false` (collapsed) via
  * `defaultExpanded`. Once the user toggles a section, the persisted
  * choice wins over these defaults.
@@ -49,6 +51,7 @@ const SECTION_DEFAULT_EXPANDED: Partial<Record<TInspectorSectionId, boolean>> = 
   body: true,
   findings: true,
   actions: true,
+  connections: true,
 };
 
 function defaultExpanded(id: TInspectorSectionId): boolean {
