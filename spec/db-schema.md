@@ -12,13 +12,13 @@ The spec assumes a relational, SQL-like store but is **engine-agnostic**. The re
 
 ## Scope and location
 
-One scope. Skill-map operates on the project scope only (`<cwd>/.skill-map/`). There is no global / user-level DB, the CLI never reads `$HOME` by default (see `cli-contract.md` §Scope is always project-local). To extend the scan beyond the current repository the user adds explicit paths via `scan.extraFolders` in the project-local config; the scan walks those paths against the same project DB.
+One scope. Skill-map operates on the project scope only (`<cwd>/.skill-map/`). No global / user-level DB; the CLI never reads `$HOME` by default (see `cli-contract.md` §Scope is always project-local). To extend the scan beyond the current repository the user adds explicit paths via `scan.extraFolders` in the project-local config; the scan walks those against the same project DB.
 
 | Scope | Default DB location | Scan roots |
 |---|---|---|
 | `project` | `<cwd>/.skill-map/skill-map.db` | The current repository, plus any paths the user added to `scan.extraFolders`. |
 
-The project DB is gitignored by default (`sm init` adds the entry). Teams MAY opt in to sharing it by removing that `.gitignore` entry, the file is then committed and the execution log becomes a team artifact.
+The project DB is gitignored by default (`sm init` adds the entry). Teams MAY share it by removing that `.gitignore` entry; the file is then committed and the execution log becomes a team artifact.
 
 The `--db <path>` CLI flag overrides the DB location as an escape hatch (debugging, custom layouts).
 
@@ -26,7 +26,7 @@ The `--db <path>` CLI flag overrides the DB location as an escape hatch (debuggi
 
 ## Zones
 
-Every kernel table belongs to exactly one zone, identified by a mandatory name prefix.
+Every kernel table belongs to exactly one zone, identified by a mandatory prefix.
 
 | Zone | Prefix | Nature | Regenerable | Backed up | Example |
 |---|---|---|---|---|---|
@@ -34,9 +34,9 @@ Every kernel table belongs to exactly one zone, identified by a mandatory name p
 | State | `state_` | Persistent operational data: jobs, executions, summaries, enrichment, plugin KV. | No | Yes | `state_jobs` |
 | Config | `config_` | User-owned configuration: plugin enable/disable, preferences, migration ledger. | No | Yes | `config_plugins` |
 
-`sm db reset` drops `scan_*` only (non-destructive, equivalent to forcing the next scan from a clean slate). `sm db reset --state` also drops `state_*` (destructive to operational history). `sm db reset --hard` deletes the DB file entirely. `sm db backup` preserves `state_*` + `config_*`; `scan_*` is always regenerated on demand and is never included in backups.
+`sm db reset` drops `scan_*` only (non-destructive, equivalent to forcing the next scan from a clean slate). `sm db reset --state` also drops `state_*` (destructive to operational history). `sm db reset --hard` deletes the DB file entirely. `sm db backup` preserves `state_*` + `config_*`; `scan_*` is regenerated on demand and never included in backups.
 
-**Active-provider lens change**: switching the `activeProvider` setting (see [`cli-contract.md` §Active provider lens](./cli-contract.md#active-provider-lens) and [`architecture.md` §Active Provider Lens](./architecture.md#active-provider-lens)) drops the `scan_*` zone atomically and triggers a fresh scan under the new lens. Identical effect to `sm db reset` followed by `sm scan`, but bundled as a single transaction so the user never sees an empty graph between the two. `state_*` and `config_*` are preserved across the switch. The `config_plugins` and `config_preferences` rows survive (including the new `activeProvider` value itself).
+**Active-provider lens change**: switching the `activeProvider` setting (see [`cli-contract.md` §Active provider lens](./cli-contract.md#active-provider-lens) and [`architecture.md` §Active Provider Lens](./architecture.md#active-provider-lens)) drops the `scan_*` zone atomically and triggers a fresh scan under the new lens. Same effect as `sm db reset` then `sm scan`, but one transaction so the user never sees an empty graph between the two. `state_*` and `config_*` are preserved; `config_plugins` and `config_preferences` rows survive (including the new `activeProvider` value itself).
 
 ---
 
@@ -73,7 +73,7 @@ One row per detected node, matching [`schemas/node.schema.json`](./schemas/node.
 | Column | Type | Constraint | Notes |
 |---|---|---|---|
 | `path` | TEXT | PRIMARY KEY | Relative path from scope root. Canonical node identifier. |
-| `kind` | TEXT | NOT NULL | Open-by-design (`node.schema.json#/properties/kind`): the value is whatever the classifying Provider declares. Built-in catalogs: `claude` ships `skill` / `agent` / `command` / `mcp`; `openai` ships `agent`; `agent-skills` ships `skill`; `core/markdown` ships the format-named generic fallback `markdown` (universal, picks up any `.md` no vendor Provider claims, see `architecture.md` §Provider · dispatch order). The metadata-only `antigravity` Provider ships no kinds, Antigravity skills route through `agent-skills`. External Providers MAY emit their own. |
+| `kind` | TEXT | NOT NULL | Open-by-design (`node.schema.json#/properties/kind`): whatever the classifying Provider declares. Built-in catalogs: `claude` ships `skill` / `agent` / `command` / `mcp`; `openai` ships `agent`; `agent-skills` ships `skill`; `core/markdown` ships the format-named generic fallback `markdown` (universal, picks up any `.md` no vendor Provider claims, see `architecture.md` §Provider · dispatch order). The metadata-only `antigravity` Provider ships no kinds; Antigravity skills route through `agent-skills`. External Providers MAY emit their own. |
 | `provider` | TEXT | NOT NULL | Provider extension id. |
 | `title` | TEXT | NULL | |
 | `description` | TEXT | NULL | |
@@ -92,7 +92,7 @@ One row per detected node, matching [`schemas/node.schema.json`](./schemas/node.
 | `links_in_count` | INTEGER | NOT NULL DEFAULT 0 | |
 | `external_refs_count` | INTEGER | NOT NULL DEFAULT 0 | |
 | `scanned_at` | INTEGER | NOT NULL | Unix ms. |
-| `modified_at_ms` | INTEGER | NULL | File `mtime` in Unix ms, captured at scan time from `lstat`. NULL for virtual / derived nodes (no backing file). Drives the UI "last modified" sortable column; never participates in hashing. |
+| `modified_at_ms` | INTEGER | NULL | File `mtime` in Unix ms, captured at scan time from `lstat`. NULL for virtual / derived nodes (no backing file). Drives the UI "last modified" sortable column; never hashed. |
 
 Indexes: `ix_scan_nodes_kind`, `ix_scan_nodes_provider`, `ix_scan_nodes_body_hash` (rename heuristic).
 
@@ -106,7 +106,7 @@ One row per detected link, matching [`schemas/link.schema.json`](./schemas/link.
 | `source_path` | TEXT | NOT NULL | FK semantically; MAY be unenforced for performance. |
 | `target_path` | TEXT | NOT NULL | MAY point to a missing node (broken ref). |
 | `kind` | TEXT | NOT NULL, CHECK in (`invokes`, `references`, `mentions`, `points`) | |
-| `confidence` | REAL | NOT NULL, CHECK `>= 0.0 AND <= 1.0` | Numeric `[0,1]` (`link.schema.json#/properties/confidence`). The kernel's 1.0 baseline, then the folded result of every `score`-phase `ctx.adjustConfidence` op (the built-in score-phase detectors `core/name-reserved`, `core/reference-broken`, plus any third-party scorer); the per-op attribution lives in `scan_link_scores`. Migrated from the legacy `high`/`medium`/`low` TEXT enum. |
+| `confidence` | REAL | NOT NULL, CHECK `>= 0.0 AND <= 1.0` | Numeric `[0,1]` (`link.schema.json#/properties/confidence`). The kernel's 1.0 baseline folded with every `score`-phase `ctx.adjustConfidence` op (the built-in detectors `core/name-reserved`, `core/reference-broken`, plus any third-party scorer); per-op attribution lives in `scan_link_scores`. Migrated from the legacy `high`/`medium`/`low` TEXT enum. |
 | `sources_json` | TEXT | NOT NULL | JSON array of extractor ids. |
 | `original_trigger` | TEXT | NULL | |
 | `normalized_trigger` | TEXT | NULL | |
@@ -137,7 +137,7 @@ Indexes: `ix_scan_issues_analyzer_id`, `ix_scan_issues_severity`.
 
 ### `scan_meta`
 
-Single-row table holding the metadata of the last persisted scan. Lets `loadScanResult` return the real `roots` / `scannedAt` / `scannedBy` / `providers` / `stats.filesWalked|filesSkipped|durationMs` instead of synthesising them. Replaced atomically with the rest of the `scan_*` zone on every `sm scan`.
+Single-row table holding the last persisted scan's metadata. Lets `loadScanResult` return the real `roots` / `scannedAt` / `scannedBy` / `providers` / `stats.filesWalked|filesSkipped|durationMs` instead of synthesising them. Replaced atomically with the rest of `scan_*` on every `sm scan`.
 
 `nodesCount` / `linksCount` / `issuesCount` are not stored here, they derive from `COUNT(*)` of the sibling tables.
 
@@ -153,55 +153,55 @@ Single-row table holding the metadata of the last persisted scan. Lets `loadScan
 | `stats_files_walked` | INTEGER | NOT NULL |
 | `stats_files_skipped` | INTEGER | NOT NULL |
 | `stats_duration_ms` | INTEGER | NOT NULL |
-| `tokenizer` | TEXT | NULL | Resolved offline encoder that produced this scan's per-node token counts (closed enum `cl100k_base` / `o200k_base`, see `project-config.md` / `project-config.schema.json` §tokenizer). Carried on the `ScanResult.tokenizer` wire field. NULL on a pre-feature DB or a scan run with tokenization disabled. On `sm scan --changed` the orchestrator compares this against the freshly-resolved encoder and, when they differ (or the stored value is NULL), bypasses the cached per-node token reuse so `buildNode` recomputes counts with the current encoder. Changing the tokenizer therefore invalidates prior counts on the next scan. |
+| `tokenizer` | TEXT | NULL | Resolved offline encoder that produced this scan's per-node token counts (closed enum `cl100k_base` / `o200k_base`, see `project-config.md` / `project-config.schema.json` §tokenizer). Carried on the `ScanResult.tokenizer` wire field. NULL on a pre-feature DB or a scan with tokenization disabled. On `sm scan --changed` the orchestrator compares this against the freshly-resolved encoder and, when they differ (or the stored value is NULL), bypasses cached per-node token reuse so `buildNode` recomputes counts with the current encoder; changing the tokenizer thus invalidates prior counts. |
 | `schema_fingerprint` | TEXT | NULL | sha256 (hex) of the migration DDL the schema was built from, written at persist time. NULL on a DB created by a pre-fingerprint CLI; a NULL (or mismatching) value is read as schema drift (see §Schema drift). Internal DB metadata, NOT carried on the `ScanResult` wire shape. |
 
-The `scope` column was removed pre-1.0 along with the `-g/--global` flag (see `cli-contract.md` §Scope is always project-local); every persisted scan is project-scoped so the column never carried any information worth round-tripping. Older DBs are not migrated, the column drop is a greenfield change and a fresh `sm init` regenerates the schema.
+The `scope` column was removed pre-1.0 along with the `-g/--global` flag (see `cli-contract.md` §Scope is always project-local); every persisted scan is project-scoped so the column carried nothing worth round-tripping. Older DBs are not migrated; the drop is a greenfield change and a fresh `sm init` regenerates the schema.
 
 No indexes (single row).
 
 ### `scan_extractor_runs`
 
-Fine-grained cache breadcrumbs for the incremental scan path. One row per `(node_path, extractor_id)` recording the body hash the Extractor saw the last time it ran against that node. Replace-all on every `sm scan` so rows for Extractors that were uninstalled since the last scan disappear automatically.
+Fine-grained cache breadcrumbs for the incremental scan path. One row per `(node_path, extractor_id)` recording the body hash the Extractor saw the last time it ran against that node. Replace-all on every `sm scan` so rows for uninstalled Extractors disappear automatically.
 
-The orchestrator consults this table on `sm scan --changed`: a node-level cache hit (body+frontmatter unchanged) is upgraded to a full skip ONLY when every currently-registered Extractor (filtered by its `precondition`) has a row matching the prior body hash. A new Extractor registered between scans is detected by the absence of its row and runs over the cached node WITHOUT requiring a full cache invalidation. Without this table the cache silently bypassed any Extractor newly registered between scans, leaving its emissions missing on the next `--changed` pass; the same machinery is what a future Action-issued probabilistic enrichment revision will leverage to reuse paid LLM output across unchanged bodies.
+The orchestrator consults this table on `sm scan --changed`: a node-level cache hit (body+frontmatter unchanged) upgrades to a full skip ONLY when every currently-registered Extractor (filtered by its `precondition`) has a row matching the prior body hash. A new Extractor registered between scans is detected by the absence of its row and runs over the cached node WITHOUT a full cache invalidation; without this table its emissions would go missing on the next `--changed` pass. The same machinery lets a future Action-issued probabilistic enrichment reuse paid LLM output across unchanged bodies.
 
 | Column | Type | Constraint |
 |---|---|---|
 | `node_path` | TEXT | NOT NULL | FK semantically to `scan_nodes.path`; MAY be unenforced (the row is deleted in the same tx as the parent node when the file disappears). |
 | `extractor_id` | TEXT | NOT NULL | Qualified id `<plugin_id>/<id>` per spec § A.6. |
 | `body_hash_at_run` | TEXT | NOT NULL | The `node.body_hash` the Extractor processed; sha256, hex. |
-| `sidecar_annotations_hash_at_run` | TEXT | NOT NULL | sha256 of the canonical-form `node.sidecar.annotations` block the Extractor saw on its run. Always populated, an absent sidecar or one without annotations canonicalises to `{}` so the hash stays stable across "no sidecar" → "empty annotations" transitions. Participates in the cache hit condition for every Extractor: a `.sm`-only edit invalidates the cached run, no opt-in flag required. The author-facing alternative was considered and rejected because forgetting the flag yielded silent stale-data bugs; universal invalidation costs one re-run on sidecar edits (negligible, sidecars change rarely, Extractors are pure-CPU). |
-| `ran_at` | INTEGER | NOT NULL | Unix milliseconds, wall-clock when the Extractor finished or was last carried forward via cache reuse. Used for diagnostics + future GC of stale rows. |
+| `sidecar_annotations_hash_at_run` | TEXT | NOT NULL | sha256 of the canonical-form `node.sidecar.annotations` block the Extractor saw on its run. Always populated; an absent sidecar or one without annotations canonicalises to `{}` so the hash stays stable across "no sidecar" → "empty annotations" transitions. Participates in the cache hit condition for every Extractor: a `.sm`-only edit invalidates the cached run, no opt-in flag required. The author-facing flag alternative was rejected (forgetting it yielded silent stale-data bugs); universal invalidation costs one re-run on sidecar edits (negligible: sidecars change rarely, Extractors are pure-CPU). |
+| `ran_at` | INTEGER | NOT NULL | Unix milliseconds, wall-clock when the Extractor finished or was last carried forward via cache reuse. For diagnostics + future GC of stale rows. |
 
 Primary key: `(node_path, extractor_id)`. Indexes: `ix_scan_extractor_runs_node`, `ix_scan_extractor_runs_extractor`.
 
-**Source-attribution interaction.** `scan_links.sources_json` carries the *short* extractor id the author wrote (e.g. `'slash'`); this table keys on the *qualified* form (`'core/slash-command'`). When a cached link is reshaped on reuse the orchestrator strips short ids whose owning Extractor is no longer registered (audit trail accuracy: a removed extractor must not stay attributed); links whose sole source is an uninstalled Extractor disappear; links whose sources include a missing-but-still-registered Extractor are dropped so the missing Extractor can re-emit fresh.
+**Source-attribution interaction.** `scan_links.sources_json` carries the *short* extractor id the author wrote (e.g. `'slash'`); this table keys on the *qualified* form (`'core/slash-command'`). When a cached link is reshaped on reuse the orchestrator strips short ids whose owning Extractor is no longer registered (a removed extractor must not stay attributed); links whose sole source is an uninstalled Extractor disappear; links whose sources include a missing-but-still-registered Extractor are dropped so it can re-emit fresh.
 
 ### `node_enrichments`
 
 Universal enrichment layer (A.8). Stores `ctx.enrichNode(partial)` outputs separately from the author-supplied frontmatter on `scan_nodes.frontmatter_json`, which the Extractor pipeline NEVER mutates.
 
-One row per `(node_path, extractor_id)` pair an Extractor enriched. Extractors are deterministic-only; rows are simply overwritten via PRIMARY KEY conflict on the next re-extract through the A.9 cache.
+One row per `(node_path, extractor_id)` pair an Extractor enriched. Extractors are deterministic-only; rows are overwritten via PRIMARY KEY conflict on the next re-extract through the A.9 cache.
 
 | Column | Type | Constraint |
 |---|---|---|
 | `node_path` | TEXT | NOT NULL | FK semantically to `scan_nodes.path`; replaced when a rename heuristic fires (mirrors the `state_*` FK migration). |
 | `extractor_id` | TEXT | NOT NULL | Qualified id `<plugin_id>/<id>` per spec § A.6. |
-| `body_hash_at_enrichment` | TEXT | NOT NULL | The `node.body_hash` the Extractor saw when it produced this enrichment. Always equal to the live body hash for Extractor writes; reserved for future Action-issued probabilistic enrichments where stale tracking is meaningful. |
+| `body_hash_at_enrichment` | TEXT | NOT NULL | The `node.body_hash` the Extractor saw when it produced this enrichment. Always equal to the live body hash for Extractor writes; reserved for future Action-issued probabilistic enrichments where stale tracking matters. |
 | `value_json` | TEXT | NOT NULL | JSON-serialised `Partial<Node>`, the cumulative merge of every `enrichNode(...)` call the Extractor made for this node within its `extract()` invocation. |
-| `stale` | INTEGER | NOT NULL DEFAULT 0, CHECK in (0, 1) | Reserved. Always `0` in this revision (Extractors are deterministic; re-running is free). The flag and its index are kept for the future Action-prob enrichment revision where queued LLM jobs must preserve paid output across body changes. |
-| `enriched_at` | INTEGER | NOT NULL | Unix milliseconds, when the Extractor produced this enrichment. Drives the read-time merge order (`ASC` → last-write-wins per field) inside `mergeNodeWithEnrichments`. |
-| `is_probabilistic` | INTEGER | NOT NULL DEFAULT 0, CHECK in (0, 1) | Reserved. Always `0` for Extractor writes (Extractors are deterministic-only). Reserved for the future Action-prob enrichment revision where the writer's mode is denormalised onto the row so the stale-flag query stays single-table. |
+| `stale` | INTEGER | NOT NULL DEFAULT 0, CHECK in (0, 1) | Reserved. Always `0` in this revision (Extractors are deterministic; re-running is free). Flag and index kept for the future Action-prob enrichment revision where queued LLM jobs must preserve paid output across body changes. |
+| `enriched_at` | INTEGER | NOT NULL | Unix milliseconds, when the Extractor produced this enrichment. Drives read-time merge order (`ASC` → last-write-wins per field) inside `mergeNodeWithEnrichments`. |
+| `is_probabilistic` | INTEGER | NOT NULL DEFAULT 0, CHECK in (0, 1) | Reserved. Always `0` for Extractor writes (deterministic-only). For the future Action-prob revision where the writer's mode is denormalised onto the row so the stale-flag query stays single-table. |
 
-Primary key: `(node_path, extractor_id)`. Indexes: `ix_node_enrichments_node`, `ix_node_enrichments_stale`. The `_stale` index is dormant in this revision (every row has `stale = 0`); it is preserved so the future Action-prob revision can ship without a schema migration.
+Primary key: `(node_path, extractor_id)`. Indexes: `ix_node_enrichments_node`, `ix_node_enrichments_stale`. The `_stale` index is dormant in this revision (every row has `stale = 0`); preserved so the future Action-prob revision ships without a schema migration.
 
 **Persistence flow** (per `sm scan`):
 
 1. **Rename migration**, for every `RenameOp` from the rename heuristic, update `node_enrichments.node_path` from `op.from` to `op.to` so the audit trail tracks the file like `state_*` rows do.
 2. **Drop-on-disappear**, delete every row whose `node_path` is no longer in the live node set.
 3. **Upsert**, for every `(node_path, extractor_id)` pair the orchestrator emitted in this scan, upsert with `stale = 0`, `is_probabilistic = 0`, and the current `body_hash`. The PRIMARY KEY conflict refreshes `body_hash_at_enrichment` / `value_json` / `enriched_at` on every re-run.
-4. **Stale flagging**, no-op in this revision (Extractors are deterministic-only; the sweep finds nothing to flag). The step is preserved in the persistence flow so the future Action-prob revision slots in without reshaping the contract.
+4. **Stale flagging**, no-op in this revision (Extractors are deterministic-only; the sweep finds nothing to flag). Preserved so the future Action-prob revision slots in without reshaping the contract.
 
 **Read-side `node.merged` view.** Analyzers / `sm check` / `sm export` consume `node.frontmatter` directly (deterministic CI-safe baseline). UI / future opt-in consumers call `mergeNodeWithEnrichments(node, enrichments)` which:
 
@@ -209,16 +209,16 @@ Primary key: `(node_path, extractor_id)`. Indexes: `ix_node_enrichments_node`, `
 2. Sorts by `enriched_at` ASC.
 3. Spread-merges each `value` over the author frontmatter (last-write-wins per field).
 
-Stale row visibility is opt-in via `mergeNodeWithEnrichments(node, enrichments, { includeStale: true })` and is a no-op today (no rows are stale-flagged); the flag is preserved for the future Action-prob revision noted above.
+Stale row visibility is opt-in via `mergeNodeWithEnrichments(node, enrichments, { includeStale: true })`, a no-op today (no rows are stale-flagged); preserved for the future Action-prob revision noted above.
 
 **Refresh verbs** (see [`cli-contract.md` §Scan](./cli-contract.md#scan)):
 
-- `sm refresh <node.path>` re-runs Extractors against a single node and upserts their enrichment rows. Extractors are deterministic-only, they always run for real and persist.
+- `sm refresh <node.path>` re-runs Extractors against a single node and upserts their enrichment rows. Deterministic-only, they always run for real and persist.
 - `sm refresh --stale` batches the granular form across every node carrying at least one stale row; in this revision the stale set is always empty so the verb prints a "nothing to do" advisory and exits `0`.
 
 ### `scan_contributions`
 
-Phase 3 / View contribution system. Per-node typed payloads emitted by extractors via `ctx.emitContribution(id, payload)` (and analyzers via `ctx.emitScopeContribution(id, payload)` for scope-level slots). One row per `(plugin_id, extension_id, node_path, contribution_id)` tuple.
+View contribution system (Phase 3). Per-node typed payloads emitted by extractors via `ctx.emitContribution(id, payload)` (and by analyzers via `ctx.emitScopeContribution(id, payload)` for scope-level slots). One row per `(plugin_id, extension_id, node_path, contribution_id)` tuple.
 
 | Column | Type | Constraint |
 |---|---|---|
@@ -226,30 +226,30 @@ Phase 3 / View contribution system. Per-node typed payloads emitted by extractor
 | `extension_id` | TEXT | NOT NULL | Extension id within the plugin. |
 | `node_path` | TEXT | NOT NULL | FK semantically to `scan_nodes.path`; orphan-swept on persist when the parent node disappears. |
 | `contribution_id` | TEXT | NOT NULL | Manifest Record key under `extension.ui[<contributionId>]` (the runtime catalog keeps the historical name `viewContributions`). |
-| `slot` | TEXT | NOT NULL | Closed-enum-by-spec slot name; mirror of `view-slots.schema.json#/$defs/SlotName`. Kept open at the SQL layer (no CHECK) so catalog evolution does not need a DDL migration; `sm plugins upgrade` handles renames at the manifest layer. |
+| `slot` | TEXT | NOT NULL | Closed-enum-by-spec slot name; mirror of `view-slots.schema.json#/$defs/SlotName`. Kept open at the SQL layer (no CHECK) so catalog evolution needs no DDL migration; `sm plugins upgrade` handles renames at the manifest layer. |
 | `payload_json` | TEXT | NOT NULL | JSON-serialised payload, already validated against the slot's payload schema (`view-slots.schema.json#/$defs/payloads/<slot>`) at emit time. Off-shape payloads emit `extension.error` and drop silently. |
 | `emitted_at` | INTEGER | NOT NULL | Unix milliseconds. |
 
 Primary key: `(plugin_id, extension_id, node_path, contribution_id)`. Indexes: `ix_scan_contributions_node_path` (inspector lazy-fetch + orphan sweep), `ix_scan_contributions_plugin_id` (catalog sweep + `purgeByPlugin`).
 
-**Persistence, orphan + catalog + per-tuple sweep + upsert (NOT pure replace-all).** The watcher's cached pass leaves the contributions buffer empty for cached nodes, the orchestrator skips `extract()` when the per-(node, extractor) cache hits, so no `emitContribution` fires. A naive wipe-all would silently drop the prior valid rows on every watcher boot. The persist runs four passes inside the same tx as the rest of the scan zone:
+**Persistence, orphan + catalog + per-tuple sweep + upsert (NOT pure replace-all).** The watcher's cached pass leaves the buffer empty for cached nodes (the orchestrator skips `extract()` on a per-(node, extractor) cache hit, so no `emitContribution` fires), and a naive wipe-all would drop the prior valid rows on every watcher boot. The persist runs four passes inside the same tx as the rest of the scan zone:
 
 1. **Orphan sweep**, drops every row whose `node_path` is NOT in the current live node set (`livePaths` derived from `result.nodes`). Disappeared nodes lose their contributions automatically.
-2. **Catalog sweep**, drops every row whose qualified id `(pluginId, extensionId, contributionId)` is NOT in the registered runtime catalog (`registeredContributionKeys` collected via `collectRegisteredContributionKeys(composed)`). Uninstalled-on-disk plugins and removed contributions lose their rows on the next scan. Disabled plugins are normally purged eagerly by `sm plugins disable` (see `purgeByPlugin` below), so the catalog sweep here is the fallback for the rare "config flipped between scans without going through the CLI" case.
+2. **Catalog sweep**, drops every row whose qualified id `(pluginId, extensionId, contributionId)` is NOT in the registered runtime catalog (`registeredContributionKeys` collected via `collectRegisteredContributionKeys(composed)`). Uninstalled-on-disk plugins and removed contributions lose their rows on the next scan. Disabled plugins are normally purged eagerly by `sm plugins disable` (see `purgeByPlugin` below); this is the fallback for the rare "config flipped between scans without going through the CLI" case.
 3. **Per-tuple sweep**, for every `(pluginId, extensionId, node_path)` tuple in `freshlyRunTuples` (extension actually ran against that node this scan: extractor cache miss, OR analyzer), drop any row carrying that triple whose `contribution_id` is NOT refreshed by the buffer. Catches the "extractor used to emit, now does not" case without touching cached-extractor rows. Tuple format: `<pluginId>/<extensionId>/<nodePath>`.
 4. **Upsert**, `INSERT ... ON CONFLICT DO UPDATE SET payload_json = excluded.payload_json, slot = excluded.slot` for every row in the buffer. PK conflict refreshes `payload_json` + `slot` + `emitted_at`.
 
-Cached nodes' rows survive untouched, they're neither orphaned (still in the live set) nor uninstalled (still in the catalog) nor in `freshlyRunTuples` (extractor short-circuited via the per-(node, extractor) cache) nor in the buffer (no re-emit). The next time the body changes, the orchestrator re-runs the extractor, the tuple lands in the freshly-run set, and either the upsert refreshes the row or the per-tuple sweep drops it.
+Cached nodes' rows survive untouched: neither orphaned (still in the live set) nor uninstalled (still in the catalog) nor in `freshlyRunTuples` (extractor short-circuited via cache) nor in the buffer (no re-emit). When the body next changes, the extractor re-runs, the tuple lands in the freshly-run set, and either the upsert refreshes the row or the per-tuple sweep drops it.
 
-**Backwards-compat fallbacks.** `IPersistOptions.livePaths`, `IPersistOptions.registeredContributionKeys`, `IPersistOptions.freshlyRunTuples` are all optional. Absent / empty `livePaths` falls back to wipe-all (legacy behaviour). Absent / empty `registeredContributionKeys` skips the catalog sweep (rows for disabled plugins linger until next purge). Absent / empty `freshlyRunTuples` skips the per-tuple sweep (rows that should have been dropped because an extractor stopped emitting linger until the node body, the extractor registration, or the node existence changes again, older callers preserve the pre-fix behaviour).
+**Backwards-compat fallbacks.** `IPersistOptions.livePaths`, `IPersistOptions.registeredContributionKeys`, `IPersistOptions.freshlyRunTuples` are all optional, so older callers preserve the pre-fix behaviour. Absent / empty `livePaths` falls back to wipe-all (legacy behaviour); `registeredContributionKeys` skips the catalog sweep (rows for disabled plugins linger until next purge); `freshlyRunTuples` skips the per-tuple sweep (rows that should have been dropped because an extractor stopped emitting linger until the node body, the extractor registration, or the node existence changes again).
 
-NOT analogous to `state_plugin_kvs` (which is plugin-managed). Belongs to the `scan_*` family, sweep semantics replace pure replace-all but the data is still scan-derived.
+NOT analogous to `state_plugin_kvs` (which is plugin-managed). Belongs to the `scan_*` family; sweep semantics replace pure replace-all but the data is still scan-derived.
 
-**Eager purge on disable.** `sm plugins disable <id>` calls `StoragePort.contributions.purgeByPlugin(pluginId, extensionId)` immediately after persisting `config_plugins[<id>].enabled = false`. Every persisted toggle key is the qualified `<plugin>/<ext>` shape (the CLI's bundle macro form and the BFF's cascade endpoint expand bare plugin ids before persistence), so the purge always receives both segments. The eager purge avoids the "I disabled the extension but its chips are still rendered in the UI until I re-scan" gap. Re-enabling (`sm plugins enable <id>`) does NOT restore the rows, the next scan re-emits them, same as a cold start. Contributions are scan-derived, so this is cheap; for plugin-managed state (`state_plugin_kvs`, dedicated tables) the opposite policy holds, see `plugin-kv-api.md` § "disable does not drop data".
+**Eager purge on disable.** `sm plugins disable <id>` calls `StoragePort.contributions.purgeByPlugin(pluginId, extensionId)` immediately after persisting `config_plugins[<id>].enabled = false`. Every persisted toggle key is the qualified `<plugin>/<ext>` shape (the CLI's bundle macro form and the BFF's cascade endpoint expand bare plugin ids before persistence), so the purge always receives both segments. Avoids the "I disabled the extension but its chips still render until I re-scan" gap. Re-enabling (`sm plugins enable <id>`) does NOT restore the rows; the next scan re-emits them, same as a cold start. Contributions are scan-derived, so this is cheap; for plugin-managed state (`state_plugin_kvs`, dedicated tables) the opposite policy holds, see `plugin-kv-api.md` § "disable does not drop data".
 
 ### `scan_link_scores`
 
-Per-op confidence-attribution audit trail. One row per attributed `ctx.adjustConfidence(link, op)` call buffered by a `score`-phase analyzer during the scan (the kernel's own built-in score-phase detectors `core/name-reserved`, `core/reference-broken` dogfood the API, applying penalty deltas on top of the kernel's 1.0 baseline; third-party scorers add rows of their own). Lets an operator answer "why is this link at `0.3`?" by listing the plugin / extension / op that moved it, with the FOLDED final value denormalised onto every row.
+Per-op confidence-attribution audit trail. One row per attributed `ctx.adjustConfidence(link, op)` call buffered by a `score`-phase analyzer during the scan (the built-in detectors `core/name-reserved`, `core/reference-broken` apply penalty deltas on top of the kernel's 1.0 baseline; third-party scorers add their own). Lets an operator answer "why is this link at `0.3`?" by listing the plugin / extension / op that moved it, with the FOLDED final value denormalised onto every row.
 
 | Column | Type | Constraint | Notes |
 |---|---|---|---|
@@ -261,16 +261,16 @@ Per-op confidence-attribution audit trail. One row per attributed `ctx.adjustCon
 | `normalized_trigger` | TEXT | NULL | The link's `trigger.normalizedTrigger`; NULL for path-style links that carry no trigger. Completes the structural identity key. |
 | `op_kind` | TEXT | NOT NULL | Confidence-algebra bucket: `set` / `delta` / `ceil` / `floor`. Kept open at the SQL layer (no CHECK) so the op catalog can evolve as a kernel + spec change without a DDL migration. |
 | `op_value` | REAL | NOT NULL | The op's operand. |
-| `result_confidence` | REAL | NOT NULL | Denormalised FOLDED final `link.confidence` after every op for this link was applied. Equal across all rows for one link; mirrors `scan_links.confidence` for the same structural edge so the audit read needs no join. |
+| `result_confidence` | REAL | NOT NULL | Denormalised FOLDED final `link.confidence` after every op for this link applied. Equal across all rows for one link; mirrors `scan_links.confidence` for the same structural edge so the audit read needs no join. |
 | `emitted_at` | INTEGER | NOT NULL | Unix milliseconds. |
 
 No primary key (multiple ops MAY land on one link). Index: `ix_scan_link_scores_source_path` (per-node "why this link?" lookup).
 
-**Persistence, plain replace-all per scan** (delete every row, then insert), the same posture as `scan_issues` / `scan_contribution_errors`, NOT the orphan/catalog/per-tuple sweep `scan_contributions` uses. A score adjustment is a transient scan finding re-derived in full on every analyzer pass, so there is no cached-node row to preserve. An empty buffer (a scan whose scorers touched nothing) wipes the table, clearing any stale rows from a prior scan.
+**Persistence, plain replace-all per scan** (delete every row, then insert), the same posture as `scan_issues` / `scan_contribution_errors`, NOT the orphan/catalog/per-tuple sweep `scan_contributions` uses. A score adjustment is a transient scan finding re-derived in full on every analyzer pass, so no cached-node row to preserve. An empty buffer (scorers touched nothing) wipes the table, clearing stale rows from a prior scan.
 
 ### `scan_node_tags`
 
-Tags. One row per `(node_path, tag)` pair, projected at persist time from `sidecar.annotations.tags`. Tags are a skill-map concept (no vendor carries `tags` in frontmatter), so the sidecar is the single source. Drives `sm list --tag <name>` and the UI's tag-faceted search; the `(tag)` index keeps "find all nodes with tag X" `O(log n)`.
+Tags. One row per `(node_path, tag)` pair, projected at persist time from `sidecar.annotations.tags`. Tags are a skill-map concept (no vendor carries `tags` in frontmatter), so the sidecar is the single source. Drives `sm list --tag <name>` and the UI's tag-faceted search; the `(tag)` index keeps "find all nodes with tag X" at `O(log n)`.
 
 | Column | Type | Constraint |
 |---|---|---|
@@ -279,9 +279,9 @@ Tags. One row per `(node_path, tag)` pair, projected at persist time from `sidec
 
 Primary key: `(node_path, tag)`. Indexes: `ix_scan_node_tags_tag` (search by tag), `ix_scan_node_tags_node_path` (per-node lookup, e.g. inspector projection).
 
-**Persistence, replace-all per scan.** Every persisted scan rebuilds the table for the live node set: rows whose `node_path` is NOT in `livePaths` are dropped (orphan sweep, same as the contributions table); rows for nodes in the live set are wiped and re-inserted from the projected sidecar state. Cached nodes' tag rows are projected from the cached `node.sidecar.annotations.tags` (already in memory), so the rebuild is cheap regardless of cache hit / miss. Storage is small, a 50-node project with avg 3 tags/node is ~150 rows ≈ 7.5 KB.
+**Persistence, replace-all per scan.** Every persisted scan rebuilds the table for the live node set: rows whose `node_path` is NOT in `livePaths` are dropped (orphan sweep, same as the contributions table); rows for nodes in the live set are wiped and re-inserted from the projected sidecar state. Cached nodes' tag rows project from the cached `node.sidecar.annotations.tags` (already in memory), so the rebuild is cheap regardless of cache hit / miss. Storage is small: a 50-node project with avg 3 tags/node is ~150 rows ≈ 7.5 KB.
 
-The wire shape on `/api/nodes` joins this table to project `node.tags = string[]`. The kernel `Node` interface (TypeScript) does NOT carry `tags`, consumers walking the canonical source read `node.sidecar.annotations.tags` directly (consistent with the post-decision-#2 posture).
+The wire shape on `/api/nodes` joins this table to project `node.tags = string[]`. The kernel `Node` interface (TypeScript) does NOT carry `tags`; consumers walking the canonical source read `node.sidecar.annotations.tags` directly (consistent with the post-decision-#2 posture).
 
 ---
 
@@ -312,11 +312,11 @@ Matching [`schemas/job.schema.json`](./schemas/job.schema.json). See [`job-lifec
 
 Indexes: `ix_state_jobs_status`, `ix_state_jobs_action_node_hash` (unique partial index WHERE `status IN ('queued','running')` for duplicate detection).
 
-The rendered job content is NOT stored on this table. It lives in `state_job_contents` keyed by `content_hash` so multiple jobs with identical action + node + template pairs share a single physical blob. See `state_job_contents` below for the storage shape and GC contract.
+The rendered job content is NOT stored on this table. It lives in `state_job_contents` keyed by `content_hash` so multiple jobs with identical action + node + template pairs share one physical blob. See `state_job_contents` below for the storage shape and GC contract.
 
 ### `state_job_contents`
 
-Content-addressed store for the rendered MD content of every queued or completed job. Decouples the content from the lifecycle row in `state_jobs` so that retries / `--force` reruns / cross-node fan-out emissions of the same prompt all reference one blob.
+Content-addressed store for the rendered MD content of every queued or completed job. Decouples content from the lifecycle row in `state_jobs` so retries / `--force` reruns / cross-node fan-out emissions of the same prompt all reference one blob.
 
 | Column | Type | Constraint |
 |---|---|---|
@@ -324,15 +324,15 @@ Content-addressed store for the rendered MD content of every queued or completed
 | `content` | TEXT | NOT NULL |
 | `created_at` | INTEGER | NOT NULL |
 
-No indexes (PK already covers lookup by hash; the table is keyed-by-hash exclusively).
+No indexes (PK covers lookup by hash; the table is keyed-by-hash exclusively).
 
 **Insertion semantics**: `INSERT OR IGNORE INTO state_job_contents(content_hash, content, created_at) VALUES (?, ?, ?)`, an existing row for the same hash is a no-op (the prior insert already paid the storage cost).
 
 **GC contract**: `sm job prune` MUST delete every row whose `content_hash` is no longer referenced by any `state_jobs` row, in the same transaction that prunes the job rows. Implementations MUST NOT delete `state_job_contents` rows on `sm job cancel` (a cancelled job's content is recoverable via `sm job submit --force` of the same content_hash and dedup is desirable).
 
-`content_hash` is the same hash that `state_jobs.content_hash` carries, computed at submit time as `sha256(actionId + actionVersion + bodyHash + frontmatterHash + promptTemplateHash)`. Two jobs with identical `content_hash` MUST render to identical content (the formula is deterministic over all rendering inputs); the table relies on this invariant to dedup.
+`content_hash` is the same hash `state_jobs.content_hash` carries, computed at submit time as `sha256(actionId + actionVersion + bodyHash + frontmatterHash + promptTemplateHash)`. Two jobs with identical `content_hash` MUST render to identical content (the formula is deterministic over all rendering inputs); the table relies on this to dedup.
 
-Honest note on FK enforcement: SQLite foreign keys are off by default and the kernel does not currently turn them on (per `dialect.ts`). The `state_jobs.content_hash → state_job_contents.content_hash` relationship is enforced procedurally by the storage adapter (insert content row before job row in the same transaction; never delete content while jobs reference it). A future foreign-key push may upgrade this to a true FK without breaking the contract.
+FK enforcement: SQLite foreign keys are off by default and the kernel does not currently turn them on (per `dialect.ts`). The `state_jobs.content_hash → state_job_contents.content_hash` relationship is enforced procedurally by the storage adapter (insert content row before job row in the same transaction; never delete content while jobs reference it). A future foreign-key push may upgrade this to a true FK without breaking the contract.
 
 ### `state_executions`
 
@@ -360,7 +360,7 @@ Matching [`schemas/execution-record.schema.json`](./schemas/execution-record.sch
 
 Indexes: `ix_state_executions_extension_id`, `ix_state_executions_started_at`, `ix_state_executions_job_id`.
 
-The full report payload (the JSON the model returned, validated against the action's `reportSchemaRef`) is stored inline in `report_json`. There is no on-disk report file. `sm job show <id>` and `sm history --json` read the column directly.
+The full report payload (the JSON the model returned, validated against the action's `reportSchemaRef`) is stored inline in `report_json`. No on-disk report file. `sm job show <id>` and `sm history --json` read the column directly.
 
 ### `state_summaries`
 
@@ -409,18 +409,18 @@ Primary key: `(plugin_id, node_id, key)` with `node_id` using a sentinel empty s
 
 ### `state_node_favorites`
 
-Per-node "favorite" flag set by the local user from the UI. The set is small (typical projects pin a handful of skills/agents/commands), so the table degenerates to one row per favorited node, absence of a row means "not favorited". Exists in zone `state_` because it is user-authored preference, not regenerable scan output: it must survive `sm scan` truncation and `sm db reset` (which drops only `scan_*`).
+Per-node "favorite" flag set by the local user from the UI. One row per favorited node, absence of a row means "not favorited". Exists in zone `state_` because it is user-authored preference, not regenerable scan output: it must survive `sm scan` truncation and `sm db reset` (which drops only `scan_*`).
 
 | Column | Type | Constraint |
 |---|---|---|
 | `node_path` | TEXT | PRIMARY KEY |
 | `favorited_at` | INTEGER | NOT NULL | Unix milliseconds when the user marked the node. |
 
-No indexes (PK already covers lookup by path; the table is keyed-by-path exclusively).
+No indexes (PK covers lookup by path; the table is keyed-by-path exclusively).
 
-`node_path` is FK-semantic to `scan_nodes.path`. Per `§ Rename detection` below, the rename heuristic MUST migrate rows in this table when a path is renamed (same protocol as `state_jobs` / `state_summaries` / `state_enrichments` / `state_plugin_kvs`). A simple PK update suffices, there is no composite key, so collisions cannot occur (the destination path either has a row already, in which case the migrating row is dropped to preserve the live one, or it does not).
+`node_path` is FK-semantic to `scan_nodes.path`. Per `§ Rename detection` below, the rename heuristic MUST migrate rows here when a path is renamed (same protocol as `state_jobs` / `state_summaries` / `state_enrichments` / `state_plugin_kvs`). A simple PK update suffices; no composite key, so collisions cannot occur (if the destination path already has a row, the migrating row is dropped to preserve the live one).
 
-The BFF's `/api/nodes` route loads the full set of favorited paths once per request (`SELECT node_path FROM state_node_favorites`) and decorates each emitted `Node` with a derived `isFavorite` boolean by Set membership, no SQL JOIN against `scan_nodes` is required, and the table participates in zero of the per-scan persistence transactions.
+The BFF's `/api/nodes` route loads the full set of favorited paths once per request (`SELECT node_path FROM state_node_favorites`) and decorates each emitted `Node` with a derived `isFavorite` boolean by Set membership: no SQL JOIN against `scan_nodes`, zero per-scan persistence transactions.
 
 ---
 
@@ -443,7 +443,7 @@ Persists user-toggled enable/disable overrides. Discovery is still filesystem-ba
 2. `.skill-map/settings.json#/plugins/<id>/enabled`, committed team-shared baseline.
 3. Installed default, every discovered plugin is enabled until told otherwise.
 
-The DB intentionally takes precedence over `settings.json` so a developer can locally disable a misbehaving plugin without committing the toggle to the team's config. Conversely, a team baseline that explicitly enables a plugin is overridable per-machine, no agreement is required to experiment.
+The DB takes precedence over `settings.json` so a developer can locally disable a misbehaving plugin without committing the toggle to the team's config. Conversely, a team baseline that explicitly enables a plugin is overridable per-machine, no agreement required to experiment.
 
 ### `config_preferences`
 
@@ -469,7 +469,7 @@ Migration ledger. One row per successfully applied migration, per scope.
 
 Primary key: `(scope, owner_id, version)`.
 
-The kernel ALSO maintains `PRAGMA user_version` (or the engine equivalent) as a fast pre-check for kernel migrations. A mismatch between `user_version` and `config_schema_versions` is a diagnostic flagged by `sm doctor`.
+The kernel ALSO maintains `PRAGMA user_version` (or the engine equivalent) as a fast pre-check for kernel migrations. A mismatch between `user_version` and `config_schema_versions` is flagged by `sm doctor`.
 
 ---
 
@@ -479,9 +479,9 @@ The kernel ALSO maintains `PRAGMA user_version` (or the engine equivalent) as a 
 - **Naming**: `NNN_snake_case.sql` where `NNN` is 3-digit sequential, zero-padded. Example: `001_initial.sql`, `042_add_provenance.sql`.
 - **Location**: kernel migrations in `src/migrations/` (reference impl); plugin migrations in `<plugin-dir>/migrations/`.
 - **Wrapping**: the kernel wraps each file in `BEGIN; ... ; COMMIT;`. Files contain DDL only.
-- **Strict versioning**: no idempotency is required. `CREATE TABLE IF NOT EXISTS` is DISCOURAGED in kernel migrations (but permitted in plugin migrations, at the plugin author's discretion).
+- **Strict versioning**: no idempotency required. `CREATE TABLE IF NOT EXISTS` is DISCOURAGED in kernel migrations (permitted in plugin migrations, at the author's discretion).
 - **Auto-apply**: on startup. A backup is written to `.skill-map/backups/skill-map-pre-migrate-v<N>.db` before applying. The `sm db migrate` / `sm db backup` verbs open the DB with auto-apply suppressed so the operator drives migrations manually.
-- **Plugin migration order**: plugins are migrated after kernel migrations and in stable alphabetical order by plugin id. A failing plugin migration disables only that plugin; other plugins and the kernel continue.
+- **Plugin migration order**: plugins are migrated after kernel migrations, in stable alphabetical order by plugin id. A failing plugin migration disables only that plugin; other plugins and the kernel continue.
 
 `sm db migrate` controls migration flow manually: `--dry-run`, `--status`, `--to <n>`, `--kernel-only`, `--plugin <id>`, `--no-backup`.
 
@@ -489,26 +489,26 @@ The kernel ALSO maintains `PRAGMA user_version` (or the engine equivalent) as a 
 
 ## Schema drift (pre-1.0)
 
-The project DB is a derived cache: every `scan_*` row is regenerable, and the operator's authored data lives in `.sm` sidecars, not in the DB. While the kernel stays in `0.Y.Z` (see [`versioning.md` §Pre-1.0](./versioning.md#pre-10)) it does NOT ship incremental migrations to carry an existing DB across a schema change. Drift is detected on two independent axes; either one trips a rebuild.
+The project DB is a derived cache: every `scan_*` row is regenerable, and the operator's authored data lives in `.sm` sidecars, not in the DB. While the kernel stays in `0.Y.Z` (see [`versioning.md` §Pre-1.0](./versioning.md#pre-10)) it does NOT ship incremental migrations to carry an existing DB across a schema change. Drift is detected on two independent axes; either trips a rebuild.
 
 **Axis 1, version.** A write-side open compares `scan_meta.scanned_by_version` against the running CLI version:
 
 - **Same `major.minor`** (patch differences ignored): compatible.
 - **Any minor or major difference**: drifted.
 
-**Axis 2, schema fingerprint.** Pre-1.0 the greenfield posture adds columns INLINE to `001_initial.sql` WITHOUT bumping a version (see [`versioning.md` §Pre-1.0](./versioning.md#pre-10)). A DB created within the same `major.minor` but with an older inline schema would otherwise pass the version axis and then fail later as a runtime "no such column" query error. To close that gap, the implementation computes a **schema fingerprint** = sha256 over the concatenated migration DDL (the `NNN_*.sql` files, in sorted order) and persists it to `scan_meta.schema_fingerprint` at persist time. A write-side open recomputes the fingerprint from the bundled migrations and compares:
+**Axis 2, schema fingerprint.** Pre-1.0 the greenfield posture adds columns INLINE to `001_initial.sql` WITHOUT bumping a version (see [`versioning.md` §Pre-1.0](./versioning.md#pre-10)). A DB within the same `major.minor` but with an older inline schema would otherwise pass the version axis and then fail as a runtime "no such column" error. To close that gap, the implementation computes a **schema fingerprint** = sha256 over the concatenated migration DDL (`NNN_*.sql` files, in sorted order) and persists it to `scan_meta.schema_fingerprint` at persist time. A write-side open recomputes the fingerprint from the bundled migrations and compares:
 
 - **Stored fingerprint equals the recomputed one**: compatible.
 - **Stored fingerprint differs from the recomputed one**: drifted. Any inline edit to a migration file changes the fingerprint and trips this axis independently of the version axis.
-- **Stored fingerprint is NULL** (a DB written by a pre-fingerprint CLI, or whose `schema_fingerprint` column does not exist): drifted. This forces a one-time rebuild on upgrade so the very column that detects drift gets provisioned.
+- **Stored fingerprint is NULL** (a DB written by a pre-fingerprint CLI, or whose `schema_fingerprint` column does not exist): drifted. Forces a one-time rebuild on upgrade so the very column that detects drift gets provisioned.
 
-When **either axis** reports drift, the entire DB file (plus its `-wal` / `-shm` sidecars) is deleted and recreated from the current migrations; the scan then repopulates it. No backup is written (the cache is derived). `state_*` and `config_*` are wiped along with `scan_*`; pre-1.0 they are accepted as transient. `.sm` sidecars are never touched. The drift message names the reason (version skew vs schema fingerprint) so the operator understands why the cache is being rebuilt.
+When **either axis** reports drift, the entire DB file (plus its `-wal` / `-shm` sidecars) is deleted and recreated from the current migrations; the scan then repopulates it. No backup is written (the cache is derived). `state_*` and `config_*` are wiped along with `scan_*`; pre-1.0 they are transient. `.sm` sidecars are never touched. The drift message names the reason (version skew vs schema fingerprint).
 
-A DB that was never scanned (no `scan_meta` row) is **not** drift: there is no recorded version and no recorded fingerprint, so there is no signal. The open proceeds untouched (the next scan writes both fields). Reading the stored fingerprint is defensive: a missing `scan_meta` table and a missing `schema_fingerprint` column are both tolerated (the column-absent case maps to NULL, i.e. drift; the row-absent case maps to no-signal).
+A DB that was never scanned (no `scan_meta` row) is **not** drift: no recorded version, no recorded fingerprint, no signal. The open proceeds untouched (the next scan writes both fields). Reading the stored fingerprint is defensive: a missing `scan_meta` table and a missing `schema_fingerprint` column are both tolerated (column-absent maps to NULL, i.e. drift; row-absent maps to no-signal).
 
 The rebuild is confirmed interactively on a TTY (`sm scan`, and `sm serve` before it starts listening) unless `--yes` is passed; non-interactive callers (piped stdin, CI, the BFF scan route, the watcher) rebuild without prompting. Declining the prompt aborts (exit `2`) without deleting anything.
 
-Read-side verbs (`sm check`, `sm list`, `sm show`, `GET /api/*`) do NOT rebuild. They surface a prominent advisory (warn on an older DB or a fingerprint mismatch, refuse on a newer or different-major DB) so a read never silently discards the cache and never crashes cryptically on a missing column. The advisory points the operator at `sm scan` (rebuild on the next write) or `sm db reset`.
+Read-side verbs (`sm check`, `sm list`, `sm show`, `GET /api/*`) do NOT rebuild. They surface a prominent advisory (warn on an older DB or a fingerprint mismatch, refuse on a newer or different-major DB) so a read never silently discards the cache nor crashes cryptically on a missing column. The advisory points at `sm scan` (rebuild on the next write) or `sm db reset`.
 
 This is a pre-1.0 affordance. The first `1.0.0` replaces it with real up-only migrations (see §Migrations): drift detection by version / fingerprint becomes drift repair by migration, and `state_*` / `config_*` stop being disposable.
 
@@ -544,13 +544,13 @@ The kernel MUST enforce all three layers **in this exact order** for every plugi
    - `DROP` / `ALTER` / `TRUNCATE` against anything outside the plugin's own logical table names.
    - `ATTACH DATABASE` statements.
    - Global `PRAGMA` statements (anything not scoped to a plugin-owned table).
-   Rejection here is intentional: validation runs **before** prefix injection so kernel tables are named as the plugin wrote them, making the reject test straightforward.
-3. **Prefix injection (rewrite)**, the kernel rewrites the AST so every table name the plugin authored becomes `plugin_<normalizedId>_<originalName>` if it doesn't already carry the prefix. Index and constraint names get the same treatment. A plugin CANNOT create un-prefixed tables.
-4. **Scoped connection (runtime)**, at runtime, the plugin receives a `Database` wrapper (not a raw handle). The wrapper rejects any query that touches tables whose name doesn't start with this plugin's prefix. This is the last-line defense: even if a migration-time layer were bypassed, runtime queries still cannot reach out-of-namespace data.
+   Validation runs **before** prefix injection so kernel tables are named as the plugin wrote them, making the reject test straightforward.
+3. **Prefix injection (rewrite)**, the kernel rewrites the AST so every table name the plugin authored becomes `plugin_<normalizedId>_<originalName>` if not already prefixed. Index and constraint names get the same treatment. A plugin CANNOT create un-prefixed tables.
+4. **Scoped connection (runtime)**, at runtime the plugin receives a `Database` wrapper (not a raw handle). The wrapper rejects any query touching tables whose name doesn't start with this plugin's prefix. Last-line defense: even if a migration-time layer were bypassed, runtime queries still cannot reach out-of-namespace data.
 
 Step 4 is separate from 1–3 because it applies at query time, not migration time. Together the four steps form the "triple protection" referenced across the spec (the name predates the explicit parse step).
 
-Honest note: plugins are user-placed code. Protection guards against accidents (a plugin that mistakenly names a table `state_jobs`), not against hostile plugins. A malicious plugin running in the same process can bypass any JS-level guard. Post-v1.0 evaluates sandboxing (worker threads, VM contexts) and/or signing.
+Note: plugins are user-placed code. Protection guards against accidents (a plugin that mistakenly names a table `state_jobs`), not hostile plugins. A malicious plugin in the same process can bypass any JS-level guard. Post-v1.0 evaluates sandboxing (worker threads, VM contexts) and/or signing.
 
 ---
 
@@ -561,13 +561,13 @@ Honest note: plugins are user-placed code. Protection guards against accidents (
 - Auto-backup before migrations: `.skill-map/backups/skill-map-pre-migrate-v<N>.db`.
 - `sm db restore <path>` swaps the current DB with the supplied file. Interactive confirmation required unless `--force`.
 
-Backups include `state_*` + `config_*` only; `scan_*` is regenerated after restore by running `sm scan`.
+Backups include `state_*` + `config_*` only; `scan_*` is regenerated after restore via `sm scan`.
 
 ---
 
 ## Rename detection (automatic)
 
-`scan_nodes.path` is the canonical node identifier in v0. Moving a file therefore rewrites the primary key, which would orphan every `state_*` row referencing the old path (`state_executions.node_ids_json`, `state_jobs.node_id`, `state_summaries.node_id`, `state_enrichments.node_id`, `state_plugin_kvs.node_id`, `state_node_favorites.node_path`).
+`scan_nodes.path` is the canonical node identifier in v0. Moving a file rewrites the primary key, which would orphan every `state_*` row referencing the old path (`state_executions.node_ids_json`, `state_jobs.node_id`, `state_summaries.node_id`, `state_enrichments.node_id`, `state_plugin_kvs.node_id`, `state_node_favorites.node_path`).
 
 Implementations MUST apply a rename heuristic at scan time **before** committing the new scan transaction:
 
@@ -575,20 +575,20 @@ Implementations MUST apply a rename heuristic at scan time **before** committing
 2. For each pair `(deletedPath, newPath)` where `newPath.bodyHash == deletedPath.bodyHash` → classify as **high-confidence rename**. The kernel MUST:
    - Update every `state_*` row whose `node_id` equals `deletedPath` to reference `newPath`.
    - Emit no issue. Log at `info` level.
-3. Remaining pairs where `newPath.frontmatterHash == deletedPath.frontmatterHash` (body differs, frontmatter is a perfect match) → classify as **medium-confidence rename**. The kernel MUST:
+3. Remaining pairs where `newPath.frontmatterHash == deletedPath.frontmatterHash` (body differs, frontmatter a perfect match) → classify as **medium-confidence rename**. The kernel MUST:
    - Apply the same FK migration.
    - Emit an issue with `analyzerId: auto-rename-medium` (severity `warn`) pointing to both paths. The issue's `data` MUST include `{ from: <old.path>, to: <new.path>, confidence: "medium" }` so `sm orphans undo-rename <new.path>` can read the prior path without user input.
-4. Any `deletedPath` left without a match after steps 2–3 becomes an **orphan**: the kernel emits an issue with `analyzerId: orphan` (severity `info`) and keeps the `state_*` rows referencing the dead path untouched until the user runs `sm orphans reconcile <dead.path> --to <new.path>` or accepts the orphan.
-   - **Silenced exception**: the kernel skips the `orphan` issue when the `deletedPath` is currently filtered out of the scan by the active ignore-source (e.g. the user added an entry to `.skillmapignore` between scans and the file still exists on disk). The intent there is "hide from the graph", not "lost without a rename"; emitting an `orphan` info would pollute `sm check` with noise the user explicitly asked for. The reference impl threads a `silenced(path): boolean` predicate from the orchestrator into the rename heuristic; callers that do not supply one preserve the previous "always emit" behaviour. The `state_*` rows are still kept; if the user removes the entry from the ignore the path re-enters the scan as a live node, transparent to history.
+4. Any `deletedPath` left without a match after steps 2–3 becomes an **orphan**: the kernel emits an issue with `analyzerId: orphan` (severity `info`) and keeps the `state_*` rows referencing the dead path until the user runs `sm orphans reconcile <dead.path> --to <new.path>` or accepts the orphan.
+   - **Silenced exception**: the kernel skips the `orphan` issue when the `deletedPath` is currently filtered out of the scan by the active ignore-source (e.g. the user added a `.skillmapignore` entry between scans and the file still exists on disk). The intent is "hide from the graph", not "lost without a rename"; an `orphan` info would pollute `sm check` with noise the user asked for. The reference impl threads a `silenced(path): boolean` predicate from the orchestrator into the rename heuristic; callers that do not supply one preserve the previous "always emit" behaviour. The `state_*` rows are still kept; removing the ignore entry re-enters the path as a live node, transparent to history.
 
-Matching is 1-to-1: once a `newPath` is claimed as the rename target of some `deletedPath`, no other deletion can match it in the same scan. Ambiguity (two deletions share a body hash with the same new path) → fall back to the orphan path for all candidates, with issue `auto-rename-ambiguous` listing every conflict. `auto-rename-ambiguous` issues MUST populate `data` with `{ to: <new.path>, candidates: [<old.path.a>, <old.path.b>, ...] }`; in this case `sm orphans undo-rename` requires the user to pass `--from <old.path>` to disambiguate.
+Matching is 1-to-1: once a `newPath` is claimed as the rename target of some `deletedPath`, no other deletion can match it in the same scan. Ambiguity (two deletions share a body hash with the same new path) → fall back to the orphan path for all candidates, with issue `auto-rename-ambiguous` listing every conflict. `auto-rename-ambiguous` issues MUST populate `data` with `{ to: <new.path>, candidates: [<old.path.a>, <old.path.b>, ...] }`; here `sm orphans undo-rename` requires the user to pass `--from <old.path>` to disambiguate.
 
-Note on casing: `bodyHash` / `frontmatterHash` / `analyzerId` / `data` are the domain-object field names (per `node.schema.json` and `issue.schema.json`). The SQLite reference impl stores the same values in `body_hash` / `frontmatter_hash` / `analyzer_id` / `data_json` columns; the storage adapter bridges the two (see §Naming conventions above). The heuristic is specified against the domain types, not the columns.
+Casing: `bodyHash` / `frontmatterHash` / `analyzerId` / `data` are the domain-object field names (per `node.schema.json` and `issue.schema.json`); the SQLite reference impl stores the same values in `body_hash` / `frontmatter_hash` / `analyzer_id` / `data_json` columns, the storage adapter bridges the two (see §Naming conventions above). The heuristic is specified against the domain types, not the columns.
 
 The heuristic runs inside the scan transaction, so either all renames land or none do. `sm scan` is the only surface that triggers automatic rename detection. Two manual verbs exist for cases the heuristic missed or got wrong:
 
 - `sm orphans reconcile <orphan.path> --to <new.path>`, forward direction. Attaches FKs of an orphan to a live node. Use when the heuristic could not match (semantic rename, body rewrite).
-- `sm orphans undo-rename <new.path>`, reverse direction. Reads `issue.data.from` from the active `auto-rename-medium` (or `--from`-disambiguated `auto-rename-ambiguous`) issue on `<new.path>`, migrates `state_*` FKs back, and resolves the issue. The prior path becomes an `orphan`. Use when the heuristic matched two unrelated files that happened to share a frontmatter hash.
+- `sm orphans undo-rename <new.path>`, reverse direction. Reads `issue.data.from` from the active `auto-rename-medium` (or `--from`-disambiguated `auto-rename-ambiguous`) issue on `<new.path>`, migrates `state_*` FKs back, and resolves the issue. The prior path becomes an `orphan`. Use when the heuristic matched two unrelated files sharing a frontmatter hash.
 
 Both verbs operate on FK ownership only; neither edits files on disk.
 
@@ -602,7 +602,7 @@ Both verbs operate on FK ownership only; neither edits files on disk.
 - `PRAGMA quick_check` (or equivalent) returns OK.
 - Applied migration version matches code-bundled migrations.
 - No `state_jobs` rows whose `content_hash` is missing from `state_job_contents` (corrupt state, the content row was deleted out from under a live job).
-- No `state_job_contents` rows whose `content_hash` is referenced by zero `state_jobs` rows (GC stragglers, `sm job prune` should have collected these).
+- No `state_job_contents` rows whose `content_hash` is referenced by zero `state_jobs` rows (GC stragglers `sm job prune` should have collected).
 - No plugin in `load-error` or `incompatible-spec` status.
 
 Failures are reported with suggested remediation (e.g., "run `sm db migrate`", "run `sm job prune`").

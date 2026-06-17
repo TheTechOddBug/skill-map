@@ -2,7 +2,7 @@
 
 The **skill-map specification** defines a vendor-neutral standard for mapping, inspecting, and managing collections of interrelated Markdown files, skills, agents, commands, hooks, and notes that compose AI-agent ecosystems (Claude Code, Codex, Antigravity, docs sites, and any future platform).
 
-This document is the **source of truth**. The reference implementation under `../src/` conforms to this spec. Third parties can build alternative implementations (any language, any UI, any CLI) using only `spec/`, without reading the reference source.
+This document is the **source of truth**. The reference implementation under `../src/` conforms to it. Third parties can build alternative implementations (any language, any UI, any CLI) using only `spec/`, without reading the reference source.
 
 ## What this spec defines
 
@@ -24,11 +24,11 @@ This document is the **source of truth**. The reference implementation under `..
 - Logging format, telemetry, or distribution channels.
 - Plugin marketplace mechanics.
 
-These are implementation decisions. The reference impl picks them (see [`../AGENTS.md`](../AGENTS.md) and [`../ROADMAP.md`](../ROADMAP.md)); other implementations may pick differently and still conform.
+These are implementation decisions. The reference impl picks them (see [`../AGENTS.md`](../AGENTS.md) and [`../ROADMAP.md`](../ROADMAP.md)); others may pick differently and still conform.
 
 ## Properties
 
-- **Machine-readable**: all domain shapes are JSON Schemas. Validate from any language that has a JSON Schema validator.
+- **Machine-readable**: all domain shapes are JSON Schemas. Validate from any language with a JSON Schema validator.
 - **Human-readable**: prose documents for each subsystem, with examples.
 - **Independently versioned**: spec `v1.0.0` can be implemented by CLI `v0.3.2`. See [`versioning.md`](./versioning.md).
 - **Platform-neutral**: no platform is privileged. Each is expressed as an adapter extension.
@@ -36,10 +36,10 @@ These are implementation decisions. The reference impl picks them (see [`../AGEN
 
 ## Naming conventions
 
-Two analyzers govern every identifier in the spec. They are **normative**.
+Two analyzers govern every identifier in the spec. Both are **normative**.
 
-- **Filesystem artefacts use kebab-case.** Every file and directory in `spec/` (and in any conforming implementation), `scan-result.schema.json`, `job-lifecycle.md`, `report-base.schema.json`, `auto-rename-medium` (as an `issue.analyzerId` value), `direct-override` (as a `safety.injectionType` enum value), and so on, is kebab-case lowercase. Enum values and issue analyzer ids follow the same convention so they can be echoed back into URLs, filenames, and log keys without escaping.
-- **JSON content uses camelCase.** Every key inside a JSON Schema, frontmatter block, config file, plugin manifest, action manifest, job record, report, event payload, or API response is camelCase: `whatItDoes`, `injectionDetected`, `expectedTools`, `sourceVersion`, `docsUrl`, `examplesUrl`, `ttlSeconds`, `runId`, `jobId`. This matches the JS/TS ecosystem the reference impl ships in and the Kysely `CamelCasePlugin` that bridges to the `snake_case` SQL layer, but the analyzer is spec-level, not implementation-level: an alternative implementation in any language still exposes camelCase JSON keys.
+- **Filesystem artefacts use kebab-case.** Every file and directory in `spec/` (and in any conforming implementation), `scan-result.schema.json`, `job-lifecycle.md`, `report-base.schema.json`, `auto-rename-medium` (as an `issue.analyzerId` value), `direct-override` (as a `safety.injectionType` enum value), and so on, is kebab-case lowercase. Enum values and issue analyzer ids follow the same convention so they echo into URLs, filenames, and log keys without escaping.
+- **JSON content uses camelCase.** Every key inside a JSON Schema, frontmatter block, config file, plugin manifest, action manifest, job record, report, event payload, or API response is camelCase: `whatItDoes`, `injectionDetected`, `expectedTools`, `sourceVersion`, `docsUrl`, `examplesUrl`, `ttlSeconds`, `runId`, `jobId`. This matches the JS/TS ecosystem the reference impl ships in and the Kysely `CamelCasePlugin` that bridges to the `snake_case` SQL layer, but the analyzer is spec-level: an alternative implementation in any language still exposes camelCase JSON keys.
 
 The SQL persistence layer is the sole exception: tables, columns, and migration filenames use `snake_case` (see `db-schema.md`). That boundary is crossed only inside a storage adapter; nothing that leaves the kernel should ever be `snake_case`.
 
@@ -114,7 +114,7 @@ spec/                              ← published as @skill-map/spec
 
 The reference implementation ([`../src/`](../src/README.md)) is one conforming consumer of this spec. It ships the CLI binary `sm`, a built-in SQLite storage adapter, and a set of default extensions.
 
-The reference impl has no privileged access to the spec. Breaking changes to the spec must follow [`versioning.md`](./versioning.md) regardless of reference-impl convenience.
+The reference impl has no privileged access. Breaking changes to the spec must follow [`versioning.md`](./versioning.md) regardless of reference-impl convenience.
 
 When spec and reference impl disagree, the spec wins. File an issue; one of them is wrong.
 
@@ -140,11 +140,11 @@ console.log(specIndex.integrity.algorithm); // → "sha256"
 console.log(nodeSchema.$id);                // → "https://skill-map.ai/spec/v0/node.schema.json"
 ```
 
-Every JSON Schema is exported individually via `@skill-map/spec/schemas/*.json`. Prose documents ship in the tarball for reference but are not `exports`-surfaced.
+Every JSON Schema is exported individually via `@skill-map/spec/schemas/*.json`. Prose documents ship in the tarball but are not `exports`-surfaced.
 
 ### Verify integrity
 
-The package ships `index.json` with a sha256 per file. To verify a local installation matches what was published:
+The package ships `index.json` with a sha256 per file. To verify a local install matches what was published:
 
 ```js
 import { readFileSync } from 'node:fs';
@@ -158,7 +158,7 @@ console.log(actual === index.integrity.files[file] ? 'ok' : 'drift');
 
 ### JSON Schema Store
 
-The schemas will be registered on JSON Schema Store once the canonical URLs under `skill-map.ai/spec/v0/` are stable (Step 14).
+The schemas register on JSON Schema Store once the canonical URLs under `skill-map.ai/spec/v0/` are stable (Step 14).
 
 ## License
 

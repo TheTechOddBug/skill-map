@@ -5,7 +5,7 @@ Normative contract for plugin-accessible persistence. Two modes exist (see [`db-
 - **Mode A, KV**: plugin uses the kernel-provided `ctx.store.*` accessor. Backed by the shared `state_plugin_kvs` table.
 - **Mode B, Dedicated**: plugin owns its own tables with the `plugin_<normalizedId>_` prefix, migrated by the kernel.
 
-This document defines mode A in full and clarifies the boundary with mode B. Implementations MUST expose this API to every plugin that declares `"storage": { "mode": "kv" }` in its manifest.
+This document defines mode A in full and the boundary with mode B. Implementations MUST expose this API to every plugin that declares `"storage": { "mode": "kv" }` in its manifest.
 
 ---
 
@@ -19,7 +19,7 @@ A plugin extension receives a `ctx` object at construction time. `ctx.store` is 
 | `mode: "kv"` | `KvStore` (this document). |
 | `mode: "dedicated"` | `DedicatedStore` (scoped Database wrapper). See mode B below. |
 
-Plugins SHOULD pick the minimum mode they need. Mode A is simpler, deployed across every scope from day zero, and requires no migrations. Mode B is for plugins that need relational shape, indexes, or cross-row queries.
+Plugins SHOULD pick the minimum mode they need. Mode A is simpler and requires no migrations. Mode B is for plugins that need relational shape, indexes, or cross-row queries.
 
 ---
 
@@ -47,25 +47,25 @@ Implementations in other languages MUST expose the same semantic surface.
 
 ### Scoping
 
-Every operation is scoped by the caller's `pluginId`. The plugin cannot specify, override, or observe another plugin's `pluginId`. This is enforced by the kernel when constructing the `ctx.store`, the `pluginId` is captured at registration time and is not an argument.
+Every operation is scoped by the caller's `pluginId`. The plugin cannot specify, override, or observe another plugin's `pluginId`. The kernel enforces this when constructing `ctx.store`: the `pluginId` is captured at registration time and is not an argument.
 
 Operations MAY be additionally scoped by `nodePath`:
 
 - **Global KV (no `nodePath`)**: `{pluginId, nodePath: null, key}`. One row per plugin + key.
 - **Node-scoped KV (with `nodePath`)**: `{pluginId, nodePath: "<path>", key}`. One row per plugin + node + key.
 
-Both scopes share the same underlying `state_plugin_kvs` table (see [`db-schema.md`](./db-schema.md)). The `nodePath` column is nullable; implementations MUST use a sentinel empty string internally when the backing engine rejects NULL in composite primary keys.
+Both scopes share the `state_plugin_kvs` table (see [`db-schema.md`](./db-schema.md)). The `nodePath` column is nullable; implementations MUST use a sentinel empty string internally when the backing engine rejects NULL in composite primary keys.
 
 ### Semantics
 
 | Operation | Behaviour |
 |---|---|
 | `get(key, { nodePath })` | Returns the stored value (JSON-decoded) or `null` if no row exists. Never throws for "missing". |
-| `set(key, value, { nodePath })` | Upsert. Replaces any existing value. Updates `updatedAt`. The value is JSON-encoded by the kernel; it MUST be JSON-serializable. Cyclic or non-serializable values MUST be rejected with a typed error. |
+| `set(key, value, { nodePath })` | Upsert. Replaces any existing value, updates `updatedAt`. The kernel JSON-encodes the value; it MUST be JSON-serializable. Cyclic or non-serializable values MUST be rejected with a typed error. |
 | `delete(key, { nodePath })` | Deletes the row if present. Returns `true` if a row was deleted, `false` otherwise. Idempotent. |
 | `list({ nodePath, prefix })` | Returns all entries matching the scope. `nodePath` omitted: returns global entries (`nodePath IS NULL`). `nodePath: null` (explicit): same as omitted. `nodePath: "<path>"`: returns entries for that node. `prefix`: filters keys starting with the given string. |
 
-Return order of `list` is NOT specified by this spec; consumers MUST NOT rely on ordering. Implementations SHOULD order by `key ASC` for developer ergonomics.
+Return order of `list` is NOT specified; consumers MUST NOT rely on ordering. Implementations SHOULD order by `key ASC` for developer ergonomics.
 
 ### Key constraints
 
@@ -83,7 +83,7 @@ Return order of `list` is NOT specified by this spec; consumers MUST NOT rely on
 
 The `KvStore` operations are individually atomic. There is NO multi-operation transaction in mode A, plugins that need transactional semantics across several rows MUST use mode B.
 
-Implementations MUST NOT expose a `transaction()` method on `KvStore` in mode A. The shape is intentionally minimal to keep the backing table simple.
+Implementations MUST NOT expose a `transaction()` method on `KvStore` in mode A. The shape is minimal to keep the backing table simple.
 
 ### Errors
 
@@ -129,7 +129,7 @@ interface DedicatedStore {
 `DedicatedStore.db` is a wrapper, NOT a raw handle. Every query passes through a validator that rejects:
 
 - References to tables whose name doesn't start with this plugin's prefix.
-- DDL statements (`CREATE`, `ALTER`, `DROP`, `TRUNCATE`). Mode B DDL is runtime-immutable after migrations; plugins change shape via a new migration, not at runtime.
+- DDL statements (`CREATE`, `ALTER`, `DROP`, `TRUNCATE`). Mode B DDL is runtime-immutable after migrations; plugins change shape via a new migration.
 - `ATTACH DATABASE` statements.
 - `PRAGMA` statements that aren't scoped to the plugin's own tables.
 
@@ -143,8 +143,7 @@ Mode B plugins MAY call `db.transaction(async (tx) => { ... })`. The kernel prov
 
 - Location: `<plugin-dir>/migrations/NNN_snake_case.sql`.
 - Applied in order after kernel migrations on boot.
-- Prefix injection: the kernel rewrites `CREATE TABLE <name>` into `CREATE TABLE plugin_<id>_<name>` if the prefix is missing.
-- Index and constraint prefixes are similarly injected.
+- Prefix injection: the kernel rewrites `CREATE TABLE <name>` into `CREATE TABLE plugin_<id>_<name>` if the prefix is missing. Index and constraint prefixes are similarly injected.
 - A failing plugin migration disables only that plugin (`status: load-error`); other plugins and the kernel continue.
 
 See [`db-schema.md`](./db-schema.md) for the normative migration analyzers.
@@ -153,7 +152,7 @@ See [`db-schema.md`](./db-schema.md) for the normative migration analyzers.
 
 ## Mode selection guidance
 
-Non-normative; descriptive guidance for plugin authors.
+Non-normative guidance for plugin authors.
 
 **Prefer mode A when**:
 
@@ -165,27 +164,27 @@ Non-normative; descriptive guidance for plugin authors.
 
 - You need indexes beyond `(pluginId, nodePath, key)`.
 - You need to `JOIN` rows, aggregate, or do relational queries.
-- Your data model is actually tabular (cache with TTL, observation log, provider registry).
+- Your data model is tabular (cache with TTL, observation log, provider registry).
 - You are willing to own migrations forever.
 
-A plugin MUST declare **exactly one** storage mode. Mixing modes in the same plugin is forbidden. The [`plugins-registry.schema.json`](./schemas/plugins-registry.schema.json) enforces this at the manifest level (`storage` is a `oneOf` between `kv` and `dedicated`), and at runtime `ctx.store` exposes either the `KvStore` or the `DedicatedStore` shape, never both. A plugin that needs both KV-like and relational access MUST use mode B and implement KV-style rows as a dedicated table.
+A plugin MUST declare **exactly one** storage mode; mixing modes is forbidden. [`plugins-registry.schema.json`](./schemas/plugins-registry.schema.json) enforces this at the manifest level (`storage` is a `oneOf` between `kv` and `dedicated`), and at runtime `ctx.store` exposes either the `KvStore` or the `DedicatedStore` shape, never both. A plugin that needs both KV-like and relational access MUST use mode B and implement KV-style rows as a dedicated table.
 
 ---
 
 ## Visibility analyzers
 
 - A plugin MUST NOT read or write rows outside its scope. Mode A: the accessor is scoped. Mode B: the validator enforces the prefix.
-- The kernel MAY expose read-only introspection for diagnostics (e.g., `sm plugins show <id> --storage` lists key counts). This is authoritative, not a plugin-level API.
-- `sm db shell` can read any table. This is an operator-level escape hatch; plugins MUST NOT rely on it.
+- The kernel MAY expose read-only introspection for diagnostics (e.g., `sm plugins show <id> --storage` lists key counts). Authoritative, not a plugin-level API.
+- `sm db shell` can read any table. Operator-level escape hatch; plugins MUST NOT rely on it.
 
 ---
 
 ## Backup and retention
 
-- Mode A rows are stored in `state_plugin_kvs` and are backed up with `sm db backup`.
-- Mode B rows live in the plugin's dedicated tables, prefixed `plugin_<id>_`, and are likewise backed up.
-- `sm plugins disable <id>` does NOT drop the plugin's data, disabled plugins keep their KV rows and dedicated tables. (`scan_contributions` rows ARE purged eagerly on disable, see `db-schema.md` § `scan_contributions`, because those are scan-derived and would otherwise keep rendering in the UI until the next scan. The KV / dedicated-table data is plugin-managed and survives toggle cycles so re-enabling restores state.) `sm plugins forget <id>` (deferred to post-`v1.0`) is the verb that wipes everything.
-- `sm db reset` (no modifier) drops only `scan_*`. Plugin KV rows (mode A) and plugin-dedicated tables (mode B) are **preserved**, the reset is non-destructive to plugin storage.
+- Mode A rows live in `state_plugin_kvs` and are backed up with `sm db backup`.
+- Mode B rows live in the plugin's dedicated tables (prefixed `plugin_<id>_`) and are likewise backed up.
+- `sm plugins disable <id>` does NOT drop the plugin's data; disabled plugins keep their KV rows and dedicated tables. (`scan_contributions` rows ARE purged eagerly on disable, see `db-schema.md` § `scan_contributions`, because those are scan-derived and would otherwise keep rendering in the UI until the next scan. KV / dedicated-table data is plugin-managed and survives toggle cycles so re-enabling restores state.) `sm plugins forget <id>` (deferred to post-`v1.0`) wipes everything.
+- `sm db reset` (no modifier) drops only `scan_*`. Plugin KV rows (mode A) and plugin-dedicated tables (mode B) are **preserved** (non-destructive to plugin storage).
 - `sm db reset --state` drops `state_*` AND every `plugin_<normalized_id>_*` table, which includes `state_plugin_kvs` (mode A) AND the plugin-dedicated tables (mode B). The CLI MUST require interactive confirmation unless `--yes` is passed.
 - `sm db reset --hard` deletes the DB file entirely, destroying all plugin storage regardless of mode.
 
@@ -193,11 +192,11 @@ A plugin MUST declare **exactly one** storage mode. Mixing modes in the same plu
 
 ## Honest note on isolation
 
-Mode A is perfectly isolated at the row level: the accessor physically cannot see another plugin's rows.
+Mode A is isolated at the row level: the accessor physically cannot see another plugin's rows.
 
-Mode B is **isolated against accidents, not hostile code**. The scoped `Database` wrapper rejects cross-namespace queries at runtime. But a malicious plugin running in the same JavaScript process can bypass the wrapper by importing raw engine bindings directly. Plugins are user-placed code; the kernel trusts the user's judgement at install time.
+Mode B is **isolated against accidents, not hostile code**. The scoped `Database` wrapper rejects cross-namespace queries at runtime, but a malicious plugin in the same JavaScript process can bypass it by importing raw engine bindings directly. Plugins are user-placed code; the kernel trusts the user's judgement at install time.
 
-Post-v1.0 work: signed manifest, sandboxed worker-thread isolation, per-plugin DB file. None of these land before `v0.5.0`.
+Post-v1.0 work: signed manifest, sandboxed worker-thread isolation, per-plugin DB file. None land before `v0.5.0`.
 
 ---
 
@@ -211,7 +210,7 @@ Post-v1.0 work: signed manifest, sandboxed worker-thread isolation, per-plugin D
 ## Stability
 
 - The `KvStore` interface (method names, options, return shapes) is **stable** as of spec v1.0.0.
-- Adding a method to `KvStore` is a minor bump; removing or changing signature is a major bump.
+- Adding a method to `KvStore` is a minor bump; removing or changing a signature is a major bump.
 - Mode names (`kv`, `dedicated`) are **stable**. Adding a third mode is a minor bump.
 - Key and value size limits are implementation-defined and MAY change without a spec bump; implementations MUST document their limits in their own changelog.
 - Error class names are **stable**; adding a new error class is a minor bump.

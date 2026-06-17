@@ -1,6 +1,6 @@
 # Spec versioning
 
-The skill-map **spec** and the skill-map **reference CLI** evolve on independent semver tracks. A spec version and a CLI version are related through a `specCompat` range declared by each implementation and each plugin.
+The skill-map **spec** and the skill-map **reference CLI** evolve on independent semver tracks, related through a `specCompat` range declared by each implementation and each plugin.
 
 ## Two tracks
 
@@ -9,11 +9,11 @@ The skill-map **spec** and the skill-map **reference CLI** evolve on independent
 | Spec | `spec-v1.2.0` | Schemas + contracts in `spec/`. Consumed by any implementation. |
 | Reference CLI | `cli-v0.8.3` | The `sm` binary and its built-in extensions in `src/`. |
 
-A given CLI release declares the spec range it implements (e.g. `"specCompat": "^1.0.0"`). A plugin declares the spec range it targets. At load time the implementation runs `semver.satisfies(specVersion, plugin.specCompat)`; mismatch → plugin disabled with reason `incompatible-spec`.
+A CLI release declares the spec range it implements (e.g. `"specCompat": "^1.0.0"`); a plugin declares the spec range it targets. At load time the implementation runs `semver.satisfies(specVersion, plugin.specCompat)`; mismatch → plugin disabled with reason `incompatible-spec`.
 
 ## Semver for the spec
 
-Patch, minor, major have precise meaning for a specification, different from code.
+Patch, minor, major have precise meaning for a specification, distinct from code.
 
 | Bump | Allowed changes | Examples |
 |---|---|---|
@@ -30,7 +30,7 @@ All of the following are normative and governed by this policy:
 - Every JSON Schema in `schemas/` (fields, types, required, enums, defaults, `additionalProperties`).
 - Every MUST / SHOULD / MAY statement in prose documents ([`architecture.md`](./architecture.md), [`cli-contract.md`](./cli-contract.md), [`job-events.md`](./job-events.md), [`prompt-preamble.md`](./prompt-preamble.md), [`db-schema.md`](./db-schema.md), [`plugin-kv-api.md`](./plugin-kv-api.md), [`job-lifecycle.md`](./job-lifecycle.md)).
 - Exit codes, verb names, required flags, canonical error messages marked "normative".
-- Conformance fixtures and cases, removing or tightening a case is major.
+- Conformance fixtures and cases; removing or tightening a case is major.
 
 The following are **non-normative** and can change at any time without a version bump:
 
@@ -41,7 +41,7 @@ The following are **non-normative** and can change at any time without a version
 
 ## Stability tags
 
-Fields and features inside the spec carry a stability tag. Tag drives what the version policy allows.
+Fields and features carry a stability tag. The tag drives what the version policy allows.
 
 | Tag | Meaning | Policy |
 |---|---|---|
@@ -55,7 +55,7 @@ Tags live inline in schema `description` fields and in prose via a leading `**St
 
 - `stable` → `deprecated` requires a minor bump.
 - `deprecated` → removed requires a major bump.
-- Between the two, at least three minor releases must ship with the field marked `deprecated`. This gives plugin authors a release window to migrate.
+- Between the two, at least three minor releases must ship with the field marked `deprecated`, giving plugin authors a window to migrate.
 - Rationale for the deprecation and the replacement field/flag must live in `CHANGELOG.md`.
 
 ## Pre-1.0
@@ -63,23 +63,23 @@ Tags live inline in schema `description` fields and in prose via a leading `**St
 While the spec is `0.Y.Z`:
 
 - Minor bumps may contain breaking changes (documented as such in `CHANGELOG.md`).
-- Conformance is advisory, failing a conformance case is a bug report, not a spec violation.
+- Conformance is advisory; failing a conformance case is a bug report, not a spec violation.
 - `specCompat` in plugins should pin a minor range (`"^0.3.0"` means `>=0.3.0 <0.4.0`), not a major range.
 
 The first stable commitment is `spec-v1.0.0`. In the current reference roadmap, that tag ships with `cli-v1.0.0`.
 
 ## Independence in practice
 
-- **Spec `1.0.0` + CLI `0.1.0`**, spec is stabilized before the CLI ships its v1. Normal case during early life of the project.
-- **Spec `1.2.0` + CLI `0.8.0`**, spec gained an optional feature; CLI hasn't implemented it yet. Fine. Plugins needing that feature must declare `"specCompat": "^1.2.0"`.
+- **Spec `1.0.0` + CLI `0.1.0`**, spec stabilized before the CLI ships its v1. Normal during early life of the project.
+- **Spec `1.2.0` + CLI `0.8.0`**, spec gained an optional feature the CLI hasn't implemented yet. Fine. Plugins needing it must declare `"specCompat": "^1.2.0"`.
 - **Spec `2.0.0` + CLI `1.4.0`**, CLI still targets spec v1. Operator must upgrade CLI before installing v2-targeting plugins.
 
 ## Change process
 
-1. PR proposes a spec change. Include rationale and classification (patch/minor/major).
+1. PR proposes a spec change with rationale and classification (patch/minor/major).
 2. If major, PR includes a migration note draft for [`CHANGELOG.md`](./CHANGELOG.md).
 3. If the change affects reference-impl behavior, a companion PR in `src/` lands the implementation behind the bumped `specCompat`.
-4. Merge order: spec change first, implementation second. An implementation MUST NOT ship a feature that is not yet in the spec (see [`../AGENTS.md`](../AGENTS.md): "Every feature: update spec/ first, then src/").
+4. Merge order: spec change first, implementation second. An implementation MUST NOT ship a feature not yet in the spec (see [`../AGENTS.md`](../AGENTS.md): "Every feature: update spec/ first, then src/").
 5. Tag spec release (`spec-vX.Y.Z`) independent from any CLI tag.
 
 ## Canonical URLs
@@ -91,4 +91,4 @@ https://skill-map.ai/spec/v1/node.schema.json
 https://skill-map.ai/spec/v1.2/node.schema.json
 ```
 
-Major version is always present in the path. Implementations MUST NOT rely on `latest`.
+The major version is always present in the path. Implementations MUST NOT rely on `latest`.

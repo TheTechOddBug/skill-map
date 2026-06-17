@@ -1,6 +1,6 @@
 # Prompt preamble
 
-Canonical text the kernel prepends to every rendered job content blob before the action-specific template. The preamble exists to mitigate prompt injection from user-authored node content. This document defines:
+Canonical text the kernel prepends to every rendered job content blob, before the action-specific template, to mitigate prompt injection from user-authored node content. This document defines:
 
 1. The **delimiter contract** that wraps user content.
 2. The **verbatim preamble text** (the only normative text in the spec).
@@ -32,7 +32,7 @@ An action template that violates rule 4 (e.g., interpolates user text outside `<
 
 ## The preamble text
 
-The following text is **normative and verbatim**. Byte-for-byte reproducible. Included in the `contentHash` computation (via `promptTemplateHash`, which itself hashes the preamble + action template concatenation).
+The following text is **normative and verbatim**, byte-for-byte reproducible. Included in the `contentHash` computation (via `promptTemplateHash`, which hashes the preamble + action template concatenation).
 
 ```
 You are operating inside skill-map, a deterministic tool that runs actions
@@ -102,7 +102,7 @@ The preamble establishes a promise from the model:
 - `safety` MUST conform to [`schemas/report-base.schema.json`](./schemas/report-base.schema.json)`#/properties/safety`.
 - `confidence` MUST be a number in `[0.0, 1.0]`.
 
-The kernel validates every report against the action's declared schema (which MUST extend [`report-base.schema.json`](./schemas/report-base.schema.json)). A report that lacks `safety` or `confidence`, or whose values are of the wrong shape, is rejected; the job transitions to `failed` with reason `report-invalid` (see [`job-lifecycle.md`](./job-lifecycle.md)).
+The kernel validates every report against the action's declared schema (which MUST extend [`report-base.schema.json`](./schemas/report-base.schema.json)). A report lacking `safety` or `confidence`, or with wrong-shape values, is rejected; the job transitions to `failed` with reason `report-invalid` (see [`job-lifecycle.md`](./job-lifecycle.md)).
 
 Implementations MUST NOT tolerate the absence of `safety`. If a model returns a report without it, the failure is the runner's problem to surface, not the kernel's to tolerate.
 
@@ -116,10 +116,10 @@ On `sm job submit`:
 2. The kernel validates that the template does not interpolate user text outside of `<user-content>` blocks.
 3. The kernel prepends the verbatim preamble text above.
 4. The kernel renders the template by interpolating the node content, wrapping it in `<user-content>`.
-5. The kernel stores the result in `state_job_contents` keyed by `contentHash` (content-addressed: multiple jobs that resolve to the same `contentHash` share one row). There is no canonical filesystem artifact, `sm job preview` and `sm job claim --json` both read directly from this table. Subprocess runners that need a file (e.g., `claude -p` reading stdin from a path) materialize a temporary file from the DB row and remove it after spawn; the temp file is operationally ephemeral, not part of the contract.
+5. The kernel stores the result in `state_job_contents` keyed by `contentHash` (content-addressed: jobs resolving to the same `contentHash` share one row). No canonical filesystem artifact: `sm job preview` and `sm job claim --json` read directly from this table. Subprocess runners that need a file (e.g., `claude -p` reading stdin from a path) materialize a temp file from the DB row and remove it after spawn; it is operationally ephemeral, not part of the contract.
 6. The kernel computes `contentHash` over (among other things) the concatenation of preamble + template. A changed preamble (e.g., spec bump) MUST produce a different hash and therefore MUST NOT collide with prior jobs.
 
-Implementations MUST NOT modify the preamble text at runtime (e.g., based on locale, model, or config). The text is universal and invariant.
+Implementations MUST NOT modify the preamble text at runtime (e.g., based on locale, model, or config): it is universal and invariant.
 
 ---
 
@@ -143,7 +143,7 @@ This preamble is a **mitigation**, not a guarantee. A determined attacker can st
 2. It gives the model a structured place to report suspected injections, so consumers can act (flag the node, re-run with a different model, refuse to summarize).
 3. It makes injection attempts visible (via the `safety` field in reports) so that deterministic rules can surface patterns over the graph.
 
-Defense-in-depth: the deterministic analyzer `injection-pattern` (shipped as a built-in analyzer in the default plugin pack) scans node bodies for known injection patterns independently of the LLM. Neither layer is sufficient alone.
+Defense-in-depth: the deterministic analyzer `injection-pattern` (a built-in in the default plugin pack) scans node bodies for known injection patterns independently of the LLM. Neither layer is sufficient alone.
 
 ---
 

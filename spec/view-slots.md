@@ -1,6 +1,6 @@
 # View slots
 
-Closed catalog of view slots. Plugin authors pick ONE slot by name in their extension manifest's `ui` map; the kernel validates emit-time payloads against the slot's payload schema. The kernel ships the catalog; the slot fixes both the renderer and the payload shape, there is no separate notion of a "contract" the author has to learn.
+Closed catalog of view slots. Plugin authors pick ONE slot by name in their extension manifest's `ui` map; the kernel validates emit-time payloads against the slot's payload schema. The slot fixes both the renderer and the payload shape, there is no separate "contract" to learn.
 
 This doc is the **author-facing reference**. The normative shape lives in [`schemas/view-slots.schema.json`](./schemas/view-slots.schema.json):
 
@@ -39,16 +39,16 @@ Architectural narrative is in [`architecture.md`](./architecture.md) §View cont
 
 1. **Emoji**, any value starting with a non-ASCII-letter codepoint (`'🔍'`, `'👨‍💻'`) renders as text. The first character signals the branch; ZWJ sequences and variation selectors work transparently.
 2. **PrimeIcons**, `'pi-search'` or `'pi pi-search'` (both accepted) → `<i class="pi pi-search">`.
-3. **FontAwesome explicit family**, `'fa-solid fa-star'` / `'fa-regular fa-star'` / `'fa-brands fa-github'` → pass-through, the UI emits the class as-is.
+3. **FontAwesome explicit family**, `'fa-solid fa-star'` / `'fa-regular fa-star'` / `'fa-brands fa-github'` → pass-through, class emitted as-is.
 4. **FontAwesome shorthand**, `'fa-star'` (no family token) → defaults to `<i class="fa-solid fa-star">`.
 
 Bare class names without a `pi-` / `fa-` prefix (e.g. `'star-fill'`) are **rejected at manifest load** (invalid-manifest, AJV pattern). Unknown PrimeIcons / FontAwesome names render no icon (silent fallback) plus a console warning.
 
-**`emitWhenEmpty`**, manifest field on `IViewContribution`. When `false` (default), the kernel drops emissions whose payload is structurally empty so the slot stays silent. Per-slot definition of "empty" is in each section below.
+**`emitWhenEmpty`**, manifest field on `IViewContribution`. When `false` (default), the kernel drops emissions whose payload is structurally empty. Per-slot definition of "empty" is in each section below.
 
-**`label` and `tooltip`**, plain English strings, NOT internationalized. Per [`AGENTS.md`](../AGENTS.md): the project externalizes texts but does not internationalize.
+**`label` and `tooltip`**, plain English strings, NOT internationalized. Per [`AGENTS.md`](../AGENTS.md): externalized texts, not internationalized.
 
-**Slot picks ONE place**, unlike the previous (pre-2026-05) "contract" abstraction, a contribution is rendered exclusively in the slot the author declared. If you want the same data in multiple surfaces, declare multiple `ui` entries (one per slot). The reason is intentional: one source of truth per surface, no surprise duplication.
+**Slot picks ONE place**, a contribution renders exclusively in the slot the author declared. For the same data in multiple surfaces, declare multiple `ui` entries (one per slot). Intentional: one source of truth per surface, no surprise duplication.
 
 **Inspector body grouping**, the six `inspector.body.panel.*` slots do not share one drawer. The inspector renders **one collapsible section per plugin** (titled by the trusted `pluginId`, collapsed by default), grouping that plugin's body-panel bricks; a plugin's contributions never land in another plugin's section. Section order follows the plugin-level `order` field in `plugin.json` (default 100, tie-break by plugin id); brick order within a section follows the extension-level `order` field (default 100, tie-break by the contribution `priority` then qualified id). Both `order` fields are optional and inspector-only, they never affect execution order.
 
@@ -56,14 +56,14 @@ Bare class names without a `pi-` / `fa-` prefix (e.g. `'star-fill'`) are **rejec
 
 ## `card.title.right`
 
-**Use for**: a small per-node marker next to the card title, language flag, "has audio", "has draft", platform glyph. One icon, optional color tint, optional tooltip. No counts, no labels (use a counter or tag slot for those).
+**Use for**: a small per-node marker next to the card title, language flag, "has audio", "has draft", platform glyph. One icon, optional color tint, optional tooltip. No counts, no labels (use a counter or tag slot).
 
 **Manifest declaration**:
 ```jsonc
 { "slot": "card.title.right", "icon": "🎙", "label": "podcast" }
 ```
 
-`icon` is required at the manifest level for this slot; the payload's optional `icon` overrides it per node when a plugin needs to vary the glyph.
+`icon` is required at the manifest level; the payload's optional `icon` overrides it per node to vary the glyph.
 
 **Payload shape**: `{ icon?, severity?, tooltip? }`. All fields optional, when `icon` is absent the manifest icon wins.
 
@@ -75,13 +75,13 @@ ctx.emitContribution('has-audio', { severity: 'success' });
 
 **Empty**: never, the manifest icon is always available as fallback.
 
-**Where it renders**: immediately after the node title and before the actions cluster. Slot caps at `maxItems: 2`; overflow folds into `+N`.
+**Where it renders**: after the node title, before the actions cluster. Cap `maxItems: 2`; overflow folds into `+N`.
 
 ---
 
 ## `card.subtitle.left`
 
-**Use for**: a single non-negative integer surfaced in the card subtitle row, counts that belong above the body but below the title.
+**Use for**: a single non-negative integer in the card subtitle row, counts above the body but below the title.
 
 **Manifest declaration**:
 ```jsonc
@@ -97,7 +97,7 @@ ctx.emitContribution('has-audio', { severity: 'success' });
 ctx.emitContribution('myCounter', { value: 12 });
 ```
 
-**Empty**: `value === 0` (dropped if `emitWhenEmpty` is false).
+**Empty**: `value === 0`.
 
 **Where it renders**: card subtitle row, left-aligned. Cap `maxItems: 3`, priority-ordered.
 
@@ -105,7 +105,7 @@ ctx.emitContribution('myCounter', { value: 12 });
 
 ## `card.footer.left`
 
-**Use for**: a single non-negative integer surfaced in the card footer left cluster (`@-mentions`, `/-invocations`, etc.).
+**Use for**: a single non-negative integer in the card footer left cluster (`@-mentions`, `/-invocations`, etc.).
 
 **Manifest declaration**:
 ```jsonc
@@ -129,7 +129,7 @@ ctx.emitContribution('mentionsCount', { value: 3 });
 
 ## `card.footer.right`
 
-**Use for**: a single non-negative integer surfaced in the card footer right cluster (URL counters, external-ref totals, etc.).
+**Use for**: a single non-negative integer in the card footer right cluster (URL counters, external-ref totals, etc.).
 
 **Manifest declaration**:
 ```jsonc
@@ -176,16 +176,16 @@ ctx.emitContribution('mentions-count', { count: 12 });
 
 ## `inspector.header.badge`
 
-**Use for**: a unified header badge surfaced when the inspector is open. One slot covers every header chip shape, a counter-style badge (icon + count), a tag-style badge (label + severity), or the stale clock (icon + tooltip). It replaces the retired `inspector.header.badge.counter` and `inspector.header.badge.tag` sub-slots; pick this slot and set whichever fields the badge needs.
+**Use for**: a unified header badge surfaced when the inspector is open. One slot covers every header chip shape, a counter-style badge (icon + count), a tag-style badge (label + severity), or the stale clock (icon + tooltip). Replaces the retired `inspector.header.badge.counter` and `inspector.header.badge.tag` sub-slots; pick this slot and set whichever fields the badge needs.
 
 **Manifest declaration**:
 ```jsonc
 { "slot": "inspector.header.badge", "label": "keywords" }
 ```
 
-No manifest field is required beyond `slot` (the payload supplies the visible content). The manifest `label` stays metadata (docs / plugin-doctor / aria-label).
+No manifest field required beyond `slot` (the payload supplies the visible content). The manifest `label` stays metadata (docs / plugin-doctor / aria-label).
 
-**Payload shape**: `{ icon?, label? (1-32), count?: integer ≥ 0, severity?, tooltip? }`. At least one of `icon`, `label`, `count` is required (`anyOf`). A counter-style badge sets `count` (plus an optional `icon`); a tag-style badge sets `label` (plus an optional `severity`); the stale clock sets `icon` + `tooltip`.
+**Payload shape**: `{ icon?, label? (1-32), count?: integer ≥ 0, severity?, tooltip? }`. At least one of `icon`, `label`, `count` is required (`anyOf`).
 
 **Emit**:
 ```ts
@@ -194,7 +194,7 @@ ctx.emitContribution('age', { label: '7d', severity: 'info' });
 ctx.emitContribution('stale', { icon: 'pi-clock', tooltip: 'Sidecar drift' });
 ```
 
-**Empty**: absence of `icon` AND `label` AND `count` (dropped if `emitWhenEmpty` is false).
+**Empty**: absence of `icon` AND `label` AND `count`.
 
 **Where it renders**: inspector header badge cluster. Multi-cardinality (a plugin extension may emit several), priority-ordered, modeled on `card.footer.left`.
 
@@ -202,14 +202,14 @@ ctx.emitContribution('stale', { icon: 'pi-clock', tooltip: 'Sidecar drift' });
 
 ## `inspector.action.button`
 
-**Use for**: an actionable button in the inspector that dispatches a kernel Action against the open node (the bump button is the first adopter). The button is always emitted; its `enabled` flag carries the dynamic condition (e.g. `isStale` for bump) so a disabled button stays visible with its `disabledReason`.
+**Use for**: an actionable button in the inspector that dispatches a kernel Action against the open node (bump button is the first adopter). Always emitted; its `enabled` flag carries the dynamic condition (e.g. `isStale` for bump) so a disabled button stays visible with its `disabledReason`.
 
 **Manifest declaration**:
 ```jsonc
 { "slot": "inspector.action.button" }
 ```
 
-The manifest declares only `{ slot }`. The per-node payload carries the action id, label, and the dynamic `enabled` flag; the kernel re-emits the row on every scan so the button refreshes.
+The manifest declares only `{ slot }`. The per-node payload carries the action id, label, and dynamic `enabled` flag; the kernel re-emits the row every scan so the button refreshes.
 
 **Payload shape**: `{ actionId, label (1-48), enabled, icon?, severity?, disabledReason? (≤128), input?, prompt?, confirm? }`. Required: `actionId` (qualified `<plugin>/<action>`, pattern-checked), `label`, and `enabled` (boolean). `disabledReason` is the tooltip shown when `enabled` is false. `input`, `prompt`, and `confirm` are **reserved for parametrized actions** (Steps 2+, see below) and carry no behaviour today.
 
@@ -228,11 +228,11 @@ ctx.emitContribution(nodePath, 'bump', {
 
 **Reserved fields** (no effect yet, declared so the contract is stable before the parametrized-action steps land):
 
-- `input` (Step 2+), a static object merged into the dispatch body for actions that need a fixed parameter but no user prompt.
+- `input` (Step 2+), a static object merged into the dispatch body for actions needing a fixed parameter but no user prompt.
 - `prompt` (Step 3+), an `_ActionPrompt` declaring an input-type control the UI collects before dispatching (enum pick, single string, etc.), keyed into the dispatch `input` body under `paramKey`.
 - `confirm`, requires an extra confirm step before dispatch (destructive actions).
 
-**Empty**: not applicable. `emitWhenEmpty` does not apply, a button is always meaningful, and the `enabled` flag (not absence) carries the "nothing to do" state.
+**Empty**: not applicable. `emitWhenEmpty` does not apply (a button is always meaningful), and the `enabled` flag (not absence) carries the "nothing to do" state.
 
 **Where it renders**: inspector body, action cluster.
 
@@ -390,7 +390,7 @@ ctx.emitContribution('mentions', {
 { "slot": "inspector.body.panel.markdown", "label": "Generated summary" }
 ```
 
-**Payload shape**: `{ markdown: string ≤ 4096 chars }`. The UI renders with a sanitized allow-list (paragraphs, headings up to H3, lists, inline code, fenced code, emphasis, strong, blockquote). HTML, scripts, embedded SVG, image tags, and link autodetection are stripped.
+**Payload shape**: `{ markdown: string ≤ 4096 chars }`. Rendered with a sanitized allow-list (paragraphs, headings up to H3, lists, inline code, fenced code, emphasis, strong, blockquote). HTML, scripts, embedded SVG, image tags, and link autodetection are stripped.
 
 **Emit**:
 ```ts
@@ -422,7 +422,7 @@ ctx.emitContribution('summary', {
 ctx.emitScopeContribution('total', { value: ctx.nodes.length });
 ```
 
-> **Status, pending.** The `emitScopeContribution(contributionId, payload)` runtime callback is **reserved in the spec but not yet implemented**: today's `IAnalyzerContext` does not expose it. The callback lands when the first scope-level adopter arrives (see `architecture.md` §View contribution system → Emit path). A plugin declaring a `topbar.nav.start` contribution will load fine, but emissions are deferred until the kernel adds the analyzer-side callback.
+> **Status, pending.** The `emitScopeContribution(contributionId, payload)` runtime callback is **reserved in the spec but not yet implemented**: today's `IAnalyzerContext` does not expose it. It lands when the first scope-level adopter arrives (see `architecture.md` §View contribution system → Emit path). A plugin declaring a `topbar.nav.start` contribution loads fine, but emissions are deferred until the kernel adds the analyzer-side callback.
 
 **Empty**: not applicable (this slot requires a value).
 
@@ -432,10 +432,10 @@ ctx.emitScopeContribution('total', { value: ctx.nodes.length });
 
 ## Stability
 
-- The catalog of 14 slots above is the v1 surface. The unified `inspector.header.badge` (replacing the retired `inspector.header.badge.counter` / `.tag` pair) and the `inspector.action.button` dispatch slot are part of that surface.
-- Adding a new slot is a **catalog-minor bump**; renaming or removing one is a **catalog-major bump** and triggers `sm plugins upgrade` migration of dependent plugins. Folding the two header sub-slots into `inspector.header.badge` was such a removal, dependent plugins migrate via `sm plugins upgrade`.
+- The catalog of 14 slots above is the v1 surface, including the unified `inspector.header.badge` and the `inspector.action.button` dispatch slot.
+- Adding a new slot is a **catalog-minor bump**; renaming or removing one is a **catalog-major bump** and triggers `sm plugins upgrade` migration of dependent plugins. Folding the two header sub-slots into `inspector.header.badge` was such a removal.
 - The `inspector.action.button` reserved fields (`input`, `prompt`, `confirm`) are declared but inert; wiring them in the parametrized-action steps is additive (minor bump). The `_ActionPrompt` payload shape is reserved for the same steps.
 - The `IViewContribution` seven-field declaration shape (`slot`, `label?`, `tooltip?`, `icon?`, `emptyText?`, `emitWhenEmpty?`, `priority?`) is stable. Adding a new optional field is a minor bump; making a field required or removing one is a catalog-major bump.
-- Slots are now spec-level (the kernel and the spec own the catalog). UI implementation may rearrange visual placement WITHOUT renaming a slot, the slot id is the public handle, the visual surface beneath it can evolve.
+- Slots are spec-level (the kernel and spec own the catalog). UI implementation may rearrange visual placement WITHOUT renaming a slot, the slot id is the public handle.
 - The Severity enum and Icon string conventions are stable.
 - Per-slot payload caps (max items, max length) are stable; relaxing them is additive (minor bump). Tightening them is breaking (catalog-major bump).

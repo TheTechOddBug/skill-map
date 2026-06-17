@@ -1,22 +1,22 @@
 # Job events
 
-Canonical event stream emitted during job execution. Every implementation MUST emit these events in the order described, with the shapes defined below. Consumers include the CLI pretty printer, the `--json` ndjson output, the Server's WebSocket broadcaster, and any third-party integration.
+Canonical event stream emitted during job execution. Every implementation MUST emit these events in the order described, with the shapes below. Consumers: the CLI pretty printer, the `--json` ndjson output, the Server's WebSocket broadcaster, any third-party integration.
 
-This document is **normative**. The set of event types, their payload shapes, and their ordering analyzers are stable contracts.
+This document is **normative**. The event types, payload shapes, and ordering analyzers are stable contracts.
 
 ---
 
 ## Transport
 
-Events are records produced by the kernel through `ProgressEmitterPort` (see [`architecture.md`](./architecture.md)). An implementation MUST provide three output adapters:
+Events are records the kernel produces through `ProgressEmitterPort` (see [`architecture.md`](./architecture.md)). An implementation MUST provide three output adapters:
 
 | Adapter | Purpose | Format |
 |---|---|---|
 | `pretty` | Default TTY output. Human-readable, colored, line-based progress. | Free-form; not normative. |
 | `stream-output` | Pretty + model tokens inline. Debugging mode. | Free-form; not normative. |
-| `json` | Machine-readable ndjson. One event per line; each line is a complete JSON object. | **Normative.** Matches the shapes below. |
+| `json` | Machine-readable ndjson. One event per line, each a complete JSON object. | **Normative.** Matches the shapes below. |
 
-The Server exposes the same events over WebSocket (`/ws`) using the same JSON shapes; each event is a single WebSocket text frame.
+The Server exposes the same events over WebSocket (`/ws`) using the same JSON shapes; each event is a single WS text frame.
 
 ---
 
@@ -38,11 +38,11 @@ Every event is a JSON object with this envelope:
 |---|---|---|
 | `type` | always | One of the canonical event types below. |
 | `timestamp` | always | Unix milliseconds when the event was emitted. |
-| `runId` | always | Identifier of the invocation that emitted the event. CLI runner loops use `r-YYYYMMDD-HHMMSS-XXXX`; synthetic or non-job runs use one optional mode segment: `r-<mode>-YYYYMMDD-HHMMSS-XXXX`. Canonical modes are `ext` (external Skill claims), `scan` (scan runs), and `check` (standalone issue recomputations). |
+| `runId` | always | Identifier of the invocation that emitted the event. CLI runner loops use `r-YYYYMMDD-HHMMSS-XXXX`; synthetic or non-job runs add one mode segment: `r-<mode>-YYYYMMDD-HHMMSS-XXXX`. Canonical modes: `ext` (external Skill claims), `scan` (scan runs), `check` (standalone issue recomputations). |
 | `jobId` | when job-scoped | The job the event refers to. Null for run-level events (`run.*`). |
-| `data` | per-event | Event-specific payload, shape defined below. |
+| `data` | per-event | Event-specific payload, shape below. |
 
-Implementations MUST include every envelope field in every event, even if `jobId` is null. This simplifies consumers.
+Implementations MUST include every envelope field in every event, even if `jobId` is null.
 
 Unknown fields in `data` MUST be ignored by consumers (forward compatibility).
 
@@ -50,11 +50,11 @@ Unknown fields in `data` MUST be ignored by consumers (forward compatibility).
 
 ## Event catalog
 
-Emitted in roughly this order during a `sm job run --all` invocation. The exact sequence may interleave for parallel runs (deferred to post-`v1.0`).
+Emitted in roughly this order during `sm job run --all`. The sequence may interleave for parallel runs (deferred to post-`v1.0`).
 
 ### `run.started`
 
-Emitted once at the start of every `sm job run` invocation.
+Emitted once at the start of every `sm job run`.
 
 ```json
 {
@@ -72,7 +72,7 @@ Emitted once at the start of every `sm job run` invocation.
 
 - `mode`: what the runner was asked to do.
 - `maxJobs`: cap on concurrent drain (`--max N` or null).
-- `filter`: resolved filter predicate, free-form object.
+- `filter`: resolved filter predicate (free-form object).
 
 ### `run.reap.started`
 
@@ -105,7 +105,7 @@ Emitted after auto-reap finishes.
 }
 ```
 
-- `reapedIds` lists the jobs transitioned from `running` to `failed`. May be empty.
+- `reapedIds` lists jobs transitioned from `running` to `failed`. May be empty.
 
 ### `job.claimed`
 
@@ -161,13 +161,13 @@ Emitted when the runner is about to execute the job content.
 }
 ```
 
-`command` is implementation-defined free-form; it is descriptive, not invokable. `contentHash` references the row in `state_job_contents` the runner is about to execute against, useful for downstream observers that want to correlate the spawn with the rendered content (which is in DB, not on disk).
+`command` is implementation-defined free-form; descriptive, not invokable. `contentHash` references the `state_job_contents` row the runner is about to execute, letting observers correlate the spawn with the rendered content (in DB, not on disk).
 
-> **Hookable**, see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Plugins MAY subscribe a `hook` extension to this event for pre-flight checks or audit logging. Reactions only, hooks cannot block the spawn.
+> **Hookable**, see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Plugins MAY subscribe a `hook` extension for pre-flight checks or audit logging. Reactions only, hooks cannot block the spawn.
 
 ### `model.delta`
 
-Emitted in `stream-output` mode only. Carries incremental model output.
+Emitted in `stream-output` mode only; carries incremental model output.
 
 ```json
 {
@@ -182,7 +182,7 @@ Emitted in `stream-output` mode only. Carries incremental model output.
 }
 ```
 
-Consumers of the canonical `json` output MAY receive these events if the runner chose to emit them. `pretty` and `json` adapters MAY drop `model.delta` events for brevity.
+Consumers of the canonical `json` output MAY receive these events if the runner emitted them. `pretty` and `json` adapters MAY drop `model.delta` events for brevity.
 
 ### `job.callback.received`
 
@@ -202,11 +202,11 @@ Emitted inside `sm record` when the callback arrives and passes nonce validation
 }
 ```
 
-`executionId` references the just-written `state_executions` row whose `report_json` carries the report payload. Consumers that need the content fetch it via `sm history --json` or directly from the DB; the event itself stays small.
+`executionId` references the just-written `state_executions` row whose `report_json` carries the report payload. Consumers needing the content fetch it via `sm history --json` or the DB; the event stays small.
 
-`runId` on this event is the run that originally claimed the job. If the record is called from outside a CLI run, the canonical case being a Skill agent that called `sm job claim` + `sm record` without ever entering `sm job run`, the kernel MUST synthesize a `runId` of the form `r-ext-YYYYMMDD-HHMMSS-XXXX` (same timestamp + 4-hex shape as real run ids, with the `r-ext-` prefix reserved for externally-driven claims).
+`runId` is the run that originally claimed the job. If `record` is called from outside a CLI run (canonical case: a Skill agent that called `sm job claim` + `sm record` without entering `sm job run`), the kernel MUST synthesize a `runId` of the form `r-ext-YYYYMMDD-HHMMSS-XXXX` (same timestamp + 4-hex shape as real run ids, `r-ext-` prefix reserved for externally-driven claims).
 
-Synthetic-run envelope: when a Skill agent claims a job, the kernel MUST emit, on the server's WebSocket and in the `--json` ndjson stream if active, a full envelope covering that claim:
+Synthetic-run envelope: when a Skill agent claims a job, the kernel MUST emit a full envelope covering that claim, on the server's WebSocket and in the `--json` ndjson stream if active:
 
 ```
 run.started (mode="external")
@@ -217,7 +217,7 @@ run.started (mode="external")
   → run.summary
 ```
 
-The `run.started.data.mode` carries the literal string `external` so UI consumers can render skill-driven work differently from CLI-driven work. `run.summary` closes the synthetic run as soon as the callback is processed; one synthetic run always wraps exactly one job. This keeps the WebSocket broadcaster's contract ("every job event lives inside a run envelope") intact across both runner paths.
+`run.started.data.mode` carries the literal `external` so UI consumers can render skill-driven work differently from CLI-driven work. `run.summary` closes the synthetic run as soon as the callback is processed; one synthetic run always wraps exactly one job. This keeps the WebSocket broadcaster's contract ("every job event lives inside a run envelope") intact across both runner paths.
 
 ### `job.completed`
 
@@ -239,9 +239,9 @@ Emitted when a job transitions to `completed`.
 }
 ```
 
-`executionId` references the `state_executions` row that holds the report payload (in `report_json`). The full report is intentionally NOT inlined in the event, keep events small and let consumers query the row when they want the body.
+`executionId` references the `state_executions` row holding the report payload (in `report_json`). The full report is intentionally NOT inlined; events stay small, consumers query the row.
 
-> **Hookable**, see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). The most common hookable event: notification, billing, downstream dispatch.
+> **Hookable**, see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Most common hookable event: notification, billing.
 
 ### `job.failed`
 
@@ -262,9 +262,9 @@ Emitted when a job transitions to `failed` by any path.
 }
 ```
 
-`reason` enum matches [`execution-record.schema.json`](./schemas/execution-record.schema.json) `failureReason`. `message` is human-readable free-form; MAY be truncated for display.
+`reason` enum matches [`execution-record.schema.json`](./schemas/execution-record.schema.json) `failureReason`. `message` is human-readable free-form, MAY be truncated for display.
 
-> **Hookable**, see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Hook subscribers commonly use this event for alerting and retry triggers. Filter by `data.reason` to narrow to a specific failure mode.
+> **Hookable**, see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Common use: alerting and retry triggers. Filter by `data.reason` to narrow to a specific failure mode.
 
 ### `run.summary`
 
@@ -310,15 +310,15 @@ run.started
 
 A parallel implementation MAY interleave per-job sequences across different `jobId` values, but MUST preserve ordering within a single `jobId`.
 
-`job.failed` with reason `abandoned` MAY appear without a matching `job.claimed` in the current run, it refers to a job claimed in a previous run that expired before the next reap.
+`job.failed` with reason `abandoned` MAY appear without a matching `job.claimed` in the current run: it refers to a job claimed in a previous run that expired before the next reap.
 
 ---
 
 ## Non-job events (Stability: experimental)
 
-These event families cover kernel activity other than job execution. They share the common envelope (`type`, `timestamp`, `runId`, `jobId`, `data`). For non-job events `jobId` is always `null`; `runId` identifies the invocation that produced the event, a scan gets an `r-scan-YYYYMMDD-HHMMSS-XXXX` id, an issue recomputation outside a scan gets an `r-check-...` id, following the same `r-<mode>-...` shape as the external-Skill synthetic envelope (`r-ext-...`).
+These event families cover kernel activity other than job execution. They share the common envelope (`type`, `timestamp`, `runId`, `jobId`, `data`). For non-job events `jobId` is always `null`; `runId` identifies the invocation: a scan gets an `r-scan-YYYYMMDD-HHMMSS-XXXX` id, an issue recomputation outside a scan an `r-check-...` id, following the same `r-<mode>-...` shape as the external-Skill envelope (`r-ext-...`).
 
-The **shapes below are experimental through spec v0.x**. The reference impl starts emitting them at Step 13 alongside the WebSocket broadcaster; once real consumers exercise the stream, the fields lock. Bumping them to `stable` is a minor spec bump; changes to field shapes before `stable` are allowed without a major bump (per [`versioning.md`](./versioning.md) §Pre-1.0).
+The **shapes below are experimental through spec v0.x**. The reference impl starts emitting them at Step 13 alongside the WebSocket broadcaster; once real consumers exercise the stream, the fields lock. Bumping to `stable` is a minor spec bump; field-shape changes before `stable` are allowed without a major bump (per [`versioning.md`](./versioning.md) §Pre-1.0).
 
 ### Scan events
 
@@ -379,11 +379,11 @@ Emitted once at scan end.
 }
 ```
 
-> **Hookable**, see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Post-scan reaction (Slack notification, CI gate, summary email).
+> **Hookable**, see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Post-scan reaction (Slack notification, CI gate).
 
 #### `extractor.completed`
 
-Emitted once per registered Extractor, after the full walk completes. Aggregated, NOT per-node, per-node fan-out lives in `scan.progress`, which is intentionally not hookable.
+Emitted once per registered Extractor, after the full walk. Aggregated, NOT per-node; per-node fan-out lives in `scan.progress`, which is intentionally not hookable.
 
 ```json
 {
@@ -399,11 +399,11 @@ Emitted once per registered Extractor, after the full walk completes. Aggregated
 
 `extractorId` is the qualified extension id (`<plugin-id>/<id>`).
 
-> **Hookable**, see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Per-Extractor metrics, audit. Filter by `data.extractorId` to scope to a single Extractor.
+> **Hookable**, see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Per-Extractor metrics. Filter by `data.extractorId` to scope to one Extractor.
 
 #### `analyzer.completed`
 
-Emitted once per registered Analyzer, after every issue has been validated.
+Emitted once per registered Analyzer, after every issue is validated.
 
 ```json
 {
@@ -419,11 +419,11 @@ Emitted once per registered Analyzer, after every issue has been validated.
 
 `analyzerId` is the qualified extension id.
 
-> **Hookable**, see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Per-Analyzer alerting, downstream tooling. Filter by `data.analyzerId`.
+> **Hookable**, see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Per-Analyzer alerting. Filter by `data.analyzerId`.
 
 #### `action.completed`
 
-Emitted once per Action invocation, after the report has been recorded.
+Emitted once per Action invocation, after the report is recorded.
 
 ```json
 {
@@ -439,13 +439,13 @@ Emitted once per Action invocation, after the report has been recorded.
 }
 ```
 
-`actionId` is the qualified extension id; `node` carries the target node summary (full `Node` shape per [`schemas/node.schema.json`](./schemas/node.schema.json) is forward-compatible). Lands alongside the job subsystem at Step 10.
+`actionId` is the qualified extension id; `node` carries the target node summary (full `Node` shape per [`schemas/node.schema.json`](./schemas/node.schema.json) is forward-compatible). Lands at Step 10 with the job subsystem.
 
-> **Hookable**, see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Per-Action notification, integration glue. Filter by `data.actionId`.
+> **Hookable**, see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Per-Action notification. Filter by `data.actionId`.
 
 ### Issue events
 
-Emitted by the scan after `scan.completed` when the new scan's issue set differs from the previous one. Enables a UI "issue inbox" to update incrementally without re-fetching the full list.
+Emitted by the scan after `scan.completed` when the new scan's issue set differs from the previous. Lets a UI "issue inbox" update incrementally without re-fetching the full list.
 
 #### `issue.added`
 
@@ -466,7 +466,7 @@ Emitted by the scan after `scan.completed` when the new scan's issue set differs
 
 #### `issue.resolved`
 
-Emitted when an issue present in the previous scan is absent from the new one.
+Emitted when an issue present in the previous scan is absent from the new.
 
 ```json
 {
@@ -481,7 +481,7 @@ Emitted when an issue present in the previous scan is absent from the new one.
 }
 ```
 
-Issue diffing is keyed on `(analyzerId, nodeIds sorted, message)`, same key → same issue. A payload change on the same key emits no event; consumers re-read full issue detail from `sm check` when needed.
+Issue diffing is keyed on `(analyzerId, nodeIds sorted, message)`: same key → same issue. A payload change on the same key emits no event; consumers re-read full issue detail from `sm check`.
 
 ---
 
@@ -501,7 +501,7 @@ If an event payload cannot be serialized (internal bug), the implementation MUST
 }
 ```
 
-Consumers MAY treat `emitter.error` as a soft failure (log and continue). Implementations MUST NOT crash the run because of a serialization failure.
+Consumers MAY treat `emitter.error` as a soft failure (log and continue). Implementations MUST NOT crash the run on a serialization failure.
 
 ---
 
@@ -515,14 +515,14 @@ Consumers MAY treat `emitter.error` as a soft failure (log and continue). Implem
 
 ## Stability
 
-The **job event type list** (`run.*`, `job.*`, `model.delta`, `emitter.error`) is stable as of spec v1.0.0. Adding a new event type is a minor bump. Removing or renaming one is a major bump.
+The **job event type list** (`run.*`, `job.*`, `model.delta`, `emitter.error`) is stable as of spec v1.0.0. Adding a new event type is a minor bump; removing or renaming one is a major bump.
 
-**Adding** fields to `data` is a minor bump. Changing a field's type or removing a field is a major bump.
+**Adding** fields to `data` is a minor bump; changing a field's type or removing a field is a major bump.
 
 Consumers MUST ignore unknown fields (forward compatibility).
 
 The envelope (`type`, `timestamp`, `runId`, `jobId`, `data`) is stable. Adding an envelope field is a major bump because every consumer would need to handle it.
 
-The **non-job event families** (`scan.*`, `issue.*`, `extractor.completed`, `analyzer.completed`, `action.completed`) are marked **experimental** across spec v0.x. They ship alongside the WebSocket broadcaster at Step 13 of the reference impl; shapes may tighten before a stable tag lands. Once promoted to `stable` (a minor spec bump), the same add/remove/rename semantics as the job events apply.
+The **non-job event families** (`scan.*`, `issue.*`, `extractor.completed`, `analyzer.completed`, `action.completed`) are **experimental** across spec v0.x. They ship alongside the WebSocket broadcaster at Step 13 of the reference impl; shapes may tighten before a stable tag lands. Once promoted to `stable` (a minor spec bump), the same add/remove/rename semantics as the job events apply.
 
-The **Hook curated trigger set** (eight hookable lifecycle events; see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set)) is itself stable as of the same minor in which it lands: adding a hookable trigger is a minor bump, removing or renaming one is a major bump. The curation policy ("a hook subscribes only to a deliberately small set") is normative, surface noise reduction is the entire point.
+The **Hook curated trigger set** (eight hookable lifecycle events; see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set)) is stable as of the minor in which it lands: adding a hookable trigger is a minor bump, removing or renaming one is a major bump. The curation policy ("a hook subscribes only to a deliberately small set") is normative; surface noise reduction is the point.

@@ -1,6 +1,6 @@
 # Input-types for plugin settings
 
-Closed catalog of input-types for the manifest-root `settings` map. Plugin authors pick a `type` by name; the kernel knows the value schema; the UI generates a form per declaration; the CLI's `sm plugins config <id>` exposes the same surface. Plugin authors NEVER write JSON Schema for settings, they pick a name and supply per-type parameters.
+Closed catalog of input-types for the manifest-root `settings` map. Plugin authors pick a `type` by name; the kernel knows the value schema; the UI generates a form per declaration; the CLI's `sm plugins config <id>` exposes the same surface. Authors NEVER write JSON Schema for settings, they pick a name and supply per-type parameters.
 
 This doc is the **author-facing reference**. The normative shape lives in [`schemas/input-types.schema.json`](./schemas/input-types.schema.json):
 
@@ -30,13 +30,13 @@ The `settings` field on `IPluginManifest` lives in [`schemas/plugins-registry.sc
 
 **Required fields**: every declaration requires `type` and `label`. `description` is optional. Other parameters are per-type.
 
-**Default values**: most types accept a `default` parameter. The kernel uses it when the user has not yet configured the setting.
+**Default values**: most types accept a `default` parameter, used when the user has not yet configured the setting.
 
-**Validation**: the kernel validates the resolved value against the per-type value schema at extractor invocation. Validation failure surfaces as `invalid-settings` plugin status.
+**Validation**: the kernel validates the resolved value against the per-type value schema at extractor invocation. Failure surfaces as `invalid-settings` plugin status.
 
 **CLI coercion**: `sm plugins config <plugin>/<ext> <settingId> <value>` receives the value as a shell string and coerces it to the declared type before validating and writing (`integer` / `number` parsed numerically, `boolean-flag` from `true` / `false`, `string-list` / `enum-multipick` / `key-value-list` parsed as JSON). A value that cannot be coerced or fails validation is rejected at write time with a typed error, not deferred to the next scan.
 
-**English-only labels**: per [`AGENTS.md`](../AGENTS.md), the project externalizes texts but does not internationalize. Use English `label` and `description` strings.
+**English-only labels**: per [`AGENTS.md`](../AGENTS.md), externalized texts, not internationalized. Use English `label` and `description` strings.
 
 **Settings are read-once**: extractors receive `ctx.settings.<settingId>` at invocation. Changing a setting requires `sm scan` to re-emit affected contributions.
 
@@ -154,7 +154,7 @@ The `settings` field on `IPluginManifest` lives in [`schemas/plugins-registry.sc
 
 **Parameters**: `label` (required), `description?`, `default?: number`, `min?`, `max?`, `step?` (default 1, must be > 0).
 
-**Value type**: `number` (whole or fractional; use [`integer`](#integer) when the value must be a whole number). `NaN` / `Infinity` are rejected.
+**Value type**: `number` (whole or fractional; use [`integer`](#integer) when the value must be a whole number). `NaN` / `Infinity` rejected.
 
 **UI**: PrimeNG `<p-inputnumber>` with `mode="decimal"`.
 
@@ -231,7 +231,7 @@ The `settings` field on `IPluginManifest` lives in [`schemas/plugins-registry.sc
 
 **Value type**: `string` (when `multiple: false`) or `string[]` (when `multiple: true`).
 
-**UI**: text input (single) or tag input (multiple), validated against the project's installed glob library at form submit.
+**UI**: text input (single) or tag input (multiple), validated against the installed glob library at form submit.
 
 ---
 
@@ -253,7 +253,7 @@ The `settings` field on `IPluginManifest` lives in [`schemas/plugins-registry.sc
 
 **Value type**: `string` (the regex body, no `/` delimiters).
 
-**UI**: text input. Compilation tested at form submit and at extractor invocation; failure → `invalid-settings`.
+**UI**: text input. Compilation tested at form submit and extractor invocation; failure → `invalid-settings`.
 
 ---
 
@@ -270,13 +270,13 @@ The `settings` field on `IPluginManifest` lives in [`schemas/plugins-registry.sc
 }
 ```
 
-**Parameters**: `label` (required), `description?`, `envVar?` (uppercase ASCII identifier, kernel reads from process env first if set, lets CI inject without writing to disk).
+**Parameters**: `label` (required), `description?`, `envVar?` (uppercase ASCII identifier, kernel reads process env first if set, lets CI inject without writing to disk).
 
 **Value type**: `string`.
 
 **UI**: `<input type="password">` with reveal toggle.
 
-**Storage**: project-local `settings.local.json` (gitignored), never the committed `settings.json`. The protection is that the value never travels via the shared repo, NOT encryption, it is kept as plain text on the local machine. The kernel routes any `secret`-typed setting to the project-local layer automatically (the dynamic equivalent of `PROJECT_LOCAL_ONLY_KEYS`, the destination follows the declared type, not a fixed key list). Logged as `<redacted>` in CLI output.
+**Storage**: project-local `settings.local.json` (gitignored), never the committed `settings.json`. The protection is that the value never travels via the shared repo, NOT encryption, it is plain text on the local machine. The kernel routes any `secret`-typed setting to the project-local layer automatically (the dynamic equivalent of `PROJECT_LOCAL_ONLY_KEYS`, destination follows the declared type, not a fixed key list). Logged as `<redacted>` in CLI output.
 
 ---
 
@@ -313,4 +313,4 @@ The `settings` field on `IPluginManifest` lives in [`schemas/plugins-registry.sc
 - Adding a new input-type is a **catalog-minor bump**; renaming or removing one is a **catalog-major bump** and triggers `sm plugins upgrade` migration.
 - The `ISettingDeclaration` discriminated-union shape is stable. Adding a new optional parameter to an existing type is a minor bump; making a parameter required or removing one is a catalog-major bump.
 - Value-type promises (the "Value type" entry per type above) are stable. Changing the runtime value type for an existing input-type is a catalog-major bump.
-- The `secret` storage behavior (project-local `settings.local.json`, gitignored, plain text) is stable; secret values are never written to the committed layer. There is no encryption-at-rest in v1: the contract is "does not travel via the repo", not "encrypted on disk".
+- The `secret` storage behavior (project-local `settings.local.json`, gitignored, plain text) is stable; secret values are never written to the committed layer. No encryption-at-rest in v1: the contract is "does not travel via the repo", not "encrypted on disk".
