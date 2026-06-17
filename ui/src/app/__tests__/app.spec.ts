@@ -226,7 +226,10 @@ function makeUpdateCheckStub(): UpdateCheckService {
  * so it would be a no-op anyway. Driving `status` directly keeps the
  * computed `isOutdated` / `latest` derivations exercised end-to-end.
  */
-async function configure(updateStub: UpdateCheckService): Promise<void> {
+async function configure(
+  updateStub: UpdateCheckService,
+  mode: 'live' | 'demo' = 'live',
+): Promise<void> {
   await TestBed.configureTestingModule({
     imports: [App],
     providers: [
@@ -234,10 +237,10 @@ async function configure(updateStub: UpdateCheckService): Promise<void> {
       provideHttpClientTesting(),
       provideRouter([]),
       { provide: DATA_SOURCE, useValue: STUB_DATA_SOURCE },
-      // The shell now mounts <sm-demo-banner>, which reads
-      // SKILL_MAP_MODE on construction. Provide a default so the
-      // boot test doesn't hit the missing-token path.
-      { provide: SKILL_MAP_MODE, useValue: 'live' },
+      // The shell mounts <sm-demo-banner> and shows a beta chip, both of
+      // which read SKILL_MAP_MODE on construction. Provide the mode under
+      // test (defaults to 'live'); the beta chip shortens in 'demo'.
+      { provide: SKILL_MAP_MODE, useValue: mode },
       // Keep the live-mode WS service from opening a real socket (see
       // inertWsSocketFactory): without this it logs connection failures.
       { provide: WS_SOCKET_FACTORY, useValue: inertWsSocketFactory },
@@ -340,5 +343,31 @@ describe('App, update chip', () => {
 
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('[data-testid="shell-update-chip"]')).toBeNull();
+  });
+});
+
+describe('App, beta chip (mode-conditional)', () => {
+  it('shows the full beta warning in live mode', async () => {
+    TestBed.resetTestingModule();
+    await configure(makeUpdateCheckStub(), 'live');
+
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const chip = (fixture.nativeElement as HTMLElement).querySelector('.shell__beta');
+    expect(chip?.textContent?.trim()).toBe('BETA - do not use in production');
+  });
+
+  it('shortens the chip to "BETA" in demo mode', async () => {
+    TestBed.resetTestingModule();
+    await configure(makeUpdateCheckStub(), 'demo');
+
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const chip = (fixture.nativeElement as HTMLElement).querySelector('.shell__beta');
+    expect(chip?.textContent?.trim()).toBe('BETA');
   });
 });
