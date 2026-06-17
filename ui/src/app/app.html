@@ -69,7 +69,7 @@
               data-testid="shell-lens"
             >{{ lens.label }}</span>
           }
-          <span class="shell__beta" [attr.aria-label]="texts.beta">{{ texts.beta }}</span>
+          <span class="shell__beta" [attr.aria-label]="isDemo ? texts.betaDemo : texts.beta">{{ isDemo ? texts.betaDemo : texts.beta }}</span>
           @if (updateCheck.isOutdated() && !isDevMode) {
             <button
               type="button"

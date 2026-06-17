@@ -12,7 +12,6 @@
   "scripts": {
     "start": "bash scripts/start.sh",
     "fix:local": "pnpm start",
-    "fix:plugins": "bash scripts/start.sh plugins-scope",
     "fix:demo": "bash scripts/start.sh demo-scope",
     "sm": "node src/bin/sm.js",
     "sm:reset": "bash scripts/dev-reset.sh",
@@ -30,8 +29,7 @@
     "lint": "pnpm -r --if-present lint",
     "lint:fix": "pnpm -r --if-present lint:fix",
     "validate": "pnpm validate:compile && pnpm validate:test",
-    "typecheck:fixtures": "pnpm --filter @skill-map/cli exec tsc -p ../fixtures/tsconfig.json",
-    "validate:compile": "pnpm --filter @skill-map/spec validate:compile && pnpm --filter @skill-map/cli validate:compile && pnpm --filter ui validate:compile && pnpm --filter @skill-map/web validate:compile && pnpm typecheck:fixtures",
+    "validate:compile": "pnpm --filter @skill-map/spec validate:compile && pnpm --filter @skill-map/cli validate:compile && pnpm --filter ui validate:compile && pnpm --filter @skill-map/web validate:compile",
     "validate:test": "pnpm --filter @skill-map/cli validate:test && pnpm --filter ui validate:test && pnpm --filter skill-map-e2e validate:test",
     "release:changeset": "changeset",
     "release:version": "node scripts/build-user-changelog.js && node scripts/build-changelog.js && changeset version && pnpm install --lockfile-only && pnpm --filter @skill-map/spec pin && pnpm --filter @skill-map/spec spec",

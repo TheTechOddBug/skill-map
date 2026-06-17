@@ -25,3 +25,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Portfolio: generated HTML lives here (not part of the harness graph)
+public/

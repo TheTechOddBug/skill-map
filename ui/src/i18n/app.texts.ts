@@ -12,6 +12,8 @@ const BRAND_NAME = 'skill-map';
 export const APP_TEXTS = {
   brand: BRAND_NAME,
   beta: 'BETA - do not use in production',
+  /** Shortened beta chip for the read-only public demo (no prod warning). */
+  betaDemo: 'BETA',
   /**
    * Topbar chip rendered next to the version when `/api/health.dev` is
    * `true` (BFF launched from a local checkout, see

@@ -57,12 +57,14 @@ Thumbs.db
 .skill-map/
 !spec/conformance/fixtures/**/.skill-map/
 !spec/conformance/fixtures/**/.skill-map/**
-# Same exception for the plugins-scope dev fixture: it ships committed
-# drop-in plugins under `.skill-map/plugins/`. The runtime artifacts it
-# still ignores (db, settings, backups) live in its own
-# `fixtures/plugins-scope/.gitignore`.
-!fixtures/plugins-scope/.skill-map/
-!fixtures/plugins-scope/.skill-map/**
+# fixtures/demo-scope pins its active lens in a committed
+# `.skill-map/settings.json` so the public demo build
+# (web/scripts/build-demo-dataset.js) scans deterministically: the project
+# has both a `.claude/` and a root `AGENTS.md`, an ambiguous marker set that
+# would otherwise make the non-interactive scan prompt or fail. Only
+# settings.json is tracked; db / settings.local / backups stay ignored.
+!fixtures/demo-scope/.skill-map/
+!fixtures/demo-scope/.skill-map/settings.json
 
 .codex
 

@@ -32,7 +32,7 @@ import { expect, test } from '@playwright/test';
  *     no-op in read-only demo mode).
  *   - Annotations card: nodes with no sidecar overlay MUST NOT show the
  *     annotations card (it gates on `n.sidecar?.present`). In the current
- *     demo bundle `ARCHITECTURE.md` is the canonical "no sidecar overlay"
+ *     demo bundle `docs/STYLE.md` is the canonical "no sidecar overlay"
  *     case (a plain doc that was never annotated), so the test targets it
  *     by path.
  *
@@ -43,8 +43,8 @@ import { expect, test } from '@playwright/test';
  * because the demo harness can't drive the live BFF.
  */
 
-const STALE_PATH = '.claude/agents/frontend-specialist.md';
-const NO_SIDECAR_PATH = 'ARCHITECTURE.md';
+const STALE_PATH = '.claude/agents/content-editor.md';
+const NO_SIDECAR_PATH = 'docs/STYLE.md';
 
 async function gotoWorkspace(page: import('@playwright/test').Page): Promise<void> {
   // The files rail opens collapsed map-first by default; seed the
@@ -66,7 +66,7 @@ test.describe('sidecar UI surface (Step 9.6.5)', () => {
   test('the files rail surfaces sidecar staleness on a stale node row', async ({ page }) => {
     // Replaces the removed `filter-stale-only` chip cases: the rail no
     // longer carries a stale filter toggle, but it DOES flag staleness
-    // per row. The demo bundle ships `frontend-specialist.md` with a
+    // per row. The demo bundle ships `content-editor.md` with a
     // `stale-both` sidecar, so its row must render the stale clock icon.
     await gotoWorkspace(page);
 
@@ -75,32 +75,32 @@ test.describe('sidecar UI surface (Step 9.6.5)', () => {
     await expect(row.locator('.files__stale-icon')).toBeVisible();
   });
 
-  test('inspector bump button is rendered when a stale node is selected', async ({ page }) => {
+  test('inspector renders the sidecar action button when a node is selected', async ({ page }) => {
     await gotoWorkspace(page);
 
-    // The bump button is no longer a hardcoded toolbar element: it is a
-    // plugin contribution to the `inspector.action.button` slot,
-    // self-projected by the `core/node-bump` Action's scan-time
-    // `project(ctx)` for nodes that have a sidecar (the dispatching
-    // Action owns its button; `core/annotation-stale` keeps only the
-    // stale badge + issue). Deep-link to the stale demo node so the
-    // button is present, via the shared `?path=` query param (there is
-    // no `/map` route anymore).
+    // Inspector action buttons are plugin contributions to the
+    // `inspector.action.button` slot, self-projected by an Action's
+    // scan-time `project(ctx)`. The bump button (`core/node-bump`) ships
+    // `stability: 'experimental'`, so it is disabled by default and the
+    // read-only demo bundle does not render it; the stable sidecar-action
+    // affordance is `core/node-set-stability` ("Set stability"), which
+    // self-projects a button on every node. Deep-link to the demo node via
+    // the shared `?path=` query param (there is no `/map` route anymore).
     await page.goto(`./?path=${encodeURIComponent(STALE_PATH)}`);
     await page.waitForLoadState('networkidle');
 
     await expect(page.getByTestId('inspector-view')).toBeVisible();
 
-    // The bump action renders as a `<p-button label="Bump">` in the
-    // inspector action-button slot. Assert by accessible name so the test
-    // does not couple to the renderer's internal testid. Presence only;
-    // the enabled/disabled + dispatch flow is covered in the unit tests.
-    await expect(page.getByRole('button', { name: 'Bump' })).toBeVisible();
+    // The action renders as a `<p-button>` in the inspector action-button
+    // slot. Assert by accessible name so the test does not couple to the
+    // renderer's internal testid. Presence only; the enabled/disabled +
+    // dispatch flow is covered in the unit tests.
+    await expect(page.getByRole('button', { name: 'Set stability' })).toBeVisible();
   });
 
   test('inspector annotations card is hidden for nodes without a sidecar overlay', async ({ page }) => {
     // Deep-link straight into the workspace selection via `?path=`.
-    // `ARCHITECTURE.md` ships no sidecar overlay, so the annotations card
+    // `docs/STYLE.md` ships no sidecar overlay, so the annotations card
     // (which gates on `n.sidecar?.present`) must collapse.
     await page.goto(`./?path=${encodeURIComponent(NO_SIDECAR_PATH)}`);
     await page.waitForLoadState('networkidle');
