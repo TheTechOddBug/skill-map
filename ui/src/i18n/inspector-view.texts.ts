@@ -25,6 +25,7 @@ export const INSPECTOR_VIEW_TEXTS = {
    * catalog so each renderer stays self-contained.
    */
   sections: {
+    actions: 'Actions',
     annotations: 'Annotations',
     connections: 'Connections',
     findings: 'Findings',

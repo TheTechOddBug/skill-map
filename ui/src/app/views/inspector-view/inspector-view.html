@@ -54,14 +54,28 @@
     -->
 
     <!--
-      Action toolbar. The bump button (and any other plugin-contributed
-      verb) arrives as a contribution on `inspector.action.button`,
-      dispatched through `ActionDispatchService`. Nothing is hardcoded
-      here anymore.
+      Actions section. The action buttons (Set stability, Bump, and any
+      plugin-contributed verb) arrive as contributions on
+      `inspector.action.button`, dispatched through `ActionDispatchService`.
+      Replaces the former always-visible toolbar: the section hides for a
+      node with no action contributions (`hasActions`) and defaults
+      expanded so the buttons stay reachable without a click.
     -->
-    <div class="inspector__toolbar">
-      <sm-view-contributions-host slot="inspector.action.button" [node]="n" />
-    </div>
+    @if (hasActions()) {
+      <sm-collapsible-section
+        [title]="texts.sections.actions"
+        [expanded]="expanded('actions')"
+        toggleTestid="inspector-actions-toggle"
+        (toggle)="toggleSection('actions')"
+        data-testid="inspector-card-actions"
+      >
+        @if (expanded('actions')) {
+          <div class="inspector__actions">
+            <sm-view-contributions-host slot="inspector.action.button" [node]="n" />
+          </div>
+        }
+      </sm-collapsible-section>
+    }
 
     @if (issues().length > 0) {
       <sm-collapsible-section

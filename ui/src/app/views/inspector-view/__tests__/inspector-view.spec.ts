@@ -457,9 +457,23 @@ function makeNodeWithSidecar(overlay: ISidecarOverlay | undefined): INodeView {
   return view;
 }
 
-describe('InspectorView, action toolbar (contribution-driven)', () => {
-  it('mounts the inspector.action.button slot host (no hardcoded bump button)', async () => {
-    const node = makeNodeWithSidecar(undefined);
+describe('InspectorView, actions section (contribution-driven)', () => {
+  it('renders the Actions section hosting the inspector.action.button slot when the node has action contributions', async () => {
+    const node: INodeView = {
+      path: 'agents/architect.md',
+      kind: 'agent',
+      frontmatter: { name: 'architect', description: 'd', metadata: { version: '1' } },
+      contributions: [
+        {
+          pluginId: 'core',
+          extensionId: 'node-set-stability',
+          nodePath: 'agents/architect.md',
+          contributionId: 'setStabilityButton',
+          slot: 'inspector.action.button',
+          payload: { actionId: 'core/node-set-stability', label: 'Set stability', enabled: true },
+        },
+      ],
+    };
     const loader = makeStubLoader([node]);
     const dataSource = makeStubDataSource();
     dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
@@ -467,11 +481,23 @@ describe('InspectorView, action toolbar (contribution-driven)', () => {
     fixture.componentRef.setInput('path', node.path);
     await flush(fixture);
     const dom: HTMLElement = fixture.nativeElement;
-    // The toolbar exists, but the bump button is gone from the template:
-    // it now arrives as a contribution. With no contributions on the
-    // node the host renders nothing, but the toolbar anchor is mounted.
-    expect(dom.querySelector('.inspector__toolbar')).not.toBeNull();
+    const section = dom.querySelector('[data-testid="inspector-card-actions"]');
+    expect(section).not.toBeNull();
+    // The slot host is mounted inside the (default-expanded) section.
+    expect(section!.querySelector('sm-view-contributions-host')).not.toBeNull();
+    // No hardcoded bump button; it arrives as a contribution.
     expect(dom.querySelector('[data-testid="inspector-bump"]')).toBeNull();
+  });
+
+  it('does NOT render the Actions section when the node has no action contributions', async () => {
+    const node = makeNodeWithSidecar(undefined);
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    expect(fixture.nativeElement.querySelector('[data-testid="inspector-card-actions"]')).toBeNull();
   });
 
   it('renders the consent dialog component (driven by the dispatch service)', async () => {

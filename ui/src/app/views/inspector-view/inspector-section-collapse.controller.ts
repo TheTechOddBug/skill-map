@@ -2,8 +2,8 @@
  * Persisted, per-section collapse state for the inspector.
  *
  * Replaces the earlier reset-on-navigation model: every inspector
- * section (Definition, Annotations, Connections, Findings, Metadata,
- * Plugins, View contributions, Body) can be collapsed/expanded,
+ * section (Definition, Actions, Annotations, Connections, Findings,
+ * Metadata, Plugins, View contributions, Body) can be collapsed/expanded,
  * and the state is remembered in `localStorage` (global, not per-node)
  * so it survives navigation between nodes and full reloads. Sections the
  * user has never touched fall back to `SECTION_DEFAULT_EXPANDED`: a fresh
@@ -20,6 +20,7 @@ import { assertInInjectionContext, effect, signal } from '@angular/core';
 
 export type TInspectorSectionId =
   | 'definition'
+  | 'actions'
   | 'annotations'
   | 'connections'
   | 'findings'
@@ -36,6 +37,10 @@ const STORAGE_KEY = 'skill-map.ui.inspector.sections';
  *   - `findings`: so issues are visible without a click WHEN they exist
  *     (the section only renders when `issues.length > 0`, so this default
  *     never opens an empty section).
+ *   - `actions`: so the action buttons stay reachable without a click,
+ *     matching the always-visible toolbar it replaced (the section only
+ *     renders when the node has `inspector.action.button` contributions,
+ *     so this default never opens an empty section).
  * Any id not listed here falls back to `false` (collapsed) via
  * `defaultExpanded`. Once the user toggles a section, the persisted
  * choice wins over these defaults.
@@ -43,6 +48,7 @@ const STORAGE_KEY = 'skill-map.ui.inspector.sections';
 const SECTION_DEFAULT_EXPANDED: Partial<Record<TInspectorSectionId, boolean>> = {
   body: true,
   findings: true,
+  actions: true,
 };
 
 function defaultExpanded(id: TInspectorSectionId): boolean {

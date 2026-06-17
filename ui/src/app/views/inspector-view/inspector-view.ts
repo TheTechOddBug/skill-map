@@ -195,6 +195,18 @@ export class InspectorView implements OnInit {
     overlayHasAnnotationsContent(this.node()?.sidecar),
   );
 
+  /**
+   * Whether the "Actions" section has anything to render: true when the
+   * active node carries at least one `inspector.action.button`
+   * contribution. Gates the section so it is hidden (instead of an empty
+   * toolbar) for nodes with no actions (e.g. virtual nodes, or when the
+   * dispatching actions are disabled). The section hosts the same slot the
+   * former always-visible toolbar did.
+   */
+  protected readonly hasActions = computed<boolean>(() =>
+    (this.node()?.contributions ?? []).some((c) => c.slot === 'inspector.action.button'),
+  );
+
   /** Active node's description rendered as inline markdown (emphasis / code / links). */
   protected readonly descriptionHtml = setupInlineMarkdown(
     () => this.node()?.frontmatter.description ?? '',

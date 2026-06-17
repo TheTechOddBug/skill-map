@@ -86,9 +86,10 @@
   text-decoration: underline;
 }
 
-/* Action toolbar, bump + refresh + back-to-files. Compact, no fill. */
-.inspector__toolbar {
-  display: inline-flex;
+/* Actions section body, the row of `inspector.action.button` buttons.
+   Compact, no fill; wraps when several actions are present. */
+.inspector__actions {
+  display: flex;
   align-items: center;
   gap: 0.4rem;
   flex-wrap: wrap;
