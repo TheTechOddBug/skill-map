@@ -61,6 +61,8 @@ spec/                              ← published as @skill-map/spec
 ├── [plugin-kv-api.md](./plugin-kv-api.md)    ← ctx.store contract for storage mode A
 ├── [job-lifecycle.md](./job-lifecycle.md)     ← queued → running → completed | failed
 ├── [telemetry.md](./telemetry.md)            ← opt-in error reporting (default OFF)
+├── [plugin-quickstart.md](./plugin-quickstart.md) ← 3-step path to a working plugin
+├── [plugin-author-guide.md](./plugin-author-guide.md) ← full plugin author guide (descriptive)
 │
 ├── schemas/                       ← JSON Schemas, draft 2020-12, camelCase keys (authoritative list + sha256 in index.json)
 │   ├── node.schema.json                     ┐

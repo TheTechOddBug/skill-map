@@ -39,6 +39,7 @@
     "db-schema.md",
     "plugin-kv-api.md",
     "plugin-author-guide.md",
+    "plugin-quickstart.md",
     "telemetry.md",
     "interfaces/",
     "schemas/",

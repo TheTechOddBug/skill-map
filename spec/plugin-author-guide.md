@@ -2,6 +2,8 @@
 
 How to ship a third-party `skill-map` plugin: directory layout, manifest fields, the six extension kinds, storage choice, version compatibility, dual-mode posture, and how to unit-test the result against the kernel's public types.
 
+*In a hurry? The [Plugin quickstart](./plugin-quickstart.md) gets a working plugin in three steps; this guide is the full contract.*
+
 This guide is **descriptive prose, not the normative contract**. The normative pieces live in the JSON Schemas under [`schemas/`](./schemas/) and in [`architecture.md`](./architecture.md); every claim here is cross-linked. When this guide disagrees with a schema, the schema wins; on system behaviour, `architecture.md` wins. Deep per-system contracts (extension semantics, resolver phase, persistence sweeps, isolation model) are NOT restated here, follow the links.
 
 > **Status.** Pre-1.0 (`spec` is in `0.y.z`). The author surface is still settling; breaking changes ship as **minor** bumps per [`versioning.md`](./versioning.md) until the first `1.0.0`. The shape here matches the manifest schemas as of the structure-as-truth refactor (the kernel derives `id` / `kind` / the Provider kind catalog from disk, so they are no longer manifest fields).
@@ -49,82 +51,6 @@ THE DETERMINISTIC FLOW   ( the scan: fast · reproducible · offline )
 ```
 
 Full per-kind contract, methods, modes, and one example each, lives in [The six extension kinds](#the-six-extension-kinds) below and in [`architecture.md` §Extension kinds](./architecture.md#extension-kinds).
-
----
-
-## Quick start
-
-```text
-my-plugin/
-├── plugin.json                          ← plugin metadata (required)
-└── extractors/                          ← one folder per extension kind
-    └── my-extractor/
-        ├── index.js                     ← extension entry (required)
-        ├── text.ts                      ← user-facing strings (optional)
-        └── my-extractor.test.ts         ← tests live next to the code (optional)
-```
-
-The kernel auto-discovers extensions by walking
-`<plugin-dir>/<kind>s/<name>/index.{js,mjs,ts}` for each known kind
-(`providers`, `extractors`, `analyzers`, `actions`, `formatters`,
-`hooks`). **The folder layout IS the source of truth**: plugin id from the
-top-level dir, kind from the subfolder name, extension id from the
-extension folder name. The manifest does NOT declare an
-`extensions[]` array, and an extension file does NOT declare its own `id` or `kind`
-(either is rejected as `invalid-manifest`).
-
-**Co-located files convention**: siblings of `index.{js,mjs,ts}`
-the kernel does NOT recognise as an entry point are author
-files. Two names blessed by convention:
-
-- **`text.ts`** holds the extension's externalised user-facing
-  strings. One per extension; imported by `index.ts` as `./text.js`.
-  Plain TS module, no schema, no codegen.
-- **`<extension-name>.test.ts`** (or `.test.mjs` / `.test.js`) is
-  the colocated test suite, picked up by the workspace's test glob
-  (`plugins/**/*.test.ts`).
-
-Both optional. The kernel ignores everything that isn't
-`index.{js,mjs,ts}`, so future per-extension fixtures or schemas
-live in the same folder without manifest plumbing.
-
-```jsonc
-// my-plugin/plugin.json
-{
-  "version": "1.0.0",
-  "specCompat": "^0.40.0",
-  "catalogCompat": "^1.0.0",
-  "description": "Example plugin."
-}
-```
-
-```javascript
-// my-plugin/extractors/my-extractor/index.js
-export default {
-  // id, kind, version, pluginId are NOT declared here:
-  //   - id / kind come from the folder path
-  //   - version / pluginId are injected by the loader
-  description: 'Emits a reference per something.md mention.',
-  scope: 'body',
-  extract(ctx) {
-    // ctx.node, ctx.body, ctx.frontmatter, ctx.emitLink, ctx.enrichNode, ctx.emitContribution
-    // Output flows through the callbacks; the method returns void.
-    ctx.emitLink({
-      source: ctx.node.path,
-      target: 'something.md',
-      kind: 'references',
-      confidence: 'high',
-      sources: ['my-extractor'],
-    });
-  },
-};
-```
-
-> **Note.** External (user-authored) plugins MUST declare `version` per extension; the AJV check rejects manifests missing it. The example omits it only because the loader injects it for the reference impl's built-ins. For your own plugin, add `version: '1.0.0'`.
-
-Drop the directory under `<cwd>/.skill-map/plugins/` and
-`sm plugins list` picks it up. A folder/kind mismatch (e.g. an extractor under
-`analyzers/`) surfaces as `invalid-manifest`.
 
 ---
 
@@ -262,6 +188,8 @@ Required fields (normative shape in [`schemas/plugins-registry.schema.json#/$def
 Optional fields: `storage` (`{ mode: 'kv' }` or `{ mode: 'dedicated', tables, migrations }`), `author`, `license` (SPDX), `homepage`, `repository`.
 
 **Structure-as-truth.** The plugin id is the directory name, NOT a manifest field; a manifest carrying `id` is rejected. The manifest does NOT list extensions, the kernel discovers each by walking `<plugin-dir>/<kind>s/<name>/index.{js,mjs,ts}`. A Provider's kind catalog lives on disk at `<plugin>/kinds/<kindName>/{schema.json, kind.json}` (see [Providers](#providers)).
+
+**Files by convention.** Siblings of `index.{js,mjs,ts}` that the kernel does not recognise as an entry point are author files. Two names are blessed: **`text.ts`** holds the extension's externalised user-facing strings (one per extension, imported by `index.ts` as `./text.js`; plain TS, no schema, no codegen), and **`<extension-name>.test.ts`** (or `.test.mjs` / `.test.js`) is the colocated test suite, picked up by the workspace test glob (`plugins/**/*.test.ts`). Both optional. The kernel ignores everything that is not `index.{js,mjs,ts}`, so future per-extension fixtures or schemas live in the same folder without manifest plumbing.
 
 ### `specCompat` strategy
 
