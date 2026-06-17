@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.60.1",
+      "date": "2026-06-17",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "Clicking a tag on a card now filters the map without jumping the view around, it stays where you are. And the Re-arrange and Fit buttons glide the map into place instead of snapping, so it is easier to follow where things moved.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.60.0",
       "date": "2026-06-17",
       "kind": "user-facing",
