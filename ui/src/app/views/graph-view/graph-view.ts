@@ -272,10 +272,11 @@ export class GraphView implements OnInit {
    * on means a node must carry at least one error AND at least one
    * warn) lives inside `apply()`; the view only feeds the context.
    *
-   * The TEXT search only participates when the operator opted into the
-   * search → map coupling (`searchAffectsMap`, the toggle next to the
-   * rail's search input). Default: the map ignores the query and keeps
-   * its layout while the files rail narrows.
+   * The TEXT search only participates when the search → map coupling
+   * is on (`searchAffectsMap`, the toggle next to the rail's search
+   * input), which it is by default: the map narrows on the query
+   * alongside the files rail. Turn the toggle off to keep the map
+   * layout while only the files rail narrows.
    */
   private readonly visibleNodes = computed(() =>
     this.filters.apply(this.loader.nodes(), this.issuePaths.bySeverity(), {

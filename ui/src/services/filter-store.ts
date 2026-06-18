@@ -43,14 +43,17 @@ const SEARCH_AFFECTS_MAP_KEY = 'sm.workspace.search-affects-map';
 
 /**
  * Search → map coupling preference, read once at store construction.
- * Default OFF: searching narrows the files rail while the map keeps
- * its full layout (an explicit product decision; filtering the canvas
- * on every keystroke rips nodes out of the layout the operator is
- * looking at). `'1'` opts back into the old filter-everything mode.
+ * Default ON: searching narrows BOTH the files rail and the map, so a
+ * query focuses the whole workspace at once. `'0'` opts into the
+ * decoupled mode where the map keeps its full layout while only the
+ * files rail narrows (set via the rail's map-icon toggle); an absent
+ * key means the operator never chose, so the default applies.
  */
 function readStoredSearchAffectsMap(): boolean {
-  if (typeof localStorage === 'undefined') return false;
-  return localStorage.getItem(SEARCH_AFFECTS_MAP_KEY) === '1';
+  if (typeof localStorage === 'undefined') return true;
+  const stored = localStorage.getItem(SEARCH_AFFECTS_MAP_KEY);
+  if (stored === null) return true;
+  return stored === '1';
 }
 
 function writeStoredSearchAffectsMap(value: boolean): void {
@@ -113,8 +116,9 @@ export class FilterStoreService {
   /**
    * Whether the text search also filters the MAP (graph view). The
    * files rail always honours the search; the map only does when this
-   * is on. A persisted preference, not a filter: `reset()` leaves it
-   * untouched and `isActive` does not consult it.
+   * is on, which it is by default. A persisted preference, not a
+   * filter: `reset()` leaves it untouched and `isActive` does not
+   * consult it.
    */
   private readonly _searchAffectsMap = signal<boolean>(readStoredSearchAffectsMap());
 

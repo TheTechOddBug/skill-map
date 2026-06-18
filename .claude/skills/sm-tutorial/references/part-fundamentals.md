@@ -4,26 +4,30 @@ The live-UI prologue: the tester runs `sm init`, opens the browser, and watches 
 
 ## Chapter `init` - Your first node (~2 min)
 
-**Context**: `sm init` creates a hidden `.skill-map/` folder in the cwd holding the database where skill-map stores what it learns about the project. It also runs an initial scan. Mandatory first step. Then typing `sm` alone (no arguments) in an initialised dir starts the UI server with the watcher built in (it is just an alias of `sm serve` with all defaults; the moment you need any flag you write `sm serve --flag ...` explicitly). One process, one terminal: it boots the server, scans the `.md` files, detects changes, and pushes events over WebSocket to the live UI. The next chapters all run against the same `sm` session, you boot it here and keep it alive through the `ignore` chapter.
+Agent background (do NOT render this as a separate context paragraph; the tester-facing version is folded into the message below): `sm init` creates a hidden `.skill-map/` folder in the cwd holding the database where skill-map stores what it learns about the project, and runs an initial scan (mandatory first step). Typing `sm` alone (no arguments) in an initialised dir then starts the UI server with the watcher built in (it is just an alias of `sm serve` with all defaults; the moment you need any flag you write `sm serve --flag ...` explicitly). One process, one terminal: it boots the server, scans the `.md` files, detects changes, and pushes events over WebSocket to the live UI. The next chapters all run against this same `sm` session, you boot it here and keep it alive through the `ignore` chapter.
+
+Expected: `.skill-map/skill-map.db` appears (plus config files), and the initial scan reports a small node / link count from the demo-agent fixture. `sm init` runs and exits; `sm` then starts the UI server and stays running. (Agent context, do not narrate: pre-flight's `.skillmapignore` keeps the tutorial's own files, `sm-tutorial.md` / `findings.md` / `tutorial-state.yml`, out of the scan; `sm init` leaves that file alone since it only writes when absent.)
+
+Give the tester the whole flow in ONE message with ONE confirmation, do NOT pause for the `sm init` output separately. Order matters: **lead with the browser setup**, then explain what the two commands do as you hand them over, then the command block, then the URL. Do NOT print the command block or an explanation paragraph before the browser instruction. Don't hardcode the URL, the verb logs the bound `http://host:port` after listen. Tell the tester:
+
+> First, **open your browser** and put it side by side with this
+> chat (browser on one half, chat on the other, any split that lets
+> you see both) so you can watch the **Map** update in real time.
+>
+> Then, in your second terminal, you'll run two commands. `sm init`
+> sets the project up: it creates the hidden `.skill-map/` folder
+> with the database where skill-map stores what it learns about the
+> project, and runs a first scan. `sm` on its own (no arguments)
+> then boots the live UI server, with the watcher built in.
 
 ```bash
 sm init
 sm
 ```
 
-Expected: `.skill-map/skill-map.db` appears (plus config files), and the initial scan reports a small node / link count from the demo-agent fixture. `sm init` runs and exits; `sm` then starts the UI server and stays running. (Agent context, do not narrate: pre-flight's `.skillmapignore` keeps the tutorial's own files, `sm-tutorial.md` / `findings.md` / `tutorial-state.yml`, out of the scan; `sm init` leaves that file alone since it only writes when absent.)
-
-Give the tester the whole flow in one message with ONE confirmation, do NOT pause for the `sm init` output separately. Don't hardcode the URL, the verb logs the bound `http://host:port` after listen. Tell the tester:
-
-> First, **open your browser** and put it side by side with this
-> chat (browser on one half, chat on the other, any split that lets
-> you see both) so you can watch the **Map** update in real time.
->
-> Then, in your second terminal, run the two commands above: `sm
-> init` sets the project up (it creates `.skill-map/` and runs a
-> first scan), and `sm` boots the live UI. After a couple of seconds
-> `sm` prints a URL, copy it and open it in your browser. The
-> terminal keeps printing scan lines, you don't need to read them.
+> After a couple of seconds `sm` prints a URL, copy it and open it
+> in your browser. The terminal keeps printing scan lines, you don't
+> need to read them.
 >
 > You'll see one node in the **Map**: `demo-agent`. Tell me when the
 > page is open showing it.
@@ -235,8 +239,8 @@ Tell the tester:
 > One word on solidity: skill-map draws each connector's
 > **confidence** as opacity, and every arrow you see here is fully
 > solid (1.00) because each one lands on a real node. The faint,
-> partial case (a link to a real file the runtime would ignore) shows
-> up later in the campaign; for now the rule is simple, a reference
+> partial case shows up later in the campaign; for now the rule is
+> simple, a reference
 > that resolves draws a solid arrow, a reference that points at
 > nothing is not drawn at all and gets flagged instead. The exact
 > per-link numbers live in the inspector, next chapter.
@@ -251,6 +255,12 @@ Expected: four drawn arrows plus one `core/reference-broken` error on `notes/tod
 
 The canvas only draws the resolved arrows; the full per-link breakdown, including the broken one that never drew, lives in the Inspector. Open it on the hub so the tester registers the surface before the `edit-link` chapter changes topology.
 
+> 💡 Tip: if all these changes left the nodes crowded together, the
+> map toolbar has a **Re-arrange layout** button (tooltip "Re-arrange
+> the visible nodes"): it tidies the layout so everything reads
+> better. If you've moved nodes by hand it asks for confirmation
+> first, otherwise it just re-arranges.
+>
 > 🆕 Open the Inspector for **Demo TODO list** (click the node on
 > the map). **Expand** the **Connections** section (it's collapsed
 > by default): it has two sections, **Outgoing** and **Incoming**.
@@ -263,18 +273,12 @@ The canvas only draws the resolved arrows; the full per-link breakdown, includin
 > `mentions` to `demo-guideline` reads `0.50` and is marked broken,
 > that 0.5 is the broken-reference penalty, not a "halfway sure".
 >
-> Now open the Inspector for a couple of the targets to read their
-> Incoming count. The four resolved targets (`demo-agent`,
+> Now open the Inspector for a couple of the nodes to read their
+> Incoming count. The four resolved nodes (`demo-agent`,
 > `demo-command`, `demo-skill`, `demo-guideline2`) each show **1**
 > incoming. Open `demo-guideline` and it shows **0**: the broken
 > mention never landed on it, so nothing points in. Five outgoing
 > links on the hub, but only four of them reach a node.
->
-> 💡 Tip: if all these changes left the nodes crowded together, the
-> map toolbar has a **Re-arrange layout** button (tooltip "Re-arrange
-> the visible nodes"): it tidies the layout so everything reads
-> better. If you've moved nodes by hand it asks for confirmation
-> first, otherwise it just re-arranges.
 >
 > Let me know when you see it.
 
@@ -282,7 +286,7 @@ Mark `inspector`: done.
 
 ## Chapter `edit-link` - Edit a link, the topology changes (~3 min)
 
-**Context**: the `first-edit` chapter had the tester edit a scalar (`description`) and watch the inspector card refresh. This chapter raises the bar: edit a Markdown link and watch the MAP TOPOLOGY change (a connector disappears). Same watcher, different surface.
+**Context**: the `first-edit` chapter had the tester edit a scalar (`description`) and watch the inspector card refresh. This chapter raises the bar: edit a Markdown link and watch the MAP TOPOLOGY change (a connector disappears).
 
 The server has been live since the `init` chapter, leave it running; this chapter and the next two (the workspace tour, then `.skillmapignore`) reuse it.
 
@@ -298,7 +302,7 @@ You verify by reading `notes/todo.md` to confirm the change was applied. (On `ag
 
 ## Chapter `workspace` - Navigate the workspace (files, search, isolate) (~2 min)
 
-**Context**: you've built the graph and understood it; this beat is about *moving around* it. The workspace has two halves: the **Map** you've been working in, and a **Files** panel, a folder tree of every node. You'll open that tree and filter it with the search box. No file edits here, pure navigation, and the same `sm` session you booted back in the `init` chapter is still running.
+**Context**: you've built the graph and understood it; this beat is about *moving around* it. The workspace has two halves: the **Map** you've been working in, and a **Files** panel, a folder tree of every node. You'll open that tree and filter it with the search box. The same `sm` session you booted back in the `init` chapter is still running.
 
 Per §Provider detection, on `agent-skills` / Antigravity the fixture has fewer nodes (`demo-skill` plus the two `notes/` files), so swap the node names below for ones that exist in that set; the gestures are identical.
 
@@ -333,17 +337,19 @@ Per §Provider detection, on `agent-skills` / Antigravity the fixture has fewer 
 >
 > The Map collapses to **Demo TODO list** plus only the nodes it
 > draws an arrow to (`demo-command`, `demo-skill`,
-> `demo-guideline2`).
-> Two nodes drop out of view: `demo-agent`, which lost its only
-> connector back in the last step, and `demo-guideline`, whose bare
-> mention never resolved so it has no drawn connector either. The
-> Inspector opens on **Demo TODO list**.
-> That's how you
-> focus on one node's neighborhood when a map gets busy.
+> `demo-guideline2`). That's how you focus on one node's
+> neighborhood when a map gets busy.
 >
 > To bring the rest back, look at the toolbar along the bottom of
 > the Map: there's a **Show all** button (an eye icon). Click it and
 > all six nodes return.
+>
+> 💡 Tip: remember the search box from a moment ago? The map-icon
+> button right next to it controls whether the search also filters
+> the **Map**. It's on by default, that's why the **Map** narrowed
+> along with the tree when you searched `guideline`. Click it to
+> switch to filtering only the files list, leaving the map's layout
+> in place.
 >
 > Did the map isolate and then restore?
 
@@ -380,8 +386,8 @@ It lands in the map as a seventh node (`notes/private-credentials`); the watcher
 Give the tester a mental map of the folder so they know where the file lives, then the glob that hides it, all in ONE message. Use `Bash` (`ls -la`, plus `ls -la notes/` if a deeper view helps) for the real listing and apply the host-dependent rendering rule. Per Inviolable rule #2, the agent does NOT touch `.skillmapignore` with its `Edit` tool, the tester edits it from their own editor:
 
 > One last step. Your `private-credentials` note just popped into
-> the map as a seventh node, that's the watcher again. Now let's hide
-> it. Here's what your directory looks like right now:
+> the map as a seventh node. Now let's hide it. Here's what your
+> directory looks like right now:
 
 ```
 .                            ← your cwd
@@ -412,8 +418,7 @@ notes/private-*.md
 > Save the file. It's a glob (same as `.gitignore`):
 > `notes/private-*.md` matches `private-credentials.md` and any
 > future sibling `private-*.md`. A literal path
-> (`notes/private-credentials.md`) would also work, the glob teaches
-> the broader habit.
+> (`notes/private-credentials.md`) would also work.
 >
 > Watch the browser when you save. The
 > `notes/private-credentials` node should disappear from the

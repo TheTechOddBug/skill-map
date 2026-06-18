@@ -138,9 +138,21 @@ element. Decide with §Provider detection:
 
 Sample messages throughout the part files are written in the Claude
 variant (with `> `); strip the prefix when the host is non-Claude,
-the wording is unchanged. **Code / terminal blocks always stay at
-the top level** (never under `> `, even in the Claude variant) so
-copy-paste is clean.
+the wording is unchanged.
+
+**The rule, in one line**: every tester-facing line of prose carries
+the `> ` bar in the Claude variant, context sentences, intros, tips,
+expectations, confirmations, all of it, so a run of contiguous prose
+reads as one continuous separator bar (put `>` on the blank lines
+between paragraphs to keep the bar unbroken). The ONLY things that sit
+at the top level are the command / code / terminal blocks the tester
+copies (never under `> `, even in the Claude variant, so copy-paste is
+clean). A command block in the middle of a message naturally splits
+the bar, prose above it is one bar, prose below it another, and that
+is correct: commands are meant to stand outside the bar. The two
+documented exceptions to "all prose is quoted" are the plain
+`Capítulo S.N:` announcement line (§Per-step cycle) and the menu
+(§Menu format); everything else the tester reads is quoted.
 
 **Preservation rule, strict**: if a source line is already prefixed
 with `> `, keep that prefix verbatim (Claude mode). Do NOT strip
@@ -287,15 +299,21 @@ Never call `TaskCreate` / `TaskUpdate` (Inviolable rule #4).
 
 For every chapter:
 
-1. **Announcement**: "Capítulo S.N: `<title>`. ~M min." then a blank
-   line, then (optionally) one sentence of context on its own
-   paragraph. `S` is the section number (the part's 1-based menu
-   position) and `N` is the 1-based index of the chapter inside that
-   part, resetting per part (§Numbering), so section 5's third chapter
-   announces as `Capítulo 5.3`. The context paragraph renders ONLY when
-   the source has a `**Context**:` field; if omitted, announce the
-   title alone. The title comes from the chapter's `title` in
-   `_manifest.yml` (translated per §Tone), not the internal id.
+1. **Announcement**: "Capítulo S.N: `<title>`. ~M min." as a plain
+   line (NOT quoted), then a blank line. `S` is the section number
+   (the part's 1-based menu position) and `N` is the 1-based index of
+   the chapter inside that part, resetting per part (§Numbering), so
+   section 5's third chapter announces as `Capítulo 5.3`. The title
+   comes from the chapter's `title` in `_manifest.yml` (translated per
+   §Tone), not the internal id. When the source has a `**Context**:`
+   field, follow the announcement with one tester-facing sentence of
+   context, and render it **under the `> ` bar as the opening line of
+   the SAME blockquote as the chapter's instructions** (Claude variant:
+   put `>` on the blank line between the context and the instructions
+   so they read as one continuous separator bar, never two stacked
+   blocks; the context line is tester-facing, so it is never plain
+   prose). When the source has no `**Context**:` field, announce the
+   title alone.
 2. **Preparation** (if applicable): create or modify the fixture
    files the chapter calls for (silently, per §Silence).
 3. **The tester's part**: the command block(s) and instructions,

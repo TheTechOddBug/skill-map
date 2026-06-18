@@ -51,12 +51,9 @@ Tell the tester:
 > `.claude/` folder is the **harness** (the helpers that maintain the
 > site). skill-map maps that harness.
 >
-> Run `sm init`. This folder has both a root `AGENTS.md` and a
-> `.claude/` folder, so skill-map can't tell on its own which runtime
-> you're authoring for and asks:
-> `⚠ Multiple provider markers detected. Pick the active lens: 1) claude 2) openai`.
-> Type `1` (or `claude`) and press Enter, this is a Claude project.
-> Then run `sm` to boot the live UI.
+> Run `sm init`. If it asks you to pick a lens (`⚠ Multiple provider
+> markers detected`), choose `claude`, this is a Claude project. Then
+> run `sm` to boot the live UI.
 >
 > Open the URL `sm` printed. You'll see **one node**: `AGENTS.md`,
 > the project's handbook (the operating manual for the site).
@@ -70,11 +67,11 @@ Wait for confirmation. Mark `kickoff`: done.
 
 ## Chapter `manual` - The handbook and CLAUDE.md (~2 min)
 
-**Context**: the dogfood beat. Real Claude Code projects keep a
-`CLAUDE.md` that just points at `AGENTS.md` (this very repo does).
-That one-line pointer is a real `references` link (the `.md` extension
-makes `@AGENTS.md` a file pointer, not a bare mention), the tester's
-first connector on the real project.
+**Context**: the dogfood beat. Real Claude Code projects can
+reference the generic `AGENTS.md` from their `CLAUDE.md` (this very
+repo does). That one-line pointer is a real `references` link (the
+`.md` extension makes `@AGENTS.md` a file pointer, not a bare
+mention), the tester's first connector on the real project.
 
 Tell the tester to create the file themselves (it is their project's
 file, Inviolable rule #2):
