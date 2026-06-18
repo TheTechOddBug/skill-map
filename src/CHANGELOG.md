@@ -1,5 +1,17 @@
 # skill-map
 
+## 0.60.3
+
+### Patch Changes
+
+- The web demo now ships the view-contribution registry, so the node card footer slot icons (tools, links, external refs, issue counts) render in demo mode instead of a bare value with no glyph. The static data source primes it from the bundled meta like the live BFF path does, and the demo build derives it from the kernel. Also reverts the earlier folder/dark-theme icon swap back to Font Awesome (a misdiagnosis: the demo fonts load fine).
+
+- The workspace search now narrows the map by default, not just the files rail: a query filters both surfaces so it focuses the whole workspace at once. The prior default (map keeps its full layout while only the rail narrows) moves behind the rail's search-to-map toggle and the persisted `sm.workspace.search-affects-map` preference (an absent key now reads as on). Tutorial references updated to match.
+
+  ## User-facing
+
+  Typing in the workspace search now filters the map too, not just the files list, so a query focuses the whole workspace. Want the map to keep its full layout? Turn off the search-to-map toggle next to the search box.
+
 ## 0.60.2
 
 ### Patch Changes

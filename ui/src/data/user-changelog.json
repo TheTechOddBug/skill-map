@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.60.3",
+      "date": "2026-06-18",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "Typing in the workspace search now filters the map too, not just the files list, so a query focuses the whole workspace. Want the map to keep its full layout? Turn off the search-to-map toggle next to the search box.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.60.2",
       "date": "2026-06-17",
       "kind": "internal",
