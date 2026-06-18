@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ContributionsRegistryService } from '../../../app/services/contributions-registry';
 import { KindRegistryService } from '../../kind-registry';
 import { ProviderRegistryService } from '../../provider-registry';
 import { DataSourceError } from '../data-source.port';
@@ -19,6 +20,14 @@ function makeFakeRegistry(): KindRegistryService {
 
 function makeFakeProviderRegistry(): ProviderRegistryService {
   return { ingest: vi.fn() } as unknown as ProviderRegistryService;
+}
+
+/**
+ * Minimal fake of `ContributionsRegistryService`. The data source only
+ * calls `setRegistry()` on it, so a `vi.fn()` covers the contract.
+ */
+function makeFakeContributionsRegistry(): ContributionsRegistryService {
+  return { setRegistry: vi.fn() } as unknown as ContributionsRegistryService;
 }
 
 const META_FIXTURE: IDemoMetaPayload = {
@@ -76,6 +85,24 @@ const META_FIXTURE: IDemoMetaPayload = {
     kindRegistry: {},
   },
   graph: { ascii: 'graph contents' },
+  contributionsRegistry: {
+    'claude/tools-counter/count': {
+      pluginId: 'claude',
+      extensionId: 'tools-counter',
+      contributionId: 'count',
+      slot: 'card.footer.left',
+      icon: 'pi-wrench',
+      emitWhenEmpty: false,
+    },
+    'core/link-counter/linksOut': {
+      pluginId: 'core',
+      extensionId: 'link-counter',
+      contributionId: 'linksOut',
+      slot: 'card.footer.left',
+      icon: 'pi-upload',
+      emitWhenEmpty: false,
+    },
+  },
 };
 
 const SCAN_FIXTURE = {
@@ -131,12 +158,15 @@ function makeFetch(routes: Record<string, unknown>): typeof fetch {
 
 describe('StaticDataSource', () => {
   let ds: StaticDataSource;
+  let contributionsRegistry: ContributionsRegistryService;
 
   beforeEach(() => {
+    contributionsRegistry = makeFakeContributionsRegistry();
     ds = new StaticDataSource(
       makeFetch({ 'data.meta.json': META_FIXTURE, 'data.json': SCAN_FIXTURE }),
       makeFakeRegistry(),
       makeFakeProviderRegistry(),
+      contributionsRegistry,
     );
   });
 
@@ -224,6 +254,57 @@ describe('StaticDataSource', () => {
     await expect(ds.listPlugins()).resolves.toEqual(META_FIXTURE.plugins);
   });
 
+  it('loadScan() primes ContributionsRegistryService with the embedded registry', async () => {
+    await ds.loadScan();
+    expect(contributionsRegistry.setRegistry).toHaveBeenCalledWith(
+      META_FIXTURE.contributionsRegistry,
+    );
+  });
+
+  it('listNodes() primes ContributionsRegistryService on the no-filter fast path', async () => {
+    await ds.listNodes();
+    expect(contributionsRegistry.setRegistry).toHaveBeenCalledWith(
+      META_FIXTURE.contributionsRegistry,
+    );
+  });
+
+  it('listNodes() primes ContributionsRegistryService on the filtered path', async () => {
+    await ds.listNodes({ kind: ['agent'] });
+    expect(contributionsRegistry.setRegistry).toHaveBeenCalledWith(
+      META_FIXTURE.contributionsRegistry,
+    );
+  });
+
+  it('getNode() primes ContributionsRegistryService with the embedded registry', async () => {
+    await ds.getNode('b.md');
+    expect(contributionsRegistry.setRegistry).toHaveBeenCalledWith(
+      META_FIXTURE.contributionsRegistry,
+    );
+  });
+
+  it('loadConfig() primes ContributionsRegistryService with the embedded registry', async () => {
+    await ds.loadConfig();
+    expect(contributionsRegistry.setRegistry).toHaveBeenCalledWith(
+      META_FIXTURE.contributionsRegistry,
+    );
+  });
+
+  it('still loads when the bundle predates the contributions registry (undefined key)', async () => {
+    const legacyMeta: IDemoMetaPayload = { ...META_FIXTURE };
+    delete (legacyMeta as { contributionsRegistry?: unknown }).contributionsRegistry;
+    const legacyRegistry = makeFakeContributionsRegistry();
+    const legacy = new StaticDataSource(
+      makeFetch({ 'data.meta.json': legacyMeta, 'data.json': SCAN_FIXTURE }),
+      makeFakeRegistry(),
+      makeFakeProviderRegistry(),
+      legacyRegistry,
+    );
+    await expect(legacy.loadScan()).resolves.toEqual(SCAN_FIXTURE);
+    // Service treats undefined as a no-op, but the call is still made
+    // (the no-op guard lives inside setRegistry, not the caller).
+    expect(legacyRegistry.setRegistry).toHaveBeenCalledWith(undefined);
+  });
+
   it('events() emits no values and completes immediately', () => {
     let nextCalled = false;
     let completeCalled = false;
@@ -247,7 +328,12 @@ describe('StaticDataSource', () => {
       }
       return new Response(JSON.stringify(SCAN_FIXTURE), { status: 200 });
     }) as unknown as typeof fetch;
-    const cached = new StaticDataSource(fetchSpy, makeFakeRegistry(), makeFakeProviderRegistry());
+    const cached = new StaticDataSource(
+      fetchSpy,
+      makeFakeRegistry(),
+      makeFakeProviderRegistry(),
+      makeFakeContributionsRegistry(),
+    );
     await cached.health();
     await cached.health();
     await cached.listPlugins();
@@ -257,7 +343,12 @@ describe('StaticDataSource', () => {
   });
 
   it('wraps a 404 on the asset fetch as a DataSourceError', async () => {
-    const broken = new StaticDataSource(makeFetch({}), makeFakeRegistry(), makeFakeProviderRegistry());
+    const broken = new StaticDataSource(
+      makeFetch({}),
+      makeFakeRegistry(),
+      makeFakeProviderRegistry(),
+      makeFakeContributionsRegistry(),
+    );
     await expect(broken.health()).rejects.toBeInstanceOf(DataSourceError);
   });
 
@@ -268,6 +359,7 @@ describe('StaticDataSource', () => {
       }) as unknown as typeof fetch,
       makeFakeRegistry(),
       makeFakeProviderRegistry(),
+      makeFakeContributionsRegistry(),
     );
     await expect(failing.health()).rejects.toMatchObject({
       name: 'DataSourceError',

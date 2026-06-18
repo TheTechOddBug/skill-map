@@ -377,6 +377,23 @@ function assembleKernel(
 }
 
 /**
+ * Build the built-ins-only contributions registry (no user plugins).
+ *
+ * Reuses the same `assembleKernel` path the live server boots through,
+ * so the catalog never drifts from what `/api/contributions/registered`
+ * would serve for a built-ins-only scope. Consumed by the demo dataset
+ * build (`web/scripts/build-demo-dataset.js`), which scans the demo
+ * fixture with `--no-plugins` and needs the registry to render the
+ * view-contribution slot icons / labels (the per-node contribution
+ * VALUES are embedded from the scan DB, but the ICON / LABEL come from
+ * this registry). Pure: no I/O, no kernel side-effects beyond the local
+ * instance assembled here.
+ */
+export function buildBuiltInContributionsRegistry(): ReturnType<typeof buildContributionsRegistry> {
+  return assembleKernel(emptyPluginRuntime(), false).contributionsRegistry;
+}
+
+/**
  * Collect every built-in `IProvider` instance regardless of the
  * boot-time resolver verdict. Used by `assemblePluginRuntime` to seed
  * the `kindRegistry` so re-enabling a built-in mid-session paints

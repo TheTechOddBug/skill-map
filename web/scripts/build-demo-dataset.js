@@ -42,6 +42,7 @@ const META_PATH = join(OUT_DIR, 'data.meta.json');
 
 const BUILT_CLI = join(REPO_ROOT, 'src', 'dist', 'cli.js');
 const SOURCE_ENTRY = join(REPO_ROOT, 'src', 'cli', 'entry.ts');
+const SERVER_ENTRY = join(REPO_ROOT, 'src', 'server', 'index.ts');
 
 // pnpm's strict hoist keeps `tsx` in `src/node_modules/` only, so a bare
 // `--import tsx` cannot resolve when the spawn cwd is the fixture dir
@@ -404,6 +405,59 @@ function embedContributions(scan, dbPath) {
   );
 }
 
+/**
+ * Derive the built-ins-only contributions registry the StaticDataSource
+ * primes into `ContributionsRegistryService` so view-contribution slot
+ * renderers resolve their ICON / LABEL (the per-node VALUE is embedded
+ * separately by `embedContributions`). Without it, the demo cards show
+ * a counter's number with no icon, the manifest-declared presentation
+ * lives in this registry, not in the per-node contribution payload.
+ *
+ * Derived from the kernel (never hardcoded) by spawning a one-shot that
+ * imports `buildBuiltInContributionsRegistry` from `src/server` through
+ * the tsx loader and prints the JSON. Reuses the same loader mechanism
+ * `runScan` relies on; the built-ins-only kernel matches the demo's
+ * `sm scan --no-plugins` scope, so the registry never drifts from what
+ * the live BFF's `/api/contributions/registered` would serve.
+ */
+async function deriveContributionsRegistry() {
+  const inline =
+    `import { buildBuiltInContributionsRegistry } from ${JSON.stringify(`file://${SERVER_ENTRY}`)};` +
+    `process.stdout.write(JSON.stringify(buildBuiltInContributionsRegistry()));`;
+  const argv = ['--import', TSX_LOADER, '--input-type=module', '-e', inline];
+  return new Promise((resolveP, rejectP) => {
+    const child = spawn(process.execPath, argv, {
+      cwd: REPO_ROOT,
+      env: process.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const out = [];
+    const err = [];
+    child.stdout.on('data', (chunk) => out.push(chunk));
+    child.stderr.on('data', (chunk) => err.push(chunk));
+    child.on('error', rejectP);
+    child.on('close', (code) => {
+      if (code !== 0) {
+        const stderrText = Buffer.concat(err).toString('utf8');
+        rejectP(
+          new Error(`contributions-registry derivation exited with code ${code}: ${stderrText}`),
+        );
+        return;
+      }
+      try {
+        const registry = JSON.parse(Buffer.concat(out).toString('utf8'));
+        const count = Object.keys(registry).length;
+        process.stdout.write(
+          `[build-demo-dataset] derived ${count} contributions-registry entries from the built-in kernel\n`,
+        );
+        resolveP(registry);
+      } catch (e) {
+        rejectP(new Error(`failed to parse contributions-registry JSON: ${e.message}`));
+      }
+    });
+  });
+}
+
 async function embedBodies(scan, fixtureDir) {
   for (const node of scan.nodes ?? []) {
     try {
@@ -454,6 +508,8 @@ async function main() {
   await embedBodies(scan, FIXTURE_DIR);
   embedContributions(scan, DB_PATH);
 
+  const contributionsRegistry = await deriveContributionsRegistry();
+
   const ascii = await renderAsciiGraph();
 
   const meta = {
@@ -465,6 +521,7 @@ async function main() {
     config: buildConfigEnvelope(),
     plugins: buildPluginsEnvelope(),
     graph: { ascii },
+    contributionsRegistry,
   };
 
   await writeAtomic(DATA_PATH, JSON.stringify(scan, null, 2) + '\n');

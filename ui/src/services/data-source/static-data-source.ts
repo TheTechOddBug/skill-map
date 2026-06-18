@@ -38,6 +38,7 @@ import { EMPTY, type Observable } from 'rxjs';
 
 import { DATA_SOURCE_TEXTS } from '../../i18n/data-source.texts';
 import type {
+  IContributionsRegistryApi,
   IHealthResponseApi,
   IIssueApi,
   ILinkApi,
@@ -61,6 +62,7 @@ import type {
   IValueEnvelopeApi,
 } from '../../models/api';
 import type { IWsEvent } from '../../models/ws-event';
+import { ContributionsRegistryService } from '../../app/services/contributions-registry';
 import { KindRegistryService } from '../kind-registry';
 import { ProviderRegistryService } from '../provider-registry';
 import {
@@ -96,6 +98,16 @@ export interface IDemoMetaPayload {
   config: IValueEnvelopeApi<IProjectConfigApi>;
   plugins: IListEnvelopeApi<TPluginItem>;
   graph: { ascii: string };
+  /**
+   * Built-ins-only contributions registry baked by
+   * `web/scripts/build-demo-dataset.js`
+   * (`buildBuiltInContributionsRegistry()` over the kernel). Drives the
+   * ICON / LABEL of every view-contribution slot renderer; the per-node
+   * contribution VALUE is embedded separately on each scan node. Optional
+   * so an older bundle (pre-registry) still loads, the consumer treats a
+   * missing registry as a no-op (slot renderers fall back to defaults).
+   */
+  contributionsRegistry?: IContributionsRegistryApi;
 }
 
 export class StaticDataSource implements IDataSourcePort {
@@ -103,6 +115,7 @@ export class StaticDataSource implements IDataSourcePort {
   private dataPromise: Promise<IScanResultApi> | null = null;
   private readonly kindRegistry: KindRegistryService;
   private readonly providerRegistry: ProviderRegistryService;
+  private readonly contributionsRegistry: ContributionsRegistryService;
 
   /**
    * Optional fetch + registry-service overrides, exposed so spec files
@@ -114,9 +127,12 @@ export class StaticDataSource implements IDataSourcePort {
     private readonly fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis),
     kindRegistry?: KindRegistryService,
     providerRegistry?: ProviderRegistryService,
+    contributionsRegistry?: ContributionsRegistryService,
   ) {
     this.kindRegistry = kindRegistry ?? inject(KindRegistryService);
     this.providerRegistry = providerRegistry ?? inject(ProviderRegistryService);
+    this.contributionsRegistry =
+      contributionsRegistry ?? inject(ContributionsRegistryService);
   }
 
   async health(): Promise<IHealthResponseApi> {
@@ -127,14 +143,28 @@ export class StaticDataSource implements IDataSourcePort {
   /**
    * Demo mode: the bundled `data.meta.json` carries the `kindRegistry`
    * inside every envelope (the build script bakes it in from the
-   * Claude built-in). Loading the scan also primes the registry so the
+   * Claude built-in). Loading the scan also primes the registries so the
    * SPA's first paint already has labels / colors / icons resolved.
    */
   async loadScan(): Promise<IScanResultApi> {
     const [scan, meta] = await Promise.all([this.loadData(), this.loadMeta()]);
     this.kindRegistry.ingest(meta.nodes.kindRegistry);
     this.providerRegistry.ingest(meta.nodes.providerRegistry);
+    this.primeContributionsRegistry(meta);
     return scan;
+  }
+
+  /**
+   * Prime `ContributionsRegistryService` from the bundled meta so
+   * view-contribution slot renderers resolve their manifest-declared
+   * ICON / LABEL (the per-node contribution VALUE is embedded on each
+   * scan node, but the presentation lives in this registry). Mirror of
+   * the live path's `ingestContributionsRegistry` in `RestDataSource`.
+   * A bundle predating the registry key carries `undefined`, which the
+   * service treats as a no-op.
+   */
+  private primeContributionsRegistry(meta: IDemoMetaPayload): void {
+    this.contributionsRegistry.setRegistry(meta.contributionsRegistry);
   }
 
   async listNodes(q: INodesQuery = {}): Promise<IListEnvelopeApi<INodeApi>> {
@@ -142,6 +172,7 @@ export class StaticDataSource implements IDataSourcePort {
     if (isEmptyNodesQuery(q)) {
       this.kindRegistry.ingest(meta.nodes.kindRegistry);
       this.providerRegistry.ingest(meta.nodes.providerRegistry);
+      this.primeContributionsRegistry(meta);
       return meta.nodes;
     }
     const scan = await this.loadData();
@@ -168,6 +199,7 @@ export class StaticDataSource implements IDataSourcePort {
     const sliced = items.slice(offset, offset + limit);
     this.kindRegistry.ingest(meta.nodes.kindRegistry);
     this.providerRegistry.ingest(meta.nodes.providerRegistry);
+    this.primeContributionsRegistry(meta);
     return {
       schemaVersion: '1',
       kind: 'nodes',
@@ -205,6 +237,7 @@ export class StaticDataSource implements IDataSourcePort {
     const issues = scan.issues.filter((i) => i.nodeIds.includes(path));
     this.kindRegistry.ingest(meta.nodes.kindRegistry);
     this.providerRegistry.ingest(meta.nodes.providerRegistry);
+    this.primeContributionsRegistry(meta);
     return {
       schemaVersion: '1',
       kind: 'node',
@@ -221,6 +254,7 @@ export class StaticDataSource implements IDataSourcePort {
     if (isEmptyLinksQuery(q)) {
       this.kindRegistry.ingest(meta.links.kindRegistry);
       this.providerRegistry.ingest(meta.links.providerRegistry);
+      this.primeContributionsRegistry(meta);
       return meta.links;
     }
     const scan = await this.loadData();
@@ -233,6 +267,7 @@ export class StaticDataSource implements IDataSourcePort {
     if (q.to) items = items.filter((l) => l.target === q.to);
     this.kindRegistry.ingest(meta.links.kindRegistry);
     this.providerRegistry.ingest(meta.links.providerRegistry);
+    this.primeContributionsRegistry(meta);
     return {
       schemaVersion: '1',
       kind: 'links',
@@ -249,6 +284,7 @@ export class StaticDataSource implements IDataSourcePort {
     if (isEmptyIssuesQuery(q)) {
       this.kindRegistry.ingest(meta.issues.kindRegistry);
       this.providerRegistry.ingest(meta.issues.providerRegistry);
+      this.primeContributionsRegistry(meta);
       return meta.issues;
     }
     const scan = await this.loadData();
@@ -262,6 +298,7 @@ export class StaticDataSource implements IDataSourcePort {
     }
     this.kindRegistry.ingest(meta.issues.kindRegistry);
     this.providerRegistry.ingest(meta.issues.providerRegistry);
+    this.primeContributionsRegistry(meta);
     return {
       schemaVersion: '1',
       kind: 'issues',
@@ -293,6 +330,7 @@ export class StaticDataSource implements IDataSourcePort {
     const meta = await this.loadMeta();
     this.kindRegistry.ingest(meta.config.kindRegistry);
     this.providerRegistry.ingest(meta.config.providerRegistry);
+    this.primeContributionsRegistry(meta);
     return meta.config.value;
   }
 
@@ -300,6 +338,7 @@ export class StaticDataSource implements IDataSourcePort {
     const meta = await this.loadMeta();
     this.kindRegistry.ingest(meta.plugins.kindRegistry);
     this.providerRegistry.ingest(meta.plugins.providerRegistry);
+    this.primeContributionsRegistry(meta);
     return meta.plugins;
   }
 
