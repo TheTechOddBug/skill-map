@@ -181,7 +181,7 @@
       "CHANGELOG.md": "7238007d53d9a1cfc5a7577584de9aef7c9234076cf35dfc2415de9af4d19cf0",
       "README.md": "a790cd010b46d47883d1f37e3893cea9d7aa69ec4750c0202e6a0c99991e7980",
       "architecture.md": "062127380199b20c918359212a2b696195d3f142b6184297900db953be73b308",
-      "cli-contract.md": "909d2d2440726524464bd1c0a631b0fac194e6ec0869a39a3e721fc89fd7cfdc",
+      "cli-contract.md": "bfcc200fb085270cb425bb8692be51f4adf48dce4eb483e0632a05a658470b5a",
       "conformance/README.md": "dcbef7249f161acf597552a05dcadc813cd0ced430dcd3f813fcf5e1c876335d",
       "conformance/cases/backtick-path-extraction.json": "4620e7f8bc161fc57cb44001e9d99879c7e22b4865a0c27a20dc28969cd936d9",
       "conformance/cases/extractor-collision-detection.json": "179a02c61892f0d26492de0c4e2c327fa6b4986d1265a8f119e871df6afe4658",

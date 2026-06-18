@@ -45,7 +45,7 @@ The verb `sm tutorial` installs the skill directory under your agent's skill fol
 
 ```bash
 sm --version                    # single-line version
-sm version                      # multi-line matrix (sm / kernel / spec / runtime / db-schema)
+sm version                      # multi-line matrix (sm / spec / runtime / db-schema)
 sm --help                       # top-level help
 sm init                         # scaffold .skill-map/ in the current scope, run first scan
 sm scan [roots...] [--json]     # walk roots, persist scan_* tables; pretty or JSON

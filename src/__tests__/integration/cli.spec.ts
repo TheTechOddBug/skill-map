@@ -53,7 +53,6 @@ describe('CLI binary', () => {
     // New layout: 2-space indent on every row + dim key column. The
     // anchors below tolerate the leading whitespace.
     assert.match(r.stdout, /^\s+sm\s+\d+\.\d+\.\d+/m);
-    assert.match(r.stdout, /^\s+kernel\s+/m);
     assert.match(r.stdout, /^\s+spec\s+/m);
     assert.match(r.stdout, /^\s+runtime\s+Node v\d+\.\d+\.\d+/m);
     assert.match(r.stdout, /^\s+db-schema\s+/m);
@@ -67,9 +66,9 @@ describe('CLI binary', () => {
     assert.match(r.stdout, /^\s+db-schema\s+-\s*$/m);
   });
 
-  it('`sm version --json` emits the four-field shape (sm, kernel, spec, dbSchema) per spec', () => {
+  it('`sm version --json` emits the three-field shape (sm, spec, dbSchema) per spec', () => {
     // `cli-contract.md` § `sm version`: `--json` emits exactly
-    // `{ sm, kernel, spec, dbSchema }`. `runtime` is intentionally
+    // `{ sm, spec, dbSchema }`. `runtime` is intentionally
     // absent from the JSON surface; expanding it is a spec change.
     // `dev` is an additive optional field only emitted in dev builds.
     const r = sm(['version', '--json'], EMPTY_DIR);
@@ -78,10 +77,9 @@ describe('CLI binary', () => {
     const keys = [...Object.keys(payload)].filter((k) => k !== 'dev').sort();
     assert.deepEqual(
       keys,
-      ['dbSchema', 'kernel', 'sm', 'spec'],
+      ['dbSchema', 'sm', 'spec'],
     );
     assert.match(String(payload['sm']), /^\d+\.\d+\.\d+/);
-    assert.match(String(payload['kernel']), /^\d+\.\d+\.\d+/);
     assert.equal(typeof payload['spec'], 'string');
     // `dbSchema` is the hyphen sentinel when no DB is provisioned.
     assert.equal(payload['dbSchema'], '-');

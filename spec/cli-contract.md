@@ -207,12 +207,11 @@ Prints version matrix:
 
 ```
 sm           <cli version>
-kernel       <kernel version>
 spec         <spec version implemented>
 db-schema    <applied migration version>
 ```
 
-`--json` emits `{ sm, kernel, spec, dbSchema }`.
+`--json` emits `{ sm, spec, dbSchema }`.
 
 #### `sm doctor`
 

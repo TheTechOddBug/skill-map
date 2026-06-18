@@ -17,17 +17,15 @@ import { tryWithSqlite } from '../util/with-sqlite.js';
  * Shape is defined in `spec/cli-contract.md`:
  *
  *   sm           <cli version>
- *   kernel       <kernel version>
  *   spec         <spec version implemented>
  *   runtime      Node v<n>.<n>.<n>
  *   db-schema    <applied migration version | ->
  *
  * `runtime` is rendered in human mode but absent from `--json`,
- * `cli-contract.md` § `sm version` lists exactly four JSON fields
- * (`{ sm, kernel, spec, dbSchema }`); the runtime line is
- * informational only and stays out of the machine surface to keep the
- * spec contract literal. Promoting it would require a spec PR + a
- * changeset.
+ * `cli-contract.md` § `sm version` lists exactly three JSON fields
+ * (`{ sm, spec, dbSchema }`); the runtime line is informational only
+ * and stays out of the machine surface to keep the spec contract
+ * literal. Promoting it would require a spec PR + a changeset.
  *
  * The Clipanion built-in `--version` flag remains for the single-line form.
  *
@@ -47,7 +45,7 @@ export class VersionCommand extends SmCommand {
 
   static override usage = Command.Usage({
     category: 'Introspection',
-    description: 'Print the CLI / kernel / spec / runtime / db-schema version matrix.',
+    description: 'Print the CLI / spec / runtime / db-schema version matrix.',
   });
 
   // Informational verb, no `done in <…>` line; the version matrix is
@@ -56,13 +54,12 @@ export class VersionCommand extends SmCommand {
 
   protected async run(): Promise<number> {
     const runtime = `Node ${process.version}`;
-    const kernelVersion = VERSION;
     const specVersion = await resolveSpecVersion();
     const dbSchema = await resolveDbSchemaVersion();
     const dev = isDevBuild();
 
     if (this.json) {
-      // Spec § `sm version`: exactly `{ sm, kernel, spec, dbSchema }`.
+      // Spec § `sm version`: exactly `{ sm, spec, dbSchema }`.
       // `dbSchema` keeps the human-rendered `-` sentinel for "no DB
       // yet" so consumers branch on the literal once instead of having
       // to remember a separate JSON-only convention. `dev` is an
@@ -70,7 +67,6 @@ export class VersionCommand extends SmCommand {
       // install keeps the JSON shape lean).
       const payload: Record<string, unknown> = {
         sm: VERSION,
-        kernel: kernelVersion,
         spec: specVersion,
         dbSchema,
       };
@@ -88,7 +84,6 @@ export class VersionCommand extends SmCommand {
     const smValue = dev ? `${VERSION} ${ansi.yellow('[dev]')}` : VERSION;
     const lines: Array<[string, string]> = [
       ['sm', smValue],
-      ['kernel', kernelVersion],
       ['spec', specVersion],
       ['runtime', runtime],
       ['db-schema', dbSchema],
