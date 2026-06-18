@@ -6,6 +6,15 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>0.60.3</b> · 2026-06-18</summary>
+
+### CLI Patch
+- The web demo now ships the view-contribution registry, so the node card footer slot icons (tools, links, external refs, issue counts) render in demo mode instead of a bare value with no glyph. The static data source primes it from the bundled meta like the live BFF path does, and the demo build derives it from the kernel. Also reverts the earlier folder/dark-theme icon swap back to Font Awesome (a misdiagnosis: the demo fonts load fine).
+- The workspace search now narrows the map by default, not just the files rail: a query filters both surfaces so it focuses the whole workspace at once. The prior default (map keeps its full layout while only the rail narrows) moves behind the rail's search-to-map toggle and the persisted `sm.workspace.search-affects-map` preference (an absent key now reads as on). Tutorial references updated to match.
+
+</details>
+
+<details>
 <summary><b>0.60.2</b> · 2026-06-17</summary>
 
 ### CLI Patch
