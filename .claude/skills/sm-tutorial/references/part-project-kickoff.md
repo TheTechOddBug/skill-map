@@ -98,10 +98,6 @@ Wait for confirmation. Mark `manual`: done.
 
 ## Chapter `first-agent` - The first harness agent (~2 min)
 
-**Context**: the harness's job is content creation. Its first member
-is `content-editor`, an agent that writes the site's HTML pages. Here
-we only create it (the cross-references come in the next part).
-
 `Write` `.claude/agents/content-editor.md` (substitute
 `<provider_dir>` per `_core.md`; on `agent-skills` / Antigravity,
 which has no `agent` kind, create a `skill` instead and adjust the

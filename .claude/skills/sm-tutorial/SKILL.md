@@ -169,7 +169,10 @@ routes to the menu:
   every part scans, and every part needs the tutorial's own machinery
   kept out of the map (this skill's `.claude/skills/sm-tutorial/` dir,
   `findings.md`, `tutorial-state.yml`, the CLI part's
-  `link-validation/`, and so on). Writing it here, once, before any
+  `link-validation/`, and so on). Ignore that tutorial skill dir ONLY,
+  never the whole `.claude/` (or detected `<provider_dir>/`): the
+  harness agents, commands, and skills the tester builds live under it
+  and must stay on the map. Writing it here, once, before any
   `sm init`, is what guarantees no part-entry can forget it on a
   direct jump from the menu. `sm init` only writes `.skillmapignore`
   when it is absent, so the tester's later `sm init` leaves this one
