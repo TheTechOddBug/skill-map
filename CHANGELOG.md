@@ -6,6 +6,20 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>0.61.0</b> · 2026-06-18</summary>
+
+### CLI Minor
+- `sm version` no longer prints the `kernel` row, and `sm version --json` drops the `kernel` field: the matrix is now `{ sm, spec, dbSchema }`. The CLI and kernel ship in one package and always carried the identical number, so the second row was redundant noise rather than information; the row returns the day the kernel publishes as its own package. Pre-1.0 breaking change shipped as a minor per the versioning policy.
+
+### CLI Patch
+- Refactor the bundled `sm-tutorial` skill so fixture-file generation and progress tracking run as two zero-dependency Node scripts inside the skill (`scripts/state.js`, `scripts/fixtures.js`) reading a single `fixtures-data/` source of truth, instead of the agent reproducing fixture content verbatim and hand-editing a YAML state file each chapter. State moves to `tutorial-state.json` fed by a generated `references/_manifest.json` sidecar; tester-facing narration is unchanged.
+
+### Spec Minor (0.55.0)
+- `sm version` no longer prints the `kernel` row, and `sm version --json` drops the `kernel` field: the matrix is now `{ sm, spec, dbSchema }`. The CLI and kernel ship in one package and always carried the identical number, so the second row was redundant noise rather than information; the row returns the day the kernel publishes as its own package. Pre-1.0 breaking change shipped as a minor per the versioning policy.
+
+</details>
+
+<details>
 <summary><b>0.60.4</b> · 2026-06-18</summary>
 
 ### CLI Patch
