@@ -161,11 +161,19 @@ cd <cwd>
 > Got the second terminal open and anchored to the folder? Confirm
 > before we move on.
 
+**HARD STOP here.** This message ends at the confirmation question
+above, that is its own beat. Do NOT run step 5, do NOT render the
+menu, do NOT add a "meanwhile / mientras tanto" bridge in the same
+message. Wait for the tester to confirm the second terminal is open
+and anchored; only then continue to step 5.
+
 ### 5. Initialise state, lay the universal files, show the menu
 
-Pre-flight does NOT pre-lay any part's fixture and does NOT auto-enter
-a part. It initialises state, lays the universal files every part
-needs, then routes to the menu. All silent (backstage):
+**Run this only after the tester has confirmed step 4.** Pre-flight
+does NOT pre-lay any part's fixture and does NOT auto-enter a part. It
+initialises state, lays the universal files every part needs, then
+routes to the menu. The init + lay are silent (backstage); the menu is
+the first thing the tester sees in this post-confirmation message:
 
 - Create the state file (carries the detected provider, the running
   `sm version`, the cwd, and the tester's language):
@@ -280,8 +288,12 @@ the `__PROVIDER__` token and skip kinds the provider does not claim.
      `fixtures.js clear portfolio --provider <provider>`, `rm -rf .skill-map`.
   2. `fixtures.js seed prologue-built --provider <provider> --lang <lang>`
      (lays the six demo nodes, wires the hub, drops `private-credentials`).
+     Run this ALWAYS, even if a demo fixture from a prior prologue run is
+     on disk, so the deliberate broken reference is the pristine
+     `prologue-built` state, not whatever the tester edited in the
+     prologue (they resolve it by hand in `edit-link`).
   3. `sm init` (single `.claude/` marker, no lens prompt), then `sm scan`.
-     If the demo was already on disk and `.skill-map/` exists, just `sm scan`.
+     If `.skill-map/` already exists, skip the init and just `sm scan`.
 
 - **`seed`** (campaign parts `connect-harness`, `daily-loop`): builds
   on the accumulating portfolio, but the tester may have jumped here.

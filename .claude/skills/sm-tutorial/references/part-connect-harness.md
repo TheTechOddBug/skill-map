@@ -122,7 +122,7 @@ Wait for confirmation. You MAY use `Read` on the two files afterwards to verify 
 
 ## Chapter `confidence` - How sure is each link (~3 min)
 
-**Context**: skill-map records how sure it is of every connection and shows that as opacity. In this harness every link resolves to a real node, so they all read solid (1.00); the broken-reference case is the one the tester met in the prologue (the bare `@demo-guideline` mention that resolved to no agent, drawn as no arrow and flagged `reference-broken` at 0.50). Here we open the Inspector on a real harness node, read the all-solid numbers, and point back to that prologue contrast. Mirrors the prologue's connectors beat on the portfolio.
+**Context**: skill-map records how sure it is of every connection and shows that as opacity. In this harness every link resolves to a real node, so they all read solid (1.00); the broken-reference case is the one the tester met in the prologue (the `@demo-guideline` reference skill-map could not resolve, drawn as no arrow and flagged `reference-broken` at 0.50, then resolved by hand with `.md`). Here we open the Inspector on a real harness node, read the all-solid numbers, and point back to that prologue contrast. Mirrors the prologue's connectors beat on the portfolio.
 
 No file edits in this chapter, pure observation on the graph the tester just built.
 
@@ -147,14 +147,13 @@ Tell the tester:
 >
 > Your whole harness reads solid because every link lands on a real
 > node, that is what a clean, fully wired graph looks like. So what
-> does a link that does NOT resolve look like? You saw one back in the
-> prologue: `@demo-guideline` was a bare `@`-mention, and a bare
-> `@handle` only resolves to an agent. `demo-guideline` is a note, so
-> it had nothing to land on: skill-map drew no arrow and flagged it as
-> a **broken reference**, its confidence knocked down to **0.50** by
-> the broken penalty. The fix there was one character:
-> `@demo-guideline2.md`, the same handle plus a `.md`, resolved to the
-> real file and drew a solid arrow at **1.00**.
+> does a link that does NOT resolve look like? You met one back in the
+> prologue: `@demo-guideline` was a reference skill-map could not
+> resolve, it had nothing to land on, so skill-map drew no arrow and
+> flagged it as a **broken reference**, its confidence knocked down to
+> **0.50** by the broken penalty. The fix was one character: adding
+> `.md` (`@demo-guideline.md`) turned it into a file reference to the
+> real `demo-guideline.md`, and it drew a solid arrow at **1.00**.
 >
 > So confidence here is really about resolution: **1.00** for a link
 > that lands on a real node, **0.50** for one flagged broken. There is

@@ -36,7 +36,7 @@ Wait for confirmation. Mark `init`: done.
 
 ## Chapter `kinds` - The other kinds appear (~1 min)
 
-Leave the browser open and the terminal with `sm` running. You create five more nodes **without any cross-fixture links** yet, pure standalone nodes, so the tester sees five new dots pop in. Three new **kinds** show up in this step (skill, command, markdown); the last two files are sibling `markdown` notes (`demo-guideline`, `demo-guideline2`) the hub in the `connectors` chapter reaches two ways, a bare mention that resolves to nothing (which lands as a broken reference, no arrow drawn) and the same handle plus `.md` that resolves to a real file (a solid arrow).
+Leave the browser open and the terminal with `sm` running. You create five more nodes **without any cross-fixture links** yet, pure standalone nodes, so the tester sees five new nodes pop in. Three new **kinds** show up in this step (skill, command, markdown); the last two files are sibling `markdown` notes (`demo-guideline`, `demo-guideline2`) the hub in the `connectors` chapter reaches two ways, a bare mention that resolves to nothing (which lands as a broken reference, no arrow drawn) and the same handle plus `.md` that resolves to a real file (a solid arrow).
 
 Lay these five files in one go (their content + translation live in `fixtures-data/`). The script resolves `__PROVIDER__` and auto-skips kinds the provider does not claim (`agent-skills` / Antigravity: both `demo-agent` and `demo-command` fold away, only the skill + the three markdown notes remain), so read the actual node count from the summary's `nodeCount`. Backstage (silent):
 
@@ -51,13 +51,13 @@ Tell the tester:
 > Look at the browser. Five new nodes should have popped in:
 > `demo-skill`, `demo-command`, **Demo TODO list**, `demo-guideline`,
 > and `demo-guideline2`.
-> Six total now, **still unconnected**: they're floating dots.
+> Six total now, **still unconnected**: they're floating nodes.
 > The viewport auto-fits whenever a node is added or removed, so
 > all six should be visible without panning.
 >
 > What I just did behind the scenes: I created five new files in
 > your project, and the watcher picked them up on its own, that's
-> why five new dots appeared without you running anything:
+> why five new nodes appeared without you running anything:
 >
 > - `.claude/skills/demo-skill/SKILL.md` (kind: skill)
 > - `.claude/commands/demo-command.md` (kind: command)
@@ -117,11 +117,12 @@ node .claude/skills/sm-tutorial/scripts/fixtures.js edit todo-connectors --provi
 
 Tell the tester:
 
-> Look at the magic again. **Demo TODO list** is now the hub. You
-> wrote five linking bullets, and **four arrows** light up between it
-> and the other nodes, each coloured by the link kind it carries:
+> Look at the magic again. **Demo TODO list** is now the hub. I added
+> five linking bullets to it (open `notes/todo.md` in your editor to
+> see them), and **four arrows** light up between it and the other
+> nodes, each coloured by the link kind it carries:
 >
-> - `Demo TODO list → demo-agent` (kind: `mentions`, the bare `@` handle resolves to a real agent)
+> - `Demo TODO list → demo-agent` (kind: `mentions`, the `@name` mention resolves to a real agent)
 > - `Demo TODO list → demo-command` (kind: `invokes`)
 > - `Demo TODO list → demo-skill` (kind: `invokes`)
 > - `Demo TODO list → demo-guideline2` (kind: `references`, the `@` handle with a `.md` extension)
@@ -132,17 +133,17 @@ Tell the tester:
 > extension turns the name drop into a file pointer.
 >
 > So why four arrows for five bullets? The fifth bullet,
-> `@demo-guideline`, is a bare `@`-mention, and a bare mention only
-> resolves to an *agent*. `demo-guideline` is a note, not an agent, so
-> the mention resolves to nothing: skill-map draws no arrow (there is
-> no node for it to land on) and instead flags the hub with a
+> `@demo-guideline`, is a reference skill-map cannot resolve: an
+> `@name` mention points at an *agent* with that name, and there is no
+> agent called `demo-guideline` (it is a note), so the reference lands
+> on nothing. skill-map draws no arrow and instead flags the hub with a
 > **broken reference**, a red error marker on the **Demo TODO list**
 > card. Compare it with the bullet right after: `@demo-guideline2.md`
-> adds the `.md`, so skill-map reads a file pointer, finds the real
-> `demo-guideline2.md` node, and draws a solid arrow to it. Same
-> handle, one `.md` apart, and one resolves while the other breaks.
-> (That is also why `@demo-agent` drew fine: a bare mention DOES
-> resolve when the target is a real agent.)
+> adds the `.md`, which makes it point at the **file** instead, so
+> skill-map finds the real `demo-guideline2.md` node and draws a solid
+> arrow. Same name, one `.md` apart: one resolves, the other does not.
+> (That is also why `@demo-agent` drew fine: an `@name` mention
+> resolves when an agent by that name really exists.)
 >
 > One word on solidity: skill-map draws each connector's
 > **confidence** as opacity, and every arrow you see here is fully
@@ -157,7 +158,7 @@ Tell the tester:
 > marker on the hub. If an arrow is missing, refresh the browser and
 > let me know.
 
-Expected: four drawn arrows plus one `core/reference-broken` error on `notes/todo.md` for the unresolved `@demo-guideline` mention (the prologue carries this single deliberate error from here on; it is the broken-reference preview the campaign and CLI parts build on). If an arrow is missing, do not advance, the next chapter inspects the same hub edit. Mark `connectors`: done.
+Expected: four drawn arrows plus one `core/reference-broken` error on `notes/todo.md` for the unresolved `@demo-guideline` mention (the broken-reference preview; the tester resolves it by hand in the `edit-link` chapter by adding `.md`, and the campaign and CLI parts re-seed their own pristine copy from `prologue-built`). If an arrow is missing, do not advance, the next chapter inspects the same hub edit. Mark `connectors`: done.
 
 ## Chapter `inspector` - The inspector and connections (~1 min)
 
@@ -170,8 +171,8 @@ The canvas only draws the resolved arrows; the full per-link breakdown, includin
 > first, otherwise it just re-arranges.
 >
 > 🆕 Open the Inspector for **Demo TODO list** (click the node on
-> the map). **Expand** the **Connections** section (it's collapsed
-> by default): it has two sections, **Outgoing** and **Incoming**.
+> the map). Find the **Connections** section: it has two sections,
+> **Outgoing** and **Incoming**.
 > Demo TODO list lists **5 links** under Outgoing (the canvas drew
 > four arrows, but the data keeps the broken `@demo-guideline` mention
 > as a fifth row) and 0 under Incoming. Each row shows the link kind
@@ -194,7 +195,7 @@ Mark `inspector`: done.
 
 ## Chapter `edit-link` - Edit a link, the topology changes (~3 min)
 
-**Context**: the `first-edit` chapter had the tester edit a scalar (`description`) and watch the inspector card refresh. This chapter raises the bar: edit a Markdown link and watch the MAP TOPOLOGY change (a connector disappears).
+**Context**: the `first-edit` chapter had the tester edit a scalar (`description`) and watch the inspector card refresh. This chapter raises the bar: edit Markdown links and watch the MAP TOPOLOGY change both ways, a connector disappears when you remove a link, and a new one appears (clearing the broken-reference error) when you fix the unresolved one.
 
 The server has been live since the `init` chapter, leave it running; this chapter and the next two (the workspace tour, then `.skillmapignore`) reuse it.
 
@@ -205,8 +206,24 @@ The server has been live since the `init` chapter, leave it running; this chapte
 > Expected: the `Demo TODO list → demo-agent` connector (kind:
 > `mentions`) disappears in real time. The two nodes stay in the
 > **Map**; only the edge goes.
+>
+> Tell me when the connector is gone.
 
-You verify by reading `notes/todo.md` to confirm the change was applied. (On `agent-skills`, where the `@demo-agent` bullet was never created in the `connectors` chapter, ask the tester to remove the only bullet they did add and watch THAT connector vanish, the lesson is the same.) Once they confirm, leave the server running, the next chapter reuses it. Mark `edit-link`: done.
+Once they confirm, the second edit fixes the broken reference. Tell the tester:
+
+> Now the other direction, fix the broken link. Edit `notes/todo.md`
+> again and add the `.md` extension to the `@demo-guideline` bullet so
+> it reads `@demo-guideline.md`. Save.
+>
+> Expected: a NEW arrow appears, `Demo TODO list → demo-guideline`
+> (kind: `references`), and the red broken-reference marker on the hub
+> clears. The `.md` turned the unresolved mention into a file
+> reference that lands on the real `demo-guideline.md`, the same fix
+> you saw side by side in the connectors chapter, now done by hand.
+>
+> Confirm when the new arrow is in and the red marker is gone.
+
+You verify by reading `notes/todo.md` to confirm both edits landed (the `@demo-agent` bullet gone, `@demo-guideline` now `@demo-guideline.md`); the prologue's broken reference is now resolved. (On `agent-skills`, where the `@demo-agent` bullet was never created in the `connectors` chapter, ask the tester to remove the only bullet they did add for the first edit; the `.md` fix on `@demo-guideline` is identical.) Once they confirm, leave the server running, the next chapter reuses it. Mark `edit-link`: done.
 
 ## Chapter `workspace` - Navigate the workspace (files, search, isolate) (~2 min)
 
@@ -214,7 +231,11 @@ You verify by reading `notes/todo.md` to confirm the change was applied. (On `ag
 
 Per §Provider detection, on `agent-skills` / Antigravity the fixture has fewer nodes (`demo-skill` plus the two `notes/` files), so swap the node names below for ones that exist in that set; the gestures are identical.
 
-**Beat 1, open the Files panel (tester does this).**
+Walk the three tester actions below one at a time (open the Files
+panel, then search, then isolate); each ends with its own
+confirmation, so present one and wait for the tester before the next.
+Do NOT prepend an intro line to a block, each already opens with the
+action itself.
 
 > Open the **Files** panel. It sits collapsed against the left edge
 > by default: click the expand handle there (the `>` arrow, its
@@ -225,8 +246,6 @@ Per §Provider detection, on `agent-skills` / Antigravity the fixture has fewer 
 >
 > Tell me when the tree is open.
 
-**Beat 2, search (tester does this).**
-
 > At the top of that sidebar there's a search box (placeholder
 > `Search…`). Type `guideline`. Watch both halves at once: the tree
 > narrows down to the two guideline nodes (`demo-guideline` and
@@ -236,8 +255,6 @@ Per §Provider detection, on `agent-skills` / Antigravity the fixture has fewer 
 >
 > Now clear the box. All six nodes come back, in both the tree and
 > the Map. Confirm you saw it filter and then restore.
-
-**Beat 3, isolate (tester does this).**
 
 > Last one. In the tree, find the **Demo TODO list** row: at its
 > right edge there's a small **sitemap** icon (its tooltip reads

@@ -113,7 +113,7 @@ parts:
     status: active
     chapters:
       - id: kickoff     ; title: "Start the portfolio (sm init on the real skeleton)" ; est_min: 2
-      - id: manual      ; title: "The handbook and CLAUDE.md (@AGENTS.md)" ; est_min: 2
+      - id: manual      ; title: "The handbook (AGENTS.md) and CLAUDE.md" ; est_min: 2
       - id: first-agent ; title: "The first harness agent (content-editor)" ; est_min: 2
       - id: real-kinds  ; title: "The real kinds in context" ; est_min: 2
 

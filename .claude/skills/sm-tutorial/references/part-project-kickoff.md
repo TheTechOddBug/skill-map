@@ -65,13 +65,13 @@ Tell the tester:
 
 Wait for confirmation. Mark `kickoff`: done.
 
-## Chapter `manual` - The handbook and CLAUDE.md (~2 min)
+## Chapter `manual` - The handbook (AGENTS.md) and CLAUDE.md (~2 min)
 
 **Context**: the dogfood beat. Real Claude Code projects can
 reference the generic `AGENTS.md` from their `CLAUDE.md` (this very
 repo does). That one-line pointer is a real `references` link (the
-`.md` extension makes `@AGENTS.md` a file pointer, not a bare
-mention), the tester's first connector on the real project.
+`.md` extension makes `@AGENTS.md` a file pointer), the tester's first
+connector on the real project.
 
 Tell the tester to create the file themselves (it is their project's
 file, Inviolable rule #2). Backstage, get the content:
@@ -89,7 +89,7 @@ then render it in the fenced block the tester copies:
 > `references` connector pointing at `AGENTS.md`, solid at 1.00.
 > Because `@AGENTS.md` carries the `.md` extension, skill-map reads it
 > as a file pointer (the same `@name.md` reference you met in the
-> prologue, not a bare mention), and since the handbook is right there
+> prologue), and since the handbook is right there
 > the link resolves with full confidence. It tells anyone (and
 > skill-map) that `CLAUDE.md` defers to the handbook. This is exactly
 > how this tool's own repo is wired.
@@ -115,6 +115,11 @@ Tell the tester:
 > `content-editor` (its job is to write the site's pages). A new
 > `agent` node appeared on the map. Right now it stands alone; in the
 > next part we wire it to the handbook and the style guide.
+>
+> 💡 Tip: I create these harness files for you. If you'd like to see
+> what's inside, open `<provider_dir>/agents/content-editor.md` in your
+> editor, and feel free to peek at the files I add in the coming
+> chapters too.
 >
 > See the new agent node?
 

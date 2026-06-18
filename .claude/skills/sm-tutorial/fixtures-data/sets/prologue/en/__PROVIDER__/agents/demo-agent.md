@@ -4,8 +4,6 @@ description: |
   Example agent that handles read and shell tasks. Solo node at
   boot; gets connected to the rest of the demo fixture during the
   Live UI step.
-tools: [Read, Bash]
-model: sonnet
 ---
 
 # demo-agent

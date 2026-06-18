@@ -4,8 +4,6 @@ description: |
   Agente de ejemplo que maneja tareas de lectura y de shell. Nodo
   suelto al arranque; se conecta con el resto del set de prueba
   durante el paso de la UI en vivo.
-tools: [Read, Bash]
-model: sonnet
 ---
 
 # demo-agent
