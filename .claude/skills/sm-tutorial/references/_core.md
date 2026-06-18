@@ -193,16 +193,22 @@ first kind quoted, the second kind never.
    `sm init` in pre-flight, the tester runs it as the first taught
    step. You also DO NOT run `sm plugins create` on their behalf;
    the scaffold is part of the authoring chapters.
-   Your responsibilities: `Write` fixture files and the state file;
-   `Edit` `.md` fixtures when a chapter calls for it (the live-UI
-   chapters need this so the watcher has something to react to);
-   `Read` files to verify what the tester modified. Everything else
-   the tester runs.
+   **The tutorial's own backstage scripts are NOT teaching `sm` verbs.**
+   `node .claude/skills/sm-tutorial/scripts/fixtures.js …` (lays /
+   seeds / clears fixtures) and `…/scripts/state.js …` (owns the state
+   file) are machinery you run silently, the same class as `Write`.
+   Your responsibilities: run those scripts to lay / seed / clear
+   fixtures and to read / update progress; `Edit` a fixture `.md` when
+   a chapter's live-UI beat needs the watcher to react, or generate
+   tester-specific content yourself when a chapter calls for it (the
+   daily loop's pages); `Read` files to verify what the tester
+   modified. Everything else the tester runs.
 2. **Configuration files have two-mode access.**
-   - **Backstage setup (you DO edit)**: writing the universal
-     `.skillmapignore` in pre-flight and appending a part's own
-     additions on entry (the portfolio's `node_modules/` / `public/`);
-     writing the state file; writing fixture `.md` files.
+   - **Backstage setup (you DO run the scripts)**: laying the
+     universal files (`.skillmapignore`, `findings.md`) and every
+     fixture via `fixtures.js`; reading / updating progress via
+     `state.js`. You never embed file content or hand-edit the state
+     file; the scripts own both.
    - **Teach moment (you DO NOT edit)**: any change to
      `.skill-map/settings.json`, `.skill-map/settings.local.json`,
      `.skillmapignore`, or `.gitignore` that is part of a chapter
@@ -212,9 +218,11 @@ first kind quoted, the second kind never.
      too.
 3. **After every command block, stop and wait.** The tester pastes
    the output or replies "OK" / "done". Only then advance.
-4. **Persist progress after every chapter.** Update the state file
-   (`parts.<id>.chapters.<id>.status` = `done` / `failed` /
-   `skipped` + a timestamp). The state file is the ONLY progress
+4. **Persist progress after every chapter** by running
+   `node .claude/skills/sm-tutorial/scripts/state.js mark <part> <chapter> done|failed|skipped`.
+   The script owns `tutorial-state.json` (stamps the timestamp and
+   auto-promotes the part to `done` when its last chapter lands);
+   never hand-edit the file. The state file is the ONLY progress
    tracker. Do NOT create harness tasks (`TaskCreate` / `TaskUpdate`)
    for tutorial progress, they clutter the tester's task list and add
    nothing the state file does not already hold.
@@ -233,9 +241,9 @@ first kind quoted, the second kind never.
    per exchange, `auto-advance` may chain chapters that need no tester
    action; neither asks "¿seguimos?".)
 7. **If the state file already exists** when invoked, do not
-   overwrite anything. Read it, show progress, offer to continue,
-   pick another part, or start over (the last requires explicit
-   confirmation, see §Resume / restart).
+   overwrite anything. Run `state.js status`, show progress, offer to
+   continue, pick another part, or start over (the last requires
+   explicit confirmation, see §Resume / restart).
 8. **Never modify files outside the tutorial cwd.**
 9. **Never ask the tester to `cd` outside the tutorial cwd.** All
    command blocks assume the second terminal is anchored to the
@@ -272,12 +280,18 @@ on-disk convention:
 Persist `provider` into the state file (`tutorial.provider`) so a
 resumed session does not re-detect.
 
-**Global substitution rule**: wherever a part file says `.claude/`,
-swap it for the detected `<provider_dir>`. **Skip any fixture file
-or step whose kind is not in the provider's supported set** (on
-`agent-skills` / Antigravity: only the skill + markdown notes are
-valid; drop agent + command files and the connectors that target
-them, and adjust node counts accordingly).
+**Global substitution rule**: the fixture scripts do the file-level
+work. You pass `--provider <p>` (the value persisted in
+`tutorial.provider`) and `--lang <l>`, and they resolve the
+`__PROVIDER__` path token, skip files whose kind the provider does
+not claim, and report the adjusted `nodeCount` plus the `skipped`
+list in their summary. Your job is the **narration**: wherever a part
+file's tester-facing prose says `.claude/`, swap it for the detected
+`<provider_dir>`, and narrate the node count from the script summary
+(on `agent-skills` / Antigravity only the skill + markdown notes
+exist, so the count is lower and the agent / command beats fold
+away). The campaign cross-link chapters target `claude` today (see
+the reality check below).
 
 **Reality check (don't mention to the tester)**: this skill ships
 at `.claude/skills/sm-tutorial/`, so Claude Code is the only host
@@ -429,25 +443,26 @@ the title stays plain):
 ## Resume / restart
 
 When re-invoked and the state file already exists, do NOT repeat
-pre-flight from scratch. Show progress (one line per part with its
-status) and offer: **continue** the current part, **pick another
-part** (re-show the ToC), **start over** (wipes the tutorial
-content, asks for confirmation), or **exit**.
+pre-flight from scratch. Run
+`node .claude/skills/sm-tutorial/scripts/state.js status` and render
+progress from its `parts[]` (one line per part with its status), then
+offer: **continue** the current part, **pick another part** (re-show
+the ToC), **start over** (wipes the tutorial content, asks for
+confirmation), or **exit**.
 
-On **start over**, before deleting anything:
+On **start over**, the script owns the path computation and the cwd
+safety check:
 
-1. Read `tutorial.cwd` from the state file and compare with `pwd`.
-   If they differ, **refuse** and tell the tester to move to the
-   saved cwd or delete the state file by hand (their `.claude/`,
-   `notes/`, etc. here are probably theirs, not the tutorial's).
-2. If the cwd matches, read `tutorial.provider`, compute
-   `<provider_dir>` + the subset of files actually created, show
-   the exact list of paths you'll delete, and require the literal
-   typed confirmation `yes, wipe`.
-3. Only on `yes, wipe`, delete those exact paths (do NOT `rm -rf`
-   `<provider_dir>/` or `notes/` as directories, only the specific
-   tutorial-owned files inside; `rmdir` empty parents silently).
-   Then start from pre-flight.
+1. Run `state.js wipe-list`. It re-checks `tutorial.cwd` against the
+   current dir and returns a `cwd-mismatch` error if they differ;
+   surface that refusal (tell the tester to move to the saved cwd or
+   delete `tutorial-state.json` by hand, their `.claude/`, `notes/`,
+   etc. here are probably theirs).
+2. Show the returned `paths` and require the literal typed
+   confirmation `yes, wipe`.
+3. Only on `yes, wipe`, run `state.js wipe --confirm` (it deletes
+   exactly those paths and `rmdir`s empty parents, never a whole user
+   dir). Then start from pre-flight.
 
 ## Edge cases
 

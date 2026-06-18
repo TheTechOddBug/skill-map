@@ -92,7 +92,13 @@ Mark `annotations`: done.
 
 **Context**: until now the map saw only files inside the cwd. In real projects a repo often links to files in a sibling repo (a specs project, a sibling package in a monorepo). Skill-map only scans from its cwd downwards, so a link to `../sibling/file.md` shows up as broken. The fix is to declare the external folders in `scan.referencePaths`, which lets the `reference-broken` analyzer validate path-style links against those extra roots **without indexing their files as nodes**. The folders are checked, not walked as part of the map.
 
-**Setup (you, silent)**: write the fixture under the tutorial cwd so both sub-projects are siblings of each other but children of the tutorial root. The agent does this with `Write`, no confirmation beat needed, the tester learns about the files in the next message.
+**Setup (you, silent)**: lay the fixture under the tutorial cwd so both sub-projects are siblings of each other but children of the tutorial root (its content + translation live in `fixtures-data/`). No confirmation beat needed, the tester learns about the files in the next message. Backstage (silent):
+
+```
+node .claude/skills/sm-tutorial/scripts/fixtures.js lay cli-external --provider <provider> --lang <lang>
+```
+
+The fixture lays:
 
 ```
 link-validation/
@@ -100,35 +106,6 @@ link-validation/
 │   └── note-with-external-link.md   ← contains [spec](../hijoB/spec.md)
 └── hijoB/
     └── spec.md                      ← the real target file
-```
-
-`link-validation/hijoA/note-with-external-link.md`:
-```markdown
----
-name: note-with-external-link
-description: |
-  Demo note that links out to a sibling project (hijoB) sitting
-  next to this one. Used to teach scan.referencePaths.
----
-
-# Note with external link
-
-See the [spec](../hijoB/spec.md) for the agreed format.
-```
-
-`link-validation/hijoB/spec.md`:
-```markdown
----
-name: spec
-description: |
-  Target of the cross-folder link. Lives outside hijoA's scan
-  scope on purpose: that is precisely what scan.referencePaths
-  is designed to bridge.
----
-
-# External spec
-
-Anything that hijoA points at lives here.
 ```
 
 Once the files are in place, tell the tester:

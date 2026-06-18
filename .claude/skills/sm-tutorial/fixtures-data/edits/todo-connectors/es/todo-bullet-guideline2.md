@@ -1,0 +1,1 @@
+- [ ] Avisa a @demo-guideline2.md si cambian las convenciones.

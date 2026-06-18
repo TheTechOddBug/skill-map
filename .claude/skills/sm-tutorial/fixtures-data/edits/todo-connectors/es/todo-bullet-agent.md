@@ -1,0 +1,1 @@
+- [ ] Informa a @demo-agent sobre los detalles pendientes.

@@ -282,5 +282,4 @@ Mark `authoring-6-upgrade: done`.
 >
 > Anything weird worth logging? If not, back to the menu.
 
-Mark the authoring chapters done in `tutorial-state.yml`, update
-the matching harness task, return to the menu in `SKILL.md`.
+Mark the chapters done (rule #4) and return to the menu in `SKILL.md`.

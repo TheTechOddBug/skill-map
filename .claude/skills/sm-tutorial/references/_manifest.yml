@@ -77,7 +77,7 @@ parts:
       - id: authoring-3-edit-setting ; title: "Edit a setting (string-list) and observe it in the UI" ; est_min: 3
       - id: authoring-4-edit-slot    ; title: "Change the view-slot the contribution targets" ; est_min: 2
       - id: settings-6-contributions ; title: "Watch contributions land in the inspector" ; est_min: 2
-      - id: authoring-5-doctor-author; title: "Catch a manifest mistake with `sm plugins doctor`" ; est_min: 2
+      - id: authoring-5-doctor-author ; title: "Catch a manifest mistake with `sm plugins doctor`" ; est_min: 2
       - id: authoring-6-upgrade      ; title: "Try `sm plugins upgrade`" ; est_min: 2
 
   - id: cli

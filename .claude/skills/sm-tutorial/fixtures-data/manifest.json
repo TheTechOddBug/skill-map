@@ -1,0 +1,87 @@
+{
+  "providerToken": "__PROVIDER__",
+  "langs": ["en", "es"],
+  "defaultLang": "en",
+  "comment": "Index for the tutorial fixture engine. `sets` name the directories under sets/<name>/{shared,<lang>}/ whose files lay/seed/clear act on; kind is derived from the __PROVIDER__/agents|commands|skills path prefix (else markdown). `footprints` are the full on-disk reach of a fixture (set files PLUS files taught later in its chapters) and are the single source for both `fixtures.js clear` and `state.js wipe`. `edits` append fragment files; `requiresKind` drops a fragment (or whole edit, via its target's kind) on a provider that does not claim that kind.",
+  "sets": ["universal", "prologue", "portfolio", "harness", "master", "cli-external"],
+  "footprints": {
+    "prologue": [
+      "__PROVIDER__/agents/demo-agent.md",
+      "__PROVIDER__/skills/demo-skill",
+      "__PROVIDER__/commands/demo-command.md",
+      "notes/todo.md",
+      "notes/demo-guideline.md",
+      "notes/demo-guideline2.md",
+      "notes/private-credentials.md"
+    ],
+    "portfolio": [
+      "AGENTS.md",
+      "CLAUDE.md",
+      "server.js",
+      "package.json",
+      "AGENTS.sm",
+      "public/index.html",
+      "public/about.html",
+      "public/projects.html",
+      "public/posts.html",
+      "public/style.css",
+      "docs/STYLE.md",
+      "docs/DEPLOY.md",
+      "docs/DEPLOYMENT.md",
+      "docs/draft.md",
+      "__PROVIDER__/agents/content-editor.md",
+      "__PROVIDER__/skills/check-links",
+      "__PROVIDER__/commands/publish.md",
+      "__PROVIDER__/commands/new-page.md"
+    ],
+    "master": [
+      "__PROVIDER__/agents/master-agent.md",
+      "__PROVIDER__/skills/master-skill",
+      "notes/ideas.md"
+    ],
+    "cli-external": [
+      "link-validation"
+    ]
+  },
+  "edits": {
+    "todo-connectors": {
+      "target": "notes/todo.md",
+      "prefix": "\n",
+      "fragments": [
+        { "file": "todo-bullet-agent.md", "requiresKind": "agent" },
+        { "file": "todo-bullet-command.md", "requiresKind": "command" },
+        { "file": "todo-bullet-skill.md", "requiresKind": "skill" },
+        { "file": "todo-bullet-guideline.md", "requiresKind": "markdown" },
+        { "file": "todo-bullet-guideline2.md", "requiresKind": "markdown" }
+      ]
+    },
+    "agents-hub": {
+      "target": "AGENTS.md",
+      "prefix": "\n",
+      "fragments": [
+        { "file": "agents-hub.md" }
+      ]
+    },
+    "content-editor-style": {
+      "target": "__PROVIDER__/agents/content-editor.md",
+      "prefix": "\n",
+      "fragments": [
+        { "file": "content-editor-style.md" }
+      ]
+    }
+  },
+  "seeds": {
+    "prologue-built": {
+      "lay": ["prologue"],
+      "edits": ["todo-connectors"],
+      "drop": ["notes/private-credentials.md"]
+    },
+    "harness-built": {
+      "lay": ["portfolio"]
+    },
+    "harness-connected": {
+      "lay": ["portfolio", "harness"],
+      "edits": ["agents-hub", "content-editor-style"]
+    }
+  }
+}

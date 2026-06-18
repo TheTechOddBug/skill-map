@@ -6,25 +6,12 @@ This is the wiring part. Part 1 grew a small set of standalone nodes around the 
 
 **Context**: the harness needs a guard that runs before publishing: a skill that walks every page and checks the internal links resolve. We only create it here (its first standalone `skill` node); the `publish` command in the next chapter is what invokes it.
 
-`Write` `.claude/skills/check-links/SKILL.md` (substitute `<provider_dir>` per `_core.md`; this kind exists on every provider, so no skip):
+Lay the `check-links` skill (its content + translation live in
+`fixtures-data/`; this kind exists on every provider, so no skip).
+Backstage (silent):
 
-```markdown
----
-name: check-links
-description: |
-  Validates the portfolio's internal links before publishing. Walks
-  every generated page and reports any link whose target is missing.
----
-
-# check-links
-
-The last gate before the site goes out.
-
-## Steps
-1. List every HTML file under `public/`.
-2. For each page, collect its internal links (every `href` to `/` or to a `.html` file).
-3. Check the target exists under `public/` (treat `/` as `public/index.html`).
-4. Report any link whose target is missing; if none, report "0 broken links".
+```
+node .claude/skills/sm-tutorial/scripts/fixtures.js lay harness --only "__PROVIDER__/skills/check-links/SKILL.md" --provider <provider> --lang <lang>
 ```
 
 Tell the tester:
@@ -45,7 +32,7 @@ Wait for confirmation. Mark `check-links`: done.
 
 On `agent-skills` / Antigravity there is no `command` kind, so skip this whole chapter and fold its purpose into the prose of the next one.
 
-Tell the tester to create the file themselves (it is their project's file, Inviolable rule #2). Substitute `<provider_dir>` per `_core.md` in the path you give them. The frontmatter fence (`---`) MUST sit on column 0 with no leading spaces: present the block below exactly as written, and if the tester pastes it indented, have them strip the leading whitespace. An indented `---` does not parse as YAML, so the `publish` node would land without its `name` or `description`.
+Tell the tester to create the file themselves (it is their project's file, Inviolable rule #2). Substitute `<provider_dir>` per `_core.md` in the path you give them. Backstage, get the content: `node .claude/skills/sm-tutorial/scripts/fixtures.js cat harness --file "__PROVIDER__/commands/publish.md" --provider <provider> --lang <lang>`, then render it in the fenced block the tester copies. The frontmatter fence (`---`) MUST sit on column 0 with no leading spaces: present the block below exactly as written, and if the tester pastes it indented, have them strip the leading whitespace. An indented `---` does not parse as YAML, so the `publish` node would land without its `name` or `description`.
 
 > Create `.claude/commands/publish.md` with exactly this content (the first line is `---`, nothing before it):
 
@@ -97,19 +84,14 @@ Wait for confirmation. You MAY use `Read` on the file afterwards to verify it la
 
 **Context**: the handbook (`AGENTS.md`) has been a lonely node since Part 1. Here it becomes the hub: we add two bullets so it mentions the content editor and invokes the publish command. We also give the content editor a reference to the style guide it follows. Several connectors land, and we recap the three link kinds and which syntax produced each.
 
-Apply both edits with `Edit` (do not rewrite the files).
+Apply both edits (their content + translation live in `fixtures-data/`).
+The first appends the two hub bullets to `AGENTS.md`; the second adds
+the style-guide reference line to the content-editor (an agent target,
+so it folds away on `agent-skills`). Backstage (silent):
 
-**Edit `AGENTS.md`**: append these two bullets at the end of the body (substitute `<provider_dir>` only in prose, the link tokens below stay as written):
-
-```markdown
-- When a page needs writing or fixing, brief @content-editor.
-- When the site is ready to go out, run /publish.
 ```
-
-**Edit `.claude/agents/content-editor.md`**: add this line at the end of the body, after the `Rules:` line (substitute `<provider_dir>` per `_core.md`):
-
-```markdown
-Every page follows the [style guide](../../docs/STYLE.md).
+node .claude/skills/sm-tutorial/scripts/fixtures.js edit agents-hub --provider <provider> --lang <lang>
+node .claude/skills/sm-tutorial/scripts/fixtures.js edit content-editor-style --provider <provider> --lang <lang>
 ```
 
 Tell the tester:

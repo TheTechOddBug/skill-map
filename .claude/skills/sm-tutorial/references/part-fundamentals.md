@@ -6,7 +6,7 @@ The live-UI prologue: the tester runs `sm init`, opens the browser, and watches 
 
 Agent background (do NOT render this as a separate context paragraph; the tester-facing version is folded into the message below): `sm init` creates a hidden `.skill-map/` folder in the cwd holding the database where skill-map stores what it learns about the project, and runs an initial scan (mandatory first step). Typing `sm` alone (no arguments) in an initialised dir then starts the UI server with the watcher built in (it is just an alias of `sm serve` with all defaults; the moment you need any flag you write `sm serve --flag ...` explicitly). One process, one terminal: it boots the server, scans the `.md` files, detects changes, and pushes events over WebSocket to the live UI. The next chapters all run against this same `sm` session, you boot it here and keep it alive through the `ignore` chapter.
 
-Expected: `.skill-map/skill-map.db` appears (plus config files), and the initial scan reports a small node / link count from the demo-agent fixture. `sm init` runs and exits; `sm` then starts the UI server and stays running. (Agent context, do not narrate: pre-flight's `.skillmapignore` keeps the tutorial's own files, `sm-tutorial.md` / `findings.md` / `tutorial-state.yml`, out of the scan; `sm init` leaves that file alone since it only writes when absent.)
+Expected: `.skill-map/skill-map.db` appears (plus config files), and the initial scan reports a small node / link count from the demo-agent fixture. `sm init` runs and exits; `sm` then starts the UI server and stays running. (Agent context, do not narrate: pre-flight's `.skillmapignore` keeps the tutorial's own files, `sm-tutorial.md` / `findings.md` / `tutorial-state.json`, out of the scan; `sm init` leaves that file alone since it only writes when absent.)
 
 Give the tester the whole flow in ONE message with ONE confirmation, do NOT pause for the `sm init` output separately. Order matters: **lead with the browser setup**, then explain what the two commands do as you hand them over, then the command block, then the URL. Do NOT print the command block or an explanation paragraph before the browser instruction. Don't hardcode the URL, the verb logs the bound `http://host:port` after listen. Tell the tester:
 
@@ -38,99 +38,13 @@ Wait for confirmation. Mark `init`: done.
 
 Leave the browser open and the terminal with `sm` running. You create five more nodes **without any cross-fixture links** yet, pure standalone nodes, so the tester sees five new dots pop in. Three new **kinds** show up in this step (skill, command, markdown); the last two files are sibling `markdown` notes (`demo-guideline`, `demo-guideline2`) the hub in the `connectors` chapter reaches two ways, a bare mention that resolves to nothing (which lands as a broken reference, no arrow drawn) and the same handle plus `.md` that resolves to a real file (a solid arrow).
 
-Create these five files (with `Write`), exactly in this order. Per §Provider detection, **substitute `.claude/` with the detected `<provider_dir>` and skip files whose kind is not in the provider's supported set** (`agent-skills` / Antigravity: skip both `demo-agent` and `demo-command`, only the skill + the three markdown notes remain). Adjust the node count, the "five new nodes" message, and the file list shown to the tester in the sample below accordingly:
+Lay these five files in one go (their content + translation live in `fixtures-data/`). The script resolves `__PROVIDER__` and auto-skips kinds the provider does not claim (`agent-skills` / Antigravity: both `demo-agent` and `demo-command` fold away, only the skill + the three markdown notes remain), so read the actual node count from the summary's `nodeCount`. Backstage (silent):
 
-1. `.claude/skills/demo-skill/SKILL.md` (kind: skill):
-   ```markdown
-   ---
-   name: demo-skill
-   description: |
-     Example skill that walks a file and returns a Markdown report.
-     Showcases the `skill` kind in the demo map.
-   ---
+```
+node .claude/skills/sm-tutorial/scripts/fixtures.js lay prologue --only "__PROVIDER__/skills/demo-skill/SKILL.md,__PROVIDER__/commands/demo-command.md,notes/todo.md,notes/demo-guideline.md,notes/demo-guideline2.md" --provider <provider> --lang <lang>
+```
 
-   # demo-skill
-
-   This skill walks a file and returns a report. Will be wired up
-   to the rest of the demo fixture in the next sub-step.
-
-   ## Steps
-   1. Read the `target`.
-   2. Validate the frontmatter against the schemas.
-   3. Generate the report.
-   ```
-
-2. `.claude/commands/demo-command.md` (kind: command):
-   ```markdown
-   ---
-   name: demo-command
-   description: |
-     Example slash command that wraps the demo-skill. Showcases the
-     `command` kind.
-   ---
-
-   # demo-command
-
-   Quick entry point for running the demo flow on a target file.
-   Connectors land in the next sub-step.
-   ```
-
-3. `notes/todo.md`, classified as `kind: markdown` today
-   (the catch-all for `.md` files outside the
-   skill / agent / command folders):
-   ```markdown
-   ---
-   name: Demo TODO list
-   description: |
-     Live list of things to review in the demo. Will become the
-     hub that points to the rest of the fixture in the next
-     sub-step.
-   ---
-
-   # Pending
-   ```
-
-4. `notes/demo-guideline.md`, second `kind: markdown` node, reached
-   in the `connectors` chapter by a bare `@`-mention that resolves to
-   no agent, so it surfaces as a broken reference instead of a drawn
-   connector:
-   ```markdown
-   ---
-   name: demo-guideline
-   description: |
-     Static reference notes the rest of the demo points at. The hub
-     reaches it with a bare `@`-mention, which resolves to no agent,
-     so skill-map flags it as a broken reference (0.50) instead of
-     drawing an arrow.
-   ---
-
-   # Demo Guideline
-
-   Conventions the demo fixture follows:
-
-   - Names match the file basename.
-   - Frontmatter `description` is short and human-readable.
-   - Body stays minimal, only what's needed to teach the kind.
-   ```
-
-5. `notes/demo-guideline2.md`, a sibling `markdown` node identical
-   to `demo-guideline`, reached by the same handle plus a `.md`
-   extension (`@demo-guideline2.md`), which makes it a file reference
-   that resolves to this node and lands at full confidence:
-   ```markdown
-   ---
-   name: demo-guideline2
-   description: |
-     Sibling of demo-guideline. The hub reaches it with an
-     `@`-mention that carries the `.md` extension, so the link
-     resolves to this file and lands certain (1.00).
-   ---
-
-   # Demo Guideline 2
-
-   Same conventions as demo-guideline; it exists so the hub can
-   reach it with a resolved reference instead of a bare mention.
-   ```
+Adjust the node count, the "five new nodes" message, and the file list shown to the tester in the sample below to match the laid set.
 
 Tell the tester:
 
@@ -195,16 +109,10 @@ You edit `notes/todo.md` so it becomes the **hub** that points to each of the ot
 
 Five bullets, three kinds: `invokes` and `mentions` each appear twice, `references` once. The last two bullets are the resolution lesson: a bare `@demo-guideline` mention (which resolves to no agent, so it lands as a broken reference and draws no arrow) next to `@demo-guideline2.md`, the same handle shape plus a `.md` extension that points at a real sibling file (so it resolves and draws a solid arrow). Two separate nodes, one broken and one resolved. Five bullets but only four arrows on the canvas.
 
-Apply with `Edit` on `notes/todo.md` (do not rewrite the file). Per §Provider detection, **substitute `.claude/` with the detected `<provider_dir>` and drop any bullet whose target node was not created in the `kinds` chapter** (on `agent-skills` / Antigravity there is no agent and no command → skip the `@demo-agent` and `/demo-command` bullets; the two guideline bullets stay, so the resolution contrast, broken mention 0.50 (no arrow drawn) vs resolved reference 1.00 (solid arrow), is intact on those providers too).
+Apply the hub bullets (their content + translation live in `fixtures-data/`). The edit appends after the `# Pending` heading; the script drops any bullet whose target kind the provider does not claim (on `agent-skills` / Antigravity there is no agent and no command → the `@demo-agent` and `/demo-command` bullets fold away; the two guideline bullets stay, so the resolution contrast, broken mention 0.50 (no arrow drawn) vs resolved reference 1.00 (solid arrow), is intact on those providers too). Backstage (silent):
 
-**Edit `notes/todo.md`**: append these bullets after the `# Pending` heading:
-
-```markdown
-- [ ] Brief @demo-agent on the rough edges.
-- [ ] Run /demo-command before publishing.
-- [ ] Trigger /demo-skill when the input lands.
-- [ ] Ping @demo-guideline if the conventions change.
-- [ ] Ping @demo-guideline2.md if the conventions change.
+```
+node .claude/skills/sm-tutorial/scripts/fixtures.js edit todo-connectors --provider <provider> --lang <lang>
 ```
 
 Tell the tester:
@@ -363,20 +271,10 @@ Earlier chapters showed the watcher picking up new files and edits (yours and th
 
 **The agent seeds the file (no tester action, no separate pause).**
 
-`Write` `notes/private-credentials.md`, kind `markdown`, simulates a file the tester would never want surfacing publicly:
+Lay `notes/private-credentials.md`, kind `markdown`, which simulates a file the tester would never want surfacing publicly (its content + translation live in `fixtures-data/`). Backstage (silent):
 
-```markdown
----
-name: private-credentials
-description: |
-  Personal API tokens, exists in the repo but should not show
-  up in skill-map's map. Demonstrates the .skillmapignore
-  flow.
----
-
-# Private
-
-API_TOKEN: example-not-real
+```
+node .claude/skills/sm-tutorial/scripts/fixtures.js lay prologue --only "notes/private-credentials.md" --provider <provider> --lang <lang>
 ```
 
 It lands in the map as a seventh node (`notes/private-credentials`); the watcher sees it like any other `.md`. Do NOT pause to confirm the appearance, it folds into the single vanish confirmation at the end of this step.

@@ -1,0 +1,1 @@
+- [ ] Ejecuta /demo-command antes de publicar.

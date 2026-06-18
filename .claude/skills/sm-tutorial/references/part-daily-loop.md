@@ -14,8 +14,9 @@ substitution, the `> ` rendering rule, the per-step cycle, §Closing a part,
 **The site is the tester's.** The `setup` chapter asks who it is for and builds
 it around that answer. Identity lives in Layer 2 (the HTML / CSS under
 `public/`), which skill-map does not map, so the graph stays identical no matter
-what the tester names their portfolio. Persist the answer in `tutorial-state.yml`
-under `tester.site_identity` (`{ name, tagline }`).
+what the tester names their portfolio. Persist the answer with
+`state.js set-identity --name "<name>" --tagline "<tagline>"` (it records
+`tester.site_identity` in `tutorial-state.json`).
 
 **Provider note (read once).** Substitute `.claude/` with the detected
 `<provider_dir>`. On `agent-skills` / Antigravity the `content-editor` is a
@@ -49,8 +50,9 @@ correct, not a bug.
 1. Ask the tester, in one short exchange: what the site should be called (their
    name or a title) and one line about what it is for. Keep it light; if they do
    not care, offer defaults ("My Portfolio" / "Small, sturdy things on the
-   web"). Save both into `tutorial-state.yml` under `tester.site_identity`
-   (`{ name, tagline }`).
+   web"). Persist both with
+   `node .claude/skills/sm-tutorial/scripts/state.js set-identity --name "<name>" --tagline "<tagline>"`
+   (it writes `tester.site_identity` into `tutorial-state.json`).
 2. Backstage, `Write` `public/style.css` exactly as below (Layer 2, ignored by
    the scan; one stylesheet shared by every page).
 3. `Write` `public/index.html` and `public/about.html` from the templates below,

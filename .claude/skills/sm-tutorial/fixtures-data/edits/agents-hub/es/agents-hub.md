@@ -1,0 +1,2 @@
+- Cuando una página necesita escribirse o arreglarse, informa a @content-editor.
+- Cuando el sitio esté listo para salir, corre /publish.

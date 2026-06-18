@@ -17,7 +17,7 @@ Before announcing the first step, verify the fixture is initialised
 `backstage-init` preflight ran `sm init --no-scan` to provision it;
 the universal `.skillmapignore` from pre-flight keeps the tutorial's
 own files out of the scan. If any of that is missing, surface the
-bootstrap mismatch ("tutorial-state.yml says we are running, but
+bootstrap mismatch ("tutorial-state.json says we are running, but
 the bootstrap is missing. Re-run the tutorial from an empty dir or
 restore the files.") and stop.
 
@@ -189,8 +189,7 @@ Mark `tour-3-explore: done`.
 >
 > Anything weird worth logging? If not, back to the menu.
 
-Mark the plugins chapters done in `tutorial-state.yml`, update the
-matching harness task, return to the menu in `SKILL.md`.
+Mark the chapters done (rule #4) and return to the menu in `SKILL.md`.
 
 ## Reference: how `sm` decides what to load
 

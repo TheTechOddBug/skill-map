@@ -1,0 +1,2 @@
+- When a page needs writing or fixing, brief @content-editor.
+- When the site is ready to go out, run /publish.

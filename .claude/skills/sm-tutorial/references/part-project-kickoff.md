@@ -74,7 +74,9 @@ repo does). That one-line pointer is a real `references` link (the
 mention), the tester's first connector on the real project.
 
 Tell the tester to create the file themselves (it is their project's
-file, Inviolable rule #2):
+file, Inviolable rule #2). Backstage, get the content:
+`node .claude/skills/sm-tutorial/scripts/fixtures.js cat portfolio --file "CLAUDE.md" --provider <provider> --lang <lang>`,
+then render it in the fenced block the tester copies:
 
 > Create a file called `CLAUDE.md` at the project root with exactly
 > this content:
@@ -98,33 +100,13 @@ Wait for confirmation. Mark `manual`: done.
 
 ## Chapter `first-agent` - The first harness agent (~2 min)
 
-`Write` `.claude/agents/content-editor.md` (substitute
-`<provider_dir>` per `_core.md`; on `agent-skills` / Antigravity,
-which has no `agent` kind, create a `skill` instead and adjust the
-prose):
+Lay the first harness agent (its content + translation live in
+`fixtures-data/`). The script resolves `__PROVIDER__`; on
+`agent-skills` / Antigravity, which has no `agent` kind, adjust the
+prose to the skill the set lays there. Backstage (silent):
 
-```markdown
----
-name: content-editor
-description: |
-  Writes and edits the portfolio's pages. Reads a brief, follows the
-  style guide, and emits the HTML into public/.
-tools: [Read, Write]
-model: sonnet
----
-
-# content-editor
-
-Turns a short brief into a finished portfolio page.
-
-## How to write a page
-1. Read the style guide and the shared stylesheet in public/.
-2. Write one HTML file under public/, named after the page (a projects page becomes `public/projects.html`).
-3. Start from `<!doctype html>`, link the stylesheet with `<link rel="stylesheet" href="/style.css">`, and set a `<title>`.
-4. Use one `<h1>`, group sections under `<h2>`, and reuse the shared header, nav, and footer so every page matches.
-5. Add a link back to Home, and link the new page from the home nav.
-
-Rules: plain static HTML, no framework, no client JS, one page per file.
+```
+node .claude/skills/sm-tutorial/scripts/fixtures.js lay portfolio --only "__PROVIDER__/agents/content-editor.md" --provider <provider> --lang <lang>
 ```
 
 Tell the tester:
@@ -145,45 +127,11 @@ nodes. Now name them on the real project, and add the two markdown
 docs the harness references later (the style guide and the deploy
 runbook), so the Daily Loop's maintenance beats have something to point at.
 
-`Write` two docs (markdown kind):
+Lay the two markdown docs the harness references later (their content
++ translation live in `fixtures-data/`). Backstage (silent):
 
-`docs/STYLE.md`:
-```markdown
----
-name: style-guide
-description: |
-  Writing and markup conventions every portfolio page follows.
----
-
-# Style guide
-
-## Voice
-- Short, plain sentences. No marketing fluff.
-
-## Structure
-- One H1 per page; sections under H2.
-- Every page shares the same header, nav, and footer.
-- Every page links back to Home.
-
-## Markup
-- Plain static HTML: no framework, no client JS.
-- Link the shared stylesheet `/style.css` in every page head.
-- Use semantic tags: header, nav, main, footer.
 ```
-
-`docs/DEPLOY.md`:
-```markdown
----
-name: deploy-runbook
-description: |
-  How the portfolio gets published once the pages are written.
----
-
-# Deploy runbook
-
-1. Generate or update the pages in public/.
-2. Run the link check and fix anything it reports.
-3. Start the server with `node server.js`, then open the site in your browser.
+node .claude/skills/sm-tutorial/scripts/fixtures.js lay portfolio --only "docs/STYLE.md,docs/DEPLOY.md" --provider <provider> --lang <lang>
 ```
 
 Tell the tester:

@@ -1,0 +1,28 @@
+# Bundled defaults that matter inside the tutorial scope.
+.git/
+.skill-map/
+.tmp/
+.DS_Store
+
+# sm-tutorial internal files. Without these, the first sm init scan
+# reports the tutorial's own .md files as project nodes.
+sm-tutorial.md
+findings.md
+tutorial-state.json
+
+# sm-tutorial skill installation (loaded as a project-local skill).
+.claude/skills/sm-tutorial/
+.agents/skills/sm-tutorial/
+
+# Tutorial outputs that may land at the root.
+export.*
+dump.sql
+
+# The reference-paths chapter spawns a self-contained sub-project
+# under link-validation/hijoA with its own .skill-map/.
+link-validation/
+
+# Portfolio campaign: the Express install and the generated HTML
+# (the site output, not part of the harness graph).
+node_modules/
+public/
