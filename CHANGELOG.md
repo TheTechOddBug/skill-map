@@ -6,6 +6,14 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>0.60.4</b> · 2026-06-18</summary>
+
+### CLI Patch
+- Two sm-tutorial fixes from tester feedback: the first-agent chapter no longer repeats its framing (the redundant `Context` field is dropped, so the tester sees the agent-created message once instead of twice), and the scaffolded `.skillmapignore` guidance now guards against broadening the ignore to the whole `.claude/`, which would hide the harness agents and commands the tester builds.
+
+</details>
+
+<details>
 <summary><b>0.60.3</b> · 2026-06-18</summary>
 
 ### CLI Patch
