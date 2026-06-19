@@ -132,19 +132,14 @@
           "est_min": 3
         },
         {
-          "id": "add-page",
-          "title": "Add a page with your agent",
-          "est_min": 4
-        },
-        {
-          "id": "orphan-draft",
-          "title": "A page nobody links to yet",
+          "id": "preview",
+          "title": "Bring it up and see your site",
           "est_min": 2
         },
         {
-          "id": "wire-and-improve",
-          "title": "Wire the draft in",
-          "est_min": 3
+          "id": "add-page",
+          "title": "Add a page with your agent",
+          "est_min": 4
         },
         {
           "id": "broken-ref",
@@ -162,8 +157,8 @@
           "est_min": 4
         },
         {
-          "id": "sidecar",
-          "title": "Annotate the handbook (.sm and consent)",
+          "id": "stability",
+          "title": "Set a node's stability (and the `.sm` sidecar)",
           "est_min": 3
         },
         {

@@ -144,13 +144,12 @@ parts:
     status: active
     chapters:
       - id: setup            ; title: "Make it yours, make it presentable" ; est_min: 3
+      - id: preview          ; title: "Bring it up and see your site" ; est_min: 2
       - id: add-page         ; title: "Add a page with your agent" ; est_min: 4
-      - id: orphan-draft     ; title: "A page nobody links to yet" ; est_min: 2
-      - id: wire-and-improve ; title: "Wire the draft in" ; est_min: 3
       - id: broken-ref       ; title: "A rename breaks a link" ; est_min: 4
       - id: reserved         ; title: "A reserved name collides" ; est_min: 2
       - id: publish          ; title: "Ship it: run /publish for real" ; est_min: 4
-      - id: sidecar          ; title: "Annotate the handbook (.sm and consent)" ; est_min: 3
+      - id: stability        ; title: "Set a node's stability (and the `.sm` sidecar)" ; est_min: 3
       - id: golive           ; title: "Your portfolio, live next to the graph" ; est_min: 3
 
   # ----- parked: MCP returns later as its own iteration (body kept in part-mcp.md) -----

@@ -70,9 +70,8 @@ entered out of order.
 
 `manifest.json#footprints` lists the full on-disk reach of each
 fixture, INCLUDING files a part's later chapters add (the daily loop's
-`docs/draft.md`, `public/style.css` + generated pages, the renamed
-`new-page` command, `AGENTS.sm`; the portfolio's `DEPLOYMENT.md`
-rename). `fixtures.js clear <footprint>` (part-entry resets) and
+`public/style.css` + generated pages, the renamed `new-page` command,
+`AGENTS.sm`; the portfolio's `DEPLOYMENT.md` rename). `fixtures.js clear <footprint>` (part-entry resets) and
 `state.js wipe` (start-over) both read it, so the per-fixture path list
 lives in ONE place. Add or drop a harness file there.
 

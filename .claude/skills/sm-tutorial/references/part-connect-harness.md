@@ -32,7 +32,7 @@ Wait for confirmation. Mark `check-links`: done.
 
 On `agent-skills` / Antigravity there is no `command` kind, so skip this whole chapter and fold its purpose into the prose of the next one.
 
-Tell the tester to create the file themselves (it is their project's file, Inviolable rule #2). Substitute `<provider_dir>` per `_core.md` in the path you give them. Backstage, get the content: `node .claude/skills/sm-tutorial/scripts/fixtures.js cat harness --file "__PROVIDER__/commands/publish.md" --provider <provider> --lang <lang>`, then render it in the fenced block the tester copies. The frontmatter fence (`---`) MUST sit on column 0 with no leading spaces: present the block below exactly as written, and if the tester pastes it indented, have them strip the leading whitespace. An indented `---` does not parse as YAML, so the `publish` node would land without its `name` or `description`.
+Tell the tester to create the file themselves (it is their project's file, Inviolable rule #2). Substitute `<provider_dir>` per `_core.md` in the path you give them. Backstage, get the content: `node .claude/skills/sm-tutorial/scripts/fixtures.js cat harness --file "__PROVIDER__/commands/publish.md" --provider <provider> --lang <lang>`, then render it as a **top-level fenced code block**: at column 0, NOT inside the `> ` blockquote and with NO leading indentation, so the tester's copy keeps every line flush left. The frontmatter fences (`---`) MUST land on column 0. If the block is rendered (or pasted) indented, the opening and closing `---` shift off column 0, the YAML never parses, and the `publish` node loads body-only without its `name` / `description` (`sm check` then warns `frontmatter-malformed`). Present the block below exactly as written.
 
 > Create `.claude/commands/publish.md` with exactly this content (the first line is `---`, nothing before it):
 
@@ -78,7 +78,7 @@ Continue the tester message:
 >
 > Did the three arrows appear?
 
-Wait for confirmation. You MAY use `Read` on the file afterwards to verify it landed. Mark `publish`: done.
+Wait for confirmation. You MAY use `Read` on the file afterwards to verify it landed, in particular that the opening and closing `---` are flush at column 0. If a later `sm check` flags `frontmatter-malformed` on `publish.md`, the fences got indented on paste: have the tester re-align every line flush left (strip the leading spaces so `---` is at column 0), then the next scan reads it clean. Mark `publish`: done.
 
 ## Chapter `links` - The handbook becomes the hub (~4 min)
 

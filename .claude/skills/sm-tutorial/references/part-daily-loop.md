@@ -32,6 +32,15 @@ landed (this keeps the node-count promises honest). If the subagent is not
 invocable in the tester's setup, act as the `content-editor` yourself following
 its rules and `docs/STYLE.md`, so the beat still lands.
 
+**Live-map note (read once).** Every chapter here is watched on the live
+**Map**, so skill-map's UI (`sm`) MUST be running before you start, watcher
+picking up edits. In the full campaign the tester booted it back in the kickoff
+chapter and kept it open; if they entered this part directly (via seed) or
+closed it, have them start it now, run `sm` from the project root and open the
+URL it prints, before the first chapter. This part has NO `sm scan` / `sm check`
+steps: the watcher re-scans on every save, and the Map shows new nodes,
+broken-reference markers, and confidence live.
+
 ---
 
 **Act A - Add**
@@ -160,16 +169,31 @@ footer.site { border-top: 1px solid var(--border); padding: 2rem 0; color: var(-
 </html>
 ```
 
-Then tell the tester to serve it (the tester runs these; do not run them):
+Tell the tester the face is on (no serving yet, that is the next chapter):
+
+> I gave your site a face: a shared stylesheet plus a styled **Home** and
+> **About** page, named after you. These are Layer 2 (the harness's output), so
+> the **Map** did not move, and that is correct: skill-map maps the harness (the
+> `.md` files, Layer 1), not the HTML it produces. Next we bring it up so you
+> can see it.
+
+Mark `setup`: done. Auto-advance to `preview`.
+
+## Chapter `preview` - Bring it up and see your site (~2 min)
+
+**Context**: the first look. The site is styled but the tester has only seen it
+as files; now serve it and open it in the browser, the early payoff before the
+daily loop fills it with pages. The tester runs the commands themselves (one of
+the few non-`sm` beats); guide them, do not run them.
 
 ```bash
 npm install
 node server.js
 ```
 
-> Your portfolio has a face now. `npm install` pulls the one small library the
-> server needs (Express, on the Node you already have), and `node server.js`
-> starts it and prints a line like `Listening on http://localhost:3000`.
+> Bring your site up. `npm install` pulls the one small library the server needs
+> (Express, on the Node you already have), and `node server.js` starts it and
+> prints a line like `Listening on http://localhost:3000`.
 >
 > Open `http://localhost:3000`: there is your site, named after you, with a
 > clean layout. Click **About** and back to **Home**.
@@ -182,7 +206,11 @@ node server.js
 >
 > Does the site load and look clean?
 
-Wait for confirmation. Mark `setup`: done. Auto-advance to `add-page`.
+Wait for confirmation. If `node server.js` reports `Cannot find module
+'express'`, `npm install` did not run first, run it (it reads `package.json` and
+pulls Express), then retry; if `npm install` itself fails, check they are in the
+project root and Node is on PATH. Mark `preview`: done. Auto-advance to
+`add-page`.
 
 ## Chapter `add-page` - Add a page with your agent (~4 min)
 
@@ -209,6 +237,10 @@ following the agent's own steps and `docs/STYLE.md` (the shared shell, link
 home nav. Do NOT write any `.md`, do NOT touch the harness. Then `Read` the file
 it produced.
 
+Report back using the block below as the template: adapt the page name and add a
+one-line description of what it actually wrote, but keep the ENTIRE report inside
+the `> ` blockquote, do NOT drop the bar when you personalise it.
+
 > Your `content-editor` ran for real and wrote `public/projects.html`, linked
 > from the home nav. Refresh the site: the new page is there, in the same style
 > as the rest.
@@ -219,87 +251,11 @@ it produced.
 >
 > See the new page on the site, and the Map unchanged?
 
-Wait for confirmation. Mark `add-page`: done. Auto-advance to `orphan-draft`.
-
-## Chapter `orphan-draft` - A page nobody links to yet (~2 min)
-
-**Context**: mid-day you jot an idea for the next page but do not wire it up yet.
-skill-map shows it as an **orphan**: a real node with nothing pointing at it.
-
-**Preparation**: `Write` `docs/draft.md` (markdown kind):
-```markdown
----
-name: draft
-description: |
-  A rough idea for the next page. Not linked from anywhere yet.
----
-
-# Draft
-
-Notes toward a posts page. Nothing wired up.
-```
-
-Tell the tester to run:
-
-```bash
-sm scan
-sm show docs/draft.md
-```
-
-> A new `docs/draft` node appeared on the Map as a floating dot, no arrows in or
-> out. `sm show docs/draft.md` has no "Links in" section: nothing references it.
-> That is an **orphan**, a valid node with no incoming links.
->
-> An orphan is NOT an error: run `sm check` and the harness still reads clean.
-> It is just a node nobody points at yet. Keep three ideas apart: an **orphan**
-> (a real node, no incoming link), a **broken reference** (a link with no target
-> on the other end), and an **issue** (a rule violation `sm check` flags). You
-> will meet the other two in a moment.
->
-> See the floating dot, and the empty "Links in"?
-
-Wait for confirmation. Mark `orphan-draft`: done. Auto-advance to `wire-and-improve`.
+Wait for confirmation. Mark `add-page`: done. Auto-advance to `broken-ref`.
 
 ---
 
 **Act B - Modify / improve**
-
-## Chapter `wire-and-improve` - Wire the draft in (~3 min)
-
-**Context**: you turn the draft into a real page and link it, so it stops being
-an orphan. Two moves: the `content-editor` writes the actual page (Layer 2), and
-you add a link to the draft note from the handbook (Layer 1), which gives the
-orphan an incoming edge.
-
-**Preparation**: invoke the `content-editor` via the Task tool (real-execution
-contract) to write `public/posts.html` from the draft idea (a couple of short
-sample posts, shared shell, nav link back to Home). `Read` it afterwards.
-
-Then tell the tester to wire the note in (their file, Inviolable rule #2):
-
-> Two moves to close the loop on that draft. First, I had your `content-editor`
-> turn it into a real page: `public/posts.html` now exists (Layer 2, so the Map
-> stays put for it). Second, your turn: open `AGENTS.md` and add this line to
-> the body, so the handbook actually points at the draft note:
->
-> ```markdown
-> - The next page started as notes in [draft](docs/draft.md).
-> ```
->
-> Save it, then re-scan and look at the draft again:
-
-```bash
-sm scan
-sm show docs/draft.md
-```
-
-> `docs/draft` is no longer an orphan: `sm show` now lists `Links in (1)
-> ← references AGENTS.md`, and on the Map the floating dot is connected to the
-> handbook. One incoming link is all it took to fold it into the graph.
->
-> Did the draft connect to the handbook?
-
-Wait for confirmation. Mark `wire-and-improve`: done. Auto-advance to `broken-ref`.
 
 ## Chapter `broken-ref` - A rename breaks a link (~4 min)
 
@@ -311,60 +267,41 @@ On `agent-skills` / Antigravity there is no `/publish` command holding the deplo
 link; use the variant in the note at the end of this chapter (rename
 `docs/STYLE.md` to break the `content-editor`'s style-guide reference instead).
 
-**Preparation**: none (the tester drives).
+**Preparation**: none (the tester drives). Everything here is watched live on
+the Map; no `sm` commands.
 
 Tell the tester to rename the deploy runbook (their file):
 
 ```bash
 mv docs/DEPLOY.md docs/DEPLOYMENT.md
-sm scan
-sm check
 ```
 
 > You renamed the deploy runbook, but `/publish` still links to the old path.
-> `sm check` flags it:
+> Watch the **Map**: the `publish → docs/DEPLOY.md` arrow disappears (a broken
+> link resolves to no node, so skill-map stops drawing it) and the `publish`
+> card gets a red **broken-reference** marker, a link whose target no longer
+> exists. Open the `publish` node's inspector and the broken reference is listed
+> there.
 >
-> ```
-> sm check: 1 error
->
->   .claude/commands/publish.md
->     ✕  reference-broken   Broken references reference → docs/DEPLOY.md
-> ```
->
-> That is the `reference-broken` analyzer: a link whose target no longer exists.
-> On the Map the `publish → docs/DEPLOY.md` arrow has disappeared: a broken link
-> resolves to no node, so skill-map stops drawing it and flags the `publish` card
-> with a red error instead. `sm check` runs the full analyzer catalogue (around a
-> dozen rules); to narrow it to one rule:
-
-```bash
-sm check --analyzers reference-broken
-```
-
 > Now fix it the way you would for real: open `.claude/commands/publish.md` and
-> point the deploy-runbook link at `docs/DEPLOYMENT.md` (the new name). Then
-> re-scan and re-check:
-
-```bash
-sm scan
-sm check
-```
-
-> `✓ No issues`. The arrow is solid again. That is the daily safety net: rename
-> and move things freely, and skill-map tells you exactly what you forgot to
-> update, before it ships broken.
+> point the deploy-runbook link at `docs/DEPLOYMENT.md` (the new name). Save.
 >
-> Did `sm check` go from 1 error back to clean?
+> Watch the **Map** again: the arrow snaps back, solid, and the red marker
+> clears, all live, no command to run. That is the daily safety net: rename and
+> move things freely, and skill-map shows you exactly what you forgot to update
+> before it ships broken.
+>
+> Did the broken marker appear and then clear?
 
-Wait for confirmation. The harness MUST read `✓ No issues` before Act C (the
-real `/publish` later follows this runbook). Mark `broken-ref`: done.
-Auto-advance to `reserved`.
+Wait for confirmation. The harness MUST be clean again (the red marker gone)
+before Act C (the real `/publish` later follows this runbook). Mark `broken-ref`:
+done. Auto-advance to `reserved`.
 
 On `agent-skills` / Antigravity (no `command` kind), run the same beat on a link
 that exists there: `mv docs/STYLE.md docs/STYLE-GUIDE.md`, which breaks the
-`content-editor` skill's `[style guide]` reference; `sm check` flags
-`reference-broken` on the `content-editor`; fix the link in the skill body and
-re-check to clean.
+`content-editor` skill's `[style guide]` reference; the Map flags the broken
+reference on the `content-editor`; fix the link in the skill body and watch it
+clear.
 
 ## Chapter `reserved` - A reserved name collides (~2 min)
 
@@ -390,41 +327,24 @@ description: |
 Creates a blank page so you can start writing.
 ```
 
-Tell the tester to scan and check:
+The watcher picks up the new command. Tell the tester:
 
-```bash
-sm scan
-sm check
-```
-
-> `sm check` warns:
+> I added a command named `init`. Watch the **Map**: the new `init` command node
+> appears, but flagged with a **warning** marker. Open its inspector: it reads
+> `name-reserved`, `init` shadows one of Claude Code's own slash commands (like
+> `/help`, `/clear`, `/config`), so the runtime would silently ignore your file,
+> it never runs. The fix is a name the runtime does not own.
 >
-> ```
-> sm check: 1 warning
+> Rename it to `new-page`: rename the file `.claude/commands/init.md` to
+> `.claude/commands/new-page.md`, AND change `frontmatter.name` to `new-page`
+> and the H1 to `# new-page` (a command's H1 stays a plain title, never
+> `# /new-page`). Save.
 >
->   .claude/commands/init.md
->     ⚠  name-reserved   .claude/commands/init.md shadows a built-in claude command. The runtime ignores this file in favour of its own built-in. Rename the file or `frontmatter.name` to a non-reserved value.
-> ```
->
-> `init` is one of Claude Code's own slash commands (like `/help`, `/clear`,
-> `/config`), so your file would be silently ignored, it never runs. The fix is
-> to give it a name the runtime does not own.
-
-Rename the command to `new-page`: rename the file `.claude/commands/init.md` to
-`.claude/commands/new-page.md`, AND change `frontmatter.name` to `new-page` and
-the H1 to `# new-page` (a command's H1 stays a plain title, never `# /new-page`).
-Then have the tester re-scan and re-check:
-
-```bash
-sm scan
-sm check
-```
-
-> `✓ No issues`. Notice what cleared the warning: changing the **name**, not
-> just the filename. The reserved check looks at the command's name (its
-> `frontmatter.name`), which is why the warning told you to rename "the file or
-> `frontmatter.name`". Now `new-page` is yours and the runtime will actually run
-> it.
+> Watch the **Map** again: the warning clears and the node is now `new-page`,
+> all live. Notice what cleared it: changing the **name** (`frontmatter.name`),
+> not just the filename, the reserved check looks at the command's name, which
+> is why the warning said to rename "the file or `frontmatter.name`". Now
+> `new-page` is yours and the runtime will actually run it.
 >
 > Did the warning clear after the rename?
 
@@ -446,9 +366,8 @@ On `agent-skills` / Antigravity there is no `/publish` command: run the
 `check-links` skill directly over `public/`, then follow `docs/DEPLOYMENT.md` by
 hand. Everything else in this chapter is identical.
 
-**Preparation**: make sure the pages exist (`index`, `about`, `projects`,
-`posts` from the earlier chapters; lay any that are missing from the templates in
-`setup`). When the tester asks to publish, **execute the publish flow for real**
+**Preparation**: make sure the pages exist (`index`, `about`, `projects` from the
+earlier chapters; lay any that are missing from the templates in `setup`). When the tester asks to publish, **execute the publish flow for real**
 by following `.claude/commands/publish.md`: run the `check-links` logic over
 every `.html` under `public/` (does each internal `href` resolve to a file that
 exists?); if any link is broken, brief the `content-editor` to fix it and
@@ -479,49 +398,42 @@ conditional on the real result):
 >
 > Did the publish run report the link check clean?
 
-Wait for confirmation. Mark `publish`: done. Auto-advance to `sidecar`.
+Wait for confirmation. Mark `publish`: done. Auto-advance to `stability`.
 
-## Chapter `sidecar` - Annotate the handbook (.sm and consent) (~3 min)
+## Chapter `stability` - Set a node's stability (and the `.sm` sidecar) (~3 min)
 
-**Context**: skill-map keeps its own metadata in co-located `.sm` sidecars, right
-next to each file, leaving the vendor file untouched. Writing the first one needs
-your consent. Good moment now that the site shipped: leave a metadata note on the
-handbook.
+**Context**: real maintenance includes marking how mature each piece is. skill-map
+lets you tag a node's **stability** (`experimental` / `stable` / `deprecated`)
+from the inspector. That is skill-map's own metadata, so it lands in a co-located
+**`.sm` sidecar** next to the file (the vendor file stays untouched), and the
+first `.sm` write asks for your consent. Good moment now that the site shipped:
+mark the handbook as the stable core it is.
 
 **Preparation**: none for a first-time tester. (If re-entering a dir where the
 sidecar already exists, reset consent first with `rm -f AGENTS.sm
-.skill-map/settings.local.json` so the prompt shows again.)
+.skill-map/settings.local.json` so the consent prompt shows again.)
 
 Tell the tester:
 
-```bash
-sm sidecar annotate AGENTS.md
-```
-
-> The first time you write a `.sm`, skill-map asks for consent: answer `y` at the
-> `[Y/n]` prompt. It then scaffolds `AGENTS.sm` next to `AGENTS.md`:
+> Your harness shipped, so let's mark the handbook as the **stable** core it is.
+> Open the Inspector for the `AGENTS` node (click it on the **Map**) and find the
+> **stability** action (the action button in the inspector). Click it and pick
+> `stable` from the list.
 >
-> ```
-> ✓  Created AGENTS.sm. Edit it, then run `sm bump AGENTS.md` to commit the version.
-> ```
+> The first time skill-map writes its own metadata it asks for **consent**:
+> confirm it in the dialog that pops up. Two things happen at once: a `stable`
+> badge appears on the `AGENTS` node, and skill-map creates a **`.sm` sidecar**
+> (`AGENTS.sm`) right next to the handbook to hold that metadata, your `AGENTS.md`
+> itself is never touched. Your consent is remembered for the project, so it
+> will not ask again.
 >
-> Look at the two new artifacts:
-
-```bash
-cat AGENTS.sm
-cat .skill-map/settings.local.json
-```
-
-> `AGENTS.sm` holds an `identity:` block (hashes that tie it to the live file)
-> and an empty `annotations: {}` ready for you to fill in. And
-> `.skill-map/settings.local.json` now records your consent,
-> `{ "allowEditSmFiles": true }`, so skill-map will not ask again in this
-> project. Open the Inspector for the `AGENTS` node: it now has a **Metadata**
-> section it did not have before.
+> That sidecar is where skill-map keeps what it knows about a node that does not
+> belong in the vendor file (stability, version, tags). You just wrote your first
+> one, by clicking, no command needed.
 >
-> See `AGENTS.sm` and the consent flag?
+> See the `stable` badge on the handbook?
 
-Wait for confirmation. Mark `sidecar`: done. Auto-advance to `golive`.
+Wait for confirmation. Mark `stability`: done. Auto-advance to `golive`.
 
 ## Chapter `golive` - Your portfolio, live next to the graph (~3 min)
 
@@ -542,9 +454,8 @@ node server.js
 > Last step, the fun one. `npm install` confirms the one small library is there,
 > and `node server.js` starts the server (`Listening on http://localhost:3000`).
 >
-> Open `http://localhost:3000` and click through Home, About, Projects, and
-> Posts, the pages your harness produced and shipped through the publish flow you
-> just ran.
+> Open `http://localhost:3000` and click through Home, About, and Projects, the
+> pages your harness produced and shipped through the publish flow you just ran.
 >
 > Now take it in at once. On one side, your real running portfolio, named after
 > you, that you could deploy as-is. On the other, the skill-map graph of the

@@ -338,6 +338,11 @@ For every chapter:
    Inviolable rule #6, NO "¿seguimos?"). `pace` only decides batching:
    `per-step` presents one chapter per exchange, `auto-advance` may
    chain chapters that need no tester action into one response.
+   **Either pace still emits every chapter's `Capítulo S.N` Announcement
+   (step 1).** `auto-advance` drops only the inter-chapter "¿seguimos?"
+   pause, never the per-chapter announcement, so any chapter with a
+   tester-facing beat always opens with its number, even when it
+   follows straight on from the previous one.
 
 ## Routing + menu (orchestrator)
 
