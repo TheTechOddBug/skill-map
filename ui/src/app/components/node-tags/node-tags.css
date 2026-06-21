@@ -19,6 +19,16 @@
   gap: 0.3rem;
 }
 
+/* View-mode title: a small uppercase label so the row reads as "TAGS: ..."
+   and an empty node shows an empty tag row instead of a lone pencil. */
+.node-tags__label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--p-text-muted-color);
+}
+
 .node-tags__tag {
   display: inline-flex;
   align-items: center;

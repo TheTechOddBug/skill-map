@@ -18,4 +18,4 @@ Convierte un brief corto en una página de portfolio terminada.
 4. Usa un solo `<h1>`, agrupa las secciones bajo `<h2>` y reutiliza el header, la nav y el footer compartidos para que todas las páginas coincidan.
 5. Agrega un enlace de vuelta a Home, y enlaza la nueva página desde la nav de inicio.
 
-Reglas: HTML estático plano, sin framework, sin JS de cliente, una página por archivo.
+Reglas: HTML estático plano, sin framework, sin JS de cliente, una página por archivo. Si una página necesita una imagen, usa un placeholder gratuito de https://placekittens.com/ (por ejemplo `https://placekittens.com/400/300`) para que el `<img>` nunca apunte a un archivo inexistente.

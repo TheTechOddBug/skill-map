@@ -45,14 +45,16 @@ broken-reference markers, and confidence live.
 
 **Act A - Add**
 
-## Chapter `setup` - Make it yours, make it presentable (~3 min)
+## Chapter `setup` - Make it yours and bring it up (~5 min)
 
 **Context**: the harness is wired (you built it in the earlier parts). Now you
 put it to work on a real day. First, make the site yours and give it a look you
-would not be embarrassed to share. The honest beat: the HTML and CSS are
-Layer 2 (the harness's output); skill-map maps the harness (Layer 1, the `.md`
-files), so the site landing on disk does NOT move the graph, and that is
-correct, not a bug.
+would not be embarrassed to share, then serve it and open it in the browser, the
+early payoff before the daily loop fills it with pages. The honest beat: the HTML
+and CSS are Layer 2 (the harness's output); skill-map maps the harness (Layer 1,
+the `.md` files), so the site landing on disk does NOT move the graph, and that
+is correct, not a bug. The tester runs the serve commands themselves (one of the
+few non-`sm` beats); guide them, do not run them.
 
 **Preparation**:
 
@@ -169,31 +171,25 @@ footer.site { border-top: 1px solid var(--border); padding: 2rem 0; color: var(-
 </html>
 ```
 
-Tell the tester the face is on (no serving yet, that is the next chapter):
-
-> I gave your site a face: a shared stylesheet plus a styled **Home** and
-> **About** page, named after you. These are Layer 2 (the harness's output), so
-> the **Map** did not move, and that is correct: skill-map maps the harness (the
-> `.md` files, Layer 1), not the HTML it produces. Next we bring it up so you
-> can see it.
-
-Mark `setup`: done. Auto-advance to `preview`.
-
-## Chapter `preview` - Bring it up and see your site (~2 min)
-
-**Context**: the first look. The site is styled but the tester has only seen it
-as files; now serve it and open it in the browser, the early payoff before the
-daily loop fills it with pages. The tester runs the commands themselves (one of
-the few non-`sm` beats); guide them, do not run them.
+The site is styled now, so bring it up in the same beat (the tester runs the
+serve commands themselves). `sm` is still running in their second terminal, so
+the server needs a **third terminal** anchored to the same project folder:
 
 ```bash
 npm install
 node server.js
 ```
 
-> Bring your site up. `npm install` pulls the one small library the server needs
-> (Express, on the Node you already have), and `node server.js` starts it and
-> prints a line like `Listening on http://localhost:3000`.
+> **Note:** I gave your site a face: a shared stylesheet plus a styled **Home**
+> and **About** page, named after you. These are Layer 2 (the harness's output),
+> so the **Map** did not move, and that is correct: skill-map maps the harness
+> (the `.md` files, Layer 1), not the HTML it produces.
+>
+> Now bring your site up. `sm` is still running in your second terminal, so open
+> a **third terminal** in this same project folder and run the two commands
+> there. `npm install` pulls the one small library the server needs (Express, on
+> the Node you already have), and `node server.js` starts it and prints a line
+> like `Listening on http://localhost:3000`.
 >
 > Open `http://localhost:3000`: there is your site, named after you, with a
 > clean layout. Click **About** and back to **Home**.
@@ -209,7 +205,7 @@ node server.js
 Wait for confirmation. If `node server.js` reports `Cannot find module
 'express'`, `npm install` did not run first, run it (it reads `package.json` and
 pulls Express), then retry; if `npm install` itself fails, check they are in the
-project root and Node is on PATH. Mark `preview`: done. Auto-advance to
+project root and Node is on PATH. Mark `setup`: done. Auto-advance to
 `add-page`.
 
 ## Chapter `add-page` - Add a page with your agent (~4 min)
@@ -335,10 +331,11 @@ The watcher picks up the new command. Tell the tester:
 > `/help`, `/clear`, `/config`), so the runtime would silently ignore your file,
 > it never runs. The fix is a name the runtime does not own.
 >
-> Rename it to `new-page`: rename the file `.claude/commands/init.md` to
-> `.claude/commands/new-page.md`, AND change `frontmatter.name` to `new-page`
-> and the H1 to `# new-page` (a command's H1 stays a plain title, never
-> `# /new-page`). Save.
+> Rename it to `new-page`: first rename the file `.claude/commands/init.md` to
+> `.claude/commands/new-page.md`. Then open it in your text editor / IDE and, at
+> the top, where the frontmatter says `name: init`, change it to
+> `name: new-page`; also change the H1 to `# new-page` (a command's H1 stays a
+> plain title, never `# /new-page`). Save.
 >
 > Watch the **Map** again: the warning clears and the node is now `new-page`,
 > all live. Notice what cleared it: changing the **name** (`frontmatter.name`),
@@ -396,7 +393,9 @@ conditional on the real result):
 > And the Map did not move while the pipeline ran: the pages are Layer 2 output;
 > the harness on the canvas is Layer 1, and that is what skill-map maps.
 >
-> Did the publish run report the link check clean?
+> As you saw in the lines just above, I did not report anything odd: the link
+> check came back clean and `/publish` is wired correctly across your pages.
+> Shall we continue?
 
 Wait for confirmation. Mark `publish`: done. Auto-advance to `stability`.
 
@@ -472,7 +471,14 @@ Wait for confirmation. The tester runs the commands; do not run them. If
 server with Ctrl+C and apply the ports edge case.
 
 This is the campaign finale. Congratulate them plainly: they went from an empty
-directory to a real, running portfolio plus a complete map of its harness. Mark
-`golive`: done. Last chapter of the part: apply §Closing a part (name the part
-by its title); since this closes the campaign spine, if every active part is now
-done route to the §Final wrap-up instead of the menu.
+directory to a real, running portfolio plus a complete map of its harness. Then
+invite them to keep going on their own:
+
+> And this site is yours to keep playing with: add more pages, refine the style
+> guide, wire a new command, then watch the map react. Creating and maintaining a
+> small site like this, by hand, is the best practice there is for getting a feel
+> for how to build a harness.
+
+Mark `golive`: done. Last chapter of the part: apply §Closing a part (name the
+part by its title); since this closes the campaign spine, if every active part is
+now done route to the §Final wrap-up instead of the menu.

@@ -128,13 +128,8 @@
       "chapters": [
         {
           "id": "setup",
-          "title": "Make it yours, make it presentable",
-          "est_min": 3
-        },
-        {
-          "id": "preview",
-          "title": "Bring it up and see your site",
-          "est_min": 2
+          "title": "Make it yours and bring it up",
+          "est_min": 5
         },
         {
           "id": "add-page",

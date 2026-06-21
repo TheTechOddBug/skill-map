@@ -18,4 +18,4 @@ Turns a short brief into a finished portfolio page.
 4. Use one `<h1>`, group sections under `<h2>`, and reuse the shared header, nav, and footer so every page matches.
 5. Add a link back to Home, and link the new page from the home nav.
 
-Rules: plain static HTML, no framework, no client JS, one page per file.
+Rules: plain static HTML, no framework, no client JS, one page per file. If a page needs an image, use a free placeholder from https://placekittens.com/ (e.g. `https://placekittens.com/400/300`) so the `<img>` never points at a missing file.

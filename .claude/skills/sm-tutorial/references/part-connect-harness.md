@@ -162,6 +162,12 @@ Tell the tester:
 > daily-loop part. The opacity on the canvas is just that number drawn
 > as transparency.
 >
+> **Note:** why does confidence matter? It mirrors how the runtime itself
+> resolves a reference: a deterministic name-and-path lookup, no guessing
+> and no scanning the tree for a file under some other extension. That is
+> cheaper and it does not fail, so the agent spends fewer tokens and less
+> time, the same reason a clean, well-named harness is worth keeping.
+>
 > Do you see every badge reading 1.00 in the Inspector?
 
 Wait for confirmation. Mark `confidence`: done. Last chapter of the part: apply §Closing a part (the close names the part by its title and routes back to the menu; do NOT lead into the next part from here).

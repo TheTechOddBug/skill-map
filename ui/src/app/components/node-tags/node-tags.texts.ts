@@ -13,6 +13,8 @@ export const NODE_TAGS_TEXTS = {
   editTooltip: 'Edit tags',
   /** Tooltip / aria-label on the pencil when the node has no tags yet. */
   addTooltip: 'Add tags',
+  /** Inline title for the view-mode tag row (renders as `TAGS:`). */
+  viewLabel: 'Tags',
   /** Label above the inline tag editor input. */
   editorLabel: 'Tags',
   /** Save / cancel the inline edit. */
