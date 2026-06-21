@@ -2,6 +2,20 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.61.3",
+      "date": "2026-06-21",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "Only the Claude provider is selectable for now. Codex, Antigravity and Open Skills appear greyed out as \"coming soon\" in the provider lens, and projects auto-detect Claude without a lens prompt.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.61.2",
       "date": "2026-06-21",
       "kind": "user-facing",
