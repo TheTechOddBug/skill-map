@@ -45,8 +45,15 @@ export const TUTORIAL_TEXTS = {
   // default).
   promptHeader: '{{glyph}}  Which agent should host the tutorial skill?',
   promptOption: '     {{index}}) {{label}}: {{skillDir}}{{marker}}',
+  // Coming-soon Providers are listed for visibility but cannot be picked
+  // (no skillDir, a `(coming soon)` tag instead of a target path).
+  promptOptionComingSoon: '     {{index}}) {{label}}  (coming soon)',
   promptDefaultMarker: '  (default)',
   promptInput: '  Enter the number or provider id [default {{index}}]: ',
+  // Shown (and the prompt re-asked) when the tester picks a coming-soon
+  // entry: it is visible but not selectable yet.
+  promptComingSoonNotice:
+    '  {{label}} is coming soon, not selectable yet. Pick {{defaultLabel}}.',
 
   // Prompt answer matched neither an index nor an id. Goes to stderr,
   // exit code 2. Mirrors the error shape: glyph + headline + dim hint.
