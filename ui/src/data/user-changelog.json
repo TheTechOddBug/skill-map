@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.61.4",
+      "date": "2026-06-21",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "Running `sm tutorial` now sets up the tutorial for Claude. Other assistants (Codex, Antigravity, Open Skills) show as \"coming soon\" in the prompt and cannot be selected yet.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.61.3",
       "date": "2026-06-21",
       "kind": "user-facing",
