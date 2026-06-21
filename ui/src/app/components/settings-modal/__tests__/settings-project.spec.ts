@@ -87,4 +87,30 @@ describe('SettingsProject providerOptions', () => {
     proto.activeProviderEnvelope.set(envelope(['claude', 'openai', 'markdown']));
     expect(proto.providerOptions().every((o) => !o.disabled)).toBe(true);
   });
+
+  it('labels a coming-soon Provider with the "(coming soon)" suffix', () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        provideZonelessChangeDetection(),
+        { provide: DATA_SOURCE, useValue: {} as Partial<IDataSourcePort> },
+      ],
+    });
+    const fixture = TestBed.createComponent(SettingsProject);
+    fixture.componentRef.setInput('visible', false);
+    fixture.detectChanges();
+    TestBed.inject(ProviderRegistryService).ingest({
+      claude: { label: 'Claude', color: '#000000' },
+      openai: { label: 'OpenAI', color: '#111111', comingSoon: true },
+    });
+    const proto = fixture.componentInstance as unknown as IProjectProto;
+    // openai is coming-soon, so the BFF leaves it out of `selectable`.
+    proto.activeProviderEnvelope.set(envelope(['claude']));
+
+    const byId = new Map(proto.providerOptions().map((o) => [o.id, o]));
+    expect(byId.get('openai')?.disabled).toBe(true);
+    expect(byId.get('openai')?.label).toBe('OpenAI (coming soon)');
+    expect(byId.get('claude')?.disabled).toBe(false);
+    expect(byId.get('claude')?.label).toBe('Claude');
+  });
 });

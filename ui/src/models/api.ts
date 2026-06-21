@@ -380,6 +380,11 @@ export interface IProviderRegistryEntryApi {
   icon?: TKindIconApi;
   /** Suppress the per-card chip (universal `markdown` fallback). */
   hideChip?: boolean;
+  /**
+   * Registered but not yet selectable as the active lens. The dropdown
+   * greys it with a `(coming soon)` suffix.
+   */
+  comingSoon?: boolean;
 }
 
 export type IProviderRegistryApi = Record<string, IProviderRegistryEntryApi>;

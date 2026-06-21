@@ -111,6 +111,11 @@ export interface IProviderRegistryEntry {
   icon?: TProviderKindIcon;
   /** Suppress the per-card chip (universal `markdown` fallback). */
   hideChip?: boolean;
+  /**
+   * Registered but not yet selectable as the active lens. Greyed in the
+   * dropdown with a `(coming soon)` suffix; dropped from `selectable`.
+   */
+  comingSoon?: boolean;
 }
 
 /**

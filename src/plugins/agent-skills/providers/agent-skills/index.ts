@@ -45,6 +45,10 @@ export const agentSkillsProvider: IBuiltInManifest<IProvider> = {
     label: 'Open Skills',
     color: '#64748b',
     colorDark: '#94a3b8',
+    // Registered but not yet selectable as the active lens; auto-detect
+    // skips its `.agents/` marker and the UI greys it with a
+    // `(coming soon)` suffix.
+    comingSoon: true,
   },
 
   // Auto-detect marker: a `.agents/` directory marks an open-standard

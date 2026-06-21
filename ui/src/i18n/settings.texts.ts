@@ -162,6 +162,7 @@ export const SETTINGS_TEXTS = {
     activeProviderDetectedPrefix: 'Detected:',
     activeProviderEmptyOption: '(none)',
     activeProviderDisabledSuffix: '(disabled)',
+    activeProviderComingSoonSuffix: '(coming soon)',
     activeProviderConfirmHeader: 'Switch the active provider?',
     activeProviderConfirmIntro:
       'Switching will clear the persisted scan (nodes, links, ' +

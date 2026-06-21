@@ -304,12 +304,11 @@ the `__PROVIDER__` token and skip kinds the provider does not claim.
   2. Seed: `fixtures.js seed <harness-built|harness-connected> --provider <provider> --lang <lang>`
      (`harness-built` for `connect-harness`, `harness-connected` for
      `daily-loop`).
-  3. Provision with the **non-interactive lens recipe**: the seeded
-     portfolio has BOTH a root `AGENTS.md` (an `openai` marker) and
-     `.claude/` (a `claude` marker), so a plain `sm init` would stop on
-     `⚠ Multiple provider markers detected`. Run `sm init --no-scan`,
-     then `sm config set activeProvider claude`, then `sm scan`. (If
-     `.skill-map/` already exists, just `sm scan`.)
+  3. Provision the lens: the seeded portfolio has a root `AGENTS.md`
+     (the `openai`/Codex marker) next to `.claude/`, but `openai` is
+     coming soon, so auto-detect ignores it and a plain `sm init`
+     resolves the `claude` lens with no prompt. Run `sm init`, then
+     `sm scan`. (If `.skill-map/` already exists, just `sm scan`.)
   4. Mark the skipped predecessors: `state.js set-part <predecessor> skipped`
      for each (they stay in the menu). Then emit exactly ONE
      tester-facing line:

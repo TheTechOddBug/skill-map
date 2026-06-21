@@ -85,10 +85,11 @@ describe('core/name-reserved (lens scope, end-to-end through runScan)', () => {
     assert.equal(reservedFor(result.issues, '.agents/skills/deploy/SKILL.md').length, 0);
   });
 
-  it('does NOT flag the colliding skill under a non-Antigravity lens (auto-detected agent-skills)', async () => {
-    // No explicit lens: `.agents/` auto-detects as the universal
-    // `agent-skills` lens, which declares no reserved names. The
-    // Antigravity catalog only applies when antigravity IS the lens.
+  it('does NOT flag the colliding skill under a non-Antigravity lens (no lens resolved)', async () => {
+    // No explicit lens. `agent-skills` is coming-soon, so `.agents/`
+    // no longer auto-detects a lens and the scan runs unlensed; either
+    // way the Antigravity catalog only reserves names when antigravity
+    // IS the lens, so the collision is not flagged.
     const result = await scan(null);
     assert.equal(reservedFor(result.issues, '.agents/skills/goal/SKILL.md').length, 0);
   });

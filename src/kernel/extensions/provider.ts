@@ -222,6 +222,17 @@ export interface IProviderUi {
    * topbar lens chip; only the per-card badge is suppressed.
    */
   hideChip?: boolean;
+  /**
+   * When `true`, this Provider is registered but NOT yet selectable as
+   * the active lens. Auto-detect skips it (`detectProvidersFromFilesystem`),
+   * the BFF drops it from the `selectable` set, and the UI greys it with
+   * a `(coming soon)` suffix. It still ships in `providerRegistry` so
+   * node chips render. Mirrors
+   * `spec/schemas/extensions/provider.schema.json#/properties/presentation/properties/comingSoon`.
+   * Distinct from `hideChip` and from the operator toggle
+   * `plugins[<id>].enabled = false`. Defaults to `false` (selectable).
+   */
+  comingSoon?: boolean;
 }
 
 /**

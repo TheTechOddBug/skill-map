@@ -174,6 +174,10 @@
           "hideChip": {
             "type": "boolean",
             "description": "When `true`, the UI suppresses this Provider's per-card chip (reserved for the universal `markdown` fallback). The Provider still appears in the lens dropdown and the topbar lens chip."
+          },
+          "comingSoon": {
+            "type": "boolean",
+            "description": "When `true`, this Provider is published in the registry but not yet selectable as the active lens (dropped from `GET /api/active-provider`'s `selectable` set and skipped by auto-detect). The UI renders it greyed with a `(coming soon)` suffix. Mirror of `extensions/provider.schema.json#/properties/presentation/properties/comingSoon`."
           }
         }
       }

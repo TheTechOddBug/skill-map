@@ -28,18 +28,14 @@ disk. The orchestrator's `portfolio-init` already cleared it during
 pre-flight, so the tester sees only the portfolio. If anything demo
 lingers, mention it once and move on.
 
-**Context (agent, do not narrate the plumbing): the lens prompt.**
-Unlike the prologue (a pure `.claude/` project that auto-detected
-`claude` silently), this project has a root `AGENTS.md` (a filesystem
-marker for the `openai` lens) sitting next to the `.claude/` folder
-(the `claude` marker, where the tutorial skill itself lives). With two
-markers present, `sm init`'s first scan can NOT auto-pick a lens and
-asks the tester to choose (`⚠ Multiple provider markers detected`).
-The portfolio is a Claude project, so the answer is always `claude`,
-the other options the prompt lists (`openai`/Codex and friends) are
-coming soon in the tutorial and we do not walk them. The prompt is
-expected, blessed behaviour; the tester just needs to know which
-option to pick, so the message below previews it.
+**Context (agent, do not narrate the plumbing): the lens.** This
+project has a root `AGENTS.md` (the `openai`/Codex marker) sitting next
+to the `.claude/` folder (the `claude` marker, where the tutorial skill
+itself lives). `openai` is **coming soon**, though, so auto-detect
+ignores its marker and `sm init` resolves the lens to `claude`
+silently, exactly like the prologue: only `claude` is selectable today,
+so there is no ambiguity and no prompt. Do not promise the tester a
+lens prompt here.
 
 ```bash
 sm init
@@ -53,9 +49,9 @@ Tell the tester:
 > `.claude/` folder is the **harness** (the helpers that maintain the
 > site). skill-map maps that harness.
 >
-> Run `sm init`. If it asks you to pick a lens (`⚠ Multiple provider
-> markers detected`), choose `claude`, this is a Claude project (the
-> other lenses are coming soon). Then run `sm` to boot the live UI.
+> Run `sm init`, it auto-detects the `claude` lens (this is a Claude
+> project; the other lenses are coming soon). Then run `sm` to boot the
+> live UI.
 >
 > Open the URL `sm` printed. You'll see **one node**: `AGENTS.md`,
 > the project's handbook (the operating manual for the site).

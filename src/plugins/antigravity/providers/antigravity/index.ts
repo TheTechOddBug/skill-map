@@ -69,6 +69,9 @@ export const antigravityProvider: IBuiltInManifest<IProvider> = {
     label: 'Antigravity',
     color: '#7c3aed',
     colorDark: '#a78bfa',
+    // Registered but not yet selectable as the active lens; the UI greys
+    // it with a `(coming soon)` suffix.
+    comingSoon: true,
   },
 
   // No `detect` block: Antigravity has no vendor-specific workspace marker

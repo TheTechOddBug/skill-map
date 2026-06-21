@@ -4,7 +4,7 @@
  * `buildKindRegistry`).
  *
  * The registry mirrors `spec/schemas/api/rest-envelope.schema.json#/properties/providerRegistry`:
- * provider id → `{ label, color, colorDark?, emoji?, icon?, hideChip? }`,
+ * provider id → `{ label, color, colorDark?, emoji?, icon?, hideChip?, comingSoon? }`,
  * projected straight from each Provider's `presentation` block.
  *
  * The UI consumes it to render the active-lens dropdown, the topbar lens
@@ -38,6 +38,7 @@ export function buildProviderRegistry(
     if (ui.emoji !== undefined) entry.emoji = ui.emoji;
     if (ui.icon !== undefined) entry.icon = ui.icon;
     if (ui.hideChip !== undefined) entry.hideChip = ui.hideChip;
+    if (ui.comingSoon !== undefined) entry.comingSoon = ui.comingSoon;
     registry[provider.id] = entry;
   }
   return registry;

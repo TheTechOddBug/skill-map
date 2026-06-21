@@ -12,7 +12,8 @@
  * offering a Provider whose extractors would never run.
  *
  * Confirms:
- *   - every built-in Provider is selectable when nothing is disabled.
+ *   - every enabled, non-coming-soon Provider is selectable; coming-soon
+ *     Providers (`openai`, `antigravity`, `agent-skills`) never are.
  *   - disabling a Provider's extension (`claude/claude`) drops only that
  *     Provider from `selectable`; the rest stay (including the locked
  *     `core/markdown`, surfaced under its registry id `markdown`).
@@ -103,11 +104,19 @@ describe('GET /api/active-provider selectable', () => {
         assert.equal(res.status, 200);
         const body = (await res.json()) as IActiveProviderWire;
         assert.ok(Array.isArray(body.selectable));
-        // A representative spread of the built-in Provider catalog.
-        for (const id of ['claude', 'openai', 'markdown']) {
+        // Enabled, non-coming-soon Providers are selectable.
+        for (const id of ['claude', 'markdown']) {
           assert.ok(
             body.selectable.includes(id),
             `expected '${id}' to be selectable, got ${JSON.stringify(body.selectable)}`,
+          );
+        }
+        // Coming-soon Providers ship in the registry but are never
+        // selectable as the lens.
+        for (const id of ['openai', 'antigravity', 'agent-skills']) {
+          assert.ok(
+            !body.selectable.includes(id),
+            `expected coming-soon '${id}' to be excluded, got ${JSON.stringify(body.selectable)}`,
           );
         }
       });
@@ -127,9 +136,10 @@ describe('GET /api/active-provider selectable', () => {
           !body.selectable.includes('claude'),
           `expected 'claude' to be excluded, got ${JSON.stringify(body.selectable)}`,
         );
-        // Other Providers are untouched; the locked universal fallback
-        // (`core/markdown`, registry id `markdown`) is always enabled.
-        assert.ok(body.selectable.includes('openai'));
+        // Other selectable Providers are untouched; the locked universal
+        // fallback (`core/markdown`, registry id `markdown`) is always
+        // enabled. (`openai` is coming-soon, so excluded for that reason.)
+        assert.ok(!body.selectable.includes('openai'));
         assert.ok(body.selectable.includes('markdown'));
       });
     } finally {

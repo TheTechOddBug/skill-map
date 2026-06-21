@@ -139,10 +139,13 @@ export class SettingsProject {
    *
    * Each registry Provider absent from the envelope's `selectable` set
    * (the ids enabled right now) is rendered disabled: greyed and not
-   * selectable (`optionDisabled` in the template) plus a "(disabled)"
-   * label suffix, so a disabled Provider stays visible but can never be
-   * chosen as the lens. Before the envelope loads (`selectable === null`)
-   * nothing is greyed, to avoid a flash of all-disabled rows.
+   * selectable (`optionDisabled` in the template) plus a suffix, so a
+   * disabled Provider stays visible but can never be chosen as the lens.
+   * The suffix is "(coming soon)" when the Provider is flagged
+   * `comingSoon` (registered but not yet shippable), otherwise
+   * "(disabled)" (operator toggle). Before the envelope loads
+   * (`selectable === null`) nothing is greyed, to avoid a flash of
+   * all-disabled rows.
    */
   protected readonly providerOptions = computed<
     { id: string; label: string; disabled: boolean }[]
@@ -153,9 +156,10 @@ export class SettingsProject {
       { id: '', label: SETTINGS_TEXTS.project.activeProviderEmptyOption, disabled: false },
       ...this.providerRegistry.providers().map((p) => {
         const disabled = selectable !== null && !selectable.has(p.id);
-        const label = disabled
-          ? `${p.label} ${SETTINGS_TEXTS.project.activeProviderDisabledSuffix}`
-          : p.label;
+        const suffix = p.comingSoon
+          ? SETTINGS_TEXTS.project.activeProviderComingSoonSuffix
+          : SETTINGS_TEXTS.project.activeProviderDisabledSuffix;
+        const label = disabled ? `${p.label} ${suffix}` : p.label;
         return { id: p.id, label, disabled };
       }),
     ];

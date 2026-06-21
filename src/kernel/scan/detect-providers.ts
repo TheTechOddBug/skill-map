@@ -33,6 +33,12 @@ import { join } from 'node:path';
 export interface IProviderDetectInput {
   id: string;
   detect?: { markers?: readonly string[] };
+  /**
+   * When `true`, the Provider is not yet selectable as the active lens,
+   * so auto-detect ignores its markers entirely (no candidate, no
+   * ambiguous prompt). Mirrors `IProviderUi.comingSoon`.
+   */
+  presentation?: { comingSoon?: boolean };
 }
 
 /**
@@ -48,11 +54,22 @@ export function detectProvidersFromFilesystem(
   const out: string[] = [];
   for (const provider of providers) {
     if (seen.has(provider.id)) continue;
-    const markers = provider.detect?.markers;
-    if (!markers || markers.length === 0) continue;
-    if (!markers.some((marker) => existsSync(join(cwd, marker)))) continue;
+    if (!isDetectableUnderCwd(cwd, provider)) continue;
     seen.add(provider.id);
     out.push(provider.id);
   }
   return out;
+}
+
+/**
+ * Whether a Provider's markers resolve under `cwd`. Coming-soon
+ * Providers are registered but not yet selectable, so their markers
+ * never produce an auto-detect candidate. Extracted to keep the loop's
+ * branching low.
+ */
+function isDetectableUnderCwd(cwd: string, provider: IProviderDetectInput): boolean {
+  if (provider.presentation?.comingSoon === true) return false;
+  const markers = provider.detect?.markers;
+  if (!markers || markers.length === 0) return false;
+  return markers.some((marker) => existsSync(join(cwd, marker)));
 }
