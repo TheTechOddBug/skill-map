@@ -8,14 +8,17 @@
  * authoring, settings + view-slots), selectable from the in-skill menu.
  * Its `references/` sub-folder (read at runtime) ships alongside.
  *
- * The destination directory is NOT hardcoded to Claude: it is the
- * selected Provider's `scaffold.skillDir` (e.g. `.claude/skills` for
- * Claude, `.agents/skills` for the open standard). Provider selection:
+ * The destination directory is the selected Provider's
+ * `scaffold.skillDir` (`.claude/skills` for Claude). The mechanism is
+ * provider-agnostic, but coming-soon Providers (today `agent-skills`,
+ * `openai`, `antigravity`) are filtered out of the catalog, so only
+ * Claude is selectable right now. Provider selection:
  *
  *   - `--for <provider-id>` picks it explicitly (validated against the
- *     built-in Providers that declare `scaffold.skillDir`).
+ *     selectable, non-coming-soon Providers that declare `scaffold.skillDir`).
  *   - Without `--for` on an interactive stdin, the verb prompts with a
  *     numbered list (default: the first, Claude; empty answer accepts it).
+ *     With only Claude selectable today, there is no prompt.
  *   - Without `--for` on a non-interactive stdin (pipes, CI), the verb
  *     picks the default Provider (Claude), so it stays scriptable.
  *
@@ -125,7 +128,7 @@ export class TutorialCommand extends SmCommand {
   // the skill is materialised under, skipping the interactive prompt.
   forProvider = Option.String('--for', {
     required: false,
-    description: 'Destination provider id (e.g. claude, agent-skills). Skips the prompt.',
+    description: 'Destination provider id (e.g. claude). Skips the prompt.',
   });
 
   force = Option.Boolean('--force', false, {
@@ -175,9 +178,10 @@ export class TutorialCommand extends SmCommand {
 
     // Resolve which Provider territory to materialise into. Closed
     // catalog: the built-in Providers that declare a `scaffold.skillDir`
-    // (today `claude` → `.claude/skills`, `agent-skills` →
-    // `.agents/skills`). Pre-bootstrap, so this reads the built-in
-    // catalog directly and never touches `.skill-map/`.
+    // and are not coming-soon (today only `claude` → `.claude/skills`;
+    // `agent-skills` declares `.agents/skills` but is coming-soon, so it
+    // is filtered out). Pre-bootstrap, so this reads the built-in catalog
+    // directly and never touches `.skill-map/`.
     const targets = listScaffoldTargets();
     const target = await this.resolveScaffoldTarget(targets, stderrAnsi, errGlyph);
     if (target === null) return ExitCode.Error;
@@ -347,6 +351,10 @@ interface IScaffoldTarget {
  * lint complexity budget.
  */
 function toScaffoldTarget(provider: IProvider): IScaffoldTarget | null {
+  // Coming-soon Providers are not yet selectable destinations: they are
+  // skipped here so they never appear in the prompt nor resolve via
+  // `--for`. Only `claude` is offered today.
+  if (provider.presentation.comingSoon === true) return null;
   const scaffold = provider.scaffold;
   if (!scaffold || !scaffold.skillDir) return null;
   return {
