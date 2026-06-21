@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.61.2",
+      "date": "2026-06-21",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "The interactive tutorial now focuses on Claude only. Other assistants (Codex, Antigravity, agent-skills) show as \"coming soon\" instead of being offered as setup options.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.61.1",
       "date": "2026-06-19",
       "kind": "internal",

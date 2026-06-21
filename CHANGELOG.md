@@ -6,6 +6,14 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>0.61.2</b> · 2026-06-21</summary>
+
+### CLI Patch
+- The bundled `sm-tutorial` skill now demos the `claude` provider only; the other providers (`openai`/Codex, `agent-skills`/Antigravity) are presented as "coming soon". Provider detection always resolves to `claude`, the settings lens step drops the live switch to `openai` and shows only the auto-detected `claude` lens, and the project-kickoff markers prompt tells the tester the other lenses are coming soon. The `--provider` fixture plumbing stays wired so they drop in later.
+
+</details>
+
+<details>
 <summary><b>0.61.1</b> · 2026-06-19</summary>
 
 ### CLI Patch
