@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.61.5",
+      "date": "2026-06-21",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "The inspector now shows a \"TAGS:\" label on the tag row, so nodes with no tags read clearly instead of showing a lone edit pencil. The interactive tutorial's daily-loop part also got several narration and flow improvements.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.61.4",
       "date": "2026-06-21",
       "kind": "user-facing",
