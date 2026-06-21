@@ -324,11 +324,12 @@ describe('sm config set', () => {
     assert.deepEqual(written['activeProviderMarkers'], ['claude']);
   });
 
-  it('captures every detected marker (not just the picked lens id)', () => {
+  it('captures detected markers but excludes coming-soon providers', () => {
     const scope = freshScope('set-active-provider-multi');
     // Both `.claude/` AND `.codex/` exist on disk; operator picks
-    // claude. The snapshot must reflect BOTH markers detected at
-    // set-time, not just the one whose id was passed to `set`.
+    // claude. `openai` (the `.codex/` marker) is coming-soon, so
+    // auto-detect ignores it and it must NOT land in the snapshot:
+    // only selectable, non-coming-soon markers are captured.
     mkdirSync(join(scope.cwd, '.claude'), { recursive: true });
     mkdirSync(join(scope.cwd, '.codex'), { recursive: true });
     const r = sm(['config', 'set', 'activeProvider', 'claude'], scope);
@@ -337,12 +338,8 @@ describe('sm config set', () => {
       readFileSync(join(scope.cwd, '.skill-map', 'settings.json'), 'utf8'),
     ) as Record<string, unknown>;
     assert.equal(written['activeProvider'], 'claude');
-    // Snapshot reflects the full set of markers on disk at set-time,
-    // so a future drift only fires when reality moves AWAY from this.
-    assert.deepEqual(
-      (written['activeProviderMarkers'] as string[]).sort(),
-      ['claude', 'openai'],
-    );
+    // Coming-soon `openai` is filtered out; the snapshot is claude-only.
+    assert.deepEqual(written['activeProviderMarkers'], ['claude']);
   });
 });
 
