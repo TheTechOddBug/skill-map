@@ -131,14 +131,16 @@ element. Decide with §Provider detection:
 
 - `provider == claude` (Claude Code, blockquotes render as a styled
   left bar): emit tester-facing messages with `> ` on every line,
-  including blank lines inside a multi-paragraph block.
-- `provider != claude` (Antigravity CLI, agent-skills, any other
-  host: most non-Claude renderers show `>` as a literal character):
-  emit **plain prose**, NO `> ` prefix anywhere.
+  including blank lines inside a multi-paragraph block. This is the
+  only active path today.
+- `provider != claude` (coming soon: Antigravity CLI, agent-skills,
+  any other host where most non-Claude renderers show `>` as a
+  literal character): emit **plain prose**, NO `> ` prefix anywhere.
+  Kept as the wiring for the coming-soon providers; not exercised
+  while the tutorial demos `claude` only.
 
 Sample messages throughout the part files are written in the Claude
-variant (with `> `); strip the prefix when the host is non-Claude,
-the wording is unchanged.
+variant (with `> `).
 
 **The rule, in one line**: every tester-facing line of prose carries
 the `> ` bar in the Claude variant, context sentences, intros, tips,
@@ -257,41 +259,41 @@ on-disk convention:
 | Provider       | Base dir          | Kinds it claims             | Detect via env var(s)                                  |
 |----------------|-------------------|-----------------------------|--------------------------------------------------------|
 | `claude`       | `.claude/`        | `agent`, `command`, `skill` | `CLAUDECODE=1` OR `AI_AGENT` starts with `claude-code` |
-| `agent-skills` | `.agents/skills/` | `skill` only (vendor-neutral; also the on-disk home for Google's Antigravity CLI, which replaced the Gemini CLI on 2026-05-19 and adopted this open standard) | no formal env yet; opt-in if the tester says so |
-| `openai`       | `.codex/`         | `agent` (`.codex/agents/*.toml`) | no formal env yet; informational today |
+| `agent-skills` | `.agents/skills/` | `skill` only (vendor-neutral; also the on-disk home for Google's Antigravity CLI, which replaced the Gemini CLI on 2026-05-19 and adopted this open standard) | coming soon (not selectable in the tutorial yet) |
+| `openai`       | `.codex/`         | `agent` (`.codex/agents/*.toml`) | coming soon (not selectable in the tutorial yet) |
 
-**Decision logic, applied silently during pre-flight**:
+**Decision logic, applied silently during pre-flight**: the tutorial
+demonstrates the `claude` provider only. `agent-skills` and `openai`
+are **coming soon** and are not selectable here, so there is no
+runtime to detect or opt into.
 
-1. Inspect the agent's environment (`process.env`).
-2. Claude-flavoured var present → `provider = claude`,
-   `<provider_dir> = .claude`, kinds = `{agent, command, skill}`.
-3. Else if the tester says Antigravity / agent-skills (opt-in) →
-   `provider = agent-skills`, `<provider_dir> = .agents`, kinds =
-   `{skill}`.
-4. Else → **fallback to claude** AND surface one short message so
-   they can correct course (render `> ` if it turns out to be
-   Claude, plain prose if they correct you):
+1. `provider = claude`, `<provider_dir> = .claude`, kinds =
+   `{agent, command, skill}`. Always.
+2. Do NOT offer Antigravity / agent-skills / openai as an alternative,
+   and do NOT ask the tester which runtime hosts them. If a tester
+   says they use another runtime, acknowledge it briefly and explain
+   that those providers are coming soon, the tutorial demos `claude`
+   (`.claude/`) today:
 
-   > Heads up: I couldn't detect which agent runtime is hosting me,
-   > so I'll demo skill-map's Claude provider (`.claude/`). If you
-   > actually use Antigravity or agent-skills, tell me and I swap
-   > the fixture to `.agents/skills/`.
+   > Heads up: skill-map also reads Antigravity, agent-skills and
+   > Codex projects, but those providers are coming soon in this
+   > tutorial. We'll demo skill-map's Claude provider (`.claude/`)
+   > today.
 
 Persist `provider` into the state file (`tutorial.provider`) so a
-resumed session does not re-detect.
+resumed session does not re-detect. (It is always `claude` for now.)
 
 **Global substitution rule**: the fixture scripts do the file-level
 work. You pass `--provider <p>` (the value persisted in
 `tutorial.provider`) and `--lang <l>`, and they resolve the
 `__PROVIDER__` path token, skip files whose kind the provider does
 not claim, and report the adjusted `nodeCount` plus the `skipped`
-list in their summary. Your job is the **narration**: wherever a part
-file's tester-facing prose says `.claude/`, swap it for the detected
-`<provider_dir>`, and narrate the node count from the script summary
-(on `agent-skills` / Antigravity only the skill + markdown notes
-exist, so the count is lower and the agent / command beats fold
-away). The campaign cross-link chapters target `claude` today (see
-the reality check below).
+list in their summary. Today `provider` is always `claude`, so the
+narration uses `.claude/` throughout; the `--provider` plumbing stays
+wired so the coming-soon providers (`agent-skills` / Antigravity,
+`openai`) drop in later without a narrative rewrite. The campaign
+cross-link chapters target `claude` today (see the reality check
+below).
 
 **Reality check (don't mention to the tester)**: this skill ships
 at `.claude/skills/sm-tutorial/`, so Claude Code is the only host

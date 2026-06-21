@@ -122,24 +122,20 @@ catalog is closed.)
 
 Mark `settings-2-resolve: done`.
 
-## Step `settings-3-lens` - the active provider lens (~4 min)
+## Step `settings-3-lens` - the active provider lens (~2 min)
 
 **Context**: the single most consequential setting, the lens that
-decides which provider types the project's files. It is reversible
-and never touches your `.md` files, only the scan cache.
+decides which provider types the project's files. It auto-detects and
+never touches your `.md` files, only the scan cache.
 
 > One setting earns its own step: the **active provider lens**. A
 > skill-map project sees its filesystem through exactly **one**
 > provider at a time, and that lens decides how each file is read.
 > Under the `claude` lens a `.claude/agents/*.md` is an agent and
-> `@`-mentions / `/`-commands become links; point the lens at
-> `openai` and the same tree is read against Codex's layout instead.
-> Same files, different reading.
+> `@`-mentions / `/`-commands become links. Same files, one reading.
 
 > The lens auto-detects on the first scan from the markers in your
-> project (`.claude/` → claude, `.codex/` or a root `AGENTS.md` →
-> openai, `.agents/` → agent-skills). Scan once and check where it
-> landed:
+> project (`.claude/` → claude). Scan once and check where it landed:
 
 ```bash
 sm scan
@@ -151,39 +147,13 @@ Expected: the scan prints a line like `Auto-detected activeProvider
 .skill-map/settings.json`, and `get` then reports `claude`. The lens
 is just a key in `settings.json`, persisted like any other setting.
 
-> Now switch it by hand and watch what happens. We'll point it at
-> `openai`:
-
-```bash
-sm config set activeProvider openai
-```
-
-Expected: alongside the usual `✓  activeProvider = openai  (wrote
-.skill-map/settings.json)`, the CLI warns `Lens switched. Cleared 7
-scan table(s) ... Run sm scan to repopulate the graph under the new
-lens`. The important part: it cleared the **scan cache only**, your
-`.md` files are untouched. The graph is derived data; the source is
-always your filesystem.
-
-> Re-scan under the new lens, then put it back the way you found it:
-
-```bash
-sm scan
-sm config reset activeProvider
-sm scan
-```
-
-Expected: the first scan repopulates under `openai`; `reset` removes
-the key (`Removed activeProvider from .skill-map/settings.json`); the
-last scan auto-detects `claude` again from your `.claude/` marker.
-Back where you started, nothing lost.
-
-> That's the whole idea of the lens: one project, one active
-> provider at a time, chosen by `activeProvider` and backed by the
-> built-in provider plugins (`claude`, `openai`, `agent-skills`,
-> `antigravity`). Switching it is cheap and reversible because the
-> graph is always rebuilt from your files, never the other way
-> around.
+> Other lenses exist in the engine (`openai` for Codex,
+> `agent-skills`, `antigravity`), but they are **coming soon** in the
+> tutorial: today we demo the `claude` lens only. The idea to keep is
+> the one above, one project reads through exactly one provider at a
+> time, chosen by `activeProvider`. The lens is cheap to change later
+> because the graph is always rebuilt from your files, never the
+> other way around.
 
 Mark `settings-3-lens: done`.
 

@@ -35,9 +35,11 @@ marker for the `openai` lens) sitting next to the `.claude/` folder
 (the `claude` marker, where the tutorial skill itself lives). With two
 markers present, `sm init`'s first scan can NOT auto-pick a lens and
 asks the tester to choose (`⚠ Multiple provider markers detected`).
-The portfolio is a Claude project, so the answer is `claude`. The
-prompt is expected, blessed behaviour; the tester just needs to know
-which option to pick, so the message below previews it.
+The portfolio is a Claude project, so the answer is always `claude`,
+the other options the prompt lists (`openai`/Codex and friends) are
+coming soon in the tutorial and we do not walk them. The prompt is
+expected, blessed behaviour; the tester just needs to know which
+option to pick, so the message below previews it.
 
 ```bash
 sm init
@@ -52,8 +54,8 @@ Tell the tester:
 > site). skill-map maps that harness.
 >
 > Run `sm init`. If it asks you to pick a lens (`⚠ Multiple provider
-> markers detected`), choose `claude`, this is a Claude project. Then
-> run `sm` to boot the live UI.
+> markers detected`), choose `claude`, this is a Claude project (the
+> other lenses are coming soon). Then run `sm` to boot the live UI.
 >
 > Open the URL `sm` printed. You'll see **one node**: `AGENTS.md`,
 > the project's handbook (the operating manual for the site).
