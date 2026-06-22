@@ -152,16 +152,22 @@ export class SettingsProject {
   >(() => {
     const env = this.activeProviderEnvelope();
     const selectable = env ? new Set(env.selectable) : null;
-    return [
-      { id: '', label: SETTINGS_TEXTS.project.activeProviderEmptyOption, disabled: false },
-      ...this.providerRegistry.providers().map((p) => {
+    const providers = this.providerRegistry
+      .providers()
+      .map((p) => {
         const disabled = selectable !== null && !selectable.has(p.id);
         const suffix = p.comingSoon
           ? SETTINGS_TEXTS.project.activeProviderComingSoonSuffix
           : SETTINGS_TEXTS.project.activeProviderDisabledSuffix;
         const label = disabled ? `${p.label} ${suffix}` : p.label;
         return { id: p.id, label, disabled };
-      }),
+      })
+      // Enabled providers first, disabled/coming-soon sink to the bottom.
+      // Array.sort is stable, so relative registry order holds within each group.
+      .sort((a, b) => Number(a.disabled) - Number(b.disabled));
+    return [
+      { id: '', label: SETTINGS_TEXTS.project.activeProviderEmptyOption, disabled: false },
+      ...providers,
     ];
   });
 
