@@ -72,6 +72,65 @@ export function extractCodeRegions(input: string): string {
   return out;
 }
 
+// HTML comment, possibly multi-line: `<!-- ... -->`. Non-greedy so two
+// comments on one line stay separate. A markdown link commented out as
+// `<!-- [x](old.md) -->` must not reach a prose extractor as a real edge.
+const HTML_COMMENT_RE = /<!--[\s\S]*?-->/g;
+
+// HTML tag (open / close / self-closing): `<tag ...>`, `</tag>`, `<tag/>`.
+// The name MUST start with a letter, so `a < b` and `x <3 y` in prose are
+// left alone. Attribute values may carry `>` only inside quotes, so the
+// attribute run matches quoted strings explicitly before falling back to
+// any non-quote, non-`>` char. This blanks the tag token only (including
+// its attributes), never the content between an open and close tag, so a
+// `[x](y.md)` hiding in `<img alt="...">` is removed while markdown nested
+// inside a `<div>` block survives.
+const HTML_TAG_RE = /<\/?[a-zA-Z][a-zA-Z0-9-]*(?:\s+(?:"[^"]*"|'[^']*'|[^"'>])*)?\/?\s*>/g;
+
+/**
+ * Replace raw HTML (comments and tag tokens) with same-length whitespace,
+ * the HTML half of the strip policy. Mirrors `stripCodeBlocks`'s offset-
+ * and line-preserving contract so callers keep accurate `location` ranges.
+ *
+ * Why: markdown allows raw HTML, but no supported runtime renders it to
+ * follow `<a href>` or load `<img src>`; the `.md` reaches the LLM as
+ * text. References hidden in HTML are therefore not deterministic edges,
+ * exactly like `@handle` / `/command` inside backticks (see
+ * `context/runtime-quirks.md` §5). Two concrete bugs this closes:
+ *   - a link commented out as `<!-- [x](old.md) -->` no longer emits a
+ *     phantom edge;
+ *   - a `[x](y.md)`-shaped token hiding in an attribute value
+ *     (`<img alt="[see](ref.md)">`) no longer false-matches.
+ *
+ * Scope is deliberately bounded to comments + tag tokens, NOT the content
+ * between an open and close tag: markdown nested inside a `<div>` block is
+ * authored intent and must survive. Replicating CommonMark's full HTML-
+ * block algorithm is out of scope and would risk dropping real links.
+ *
+ * Kept INDEPENDENT of `stripCodeBlocks` on purpose: `extractCodeRegions`
+ * is defined as the diff against `stripCodeBlocks`, so folding HTML into
+ * it would make `core/backtick-path` treat HTML regions as code and
+ * resurrect their interior. HTML is not a code region.
+ */
+export function stripHtml(input: string): string {
+  if (!input) return input;
+  return input
+    .replace(HTML_COMMENT_RE, (m) => blank(m))
+    .replace(HTML_TAG_RE, (m) => blank(m));
+}
+
+/**
+ * The full prose-only mask every prose-side body extractor matches
+ * against: code regions blanked first (`stripCodeBlocks`), then raw HTML
+ * (`stripHtml`). Length, byte offsets, and line count are preserved end
+ * to end. `core/backtick-path` deliberately does NOT use this, it matches
+ * code regions via `extractCodeRegions`; every other body extractor
+ * (`markdown-link`, `external-url-counter`, `at-directive`, `slash`) does.
+ */
+export function stripCodeAndHtml(input: string): string {
+  return stripHtml(stripCodeBlocks(input));
+}
+
 function stripFences(input: string): string {
   const out: string[] = [];
   const lines = input.split('\n');

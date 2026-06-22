@@ -31,7 +31,7 @@
 
 import type { IBuiltInManifest, IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
 import type { IViewContribution, TSettingDeclaration } from '../../../../kernel/types/view-catalog.js';
-import { stripCodeBlocks } from '../../../../kernel/util/strip-code-blocks.js';
+import { stripCodeAndHtml } from '../../../../kernel/util/strip-code-blocks.js';
 import { computeLineStarts, lineFor } from '../../../../kernel/util/line-tracking.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
@@ -106,15 +106,15 @@ export const externalUrlCounterExtractor: IBuiltInManifest<IExtractor> = {
     // resolver, already validated to `string[]`). Lowercased once so the
     // per-URL hostname check is case-insensitive and deterministic.
     const ignoredDomains = readIgnoredDomains(ctx.settings[SETTING_IGNORED_DOMAINS]);
-    // Strip fenced blocks and inline code spans before matching so a
-    // URL written for documentation purposes (e.g. ``http://example.com``
-    // inside a README table) does NOT inflate the external-ref count.
-    // Mirrors the same guard `markdown-link`, `at-directive`, and
-    // `slash` already apply, see those extractors' headers for the
-    // shared rationale. `stripCodeBlocks` replaces code regions with
-    // same-length whitespace so the `lineFor` mapping below stays
-    // accurate.
-    const body = stripCodeBlocks(ctx.body);
+    // Strip fenced blocks, inline code spans, and raw HTML before matching
+    // so a URL written for documentation purposes (e.g. ``http://example.com``
+    // inside a README table) or sitting in an `<a href="http://...">` does
+    // NOT inflate the external-ref count. Mirrors the same guard
+    // `markdown-link`, `at-directive`, and `slash` already apply, see those
+    // extractors' headers for the shared rationale. `stripCodeAndHtml`
+    // replaces those regions with same-length whitespace so the `lineFor`
+    // mapping below stays accurate.
+    const body = stripCodeAndHtml(ctx.body);
     const lineStarts = computeLineStarts(body);
 
     for (const match of body.matchAll(URL_RE)) {

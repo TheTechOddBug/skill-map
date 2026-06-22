@@ -169,6 +169,16 @@ describe('slash extractor', () => {
     strictEqual(links.length, 0);
   });
 
+  it('does not match tokens inside HTML comments or attributes', async () => {
+    const { ctx: context, links } = ctx(
+      'a.md',
+      'Run /real-command. <!-- /ghost --> and <button data-cmd="/hidden">x</button>.',
+    );
+    await extract(slashCommandExtractor, context);
+    strictEqual(links.length, 1);
+    strictEqual(links[0]?.trigger?.originalTrigger, '/real-command');
+  });
+
   it('supports namespaced commands (/ns:verb)', async () => {
     const { ctx: context, links } = ctx('a.md', 'Run /skill-map:explore please.');
     await extract(slashCommandExtractor, context);
@@ -216,6 +226,16 @@ describe('at-directive extractor', () => {
     const { ctx: context, links } = ctx('a.md', '@Agent and @AGENT and @agent.');
     await extract(atDirectiveExtractor, context);
     strictEqual(links.length, 1);
+  });
+
+  it('does not match tokens inside HTML comments or attributes', async () => {
+    const { ctx: context, links } = ctx(
+      'a.md',
+      'Ask @real-agent. <!-- @ghost-agent --> and <span title="@hidden-agent">x</span>.',
+    );
+    await extract(atDirectiveExtractor, context);
+    strictEqual(links.length, 1);
+    strictEqual(links[0]?.trigger?.originalTrigger, '@real-agent');
   });
 
   it('emits the right manifest shape', () => {
@@ -518,6 +538,35 @@ describe('markdown-link extractor', () => {
     strictEqual(links.length, 0);
   });
 
+  it('skips markdown links commented out with an HTML comment', async () => {
+    const { ctx: context, links } = ctx(
+      'docs/overview.md',
+      'Live [a](./a.md) but <!-- [old](./old.md) --> is dead.',
+    );
+    await extract(markdownLinkExtractor, context);
+    strictEqual(links.length, 1);
+    strictEqual(links[0]?.target, 'docs/a.md');
+  });
+
+  it('skips link-shaped tokens hiding in an HTML attribute value', async () => {
+    const { ctx: context, links } = ctx(
+      'docs/overview.md',
+      'Diagram: <img src="d.png" alt="[see](./ref.md)"> here.',
+    );
+    await extract(markdownLinkExtractor, context);
+    strictEqual(links.length, 0);
+  });
+
+  it('keeps a markdown link nested between HTML block tags', async () => {
+    const { ctx: context, links } = ctx(
+      'docs/overview.md',
+      '<div align="center">\n\n[real](./real.md)\n\n</div>',
+    );
+    await extract(markdownLinkExtractor, context);
+    strictEqual(links.length, 1);
+    strictEqual(links[0]?.target, 'docs/real.md');
+  });
+
   it('still emits links outside code regions when a code span is present nearby', async () => {
     // Mixed case: one link inside a code span (skipped), another in
     // plain prose (emitted). Asserts the code-span strip is surgical,
@@ -576,6 +625,16 @@ describe('external-url-counter extractor', () => {
     const { ctx: context, links } = ctx(
       'docs/example.md',
       'Visit https://example.com, the literal `http://localhost:3000` is skipped.',
+    );
+    await extract(externalUrlCounterExtractor, context);
+    strictEqual(links.length, 1);
+    strictEqual(links[0]?.target, 'https://example.com/');
+  });
+
+  it('skips URLs inside HTML attributes and comments', async () => {
+    const { ctx: context, links } = ctx(
+      'docs/api.md',
+      'See https://example.com. <a href="https://hidden.com">x</a> <!-- https://ghost.com -->',
     );
     await extract(externalUrlCounterExtractor, context);
     strictEqual(links.length, 1);

@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import { strictEqual } from 'node:assert/strict';
 
-import { extractCodeRegions, stripCodeBlocks } from '../strip-code-blocks.js';
+import { extractCodeRegions, stripCodeAndHtml, stripCodeBlocks, stripHtml } from '../strip-code-blocks.js';
 
 describe('stripCodeBlocks', () => {
   it('returns empty input untouched', () => {
@@ -118,5 +118,85 @@ describe('extractCodeRegions', () => {
     const out = extractCodeRegions(input);
     strictEqual(/`x`/.test(out), true);
     strictEqual(/```bash/.test(out), true);
+  });
+
+  it('blanks HTML (independent of stripCodeBlocks, so the mask never resurrects it)', () => {
+    // Critical invariant: stripHtml is NOT folded into stripCodeBlocks, so
+    // a backticked path hiding next to HTML in the mask is unaffected and
+    // HTML never counts as a code region for backtick-path.
+    const input = 'A <a href="x">tag</a> and `refs/a.md`.';
+    const out = extractCodeRegions(input);
+    strictEqual(/href/.test(out), false); // HTML not a code region
+    strictEqual(out.includes('refs/a.md'), true); // backtick path survives
+  });
+});
+
+describe('stripHtml', () => {
+  it('returns empty input untouched', () => {
+    strictEqual(stripHtml(''), '');
+  });
+
+  it('leaves HTML-free prose unchanged', () => {
+    const input = 'See [a](b.md) and @handle, no html here.';
+    strictEqual(stripHtml(input), input);
+  });
+
+  it('blanks a markdown link commented out with an HTML comment', () => {
+    const input = 'Live [a](a.md) but <!-- [old](old.md) --> is dead.';
+    const out = stripHtml(input);
+    strictEqual(out.length, input.length);
+    strictEqual(/\[old\]/.test(out), false);
+    strictEqual(/old\.md/.test(out), false);
+    strictEqual(/\[a\]\(a\.md\)/.test(out), true); // real link survives
+  });
+
+  it('blanks a multi-line HTML comment but preserves line count', () => {
+    const input = ['Before.', '<!--', '[x](x.md)', '-->', 'After.'].join('\n');
+    const out = stripHtml(input);
+    strictEqual(out.split('\n').length, 5);
+    strictEqual(/x\.md/.test(out), false);
+    strictEqual(out.split('\n')[0], 'Before.');
+    strictEqual(out.split('\n')[4], 'After.');
+  });
+
+  it('blanks a link-shaped token hiding in an attribute value', () => {
+    const input = 'Img: <img src="d.png" alt="[see](ref.md)"> done.';
+    const out = stripHtml(input);
+    strictEqual(/\[see\]/.test(out), false);
+    strictEqual(/ref\.md/.test(out), false);
+    strictEqual(out.length, input.length);
+  });
+
+  it('blanks tag tokens but keeps markdown nested between open and close tags', () => {
+    const input = '<div align="center">\n\n[real](real.md)\n\n</div>';
+    const out = stripHtml(input);
+    strictEqual(/<div/.test(out), false);
+    strictEqual(/<\/div>/.test(out), false);
+    strictEqual(/\[real\]\(real\.md\)/.test(out), true);
+  });
+
+  it('handles `>` inside a quoted attribute value', () => {
+    const input = '<a title="a > b" href="x">';
+    const out = stripHtml(input);
+    strictEqual(out.trim(), '');
+    strictEqual(out.length, input.length);
+  });
+
+  it('does not treat non-tag `<` in prose as HTML', () => {
+    const input = 'If a < b and x <3 y then [k](k.md) holds.';
+    const out = stripHtml(input);
+    strictEqual(out, input);
+  });
+});
+
+describe('stripCodeAndHtml', () => {
+  it('blanks code regions and HTML in one pass, preserving length', () => {
+    const input = 'Run `@team` and <!-- [x](x.md) --> and <img alt="[y](y.md)"> but [z](z.md) stays.';
+    const out = stripCodeAndHtml(input);
+    strictEqual(out.length, input.length);
+    strictEqual(/@team/.test(out), false); // code span gone
+    strictEqual(/x\.md/.test(out), false); // html comment gone
+    strictEqual(/y\.md/.test(out), false); // attribute gone
+    strictEqual(/\[z\]\(z\.md\)/.test(out), true); // real prose link survives
   });
 });

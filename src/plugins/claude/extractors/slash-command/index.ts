@@ -5,10 +5,11 @@
  *
  * Matching rules:
  *
- * - **Code regions are stripped first** (`stripCodeBlocks`). Fenced
- *   blocks and inline code spans are author-marked literal payload,
- *   not invocation surface; Claude Code / Antigravity CLI / Cursor all read
- *   them the same way. Without this guard a paragraph like "run
+ * - **Code regions and raw HTML are stripped first** (`stripCodeAndHtml`).
+ *   Fenced blocks, inline code spans, and HTML (comments / tags) are
+ *   author-marked literal payload, not invocation surface; Claude Code /
+ *   Antigravity CLI / Cursor all read them the same way. Without this
+ *   guard a paragraph like "run
  *   `/scan` first" would emit a `/scan` link even when the author
  *   meant the literal token.
  * - Token must start with a standalone `/` (start-of-line or
@@ -31,7 +32,7 @@
  */
 
 import type { IBuiltInManifest, IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
-import { stripCodeBlocks } from '../../../../kernel/util/strip-code-blocks.js';
+import { stripCodeAndHtml } from '../../../../kernel/util/strip-code-blocks.js';
 import { computeLineStarts, lineFor } from '../../../../kernel/util/line-tracking.js';
 import { normalizeTrigger } from '../../../../kernel/trigger-normalize.js';
 import { CLAUDE_PLUGIN_ID } from '../../../ids.js';
@@ -78,7 +79,7 @@ export const slashCommandExtractor: IBuiltInManifest<IExtractor> = {
 
   extract(ctx: IExtractorContext): void {
     const seen = new Set<string>();
-    const body = stripCodeBlocks(ctx.body);
+    const body = stripCodeAndHtml(ctx.body);
     const lineStarts = computeLineStarts(body);
 
     for (const match of body.matchAll(SLASH_RE)) {

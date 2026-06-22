@@ -18,9 +18,9 @@
  *     these as `references` (matching `markdown-link` / file-path
  *     links) puts them in the right semantic bucket: the operator
  *     wanted a pointer to a file, not a mention to a named entity.
- *   - Tokens inside fenced code blocks or inline backticks are
- *     skipped entirely (`stripCodeBlocks`), matching how runtimes
- *     read code regions as literal payload.
+ *   - Tokens inside fenced code blocks, inline backticks, or raw HTML
+ *     (comments / tags) are skipped entirely (`stripCodeAndHtml`),
+ *     matching how runtimes read those regions as literal payload.
  *
  * Matching rules carried over from the prior version:
  *
@@ -37,7 +37,7 @@
 import { posix as pathPosix } from 'node:path';
 
 import type { IBuiltInManifest, IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
-import { stripCodeBlocks } from '../../../../kernel/util/strip-code-blocks.js';
+import { stripCodeAndHtml } from '../../../../kernel/util/strip-code-blocks.js';
 import { computeLineStarts, lineFor } from '../../../../kernel/util/line-tracking.js';
 import { normalizeTrigger } from '../../../../kernel/trigger-normalize.js';
 import { CLAUDE_PLUGIN_ID } from '../../../ids.js';
@@ -82,7 +82,7 @@ export const atDirectiveExtractor: IBuiltInManifest<IExtractor> = {
   extract(ctx: IExtractorContext): void {
     const seenMentions = new Set<string>();
     const seenReferences = new Set<string>();
-    const body = stripCodeBlocks(ctx.body);
+    const body = stripCodeAndHtml(ctx.body);
     const lineStarts = computeLineStarts(body);
     // POSIX dirname of the source node, used to resolve `./` and `../`
     // path-style targets the same way `core/markdown-link` does. The

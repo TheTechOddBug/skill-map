@@ -58,7 +58,7 @@
 import { posix as pathPosix } from 'node:path';
 
 import type { IBuiltInManifest, IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
-import { stripCodeBlocks } from '../../../../kernel/util/strip-code-blocks.js';
+import { stripCodeAndHtml } from '../../../../kernel/util/strip-code-blocks.js';
 import { computeLineStarts, lineFor } from '../../../../kernel/util/line-tracking.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
@@ -89,13 +89,15 @@ export const markdownLinkExtractor: IBuiltInManifest<IExtractor> = {
 
   extract(ctx: IExtractorContext): void {
     const seen = new Set<string>();
-    // Fenced blocks and inline code spans are literal payload, not link
-    // surface. The sibling `at-directive` and `slash` extractors already
-    // strip these; markdown-link must too, otherwise a `[label](path.md)`
-    // shown inside backticks (as documentation example) gets emitted as
-    // a real link. `stripCodeBlocks` replaces code regions with same-
-    // length whitespace, so line numbers remain accurate for `location`.
-    const body = stripCodeBlocks(ctx.body);
+    // Fenced blocks, inline code spans, and raw HTML are literal payload,
+    // not link surface. The sibling `at-directive` and `slash` extractors
+    // strip the same regions; markdown-link must too, otherwise a
+    // `[label](path.md)` shown inside backticks (a documentation example),
+    // commented out as `<!-- [x](path.md) -->`, or hiding in an attribute
+    // (`<img alt="[x](path.md)">`) gets emitted as a real link.
+    // `stripCodeAndHtml` replaces those regions with same-length
+    // whitespace, so line numbers remain accurate for `location`.
+    const body = stripCodeAndHtml(ctx.body);
     const lineStarts = computeLineStarts(body);
     const sourceDir = pathPosix.dirname(ctx.node.path);
 

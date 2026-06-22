@@ -180,7 +180,7 @@
     "files": {
       "CHANGELOG.md": "3c44981379253010e1181af77ae3d5910a5037a013d2a49fba870e8a31338a70",
       "README.md": "a790cd010b46d47883d1f37e3893cea9d7aa69ec4750c0202e6a0c99991e7980",
-      "architecture.md": "dd067342f87432eea095aea869db62bd2f8fc3ef02ec070f5c15290d2b138808",
+      "architecture.md": "5eb1b54e66b3db3d28091830a9a990e94dc72b4488f94ab9506cd509aa884e8b",
       "cli-contract.md": "bfcc200fb085270cb425bb8692be51f4adf48dce4eb483e0632a05a658470b5a",
       "conformance/README.md": "dcbef7249f161acf597552a05dcadc813cd0ced430dcd3f813fcf5e1c876335d",
       "conformance/cases/backtick-path-extraction.json": "4620e7f8bc161fc57cb44001e9d99879c7e22b4865a0c27a20dc28969cd936d9",
@@ -233,7 +233,7 @@
       "interfaces/security-scanner.md": "0996dd782e2d39d4791f2e290da4bb1a68a5b30c1f79187977188ec8e3fe6ef2",
       "job-events.md": "2c7017f5f0003b19653424111a07043487173cbe88b51e961598bb1693987059",
       "job-lifecycle.md": "ce33bc8bb5090ea183f860e495bfccc2a4a0ac2e23f6ebad83b9c28aad59124e",
-      "plugin-author-guide.md": "1eb52e9eadb1c196b0c2d749b9e5a74d32a048530f794f6419f6d2407622a43c",
+      "plugin-author-guide.md": "45c7da2293372c9781117f0ed1a2c1e1eb9a0da89f32fa7ed64e70d6379ed20a",
       "plugin-kv-api.md": "5e095581020043af73ff028e272f56d42ca9eb6e506dd777d45703f9db796a5b",
       "plugin-quickstart.md": "19092b278d80df357ea623dc3bd9f833d059582ee1356f317621913d91e50512",
       "prompt-preamble.md": "5d0f836688aa23eafc32104c3174132340b268361f6060326eec84da17c6ad6d",

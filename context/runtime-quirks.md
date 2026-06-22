@@ -99,12 +99,21 @@ shape (§3).
 
 `src/kernel/util/strip-code-blocks.ts` replaces fenced blocks and
 inline spans with same-length whitespace before any body extractor
-matches. Callers (`core/markdown-link`, `core/external-url-counter`,
-`claude/slash-command`, `claude/at-directive`) inherit the policy uniformly.
-Do not bypass `stripCodeBlocks` to "recover" tokens hidden inside
-backticks; for invocation tokens (`@handle`, `/command`, URLs) the
-discard is correct because the runtime never resolves them from code
-regions.
+matches (`stripCodeBlocks`), and `stripHtml` does the same for raw HTML
+(comments + tag tokens). The prose-side extractors (`core/markdown-link`,
+`core/external-url-counter`, `claude/slash-command`, `claude/at-directive`)
+call the composed `stripCodeAndHtml` so both regions are masked uniformly.
+Do not bypass it to "recover" tokens hidden inside backticks or HTML;
+for invocation tokens (`@handle`, `/command`, URLs) the discard is
+correct because the runtime never resolves them from code regions, and
+the same logic extends to references buried in HTML (no runtime renders
+the `.md`'s HTML to follow `<a href>` / load `<img src>`). The HTML
+strip is bounded to comments and tag tokens, never the content between
+an open and close tag, so markdown nested in a `<div>` block survives.
+It is kept independent of `stripCodeBlocks`: `extractCodeRegions` is the
+diff against `stripCodeBlocks`, so folding HTML in would make
+`core/backtick-path` resurrect HTML interiors as code regions. HTML is
+not a code region.
 
 **The one sanctioned exception: relative `.md` file paths.** The
 original "the runtime would never follow them" rationale is FALSE for
