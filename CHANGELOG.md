@@ -6,6 +6,14 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>0.61.5</b> · 2026-06-21</summary>
+
+### CLI Patch
+- Tutorial and inspector polish. The bundled `sm-tutorial` daily-loop part merges the styling and preview chapters into one, serves the site from a third terminal, clarifies the frontmatter rename, reframes the publish confirmation, invites the tester to keep building, and adds a confidence note; the `content-editor` agent uses a free image placeholder. The inspector's tag row gains a `TAGS:` title so a node with no tags no longer shows a lone pencil.
+
+</details>
+
+<details>
 <summary><b>0.61.4</b> · 2026-06-21</summary>
 
 ### CLI Patch
