@@ -24,7 +24,9 @@ import { type Observable, firstValueFrom } from 'rxjs';
 
 import { DATA_SOURCE_TEXTS } from '../../i18n/data-source.texts';
 import type {
+  IBranchResponseApi,
   IErrorEnvelopeApi,
+  IFolderNodeLite,
   IHealthResponseApi,
   IIssueApi,
   IKindRegistryApi,
@@ -120,6 +122,53 @@ export class RestDataSource implements IDataSourcePort {
       this.listNodes({ limit: 0 }).catch(() => null),
     ]);
     return scan;
+  }
+
+  /**
+   * Lazy boot: scalar scan meta + stats only (`?meta=1`). The response
+   * is the raw `ScanResult` (no envelope), so it carries no registry,
+   * the lazy `loadFolders()` round-trip (an envelope) primes the
+   * registries instead. EMPTY `nodes` / `links` / `issues` arrays keep
+   * the payload tiny.
+   */
+  async loadScanMeta(): Promise<IScanResultApi> {
+    return this.getJson<IScanResultApi>(`${BASE}/scan?meta=1`);
+  }
+
+  /**
+   * Lazy boot: whole-corpus lite node list (`/api/folders`). The list
+   * envelope carries the kind / provider / contributions registries, so
+   * ingesting it here primes the SPA's registries before first paint.
+   */
+  async loadFolders(): Promise<IFolderNodeLite[]> {
+    const envelope = await this.getJson<IListEnvelopeApi<IFolderNodeLite>>(
+      `${BASE}/folders`,
+    );
+    this.ingestRegistry(envelope.kindRegistry);
+    this.ingestContributionsRegistry(envelope.contributionsRegistry);
+    this.ingestProviderRegistry(envelope.providerRegistry);
+    return envelope.items;
+  }
+
+  /**
+   * Lazy branch fetch for the graph map (`/api/branch`). Direct shape
+   * (no envelope, like `/api/scan`), so it carries no registry, that is
+   * primed by `loadFolders()` at boot. `paths` is the multi-prefix
+   * selection: each prefix is appended as a repeated `?path=` param so
+   * the server returns their UNION; an empty array omits the param
+   * entirely (= whole corpus). `limit` (when set) can only lower the
+   * server cap.
+   */
+  async loadBranch(paths: string[] = [], limit?: number): Promise<IBranchResponseApi> {
+    const params = new URLSearchParams();
+    for (const path of paths) {
+      if (path) params.append('path', path);
+    }
+    if (limit !== undefined) params.set('limit', String(limit));
+    const query = params.toString();
+    return this.getJson<IBranchResponseApi>(
+      `${BASE}/branch${query ? `?${query}` : ''}`,
+    );
   }
 
   async runScan(): Promise<IScanResultApi> {

@@ -69,6 +69,9 @@ export function registerScanRoute(app: Hono, deps: IScanRouteDeps): void {
     if (parseBooleanFlag(c.req.query('fresh'))) {
       return c.json(await runFreshScan(deps));
     }
+    if (parseBooleanFlag(c.req.query('meta'))) {
+      return c.json(await loadPersistedScanMeta(deps));
+    }
     return c.json(await loadPersistedScan(deps));
   });
 
@@ -118,9 +121,11 @@ async function runPersistedScan(c: Context, deps: IScanRouteDeps): Promise<Respo
         // the operator via the Settings UI (PATCH /api/active-provider)
         // before the scan, not via interactive prompt here.
         yes: true,
-        // `--max-nodes` from the `sm serve` invocation (or the bare
-        // `sm --max-nodes <N>` shortcut) flows through to every scan
-        // the BFF runs so the override is honoured end-to-end.
+        // `--max-scan` (walk ceiling) and `--max-nodes` (render cap)
+        // from the `sm serve` invocation (or the bare `sm --max-scan
+        // <N>` / `sm --max-nodes <N>` shortcut) flow through to every
+        // scan the BFF runs so both overrides are honoured end-to-end.
+        ...(deps.options.maxScan !== undefined ? { maxScan: deps.options.maxScan } : {}),
         ...(deps.options.maxNodes !== undefined ? { maxNodes: deps.options.maxNodes } : {}),
       });
       if (outcome.kind !== 'ok') {
@@ -152,6 +157,26 @@ async function buildBffResolverOverride(deps: IRouteDeps): Promise<(id: string) 
     effectiveConfig: () => deps.configService.effective(),
     fallbackResolver: deps.pluginRuntime.resolveEnabled,
   });
+}
+
+// Metadata-only read for `GET /api/scan?meta=1`. Returns the scan
+// envelope with empty `nodes` / `links` / `issues` arrays (and real
+// `COUNT(*)` stats) so the SPA hydrates its header + banners at boot
+// without the full-corpus payload. No node decoration (favorites /
+// contributions / tags) because there are no nodes in the response.
+async function loadPersistedScanMeta(deps: IRouteDeps): Promise<ScanResult> {
+  const opened = await tryWithSqlite(
+    {
+      databasePath: deps.options.dbPath,
+      autoBackup: false,
+      versionCheck: { currentVersion: VERSION, printer: bffVersionCheckPrinter },
+    },
+    async (adapter) => adapter.scans.loadMeta(),
+  );
+  if (opened === null) {
+    return emptyScanResult();
+  }
+  return opened;
 }
 
 async function loadPersistedScan(deps: IRouteDeps): Promise<ScanResult> {
@@ -281,8 +306,10 @@ async function runFreshScan(deps: IRouteDeps): Promise<ScanResult> {
     // BFF has no TTY; ambiguous activeProvider is the operator's
     // problem to resolve via the Settings UI, not via prompt here.
     yes: true,
-    // Carry `--max-nodes` from `sm serve` into the fresh-scan path
-    // too so a UI-driven refresh honours the same cap as the watcher.
+    // Carry `--max-scan` (walk ceiling) and `--max-nodes` (render cap)
+    // from `sm serve` into the fresh-scan path too so a UI-driven
+    // refresh honours the same knobs as the watcher.
+    ...(deps.options.maxScan !== undefined ? { maxScan: deps.options.maxScan } : {}),
     ...(deps.options.maxNodes !== undefined ? { maxNodes: deps.options.maxNodes } : {}),
   });
   if (outcome.kind !== 'ok') {
@@ -337,12 +364,14 @@ function emptyScanResult(): ScanResult {
     scannedAt: Date.now(),
     roots: ['.'],
     providers: [],
-    // Surface the design default so the SPA reads the same field shape
-    // on cold boot as on populated DBs. 256 mirrors `scan.maxNodes`
-    // from `src/config/defaults.json`; the temporary testing default
-    // (2) only applies after a real scan walks through the kernel.
-    recommendedNodeLimit: 256,
-    overrideMaxNodes: null,
+    // Surface the design defaults so the SPA reads the same field shape
+    // on cold boot as on populated DBs. 50000 mirrors `scan.maxScan`
+    // (the walk ceiling) and 256 mirrors `scan.maxNodes` (the render
+    // cap), both from `src/config/defaults.json`. A real scan
+    // overwrites these with the live values on next run.
+    scanCeiling: 50000,
+    scanTruncated: false,
+    maxRenderNodes: 256,
     nodes: [],
     links: [],
     issues: [],

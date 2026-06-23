@@ -83,10 +83,19 @@ export interface IRunWatchOptions {
    */
   maxConsecutiveFailures?: number;
   /**
-   * Per-invocation override of `scan.maxNodes` (`--max-nodes <N>`).
-   * Passed through to `ICreateWatcherRuntimeOpts.maxNodesOverride`;
-   * `undefined` means "no override". Bidirectional: any positive
-   * integer replaces the setting for every batch this watcher fires.
+   * Per-invocation override of `scan.maxScan` (`--max-scan <N>`), the
+   * WALK-INTAKE ceiling. Passed through to
+   * `ICreateWatcherRuntimeOpts.maxScanOverride`; `undefined` means "no
+   * override". Bidirectional: any positive integer replaces the setting
+   * for every batch this watcher fires.
+   */
+  maxScan?: number;
+  /**
+   * Per-invocation override of `scan.maxNodes` (`--max-nodes <N>`), the
+   * MAP RENDER cap (does NOT bound the walk). Passed through to
+   * `ICreateWatcherRuntimeOpts.maxNodesOverride`; `undefined` means "no
+   * override". Bidirectional: any positive integer replaces the setting
+   * for every batch this watcher fires.
    */
   maxNodes?: number;
 }
@@ -193,6 +202,7 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
     circuitBreaker: { maxConsecutiveFailures: breakerLimit },
     killSwitches: readConformanceKillSwitches(),
     ...(opts.maxBatches !== undefined ? { maxBatches: opts.maxBatches } : {}),
+    ...(opts.maxScan !== undefined ? { maxScanOverride: opts.maxScan } : {}),
     ...(opts.maxNodes !== undefined ? { maxNodesOverride: opts.maxNodes } : {}),
     events: {
       onBatch: (outcome) => {
@@ -346,10 +356,15 @@ export class WatchCommand extends SmCommand {
     description:
       'Shut down with exit 2 after N consecutive batch failures (default 5; 0 disables the breaker).',
   });
+  maxScan = Option.String('--max-scan', {
+    required: false,
+    description:
+      'Per-batch override of scan.maxScan (default 50000), the WALK-INTAKE ceiling. The scan walks, parses, analyzes, and reference-validates the full corpus up to this number. Bidirectional: raises OR lowers the ceiling. When a batch hits it, additional files are dropped in stable order and the UI surfaces the persistent truncation banner. Validation: integer >= 1.',
+  });
   maxNodes = Option.String('--max-nodes', {
     required: false,
     description:
-      'Per-batch override of scan.maxNodes (default 256). Bidirectional: raises OR lowers the recommended cap on classified nodes. When a batch hits the cap, additional files are dropped and the UI surfaces the persistent oversized banner. Validation: integer >= 1.',
+      'Per-batch override of scan.maxNodes (default 256), the MAP RENDER cap (pure metadata): it does NOT bound the scan, only the graph projection. Bidirectional: raises OR lowers the render cap. Validation: integer >= 1.',
   });
 
   // Long-running verb, the watcher prints its own "stopped" line on
@@ -360,6 +375,8 @@ export class WatchCommand extends SmCommand {
     const roots = this.roots.length > 0 ? this.roots : ['.'];
     const breaker = parseBreakerLimit(this.maxConsecutiveFailures, this.context.stderr, this.noColor);
     if (breaker === null) return ExitCode.Error;
+    const maxScan = parseMaxScanLimit(this.maxScan, this.context.stderr, this.noColor);
+    if (maxScan === null) return ExitCode.Error;
     const maxNodes = parseMaxNodesLimit(this.maxNodes, this.context.stderr, this.noColor);
     if (maxNodes === null) return ExitCode.Error;
     const watchOpts: IRunWatchOptions = {
@@ -374,6 +391,7 @@ export class WatchCommand extends SmCommand {
       printer: this.printer!,
     };
     if (breaker !== undefined) watchOpts.maxConsecutiveFailures = breaker;
+    if (maxScan !== undefined) watchOpts.maxScan = maxScan;
     if (maxNodes !== undefined) watchOpts.maxNodes = maxNodes;
     return runWatchLoop(watchOpts);
   }
@@ -408,10 +426,38 @@ function parseBreakerLimit(
 }
 
 /**
- * Parse the raw `--max-nodes <n>` flag value. Returns `undefined` when
- * the flag is absent (caller falls through to `scan.maxNodes` per-batch),
- * `null` when the value is invalid (caller exits 2), or the parsed
- * positive integer otherwise.
+ * Parse the raw `--max-scan <n>` flag value (the walk ceiling). Returns
+ * `undefined` when the flag is absent (caller falls through to
+ * `scan.maxScan` per-batch), `null` when the value is invalid (caller
+ * exits 2), or the parsed positive integer otherwise.
+ */
+function parseMaxScanLimit(
+  raw: string | undefined,
+  stderr: NodeJS.WritableStream,
+  noColor: boolean,
+): number | undefined | null {
+  if (raw === undefined) return undefined;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1) {
+    const stderrTty = stderr as NodeJS.WriteStream & { isTTY?: boolean };
+    const ansi = ansiFor({ isTTY: stderrTty.isTTY === true, noColorFlag: noColor });
+    stderr.write(
+      tx(WATCH_TEXTS.maxScanInvalid, {
+        glyph: ansi.red('✕'),
+        raw,
+        hint: ansi.dim(WATCH_TEXTS.maxScanInvalidHint),
+      }),
+    );
+    return null;
+  }
+  return n;
+}
+
+/**
+ * Parse the raw `--max-nodes <n>` flag value (the render cap). Returns
+ * `undefined` when the flag is absent (caller falls through to
+ * `scan.maxNodes` per-batch), `null` when the value is invalid (caller
+ * exits 2), or the parsed positive integer otherwise.
  */
 function parseMaxNodesLimit(
   raw: string | undefined,

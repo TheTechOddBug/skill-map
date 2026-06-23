@@ -10,11 +10,12 @@ import type { IScanResultApi } from '../../../../models/api';
 
 /**
  * Fake `CollectionLoaderService` exposing only the surface the banner
- * reads (`scan()`). Replacement keeps the test isolated from data-source
- * wiring and lets each case toggle the scan envelope explicitly.
+ * reads (`scanMeta()`, the corpus-wide source for skipped-for-size
+ * files). Replacement keeps the test isolated from data-source wiring
+ * and lets each case toggle the meta envelope explicitly.
  */
-function fakeLoader(initial: IScanResultApi | null): { scan: ReturnType<typeof signal<IScanResultApi | null>> } {
-  return { scan: signal<IScanResultApi | null>(initial) };
+function fakeLoader(initial: IScanResultApi | null): { scanMeta: ReturnType<typeof signal<IScanResultApi | null>> } {
+  return { scanMeta: signal<IScanResultApi | null>(initial) };
 }
 
 /**

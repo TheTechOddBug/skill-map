@@ -104,13 +104,25 @@ export interface IServerOptions {
   watcherDebounceMs?: number | undefined;
 
   /**
+   * Per-invocation override of `scan.maxScan` (default 50000). Mirror
+   * of the `--max-scan <N>` flag on `sm serve` (and the bare `sm`
+   * invocation, see `cli/entry.ts`). This is the WALK-INTAKE ceiling.
+   * When set, every scan the server runs (boot watcher initial pass,
+   * debounced batches, `POST /api/scan`, `GET /api/scan?fresh=1`) walks
+   * the full corpus up to this number. Bidirectional: any positive
+   * integer fully replaces the ceiling for the duration of the server
+   * session.
+   */
+  maxScan?: number | undefined;
+
+  /**
    * Per-invocation override of `scan.maxNodes` (default 256). Mirror
    * of the `--max-nodes <N>` flag on `sm serve` (and the bare `sm`
-   * invocation, see `cli/entry.ts`). When set, every scan the server
-   * runs (boot watcher initial pass, debounced batches,
-   * `POST /api/scan`, `GET /api/scan?fresh=1`) is bound by the
-   * override. Bidirectional: any positive integer fully replaces the
-   * recommended limit for the duration of the server session.
+   * invocation, see `cli/entry.ts`). This is the MAP RENDER cap, pure
+   * metadata that does NOT bound the walk. When set, every scan the
+   * server runs records this render cap. Bidirectional: any positive
+   * integer fully replaces the render cap for the duration of the
+   * server session.
    */
   maxNodes?: number | undefined;
 }
@@ -127,6 +139,7 @@ export interface IServerOptionsInput {
   devCors?: boolean | undefined;
   noWatcher?: boolean | undefined;
   watcherDebounceMs?: number | undefined;
+  maxScan?: number | undefined;
   maxNodes?: number | undefined;
 }
 
@@ -137,6 +150,7 @@ export type TServerOptionsErrorCode =
   | 'host-dev-cors-rejected'
   | 'watcher-requires-pipeline'
   | 'watcher-debounce-invalid'
+  | 'max-scan-invalid'
   | 'max-nodes-invalid'
   | 'no-ui-conflicts-ui-dist';
 
@@ -180,6 +194,9 @@ export function validateServerOptions(input: IServerOptionsInput): TServerOption
   const debounceError = validateWatcherDebounce(input.watcherDebounceMs);
   if (debounceError !== null) return { ok: false, error: debounceError };
 
+  const maxScanError = validateMaxScan(input.maxScan);
+  if (maxScanError !== null) return { ok: false, error: maxScanError };
+
   const maxNodesError = validateMaxNodes(input.maxNodes);
   if (maxNodesError !== null) return { ok: false, error: maxNodesError };
 
@@ -200,6 +217,9 @@ export function validateServerOptions(input: IServerOptionsInput): TServerOption
   };
   if (input.watcherDebounceMs !== undefined) {
     options.watcherDebounceMs = input.watcherDebounceMs;
+  }
+  if (input.maxScan !== undefined) {
+    options.maxScan = input.maxScan;
   }
   if (input.maxNodes !== undefined) {
     options.maxNodes = input.maxNodes;
@@ -311,6 +331,18 @@ function validateWatcherDebounce(value: number | undefined): IServerOptionsError
     return {
       code: 'watcher-debounce-invalid',
       message: `--watcher-debounce-ms must be a non-negative integer (got ${value})`,
+      value: String(value),
+    };
+  }
+  return null;
+}
+
+function validateMaxScan(value: number | undefined): IServerOptionsError | null {
+  if (value === undefined) return null;
+  if (!Number.isInteger(value) || value < 1) {
+    return {
+      code: 'max-scan-invalid',
+      message: `--max-scan must be an integer >= 1 (got ${value})`,
       value: String(value),
     };
   }

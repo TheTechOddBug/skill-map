@@ -1,0 +1,15 @@
+@if (visible()) {
+  <div
+    class="branch-cap-banner"
+    role="status"
+    data-testid="branch-cap-banner"
+  >
+    <span
+      class="branch-cap-banner__icon pi pi-info-circle"
+      aria-hidden="true"
+    ></span>
+    <p class="branch-cap-banner__body" data-testid="branch-cap-banner-body">
+      {{ state().body }}
+    </p>
+  </div>
+}

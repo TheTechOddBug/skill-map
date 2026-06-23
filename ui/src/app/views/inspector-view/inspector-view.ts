@@ -313,7 +313,9 @@ export class InspectorView implements OnInit {
   );
 
   ngOnInit(): void {
-    if (this.loader.nodes().length === 0 && !this.loader.loading()) {
+    // Boot guard keyed on `scanMeta()` (the cheapest lazy fetch) so a
+    // branch with zero rendered nodes does not re-trigger the boot load.
+    if (this.loader.scanMeta() === null && !this.loader.loading()) {
       void this.loader.load();
     }
   }

@@ -174,13 +174,25 @@ export interface IScanRunOpts {
     dim?: (s: string) => string;
   };
   /**
+   * Per-invocation override of `scan.maxScan` (from the `--max-scan
+   * <N>` flag on `sm scan` / `sm refresh` / `sm watch`). This is the
+   * WALK-INTAKE ceiling: the scan walks, parses, analyzes, and
+   * reference-validates the full corpus up to this number, dropping
+   * extra files in stable order past it. Bidirectional: any positive
+   * integer replaces the setting for this scan. Omit / `undefined`
+   * means "no override", `scan.maxScan` from settings applies. The
+   * runner forwards both values to the orchestrator so
+   * `ScanResult.scanCeiling` / `ScanResult.scanTruncated` are populated.
+   */
+  maxScan?: number;
+  /**
    * Per-invocation override of `scan.maxNodes` (from the `--max-nodes
-   * <N>` flag on `sm scan` / `sm refresh` / `sm watch`). Bidirectional:
+   * <N>` flag on `sm scan` / `sm refresh` / `sm watch`). This is the MAP
+   * RENDER cap, pure metadata that does NOT bound the walk. Bidirectional:
    * any positive integer replaces the setting for this scan. Omit /
-   * `undefined` means "no override", the recommended limit from
-   * settings applies. The runner forwards both values to the
-   * orchestrator so `ScanResult.recommendedNodeLimit` and
-   * `ScanResult.overrideMaxNodes` are populated.
+   * `undefined` means "no override", `scan.maxNodes` from settings
+   * applies. The runner forwards both values to the orchestrator so
+   * `ScanResult.maxRenderNodes` is populated.
    */
   maxNodes?: number;
 }
@@ -284,6 +296,7 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<TScanRunRes
     referenceablePaths,
     ctx.cwd,
     activeProvider,
+    cfg.scan.maxScan,
     cfg.scan.maxNodes,
     cfg.scan.maxFileSizeBytes,
     cfg.tokenizer,
@@ -540,7 +553,8 @@ function makeScanRunner(
   referenceablePaths: ReadonlySet<string> | undefined,
   scanCwd: string,
   activeProvider: string | null,
-  recommendedNodeLimit: number,
+  scanCeiling: number,
+  maxRenderNodes: number,
   maxFileSizeBytes: number,
   tokenizer: string,
 ) {
@@ -570,7 +584,8 @@ function makeScanRunner(
       cwd: scanCwd,
       prior,
       activeProvider,
-      recommendedNodeLimit,
+      scanCeiling,
+      maxRenderNodes,
       maxFileSizeBytes,
       tokenizer,
       ...(priorExtractorRuns ? { priorExtractorRuns } : {}),
@@ -589,7 +604,8 @@ interface IBuildRunScanOptionsArgs {
   cwd: string;
   prior: ScanResult | null;
   activeProvider: string | null;
-  recommendedNodeLimit: number;
+  scanCeiling: number;
+  maxRenderNodes: number;
   maxFileSizeBytes: number;
   tokenizer: string;
   priorExtractorRuns?: Map<string, Map<string, IPriorExtractorRun>>;
@@ -612,8 +628,10 @@ function buildRunScanOptions(args: IBuildRunScanOptionsArgs): Parameters<typeof 
     strict: args.strict,
     emitter: buildRunScanEmitter(opts),
     activeProvider: args.activeProvider,
-    recommendedNodeLimit: args.recommendedNodeLimit,
-    overrideMaxNodes: opts.maxNodes ?? null,
+    scanCeiling: args.scanCeiling,
+    overrideScanCeiling: opts.maxScan ?? null,
+    maxRenderNodes: args.maxRenderNodes,
+    overrideMaxRenderNodes: opts.maxNodes ?? null,
     maxFileSizeBytes: args.maxFileSizeBytes,
   };
   if (args.extensions) runOptions.extensions = args.extensions;

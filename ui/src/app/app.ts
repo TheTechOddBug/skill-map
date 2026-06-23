@@ -11,6 +11,7 @@ import { SETTINGS_TEXTS } from '../i18n/settings.texts';
 import { THEME_TEXTS } from '../i18n/theme.texts';
 import { UPDATE_CHECK_TEXTS } from '../i18n/update-check.texts';
 import { CollectionLoaderService } from '../services/collection-loader';
+import { WsEventStreamService } from '../services/ws-event-stream';
 import { analyzeLinks } from './views/graph-view/graph-layout';
 import { ProjectInfoService } from './services/project-info';
 import { ScanTriggerService } from './services/scan-trigger';
@@ -40,6 +41,7 @@ export class App {
   private readonly projectInfo = inject(ProjectInfoService);
   private readonly providerRegistry = inject(ProviderRegistryService);
   private readonly scanTrigger = inject(ScanTriggerService);
+  private readonly wsEvents = inject(WsEventStreamService);
   private readonly usageTracker = inject(UsageTrackerService);
   // `FilterUrlSyncService` and `DebugSlotsService` are eagerly
   // instantiated via `provideAppInitializer` in `app.config.ts`. They
@@ -75,13 +77,17 @@ export class App {
   }
 
   /**
-   * In-flight flag for the topbar refresh button. Owned by
-   * `ScanTriggerService` so the modal-apply flow shares the same
-   * state (the topbar spinner reacts to either trigger, and concurrent
-   * triggers are rejected against a single source of truth). Template
-   * reads `scanning()` / `scanError()` via these accessors.
+   * In-flight flag for the topbar refresh button (spinner + disabled
+   * state). True for a MANUAL scan (the refresh button or a settings-modal
+   * apply, owned by `ScanTriggerService` so concurrent triggers reject
+   * against one source of truth) OR while a SERVER-side scan runs, surfaced
+   * over `/ws` as `scan.started` → `scan.completed`. The latter is what
+   * makes a watcher re-scan after a file save spin the same arrows a manual
+   * refresh does, so the user gets feedback that the map is updating.
    */
-  protected readonly scanning = this.scanTrigger.scanning;
+  protected readonly scanning = computed(
+    () => this.scanTrigger.scanning() || this.wsEvents.scanActive(),
+  );
   protected readonly scanError = this.scanTrigger.scanError;
 
   protected triggerScan(): Promise<void> {

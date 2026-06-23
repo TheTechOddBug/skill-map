@@ -1,8 +1,8 @@
 /**
- * `MapVisibilityService`, signal-backed inclusion set for the MAP
- * visibility curation feature, plus its `localStorage` persistence.
+ * `MapVisibilityService`, signal-backed MAP selection set (folder
+ * PREFIXES + exact leaf paths), plus its `localStorage` persistence.
  *
- * Covers: per-leaf toggle, the tri-state `folderState`, the folder cascade
+ * Covers: per-leaf toggle, the single-prefix folder toggle
  * (`toggleFolder`), `setOnly` / `clear`, `prune` (drop-and-no-op), the
  * `isActive` / `count` derivations, and the localStorage round-trip read
  * via `readStoredVisiblePaths`.
@@ -74,73 +74,49 @@ describe('MapVisibilityService, toggleLeaf', () => {
   });
 });
 
-describe('MapVisibilityService, folderState (tri-state)', () => {
-  const leaves = ['docs/a.md', 'docs/b.md', 'docs/c.md'];
-
-  it("returns 'none' for an empty leaf list", () => {
+describe('MapVisibilityService, toggleFolder (single prefix)', () => {
+  it('adds the folder prefix when absent', () => {
     const service = inject();
-    expect(service.folderState([])).toBe('none');
+    service.toggleFolder('docs');
+    expect(members(service.paths())).toEqual(['docs']);
+    expect(service.isActive()).toBe(true);
   });
 
-  it("returns 'none' when zero of the folder's leaves are included", () => {
+  it('removes the folder prefix when already present', () => {
     const service = inject();
-    service.toggleLeaf('elsewhere.md'); // unrelated to the folder
-    expect(service.folderState(leaves)).toBe('none');
-  });
-
-  it("returns 'some' when only part of the folder is included", () => {
-    const service = inject();
-    service.toggleLeaf('docs/a.md');
-    expect(service.folderState(leaves)).toBe('some');
-  });
-
-  it("returns 'all' when every leaf of the folder is included", () => {
-    const service = inject();
-    for (const path of leaves) service.toggleLeaf(path);
-    expect(service.folderState(leaves)).toBe('all');
-  });
-});
-
-describe('MapVisibilityService, toggleFolder cascade', () => {
-  const leaves = ['docs/a.md', 'docs/b.md', 'docs/c.md'];
-
-  it("cascades 'none' -> 'all' (fills every leaf)", () => {
-    const service = inject();
-    service.toggleFolder(leaves);
-    expect(members(service.paths())).toEqual(['docs/a.md', 'docs/b.md', 'docs/c.md']);
-    expect(service.folderState(leaves)).toBe('all');
-  });
-
-  it("cascades 'some' -> 'all' (fills the remaining leaves, keeps the rest)", () => {
-    const service = inject();
-    service.toggleLeaf('docs/a.md'); // partial
-    expect(service.folderState(leaves)).toBe('some');
-    service.toggleFolder(leaves);
-    expect(members(service.paths())).toEqual(['docs/a.md', 'docs/b.md', 'docs/c.md']);
-    expect(service.folderState(leaves)).toBe('all');
-  });
-
-  it("cascades 'all' -> 'none' (clears every leaf of the folder)", () => {
-    const service = inject();
-    for (const path of leaves) service.toggleLeaf(path);
-    expect(service.folderState(leaves)).toBe('all');
-    service.toggleFolder(leaves);
+    service.toggleFolder('docs');
+    service.toggleFolder('docs');
     expect(members(service.paths())).toEqual([]);
-    expect(service.folderState(leaves)).toBe('none');
+    expect(service.isActive()).toBe(false);
   });
 
-  it('leaves paths outside the folder untouched when cascading off', () => {
+  it('accumulates sibling prefixes for a union selection', () => {
     const service = inject();
-    service.toggleLeaf('other/x.md');
-    for (const path of leaves) service.toggleLeaf(path);
-    service.toggleFolder(leaves); // all -> none for the folder only
-    expect(members(service.paths())).toEqual(['other/x.md']);
+    service.toggleFolder('src');
+    service.toggleFolder('docs');
+    expect(members(service.paths())).toEqual(['docs', 'src']);
+    expect(service.count()).toBe(2);
   });
 
-  it('is a no-op for an empty leaf list', () => {
+  it('toggling one prefix off leaves the other selected prefixes untouched', () => {
+    const service = inject();
+    service.toggleFolder('src');
+    service.toggleFolder('docs');
+    service.toggleFolder('src'); // remove only src
+    expect(members(service.paths())).toEqual(['docs']);
+  });
+
+  it('coexists with exact leaf paths in the selection', () => {
+    const service = inject();
+    service.toggleLeaf('readme.md');
+    service.toggleFolder('docs');
+    expect(members(service.paths())).toEqual(['docs', 'readme.md']);
+  });
+
+  it('is a no-op for the empty (root) prefix', () => {
     const service = inject();
     service.toggleLeaf('a.md');
-    service.toggleFolder([]);
+    service.toggleFolder('');
     expect(members(service.paths())).toEqual(['a.md']);
   });
 });
@@ -269,6 +245,15 @@ describe('MapVisibilityService, prune', () => {
     const before = service.paths();
     service.prune(new Set(['anything.md']));
     expect(service.paths()).toBe(before);
+  });
+
+  it('keeps a folder prefix while it still has a descendant node, drops an empty one', () => {
+    const service = inject();
+    // The selection holds folder PREFIXES (never themselves node paths).
+    service.setOnly(['skills', 'gone-folder']);
+    service.prune(new Set(['skills/a.md', 'skills/b.md', 'other/c.md']));
+    // 'skills' survives (has descendants); 'gone-folder' is dropped (none).
+    expect(members(service.paths())).toEqual(['skills']);
   });
 });
 

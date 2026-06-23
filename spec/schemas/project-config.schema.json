@@ -46,10 +46,15 @@
           "minimum": 1,
           "description": "Files larger than this are skipped before they are read and surfaced at WARN level. Default 1048576 (1 MiB). Protects against scanning accidental binary drops or generated artefacts. Every skipped file is reported in `ScanResult.oversizedFiles` (root-relative path + byte size), counted in `ScanResult.stats.filesOversized`, printed as a terminal warning on `sm scan` / `sm watch` / `sm serve`, and raised as a UI banner. Trim the offending paths via `.skillmapignore` or raise this limit to include them."
         },
+        "maxScan": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Scan corpus ceiling: hard cap on the number of files the scan accepts after `.skillmapignore` filtering, before extractors run. Default 50000. The scan walks, parses, analyzes, and reference-validates every file up to this ceiling; that full corpus is what link resolution checks against, so references resolve across the whole project (a large monorepo) regardless of how many nodes the map renders. When the walker reaches the ceiling, additional files are dropped in stable provider-walker order and the scan is marked truncated in `scan_meta` (the UI raises a persistent banner pointing at the `.skillmapignore` editor in Settings → Project). Override per invocation with `--max-scan N` on `sm scan` / `sm watch` / `sm serve`, bidirectional (raises OR lowers the ceiling, the flag is a full override of this setting). Distinct from `maxNodes`, which bounds only the graph render, not the scan."
+        },
         "maxNodes": {
           "type": "integer",
           "minimum": 1,
-          "description": "Hard cap on the number of files the scan accepts after `.skillmapignore` filtering, before extractors run. Default 256. When the walker reaches the cap, additional files are dropped in stable provider-walker order and the scan is marked oversized in `scan_meta` (the UI raises a persistent banner pointing at the `.skillmapignore` editor in Settings → Project). Override per invocation with `--max-nodes N` on `sm scan` / `sm watch`, bidirectional (raises OR lowers the limit, the flag is a full override of this setting)."
+          "description": "Map render cap: the maximum number of nodes the graph view projects onto the canvas at once. Default 256. This does NOT bound the scan; the full corpus is walked and reference-validated up to `maxScan`, and the folders tree shows all of it. `maxNodes` only limits the Foblex graph projection so a large project stays readable. When a selected folder branch exceeds this cap, the map renders the branch's first N nodes (stable order) and raises an in-view banner inviting the user to pick a narrower sub-folder. Override per invocation with `--max-nodes N` on `sm scan` / `sm watch` / `sm serve`; the value persists in `scan_meta` and is read by the UI when the map renders. Headless `sm scan` records but does not act on it (it renders nothing)."
         },
         "watch": {
           "type": "object",

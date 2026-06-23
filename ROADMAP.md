@@ -177,6 +177,7 @@ The full normative contract lives in [`spec/architecture.md`](./spec/architectur
 | **Introspection** | Property of the CLI to emit its own structure (`sm help --format json`), consumed by docs, completion, UI, agents. |
 | **Graph view** | Main UI view: nodes + links, interactive. |
 | **List view** | Tabular view of nodes with filters and sort. |
+| **Scan corpus vs render cap** | Two separate knobs. The scan walks + analyzes + reference-validates the full corpus up to `scan.maxScan` (default 50000), so links resolve across a large monorepo regardless of what is drawn; the graph map renders only a selected folder branch capped at `scan.maxNodes` (default 256, a Foblex projection bound). The folders tree is the full-corpus navigator: it lists everything with per-folder issue badges and scopes the map to a chosen branch (banner when the branch exceeds the cap). |
 | **Inspector panel** | UI section showing detail of the selected node: metadata, weight, summary, links, issues, findings. |
 | **Issues panel** | UI section fed by `sm check` (deterministic). |
 | **Findings panel** | UI section fed by `sm findings` (probabilistic). |

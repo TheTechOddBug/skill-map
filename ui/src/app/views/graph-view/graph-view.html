@@ -51,6 +51,10 @@
       (click)="onCanvasClick($event)"
       data-testid="graph-canvas-wrap"
     >
+      <!-- Branch-cap banner: shows when the selected folder branch has
+           more nodes than the server render cap, so only the first slice
+           is drawn on the map. Floats over the canvas, informational. -->
+      <sm-branch-cap-banner />
       <f-flow fDraggable [fCache]="perf.cache" (fLoaded)="onLoaded()">
         <!-- Native multi-select via Shift+drag rectangle. Foblex
              paints `.f-selected` on the host element of every node

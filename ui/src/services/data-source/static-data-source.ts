@@ -38,7 +38,9 @@ import { EMPTY, type Observable } from 'rxjs';
 
 import { DATA_SOURCE_TEXTS } from '../../i18n/data-source.texts';
 import type {
+  IBranchResponseApi,
   IContributionsRegistryApi,
+  IFolderNodeLite,
   IHealthResponseApi,
   IIssueApi,
   ILinkApi,
@@ -152,6 +154,90 @@ export class StaticDataSource implements IDataSourcePort {
     this.providerRegistry.ingest(meta.nodes.providerRegistry);
     this.primeContributionsRegistry(meta);
     return scan;
+  }
+
+  /**
+   * Demo mode: derive the lazy scan meta from the bundled `data.json`.
+   * The live BFF strips `nodes` / `links` / `issues` on `?meta=1`; we
+   * mirror that here so the header + banners read the same field shape.
+   * The bundle predates the lazy fields (`scanCeiling`, `scanTruncated`,
+   * `maxRenderNodes`), which stay absent, the consumers treat absent as
+   * "no truncation" (the demo corpus is small, so this is correct).
+   */
+  async loadScanMeta(): Promise<IScanResultApi> {
+    const scan = await this.loadScan();
+    return { ...scan, nodes: [], links: [], issues: [] };
+  }
+
+  /**
+   * Demo mode: derive the whole-corpus lite node list from `data.json`,
+   * rolling up per-node error / warn issue incidence the same way the
+   * live `/api/folders` route does (the `info` severity is excluded).
+   * The cheap scalar node columns (`linksInCount` / `linksOutCount` /
+   * `tokensTotal` / `modifiedAtMs`) come straight off each bundled node
+   * so the rail's leaf data columns render real values in demo mode too;
+   * `tokensTotal` / `modifiedAtMs` fall back to `null` (virtual / derived
+   * nodes), mirroring the live endpoint's nullable shape.
+   */
+  async loadFolders(): Promise<IFolderNodeLite[]> {
+    const scan = await this.loadScan();
+    const errorByPath = new Map<string, number>();
+    const warnByPath = new Map<string, number>();
+    for (const issue of scan.issues) {
+      const bucket =
+        issue.severity === 'error'
+          ? errorByPath
+          : issue.severity === 'warn'
+            ? warnByPath
+            : null;
+      if (!bucket) continue;
+      for (const path of issue.nodeIds) bucket.set(path, (bucket.get(path) ?? 0) + 1);
+    }
+    return scan.nodes.map((n) => ({
+      path: n.path,
+      kind: n.kind,
+      linksInCount: n.linksInCount,
+      linksOutCount: n.linksOutCount,
+      tokensTotal: n.tokens?.total ?? null,
+      modifiedAtMs: n.modifiedAtMs ?? null,
+      errorCount: errorByPath.get(n.path) ?? 0,
+      warnCount: warnByPath.get(n.path) ?? 0,
+    }));
+  }
+
+  /**
+   * Demo mode: derive the branch projection from `data.json`. Scopes to
+   * the UNION of nodes under ANY prefix in `paths` (a node matches when
+   * its path equals a prefix verbatim or starts with `<prefix>/`); an
+   * empty array = the whole corpus. Stable path order, capped at `limit`
+   * (or the whole union when absent, the demo corpus is small enough
+   * that no scan cap is recorded), then keeps only links whose endpoints
+   * are both in the slice and issues touching the slice, mirroring the
+   * live `/api/branch` SQL scoping.
+   */
+  async loadBranch(paths: string[] = [], limit?: number): Promise<IBranchResponseApi> {
+    const scan = await this.loadScan();
+    const prefixes = paths.filter((p) => p !== '');
+    const inUnion = (nodePath: string): boolean =>
+      prefixes.length === 0 ||
+      prefixes.some((p) => nodePath === p || nodePath.startsWith(`${p}/`));
+    const branchNodes = scan.nodes
+      .filter((n) => inUnion(n.path))
+      .sort((a, b) => a.path.localeCompare(b.path));
+    const total = branchNodes.length;
+    const cap = limit !== undefined && limit > 0 ? limit : total;
+    const nodes = branchNodes.slice(0, cap);
+    const inSlice = new Set(nodes.map((n) => n.path));
+    const links = scan.links.filter((l) => inSlice.has(l.source) && inSlice.has(l.target));
+    const issues = scan.issues.filter((i) => i.nodeIds.some((id) => inSlice.has(id)));
+    return {
+      schemaVersion: '1',
+      kind: 'branch',
+      branch: { paths: [...prefixes], total, rendered: nodes.length, truncated: total > cap, cap },
+      nodes,
+      links,
+      issues,
+    };
   }
 
   /**

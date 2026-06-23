@@ -289,14 +289,24 @@ CREATE TABLE scan_meta (
   stats_files_walked INTEGER NOT NULL,
   stats_files_skipped INTEGER NOT NULL,
   stats_duration_ms INTEGER NOT NULL,
-  -- Node-cap envelope (see spec/cli-contract.md §Scan, `scan.maxNodes` setting
-  -- and `--max-nodes` flag). `recommended_node_limit` is the effective default
-  -- (from `scan.maxNodes`) that produced this scan; the UI raises a persistent
-  -- "oversized graph" banner when `stats_files_walked >= recommended_node_limit`.
-  -- `override_max_nodes` is the per-invocation override (when `--max-nodes <N>`
-  -- was passed) or NULL when the value above came from the setting.
-  recommended_node_limit INTEGER NOT NULL,
-  override_max_nodes INTEGER,
+  -- Scan-ceiling vs render-cap envelope (see spec/cli-contract.md §Scan).
+  -- Two independent knobs:
+  --   - `scan_ceiling` is the effective WALK-INTAKE ceiling that produced
+  --     this scan (`scan.maxScan` setting, default 50000, or the
+  --     `--max-scan <N>` override). The walker walks, parses, analyzes, and
+  --     reference-validates the full corpus up to this number, so references
+  --     resolve across the whole project regardless of how many nodes the
+  --     map renders.
+  --   - `scan_truncated` is 1 when the walker reached `scan_ceiling` and
+  --     dropped files (in stable provider-walker order), 0 otherwise. The UI
+  --     raises a persistent banner pointing at the `.skillmapignore` editor.
+  --   - `max_render_nodes` is the effective MAP RENDER cap (`scan.maxNodes`
+  --     setting, default 256, or the `--max-nodes <N>` override). Pure
+  --     metadata: it does NOT bound the walk, only the graph projection the
+  --     UI draws onto the canvas.
+  scan_ceiling INTEGER NOT NULL,
+  scan_truncated INTEGER NOT NULL DEFAULT 0,
+  max_render_nodes INTEGER NOT NULL,
   -- File-size skip envelope (see spec/cli-contract.md §Scan, `scan.maxFileSizeBytes`
   -- setting, default 1 MiB). `files_oversized` is the count of files the walker
   -- skipped before reading because they exceeded the limit (= `stats.filesOversized`);

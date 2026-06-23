@@ -5,11 +5,20 @@ import { EMPTY, Subject } from 'rxjs';
 
 import { CollectionLoaderService } from '../collection-loader';
 import { DATA_SOURCE, type IDataSourcePort } from '../data-source/data-source.port';
+import { MapVisibilityService } from '../map-visibility';
 import { WsEventStreamService, type TWsConnectionState } from '../ws-event-stream';
 import type { IWsScanCompletedEvent, IWsSidecarBumpedEvent } from '../../models/ws-event';
-import type { IScanResultApi } from '../../models/api';
+import type {
+  IBranchResponseApi,
+  IFolderNodeLite,
+  INodeApi,
+  IScanResultApi,
+} from '../../models/api';
 
-function emptyScan(extra?: Partial<IScanResultApi>): IScanResultApi {
+/** Debounce the loader uses for the selection-driven fetch (keep in sync). */
+const SELECTION_FETCH_DEBOUNCE_MS = 150;
+
+function emptyMeta(extra?: Partial<IScanResultApi>): IScanResultApi {
   return {
     schemaVersion: 1,
     scannedAt: 0,
@@ -30,15 +39,32 @@ function emptyScan(extra?: Partial<IScanResultApi>): IScanResultApi {
   };
 }
 
+function branch(nodes: INodeApi[] = [], paths: string[] = []): IBranchResponseApi {
+  return {
+    schemaVersion: '1',
+    kind: 'branch',
+    branch: {
+      paths,
+      total: nodes.length,
+      rendered: nodes.length,
+      truncated: false,
+      cap: 256,
+    },
+    nodes,
+    links: [],
+    issues: [],
+  };
+}
+
 /**
  * Type-safe-ish stub: every method is a `vi.fn` so tests can assert
- * call counts and inject custom resolvers. Using a `type` (not an
- * `interface extends`) sidesteps the `Mock<...>` vs the original method
- * signature mismatch, the cast in `makeStub` is the only place we
- * cross the type boundary.
+ * call counts and inject custom resolvers. The cast in `makeStub` is the
+ * only place we cross the type boundary.
  */
 type IStubDataSource = IDataSourcePort & {
-  loadScan: ReturnType<typeof vi.fn>;
+  loadScanMeta: ReturnType<typeof vi.fn>;
+  loadFolders: ReturnType<typeof vi.fn>;
+  loadBranch: ReturnType<typeof vi.fn>;
   setFavorite: ReturnType<typeof vi.fn>;
   unsetFavorite: ReturnType<typeof vi.fn>;
 };
@@ -46,7 +72,10 @@ type IStubDataSource = IDataSourcePort & {
 function makeStub(): IStubDataSource {
   return {
     health: vi.fn(),
-    loadScan: vi.fn().mockResolvedValue(emptyScan()),
+    loadScan: vi.fn(),
+    loadScanMeta: vi.fn().mockResolvedValue(emptyMeta()),
+    loadFolders: vi.fn().mockResolvedValue([]),
+    loadBranch: vi.fn().mockResolvedValue(branch()),
     listNodes: vi.fn(),
     getNode: vi.fn(),
     listLinks: vi.fn(),
@@ -75,6 +104,10 @@ function makeWsStub(
 }
 
 function bootstrap(stub: IStubDataSource, ws: WsEventStreamService): CollectionLoaderService {
+  // The real `MapVisibilityService` is `providedIn: 'root'` and rehydrates
+  // its selection from localStorage; clear it so each loader starts with
+  // an empty (whole-corpus) selection.
+  localStorage.clear();
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [
@@ -85,7 +118,12 @@ function bootstrap(stub: IStubDataSource, ws: WsEventStreamService): CollectionL
   return TestBed.inject(CollectionLoaderService);
 }
 
-describe('CollectionLoaderService', () => {
+/** Inject the shared selection service the loader watches. */
+function selection(): MapVisibilityService {
+  return TestBed.inject(MapVisibilityService);
+}
+
+describe('CollectionLoaderService, three-fetch lazy boot', () => {
   let stub: IStubDataSource;
   let scanCompleted$: Subject<IWsScanCompletedEvent>;
   let ws: WsEventStreamService;
@@ -104,30 +142,121 @@ describe('CollectionLoaderService', () => {
     const svc = bootstrap(stub, ws);
     expect(svc.nodes()).toEqual([]);
     expect(svc.scan()).toBeNull();
+    expect(svc.scanMeta()).toBeNull();
+    expect(svc.liteNodes()).toEqual([]);
+    expect(svc.branch()).toBeNull();
     expect(svc.loading()).toBe(false);
     expect(svc.error()).toBeNull();
   });
 
-  it('populates signals from loadScan() on explicit load()', async () => {
-    stub.loadScan.mockResolvedValue(
-      emptyScan({
-        nodes: [
-          { path: 'a.md', kind: 'agent', frontmatter: {} },
-          { path: 'b.md', kind: 'markdown', frontmatter: {} },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ] as any,
-      }),
+  it('fires meta + folders + branch in parallel on load()', async () => {
+    stub.loadScanMeta.mockResolvedValue(
+      emptyMeta({ scanCeiling: 1000, scanTruncated: false, maxRenderNodes: 256 }),
+    );
+    stub.loadFolders.mockResolvedValue([
+      {
+        path: 'a.md',
+        kind: 'agent',
+        linksInCount: 3,
+        linksOutCount: 2,
+        tokensTotal: 512,
+        modifiedAtMs: 1_700_000_000_000,
+        errorCount: 0,
+        warnCount: 0,
+      },
+      {
+        path: 'b.md',
+        kind: 'markdown',
+        linksInCount: 0,
+        linksOutCount: 0,
+        tokensTotal: null,
+        modifiedAtMs: null,
+        errorCount: 1,
+        warnCount: 0,
+      },
+    ] as IFolderNodeLite[]);
+    stub.loadBranch.mockResolvedValue(
+      branch([
+        { path: 'a.md', kind: 'agent', frontmatter: {} },
+      ] as unknown as INodeApi[]),
     );
     const svc = bootstrap(stub, ws);
     await svc.load();
-    expect(svc.nodes()).toHaveLength(2);
-    expect(svc.count()).toBe(2);
+
+    expect(stub.loadScanMeta).toHaveBeenCalledTimes(1);
+    expect(stub.loadFolders).toHaveBeenCalledTimes(1);
+    expect(stub.loadBranch).toHaveBeenCalledTimes(1);
+    // Boot fetches the union for the current (empty) selection = whole corpus.
+    expect(stub.loadBranch).toHaveBeenCalledWith([]);
+
+    expect(svc.scanMeta()?.scanCeiling).toBe(1000);
+    expect(svc.liteNodes()).toHaveLength(2);
+    expect(svc.corpusCount()).toBe(2);
+    expect(svc.nodes()).toHaveLength(1);
+    expect(svc.count()).toBe(1);
   });
 
-  it('re-fetches on scan.completed event from the data source', async () => {
+  it('projects the lite item scalar columns through liteNodeViews()', async () => {
+    stub.loadFolders.mockResolvedValue([
+      {
+        path: 'a.md',
+        kind: 'agent',
+        linksInCount: 3,
+        linksOutCount: 2,
+        tokensTotal: 512,
+        modifiedAtMs: 1_700_000_000_000,
+        errorCount: 0,
+        warnCount: 0,
+      },
+      {
+        path: 'b.md',
+        kind: 'markdown',
+        linksInCount: 0,
+        linksOutCount: 0,
+        tokensTotal: null,
+        modifiedAtMs: null,
+        errorCount: 0,
+        warnCount: 0,
+      },
+    ] as IFolderNodeLite[]);
     const svc = bootstrap(stub, ws);
     await svc.load();
-    expect(stub.loadScan).toHaveBeenCalledTimes(1);
+
+    const views = svc.liteNodeViews();
+    const withData = views.find((v) => v.path === 'a.md');
+    expect(withData?.linksInCount).toBe(3);
+    expect(withData?.linksOutCount).toBe(2);
+    expect(withData?.tokensTotal).toBe(512);
+    expect(withData?.modifiedAtMs).toBe(1_700_000_000_000);
+
+    // Nullable wire fields coerce to `undefined` on the view.
+    const withoutData = views.find((v) => v.path === 'b.md');
+    expect(withoutData?.linksInCount).toBe(0);
+    expect(withoutData?.linksOutCount).toBe(0);
+    expect(withoutData?.tokensTotal).toBeUndefined();
+    expect(withoutData?.modifiedAtMs).toBeUndefined();
+  });
+
+  it('scan() is branch-scoped: meta scalars fused with branch payload', async () => {
+    stub.loadScanMeta.mockResolvedValue(emptyMeta({ roots: ['/proj'] }));
+    stub.loadBranch.mockResolvedValue({
+      ...branch([{ path: 'a.md', kind: 'agent', frontmatter: {} }] as unknown as INodeApi[]),
+      links: [{ source: 'a.md', target: 'b.md', kind: 'references', confidence: 1, sources: [] }],
+      issues: [{ analyzerId: 'x', severity: 'error', nodeIds: ['a.md'], message: 'm' }],
+    });
+    const svc = bootstrap(stub, ws);
+    await svc.load();
+    const scan = svc.scan();
+    expect(scan?.roots).toEqual(['/proj']);
+    expect(scan?.nodes).toHaveLength(1);
+    expect(scan?.links).toHaveLength(1);
+    expect(scan?.issues).toHaveLength(1);
+  });
+
+  it('re-fires all three fetches on a scan.completed event', async () => {
+    const svc = bootstrap(stub, ws);
+    await svc.load();
+    expect(stub.loadScanMeta).toHaveBeenCalledTimes(1);
 
     scanCompleted$.next({
       type: 'scan.completed',
@@ -137,64 +266,143 @@ describe('CollectionLoaderService', () => {
       data: { nodes: 1, links: 0, issues: 0, durationMs: 1 },
     });
 
-    // The reactive refresh kicks an async load(); flush the microtask
-    // queue + a tick to let the awaited loadScan resolve.
     await Promise.resolve();
     await Promise.resolve();
-    expect(stub.loadScan).toHaveBeenCalledTimes(2);
-  });
-
-  it('ignores non-scan.completed events (no thrash on scan.progress)', async () => {
-    const svc = bootstrap(stub, ws);
-    await svc.load();
-    expect(stub.loadScan).toHaveBeenCalledTimes(1);
-
-    // The typed `scanCompleted$` only carries `scan.completed`
-    // envelopes by construction; non-matching topics never reach this
-    // observable in the real WS service. Verify the no-refresh
-    // contract by NOT firing anything and asserting the call count
-    // stays put.
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(stub.loadScan).toHaveBeenCalledTimes(1);
+    expect(stub.loadScanMeta).toHaveBeenCalledTimes(2);
+    expect(stub.loadFolders).toHaveBeenCalledTimes(2);
+    expect(stub.loadBranch).toHaveBeenCalledTimes(2);
   });
 
   it('coalesces a refresh that arrives while load() is in flight', async () => {
     let resolveFirst: (() => void) | undefined;
-    stub.loadScan.mockImplementation(
+    stub.loadScanMeta.mockImplementation(
       () =>
         new Promise<IScanResultApi>((resolve) => {
-          resolveFirst = () => resolve(emptyScan());
+          resolveFirst = () => resolve(emptyMeta());
         }),
     );
     const svc = bootstrap(stub, ws);
     const inflight = svc.load();
     expect(svc.loading()).toBe(true);
 
-    // Three rapid-fire events arrive mid-flight. With coalescing they
-    // should result in ONE follow-up, not three.
     scanCompleted$.next({ type: 'scan.completed', timestamp: 1, jobId: null, data: {} });
     scanCompleted$.next({ type: 'scan.completed', timestamp: 2, jobId: null, data: {} });
     scanCompleted$.next({ type: 'scan.completed', timestamp: 3, jobId: null, data: {} });
 
-    // Now release the in-flight load. Switch the stub to a resolved
-    // Promise so the follow-up settles synchronously.
-    stub.loadScan.mockResolvedValue(emptyScan());
+    stub.loadScanMeta.mockResolvedValue(emptyMeta());
     resolveFirst!();
     await inflight;
-    // Flush the microtask that schedules the coalesced follow-up.
     await Promise.resolve();
     await Promise.resolve();
     await Promise.resolve();
-    expect(stub.loadScan).toHaveBeenCalledTimes(2);
+    // One boot load + exactly one coalesced follow-up = 2 total.
+    expect(stub.loadScanMeta).toHaveBeenCalledTimes(2);
   });
 
   it('captures a load() error in the error() signal without re-throwing', async () => {
-    stub.loadScan.mockRejectedValue(new Error('network boom'));
+    stub.loadFolders.mockRejectedValue(new Error('network boom'));
     const svc = bootstrap(stub, ws);
     await svc.load();
     expect(svc.error()).toBe('network boom');
     expect(svc.loading()).toBe(false);
+  });
+});
+
+describe('CollectionLoaderService, selection-driven branch fetch', () => {
+  let stub: IStubDataSource;
+  let scanCompleted$: Subject<IWsScanCompletedEvent>;
+  let ws: WsEventStreamService;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    scanCompleted$ = new Subject<IWsScanCompletedEvent>();
+    stub = makeStub();
+    ws = makeWsStub(scanCompleted$);
+  });
+
+  afterEach(() => {
+    scanCompleted$.complete();
+    vi.useRealTimers();
+  });
+
+  /** Flush the loader's async branch fetch (one microtask round). */
+  async function flush(): Promise<void> {
+    await Promise.resolve();
+    await Promise.resolve();
+  }
+
+  it('boot fetches the union for the current (seeded) selection', async () => {
+    // Seed a selection BEFORE the loader boots so load() picks it up.
+    localStorage.setItem('sm.map.visible-paths', JSON.stringify(['src']));
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: DATA_SOURCE, useValue: stub },
+        { provide: WsEventStreamService, useValue: ws },
+      ],
+    });
+    const svc = TestBed.inject(CollectionLoaderService);
+    await svc.load();
+    expect(stub.loadBranch).toHaveBeenCalledTimes(1);
+    expect(stub.loadBranch).toHaveBeenCalledWith(['src']);
+  });
+
+  it('debounce-fetches the branch when the selection changes (one fetch per burst)', async () => {
+    const svc = bootstrap(stub, ws);
+    await svc.load();
+    expect(stub.loadBranch).toHaveBeenCalledTimes(1); // boot
+
+    stub.loadBranch.mockResolvedValue(
+      branch([{ path: 'src/x.md', kind: 'agent', frontmatter: {} }] as unknown as INodeApi[], ['src']),
+    );
+
+    const sel = selection();
+    // A burst of three toggles before the debounce fires.
+    sel.toggleFolder('src');
+    sel.toggleFolder('docs');
+    sel.toggleFolder('docs'); // toggles docs back off
+    TestBed.tick(); // run the selection effect(s)
+
+    // Debounce not elapsed yet: still only the boot fetch.
+    expect(stub.loadBranch).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(SELECTION_FETCH_DEBOUNCE_MS);
+    await flush();
+
+    // Exactly one coalesced fetch with the final selection (only 'src').
+    expect(stub.loadBranch).toHaveBeenCalledTimes(2);
+    expect(stub.loadBranch).toHaveBeenLastCalledWith(['src']);
+    expect(svc.nodes()).toHaveLength(1);
+    expect(svc.nodes()[0]?.path).toBe('src/x.md');
+    // Meta + folders are NOT re-fetched on a selection change.
+    expect(stub.loadScanMeta).toHaveBeenCalledTimes(1);
+    expect(stub.loadFolders).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends multiple selected prefixes as the union request', async () => {
+    const svc = bootstrap(stub, ws);
+    await svc.load();
+
+    const sel = selection();
+    sel.toggleFolder('src');
+    sel.toggleFolder('docs');
+    TestBed.tick();
+    vi.advanceTimersByTime(SELECTION_FETCH_DEBOUNCE_MS);
+    await flush();
+
+    expect(stub.loadBranch).toHaveBeenLastCalledWith(['src', 'docs']);
+    void svc;
+  });
+
+  it('does not fetch on the initial effect tick (boot already covers it)', async () => {
+    const svc = bootstrap(stub, ws);
+    await svc.load();
+    // The selection effect ran once at construction; only the boot fetch fired.
+    TestBed.tick();
+    vi.advanceTimersByTime(SELECTION_FETCH_DEBOUNCE_MS);
+    await flush();
+    expect(stub.loadBranch).toHaveBeenCalledTimes(1);
+    void svc;
   });
 });
 
@@ -207,14 +415,11 @@ describe('CollectionLoaderService, favorites', () => {
     scanCompleted$ = new Subject<IWsScanCompletedEvent>();
     stub = makeStub();
     ws = makeWsStub(scanCompleted$);
-    stub.loadScan.mockResolvedValue(
-      emptyScan({
-        nodes: [
-          { path: 'a.md', kind: 'agent', frontmatter: {}, isFavorite: false },
-          { path: 'b.md', kind: 'markdown', frontmatter: {}, isFavorite: true },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ] as any,
-      }),
+    stub.loadBranch.mockResolvedValue(
+      branch([
+        { path: 'a.md', kind: 'agent', frontmatter: {}, isFavorite: false },
+        { path: 'b.md', kind: 'markdown', frontmatter: {}, isFavorite: true },
+      ] as unknown as INodeApi[]),
     );
   });
 
@@ -222,7 +427,7 @@ describe('CollectionLoaderService, favorites', () => {
     scanCompleted$.complete();
   });
 
-  it('hasAnyFavorites reflects the loaded snapshot', async () => {
+  it('hasAnyFavorites reflects the loaded branch', async () => {
     const svc = bootstrap(stub, ws);
     expect(svc.hasAnyFavorites()).toBe(false);
     await svc.load();
@@ -252,7 +457,6 @@ describe('CollectionLoaderService, favorites', () => {
     stub.setFavorite.mockRejectedValue(new Error('boom'));
     const svc = bootstrap(stub, ws);
     await svc.load();
-    // Pre-state: a.md is NOT favorited.
     expect(svc.nodes().find((n) => n.path === 'a.md')?.isFavorite).toBe(false);
 
     const final = await svc.toggleFavorite('a.md', true);
@@ -262,13 +466,10 @@ describe('CollectionLoaderService, favorites', () => {
   });
 
   it('hasAnyFavorites flips to false after un-favoriting the last node', async () => {
-    stub.loadScan.mockResolvedValue(
-      emptyScan({
-        nodes: [
-          { path: 'b.md', kind: 'markdown', frontmatter: {}, isFavorite: true },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ] as any,
-      }),
+    stub.loadBranch.mockResolvedValue(
+      branch([
+        { path: 'b.md', kind: 'markdown', frontmatter: {}, isFavorite: true },
+      ] as unknown as INodeApi[]),
     );
     const svc = bootstrap(stub, ws);
     await svc.load();
@@ -288,18 +489,15 @@ describe('CollectionLoaderService, sidecar.bumped subscription', () => {
     scanCompleted$ = new Subject<IWsScanCompletedEvent>();
     sidecarBumped$ = new Subject<IWsSidecarBumpedEvent>();
     stub = makeStub();
-    stub.loadScan.mockResolvedValue(
-      emptyScan({
-        nodes: [
-          {
-            path: 'agents/architect.md',
-            kind: 'agent',
-            frontmatter: { name: 'a', description: '', metadata: { version: '1' } },
-            sidecar: { present: true, status: 'stale-body', annotations: { version: 1 } },
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          } as any,
-        ],
-      }),
+    stub.loadBranch.mockResolvedValue(
+      branch([
+        {
+          path: 'agents/architect.md',
+          kind: 'agent',
+          frontmatter: { name: 'a', description: '' },
+          sidecar: { present: true, status: 'stale-body', annotations: { version: 1 } },
+        },
+      ] as unknown as INodeApi[]),
     );
     ws = makeWsStub(scanCompleted$, sidecarBumped$);
   });
@@ -309,7 +507,7 @@ describe('CollectionLoaderService, sidecar.bumped subscription', () => {
     sidecarBumped$.complete();
   });
 
-  it('patches the in-memory node store when a sidecar.bumped event arrives', async () => {
+  it('patches the in-memory branch store when a sidecar.bumped event arrives', async () => {
     const svc = bootstrap(stub, ws);
     await svc.load();
     sidecarBumped$.next({
@@ -329,8 +527,6 @@ describe('CollectionLoaderService, re-seed on reconnect', () => {
   let stableConnected: WritableSignal<boolean>;
   let ws: WsEventStreamService;
 
-  // Effects only run on a flush; settle the effect + the async load() it
-  // kicks. `TestBed.tick()` flushes the stableConnected effect.
   async function settle(): Promise<void> {
     TestBed.tick();
     await Promise.resolve();
@@ -351,36 +547,28 @@ describe('CollectionLoaderService, re-seed on reconnect', () => {
   it('does NOT re-seed on the first stable open (startup load already covers it)', async () => {
     const svc = bootstrap(stub, ws);
     await svc.load();
-    expect(stub.loadScan).toHaveBeenCalledTimes(1);
+    expect(stub.loadScanMeta).toHaveBeenCalledTimes(1);
 
     stableConnected.set(true);
     await settle();
-    expect(stub.loadScan).toHaveBeenCalledTimes(1);
+    expect(stub.loadScanMeta).toHaveBeenCalledTimes(1);
   });
 
   it('re-seeds only when the socket RE-STABILISES, never on a flap', async () => {
     const svc = bootstrap(stub, ws);
     await svc.load();
-    stub.loadScan.mockClear();
+    stub.loadScanMeta.mockClear();
 
-    // First stable open after startup: no re-seed (startup load already ran).
     stableConnected.set(true);
     await settle();
-    expect(stub.loadScan).not.toHaveBeenCalled();
+    expect(stub.loadScanMeta).not.toHaveBeenCalled();
 
-    // A flap: the socket opened then dropped before the stability window,
-    // so it never reports stable. NO re-seed, this is the storm guard that
-    // keeps a restarting (`--watch`) BFF from being hammered with the
-    // re-seed trio on every up/down cycle.
     stableConnected.set(false);
     await settle();
-    expect(stub.loadScan).not.toHaveBeenCalled();
+    expect(stub.loadScanMeta).not.toHaveBeenCalled();
 
-    // A genuine reconnect that re-stabilises re-seeds, because `/ws` does
-    // not replay events missed while the socket was down. (load()'s
-    // coalesce may collapse a double-fire, so assert it ran, not a count.)
     stableConnected.set(true);
     await settle();
-    expect(stub.loadScan).toHaveBeenCalled();
+    expect(stub.loadScanMeta).toHaveBeenCalled();
   });
 });

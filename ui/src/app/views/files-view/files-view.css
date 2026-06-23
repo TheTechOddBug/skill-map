@@ -158,51 +158,6 @@
   font-size: var(--files-fs-xs);
 }
 
-.files__tree-sep {
-  flex: 0 0 auto;
-  width: 1px;
-  height: 14px;
-  margin: 0 0.15rem;
-  background: var(--sm-border);
-}
-
-/* Map depth presets (1 / 2 / 3) in the tree header. Compact number
-   buttons; the active preset reads filled. */
-.files__tree-num {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  width: 1.3rem;
-  height: 1.3rem;
-  padding: 0;
-  border: 1px solid var(--p-content-border-color);
-  border-radius: var(--sm-radius-sm);
-  background: transparent;
-  color: var(--p-text-muted-color);
-  font-size: var(--files-fs-xs);
-  font-weight: 600;
-  line-height: 1;
-  cursor: pointer;
-  transition: background 120ms ease-out, color 120ms ease-out, border-color 120ms ease-out;
-}
-
-.files__tree-num:hover {
-  border-color: var(--p-primary-color);
-  color: var(--p-text-color);
-}
-
-.files__tree-num.is-active {
-  background: var(--p-primary-color);
-  border-color: var(--p-primary-color);
-  color: var(--p-primary-contrast-color);
-}
-
-.files__tree-num:focus-visible {
-  outline: 2px solid var(--p-primary-color);
-  outline-offset: -2px;
-}
-
 .files__row {
   cursor: pointer;
 }
@@ -263,6 +218,18 @@
   border-color: var(--p-primary-color);
 }
 
+/* Covered by a selected ancestor folder: shown checked but not
+   interactive (a folder prefix includes its whole subtree). Dimmed so
+   the user reads it as "controlled by the parent". */
+.files__vis-check:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.files__vis-check:disabled:hover {
+  border-color: var(--p-content-border-color);
+}
+
 .files__vis-check .pi {
   font-size: 0.7rem;
 }
@@ -305,6 +272,15 @@
   color: var(--p-text-muted-color);
   width: 0.85rem;
   text-align: center;
+  /* Expand animation: one chevron that rotates from pointing right
+     (collapsed) to down (expanded), instead of swapping two glyphs.
+     The folder row is reused across expand (table `rowTrackBy` by path),
+     so this transition fires on the persisting element. */
+  transition: transform 200ms ease;
+}
+
+.files__chevron--open {
+  transform: rotate(90deg);
 }
 
 .files__chevron-placeholder {

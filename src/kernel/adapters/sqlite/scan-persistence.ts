@@ -297,6 +297,34 @@ function collectKnownOrphanPaths(issues: readonly ScanResult['issues'][number][]
  * scan disappear automatically; the insert below carries forward only
  * the pairs the orchestrator decided to keep (cached) or freshly ran.
  */
+/**
+ * SQLite caps the number of bound `?` variables per statement
+ * (`SQLITE_MAX_VARIABLE_NUMBER`, 32766 since SQLite 3.32). A scan now
+ * carries up to `scan.maxScan` nodes (default 50000), and a single
+ * multi-row INSERT binds `rows * columns` variables, so one statement
+ * would blow the cap well before the ceiling. Chunk every batch write
+ * so `rows-per-statement * columns` stays comfortably under the limit.
+ * (With the historical 256-node cap this never tripped; 256 rows fit in
+ * one statement.)
+ */
+const MAX_SQL_VARS = 20000;
+
+async function chunkedInsert<TB extends keyof IDatabase & string>(
+  trx: Transaction<IDatabase>,
+  table: TB,
+  rows: ReadonlyArray<Insertable<IDatabase[TB]>>,
+): Promise<void> {
+  if (rows.length === 0) return;
+  const columns = Object.keys(rows[0] as Record<string, unknown>).length || 1;
+  const batchSize = Math.max(1, Math.floor(MAX_SQL_VARS / columns));
+  for (let start = 0; start < rows.length; start += batchSize) {
+    await trx
+      .insertInto(table)
+      .values(rows.slice(start, start + batchSize))
+      .execute();
+  }
+}
+
 async function replaceAllScanZone(
   trx: Transaction<IDatabase>,
   result: ScanResult,
@@ -309,31 +337,11 @@ async function replaceAllScanZone(
   await trx.deleteFrom('scan_meta').execute();
   await trx.deleteFrom('scan_extractor_runs').execute();
 
-  if (result.nodes.length > 0) {
-    await trx
-      .insertInto('scan_nodes')
-      .values(result.nodes.map((n) => nodeToRow(n, scannedAt)))
-      .execute();
-  }
-  if (result.links.length > 0) {
-    await trx
-      .insertInto('scan_links')
-      .values(result.links.map(linkToRow))
-      .execute();
-  }
-  if (result.issues.length > 0) {
-    await trx
-      .insertInto('scan_issues')
-      .values(result.issues.map(issueToRow))
-      .execute();
-  }
+  await chunkedInsert(trx, 'scan_nodes', result.nodes.map((n) => nodeToRow(n, scannedAt)));
+  await chunkedInsert(trx, 'scan_links', result.links.map(linkToRow));
+  await chunkedInsert(trx, 'scan_issues', result.issues.map(issueToRow));
   await trx.insertInto('scan_meta').values(metaToRow(result)).execute();
-  if (extractorRuns.length > 0) {
-    await trx
-      .insertInto('scan_extractor_runs')
-      .values(extractorRuns.map(extractorRunToRow))
-      .execute();
-  }
+  await chunkedInsert(trx, 'scan_extractor_runs', extractorRuns.map(extractorRunToRow));
 }
 
 /**
@@ -362,15 +370,24 @@ async function upsertEnrichmentLayer(
       .execute();
   }
 
-  // Step 1, drop enrichments whose node disappeared.
-  if (enrichmentLivePaths.size > 0) {
-    const liveList = [...enrichmentLivePaths];
+  // Step 1, drop enrichments whose node disappeared. Compute the dead
+  // set in JS and delete it in chunks: a `NOT IN` against the full live
+  // list would bind up to `scan.maxScan` variables (default 50000) and
+  // blow the SQLite cap. node_enrichments is usually empty / small (the
+  // probabilistic layer), so the distinct read is cheap.
+  const existingEnrichmentPaths = await trx
+    .selectFrom('node_enrichments')
+    .select('nodePath')
+    .distinct()
+    .execute();
+  const deadEnrichmentPaths = existingEnrichmentPaths
+    .map((r) => r.nodePath)
+    .filter((p) => !enrichmentLivePaths.has(p));
+  for (let start = 0; start < deadEnrichmentPaths.length; start += MAX_SQL_VARS) {
     await trx
       .deleteFrom('node_enrichments')
-      .where('nodePath', 'not in', liveList)
+      .where('nodePath', 'in', deadEnrichmentPaths.slice(start, start + MAX_SQL_VARS))
       .execute();
-  } else {
-    await trx.deleteFrom('node_enrichments').execute();
   }
 
   // Step 3, upsert fresh enrichments. Composite-PK conflict refreshes
@@ -663,17 +680,19 @@ function projectOversizedColumns(
 }
 
 /**
- * Project the node-cap envelope onto its `scan_meta` columns. Fallback
- * to the design default (256) on synthetic fixtures that bypass the
- * walker; the walker always sets `recommendedNodeLimit` for real scans
- * (see `walkAndExtract`).
+ * Project the scan-ceiling / render-cap envelope onto its `scan_meta`
+ * columns. Fallback to the design defaults (corpus ceiling 50000, render
+ * cap 256, not truncated) on synthetic fixtures that bypass the walker;
+ * the walker always sets `scanCeiling` / `scanTruncated` / `maxRenderNodes`
+ * for real scans (see `walkAndExtract`).
  */
 function projectNodeLimitColumns(
   result: ScanResult,
-): Pick<Insertable<IScanMetaTable>, 'recommendedNodeLimit' | 'overrideMaxNodes'> {
+): Pick<Insertable<IScanMetaTable>, 'scanCeiling' | 'scanTruncated' | 'maxRenderNodes'> {
   return {
-    recommendedNodeLimit: result.recommendedNodeLimit ?? 256,
-    overrideMaxNodes: result.overrideMaxNodes ?? null,
+    scanCeiling: result.scanCeiling ?? 50000,
+    scanTruncated: result.scanTruncated ? 1 : 0,
+    maxRenderNodes: result.maxRenderNodes ?? 256,
   };
 }
 

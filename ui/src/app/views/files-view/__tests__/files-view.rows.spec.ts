@@ -4,14 +4,19 @@ import {
   buildRows,
   buildTree,
   computeAggregates,
+  issueMapsFromLite,
   issueWeight,
   leafComparator,
+  makeLeafRow,
   type IFolderLeaf,
+  type IFolderRow,
   type IIssueMaps,
   type TFolderViewRow,
 } from '../files-view.rows';
+import { FILES_VIEW_TEXTS } from '../../../../i18n/files-view.texts';
 import type { IFilesSort } from '../files-view.sort';
-import type { INodeView } from '../../../../models/node';
+import type { INodeView, TFrontmatter } from '../../../../models/node';
+import type { IFolderNodeLite } from '../../../../models/api';
 
 interface INodeOpts {
   name?: string;
@@ -35,6 +40,42 @@ function makeNode(path: string, opts: INodeOpts = {}): INodeView {
   } as unknown as INodeView;
 }
 
+/**
+ * Build an `IFolderNodeLite` row. `linksInCount` / `linksOutCount`
+ * default to 0 and `tokensTotal` / `modifiedAtMs` to `null` so a test
+ * only has to name the fields it cares about.
+ */
+function liteRow(path: string, opts: Partial<IFolderNodeLite> = {}): IFolderNodeLite {
+  return {
+    path,
+    kind: opts.kind ?? 'agent',
+    linksInCount: opts.linksInCount ?? 0,
+    linksOutCount: opts.linksOutCount ?? 0,
+    tokensTotal: opts.tokensTotal ?? null,
+    modifiedAtMs: opts.modifiedAtMs ?? null,
+    errorCount: opts.errorCount ?? 0,
+    warnCount: opts.warnCount ?? 0,
+  };
+}
+
+/**
+ * Mirror of `projectLiteNode` in `collection-loader.ts`: turn a lite
+ * folders row into the minimal `INodeView` the files-view consumes, so
+ * the leaf-row assertions exercise the same lite -> view -> column flow
+ * the rail uses at runtime. Nullable wire fields coerce to `undefined`.
+ */
+function projectLite(lite: IFolderNodeLite): INodeView {
+  return {
+    path: lite.path,
+    kind: lite.kind,
+    frontmatter: { name: '', description: '' } as TFrontmatter,
+    linksInCount: lite.linksInCount,
+    linksOutCount: lite.linksOutCount,
+    tokensTotal: lite.tokensTotal ?? undefined,
+    modifiedAtMs: lite.modifiedAtMs ?? undefined,
+  };
+}
+
 const NO_ISSUES: IIssueMaps = { errorCounts: new Map(), warnCounts: new Map() };
 
 function maps(errors: Record<string, number> = {}, warns: Record<string, number> = {}): IIssueMaps {
@@ -44,18 +85,40 @@ function maps(errors: Record<string, number> = {}, warns: Record<string, number>
   };
 }
 
-function tree(nodes: readonly INodeView[]): {
+function tree(nodes: readonly INodeView[], m: IIssueMaps = NO_ISSUES): {
   tree: ReturnType<typeof buildTree>;
   aggregates: ReturnType<typeof computeAggregates>;
 } {
   const t = buildTree(nodes);
-  return { tree: t, aggregates: computeAggregates(t) };
+  return { tree: t, aggregates: computeAggregates(t, m) };
+}
+
+/** Every folder path in the tree, so a tree-mode render comes back fully
+ *  expanded (the default state is now "all collapsed", an empty set). */
+function allFolderPaths(t: ReturnType<typeof buildTree>): Set<string> {
+  const out = new Set<string>();
+  const visit = (folder: ReturnType<typeof buildTree>): void => {
+    if (folder.path) out.add(folder.path);
+    for (const sub of folder.subfolders.values()) visit(sub);
+  };
+  visit(t);
+  return out;
 }
 
 function rowsFor(nodes: readonly INodeView[], sort: IFilesSort, m: IIssueMaps = NO_ISSUES): TFolderViewRow[] {
-  const { tree: t, aggregates } = tree(nodes);
-  return buildRows({ tree: t, leaves: nodes, collapsed: new Set(), aggregates, maps: m, sort });
+  const { tree: t, aggregates } = tree(nodes, m);
+  return buildRows({
+    tree: t,
+    leaves: nodes,
+    expanded: allFolderPaths(t),
+    aggregates,
+    maps: m,
+    sort,
+  });
 }
+
+const folders = (rows: TFolderViewRow[]): IFolderRow[] =>
+  rows.filter((r): r is IFolderRow => r.type === 'folder');
 
 const leaves = (rows: TFolderViewRow[]): IFolderLeaf[] =>
   rows.filter((r): r is IFolderLeaf => r.type === 'leaf');
@@ -86,6 +149,20 @@ describe('buildRows: tree mode (default)', () => {
     expect(row.name).toBe('intro');
     expect((row as IFolderLeaf).prefix).toBe('docs/guides/');
     expect(row.depth).toBe(0);
+  });
+
+  it('collapses every folder by default (empty expanded set), revealing children only when expanded', () => {
+    const nodes = [makeNode('src/a.md', { name: 'a' }), makeNode('src/b.md', { name: 'b' })];
+    const { tree: t, aggregates } = tree(nodes);
+    const sort: IFilesSort = { column: 'tree', dir: 'asc' };
+    // Default: nothing expanded -> only the top-level folder row, no leaves.
+    const collapsed = buildRows({ tree: t, leaves: nodes, expanded: new Set(), aggregates, maps: NO_ISSUES, sort });
+    expect(collapsed.map((r) => `${r.type}:${r.name}`)).toEqual(['folder:src']);
+    expect((collapsed[0] as IFolderRow).expanded).toBe(false);
+    // Expanding 'src' reveals its leaves.
+    const opened = buildRows({ tree: t, leaves: nodes, expanded: new Set(['src']), aggregates, maps: NO_ISSUES, sort });
+    expect(opened.map((r) => `${r.type}:${r.name}`)).toEqual(['folder:src', 'leaf:a', 'leaf:b']);
+    expect((opened[0] as IFolderRow).expanded).toBe(true);
   });
 });
 
@@ -216,6 +293,93 @@ describe('issueWeight', () => {
     const [leaf] = leaves(rowsFor(nodes, { column: 'modified', dir: 'desc' }));
     expect(leaf?.modifiedAt).toBe('2025-06-13');
     expect(leaf?.modifiedAtFull).toBe('2025-06-13 14:12:47Z');
+  });
+});
+
+describe('issueMapsFromLite', () => {
+  it('keys per-node error / warn counts from the lite folders list', () => {
+    const lite: IFolderNodeLite[] = [
+      liteRow('src/a.md', { errorCount: 2, warnCount: 1 }),
+      liteRow('src/b.md', { errorCount: 0, warnCount: 3 }),
+      liteRow('clean.md', { kind: 'note', errorCount: 0, warnCount: 0 }),
+    ];
+    const m = issueMapsFromLite(lite);
+    expect(m.errorCounts.get('src/a.md')).toBe(2);
+    expect(m.warnCounts.get('src/a.md')).toBe(1);
+    expect(m.warnCounts.get('src/b.md')).toBe(3);
+    // Zero-count nodes are omitted (no key) so `?? 0` reads naturally.
+    expect(m.errorCounts.has('src/b.md')).toBe(false);
+    expect(m.errorCounts.has('clean.md')).toBe(false);
+    expect(m.warnCounts.has('clean.md')).toBe(false);
+  });
+});
+
+describe('lite folders row -> leaf data columns', () => {
+  it('renders the real link / token / modified values a lite item carries', () => {
+    const view = projectLite(
+      liteRow('docs/a.md', {
+        linksInCount: 7,
+        linksOutCount: 3,
+        tokensTotal: 1_280,
+        modifiedAtMs: 1_749_823_967_000,
+      }),
+    );
+    const leaf = makeLeafRow(view, 0, NO_ISSUES);
+    expect(leaf.linksIn).toBe('7');
+    expect(leaf.linksOut).toBe('3');
+    expect(leaf.tokens).toBe('1.3k');
+    expect(leaf.modifiedAt).toBe('2025-06-13');
+    expect(leaf.linksInRaw).toBe(7);
+    expect(leaf.linksOutRaw).toBe(3);
+    expect(leaf.tokensRaw).toBe(1_280);
+    expect(leaf.modifiedAtRaw).toBe(1_749_823_967_000);
+    // None of the data cells fell back to the missing glyph.
+    expect(leaf.linksIn).not.toBe(FILES_VIEW_TEXTS.missing);
+    expect(leaf.tokens).not.toBe(FILES_VIEW_TEXTS.missing);
+    expect(leaf.modifiedAt).not.toBe(FILES_VIEW_TEXTS.missing);
+  });
+
+  it('shows the missing glyph for tokens / modified when the lite item is null', () => {
+    // Link counts are always present (0, not null); tokens + mtime are
+    // null for virtual / derived nodes and coerce to `·`.
+    const view = projectLite(
+      liteRow('virtual.md', { linksInCount: 0, linksOutCount: 0 }),
+    );
+    const leaf = makeLeafRow(view, 0, NO_ISSUES);
+    expect(leaf.linksIn).toBe('0');
+    expect(leaf.linksOut).toBe('0');
+    expect(leaf.tokens).toBe(FILES_VIEW_TEXTS.missing);
+    expect(leaf.modifiedAt).toBe(FILES_VIEW_TEXTS.missing);
+    expect(leaf.modifiedAtFull).toBe('');
+    expect(leaf.tokensRaw).toBeUndefined();
+    expect(leaf.modifiedAtRaw).toBeUndefined();
+  });
+});
+
+describe('folder severity badges (recursive roll-up)', () => {
+  it('sums descendant error / warn counts onto each folder row', () => {
+    const nodes = [
+      makeNode('src/api/a.md', { name: 'a' }),
+      makeNode('src/api/b.md', { name: 'b' }),
+      makeNode('src/c.md', { name: 'c' }),
+    ];
+    const m = maps({ 'src/api/a.md': 2, 'src/c.md': 1 }, { 'src/api/b.md': 4 });
+    const rows = rowsFor(nodes, { column: 'tree', dir: 'asc' }, m);
+    const byPath = new Map(folders(rows).map((f) => [f.path, f]));
+    // src rolls up the whole subtree: 3 errors (2 + 1), 4 warns.
+    expect(byPath.get('src')?.errors).toBe(3);
+    expect(byPath.get('src')?.warns).toBe(4);
+    // src/api rolls up only its two leaves: 2 errors, 4 warns.
+    expect(byPath.get('src/api')?.errors).toBe(2);
+    expect(byPath.get('src/api')?.warns).toBe(4);
+  });
+
+  it('reports zero badges for a folder with no descendant issues', () => {
+    const nodes = [makeNode('docs/x.md', { name: 'x' }), makeNode('docs/y.md', { name: 'y' })];
+    const rows = rowsFor(nodes, { column: 'tree', dir: 'asc' }, NO_ISSUES);
+    const folder = folders(rows).find((f) => f.path === 'docs');
+    expect(folder?.errors).toBe(0);
+    expect(folder?.warns).toBe(0);
   });
 });
 

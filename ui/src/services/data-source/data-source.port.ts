@@ -31,6 +31,8 @@ import type {
   IProjectConfigApi,
   IActiveProviderApi,
   IActiveProviderPutEnvelopeApi,
+  IBranchResponseApi,
+  IFolderNodeLite,
   IProjectIgnoreApi,
   IProjectIgnorePatchApi,
   IProjectPreferencesApi,
@@ -159,6 +161,38 @@ export interface IDataSourcePort {
 
   /** Full `ScanResult` (1:1 with `scan-result.schema.json`). */
   loadScan(): Promise<IScanResultApi>;
+
+  /**
+   * Lightweight scan meta (`GET /api/scan?meta=1`). Returns a
+   * `ScanResult` with EMPTY `nodes` / `links` / `issues` arrays but real
+   * `stats` counts and the scalar meta (`scannedAt`, `roots`,
+   * `providers`, `scannedBy`, `tokenizer?`, `scanCeiling`,
+   * `scanTruncated`, `maxRenderNodes`, `oversizedFiles`). Cheap; feeds
+   * the header + the scan-truncated / skipped-files banners without
+   * hydrating the whole corpus.
+   */
+  loadScanMeta(): Promise<IScanResultApi>;
+
+  /**
+   * Whole-corpus lightweight node list (`GET /api/folders`). One
+   * `IFolderNodeLite` per scanned node (`{ path, kind, errorCount,
+   * warnCount }`), no pagination. Feeds the folders tree, text search,
+   * kind filter, and the per-folder severity badges.
+   */
+  loadFolders(): Promise<IFolderNodeLite[]>;
+
+  /**
+   * Branch projection for the graph map (`GET /api/branch?path=<prefix>
+   * &path=<prefix>&...&limit=<n>`). `paths` is the multi-prefix
+   * selection (folder prefixes and / or exact leaf paths); an empty
+   * array = whole-corpus root. The response is the UNION of the subtrees
+   * under every prefix, returning the first `branch.rendered` nodes in
+   * stable path order, capped at the scan's `maxRenderNodes`; `links`
+   * only where both endpoints are in `nodes`; `issues` only those
+   * touching `nodes`. `limit` can only LOWER the cap (clamped to
+   * `[1, maxRenderNodes]` server-side).
+   */
+  loadBranch(paths: string[], limit?: number): Promise<IBranchResponseApi>;
 
   /**
    * Trigger a fresh scan and persist it. Mirrors `POST /api/scan`,

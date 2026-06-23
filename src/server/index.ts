@@ -115,6 +115,19 @@ export interface ICreateServerOpts {
    * `defaultRuntimeContext()`.
    */
   runtimeContext?: IRuntimeContext;
+  /**
+   * When set, the watcher service spins a terminal scan spinner on
+   * `stream` while each batch runs and prints a one-line confirmation on
+   * completion. The `sm serve` verb threads its `stderr` plus the
+   * resolved color toggle here; the spinner degrades to a single plain
+   * line on a non-TTY stream. Forwarded verbatim to
+   * `createWatcherService`. Unset (tests, head-less boots) means no
+   * spinner.
+   */
+  scanProgress?: {
+    stream: NodeJS.WritableStream & { isTTY?: boolean };
+    colorEnabled: boolean;
+  };
 }
 
 export async function createServer(
@@ -179,6 +192,7 @@ export async function createServer(
       broadcaster,
     };
     if (debounce !== undefined) svcOpts.debounceMsOverride = debounce;
+    if (extra.scanProgress) svcOpts.scanProgress = extra.scanProgress;
     const candidate = createWatcherService(svcOpts);
     try {
       await candidate.start();

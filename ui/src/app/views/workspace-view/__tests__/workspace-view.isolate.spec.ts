@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { Component, Injectable, signal } from '@angular/core';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { Router, provideRouter } from '@angular/router';
 import { EMPTY } from 'rxjs';
 import { DagreLayoutEngine } from '@foblex/flow-dagre-layout';
@@ -8,6 +9,7 @@ import { DagreLayoutEngine } from '@foblex/flow-dagre-layout';
 import { WorkspaceView } from '../workspace-view';
 import { GraphView } from '../../graph-view/graph-view';
 import { CollectionLoaderService } from '../../../../services/collection-loader';
+import { FilterStoreService } from '../../../../services/filter-store';
 import { KindRegistryService } from '../../../../services/kind-registry';
 import { MapVisibilityService } from '../../../../services/map-visibility';
 import {
@@ -17,7 +19,12 @@ import {
 import { SKILL_MAP_MODE } from '../../../../services/data-source/runtime-mode';
 import { MarkdownRenderer } from '../../../../services/markdown-renderer';
 import type { INodeView } from '../../../../models/node';
-import type { IScanResultApi, ILinkApi } from '../../../../models/api';
+import type {
+  IBranchResponseApi,
+  IFolderNodeLite,
+  IScanResultApi,
+  ILinkApi,
+} from '../../../../models/api';
 
 /**
  * WorkspaceView end-to-end isolate wiring.
@@ -43,7 +50,7 @@ function makeNode(path: string, name: string): INodeView {
   };
 }
 
-function makeLoaderStub(nodes: INodeView[], links: ILinkApi[]) {
+function makeLoaderStub(nodes: INodeView[], links: ILinkApi[], corpusSize = nodes.length) {
   const scan: IScanResultApi = {
     schemaVersion: 1,
     scannedAt: 0,
@@ -71,9 +78,37 @@ function makeLoaderStub(nodes: INodeView[], links: ILinkApi[]) {
       durationMs: 0,
     },
   };
+  const branch: IBranchResponseApi = {
+    schemaVersion: '1',
+    kind: 'branch',
+    branch: { paths: [], total: scan.nodes.length, rendered: scan.nodes.length, truncated: false, cap: 256 },
+    nodes: scan.nodes,
+    links,
+    issues: [],
+  };
   return {
     nodes: signal(nodes),
     scan: signal<IScanResultApi | null>(scan),
+    scanMeta: signal<IScanResultApi | null>({ ...scan, nodes: [], links: [], issues: [] }),
+    liteNodes: signal<IFolderNodeLite[]>(
+      nodes.map((n) => ({
+        path: n.path,
+        kind: n.kind,
+        linksInCount: 0,
+        linksOutCount: 0,
+        tokensTotal: null,
+        modifiedAtMs: null,
+        errorCount: 0,
+        warnCount: 0,
+      })),
+    ),
+    // The files-view (a child of the workspace) builds its tree from
+    // `liteNodeViews()`; project the same minimal shape the loader does.
+    liteNodeViews: signal<INodeView[]>(
+      nodes.map((n) => ({ path: n.path, kind: n.kind, frontmatter: { name: '', description: '' } }) as INodeView),
+    ),
+    branch: signal<IBranchResponseApi | null>(branch),
+    corpusCount: signal(corpusSize),
     loading: signal(false),
     error: signal<string | null>(null),
     hasAnyFavorites: signal(false),
@@ -104,15 +139,16 @@ class FakeMarkdownRenderer extends MarkdownRenderer {
   }
 }
 
-async function bootstrap(nodes: INodeView[], links: ILinkApi[]): Promise<{
+async function bootstrap(nodes: INodeView[], links: ILinkApi[], corpusSize = nodes.length): Promise<{
   fixture: ComponentFixture<WorkspaceView>;
   mapVisibility: MapVisibilityService;
 }> {
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [
+      provideNoopAnimations(),
       provideRouter([{ path: '', component: BlankPage }]),
-      { provide: CollectionLoaderService, useValue: makeLoaderStub(nodes, links) },
+      { provide: CollectionLoaderService, useValue: makeLoaderStub(nodes, links, corpusSize) },
       { provide: DATA_SOURCE, useValue: STUB_DATA_SOURCE },
       { provide: MarkdownRenderer, useClass: FakeMarkdownRenderer },
       { provide: SKILL_MAP_MODE, useValue: 'demo' },
@@ -204,8 +240,10 @@ describe('WorkspaceView files rail collapse default', () => {
     ) as HTMLElement;
   }
 
-  it('defaults the files rail to collapsed when nothing is persisted', async () => {
+  it('defaults the files rail to collapsed for a small corpus when nothing is persisted', async () => {
     localStorage.removeItem('sm.workspace.rail-collapsed');
+    // corpusCount (1) <= maxRenderNodes (256): the map shows everything, so
+    // the rail stays collapsed (map front-and-center).
     const { fixture } = await bootstrap([makeNode('a.md', 'a')], []);
     // Collapsed: the rail carries the modifier class and its body (the
     // resize handle gating the file tree) is not mounted.
@@ -217,6 +255,19 @@ describe('WorkspaceView files rail collapse default', () => {
     ).toBeNull();
   });
 
+  it('auto-opens the files rail when the corpus exceeds the render cap and nothing is persisted', async () => {
+    localStorage.removeItem('sm.workspace.rail-collapsed');
+    // corpusCount (300) > maxRenderNodes (256): the map renders only a
+    // subset, so the folders tree opens by default to navigate it.
+    const { fixture } = await bootstrap([makeNode('a.md', 'a')], [], 300);
+    expect(railEl(fixture).classList.contains('is-collapsed')).toBe(false);
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector(
+        '[data-testid="workspace-rail-resize"]',
+      ),
+    ).not.toBeNull();
+  });
+
   it('respects a persisted open rail', async () => {
     localStorage.setItem('sm.workspace.rail-collapsed', '0');
     const { fixture } = await bootstrap([makeNode('a.md', 'a')], []);
@@ -226,6 +277,43 @@ describe('WorkspaceView files rail collapse default', () => {
         '[data-testid="workspace-rail-resize"]',
       ),
     ).not.toBeNull();
+    localStorage.removeItem('sm.workspace.rail-collapsed');
+  });
+});
+
+describe('WorkspaceView rail reset control', () => {
+  it('clears the map selection AND resets the facet filters in one click', async () => {
+    localStorage.setItem('sm.workspace.rail-collapsed', '0');
+    const { fixture, mapVisibility } = await bootstrap([makeNode('a.md', 'a')], []);
+    const store = TestBed.inject(FilterStoreService);
+
+    // Seed both axes the control resets: a facet filter and a folder
+    // selection. The button only lights up when one of them is active.
+    store.setSearchText('foo');
+    mapVisibility.toggleFolder('src');
+    expect(store.isActive()).toBe(true);
+    expect(mapVisibility.isActive()).toBe(true);
+    try {
+      fixture.detectChanges();
+    } catch {
+      /* ignore Foblex-internal render glitches in jsdom */
+    }
+
+    click(fixture, 'workspace-reset-filters');
+
+    // One click both shows-all (clears the selection) and resets every facet.
+    expect(store.isActive()).toBe(false);
+    expect(mapVisibility.paths().size).toBe(0);
+  });
+
+  it('disables the reset control when there is nothing active to reset', async () => {
+    localStorage.setItem('sm.workspace.rail-collapsed', '0');
+    const { fixture } = await bootstrap([makeNode('a.md', 'a')], []);
+    const btn = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+      '[data-testid="workspace-reset-filters"]',
+    );
+    expect(btn).not.toBeNull();
+    expect(btn!.disabled).toBe(true);
     localStorage.removeItem('sm.workspace.rail-collapsed');
   });
 });

@@ -5,6 +5,7 @@ import { signal } from '@angular/core';
 import { KindPalette } from '../kind-palette';
 import { CollectionLoaderService } from '../../../../services/collection-loader';
 import { FilterStoreService } from '../../../../services/filter-store';
+import { IssuePathsService, type IIssuePathsBySeverity } from '../../../../services/issue-paths';
 import { KindRegistryService, type IKindRegistryEntry } from '../../../../services/kind-registry';
 import type { INodeView } from '../../../../models/node';
 
@@ -13,13 +14,16 @@ interface IKindPaletteFixture {
 }
 
 /**
- * Stubs the three services `KindPalette` depends on so tests can drive
- * the visible-rows logic without booting the full data layer. Each
- * stub mirrors only the surface the component actually reads:
+ * Stubs the services `KindPalette` depends on so tests can drive the
+ * visible-rows logic without booting the full data layer. Each stub
+ * mirrors only the surface the component actually reads:
  *
- *   - `CollectionLoaderService.nodes()` / `hasAnyFavorites()`.
+ *   - `CollectionLoaderService.nodes()` (the rendered branch) /
+ *     `hasAnyFavorites()`.
  *   - `KindRegistryService.kinds()`.
- *   - `FilterStoreService.isKindActive` / `favoritesOnly`.
+ *   - `FilterStoreService.isKindActive` / `favoritesOnly` /
+ *     `searchAffectsMap` / `apply`.
+ *   - `IssuePathsService.bySeverity()` (the severity facet context).
  *
  * The TestBed override pattern (instead of constructor injection)
  * mirrors `demo-banner.spec.ts` and the other component specs in this
@@ -28,10 +32,35 @@ interface IKindPaletteFixture {
 function makeFixture(opts: {
   nodes: INodeView[];
   kinds: Array<Pick<IKindRegistryEntry, 'name' | 'label'>>;
+  /**
+   * Optional whole-corpus lite list, typically BIGGER than the branch
+   * (`nodes`). Exposed on the loader stub purely to prove the palette
+   * IGNORES it: the counts come from the rendered branch, never the
+   * corpus. Defaults to `nodes` when omitted.
+   */
+  corpusNodes?: INodeView[];
 }): IKindPaletteFixture {
+  const corpus = opts.corpusNodes ?? opts.nodes;
   const loader = {
+    // The palette counts kinds over the RENDERED branch (`nodes()`), so
+    // the count tracks the map rather than the whole scanned corpus. The
+    // lite (corpus) list is exposed too, bigger than the branch in the
+    // dedicated guard test, so a regression back to corpus-scoping fails.
     nodes: signal<INodeView[]>(opts.nodes).asReadonly(),
+    liteNodes: signal(corpus.map((n) => ({ path: n.path, kind: n.kind }))).asReadonly(),
+    liteNodeViews: signal<INodeView[]>(
+      corpus.map(
+        (n) =>
+          ({ path: n.path, kind: n.kind, frontmatter: { name: '', description: '' } }) as INodeView,
+      ),
+    ).asReadonly(),
     hasAnyFavorites: () => opts.nodes.some((n) => n.isFavorite === true),
+  };
+  const issuePaths = {
+    bySeverity: signal<IIssuePathsBySeverity>({
+      errors: new Set<string>(),
+      warns: new Set<string>(),
+    }).asReadonly(),
   };
   const kinds: IKindRegistryEntry[] = opts.kinds.map((k) => ({
     name: k.name,
@@ -52,8 +81,11 @@ function makeFixture(opts: {
   const filters = {
     isKindActive: () => true,
     favoritesOnly: signal(false).asReadonly(),
+    searchAffectsMap: signal(false).asReadonly(),
     toggleKind: () => undefined,
     setFavoritesOnly: () => undefined,
+    // Passthrough: tests exercise presence/show-hide, not filtering.
+    apply: (nodes: INodeView[]) => nodes,
   };
 
   TestBed.resetTestingModule();
@@ -63,6 +95,7 @@ function makeFixture(opts: {
       { provide: CollectionLoaderService, useValue: loader },
       { provide: KindRegistryService, useValue: registry },
       { provide: FilterStoreService, useValue: filters },
+      { provide: IssuePathsService, useValue: issuePaths },
     ],
   });
   const fixture = TestBed.createComponent(KindPalette);
@@ -119,6 +152,26 @@ describe('KindPalette', () => {
     expect(root.querySelector('[data-testid="kind-palette-agent"]')).not.toBeNull();
     expect(root.querySelector('[data-testid="kind-palette-command"]')).toBeNull();
     expect(root.querySelector('[data-testid="kind-palette-mcp"]')).toBeNull();
+  });
+
+  it('counts the RENDERED branch per kind, not the whole corpus (corpus/render split guard)', () => {
+    // The branch (`nodes()`) renders 3 agents; the corpus (`liteNodes()`)
+    // carries 9. The badge must show the BRANCH count (3): the palette
+    // reads `loader.nodes()`, never the whole-corpus lite list. Guards the
+    // regression where a folder selection / a >256 corpus left the palette
+    // reporting scan totals instead of what is actually on the map. The
+    // icon falls back to the kind label's first letter ("A"), so the
+    // rendered text is "A3"; assert the digit rather than an exact match.
+    const { fixture } = makeFixture({
+      nodes: [makeNode('a.md', 'agent'), makeNode('b.md', 'agent'), makeNode('c.md', 'agent')],
+      corpusNodes: Array.from({ length: 9 }, (_, i) => makeNode(`x${i}.md`, 'agent')),
+      kinds: [{ name: 'agent', label: 'Agents' }],
+    });
+    const btn = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="kind-palette-agent"]',
+    );
+    expect(btn?.textContent).toContain('3'); // branch count
+    expect(btn?.textContent).not.toContain('9'); // not the corpus count
   });
 
   it('renders an empty palette when no node matches any registered kind', () => {

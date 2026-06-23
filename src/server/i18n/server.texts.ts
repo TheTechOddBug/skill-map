@@ -65,6 +65,14 @@ export const SERVER_TEXTS = {
   paginationInvalidInteger:
     '{{name}}={{value}} is not a non-negative integer.',
 
+  // /api/branch, the `limit` query param must be a positive integer
+  // (>= 1). Non-integer / zero / negative rejects with 400 bad-query
+  // before the branch projection runs. A value above the scan's
+  // effective maxRenderNodes is silently clamped down (never an error),
+  // so this message only ever fires on a malformed / < 1 input.
+  branchInvalidLimit:
+    'limit={{value}} is not a positive integer (>= 1).',
+
   // Required-query-param miss (used by `parseRequiredString`). The
   // route names the offending parameter so the operator gets a useful
   // 400 instead of a generic "missing input".

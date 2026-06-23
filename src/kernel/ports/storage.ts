@@ -38,11 +38,14 @@ import type { IDiscoveredPlugin } from './plugin-loader.js';
 import type {
   IApplyOptions,
   IApplyResult,
+  IBranchProjection,
   IHistoryStatsRange,
+  IIssueIncidenceCount,
   IIssueListFilter,
   IIssueListResult,
   IIssueRow,
   IListExecutionsFilter,
+  ILiteNode,
   IMigrateNodeFksReport,
   IMigrationFile,
   IMigrationPlan,
@@ -122,6 +125,15 @@ export interface StoragePort {
      */
     load(): Promise<ScanResult>;
     /**
+     * Metadata-only `ScanResult`: every scalar field plus real
+     * `COUNT(*)` stats, but empty `nodes` / `links` / `issues` arrays.
+     * Reads only the single `scan_meta` row plus the counts, never the
+     * node / link / issue tables, so the BFF `GET /api/scan?meta=1` boot
+     * fetch stays cheap on a large corpus. The SPA pairs it with
+     * `/api/folders` (tree) and `/api/branch` (map).
+     */
+    loadMeta(): Promise<ScanResult>;
+    /**
      * Spec § A.9, fine-grained extractor-runs cache breadcrumbs.
      * Returns `Map<nodePath, Map<qualifiedExtractorId, IPriorExtractorRun>>`.
      * Inner value carries `bodyHash` AND `sidecarAnnotationsHash`; both
@@ -142,6 +154,47 @@ export interface StoragePort {
      * is not in the persisted scan.
      */
     findNode(path: string): Promise<INodeBundle | null>;
+    /**
+     * Lightweight full-corpus node list `{ path, kind }[]`, ordered by
+     * `path` ASC. Backs the BFF `/api/folders` endpoint: the SPA folders
+     * tree renders the whole scanned corpus (up to `scan.maxScan`)
+     * without hydrating the full `ScanResult`. Pushes the projection to
+     * SQL (`SELECT path, kind`), never loads the rest of the row.
+     */
+    listLiteNodes(): Promise<ILiteNode[]>;
+    /**
+     * Per-node issue incidence counts by severity, keyed by node path.
+     * Expands every `scan_issues.node_ids_json` array with SQLite
+     * `json_each` and groups by `(value, severity)` so the count is
+     * computed in SQL, not by loading every issue into memory. Only
+     * error / warn severities are tallied (the SPA badges ignore
+     * `info`); nodes with no error / warn issue are absent from the
+     * map. Backs the `errorCount` / `warnCount` fields on `/api/folders`.
+     */
+    issueCountsByPath(): Promise<Map<string, IIssueIncidenceCount>>;
+    /**
+     * Effective map-render cap recorded by the latest scan
+     * (`scan_meta.max_render_nodes`). Returns the design default (256)
+     * when no `scan_meta` row exists (DB freshly migrated / never
+     * scanned). Backs the `/api/branch` cap default + clamp ceiling.
+     */
+    effectiveMaxRenderNodes(): Promise<number>;
+    /**
+     * Prefix-union, capped graph projection for the BFF `/api/branch`
+     * endpoint. A node is in the branch when, for ANY prefix in
+     * `prefixes`, its `path === prefix` or starts with `prefix + '/'`;
+     * the per-prefix subtrees are UNIONed. An empty `prefixes` array
+     * selects the whole corpus. Identical prefixes are de-duped
+     * defensively. `nodes` is the first `limit` matching nodes of the
+     * union in stable path order (`ORDER BY path LIMIT`); `links`
+     * carries only edges whose source AND target are both in `nodes`;
+     * `issues` carries only those whose `nodeIds` intersect `nodes`.
+     * `total` is the count of union nodes BEFORE the cap (so the route
+     * can compute `truncated`); `paths` echoes the de-duped prefixes.
+     * All scoping + capping happens in SQL so a 50K corpus never
+     * hydrates into memory.
+     */
+    loadBranch(prefixes: string[], limit: number): Promise<IBranchProjection>;
   };
 
   // --- contributions namespace -----------------------------------------
@@ -445,9 +498,12 @@ export interface StoragePort {
 export type {
   IApplyOptions,
   IApplyResult,
+  IBranchProjection,
   IHistoryStatsRange,
+  IIssueIncidenceCount,
   IIssueRow,
   IListExecutionsFilter,
+  ILiteNode,
   IMigrateNodeFksReport,
   IMigrationFile,
   IMigrationPlan,

@@ -6,8 +6,8 @@ import { TooltipModule } from 'primeng/tooltip';
 import { KIND_PALETTE_TEXTS } from '../../../i18n/kind-palette.texts';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
+import { IssuePathsService } from '../../../services/issue-paths';
 import { KindRegistryService } from '../../../services/kind-registry';
-import { MapVisibilityService } from '../../../services/map-visibility';
 import type { TNodeKind } from '../../../models/node';
 import { KindIcon } from '../kind-icon/kind-icon';
 
@@ -25,8 +25,10 @@ interface IKindEntry {
  * Toggling delegates to `FilterStoreService.toggleKind`, so the palette
  * stays in sync with anything else reading the same kind-filter signal.
  *
- * Counts are total loaded nodes per kind (not "visible", those would
- * shrink to 0 when this palette deactivates a kind, which is confusing).
+ * Counts track the RENDERED MAP, the current branch (`loader.nodes()`),
+ * so they grow / shrink with the folder selection and the active facets
+ * instead of reflecting the whole scanned corpus. A kind chip shows iff
+ * the branch currently renders at least one node of that kind.
  *
  * Step 14.5.d: the kind catalog comes from `KindRegistryService` (fed by
  * the BFF's `kindRegistry` envelope field) instead of a hardcoded enum.
@@ -43,38 +45,45 @@ export class KindPalette {
   private readonly loader = inject(CollectionLoaderService);
   protected readonly filters = inject(FilterStoreService);
   private readonly kindRegistry = inject(KindRegistryService);
-  private readonly mapVisibility = inject(MapVisibilityService);
+  private readonly issuePaths = inject(IssuePathsService);
 
   protected readonly texts = KIND_PALETTE_TEXTS;
 
   protected readonly entries = computed<readonly IKindEntry[]>(() => {
-    // Raw presence drives show/hide + the toggle universe (a kind in the
-    // scan); the scoped count is the DISPLAYED number, so filtering from the
-    // files rail reshapes it while a curated-out kind keeps its (count 0)
-    // toggle reachable. Scoped is path-based, so toggling a kind off never
-    // zeroes its own count.
-    const counts = new Map<string, number>();
-    const scoped = new Map<string, number>();
-    for (const n of this.loader.nodes()) {
-      counts.set(n.kind, (counts.get(n.kind) ?? 0) + 1);
-      if (this.mapVisibility.inScope(n.path)) {
-        scoped.set(n.kind, (scoped.get(n.kind) ?? 0) + 1);
-      }
+    // Everything is scoped to the RENDERED MAP, the current branch
+    // (`loader.nodes()`). PRESENCE (branch, unfiltered) decides which kind
+    // rows show and the toggle universe, so a kind that is on the map keeps
+    // its toggle reachable even while another facet hides its nodes. The
+    // DISPLAYED count is the branch filtered by the active search + facets,
+    // EXCLUDING this palette's own kind facet (so toggling a kind off never
+    // zeroes its own number) and honouring `searchAffectsMap` exactly the
+    // way `<sm-graph-view>`'s `visibleNodes` does, so the number always
+    // matches what the canvas renders.
+    const branch = this.loader.nodes();
+    const presence = new Map<string, number>();
+    for (const n of branch) {
+      presence.set(n.kind, (presence.get(n.kind) ?? 0) + 1);
     }
-    // Hide rows whose count is zero, the palette only surfaces kinds
-    // the current scan actually emitted nodes for. Kinds declared by
-    // enabled Providers but not present in the loaded set stay out of
-    // the way (e.g. `mcp` when no skill references an MCP server,
-    // `command` in a scope that has only agents). The toggle for a
-    // hidden kind would be a no-op anyway: turning visibility on or
-    // off does not bring nodes into existence.
+    const displayed = new Map<string, number>();
+    const filtered = this.filters.apply(branch, this.issuePaths.bySeverity(), {
+      includeKinds: false,
+      includeSearch: this.filters.searchAffectsMap(),
+    });
+    for (const n of filtered) {
+      displayed.set(n.kind, (displayed.get(n.kind) ?? 0) + 1);
+    }
+    // Hide rows whose branch presence is zero, the palette only surfaces
+    // kinds the map actually renders nodes for. Kinds declared by enabled
+    // Providers but absent from the current branch stay out of the way. The
+    // toggle for a hidden kind would be a no-op anyway: visibility does not
+    // bring nodes into being.
     return this.kindRegistry.kinds()
       .map((entry) => ({
         kind: entry.name,
         label: entry.label,
-        count: scoped.get(entry.name) ?? 0,
+        count: displayed.get(entry.name) ?? 0,
       }))
-      .filter((entry) => (counts.get(entry.kind) ?? 0) > 0);
+      .filter((entry) => (presence.get(entry.kind) ?? 0) > 0);
   });
 
   /**
@@ -85,10 +94,7 @@ export class KindPalette {
    * active (so they can disable it after un-favoriting the last node).
    */
   protected readonly favoritesCount = computed(
-    () =>
-      this.loader
-        .nodes()
-        .filter((n) => n.isFavorite === true && this.mapVisibility.inScope(n.path)).length,
+    () => this.loader.nodes().filter((n) => n.isFavorite === true).length,
   );
 
   protected readonly showFavorites = computed(

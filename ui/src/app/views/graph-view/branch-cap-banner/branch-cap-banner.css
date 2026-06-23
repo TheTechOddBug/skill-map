@@ -1,0 +1,40 @@
+/*
+ * In-view branch-cap banner, an informational overlay floated at the top
+ * of the graph canvas. Informational (not a warning): the operator did
+ * not misconfigure anything, the branch is simply larger than the render
+ * cap. Uses the bare PrimeNG surface / border / text tokens so the
+ * matrix theme retints it automatically; no hardcoded fallbacks.
+ */
+:host {
+  position: absolute;
+  top: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  max-width: min(90%, 40rem);
+  pointer-events: none;
+}
+
+.branch-cap-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: var(--p-border-radius);
+  background: var(--p-content-background);
+  color: var(--p-text-color);
+  box-shadow: var(--p-overlay-popover-shadow);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.branch-cap-banner__icon {
+  flex: 0 0 auto;
+  font-size: 1rem;
+  color: var(--p-primary-color);
+}
+
+.branch-cap-banner__body {
+  margin: 0;
+}

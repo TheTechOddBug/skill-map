@@ -243,6 +243,7 @@ interface IScanOverrides {
   allowEmpty?: boolean;
   strict?: boolean;
   watch?: boolean;
+  maxScan?: string | undefined;
   maxNodes?: string | undefined;
 }
 
@@ -257,11 +258,13 @@ function buildScan(overrides: IScanOverrides = {}): ScanCommand {
   cmd.allowEmpty = overrides.allowEmpty ?? false;
   cmd.strict = overrides.strict ?? false;
   cmd.watch = overrides.watch ?? false;
-  // Reset Clipanion marker for `--max-nodes`. New `ScanCommand()` leaves
-  // the Option.String marker object on `cmd.maxNodes`; the parser fills
-  // it in only when the CLI engine runs. Tests that instantiate the
-  // command directly must clear the marker so `parseMaxNodesFlag()` sees
-  // `undefined` instead of the metadata.
+  // Reset Clipanion markers for `--max-scan` / `--max-nodes`. New
+  // `ScanCommand()` leaves the Option.String marker object on
+  // `cmd.maxScan` / `cmd.maxNodes`; the parser fills them in only when
+  // the CLI engine runs. Tests that instantiate the command directly
+  // must clear the markers so `parseMaxScanFlag()` / `parseMaxNodesFlag()`
+  // see `undefined` instead of the metadata.
+  cmd.maxScan = overrides.maxScan;
   cmd.maxNodes = overrides.maxNodes;
   return cmd;
 }

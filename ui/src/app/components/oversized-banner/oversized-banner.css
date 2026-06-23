@@ -1,15 +1,10 @@
 /*
- * Top-of-shell persistent banner for scans at or above
- * `scan.maxNodes`. Visual treatment scales with severity, `data-mode`
- * drives the palette via the project's SM severity tokens:
- *
- *   - capped   -> --sm-severity-error{,-bg}  (data loss)
- *   - overLimit / atLimit -> --sm-severity-warn{,-bg}  (warning)
- *
- * Using the SM severity tokens (not raw `--p-red-*` / `--p-yellow-*`)
- * is what lets the matrix theme retint the banner to its green
- * immersion automatically (`matrix.css` swaps the same tokens), while
- * light + dark keep the conventional red / yellow palette via
+ * Top-of-shell persistent banner for a scan that hit its file ceiling
+ * (`scan.maxScan`) and dropped files. Single mode, warn palette: data
+ * was lost from the corpus but nothing is broken. Uses the SM severity
+ * tokens (not raw `--p-yellow-*`) so the matrix theme retints the banner
+ * to its green immersion automatically (`matrix.css` swaps the same
+ * tokens), while light + dark keep the conventional yellow palette via
  * `styles.css`. Bare provider tokens, no hardcoded fallbacks.
  */
 :host {
@@ -23,29 +18,12 @@
   padding: 0.5rem 1rem;
   border-bottom: 1px solid var(--p-content-border-color);
   font-size: 0.875rem;
-}
-
-.oversized-banner[data-mode='capped'] {
-  background: var(--sm-severity-error-bg);
-  color: var(--sm-severity-error);
-}
-
-.oversized-banner[data-mode='overLimit'],
-.oversized-banner[data-mode='atLimit'] {
   background: var(--sm-severity-warn-bg);
   color: var(--sm-severity-warn);
 }
 
 .oversized-banner__icon {
   font-size: 1.1rem;
-}
-
-.oversized-banner[data-mode='capped'] .oversized-banner__icon {
-  color: var(--sm-severity-error);
-}
-
-.oversized-banner[data-mode='overLimit'] .oversized-banner__icon,
-.oversized-banner[data-mode='atLimit'] .oversized-banner__icon {
   color: var(--sm-severity-warn);
 }
 
@@ -56,13 +34,12 @@
 }
 
 /*
- * Inline CTA. `currentColor` is the banner's foreground (mode-driven,
- * see the `[data-mode='…']` rules above), so the button visually
- * matches the banner without needing per-mode rules. Matrix retints
- * the SM severity tokens to its accent palette automatically, the
- * button rides along. PrimeNG `<p-button>` was avoided here because
- * its secondary chrome doesn't track the SM tokens; a plain `<button>`
- * gives us mode-aware paint with zero theme-coupling.
+ * Inline CTA. `currentColor` is the banner's foreground (the warn token),
+ * so the button visually matches the banner without per-mode rules.
+ * Matrix retints the SM severity tokens to its accent palette
+ * automatically, the button rides along. PrimeNG `<p-button>` was
+ * avoided here because its secondary chrome doesn't track the SM tokens;
+ * a plain `<button>` gives us token-aware paint with zero theme-coupling.
  */
 .oversized-banner__cta {
   flex: 0 0 auto;

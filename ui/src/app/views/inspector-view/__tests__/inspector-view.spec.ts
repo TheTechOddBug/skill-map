@@ -41,6 +41,7 @@ type IStubDataSource = IDataSourcePort & {
 
 type IStubLoader = {
   nodes: ReturnType<typeof signal<INodeView[]>>;
+  scanMeta: ReturnType<typeof signal<unknown>>;
   loading: ReturnType<typeof signal<boolean>>;
   load: ReturnType<typeof vi.fn>;
 };
@@ -87,6 +88,9 @@ function makeDetail(item: INodeApi): INodeDetailApi {
 function makeStubLoader(initialNodes: INodeView[] = []): IStubLoader {
   return {
     nodes: signal(initialNodes),
+    // The inspector's ngOnInit boot guard reads `scanMeta()`; a non-null
+    // value keeps it from kicking a (stubbed) `load()` under test.
+    scanMeta: signal<unknown>({}),
     loading: signal(false),
     load: vi.fn().mockResolvedValue(undefined),
   };

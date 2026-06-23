@@ -136,9 +136,13 @@ export class ServeCommand extends SmCommand {
   // who want to tighten / relax the watcher's batching window without
   // editing settings.json. Hidden flag, the Usage block omits it.
   watcherDebounceMs = Option.String('--watcher-debounce-ms', { required: false, hidden: true });
+  maxScan = Option.String('--max-scan', {
+    required: false,
+    description: 'Per-invocation override of scan.maxScan (default 50000), the WALK-INTAKE ceiling. The scan walks, parses, analyzes, and reference-validates the full corpus up to this number. Bidirectional: raises OR lowers the ceiling. Applies to every scan the server runs (initial watcher pass, debounced batches, POST /api/scan, GET /api/scan?fresh=1). Same flag is honoured on the bare `sm` invocation, which routes to `sm serve`.',
+  });
   maxNodes = Option.String('--max-nodes', {
     required: false,
-    description: 'Per-invocation override of scan.maxNodes (default 256). Bidirectional: raises OR lowers the recommended cap on classified nodes. Applies to every scan the server runs (initial watcher pass, debounced batches, POST /api/scan, GET /api/scan?fresh=1). Same flag is honoured on the bare `sm` invocation, which routes to `sm serve`.',
+    description: 'Per-invocation override of scan.maxNodes (default 256), the MAP RENDER cap (pure metadata): it does NOT bound the scan, only how many nodes the graph view projects onto the canvas. Bidirectional: raises OR lowers the render cap. Same flag is honoured on the bare `sm` invocation, which routes to `sm serve`.',
   });
 
   // Long-running daemon, `done in <…>` after a graceful shutdown is
@@ -245,9 +249,21 @@ export class ServeCommand extends SmCommand {
       return ExitCode.Error;
     }
 
-    // 3c. Parse --max-nodes. Same shape as the watcher-debounce parser:
-    //     omit → undefined (the runtime falls back to scan.maxNodes),
+    // 3c. Parse --max-scan (walk ceiling) and --max-nodes (render cap).
+    //     Same shape as the watcher-debounce parser: omit → undefined
+    //     (the runtime falls back to scan.maxScan / scan.maxNodes),
     //     positive integer → honoured for every scan the server runs.
+    const maxScanResult = parseMaxScan(this.maxScan);
+    if (!maxScanResult.ok) {
+      this.printer!.info(
+        tx(SERVE_TEXTS.maxScanInvalid, {
+          glyph: errGlyph,
+          value: sanitizeForTerminal(maxScanResult.value),
+          hint: stderrAnsi.dim(SERVE_TEXTS.maxScanInvalidHint),
+        }),
+      );
+      return ExitCode.Error;
+    }
     const maxNodesResult = parseMaxNodes(this.maxNodes);
     if (!maxNodesResult.ok) {
       this.printer!.info(
@@ -275,6 +291,7 @@ export class ServeCommand extends SmCommand {
     if (portResult.port !== undefined) input.port = portResult.port;
     if (this.host !== undefined) input.host = this.host;
     if (debounceResult.value !== undefined) input.watcherDebounceMs = debounceResult.value;
+    if (maxScanResult.value !== undefined) input.maxScan = maxScanResult.value;
     if (maxNodesResult.value !== undefined) input.maxNodes = maxNodesResult.value;
 
     const validation = validateServerOptions(input);
@@ -294,14 +311,29 @@ export class ServeCommand extends SmCommand {
     const driftAbort = await this.#rebuildOnDrift(dbPath, stderrAnsi, warnGlyph);
     if (driftAbort !== null) return driftAbort;
 
-    // 5. Boot. Initialise BFF telemetry here (the CLI verb owns env reads,
+    // 5. Resolve stderr / TTY / color BEFORE boot: the watcher spinner
+    //    (wired into `createServer` below) and the boot banner (printed
+    //    after listen) both read these. Color honours `--no-color`,
+    //    `NO_COLOR`, and `FORCE_COLOR`; the spinner util handles the
+    //    non-TTY degrade itself, so we never gate the wiring on `isTTY`.
+    const stderr = this.context.stderr as NodeJS.WritableStream & { isTTY?: boolean };
+    const isTTY = stderr.isTTY === true;
+    const colorEnabled = resolveColorEnabled({
+      isTTY,
+      noColorFlag: this.noColor,
+      env: process.env,
+    });
+
+    // 6. Boot. Initialise BFF telemetry here (the CLI verb owns env reads,
     // the server stays env-free) and only here: the `serve` verb is skipped
     // by the CLI-side init in entry.ts so the two Sentry clients never
     // clobber each other. No-op while the DSN placeholder is empty.
     await initSentryBff(VERSION);
     let handle: IServerHandle;
     try {
-      handle = await createServer(validation.options);
+      handle = await createServer(validation.options, {
+        scanProgress: { stream: stderr, colorEnabled },
+      });
     } catch (err) {
       const message = formatErrorMessage(err);
       this.printer!.info(
@@ -315,16 +347,10 @@ export class ServeCommand extends SmCommand {
       return ExitCode.Error;
     }
 
-    // 6. Boot banner. TTY-aware (color box vs flat legacy lines) so
-    //    pipes / redirects keep grep-friendly output. Color toggle
-    //    honours `--no-color`, `NO_COLOR`, and `FORCE_COLOR`.
-    const stderr = this.context.stderr as NodeJS.WritableStream & { isTTY?: boolean };
-    const isTTY = stderr.isTTY === true;
-    const colorEnabled = resolveColorEnabled({
-      isTTY,
-      noColorFlag: this.noColor,
-      env: process.env,
-    });
+    // 7. Boot banner. TTY-aware (color box vs flat legacy lines) so
+    //    pipes / redirects keep grep-friendly output. `stderr` / `isTTY`
+    //    / `colorEnabled` were resolved before boot (step 5) so the
+    //    watcher spinner and this banner share one resolution.
     // Project config peek for the banner. Best-effort: a malformed
     // config surfaces elsewhere (`sm config show`, the BFF's own
     // config-loader). The banner just wants `scan.referencePaths` so
@@ -353,13 +379,13 @@ export class ServeCommand extends SmCommand {
       }),
     );
 
-    // 7. Browser auto-open (best-effort; failure → stderr hint, never a fail).
+    // 8. Browser auto-open (best-effort; failure → stderr hint, never a fail).
     if (validation.options.open) {
       const url = `http://${handle.address.host}:${handle.address.port}/`;
       tryOpenBrowser(url, this.context.stderr, warnGlyph);
     }
 
-    // 8. Wait for SIGINT / SIGTERM, then close.
+    // 9. Wait for SIGINT / SIGTERM, then close.
     await waitForShutdown();
     await handle.close();
     this.printer!.info(tx(SERVE_TEXTS.shutdown, { glyph: infoGlyph }));
@@ -424,10 +450,17 @@ function parseDebounce(raw: string | undefined): IDebounceOk | IDebounceErr {
   return { ok: true, value: parsed };
 }
 
-interface IMaxNodesOk { ok: true; value: number | undefined; }
-interface IMaxNodesErr { ok: false; value: string; }
+interface IMaxIntOk { ok: true; value: number | undefined; }
+interface IMaxIntErr { ok: false; value: string; }
 
-function parseMaxNodes(raw: string | undefined): IMaxNodesOk | IMaxNodesErr {
+function parseMaxScan(raw: string | undefined): IMaxIntOk | IMaxIntErr {
+  if (raw === undefined) return { ok: true, value: undefined };
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1) return { ok: false, value: raw };
+  return { ok: true, value: n };
+}
+
+function parseMaxNodes(raw: string | undefined): IMaxIntOk | IMaxIntErr {
   if (raw === undefined) return { ok: true, value: undefined };
   const n = Number(raw);
   if (!Number.isInteger(n) || n < 1) return { ok: false, value: raw };
@@ -504,6 +537,12 @@ function formatValidationError(
         glyph: errGlyph,
         value: sanitizeForTerminal(err.value),
         hint: ansi.dim(SERVE_TEXTS.watcherDebounceInvalidHint),
+      });
+    case 'max-scan-invalid':
+      return tx(SERVE_TEXTS.maxScanInvalid, {
+        glyph: errGlyph,
+        value: sanitizeForTerminal(err.value),
+        hint: ansi.dim(SERVE_TEXTS.maxScanInvalidHint),
       });
     case 'max-nodes-invalid':
       return tx(SERVE_TEXTS.maxNodesInvalid, {

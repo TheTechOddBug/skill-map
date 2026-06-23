@@ -183,6 +183,59 @@ describe('WsEventStreamService, lifecycle', () => {
   });
 });
 
+describe('WsEventStreamService, scanActive (scan-in-progress flag)', () => {
+  let harness: IHarness;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    harness?.service.disconnect();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  const started = (): IWsEvent => ({ type: 'scan.started', timestamp: 1, data: {} });
+  const completed = (): IWsEvent => ({
+    type: 'scan.completed',
+    timestamp: 2,
+    runId: 'r-x',
+    jobId: null,
+    data: { nodes: 1, links: 0, issues: 0, durationMs: 1 },
+  });
+
+  it('flips true on scan.started and back to false on scan.completed', () => {
+    harness = createHarness('live');
+    harness.service.events$.subscribe();
+    const ws = harness.sockets[0]!;
+    ws.simulateOpen();
+
+    expect(harness.service.scanActive()).toBe(false);
+    ws.simulateMessage(started());
+    expect(harness.service.scanActive()).toBe(true);
+    ws.simulateMessage(completed());
+    expect(harness.service.scanActive()).toBe(false);
+  });
+
+  it('resets to false on socket close so a scan cut short never sticks', () => {
+    harness = createHarness('live');
+    harness.service.events$.subscribe();
+    const ws = harness.sockets[0]!;
+    ws.simulateOpen();
+    ws.simulateMessage(started());
+    expect(harness.service.scanActive()).toBe(true);
+
+    // Abnormal close mid-scan (e.g. an `sm serve` restart) clears the flag
+    // so the topbar spinner does not spin forever waiting for a
+    // `scan.completed` that the disconnect ate.
+    ws.simulateClose(1001, 'going away');
+    expect(harness.service.scanActive()).toBe(false);
+  });
+});
+
 describe('WsEventStreamService, reconnect', () => {
   let harness: IHarness;
 

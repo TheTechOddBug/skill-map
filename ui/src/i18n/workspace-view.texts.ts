@@ -15,5 +15,8 @@ export const WORKSPACE_VIEW_TEXTS = {
     searchMapOn: 'Search also filters the map. Click so it filters only the files list.',
     /** Tooltip when the coupling is OFF, the default (click turns it on). */
     searchMapOff: 'Search filters only the files list. Click so it also filters the map.',
+    /** Reset control: clears the map folder selection AND every facet filter. */
+    reset: 'Reset filters',
+    resetTooltip: 'Show all on the map and clear the search, kind, severity and favorite filters',
   },
 } as const;

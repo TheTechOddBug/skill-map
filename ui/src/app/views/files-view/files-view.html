@@ -3,7 +3,7 @@
     <p-message severity="error" [text]="error()!" />
   }
 
-  @if (loading()) {
+  @if (showLoading()) {
     <div class="files__loading" data-testid="files-loading">
       <p-progressSpinner strokeWidth="4" [style]="{ width: '1.75rem', height: '1.75rem' }" />
       <span class="files__loading-label">{{ texts.loading }}</span>
@@ -29,6 +29,7 @@
         [scrollable]="true"
         [scrollHeight]="'flex'"
         dataKey="path"
+        [rowTrackBy]="trackByPath"
         styleClass="p-datatable-sm files__table"
         data-testid="files-table"
       >
@@ -78,42 +79,6 @@
                     >
                       <i class="pi pi-angle-double-up" aria-hidden="true"></i>
                     </button>
-                    <span class="files__tree-sep" aria-hidden="true"></span>
-                    <!-- Map depth presets: check visibility checkboxes up to a
-                         folder depth. 0 = root, 1 = one deep, 2 = two deep. -->
-                    <button
-                      type="button"
-                      class="files__tree-num"
-                      [class.is-active]="activeDepthLevel() === 0"
-                      [pTooltip]="texts.depthLevel0"
-                      tooltipPosition="top"
-                      [attr.aria-label]="texts.depthLevel0"
-                      [attr.aria-pressed]="activeDepthLevel() === 0"
-                      (click)="setDepthLevel(0)"
-                      data-testid="files-depth-0"
-                    >0</button>
-                    <button
-                      type="button"
-                      class="files__tree-num"
-                      [class.is-active]="activeDepthLevel() === 1"
-                      [pTooltip]="texts.depthLevel1"
-                      tooltipPosition="top"
-                      [attr.aria-label]="texts.depthLevel1"
-                      [attr.aria-pressed]="activeDepthLevel() === 1"
-                      (click)="setDepthLevel(1)"
-                      data-testid="files-depth-1"
-                    >1</button>
-                    <button
-                      type="button"
-                      class="files__tree-num"
-                      [class.is-active]="activeDepthLevel() === 2"
-                      [pTooltip]="texts.depthLevel2"
-                      tooltipPosition="top"
-                      [attr.aria-label]="texts.depthLevel2"
-                      [attr.aria-pressed]="activeDepthLevel() === 2"
-                      (click)="setDepthLevel(2)"
-                      data-testid="files-depth-2"
-                    >2</button>
                   </span>
                 }
               </div>
@@ -219,6 +184,7 @@
         <ng-template pTemplate="body" let-row>
           @if (row.type === 'folder') {
             <tr
+              @rowSlide
               class="files__row files__row--folder"
               [attr.aria-expanded]="row.expanded"
               [attr.aria-level]="row.depth + 1"
@@ -236,8 +202,9 @@
                   <button
                     type="button"
                     class="files__vis-check"
-                    [attr.data-state]="folderStateMap().get(row.path) ?? 'none'"
-                    [pTooltip]="texts.mapVisibilityTooltip"
+                    [disabled]="isCoveredByAncestor(row.path)"
+                    [attr.data-state]="isCoveredByAncestor(row.path) ? 'all' : (folderStateMap().get(row.path) ?? 'none')"
+                    [pTooltip]="isCoveredByAncestor(row.path) ? texts.mapCoveredTooltip : texts.mapVisibilityTooltip"
                     tooltipPosition="top"
                     [attr.aria-label]="texts.mapVisibilityAriaLabel(row.name)"
                     (click)="onToggleFolderVisibility(row, $event)"
@@ -245,15 +212,14 @@
                   >
                     <i
                       class="pi"
-                      [class.pi-check]="folderStateMap().get(row.path) === 'all'"
-                      [class.pi-minus]="folderStateMap().get(row.path) === 'some'"
+                      [class.pi-check]="isCoveredByAncestor(row.path) || folderStateMap().get(row.path) === 'all'"
+                      [class.pi-minus]="!isCoveredByAncestor(row.path) && folderStateMap().get(row.path) === 'some'"
                       aria-hidden="true"
                     ></i>
                   </button>
                   <i
-                    class="pi files__chevron"
-                    [class.pi-chevron-right]="!row.expanded"
-                    [class.pi-chevron-down]="row.expanded"
+                    class="pi pi-chevron-right files__chevron"
+                    [class.files__chevron--open]="row.expanded"
                     aria-hidden="true"
                   ></i>
                   <i
@@ -269,11 +235,39 @@
               <td></td>
               <td></td>
               <td></td>
-              <td></td>
+              <td class="files__cell-issues">
+                <span class="files__issues-row">
+                  @if (row.errors > 0) {
+                    <span
+                      class="files__issue files__issue--error"
+                      [pTooltip]="texts.folderErrorTooltip(row.errors)"
+                      tooltipPosition="top"
+                      [attr.aria-label]="texts.folderErrorTooltip(row.errors)"
+                      [attr.data-testid]="'files-folder-errors-' + row.path"
+                    >
+                      <i class="pi pi-times-circle" aria-hidden="true"></i>
+                      <span class="files__issue-count">{{ row.errors }}</span>
+                    </span>
+                  }
+                  @if (row.warns > 0) {
+                    <span
+                      class="files__issue files__issue--warn"
+                      [pTooltip]="texts.folderWarnTooltip(row.warns)"
+                      tooltipPosition="top"
+                      [attr.aria-label]="texts.folderWarnTooltip(row.warns)"
+                      [attr.data-testid]="'files-folder-warns-' + row.path"
+                    >
+                      <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+                      <span class="files__issue-count">{{ row.warns }}</span>
+                    </span>
+                  }
+                </span>
+              </td>
               <td></td>
             </tr>
           } @else {
             <tr
+              @rowSlide
               class="files__row files__row--leaf"
               tabindex="0"
               [attr.aria-label]="texts.leafAriaLabel(row.name)"
@@ -289,8 +283,9 @@
                   <button
                     type="button"
                     class="files__vis-check"
+                    [disabled]="isCoveredByAncestor(row.path)"
                     [attr.data-state]="leafVisible(row.path) ? 'all' : 'none'"
-                    [pTooltip]="texts.mapVisibilityTooltip"
+                    [pTooltip]="isCoveredByAncestor(row.path) ? texts.mapCoveredTooltip : texts.mapVisibilityTooltip"
                     tooltipPosition="top"
                     [attr.aria-label]="texts.mapVisibilityAriaLabel(row.name)"
                     (click)="onToggleLeafVisibility(row, $event)"

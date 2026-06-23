@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, forwardRef, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, forwardRef, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
@@ -6,7 +6,9 @@ import { InputTextModule } from 'primeng/inputtext';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { WORKSPACE_VIEW_TEXTS } from '../../../i18n/workspace-view.texts';
+import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
+import { MapVisibilityService } from '../../../services/map-visibility';
 import { MAP_ISOLATE_INTENT, type IMapIsolateIntent } from '../../slots/map-isolate-intent';
 import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
 import { FilesView } from '../files-view/files-view';
@@ -59,16 +61,42 @@ const RAIL_COLLAPSED_KEY = 'sm.workspace.rail-collapsed';
 export class WorkspaceView implements IMapIsolateIntent {
   private readonly store = inject(FilterStoreService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly loader = inject(CollectionLoaderService);
+  private readonly mapVisibility = inject(MapVisibilityService);
 
   protected readonly texts = WORKSPACE_VIEW_TEXTS;
 
   /**
-   * In-rail toggle: collapses the files panel to a thin strip. Defaults
-   * to collapsed (the workspace opens with the map front-and-center) and
-   * remembers the user's choice in `localStorage`, mirroring how the rail
-   * width is persisted, so re-opening it sticks across reloads.
+   * Enabled only when there is actually something to reset: an active
+   * facet filter (search / kind / severity / favorites) OR a map folder
+   * selection. Keeps the rail control from sitting permanently lit with
+   * nothing to undo.
    */
-  protected readonly railCollapsed = signal(this.readStoredCollapsed());
+  protected readonly canReset = computed(
+    () => this.store.isActive() || this.mapVisibility.isActive(),
+  );
+
+  /**
+   * Saved rail preference (`true` collapsed, `false` open), or `null` when
+   * the user has never toggled it, so the corpus-size auto-default can
+   * decide without overriding an explicit choice.
+   */
+  private readonly storedRailPref = this.readStoredCollapsed();
+
+  /**
+   * In-rail toggle: collapses the files panel to a thin strip. A saved
+   * preference is restored as-is; otherwise the rail starts collapsed
+   * (map front-and-center) and the constructor effect opens it once the
+   * corpus is known to exceed the map render cap (the folders tree is then
+   * needed to navigate). A manual toggle persists and always wins over the
+   * auto-default.
+   */
+  protected readonly railCollapsed = signal(this.storedRailPref ?? true);
+
+  /** Guards so the corpus-size auto-default applies at most once and never
+   *  fights a manual toggle. */
+  private autoRailApplied = false;
+  private userToggledRail = false;
 
   /**
    * True for a beat around a collapse/expand toggle. Gates the width
@@ -107,7 +135,28 @@ export class WorkspaceView implements IMapIsolateIntent {
   protected readonly clampedRailWidth = this.resize.clampedRailWidth;
   protected readonly onRailResizeStart = this.resize.onRailResizeStart;
 
+  constructor() {
+    // Auto-open the rail when the corpus has more nodes than the map can
+    // render (corpusCount > maxRenderNodes, default 256): the map shows a
+    // focused subset, so the folders tree must be visible to navigate it.
+    // Applies only when there is no saved rail preference and the user has
+    // not toggled, fires once, and never re-collapses. A manual toggle
+    // (which persists) wins from then on.
+    effect(() => {
+      // Guards (plain fields, not signals) BEFORE the first signal read, so
+      // a saved preference / prior decision skips reading the corpus and the
+      // effect simply never subscribes (no re-run, no dependency).
+      if (this.autoRailApplied || this.userToggledRail || this.storedRailPref !== null) return;
+      const count = this.loader.corpusCount();
+      if (count === 0) return;
+      this.autoRailApplied = true;
+      const cap = this.loader.scanMeta()?.maxRenderNodes ?? 256;
+      if (count > cap) this.railCollapsed.set(false);
+    });
+  }
+
   protected toggleRail(): void {
+    this.userToggledRail = true;
     this.railCollapsed.update((v) => !v);
     this.writeStoredCollapsed(this.railCollapsed());
     this.railAnimating.set(true);
@@ -121,6 +170,18 @@ export class WorkspaceView implements IMapIsolateIntent {
 
   protected onToggleSearchMap(): void {
     this.store.toggleSearchAffectsMap();
+  }
+
+  /**
+   * Reset the workspace to its default overview: clear the map folder
+   * selection (show every node again, the map's "Show all") AND reset
+   * every facet filter (search, kind, severity, favorites). Same pair of
+   * actions the map's floating "Show all" + the empty-state "Reset
+   * filters" expose, surfaced as one control at the top of the rail.
+   */
+  protected resetView(): void {
+    this.mapVisibility.clear();
+    this.store.reset();
   }
 
   private readStoredWidth(): number {
@@ -139,13 +200,14 @@ export class WorkspaceView implements IMapIsolateIntent {
   }
 
   /**
-   * Files rail collapse, persisted. Absent key → collapsed by default
-   * (the workspace opens map-first); `'1'` collapsed, `'0'` open.
+   * Files rail collapse preference, persisted. `'1'` collapsed, `'0'`
+   * open, absent key → `null` (no saved choice, the caller falls back to
+   * the collapsed default plus the corpus-size auto-open).
    */
-  private readStoredCollapsed(): boolean {
-    if (typeof localStorage === 'undefined') return true;
+  private readStoredCollapsed(): boolean | null {
+    if (typeof localStorage === 'undefined') return null;
     const raw = localStorage.getItem(RAIL_COLLAPSED_KEY);
-    if (raw === null) return true;
+    if (raw === null) return null;
     return raw === '1';
   }
 

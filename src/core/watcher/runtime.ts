@@ -120,6 +120,16 @@ export interface IWatcherEvents {
    */
   onBatch?: (outcome: TWatcherBatchOutcome) => void;
   /**
+   * Fired synchronously at the very top of each batch's `runOnePass()`,
+   * BEFORE any scan work begins. Covers the initial batch (when
+   * `runInitialBatch !== false`) AND every follow-up batch (chokidar and
+   * meta-file driven), since it hooks `runOnePass` itself rather than the
+   * per-path wrappers. Pairs with `onBatch`, which fires on completion of
+   * either outcome (ok / error). Adapters use this to start a "scanning"
+   * indicator that `onBatch` then stops.
+   */
+  onBatchStart?: () => void;
+  /**
    * Called when chokidar surfaces a transport-level error (rare,
    * EMFILE, missing root). The watcher itself stays open per
    * `IFsWatcher`'s contract; the adapter decides whether to log,
@@ -256,11 +266,20 @@ export interface ICreateWatcherRuntimeOpts {
    */
   killSwitches?: IConformanceKillSwitches;
   /**
-   * Per-invocation override of `scan.maxNodes` (from the `--max-nodes
-   * <N>` flag on `sm watch` / `sm scan --watch`). `undefined` means
-   * "no override", every batch uses the recommended limit from
-   * `cfg.scan.maxNodes`. Bidirectional: any positive integer fully
+   * Per-invocation override of `scan.maxScan` (from the `--max-scan
+   * <N>` flag on `sm watch` / `sm scan --watch`). This is the
+   * WALK-INTAKE ceiling. `undefined` means "no override", every batch
+   * uses `cfg.scan.maxScan`. Bidirectional: any positive integer fully
    * replaces the setting for the duration of the watcher session.
+   */
+  maxScanOverride?: number | undefined;
+  /**
+   * Per-invocation override of `scan.maxNodes` (from the `--max-nodes
+   * <N>` flag on `sm watch` / `sm scan --watch`). This is the MAP
+   * RENDER cap, pure metadata that does NOT bound the walk. `undefined`
+   * means "no override", every batch uses `cfg.scan.maxNodes`.
+   * Bidirectional: any positive integer fully replaces the setting for
+   * the duration of the watcher session.
    */
   maxNodesOverride?: number | undefined;
 }
@@ -429,7 +448,20 @@ export function createWatcherRuntime(
     // hash of `node.sidecar.annotations` alongside the body hash, so
     // a `.sm` edit invalidates the cached run for every extractor on
     // that node. The watcher just trusts the kernel.
+    // Fire `onBatchStart` for every batch. Extracted to a plain (non
+    // optional-chaining) helper so the notification lives in ONE place
+    // (initial batch + every follow-up) without adding a cyclomatic
+    // branch to `runOnePass`, which already sits at the complexity cap.
+    const notifyBatchStart = (): void => {
+      events.onBatchStart?.();
+    };
+
     const runOnePass = async (): Promise<ScanResult> => {
+      // Fire BEFORE any scan work so adapters can light a "scanning"
+      // indicator. Hooked here (not in handleBatch / runInitial) so the
+      // initial batch and every follow-up batch are covered without
+      // duplicating the call. `onBatch` (success or error) stops it.
+      notifyBatchStart();
       // Build a fresh resolver from `config_plugins` on every batch so
       // a `PATCH /api/plugins` made mid-session is honoured by the
       // next chokidar-driven scan WITHOUT restarting `sm serve`. The
@@ -493,8 +525,10 @@ export function createWatcherRuntime(
         ignoreFilter,
         strict,
         emitter,
-        recommendedNodeLimit: cfg.scan.maxNodes,
-        overrideMaxNodes: opts.maxNodesOverride ?? null,
+        scanCeiling: cfg.scan.maxScan,
+        overrideScanCeiling: opts.maxScanOverride ?? null,
+        maxRenderNodes: cfg.scan.maxNodes,
+        overrideMaxRenderNodes: opts.maxNodesOverride ?? null,
         maxFileSizeBytes: cfg.scan.maxFileSizeBytes,
       };
       // Reference-paths escape hatch: mirror what `scan-runner.ts`

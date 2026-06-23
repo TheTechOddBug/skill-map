@@ -7,7 +7,6 @@ import { SEVERITY_PALETTE_TEXTS } from '../../../i18n/severity-palette.texts';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService, type TSeverityFilter } from '../../../services/filter-store';
 import { IssuePathsService } from '../../../services/issue-paths';
-import { MapVisibilityService } from '../../../services/map-visibility';
 
 /**
  * Floating palette for filtering graph nodes by audit severity tier.
@@ -43,22 +42,23 @@ export class SeverityPalette {
   private readonly loader = inject(CollectionLoaderService);
   private readonly filters = inject(FilterStoreService);
   private readonly issuePaths = inject(IssuePathsService);
-  private readonly mapVisibility = inject(MapVisibilityService);
 
   protected readonly texts = SEVERITY_PALETTE_TEXTS;
 
   /**
-   * Visible node-path set, runs the SAME filter chain
-   * `<sm-graph-view>` / `<sm-files-view>` use, so this palette's
-   * counts always match what the operator sees on the canvas.
+   * Visible node-path set over the RENDERED MAP, the current branch
+   * (`loader.nodes()`). Runs the SAME filter chain `<sm-graph-view>`'s
+   * `visibleNodes` uses (search gated by `searchAffectsMap`, kinds,
+   * favorites, the severity toggles), so this palette's counts always
+   * match what the operator sees on the canvas. The branch already IS the
+   * server-applied folder selection, so there is no extra curation
+   * intersection to layer on top.
    */
   private readonly visibleSet = computed<ReadonlySet<string>>(() => {
-    const visible = this.filters.apply(this.loader.nodes(), this.issuePaths.bySeverity());
-    const set = new Set<string>();
-    // Intersect with the map's curated scope so the badges match what is
-    // actually on the canvas (facet filters AND the files-rail curation).
-    for (const n of visible) if (this.mapVisibility.inScope(n.path)) set.add(n.path);
-    return set;
+    const visible = this.filters.apply(this.loader.nodes(), this.issuePaths.bySeverity(), {
+      includeSearch: this.filters.searchAffectsMap(),
+    });
+    return new Set(visible.map((n) => n.path));
   });
 
   /** Raw tier sets (drives button visibility). */

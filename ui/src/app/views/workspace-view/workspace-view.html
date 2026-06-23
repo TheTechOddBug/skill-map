@@ -40,6 +40,21 @@
         >
           <i class="pi pi-map" aria-hidden="true"></i>
         </button>
+        <!-- Reset: clears the map folder selection (show all) AND every
+             facet filter, returning the workspace to its default overview.
+             Disabled when there is nothing active to reset. -->
+        <button
+          type="button"
+          class="workspace__rail-btn"
+          [disabled]="!canReset()"
+          [pTooltip]="texts.rail.resetTooltip"
+          tooltipPosition="bottom"
+          [attr.aria-label]="texts.rail.reset"
+          (click)="resetView()"
+          data-testid="workspace-reset-filters"
+        >
+          <i class="pi pi-filter-slash" aria-hidden="true"></i>
+        </button>
       }
       <button
         type="button"

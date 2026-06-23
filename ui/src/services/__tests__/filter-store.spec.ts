@@ -56,17 +56,17 @@ describe('FilterStoreService search → map decoupling', () => {
     expect(out.map((n) => n.path)).toEqual(['docs/beta.md']);
   });
 
-  it('searchAffectsMap defaults to true (the search also filters the map)', () => {
-    expect(store.searchAffectsMap()).toBe(true);
+  it('searchAffectsMap defaults to false (the search filters only the files rail)', () => {
+    expect(store.searchAffectsMap()).toBe(false);
   });
 
   it('toggleSearchAffectsMap flips the signal and persists the choice', () => {
     store.toggleSearchAffectsMap();
-    expect(store.searchAffectsMap()).toBe(false);
-    expect(localStorage.getItem(SEARCH_AFFECTS_MAP_KEY)).toBe('0');
-    store.toggleSearchAffectsMap();
     expect(store.searchAffectsMap()).toBe(true);
     expect(localStorage.getItem(SEARCH_AFFECTS_MAP_KEY)).toBe('1');
+    store.toggleSearchAffectsMap();
+    expect(store.searchAffectsMap()).toBe(false);
+    expect(localStorage.getItem(SEARCH_AFFECTS_MAP_KEY)).toBe('0');
   });
 
   it('reset() clears the query but leaves the preference alone', () => {
@@ -74,6 +74,6 @@ describe('FilterStoreService search → map decoupling', () => {
     store.setSearchText('alpha');
     store.reset();
     expect(store.searchText()).toBe('');
-    expect(store.searchAffectsMap()).toBe(false);
+    expect(store.searchAffectsMap()).toBe(true);
   });
 });

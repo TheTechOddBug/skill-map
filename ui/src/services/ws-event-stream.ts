@@ -223,6 +223,16 @@ export class WsEventStreamService implements OnDestroy {
   private readonly _stableConnected = signal(false);
   readonly stableConnected = this._stableConnected.asReadonly();
 
+  /**
+   * `true` while a scan runs on the server, between a `scan.started`
+   * frame and its matching `scan.completed`. Drives the topbar refresh
+   * spinner so a watcher-driven re-scan (triggered by a file save) shows
+   * the same "working" feedback as a manual refresh. Reset on socket
+   * close so a scan cut short by a disconnect never leaves it stuck on.
+   */
+  private readonly _scanActive = signal(false);
+  readonly scanActive = this._scanActive.asReadonly();
+
   /** Socket constructor + target URL. Both injected so tests can swap them via DI; see `WS_SOCKET_FACTORY` / `WS_URL`. */
   private readonly socketFactory = inject(WS_SOCKET_FACTORY);
   private readonly url = inject(WS_URL);
@@ -432,6 +442,11 @@ export class WsEventStreamService implements OnDestroy {
       console.warn(WS_TEXTS.malformedFrame('envelope shape'));
       return;
     }
+    // Track scan-in-progress for the topbar spinner: a `scan.started`
+    // frame (manual OR watcher-driven) flips it on, the matching
+    // `scan.completed` flips it off. See `scanActive`.
+    if (parsed.type === 'scan.started') this._scanActive.set(true);
+    else if (parsed.type === 'scan.completed') this._scanActive.set(false);
     this.subject.next(parsed);
   }
 
@@ -441,6 +456,10 @@ export class WsEventStreamService implements OnDestroy {
     // socket is no longer proven, so consumers must not re-seed until a
     // fresh stability window elapses.
     this._stableConnected.set(false);
+    // A close / reopen also clears any in-progress scan flag: a scan we
+    // saw `scan.started` for but whose `scan.completed` was lost to the
+    // disconnect must not leave the topbar spinner stuck on.
+    this._scanActive.set(false);
     if (this.stabilityTimer !== null) {
       clearTimeout(this.stabilityTimer);
       this.stabilityTimer = null;

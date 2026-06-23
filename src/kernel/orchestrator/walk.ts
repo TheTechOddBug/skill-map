@@ -108,22 +108,40 @@ export interface IWalkAndExtractOptions {
    */
   activeProvider: string | null;
   /**
-   * Recommended cap on the number of nodes the walker classifies into
-   * `accum.nodes`. Comes from `scan.maxNodes` in settings (default
-   * 256). The walker reports this value in the result envelope so the
-   * persistence layer can write it to
-   * `scan_meta.recommended_node_limit` and the UI can decide whether
-   * to raise the persistent oversized banner.
+   * Walk-intake ceiling: the maximum number of nodes the walker
+   * classifies into `accum.nodes` before dropping extra files in stable
+   * provider-walker order. Comes from `scan.maxScan` in settings
+   * (default 50000). The walker walks, parses, analyzes, and
+   * reference-validates the full corpus up to this number, so references
+   * resolve across the whole project regardless of how many nodes the
+   * map renders. Reported back as `IWalkAndExtractResult.scanCeiling` so
+   * the persistence layer can write `scan_meta.scan_ceiling`.
    */
-  recommendedNodeLimit: number;
+  scanCeiling: number;
   /**
-   * Per-invocation override (when `--max-nodes <N>` was passed) or
-   * `null` when no override was used. Bidirectional: raises OR lowers
-   * the cap that actually applies (`overrideMaxNodes ?? recommendedNodeLimit`).
-   * Reported back so `scan_meta.override_max_nodes` records the user's
-   * intent for this scan.
+   * Per-invocation override of the walk ceiling (when `--max-scan <N>`
+   * was passed) or `null` when no override was used. Bidirectional:
+   * raises OR lowers the ceiling that actually applies
+   * (`overrideScanCeiling ?? scanCeiling`). The effective ceiling is
+   * the value reported back in `IWalkAndExtractResult.scanCeiling`.
    */
-  overrideMaxNodes: number | null;
+  overrideScanCeiling: number | null;
+  /**
+   * Map render cap (mirror of `scan.maxNodes` in settings, default 256).
+   * Pure metadata: it does NOT bound the walk (the full corpus up to
+   * `scanCeiling` is walked + validated). Carried through to the result
+   * envelope so the persistence layer can write `scan_meta.max_render_nodes`
+   * and the UI knows how many nodes to project onto the canvas.
+   */
+  maxRenderNodes: number;
+  /**
+   * Per-invocation override of the render cap (when `--max-nodes <N>`
+   * was passed) or `null` when no override was used. Bidirectional. The
+   * effective render cap (`overrideMaxRenderNodes ?? maxRenderNodes`) is
+   * reported back in `IWalkAndExtractResult.maxRenderNodes`. Never
+   * bounds the walk.
+   */
+  overrideMaxRenderNodes: number | null;
   /**
    * Mirror of `scan.maxFileSizeBytes` (default 1 MiB). Threaded into the
    * Provider walk so the kernel walker skips any file larger than this
@@ -173,23 +191,26 @@ export interface IWalkAndExtractResult {
    * UI can raise a banner. Empty when no file exceeded the limit. */
   oversizedFiles: OversizedFile[];
   /**
-   * Effective recommended cap that produced this walk (mirror of
-   * `IWalkAndExtractOptions.recommendedNodeLimit`). Reported so callers
-   * can persist it into `scan_meta` and surface it to the UI banner
-   * without re-reading config.
+   * Effective walk ceiling that produced this walk
+   * (`overrideScanCeiling ?? scanCeiling`). Reported so callers can
+   * persist it into `scan_meta.scan_ceiling` and surface it to the UI
+   * banner without re-reading config.
    */
-  recommendedNodeLimit: number;
+  scanCeiling: number;
   /**
-   * Per-invocation override mirrored from `IWalkAndExtractOptions`, or
-   * `null` when no override was applied.
+   * `true` when the walker stopped accepting nodes because the effective
+   * ceiling was reached and extra files were dropped, `false` otherwise.
+   * Drives the CLI "scan truncated" notice and the UI persistent banner.
+   * Mirror of the internal `capReached` flag.
    */
-  overrideMaxNodes: number | null;
+  scanTruncated: boolean;
   /**
-   * `true` when the walker stopped accepting nodes because the cap
-   * (`overrideMaxNodes ?? recommendedNodeLimit`) was reached. Drives the
-   * CLI "scan capped" notice and the UI oversized banner.
+   * Effective map render cap mirrored from `IWalkAndExtractOptions`
+   * (`overrideMaxRenderNodes ?? maxRenderNodes`). Pure metadata, never
+   * bounds the walk. Reported so callers can persist it into
+   * `scan_meta.max_render_nodes`.
    */
-  capReached: boolean;
+  maxRenderNodes: number;
   /**
    * Spec § A.9, the rows the persistence layer writes into
    * `scan_extractor_runs`. Includes both freshly-run pairs (extractor
@@ -392,14 +413,18 @@ export async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWal
   let filesWalked = 0;
   let index = 0;
 
-  // Node cap, see `IWalkAndExtractOptions.recommendedNodeLimit`. The
-  // override (when present via `--max-nodes <N>`) fully replaces the
-  // setting; otherwise the recommended limit applies. Bidirectional:
-  // an override below the recommendation cuts deeper, an override above
-  // it relaxes the cap. Counted against `accum.nodes.length` (= classified
-  // nodes) so the spec field "256 nodes" lines up with the user mental
-  // model. When the cap is reached, both loops break out.
-  const effectiveMaxNodes = opts.overrideMaxNodes ?? opts.recommendedNodeLimit;
+  // Walk-intake ceiling, see `IWalkAndExtractOptions.scanCeiling`. The
+  // override (when present via `--max-scan <N>`) fully replaces the
+  // setting; otherwise the configured ceiling applies. Bidirectional:
+  // an override below the setting cuts deeper, an override above it
+  // relaxes the ceiling. Counted against `accum.nodes.length` (=
+  // classified nodes) so the user-facing "50000 files" number lines up
+  // with the mental model. When the ceiling is reached, both loops break
+  // out. NOTE: the render cap (`maxRenderNodes`) is intentionally NOT
+  // consulted here, it never bounds the walk.
+  // The walk-intake ceiling bounds the loop; the render cap is pure
+  // metadata reported back in the result, never consulted below.
+  const { effectiveScanCeiling, effectiveMaxRenderNodes } = resolveEffectiveCaps(opts);
   let capReached = false;
 
   // Active-lens scope filter. Vendor Providers declare
@@ -411,11 +436,9 @@ export async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWal
   // unlensed projects). Filtering at the provider-iteration level
   // (not per file) is the cheap path: a gated-off vendor Provider
   // does NOT walk its territory at all.
-  const activeProviders = opts.providers.filter((provider) => {
-    if (!provider.gatedByActiveLens) return true;
-    if (opts.activeProvider === null) return true;
-    return provider.id === opts.activeProvider;
-  });
+  const activeProviders = opts.providers.filter((provider) =>
+    providerParticipates(provider, opts.activeProvider),
+  );
 
   const advance = async (raw: IRawNode, provider: IProvider): Promise<void> => {
     const advanced = await processRawNode(raw, provider, wctx, accum, claimedPaths, index + 1);
@@ -425,7 +448,7 @@ export async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWal
     for await (const raw of resolveProviderWalk(provider)(opts.roots, walkOptions)) {
       filesWalked += 1;
       if (claimedPaths.has(raw.path)) continue;
-      if (accum.nodes.length >= effectiveMaxNodes) {
+      if (accum.nodes.length >= effectiveScanCeiling) {
         capReached = true;
         break outer;
       }
@@ -447,9 +470,9 @@ export async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWal
     frontmatterIssues: accum.frontmatterIssues,
     filesWalked,
     oversizedFiles,
-    recommendedNodeLimit: opts.recommendedNodeLimit,
-    overrideMaxNodes: opts.overrideMaxNodes,
-    capReached,
+    scanCeiling: effectiveScanCeiling,
+    scanTruncated: capReached,
+    maxRenderNodes: effectiveMaxRenderNodes,
     enrichments: [...accum.enrichmentBuffer.values()],
     extractorRuns: accum.extractorRuns,
     contributions: accum.contributionsBuffer,
@@ -459,6 +482,37 @@ export async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWal
     sidecarRoots: accum.sidecarRoots,
     signals: accum.signals,
   };
+}
+
+/**
+ * Resolve the two cap knobs to their effective values. The walk ceiling
+ * (`scan.maxScan` / `--max-scan`) bounds the walk loop; the render cap
+ * (`scan.maxNodes` / `--max-nodes`) is pure metadata. Both are
+ * bidirectional: a per-invocation override fully replaces the setting.
+ * Extracted so the two `??` folds live outside `walkAndExtract` (keeps
+ * its cyclomatic complexity inside budget).
+ */
+function resolveEffectiveCaps(
+  opts: IWalkAndExtractOptions,
+): { effectiveScanCeiling: number; effectiveMaxRenderNodes: number } {
+  return {
+    effectiveScanCeiling: opts.overrideScanCeiling ?? opts.scanCeiling,
+    effectiveMaxRenderNodes: opts.overrideMaxRenderNodes ?? opts.maxRenderNodes,
+  };
+}
+
+/**
+ * Active-lens participation predicate for the provider-iteration filter
+ * in `walkAndExtract`. A universal Provider (`gatedByActiveLens` falsy)
+ * always participates. A gated vendor Provider participates only when
+ * the active lens is unresolved (`null`, permissive fallback) or equals
+ * the Provider's id. Extracted so the walk loop stays under the
+ * complexity cap.
+ */
+function providerParticipates(provider: IProvider, activeProvider: string | null): boolean {
+  if (!provider.gatedByActiveLens) return true;
+  if (activeProvider === null) return true;
+  return provider.id === activeProvider;
 }
 
 function createWalkAccumulators(): IWalkAccumulators {

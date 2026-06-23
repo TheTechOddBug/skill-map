@@ -86,18 +86,19 @@ export const SCAN_TEXTS = {
   countInfoNoun: 'info',
   countNoIssues: '0 issues',
   /**
-   * Cap-hit notice, printed when the walker stopped accepting nodes
-   * because `--max-nodes` (or the `scan.maxNodes` setting) was reached.
-   * `{{glyph}}` is the yellow warning glyph, `{{limit}}` the effective
-   * cap, `{{source}}` either `--max-nodes` or `scan.maxNodes`. The hint
-   * names both escape routes the user has: trimming `.skillmapignore`
-   * (preferred) or raising the cap with `--max-nodes <N>`.
+   * Truncation notice, printed when the walker stopped accepting files
+   * because the walk ceiling `--max-scan` (or the `scan.maxScan`
+   * setting) was reached and extra files were dropped. `{{glyph}}` is
+   * the yellow warning glyph, `{{limit}}` the effective ceiling,
+   * `{{source}}` either `--max-scan` or `scan.maxScan`. The hint names
+   * both escape routes the user has: editing `.skillmapignore`
+   * (preferred) or raising the ceiling with `--max-scan <N>`.
    */
   scanCappedNotice:
-    '{{glyph}}  Scan capped at {{limit}} nodes ({{source}}).\n' +
+    '{{glyph}}  Scan truncated at {{limit}} files ({{source}}); extra files were dropped.\n' +
     '     {{hint}}\n',
   scanCappedNoticeHint:
-    'Trim .skillmapignore to exclude noisy paths (preferred), or re-run with --max-nodes <N> to raise the cap. Past the recommended limit the graph is hard to read and analyzer signal drops.',
+    'Edit .skillmapignore to exclude noisy paths (preferred), or re-run with --max-scan <N> to raise the ceiling. Files past the ceiling are not parsed, analyzed, or reference-validated.',
   /**
    * File-size skip notice, printed (WARN, stderr) when the walker
    * skipped one or more files for exceeding `scan.maxFileSizeBytes`.
@@ -116,6 +117,15 @@ export const SCAN_TEXTS = {
   scanSkippedFileNounPlural: 'files',
   scanSkippedFilesNoticeHint:
     'Raise scan.maxFileSizeBytes to include these, or add them to .skillmapignore to skip them on purpose.',
+  /**
+   * Validation message for an invalid `--max-scan` value. Surfaced as a
+   * §3.1b two-line block.
+   */
+  maxScanInvalid:
+    '{{glyph}}  --max-scan must be an integer >= 1 (got `{{value}}`).\n' +
+    '   {{hint}}\n',
+  maxScanInvalidHint:
+    'Pass a positive integer, e.g. --max-scan 50000.',
   /**
    * Validation message for an invalid `--max-nodes` value. Surfaced as a
    * §3.1b two-line block.

@@ -47,6 +47,7 @@ function makeFixture(opts: {
   const filters = {
     severityErrorActive: errorActive.asReadonly(),
     severityWarnActive: warnActive.asReadonly(),
+    searchAffectsMap: signal(false).asReadonly(),
     isSeverityActive: (tier: 'error' | 'warn') =>
       tier === 'error' ? errorActive() : warnActive(),
     toggleSeverity: (tier: 'error' | 'warn') => {

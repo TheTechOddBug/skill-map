@@ -27,7 +27,7 @@ import { STABILITY_SEVERITY, type TTagSeverity } from '../../components/severity
 import { FILES_VIEW_TEXTS } from '../../../i18n/files-view.texts';
 import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
 import type { INodeView, TStability } from '../../../models/node';
-import type { IIssueApi, TIssueSeverityApi } from '../../../models/api';
+import type { IFolderNodeLite } from '../../../models/api';
 import type { IFilesSort, TSortColumn, TSortDir } from './files-view.sort';
 
 export interface IFolderLeaf {
@@ -76,6 +76,10 @@ export interface IFolderRow {
   readonly depth: number;
   readonly expanded: boolean;
   readonly nodeCount: number;
+  /** Recursive sum of descendant error issue incidence (per-folder badge). */
+  readonly errors: number;
+  /** Recursive sum of descendant warn issue incidence (per-folder badge). */
+  readonly warns: number;
 }
 
 export type TFolderViewRow = IFolderRow | IFolderLeaf;
@@ -89,6 +93,10 @@ export interface ITreeFolder {
 
 export interface IAggregate {
   nodes: number;
+  /** Recursive sum of descendant error issue incidence. */
+  errors: number;
+  /** Recursive sum of descendant warn issue incidence. */
+  warns: number;
 }
 
 export interface IIssueMaps {
@@ -99,7 +107,7 @@ export interface IIssueMaps {
 export interface IBuildRowsInput {
   readonly tree: ITreeFolder;
   readonly leaves: readonly INodeView[];
-  readonly collapsed: ReadonlySet<string>;
+  readonly expanded: ReadonlySet<string>;
   readonly aggregates: ReadonlyMap<string, IAggregate>;
   readonly maps: IIssueMaps;
   readonly sort: IFilesSort;
@@ -129,44 +137,38 @@ export function buildTree(nodes: readonly INodeView[]): ITreeFolder {
   return root;
 }
 
-/** Recursive leaf-count per folder path (used for the folder count chip). */
-export function computeAggregates(tree: ITreeFolder): ReadonlyMap<string, IAggregate> {
+/**
+ * Recursive per-folder aggregate: descendant leaf count plus the rolled-
+ * up error / warn issue incidence (same shape as the leaf `nodeCount`
+ * chip, extended with the severity badges). The per-path error / warn
+ * counts come from `maps` (the lite folders list's `errorCount` /
+ * `warnCount`); a folder's badge is the recursive sum across its
+ * descendants.
+ */
+export function computeAggregates(
+  tree: ITreeFolder,
+  maps: IIssueMaps,
+): ReadonlyMap<string, IAggregate> {
   const out = new Map<string, IAggregate>();
   const visit = (folder: ITreeFolder): IAggregate => {
     let nodes = folder.leaves.length;
-    for (const sub of folder.subfolders.values()) nodes += visit(sub).nodes;
-    const agg: IAggregate = { nodes };
+    let errors = 0;
+    let warns = 0;
+    for (const leaf of folder.leaves) {
+      errors += maps.errorCounts.get(leaf.path) ?? 0;
+      warns += maps.warnCounts.get(leaf.path) ?? 0;
+    }
+    for (const sub of folder.subfolders.values()) {
+      const childAgg = visit(sub);
+      nodes += childAgg.nodes;
+      errors += childAgg.errors;
+      warns += childAgg.warns;
+    }
+    const agg: IAggregate = { nodes, errors, warns };
     out.set(folder.path, agg);
     return agg;
   };
   visit(tree);
-  return out;
-}
-
-/**
- * Resolve the `ITreeFolder` at a folder path (root has path ''). Traverses
- * by path segment, so it resolves a compacted folder row's terminal `.path`
- * just as well (the tree itself is never compacted, only its rendering).
- */
-export function findFolder(root: ITreeFolder, folderPath: string): ITreeFolder | null {
-  if (folderPath === '' || folderPath === root.path) return root;
-  let cursor: ITreeFolder | undefined = root;
-  for (const seg of folderPath.split('/')) {
-    if (!seg) continue;
-    cursor = cursor.subfolders.get(seg);
-    if (!cursor) return null;
-  }
-  return cursor ?? null;
-}
-
-/** Every descendant leaf node path under a folder (recursive). */
-export function collectLeafPaths(folder: ITreeFolder): string[] {
-  const out: string[] = [];
-  const visit = (f: ITreeFolder): void => {
-    for (const leaf of f.leaves) out.push(leaf.path);
-    for (const sub of f.subfolders.values()) visit(sub);
-  };
-  visit(folder);
   return out;
 }
 
@@ -213,7 +215,7 @@ export function makeLeafRow(
  */
 export function buildTreeRows(
   tree: ITreeFolder,
-  collapsed: ReadonlySet<string>,
+  expanded: ReadonlySet<string>,
   aggregates: ReadonlyMap<string, IAggregate>,
   maps: IIssueMaps,
 ): TFolderViewRow[] {
@@ -234,8 +236,8 @@ export function buildTreeRows(
       return;
     }
 
-    const isExpanded = !collapsed.has(terminal.path);
-    const agg = aggregates.get(terminal.path) ?? { nodes: 0 };
+    const isExpanded = expanded.has(terminal.path);
+    const agg = aggregates.get(terminal.path) ?? { nodes: 0, errors: 0, warns: 0 };
     rows.push({
       type: 'folder',
       path: terminal.path,
@@ -243,6 +245,8 @@ export function buildTreeRows(
       depth,
       expanded: isExpanded,
       nodeCount: agg.nodes,
+      errors: agg.errors,
+      warns: agg.warns,
     });
     if (!isExpanded) return;
     const subs = Array.from(terminal.subfolders.values()).sort(byName);
@@ -273,7 +277,7 @@ export function buildFlatRows(
 
 export function buildRows(input: IBuildRowsInput): TFolderViewRow[] {
   if (input.sort.column === 'tree') {
-    return buildTreeRows(input.tree, input.collapsed, input.aggregates, input.maps);
+    return buildTreeRows(input.tree, input.expanded, input.aggregates, input.maps);
   }
   return buildFlatRows(input.leaves, input.sort, input.maps);
 }
@@ -353,17 +357,21 @@ function byNodePath(a: INodeView, b: INodeView): number {
   return a.path.localeCompare(b.path);
 }
 
-export function countIssuesByPath(
-  issues: readonly IIssueApi[] | undefined,
-  severity: TIssueSeverityApi,
-): Map<string, number> {
-  const out = new Map<string, number>();
-  if (!issues) return out;
-  for (const issue of issues) {
-    if (issue.severity !== severity) continue;
-    for (const path of issue.nodeIds) {
-      out.set(path, (out.get(path) ?? 0) + 1);
-    }
+/**
+ * Build the per-path error / warn count maps from the whole-corpus lite
+ * folders list (`IFolderNodeLite`), the canonical source for the tree's
+ * per-folder severity badges. Each lite row already carries its own
+ * `errorCount` / `warnCount` (issue incidence per node), so this is a
+ * direct keying by path, no issue iteration.
+ */
+export function issueMapsFromLite(
+  lite: readonly IFolderNodeLite[],
+): IIssueMaps {
+  const errorCounts = new Map<string, number>();
+  const warnCounts = new Map<string, number>();
+  for (const node of lite) {
+    if (node.errorCount > 0) errorCounts.set(node.path, node.errorCount);
+    if (node.warnCount > 0) warnCounts.set(node.path, node.warnCount);
   }
-  return out;
+  return { errorCounts, warnCounts };
 }

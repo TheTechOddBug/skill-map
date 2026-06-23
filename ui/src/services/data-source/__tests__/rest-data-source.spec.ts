@@ -121,6 +121,118 @@ describe('RestDataSource', () => {
     await expect(promise).resolves.toEqual(SCAN_FIXTURE);
   });
 
+  it('loadScanMeta() GETs /api/scan?meta=1 and returns the ScanResult', async () => {
+    const promise = ds.loadScanMeta();
+    const req = httpMock.expectOne('/api/scan?meta=1');
+    expect(req.request.method).toBe('GET');
+    req.flush(SCAN_FIXTURE);
+    await expect(promise).resolves.toEqual(SCAN_FIXTURE);
+  });
+
+  it('loadFolders() GETs /api/folders, ingests the registry, returns items', async () => {
+    const promise = ds.loadFolders();
+    const req = httpMock.expectOne('/api/folders');
+    expect(req.request.method).toBe('GET');
+    req.flush({
+      schemaVersion: '1',
+      kind: 'folders',
+      items: [
+        {
+          path: 'a.md',
+          kind: 'agent',
+          linksInCount: 3,
+          linksOutCount: 2,
+          tokensTotal: 512,
+          modifiedAtMs: 1_700_000_000_000,
+          errorCount: 0,
+          warnCount: 0,
+        },
+        {
+          path: 'b.md',
+          kind: 'markdown',
+          linksInCount: 0,
+          linksOutCount: 0,
+          tokensTotal: null,
+          modifiedAtMs: null,
+          errorCount: 2,
+          warnCount: 1,
+        },
+      ],
+      filters: {},
+      counts: { total: 2, returned: 2 },
+      kindRegistry: {},
+    });
+    // The four scalar node columns pass straight through the envelope.
+    await expect(promise).resolves.toEqual([
+      {
+        path: 'a.md',
+        kind: 'agent',
+        linksInCount: 3,
+        linksOutCount: 2,
+        tokensTotal: 512,
+        modifiedAtMs: 1_700_000_000_000,
+        errorCount: 0,
+        warnCount: 0,
+      },
+      {
+        path: 'b.md',
+        kind: 'markdown',
+        linksInCount: 0,
+        linksOutCount: 0,
+        tokensTotal: null,
+        modifiedAtMs: null,
+        errorCount: 2,
+        warnCount: 1,
+      },
+    ]);
+  });
+
+  it('loadBranch([]) GETs /api/branch with no params for the root branch', async () => {
+    const promise = ds.loadBranch([]);
+    const req = httpMock.expectOne('/api/branch');
+    expect(req.request.method).toBe('GET');
+    const payload = {
+      schemaVersion: '1',
+      kind: 'branch',
+      branch: { paths: [], total: 0, rendered: 0, truncated: false, cap: 256 },
+      nodes: [],
+      links: [],
+      issues: [],
+    };
+    req.flush(payload);
+    await expect(promise).resolves.toEqual(payload);
+  });
+
+  it('loadBranch(paths) appends one repeated ?path= param per prefix', async () => {
+    const promise = ds.loadBranch(['src/api', 'docs']);
+    const req = httpMock.expectOne('/api/branch?path=src%2Fapi&path=docs');
+    expect(req.request.method).toBe('GET');
+    req.flush({
+      schemaVersion: '1',
+      kind: 'branch',
+      branch: { paths: ['src/api', 'docs'], total: 12, rendered: 12, truncated: false, cap: 256 },
+      nodes: [],
+      links: [],
+      issues: [],
+    });
+    await expect(promise).resolves.toMatchObject({ branch: { paths: ['src/api', 'docs'] } });
+  });
+
+  it('loadBranch(paths, limit) encodes the prefixes + limit into the query string', async () => {
+    const promise = ds.loadBranch(['src/api'], 50);
+    const req = httpMock.expectOne('/api/branch?path=src%2Fapi&limit=50');
+    expect(req.request.method).toBe('GET');
+    req.flush({
+      schemaVersion: '1',
+      kind: 'branch',
+      branch: { paths: ['src/api'], total: 80, rendered: 50, truncated: true, cap: 50 },
+      nodes: [],
+      links: [],
+      issues: [],
+    });
+    await expect(promise).resolves.toMatchObject({ branch: { truncated: true, cap: 50 } });
+  });
+
   it('listNodes() builds a query string with kinds + hasIssues + pagination', async () => {
     const promise = ds.listNodes({
       kind: ['agent', 'skill'],

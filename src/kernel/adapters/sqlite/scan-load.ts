@@ -42,9 +42,16 @@
  * from `COUNT(*)` of the loaded rows, never persisted, always recomputed.
  */
 
+import { sql } from 'kysely';
 import type { Kysely } from 'kysely';
 
 import type { IPersistedEnrichment } from '../../orchestrator.js';
+import type {
+  IBranchProjection,
+  IIssueIncidenceCount,
+  ILiteNode,
+  INodeCounts,
+} from '../../types/storage.js';
 import { stripPrototypePollution } from '../../util/strip-prototype-pollution.js';
 import type {
   Issue,
@@ -114,44 +121,11 @@ export async function loadScanResult(
   }
 
   if (metaRow) {
-    const scannedBy: ScanScannedBy = {
-      name: metaRow.scannedByName,
-      version: metaRow.scannedByVersion,
-      specVersion: metaRow.scannedBySpecVersion,
-    };
-    // Reconstruct the file-size skip envelope. `oversized_files_json`
-    // is kernel-owned (only `metaToRow` writes it); NULL / legacy rows
-    // come back as `[]`. The count column defaults to 0 in SQL, so it
-    // stays consistent even on pre-feature DBs.
-    const oversizedFiles = parseJsonArray<OversizedFile>(metaRow.oversizedFilesJson);
-    return {
-      schemaVersion: 1,
-      scannedAt: metaRow.scannedAt,
-      roots: parseJsonArray<string>(metaRow.rootsJson),
-      providers: parseJsonArray<string>(metaRow.providersJson),
-      scannedBy,
-      // Resolved encoder of the prior scan (see project-config.schema.json
-      // §tokenizer). NULL column → `undefined` domain field; the
-      // orchestrator's tokenizer-change check compares this against the
-      // freshly-resolved encoder and treats a missing prior value as a
-      // change (forcing a token recompute).
-      ...(metaRow.tokenizer !== null ? { tokenizer: metaRow.tokenizer } : {}),
-      recommendedNodeLimit: metaRow.recommendedNodeLimit,
-      overrideMaxNodes: metaRow.overrideMaxNodes,
-      oversizedFiles,
-      nodes,
-      links,
-      issues,
-      stats: {
-        filesWalked: metaRow.statsFilesWalked,
-        filesSkipped: metaRow.statsFilesSkipped,
-        filesOversized: metaRow.filesOversized,
-        nodesCount: nodes.length,
-        linksCount: links.length,
-        issuesCount: issues.length,
-        durationMs: metaRow.statsDurationMs,
-      },
-    };
+    return buildScanResultFromMeta(metaRow, nodes, links, issues, {
+      nodesCount: nodes.length,
+      linksCount: links.length,
+      issuesCount: issues.length,
+    });
   }
 
   // Synthetic fallback: pre-5.1 DB or never-scanned scope.
@@ -166,11 +140,13 @@ export async function loadScanResult(
     scannedAt,
     roots: ['.'],
     providers: [],
-    // Synthetic envelope, default to the design cap (256) so SPA reads
-    // the same shape across cold-boot and pre-cap-aware DBs. A real
-    // scan overwrites scan_meta with the live values on next run.
-    recommendedNodeLimit: 256,
-    overrideMaxNodes: null,
+    // Synthetic envelope, default to the design knobs (corpus ceiling
+    // 50000, render cap 256, not truncated) so the SPA reads the same
+    // shape across cold-boot and never-scanned scopes. A real scan
+    // overwrites scan_meta with the live values on next run.
+    scanCeiling: 50000,
+    scanTruncated: false,
+    maxRenderNodes: 256,
     oversizedFiles: [],
     nodes,
     links,
@@ -185,6 +161,329 @@ export async function loadScanResult(
       durationMs: 0,
     },
   };
+}
+
+function buildScanResultFromMeta(
+  metaRow: Selectable<IScanMetaTable>,
+  nodes: Node[],
+  links: Link[],
+  issues: Issue[],
+  counts: { nodesCount: number; linksCount: number; issuesCount: number },
+): ScanResult {
+  const scannedBy: ScanScannedBy = {
+    name: metaRow.scannedByName,
+    version: metaRow.scannedByVersion,
+    specVersion: metaRow.scannedBySpecVersion,
+  };
+  // `oversized_files_json` is kernel-owned (only `metaToRow` writes it);
+  // NULL / legacy rows come back as `[]`. The count column defaults to 0
+  // in SQL so it stays consistent on pre-feature DBs.
+  const oversizedFiles = parseJsonArray<OversizedFile>(metaRow.oversizedFilesJson);
+  return {
+    schemaVersion: 1,
+    scannedAt: metaRow.scannedAt,
+    roots: parseJsonArray<string>(metaRow.rootsJson),
+    providers: parseJsonArray<string>(metaRow.providersJson),
+    scannedBy,
+    // Resolved encoder of the prior scan (see project-config.schema.json
+    // §tokenizer). A NULL column maps to an absent domain field; the
+    // orchestrator's tokenizer-change check treats a missing prior value
+    // as a change (forcing a token recompute).
+    ...(metaRow.tokenizer !== null ? { tokenizer: metaRow.tokenizer } : {}),
+    scanCeiling: metaRow.scanCeiling,
+    scanTruncated: metaRow.scanTruncated === 1,
+    maxRenderNodes: metaRow.maxRenderNodes,
+    oversizedFiles,
+    nodes,
+    links,
+    issues,
+    stats: {
+      filesWalked: metaRow.statsFilesWalked,
+      filesSkipped: metaRow.statsFilesSkipped,
+      filesOversized: metaRow.filesOversized,
+      nodesCount: counts.nodesCount,
+      linksCount: counts.linksCount,
+      issuesCount: counts.issuesCount,
+      durationMs: metaRow.statsDurationMs,
+    },
+  };
+}
+
+/**
+ * Metadata-only `ScanResult`: every scalar field + real `COUNT(*)` stats
+ * (passed in via `counts`), but empty `nodes` / `links` / `issues`
+ * arrays. Reads only the single `scan_meta` row, never the node / link /
+ * issue tables, so the BFF `GET /api/scan?meta=1` boot fetch stays cheap
+ * on a 50K-node corpus. The SPA pairs it with `/api/folders` (tree) and
+ * `/api/branch` (map). Falls back to the synthetic envelope (design
+ * defaults: ceiling 50000, render cap 256, not truncated) when no
+ * `scan_meta` row exists, mirroring `loadScanResult`.
+ */
+export async function loadScanMeta(
+  db: Kysely<IDatabase>,
+  counts: INodeCounts,
+): Promise<ScanResult> {
+  const metaRow = await db
+    .selectFrom('scan_meta')
+    .selectAll()
+    .executeTakeFirst();
+  const c = {
+    nodesCount: counts.nodes,
+    linksCount: counts.links,
+    issuesCount: counts.issues,
+  };
+  if (metaRow) {
+    return buildScanResultFromMeta(metaRow, [], [], [], c);
+  }
+  return {
+    schemaVersion: 1,
+    scannedAt: Date.now(),
+    roots: ['.'],
+    providers: [],
+    scanCeiling: 50000,
+    scanTruncated: false,
+    maxRenderNodes: 256,
+    oversizedFiles: [],
+    nodes: [],
+    links: [],
+    issues: [],
+    stats: {
+      filesWalked: 0,
+      filesSkipped: 0,
+      filesOversized: 0,
+      nodesCount: c.nodesCount,
+      linksCount: c.linksCount,
+      issuesCount: c.issuesCount,
+      durationMs: 0,
+    },
+  };
+}
+
+/**
+ * Design default for the map-render cap (`scan.maxNodes`), used when no
+ * `scan_meta` row exists yet (DB freshly migrated / never scanned).
+ * Mirrors the `256` literal in `src/config/defaults.json` and the
+ * synthetic-envelope fallback in `loadScanResult` above.
+ */
+const DEFAULT_MAX_RENDER_NODES = 256;
+
+/**
+ * Lightweight `{ path, kind }[]` projection of `scan_nodes`, ordered by
+ * `path` ASC. Backs the BFF `/api/folders` endpoint, which renders the
+ * whole corpus (up to `scan.maxScan`) without hydrating the full
+ * `ScanResult`. SELECTs only the two columns the folders tree needs, so
+ * a 50K corpus stays cheap.
+ */
+export async function loadLiteNodes(
+  db: Kysely<IDatabase>,
+): Promise<ILiteNode[]> {
+  const rows = await db
+    .selectFrom('scan_nodes')
+    .select([
+      'path',
+      'kind',
+      'linksInCount',
+      'linksOutCount',
+      'tokensTotal',
+      'modifiedAtMs',
+    ])
+    .orderBy('path', 'asc')
+    .execute();
+  return rows.map((r) => ({
+    path: r.path,
+    kind: r.kind,
+    linksInCount: r.linksInCount,
+    linksOutCount: r.linksOutCount,
+    tokensTotal: r.tokensTotal,
+    modifiedAtMs: r.modifiedAtMs,
+  }));
+}
+
+/**
+ * Per-node issue incidence counts by severity, keyed by node path.
+ *
+ * `scan_issues.node_ids_json` is a JSON array (one issue can touch many
+ * nodes); `json_each` expands it into one row per `(issue, node)` pair.
+ * Grouping by `(value, severity)` yields the incidence count per node
+ * per severity in a single SQL pass, never loading the full issue table
+ * into memory (audit posture mirrors `listIssues`' `json_each` filter).
+ *
+ * Only `error` / `warn` severities are tallied, the SPA folders tree
+ * badges ignore `info`. Nodes with no error / warn issue are absent
+ * from the returned map (the caller defaults them to `{ error: 0,
+ * warn: 0 }`).
+ */
+export async function loadIssueCountsByPath(
+  db: Kysely<IDatabase>,
+): Promise<Map<string, IIssueIncidenceCount>> {
+  // Raw derived table: `json_each` explodes `node_ids_json` into one row
+  // per `(issue, node)` pair, then `GROUP BY value, severity` tallies the
+  // incidence per node per severity in SQL. Authored in snake_case (the
+  // raw fragment bypasses Kysely's CamelCasePlugin, see the
+  // storage-adapter header "Trap to avoid"). Filtering to error / warn
+  // here keeps the result small (the SPA badges ignore `info`).
+  const rows = await db
+    .selectFrom(
+      sql<{ value: string; severity: string; c: number }>`(
+        SELECT je.value AS value, si.severity AS severity, COUNT(*) AS c
+        FROM scan_issues si, json_each(si.node_ids_json) je
+        WHERE si.severity IN ('error', 'warn')
+        GROUP BY je.value, si.severity
+      )`.as('incidence'),
+    )
+    .select(['value', 'severity', 'c'])
+    .execute();
+  const out = new Map<string, IIssueIncidenceCount>();
+  for (const row of rows) {
+    const bucket = out.get(row.value) ?? { error: 0, warn: 0 };
+    if (row.severity === 'error') bucket.error = Number(row.c);
+    else if (row.severity === 'warn') bucket.warn = Number(row.c);
+    out.set(row.value, bucket);
+  }
+  return out;
+}
+
+/**
+ * Effective map-render cap (`scan_meta.max_render_nodes`) recorded by the
+ * latest scan. Returns `DEFAULT_MAX_RENDER_NODES` (256) when no meta row
+ * exists (DB freshly migrated / never scanned). Backs the `/api/branch`
+ * cap default + clamp ceiling.
+ */
+export async function loadEffectiveMaxRenderNodes(
+  db: Kysely<IDatabase>,
+): Promise<number> {
+  const metaRow = await db
+    .selectFrom('scan_meta')
+    .select(['maxRenderNodes'])
+    .executeTakeFirst();
+  return metaRow?.maxRenderNodes ?? DEFAULT_MAX_RENDER_NODES;
+}
+
+/**
+ * Prefix-union, capped graph projection for the BFF `/api/branch`
+ * endpoint.
+ *
+ * Scoping: a node is in the branch when, for ANY prefix in `prefixes`,
+ * `path = prefix` OR `path LIKE prefix || '/%'` (so each prefix matches
+ * the folder node itself plus every descendant under `prefix + '/'`).
+ * The per-prefix predicates are ORed together, so the result is the
+ * UNION of every requested subtree. An empty `prefixes` array skips the
+ * WHERE entirely (whole corpus). The `'/%'` pattern is bound as a
+ * parameter (no user input interpolated into the SQL string); the
+ * literal `%` lives in the template fragment, each prefix binds
+ * separately. `_` / `%` glob metacharacters inside a real path are not
+ * escaped, a node path almost never contains them, and a stray match
+ * only ever widens the branch to a sibling under the same parent, never
+ * leaks across the tree (the leading prefix segment still anchors it).
+ * Identical prefixes are de-duped defensively before binding.
+ *
+ * Capping: `total` is a `COUNT(*)` over the union (BEFORE the cap);
+ * `nodes` is the same set `ORDER BY path LIMIT limit`. `links` are the
+ * edges whose `source_path` AND `target_path` are both in the capped
+ * node set; `issues` are those whose `node_ids_json` intersects it
+ * (`json_each` + `IN`). Every step runs in SQL so the 50K corpus never
+ * hydrates into memory.
+ */
+export async function loadBranch(
+  db: Kysely<IDatabase>,
+  prefixes: string[],
+  limit: number,
+): Promise<IBranchProjection> {
+  // De-dup identical prefixes defensively, so a duplicated `?path=` query
+  // value does not duplicate its OR clause in the WHERE.
+  const uniquePrefixes = [...new Set(prefixes)];
+  const total = await countBranchNodes(db, uniquePrefixes);
+
+  const nodeRows = await applyBranchScope(
+    db.selectFrom('scan_nodes').selectAll(),
+    uniquePrefixes,
+  )
+    .orderBy('path', 'asc')
+    .limit(limit)
+    .execute();
+  const nodes = nodeRows.map(rowToNode);
+  const pathSet = new Set(nodes.map((n) => n.path));
+
+  if (pathSet.size === 0) {
+    return { nodes, links: [], issues: [], total, paths: uniquePrefixes };
+  }
+
+  const paths = [...pathSet];
+  const [linkRows, issueRows] = await Promise.all([
+    db
+      .selectFrom('scan_links')
+      .selectAll()
+      .where('sourcePath', 'in', paths)
+      .where('targetPath', 'in', paths)
+      .execute(),
+    db
+      .selectFrom('scan_issues')
+      .selectAll()
+      .where(({ exists, selectFrom }) =>
+        exists(
+          selectFrom(
+            sql<{ value: string }>`json_each(scan_issues.node_ids_json)`.as('je'),
+          )
+            .select(sql<number>`1`.as('one'))
+            .where(sql.ref('je.value'), 'in', paths),
+        ),
+      )
+      .execute(),
+  ]);
+
+  return {
+    nodes,
+    links: linkRows.map(rowToLink),
+    issues: issueRows.map(rowToIssue),
+    total,
+    paths: uniquePrefixes,
+  };
+}
+
+/**
+ * Count the nodes under the union of `prefixes` (BEFORE the render
+ * cap). Shares the scope predicate with the page-slice query so `total`
+ * and `nodes` agree on what "in the branch" means.
+ */
+async function countBranchNodes(
+  db: Kysely<IDatabase>,
+  prefixes: string[],
+): Promise<number> {
+  const row = await applyBranchScope(
+    db.selectFrom('scan_nodes'),
+    prefixes,
+  )
+    .select(({ fn }) => fn.countAll<number>().as('c'))
+    .executeTakeFirst();
+  return Number(row?.c ?? 0);
+}
+
+/**
+ * Apply the branch scope predicate, the UNION over each prefix of
+ * (`path = prefix OR path LIKE prefix || '/%'`), to a `scan_nodes`
+ * query. An empty `prefixes` array is the whole-corpus case and applies
+ * no WHERE. Extracted so the count query and the page-slice query stay
+ * byte-for-byte identical in their scoping, a drift would surface as
+ * `total` disagreeing with the returned node set.
+ */
+function applyBranchScope<
+  Q extends import('kysely').SelectQueryBuilder<IDatabase, 'scan_nodes', object>,
+>(query: Q, prefixes: string[]): Q {
+  if (prefixes.length === 0) return query;
+  return query.where(({ eb, or }) =>
+    or(
+      prefixes.map((prefix) =>
+        // Per-prefix subtree predicate. `prefix || '/%'`: the `/%` lives
+        // in the template, `prefix` binds separately, so no user input is
+        // interpolated into the SQL. The two clauses are ORed so the
+        // prefix matches the folder node itself plus every descendant.
+        eb.or([
+          eb('path', '=', prefix),
+          eb('path', 'like', sql<string>`${prefix} || '/%'`),
+        ]),
+      ),
+    ),
+  ) as Q;
 }
 
 /**

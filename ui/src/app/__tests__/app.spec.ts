@@ -6,6 +6,7 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 
 import { App } from '../app';
+import { ScanTriggerService } from '../services/scan-trigger';
 import { DATA_SOURCE, type IDataSourcePort } from '../../services/data-source/data-source.port';
 import { SKILL_MAP_MODE } from '../../services/data-source/runtime-mode';
 import { WS_SOCKET_FACTORY, type TWsSocketFactory, type IWsLike } from '../../services/ws-event-stream';
@@ -57,6 +58,34 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
         issuesCount: 0,
         durationMs: 0,
       },
+    }),
+  loadScanMeta: () =>
+    Promise.resolve({
+      schemaVersion: 1,
+      scannedAt: 0,
+      roots: ['.'],
+      providers: [],
+      nodes: [],
+      links: [],
+      issues: [],
+      stats: {
+        filesWalked: 0,
+        filesSkipped: 0,
+        nodesCount: 0,
+        linksCount: 0,
+        issuesCount: 0,
+        durationMs: 0,
+      },
+    }),
+  loadFolders: () => Promise.resolve([]),
+  loadBranch: () =>
+    Promise.resolve({
+      schemaVersion: '1',
+      kind: 'branch',
+      branch: { paths: [], total: 0, rendered: 0, truncated: false, cap: 256 },
+      nodes: [],
+      links: [],
+      issues: [],
     }),
   listNodes: () =>
     Promise.resolve({
@@ -343,6 +372,38 @@ describe('App, update chip', () => {
 
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('[data-testid="shell-update-chip"]')).toBeNull();
+  });
+});
+
+describe('App, scan spinner', () => {
+  it('marks the refresh button spinning + disabled while a scan is in flight', async () => {
+    TestBed.resetTestingModule();
+    await configure(makeUpdateCheckStub(), 'live');
+
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const btn = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+      '[data-testid="shell-refresh"]',
+    )!;
+    expect(btn).not.toBeNull();
+    expect(btn.classList.contains('is-spinning')).toBe(false);
+    expect(btn.disabled).toBe(false);
+
+    // Drive the shared scan-in-flight signal (the manual-trigger owner;
+    // the topbar `scanning()` ORs this with the watcher's WS `scanActive`).
+    // Proves the `is-spinning` class binding is reactive, the CSS animation
+    // hangs off that class.
+    TestBed.inject(ScanTriggerService).scanning.set(true);
+    fixture.detectChanges();
+    expect(btn.classList.contains('is-spinning')).toBe(true);
+    expect(btn.disabled).toBe(true);
+
+    TestBed.inject(ScanTriggerService).scanning.set(false);
+    fixture.detectChanges();
+    expect(btn.classList.contains('is-spinning')).toBe(false);
+    expect(btn.disabled).toBe(false);
   });
 });
 

@@ -112,9 +112,13 @@ export class ScanCommand extends SmCommand {
   yes = Option.Boolean('--yes', false, {
     description: 'Non-interactive mode. For ambiguous activeProvider auto-detect, multiple provider markers (.claude/, .codex/, AGENTS.md, .cursor/) under the scan tree exit non-zero instead of prompting; set the lens manually via `sm config set activeProvider <id>` and re-run. Also auto-confirms the pre-1.0 schema-drift rebuild (when the DB was written by a different skill-map major.minor it is deleted and regenerated) instead of prompting.',
   });
+  maxScan = Option.String('--max-scan', {
+    required: false,
+    description: 'Per-invocation override of `scan.maxScan` (default 50000). The WALK-INTAKE ceiling: the scan walks, parses, analyzes, and reference-validates the full corpus up to this number. Bidirectional: raises OR lowers the ceiling. When the walker hits it, additional files are dropped in stable order and the scan is marked truncated in scan_meta (the UI raises a persistent banner pointing at the .skillmapignore editor in Settings → Project). Validation: integer >= 1.',
+  });
   maxNodes = Option.String('--max-nodes', {
     required: false,
-    description: 'Per-invocation override of `scan.maxNodes` (default 256). Bidirectional: raises OR lowers the recommended cap on classified nodes. When the walker hits the cap, additional files are dropped and the scan is marked oversized in scan_meta (the UI raises a persistent banner pointing at the .skillmapignore editor in Settings → Project). Validation: integer >= 1.',
+    description: 'Per-invocation override of `scan.maxNodes` (default 256). The MAP RENDER cap (pure metadata): it does NOT bound the scan, only how many nodes the graph view projects onto the canvas. Bidirectional: raises OR lowers the render cap. Validation: integer >= 1.',
   });
 
   // Each branch in the orchestrator maps to one validation gate
@@ -122,8 +126,8 @@ export class ScanCommand extends SmCommand {
   // Splitting per branch scatters the gate from the value it gates.
    
   protected async run(): Promise<number> {
-    const parsedMaxNodes = this.parseMaxNodesFlag();
-    if (parsedMaxNodes.kind === 'error') return parsedMaxNodes.exit;
+    const caps = this.parseCapFlags();
+    if (caps.kind === 'error') return caps.exit;
 
     if (this.watch) return this.runWatchAlias();
 
@@ -171,7 +175,7 @@ export class ScanCommand extends SmCommand {
       colorEnabled,
       yes: this.yes,
       style,
-      ...(parsedMaxNodes.value !== undefined ? { maxNodes: parsedMaxNodes.value } : {}),
+      ...capOverrides(caps),
     });
 
     if (outcome.kind === 'ok') {
@@ -192,21 +196,42 @@ export class ScanCommand extends SmCommand {
   }
 
   /**
-   * Parse `--max-nodes <N>`. Returns either the integer value (or
-   * `undefined` when the flag was omitted) or an error sentinel after
-   * printing the validation block. Invalid (non-integer, < 1) exits 2
-   * per spec/cli-contract.md §Node cap.
+   * Parse both cap flags in one pass: `--max-scan <N>` (the WALK-INTAKE
+   * ceiling) and `--max-nodes <N>` (the MAP RENDER cap). Returns both
+   * resolved values (each `undefined` when its flag was omitted) or an
+   * error sentinel after printing the §3.1b validation block for the
+   * first offending flag. Invalid (non-integer, < 1) exits 2 per
+   * spec/cli-contract.md §Scan.
    */
-  private parseMaxNodesFlag(): { kind: 'ok'; value: number | undefined } | { kind: 'error'; exit: number } {
-    if (this.maxNodes === undefined) return { kind: 'ok', value: undefined };
-    const n = Number(this.maxNodes);
+  private parseCapFlags():
+    | { kind: 'ok'; maxScan: number | undefined; maxNodes: number | undefined }
+    | { kind: 'error'; exit: number } {
+    const scan = this.parseIntegerFlag(this.maxScan, SCAN_TEXTS.maxScanInvalid, SCAN_TEXTS.maxScanInvalidHint);
+    if (scan.kind === 'error') return scan;
+    const nodes = this.parseIntegerFlag(this.maxNodes, SCAN_TEXTS.maxNodesInvalid, SCAN_TEXTS.maxNodesInvalidHint);
+    if (nodes.kind === 'error') return nodes;
+    return { kind: 'ok', maxScan: scan.value, maxNodes: nodes.value };
+  }
+
+  /**
+   * Shared integer-flag parser for `--max-scan` / `--max-nodes`. Both
+   * accept the same shape (integer >= 1) and render the same §3.1b
+   * validation block; only the template + hint differ.
+   */
+  private parseIntegerFlag(
+    raw: string | undefined,
+    invalidTemplate: string,
+    invalidHint: string,
+  ): { kind: 'ok'; value: number | undefined } | { kind: 'error'; exit: number } {
+    if (raw === undefined) return { kind: 'ok', value: undefined };
+    const n = Number(raw);
     if (!Number.isInteger(n) || n < 1) {
       const ansi = this.ansiFor('stderr');
       this.printer!.info(
-        tx(SCAN_TEXTS.maxNodesInvalid, {
+        tx(invalidTemplate, {
           glyph: ansi.red('✕'),
-          value: this.maxNodes,
-          hint: ansi.dim(SCAN_TEXTS.maxNodesInvalidHint),
+          value: raw,
+          hint: ansi.dim(invalidHint),
         }),
       );
       return { kind: 'error', exit: ExitCode.Error };
@@ -233,9 +258,10 @@ export class ScanCommand extends SmCommand {
     }
     this.emitElapsed = false;
     const roots = this.roots.length > 0 ? this.roots : ['.'];
-    // `--max-nodes` was already validated in `run()`; re-parse here is
-    // a cheap pass-through (Number coercion + integer check).
-    const parsedMaxNodes = this.parseMaxNodesFlag();
+    // `--max-scan` / `--max-nodes` were already validated in `run()`;
+    // re-parse here is a cheap pass-through (Number coercion + integer
+    // check).
+    const caps = this.parseCapFlags();
     return runWatchLoop({
       roots,
       json: this.json,
@@ -246,9 +272,7 @@ export class ScanCommand extends SmCommand {
       noPlugins: this.noPlugins,
       context: this.context,
       printer: this.printer!,
-      ...(parsedMaxNodes.kind === 'ok' && parsedMaxNodes.value !== undefined
-        ? { maxNodes: parsedMaxNodes.value }
-        : {}),
+      ...(caps.kind === 'ok' ? capOverrides(caps) : {}),
     });
   }
 
@@ -399,27 +423,27 @@ export class ScanCommand extends SmCommand {
   }
 
   /**
-   * Surface the §Node cap notice when the walker actually stopped
-   * accepting files because of the cap. Derivation: `filesWalked >
-   * effectiveLimit` means the walker incremented past the cap at least
-   * once (i.e. classified the (limit+1)-th raw before breaking). When
-   * the project has EXACTLY the cap many files the loop ends naturally
-   * without ever firing the break, so the notice stays silent.
+   * Surface the §Scan truncation notice when the walker actually
+   * stopped accepting files because the walk ceiling (`scan.maxScan` or
+   * the `--max-scan` override) was reached and extra files were dropped.
+   * Fires on `result.scanTruncated`, the kernel sets it when the walker
+   * hit the ceiling; a project with at most the ceiling many files ends
+   * the loop naturally with `scanTruncated: false`, so the notice stays
+   * silent.
    */
   private maybePrintCapNotice(
     result: import('../../kernel/index.js').ScanResult,
     ansi: IAnsi,
   ): void {
-    const recommended = result.recommendedNodeLimit;
-    if (recommended === undefined) return;
-    const override = result.overrideMaxNodes ?? null;
-    const effectiveLimit = override ?? recommended;
-    if (result.stats.filesWalked <= effectiveLimit) return;
+    if (result.scanTruncated !== true) return;
+    const ceiling = result.scanCeiling;
+    if (ceiling === undefined) return;
+    const source = this.maxScan !== undefined ? '--max-scan' : 'scan.maxScan';
     this.printer!.info(
       tx(SCAN_TEXTS.scanCappedNotice, {
         glyph: ansi.yellow('⚠'),
-        limit: String(effectiveLimit),
-        source: override !== null ? '--max-nodes' : 'scan.maxNodes',
+        limit: String(ceiling),
+        source,
         hint: ansi.dim(SCAN_TEXTS.scanCappedNoticeHint),
       }),
     );
@@ -569,5 +593,21 @@ function formatScanCounts(opts: {
  */
 function countNoun(count: number, singular: string, plural: string): string {
   return count === 1 ? singular : plural;
+}
+
+/**
+ * Build the optional cap-override slots (`maxScan` / `maxNodes`) from a
+ * parsed `parseCapFlags()` ok-result, omitting each slot when its flag
+ * was absent. Spread by `run()` / `runWatchAlias()` so the two `??`
+ * conditionals live in one place instead of inflating each call site's
+ * cyclomatic complexity.
+ */
+function capOverrides(
+  caps: { maxScan: number | undefined; maxNodes: number | undefined },
+): { maxScan?: number; maxNodes?: number } {
+  const out: { maxScan?: number; maxNodes?: number } = {};
+  if (caps.maxScan !== undefined) out.maxScan = caps.maxScan;
+  if (caps.maxNodes !== undefined) out.maxNodes = caps.maxNodes;
+  return out;
 }
 

@@ -67,6 +67,56 @@ export interface INodeCounts {
 }
 
 /**
+ * Lightweight per-node projection for the BFF `/api/folders` endpoint.
+ * Carries only the cheap scalar columns the SPA folders tree needs
+ * (`path`, `kind`, the two link counts, total tokens, mtime), never the
+ * full `Node` (no frontmatter, body, links, signals, contributions).
+ * Pushed straight from `scan_nodes` so a 50K corpus does not hydrate the
+ * whole `ScanResult` into memory.
+ */
+export interface ILiteNode {
+  path: string;
+  kind: string;
+  linksInCount: number;
+  linksOutCount: number;
+  tokensTotal: number | null;
+  modifiedAtMs: number | null;
+}
+
+/**
+ * Per-node issue incidence counts by severity, output of
+ * `port.scans.issueCountsByPath()`. One entry per node that has at least
+ * one error- or warn-severity issue whose `nodeIds` array includes the
+ * path; nodes with no error / warn issues are absent from the map. The
+ * `info` severity is intentionally ignored (the SPA badges only error /
+ * warn). Counts are issue incidence (one per matching issue), the same
+ * semantics the UI's `countIssuesByPath` rolls up per node.
+ */
+export interface IIssueIncidenceCount {
+  error: number;
+  warn: number;
+}
+
+/**
+ * Output of `port.scans.loadBranch(...)`, the prefix-union + capped
+ * graph projection the BFF `/api/branch` endpoint returns. `nodes` is
+ * the first `LIMIT` nodes of the union (every requested prefix's
+ * subtree) in stable path order (`ORDER BY path`); `links` carries only
+ * edges whose source AND target are both in that node set; `issues`
+ * carries only those whose `nodeIds` intersect it. `total` is the count
+ * of nodes in the union BEFORE the cap (so the route can compute
+ * `truncated`). `paths` echoes the (de-duped) requested prefixes; the
+ * whole-corpus case (no prefix) echoes `[]`.
+ */
+export interface IBranchProjection {
+  nodes: Node[];
+  links: Link[];
+  issues: Issue[];
+  total: number;
+  paths: string[];
+}
+
+/**
  * Lightweight option bag for `port.scans.persist`. Mirrors the optional
  * inputs of the `persistScanResult(db, result, inputs)` free function
  * (`IPersistScanInputs` in `kernel/adapters/sqlite/scan-persistence.ts`),

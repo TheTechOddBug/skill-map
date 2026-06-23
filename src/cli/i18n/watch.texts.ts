@@ -52,6 +52,15 @@ export const WATCH_TEXTS = {
     'Pass an integer >= 0 (0 disables the circuit-breaker; the default is 5).',
 
   /**
+   * §3.1b two-line block. Validation rejection for `--max-scan`.
+   */
+  maxScanInvalid:
+    '{{glyph}}  sm watch: --max-scan must be an integer >= 1 (got {{raw}}).\n' +
+    '   {{hint}}\n',
+  maxScanInvalidHint:
+    'Pass a positive integer, e.g. --max-scan 50000.',
+
+  /**
    * §3.1b two-line block. Validation rejection for `--max-nodes`.
    */
   maxNodesInvalid:

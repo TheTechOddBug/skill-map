@@ -91,8 +91,10 @@ async function runWalk(maxFileSizeBytes: number | undefined) {
     providerFrontmatter: buildProviderFrontmatterValidator(providers),
     pluginStores: undefined,
     activeProvider: null,
-    recommendedNodeLimit: 256,
-    overrideMaxNodes: null,
+    scanCeiling: 50000,
+    overrideScanCeiling: null,
+    maxRenderNodes: 256,
+    overrideMaxRenderNodes: null,
     ...(maxFileSizeBytes !== undefined ? { maxFileSizeBytes } : {}),
   });
 }

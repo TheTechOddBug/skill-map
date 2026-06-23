@@ -43,16 +43,16 @@ const SEARCH_AFFECTS_MAP_KEY = 'sm.workspace.search-affects-map';
 
 /**
  * Search → map coupling preference, read once at store construction.
- * Default ON: searching narrows BOTH the files rail and the map, so a
- * query focuses the whole workspace at once. `'0'` opts into the
- * decoupled mode where the map keeps its full layout while only the
- * files rail narrows (set via the rail's map-icon toggle); an absent
- * key means the operator never chose, so the default applies.
+ * Default OFF: searching narrows ONLY the files rail, leaving the map's
+ * full layout intact, so a query reshapes the tree without disturbing the
+ * canvas. `'1'` opts into the coupled mode where the search also filters
+ * the map (set via the rail's map-icon toggle); an absent key means the
+ * operator never chose, so the default applies.
  */
 function readStoredSearchAffectsMap(): boolean {
-  if (typeof localStorage === 'undefined') return true;
+  if (typeof localStorage === 'undefined') return false;
   const stored = localStorage.getItem(SEARCH_AFFECTS_MAP_KEY);
-  if (stored === null) return true;
+  if (stored === null) return false;
   return stored === '1';
 }
 
@@ -314,9 +314,13 @@ export class FilterStoreService {
   apply(
     nodes: INodeView[],
     severityCtx?: { errors: ReadonlySet<string>; warns: ReadonlySet<string> },
-    opts?: { includeSearch?: boolean },
+    opts?: { includeSearch?: boolean; includeKinds?: boolean },
   ): INodeView[] {
     const includeSearch = opts?.includeSearch ?? true;
+    // `includeKinds: false` skips the node-kind facet only. The kind
+    // palette uses it to count "how many of each kind match the OTHER
+    // filters", so toggling a kind off does not zero its own count.
+    const includeKinds = opts?.includeKinds ?? true;
     const text = includeSearch ? this.searchText().trim().toLowerCase() : '';
     const kinds = this.selectedKinds();
     const kindsExplicitlyEmpty = this._kindToggleExplicitEmpty();
@@ -344,8 +348,10 @@ export class FilterStoreService {
       // Sticky "explicit empty" wins over the empty-as-no-filter
       // convention: the operator deliberately turned everything off via
       // the toggle palette, so the graph should render zero nodes.
-      if (kindsExplicitlyEmpty) return false;
-      if (kinds.length > 0 && !kinds.includes(n.kind)) return false;
+      if (includeKinds) {
+        if (kindsExplicitlyEmpty) return false;
+        if (kinds.length > 0 && !kinds.includes(n.kind)) return false;
+      }
       if (favoritesOnly && n.isFavorite !== true) return false;
       // AND across the two severity tiers, both on means "node has at
       // least one error AND at least one warn"; one on filters down to

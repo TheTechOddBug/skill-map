@@ -6,17 +6,21 @@
  * crashing the view.
  *
  * Semantics: the persisted set lists folders the user has explicitly
- * COLLAPSED. Default state is "all expanded", which also means folders
- * that appear after a future scan render expanded out of the box (they
- * are not in the collapsed set yet).
+ * EXPANDED. Default state is "all collapsed", so the tree opens light
+ * (only top-level folders visible) and the user expands what they need;
+ * folders that appear after a future scan also render collapsed out of
+ * the box (they are not in the expanded set yet). A dedicated key
+ * (`sm.folders.expanded`, distinct from the retired
+ * `sm.folders.collapsed`) avoids reading a stale collapsed-set under the
+ * inverted meaning.
  */
 
-const COLLAPSED_STORAGE_KEY = 'sm.folders.collapsed';
+const EXPANDED_STORAGE_KEY = 'sm.folders.expanded';
 
-export function readStoredCollapsed(): Set<string> {
+export function readStoredExpanded(): Set<string> {
   let raw: string | null = null;
   try {
-    raw = localStorage.getItem(COLLAPSED_STORAGE_KEY);
+    raw = localStorage.getItem(EXPANDED_STORAGE_KEY);
   } catch {
     return new Set();
   }
@@ -35,13 +39,13 @@ export function readStoredCollapsed(): Set<string> {
   return out;
 }
 
-export function writeStoredCollapsed(set: ReadonlySet<string>): void {
+export function writeStoredExpanded(set: ReadonlySet<string>): void {
   try {
     if (set.size === 0) {
-      localStorage.removeItem(COLLAPSED_STORAGE_KEY);
+      localStorage.removeItem(EXPANDED_STORAGE_KEY);
       return;
     }
-    localStorage.setItem(COLLAPSED_STORAGE_KEY, JSON.stringify([...set]));
+    localStorage.setItem(EXPANDED_STORAGE_KEY, JSON.stringify([...set]));
   } catch {
     // Quota exceeded or storage blocked, ignore.
   }

@@ -41,15 +41,19 @@
       "type": "string",
       "description": "Resolved offline tokenizer (encoder) that produced the per-node token counts in this scan, one of the closed allow-list in `project-config.schema.json#/properties/tokenizer` (`cl100k_base` default, `o200k_base`). Mirrors `scan_meta.tokenizer`. Reported so consumers know which encoder the counts came from; the incremental scan compares the persisted value against the resolved one and force-recomputes counts when they differ. Absent on synthetic fixtures and when tokenization was disabled."
     },
-    "recommendedNodeLimit": {
+    "scanCeiling": {
       "type": "integer",
       "minimum": 1,
-      "description": "Effective recommended cap on the number of files the walker accepted during this scan (`scan.maxNodes` from settings, default 256). Reported so the UI can decide whether to raise the persistent 'oversized graph' banner: a scan is oversized when `stats.filesWalked >= recommendedNodeLimit`. Absent on synthetic fixtures."
+      "description": "Effective walk ceiling for this scan (`--max-scan <N>` override on `sm scan` / `sm watch` / `sm serve`, else `scan.maxScan` from settings, default 50000). The scan walks, parses, analyzes, and reference-validates the full corpus up to this number, so references resolve across the whole project regardless of how many nodes the map renders. Mirrors `scan_meta.scan_ceiling`. Absent on synthetic fixtures."
     },
-    "overrideMaxNodes": {
-      "type": ["integer", "null"],
+    "scanTruncated": {
+      "type": "boolean",
+      "description": "True when the walker reached `scanCeiling` and dropped files in stable provider-walker order, false otherwise. Reported so the UI raises the persistent 'scan truncated' banner pointing at the `.skillmapignore` editor. Mirrors `scan_meta.scan_truncated`. Absent on synthetic fixtures."
+    },
+    "maxRenderNodes": {
+      "type": "integer",
       "minimum": 1,
-      "description": "Override applied via `--max-nodes <N>` on the verb that ran the scan (`sm scan`, `sm refresh`, `sm watch`), or `null` when no override was passed and the value above came from the setting. The override is bidirectional: it can raise the cap above the recommended limit (the UI banner stays visible until a re-scan lands below the recommended limit) or lower it (the banner also fires if `filesWalked` reaches the lowered override). Absent on synthetic fixtures."
+      "description": "Effective map render cap for this scan (`--max-nodes <N>` override, else `scan.maxNodes` from settings, default 256). Does NOT bound the scan (the full corpus up to `scanCeiling` is persisted and the folders tree shows all of it); it only bounds the graph projection. The UI projects the selected folder branch capped at this number and raises an in-view banner when a branch exceeds it. Mirrors `scan_meta.max_render_nodes`. Absent on synthetic fixtures."
     },
     "oversizedFiles": {
       "type": "array",

@@ -8,18 +8,16 @@ import type { IScanResultApi } from '../../../../models/api';
 
 /**
  * Fake `CollectionLoaderService` exposing only the surface the banner
- * reads (`scan()`). Replacement keeps the test isolated from data-source
- * wiring and lets each case toggle the scan envelope explicitly.
+ * reads (`scanMeta()`). Replacement keeps the test isolated from the
+ * data-source wiring and lets each case toggle the meta envelope.
  */
-function fakeLoader(initial: IScanResultApi | null): { scan: ReturnType<typeof signal<IScanResultApi | null>> } {
-  return { scan: signal<IScanResultApi | null>(initial) };
+function fakeLoader(initial: IScanResultApi | null): {
+  scanMeta: ReturnType<typeof signal<IScanResultApi | null>>;
+} {
+  return { scanMeta: signal<IScanResultApi | null>(initial) };
 }
 
-function emptyScan(over: Partial<IScanResultApi> & {
-  filesWalked?: number;
-  nodesCount?: number;
-}): IScanResultApi {
-  const { filesWalked = 0, nodesCount = 0, ...rest } = over;
+function meta(over: Partial<IScanResultApi>): IScanResultApi {
   return {
     schemaVersion: 1,
     scannedAt: 0,
@@ -28,20 +26,20 @@ function emptyScan(over: Partial<IScanResultApi> & {
     links: [],
     issues: [],
     stats: {
-      filesWalked,
+      filesWalked: 0,
       filesSkipped: 0,
-      nodesCount,
+      nodesCount: 0,
       linksCount: 0,
       issuesCount: 0,
       durationMs: 0,
     },
-    ...rest,
+    ...over,
   };
 }
 
-function makeFixture(scan: IScanResultApi | null) {
+function makeFixture(scanMeta: IScanResultApi | null) {
   TestBed.resetTestingModule();
-  const loader = fakeLoader(scan);
+  const loader = fakeLoader(scanMeta);
   TestBed.configureTestingModule({
     imports: [OversizedBanner],
     providers: [{ provide: CollectionLoaderService, useValue: loader }],
@@ -51,81 +49,47 @@ function makeFixture(scan: IScanResultApi | null) {
   return { fixture, loader };
 }
 
-describe('OversizedBanner', () => {
-  it('hides when scan is below the recommended limit', () => {
-    const scan = emptyScan({
-      recommendedNodeLimit: 10,
-      overrideMaxNodes: null,
-      filesWalked: 5,
-      nodesCount: 5,
-    });
-    const { fixture } = makeFixture(scan);
+describe('OversizedBanner (scan-truncated single mode)', () => {
+  it('hides when the scan was not truncated', () => {
+    const { fixture } = makeFixture(meta({ scanCeiling: 1000, scanTruncated: false }));
     const root = fixture.nativeElement as HTMLElement;
     expect(root.querySelector('[data-testid="oversized-banner"]')).toBeNull();
   });
 
-  it('renders in atLimit mode when nodesCount is at the recommended limit and no override', () => {
-    const scan = emptyScan({
-      recommendedNodeLimit: 5,
-      overrideMaxNodes: null,
-      filesWalked: 5,
-      nodesCount: 5,
-    });
-    const { fixture } = makeFixture(scan);
+  it('renders the banner when scanTruncated is true', () => {
+    const { fixture } = makeFixture(meta({ scanCeiling: 500, scanTruncated: true }));
     const root = fixture.nativeElement as HTMLElement;
     const banner = root.querySelector<HTMLElement>('[data-testid="oversized-banner"]');
     expect(banner).not.toBeNull();
-    expect(banner?.dataset['mode']).toBe('atLimit');
+    const body = root.querySelector<HTMLElement>('[data-testid="oversized-banner-body"]');
+    expect(body?.textContent).toContain('500');
+    expect(body?.textContent).toContain('ceiling');
   });
 
-  it('renders in capped mode when filesWalked > effective cap (data dropped)', () => {
-    const scan = emptyScan({
-      recommendedNodeLimit: 3,
-      overrideMaxNodes: null,
-      filesWalked: 8,
-      nodesCount: 3,
-    });
-    const { fixture } = makeFixture(scan);
+  it('hides when scanTruncated is true but scanCeiling is absent (synthetic)', () => {
+    const { fixture } = makeFixture(meta({ scanTruncated: true }));
     const root = fixture.nativeElement as HTMLElement;
-    const banner = root.querySelector<HTMLElement>('[data-testid="oversized-banner"]');
-    expect(banner).not.toBeNull();
-    expect(banner?.dataset['mode']).toBe('capped');
+    expect(root.querySelector('[data-testid="oversized-banner"]')).toBeNull();
   });
 
-  it('renders in overLimit mode when an override raises the cap past the recommendation', () => {
-    const scan = emptyScan({
-      recommendedNodeLimit: 5,
-      overrideMaxNodes: 20,
-      filesWalked: 8,
-      nodesCount: 8,
-    });
-    const { fixture } = makeFixture(scan);
+  it('hides when the meta envelope carries no scan-truncated fields (legacy)', () => {
+    const { fixture } = makeFixture(meta({}));
     const root = fixture.nativeElement as HTMLElement;
-    const banner = root.querySelector<HTMLElement>('[data-testid="oversized-banner"]');
-    expect(banner).not.toBeNull();
-    expect(banner?.dataset['mode']).toBe('overLimit');
+    expect(root.querySelector('[data-testid="oversized-banner"]')).toBeNull();
   });
 
-  it('hides when recommendedNodeLimit is absent from the envelope (legacy / synthetic)', () => {
-    const scan = emptyScan({
-      filesWalked: 999,
-      nodesCount: 999,
-    });
-    const { fixture } = makeFixture(scan);
+  it('hides when there is no scan meta yet', () => {
+    const { fixture } = makeFixture(null);
     const root = fixture.nativeElement as HTMLElement;
     expect(root.querySelector('[data-testid="oversized-banner"]')).toBeNull();
   });
 
   it('emits openSettings when the CTA is clicked', () => {
-    const scan = emptyScan({
-      recommendedNodeLimit: 3,
-      overrideMaxNodes: null,
-      filesWalked: 4,
-      nodesCount: 3,
-    });
-    const { fixture } = makeFixture(scan);
+    const { fixture } = makeFixture(meta({ scanCeiling: 300, scanTruncated: true }));
     let emitted = 0;
-    fixture.componentInstance.openSettings.subscribe(() => { emitted += 1; });
+    fixture.componentInstance.openSettings.subscribe(() => {
+      emitted += 1;
+    });
     const root = fixture.nativeElement as HTMLElement;
     const cta = root.querySelector<HTMLButtonElement>('[data-testid="oversized-banner-cta"]');
     expect(cta).not.toBeNull();

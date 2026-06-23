@@ -75,6 +75,7 @@ function makeScanCmd(cap: ICapture): ScanCommand {
   cmd.strict = false;
   cmd.watch = false;
   cmd.yes = true;
+  cmd.maxScan = undefined;
   cmd.maxNodes = undefined;
   cmd.json = false;
   cmd.quiet = false;

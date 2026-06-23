@@ -43,6 +43,7 @@ import { IssuePathsService } from '../../../services/issue-paths';
 import { MapVisibilityService } from '../../../services/map-visibility';
 import { directNeighborhood } from './node-neighborhood';
 import { resolveConnectionSides } from './connection-sides';
+import { BranchCapBanner } from './branch-cap-banner/branch-cap-banner';
 import { GraphLayoutToolbar } from './graph-layout-toolbar/graph-layout-toolbar';
 import { KindPalette } from '../../components/kind-palette/kind-palette';
 import { LinkKindPalette } from '../../components/link-kind-palette/link-kind-palette';
@@ -129,6 +130,7 @@ const EDGE_SELECTION_DEFAULT: IEdgeSelectionView = {
   imports: [
     FFlowModule,
     FVirtualFor,
+    BranchCapBanner,
     GraphLayoutToolbar,
     KindPalette,
     LinkKindPalette,
@@ -325,21 +327,17 @@ export class GraphView implements OnInit {
 
   /**
    * Effective set of node paths the MAP shows: the facet-filtered set
-   * (`visibleNodes`, shared with the rail) intersected with the map
-   * visibility curation set. Empty curation set == "show all", so this
-   * is the facet set verbatim; a non-empty set restricts to the AND of
-   * the two. This is the single chokepoint both the canvas (`graph`) and
-   * the camera (`runAnimatedFit`) read, so they never disagree on what is
-   * visible. Crucially it layers ON TOP of `visibleNodes` rather than
-   * inside `FilterStoreService.apply`, so the rail's own tree is never
-   * touched by curation.
+   * (`visibleNodes`, shared with the rail) over the FETCHED branch union.
+   * The map SELECTION is now applied server-side, the loader fetches the
+   * union of the selected folder prefixes + leaf paths, so `branch()`
+   * already IS the selected set; there is no client-side curation
+   * intersection to layer on top. This stays the single chokepoint both
+   * the canvas (`graph`) and the camera (`runAnimatedFit`) read so they
+   * never disagree on what is visible.
    */
-  private readonly mapVisiblePaths = computed<Set<string>>(() => {
-    const facet = this.visibleNodes().map((n) => n.path);
-    const inclusion = this.mapVisibility.paths();
-    if (inclusion.size === 0) return new Set(facet);
-    return new Set(facet.filter((p) => inclusion.has(p)));
-  });
+  private readonly mapVisiblePaths = computed<Set<string>>(
+    () => new Set(this.visibleNodes().map((n) => n.path)),
+  );
 
   readonly graph = computed<IGraphData>(() => {
     const visibleIds = this.mapVisiblePaths();
@@ -660,13 +658,21 @@ export class GraphView implements OnInit {
       if (this.mapFitDebounce !== null) clearTimeout(this.mapFitDebounce);
     });
 
-    // Garbage-collect curated paths a re-scan removed. Keyed on the loaded
-    // node set; if pruning empties the curation the map falls back to
-    // "show all" (the consistent default).
+    // Garbage-collect curated paths a re-scan removed. Keyed on the
+    // whole-corpus LITE node set, NOT the rendered branch: curation is
+    // corpus-wide and must survive a branch switch (a curated path that
+    // is simply outside the current branch is still valid). Only a path
+    // the re-scan genuinely dropped from the corpus is pruned. If
+    // pruning empties the curation the map falls back to "show all".
     effect(() => {
-      const nodes = this.loader.nodes();
-      if (nodes.length === 0) return;
-      this.mapVisibility.prune(new Set(nodes.map((n) => n.path)));
+      const lite = this.loader.liteNodes();
+      if (lite.length === 0) return;
+      // `untracked`: prune is a re-scan garbage-collect, it must fire only
+      // when the CORPUS changes (lite list), never on a selection toggle.
+      // prune reads `mapVisibility.paths()` internally, so without this the
+      // effect would track the selection and re-run on every checkbox click,
+      // wiping a freshly-selected folder prefix before the map even renders.
+      untracked(() => this.mapVisibility.prune(new Set(lite.map((n) => n.path))));
     });
 
     // Async layout effect, runs dagre when topology or layout
@@ -748,7 +754,11 @@ export class GraphView implements OnInit {
   }
 
   ngOnInit(): void {
-    if (this.loader.nodes().length === 0 && !this.loader.loading()) {
+    // Boot guard: kick the three-fetch lazy load once if nothing has
+    // landed yet. Keyed on `scanMeta()` (the cheapest of the three) so a
+    // branch that legitimately renders zero nodes does not re-trigger
+    // the boot fetch on every mount.
+    if (this.loader.scanMeta() === null && !this.loader.loading()) {
       void this.loader.load();
     }
   }

@@ -1,24 +1,20 @@
 /**
  * `<sm-oversized-banner>`, top-of-shell persistent notice rendered when
- * the loaded `ScanResult` is at or above `scan.maxNodes` (see
- * `spec/cli-contract.md` §Node cap, `spec/schemas/scan-result.schema.json`
- * `recommendedNodeLimit` / `overrideMaxNodes`).
+ * the scan hit its file ceiling (`scan.maxScan`) and dropped files from
+ * the corpus (see `spec/cli-contract.md` §Scan ceiling,
+ * `spec/schemas/scan-result.schema.json` `scanCeiling` / `scanTruncated`).
  *
- * Three render modes drive the body copy:
+ * Single mode: visible iff `scanMeta().scanTruncated` is true. The
+ * walker stopped reading files past the ceiling, so the corpus the map
+ * and analyzers see is incomplete until the operator trims
+ * `.skillmapignore` or raises `--max-scan`. No dismiss state, the notice
+ * stays until a re-scan brings the file count back under the ceiling.
  *
- *   - `capped`, `stats.filesWalked > effectiveLimit`. The walker
- *     actually stopped accepting files; data was dropped. Strongest
- *     phrasing, red palette.
- *   - `overLimit`, `stats.nodesCount > recommendedNodeLimit` AND
- *     `overrideMaxNodes !== null`. Graph is bigger than recommended,
- *     allowed through via `--max-nodes` override. Yellow palette.
- *   - `atLimit`, `stats.nodesCount >= recommendedNodeLimit` (no
- *     override above it). Soft warning at the recommended cap, yellow.
- *
- * Visibility is purely derived, the banner appears when any of the
- * three modes is true and hides as soon as a re-scan brings the graph
- * back under the recommended limit. There is no dismiss state, the
- * graph is genuinely too big to read until it is trimmed.
+ * Repurposed from the prior three-mode node-cap banner: the
+ * `recommendedNodeLimit` / `overrideMaxNodes` fields it read are gone,
+ * replaced by the scan-wide `scanCeiling` / `scanTruncated` meta. The
+ * per-branch render cap is surfaced separately by
+ * `<sm-branch-cap-banner>` inside the graph view.
  */
 
 import {
@@ -32,10 +28,8 @@ import {
 import { OVERSIZED_BANNER_TEXTS } from '../../../i18n/oversized-banner.texts';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 
-type TBannerMode = 'capped' | 'overLimit' | 'atLimit' | 'hidden';
-
 interface IBannerState {
-  mode: TBannerMode;
+  visible: boolean;
   body: string;
 }
 
@@ -53,60 +47,27 @@ export class OversizedBanner {
 
   /**
    * Emits when the user clicks the CTA. The App shell wires it to
-   * `openSettings()` so the modal opens on Project → Ignored patterns.
-   * Decoupling via output keeps the banner reusable in tests without
-   * a real settings service in the way.
+   * `openSettings()` so the modal opens on Project (Ignored patterns).
+   * Decoupling via output keeps the banner reusable in tests without a
+   * real settings service in the way.
    */
   readonly openSettings = output<void>();
 
   /**
-   * Derive the banner state from the current `ScanResult`. Returns
-   * `mode: 'hidden'` when the graph fits comfortably under the
-   * recommended cap; the template short-circuits on that.
+   * Derive the banner state from the cached scan meta. Returns
+   * `visible: false` when the scan was not truncated (or the meta /
+   * ceiling are absent on a synthetic envelope); the template
+   * short-circuits on that.
    */
   protected readonly state = computed<IBannerState>(() => {
-    const scan = this.loader.scan();
-    if (!scan) return { mode: 'hidden', body: '' };
-    const recommended = scan.recommendedNodeLimit;
-    if (recommended === undefined) return { mode: 'hidden', body: '' };
-    const override = scan.overrideMaxNodes ?? null;
-    const effectiveLimit = override ?? recommended;
-    const filesWalked = scan.stats.filesWalked;
-    const nodesCount = scan.stats.nodesCount;
-
-    // Capped: the walker iterated past the effective cap at least once
-    // before breaking. Per the walker in `src/kernel/orchestrator/walk.ts`,
-    // `filesWalked` increments before the cap check, so a real cap-hit
-    // leaves `filesWalked === effectiveLimit + 1` at minimum.
-    if (filesWalked > effectiveLimit) {
-      return {
-        mode: 'capped',
-        body: this.texts.bodyCapped(
-          filesWalked,
-          effectiveLimit,
-          override !== null ? 'override' : 'setting',
-        ),
-      };
-    }
-
-    if (nodesCount < recommended) return { mode: 'hidden', body: '' };
-
-    if (override !== null && nodesCount > recommended) {
-      return {
-        mode: 'overLimit',
-        body: this.texts.bodyOverLimit(nodesCount, recommended, override),
-      };
-    }
-
-    return {
-      mode: 'atLimit',
-      body: this.texts.bodyAtLimit(nodesCount, recommended),
-    };
+    const meta = this.loader.scanMeta();
+    if (!meta || meta.scanTruncated !== true) return { visible: false, body: '' };
+    const ceiling = meta.scanCeiling;
+    if (ceiling === undefined) return { visible: false, body: '' };
+    return { visible: true, body: this.texts.body(ceiling) };
   });
 
-  protected readonly visible = computed<boolean>(
-    () => this.state().mode !== 'hidden',
-  );
+  protected readonly visible = computed<boolean>(() => this.state().visible);
 
   protected onCta(): void {
     this.openSettings.emit();

@@ -88,14 +88,30 @@ export interface IScanConfig {
   strict: boolean;
   maxFileSizeBytes: number;
   /**
-   * Hard cap on the number of files the scan accepts after
-   * `.skillmapignore` filtering, before extractors run. Default 256.
-   * When the walker reaches the cap, extra files are dropped in stable
-   * provider-walker order and `scan_meta` records the limit + actual
-   * count so the UI can raise a persistent banner pointing at the
-   * `.skillmapignore` editor in Settings → Project. Override per
-   * invocation with `--max-nodes N` on `sm scan` / `sm watch`,
-   * bidirectional (raises OR lowers).
+   * Scan corpus ceiling. Hard cap on the number of files the scan
+   * accepts after `.skillmapignore` filtering, before extractors run.
+   * Default 50000. The scan walks, parses, analyzes, and
+   * reference-validates every file up to this ceiling; that full
+   * corpus is what link resolution checks against, so references
+   * resolve across the whole project regardless of how many nodes the
+   * map renders. When the walker reaches the ceiling, extra files are
+   * dropped in stable provider-walker order and `scan_meta` records
+   * the ceiling + actual count so the UI can raise a persistent banner
+   * pointing at the `.skillmapignore` editor in Settings → Project.
+   * Override per invocation with `--max-scan N` on `sm scan` /
+   * `sm watch` / `sm serve`, bidirectional (raises OR lowers).
+   */
+  maxScan: number;
+  /**
+   * Map render cap. Maximum number of nodes the graph view projects
+   * onto the canvas at once. Default 256. Does NOT bound the scan (the
+   * full corpus is walked + validated up to `maxScan`, and the folders
+   * tree shows all of it); this only limits the Foblex projection so a
+   * large project stays readable. When a selected folder branch
+   * exceeds the cap, the map renders the branch's first N nodes and
+   * raises an in-view banner. Override per invocation with
+   * `--max-nodes N`; the value persists in `scan_meta` and is read by
+   * the UI when the map renders.
    */
   maxNodes: number;
   watch: IScanWatchConfig;

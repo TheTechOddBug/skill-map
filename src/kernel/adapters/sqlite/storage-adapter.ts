@@ -89,8 +89,13 @@ import {
   setPluginEnabled,
 } from './plugins.js';
 import {
+  loadBranch,
+  loadEffectiveMaxRenderNodes,
   loadExtractorRuns,
+  loadIssueCountsByPath,
+  loadLiteNodes,
   loadNodeEnrichments,
+  loadScanMeta,
   loadScanResult,
   rowToIssue,
   rowToLink,
@@ -268,11 +273,16 @@ export class SqliteStorageAdapter implements StoragePort {
     this.scans = {
       persist: (result, opts) => persistScansThroughNonTx(this.db, result, opts),
       load: () => loadScanResult(this.db),
+      loadMeta: async () => loadScanMeta(this.db, await countRows(this.db)),
       loadExtractorRuns: () => loadExtractorRuns(this.db),
       loadNodeEnrichments: () => loadNodeEnrichments(this.db),
       countRows: () => countRows(this.db),
       findNodes: (filter) => findNodes(this.db, filter),
       findNode: (path) => findNode(this.db, path),
+      listLiteNodes: () => loadLiteNodes(this.db),
+      issueCountsByPath: () => loadIssueCountsByPath(this.db),
+      effectiveMaxRenderNodes: () => loadEffectiveMaxRenderNodes(this.db),
+      loadBranch: (prefixes, limit) => loadBranch(this.db, prefixes, limit),
     };
 
     this.contributions = {

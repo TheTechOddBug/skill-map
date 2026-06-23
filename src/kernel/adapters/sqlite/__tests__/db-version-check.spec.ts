@@ -399,22 +399,23 @@ describe('withSqlite + versionCheck (seam)', () => {
           stats_files_walked INTEGER NOT NULL,
           stats_files_skipped INTEGER NOT NULL,
           stats_duration_ms INTEGER NOT NULL,
-          recommended_node_limit INTEGER NOT NULL,
-          override_max_nodes INTEGER,
+          scan_ceiling INTEGER NOT NULL,
+          scan_truncated INTEGER NOT NULL DEFAULT 0,
+          max_render_nodes INTEGER NOT NULL,
           files_oversized INTEGER NOT NULL DEFAULT 0,
           oversized_files_json TEXT
         );
         INSERT INTO scan_meta (
           id, roots_json, scanned_at, scanned_by_name, scanned_by_version,
           scanned_by_spec_version, providers_json, stats_files_walked,
-          stats_files_skipped, stats_duration_ms, recommended_node_limit,
-          override_max_nodes, files_oversized, oversized_files_json
+          stats_files_skipped, stats_duration_ms, scan_ceiling,
+          scan_truncated, max_render_nodes, files_oversized, oversized_files_json
         )
         SELECT
           id, roots_json, scanned_at, scanned_by_name, scanned_by_version,
           scanned_by_spec_version, providers_json, stats_files_walked,
-          stats_files_skipped, stats_duration_ms, recommended_node_limit,
-          override_max_nodes, files_oversized, oversized_files_json
+          stats_files_skipped, stats_duration_ms, scan_ceiling,
+          scan_truncated, max_render_nodes, files_oversized, oversized_files_json
         FROM scan_meta_old;
         DROP TABLE scan_meta_old;`);
     } finally {

@@ -80,7 +80,10 @@ export class SkippedFilesBanner {
    * short-circuits on that.
    */
   protected readonly state = computed<IBannerState>(() => {
-    const scan = this.loader.scan();
+    // `scanMeta()` is the corpus-wide source for skipped-for-size files
+    // (the lazy `?meta=1` envelope carries `oversizedFiles` +
+    // `stats.filesOversized`); the branch payload never carries them.
+    const scan = this.loader.scanMeta();
     const files = scan?.oversizedFiles ?? [];
     const count = scan?.stats?.filesOversized ?? files.length;
 

@@ -91,3 +91,5 @@ Thumbs.db
 .skill-map/skill-map.db
 fixtures/ignore
 fixtures/local-scope.old
+fixtures/ai-engineering
+fixtures/skills

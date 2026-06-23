@@ -401,21 +401,35 @@ export interface RunScanOptions {
    */
   activeProvider?: string | null;
   /**
-   * Recommended cap on the number of nodes the walker classifies
-   * (mirror of `scan.maxNodes` in settings, default 256). Threaded
-   * through to `walkAndExtract` so the cap can fire and so
-   * `ScanResult.recommendedNodeLimit` is populated. Absent → the
-   * orchestrator falls back to 256 (the design default), keeping
-   * out-of-band callers and synthetic fixtures safe.
+   * Walk-intake ceiling (mirror of `scan.maxScan` in settings, default
+   * 50000). Threaded through to `walkAndExtract` so the ceiling can fire
+   * (dropping extra files in stable order) and so `ScanResult.scanCeiling`
+   * / `ScanResult.scanTruncated` are populated. Absent → the orchestrator
+   * falls back to 50000 (the design default), keeping out-of-band callers
+   * and synthetic fixtures safe.
    */
-  recommendedNodeLimit?: number;
+  scanCeiling?: number;
   /**
-   * Per-invocation override of the recommended cap (when `--max-nodes
-   * <N>` was passed). `null` (or absent) means no override; the
-   * recommended limit applies. Bidirectional: any positive integer
-   * replaces the recommended limit for the duration of this scan.
+   * Per-invocation override of the walk ceiling (when `--max-scan <N>`
+   * was passed). `null` (or absent) means no override; the configured
+   * ceiling applies. Bidirectional: any positive integer replaces the
+   * ceiling for the duration of this scan.
    */
-  overrideMaxNodes?: number | null;
+  overrideScanCeiling?: number | null;
+  /**
+   * Map render cap (mirror of `scan.maxNodes` in settings, default 256).
+   * Pure metadata: it does NOT bound the walk. Threaded through to
+   * `walkAndExtract` only so `ScanResult.maxRenderNodes` is populated and
+   * the UI knows how many nodes to project onto the canvas. Absent → the
+   * orchestrator falls back to 256.
+   */
+  maxRenderNodes?: number;
+  /**
+   * Per-invocation override of the render cap (when `--max-nodes <N>`
+   * was passed). `null` (or absent) means no override; the configured
+   * render cap applies. Bidirectional. Never bounds the walk.
+   */
+  overrideMaxRenderNodes?: number | null;
   /**
    * Mirror of `scan.maxFileSizeBytes` (default 1 MiB). Threaded into
    * `walkAndExtract` so the walker skips any file larger than this
@@ -519,8 +533,10 @@ async function runScanInternal(
     providerFrontmatter: setup.providerFrontmatter,
     pluginStores: options.pluginStores,
     activeProvider: activeProviderId,
-    recommendedNodeLimit: options.recommendedNodeLimit ?? 256,
-    overrideMaxNodes: options.overrideMaxNodes ?? null,
+    scanCeiling: options.scanCeiling ?? 50000,
+    overrideScanCeiling: options.overrideScanCeiling ?? null,
+    maxRenderNodes: options.maxRenderNodes ?? 256,
+    overrideMaxRenderNodes: options.overrideMaxRenderNodes ?? null,
     ...(options.maxFileSizeBytes !== undefined
       ? { maxFileSizeBytes: options.maxFileSizeBytes }
       : {}),
@@ -1006,8 +1022,9 @@ function buildScanReturn(
       providers: setup.exts.providers.map((a) => a.id),
       scannedBy: SCANNED_BY,
       tokenizer: setup.tokenizer,
-      recommendedNodeLimit: walked.recommendedNodeLimit,
-      overrideMaxNodes: walked.overrideMaxNodes,
+      scanCeiling: walked.scanCeiling,
+      scanTruncated: walked.scanTruncated,
+      maxRenderNodes: walked.maxRenderNodes,
       oversizedFiles: walked.oversizedFiles,
       nodes: walked.nodes,
       links: walked.internalLinks,

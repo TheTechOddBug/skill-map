@@ -67,9 +67,14 @@
   cursor: pointer;
 }
 
-.workspace__rail-btn:hover {
+.workspace__rail-btn:hover:not(:disabled) {
   background: var(--p-content-hover-background);
   color: var(--p-text-color);
+}
+
+.workspace__rail-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 /* Search → map coupling toggle: lit when the query also filters the

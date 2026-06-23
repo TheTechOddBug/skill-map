@@ -7,15 +7,12 @@ export const FILES_VIEW_TEXTS = {
   resetFilters: 'Reset filters',
   expandAll: 'Expand all',
   collapseAll: 'Collapse all',
-  /** Map depth presets (tree header). Curate the map to a folder-depth slice. */
-  depthLevel0: 'Map: show only the root level',
-  depthLevel1: 'Map: show up to one folder deep',
-  depthLevel2: 'Map: show up to two folders deep',
   folderAriaLabel: (name: string, expanded: boolean) =>
     `${expanded ? 'Collapse' : 'Expand'} folder ${name}`,
   leafAriaLabel: (name: string) => `Inspect ${name}`,
   /** Map visibility curation (checkboxes + isolate). */
   mapVisibilityTooltip: 'Toggle visibility on the map',
+  mapCoveredTooltip: 'On the map via a selected parent folder. Uncheck the parent to change it.',
   mapVisibilityAriaLabel: (name: string) => `Toggle ${name} visibility on the map`,
   isolateTooltip: 'Isolate this node and its direct links on the map',
   isolateAriaLabel: (name: string) => `Isolate ${name} and its direct links on the map`,
@@ -51,6 +48,12 @@ export const FILES_VIEW_TEXTS = {
    * leaves of the subtree; rendered only when > 0.
    */
   folderCount: (nodes: number) => `${nodes}`,
+  /** Tooltip / aria for the per-folder rolled-up error badge. */
+  folderErrorTooltip: (count: number) =>
+    `${count} ${count === 1 ? 'error' : 'errors'} across this folder`,
+  /** Tooltip / aria for the per-folder rolled-up warning badge. */
+  folderWarnTooltip: (count: number) =>
+    `${count} ${count === 1 ? 'warning' : 'warnings'} across this folder`,
   /**
    * Placeholder glyph for missing scalar values. Middle dot reads as
    * "no value" in dense rows; the project-wide em-dash ban applies

@@ -197,8 +197,20 @@ export interface IScanMetaTable {
   statsFilesWalked: number;
   statsFilesSkipped: number;
   statsDurationMs: number;
-  recommendedNodeLimit: number;
-  overrideMaxNodes: number | null;
+  /**
+   * Scan-ceiling vs render-cap envelope (see `spec/cli-contract.md`
+   * §Scan). `scanCeiling` is the effective WALK-INTAKE ceiling
+   * (`scan.maxScan` setting or `--max-scan <N>` override) that produced
+   * this scan; the walker walks + validates the full corpus up to it.
+   * `scanTruncated` is 1 when the walker reached the ceiling and dropped
+   * files, 0 otherwise (DEFAULT 0 so synthetic / legacy writes stay
+   * valid). `maxRenderNodes` is the effective MAP RENDER cap
+   * (`scan.maxNodes` setting or `--max-nodes <N>` override): pure
+   * metadata, it does NOT bound the walk, only the graph projection.
+   */
+  scanCeiling: number;
+  scanTruncated: Generated<number>;
+  maxRenderNodes: number;
   /**
    * File-size skip envelope (see `scan.maxFileSizeBytes`).
    * `filesOversized` mirrors `stats.filesOversized` (DEFAULT 0 so

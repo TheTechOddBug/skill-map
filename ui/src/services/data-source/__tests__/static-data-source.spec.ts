@@ -111,8 +111,8 @@ const SCAN_FIXTURE = {
   roots: ['.'],
   providers: [],
   nodes: [
-    { path: 'a.md', kind: 'markdown', provider: 'claude', linksOutCount: 0, linksInCount: 0, externalRefsCount: 0, bytes: { frontmatter: 0, body: 1, total: 1 }, bodyHash: 'h', frontmatterHash: 'f' },
-    { path: 'b.md', kind: 'agent', provider: 'claude', linksOutCount: 1, linksInCount: 0, externalRefsCount: 0, bytes: { frontmatter: 0, body: 1, total: 1 }, bodyHash: 'h', frontmatterHash: 'f' },
+    { path: 'a.md', kind: 'markdown', provider: 'claude', linksOutCount: 0, linksInCount: 0, externalRefsCount: 0, bytes: { frontmatter: 0, body: 1, total: 1 }, tokens: { frontmatter: 0, body: 256, total: 256 }, modifiedAtMs: 1_700_000_000_000, bodyHash: 'h', frontmatterHash: 'f' },
+    { path: 'b.md', kind: 'agent', provider: 'claude', linksOutCount: 1, linksInCount: 0, externalRefsCount: 0, bytes: { frontmatter: 0, body: 1, total: 1 }, tokens: { frontmatter: 0, body: 128, total: 128 }, modifiedAtMs: 1_700_000_500_000, bodyHash: 'h', frontmatterHash: 'f' },
     { path: 'c.md', kind: 'agent', provider: 'claude', linksOutCount: 0, linksInCount: 1, externalRefsCount: 0, bytes: { frontmatter: 0, body: 1, total: 1 }, bodyHash: 'h', frontmatterHash: 'f' },
   ],
   links: [
@@ -176,6 +176,126 @@ describe('StaticDataSource', () => {
 
   it('loadScan() returns the full ScanResult from data.json', async () => {
     await expect(ds.loadScan()).resolves.toEqual(SCAN_FIXTURE);
+  });
+
+  it('loadScanMeta() strips nodes / links / issues, keeps stats + scalars', async () => {
+    const meta = await ds.loadScanMeta();
+    expect(meta.nodes).toEqual([]);
+    expect(meta.links).toEqual([]);
+    expect(meta.issues).toEqual([]);
+    expect(meta.stats.nodesCount).toBe(3);
+    expect(meta.roots).toEqual(['.']);
+  });
+
+  it('loadFolders() rolls up issue incidence and derives the scalar node columns from data.json', async () => {
+    const folders = await ds.loadFolders();
+    expect(folders).toEqual([
+      {
+        path: 'a.md',
+        kind: 'markdown',
+        linksInCount: 0,
+        linksOutCount: 0,
+        tokensTotal: 256,
+        modifiedAtMs: 1_700_000_000_000,
+        errorCount: 0,
+        warnCount: 0,
+      },
+      {
+        path: 'b.md',
+        kind: 'agent',
+        linksInCount: 0,
+        linksOutCount: 1,
+        tokensTotal: 128,
+        modifiedAtMs: 1_700_000_500_000,
+        errorCount: 0,
+        warnCount: 1,
+      },
+      {
+        // No `tokens` / `modifiedAtMs` on the source node -> null columns.
+        path: 'c.md',
+        kind: 'agent',
+        linksInCount: 1,
+        linksOutCount: 0,
+        tokensTotal: null,
+        modifiedAtMs: null,
+        errorCount: 0,
+        warnCount: 0,
+      },
+    ]);
+  });
+
+  it('loadBranch([]) with no prefixes returns the whole corpus, no truncation', async () => {
+    const branch = await ds.loadBranch([]);
+    expect(branch.kind).toBe('branch');
+    expect(branch.branch.paths).toEqual([]);
+    expect(branch.branch.total).toBe(3);
+    expect(branch.branch.truncated).toBe(false);
+    expect(branch.nodes.map((n) => n.path)).toEqual(['a.md', 'b.md', 'c.md']);
+    // Both endpoints (b.md, c.md) are in the slice, so the link survives.
+    expect(branch.links).toHaveLength(1);
+    expect(branch.issues).toHaveLength(1);
+  });
+
+  it('loadBranch(prefixes) returns the UNION of nodes matching ANY prefix', async () => {
+    // Exact leaf paths match themselves (path === prefix); the union of
+    // {a.md, c.md} excludes the unselected b.md.
+    const branch = await ds.loadBranch(['a.md', 'c.md']);
+    expect(branch.branch.paths).toEqual(['a.md', 'c.md']);
+    expect(branch.branch.total).toBe(2);
+    expect(branch.nodes.map((n) => n.path)).toEqual(['a.md', 'c.md']);
+    // The link (b.md -> c.md) loses its source endpoint, so it is dropped;
+    // the issue touches b.md (not in the union) so it is dropped too.
+    expect(branch.links).toHaveLength(0);
+    expect(branch.issues).toHaveLength(0);
+  });
+
+  it('loadBranch(prefixes) ignores empty-string entries (treated as whole corpus)', async () => {
+    const branch = await ds.loadBranch(['']);
+    expect(branch.branch.paths).toEqual([]);
+    expect(branch.nodes.map((n) => n.path)).toEqual(['a.md', 'b.md', 'c.md']);
+  });
+
+  it('loadBranch(paths, limit) truncates and drops links / issues outside the slice', async () => {
+    const branch = await ds.loadBranch([], 1);
+    expect(branch.branch.total).toBe(3);
+    expect(branch.branch.rendered).toBe(1);
+    expect(branch.branch.truncated).toBe(true);
+    expect(branch.nodes.map((n) => n.path)).toEqual(['a.md']);
+    // The single link's endpoints (b.md, c.md) are outside the 1-node
+    // slice, so it is dropped; the issue touches b.md (also dropped).
+    expect(branch.links).toHaveLength(0);
+    expect(branch.issues).toHaveLength(0);
+  });
+
+  it('loadBranch(folder prefixes) unions every descendant of each prefix', async () => {
+    // Nested fixture: a folder prefix should pull in all descendants
+    // (path.startsWith(prefix + "/")) plus siblings from a second prefix.
+    const nestedScan = {
+      ...SCAN_FIXTURE,
+      nodes: [
+        { ...SCAN_FIXTURE.nodes[0], path: 'src/api/a.md' },
+        { ...SCAN_FIXTURE.nodes[1], path: 'src/api/deep/b.md' },
+        { ...SCAN_FIXTURE.nodes[2], path: 'docs/c.md' },
+        { ...SCAN_FIXTURE.nodes[0], path: 'other/d.md' },
+      ],
+      links: [],
+      issues: [],
+    };
+    const nested = new StaticDataSource(
+      makeFetch({ 'data.meta.json': META_FIXTURE, 'data.json': nestedScan }),
+      makeFakeRegistry(),
+      makeFakeProviderRegistry(),
+      makeFakeContributionsRegistry(),
+    );
+    const branch = await nested.loadBranch(['src', 'docs']);
+    // `src` pulls both src/api/* nodes; `docs` pulls docs/c.md; other/d.md
+    // matches neither prefix and is excluded.
+    expect(branch.nodes.map((n) => n.path)).toEqual([
+      'docs/c.md',
+      'src/api/a.md',
+      'src/api/deep/b.md',
+    ]);
+    expect(branch.branch.total).toBe(3);
   });
 
   it('listNodes() with no filters returns the pre-derived envelope verbatim', async () => {

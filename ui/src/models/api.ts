@@ -241,20 +241,31 @@ export interface IScanResultApi {
   roots: string[];
   providers?: string[];
   /**
-   * Effective recommended cap on the number of classified nodes for
-   * this scan, mirror of `scan.maxNodes` (default 256). Used by the
-   * oversized banner to decide whether to surface the persistent
-   * "your graph exceeds the recommended limit" notice. Absent on
+   * Tokenizer id the scan used (`gpt`, `claude`, …), surfaced on the
+   * `?meta=1` envelope so the header can name it. Absent on legacy /
+   * synthetic envelopes that never recorded one.
+   */
+  tokenizer?: string | null;
+  /**
+   * Scan-wide file ceiling (`scan.maxScan`): the maximum number of
+   * files the walker was allowed to read this scan. The scan-truncated
+   * banner phrases its copy against it. Absent on legacy / synthetic
+   * envelopes ("absent on synthetic fixtures").
+   */
+  scanCeiling?: number;
+  /**
+   * `true` when the walker hit `scanCeiling` and dropped files from the
+   * corpus. Drives the single-mode scan-truncated banner. Absent on
    * legacy / synthetic envelopes.
    */
-  recommendedNodeLimit?: number;
+  scanTruncated?: boolean;
   /**
-   * Per-invocation override applied via `--max-nodes <N>` on the verb
-   * that ran this scan, or `null` when no override was passed. The
-   * banner uses it to phrase the body copy ("running with `--max-nodes
-   * 1000`" vs "default `scan.maxNodes`").
+   * Effective render cap (`scan.maxNodes`, design default 256): the
+   * maximum number of nodes the graph map draws per branch. The
+   * `/api/branch` route clamps its `cap` to this. Absent on legacy /
+   * synthetic envelopes.
    */
-  overrideMaxNodes?: number | null;
+  maxRenderNodes?: number;
   /**
    * Files the walker refused to read because their size exceeded
    * `scan.maxFileSizeBytes`. Each entry carries the root-relative path
@@ -280,6 +291,72 @@ export interface IScanResultApi {
      */
     filesOversized?: number;
   };
+}
+
+/**
+ * One row of `GET /api/folders` (`kind: 'folders'` list envelope). A
+ * lightweight per-node projection over the WHOLE corpus (no frontmatter
+ * / body / links / signals, no pagination), feeding the SPA folders
+ * tree, text search, kind filter, the per-folder severity badges, and
+ * the files-view rail's leaf data columns (links in / out, tokens,
+ * modified).
+ *
+ * `errorCount` / `warnCount` are the count of error / warn issues whose
+ * `nodeIds` include this path; rolled up across each folder's
+ * descendants for the tree badges. The `info` severity is excluded
+ * server-side (the tree badges only error / warn).
+ *
+ * `linksInCount` / `linksOutCount` are the cheap scalar edge counters;
+ * `tokensTotal` / `modifiedAtMs` mirror `INodeApi.tokens.total` /
+ * `INodeApi.modifiedAtMs` (both `null` for virtual / derived nodes with
+ * no backing file). The endpoint supplies these so the rail's leaf
+ * columns render real values without hydrating the full node payload.
+ */
+export interface IFolderNodeLite {
+  path: string;
+  kind: string;
+  linksInCount: number;
+  linksOutCount: number;
+  tokensTotal: number | null;
+  modifiedAtMs: number | null;
+  errorCount: number;
+  warnCount: number;
+}
+
+/**
+ * `GET /api/branch?path=<prefix>&path=<prefix>&...&limit=<n>` response.
+ * Direct shape (NO envelope wrap, like `/api/scan`): the SPA branches on
+ * `schemaVersion` + `kind`. The graph map renders this; the whole corpus
+ * is never hydrated in one payload.
+ *
+ * The `path` query param is REPEATABLE: the response is the UNION of the
+ * subtrees under every requested prefix (plus any exact leaf paths),
+ * capped at the scan's `maxRenderNodes`. No prefixes = whole-corpus root.
+ *
+ *   - `branch.paths`: the requested prefixes / leaf paths (empty =
+ *     whole-corpus root).
+ *   - `branch.total`: union node count BEFORE the cap.
+ *   - `branch.rendered`: nodes actually returned (`min(total, cap)`).
+ *   - `branch.truncated`: `total > cap` (drives the branch-cap banner).
+ *   - `branch.cap`: the effective render cap for this branch.
+ *   - `nodes`: the first `rendered` nodes of the union, in stable
+ *     path order, capped at the scan's `maxRenderNodes`.
+ *   - `links`: only edges whose source AND target are both in `nodes`.
+ *   - `issues`: only issues whose `nodeIds` intersect `nodes`.
+ */
+export interface IBranchResponseApi {
+  schemaVersion: typeof REST_ENVELOPE_SCHEMA_VERSION;
+  kind: 'branch';
+  branch: {
+    paths: string[];
+    total: number;
+    rendered: number;
+    truncated: boolean;
+    cap: number;
+  };
+  nodes: INodeApi[];
+  links: ILinkApi[];
+  issues: IIssueApi[];
 }
 
 /**
@@ -310,7 +387,9 @@ export type TEnvelopeKindApi =
   | 'graph'
   | 'node'
   | 'health'
-  | 'scan';
+  | 'scan'
+  | 'folders'
+  | 'branch';
 
 export interface IPageInfoApi {
   offset: number;

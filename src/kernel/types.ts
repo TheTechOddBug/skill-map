@@ -690,19 +690,33 @@ export interface ScanResult {
    */
   tokenizer?: string;
   /**
-   * Effective recommended cap on the number of files the walker accepted
-   * during this scan (`scan.maxNodes` from settings, default 256). The UI
-   * raises the "oversized graph" banner when
-   * `stats.filesWalked >= recommendedNodeLimit`. Absent on synthetic fixtures
-   * that bypass the walker.
+   * Effective walk ceiling for this scan (`--max-scan <N>` override on
+   * `sm scan` / `sm watch` / `sm serve`, else `scan.maxScan` from
+   * settings, default 50000). The scan walks, parses, analyzes, and
+   * reference-validates the full corpus up to this number, so references
+   * resolve across the whole project regardless of how many nodes the
+   * map renders. Mirrors `scan_meta.scan_ceiling`. Absent on synthetic
+   * fixtures that bypass the walker.
    */
-  recommendedNodeLimit?: number;
+  scanCeiling?: number;
   /**
-   * Override applied via `--max-nodes <N>` on the verb that ran the scan, or
-   * `null` when no override was passed (the value above came from the
-   * setting). Bidirectional: can raise OR lower the recommended limit.
+   * True when the walker reached `scanCeiling` and dropped files in
+   * stable provider-walker order, false otherwise. Drives the CLI "scan
+   * truncated" notice and the UI persistent banner pointing at the
+   * `.skillmapignore` editor. Mirrors `scan_meta.scan_truncated`. Absent
+   * on synthetic fixtures that bypass the walker.
    */
-  overrideMaxNodes?: number | null;
+  scanTruncated?: boolean;
+  /**
+   * Effective map render cap for this scan (`--max-nodes <N>` override,
+   * else `scan.maxNodes` from settings, default 256). Does NOT bound the
+   * scan (the full corpus up to `scanCeiling` is persisted and the
+   * folders tree shows all of it); it only bounds the graph projection.
+   * The UI projects the selected folder branch capped at this number and
+   * raises an in-view banner when a branch exceeds it. Mirrors
+   * `scan_meta.max_render_nodes`. Absent on synthetic fixtures.
+   */
+  maxRenderNodes?: number;
   /**
    * Files the walker skipped because their on-disk size exceeded
    * `scan.maxFileSizeBytes` (default 1 MiB). Each entry is the

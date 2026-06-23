@@ -3,8 +3,10 @@ import { Injectable, computed, effect, signal } from '@angular/core';
 import { readStoredVisiblePaths, writeStoredVisiblePaths } from './map-visibility.storage';
 
 /**
- * Tri-state of a folder's visibility, derived from how many of its
- * descendant leaves are in the inclusion set.
+ * Tri-state of a folder's selection: `all` when the folder's own prefix
+ * is selected, `some` when a strict descendant is selected but the folder
+ * is not, `none` otherwise. Computed by the files-view over the tree
+ * walk; not derived here.
  */
 export type TFolderVisibility = 'all' | 'none' | 'some';
 
@@ -15,17 +17,30 @@ function setsEqual(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
   return true;
 }
 
+/** True when at least one path in `validPaths` is a descendant of `prefix`. */
+function hasDescendant(validPaths: ReadonlySet<string>, prefix: string): boolean {
+  const needle = `${prefix}/`;
+  for (const p of validPaths) if (p.startsWith(needle)) return true;
+  return false;
+}
+
 /**
- * Shared, project-local store for the MAP visibility curation set.
+ * Shared, project-local store for the MAP selection.
  *
- * Holds an INCLUSION whitelist of node paths the user wants on the map.
- * Empty set is the default and means "show everything" (subject to facet
- * filters); a non-empty set means "show ONLY these" (still intersected
- * with the facet filters downstream). The graph view reads this and
- * intersects it into its visible projection; the rail writes it via the
- * per-row checkboxes and the isolate gesture. Deliberately decoupled
- * from edge/topology data: neighborhood computation lives in the graph
- * view, which owns the link graph.
+ * Holds the set of PREFIXES (folder paths) and exact LEAF paths the user
+ * selected via the rail checkboxes. This selection IS the map control:
+ * the loader debounce-fetches `/api/branch` with these paths as repeated
+ * `?path=` params and the server returns their capped UNION, which the
+ * graph renders directly. An empty set is the default and means "whole
+ * corpus root" (the server returns everything up to the cap).
+ *
+ * Because a folder prefix is sent verbatim (not its expanded leaf set),
+ * the request stays small no matter how big the subtree is, and the
+ * server applies the cap. The isolate gesture re-selects exact node
+ * paths (`setOnly`), which re-fetches that neighborhood; coherent with
+ * the rest of the selection. Neighborhood computation lives in the graph
+ * view, which owns the link graph, keeping this service decoupled from
+ * topology.
  *
  * Persisted to `localStorage` (survives a reload) via an effect, mirroring
  * the `nodePositions` / `collapsed` discipline. Mutations are immutable
@@ -35,21 +50,20 @@ function setsEqual(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
 export class MapVisibilityService {
   private readonly _paths = signal<ReadonlySet<string>>(readStoredVisiblePaths());
 
-  /** The inclusion set. Empty == "show all on the map". */
+  /** The selection set (prefixes + leaf paths). Empty == "whole corpus". */
   readonly paths = this._paths.asReadonly();
 
-  /** True when curation is active (the map is showing a restricted set). */
+  /** True when a selection is active (the map is showing a sub-selection). */
   readonly isActive = computed(() => this._paths().size > 0);
 
-  /** Count of curated-in nodes, for badges. */
+  /** Count of selected prefixes / leaves, for badges. */
   readonly count = computed(() => this._paths().size);
 
   /**
-   * Whether a node path is in scope for the map. When curation is inactive
-   * (empty set) everything is in scope; once active, only the curated paths
-   * are. Reactive (reads the inclusion signal), so consumers that call it
-   * inside a `computed` (e.g. the graph palettes scoping their counts to the
-   * curated set) re-run when the curation changes.
+   * Whether a path is part of the selection. When the selection is empty
+   * everything is in scope; once active, only the selected paths are.
+   * Reactive (reads the selection signal), so consumers that call it
+   * inside a `computed` re-run when the selection changes.
    */
   inScope(path: string): boolean {
     const paths = this._paths();
@@ -60,7 +74,7 @@ export class MapVisibilityService {
     effect(() => writeStoredVisiblePaths(this._paths()));
   }
 
-  /** Toggle a single leaf node's membership. */
+  /** Toggle a single leaf node's membership in the selection. */
   toggleLeaf(path: string): void {
     const next = new Set(this._paths());
     if (next.has(path)) next.delete(path);
@@ -69,33 +83,16 @@ export class MapVisibilityService {
   }
 
   /**
-   * Tri-state folder cascade. If every descendant leaf is already in the
-   * set ('all'), clicking removes them all; otherwise ('none' / 'some')
-   * it adds them all. Matches the standard tree-checkbox contract.
+   * Toggle a single folder PREFIX in the selection. The prefix is sent
+   * verbatim to `/api/branch`; the server expands it to the (capped)
+   * subtree union. Adds the prefix when absent, removes it when present.
    */
-  toggleFolder(leafPaths: Iterable<string>): void {
-    const leaves = [...leafPaths];
-    if (leaves.length === 0) return;
+  toggleFolder(folderPath: string): void {
+    if (folderPath === '') return;
     const next = new Set(this._paths());
-    const fill = this.folderState(leaves) !== 'all';
-    for (const path of leaves) {
-      if (fill) next.add(path);
-      else next.delete(path);
-    }
+    if (next.has(folderPath)) next.delete(folderPath);
+    else next.add(folderPath);
     this._paths.set(next);
-  }
-
-  /** Tri-state of a folder, from its descendant leaf paths. */
-  folderState(leafPaths: Iterable<string>): TFolderVisibility {
-    const current = this._paths();
-    let total = 0;
-    let included = 0;
-    for (const path of leafPaths) {
-      total++;
-      if (current.has(path)) included++;
-    }
-    if (total === 0 || included === 0) return 'none';
-    return included === total ? 'all' : 'some';
   }
 
   /** Replace the whole set (the isolate gesture's apply primitive). */
@@ -159,8 +156,12 @@ export class MapVisibilityService {
   }
 
   /**
-   * Drop any path no longer present after a re-scan. If pruning empties
-   * the set the map falls back to "show all", the consistent default.
+   * Drop any selected path no longer present after a re-scan. The
+   * selection holds folder PREFIXES + exact leaf paths, so a path stays
+   * valid when it is itself a node OR it is a folder prefix that still
+   * has at least one descendant node. Without the prefix check a folder
+   * selection (never itself a node path) would be wiped on every prune.
+   * If pruning empties the set the map falls back to "show all".
    */
   prune(validPaths: ReadonlySet<string>): void {
     const current = this._paths();
@@ -168,7 +169,7 @@ export class MapVisibilityService {
     let changed = false;
     const next = new Set<string>();
     for (const path of current) {
-      if (validPaths.has(path)) next.add(path);
+      if (validPaths.has(path) || hasDescendant(validPaths, path)) next.add(path);
       else changed = true;
     }
     if (changed) this._paths.set(next);

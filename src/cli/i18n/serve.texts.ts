@@ -102,6 +102,15 @@ export const SERVE_TEXTS = {
   watcherDebounceInvalidHint: 'Pass an integer >= 0 (e.g. 250).',
 
   /**
+   * §3.1b error block for an invalid `--max-scan <N>`. Same shape as
+   * the watcher-debounce template family.
+   */
+  maxScanInvalid:
+    '{{glyph}}  sm serve: --max-scan must be an integer >= 1 (got {{value}}).\n' +
+    '   {{hint}}\n',
+  maxScanInvalidHint: 'Pass a positive integer, e.g. --max-scan 50000.',
+
+  /**
    * §3.1b error block for an invalid `--max-nodes <N>`. Same shape as
    * the watcher-debounce template family.
    */

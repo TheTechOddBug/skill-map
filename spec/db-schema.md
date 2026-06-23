@@ -153,6 +153,9 @@ Single-row table holding the last persisted scan's metadata. Lets `loadScanResul
 | `stats_files_walked` | INTEGER | NOT NULL |
 | `stats_files_skipped` | INTEGER | NOT NULL |
 | `stats_duration_ms` | INTEGER | NOT NULL |
+| `scan_ceiling` | INTEGER | NOT NULL | Effective walk ceiling for this scan (`--max-scan` override, else `scan.maxScan`, default 50000). The scan walks + reference-validates the full corpus up to this number. Carried on `ScanResult.scanCeiling`. |
+| `scan_truncated` | INTEGER | NOT NULL | 1 when the walker reached `scan_ceiling` and dropped files in stable provider-walker order, 0 otherwise. Drives the UI "scan truncated" banner pointing at the `.skillmapignore` editor. Carried on `ScanResult.scanTruncated`. |
+| `max_render_nodes` | INTEGER | NOT NULL | Effective map render cap (`--max-nodes` override, else `scan.maxNodes`, default 256). The full corpus is persisted regardless; this bounds only the graph projection (the folders tree shows everything). Carried on `ScanResult.maxRenderNodes`. |
 | `tokenizer` | TEXT | NULL | Resolved offline encoder that produced this scan's per-node token counts (closed enum `cl100k_base` / `o200k_base`, see `project-config.md` / `project-config.schema.json` §tokenizer). Carried on the `ScanResult.tokenizer` wire field. NULL on a pre-feature DB or a scan with tokenization disabled. On `sm scan --changed` the orchestrator compares this against the freshly-resolved encoder and, when they differ (or the stored value is NULL), bypasses cached per-node token reuse so `buildNode` recomputes counts with the current encoder; changing the tokenizer thus invalidates prior counts. |
 | `schema_fingerprint` | TEXT | NULL | sha256 (hex) of the migration DDL the schema was built from, written at persist time. NULL on a DB created by a pre-fingerprint CLI; a NULL (or mismatching) value is read as schema drift (see §Schema drift). Internal DB metadata, NOT carried on the `ScanResult` wire shape. |
 

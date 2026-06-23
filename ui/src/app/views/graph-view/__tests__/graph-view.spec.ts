@@ -8,6 +8,7 @@ import { DagreLayoutEngine } from '@foblex/flow-dagre-layout';
 import { GraphView } from '../graph-view';
 import { CollectionLoaderService } from '../../../../services/collection-loader';
 import { KindRegistryService } from '../../../../services/kind-registry';
+import { MapVisibilityService } from '../../../../services/map-visibility';
 import {
   DATA_SOURCE,
   type IDataSourcePort,
@@ -15,7 +16,11 @@ import {
 import { SKILL_MAP_MODE } from '../../../../services/data-source/runtime-mode';
 import { MarkdownRenderer } from '../../../../services/markdown-renderer';
 import type { INodeView } from '../../../../models/node';
-import type { IScanResultApi } from '../../../../models/api';
+import type {
+  IBranchResponseApi,
+  IFolderNodeLite,
+  IScanResultApi,
+} from '../../../../models/api';
 
 /**
  * `GraphView`, selection / URL-sync / panel-close behaviour. Tests
@@ -32,6 +37,10 @@ class BlankPage {}
 interface IStubLoader {
   nodes: ReturnType<typeof signal<INodeView[]>>;
   scan: ReturnType<typeof signal<IScanResultApi | null>>;
+  scanMeta: ReturnType<typeof signal<IScanResultApi | null>>;
+  liteNodes: ReturnType<typeof signal<IFolderNodeLite[]>>;
+  liteNodeViews: ReturnType<typeof signal<INodeView[]>>;
+  branch: ReturnType<typeof signal<IBranchResponseApi | null>>;
   loading: ReturnType<typeof signal<boolean>>;
   error: ReturnType<typeof signal<string | null>>;
   hasAnyFavorites: ReturnType<typeof signal<boolean>>;
@@ -52,35 +61,69 @@ function makeNode(path: string, name: string): INodeView {
 }
 
 function makeStubLoader(initialNodes: INodeView[] = []): IStubLoader {
+  const meta: IScanResultApi = {
+    schemaVersion: 1,
+    scannedAt: 0,
+    roots: ['.'],
+    providers: [],
+    nodes: [],
+    links: [],
+    issues: [],
+    stats: {
+      filesWalked: initialNodes.length,
+      filesSkipped: 0,
+      nodesCount: initialNodes.length,
+      linksCount: 0,
+      issuesCount: 0,
+      durationMs: 0,
+    },
+  };
+  const branchNodes = initialNodes.map((n) => ({
+    path: n.path,
+    kind: n.kind,
+    provider: 'claude',
+    bodyHash: 'h',
+    frontmatterHash: 'fh',
+    bytes: { frontmatter: 1, body: 1, total: 2 },
+    linksOutCount: 0,
+    linksInCount: 0,
+    externalRefsCount: 0,
+  }));
+  const branch: IBranchResponseApi = {
+    schemaVersion: '1',
+    kind: 'branch',
+    branch: {
+      paths: [],
+      total: branchNodes.length,
+      rendered: branchNodes.length,
+      truncated: false,
+      cap: 256,
+    },
+    nodes: branchNodes,
+    links: [],
+    issues: [],
+  };
   return {
     nodes: signal(initialNodes),
-    scan: signal<IScanResultApi | null>({
-      schemaVersion: 1,
-      scannedAt: 0,
-      roots: ['.'],
-      providers: [],
-      nodes: initialNodes.map((n) => ({
+    // `scan()` is branch-scoped: meta scalars fused with branch payload.
+    scan: signal<IScanResultApi | null>({ ...meta, nodes: branchNodes }),
+    scanMeta: signal<IScanResultApi | null>(meta),
+    liteNodes: signal<IFolderNodeLite[]>(
+      initialNodes.map((n) => ({
         path: n.path,
         kind: n.kind,
-        provider: 'claude',
-        bodyHash: 'h',
-        frontmatterHash: 'fh',
-        bytes: { frontmatter: 1, body: 1, total: 2 },
-        linksOutCount: 0,
         linksInCount: 0,
-        externalRefsCount: 0,
+        linksOutCount: 0,
+        tokensTotal: null,
+        modifiedAtMs: null,
+        errorCount: 0,
+        warnCount: 0,
       })),
-      links: [],
-      issues: [],
-      stats: {
-        filesWalked: initialNodes.length,
-        filesSkipped: 0,
-        nodesCount: initialNodes.length,
-        linksCount: 0,
-        issuesCount: 0,
-        durationMs: 0,
-      },
-    }),
+    ),
+    liteNodeViews: signal<INodeView[]>(
+      initialNodes.map((n) => ({ path: n.path, kind: n.kind, frontmatter: { name: '', description: '' } }) as INodeView),
+    ),
+    branch: signal<IBranchResponseApi | null>(branch),
     loading: signal(false),
     error: signal<string | null>(null),
     hasAnyFavorites: signal(initialNodes.some((n) => n.isFavorite === true)),
@@ -92,6 +135,16 @@ function makeStubLoader(initialNodes: INodeView[] = []): IStubLoader {
 const STUB_DATA_SOURCE: IDataSourcePort = {
   health: vi.fn(),
   loadScan: vi.fn(),
+  loadScanMeta: vi.fn(),
+  loadFolders: vi.fn().mockResolvedValue([]),
+  loadBranch: vi.fn().mockResolvedValue({
+    schemaVersion: '1',
+    kind: 'branch',
+    branch: { paths: [], total: 0, rendered: 0, truncated: false, cap: 256 },
+    nodes: [],
+    links: [],
+    issues: [],
+  }),
   listNodes: vi.fn(),
   getNode: vi.fn().mockResolvedValue(null),
   listLinks: vi.fn().mockResolvedValue({
@@ -348,10 +401,13 @@ describe('GraphView, deep-link reader', () => {
 
 describe('GraphView, isolate (1-hop neighborhood)', () => {
   beforeEach(() => {
+    // Selection persists in localStorage; clear it so each isolate test
+    // starts from an empty (show-all) selection.
+    localStorage.removeItem('sm.map.visible-paths');
     TestBed.resetTestingModule();
   });
 
-  it('restricts the map to the node + DIRECT neighbors, excluding 2-hop nodes', async () => {
+  it('re-selects the node + DIRECT neighbors as the map SELECTION, excluding 2-hop nodes', async () => {
     const a = makeNode('a.md', 'a');
     const b = makeNode('b.md', 'b');
     const c = makeNode('c.md', 'c'); // 2 hops from a (a-b-c): must NOT survive
@@ -367,22 +423,23 @@ describe('GraphView, isolate (1-hop neighborhood)', () => {
     });
     await flushEffects(fixture);
 
-    // Baseline: no curation, every node is on the map.
-    expect(new Set(cmp.graph().nodes.map((n) => n.id))).toEqual(
-      new Set(['a.md', 'b.md', 'c.md']),
-    );
+    const mapVisibility = TestBed.inject(MapVisibilityService);
+    // Baseline: no selection.
+    expect(mapVisibility.paths().size).toBe(0);
 
     cmp.isolateNeighborhood('a.md');
     await flushEffects(fixture);
 
-    // a + its direct neighbor b survive; the 2-hop c is hidden. This is
-    // the whole point of the fix: even on a connected graph, isolate
-    // narrows the map instead of showing everything.
-    expect(new Set(cmp.graph().nodes.map((n) => n.id))).toEqual(new Set(['a.md', 'b.md']));
+    // Isolate now applies the scope SERVER-SIDE: it re-selects the node +
+    // its direct neighbor b (so the loader re-fetches that union); the
+    // 2-hop c is excluded. The origin stays selected. The branch render
+    // itself follows the loader's re-fetch (stubbed here), so we assert
+    // on the selection the gesture wrote, mirroring workspace-view.isolate.
+    expect(new Set(mapVisibility.paths())).toEqual(new Set(['a.md', 'b.md']));
     expect(cmp.selectedNodeId()).toBe('a.md');
   });
 
-  it('isolates an orphan node down to itself alone', async () => {
+  it('isolates an orphan node down to itself alone (selection = just the node)', async () => {
     const a = makeNode('a.md', 'a');
     const b = makeNode('b.md', 'b');
     const { fixture, cmp } = await bootstrap([a, b]);
@@ -391,7 +448,8 @@ describe('GraphView, isolate (1-hop neighborhood)', () => {
     cmp.isolateNeighborhood('a.md');
     await flushEffects(fixture);
 
-    expect(new Set(cmp.graph().nodes.map((n) => n.id))).toEqual(new Set(['a.md']));
+    const mapVisibility = TestBed.inject(MapVisibilityService);
+    expect(new Set(mapVisibility.paths())).toEqual(new Set(['a.md']));
   });
 });
 
@@ -444,5 +502,59 @@ describe('GraphView, inspector width reservation', () => {
     await flushEffects(fixture);
 
     expect((cmp as unknown as WithReservation).reservedPanelWidth()).toBe(0);
+  });
+});
+
+describe('GraphView, branch rendering + cap banner', () => {
+  beforeEach(() => {
+    // Map-visibility curation persists in localStorage; a prior isolate
+    // test can leave a non-empty inclusion set that would narrow the
+    // canvas here. Clear it so the branch projection is the only filter.
+    localStorage.removeItem('sm.map.visible-paths');
+    TestBed.resetTestingModule();
+  });
+
+  it('renders the branch node set on the map (the projected graph)', async () => {
+    const a = makeNode('a.md', 'a');
+    const b = makeNode('b.md', 'b');
+    const { fixture, cmp } = await bootstrap([a, b]);
+    await flushEffects(fixture);
+
+    // `graph()` projects the loader's branch node set; both branch nodes
+    // are on the canvas.
+    expect(new Set(cmp.graph().nodes.map((n) => n.id))).toEqual(new Set(['a.md', 'b.md']));
+    expect(cmp.hasData()).toBe(true);
+  });
+
+  it('shows the branch-cap banner when the loaded branch is truncated', async () => {
+    const { fixture, loader } = await bootstrap([makeNode('a.md', 'a')]);
+    // Mark the branch truncated: more nodes in the folder than rendered.
+    loader.branch.set({
+      ...loader.branch()!,
+      branch: { paths: [], total: 900, rendered: 1, truncated: true, cap: 1 },
+    });
+    await flushEffects(fixture);
+
+    const banner = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="branch-cap-banner"]',
+    );
+    expect(banner).not.toBeNull();
+    const body = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="branch-cap-banner-body"]',
+    );
+    expect(body?.textContent).toContain('900');
+  });
+
+  it('hides the branch-cap banner when the branch fits under the cap', async () => {
+    const { fixture, loader } = await bootstrap([makeNode('a.md', 'a')]);
+    loader.branch.set({
+      ...loader.branch()!,
+      branch: { paths: [], total: 1, rendered: 1, truncated: false, cap: 256 },
+    });
+    await flushEffects(fixture);
+
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('[data-testid="branch-cap-banner"]'),
+    ).toBeNull();
   });
 });

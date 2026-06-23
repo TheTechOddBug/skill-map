@@ -46,7 +46,12 @@ export type TEnvelopeKind =
   | 'graph'
   | 'node'
   | 'health'
-  | 'scan';
+  | 'scan'
+  // `/api/folders`, lightweight full-corpus projection (one item per
+  // scanned node, `{ path, kind, errorCount, warnCount }`). `/api/branch`
+  // is exempt from the envelope (direct shape, like `/api/scan`), so its
+  // `kind: 'branch'` discriminator is NOT a `TEnvelopeKind`.
+  | 'folders';
 
 export interface IPageInfo {
   offset: number;

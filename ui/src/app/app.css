@@ -460,6 +460,25 @@
   font-size: 1rem;
 }
 
+/* Spin the refresh icon while a scan is in flight. `is-spinning` (bound to
+   `scanning()`: a manual refresh OR a server-side / watcher scan) is the
+   single mechanism, owning the animation here instead of relying on
+   PrimeIcons' `pi-spin` (the lone pi-spin usage in the app, and neutered to
+   1ms under prefers-reduced-motion). A scan-progress indicator is essential
+   state feedback, so it keeps spinning regardless of the motion preference. */
+.shell__refresh.is-spinning i {
+  animation: shell-refresh-spin 1s linear infinite;
+}
+
+@keyframes shell-refresh-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .shell__main {
   flex: 1;
   min-height: 0;

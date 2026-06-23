@@ -36,6 +36,7 @@ import { log } from '../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../kernel/util/safe-text.js';
 import { tx } from '../kernel/util/tx.js';
 import type { IRuntimeContext } from '../core/runtime/runtime-context.js';
+import { createScanSpinner, type IScanSpinner } from '../core/runtime/scan-spinner.js';
 import {
   createWatcherRuntime,
   type ICreateWatcherRuntimeOpts,
@@ -52,6 +53,18 @@ export interface ICreateWatcherServiceOpts {
   broadcaster: WsBroadcaster;
   /** Optional override for the chokidar debounce window (ms). Falls back to `scan.watch.debounceMs` from config. */
   debounceMsOverride?: number | undefined;
+  /**
+   * When set, an animated scan spinner spins on `stream` while each
+   * watcher batch runs (file save to re-scan) and clears + prints a
+   * one-line confirmation on completion. The CLI verb (`sm serve`)
+   * threads its `stderr` plus the resolved color toggle here; the
+   * spinner degrades to a single plain line on a non-TTY stream. Unset
+   * (tests, head-less boots) means no spinner is wired.
+   */
+  scanProgress?: {
+    stream: NodeJS.WritableStream & { isTTY?: boolean };
+    colorEnabled: boolean;
+  };
 }
 
 export interface IWatcherServiceHandle {
@@ -121,6 +134,15 @@ export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherS
   // take effect without a full server reboot.
   let currentRuntime: ReturnType<typeof createWatcherRuntime> | null = null;
 
+  // One spinner per service (NOT per batch): the spinner tracks a single
+  // in-flight indicator across the service's lifetime. Unset when the
+  // caller did not pass `scanProgress` (tests, head-less boots).
+  const spinner: IScanSpinner | undefined = opts.scanProgress
+    ? createScanSpinner(opts.scanProgress.stream, {
+        colorEnabled: opts.scanProgress.colorEnabled,
+      })
+    : undefined;
+
   const buildRuntimeOpts = (): ICreateWatcherRuntimeOpts => {
     const runtimeOpts: ICreateWatcherRuntimeOpts = {
       dbPath: opts.options.dbPath,
@@ -136,7 +158,21 @@ export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherS
       subscribeBeforeInitial: true,
       failOnInitialBatchError: false,
       events: {
+        // Light the "scanning" indicator the moment a batch begins (file
+        // save to re-scan). No-op when no `scanProgress` was passed.
+        onBatchStart: () => spinner?.start(),
         onBatch: (outcome) => {
+          // Clear the spinner FIRST, before any warning prints to the
+          // same pane, so the confirmation / warning never collides with
+          // a half-drawn spinner frame.
+          spinner?.stop(
+            outcome.kind === 'ok'
+              ? {
+                  nodesCount: outcome.result.stats.nodesCount,
+                  durationMs: outcome.result.stats.durationMs,
+                }
+              : undefined,
+          );
           if (outcome.kind === 'error') {
             // TODO(14.4.b / 14.5): emit `scan.failed` event once the
             // shape is locked in spec/job-events.md. For 14.4.a we log
@@ -199,6 +235,9 @@ export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherS
     };
     if (opts.debounceMsOverride !== undefined) {
       runtimeOpts.debounceMsOverride = opts.debounceMsOverride;
+    }
+    if (opts.options.maxScan !== undefined) {
+      runtimeOpts.maxScanOverride = opts.options.maxScan;
     }
     if (opts.options.maxNodes !== undefined) {
       runtimeOpts.maxNodesOverride = opts.options.maxNodes;
