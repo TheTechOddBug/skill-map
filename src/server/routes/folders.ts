@@ -2,9 +2,9 @@
  * `GET /api/folders`, lightweight full-corpus projection.
  *
  * One item per scanned node `{ path, kind, linksInCount, linksOutCount,
- * tokensTotal, modifiedAtMs, errorCount, warnCount }`, only cheap scalar
- * columns of `scan_nodes` (no frontmatter / body / links / signals /
- * contributions) and no pagination. Feeds the SPA
+ * tokensTotal, modifiedAtMs, errorCount, warnCount, sidecarStatus }`,
+ * only cheap scalar columns of `scan_nodes` (no frontmatter / body /
+ * links / signals / contributions) and no pagination. Feeds the SPA
  * folders tree so it renders the WHOLE corpus (up to `scan.maxScan`)
  * with per-folder issue badges without hydrating the full `ScanResult`
  * (the graph map lazy-loads its branch via `/api/branch`).
@@ -15,6 +15,11 @@
  * SQL via `port.scans.issueCountsByPath()` (`json_each` + `GROUP BY`),
  * never by loading every issue into memory. The `info` severity is
  * intentionally ignored (the tree badges only error / warn).
+ *
+ * `sidecarStatus` is the node's sidecar drift status
+ * (`scan_nodes.sidecar_status`), `null` when there is no parseable
+ * sidecar, so the folders rail can flag per-row staleness without
+ * hydrating the branch payload.
  *
  * Response is the canonical list envelope (`kind: 'folders'`), mirroring
  * `/api/nodes` / `/api/links`. No pagination: the complete tree is the
@@ -40,6 +45,7 @@ interface IFolderItem {
   modifiedAtMs: number | null;
   errorCount: number;
   warnCount: number;
+  sidecarStatus: string | null;
 }
 
 export function registerFoldersRoute(app: Hono, deps: IRouteDeps): void {
@@ -67,6 +73,7 @@ export function registerFoldersRoute(app: Hono, deps: IRouteDeps): void {
         modifiedAtMs: n.modifiedAtMs,
         errorCount: counts?.error ?? 0,
         warnCount: counts?.warn ?? 0,
+        sidecarStatus: n.sidecarStatus,
       };
     });
 

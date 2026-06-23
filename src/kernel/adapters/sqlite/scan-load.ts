@@ -286,6 +286,7 @@ export async function loadLiteNodes(
       'linksOutCount',
       'tokensTotal',
       'modifiedAtMs',
+      'sidecarStatus',
     ])
     .orderBy('path', 'asc')
     .execute();
@@ -296,6 +297,7 @@ export async function loadLiteNodes(
     linksOutCount: r.linksOutCount,
     tokensTotal: r.tokensTotal,
     modifiedAtMs: r.modifiedAtMs,
+    sidecarStatus: r.sidecarStatus,
   }));
 }
 

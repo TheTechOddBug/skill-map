@@ -81,6 +81,12 @@ export interface ILiteNode {
   linksOutCount: number;
   tokensTotal: number | null;
   modifiedAtMs: number | null;
+  /**
+   * The persisted `scan_nodes.sidecar_status`, null when there is no
+   * parseable sidecar. Lets the folders rail flag staleness corpus-wide,
+   * sibling of the issue counts.
+   */
+  sidecarStatus: string | null;
 }
 
 /**

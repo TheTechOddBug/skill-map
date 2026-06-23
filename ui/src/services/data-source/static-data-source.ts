@@ -202,6 +202,10 @@ export class StaticDataSource implements IDataSourcePort {
       modifiedAtMs: n.modifiedAtMs ?? null,
       errorCount: errorByPath.get(n.path) ?? 0,
       warnCount: warnByPath.get(n.path) ?? 0,
+      // Mirror the BFF `/api/folders` lite shape so the rail flags
+      // staleness per row in demo mode too (the bundled nodes carry the
+      // full sidecar overlay; project just its status).
+      sidecarStatus: n.sidecar?.status ?? null,
     }));
   }
 

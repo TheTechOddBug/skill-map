@@ -55,6 +55,7 @@ function liteRow(path: string, opts: Partial<IFolderNodeLite> = {}): IFolderNode
     modifiedAtMs: opts.modifiedAtMs ?? null,
     errorCount: opts.errorCount ?? 0,
     warnCount: opts.warnCount ?? 0,
+    sidecarStatus: opts.sidecarStatus ?? null,
   };
 }
 

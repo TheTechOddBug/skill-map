@@ -53,6 +53,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import type {
   INodeView,
   TFrontmatter,
+  TSidecarStatus,
 } from '../models/node';
 import type {
   IBranchResponseApi,
@@ -415,7 +416,7 @@ function selectionKey(paths: readonly string[]): string {
  * coerced.
  */
 function projectLiteNode(lite: IFolderNodeLite): INodeView {
-  return {
+  const view: INodeView = {
     path: lite.path,
     kind: lite.kind,
     frontmatter: { name: '', description: '' } as TFrontmatter,
@@ -424,6 +425,14 @@ function projectLiteNode(lite: IFolderNodeLite): INodeView {
     tokensTotal: lite.tokensTotal ?? undefined,
     modifiedAtMs: lite.modifiedAtMs ?? undefined,
   };
+  // Surface the sidecar drift status so the files rail flags staleness per
+  // row (the stale-clock icon reads `node.sidecar`). Falsy (null, or an
+  // absent field on an older payload) => no overlay, so the row reads as
+  // not-stale; a non-empty status string is always truthy.
+  if (lite.sidecarStatus) {
+    view.sidecar = { present: true, status: lite.sidecarStatus as TSidecarStatus };
+  }
+  return view;
 }
 
 /**

@@ -70,6 +70,11 @@ test.describe('sidecar UI surface (Step 9.6.5)', () => {
     // `stale-both` sidecar, so its row must render the stale clock icon.
     await gotoWorkspace(page);
 
+    // Folders now render COLLAPSED by default, so a nested leaf row is not
+    // mounted until its ancestor folders are open. Expand the whole tree
+    // (the rail's expand-all control) to surface `content-editor.md`.
+    await page.getByTestId('files-expand-all').click();
+
     const row = page.getByTestId(`files-leaf-${STALE_PATH}`);
     await expect(row).toBeVisible();
     await expect(row.locator('.files__stale-icon')).toBeVisible();

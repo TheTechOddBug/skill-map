@@ -2,7 +2,7 @@
  * Acceptance tests for the lazy-load storage primitives the BFF
  * `/api/folders` + `/api/branch` endpoints consume:
  *
- *   - `port.scans.listLiteNodes()`, `{ path, kind, linksInCount, linksOutCount, tokensTotal, modifiedAtMs }[]` ordered by path.
+ *   - `port.scans.listLiteNodes()`, `{ path, kind, linksInCount, linksOutCount, tokensTotal, modifiedAtMs, sidecarStatus }[]` ordered by path.
  *   - `port.scans.issueCountsByPath()`, per-node error / warn incidence
  *     via `json_each` + GROUP BY (info ignored).
  *   - `port.scans.effectiveMaxRenderNodes()`, the scan's recorded cap
@@ -125,7 +125,7 @@ describe('port.scans.listLiteNodes', () => {
     }
   });
 
-  it('returns { path, kind } ordered by path ASC', async () => {
+  it('returns { path, kind, sidecarStatus } ordered by path ASC', async () => {
     const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('lite'), autoBackup: false });
     await adapter.init();
     try {
@@ -140,6 +140,7 @@ describe('port.scans.listLiteNodes', () => {
           linksOutCount: 0,
           tokensTotal: null,
           modifiedAtMs: null,
+          sidecarStatus: null,
         },
         {
           path: 'skills/zeta.md',
@@ -148,8 +149,41 @@ describe('port.scans.listLiteNodes', () => {
           linksOutCount: 0,
           tokensTotal: null,
           modifiedAtMs: null,
+          sidecarStatus: null,
         },
       ]);
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('carries the persisted sidecar_status when a sidecar is present', async () => {
+    const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('lite-sidecar'), autoBackup: false });
+    await adapter.init();
+    try {
+      await adapter.db
+        .insertInto('scan_nodes')
+        .values({
+          path: 'docs/drift.md',
+          kind: 'note',
+          provider: 'claude',
+          frontmatterJson: '{}',
+          bodyHash: HASH,
+          frontmatterHash: HASH,
+          bytesFrontmatter: 0,
+          bytesBody: 0,
+          bytesTotal: 0,
+          tokensFrontmatter: null,
+          tokensBody: null,
+          tokensTotal: null,
+          scannedAt: Date.now(),
+          sidecarPresent: 1,
+          sidecarStatus: 'stale-body',
+        })
+        .execute();
+      const rows = await adapter.scans.listLiteNodes();
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0]?.sidecarStatus, 'stale-body');
     } finally {
       await adapter.close();
     }

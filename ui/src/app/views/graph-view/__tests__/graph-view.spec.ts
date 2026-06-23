@@ -118,6 +118,7 @@ function makeStubLoader(initialNodes: INodeView[] = []): IStubLoader {
         modifiedAtMs: null,
         errorCount: 0,
         warnCount: 0,
+        sidecarStatus: null,
       })),
     ),
     liteNodeViews: signal<INodeView[]>(

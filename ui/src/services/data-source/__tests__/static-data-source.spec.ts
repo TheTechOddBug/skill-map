@@ -199,6 +199,7 @@ describe('StaticDataSource', () => {
         modifiedAtMs: 1_700_000_000_000,
         errorCount: 0,
         warnCount: 0,
+        sidecarStatus: null,
       },
       {
         path: 'b.md',
@@ -209,6 +210,7 @@ describe('StaticDataSource', () => {
         modifiedAtMs: 1_700_000_500_000,
         errorCount: 0,
         warnCount: 1,
+        sidecarStatus: null,
       },
       {
         // No `tokens` / `modifiedAtMs` on the source node -> null columns.
@@ -220,6 +222,7 @@ describe('StaticDataSource', () => {
         modifiedAtMs: null,
         errorCount: 0,
         warnCount: 0,
+        sidecarStatus: null,
       },
     ]);
   });

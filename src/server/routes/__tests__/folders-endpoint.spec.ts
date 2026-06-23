@@ -3,12 +3,14 @@
  *
  * Boots a real `createServer()` against a primed-DB tempdir, fires
  * `fetch()`, and asserts on the `RestEnvelope` (`kind: 'folders'`) shape:
- * one item per scanned node `{ path, kind, errorCount, warnCount }`, the
- * error / warn incidence rolled up per node from `scan_issues`.
+ * one item per scanned node `{ path, kind, errorCount, warnCount,
+ * sidecarStatus }`, the error / warn incidence rolled up per node from
+ * `scan_issues` and the sidecar drift status carried straight from the
+ * lite node.
  *
  * Coverage:
  *   - empty / absent DB → zero items.
- *   - one item per node with `{ path, kind }`.
+ *   - one item per node with `{ path, kind, sidecarStatus }`.
  *   - errorCount / warnCount roll up issue incidence; info ignored.
  *   - no pagination (counts.total == items.length, no counts.page).
  *
@@ -24,7 +26,7 @@ import { after, before, beforeEach, describe, it } from 'node:test';
 
 import { SqliteStorageAdapter } from '../../../kernel/adapters/sqlite/index.js';
 import { persistScanResult } from '../../../kernel/adapters/sqlite/scan-persistence.js';
-import type { Issue, Node, ScanResult } from '../../../kernel/types.js';
+import type { Issue, Node, ScanResult, SidecarStatus } from '../../../kernel/types.js';
 import {
   createServer,
   type IServerOptions,
@@ -54,7 +56,7 @@ beforeEach(() => {
   rmSync(root.dbPath, { force: true });
 });
 
-function makeNode(path: string, kind = 'note'): Node {
+function makeNode(path: string, kind = 'note', sidecarStatus?: SidecarStatus): Node {
   return {
     path,
     kind,
@@ -65,6 +67,7 @@ function makeNode(path: string, kind = 'note'): Node {
     linksOutCount: 0,
     linksInCount: 0,
     externalRefsCount: 0,
+    ...(sidecarStatus ? { sidecar: { present: true, status: sidecarStatus } } : {}),
   };
 }
 
@@ -132,7 +135,13 @@ function url(handle: IServerHandle, path: string): string {
 interface IFoldersBody {
   schemaVersion: string;
   kind: string;
-  items: Array<{ path: string; kind: string; errorCount: number; warnCount: number }>;
+  items: Array<{
+    path: string;
+    kind: string;
+    errorCount: number;
+    warnCount: number;
+    sidecarStatus: string | null;
+  }>;
   counts: { total: number; returned: number; page?: unknown };
 }
 
@@ -150,7 +159,12 @@ describe('GET /api/folders', () => {
   });
 
   it('one item per node with { path, kind }, ordered by path', async () => {
-    await prime([makeNode('skills/zeta.md', 'skill'), makeNode('agents/alpha.md', 'agent')], []);
+    await prime(
+      // alpha carries a non-fresh sidecar, zeta has none, so the lite
+      // payload exercises both the non-null and null sidecarStatus paths.
+      [makeNode('skills/zeta.md', 'skill'), makeNode('agents/alpha.md', 'agent', 'stale-body')],
+      [],
+    );
     await bootAndUse(async (handle) => {
       const res = await fetch(url(handle, '/api/folders'));
       assert.equal(res.status, 200);
@@ -163,6 +177,11 @@ describe('GET /api/folders', () => {
           { path: 'skills/zeta.md', kind: 'skill' },
         ],
       );
+      // sidecarStatus rides the lite payload: the node with a parseable
+      // sidecar carries its drift status, the plain node carries null.
+      const byPath = new Map(body.items.map((i) => [i.path, i]));
+      assert.equal(byPath.get('agents/alpha.md')!.sidecarStatus, 'stale-body');
+      assert.equal(byPath.get('skills/zeta.md')!.sidecarStatus, null);
       // Only the cheap scalar columns: no frontmatter / body / signals /
       // contributions leaked onto the item.
       assert.deepEqual(Object.keys(body.items[0]!).sort(), [
@@ -172,6 +191,7 @@ describe('GET /api/folders', () => {
         'linksOutCount',
         'modifiedAtMs',
         'path',
+        'sidecarStatus',
         'tokensTotal',
         'warnCount',
       ]);

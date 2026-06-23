@@ -100,6 +100,7 @@ function makeLoaderStub(nodes: INodeView[], links: ILinkApi[], corpusSize = node
         modifiedAtMs: null,
         errorCount: 0,
         warnCount: 0,
+        sidecarStatus: null,
       })),
     ),
     // The files-view (a child of the workspace) builds its tree from

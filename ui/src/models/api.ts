@@ -321,6 +321,14 @@ export interface IFolderNodeLite {
   modifiedAtMs: number | null;
   errorCount: number;
   warnCount: number;
+  /**
+   * Sidecar drift status (`scan_nodes.sidecar_status`), or `null` when
+   * the node has no parseable sidecar. Threaded so the files rail renders
+   * its per-row stale-clock icon corpus-wide without hydrating the
+   * sidecar-carrying branch payload (the rail builds from this lite list).
+   * Same role as `errorCount` / `warnCount` for the error / warn badges.
+   */
+  sidecarStatus: string | null;
 }
 
 /**

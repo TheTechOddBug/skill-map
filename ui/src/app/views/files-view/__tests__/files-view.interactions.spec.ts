@@ -82,6 +82,7 @@ function makeLoaderStub(
     modifiedAtMs: null,
     errorCount: counts[n.path]?.errorCount ?? 0,
     warnCount: counts[n.path]?.warnCount ?? 0,
+    sidecarStatus: null,
   }));
   return {
     nodes: signal(nodes),
