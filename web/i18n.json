@@ -17,7 +17,7 @@
   "nav.features":   { "en": "Features",     "es": "Features" },
   "nav.how":        { "en": "How it works", "es": "Cómo funciona" },
   "nav.cases":      { "en": "Use cases",    "es": "Casos de uso" },
-  "nav.listen":     { "en": "Podcast",      "es": "Podcast" },
+  "nav.listen":     { "en": "What's it about?", "es": "¿De qué se trata?" },
 
   "hero.title.1":   { "en": "From multi-agent chaos", "es": "Del caos multiagente" },
   "hero.title.2":   { "en": "to a harness of predictable agents and skills.", "es": "a un harness de agentes y skills predecibles." },
@@ -41,9 +41,9 @@
   "graph.legend.orphan":  { "en": "Orphan",  "es": "Orphan" },
 
   "qs.eyebrow":      { "en": "Quickstart", "es": "Primeros pasos" },
-  "qs.title":        { "en": "From zero to the tutorial in 5 lines.", "es": "De cero al tutorial en 5 líneas." },
-  "qs.sub":          { "en": "Install, scaffold an empty folder, open Claude Code. It drops a fixture and walks you through the whole flow, live in your browser.",
-                       "es": "Instala, crea una carpeta vacía y abre Claude Code. Deja un fixture y te guía por todo el flujo, en vivo en tu navegador." },
+  "qs.title":        { "en": "tutorial in 5 lines", "es": "tutorial en 5 líneas" },
+  "qs.sub":          { "en": "Install, create an empty folder, and open your agent (Claude Code, Codex, etc). Let your agent walk you through the whole flow, live in your console and browser.",
+                       "es": "Instala, crea una carpeta vacía y abre tu agente (Claude Code, Codex, etc). Deja que tu agente te guíe por todo el flujo, en vivo en tu consola y navegador." },
   "qs.copy":         { "en": "Copy", "es": "Copiar" },
   "qs.copy.aria":    { "en": "Copy the install commands to clipboard", "es": "Copiar los comandos de instalación al portapapeles" },
   "qs.cmt.scaffold": { "en": "# installs the tutorial skill", "es": "# instala la skill del tutorial" },
