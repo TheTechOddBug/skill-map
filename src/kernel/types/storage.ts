@@ -108,7 +108,10 @@ export interface IIssueIncidenceCount {
  * graph projection the BFF `/api/branch` endpoint returns. `nodes` is
  * the first `LIMIT` nodes of the union (every requested prefix's
  * subtree) in stable path order (`ORDER BY path`); `links` carries only
- * edges whose source AND target are both in that node set; `issues`
+ * edges whose source AND RESOLVED target (`resolvedTarget`, else the raw
+ * `target` for path-style links) are both in that node set, so a
+ * trigger-style `invokes` / `mentions` edge that resolves to a rendered
+ * node is kept and a genuinely-broken link is dropped; `issues`
  * carries only those whose `nodeIds` intersect it. `total` is the count
  * of nodes in the union BEFORE the cap (so the route can compute
  * `truncated`). `paths` echoes the (de-duped) requested prefixes; the

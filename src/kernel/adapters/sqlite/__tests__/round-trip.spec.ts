@@ -376,3 +376,60 @@ describe('persistence round-trip for the file-size skip envelope', () => {
     }
   });
 });
+
+describe('branch projection (`loadBranch`) carries resolved trigger edges', () => {
+  // Regression guard for the "map silently drops invokes / mentions edges"
+  // bug: `/api/branch` filtered links on the raw `target_path`, so every
+  // trigger-style edge (whose target is the authored `/cmd` / `@agent`,
+  // with the real node path in `resolved_target`) fell out before reaching
+  // the map, leaving only path-style `references`. This drives the demo
+  // shape through the REAL `persist` seam (not a hand-planted row), so a
+  // regression in either `linkToRow` (write) or the `loadBranch` filter
+  // (read) trips it. The companion direct-plant tests live in
+  // `branch-folders-storage.spec.ts`.
+  it('keeps invokes / mentions edges that resolve to a rendered node, drops genuinely-broken ones', async () => {
+    const path = freshDbPath('branch-resolved-trigger-e2e');
+    const adapter = new SqliteStorageAdapter({ databasePath: path });
+    await adapter.init();
+    try {
+      const publish = baseNode({ path: '.claude/commands/publish.md', kind: 'command' });
+      const agent = baseNode({ path: '.claude/agents/content-editor.md', kind: 'agent' });
+      const skill = baseNode({ path: '.claude/skills/check-links/SKILL.md', kind: 'skill' });
+      const deploy = baseNode({ path: 'docs/DEPLOY.md', kind: 'note' });
+      const root = baseNode({ path: 'AGENTS.md', kind: 'note' });
+
+      // One of each shape the demo emits: a slash invoke + an at mention
+      // (both trigger-style, real node in resolvedTarget), a path-style
+      // reference (resolvedTarget == target), and a broken reference (no
+      // resolvedTarget, target names no node).
+      const invokes = baseLink({ source: publish.path, target: '/check-links', kind: 'invokes', sources: ['slash-command'], resolvedTarget: skill.path });
+      const mentions = baseLink({ source: publish.path, target: '@content-editor', kind: 'mentions', sources: ['at-directive'], resolvedTarget: agent.path });
+      const pathRef = baseLink({ source: publish.path, target: deploy.path, kind: 'references', resolvedTarget: deploy.path });
+      const broken = baseLink({ source: root.path, target: 'docs/BACKLOG.md', kind: 'references', confidence: 0.5 });
+
+      await adapter.scans.persist(
+        makeScanResult([publish, agent, skill, deploy, root], [invokes, mentions, pathRef, broken]),
+      );
+
+      const branch = await adapter.scans.loadBranch([], 256);
+      const edges = branch.links
+        .map((l) => `${l.source} --${l.kind}--> ${l.resolvedTarget ?? l.target}`)
+        .sort();
+      // The 3 resolvable edges survive; the broken BACKLOG reference (no
+      // resolved node) is excluded, exactly as the full `/api/scan` map
+      // drops it via the UI's `resolveTopology`.
+      deepStrictEqual(edges, [
+        '.claude/commands/publish.md --invokes--> .claude/skills/check-links/SKILL.md',
+        '.claude/commands/publish.md --mentions--> .claude/agents/content-editor.md',
+        '.claude/commands/publish.md --references--> docs/DEPLOY.md',
+      ]);
+      // The trigger edge keeps the authored trigger in `target`; the
+      // resolved node travels in `resolvedTarget`.
+      const mention = branch.links.find((l) => l.kind === 'mentions');
+      strictEqual(mention?.target, '@content-editor');
+      strictEqual(mention?.resolvedTarget, agent.path);
+    } finally {
+      await adapter.close();
+    }
+  });
+});

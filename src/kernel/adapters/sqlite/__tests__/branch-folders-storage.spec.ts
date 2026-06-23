@@ -72,13 +72,14 @@ async function plantLink(
   adapter: SqliteStorageAdapter,
   source: string,
   target: string,
+  opts: { kind?: 'references' | 'invokes' | 'mentions'; resolvedTarget?: string | null } = {},
 ): Promise<void> {
   await adapter.db
     .insertInto('scan_links')
     .values({
       sourcePath: source,
       targetPath: target,
-      kind: 'references',
+      kind: opts.kind ?? 'references',
       confidence: 1.0,
       sourcesJson: JSON.stringify(['markdown-link']),
       originalTrigger: null,
@@ -87,7 +88,12 @@ async function plantLink(
       locationColumn: null,
       locationOffset: null,
       occurrencesJson: null,
-      resolvedTarget: null,
+      // Path-style links (the default) resolve to their own target, so
+      // `resolvedTarget` is left NULL and the branch filter coalesces to
+      // `target_path`. A trigger-style link (`invokes` / `mentions`) sets
+      // `resolvedTarget` to the node it points to while `target_path`
+      // stays the raw trigger.
+      resolvedTarget: opts.resolvedTarget ?? null,
       raw: null,
     })
     .execute();
@@ -350,6 +356,70 @@ describe('port.scans.loadBranch', () => {
       assert.equal(branch.links.length, 1);
       assert.equal(branch.links[0]?.source, 'p/a.md');
       assert.equal(branch.links[0]?.target, 'p/b.md');
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('carries a trigger-style edge whose RESOLVED target is a rendered node (raw target is the trigger)', async () => {
+    const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('branch-resolved-trigger'), autoBackup: false });
+    await adapter.init();
+    try {
+      await plantNode(adapter, '.claude/commands/publish.md');
+      await plantNode(adapter, '.claude/agents/content-editor.md');
+      // `@content-editor` is the raw `target_path` (a trigger, NOT a node
+      // path); the real node it resolves to sits in `resolved_target`.
+      // The branch must keep this edge, filtering on `target_path` alone
+      // (the pre-fix bug) dropped every resolved trigger edge from the map.
+      await plantLink(adapter, '.claude/commands/publish.md', '@content-editor', {
+        kind: 'mentions',
+        resolvedTarget: '.claude/agents/content-editor.md',
+      });
+
+      const branch = await adapter.scans.loadBranch([], 256);
+      assert.equal(branch.links.length, 1);
+      assert.equal(branch.links[0]?.source, '.claude/commands/publish.md');
+      assert.equal(branch.links[0]?.target, '@content-editor');
+      assert.equal(branch.links[0]?.resolvedTarget, '.claude/agents/content-editor.md');
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('drops a genuinely-broken link whose target resolves to no node (resolved_target NULL)', async () => {
+    const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('branch-broken-link'), autoBackup: false });
+    await adapter.init();
+    try {
+      await plantNode(adapter, 'AGENTS.md');
+      // A broken markdown reference: target names a file that is no node and
+      // `resolved_target` is NULL. `coalesce(resolved_target, target_path)`
+      // falls back to the raw target, which is not in the node set, so the
+      // edge correctly falls out (same as the full `/api/scan` map).
+      await plantLink(adapter, 'AGENTS.md', 'docs/BACKLOG.md');
+
+      const branch = await adapter.scans.loadBranch([], 256);
+      assert.equal(branch.links.length, 0);
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('drops a trigger-style edge whose resolved target sits outside the selected branch', async () => {
+    const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('branch-resolved-outside'), autoBackup: false });
+    await adapter.init();
+    try {
+      await plantNode(adapter, 'p/cmd.md');
+      await plantNode(adapter, 'q/agent.md');
+      // Resolves to a real node, but `q` is not in the selected prefix set,
+      // so the both-endpoints rule still drops it (the fix scopes on the
+      // RESOLVED target, it does not blanket-include every resolved edge).
+      await plantLink(adapter, 'p/cmd.md', '@agent', {
+        kind: 'mentions',
+        resolvedTarget: 'q/agent.md',
+      });
+
+      const branch = await adapter.scans.loadBranch(['p'], 256);
+      assert.equal(branch.links.length, 0);
     } finally {
       await adapter.close();
     }

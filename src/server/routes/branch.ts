@@ -26,8 +26,13 @@
  *     `path === prefix` or starts with `prefix + '/'`. The per-prefix
  *     subtrees are UNIONed. `nodes` is the first `rendered` union nodes
  *     in stable path order (`ORDER BY path`).
- *   - `links` carries only edges whose source AND target are both in
- *     `nodes`; `issues` only those whose `nodeIds` intersect `nodes`.
+ *   - `links` carries only edges whose source AND RESOLVED target are
+ *     both in `nodes`. The resolved target is `resolved_target` (the node
+ *     a trigger-style `invokes` / `mentions` link points to), falling back
+ *     to the raw `target_path` for path-style links and dropping
+ *     genuinely-broken links (`resolved_target` NULL) whose raw target
+ *     names no rendered node. `issues` only those whose `nodeIds`
+ *     intersect `nodes`.
  *   - `total` is the union node count BEFORE the cap; `cap` is the
  *     effective limit; `rendered` is `min(total, cap)`; `truncated` is
  *     `total > cap`. `paths` echoes the (filtered, de-duped) requested

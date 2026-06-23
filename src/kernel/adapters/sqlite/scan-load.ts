@@ -416,7 +416,18 @@ export async function loadBranch(
       .selectFrom('scan_links')
       .selectAll()
       .where('sourcePath', 'in', paths)
-      .where('targetPath', 'in', paths)
+      // Match the edge's RESOLVED endpoint, not the raw authored target.
+      // Trigger-style links (`invokes` / `mentions`) store the trigger
+      // (`/cmd`, `@agent`) in `target_path` and the real node path in
+      // `resolved_target`; for path-style links the two are equal. Filtering
+      // on `target_path` alone would drop every resolved trigger edge from
+      // the branch, so they never reach the map (the regression this fixes).
+      // `coalesce(resolved_target, target_path)` falls back to the raw target
+      // for genuinely-broken links (`resolved_target` NULL), which then
+      // correctly fall out because their raw target names no rendered node,
+      // exactly as the UI's `resolveTopology` drops them when the map renders
+      // the full `/api/scan` payload.
+      .where(sql<string>`coalesce(resolved_target, target_path)`, 'in', paths)
       .execute(),
     db
       .selectFrom('scan_issues')
