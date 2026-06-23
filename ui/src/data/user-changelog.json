@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.62.1",
+      "date": "2026-06-23",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "**`sm tutorial` cleanup.** The Extend track now runs the right commands end to end (the plugin-authoring walkthrough no longer dead-ends on a broken command or a dropped chip), drops two redundant chapters, and matches what `sm` actually prints today.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.62.0",
       "date": "2026-06-23",
       "kind": "user-facing",
