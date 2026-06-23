@@ -6,6 +6,14 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>0.62.1</b> · 2026-06-23</summary>
+
+### CLI Patch
+- Audit pass over the bundled `sm tutorial` content: fixed a broken `sm plugins create extractor demo-highlight` command, corrected a contribution that was silently dropped by emit-time slot validation, refreshed the stale `sm plugins doctor` count and UI references, trimmed two redundant chapters from the Extend track, and aligned the chapter-count test with the trim.
+
+</details>
+
+<details>
 <summary><b>0.62.0</b> · 2026-06-23</summary>
 
 ### CLI Minor
