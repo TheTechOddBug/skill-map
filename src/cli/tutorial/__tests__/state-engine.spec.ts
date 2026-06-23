@@ -95,9 +95,9 @@ describe('sm-tutorial state.js', () => {
       ['init', 'kinds', 'first-edit', 'connectors', 'inspector', 'edit-link', 'workspace', 'ignore'],
     );
     assert.equal(part.chapters.init.status, 'pending');
-    // extend spans three files / 13 chapters.
+    // extend spans three files / 11 chapters.
     const ext = run(['pick', 'extend'], cwd).json.part as any;
-    assert.equal(Object.keys(ext.chapters).length, 13);
+    assert.equal(Object.keys(ext.chapters).length, 11);
     // Idempotent: re-pick after a mark must not reset progress.
     run(['mark', 'fundamentals', 'init', 'done'], cwd);
     const again = run(['pick', 'fundamentals'], cwd).json.part as any;

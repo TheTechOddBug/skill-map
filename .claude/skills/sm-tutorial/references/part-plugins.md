@@ -97,8 +97,8 @@ Mark `tour-1-intro: done`.
 > 🎣 **hook**
 >    Fires on one of 10 lifecycle events (`boot`, `scan.started`,
 >    `shutdown`, etc.). `update-check`, for instance, listens on
->    `boot` (throttled to once a day) and prints a banner if a
->    newer skill-map is available on npm.
+>    `boot` and prints a banner if a newer skill-map is available
+>    on npm.
 >    Example: `update-check`.
 >
 > Putting it together: a **plugin** packages one or more
@@ -106,10 +106,11 @@ Mark `tour-1-intro: done`.
 > where it plugs into the kernel.
 >
 > Heads up: every `sm plugins` verb you'll run in this part is
-> also available from the UI. From any `sm serve` session, open
-> the **gear icon → Plugins** tab to browse and toggle plugins
-> from there. CLI and UI use the same store, so a change in one
-> is reflected in the other.
+> also available from the UI. From any `sm` session, open the
+> **Settings** panel (the sliders icon, top-right) and its
+> **Plugins** tab to browse and toggle plugins from there. CLI and
+> UI use the same store, so a change in one is reflected in the
+> other.
 
 > Now let's see those six kinds inside a real plugin. Open `core`
 > in your second terminal:
@@ -121,7 +122,9 @@ sm plugins list core
 Expected: the extensions grouped by kind, each row showing its
 kind and qualified id (e.g. `extractor  core/markdown-link`). You
 can spot at least one of each of the six kinds you just read about,
-all packed into a single plugin.
+all packed into a single plugin. A few rows are marked `✕` with an
+`(experimental)` tag, those extensions ship disabled by default;
+you'll toggle one yourself in the next step.
 
 Mark `tour-2-kinds: done`.
 
@@ -151,8 +154,10 @@ line (`✓ core/external-url-counter built-in`) plus its Kind
 sm plugins doctor
 ```
 
-Expected on a clean machine: `35 enabled extensions · 0 issues · 0 warnings`.
-If any plugin reports a load error, manifest validity issue, or
+Expected on a clean machine: `30 enabled extensions · 0 issues · 0 warnings`.
+That counts the enabled extensions only, the experimental ones you
+saw marked `✕` ship disabled, so they sit outside this total. If any
+plugin reports a load error, manifest validity issue, or
 spec-compatibility mismatch, `doctor` is the verb that flags it.
 
 > Last, toggle one extension off and back on so you see the state

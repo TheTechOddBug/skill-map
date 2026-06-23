@@ -1,10 +1,9 @@
 # Part 4 (a): Extend skill-map - settings (step library, `settings-*` ids)
 
 Step bodies for the settings chapters of Part 4 (config layers, the
-`sm config` verbs, the active provider lens), plus the shared step
-`settings-6-contributions` that the plugin-authoring chapters reuse.
-The SKILL.md orchestrator dispatches each `settings-*` chapter id
-here; `authoring-*` ids it dispatches to `part-authoring.md`.
+`sm config` verbs, the active provider lens). The SKILL.md
+orchestrator dispatches each `settings-*` chapter id here;
+`authoring-*` ids it dispatches to `part-authoring.md`.
 
 The `.sm` consent gate (companion files, `allowEditSmFiles`,
 `sm sidecar annotate`) is covered elsewhere in this tutorial, so
@@ -126,16 +125,16 @@ Mark `settings-2-resolve: done`.
 
 **Context**: the single most consequential setting, the lens that
 decides which provider types the project's files. It auto-detects and
-never touches your `.md` files, only the scan cache.
+never touches your `.md` files.
 
 > One setting earns its own step: the **active provider lens**. A
-> skill-map project sees its filesystem through exactly **one**
-> provider at a time, and that lens decides how each file is read.
-> Under the `claude` lens a `.claude/agents/*.md` is an agent and
-> `@`-mentions / `/`-commands become links. Same files, one reading.
+> skill-map project reads its files through exactly **one** provider
+> at a time, and that lens decides how each file is interpreted, so
+> the same files can read differently depending on which lens is active.
 
-> The lens auto-detects on the first scan from the markers in your
-> project (`.claude/` → claude). Scan once and check where it landed:
+> The lens auto-detects on the first scan from your project's layout
+> (a `.claude/` folder selects the `claude` lens). Scan once and check
+> where it landed:
 
 ```bash
 sm scan
@@ -156,53 +155,6 @@ is just a key in `settings.json`, persisted like any other setting.
 > other way around.
 
 Mark `settings-3-lens: done`.
-
-## Step `settings-6-contributions` - watch contributions land (~2 min)
-
-> Last step. Let's watch a contribution land on a node card live.
-> The fixture's `master-agent` declares `tools: [Read, Bash,
-> Edit]`, which the `core/tools-counter` extractor picks up.
-
-If the tester does not have `sm` running, ask them to launch it
-in their second terminal (same drill as the fundamentals part:
-`sm`, copy the link from the output, open the browser, arrange
-the screen). If `sm` is still running, leave it.
-
-```bash
-sm
-```
-
-Once the UI is open, ask the tester to:
-
-> Find the `master-agent` card in the graph. Look at its **left
-> footer** (the bottom-left corner of the card): you should see a
-> small wrench chip from `tools-counter` labelled `tools` showing
-> the value `3`. Hover it to see the tool names.
->
-> That chip is a plugin contribution. It landed in the slot
-> `card.footer.left`, the renderer is `NodeCounter` (same one your
-> scaffold uses), the payload was `{ value: 3 }`.
-
-If the `demo-highlight` plugin from the earlier authoring chapters
-of this part is still installed, point the tester at the
-contribution it emits too:
-
-> The `demo-highlight` you scaffolded earlier in this part also
-> shows up: its chip lands on every node that has a TODO / FIXME
-> / XXX in its body. Click `notes/ideas` to find it.
-
-Have the tester change `master-agent`'s `tools` array (add or
-remove one tool), save, and watch the chip refresh.
-
-> Same flow as the fundamentals part's live UI: edit the markdown,
-> watch the UI refresh. The difference is that the value flowed
-> through a plugin (`core/tools-counter`) and landed in a specific
-> slot (`card.footer.left`). You now know the full path from `.md`
-> to UI chip.
-
-Have them Ctrl+C the server when done.
-
-Mark `settings-6-contributions: done`.
 
 ## Reference: where each catalogue lives in the repo
 

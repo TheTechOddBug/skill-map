@@ -415,7 +415,14 @@ inside the content, mirroring the `✓` confirmations used elsewhere,
 never as a title prefix.
 NO blank line between a title and its description; ONE blank line
 between parts; NO outer blockquote around the whole menu. Close with a
-short "¿Cuál?" / "Which one?" on its own line. Sample (Claude variant,
+short "¿Cuál?" / "Which one?" on its own line.
+
+**Developer aside for section 5 (Extend)**: append to its one-line
+description a short note that this section is mostly for developers
+who want to get more out of skill-map (writing plugins, tuning
+settings, moving view-slots). Mirror the tester's language.
+
+Sample (Claude variant,
 fill the parts and durations from `_manifest.yml`):
 
 ```

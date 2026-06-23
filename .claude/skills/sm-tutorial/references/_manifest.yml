@@ -72,13 +72,11 @@ parts:
       - id: tour-1-intro             ; title: "How plugins work" ; est_min: 4
       - id: tour-2-kinds             ; title: "The six extension kinds" ; est_min: 5
       - id: tour-3-explore           ; title: "Explore one extension up close" ; est_min: 4
-      - id: authoring-1-scaffold     ; title: "`sm plugins create demo-highlight`" ; est_min: 2
+      - id: authoring-1-scaffold     ; title: "`sm plugins create extractor demo-highlight`" ; est_min: 2
       - id: authoring-2-anatomy      ; title: "Tour the scaffold (plugin.json + stubs + README)" ; est_min: 3
       - id: authoring-3-edit-setting ; title: "Edit a setting (string-list) and observe it in the UI" ; est_min: 3
       - id: authoring-4-edit-slot    ; title: "Change the view-slot the contribution targets" ; est_min: 2
-      - id: settings-6-contributions ; title: "Watch contributions land in the inspector" ; est_min: 2
       - id: authoring-5-doctor-author ; title: "Catch a manifest mistake with `sm plugins doctor`" ; est_min: 2
-      - id: authoring-6-upgrade      ; title: "Try `sm plugins upgrade`" ; est_min: 2
 
   - id: cli
     order: 5

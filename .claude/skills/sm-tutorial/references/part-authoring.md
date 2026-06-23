@@ -19,7 +19,7 @@ of whether the tester ran the plugins chapters first). If `.skill-map/` is missi
 is corrupted: surface the mismatch ("the project bootstrap is
 gone, re-invoke the tutorial from an empty dir") and stop.
 
-## Step `authoring-1-scaffold` - `sm plugins create demo-highlight` (~2 min)
+## Step `authoring-1-scaffold` - `sm plugins create extractor demo-highlight` (~2 min)
 
 **Context**: We're building `demo-highlight`: a tiny extractor
 that scans each node's body for the keywords `TODO` and `FIXME`
@@ -31,7 +31,7 @@ manifest on purpose to see the diagnostic catch it.
 > Let's scaffold it with `sm plugins create`:
 
 ```bash
-sm plugins create demo-highlight
+sm plugins create extractor demo-highlight
 ```
 
 Expected output:
@@ -39,9 +39,9 @@ Expected output:
 ```
 Created /<cwd>/.skill-map/plugins/demo-highlight
 Next:
-  - Edit demo-highlight/extractors/demo-highlight-extractor/index.js (the extract() body)
-  - Run sm scan to see the contribution surface
-  - sm plugins slots list: browse other slots
+  - Edit extractors/demo-highlight-extractor/index.js
+  - Run sm plugins doctor to confirm it loads
+  - sm plugins slots list: browse slots and input-types
 ```
 
 **Heads up on the id**: it must be **kebab-case lowercase**, no
@@ -89,35 +89,25 @@ Then narrate, one file at a time:
 > **`extractors/demo-highlight-extractor/index.js`**: the code
 >
 > Plain JavaScript with a default export. **Structure-as-truth**:
-> the loader derives the extension `id` and its `pluginId` from the
-> folder path, so the export never repeats them. It does declare its
-> `kind` (`extractor`), which the loader cross-checks against the
-> parent folder (`extractors/`); a mismatch is rejected at load.
+> the loader derives the extension `kind` (`extractor`), its `id`,
+> and its `pluginId` from the folder path, so the export never
+> repeats them. Re-declaring `kind` or `id` is rejected at load as
+> `invalid-manifest`.
 >
 > **What the loader reads:**
 >
-> - The folder layout tells the loader this is an extractor named
->   `demo-highlight-extractor` (`extractors/<id>/index.js`).
+> - **folder layout**: marks this as the extractor
+>   `demo-highlight-extractor`.
+> - **`ui`**: where the chip shows. The scaffold sends `count` to
+>   the `card.footer.left` slot; the slot picks the renderer and
+>   payload shape for you.
+> - **`settings`**: the user knobs (here, the `keywords` list),
+>   read at runtime via `ctx.settings`.
+> - **`extract(ctx)`**: runs once per node. It reads the body from
+>   `ctx.body` and emits the count via `ctx.emitContribution`.
 >
-> - `ui`: which slots the extension emits to. The scaffold declares
->   `count`, targeting `card.footer.left` (the chip in the
->   bottom-left of every node card). The slot pins both the renderer
->   (`NodeCounter`) and the payload shape.
->
-> - `settings`: the per-extension user-configurable knobs, this is
->   where the `keywords` list lives. Exposed at runtime via
->   `ctx.settings.<settingId>`.
->
-> - `extract(ctx)`: the function the kernel runs per node.
->   `ctx.body` is the markdown body, `ctx.settings` carries what
->   the user set on this extension, and `ctx.emitContribution(id,
->   payload)` sends data to the slot.
->
->   Heads up: the body has `|| ['TODO', 'FIXME']` as a defensive
->   fallback in case `ctx.settings` is missing. In normal
->   operation the kernel always passes the manifest's default (or
->   the user's override), so the hardcoded list is never used,
->   the manifest is the real source of truth.
+> The `|| ['TODO', 'FIXME']` you see in the code is just a safety
+> fallback; the real keyword list comes from the manifest.
 
 > **`README.md`**: the docs
 >
@@ -162,13 +152,10 @@ Now re-scan so the extractor re-reads its settings and re-counts:
 sm scan
 ```
 
-The scan re-emits the contribution with the new count. To actually
-see it we open the UI: `sm show` covers a node's frontmatter, links,
-and issues, but not plugin contributions. Ask the tester to run `sm`
-in the second terminal, open the browser, click `notes/ideas`, and
-spot the chip in the **left footer** of the card (or the bottom-left
-badge in the inspector). It reads `🔍 kw 3`, one match per keyword,
-the icon and label come from the manifest's `ui.count`.
+The scan re-emits the contribution with the new count. To see it,
+run `sm`, open the browser, click `notes/ideas`, and find the chip
+in the card's **left footer** (it also shows in the inspector). It
+reads `🔍 kw 3`, one match per keyword.
 
 > Three matches. The setting flowed from the extension's `settings`
 > through `ctx.settings.keywords` into the extractor, the extractor
@@ -179,14 +166,14 @@ Mark `authoring-3-edit-setting: done`.
 
 ## Step `authoring-4-edit-slot` - change the view-slot (~2 min)
 
-> Same contribution, different home. We'll move it from the
-> footer to the top-right corner of the card.
+> Same contribution, different home. We'll move it from the left
+> footer to the right footer of the card.
 
 The tester edits the extractor source:
 
 > Open `.skill-map/plugins/demo-highlight/extractors/demo-highlight-extractor/index.js`.
-> Find the `ui.count.slot` line. Change
-> `'card.footer.left'` to `'card.title.right'`. Save.
+> Find the `slot` line in the `count` contribution. Change
+> `'card.footer.left'` to `'card.footer.right'`. Save.
 
 Re-scan:
 
@@ -197,17 +184,22 @@ sm scan
 If `sm` is still running, the watcher picks up the file change
 and re-emits contributions live. If not, run the scan manually.
 
-Refresh the UI, the chip should now appear next to the **title**
-on the node card instead of the footer.
+Refresh the UI, the chip should now appear in the **right footer**
+of the node card instead of the left.
 
 > Notice we did not write any UI code. The slot decides the
-> renderer (`NodeCounter` here, same widget reused across four
-> slots) and the position. You picked a position, the UI did the
-> rest.
+> renderer and the position. You picked a position, the UI did
+> the rest.
 
-**Side trip if the tester asks**: `sm plugins slots list` shows
-all 14 slots with one-line descriptions. They are the closed
-catalogue, picking an unknown slot id is rejected at load.
+> **Two ways to see the whole slot catalogue:**
+>
+> - **In the UI**, add `?debug=1` to the URL. Every view-contribution
+>   slot lights up with a coloured ring and its id, so you can see
+>   exactly where `card.footer.left` and `card.footer.right` sit.
+>   Turn it back off with `?debug=0`.
+> - **In the CLI**, run `sm plugins slots list`: all 14 slots with a
+>   one-line description each. The catalogue is closed, an unknown
+>   slot id is rejected at load.
 
 Mark `authoring-4-edit-slot: done`.
 
@@ -218,7 +210,7 @@ Mark `authoring-4-edit-slot: done`.
 
 Have the tester change the slot to a value that does not exist:
 
-> In the same file, change `'card.title.right'` to
+> In the same file, change `'card.footer.right'` to
 > `'card.footer.bottom'` (made up). Save.
 
 ```bash
@@ -233,7 +225,7 @@ on `demo-highlight`, pointing at the unknown slot name.
 > the loader catches the typo before any scan happens.
 
 Restore the slot to a real value (back to `'card.footer.left'` or
-`'card.title.right'`, the tester's choice) and re-run doctor:
+`'card.footer.right'`, the tester's choice) and re-run doctor:
 
 ```bash
 sm plugins doctor
@@ -242,29 +234,6 @@ sm plugins doctor
 Back to clean.
 
 Mark `authoring-5-doctor-author: done`.
-
-## Step `authoring-6-upgrade` - `sm plugins upgrade` (~2 min)
-
-> One last verb. `sm plugins upgrade` applies catalog migrations
-> to plugin manifests. Today the catalog is at `1.0.0` with zero
-> migrations registered, so the verb is a **no-op**. The point of
-> the step is to know the verb exists and what it does.
-
-```bash
-sm plugins upgrade
-sm plugins upgrade demo-highlight
-```
-
-Expected: both report no migrations to apply.
-
-> When the catalog evolves (slot renames, deprecations, setting
-> shape changes), `sm plugins upgrade` is the verb that walks
-> your manifests and rewrites them to the new shape. Without
-> that, every catalog change would force every plugin author to
-> re-author by hand. The structure is in place so future bumps
-> land smoothly.
-
-Mark `authoring-6-upgrade: done`.
 
 ## Wrap-up (fires at the end of the authoring chapters)
 
@@ -277,8 +246,6 @@ Mark `authoring-6-upgrade: done`.
 >   misalign them.
 > - `sm plugins doctor` is the diagnostic verb, run it after any
 >   manifest edit.
-> - `sm plugins upgrade` is the migration verb (no-op today, the
->   structure is ready for future catalog changes).
 >
 > Anything weird worth logging? If not, back to the menu.
 

@@ -205,7 +205,7 @@
         },
         {
           "id": "authoring-1-scaffold",
-          "title": "`sm plugins create demo-highlight`",
+          "title": "`sm plugins create extractor demo-highlight`",
           "est_min": 2
         },
         {
@@ -224,18 +224,8 @@
           "est_min": 2
         },
         {
-          "id": "settings-6-contributions",
-          "title": "Watch contributions land in the inspector",
-          "est_min": 2
-        },
-        {
           "id": "authoring-5-doctor-author",
           "title": "Catch a manifest mistake with `sm plugins doctor`",
-          "est_min": 2
-        },
-        {
-          "id": "authoring-6-upgrade",
-          "title": "Try `sm plugins upgrade`",
           "est_min": 2
         }
       ]
