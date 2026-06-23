@@ -1,10 +1,10 @@
 // ============================================================
 // Roadmap timeline: phase-based interactive milestones
 // ------------------------------------------------------------
-// Five segments (Phase 0 / A / B / C / D) on a horizontal strip.
+// Seven segments (Phase 0 / A / B / C / D / E / F) on a horizontal strip.
 // Each segment shows internal progress and opens a detail panel
 // with a brief plus a sub-list (highlights for 0, steps for
-// A/B/C, sketches for D). Phase data is colocated EN/ES inline
+// A/B/D/E, sketches for C/F). Phase data is colocated EN/ES inline
 // because it's content, not UI chrome; the framework strings
 // (status labels, section headers, hint) live in i18n.json.
 // ============================================================
@@ -95,6 +95,23 @@
     {
       id: 'C',
       status: 'planned',
+      release: { en: 'target: next', es: 'objetivo: próximo' },
+      title: { en: 'Real-time exploration', es: 'Exploración en tiempo real' },
+      sub: { en: 'Watch what happens, as it happens.', es: 'Observa lo que pasa, mientras pasa.' },
+      brief: {
+        en: 'skill-map stops being just a static map and starts observing execution. This is the next milestone after the Beta, before the LLM layer: immutable snapshots of every run for later audit, and a live view of which skill ran, what triggered it, and which nodes it touched. The LLM-dependent half (streaming an agent conversation turn-by-turn) stays with the LLM layer.',
+        es: 'skill-map deja de ser solo un mapa estático y empieza a observar la ejecución. Este es el próximo hito después del Beta, antes de la capa de LLM: snapshots inmutables de cada run para auditar después, y una vista en vivo de qué skill se ejecutó, qué la disparó y qué nodos tocó. La parte que depende del LLM (streaming de la conversación de un agente turno a turno) queda con la capa de LLM.',
+      },
+      list: 'sketches',
+      items: [
+        { en: 'Event stream · live WebSocket from the kernel to the UI',         es: 'Stream de eventos · WebSocket en vivo desde el kernel a la UI' },
+        { en: 'Execution snapshot · immutable audit of every run',               es: 'Snapshot de lo ejecutado · auditoría inmutable de cada run' },
+        { en: 'Real-time exploration · watch agents and skills as they run',     es: 'Exploración en tiempo real · ver agentes y skills mientras se ejecutan' },
+      ],
+    },
+    {
+      id: 'D',
+      status: 'planned',
       release: { en: 'target: v0.8.0', es: 'objetivo: v0.8.0' },
       title: { en: 'LLM as an optional layer', es: 'El LLM como capa opcional' },
       sub: { en: 'Summaries and semantic verbs, opt-in.', es: 'Resúmenes y verbos semánticos, opt-in.' },
@@ -114,14 +131,14 @@
       ],
     },
     {
-      id: 'D',
+      id: 'E',
       status: 'planned',
       release: { en: 'target: v1.0.0', es: 'objetivo: v1.0.0' },
       title: { en: 'Surface & distribution', es: 'Superficie y distribución' },
       sub: { en: 'Formatters, multi-host, deeper UI flows, single-binary release.', es: 'Formatters, multi-host, flujos de UI más profundos, release de un binario.' },
       brief: {
-        en: 'The product reaches 1.0 here. Mermaid and DOT formatters for ops and CI, more providers so skill-map covers the multi-host ecosystem (Codex, Copilot, generic) and not just Claude, deeper UI flows that promote the LLM verbs landed in Phase C into interactive panels (queue inspector, findings management, cost dashboard), and @skill-map/cli ships as a single npm package with the UI bundled inside. One process, one port, one command.',
-        es: 'Aquí el producto llega a 1.0. Formatters Mermaid y DOT para ops y CI, más providers para cubrir el ecosistema multi-host (Codex, Copilot, genérico) y no sólo Claude, flujos de UI más profundos que promueven a paneles interactivos los verbos LLM que aterrizaron en la Fase C (inspector de la cola, gestión de findings, dashboard de costo), y @skill-map/cli se distribuye como un único paquete npm con la UI empaquetada adentro. Un proceso, un puerto, un comando.',
+        en: 'The product reaches 1.0 here. Mermaid and DOT formatters for ops and CI, more providers so skill-map covers the multi-host ecosystem (Codex, Copilot, generic) and not just Claude, deeper UI flows that promote the LLM verbs landed in Phase D into interactive panels (queue inspector, findings management, cost dashboard), and @skill-map/cli ships as a single npm package with the UI bundled inside. One process, one port, one command.',
+        es: 'Aquí el producto llega a 1.0. Formatters Mermaid y DOT para ops y CI, más providers para cubrir el ecosistema multi-host (Codex, Copilot, genérico) y no sólo Claude, flujos de UI más profundos que promueven a paneles interactivos los verbos LLM que aterrizaron en la Fase D (inspector de la cola, gestión de findings, dashboard de costo), y @skill-map/cli se distribuye como un único paquete npm con la UI empaquetada adentro. Un proceso, un puerto, un comando.',
       },
       list: 'steps',
       items: [
@@ -134,20 +151,17 @@
       ],
     },
     {
-      id: 'E',
+      id: 'F',
       status: 'pending',
-      release: { en: 'target: v1.0.0', es: 'objetivo: v1.0.0' },
-      title: { en: 'Real-time', es: 'Real-time' },
-      sub: { en: 'Watch what happens, as it happens.', es: 'Observa lo que pasa, mientras pasa.' },
+      release: { en: 'target: post-v1.0', es: 'objetivo: post-v1.0' },
+      title: { en: 'Beyond', es: 'Más allá' },
+      sub: { en: 'Bigger bets to evaluate after 1.0.', es: 'Apuestas más grandes a evaluar después de 1.0.' },
       brief: {
-        en: 'skill-map stops being just a static map and starts observing execution. Immutable snapshots of every run for later audit; live view of which skill ran, what triggered it, and which nodes it touched.',
-        es: 'skill-map deja de ser solo un mapa estático y empieza a observar la ejecución. Snapshots inmutables de cada run para auditar después; vista en vivo de qué skill se ejecutó, qué la disparó y qué nodos tocó.',
+        en: 'Bigger bets that come after 1.0, to evaluate as the product and its users mature: streaming an agent conversation turn-by-turn once the LLM layer exists, a plugin marketplace, third-party UI and BFF extensions, plugin-to-plugin dependencies, and a standalone single-binary distribution.',
+        es: 'Apuestas más grandes para después de 1.0, a evaluar a medida que el producto y sus usuarios maduran: streaming de la conversación de un agente turno a turno una vez que exista la capa de LLM, un marketplace de plugins, extensiones de terceros para UI y BFF, dependencias entre plugins, y una distribución standalone de un solo binario.',
       },
       list: 'sketches',
       items: [
-        { en: 'Event stream · live WebSocket from the kernel to the UI',         es: 'Stream de eventos · WebSocket en vivo desde el kernel a la UI' },
-        { en: 'Execution snapshot · immutable audit of every run',               es: 'Snapshot de lo ejecutado · auditoría inmutable de cada run' },
-        { en: 'Real-time exploration · watch agents and skills as they run',     es: 'Exploración en real time · ver agentes y skills mientras se ejecutan' },
         { en: 'Live agent conversation · stream the LLM transcript turn-by-turn into the UI Job inspector (prompts, deltas, tool calls, tool results) so the operator can watch what the agent is thinking and catch a runaway prompt early. Persisted as a bounded ring under .skill-map/jobs/<id>/conversation.ndjson, with a CLI mirror via sm job tail --conversation',
           es: 'Conversación de agentes en vivo · streaming del transcript LLM turno a turno en el inspector de Jobs de la UI (prompts, deltas, tool calls, tool results) para ver qué está pensando el agente y atrapar un prompt fuera de control a tiempo. Persistido como ring acotado bajo .skill-map/jobs/<id>/conversation.ndjson, con espejo en CLI vía sm job tail --conversation' },
         { en: 'Marketplace ? · plugin discovery and distribution, to evaluate', es: 'Marketplace ? · descubrimiento y distribución de plugins, a evaluar' },

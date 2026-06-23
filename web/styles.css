@@ -2291,7 +2291,7 @@ svg    { display: block; max-width: 100%; }
   letter-spacing: -.005em;
 }
 
-/* ---------- Phase strip (5 segments) ---------- */
+/* ---------- Phase strip (7 segments) ---------- */
 .roadmap__strip {
   position: relative;
   border-radius: 20px;
@@ -2301,7 +2301,7 @@ svg    { display: block; max-width: 100%; }
 }
 .roadmap__segments {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(7, 1fr);
   /* Hairline dividers between segments via the gap + parent background. */
   gap: 1px;
   background: rgba(255,255,255,.06);
