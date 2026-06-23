@@ -2,6 +2,20 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.62.2",
+      "date": "2026-06-23",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "The graph map again draws `invokes` and `mentions` arrows (a command running a skill, an agent referenced by name), not just plain file references. A recent change had hidden every resolved trigger edge from the map.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.62.1",
       "date": "2026-06-23",
       "kind": "user-facing",
