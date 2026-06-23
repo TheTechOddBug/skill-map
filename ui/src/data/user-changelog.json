@@ -2,6 +2,40 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.62.0",
+      "date": "2026-06-23",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "The files rail again flags out-of-date nodes with the clock icon, so you can see at a glance which files have drifted since their last review.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**Faster live updates.** Saving a file while `sm serve` or `sm watch` is running now refreshes the map almost instantly, because only the file you changed is re-read instead of the whole project being re-scanned on every save.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Large repos now scan and validate references across the whole tree; check folders (with per-folder issue counts) to choose what the map shows. Map palettes count what is shown; a Reset filters button clears it all; the refresh button spins while any scan runs.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Scanning `.md` files that contain HTML no longer creates phantom links or false broken-reference warnings from links that were commented out or tucked inside HTML attributes.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.61.5",
       "date": "2026-06-21",
       "kind": "user-facing",

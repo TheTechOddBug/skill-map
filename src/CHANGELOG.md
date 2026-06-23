@@ -1,5 +1,35 @@
 # skill-map
 
+## 0.62.0
+
+### Minor Changes
+
+- Splits the scan cap into two knobs: `scan.maxScan` (corpus ceiling, default 50000) bounds what the walk parses and reference-validates, while `scan.maxNodes` (default 256) now caps only the graph render. References resolve across the whole corpus, so large repos no longer flag links to unrendered files as broken. Adds the `--max-scan` flag and the `/api/folders`, `/api/branch`, and `/api/scan?meta=1` endpoints that back the lazy folders tree and branch-scoped map.
+
+  ## User-facing
+
+  Large repos now scan and validate references across the whole tree; check folders (with per-folder issue counts) to choose what the map shows. Map palettes count what is shown; a Reset filters button clears it all; the refresh button spins while any scan runs.
+
+### Patch Changes
+
+- Restores the files rail's per-row stale-clock icon, dropped when the rail switched to building from the lightweight `GET /api/folders` payload (which carried the error / warn counts but not the sidecar drift status). The endpoint now emits a `sidecarStatus` field (the persisted `scan_nodes.sidecar_status`, `null` when there is no parseable sidecar), threaded from the kernel loader through the BFF into the rail so staleness flags corpus-wide in demo and `sm serve` mode.
+
+  ## User-facing
+
+  The files rail again flags out-of-date nodes with the clock icon, so you can see at a glance which files have drifted since their last review.
+
+- Incremental scans now skip unchanged files. The full-walk path (`sm scan --changed`, boot scan, fallback) reads and YAML-parses only files whose on-disk mtime differs from the prior snapshot, reusing the cached node otherwise. The watcher path (`sm serve` / `sm watch`) threads chokidar's exact changed-path set through the scan, enumerating the corpus from the prior snapshot and reading only the touched files instead of re-walking the tree. Results stay byte-identical to a full scan.
+
+  ## User-facing
+
+  **Faster live updates.** Saving a file while `sm serve` or `sm watch` is running now refreshes the map almost instantly, because only the file you changed is re-read instead of the whole project being re-scanned on every save.
+
+- Body extractors now strip raw HTML (comments and tag tokens) before matching, alongside the existing code-region strip. A markdown link commented out as `<!-- [x](old.md) -->` or hidden in an attribute value (`<img alt="[x](y.md)">`) no longer produces a phantom edge. The strip is bounded to comments and tag tokens, so markdown nested inside a `<div>` block still resolves; `core/backtick-path` is unaffected (HTML is not a code region).
+
+  ## User-facing
+
+  Scanning `.md` files that contain HTML no longer creates phantom links or false broken-reference warnings from links that were commented out or tucked inside HTML attributes.
+
 ## 0.61.5
 
 ### Patch Changes
