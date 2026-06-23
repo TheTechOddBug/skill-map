@@ -40,11 +40,12 @@
  */
 
 import { readFile, readdir, lstat } from 'node:fs/promises';
-import { join, relative, sep } from 'node:path';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import type { IRawNode } from '../extensions/provider.js';
 import { buildIgnoreFilter, type IIgnoreFilter } from './ignore.js';
 import { getParser } from './parsers/index.js';
+import type { IParseIssue } from './parsers/types.js';
 
 export interface IWalkContentOptions {
   /**
@@ -87,6 +88,31 @@ export interface IWalkContentOptions {
    * `ScanResult.oversizedFiles`. No-op when omitted.
    */
   onOversizedFile?: (info: { path: string; bytes: number }) => void;
+  /**
+   * Incremental-walk hint: prior-scan file mtimes keyed by root-relative
+   * path. On a match against the file's on-disk `mtime` (already supplied
+   * by the TOCTOU `lstat`, zero extra syscalls), the walker SKIPS the
+   * `readFile` + parse and yields a lightweight `unchanged` record with a
+   * lazy `reread`. This is the dominant saving on a re-scan: an unchanged
+   * corpus pays a stat per file, not a full read + YAML parse. Absent
+   * means "read every file" (the full-scan default).
+   */
+  priorMtimes?: ReadonlyMap<string, number>;
+  /**
+   * Scoped-walk hint for the watcher's incremental path: an explicit
+   * list of ABSOLUTE file paths to read instead of traversing the
+   * roots. When supplied, `walkContent` does NOT call `readdir` / walk
+   * the tree at all; it reads ONLY these paths (those that match
+   * `extensions`, exist on disk, and pass the size guard) and yields a
+   * normal `IRawNode` per match. A scoped path whose extension does not
+   * match is skipped (another provider may claim it). This is the
+   * traversal-elimination win: a file save re-reads one file rather
+   * than `lstat`-ing the whole corpus. Absent → the walker traverses
+   * the roots as usual (full-scan + mtime-gate path). When both
+   * `scopedPaths` and `priorMtimes` are set, `scopedPaths` wins (the
+   * caller already knows exactly what changed, there is nothing to gate).
+   */
+  scopedPaths?: readonly string[];
 }
 
 export class UnknownParserError extends Error {
@@ -109,33 +135,221 @@ export async function* walkContent(
   const filter: IIgnoreFilter = options.ignoreFilter ?? buildIgnoreFilter();
   const extensions = options.extensions;
   const sizeLimit = buildSizeLimit(options);
+
+  // Scoped read (watcher incremental path): the caller handed us the
+  // exact list of changed files, so skip the directory traversal
+  // entirely and read only those. See `IWalkContentOptions.scopedPaths`.
+  if (options.scopedPaths !== undefined) {
+    yield* walkScoped(roots, options.scopedPaths, extensions, sizeLimit, parser);
+    return;
+  }
+
   for (const root of roots) {
     for await (const entry of walkRoot(root, root, filter, extensions, sizeLimit)) {
       const relPath = relative(root, entry.full).split(sep).join('/');
-      let raw: string;
-      try {
-        raw = await readFile(entry.full, 'utf8');
-      } catch {
-        // silently skip unreadable files
-        continue;
-      }
-      const parsed = parser.parse(raw, relPath);
-      yield {
-        path: relPath,
-        body: parsed.body,
-        frontmatterRaw: parsed.frontmatterRaw,
-        frontmatter: parsed.frontmatter,
-        // File mtime from the TOCTOU `lstat` (zero extra syscalls).
-        // Threaded onto the persisted `Node` as `modifiedAtMs`.
-        modifiedAtMs: entry.modifiedAtMs,
-        // Audit L1: forward parser diagnostics (e.g. malformed YAML)
-        // through the IRawNode surface so the orchestrator can
-        // convert them into warn-level kernel `Issue` rows. Omitted
-        // when the parser reported no issues (happy path).
-        ...(parsed.issues && parsed.issues.length > 0 ? { parseIssues: parsed.issues } : {}),
-      };
+      const rec = await traversedEntryToNode(entry, relPath, options.priorMtimes, parser);
+      if (rec !== null) yield rec;
     }
   }
+}
+
+/**
+ * Turn one traversed `IWalkEntry` into the `IRawNode` to yield, or `null`
+ * when the file is unreadable (silently skipped). Splits the two branches
+ * the traversal loop used to inline: the mtime-match `unchanged` fast path
+ * (yields a lightweight record whose body is read lazily) versus the full
+ * read + parse path. Keeps `walkContent` itself under the complexity cap.
+ */
+async function traversedEntryToNode(
+  entry: IWalkEntry,
+  relPath: string,
+  priorMtimes: ReadonlyMap<string, number> | undefined,
+  parser: ReturnType<typeof getParser>,
+): Promise<IRawNode | null> {
+  // Incremental fast path: the file's mtime matches the prior scan, so
+  // its body is byte-identical. Skip the read + parse (the dominant
+  // per-file cost) and yield a lightweight `unchanged` record. The
+  // orchestrator reuses the prior node and calls `reread` only if a
+  // sidecar edit forces re-extraction.
+  const priorMtime = priorMtimes?.get(relPath);
+  if (priorMtime !== undefined && priorMtime === entry.modifiedAtMs) {
+    return buildUnchangedRecord(entry.full, relPath, entry.modifiedAtMs, parser);
+  }
+
+  const parsed = await readAndParse(entry.full, relPath, parser);
+  if (parsed === null) return null; // unreadable, silently skipped
+  return {
+    path: relPath,
+    body: parsed.body,
+    frontmatterRaw: parsed.frontmatterRaw,
+    frontmatter: parsed.frontmatter,
+    // File mtime from the TOCTOU `lstat` (zero extra syscalls).
+    // Threaded onto the persisted `Node` as `modifiedAtMs`.
+    modifiedAtMs: entry.modifiedAtMs,
+    // Audit L1: forward parser diagnostics (e.g. malformed YAML)
+    // through the IRawNode surface so the orchestrator can
+    // convert them into warn-level kernel `Issue` rows. Omitted
+    // when the parser reported no issues (happy path).
+    ...(parsed.parseIssues ? { parseIssues: parsed.parseIssues } : {}),
+  };
+}
+
+/**
+ * Build the lightweight `unchanged` record the mtime fast path yields. The
+ * body / frontmatter are empty placeholders; the real read + parse is
+ * deferred to the lazy `reread`, which shares `readAndParse` with the eager
+ * path and degrades to empty content when the file vanished mid-scan.
+ */
+function buildUnchangedRecord(
+  full: string,
+  relPath: string,
+  modifiedAtMs: number,
+  parser: ReturnType<typeof getParser>,
+): IRawNode {
+  return {
+    path: relPath,
+    body: '',
+    frontmatterRaw: '',
+    frontmatter: {},
+    modifiedAtMs,
+    unchanged: true,
+    reread: async () => {
+      const re = await readAndParse(full, relPath, parser);
+      // `null` => the file vanished between the walk and the reread
+      // (rare race). Degrade to empty content so the re-extract pass
+      // emits nothing for it rather than throwing mid-batch.
+      return re ?? { body: '', frontmatterRaw: '', frontmatter: {} };
+    },
+  };
+}
+
+/**
+ * Scoped read path: yield one `IRawNode` per explicit absolute path
+ * that matches `extensions`, still exists on disk, and passes the size
+ * guard. NO directory traversal: this is the watcher's incremental win,
+ * a save re-reads only the changed file(s) rather than `lstat`-ing the
+ * whole corpus. Each path is resolved RELATIVE to the first root that
+ * contains it so the yielded `path` is the same root-relative POSIX form
+ * the traversal path emits (and the same form prior `node.path` carries).
+ * A path under none of the roots, or whose extension does not match, is
+ * skipped (another provider may claim it on its own scoped walk).
+ */
+async function* walkScoped(
+  roots: readonly string[],
+  scopedPaths: readonly string[],
+  extensions: readonly string[],
+  sizeLimit: IWalkSizeLimit,
+  parser: ReturnType<typeof getParser>,
+): AsyncIterable<IRawNode> {
+  const absRoots = roots.map((r) => (isAbsolute(r) ? r : resolve(r)));
+  for (const scoped of scopedPaths) {
+    const rec = await scopedPathToNode(scoped, absRoots, extensions, sizeLimit, parser);
+    if (rec !== null) yield rec;
+  }
+}
+
+/**
+ * Turn one scoped absolute path into the `IRawNode` to yield, or `null`
+ * when it should be skipped (outside every root, extension mismatch,
+ * vanished, non-regular, oversized, or unreadable). Splits the per-path
+ * work out of `walkScoped` so that loop body stays a one-line dispatch.
+ */
+async function scopedPathToNode(
+  scoped: string,
+  absRoots: readonly string[],
+  extensions: readonly string[],
+  sizeLimit: IWalkSizeLimit,
+  parser: ReturnType<typeof getParser>,
+): Promise<IRawNode | null> {
+  const full = isAbsolute(scoped) ? scoped : resolve(scoped);
+  const relPath = relativeFromRoots(full, absRoots);
+  if (relPath === null) return null; // outside every root
+  if (!hasMatchingExtension(full, extensions)) return null; // not this provider's
+  const s = await statRegularFile(full, relPath, sizeLimit);
+  if (s === null) return null; // vanished, non-regular, or oversized
+  const parsed = await readAndParse(full, relPath, parser);
+  if (parsed === null) return null; // unreadable, silently skipped
+  return {
+    path: relPath,
+    body: parsed.body,
+    frontmatterRaw: parsed.frontmatterRaw,
+    frontmatter: parsed.frontmatter,
+    modifiedAtMs: Math.round(s.mtimeMs),
+    ...(parsed.parseIssues ? { parseIssues: parsed.parseIssues } : {}),
+  };
+}
+
+/**
+ * TOCTOU-aligned stat for the scoped path: `lstat` re-verifies the entry
+ * is a regular file (not a symlink / socket / FIFO swapped in) and supplies
+ * the size for the oversized guard, all before the read. Returns the
+ * `Stats` for a passing regular file, or `null` when the path vanished, is
+ * not a regular file, or exceeds the size limit (reporting it as oversized).
+ */
+async function statRegularFile(
+  full: string,
+  relPath: string,
+  sizeLimit: IWalkSizeLimit,
+): Promise<import('node:fs').Stats | null> {
+  let s;
+  try {
+    s = await lstat(full);
+  } catch {
+    return null; // vanished between the chokidar event and the read
+  }
+  if (!s.isFile()) return null;
+  if (sizeLimit.maxFileSizeBytes !== undefined && s.size > sizeLimit.maxFileSizeBytes) {
+    sizeLimit.onOversizedFile?.({ path: relPath, bytes: s.size });
+    return null;
+  }
+  return s;
+}
+
+/**
+ * Resolve `full` to the root-relative POSIX path under the first root
+ * that contains it, or `null` when it sits under none. Mirrors the
+ * `relative(root, full).split(sep).join('/')` form the traversal path
+ * emits so scoped and traversed nodes share the same `path` shape.
+ */
+function relativeFromRoots(full: string, absRoots: readonly string[]): string | null {
+  for (const root of absRoots) {
+    const rel = relative(root, full);
+    if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) continue;
+    return rel.split(sep).join('/');
+  }
+  return null;
+}
+
+/**
+ * Read a file and run the configured parser over it. Shared by the
+ * walker's eager path and the lazy `reread` on `unchanged` records.
+ * Returns `null` (eager path: skip the file) when the read fails; the
+ * lazy `reread` callers map `null` onto empty content (the file vanished
+ * between the walk and the reread, a rare race).
+ */
+async function readAndParse(
+  full: string,
+  relPath: string,
+  parser: ReturnType<typeof getParser>,
+): Promise<{
+  body: string;
+  frontmatterRaw: string;
+  frontmatter: Record<string, unknown>;
+  parseIssues?: readonly IParseIssue[];
+} | null> {
+  let raw: string;
+  try {
+    raw = await readFile(full, 'utf8');
+  } catch {
+    return null;
+  }
+  const parsed = parser!.parse(raw, relPath);
+  return {
+    body: parsed.body,
+    frontmatterRaw: parsed.frontmatterRaw,
+    frontmatter: parsed.frontmatter,
+    ...(parsed.issues && parsed.issues.length > 0 ? { parseIssues: parsed.issues } : {}),
+  };
 }
 
 /**

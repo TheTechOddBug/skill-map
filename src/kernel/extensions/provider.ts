@@ -57,6 +57,26 @@ export interface IRawNode {
    * Empty / undefined on the happy path.
    */
   parseIssues?: readonly IParseIssue[];
+  /**
+   * Incremental-walk fast path. `true` when the walker matched this
+   * file's on-disk `mtime` against the prior scan snapshot (via
+   * `IProviderWalkOptions.priorMtimes`) and SKIPPED reading + parsing the
+   * body, the dominant per-file cost. For such a record `body` /
+   * `frontmatter` / `frontmatterRaw` are empty placeholders: the
+   * orchestrator reuses the prior node verbatim and reads the body
+   * (through `reread`) ONLY when a sidecar change forces re-extraction.
+   * Absent / `false` means a normal record whose body was read eagerly.
+   */
+  unchanged?: boolean;
+  /**
+   * Present only on an `unchanged` record: a lazy reader that performs
+   * the deferred `readFile` + parse and returns the body / frontmatter
+   * the walker skipped. The orchestrator calls it only when it must
+   * actually re-extract (a sidecar edit on an otherwise-unchanged file).
+   * Keeps the read + parse logic in the walker (single source) rather
+   * than duplicating it in the orchestrator.
+   */
+  reread?: () => Promise<Pick<IRawNode, 'body' | 'frontmatterRaw' | 'frontmatter' | 'parseIssues'>>;
 }
 
 /**
@@ -578,6 +598,30 @@ export interface IProviderWalkOptions {
   ignoreFilter?: IIgnoreFilter;
   maxFileSizeBytes?: number;
   onOversizedFile?: (info: { path: string; bytes: number }) => void;
+  /**
+   * Incremental-walk hint: prior-scan file mtimes keyed by root-relative
+   * path (the same form as `IRawNode.path`). When supplied, the kernel
+   * walker compares each file's on-disk `mtime` against this map and, on
+   * a match, yields a lightweight `unchanged` record WITHOUT reading or
+   * parsing the body (the dominant cost on a re-scan). The orchestrator
+   * builds this from the prior snapshot only when cache reuse is on and
+   * the tokenizer is unchanged; absent means "read every file" (the
+   * full-scan default). A Provider shipping its own `walk()` MAY honour
+   * it for the same speedup but is not required to.
+   */
+  priorMtimes?: ReadonlyMap<string, number>;
+  /**
+   * Scoped-walk hint for the watcher's incremental path: an explicit
+   * list of ABSOLUTE file paths to read instead of traversing the
+   * roots. When supplied, the kernel walker skips traversal entirely and
+   * reads ONLY these paths (those matching the provider's `extensions`,
+   * existing on disk, passing the size guard), yielding a normal
+   * `IRawNode` per match. Built by the orchestrator from chokidar's
+   * changed-path list; absent means "traverse the roots" (the full-scan
+   * default). A Provider shipping its own `walk()` MAY honour it for the
+   * same speedup but is not required to.
+   */
+  scopedPaths?: readonly string[];
 }
 
 /**
@@ -636,19 +680,45 @@ export function resolveProviderWalk(
     return walk;
   }
   const read = provider.read ?? DEFAULT_READ_CONFIG;
-  return (roots, options) => {
-    // `ignoreFilter` / `onOversizedFile` are optional under
-    // `exactOptionalPropertyTypes`; only set each key when the caller
-    // supplied it so the walker's default-fallback paths are preserved.
-    const walkOptions: import('../scan/walk-content.js').IWalkContentOptions = {
-      extensions: read.extensions,
-      parser: read.parser,
-    };
-    if (options?.ignoreFilter) walkOptions.ignoreFilter = options.ignoreFilter;
-    if (options?.maxFileSizeBytes !== undefined) {
-      walkOptions.maxFileSizeBytes = options.maxFileSizeBytes;
-    }
-    if (options?.onOversizedFile) walkOptions.onOversizedFile = options.onOversizedFile;
-    return walkContent(roots, walkOptions);
+  return (roots, options) => walkContent(roots, buildWalkContentOptions(read, options));
+}
+
+/**
+ * Assemble the kernel walker's `IWalkContentOptions` from a Provider's
+ * declarative `read` config plus the per-invocation walk options. Each
+ * optional key is set only when the caller supplied it (the keys are
+ * optional under `exactOptionalPropertyTypes`, so the walker's default-
+ * fallback paths are preserved). Extracted from `resolveProviderWalk` so
+ * the returned walk closure stays under the complexity cap.
+ */
+function buildWalkContentOptions(
+  read: IProviderReadConfig,
+  options: IProviderWalkOptions | undefined,
+): import('../scan/walk-content.js').IWalkContentOptions {
+  const walkOptions: import('../scan/walk-content.js').IWalkContentOptions = {
+    extensions: read.extensions,
+    parser: read.parser,
   };
+  if (options) copyOptionalWalkOptions(walkOptions, options);
+  return walkOptions;
+}
+
+/**
+ * Copy the per-invocation walk knobs onto `walkOptions`, setting each key
+ * only when supplied so the walker's default-fallback paths survive under
+ * `exactOptionalPropertyTypes`. Takes a guaranteed-defined `options` (the
+ * caller already null-checked) so each guard is a single branch, keeping
+ * both this helper and `buildWalkContentOptions` under the complexity cap.
+ */
+function copyOptionalWalkOptions(
+  walkOptions: import('../scan/walk-content.js').IWalkContentOptions,
+  options: IProviderWalkOptions,
+): void {
+  if (options.ignoreFilter) walkOptions.ignoreFilter = options.ignoreFilter;
+  if (options.maxFileSizeBytes !== undefined) {
+    walkOptions.maxFileSizeBytes = options.maxFileSizeBytes;
+  }
+  if (options.onOversizedFile) walkOptions.onOversizedFile = options.onOversizedFile;
+  if (options.priorMtimes) walkOptions.priorMtimes = options.priorMtimes;
+  if (options.scopedPaths) walkOptions.scopedPaths = options.scopedPaths;
 }

@@ -438,6 +438,38 @@ export interface RunScanOptions {
    * size limit (out-of-band callers and synthetic fixtures stay safe).
    */
   maxFileSizeBytes?: number;
+  /**
+   * Watcher-only incremental fast path (pure perf, identical output to a
+   * full scan). When supplied AND a prior snapshot exists AND
+   * `enableCache` is on AND the tokenizer is unchanged, the orchestrator
+   * does NOT traverse the directory tree. Instead it:
+   *
+   *   - re-reads + re-extracts ONLY the files in `changed` (scoped read,
+   *     no `readdir`), and
+   *   - injects every other prior node as an `unchanged` record through
+   *     the SAME cache machinery the mtime-gate uses (`applyFullCacheHit`),
+   *     reusing its node + links + extractor runs verbatim, and
+   *   - drops the files in `removed` (the rename / orphan heuristic over
+   *     prior-vs-merged handles the disappearance + any rename).
+   *
+   * Paths are root-relative POSIX (the same form as `node.path`). A
+   * sidecar (`.sm`) path in either set is mapped to its `.md` node so a
+   * sidecar edit re-processes the node. The downstream analysis phases
+   * (resolver, post-walk transforms, analyzers, broken-ref,
+   * name-collision) always run over the fully-merged graph, so global
+   * validation stays correct (a changed file's new link to an unchanged
+   * file resolves; an unchanged file's link to a removed file breaks).
+   *
+   * `filesWalked` reflects only the scoped reads (far fewer than the
+   * corpus), `scanTruncated` stays `false` (the ceiling never fires on a
+   * scoped read). Absent (boot, `sm scan`, `sm scan --changed`,
+   * meta-file change) falls back to the full-traversal + mtime-gate path,
+   * byte-identical to today.
+   */
+  incrementalChangedPaths?: {
+    changed: ReadonlySet<string>;
+    removed: ReadonlySet<string>;
+  };
 }
 
 /**
@@ -539,6 +571,18 @@ async function runScanInternal(
     overrideMaxRenderNodes: options.overrideMaxRenderNodes ?? null,
     ...(options.maxFileSizeBytes !== undefined
       ? { maxFileSizeBytes: options.maxFileSizeBytes }
+      : {}),
+    // Watcher incremental fast path: only honoured when a prior exists,
+    // cache reuse is on, and the tokenizer is unchanged (else a scoped
+    // read would skip nodes whose token counts must be recomputed). The
+    // walker enumerates from the prior snapshot + reads only the changed
+    // files instead of traversing the corpus. Falls back to the full
+    // traversal + mtime-gate when the gate does not hold.
+    ...(options.incrementalChangedPaths !== undefined &&
+    prior !== null &&
+    setup.enableCache &&
+    !tokenizerChanged
+      ? { incrementalChangedPaths: options.incrementalChangedPaths }
       : {}),
   });
 

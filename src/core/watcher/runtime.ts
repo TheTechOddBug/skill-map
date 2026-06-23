@@ -51,6 +51,7 @@ import {
   createKernel,
   runScanWithRenames,
   type IFsWatcher,
+  type IWatchEvent,
 } from '../../kernel/index.js';
 import type {
   IEnrichmentRecord,
@@ -58,7 +59,7 @@ import type {
   RenameOp,
   ScanResult,
 } from '../../kernel/index.js';
-import { dirname } from 'node:path';
+import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { loadConfig } from '../../kernel/config/loader.js';
@@ -339,6 +340,101 @@ async function rebuildWatcherDbOnDrift(
   }
 }
 
+/**
+ * Root-relative POSIX changed / removed path sets derived from one
+ * chokidar batch, threaded into the orchestrator's scoped incremental
+ * walk. `changed` = add / change events (re-read + re-extract); `removed`
+ * = unlink events (dropped, rename heuristic handles the disappearance).
+ */
+interface IIncrementalPaths {
+  changed: Set<string>;
+  removed: Set<string>;
+}
+
+/** Run-options shape `runScanWithRenames` consumes (one source of truth). */
+type IWatcherRunOptions = Parameters<typeof runScanWithRenames>[1];
+
+/**
+ * Prior snapshot + prior extractor runs loaded once per batch, or `null`
+ * when there is no prior scan. Shaped off the `runOptions` fields it feeds
+ * so we avoid re-importing the loader return types.
+ */
+interface IWatcherPriorState {
+  snapshot: NonNullable<IWatcherRunOptions['priorSnapshot']>;
+  extractorRuns: NonNullable<IWatcherRunOptions['priorExtractorRuns']>;
+}
+
+/**
+ * Wire the prior snapshot + extractor runs (and, when chokidar handed us
+ * the exact changed-path set, the scoped incremental walk) onto the per-
+ * batch `runOptions`. Extracted from `runOnePass` so that closure stays
+ * under the complexity cap. No-op when there is no prior scan.
+ *
+ * The watcher wants cache reuse by default (re-walking unchanged files on
+ * every batch defeats the point of debouncing). Scoped incremental walk is
+ * applied ONLY when `changedPaths` is present (a primary file-change batch)
+ * AND a prior exists; the initial batch and the meta-file watcher pass no
+ * `changedPaths`, so they take the full traversal + mtime-gate path. The
+ * orchestrator falls back to the full walk if the tokenizer changed.
+ */
+function applyPriorStateToRunOptions(
+  runOptions: IWatcherRunOptions,
+  priorState: IWatcherPriorState | null,
+  changedPaths: IIncrementalPaths | undefined,
+): void {
+  if (!priorState) return;
+  runOptions.priorSnapshot = priorState.snapshot;
+  runOptions.enableCache = true;
+  runOptions.priorExtractorRuns = priorState.extractorRuns;
+  if (changedPaths) {
+    runOptions.incrementalChangedPaths = {
+      changed: changedPaths.changed,
+      removed: changedPaths.removed,
+    };
+  }
+}
+
+/**
+ * Convert a chokidar batch's absolute-path events into the root-relative
+ * POSIX sets the orchestrator's scoped walk consumes (same form as
+ * `node.path`). Events outside every watched root are dropped (chokidar
+ * should not emit them, but the orchestrator pairs paths against prior
+ * nodes by this exact form so a stray absolute path would never match).
+ * Returns `null` when no event mapped to a usable path, so the caller
+ * falls back to a full walk rather than a no-op scoped walk.
+ */
+function toIncrementalPaths(
+  events: readonly IWatchEvent[],
+  roots: readonly string[],
+  cwd: string,
+): IIncrementalPaths | null {
+  const absRoots = roots.map((r) => (isAbsolute(r) ? r : resolve(cwd, r)));
+  const changed = new Set<string>();
+  const removed = new Set<string>();
+  for (const ev of events) {
+    const rel = relativeFromRoots(ev.absolutePath, absRoots);
+    if (rel === null) continue;
+    if (ev.kind === 'unlink') removed.add(rel);
+    else changed.add(rel); // 'add' | 'change'
+  }
+  if (changed.size === 0 && removed.size === 0) return null;
+  return { changed, removed };
+}
+
+/**
+ * Root-relative POSIX form of `absolute` under the first containing
+ * root, or `null` when it sits under none. Mirrors the walker's
+ * `relative(root, full).split(sep).join('/')` convention.
+ */
+function relativeFromRoots(absolute: string, absRoots: readonly string[]): string | null {
+  for (const root of absRoots) {
+    const rel = relative(root, absolute);
+    if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) continue;
+    return rel.split(sep).join('/');
+  }
+  return null;
+}
+
 export function createWatcherRuntime(
   opts: ICreateWatcherRuntimeOpts,
 ): IWatcherRuntimeHandle {
@@ -403,7 +499,10 @@ export function createWatcherRuntime(
   // Forward declaration, `start()` builds the closure once both
   // ignoreFilter and pluginRuntime are in scope. Invoked from the
   // chokidar onBatch callbacks AND the meta-file watcher's onBatch.
-  let handleBatch: (() => Promise<void>) | null = null;
+  // The optional `changedPaths` carries chokidar's exact add/change/
+  // unlink set so `runOnePass` can take the scoped incremental walk;
+  // the meta-file watcher and the initial batch pass nothing (full walk).
+  let handleBatch: ((changedPaths?: IIncrementalPaths) => Promise<void>) | null = null;
 
   const start = async (): Promise<void> => {
     // Pre-1.0 schema-drift rebuild, once before any DB open: if the
@@ -456,7 +555,7 @@ export function createWatcherRuntime(
       events.onBatchStart?.();
     };
 
-    const runOnePass = async (): Promise<ScanResult> => {
+    const runOnePass = async (changedPaths?: IIncrementalPaths): Promise<ScanResult> => {
       // Fire BEFORE any scan work so adapters can light a "scanning"
       // indicator. Hooked here (not in handleBatch / runInitial) so the
       // initial batch and every follow-up batch are covered without
@@ -546,13 +645,7 @@ export function createWatcherRuntime(
         }
       }
       if (composed) runOptions.extensions = composed;
-      if (priorState) {
-        runOptions.priorSnapshot = priorState.snapshot;
-        // The watcher wants cache reuse by default, re-walking unchanged
-        // files on every batch defeats the point of debouncing.
-        runOptions.enableCache = true;
-        runOptions.priorExtractorRuns = priorState.extractorRuns;
-      }
+      applyPriorStateToRunOptions(runOptions, priorState, changedPaths);
 
       const ran = await runScanWithRenames(kernel, runOptions);
       const {
@@ -589,11 +682,11 @@ export function createWatcherRuntime(
     // (success vs failure, breaker on/off, maxBatches reached);
     // splitting into helpers would scatter the dispatch table.
     // eslint-disable-next-line complexity
-    handleBatch = async (): Promise<void> => {
+    handleBatch = async (changedPaths?: IIncrementalPaths): Promise<void> => {
       if (stopped) return;
       batchCount++;
       try {
-        const result = await runOnePass();
+        const result = await runOnePass(changedPaths);
         consecutiveFailures = 0;
         events.onBatch?.({ kind: 'ok', result });
       } catch (err) {
@@ -651,8 +744,15 @@ export function createWatcherRuntime(
         // `.skill-map/settings.json` edit, and chokidar's `ignored`
         // predicate must read the current value on every event.
         ignoreFilter: (): IIgnoreFilter => ignoreFilter,
-        onBatch: async () => {
-          if (handleBatch) await handleBatch();
+        onBatch: async ({ events: batchEvents }) => {
+          if (!handleBatch) return;
+          // Thread chokidar's exact changed-path list into the scoped
+          // incremental walk. When the batch maps to no usable path
+          // (everything outside the roots), `toIncrementalPaths` returns
+          // null and we fall back to a full walk (passing no argument).
+          const changedPaths = toIncrementalPaths(batchEvents, opts.roots, cwd);
+          if (changedPaths) await handleBatch(changedPaths);
+          else await handleBatch();
         },
         onError: (err) => {
           events.onWatcherError?.(err.message);

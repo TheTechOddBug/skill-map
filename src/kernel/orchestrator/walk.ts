@@ -10,6 +10,8 @@
  * them.
  */
 
+import { isAbsolute, resolve } from 'node:path';
+
 // js-tiktoken ships CJS subpaths without explicit `.cjs` in the import
 // specifier; type-only imports survive lint without the disable that
 // the value-import sites need.
@@ -149,6 +151,30 @@ export interface IWalkAndExtractOptions {
    * `IWalkAndExtractResult.oversizedFiles`. Absent → no size limit.
    */
   maxFileSizeBytes?: number;
+  /**
+   * Watcher-only incremental fast path. Set ONLY by `runScanInternal`
+   * after it has confirmed the gate (prior exists, `enableCache`,
+   * tokenizer unchanged). Root-relative POSIX paths, `changed` = files
+   * to re-read + re-extract (chokidar add / change), `removed` = files
+   * to drop (chokidar unlink). When present, `walkAndExtract` enumerates
+   * the corpus from the prior snapshot rather than traversing roots:
+   *
+   *   - changed files run a SCOPED provider walk (`scopedPaths`) so only
+   *     they are read + re-extracted through the normal `processRawNode`
+   *     pipeline (classify + cache decision);
+   *   - every other prior node is injected as an `unchanged` record
+   *     through that SAME pipeline so it flows through the tested
+   *     `applyFullCacheHit` reuse machinery (node + links + extractor
+   *     runs preserved, sidecar re-resolved);
+   *   - removed files are simply not injected; the rename / orphan
+   *     heuristic over prior-vs-merged handles their disappearance.
+   *
+   * Absent → the full traversal + mtime-gate path (unchanged).
+   */
+  incrementalChangedPaths?: {
+    changed: ReadonlySet<string>;
+    removed: ReadonlySet<string>;
+  };
 }
 
 export interface IWalkAndExtractResult {
@@ -405,12 +431,20 @@ export async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWal
     oversizedSeen.add(info.path);
     oversizedFiles.push(info);
   };
+  // Incremental walk: when cache reuse is on, hand the walker the prior
+  // file mtimes so it can skip reading + parsing unchanged bodies (the
+  // dominant per-file cost on a re-scan). `undefined` => read every file.
+  const priorMtimes = buildPriorMtimes(opts);
   const walkOptions: import('../extensions/provider.js').IProviderWalkOptions = {
     ...(opts.ignoreFilter ? { ignoreFilter: opts.ignoreFilter } : {}),
     onOversizedFile,
     ...(opts.maxFileSizeBytes !== undefined ? { maxFileSizeBytes: opts.maxFileSizeBytes } : {}),
+    ...(priorMtimes ? { priorMtimes } : {}),
   };
-  let filesWalked = 0;
+  // Assigned in both branches below (incremental fast path vs full
+  // traversal); no initializer so the dead `= 0` does not trip
+  // `no-useless-assignment`.
+  let filesWalked: number;
   let index = 0;
 
   // Walk-intake ceiling, see `IWalkAndExtractOptions.scanCeiling`. The
@@ -444,16 +478,32 @@ export async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWal
     const advanced = await processRawNode(raw, provider, wctx, accum, claimedPaths, index + 1);
     if (advanced) index += 1;
   };
-  outer: for (const provider of activeProviders) {
-    for await (const raw of resolveProviderWalk(provider)(opts.roots, walkOptions)) {
-      filesWalked += 1;
-      if (claimedPaths.has(raw.path)) continue;
-      if (accum.nodes.length >= effectiveScanCeiling) {
-        capReached = true;
-        break outer;
-      }
-      await advance(raw, provider);
-    }
+
+  if (opts.incrementalChangedPaths !== undefined) {
+    // Watcher incremental fast path: enumerate from the prior snapshot +
+    // read only the changed files, no directory traversal. See the
+    // helper for the changed / unchanged / removed split.
+    filesWalked = await walkIncremental({
+      changedPaths: opts.incrementalChangedPaths,
+      activeProviders,
+      walkOptions,
+      wctx,
+      accum,
+      claimedPaths,
+      advance,
+    });
+  } else {
+    const full = await walkFullTraversal({
+      activeProviders,
+      roots: opts.roots,
+      walkOptions,
+      accum,
+      claimedPaths,
+      effectiveScanCeiling,
+      advance,
+    });
+    filesWalked = full.filesWalked;
+    capReached = full.capReached;
   }
 
   // Spec § 9.6.2, orphan sidecar sweep. Walks the same roots
@@ -485,6 +535,238 @@ export async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWal
 }
 
 /**
+ * Arguments for `walkFullTraversal`. Bundled so `walkAndExtract` hands the
+ * full-scan branch one object instead of seven loose parameters.
+ */
+interface IWalkFullTraversalArgs {
+  activeProviders: readonly IProvider[];
+  roots: readonly string[];
+  walkOptions: import('../extensions/provider.js').IProviderWalkOptions;
+  accum: IWalkAccumulators;
+  claimedPaths: Set<string>;
+  effectiveScanCeiling: number;
+  advance: (raw: IRawNode, provider: IProvider) => Promise<void>;
+}
+
+/**
+ * Full-scan traversal branch of `walkAndExtract`: walk every active
+ * Provider's roots in iteration order, honouring the `claimedPaths` dedup
+ * and the walk-intake ceiling (breaks out of BOTH loops when reached).
+ * Extracted so the `incrementalChangedPaths` branch no longer tips
+ * `walkAndExtract` over the complexity cap. Returns the files-walked count
+ * and whether the ceiling truncated the walk.
+ */
+async function walkFullTraversal(
+  args: IWalkFullTraversalArgs,
+): Promise<{ filesWalked: number; capReached: boolean }> {
+  let filesWalked = 0;
+  let capReached = false;
+  outer: for (const provider of args.activeProviders) {
+    for await (const raw of resolveProviderWalk(provider)(args.roots as string[], args.walkOptions)) {
+      filesWalked += 1;
+      if (args.claimedPaths.has(raw.path)) continue;
+      if (args.accum.nodes.length >= args.effectiveScanCeiling) {
+        capReached = true;
+        break outer;
+      }
+      await args.advance(raw, provider);
+    }
+  }
+  return { filesWalked, capReached };
+}
+
+/**
+ * Arguments for `walkIncremental`. Bundled so the helper signature stays
+ * short and the watcher fast path threads one object instead of eight
+ * loose parameters.
+ */
+interface IWalkIncrementalArgs {
+  changedPaths: { changed: ReadonlySet<string>; removed: ReadonlySet<string> };
+  activeProviders: readonly IProvider[];
+  walkOptions: import('../extensions/provider.js').IProviderWalkOptions;
+  wctx: IWalkContext;
+  accum: IWalkAccumulators;
+  claimedPaths: Set<string>;
+  advance: (raw: IRawNode, provider: IProvider) => Promise<void>;
+}
+
+/**
+ * Watcher incremental fast path. Enumerates the corpus from the prior
+ * snapshot rather than traversing the roots:
+ *
+ *   1. Map any changed / removed `.sm` sidecar path to its `.md` node so
+ *      a sidecar edit re-processes the node.
+ *   2. CHANGED pass: run each active provider's walk with `scopedPaths`
+ *      set to the absolute changed paths, so only those files are read +
+ *      re-extracted through the existing `processRawNode` (full path:
+ *      classify + cache decision). Honours `claimedPaths` dedup and the
+ *      active-lens provider filter exactly as the full walk does.
+ *   3. UNCHANGED pass: for every prior node NOT in changed, NOT in
+ *      removed, and not already claimed by the changed pass, inject an
+ *      `unchanged` `IRawNode` through the SAME `processRawNode` pipeline
+ *      so it flows through the tested `applyFullCacheHit` reuse path.
+ *
+ * Removed files are intentionally not injected; the rename / orphan
+ * heuristic over prior-vs-merged handles their disappearance + renames.
+ * Returns the number of files walked (scoped reads + injected prior
+ * nodes), surfaced as `filesWalked`.
+ */
+async function walkIncremental(args: IWalkIncrementalArgs): Promise<number> {
+  const changed = expandSidecarPaths(args.changedPaths.changed, args.wctx.priorNodesByPath);
+  const removed = expandSidecarPaths(args.changedPaths.removed, args.wctx.priorNodesByPath);
+  let filesWalked = 0;
+
+  // CHANGED pass: scoped read of only the changed files, routed through
+  // each active provider in the same iteration order the full walk uses.
+  const scopedAbs = [...changed].map((rel) => toAbsolute(rel, args.wctx.opts.roots));
+  if (scopedAbs.length > 0) {
+    const scopedWalkOptions = { ...args.walkOptions, scopedPaths: scopedAbs };
+    for (const provider of args.activeProviders) {
+      for await (const raw of resolveProviderWalk(provider)(args.wctx.opts.roots, scopedWalkOptions)) {
+        filesWalked += 1;
+        if (args.claimedPaths.has(raw.path)) continue;
+        await args.advance(raw, provider);
+      }
+    }
+  }
+
+  // UNCHANGED pass: inject every other prior node as an `unchanged`
+  // record so the reuse machinery (`applyFullCacheHit`) runs verbatim.
+  filesWalked += await injectUnchangedPriorNodes(args, changed, removed);
+  return filesWalked;
+}
+
+/**
+ * Inject every prior node that did NOT change, was NOT removed, and was
+ * NOT already claimed by the changed pass as an `unchanged` `IRawNode`,
+ * matched to its prior provider. Each synthesized record carries a lazy
+ * `reread` that reads the `.md` via the provider's resolved parser, so
+ * the defensive partial-cache branch in `dispatchNode` still works if a
+ * sidecar somehow forces re-extraction. Returns the count injected.
+ */
+async function injectUnchangedPriorNodes(
+  args: IWalkIncrementalArgs,
+  changed: ReadonlySet<string>,
+  removed: ReadonlySet<string>,
+): Promise<number> {
+  const providerById = new Map(args.activeProviders.map((p) => [p.id, p]));
+  // Fallback for a prior node whose provider is no longer active: the
+  // first universal (un-gated) provider, mirroring the markdown
+  // fallback's role in the full walk.
+  const universalFallback =
+    args.activeProviders.find((p) => !p.gatedByActiveLens) ?? args.activeProviders[0];
+  let injected = 0;
+  for (const priorNode of args.wctx.opts.prior?.nodes ?? []) {
+    if (!shouldInjectPriorNode(priorNode, changed, removed, args.claimedPaths)) continue;
+    const provider = providerById.get(priorNode.provider) ?? universalFallback;
+    if (!provider) continue; // no providers active at all (degenerate)
+    const raw = buildUnchangedRawNode(priorNode, provider, args.wctx.opts.roots);
+    await args.advance(raw, provider);
+    injected += 1;
+  }
+  return injected;
+}
+
+/**
+ * Decide whether a prior node should be injected as an `unchanged` record
+ * on the watcher's incremental pass. Skips nodes already handled by the
+ * changed pass (changed / removed / claimed) and virtual / derived nodes
+ * (e.g. `mcp://…`) which carry no backing file and are re-materialised by
+ * the extractors that emit them. Extracted so the inject loop body stays
+ * linear and `injectUnchangedPriorNodes` clears the complexity cap.
+ */
+function shouldInjectPriorNode(
+  priorNode: Node,
+  changed: ReadonlySet<string>,
+  removed: ReadonlySet<string>,
+  claimedPaths: ReadonlySet<string>,
+): boolean {
+  const path = priorNode.path;
+  if (changed.has(path) || removed.has(path) || claimedPaths.has(path)) return false;
+  if (priorNode.virtual === true) return false;
+  return true;
+}
+
+/**
+ * Synthesize an `unchanged` `IRawNode` for a prior node so it flows
+ * through `processRawNode`'s unchanged fast path into `applyFullCacheHit`.
+ * Body / frontmatter are empty placeholders (the reuse path never reads
+ * them); `reread` lazily reads the real `.md` via the provider's parser
+ * if the defensive partial-cache branch ever needs it.
+ */
+function buildUnchangedRawNode(
+  priorNode: Node,
+  provider: IProvider,
+  roots: readonly string[],
+): IRawNode {
+  const path = priorNode.path;
+  return {
+    path,
+    body: '',
+    frontmatterRaw: '',
+    frontmatter: {},
+    ...(typeof priorNode.modifiedAtMs === 'number'
+      ? { modifiedAtMs: priorNode.modifiedAtMs }
+      : {}),
+    unchanged: true,
+    reread: async () => {
+      // Reuse the provider's resolved scoped read for ONE path so the
+      // read + parse logic stays in the walker (single source). The
+      // scoped walk yields at most one record for an existing `.md`.
+      const abs = toAbsolute(path, roots);
+      for await (const re of resolveProviderWalk(provider)(roots as string[], { scopedPaths: [abs] })) {
+        return {
+          body: re.body,
+          frontmatterRaw: re.frontmatterRaw,
+          frontmatter: re.frontmatter,
+          ...(re.parseIssues ? { parseIssues: re.parseIssues } : {}),
+        };
+      }
+      // The `.md` vanished between scans: degrade to empty content so the
+      // re-extract pass emits nothing for it rather than throwing.
+      return { body: '', frontmatterRaw: '', frontmatter: {} };
+    },
+  };
+}
+
+/**
+ * Fold any `.sm` sidecar path in `paths` into its paired `.md` NODE path
+ * so a sidecar edit re-processes the node it annotates. A `.sm` path maps
+ * to `<base>.md` (the inverse of `sidecarPathFor`); the result is added
+ * only when that `.md` actually exists in the prior snapshot (otherwise
+ * the sidecar is an orphan the orphan-sweep already handles). Non-`.sm`
+ * paths pass through unchanged.
+ */
+function expandSidecarPaths(
+  paths: ReadonlySet<string>,
+  priorNodesByPath: ReadonlyMap<string, Node>,
+): ReadonlySet<string> {
+  const out = new Set<string>();
+  for (const path of paths) {
+    if (path.endsWith('.sm')) {
+      const mdPath = `${path.slice(0, -'.sm'.length)}.md`;
+      if (priorNodesByPath.has(mdPath)) out.add(mdPath);
+      // else: orphan sidecar, no node to re-process; the orphan sweep
+      // over the live roots surfaces it as `annotation-orphan`.
+      continue;
+    }
+    out.add(path);
+  }
+  return out;
+}
+
+/**
+ * Resolve a root-relative POSIX node path to an absolute filesystem path
+ * under the first root. Mirrors the join the scoped walker reverses, the
+ * walker re-derives the same root-relative path from the absolute one.
+ */
+function toAbsolute(relPath: string, roots: readonly string[]): string {
+  const root = roots[0] ?? '.';
+  const absRoot = isAbsolute(root) ? root : resolve(root);
+  return resolve(absRoot, relPath);
+}
+
+/**
  * Resolve the two cap knobs to their effective values. The walk ceiling
  * (`scan.maxScan` / `--max-scan`) bounds the walk loop; the render cap
  * (`scan.maxNodes` / `--max-nodes`) is pure metadata. Both are
@@ -499,6 +781,27 @@ function resolveEffectiveCaps(
     effectiveScanCeiling: opts.overrideScanCeiling ?? opts.scanCeiling,
     effectiveMaxRenderNodes: opts.overrideMaxRenderNodes ?? opts.maxRenderNodes,
   };
+}
+
+/**
+ * Prior-scan file mtimes for the walker's incremental fast path, keyed
+ * by `node.path`. Built ONLY when cache reuse is on, a prior snapshot
+ * exists, AND the tokenizer is unchanged (a tokenizer swap must
+ * re-tokenize every body, so the read cannot be skipped). Restricted to
+ * prior nodes that carry a file mtime, virtual / derived nodes (e.g.
+ * `mcp://`) have none and are never walked. Returns `undefined` when the
+ * gate does not apply (or no prior node had an mtime), so the walker
+ * falls back to reading every file.
+ */
+function buildPriorMtimes(
+  opts: IWalkAndExtractOptions,
+): ReadonlyMap<string, number> | undefined {
+  if (!opts.enableCache || opts.prior === null || opts.tokenizerChanged) return undefined;
+  const map = new Map<string, number>();
+  for (const node of opts.prior.nodes) {
+    if (typeof node.modifiedAtMs === 'number') map.set(node.path, node.modifiedAtMs);
+  }
+  return map.size > 0 ? map : undefined;
 }
 
 /**
@@ -552,18 +855,14 @@ function buildWalkContext(opts: IWalkAndExtractOptions): IWalkContext {
  * Folds the per-node pipeline into one function so `walkAndExtract`'s
  * outer loop body stays a 2-liner:
  *
- *   - hash body / frontmatter
- *   - classify (early-return on `null`, disclaimed)
- *   - resolve sidecar + hash
- *   - compute cache decision
- *   - dispatch full-cache-hit vs partial/fresh branches
- *
- * Cyclomatic complexity counts every guard (provider-roots filter,
- * classify-null short-circuit, cache eligibility, full-cache vs
- * extract dispatch); the branches are deliberately flat. Splitting
- * the guard chain into helpers would scatter the per-node pipeline.
+ *   - enforce `Provider.roots` (disclaim early, before any hashing)
+ *   - incremental fast path: an `unchanged` record (walker matched the
+ *     mtime, skipped the read) reuses the prior node's kind + hashes
+ *   - otherwise hash body / frontmatter, classify (early-return on
+ *     `null`, disclaimed)
+ *   - hand off to `dispatchNode` (sidecar resolve + cache decision +
+ *     full-cache-hit vs partial/fresh dispatch), shared by both paths
  */
-// eslint-disable-next-line complexity
 async function processRawNode(
   raw: IRawNode,
   provider: IProvider,
@@ -572,20 +871,33 @@ async function processRawNode(
   claimedPaths: Set<string>,
   nextIndex: number,
 ): Promise<boolean> {
+  // Structure-as-truth: `Provider.roots` is enforcement-grade. A
+  // Provider with declared roots only sees files matching at least
+  // one glob; Providers without `roots` act as the fallback for any
+  // file no other Provider's roots claimed. Checked FIRST (before any
+  // hashing) so a disclaimed file costs nothing AND the unchanged
+  // fast-path below, which has no body to hash, shares the same gate.
+  if (Array.isArray(provider.roots) && provider.roots.length > 0) {
+    if (!matchesAnyRoot(raw.path, provider.roots)) return false;
+  }
+
+  // Incremental fast path: the walker matched this file's on-disk mtime
+  // against the prior snapshot and skipped reading its body. Handled in a
+  // dedicated helper so this function's top stays a thin dispatch; when it
+  // claims the node the helper returns `true` and we are done.
+  if (raw.unchanged === true) {
+    const handled = await handleUnchangedRawNode(raw, provider, wctx, accum, claimedPaths, nextIndex);
+    if (handled) return true;
+    // Helper fell through (prior node vanished, body reread): continue
+    // into the normal build path below.
+  }
+
   const bodyHash = sha256(raw.body);
   // Canonical-form rationale, hash a CANONICAL form of the
   // frontmatter so a YAML formatter pass (re-indent, sort keys,
   // normalise trailing newline, swap single↔double quotes) doesn't
   // break the medium-confidence rename heuristic.
   const frontmatterHash = sha256(canonicalFrontmatter(raw.frontmatter, raw.frontmatterRaw));
-
-  // Structure-as-truth: `Provider.roots` is enforcement-grade. A
-  // Provider with declared roots only sees files matching at least
-  // one glob; Providers without `roots` act as the fallback for any
-  // file no other Provider's roots claimed.
-  if (Array.isArray(provider.roots) && provider.roots.length > 0) {
-    if (!matchesAnyRoot(raw.path, provider.roots)) return false;
-  }
 
   const kind = provider.classify(raw.path, raw.frontmatter);
   if (kind === null) {
@@ -597,34 +909,132 @@ async function processRawNode(
   claimedPaths.add(raw.path);
 
   const priorNode = wctx.priorNodesByPath.get(raw.path);
-  // Cache reuse is gated on the explicit `enableCache` option. The
-  // presence of a `prior` alone is no longer enough, a plain
-  // `sm scan` always re-walks deterministically; only
-  // `sm scan --changed` flips `enableCache` on. The rename heuristic
-  // uses `prior` independently of `enableCache`.
-  const nodeHashCacheEligible =
+  const nodeHashCacheEligible = isNodeHashCacheEligible(wctx, priorNode, bodyHash, frontmatterHash);
+
+  await dispatchNode(
+    { raw, provider, kind, bodyHash, frontmatterHash, nodeHashCacheEligible, priorNode },
+    wctx,
+    accum,
+    nextIndex,
+  );
+  return true;
+}
+
+/**
+ * Whether a node may reuse its prior snapshot entry (full / partial cache).
+ * Gated on the explicit `enableCache` option (a plain `sm scan` always
+ * re-walks deterministically; only `sm scan --changed` flips it on, the
+ * rename heuristic uses `prior` independently of `enableCache`), with a
+ * tokenizer-change invalidation (a tokenizer swap rebuilds every node so
+ * `buildNode` re-tokenizes), plus a prior snapshot whose body + frontmatter
+ * hashes match. Extracted so the `&&` chain lives outside `processRawNode`
+ * and that function clears the complexity cap.
+ */
+function isNodeHashCacheEligible(
+  wctx: IWalkContext,
+  priorNode: Node | undefined,
+  bodyHash: string,
+  frontmatterHash: string,
+): boolean {
+  return (
     wctx.opts.enableCache &&
-    // Tokenizer-change invalidation: when the resolved encoder differs
-    // from the one that produced the prior snapshot's counts, no node is
-    // cache-eligible, every node rebuilds so `buildNode` re-tokenizes
-    // with the current encoder. See `tokenizerChanged` on the options.
     !wctx.opts.tokenizerChanged &&
     wctx.opts.prior !== null &&
     priorNode !== undefined &&
     priorNode.bodyHash === bodyHash &&
-    priorNode.frontmatterHash === frontmatterHash;
+    priorNode.frontmatterHash === frontmatterHash
+  );
+}
 
-  // Resolve the sidecar overlay BEFORE the cache decision so we can
-  // hash `overlay.annotations` and feed it into the cache key
-  // alongside body+frontmatter. A sidecar edit changes neither the
-  // body nor the frontmatter, so without this hash the cache would
-  // silently reuse stale contributions for any extractor that read
-  // the sidecar (e.g. `core/annotations`). Analyzers that read the
-  // sidecar (`core/node-stability`, `core/annotation-stale`, …) re-run
-  // every pass regardless, but the hash still matters for the
-  // extract-phase cache.
+/**
+ * Handle the incremental `unchanged` fast path for one raw node. The
+ * walker matched this file's on-disk mtime against the prior snapshot and
+ * skipped reading its body, so reuse the prior node's kind + hashes (the
+ * body is byte-identical); only the cheap sidecar resolution decides full
+ * vs partial cache, and the body is reread lazily (`ensureBody`) ONLY when
+ * a sidecar edit forces re-extraction. An unchanged corpus pays a stat per
+ * file, not a read + YAML parse.
+ *
+ * Returns `true` when the node was claimed + dispatched (caller returns
+ * `true`). Returns `false` only in the degenerate "prior node vanished for
+ * an unchanged-marked path" case (the map is built FROM the prior, so this
+ * should not happen): the body is read now and the caller falls through to
+ * the normal build path.
+ */
+async function handleUnchangedRawNode(
+  raw: IRawNode,
+  provider: IProvider,
+  wctx: IWalkContext,
+  accum: IWalkAccumulators,
+  claimedPaths: Set<string>,
+  nextIndex: number,
+): Promise<boolean> {
+  const prior = wctx.priorNodesByPath.get(raw.path);
+  if (prior) {
+    claimedPaths.add(raw.path);
+    await dispatchNode(
+      {
+        raw,
+        provider,
+        kind: prior.kind,
+        bodyHash: prior.bodyHash,
+        frontmatterHash: prior.frontmatterHash,
+        nodeHashCacheEligible: true,
+        priorNode: prior,
+        ensureBody: () => rereadInto(raw),
+      },
+      wctx,
+      accum,
+      nextIndex,
+    );
+    return true;
+  }
+  // Prior node vanished for an unchanged-marked path: read the body now so
+  // the caller's normal build path has real content to hash.
+  await rereadInto(raw);
+  return false;
+}
+
+/**
+ * Arguments for `dispatchNode`. Bundles the per-node identity (kind +
+ * hashes) the normal path computes and the unchanged fast-path lifts
+ * from the prior node, so both feed the same sidecar-resolve + cache
+ * decision + dispatch tail.
+ */
+interface IDispatchNodeArgs {
+  raw: IRawNode;
+  provider: IProvider;
+  kind: string;
+  bodyHash: string;
+  frontmatterHash: string;
+  nodeHashCacheEligible: boolean;
+  priorNode: Node | undefined;
+  /**
+   * Optional async body-loader invoked right before the extract path
+   * runs. The unchanged fast-path passes `rereadInto(raw)` here so the
+   * body is read ONLY when a sidecar edit forces re-extraction; the
+   * normal path omits it (the body was already read eagerly).
+   */
+  ensureBody?: () => Promise<void>;
+}
+
+/**
+ * Shared per-node tail: resolve the sidecar overlay (BEFORE the cache
+ * decision so its annotations hash feeds the cache key, a `.sm` edit
+ * changes neither body nor frontmatter yet must invalidate
+ * sidecar-reading extractors), compute the cache decision, then dispatch
+ * to the full-cache-hit branch or the partial / fresh extract path.
+ * Called by both the normal path and the unchanged fast-path in
+ * `processRawNode`.
+ */
+async function dispatchNode(
+  args: IDispatchNodeArgs,
+  wctx: IWalkContext,
+  accum: IWalkAccumulators,
+  nextIndex: number,
+): Promise<void> {
   const sidecarResolution = resolveSidecarOverlay(
-    raw.path, raw.path, wctx.opts.roots, bodyHash, frontmatterHash,
+    args.raw.path, args.raw.path, wctx.opts.roots, args.bodyHash, args.frontmatterHash,
   );
   const sidecarAnnotationsHash = sha256(
     canonicalSidecarAnnotations(sidecarResolution.overlay.annotations),
@@ -632,27 +1042,55 @@ async function processRawNode(
 
   const cacheDecision = computeCacheDecision({
     extractors: wctx.opts.extractors,
-    kind,
+    kind: args.kind,
     activeProvider: wctx.opts.activeProvider,
-    nodePath: raw.path,
-    bodyHash,
+    nodePath: args.raw.path,
+    bodyHash: args.bodyHash,
     sidecarAnnotationsHash,
-    nodeHashCacheEligible,
+    nodeHashCacheEligible: args.nodeHashCacheEligible,
     priorExtractorRuns: wctx.opts.priorExtractorRuns,
   });
 
   const ctx: IProcessNodeContext = {
-    raw, provider, kind, bodyHash, frontmatterHash, sidecarResolution,
-    sidecarAnnotationsHash, nodeHashCacheEligible, cacheDecision, priorNode,
+    raw: args.raw,
+    provider: args.provider,
+    kind: args.kind,
+    bodyHash: args.bodyHash,
+    frontmatterHash: args.frontmatterHash,
+    sidecarResolution,
+    sidecarAnnotationsHash,
+    nodeHashCacheEligible: args.nodeHashCacheEligible,
+    cacheDecision,
+    priorNode: args.priorNode,
     index: nextIndex,
   };
 
-  if (cacheDecision.fullCacheHit && priorNode) {
+  if (cacheDecision.fullCacheHit && args.priorNode) {
     applyFullCacheHit(ctx, wctx, accum);
   } else {
+    // Re-extract needs the body. On the unchanged fast-path the walker
+    // skipped the read, so pull it in now (a sidecar edit on an
+    // otherwise-unchanged file); the normal path has no `ensureBody` and
+    // already carries the body.
+    if (args.ensureBody) await args.ensureBody();
     await applyExtractPath(ctx, wctx, accum);
   }
-  return true;
+}
+
+/**
+ * Materialise the body of an `unchanged` raw node by invoking the
+ * walker's lazy `reread`, mutating the record in place and clearing the
+ * `unchanged` flag. No-op when the record carries no `reread` (a
+ * Provider with a custom `walk()` that never emits `unchanged`).
+ */
+async function rereadInto(raw: IRawNode): Promise<void> {
+  if (!raw.reread) return;
+  const re = await raw.reread();
+  raw.body = re.body;
+  raw.frontmatter = re.frontmatter;
+  raw.frontmatterRaw = re.frontmatterRaw;
+  raw.unchanged = false;
+  if (re.parseIssues) raw.parseIssues = re.parseIssues;
 }
 
 /**

@@ -6,6 +6,7 @@ import { join } from 'node:path';
 
 import { walkContent, UnknownParserError } from '../walk-content.js';
 import { buildIgnoreFilter } from '../ignore.js';
+import type { IRawNode } from '../../extensions/provider.js';
 
 let root: string;
 
@@ -321,5 +322,93 @@ describe('walkContent', () => {
   it('rejects the unknown parser id on the first iteration (resolves once at top of walk)', async () => {
     const it = walkContent([root], { extensions: ['.md'], parser: 'nope' })[Symbol.asyncIterator]();
     await rejects(it.next(), UnknownParserError);
+  });
+});
+
+describe('walkContent, incremental priorMtimes fast path', () => {
+  /** Capture the current on-disk mtimes via a plain (non-incremental) walk. */
+  async function captureMtimes(): Promise<Map<string, number>> {
+    const map = new Map<string, number>();
+    for await (const n of walkContent([root], { extensions: ['.md'], parser: 'frontmatter-yaml' })) {
+      map.set(n.path, n.modifiedAtMs!);
+    }
+    return map;
+  }
+
+  it('yields an `unchanged` record (no body read) when a file mtime matches priorMtimes', async () => {
+    const priorMtimes = await captureMtimes();
+    const byPath = new Map<string, IRawNode>();
+    for await (const n of walkContent([root], {
+      extensions: ['.md'],
+      parser: 'frontmatter-yaml',
+      priorMtimes,
+    })) {
+      byPath.set(n.path, n);
+    }
+
+    const a = byPath.get('docs/a.md');
+    ok(a, 'docs/a.md yielded');
+    strictEqual(a!.unchanged, true, 'matching mtime marks the record unchanged');
+    strictEqual(a!.body, '', 'unchanged record carries no body (read was skipped)');
+    deepStrictEqual(a!.frontmatter, {}, 'unchanged record carries empty frontmatter');
+    strictEqual(typeof a!.reread, 'function', 'unchanged record exposes a lazy reread');
+  });
+
+  it('reread() pulls the real body + frontmatter on demand', async () => {
+    const priorMtimes = await captureMtimes();
+    for await (const n of walkContent([root], {
+      extensions: ['.md'],
+      parser: 'frontmatter-yaml',
+      priorMtimes,
+    })) {
+      if (n.path !== 'docs/a.md') continue;
+      const re = await n.reread!();
+      strictEqual((re.frontmatter as { name?: string }).name, 'a');
+      strictEqual((re.frontmatter as { description?: string }).description, 'alpha');
+      strictEqual(re.body.trim(), 'body of a');
+      return;
+    }
+    ok(false, 'docs/a.md not yielded');
+  });
+
+  it('reads the body normally when the mtime does NOT match (changed file)', async () => {
+    // A deliberately stale mtime for one file forces the full read path.
+    const stale = new Map<string, number>([['docs/a.md', 1]]);
+    for await (const n of walkContent([root], {
+      extensions: ['.md'],
+      parser: 'frontmatter-yaml',
+      priorMtimes: stale,
+    })) {
+      if (n.path !== 'docs/a.md') continue;
+      ok(n.unchanged !== true, 'a mismatched mtime is not marked unchanged');
+      strictEqual(n.body.trim(), 'body of a', 'the body is read for a changed file');
+      return;
+    }
+    ok(false, 'docs/a.md not yielded');
+  });
+
+  it('treats a file absent from priorMtimes as new (full read)', async () => {
+    // Only b.md is known; a.md + c.md are new to the prior and must read.
+    const partial = new Map<string, number>();
+    const all = await captureMtimes();
+    partial.set('docs/b.md', all.get('docs/b.md')!);
+    for await (const n of walkContent([root], {
+      extensions: ['.md'],
+      parser: 'frontmatter-yaml',
+      priorMtimes: partial,
+    })) {
+      if (n.path === 'docs/a.md') {
+        ok(n.unchanged !== true, 'a.md (not in priorMtimes) reads fully');
+      }
+      if (n.path === 'docs/b.md') {
+        strictEqual(n.unchanged, true, 'b.md (mtime match) is skipped');
+      }
+    }
+  });
+
+  it('reads every file when priorMtimes is absent (full-scan default)', async () => {
+    for await (const n of walkContent([root], { extensions: ['.md'], parser: 'frontmatter-yaml' })) {
+      ok(n.unchanged !== true, `${n.path} is a full record without priorMtimes`);
+    }
   });
 });
