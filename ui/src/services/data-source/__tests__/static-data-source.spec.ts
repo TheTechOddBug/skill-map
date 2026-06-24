@@ -174,6 +174,32 @@ describe('StaticDataSource', () => {
     await expect(ds.health()).resolves.toEqual(META_FIXTURE.health);
   });
 
+  it('getActiveProvider() returns the lens envelope baked into meta', async () => {
+    const lens = {
+      activeProvider: 'claude',
+      detected: ['claude'],
+      source: 'autodetect' as const,
+      selectable: ['claude', 'markdown'],
+    };
+    const dsWithLens = new StaticDataSource(
+      makeFetch({ 'data.meta.json': { ...META_FIXTURE, activeProvider: lens }, 'data.json': SCAN_FIXTURE }),
+      makeFakeRegistry(),
+      makeFakeProviderRegistry(),
+      makeFakeContributionsRegistry(),
+    );
+    await expect(dsWithLens.getActiveProvider()).resolves.toEqual(lens);
+  });
+
+  it('getActiveProvider() falls back to the markdown default when meta omits it', async () => {
+    // META_FIXTURE has no activeProvider key (older bundle shape).
+    await expect(ds.getActiveProvider()).resolves.toEqual({
+      activeProvider: 'markdown',
+      detected: [],
+      source: 'default',
+      selectable: [],
+    });
+  });
+
   it('loadScan() returns the full ScanResult from data.json', async () => {
     await expect(ds.loadScan()).resolves.toEqual(SCAN_FIXTURE);
   });

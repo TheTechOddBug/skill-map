@@ -110,6 +110,13 @@ export interface IDemoMetaPayload {
    * missing registry as a no-op (slot renderers fall back to defaults).
    */
   contributionsRegistry?: IContributionsRegistryApi;
+  /**
+   * Active-provider envelope mirroring `GET /api/active-provider`, baked
+   * from the lens the demo fixture was scanned under (Claude). Optional so
+   * an older bundle (pre-lens) still loads; the consumer falls back to the
+   * markdown default when absent.
+   */
+  activeProvider?: IActiveProviderApi;
 }
 
 export class StaticDataSource implements IDataSourcePort {
@@ -534,7 +541,15 @@ export class StaticDataSource implements IDataSourcePort {
   }
 
   async getActiveProvider(): Promise<IActiveProviderApi> {
-    return { activeProvider: 'markdown', detected: [], source: 'default', selectable: [] };
+    const meta = await this.loadMeta();
+    return (
+      meta.activeProvider ?? {
+        activeProvider: 'markdown',
+        detected: [],
+        source: 'default',
+        selectable: [],
+      }
+    );
   }
 
   async setActiveProvider(_activeProvider: string): Promise<IActiveProviderPutEnvelopeApi> {

@@ -336,6 +336,27 @@ function buildPluginsEnvelope() {
   };
 }
 
+/**
+ * Active-provider envelope mirroring `GET /api/active-provider`. The demo
+ * fixture is scanned under a single vendor lens (its on-disk marker, e.g.
+ * `.claude/`). `scan.providers` carries the providers that participated
+ * (the enabled, non-experimental set); the active lens is the vendor one
+ * (everything except the universal `markdown` fallback), and every
+ * participating provider is selectable. Derived from the scan so the demo
+ * never drifts from the fixture's real lens (the `StaticDataSource`
+ * serves this verbatim instead of a hardcoded default).
+ */
+function buildActiveProviderEnvelope(scan) {
+  const providers = scan.providers ?? [];
+  const vendor = providers.find((p) => p !== 'markdown');
+  return {
+    activeProvider: vendor ?? 'markdown',
+    detected: vendor ? [vendor] : [],
+    source: vendor ? 'autodetect' : 'default',
+    selectable: providers,
+  };
+}
+
 async function writeAtomic(path, content) {
   const tmp = `${path}.tmp`;
   await writeFile(tmp, content, 'utf8');
@@ -522,6 +543,7 @@ async function main() {
     plugins: buildPluginsEnvelope(),
     graph: { ascii },
     contributionsRegistry,
+    activeProvider: buildActiveProviderEnvelope(scan),
   };
 
   await writeAtomic(DATA_PATH, JSON.stringify(scan, null, 2) + '\n');
