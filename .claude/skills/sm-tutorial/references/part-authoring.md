@@ -146,16 +146,27 @@ content, not configuration). Append at the end:
 - [ ] XXX revisit naming.
 ```
 
-Now re-scan so the extractor re-reads its settings and re-counts:
+Now restart `sm` so it re-reads the plugin. `sm` loads the plugin
+(its settings, its slot, the contribution itself) **once, at
+boot**, so a server left running from an earlier chapter froze that
+view at startup and will not see the new `XXX` keyword. Stop it
+with Ctrl+C and run it again (or just run it, if it is not up):
 
 ```bash
-sm scan
+sm
 ```
 
-The scan re-emits the contribution with the new count. To see it,
-run `sm`, open the browser, click `notes/ideas`, and find the chip
-in the card's **left footer** (it also shows in the inspector). It
-reads `🔍 kw 3`, one match per keyword.
+Booting runs a fresh scan, so the extractor re-reads
+`ctx.settings.keywords` (now including `XXX`) and re-counts. Open
+the browser, click `notes/ideas`, and find the chip in the card's
+**left footer** (it also shows in the inspector). It reads
+`🔍 kw 3`, one match per keyword.
+
+> Heads up: editing only the fixture (`notes/ideas.md`) updates
+> live through the watcher, but it recounts with the OLD keyword
+> set, so the chip would read `🔍 kw 2`. The new `XXX` keyword
+> lives in the plugin, and the plugin is read at boot, that is why
+> restarting `sm` is the step that takes the count to 3.
 
 > Three matches. The setting flowed from the extension's `settings`
 > through `ctx.settings.keywords` into the extractor, the extractor
@@ -175,14 +186,14 @@ The tester edits the extractor source:
 > Find the `slot` line in the `count` contribution. Change
 > `'card.footer.left'` to `'card.footer.right'`. Save.
 
-Re-scan:
+The slot is part of the plugin's definition, and `sm` reads that
+**once, at boot**. The watcher re-counts content on the fly, but it
+does not reload a plugin, so the slot move is not live. Restart
+`sm` to pick it up (Ctrl+C, then `sm` again):
 
 ```bash
-sm scan
+sm
 ```
-
-If `sm` is still running, the watcher picks up the file change
-and re-emits contributions live. If not, run the scan manually.
 
 Refresh the UI, the chip should now appear in the **right footer**
 of the node card instead of the left.
