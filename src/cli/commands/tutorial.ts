@@ -69,6 +69,7 @@ import { tx } from '../../kernel/util/tx.js';
 import { TUTORIAL_TEXTS } from '../i18n/tutorial.texts.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { builtIns } from '../../plugins/built-ins.js';
+import { installedDefaultEnabled } from '../../kernel/config/plugin-resolver.js';
 import type { IProvider } from '../../kernel/extensions/index.js';
 import { type IAnsi } from '../util/ansi.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -110,10 +111,16 @@ export class TutorialCommand extends SmCommand {
       Does NOT require an initialized .skill-map/ project. Refuses to
       overwrite the target directory unless --force is passed. Takes no
       positional argument.
+
+      By default only ready providers are offered as destinations. Pass
+      --experimental to also offer experimental ones (e.g. agent-skills);
+      they ship disabled, so enable the chosen one with
+      \`sm plugins enable <id>\` before scanning under its lens.
     `,
     examples: [
       ['Materialize the tutorial skill in the cwd', '$0 tutorial'],
       ['Overwrite an existing target directory', '$0 tutorial --force'],
+      ['Offer experimental providers as destinations', '$0 tutorial --experimental'],
     ],
   });
 
@@ -133,6 +140,12 @@ export class TutorialCommand extends SmCommand {
 
   force = Option.Boolean('--force', false, {
     description: 'Overwrite an existing target directory without prompting.',
+  });
+
+  experimental = Option.Boolean('--experimental', false, {
+    description:
+      'Offer experimental providers (e.g. agent-skills) as destinations. ' +
+      'They ship disabled; enable the chosen one with `sm plugins enable <id>`.',
   });
 
   protected async run(): Promise<number> {
@@ -181,7 +194,7 @@ export class TutorialCommand extends SmCommand {
     // the coming-soon teasers (`openai`, `agent-skills`, ...) shown but not
     // pickable. Pre-bootstrap, so this reads the built-in catalog directly
     // and never touches `.skill-map/`.
-    const targets = listScaffoldTargets();
+    const targets = listScaffoldTargets(this.experimental);
     const target = await this.resolveScaffoldTarget(targets, stderrAnsi, errGlyph);
     if (target === null) return ExitCode.Error;
     // resolveScaffoldTarget only ever returns a selectable row, which
@@ -272,28 +285,26 @@ export class TutorialCommand extends SmCommand {
     stderrAnsi: IAnsi,
     errGlyph: string,
   ): Promise<IScaffoldTarget | null> {
-    // Only non-coming-soon rows are valid picks; coming-soon rows are
-    // listed for visibility but never selectable.
-    const selectable = selectableTargets(targets);
-    if (selectable.length === 0) {
-      // No selectable Provider declares `scaffold.skillDir`. Should never
-      // happen (claude always does), but fail loudly rather than guess.
+    if (targets.length === 0) {
+      // No Provider declares `scaffold.skillDir`. Should never happen
+      // (claude always does), but fail loudly rather than guess.
       this.printer!.error(tx(TUTORIAL_TEXTS.noTargets, { glyph: errGlyph }));
       return null;
     }
 
     const requested = this.forProvider;
     if (requested !== undefined) {
-      // `--for` matches a selectable id only; coming-soon ids fall through
-      // to the unknown-provider error like any non-destination id.
-      const found = selectable.find((t) => t.id === requested);
+      // `--for` matches a listed destination id. An experimental id only
+      // appears in `targets` when `--experimental` was passed; otherwise
+      // it falls through to the unknown-provider error.
+      const found = targets.find((t) => t.id === requested);
       if (found === undefined) {
         this.printer!.error(
           tx(TUTORIAL_TEXTS.forUnknown, {
             glyph: errGlyph,
             provider: requested,
             hint: stderrAnsi.dim(
-              tx(TUTORIAL_TEXTS.forUnknownHint, { ids: selectable.map((t) => t.id).join(', ') }),
+              tx(TUTORIAL_TEXTS.forUnknownHint, { ids: targets.map((t) => t.id).join(', ') }),
             ),
           }),
         );
@@ -303,12 +314,10 @@ export class TutorialCommand extends SmCommand {
     }
 
     // No marker detection (the cwd is empty by contract): the default is
-    // always the first selectable Provider (Claude).
-    const def = selectable[0]!;
+    // always the first destination Provider (Claude).
+    const def = targets[0]!;
 
-    // Non-interactive stdin (pipe, CI): take the default silently. On a
-    // TTY we still prompt even with a single selectable target, so the
-    // tester sees the coming-soon providers (greyed, not pickable).
+    // Non-interactive stdin (pipe, CI): take the default silently.
     const stdin = this.context.stdin as NodeJS.ReadStream;
     if (stdin.isTTY !== true) return def;
 
@@ -325,7 +334,7 @@ export class TutorialCommand extends SmCommand {
         tx(TUTORIAL_TEXTS.promptInvalid, {
           glyph: errGlyph,
           hint: stderrAnsi.dim(
-            tx(TUTORIAL_TEXTS.forUnknownHint, { ids: selectable.map((t) => t.id).join(', ') }),
+            tx(TUTORIAL_TEXTS.forUnknownHint, { ids: targets.map((t) => t.id).join(', ') }),
           ),
         }),
       );
@@ -341,67 +350,58 @@ export class TutorialCommand extends SmCommand {
 
 /**
  * One row in the tutorial destination prompt, projected from a built-in
- * Provider. `id` is what `--for` matches; `label` is the human name;
- * `skillDir` is the territory the skill folder lands under (present only
- * for selectable rows); `aka` lists the other agents that consume this
- * territory (display-only). `comingSoon` rows are listed for visibility
- * but cannot be picked (no `skillDir`).
+ * Provider that declares a `scaffold.skillDir`. `id` is what `--for`
+ * matches; `label` is the human name; `skillDir` is the territory the
+ * skill folder lands under; `aka` lists the other agents that consume this
+ * territory (display-only). Every row is a valid pick.
  */
 interface IScaffoldTarget {
   id: string;
   label: string;
-  skillDir?: string;
+  skillDir: string;
   aka: readonly string[];
-  comingSoon: boolean;
 }
 
 /**
  * Project one built-in Provider into a prompt row, or `null` when it is
- * neither a selectable destination (a non-coming-soon Provider with a
- * `scaffold.skillDir`, e.g. `claude`) nor a coming-soon teaser (e.g.
- * `openai`, `agent-skills`). The universal `markdown` fallback is neither,
- * so it is skipped. Split out of `listScaffoldTargets` to stay within the
- * lint complexity budget.
+ * not a scaffold destination. A Provider qualifies when it declares a
+ * `scaffold.skillDir` (e.g. `claude`, `agent-skills`); the universal
+ * `markdown` fallback declares none, so it is skipped. Experimental
+ * Providers (`stability: experimental`, ships disabled) are only included
+ * when `includeExperimental` is set (the `--experimental` flag); by
+ * default they are omitted so the tutorial offers only ready destinations.
+ * Split out of `listScaffoldTargets` to stay within the lint complexity
+ * budget.
  */
-function toScaffoldTarget(provider: IProvider): IScaffoldTarget | null {
-  const comingSoon = provider.presentation.comingSoon === true;
-  if (comingSoon) {
-    return {
-      id: provider.id,
-      label: provider.presentation.label,
-      aka: provider.scaffold?.aka ?? [],
-      comingSoon: true,
-    };
-  }
+function toScaffoldTarget(
+  provider: IProvider,
+  includeExperimental: boolean,
+): IScaffoldTarget | null {
   const scaffold = provider.scaffold;
   if (!scaffold || !scaffold.skillDir) return null;
+  if (!installedDefaultEnabled(provider.stability) && !includeExperimental) return null;
   return {
     id: provider.id,
     label: provider.presentation.label,
     skillDir: scaffold.skillDir,
     aka: scaffold.aka ?? [],
-    comingSoon: false,
   };
 }
 
 /**
  * Prompt rows in catalog order (vendor providers first per the codegen
- * `PLUGIN_ORDER`, so `claude` leads): the selectable destinations plus the
- * coming-soon teasers. The tutorial is a pre-bootstrap helper, so this
- * reads the built-in catalog directly rather than project config.
+ * `PLUGIN_ORDER`, so `claude` leads). The tutorial is a pre-bootstrap
+ * helper, so this reads the built-in catalog directly rather than project
+ * config. When `includeExperimental` is set, experimental destinations
+ * (today `agent-skills`) join the list; otherwise only ready ones appear.
  */
-export function listScaffoldTargets(): IScaffoldTarget[] {
+export function listScaffoldTargets(includeExperimental = false): IScaffoldTarget[] {
   const out: IScaffoldTarget[] = [];
   for (const provider of builtIns().providers) {
-    const target = toScaffoldTarget(provider);
+    const target = toScaffoldTarget(provider, includeExperimental);
     if (target !== null) out.push(target);
   }
   return out;
-}
-
-/** The selectable destinations (not coming-soon), the only valid picks. */
-export function selectableTargets(targets: readonly IScaffoldTarget[]): IScaffoldTarget[] {
-  return targets.filter((t) => !t.comingSoon);
 }
 
 /** Render a target's prompt label, appending `(aka1, aka2)` when present. */
@@ -409,7 +409,7 @@ function labelWithAka(target: IScaffoldTarget): string {
   return target.aka.length > 0 ? `${target.label} (${target.aka.join(', ')})` : target.label;
 }
 
-/** Render the numbered destination list (selectable + coming-soon rows). */
+/** Render the numbered destination list. */
 function renderTargetLines(
   targets: readonly IScaffoldTarget[],
   def: IScaffoldTarget,
@@ -419,24 +419,20 @@ function renderTargetLines(
   for (let i = 0; i < targets.length; i += 1) {
     const t = targets[i]!;
     lines.push(
-      t.comingSoon
-        ? tx(TUTORIAL_TEXTS.promptOptionComingSoon, { index: i + 1, label: t.label })
-        : tx(TUTORIAL_TEXTS.promptOption, {
-            index: i + 1,
-            label: labelWithAka(t),
-            skillDir: `${t.skillDir}/`,
-            marker: t.id === def.id ? TUTORIAL_TEXTS.promptDefaultMarker : '',
-          }),
+      tx(TUTORIAL_TEXTS.promptOption, {
+        index: i + 1,
+        label: labelWithAka(t),
+        skillDir: `${t.skillDir}/`,
+        marker: t.id === def.id ? TUTORIAL_TEXTS.promptDefaultMarker : '',
+      }),
     );
   }
   return lines.join('\n');
 }
 
 /**
- * Resolve one trimmed answer to the row it names (selectable or
- * coming-soon), `null` when unrecognised. An empty answer accepts the
- * default. The caller distinguishes selectable from coming-soon via the
- * row's `comingSoon` flag.
+ * Resolve one trimmed answer to the row it names, `null` when
+ * unrecognised. An empty answer accepts the default.
  */
 export function classifyAnswer(
   trimmed: string,
@@ -453,12 +449,11 @@ export function classifyAnswer(
 }
 
 /**
- * Numbered-list interactive prompt for the destination Provider. Lists
- * selectable destinations and coming-soon teasers; only selectable rows
- * can be picked. `def` is pre-selected (an empty answer accepts it).
- * Picking a coming-soon row prints a notice and re-asks. Returns the
- * picked target, or `null` when the operator gives no valid pick within
- * the attempt budget (caller surfaces `promptInvalid` and exits non-zero).
+ * Numbered-list interactive prompt for the destination Provider. Every
+ * listed row is a valid pick. `def` is pre-selected (an empty answer
+ * accepts it). Returns the picked target, or `null` when the operator
+ * gives no valid pick within the attempt budget (caller surfaces
+ * `promptInvalid` and exits non-zero).
  */
 async function promptForTarget(
   targets: readonly IScaffoldTarget[],
@@ -471,22 +466,14 @@ async function promptForTarget(
   const defIndex = targets.findIndex((t) => t.id === def.id);
   const rl = createInterface({ input: stdin, output: stderr });
   try {
-    // Bounded re-ask: a coming-soon pick is not fatal, the tester is
-    // nudged back to a selectable row. The cap stops a piped / EOF stdin
-    // from looping forever.
+    // Bounded re-ask: an unrecognised answer re-asks. The cap stops a
+    // piped / EOF stdin from looping forever.
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const answer = await new Promise<string>((resolveP) =>
         rl.question(tx(TUTORIAL_TEXTS.promptInput, { index: defIndex + 1 }), resolveP),
       );
       const result = classifyAnswer(answer.trim(), targets, def);
-      if (result === null) continue;
-      if (!result.comingSoon) return result;
-      stderr.write(
-        tx(TUTORIAL_TEXTS.promptComingSoonNotice, {
-          label: result.label,
-          defaultLabel: def.label,
-        }) + '\n',
-      );
+      if (result !== null) return result;
     }
     return null;
   } finally {

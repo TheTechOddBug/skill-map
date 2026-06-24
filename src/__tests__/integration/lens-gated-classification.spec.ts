@@ -10,18 +10,29 @@
  *   - `.agents/skills/baz/SKILL.md`      -> open-standard universal
  *   - `notes/random.md`                  -> universal markdown fallback
  *
- * Scan twice (once per vendor lens) and assert the resulting nodes:
+ * Scan once per lens and assert the resulting nodes. `agent-skills` is
+ * now `gatedByActiveLens` (and experimental), so the open-standard
+ * `SKILL.md` is classified as a `skill` ONLY under the `agent-skills`
+ * lens; under any other lens it falls through to the universal
+ * `core/markdown` provider. `core/markdown` is the only universal
+ * provider now.
  *
  *   Under `activeProvider = 'claude'`:
  *     foo.md           -> claude/agent           (vendor active)
  *     bar.toml         -> NO NODE                (no universal claims .toml)
- *     baz/SKILL.md     -> agent-skills/skill     (universal, always runs)
+ *     baz/SKILL.md     -> markdown/markdown      (agent-skills gated off)
  *     random.md        -> markdown/markdown      (universal fallback)
  *
  *   Under `activeProvider = 'openai'`:
  *     foo.md           -> markdown/markdown      (claude gated off; fallback)
  *     bar.toml         -> openai/agent           (vendor active)
- *     baz/SKILL.md     -> agent-skills/skill     (universal, always runs)
+ *     baz/SKILL.md     -> markdown/markdown      (agent-skills gated off)
+ *     random.md        -> markdown/markdown      (universal fallback)
+ *
+ *   Under `activeProvider = 'agent-skills'`:
+ *     foo.md           -> markdown/markdown      (claude gated off; fallback)
+ *     bar.toml         -> NO NODE                (openai gated off)
+ *     baz/SKILL.md     -> agent-skills/skill     (vendor active under its lens)
  *     random.md        -> markdown/markdown      (universal fallback)
  */
 
@@ -104,12 +115,13 @@ describe('lens-gated classification (integration)', () => {
     const bar = nodes.find((n) => n.path === '.codex/agents/bar.toml');
     strictEqual(bar, undefined, '.codex/*.toml MUST NOT produce a node under claude lens');
 
-    // SKILL.md from the open standard ALWAYS classifies via agent-skills.
+    // SKILL.md: agent-skills is gated off under the claude lens, so the
+    // file falls through to the universal core/markdown fallback.
     const baz = nodes.find((n) => n.path === '.agents/skills/baz/SKILL.md');
-    ok(baz, 'open-standard SKILL.md must classify regardless of lens');
+    ok(baz, 'open-standard SKILL.md must classify under the markdown fallback when agent-skills is gated off');
     deepStrictEqual(
       { provider: baz!.provider, kind: baz!.kind },
-      { provider: 'agent-skills', kind: 'skill' },
+      { provider: 'markdown', kind: 'markdown' },
     );
 
     // notes/random.md falls through to core/markdown universal fallback.
@@ -141,13 +153,50 @@ describe('lens-gated classification (integration)', () => {
       { provider: 'markdown', kind: 'markdown' },
     );
 
-    // SKILL.md from the open standard ALWAYS classifies via agent-skills.
+    // SKILL.md: agent-skills is gated off under the openai lens too, so
+    // the file falls through to the universal core/markdown fallback.
     const baz = nodes.find((n) => n.path === '.agents/skills/baz/SKILL.md');
-    ok(baz, 'open-standard SKILL.md must classify regardless of lens');
+    ok(baz, 'open-standard SKILL.md must classify under the markdown fallback when agent-skills is gated off');
+    deepStrictEqual(
+      { provider: baz!.provider, kind: baz!.kind },
+      { provider: 'markdown', kind: 'markdown' },
+    );
+
+    // notes/random.md still falls through to the universal markdown fallback.
+    const random = nodes.find((n) => n.path === 'notes/random.md');
+    ok(random, 'plain markdown must classify under the markdown fallback');
+    deepStrictEqual(
+      { provider: random!.provider, kind: random!.kind },
+      { provider: 'markdown', kind: 'markdown' },
+    );
+  });
+
+  it("activeProvider='agent-skills': the open-standard SKILL.md classifies under its own lens", async () => {
+    const nodes = await scanWithLens('agent-skills');
+
+    // Under the agent-skills lens the gated provider opens up and claims
+    // the open-standard path as a `skill` node. The scan uses
+    // `extensions: builtIns()`, so agent-skills is present (the kernel
+    // run does not apply the stability filter); only the active-lens gate
+    // decides, and here it is satisfied.
+    const baz = nodes.find((n) => n.path === '.agents/skills/baz/SKILL.md');
+    ok(baz, 'open-standard SKILL.md must classify as a skill under the agent-skills lens');
     deepStrictEqual(
       { provider: baz!.provider, kind: baz!.kind },
       { provider: 'agent-skills', kind: 'skill' },
     );
+
+    // claude is gated off under this lens, so foo.md falls back to markdown.
+    const foo = nodes.find((n) => n.path === '.claude/agents/foo.md');
+    ok(foo, '.claude/*.md must classify via core/markdown fallback under the agent-skills lens');
+    deepStrictEqual(
+      { provider: foo!.provider, kind: foo!.kind },
+      { provider: 'markdown', kind: 'markdown' },
+    );
+
+    // bar.toml has no node: openai is gated off; no universal claims .toml.
+    const bar = nodes.find((n) => n.path === '.codex/agents/bar.toml');
+    strictEqual(bar, undefined, '.codex/*.toml MUST NOT produce a node under the agent-skills lens');
 
     // notes/random.md still falls through to the universal markdown fallback.
     const random = nodes.find((n) => n.path === 'notes/random.md');

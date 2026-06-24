@@ -6,7 +6,10 @@
  * markers (Codex matches both `.codex/` and root `AGENTS.md`); the
  * result deduplicates by provider id while preserving Provider iteration
  * order, so the first matching Provider determines the default
- * suggestion. Providers with no `detect` block are never auto-suggested.
+ * suggestion. Providers with no `detect` block are never auto-suggested,
+ * and providers that ship disabled by default (`stability: experimental`
+ * / `deprecated`) are skipped too: auto-detect only suggests ready
+ * providers, the operator enables + selects the rest explicitly.
  *
  * Two consumers, both reaching it from the sanctioned direction:
  *   - the kernel orchestrator's auto-detect fallback (when a caller
@@ -14,13 +17,18 @@
  *   - core's `resolveActiveProvider`, which layers the persisted
  *     `activeProvider` config value on top of this filesystem signal.
  *
- * Pure: only `existsSync` + `join`, no config read and no `core/` /
- * `cli/` import, so it lives in the kernel (the innermost layer) and
- * `core/` reaches DOWN for it rather than the kernel reaching up.
+ * Pure: `existsSync` + `join` for the marker scan plus the in-kernel
+ * `installedDefaultEnabled` stability check, no config read and no
+ * `core/` / `cli/` import, so it lives in the kernel (the innermost
+ * layer) and `core/` reaches DOWN for it rather than the kernel reaching
+ * up.
  */
 
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+
+import { installedDefaultEnabled } from '../config/plugin-resolver.js';
+import type { TExtensionStability } from '../extensions/index.js';
 
 /**
  * Structural subset of a Provider this detector needs. The kernel
@@ -34,11 +42,13 @@ export interface IProviderDetectInput {
   id: string;
   detect?: { markers?: readonly string[] };
   /**
-   * When `true`, the Provider is not yet selectable as the active lens,
-   * so auto-detect ignores its markers entirely (no candidate, no
-   * ambiguous prompt). Mirrors `IProviderUi.comingSoon`.
+   * Lifecycle label. Providers that ship disabled by default
+   * (`experimental` / `deprecated`, per `installedDefaultEnabled`) are not
+   * auto-detected: their markers never produce a candidate or an ambiguous
+   * prompt. The operator enables them and sets the lens explicitly; auto-
+   * detect only ever suggests ready (stable / beta) providers.
    */
-  presentation?: { comingSoon?: boolean };
+  stability?: TExtensionStability;
 }
 
 /**
@@ -68,7 +78,9 @@ export function detectProvidersFromFilesystem(
  * branching low.
  */
 function isDetectableUnderCwd(cwd: string, provider: IProviderDetectInput): boolean {
-  if (provider.presentation?.comingSoon === true) return false;
+  // Providers that ship disabled by default (experimental / deprecated)
+  // are never auto-suggested: the operator must enable + select them.
+  if (!installedDefaultEnabled(provider.stability)) return false;
   const markers = provider.detect?.markers;
   if (!markers || markers.length === 0) return false;
   return markers.some((marker) => existsSync(join(cwd, marker)));

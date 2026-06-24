@@ -258,11 +258,11 @@ describe('liftResolvedLinkConfidence', () => {
     strictEqual(links[0]!.resolvedTarget, '.claude/agents/reviewer.md');
   });
 
-  it('does NOT resolve trigger-style links when the project is unlensed (activeProvider === null)', () => {
-    // An unlensed project (no `activeProvider` setting, no filesystem
-    // marker) short-circuits the name path uniformly. Path-match still
-    // fires independently; this case asserts the trigger path alone
-    // stays unresolved.
+  it('does NOT resolve trigger-style links under the markdown lens (no resolution map)', () => {
+    // Under the universal markdown lens (a project with no marker)
+    // `core/markdown` declares no resolution map, so the name path
+    // short-circuits uniformly. Path-match still fires independently;
+    // this case asserts the trigger path alone stays unresolved.
     const nodes = [
       mockNode({ path: '.claude/agents/src.md', kind: 'agent', frontmatter: { name: 'src' } }),
       mockNode({
@@ -272,7 +272,7 @@ describe('liftResolvedLinkConfidence', () => {
       }),
     ];
     const links = [mockMention('@reviewer', 'reviewer', '.claude/agents/src.md')];
-    liftResolvedLinkConfidence(links, nodes, makeCtx({ activeProvider: null }));
+    liftResolvedLinkConfidence(links, nodes, makeCtx({ activeProvider: 'markdown' }));
     strictEqual(links[0]!.resolvedTarget, undefined);
   });
 

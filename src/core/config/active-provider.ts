@@ -10,13 +10,12 @@
  *
  *   1. Setting present in `settings.json`, return that string.
  *   2. Setting absent, run the filesystem auto-detect heuristic:
- *      check for `.claude/`, `.gemini/`, `.codex/`, root `AGENTS.md`,
- *      and `.cursor/` in that order. Multiple matches return the
- *      first detected entry plus the full list so the CLI / UI can
- *      prompt the operator to pick. No match returns `null` for both.
- *   3. Setting absent AND no filesystem signal, the consumer falls
- *      back to its own default (today: prompt the operator; under
- *      `--yes` exit 2).
+ *      check each Provider's `detect.markers` in registration order.
+ *      Multiple matches return the first detected entry plus the full
+ *      list so the CLI / UI can prompt the operator to pick.
+ *   3. Setting absent AND no filesystem signal, resolve to the
+ *      universal markdown lens (`MARKDOWN_LENS_ID`) with source
+ *      `'default'`. The resolver never yields a null lens.
  *
  * The reader does NOT persist the auto-detect result. Persistence is
  * a separate, explicit step the consumer takes (typically via
@@ -37,18 +36,29 @@ import { readConfigValue } from './helper.js';
 // kernel detector with a config read is the sanctioned direction.
 export type { IProviderDetectInput };
 
+/**
+ * The universal markdown lens id, the resolver's fallback when no vendor
+ * marker is present. This is the SHORT provider id (`coreMarkdownProvider.id`),
+ * NOT the qualified `core/markdown`: the active lens is compared against
+ * `provider.id` everywhere (walk gate, detect, BFF `selectable`). A unit test
+ * asserts this equals `coreMarkdownProvider.id` so the short-vs-qualified
+ * mismatch can never regress.
+ */
+export const MARKDOWN_LENS_ID = 'markdown';
+
 export interface IActiveProviderResolution {
   /**
    * The persisted `activeProvider` value when present in settings,
-   * otherwise the first auto-detected provider id, otherwise `null`.
+   * otherwise the first auto-detected provider id, otherwise the
+   * universal markdown lens (`MARKDOWN_LENS_ID`). Never `null`.
    */
-  resolved: string | null;
+  resolved: string;
   /**
    * `'config'` when the value came from `settings.json`, `'autodetect'`
-   * when the filesystem heuristic supplied it, `'none'` when neither
-   * source produced a result.
+   * when the filesystem heuristic supplied it, `'default'` when neither
+   * source produced a result and the universal markdown lens applies.
    */
-  source: 'config' | 'autodetect' | 'none';
+  source: 'config' | 'autodetect' | 'default';
   /**
    * All provider ids the filesystem heuristic matched, deduped, in
    * detection order. Empty when nothing matched. Populated even when
@@ -83,26 +93,5 @@ export function resolveActiveProvider(
   if (detected.length > 0) {
     return { resolved: detected[0]!, source: 'autodetect', detected };
   }
-  return { resolved: null, source: 'none', detected };
-}
-
-/**
- * Decide whether a given extension should run under the active lens.
- * Used by the orchestrator to gate provider walkers and per-provider
- * extractors when `activeProvider` is set.
- *
- *   - Active lens absent → every extension runs (legacy behaviour,
- *     pre-lens).
- *   - Extension declares no provider precondition → runs always
- *     (universal extension, e.g. `core/markdown-link`).
- *   - Extension declares one or more provider preconditions → runs
- *     only if the active lens is in the declared set.
- */
-export function isExtensionActiveUnderLens(
-  preconditionProviders: readonly string[] | undefined,
-  activeProvider: string | null,
-): boolean {
-  if (activeProvider === null) return true;
-  if (!preconditionProviders || preconditionProviders.length === 0) return true;
-  return preconditionProviders.includes(activeProvider);
+  return { resolved: MARKDOWN_LENS_ID, source: 'default', detected };
 }

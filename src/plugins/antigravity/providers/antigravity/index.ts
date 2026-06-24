@@ -9,32 +9,24 @@
  * is the same one our neutral `agent-skills` Provider already owns
  * (`.agents/skills/<name>/SKILL.md`).
  *
- * This Provider is intentionally **metadata-only** today:
+ * This Provider **adopts the open-standard `.agents/skills/` layout** by
+ * reusing the `agent-skills` classifier + kind + read config (manifest
+ * composition, not a kernel feature):
  *
- *   - **No `classify()` territory**: returns `null` for every path, so
- *     it never competes with the `agent-skills` Provider for
- *     `.agents/skills/` paths. An Antigravity user's skills end up
- *     classified as `provider: 'agent-skills', kind: 'skill'` (the
- *     correct lens-neutral outcome under the open standard).
- *
- *   - **No `kinds`**: nothing to declare while Google has not
- *     documented Antigravity-specific layouts beyond the open standard.
- *     When the migration guide formalises subagent / hook paths, this
- *     Provider grows `classify()` + per-kind schemas (and the kinds
- *     map becomes non-empty).
+ *   - **Inherited classification**: under the `antigravity` lens the
+ *     walker classifies `.agents/skills/<name>/SKILL.md` as
+ *     `provider: 'antigravity', kind: 'skill'`. The `agent-skills`
+ *     Provider is gated to its own lens, so it never competes here (under
+ *     the antigravity lens it does not participate).
  *
  *   - **`reservedNames` catalog (under `skill`)**: lists `agy`'s built-in
  *     slash commands so a user skill that shadows one gets flagged by the
  *     `core/name-reserved` analyzer (and downgraded by the post-walk
  *     confidence lift). It is declared under the `skill` kind, not
  *     `command`, because Antigravity delivers user slash-commands AS
- *     skills (`.agents/skills/<name>/SKILL.md`), so the invocable a
- *     reserved name shadows is a skill file. The catalog is ACTIVE under
- *     the **lens scope** added in spec/architecture.md §Provider ·
- *     reservedNames: even though this Provider classifies nothing (the
- *     skills are owned by the universal `agent-skills` Provider), when
- *     `activeProvider === 'antigravity'` the orchestrator lends this
- *     catalog to those `agent-skills` skill nodes, matched by kind.
+ *     skills (`.agents/skills/<name>/SKILL.md`). Because the antigravity
+ *     lens now classifies those skills itself, the catalog applies via
+ *     SELF scope, no cross-provider lens-scope rule is needed.
  *
  * Resources:
  *
@@ -45,15 +37,21 @@
  *
  * **Lens auto-detect note**: Antigravity has no vendor-specific
  * workspace marker (no `.antigravity/` directory), so its manifest
- * declares no `detect` block and the provider-owned lens heuristic never
- * auto-suggests it. Operators select the lens manually via
- * `sm config set activeProvider antigravity`; otherwise a project with
- * `.agents/` auto-detects as the universal `agent-skills` lens (which
- * owns that marker) and Antigravity's universal extractors keep running.
+ * declares no `detect` block and is never auto-suggested. Both
+ * `antigravity` and `agent-skills` ship `experimental` (disabled by
+ * default), so a `.agents/` project does not auto-detect either; the
+ * operator enables and selects the lens via `sm plugins enable` +
+ * `sm config set activeProvider antigravity`.
  */
 
 import type { IBuiltInManifest, IProvider } from '../../../../kernel/extensions/index.js';
 import { ANTIGRAVITY_PLUGIN_ID } from '../../../ids.js';
+import {
+  OPEN_SKILLS_READ,
+  OPEN_SKILLS_KINDS,
+  OPEN_SKILLS_RESOLUTION,
+  classifyOpenSkillsPath,
+} from '../../../agent-skills/providers/agent-skills/index.js';
 
 export const antigravityProvider: IBuiltInManifest<IProvider> = {
   id: 'antigravity',
@@ -69,9 +67,6 @@ export const antigravityProvider: IBuiltInManifest<IProvider> = {
     label: 'Antigravity',
     color: '#7c3aed',
     colorDark: '#a78bfa',
-    // Registered but not yet selectable as the active lens; the UI greys
-    // it with a `(coming soon)` suffix.
-    comingSoon: true,
   },
 
   // No `detect` block: Antigravity has no vendor-specific workspace marker
@@ -86,18 +81,24 @@ export const antigravityProvider: IBuiltInManifest<IProvider> = {
   // remember to flip it then.
   gatedByActiveLens: true,
 
-  // No `read` config: this Provider does not walk the filesystem. The
-  // kernel walker only fires for Providers with `read` or `walk`; an
-  // empty Provider participates in registration (its `ui` block is
-  // available, its `reservedNames` catalog is loaded) without owning
-  // any on-disk territory.
-  kinds: {},
+  // Not yet ready for end users: ships disabled by default (the operator
+  // opts in via `sm plugins enable` / Settings / the tutorial's
+  // `--experimental` flow). Replaces the retired `comingSoon` flag.
+  stability: 'experimental',
 
-  // Always disclaim: paths are owned by other Providers (`.agents/` ->
-  // `agent-skills`, `AGENTS.md` -> `core/markdown` fallback).
-  classify(): string | null {
-    return null;
-  },
+  // Adopt the open-standard `.agents/skills/` layout by REUSING the
+  // `agent-skills` classifier + kind + read config (composition at the
+  // manifest level, not a kernel rule). Under the antigravity lens the
+  // walker classifies `.agents/skills/<name>/SKILL.md` as
+  // `{ provider: 'antigravity', kind: 'skill' }`, so the reservedNames
+  // below apply via SELF scope. `agent-skills` itself is gated to its own
+  // lens, so it never competes here (under the antigravity lens it does
+  // not participate). This is why there is no cross-provider lens-scope
+  // rule in the kernel any more.
+  read: OPEN_SKILLS_READ,
+  kinds: OPEN_SKILLS_KINDS,
+  resolution: OPEN_SKILLS_RESOLUTION,
+  classify: classifyOpenSkillsPath,
 
   // Built-in slash-command catalog, captured verbatim from `agy /help`
   // (Antigravity CLI v1.0.3). This REPLACES the earlier provisional list
@@ -116,12 +117,10 @@ export const antigravityProvider: IBuiltInManifest<IProvider> = {
   //
   // Declared under the `skill` kind (NOT `command`): Antigravity has no
   // vendor-specific command directory, its user slash-commands are skills
-  // (`.agents/skills/<name>/SKILL.md`, owned by the universal `agent-skills`
-  // Provider). The catalog is ACTIVE via the LENS SCOPE in
-  // `buildReservedNodePaths` (spec/architecture.md §Provider ·
-  // reservedNames): when `activeProvider === 'antigravity'` the orchestrator
-  // lends this `skill` catalog to `agent-skills` skill nodes, so a user
-  // `.agents/skills/goal/SKILL.md` is flagged because `/goal` is built-in.
+  // (`.agents/skills/<name>/SKILL.md`). Because the antigravity lens now
+  // classifies those files itself (inherited classifier above), a user
+  // `.agents/skills/goal/SKILL.md` is flagged by SELF scope because `/goal`
+  // is built-in.
   //
   // **Reconciliation marker**: re-capture from `agy /help` on each major
   // Antigravity CLI release and bump the cited version above.

@@ -215,10 +215,14 @@ function matchesKindPrecondition(ex: IExtractor, kind: string): boolean {
  * because markdown is provider-agnostic) is still Claude's runtime
  * grammar under the `claude` lens, so the extractor runs.
  *
- * When `activeProvider === null` (no setting, no filesystem signal),
- * provider-specific extractors are skipped, there is no lens
- * authorising them. Per `spec/architecture.md` §Universal extractors
- * and per-provider extractors: the lens is the single gate.
+ * The resolver always supplies a concrete lens, so a vendor-gated
+ * extractor runs only when its precondition set includes the active
+ * lens. Under the universal markdown lens (a project with no marker)
+ * none match, so provider-specific extractors stay silent. Per
+ * `spec/architecture.md` §Universal extractors and per-provider
+ * extractors: the lens is the single gate. (A bare caller may still
+ * pass `null`; it behaves like the markdown lens, no vendor extractor
+ * matches.)
  *
  * Exported for unit tests (see `cache-provider-gate.spec.ts`).
  */
@@ -228,8 +232,7 @@ export function matchesProviderPrecondition(
 ): boolean {
   const providers = ex.precondition?.provider;
   if (!providers || providers.length === 0) return true;
-  if (activeProvider === null) return false;
-  return providers.includes(activeProvider);
+  return activeProvider !== null && providers.includes(activeProvider);
 }
 
 /**

@@ -219,8 +219,10 @@ function lookupAllowedKinds(
   // bodies (`notes/todo.md` classified by `core/markdown`); resolving
   // by the source's provider would short-circuit those emissions to
   // `confidence: 0.8` forever and leave `linksInCount` at 0 on the
-  // target. An unlensed project (`activeProvider === null`)
-  // short-circuits the name path uniformly.
+  // target. Under the universal markdown lens (a project with no
+  // marker) `core/markdown` declares no resolution map, so the lookup
+  // yields `undefined` and the name path short-circuits; a bare caller
+  // that leaves the lens `null` short-circuits the same way.
   if (ctx.activeProvider === null) return undefined;
   return ctx.providerResolution.get(ctx.activeProvider)?.[link.kind];
 }

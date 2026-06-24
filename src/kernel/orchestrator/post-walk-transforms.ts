@@ -54,8 +54,10 @@ import type { Link, Node } from '../types.js';
  * - `activeProvider`: the lens governing this scan (mirrors
  *   `RunScanOptions.activeProvider`). The resolver consults
  *   `providerResolution.get(activeProvider)` for trigger-style links;
- *   when `null` (unlensed project), the name path short-circuits and
- *   only the path-match rule fires.
+ *   under the universal markdown lens (`core/markdown` declares no
+ *   resolution map) the name path short-circuits and only the
+ *   path-match rule fires. A bare caller that leaves it `null`
+ *   short-circuits the same way.
  */
 export interface IPostWalkTransformCtx {
   readonly kindRegistry: ReadonlyMap<string, IProviderKind>;

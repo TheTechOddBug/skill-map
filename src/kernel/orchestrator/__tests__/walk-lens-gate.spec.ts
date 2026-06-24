@@ -6,8 +6,9 @@
  * providers carry `gatedByActiveLens: true` on their manifest and only
  * participate in the walk when `provider.id === activeProvider`.
  * Universal providers (`gatedByActiveLens === false`, the default) run
- * regardless of the lens. When `activeProvider === null` (no lens
- * resolved) the filter is bypassed entirely and every Provider runs.
+ * regardless of the lens. The resolver always supplies a concrete lens;
+ * under the universal `markdown` lens (a project with no marker) only
+ * the universal providers run and every gated vendor is filtered out.
  *
  * The test asserts which providers' `classify` got called, not the
  * resulting graph. Provider-iteration-level filter, not file-level.
@@ -206,12 +207,30 @@ describe('walkAndExtract / active-lens classification gate', () => {
     );
   });
 
-  it('activeProvider=null: every provider runs regardless of gated flag (permissive fallback)', async () => {
+  it("activeProvider='markdown': only universals run, vendors are filtered out", async () => {
+    const recorders = emptyRecorders();
+    await runWalk({ activeProvider: 'markdown', recorders });
+
+    deepStrictEqual(recorders.claude, [], 'claude (gated) MUST NOT run under markdown lens');
+    deepStrictEqual(recorders.openai, [], 'openai (gated) MUST NOT run under markdown lens');
+    strictEqual(
+      recorders.agentSkills.length > 0,
+      true,
+      'agent-skills (universal) MUST always run',
+    );
+    strictEqual(
+      recorders.coreMarkdown.length > 0,
+      true,
+      'core/markdown (universal, the lens itself) MUST run',
+    );
+  });
+
+  it('activeProvider=null (bare caller): behaves like the markdown lens, vendors off', async () => {
     const recorders = emptyRecorders();
     await runWalk({ activeProvider: null, recorders });
 
-    strictEqual(recorders.claude.length > 0, true, 'claude (gated) MUST run under null lens');
-    strictEqual(recorders.openai.length > 0, true, 'openai (gated) MUST run under null lens');
+    deepStrictEqual(recorders.claude, [], 'claude (gated) MUST NOT run for a bare null caller');
+    deepStrictEqual(recorders.openai, [], 'openai (gated) MUST NOT run for a bare null caller');
     strictEqual(
       recorders.agentSkills.length > 0,
       true,

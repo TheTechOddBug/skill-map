@@ -257,6 +257,38 @@ describe('bootstrapActiveProvider: drift detection from config', () => {
     assert.match(cap.warns[0]!, /Removed: cursor/);
   });
 
+  it('does not warn when the only snapshot drift is an experimental provider', async () => {
+    // A snapshot written before a provider became experimental still lists
+    // it. Experimental providers ship disabled and are never auto-detected,
+    // so the diff must ignore the stale entry instead of reporting a
+    // permanent false "Removed" on every scan.
+    const providers: IProviderDetectInput[] = [
+      { id: 'claude', detect: { markers: ['.claude'] } },
+      { id: 'agent-skills', detect: { markers: ['.agents'] }, stability: 'experimental' },
+    ];
+    mkdirSync(join(tmpRoot, '.claude'), { recursive: true });
+    // `.agents/` present too, but agent-skills is experimental so it never
+    // auto-detects, mirroring the real registry.
+    mkdirSync(join(tmpRoot, '.agents'), { recursive: true });
+    writeSettings(tmpRoot, {
+      activeProvider: 'claude',
+      activeProviderMarkers: ['claude', 'agent-skills'],
+    });
+
+    const cap = capturePrinter();
+    await bootstrapActiveProvider({
+      cwd: tmpRoot,
+      effectiveRoots: [tmpRoot],
+      providers,
+      yes: false,
+      stdin: inlineStdin(''),
+      stderr: noopStderr(),
+      printer: cap.printer,
+    });
+
+    assert.equal(cap.warns.length, 0, 'experimental snapshot entry must not trigger drift');
+  });
+
   it('backfills the snapshot silently for a legacy project (no warn)', async () => {
     mkdirSync(join(tmpRoot, '.claude'), { recursive: true });
     // Legacy project: activeProvider set, but no markers snapshot exists.

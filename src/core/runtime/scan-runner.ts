@@ -334,7 +334,7 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<TScanRunRes
  * doesn't conflate the two `kind: 'ok'` branches.
  */
 type TLensResolution =
-  | { kind: 'ok'; activeProvider: string | null; autoDetected: string | null }
+  | { kind: 'ok'; activeProvider: string; autoDetected: string | null }
   | (TScanRunResult & { kind: 'ambiguous-provider' });
 
 /**

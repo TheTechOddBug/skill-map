@@ -38,7 +38,7 @@ const REGISTRY: IProviderRegistryApi = {
 };
 
 function envelope(selectable: string[]): IActiveProviderApi {
-  return { activeProvider: null, detected: [], source: 'none', selectable };
+  return { activeProvider: 'markdown', detected: [], source: 'default', selectable };
 }
 
 function bootstrap(): { proto: IProjectProto } {
@@ -63,8 +63,8 @@ describe('SettingsProject providerOptions', () => {
     // `activeProviderEnvelope` is still null here.
     const opts = proto.providerOptions();
     expect(opts.every((o) => !o.disabled)).toBe(true);
-    // "(none)" + the three registry Providers.
-    expect(opts).toHaveLength(4);
+    // The three registry Providers (no synthetic "(none)" entry).
+    expect(opts).toHaveLength(3);
   });
 
   it('marks Providers absent from selectable as disabled', () => {
@@ -78,8 +78,8 @@ describe('SettingsProject providerOptions', () => {
     expect(byId.get('openai')?.disabled).toBe(false);
     expect(byId.get('openai')?.label).toBe('OpenAI');
     expect(byId.get('markdown')?.disabled).toBe(false);
-    // The prepended "(none)" entry is always selectable.
-    expect(byId.get('')?.disabled).toBe(false);
+    // Markdown is the neutral, always-selectable base lens.
+    expect(byId.get('markdown')?.label).toBe('Markdown');
   });
 
   it('keeps every Provider selectable when all are enabled', () => {
@@ -88,7 +88,7 @@ describe('SettingsProject providerOptions', () => {
     expect(proto.providerOptions().every((o) => !o.disabled)).toBe(true);
   });
 
-  it('labels a coming-soon Provider with the "(coming soon)" suffix', () => {
+  it('labels a not-selectable Provider with the "(disabled)" suffix', () => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [
@@ -101,15 +101,16 @@ describe('SettingsProject providerOptions', () => {
     fixture.detectChanges();
     TestBed.inject(ProviderRegistryService).ingest({
       claude: { label: 'Claude', color: '#000000' },
-      openai: { label: 'OpenAI', color: '#111111', comingSoon: true },
+      openai: { label: 'OpenAI', color: '#111111' },
     });
     const proto = fixture.componentInstance as unknown as IProjectProto;
-    // openai is coming-soon, so the BFF leaves it out of `selectable`.
+    // openai is experimental (ships disabled), so the BFF leaves it out of
+    // `selectable`; the dropdown greys it with a "(disabled)" suffix.
     proto.activeProviderEnvelope.set(envelope(['claude']));
 
     const byId = new Map(proto.providerOptions().map((o) => [o.id, o]));
     expect(byId.get('openai')?.disabled).toBe(true);
-    expect(byId.get('openai')?.label).toBe('OpenAI (coming soon)');
+    expect(byId.get('openai')?.label).toBe('OpenAI (disabled)');
     expect(byId.get('claude')?.disabled).toBe(false);
     expect(byId.get('claude')?.label).toBe('Claude');
   });

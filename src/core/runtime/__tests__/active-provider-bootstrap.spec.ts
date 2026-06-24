@@ -8,9 +8,10 @@
  *   - When `settings.json` carries `activeProvider`, the bootstrap is
  *     a no-op (returns 'ok' source='config' verbatim). No filesystem
  *     scan, no persistence.
- *   - No markers anywhere → `activeProvider: null`, source='none', a
- *     soft warning lands on the printer. Plain-markdown projects keep
- *     scanning fine.
+ *   - No markers anywhere → `activeProvider: 'markdown'`, source='default',
+ *     no warning, no persist. Plain-markdown projects keep scanning fine
+ *     under the universal markdown lens; a vendor marker added later
+ *     still auto-detects on the next scan.
  *   - One marker → auto-detect + persist to `.skill-map/settings.json`
  *     (project layer), source='autodetect'. Subsequent scans pick up
  *     the value from config without re-detecting.
@@ -25,7 +26,7 @@
  */
 
 import { strict as assert } from 'node:assert';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
@@ -114,7 +115,7 @@ describe('bootstrapActiveProvider: from settings', () => {
 });
 
 describe('bootstrapActiveProvider: no markers anywhere', () => {
-  it('warns and continues with activeProvider=null', async () => {
+  it('resolves to the markdown lens silently, no warning, no persist', async () => {
     // tmpRoot is empty: no markers in cwd, no markers in any root.
     const cap = capturePrinter();
     const out = await bootstrapActiveProvider({
@@ -127,9 +128,15 @@ describe('bootstrapActiveProvider: no markers anywhere', () => {
       printer: cap.printer,
     });
 
-    assert.deepEqual(out, { kind: 'ok', activeProvider: null, source: 'none' });
-    assert.equal(cap.warns.length, 1, 'one warning printed');
-    assert.match(cap.warns[0]!, /no provider markers detected/i);
+    assert.deepEqual(out, { kind: 'ok', activeProvider: 'markdown', source: 'default' });
+    assert.equal(cap.warns.length, 0, 'no warning printed for the markdown default');
+    // The default lens is NOT persisted: a vendor marker added later
+    // must still auto-detect on the next scan.
+    assert.equal(
+      existsSync(join(tmpRoot, '.skill-map', 'settings.json')),
+      false,
+      'markdown default must not be written to settings.json',
+    );
   });
 });
 
@@ -292,19 +299,6 @@ describe('warnIfLensPluginDisabled (bd-23c regression)', () => {
     warnIfLensPluginDisabled({
       activeProvider: 'claude',
       resolveEnabled: () => true,
-      printer: cap.printer,
-    });
-    assert.equal(cap.warns.length, 0);
-  });
-
-  it('silent when activeProvider is null (no lens to validate)', () => {
-    const cap = capturePrinter();
-    warnIfLensPluginDisabled({
-      activeProvider: null,
-      // Should not even be consulted; pass a throwing stub to prove it.
-      resolveEnabled: () => {
-        throw new Error('resolveEnabled MUST NOT be called when lens is null');
-      },
       printer: cap.printer,
     });
     assert.equal(cap.warns.length, 0);

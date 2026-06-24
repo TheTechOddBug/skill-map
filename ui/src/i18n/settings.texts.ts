@@ -157,12 +157,10 @@ export const SETTINGS_TEXTS = {
       'how the chosen provider interprets your files.',
     activeProviderSourceAutodetect:
       'Auto-detected from your files (no value saved yet).',
-    activeProviderSourceNone:
-      'No provider detected. Install or enable a provider to start.',
+    activeProviderSourceDefault:
+      'No provider marker detected. Showing the universal Markdown view (nothing saved).',
     activeProviderDetectedPrefix: 'Detected:',
-    activeProviderEmptyOption: '(none)',
     activeProviderDisabledSuffix: '(disabled)',
-    activeProviderComingSoonSuffix: '(coming soon)',
     activeProviderConfirmHeader: 'Switch the active provider?',
     activeProviderConfirmIntro:
       'Switching will clear the persisted scan (nodes, links, ' +

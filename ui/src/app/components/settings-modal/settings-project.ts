@@ -139,11 +139,10 @@ export class SettingsProject {
    *
    * Each registry Provider absent from the envelope's `selectable` set
    * (the ids enabled right now) is rendered disabled: greyed and not
-   * selectable (`optionDisabled` in the template) plus a suffix, so a
-   * disabled Provider stays visible but can never be chosen as the lens.
-   * The suffix is "(coming soon)" when the Provider is flagged
-   * `comingSoon` (registered but not yet shippable), otherwise
-   * "(disabled)" (operator toggle). Before the envelope loads
+   * selectable (`optionDisabled` in the template) plus a "(disabled)"
+   * suffix, so it stays visible but can never be chosen as the lens. This
+   * covers both operator-disabled providers and the experimental ones
+   * that ship disabled by default. Before the envelope loads
    * (`selectable === null`) nothing is greyed, to avoid a flash of
    * all-disabled rows.
    */
@@ -156,19 +155,15 @@ export class SettingsProject {
       .providers()
       .map((p) => {
         const disabled = selectable !== null && !selectable.has(p.id);
-        const suffix = p.comingSoon
-          ? SETTINGS_TEXTS.project.activeProviderComingSoonSuffix
-          : SETTINGS_TEXTS.project.activeProviderDisabledSuffix;
-        const label = disabled ? `${p.label} ${suffix}` : p.label;
+        const label = disabled
+          ? `${p.label} ${SETTINGS_TEXTS.project.activeProviderDisabledSuffix}`
+          : p.label;
         return { id: p.id, label, disabled };
       })
-      // Enabled providers first, disabled/coming-soon sink to the bottom.
+      // Enabled providers first, disabled ones sink to the bottom.
       // Array.sort is stable, so relative registry order holds within each group.
       .sort((a, b) => Number(a.disabled) - Number(b.disabled));
-    return [
-      { id: '', label: SETTINGS_TEXTS.project.activeProviderEmptyOption, disabled: false },
-      ...providers,
-    ];
+    return providers;
   });
 
   /** Current resolved value (from config or autodetect); `''` for "none". */
@@ -183,7 +178,7 @@ export class SettingsProject {
 
   /** Which source the persisted value came from. */
   protected readonly activeProviderSource = computed<IActiveProviderApi['source']>(() => {
-    return this.activeProviderEnvelope()?.source ?? 'none';
+    return this.activeProviderEnvelope()?.source ?? 'default';
   });
 
   constructor() {
@@ -278,7 +273,7 @@ export class SettingsProject {
    * dropdown to the previous value by re-emitting the envelope.
    */
   protected onActiveProviderChange(newValue: string): void {
-    if (newValue === '' || newValue === this.activeProviderValue()) return;
+    if (newValue === this.activeProviderValue()) return;
     this.confirmActiveProviderSwitch(newValue, async () => {
       await this.runActiveProviderSwitch(newValue);
     });

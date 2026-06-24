@@ -63,6 +63,7 @@ import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { loadConfig } from '../../kernel/config/loader.js';
+import { resolveActiveProvider } from '../config/active-provider.js';
 import { buildSettingsResolver } from '../config/plugin-settings.js';
 import { walkReferencePaths } from '../runtime/reference-paths-walker.js';
 import {
@@ -435,6 +436,23 @@ function relativeFromRoots(absolute: string, absRoots: readonly string[]): strin
   return null;
 }
 
+/**
+ * Resolve the active lens for a watcher batch from the persisted config
+ * (`settings.json#/activeProvider`), falling back to filesystem
+ * auto-detect via the composed providers, then to the universal markdown
+ * default. Mirrors the CLI scan-runner so a lens switched mid-session via
+ * `PATCH /api/active-provider` is honoured by the next batch instead of
+ * the orchestrator's filesystem-only fallback (which ignores the
+ * operator's choice). Pure: reads config, never persists. Extracted to
+ * keep `runOnePass` under the complexity cap.
+ */
+function resolveWatcherLens(
+  cwd: string,
+  composed: ReturnType<typeof composeScanExtensions>,
+): string | null {
+  return resolveActiveProvider(cwd, composed?.providers ?? []).resolved;
+}
+
 export function createWatcherRuntime(
   opts: ICreateWatcherRuntimeOpts,
 ): IWatcherRuntimeHandle {
@@ -629,6 +647,13 @@ export function createWatcherRuntime(
         maxRenderNodes: cfg.scan.maxNodes,
         overrideMaxRenderNodes: opts.maxNodesOverride ?? null,
         maxFileSizeBytes: cfg.scan.maxFileSizeBytes,
+        // Resolve the active lens from the persisted config (settings.json)
+        // so a lens switched via `PATCH /api/active-provider` is honoured by
+        // the next watcher batch. Without an explicit value the orchestrator
+        // falls back to filesystem detection, which ignores the operator's
+        // choice (e.g. selecting `markdown` while `.claude/` is still on disk
+        // would re-detect `claude` and silently overwrite the chosen lens).
+        activeProvider: resolveWatcherLens(cwd, composed),
       };
       // Reference-paths escape hatch: mirror what `scan-runner.ts`
       // (the CLI path) does, walk the configured side-roots and pass

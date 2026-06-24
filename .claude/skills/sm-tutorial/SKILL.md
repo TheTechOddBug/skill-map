@@ -306,7 +306,7 @@ the `__PROVIDER__` token and skip kinds the provider does not claim.
      `daily-loop`).
   3. Provision the lens: the seeded portfolio has a root `AGENTS.md`
      (the `openai`/Codex marker) next to `.claude/`, but `openai` is
-     coming soon, so auto-detect ignores it and a plain `sm init`
+     experimental (ships disabled), so auto-detect ignores it and a plain `sm init`
      resolves the `claude` lens with no prompt. Run `sm init`, then
      `sm scan`. (If `.skill-map/` already exists, just `sm scan`.)
   4. Mark the skipped predecessors: `state.js set-part <predecessor> skipped`

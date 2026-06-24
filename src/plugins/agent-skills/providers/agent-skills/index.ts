@@ -27,9 +27,59 @@
  * a node was sourced from.
  */
 
-import type { IBuiltInManifest, IProvider } from '../../../../kernel/extensions/index.js';
+import type {
+  IBuiltInManifest,
+  IProvider,
+  IProviderKind,
+  IProviderReadConfig,
+} from '../../../../kernel/extensions/index.js';
 import skillSchema from './schemas/skill.schema.json' with { type: 'json' };
 import { AGENT_SKILLS_PLUGIN_ID } from '../../../ids.js';
+
+/**
+ * Reusable open-standard pieces. A vendor Provider that adopts the
+ * `.agents/skills/` layout (e.g. `antigravity`) imports these and composes
+ * them into its OWN manifest, so under that vendor's lens the skills are
+ * classified with its provider id and its `reservedNames` apply via self
+ * scope, no cross-provider kernel rule needed.
+ */
+export const OPEN_SKILLS_READ: IProviderReadConfig = {
+  extensions: ['.md'],
+  parser: 'frontmatter-yaml',
+};
+
+export const OPEN_SKILLS_KINDS: Record<string, IProviderKind> = {
+  skill: {
+    schema: './schemas/skill.schema.json',
+    schemaJson: skillSchema,
+    ui: {
+      label: 'Skills',
+      color: '#10b981',
+      colorDark: '#34d399',
+      icon: { kind: 'pi', id: 'pi-bolt' },
+    },
+    // Open-standard skills mirror Anthropic's: dirname between
+    // `.agents/skills/` and `/SKILL.md` is the canonical handle,
+    // `frontmatter.name` overrides when present.
+    identifiers: ['frontmatter.name', 'dirname'],
+  },
+};
+
+// The open standard documents slash-style invocation of skills.
+export const OPEN_SKILLS_RESOLUTION: Record<string, string[]> = { invokes: ['skill'] };
+
+/**
+ * Strict folder-based classifier for the open standard:
+ * `.agents/skills/<name>/SKILL.md` with exactly one folder level between
+ * `skills/` and the file. Supporting files (README.md, references/,
+ * helpers) are disclaimed so `core/markdown` picks them up; only the
+ * entry-point `SKILL.md` is the canonical node, mirroring the open-standard
+ * contract.
+ */
+export function classifyOpenSkillsPath(path: string): string | null {
+  if (/^\.agents\/skills\/[^/]+\/skill\.md$/.test(path.toLowerCase())) return 'skill';
+  return null;
+}
 
 export const agentSkillsProvider: IBuiltInManifest<IProvider> = {
   id: 'agent-skills',
@@ -45,16 +95,25 @@ export const agentSkillsProvider: IBuiltInManifest<IProvider> = {
     label: 'Open Skills',
     color: '#64748b',
     colorDark: '#94a3b8',
-    // Registered but not yet selectable as the active lens; auto-detect
-    // skips its `.agents/` marker and the UI greys it with a
-    // `(coming soon)` suffix.
-    comingSoon: true,
   },
+
+  // Gated like the vendor providers: `.agents/skills/*` is classified as
+  // `skill` ONLY under the `agent-skills` lens; under any other lens
+  // (including `markdown`) it falls through to `core/markdown`, the sole
+  // universal provider. Keeps the "one active lens" model honest.
+  gatedByActiveLens: true,
+
+  // Not yet ready for end users: ships disabled by default. The operator
+  // opts in via `sm plugins enable` / the Settings toggle / the tutorial's
+  // `--experimental` flow, so it neither classifies nor auto-detects until
+  // enabled.
+  stability: 'experimental',
 
   // Auto-detect marker: a `.agents/` directory marks an open-standard
   // project. This is also the marker a Google/Antigravity project carries
-  // (Antigravity adopted the open standard), so such projects auto-detect
-  // as this universal lens. Provider-owned.
+  // (Antigravity adopted the open standard). The marker only produces an
+  // auto-detect candidate once this experimental provider is enabled.
+  // Provider-owned.
   detect: { markers: ['.agents'] },
 
   // Authoring target for `sm tutorial`: the open standard discovers skills
@@ -65,42 +124,11 @@ export const agentSkillsProvider: IBuiltInManifest<IProvider> = {
   // `aka` is display-only, `--for` still matches the `agent-skills` id.
   scaffold: { skillDir: '.agents/skills', aka: ['Antigravity', 'OpenAI Codex'] },
 
-  read: { extensions: ['.md'], parser: 'frontmatter-yaml' },
+  read: OPEN_SKILLS_READ,
 
-  kinds: {
-    skill: {
-      schema: './schemas/skill.schema.json',
-      schemaJson: skillSchema,
-      ui: {
-        label: 'Skills',
-        color: '#10b981',
-        colorDark: '#34d399',
-        icon: { kind: 'pi', id: 'pi-bolt' },
-      },
-      // Open-standard skills mirror Anthropic's: dirname between
-      // `.agents/skills/` and `/SKILL.md` is the canonical handle,
-      // `frontmatter.name` overrides when present.
-      identifiers: ['frontmatter.name', 'dirname'],
-    },
-  },
+  kinds: OPEN_SKILLS_KINDS,
 
-  // The open standard documents slash-style invocation of skills; no
-  // mention surface (no agents in this Provider's territory).
-  resolution: {
-    invokes: ['skill'],
-  },
+  resolution: OPEN_SKILLS_RESOLUTION,
 
-  classify(path: string): string | null {
-    // Strict folder-based pattern: `.agents/skills/<name>/SKILL.md` with
-    // exactly one folder level between `skills/` and the file. Supporting
-    // files inside the skill folder (README.md, references/, helpers,
-    // etc.) are disclaimed so `core/markdown` picks them up; only the
-    // skill's entry-point `SKILL.md` is the canonical node, mirroring
-    // the open-standard contract.
-    if (/^\.agents\/skills\/[^/]+\/skill\.md$/.test(path.toLowerCase())) return 'skill';
-    // Outside the open-standard path, disclaim so vendor-specific
-    // Providers (`claude`, `openai`, `antigravity`) can claim the
-    // file on their own walk passes.
-    return null;
-  },
+  classify: classifyOpenSkillsPath,
 };

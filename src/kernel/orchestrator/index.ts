@@ -390,14 +390,17 @@ export interface RunScanOptions {
    *   - `string`: explicit lens. Provider-specific extractors run only
    *     when their declared `precondition.provider` includes BOTH this
    *     value AND the node's provider.
-   *   - `null`: explicit "no lens". Provider-specific extractors are
-   *     unconditionally skipped (spec-strict).
+   *   - `null`: "no lens" for bare callers. Provider-specific extractors
+   *     are unconditionally skipped, the same shape as the universal
+   *     markdown lens. Production never reaches this: the resolver in
+   *     `core/runtime` always yields a concrete lens (a vendor id, or
+   *     the markdown id when no marker is present).
    *   - `undefined`: kernel auto-detects from `options.roots[0]` using
    *     filesystem markers (`.claude/`, `.codex/`, `AGENTS.md`).
    *     Convenient default for out-of-band callers
    *     (integration tests, embedders) that don't thread a settings
    *     reader. Production callers (scan-runner) resolve upstream and
-   *     pass `string | null` explicitly, never `undefined`.
+   *     pass a concrete lens string explicitly, never `undefined`.
    */
   activeProvider?: string | null;
   /**
@@ -763,7 +766,6 @@ function buildPostWalkTransformCtx(
     nodes,
     kindRegistry,
     reservedNamesByProviderKind,
-    activeProvider,
   );
   return { kindRegistry, providerResolution, activeProvider, reservedNodePaths };
 }
@@ -815,39 +817,32 @@ function indexReservedNames(
 }
 
 /**
- * Intersect each node's normalised identifiers with the reserved names
- * that apply to it under TWO scopes (spec/architecture.md §Provider ·
- * reservedNames):
+ * Intersect each node's normalised identifiers with the reserved names of
+ * the node's OWN Provider (self scope, spec/architecture.md §Provider ·
+ * reservedNames): e.g. Claude flags `.claude/commands/help.md`, and under
+ * the antigravity lens a `.agents/skills/goal/SKILL.md` (classified as
+ * `antigravity/skill` via the inherited open-standard classifier) is
+ * flagged because `/goal` is a built-in. A vendor that adopts the open
+ * standard reuses the `agent-skills` classifier in its own manifest, so
+ * its skill nodes carry its provider id and self scope alone covers them,
+ * no cross-provider lens-scope rule is needed.
  *
- *   - **Self scope**: `reservedNames[node.kind]` of the node's own
- *     Provider (Claude flags `.claude/commands/help.md`).
- *   - **Lens scope**: when the active lens classifies nothing itself but
- *     adopts the open standard (Antigravity), its catalog still applies
- *     to the universal `agent-skills` skill nodes its runtime consumes,
- *     matched by kind. Skipped when the lens IS the node's provider (it
- *     would duplicate self scope) or when no lens is resolved.
- *
- * Identifiers are derived once from the node's OWN kind contract; only
- * the reserved-set lookup widens. Both `liftResolvedLinkConfidence`
- * (transform) and `core/name-reserved` (analyzer) consume the same set.
+ * Identifiers are derived from the node's OWN kind contract. Both
+ * `liftResolvedLinkConfidence` (transform) and `core/name-reserved`
+ * (analyzer) consume the same set.
  */
 function buildReservedNodePaths(
   nodes: readonly Node[],
   kindRegistry: ReadonlyMap<string, IProviderKind>,
   reservedNamesByProviderKind: ReadonlyMap<string, ReadonlySet<string>>,
-  activeProvider: string | null,
 ): Set<string> {
   const out = new Set<string>();
   for (const node of nodes) {
     const selfKey = `${node.provider}/${node.kind}`;
     const selfReserved = reservedNamesByProviderKind.get(selfKey);
-    const lensReserved =
-      activeProvider && activeProvider !== node.provider
-        ? reservedNamesByProviderKind.get(`${activeProvider}/${node.kind}`)
-        : undefined;
-    if (!hasEntries(selfReserved) && !hasEntries(lensReserved)) continue;
+    if (!hasEntries(selfReserved)) continue;
     const ids = deriveNodeIdentifiers(node, kindRegistry.get(selfKey));
-    if (ids.some((id) => selfReserved?.has(id) === true || lensReserved?.has(id) === true)) {
+    if (ids.some((id) => selfReserved?.has(id) === true)) {
       out.add(node.path);
     }
   }

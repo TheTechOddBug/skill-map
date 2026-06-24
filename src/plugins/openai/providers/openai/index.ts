@@ -51,9 +51,6 @@ export const openaiProvider: IBuiltInManifest<IProvider> = {
     label: 'OpenAI Codex',
     color: '#22c55e',
     colorDark: '#4ade80',
-    // Registered but not yet selectable as the active lens; auto-detect
-    // skips its markers and the UI greys it with a `(coming soon)` suffix.
-    comingSoon: true,
   },
 
   // Auto-detect markers: a `.codex/` directory or a root `AGENTS.md` marks
@@ -66,6 +63,11 @@ export const openaiProvider: IBuiltInManifest<IProvider> = {
   // claiming Codex agents under a `claude` (or any other) lens, where
   // the Codex runtime would never resolve them anyway.
   gatedByActiveLens: true,
+
+  // Not yet ready for end users: ships disabled by default (the operator
+  // opts in via `sm plugins enable` / Settings / the tutorial's
+  // `--experimental` flow). Replaces the retired `comingSoon` flag.
+  stability: 'experimental',
 
   read: { extensions: ['.toml'], parser: 'toml' },
 
