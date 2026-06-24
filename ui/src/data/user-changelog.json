@@ -2,6 +2,27 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.63.0",
+      "date": "2026-06-24",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "A repo with no `.claude/`, `.codex/`, or `.agents/` now opens in the Markdown view instead of mixing every platform together, with no warning. Pick Markdown anytime from Settings to see your files as plain markdown. The empty `(none)` option is gone.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "The lens dropdown no longer shows \"(coming soon)\" rows. Not-ready providers (OpenAI Codex, Antigravity, Open Skills) are hidden until you enable them with `sm plugins enable <id>`; `sm tutorial --experimental` offers them as tutorial destinations.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.62.2",
       "date": "2026-06-23",
       "kind": "user-facing",
