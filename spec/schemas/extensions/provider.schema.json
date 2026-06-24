@@ -71,10 +71,6 @@
         "hideChip": {
           "type": "boolean",
           "description": "When `true`, the UI does NOT paint this Provider's chip on node cards. Reserved for the universal fallback Provider (`markdown`): the majority of nodes in any project carry it, so badging every generic `.md` would be visual noise and dilute the chip's purpose (signalling when a node came from a NON-default platform). The Provider still appears in the active-lens dropdown and the topbar lens chip; only the per-card badge is suppressed. Defaults to `false` (chip shown)."
-        },
-        "comingSoon": {
-          "type": "boolean",
-          "description": "When `true`, this Provider is not yet selectable as the active lens: it is published in the registry (so node chips still render and the UI can show it) but it can never be picked. The auto-detect heuristic skips it (`detectProvidersFromFilesystem`), so a coming-soon Provider's markers never produce a candidate or an ambiguous prompt; the BFF drops it from the `selectable` set served by `GET /api/active-provider`; and the UI renders it greyed with a `(coming soon)` suffix in the lens dropdown. Use this for vendor Providers whose support is registered but not yet ready for end users (today: `openai`, `antigravity`, `agent-skills`). Defaults to `false` (selectable). Distinct from `hideChip` (which only suppresses the per-card badge) and from operator-driven disable via `plugins[<id>].enabled = false` (a reversible config toggle, not a product-availability statement)."
         }
       }
     },

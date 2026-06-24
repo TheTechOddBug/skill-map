@@ -125,7 +125,7 @@ const STUB_DATA_SOURCE: Partial<IDataSourcePort> = {
   }),
   getActiveProvider: vi
     .fn()
-    .mockResolvedValue({ activeProvider: null, detected: [], source: 'none' as const, selectable: [] }),
+    .mockResolvedValue({ activeProvider: 'markdown', detected: [], source: 'default' as const, selectable: [] }),
   getProjectPreferences: vi.fn().mockResolvedValue({ allowSidecarWriters: true, scan: { referencePaths: [] } }),
   getProjectIgnore: vi.fn().mockResolvedValue({ patterns: [] }),
   getRegisteredAnnotations: vi.fn().mockResolvedValue([]),

@@ -464,12 +464,14 @@ export async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWal
   // Active-lens scope filter. Vendor Providers declare
   // `gatedByActiveLens: true` and only participate in the walk when
   // their `id` equals `opts.activeProvider`. Universal Providers
-  // (default `gatedByActiveLens === false`) always participate. When
-  // `opts.activeProvider === null` (no lens resolved), the filter is
-  // bypassed entirely so every Provider runs (permissive fallback for
-  // unlensed projects). Filtering at the provider-iteration level
-  // (not per file) is the cheap path: a gated-off vendor Provider
-  // does NOT walk its territory at all.
+  // (default `gatedByActiveLens === false`) always participate. The
+  // resolver (`core/runtime`) always supplies a concrete lens (a
+  // vendor id, or the universal markdown id when no marker is present),
+  // so there is no permissive "unlensed" branch; a bare caller that
+  // leaves `opts.activeProvider === null` simply runs the universal
+  // Providers only, matching the markdown-lens shape. Filtering at the
+  // provider-iteration level (not per file) is the cheap path: a
+  // gated-off vendor Provider does NOT walk its territory at all.
   const activeProviders = opts.providers.filter((provider) =>
     providerParticipates(provider, opts.activeProvider),
   );
@@ -808,13 +810,13 @@ function buildPriorMtimes(
  * Active-lens participation predicate for the provider-iteration filter
  * in `walkAndExtract`. A universal Provider (`gatedByActiveLens` falsy)
  * always participates. A gated vendor Provider participates only when
- * the active lens is unresolved (`null`, permissive fallback) or equals
- * the Provider's id. Extracted so the walk loop stays under the
- * complexity cap.
+ * its id equals the active lens. The resolver always supplies a
+ * concrete lens, so there is no permissive branch; a bare caller that
+ * leaves the lens `null` runs only the universal Providers. Extracted
+ * so the walk loop stays under the complexity cap.
  */
 function providerParticipates(provider: IProvider, activeProvider: string | null): boolean {
   if (!provider.gatedByActiveLens) return true;
-  if (activeProvider === null) return true;
   return provider.id === activeProvider;
 }
 

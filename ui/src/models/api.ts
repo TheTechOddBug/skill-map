@@ -467,11 +467,6 @@ export interface IProviderRegistryEntryApi {
   icon?: TKindIconApi;
   /** Suppress the per-card chip (universal `markdown` fallback). */
   hideChip?: boolean;
-  /**
-   * Registered but not yet selectable as the active lens. The dropdown
-   * greys it with a `(coming soon)` suffix.
-   */
-  comingSoon?: boolean;
 }
 
 export type IProviderRegistryApi = Record<string, IProviderRegistryEntryApi>;
@@ -1003,23 +998,25 @@ export interface IProjectIgnorePatchApi {
  * extractors / classifiers / resolution rules apply to the whole
  * project (see `spec/architecture.md` §Active Provider Lens).
  *
- *   - `activeProvider`: persisted value (or null when neither config
- *     nor auto-detect produced one).
+ *   - `activeProvider`: the resolved lens. Always a concrete provider
+ *     id, never null: a vendor id, or `markdown` (the universal default
+ *     view) when neither config nor a filesystem marker produced one.
  *   - `detected`: every provider id the filesystem heuristic matched
  *     against, deduped + in detection order. Empty when no markers
  *     were found (.claude/, .gemini/, .codex/, AGENTS.md, .cursor/).
  *   - `source`: where the value came from (`'config'` when persisted
  *     in settings.json, `'autodetect'` when derived from filesystem,
- *     `'none'` when neither source produced a value).
+ *     `'default'` when no marker was present and the universal markdown
+ *     lens applies, unpersisted).
  *   - `selectable`: registered-Provider ids enabled right now (the
  *     subset of `providerRegistry` eligible to become the lens). The
  *     active-lens dropdown greys out and refuses to select any entry
  *     absent from this set, so a disabled Provider can never be chosen.
  */
 export interface IActiveProviderApi {
-  activeProvider: string | null;
+  activeProvider: string;
   detected: readonly string[];
-  source: 'config' | 'autodetect' | 'none';
+  source: 'config' | 'autodetect' | 'default';
   selectable: readonly string[];
 }
 

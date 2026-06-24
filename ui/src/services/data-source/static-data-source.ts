@@ -534,7 +534,7 @@ export class StaticDataSource implements IDataSourcePort {
   }
 
   async getActiveProvider(): Promise<IActiveProviderApi> {
-    return { activeProvider: null, detected: [], source: 'none', selectable: [] };
+    return { activeProvider: 'markdown', detected: [], source: 'default', selectable: [] };
   }
 
   async setActiveProvider(_activeProvider: string): Promise<IActiveProviderPutEnvelopeApi> {

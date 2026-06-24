@@ -133,10 +133,10 @@ element. Decide with §Provider detection:
   left bar): emit tester-facing messages with `> ` on every line,
   including blank lines inside a multi-paragraph block. This is the
   only active path today.
-- `provider != claude` (coming soon: Antigravity CLI, agent-skills,
+- `provider != claude` (experimental: Antigravity CLI, agent-skills,
   any other host where most non-Claude renderers show `>` as a
   literal character): emit **plain prose**, NO `> ` prefix anywhere.
-  Kept as the wiring for the coming-soon providers; not exercised
+  Kept as the wiring for the experimental providers; not exercised
   while the tutorial demos `claude` only.
 
 Sample messages throughout the part files are written in the Claude
@@ -259,24 +259,24 @@ on-disk convention:
 | Provider       | Base dir          | Kinds it claims             | Detect via env var(s)                                  |
 |----------------|-------------------|-----------------------------|--------------------------------------------------------|
 | `claude`       | `.claude/`        | `agent`, `command`, `skill` | `CLAUDECODE=1` OR `AI_AGENT` starts with `claude-code` |
-| `agent-skills` | `.agents/skills/` | `skill` only (vendor-neutral; also the on-disk home for Google's Antigravity CLI, which replaced the Gemini CLI on 2026-05-19 and adopted this open standard) | coming soon (not selectable in the tutorial yet) |
-| `openai`       | `.codex/`         | `agent` (`.codex/agents/*.toml`) | coming soon (not selectable in the tutorial yet) |
+| `agent-skills` | `.agents/skills/` | `skill` only (vendor-neutral; also the on-disk home for Google's Antigravity CLI, which replaced the Gemini CLI on 2026-05-19 and adopted this open standard) | experimental (ships disabled; `sm tutorial --experimental` to offer it) |
+| `openai`       | `.codex/`         | `agent` (`.codex/agents/*.toml`) | experimental (ships disabled by default) |
 
 **Decision logic, applied silently during pre-flight**: the tutorial
 demonstrates the `claude` provider only. `agent-skills` and `openai`
-are **coming soon** and are not selectable here, so there is no
-runtime to detect or opt into.
+are **experimental** (ship disabled by default) and are not selectable
+here, so there is no runtime to detect or opt into.
 
 1. `provider = claude`, `<provider_dir> = .claude`, kinds =
    `{agent, command, skill}`. Always.
 2. Do NOT offer Antigravity / agent-skills / openai as an alternative,
    and do NOT ask the tester which runtime hosts them. If a tester
    says they use another runtime, acknowledge it briefly and explain
-   that those providers are coming soon, the tutorial demos `claude`
+   that those providers are experimental, the tutorial demos `claude`
    (`.claude/`) today:
 
    > Heads up: skill-map also reads Antigravity, agent-skills and
-   > Codex projects, but those providers are coming soon in this
+   > Codex projects, but those providers are experimental in this
    > tutorial. We'll demo skill-map's Claude provider (`.claude/`)
    > today.
 

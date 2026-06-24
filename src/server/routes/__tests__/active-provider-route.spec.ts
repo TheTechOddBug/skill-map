@@ -32,9 +32,9 @@ import {
 } from '../../index.js';
 
 interface IActiveProviderWire {
-  activeProvider: string | null;
+  activeProvider: string;
   detected: string[];
-  source: 'config' | 'autodetect' | 'none';
+  source: 'config' | 'autodetect' | 'default';
   selectable: string[];
 }
 

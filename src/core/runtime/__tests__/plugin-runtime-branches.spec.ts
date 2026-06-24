@@ -350,7 +350,7 @@ describe('plugin-runtime, branch coverage', () => {
         pluginRuntime: emptyPluginRuntime(),
       });
       assert.ok(composed);
-      assert.equal(composed.providers.length, 5, 'claude + antigravity + openai + agent-skills + core-markdown providers loaded');
+      assert.equal(composed.providers.length, 2, 'only claude + core-markdown load by default; antigravity / openai / agent-skills are experimental so they ship disabled');
       assert.equal(composed.extractors.length, 6, '6 of 7 extractors loaded; core/mcp-tools is experimental so it ships disabled by default');
       assert.equal(composed.analyzers.length, 14, '14 of 15 analyzers loaded; core/annotation-stale is experimental so it ships disabled by default (the former projector analyzers core/supersede + core/tags were deleted; the remaining inspector buttons self-project from their actions and tag editing moved inline; core/score-resolution was deleted, the kernel now seeds the 1.0 baseline directly; core/job-file-orphan was removed, to return under a probabilistic evaluation model)');
       // Actions load into the pipeline as dispatch targets; those with a
@@ -490,7 +490,7 @@ describe('plugin-runtime, branch coverage', () => {
         killSwitches: { extractors: true },
       });
       assert.ok(composed);
-      assert.equal(composed.providers.length, 5);
+      assert.equal(composed.providers.length, 2, 'providers untouched (2: only claude + core-markdown load; the other providers are experimental so they ship disabled)');
       assert.equal(composed.extractors.length, 0);
       assert.equal(composed.analyzers.length, 14);
     });
@@ -502,7 +502,7 @@ describe('plugin-runtime, branch coverage', () => {
         killSwitches: { analyzers: true },
       });
       assert.ok(composed);
-      assert.equal(composed.providers.length, 5);
+      assert.equal(composed.providers.length, 2, 'providers untouched (2: only claude + core-markdown load; the other providers are experimental so they ship disabled)');
       assert.equal(composed.extractors.length, 6);
       assert.equal(composed.analyzers.length, 0);
     });

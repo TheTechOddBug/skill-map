@@ -147,8 +147,8 @@ Expected: the scan prints a line like `Auto-detected activeProvider
 is just a key in `settings.json`, persisted like any other setting.
 
 > Other lenses exist in the engine (`openai` for Codex,
-> `agent-skills`, `antigravity`), but they are **coming soon** in the
-> tutorial: today we demo the `claude` lens only. The idea to keep is
+> `agent-skills`, `antigravity`), but they are **experimental** (ship
+> disabled by default): today we demo the `claude` lens only. The idea to keep is
 > the one above, one project reads through exactly one provider at a
 > time, chosen by `activeProvider`. The lens is cheap to change later
 > because the graph is always rebuilt from your files, never the

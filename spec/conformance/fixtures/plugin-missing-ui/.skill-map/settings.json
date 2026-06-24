@@ -1,0 +1,7 @@
+{
+  "plugins": {
+    "antigravity/antigravity": { "enabled": true },
+    "openai/openai": { "enabled": true },
+    "agent-skills/agent-skills": { "enabled": true }
+  }
+}

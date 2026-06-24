@@ -242,17 +242,6 @@ export interface IProviderUi {
    * topbar lens chip; only the per-card badge is suppressed.
    */
   hideChip?: boolean;
-  /**
-   * When `true`, this Provider is registered but NOT yet selectable as
-   * the active lens. Auto-detect skips it (`detectProvidersFromFilesystem`),
-   * the BFF drops it from the `selectable` set, and the UI greys it with
-   * a `(coming soon)` suffix. It still ships in `providerRegistry` so
-   * node chips render. Mirrors
-   * `spec/schemas/extensions/provider.schema.json#/properties/presentation/properties/comingSoon`.
-   * Distinct from `hideChip` and from the operator toggle
-   * `plugins[<id>].enabled = false`. Defaults to `false` (selectable).
-   */
-  comingSoon?: boolean;
 }
 
 /**
@@ -492,10 +481,10 @@ export interface IProvider extends IExtensionBase {
    * this `false`: their territory is consumed by every vendor and they
    * MUST run on every scan, regardless of the active lens.
    *
-   * When `activeProvider === null` (no lens resolved, e.g. a project
-   * with no provider markers), the walker bypasses the gate entirely
-   * and every gated Provider runs, mirroring the permissive
-   * extractor-side fallback for unlensed projects.
+   * There is no unlensed state: a project with no provider markers
+   * resolves to the universal `core/markdown` lens (id `markdown`),
+   * under which every gated Provider stays off (only the universal
+   * Providers run). The resolver never yields a null lens.
    *
    * Default `undefined` ≡ `false` ≡ universal. The field affects
    * classification ONLY; extractors continue to filter via their own

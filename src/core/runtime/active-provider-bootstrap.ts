@@ -7,10 +7,11 @@
  *   2. When the lens came from filesystem auto-detect (no settings
  *      value), branch on `detected.length`:
  *
- *      - 0 detected → no provider markers anywhere. Emit a soft
- *        warning and return `null`. Provider-specific extractors will
- *        silently no-op for this scan; the universal `core/*`
- *        extractors keep running so plain-markdown projects scan fine.
+ *      - 0 detected → no provider markers anywhere. Resolve to the
+ *        universal markdown lens (`source: 'default'`), no warning and
+ *        no persist. Provider-specific extractors silently no-op under
+ *        that lens; the universal `core/*` extractors keep running so
+ *        plain-markdown projects scan fine.
  *      - 1 detected → persist the detected id to
  *        `.skill-map/settings.json` (project layer) alongside a
  *        `activeProviderMarkers` snapshot of the detected set, so
@@ -35,9 +36,10 @@
  *      first scan, so the warn only fires when reality drifts from a
  *      known-good snapshot.
  *
- * Returns `null` only when no marker is present anywhere; in that
- * case the orchestrator's gate skips every provider-specific
- * extractor for the scan.
+ * Always returns a concrete lens: a vendor id when a marker is present
+ * or chosen, otherwise the universal markdown lens. Under the markdown
+ * lens the orchestrator's gate skips every provider-specific extractor
+ * for the scan.
  *
  * Side effects: may write `.skill-map/settings.json` in the project
  * layer (twice, `activeProvider` then `activeProviderMarkers`), may
@@ -51,6 +53,7 @@ import { isAbsolute, join } from 'node:path';
 
 import {
   resolveActiveProvider,
+  MARKDOWN_LENS_ID,
   type IProviderDetectInput,
 } from '../config/active-provider.js';
 import { readConfigValue, writeConfigValue } from '../config/helper.js';
@@ -58,6 +61,7 @@ import { readConfigValue, writeConfigValue } from '../config/helper.js';
 import { SCAN_RUNNER_TEXTS } from './i18n/scan-runner.texts.js';
 import type { IPrinter } from './printer.js';
 import { tx } from '../../kernel/util/tx.js';
+import { installedDefaultEnabled } from '../../kernel/config/plugin-resolver.js';
 
 export interface IBootstrapActiveProviderOpts {
   cwd: string;
@@ -104,24 +108,18 @@ export interface IBootstrapActiveProviderOpts {
 }
 
 export type TBootstrapActiveProviderOutcome =
-  | { kind: 'ok'; activeProvider: string | null; source: 'config' | 'autodetect' | 'none' }
+  | { kind: 'ok'; activeProvider: string; source: 'config' | 'autodetect' | 'default' }
   | {
       kind: 'ambiguous';
       detected: readonly string[];
     };
 
 /**
- * Top-level bootstrap. Returns the lens (string | null) when the call
- * is allowed to continue; returns `{ kind: 'ambiguous', ... }` when
- * the caller must exit non-zero under `--yes`.
+ * Top-level bootstrap. Returns the resolved lens (always a concrete
+ * string) when the call is allowed to continue; returns
+ * `{ kind: 'ambiguous', ... }` when the caller must exit non-zero
+ * under `--yes`.
  */
-// Pre-existing complexity: the bootstrap walks four branches (cached
-// lens, single-marker auto-detect, multi-marker prompt, no-marker
-// continue) plus the diff-against-markers fork. Splitting the
-// dispatch scatters the lens-resolution algorithm without clarifying
-// it; tracked as tech-debt rather than refactored under the
-// eliminate-plugin-toggle change.
-// eslint-disable-next-line complexity
 export async function bootstrapActiveProvider(
   opts: IBootstrapActiveProviderOpts,
 ): Promise<TBootstrapActiveProviderOutcome> {
@@ -153,15 +151,11 @@ export async function bootstrapActiveProvider(
     opts.providers,
   );
   if (detected.length === 0) {
-    const warnGlyph = opts.style?.warnGlyph ?? '⚠';
-    const dim = opts.style?.dim ?? ((s: string) => s);
-    opts.printer.warn(
-      tx(SCAN_RUNNER_TEXTS.activeProviderNoMarkerWarning, {
-        glyph: warnGlyph,
-        hint: dim(SCAN_RUNNER_TEXTS.activeProviderNoMarkerWarningHint),
-      }),
-    );
-    return { kind: 'ok', activeProvider: null, source: 'none' };
+    // No provider markers anywhere. Resolve to the universal markdown
+    // lens silently and do NOT persist it: a vendor marker added later
+    // still auto-detects on the next scan (persisting would let config
+    // freeze the project on markdown forever).
+    return { kind: 'ok', activeProvider: MARKDOWN_LENS_ID, source: 'default' };
   }
   if (detected.length === 1) {
     const picked = detected[0]!;
@@ -269,7 +263,7 @@ function persistActiveProvider(
  */
 function handleDrift(
   opts: IBootstrapActiveProviderOpts,
-  resolvedLens: string | null,
+  resolvedLens: string,
   currentMarkers: readonly string[],
 ): void {
   const snapshot = readConfigValue<readonly string[]>('activeProviderMarkers', {
@@ -281,14 +275,27 @@ function handleDrift(
     backfillMarkersSnapshot(opts.cwd, currentMarkers);
     return;
   }
-  const diff = diffMarkers(snapshot, currentMarkers);
+  // Ships-disabled Providers (`stability: experimental` / `deprecated`)
+  // are never auto-detectable (`detect-providers` skips them), so they can
+  // never appear in the current detected set. A stale snapshot entry for
+  // one (written before the Provider became experimental, or back when the
+  // retired `comingSoon` flag let it auto-detect) would otherwise report a
+  // permanent, non-actionable "removed" drift on every scan. Exclude them
+  // from both sides of the diff.
+  const shipsDisabled = new Set(
+    opts.providers.filter((p) => !installedDefaultEnabled(p.stability)).map((p) => p.id),
+  );
+  const diff = diffMarkers(
+    snapshot.filter((id) => !shipsDisabled.has(id)),
+    currentMarkers.filter((id) => !shipsDisabled.has(id)),
+  );
   if (diff.added.length === 0 && diff.removed.length === 0) return;
   emitDriftWarn(opts, resolvedLens, diff);
 }
 
 function emitDriftWarn(
   opts: IBootstrapActiveProviderOpts,
-  resolvedLens: string | null,
+  resolvedLens: string,
   diff: { added: readonly string[]; removed: readonly string[] },
 ): void {
   const warnGlyph = opts.style?.warnGlyph ?? '⚠';
@@ -296,7 +303,7 @@ function emitDriftWarn(
   const hint = tx(SCAN_RUNNER_TEXTS.activeProviderDriftWarnHint, {
     added: diff.added.length === 0 ? '(none)' : diff.added.join(', '),
     removed: diff.removed.length === 0 ? '(none)' : diff.removed.join(', '),
-    currentLens: resolvedLens ?? '(none)',
+    currentLens: resolvedLens,
   });
   opts.printer.warn(
     tx(SCAN_RUNNER_TEXTS.activeProviderDriftWarn, {
@@ -348,11 +355,10 @@ function diffMarkers(
  * batch resolver).
  */
 export function warnIfLensPluginDisabled(args: {
-  activeProvider: string | null;
+  activeProvider: string;
   resolveEnabled: (id: string) => boolean;
   printer: IPrinter;
 }): void {
-  if (args.activeProvider === null) return;
   if (args.resolveEnabled(args.activeProvider)) return;
   args.printer.warn(
     tx(SCAN_RUNNER_TEXTS.activeProviderPluginDisabledWarning, {

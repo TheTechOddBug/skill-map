@@ -1,30 +1,30 @@
 /**
- * Unit tests for the built-in `antigravity` Provider. The Provider is
- * metadata-only today: no `classify()` territory, no `kinds`, only a
- * reserved-name catalog captured verbatim from `agy /help` (Antigravity
- * CLI v1.0.3).
- *
- * The catalog is dormant in the live pipeline (the analyzer keys on
- * `node.provider` and no path classifies under `antigravity`), so these
- * tests verify the manifest shape directly rather than running the
- * analyzer end-to-end. The day Antigravity grows its own kind, the
- * existing `core/name-reserved` integration tests pick up coverage
- * automatically.
+ * Unit tests for the built-in `antigravity` Provider. It adopts the
+ * open-standard `.agents/skills/` layout by reusing the `agent-skills`
+ * classifier + kind, and carries a reserved-name catalog captured verbatim
+ * from `agy /help` (Antigravity CLI v1.0.3) under the `skill` kind. Under
+ * the antigravity lens, `.agents/skills/<name>/SKILL.md` classifies as
+ * `antigravity`/`skill`, so the catalog fires via SELF scope (see
+ * `reserved-name-lens-scope.spec.ts` for the end-to-end case).
  */
 
 import { describe, it } from 'node:test';
-import { strictEqual, deepStrictEqual, ok } from 'node:assert';
+import { strictEqual, ok } from 'node:assert';
 
 import { antigravityProvider } from '../index.js';
 
 describe('antigravity provider, manifest shape', () => {
-  it('declares the metadata-only shape (no `read`, empty kinds, classify returns null)', () => {
+  it('adopts the open-standard `.agents/skills/` layout (inherited classifier + kind)', () => {
     strictEqual(antigravityProvider.id, 'antigravity');
     strictEqual(antigravityProvider.pluginId, 'antigravity');
     strictEqual(antigravityProvider.kind, 'provider');
     strictEqual(antigravityProvider.gatedByActiveLens, true);
-    deepStrictEqual(antigravityProvider.kinds, {});
-    strictEqual(antigravityProvider.classify?.('.agents/skills/foo/SKILL.md', {}), null);
+    strictEqual(antigravityProvider.stability, 'experimental');
+    // Inherited from agent-skills: the open-standard skill kind, read
+    // config, and classifier.
+    ok(antigravityProvider.kinds['skill'], 'expected the inherited skill kind');
+    ok(antigravityProvider.read, 'expected the inherited read config');
+    strictEqual(antigravityProvider.classify?.('.agents/skills/foo/SKILL.md', {}), 'skill');
     strictEqual(antigravityProvider.classify?.('AGENTS.md', {}), null);
     strictEqual(antigravityProvider.classify?.('random.md', {}), null);
   });
@@ -32,11 +32,12 @@ describe('antigravity provider, manifest shape', () => {
 
 describe('antigravity provider, reserved-name catalog (official, captured from `agy /help` v1.0.3)', () => {
   // Declared under the `skill` kind, not `command`: Antigravity user
-  // slash-commands are skills (`.agents/skills/`), and the catalog fires
-  // via the orchestrator's lens scope against those `agent-skills` nodes.
+  // slash-commands are skills (`.agents/skills/`), classified as
+  // `antigravity`/`skill` under its lens (inherited classifier), so the
+  // catalog fires via self scope.
   const commands = antigravityProvider.reservedNames?.['skill'] ?? [];
 
-  it('declares its catalog under the `skill` kind (lens-scope target), not `command`', () => {
+  it('declares its catalog under the `skill` kind (self-scope target), not `command`', () => {
     ok(antigravityProvider.reservedNames?.['skill'], 'expected reservedNames.skill');
     strictEqual(antigravityProvider.reservedNames?.['command'], undefined);
   });

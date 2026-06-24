@@ -1,0 +1,6 @@
+{
+  "activeProvider": "agent-skills",
+  "plugins": {
+    "agent-skills/agent-skills": { "enabled": true }
+  }
+}

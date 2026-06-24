@@ -16,9 +16,9 @@
  *
  *   ```json
  *   {
- *     "activeProvider": "claude" | null,
+ *     "activeProvider": "claude" | "markdown",
  *     "detected": ["claude", "openai"],
- *     "source": "config" | "autodetect" | "none"
+ *     "source": "config" | "autodetect" | "default"
  *   }
  *   ```
  *
@@ -52,18 +52,18 @@ import { makeBodyValidator } from '../util/parse-body.js';
 import type { IRouteDeps } from './deps.js';
 
 export interface IActiveProviderEnvelope {
-  activeProvider: string | null;
+  activeProvider: string;
   detected: readonly string[];
-  source: 'config' | 'autodetect' | 'none';
+  source: 'config' | 'autodetect' | 'default';
   /**
    * Registered-Provider ids that are enabled right now, resolved against
    * the live per-extension resolver (`config_plugins` layered over
    * `settings.json#/plugins`, the same resolution `GET /api/plugins`
    * applies). This is the subset of `providerRegistry` eligible to
-   * become the lens. A Provider the operator disabled, or one flagged
-   * `presentation.comingSoon`, drops out of `selectable` but stays in
-   * `providerRegistry` (the static boot catalog keeps it so
-   * already-scanned nodes still render their chip).
+   * become the lens. A Provider the operator disabled, or one that ships
+   * disabled by default (`stability: experimental`), drops out of
+   * `selectable` but stays in `providerRegistry` (the static boot catalog
+   * keeps it so already-scanned nodes still render their chip).
    * The SPA greys out (and refuses to select) any dropdown entry absent
    * from this set, so a disabled Provider can never be picked as the
    * lens. See `spec/cli-contract.md` §Active provider lens.
@@ -118,9 +118,10 @@ async function resolveSelectableProviders(deps: IRouteDeps): Promise<string[]> {
   });
   const selectable = new Set<string>();
   for (const provider of deps.providers) {
-    // Coming-soon Providers are published in the registry but never
-    // selectable as the lens, regardless of their enabled state.
-    if (provider.presentation?.comingSoon === true) continue;
+    // A provider is selectable when it is enabled right now.
+    // `isPluginExtensionEnabled` threads `installedDefaultEnabled(stability)`,
+    // so experimental providers (ships-disabled by default) drop out here
+    // until the operator enables them.
     if (isPluginExtensionEnabled(provider, resolveEnabled)) {
       selectable.add(provider.id);
     }

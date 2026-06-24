@@ -6,62 +6,53 @@
  * prompt itself).
  *
  * Contract under test:
- *   - the catalog lists `claude` as the only selectable destination and
- *     the coming-soon vendors (`openai`, `agent-skills`, ...) as
- *     non-selectable teasers;
- *   - `classifyAnswer` resolves an answer to the row it names, so the
- *     prompt loop can re-ask when a coming-soon row is picked.
+ *   - by default the catalog lists only ready destinations (`claude`);
+ *     experimental providers (`agent-skills`) are omitted;
+ *   - with `--experimental` (the `includeExperimental` arg) experimental
+ *     destinations join the list;
+ *   - `classifyAnswer` resolves an answer to the row it names.
  */
 
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
-import {
-  classifyAnswer,
-  listScaffoldTargets,
-  selectableTargets,
-} from '../tutorial.js';
+import { classifyAnswer, listScaffoldTargets } from '../tutorial.js';
 
 describe('sm tutorial destination catalog', () => {
-  it('lists claude as the only selectable destination', () => {
-    const selectable = selectableTargets(listScaffoldTargets());
+  it('lists only ready destinations by default (claude)', () => {
+    const targets = listScaffoldTargets();
     assert.deepEqual(
-      selectable.map((t) => t.id),
+      targets.map((t) => t.id),
       ['claude'],
     );
-    assert.equal(selectable[0]!.comingSoon, false);
-    assert.ok(selectable[0]!.skillDir, 'claude must carry a skillDir');
+    assert.ok(targets[0]!.skillDir, 'claude must carry a skillDir');
   });
 
-  it('lists the coming-soon vendors as non-selectable teasers', () => {
-    const targets = listScaffoldTargets();
-    const comingSoon = targets.filter((t) => t.comingSoon).map((t) => t.id);
-    // openai + agent-skills are coming-soon today; they appear in the
-    // prompt but cannot be picked.
-    assert.ok(comingSoon.includes('openai'), `got ${JSON.stringify(comingSoon)}`);
-    assert.ok(comingSoon.includes('agent-skills'), `got ${JSON.stringify(comingSoon)}`);
-    // The universal markdown fallback is neither selectable nor coming-soon.
-    assert.ok(!targets.some((t) => t.id === 'markdown'));
+  it('includes experimental destinations only under --experimental', () => {
+    const ids = listScaffoldTargets(true).map((t) => t.id);
+    assert.ok(ids.includes('claude'), `got ${JSON.stringify(ids)}`);
+    // agent-skills is experimental and declares a `scaffold.skillDir`, so it
+    // joins the list only with the flag.
+    assert.ok(ids.includes('agent-skills'), `got ${JSON.stringify(ids)}`);
+    // The default catalog must NOT carry it.
+    assert.ok(!listScaffoldTargets().some((t) => t.id === 'agent-skills'));
+    // The universal markdown fallback declares no scaffold, so it never appears.
+    assert.ok(!ids.includes('markdown'));
   });
 });
 
 describe('sm tutorial classifyAnswer', () => {
-  const targets = listScaffoldTargets();
-  const def = selectableTargets(targets)[0]!;
+  const targets = listScaffoldTargets(true);
+  const def = targets[0]!;
 
   it('accepts the default on an empty answer', () => {
     assert.equal(classifyAnswer('', targets, def)?.id, def.id);
   });
 
-  it('resolves the selectable destination by index and by id', () => {
+  it('resolves a destination by index and by id', () => {
     assert.equal(classifyAnswer('1', targets, def)?.id, 'claude');
     assert.equal(classifyAnswer('claude', targets, def)?.id, 'claude');
-  });
-
-  it('resolves a coming-soon row but flags it comingSoon (caller re-asks)', () => {
-    const openai = classifyAnswer('openai', targets, def);
-    assert.equal(openai?.id, 'openai');
-    assert.equal(openai?.comingSoon, true);
+    assert.equal(classifyAnswer('agent-skills', targets, def)?.id, 'agent-skills');
   });
 
   it('returns null for an unrecognised answer', () => {

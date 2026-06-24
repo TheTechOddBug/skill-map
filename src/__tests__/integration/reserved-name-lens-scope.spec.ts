@@ -1,18 +1,21 @@
 /**
- * End-to-end coverage for the LENS SCOPE of reserved-name detection
+ * End-to-end coverage for SELF-scope reserved-name detection
  * (spec/architecture.md §Provider · reservedNames), exercised through
- * `runScan` so the full pipeline participates: `agent-skills` classifies
- * `.agents/skills/<name>/SKILL.md` as `skill` → the orchestrator's
- * `buildReservedNodePaths` lends the active lens's catalog to those
- * universal skill nodes → `core/name-reserved` projects a warn.
+ * `runScan` so the full pipeline participates.
  *
- * The Antigravity Provider classifies nothing itself (metadata-only) and
- * reserves `agy`'s built-in slash commands under `skill`. Self scope alone
- * would never reach the skill nodes (they are `provider: 'agent-skills'`,
- * not `provider: 'antigravity'`); only the lens scope, active when
- * `activeProvider === 'antigravity'`, catches the collision. The negative
- * cases pin the gating: a non-colliding skill is never flagged, and the
- * SAME colliding skill is silent under a non-Antigravity lens.
+ * A runtime that adopts the open `.agents/skills/` standard reuses the
+ * `agent-skills` classifier in its OWN manifest (manifest composition,
+ * not a kernel rule), so under its lens the skills are classified with ITS
+ * provider id and self scope catches collisions with its reserved
+ * built-ins. Antigravity is exactly this shape: it reuses the open-standard
+ * classifier and reserves `agy`'s built-in slash commands under `skill`.
+ * Under the antigravity lens, `.agents/skills/goal/SKILL.md` classifies as
+ * `antigravity`/`skill`, so self scope flags it (`/goal` is built-in).
+ *
+ * The negative cases pin the gating: a non-colliding skill is never
+ * flagged, and the SAME colliding skill is silent under another lens
+ * (antigravity is gated off, so the file falls through to `core/markdown`
+ * and there is no `antigravity/skill` node to flag).
  */
 
 import { strict as assert } from 'node:assert';
@@ -30,7 +33,7 @@ const skill = (name: string, description: string): string =>
   ['---', `name: ${name}`, `description: ${description}`, '---', 'Body.'].join('\n');
 
 before(() => {
-  fixture = mkdtempSync(join(tmpdir(), 'skill-map-reserved-lens-e2e-'));
+  fixture = mkdtempSync(join(tmpdir(), 'skill-map-reserved-self-e2e-'));
   const write = (rel: string, content: string): void => {
     const abs = join(fixture, rel);
     mkdirSync(join(abs, '..'), { recursive: true });
@@ -61,8 +64,8 @@ const scan = (activeProvider: string | null) => {
 const reservedFor = (issues: readonly { analyzerId: string; nodeIds: readonly string[] }[], path: string) =>
   issues.filter((i) => i.analyzerId === 'name-reserved' && i.nodeIds.includes(path));
 
-describe('core/name-reserved (lens scope, end-to-end through runScan)', () => {
-  it('flags an agent-skills skill that shadows an Antigravity built-in when the lens is antigravity', async () => {
+describe('core/name-reserved (self scope, end-to-end through runScan)', () => {
+  it('flags a skill that shadows an Antigravity built-in under the antigravity lens', async () => {
     const result = await scan('antigravity');
 
     const goalIssues = reservedFor(result.issues, '.agents/skills/goal/SKILL.md');
@@ -72,11 +75,11 @@ describe('core/name-reserved (lens scope, end-to-end through runScan)', () => {
       data: Record<string, unknown>;
     };
     assert.equal(issue.severity, 'warn');
-    // The issue is attached to the agent-skills skill node it shadows; the
-    // lens (antigravity) is what reserved the name, but the node keeps its
-    // own provider/kind in the issue payload.
+    // The antigravity lens classifies the skill itself (inherited
+    // open-standard classifier), so the node carries provider 'antigravity'
+    // and self scope flags it.
     assert.equal(issue.data['surface'], 'target');
-    assert.equal(issue.data['provider'], 'agent-skills');
+    assert.equal(issue.data['provider'], 'antigravity');
     assert.equal(issue.data['kind'], 'skill');
   });
 
@@ -85,11 +88,11 @@ describe('core/name-reserved (lens scope, end-to-end through runScan)', () => {
     assert.equal(reservedFor(result.issues, '.agents/skills/deploy/SKILL.md').length, 0);
   });
 
-  it('does NOT flag the colliding skill under a non-Antigravity lens (no lens resolved)', async () => {
-    // No explicit lens. `agent-skills` is coming-soon, so `.agents/`
-    // no longer auto-detects a lens and the scan runs unlensed; either
-    // way the Antigravity catalog only reserves names when antigravity
-    // IS the lens, so the collision is not flagged.
+  it('does NOT flag the colliding skill under another lens', async () => {
+    // No explicit lens. Both agent-skills and antigravity are experimental
+    // (ships disabled) and gated, so nothing auto-detects and the scan runs
+    // unlensed: `.agents/skills/goal/SKILL.md` falls through to
+    // `core/markdown`, so there is no `antigravity/skill` node to flag.
     const result = await scan(null);
     assert.equal(reservedFor(result.issues, '.agents/skills/goal/SKILL.md').length, 0);
   });

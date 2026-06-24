@@ -188,11 +188,16 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
   setProjectIgnore: vi.fn().mockResolvedValue({ patterns: [] }),
   getActiveProvider: vi
     .fn()
-    .mockResolvedValue({ activeProvider: null, detected: [], source: 'none' as const, selectable: [] }),
+    .mockResolvedValue({
+      activeProvider: 'markdown',
+      detected: [],
+      source: 'default' as const,
+      selectable: [],
+    }),
   setActiveProvider: vi.fn().mockResolvedValue({
-    activeProvider: null,
+    activeProvider: 'markdown',
     detected: [],
-    source: 'none' as const,
+    source: 'default' as const,
     selectable: [],
     switch: { dropped: null },
   }),

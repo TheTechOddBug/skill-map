@@ -158,16 +158,16 @@ describe('sm config get', () => {
 
   // Regression for bd-25m: schema-declared keys whose runtime value is
   // computed (today only `activeProvider`) MUST return the runtime
-  // value (null when no filesystem signal, or the auto-detected
-  // provider id) instead of "Unknown config key". Pre-bd-25m every
-  // such read errored with exit 5 because the key wasn't materialised
-  // in `defaults.json`, leaving operators confused why `set` succeeded
-  // while `get` returned "Unknown".
-  it('returns null for activeProvider when settings + filesystem yield nothing', () => {
-    const scope = freshScope('get-active-provider-null');
+  // value (the universal `markdown` default when no filesystem signal,
+  // or the auto-detected provider id) instead of "Unknown config key".
+  // Pre-bd-25m every such read errored with exit 5 because the key
+  // wasn't materialised in `defaults.json`, leaving operators confused
+  // why `set` succeeded while `get` returned "Unknown".
+  it('returns the markdown default for activeProvider when settings + filesystem yield nothing', () => {
+    const scope = freshScope('get-active-provider-default');
     const r = sm(['config', 'get', 'activeProvider'], scope);
     assert.equal(r.status, 0, `expected 0, stderr=${r.stderr}`);
-    assert.equal(r.stdout.trim(), 'null');
+    assert.equal(r.stdout.trim(), 'markdown');
   });
 
   it('returns the filesystem auto-detect for activeProvider when settings is empty', () => {

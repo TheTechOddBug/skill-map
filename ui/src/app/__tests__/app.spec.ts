@@ -145,12 +145,17 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
   getProjectIgnore: () => Promise.resolve({ patterns: [] }),
   setProjectIgnore: () => Promise.resolve({ patterns: [] }),
   getActiveProvider: () =>
-    Promise.resolve({ activeProvider: null, detected: [], source: 'none' as const, selectable: [] }),
+    Promise.resolve({
+      activeProvider: 'markdown',
+      detected: [],
+      source: 'default' as const,
+      selectable: [],
+    }),
   setActiveProvider: () =>
     Promise.resolve({
-      activeProvider: null,
+      activeProvider: 'markdown',
       detected: [],
-      source: 'none' as const,
+      source: 'default' as const,
       selectable: [],
       switch: { dropped: null },
     }),

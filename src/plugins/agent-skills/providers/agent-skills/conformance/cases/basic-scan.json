@@ -1,7 +1,7 @@
 {
   "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
   "id": "basic-scan",
-  "description": "Scanning the minimal-agent-skills fixture detects exactly one `skill` node at the open-standard path `.agents/skills/<name>/SKILL.md` with no issues.",
+  "description": "Scanning the minimal-agent-skills fixture detects exactly one `skill` node at the open-standard path `.agents/skills/<name>/SKILL.md` with no issues. `agent-skills` is experimental (ships disabled) and gated by the active lens, so the fixture's `settings.json` both enables `agent-skills/agent-skills` and pins `activeProvider: agent-skills`; under its own lens the provider classifies the file as `provider: agent-skills, kind: skill` rather than falling through to the universal `core/markdown` fallback.",
   "fixture": "minimal-agent-skills",
   "invoke": {
     "verb": "scan",
@@ -12,6 +12,8 @@
     { "type": "json-path", "path": "$.schemaVersion", "equals": 1 },
     { "type": "json-path", "path": "$.stats.nodesCount", "equals": 1 },
     { "type": "json-path", "path": "$.stats.issuesCount", "equals": 0 },
-    { "type": "json-path", "path": "$.nodes.length", "equals": 1 }
+    { "type": "json-path", "path": "$.nodes.length", "equals": 1 },
+    { "type": "json-path", "path": "$.nodes[0].provider", "equals": "agent-skills" },
+    { "type": "json-path", "path": "$.nodes[0].kind", "equals": "skill" }
   ]
 }

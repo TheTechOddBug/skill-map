@@ -40,8 +40,8 @@
           @case ('autodetect') {
             <span class="settings-project__meta-line">{{ texts.project.activeProviderSourceAutodetect }}</span>
           }
-          @case ('none') {
-            <span class="settings-project__meta-line">{{ texts.project.activeProviderSourceNone }}</span>
+          @case ('default') {
+            <span class="settings-project__meta-line">{{ texts.project.activeProviderSourceDefault }}</span>
           }
         }
         @if (activeProviderDetectedLabel(); as detected) {

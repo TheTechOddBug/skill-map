@@ -24,6 +24,7 @@ import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
 import { InMemoryProgressEmitter } from '../../../kernel/adapters/in-memory-progress.js';
+import type { ScanResult } from '../../../kernel/types.js';
 import type { IWatcherEvents } from '../runtime.js';
 import { createWatcherRuntime } from '../runtime.js';
 
@@ -81,5 +82,65 @@ describe('createWatcherRuntime onBatchStart', () => {
 
     // Exactly one start, immediately followed by one ok batch, in order.
     assert.deepEqual(order, ['start', 'batch:ok']);
+  });
+});
+
+describe('createWatcherRuntime active-lens resolution', () => {
+  it('honours the persisted lens (markdown) over filesystem detection', async () => {
+    const cwd = freshCwd('lens-respect');
+    // A vendor marker + agent on disk that filesystem detection alone
+    // would pick as the lens.
+    mkdirSync(join(cwd, '.claude', 'agents'), { recursive: true });
+    writeFileSync(
+      join(cwd, '.claude', 'agents', 'foo.md'),
+      '---\nname: foo\ndescription: D\n---\n\nBody.\n',
+    );
+    // But the operator pinned the lens to markdown in settings.json.
+    mkdirSync(join(cwd, '.skill-map'), { recursive: true });
+    writeFileSync(
+      join(cwd, '.skill-map', 'settings.json'),
+      JSON.stringify({ schemaVersion: 1, activeProvider: 'markdown' }),
+    );
+    const dbPath = join(cwd, '.skill-map', 'graph.db');
+
+    let captured: ScanResult | null = null;
+    const events: IWatcherEvents = {
+      onBatch: (outcome) => {
+        if (outcome.kind === 'ok') captured = outcome.result;
+      },
+    };
+
+    const runtime = createWatcherRuntime({
+      dbPath,
+      roots: ['.'],
+      runtimeContext: { cwd },
+      noBuiltIns: false,
+      noPlugins: true,
+      emitterFactory: () => new InMemoryProgressEmitter(),
+      runInitialBatch: true,
+      subscribeBeforeInitial: false,
+      events,
+    });
+
+    try {
+      await runtime.start();
+    } finally {
+      await runtime.stop();
+    }
+
+    if (!captured) throw new Error('no batch result was captured');
+    const result: ScanResult = captured;
+    // Under the persisted markdown lens, the vendor `claude` classifier is
+    // gated out even though `.claude/` is on disk: the watcher reads the
+    // lens from settings.json, NOT the filesystem-detection fallback. So
+    // `.claude/agents/foo.md` falls through to the universal markdown
+    // provider instead of being classified as a claude `agent`.
+    const fooNode = result.nodes.find((n) => n.path.endsWith('foo.md'));
+    if (!fooNode) throw new Error('foo.md was not scanned');
+    assert.equal(
+      fooNode.provider,
+      'markdown',
+      'foo.md must be classified by markdown under the persisted markdown lens, not claude',
+    );
   });
 });

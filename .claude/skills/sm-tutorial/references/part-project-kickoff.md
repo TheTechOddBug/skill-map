@@ -31,7 +31,7 @@ lingers, mention it once and move on.
 **Context (agent, do not narrate the plumbing): the lens.** This
 project has a root `AGENTS.md` (the `openai`/Codex marker) sitting next
 to the `.claude/` folder (the `claude` marker, where the tutorial skill
-itself lives). `openai` is **coming soon**, though, so auto-detect
+itself lives). `openai` is **experimental** (ships disabled), though, so auto-detect
 ignores its marker and `sm init` resolves the lens to `claude`
 silently, exactly like the prologue: only `claude` is selectable today,
 so there is no ambiguity and no prompt. Do not promise the tester a
@@ -50,7 +50,7 @@ Tell the tester:
 > site). skill-map maps that harness.
 >
 > Run `sm init`, it auto-detects the `claude` lens (this is a Claude
-> project; the other lenses are coming soon). Then run `sm` to boot the
+> project; the other lenses are experimental). Then run `sm` to boot the
 > live UI.
 >
 > Open the URL `sm` printed. You'll see **one node**: `AGENTS.md`,
