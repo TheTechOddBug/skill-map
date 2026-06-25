@@ -22,6 +22,7 @@
     "demo:dev": "pnpm --filter ui dev:demo",
     "web:build": "pnpm --filter @skill-map/web build",
     "web:dev": "pnpm --filter @skill-map/web dev",
+    "build": "pnpm --filter ui build && pnpm --filter @skill-map/cli build",
     "cli:build": "pnpm --filter @skill-map/cli build",
     "ui:build": "pnpm --filter ui build",
     "ui:dev": "pnpm --filter ui dev",

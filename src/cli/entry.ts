@@ -29,6 +29,8 @@ import {
 } from './util/logger.js';
 import { ansiFor } from './util/ansi.js';
 import { defaultProjectDbPath } from './util/db-path.js';
+import { isDirEmpty } from './util/empty-cwd.js';
+import { decideBareNoArgs, promptEmptyFolderChoice } from './util/empty-folder-prompt.js';
 import { ExitCode } from './util/exit-codes.js';
 import { formatParseError, isClipanionParseError } from './util/parse-error.js';
 import { defaultRuntimeContext } from './util/runtime-context.js';
@@ -45,6 +47,7 @@ import { CheckCommand } from './commands/check.js';
 import { CONFIG_COMMANDS } from './commands/config.js';
 import { CONFORMANCE_COMMANDS } from './commands/conformance.js';
 import { DB_COMMANDS } from './commands/db.js';
+import { ExampleCommand } from './commands/example.js';
 import { ExportCommand } from './commands/export.js';
 import { GraphCommand } from './commands/graph.js';
 import { HelpCommand, RootHelpCommand, registeredVerbPaths, routeHelpArgs } from './commands/help.js';
@@ -80,6 +83,7 @@ cli.register(RootHelpCommand);
 cli.register(HelpCommand);
 cli.register(InitCommand);
 cli.register(TutorialCommand);
+cli.register(ExampleCommand);
 // Hidden Sentry self-test verb. Registered so it runs, but invisible in
 // every help / reference surface (it declares no `static usage`). See
 // commands/intentional-fail.ts.
@@ -128,7 +132,7 @@ configureLogger(new Logger({ level: logLevel, stream: process.stderr }));
 // flags like `--max-nodes` work without typing `serve` explicitly.
 // `--help` / `-h` short-circuit through routeHelpArgs below, so a
 // `sm --help` invocation still reaches RootHelpCommand.
-const bareArgs = resolveBareInvocation(args);
+const bareArgs = await resolveBareInvocation(args);
 const routedArgs = routeHelpArgs(bareArgs ?? args, cli);
 
 // Telemetry (opt-in, default OFF; each surface dormant until its carrier
@@ -268,8 +272,8 @@ process.exit(exitCode);
  * for what is and isn't a verb; we only short-circuit when the first
  * token unambiguously is NOT a verb (flags always start with `-`).
  */
-function resolveBareInvocation(rawArgs: string[]): string[] | null {
-  if (rawArgs.length === 0) return resolveBareDefault();
+async function resolveBareInvocation(rawArgs: string[]): Promise<string[] | null> {
+  if (rawArgs.length === 0) return resolveNoArgsBare();
   const first = rawArgs[0];
   // Inline the passthrough set: keeps the lookup local + avoids a
   // top-level `const` whose temporal-dead-zone would trip the module
@@ -302,27 +306,63 @@ function resolveBareInvocation(rawArgs: string[]): string[] | null {
 }
 
 /**
- * Decide what bare `sm` (no args) should do. Returns `['serve']` if a
- * project DB is present in the cwd; prints the no-project hint and
- * exits 2 otherwise. Never returns when no project is found.
+ * Decide what bare `sm` (no args) should do. With a project DB present,
+ * serve it. With no DB, in an EMPTY cwd on an interactive terminal,
+ * offer the getting-started menu (tutorial / example) and dispatch the
+ * chosen verb; otherwise fall through to `resolveBareDefault`, which
+ * prints the no-project hint and exits. Per spec/cli-contract.md
+ * §Binary.
+ */
+async function resolveNoArgsBare(): Promise<string[]> {
+  const ctx = defaultRuntimeContext();
+  const stdin = process.stdin as NodeJS.ReadStream;
+  // The decision (serve / menu / hint) is pure and unit-tested in
+  // `util/empty-folder-prompt.spec.ts`; this seam only wires the live
+  // FS / terminal state and the real readline prompt. The prompt closure
+  // is invoked solely in the empty + interactive case, so a non-TTY
+  // caller (pipe, CI) never blocks on stdin.
+  const result = await decideBareNoArgs(
+    {
+      hasDb: existsSync(defaultProjectDbPath(ctx)),
+      isTty: stdin.isTTY === true,
+      isEmptyDir: isDirEmpty(ctx.cwd),
+    },
+    () => {
+      const stderr = process.stderr as NodeJS.WriteStream;
+      const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: false });
+      return promptEmptyFolderChoice(stdin, stderr, ansi);
+    },
+  );
+  if (result.kind === 'route') return result.argv;
+  return resolveBareDefault();
+}
+
+/**
+ * Print the no-project hint and exit 2. (The DB-present branch returns
+ * `['serve']` for the flag-routing path that still calls this.) The
+ * hint adapts to the cwd: an empty folder points at `sm tutorial` /
+ * `sm example` (a new user wants to try the tool, not bootstrap an
+ * empty project), a non-empty one at `sm init` / `sm --help`.
+ *
+ * Colour gating mirrors the rest of the CLI: TTY + no `NO_COLOR` /
+ * `--no-color` enables ANSI, else the bare glyph bytes. `--no-color` is
+ * irrelevant here (the bare invocation never parsed any flags), so the
+ * resolver gets `noColorFlag: false` and relies on env + TTY.
  */
 function resolveBareDefault(): string[] {
   const ctx = defaultRuntimeContext();
   if (existsSync(defaultProjectDbPath(ctx))) {
     return ['serve'];
   }
-  // Two-line §3.1b error block. Colour gating mirrors the rest of the
-  // CLI: TTY + no `NO_COLOR` / `--no-color` enables ANSI, else falls
-  // through to the bare glyph bytes. `--no-color` is irrelevant here
-  // (the bare invocation never parsed any flags), so the resolver gets
-  // `noColorFlag: false` and relies on env + TTY.
   const stderr = process.stderr as NodeJS.WriteStream;
   const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: false });
   stderr.write(
     tx(ENTRY_TEXTS.bareNoProject, {
       glyph: ansi.red('✕'),
       cwd: ctx.cwd,
-      hint: ansi.dim(ENTRY_TEXTS.bareNoProjectHint),
+      hint: ansi.dim(
+        isDirEmpty(ctx.cwd) ? ENTRY_TEXTS.bareEmptyHint : ENTRY_TEXTS.bareNoProjectHint,
+      ),
     }),
   );
   process.exit(ExitCode.Error);

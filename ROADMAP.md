@@ -786,7 +786,7 @@ Shared flags (inherited by every verb): `--json`, `-v`/`-q`, `--no-color`, `-h`/
 
 The verb surface is specified in [`spec/cli-contract.md`](./spec/cli-contract.md); each verb's flags and JSON shape live there and in `sm help <verb>`. The families:
 
-- **Setup & state**: `init` (bootstrap `.skill-map/` + first scan), `tutorial` (materialize the single tester walkthrough skill, a "book" of parts whose advanced parts, plugins/settings/view-slots, the CLI in depth, are reached from its in-skill menu), `version`, `doctor`, `help`.
+- **Setup & state**: `init` (bootstrap `.skill-map/` + first scan), `tutorial` (materialize the single tester walkthrough skill, a "book" of parts whose advanced parts, plugins/settings/view-slots, the CLI in depth, are reached from its in-skill menu), `example` (drop a ready-to-explore example project into an empty cwd, the same wired harness the public demo renders, sourced from the single canonical `fixtures/demo-scope/` fixture, so a new user can `sm scan` then `sm serve` against a real graph without authoring files first), `version`, `doctor`, `help`. Bare `sm` in an empty folder surfaces `tutorial` and `example` as an interactive getting-started menu (and the no-project hint points at them too); see [`spec/cli-contract.md`](./spec/cli-contract.md) §Binary.
 - **Scan**: `scan` (full), `scan -n <id>` (one node), `scan --changed` (incremental), `scan --compare-with <path>` (delta).
 - **Browse**: `list`, `show`, `check`, `findings`, `graph`, `export`, and `orphans` (with `orphans reconcile` / `orphans undo-rename` for rename recovery).
 - **Actions**: `actions list` / `actions show`.

@@ -142,3 +142,33 @@ describe('bare `sm`, no project DB', () => {
     assert.ok(r.stderr.length > 0, 'expected a non-empty stderr hint');
   });
 });
+
+describe('bare `sm` (no args), getting-started in an empty folder', () => {
+  let emptyStart: string;
+  let nonEmptyStart: string;
+  before(() => {
+    emptyStart = mkdtempSync(join(tmpdir(), 'skill-map-bare-empty-'));
+    nonEmptyStart = mkdtempSync(join(tmpdir(), 'skill-map-bare-nonempty-'));
+    writeFileSync(join(nonEmptyStart, 'README.md'), '# pre-existing\n');
+  });
+  after(() => {
+    rmSync(emptyStart, { recursive: true, force: true });
+    rmSync(nonEmptyStart, { recursive: true, force: true });
+  });
+
+  it('empty folder (non-TTY stdin) prints the tutorial/example hint, exit 2, no menu', () => {
+    // spawnSync's stdin is a pipe, not a TTY, so the interactive menu
+    // must NOT render; the entry falls through to the empty-folder hint.
+    const r = smIn(emptyStart, []);
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /sm tutorial/, r.stderr);
+    assert.match(r.stderr, /sm example/, r.stderr);
+    assert.doesNotMatch(r.stderr, /How would you like to start/, r.stderr);
+  });
+
+  it('non-empty folder (no DB) keeps the bootstrap hint (sm init)', () => {
+    const r = smIn(nonEmptyStart, []);
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /sm init/, r.stderr);
+  });
+});

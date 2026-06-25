@@ -1,5 +1,5 @@
 import { cpSync, existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { defineConfig } from 'tsup';
 
 /**
@@ -66,6 +66,7 @@ export default defineConfig({
       cpSync('config/defaults', 'dist/config/defaults', { recursive: true });
     }
     copySkillFolder('sm-tutorial');
+    copyExamplePayload();
     copyUiBundle();
     restoreNodeSqliteImports('dist');
   },
@@ -102,6 +103,41 @@ function copySkillFolder(slug: string): void {
   // not reach this post-build copy target.
   rmSync(dest, { recursive: true, force: true });
   cpSync(source, dest, { recursive: true });
+}
+
+/**
+ * Copy the example payload from `fixtures/demo-scope/` (repo root) into
+ * `dist/cli/example/` so the published tarball ships the project the
+ * `sm example` verb materialises into a user's cwd. This is the SAME
+ * fixture the web demo scans, one canonical harness feeds both.
+ *
+ * The fixture carries its own populated `.skill-map/` scan state (db,
+ * settings, backups); strip it here so the bundled payload ships
+ * unscanned (the `sm example` verb also filters it at copy time, so dev
+ * and bundled layouts behave identically) and the tarball stays lean.
+ *
+ * Soft-fail: when running outside the monorepo (rare, we only build
+ * inside `src/`), warn and move on instead of failing the CLI build.
+ * The runtime resolver still falls back to the repo-source candidate in
+ * dev mode, and the verb surfaces `sourceMissing` to users in the
+ * pathological case where neither path resolves.
+ */
+function copyExamplePayload(): void {
+  const source = '../fixtures/demo-scope';
+  if (!existsSync(source)) {
+    process.stderr.write(
+      `tsup: skipping example payload copy: ${source} not found ` +
+        '(expected at repo root; required for `sm example` to ship its payload).\n',
+    );
+    return;
+  }
+  const dest = 'dist/cli/example';
+  // Clear the destination first: `cpSync` merges but never prunes.
+  rmSync(dest, { recursive: true, force: true });
+  cpSync(source, dest, {
+    recursive: true,
+    filter: (src) => !relative(source, src).split(/[\\/]/).includes('.skill-map'),
+  });
 }
 
 /**

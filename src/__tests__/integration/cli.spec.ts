@@ -198,16 +198,19 @@ describe('CLI binary', () => {
     assert.match(r.stderr, /unknown verb "definitely-not-a-verb"/);
   });
 
-  it('bare `sm` in a dir without `.skill-map/` prints a hint to stderr and exits 2', () => {
-    // Spec contract §Binary: bare invocation MUST point the user at
-    // `sm init` and `sm --help` when no project exists in cwd, instead
-    // of starting the server (which would have nothing to serve).
+  it('bare `sm` in an empty dir (non-TTY) prints the getting-started hint and exits 2', () => {
+    // Spec contract §Binary: bare invocation in an EMPTY cwd with no
+    // project points the user at `sm tutorial` / `sm example` (a new
+    // user wants to try the tool, not bootstrap an empty project). The
+    // interactive menu only renders on a TTY; spawnSync's stdin is a
+    // pipe, so the entry falls through to this hint. (The non-empty
+    // `sm init` hint is covered in cli/__tests__/bare-routing.spec.ts.)
     const r = sm([], EMPTY_DIR);
     assert.equal(r.status, 2);
     assert.equal(r.stdout, '');
     assert.match(r.stderr, /No skill-map project found/);
-    assert.match(r.stderr, /sm init/);
-    assert.match(r.stderr, /sm --help/);
+    assert.match(r.stderr, /sm tutorial/);
+    assert.match(r.stderr, /sm example/);
   });
 
   it('scan --json emits a well-formed empty ScanResult', () => {

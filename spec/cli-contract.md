@@ -9,7 +9,9 @@ Normative description of the `sm` CLI surface: verbs, flags, exit codes, machine
 - Primary: `sm`.
 - Long alias: `skill-map`. MUST resolve to the same binary. A symlink, shim, or alias in `bin` field of `package.json` is acceptable.
 - Help invocation: `sm --help` and `sm -h` MUST print top-level help and exit with code 0.
-- Bare invocation: `sm` with no arguments starts the Web UI server (equivalent to `sm serve`) when a `.skill-map/` project is initialized in the cwd. With no project in the cwd, it MUST print a one-line hint to stderr pointing at `sm init` and `sm --help`, then exit `2`.
+- Bare invocation: `sm` with no arguments starts the Web UI server (equivalent to `sm serve`) when a `.skill-map/` project is initialized in the cwd. With no project in the cwd:
+  - When the cwd is empty AND stdin is an interactive terminal, it MUST present a getting-started menu with two choices, run the guided tutorial (equivalent to `sm tutorial`) or drop a ready-to-explore example project (equivalent to `sm example`), and dispatch the chosen verb. The menu reads from stdin and renders to stderr; an empty answer selects the first option (tutorial).
+  - Otherwise (a non-empty cwd, a non-interactive stdin, or no valid choice within the prompt's bounded re-ask), it MUST print a one-line hint to stderr and exit `2`. The hint points at `sm tutorial` / `sm example` when the cwd is empty, or at `sm init` / `sm --help` when it is not.
 
 ---
 
@@ -201,6 +203,21 @@ Behaviour:
 Flags: `--for <provider-id>` (destination Provider, skips the prompt); `--force` (proceed even when the cwd is not empty, overwriting any existing target folder, without prompting).
 
 Exit: `0` on success; `2` if the cwd is not empty and `--force` was not passed; `2` if an unexpected positional argument is passed (the verb takes no positional; e.g. the removed `master` variant, the advanced walkthrough is now a part inside the single skill, reached from its menu); `2` if `--for` names a Provider that does not exist or declares no `scaffold.skillDir`; `2` on any I/O failure.
+
+#### `sm example`
+
+Materialize a ready-to-explore example project (the "harness") directly into the current working directory, so a new user can run `sm scan` and `sm serve` against a real, pre-wired graph without authoring any files first. This is the concrete counterpart to `sm tutorial`: where `sm tutorial` installs the guided walkthrough skill, `sm example` drops the finished scenario the walkthrough builds toward, a small portfolio handbook (`AGENTS.md`) that mentions a content-editor agent and invokes a publish command, a `check-links` skill the publish command invokes, and the deploy / style docs they reference. It is the same harness the public demo renders. The verb takes **no positional argument** and no provider flag (the example ships the Claude layout).
+
+Behaviour:
+
+- Writes the example project files directly into the cwd: `AGENTS.md` (plus its `.sm` sidecar), `.claude/agents/`, `.claude/commands/`, `.claude/skills/check-links/`, `docs/`, `public/`, `package.json`, `server.js`, and a `.skillmapignore` / `.gitignore`. The content is the canonical example shipped with the implementation; a conforming implementation MUST embed an equivalent wired scenario (the exact files are informative, what is normative is that the verb produces a scannable project a fresh `sm scan` resolves into a connected graph).
+- Does NOT write `.skill-map/`: the project ships unscanned, so the user's first `sm scan` provisions the project fresh and auto-detects the lens from the on-disk markers.
+- Requires the cwd to be empty (a listing including dotfiles returns nothing), so the user can delete the whole directory afterwards without losing prior work. A non-empty cwd is refused (exit 2) unless `--force` (which proceeds, overwriting any colliding files).
+- Does NOT require an initialized project and never reads or writes project config. A pre-bootstrap helper.
+
+Flags: `--force` (proceed even when the cwd is not empty, overwriting any colliding files, without prompting).
+
+Exit: `0` on success; `2` if the cwd is not empty and `--force` was not passed; `2` if an unexpected positional argument is passed (the verb takes no positional); `2` on any I/O failure (including a missing bundled example payload).
 
 #### `sm version`
 

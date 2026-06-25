@@ -23,6 +23,27 @@ export const ENTRY_TEXTS = {
     '   {{hint}}\n',
   bareNoProjectHint:
     'Run `sm init` to bootstrap one, or `sm --help` to see all commands.',
+  /**
+   * Hint variant for a bare `sm` in an EMPTY cwd when the interactive
+   * menu cannot run (non-TTY stdin) or the operator gave no valid pick.
+   * Points at the two getting-started verbs instead of `sm init` (a
+   * brand-new user in an empty folder wants to try the tool, not
+   * bootstrap an empty project).
+   */
+  bareEmptyHint:
+    'Run `sm tutorial` for a guided walkthrough, or `sm example` to drop a project to explore.',
+
+  /**
+   * Getting-started menu shown on bare `sm` in an empty folder on an
+   * interactive terminal. Header uses a yellow `?` glyph; two numbered
+   * options dispatch to `sm tutorial` / `sm example`; the input line
+   * accepts a number, a verb name, or an empty answer (which takes the
+   * default, option 1, the tutorial).
+   */
+  emptyMenuHeader: '{{glyph}}  This folder is empty. How would you like to start?',
+  emptyMenuOptionTutorial: '     1) Run the guided tutorial          (sm tutorial)  (default)',
+  emptyMenuOptionExample: '     2) Copy an example project to try    (sm example)',
+  emptyMenuInput: '  Enter the number [default 1]: ',
 
   parseErrorHeadline: 'sm: {{message}}',
   parseErrorUnknownOption: 'unknown option \'{{name}}\'',
