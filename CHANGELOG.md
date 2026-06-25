@@ -6,6 +6,14 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>0.64.1</b> · 2026-06-25</summary>
+
+### CLI Patch
+- Patch release of `@skill-map/cli` with no functional change, used to exercise the changesets version-packages PR and the end-to-end release pipeline.
+
+</details>
+
+<details>
 <summary><b>0.64.0</b> · 2026-06-25</summary>
 
 ### CLI Minor
