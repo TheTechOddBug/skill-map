@@ -79,6 +79,19 @@
       "type": "string",
       "enum": ["bash", "powershell"],
       "description": "Shell flavor for any embedded shell snippets. Default: `bash`."
+    },
+    "license": {
+      "type": "string",
+      "description": "License applied to the skill: a license name (e.g. `Apache-2.0`) or a reference to a bundled license file. Inherited from the Agent Skills open standard that Claude Code follows. Source: https://agentskills.io/specification."
+    },
+    "compatibility": {
+      "type": "string",
+      "description": "Environment requirements (intended product, required system packages, network access, etc.). Open-standard field; Claude Code does not consume it but the format permits it. Source: https://agentskills.io/specification."
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "Arbitrary string-keyed, string-valued map for metadata not covered by the standard. This is the canonical home of `version` and `author` (there is NO top-level `version` field). Source: https://agentskills.io/specification."
     }
   }
 }

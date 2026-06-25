@@ -9,13 +9,14 @@
  * Its `references/` sub-folder (read at runtime) ships alongside.
  *
  * The destination directory is the selected Provider's
- * `scaffold.skillDir` (`.claude/skills` for Claude). The mechanism is
- * provider-agnostic, but coming-soon Providers (today `agent-skills`,
- * `openai`, `antigravity`) are filtered out of the catalog, so only
- * Claude is selectable right now. Provider selection:
+ * `scaffold.skillDir` (`.claude/skills` for Claude, `.agents/skills` for
+ * the open standard). The mechanism is provider-agnostic; only Providers
+ * that declare a `scaffold.skillDir` are destinations (today `claude` and
+ * the stable open-standard `agent-skills`), and experimental ones are
+ * filtered out unless `--experimental` is passed. Provider selection:
  *
  *   - `--for <provider-id>` picks it explicitly (validated against the
- *     selectable, non-coming-soon Providers that declare `scaffold.skillDir`).
+ *     scaffold-capable Providers, experimental ones gated by `--experimental`).
  *   - Without `--for` on an interactive stdin, the verb prompts with a
  *     numbered list (default: the first, Claude; empty answer accepts it).
  *     With only Claude selectable today, there is no prompt.
@@ -113,10 +114,10 @@ export class TutorialCommand extends SmCommand {
       overwrite the target directory unless --force is passed. Takes no
       positional argument.
 
-      By default only ready providers are offered as destinations. Pass
-      --experimental to also offer experimental ones (e.g. agent-skills);
-      they ship disabled, so enable the chosen one with
-      \`sm plugins enable <id>\` before scanning under its lens.
+      By default only stable / beta providers are offered as destinations
+      (today claude and the open-standard agent-skills). Pass --experimental
+      to also offer experimental ones; they ship disabled, so enable the
+      chosen one with \`sm plugins enable <id>\` before scanning under its lens.
     `,
     examples: [
       ['Materialize the tutorial skill in the cwd', '$0 tutorial'],
@@ -145,7 +146,7 @@ export class TutorialCommand extends SmCommand {
 
   experimental = Option.Boolean('--experimental', false, {
     description:
-      'Offer experimental providers (e.g. agent-skills) as destinations. ' +
+      'Offer experimental providers as destinations. ' +
       'They ship disabled; enable the chosen one with `sm plugins enable <id>`.',
   });
 
@@ -191,10 +192,10 @@ export class TutorialCommand extends SmCommand {
     }
 
     // Resolve which Provider territory to materialise into. The catalog
-    // lists the selectable destination (`claude` → `.claude/skills`) plus
-    // the coming-soon teasers (`openai`, `agent-skills`, ...) shown but not
-    // pickable. Pre-bootstrap, so this reads the built-in catalog directly
-    // and never touches `.skill-map/`.
+    // lists the scaffold-capable destinations (`claude` → `.claude/skills`,
+    // the open-standard `agent-skills` → `.agents/skills`); experimental
+    // ones join only under `--experimental`. Pre-bootstrap, so this reads
+    // the built-in catalog directly and never touches `.skill-map/`.
     const targets = listScaffoldTargets(this.experimental);
     const target = await this.resolveScaffoldTarget(targets, stderrAnsi, errGlyph);
     if (target === null) return ExitCode.Error;

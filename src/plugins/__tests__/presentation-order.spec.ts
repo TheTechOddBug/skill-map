@@ -9,7 +9,7 @@
  *
  * Two invariants pin the contract:
  *
- *   1. The configured pin list (`core, claude, antigravity, openai,
+ *   1. The configured pin list (`core, claude, antigravity, codex,
  *      agent-skills`) is honoured verbatim and ids outside it land at
  *      the end, alphabetically.
  *   2. The sort is stable / pure: same input order, same output;
@@ -35,7 +35,7 @@ describe('BUILT_IN_PLUGIN_PRESENTATION_ORDER', () => {
   });
 
   it('lists every vendor plugin that ships in `builtInPlugins` today', () => {
-    const expected = ['core', 'claude', 'antigravity', 'openai', 'agent-skills'];
+    const expected = ['core', 'claude', 'antigravity', 'codex', 'agent-skills'];
     assert.deepEqual([...BUILT_IN_PLUGIN_PRESENTATION_ORDER], expected);
   });
 
@@ -45,11 +45,11 @@ describe('BUILT_IN_PLUGIN_PRESENTATION_ORDER', () => {
 });
 
 describe('sortPluginsForPresentation', () => {
-  it('orders the canonical set: core → claude → antigravity → openai → agent-skills', () => {
+  it('orders the canonical set: core → claude → antigravity → codex → agent-skills', () => {
     // Input deliberately shuffled to verify the sort actually runs.
-    const input = ['claude', 'agent-skills', 'core', 'openai', 'antigravity'].map(plugin);
+    const input = ['claude', 'agent-skills', 'core', 'codex', 'antigravity'].map(plugin);
     const result = sortPluginsForPresentation(input).map((b) => b.id);
-    assert.deepEqual(result, ['core', 'claude', 'antigravity', 'openai', 'agent-skills']);
+    assert.deepEqual(result, ['core', 'claude', 'antigravity', 'codex', 'agent-skills']);
   });
 
   it('lands unknown ids at the end, alphabetical among themselves', () => {
@@ -71,9 +71,9 @@ describe('sortPluginsForPresentation', () => {
     // Real plugin runtime might disable some built-ins; the sort must
     // still respect the canonical slot for the survivors instead of
     // collapsing to alphabetical.
-    const input = ['agent-skills', 'core', 'openai'].map(plugin);
+    const input = ['agent-skills', 'core', 'codex'].map(plugin);
     const result = sortPluginsForPresentation(input).map((b) => b.id);
-    assert.deepEqual(result, ['core', 'openai', 'agent-skills']);
+    assert.deepEqual(result, ['core', 'codex', 'agent-skills']);
   });
 
   it('empty input returns []', () => {

@@ -20,7 +20,7 @@ import { atDirectiveExtractor as _atDirectiveExtractor } from './claude/extracto
 import { slashCommandExtractor as _slashCommandExtractor } from './claude/extractors/slash-command/index.js';
 import { toolsCounterExtractor as _toolsCounterExtractor } from './claude/extractors/tools-counter/index.js';
 import { antigravityProvider as _antigravityProvider } from './antigravity/providers/antigravity/index.js';
-import { openaiProvider as _openaiProvider } from './openai/providers/openai/index.js';
+import { codexProvider as _codexProvider } from './codex/providers/codex/index.js';
 import { agentSkillsProvider as _agentSkillsProvider } from './agent-skills/providers/agent-skills/index.js';
 import { coreMarkdownProvider as _coreMarkdownProvider } from './core/providers/core-markdown/index.js';
 import { backtickPathExtractor as _backtickPathExtractor } from './core/extractors/backtick-path/index.js';
@@ -55,7 +55,7 @@ const atDirectiveExtractor = { ..._atDirectiveExtractor, pluginId: 'claude', ver
 const slashCommandExtractor = { ..._slashCommandExtractor, pluginId: 'claude', version: VERSION };
 const toolsCounterExtractor = { ..._toolsCounterExtractor, pluginId: 'claude', version: VERSION };
 const antigravityProvider = { ..._antigravityProvider, pluginId: 'antigravity', version: VERSION };
-const openaiProvider = { ..._openaiProvider, pluginId: 'openai', version: VERSION };
+const codexProvider = { ..._codexProvider, pluginId: 'codex', version: VERSION };
 const agentSkillsProvider = { ..._agentSkillsProvider, pluginId: 'agent-skills', version: VERSION };
 const coreMarkdownProvider = { ..._coreMarkdownProvider, pluginId: 'core', version: VERSION };
 const backtickPathExtractor = { ..._backtickPathExtractor, pluginId: 'core', version: VERSION };
@@ -121,10 +121,10 @@ export const builtInPlugins: IBuiltInPlugin[] = [
     ],
   },
   {
-    id: 'openai',
+    id: 'codex',
     description: 'OpenAI Codex CLI platform integration. Classifies TOML sub-agent definitions under `.codex/agents/*.toml`.',
     extensions: [
-      openaiProvider,
+      codexProvider,
     ],
   },
   {

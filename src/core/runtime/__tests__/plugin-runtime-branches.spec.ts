@@ -283,7 +283,7 @@ describe('plugin-runtime, branch coverage', () => {
       // The `claude` provider drops; the other vendor providers and the
       // markdown fallback stay.
       const providerIds = composed.providers.map((p) => p.id).sort();
-      assert.deepEqual(providerIds, ['agent-skills', 'antigravity', 'markdown', 'openai']);
+      assert.deepEqual(providerIds, ['agent-skills', 'antigravity', 'codex', 'markdown']);
       // The three claude-bundled extractors drop alongside the provider;
       // the surviving extractors are the truly universal ones in `core`.
       const extractorIds = composed.extractors.map((d) => d.id).sort();
@@ -336,7 +336,7 @@ describe('plugin-runtime, branch coverage', () => {
         'reference-redundant',
         'schema-violation',
       ]);
-      // claude / antigravity / openai / agent-skills / core-markdown providers
+      // claude / antigravity / codex / agent-skills / core-markdown providers
       // untouched; core extractors unaffected.
       assert.equal(composed.providers.length, 5);
       assert.equal(composed.extractors.length, 7, 'all 7 extractors stay');
@@ -352,7 +352,7 @@ describe('plugin-runtime, branch coverage', () => {
         pluginRuntime: emptyPluginRuntime(),
       });
       assert.ok(composed);
-      assert.equal(composed.providers.length, 2, 'only claude + core-markdown load by default; antigravity / openai / agent-skills are experimental so they ship disabled');
+      assert.equal(composed.providers.length, 4, 'claude + codex (beta) + agent-skills (stable, locked) + core-markdown load by default; antigravity is experimental so it ships disabled');
       assert.equal(composed.extractors.length, 6, '6 of 7 extractors loaded; core/mcp-tools is experimental so it ships disabled by default');
       assert.equal(composed.analyzers.length, 15, '15 of 16 analyzers loaded; core/annotation-stale is experimental so it ships disabled by default (the former projector analyzers core/supersede + core/tags were deleted; the remaining inspector buttons self-project from their actions and tag editing moved inline; core/score-resolution was deleted, the kernel now seeds the 1.0 baseline directly; core/job-file-orphan was removed, to return under a probabilistic evaluation model; core/backtick-balance was added)');
       // Actions load into the pipeline as dispatch targets; those with a
@@ -492,7 +492,7 @@ describe('plugin-runtime, branch coverage', () => {
         killSwitches: { extractors: true },
       });
       assert.ok(composed);
-      assert.equal(composed.providers.length, 2, 'providers untouched (2: only claude + core-markdown load; the other providers are experimental so they ship disabled)');
+      assert.equal(composed.providers.length, 4, 'providers untouched (4: claude + codex (beta) + agent-skills (stable, locked) + core-markdown load; antigravity is experimental so it ships disabled)');
       assert.equal(composed.extractors.length, 0);
       assert.equal(composed.analyzers.length, 15);
     });
@@ -504,7 +504,7 @@ describe('plugin-runtime, branch coverage', () => {
         killSwitches: { analyzers: true },
       });
       assert.ok(composed);
-      assert.equal(composed.providers.length, 2, 'providers untouched (2: only claude + core-markdown load; the other providers are experimental so they ship disabled)');
+      assert.equal(composed.providers.length, 4, 'providers untouched (4: claude + codex (beta) + agent-skills (stable, locked) + core-markdown load; antigravity is experimental so it ships disabled)');
       assert.equal(composed.extractors.length, 6);
       assert.equal(composed.analyzers.length, 0);
     });

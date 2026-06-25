@@ -465,8 +465,23 @@ export interface IProviderRegistryEntryApi {
   colorDark?: string;
   emoji?: string;
   icon?: TKindIconApi;
-  /** Suppress the per-card chip (universal `markdown` fallback). */
+  /**
+   * True when this Provider is a selectable lens (projected from
+   * `gatedByActiveLens`). The active-lens dropdown lists only `isLens`
+   * entries; the non-gated `markdown` base is `false` and never appears
+   * there. Independent of the `selectable` set (which marks enabled lenses).
+   */
+  isLens: boolean;
+  /** Suppress the per-card chip (universal `markdown` base). */
   hideChip?: boolean;
+  /**
+   * Name of the parsed-frontmatter field that carries this Provider's node
+   * body (projected from `read.bodyField`). Present only for Providers whose
+   * prompt lives inside structured frontmatter (Codex sub-agents are pure
+   * TOML whose markdown prompt is `developer_instructions`). The inspector
+   * renders that field as the node body and omits it from the metadata dump.
+   */
+  bodyField?: string;
 }
 
 export type IProviderRegistryApi = Record<string, IProviderRegistryEntryApi>;

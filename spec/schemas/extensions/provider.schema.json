@@ -19,7 +19,7 @@
         "label": {
           "type": "string",
           "minLength": 1,
-          "description": "Human-readable Provider name shown in the active-lens dropdown, the topbar lens chip, and the per-node provider chip (e.g. `'Claude'`, `'OpenAI Codex'`, `'Antigravity'`, `'Open Skills'`, `'Markdown'`)."
+          "description": "Human-readable Provider name shown in the active-lens dropdown, the topbar lens chip, and the per-node provider chip. Vendor lenses use a possessive `<Vendor>'s <product>` form (`\"Anthropic's Claude\"`, `\"OpenAI's Codex\"`, `\"Google's Antigravity\"`); the vendor-neutral open standard uses a `'Standard: <name>'` prefix (`'Standard: Agent skills'`). The non-gated `core/markdown` base keeps a `'Markdown'` label for internal lookups even though it is never a selectable lens."
         },
         "color": {
           "type": "string",
@@ -70,7 +70,7 @@
         },
         "hideChip": {
           "type": "boolean",
-          "description": "When `true`, the UI does NOT paint this Provider's chip on node cards. Reserved for the universal fallback Provider (`markdown`): the majority of nodes in any project carry it, so badging every generic `.md` would be visual noise and dilute the chip's purpose (signalling when a node came from a NON-default platform). The Provider still appears in the active-lens dropdown and the topbar lens chip; only the per-card badge is suppressed. Defaults to `false` (chip shown)."
+          "description": "When `true`, the UI does NOT paint this Provider's chip on node cards. Reserved for the universal base Provider (`markdown`): the majority of nodes in any project carry it, so badging every generic `.md` would be visual noise and dilute the chip's purpose (signalling when a node came from a NON-default platform). The markdown base is non-gated (`gatedByActiveLens: false`, `isLens: false`), so it is not a selectable lens and never appears in the active-lens dropdown or topbar lens chip either; `hideChip` additionally suppresses its per-card badge. Defaults to `false` (chip shown)."
         }
       }
     },
@@ -97,7 +97,7 @@
       "type": "object",
       "required": ["skillDir"],
       "additionalProperties": false,
-      "description": "Authoring targets for verbs that MATERIALISE files into this Provider's on-disk territory (today only `sm tutorial`, which drops a skill folder where the Provider's runtime will discover it). Distinct from `detect` (which READS markers to suggest a lens) and from `classify` (which READS paths during a scan): `scaffold` is the WRITE side, the directory a generator drops new content into so the target runtime picks it up. Optional: a Provider with no `scaffold` block is never offered as a destination by a materialising verb (e.g. `openai` until Codex skills land, `antigravity` whose skills live under the open-standard `agent-skills` territory, `core/markdown` which owns no authoring convention). The skill-folder convention is uniform across hosts (`<skillDir>/<name>/SKILL.md`), so a single `skillDir` is enough today; a future verb that scaffolds agents or commands adds a sibling field (`agentDir`, `commandDir`) without breaking this one.",
+      "description": "Authoring targets for verbs that MATERIALISE files into this Provider's on-disk territory (today only `sm tutorial`, which drops a skill folder where the Provider's runtime will discover it). Distinct from `detect` (which READS markers to suggest a lens) and from `classify` (which READS paths during a scan): `scaffold` is the WRITE side, the directory a generator drops new content into so the target runtime picks it up. Optional: a Provider with no `scaffold` block is never offered as a destination by a materialising verb (e.g. `codex` until Codex skills land, `antigravity` whose skills live under the open-standard `agent-skills` territory, `core/markdown` which owns no authoring convention). The skill-folder convention is uniform across hosts (`<skillDir>/<name>/SKILL.md`), so a single `skillDir` is enough today; a future verb that scaffolds agents or commands adds a sibling field (`agentDir`, `commandDir`) without breaking this one.",
       "properties": {
         "skillDir": {
           "type": "string",
@@ -108,14 +108,14 @@
         "aka": {
           "type": "array",
           "minItems": 1,
-          "description": "Display-only hints naming the agents that consume this Provider's scaffold territory, shown in parentheses next to the Provider label in the `sm tutorial` destination prompt (e.g. the open-standard `.agents/skills` is read by Antigravity and OpenAI Codex, so its `agent-skills` Provider lists them here). Purely presentational: these strings are NOT matched by `--for` (only registered Provider ids are) and have no runtime effect. Optional; absent means the prompt shows the bare Provider label.",
+          "description": "Display-only hints naming the agents that consume this Provider's scaffold territory, shown in parentheses next to the Provider label in the `sm tutorial` destination prompt (e.g. the open-standard `.agents/skills` is read by Google's Antigravity and OpenAI's Codex, so its `agent-skills` Provider lists them here). Purely presentational: these strings are NOT matched by `--for` (only registered Provider ids are) and have no runtime effect. Optional; absent means the prompt shows the bare Provider label.",
           "items": { "type": "string", "minLength": 1 }
         }
       }
     },
     "gatedByActiveLens": {
       "type": "boolean",
-      "description": "Lens gating flag for vendor providers. When `true`, this Provider's `classify()` only runs (and the walker only iterates its territory) if `provider.id === activeProvider` (the project's active lens). When `false` or omitted (default), the Provider is universal and classifies unconditionally. Vendor providers (`claude`, `openai`, `antigravity`) MUST set this to `true`: the actual runtimes never read each other's on-disk formats (Claude Code does not consume `.codex/`; Codex CLI does not consume `.claude/`), and offering every file to every provider fabricates cross-vendor graph edges the runtimes themselves reject. Universal providers (open-standard `agent-skills`, markdown fallback `core/markdown`, any future format-based fallback) keep this `false` so their territory is consumed by every vendor and they run on every scan. When `activeProvider === null` (no lens resolved), the walker bypasses the gate entirely and every gated Provider runs, mirroring the permissive extractor-side fallback for unlensed projects. Affects classification ONLY; extractors continue to filter via their own `precondition.provider` allowlist."
+      "description": "Lens gating flag. When `true`, this Provider is a **lens**: its `classify()` only runs (and the walker only iterates its territory) if `provider.id === activeProvider` (the project's active lens), and it is offered in the active-lens dropdown / `selectable` set (projected to the envelope entry as `isLens: true`). When `false` or omitted (default), the Provider is a universal **base**: it classifies unconditionally on every scan and is never offered as a selectable lens (`isLens: false`). Vendor providers (`claude`, `codex`, `antigravity`) and the open-standard `agent-skills` provider MUST set this `true`: the actual runtimes never read each other's on-disk formats (Claude Code does not consume `.codex/`; Codex CLI does not consume `.claude/`), and offering every file to every provider fabricates cross-vendor graph edges the runtimes themselves reject. Only the markdown fallback `core/markdown` (and any future format-based fallback) keeps this `false`, the single universal base beneath whatever lens is active, never offered as a selectable lens. The resolver always yields a concrete lens (a vendor id, or `agent-skills` as the open default when no vendor marker is present), so there is no unlensed branch. Affects classification ONLY; extractors continue to filter via their own `precondition.provider` allowlist."
     },
     "resolverRules": {
       "type": "object",
@@ -133,15 +133,29 @@
       }
     },
     "read": {
+      "description": "Declarative file-discovery config consumed by the kernel walker. Either a SINGLE rule (the common case) or an ARRAY of rules (a Provider that reads several file families, each with its own parser). For each rule the kernel walks every root, includes files whose extension matches the rule's `extensions`, parses each with the rule's `parser`, and yields raw nodes the orchestrator consumes; an array runs one walk pass per rule. When absent, the kernel applies the default `{ extensions: ['.md'], parser: 'frontmatter-yaml' }` so the most common Provider shape needs no configuration. When a Provider also declares the runtime `walk()` method (TypeScript-only, never appears in this manifest), `walk()` wins and `read` is ignored: the runtime field is the escape hatch for Providers with non-standard discovery requirements. The multi-rule array is the declarative path for a mixed-format Provider, so an escape-hatch `walk()` is not needed: the OpenAI Codex provider reads `.toml` sub-agents (parser `toml`, `bodyField: 'developer_instructions'`) AND `.md` open-standard skills (parser `frontmatter-yaml`) as two rules. Rules SHOULD declare disjoint `extensions`; if two rules (or a rule and another Provider) match the same path, the orchestrator's first-wins claim dedups it. Built-in parsers ship with the kernel (`frontmatter-yaml`, `plain`, `toml`); the set is closed by design and user plugins cannot register their own.",
+      "oneOf": [
+        { "$ref": "#/$defs/providerReadRule" },
+        {
+          "type": "array",
+          "minItems": 1,
+          "description": "Multiple read rules, one walk pass each (see `#/$defs/providerReadRule`).",
+          "items": { "$ref": "#/$defs/providerReadRule" }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "providerReadRule": {
       "type": "object",
       "required": ["extensions", "parser"],
       "additionalProperties": false,
-      "description": "Declarative file-discovery config consumed by the kernel walker. When present, the kernel walks every root, includes files whose extension matches `extensions`, parses each with the parser registered as `parser`, and yields raw nodes the orchestrator consumes. When absent, the kernel applies the default `{ extensions: ['.md'], parser: 'frontmatter-yaml' }` so the most common Provider shape needs no configuration. When a Provider also declares the runtime `walk()` method (TypeScript-only, never appears in this manifest), `walk()` wins and `read` is ignored: the runtime field is the escape hatch for Providers with non-standard discovery requirements. Built-in parsers ship with the kernel (`frontmatter-yaml`, `plain`); the set is closed by design and user plugins cannot register their own.",
+      "description": "One declarative read rule: an extension set, the parser to apply to those files, and an optional `bodyField`. A Provider's `read` is either one of these or an array of them.",
       "properties": {
         "extensions": {
           "type": "array",
           "minItems": 1,
-          "description": "File extensions the walker yields. Strings include the leading dot. Lowercase-only by convention, match is case-sensitive and Providers MUST list every casing they want recognised.",
+          "description": "File extensions the walker yields for this rule. Strings include the leading dot. Lowercase-only by convention, match is case-sensitive and Providers MUST list every casing they want recognised.",
           "items": {
             "type": "string",
             "pattern": "^\\.[a-z0-9]+$"
@@ -150,7 +164,12 @@
         "parser": {
           "type": "string",
           "minLength": 1,
-          "description": "Identifier of a parser registered in the kernel-internal registry. Built-ins: `frontmatter-yaml` (markdown with `--- … ---` YAML frontmatter, prototype-pollution-safe, `js-yaml` JSON_SCHEMA-pinned), `plain` (entire body, empty frontmatter, for files carrying no frontmatter convention; the Provider derives `name` from the path inside `classify()`). Unknown ids surface as `UnknownParserError` from the walker; the orchestrator translates the error into a Provider issue with status `invalid-manifest`."
+          "description": "Identifier of a parser registered in the kernel-internal registry. Built-ins: `frontmatter-yaml` (markdown with `--- … ---` YAML frontmatter, prototype-pollution-safe, `js-yaml` JSON_SCHEMA-pinned), `plain` (entire body, empty frontmatter, for files carrying no frontmatter convention; the Provider derives `name` from the path inside `classify()`), `toml` (whole-file TOML parsed as structured frontmatter, e.g. Codex `.codex/agents/*.toml`). Unknown ids surface as `UnknownParserError` from the walker; the orchestrator translates the error into a Provider issue with status `invalid-manifest`."
+        },
+        "bodyField": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional name of a parsed-frontmatter field that holds the node's markdown body. When set and `frontmatter[bodyField]` is a string, the kernel walker yields that string as the node `body` (so the body hash, byte counts, and every body-scoped extractor, markdown-link / at-directive / slash / backtick-path / external-url, see it) instead of the parser's own `body` output. Use it for formats whose prompt lives inside structured frontmatter rather than after a fence: OpenAI Codex sub-agents are pure TOML (`parser: 'toml'`) whose markdown prompt is the triple-quoted `developer_instructions` field, so the codex provider declares `bodyField: 'developer_instructions'`. The field remains in `frontmatter` as well, so frontmatter-scoped extractors are unaffected. When absent or not a string, the parser's own `body` is used unchanged (the default for `.md` providers)."
         }
       }
     }

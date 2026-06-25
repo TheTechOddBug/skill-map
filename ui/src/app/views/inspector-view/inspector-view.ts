@@ -9,6 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import type { OnInit } from '@angular/core';
+import { TooltipModule } from 'primeng/tooltip';
 
 import type { IIssueApi, TIssueSeverityApi } from '../../../models/api';
 
@@ -21,8 +22,12 @@ import {
   type IDataSourcePort,
 } from '../../../services/data-source/data-source.port';
 import { MarkdownRenderer } from '../../../services/markdown-renderer';
-import { setupInlineMarkdown } from '../../../services/markdown-inline-signal';
+import {
+  setupInlineMarkdown,
+  setupHighlightedSource,
+} from '../../../services/markdown-inline-signal';
 import { ActionDispatchService } from '../../../services/action-dispatch';
+import { ProviderRegistryService } from '../../../services/provider-registry';
 import {
   AnnotationsPanel,
   overlayHasAnnotationsContent,
@@ -71,6 +76,7 @@ import type { INodeView } from '../../../models/node';
     CollapsibleSection,
     ViewContributionsHost,
     SidecarConsentDialog,
+    TooltipModule,
   ],
   templateUrl: './inspector-view.html',
   styleUrl: './inspector-view.css',
@@ -83,6 +89,7 @@ export class InspectorView implements OnInit {
   private readonly markdown = inject(MarkdownRenderer);
   private readonly wsEvents = inject(WsEventStreamService);
   private readonly actionDispatch = inject(ActionDispatchService);
+  private readonly providerRegistry = inject(ProviderRegistryService);
 
   protected readonly texts = INSPECTOR_VIEW_TEXTS;
   /** Reused to format the sub-stat tooltips identically to the card. */
@@ -153,6 +160,42 @@ export class InspectorView implements OnInit {
   });
 
   /**
+   * The active node's Provider `bodyField`, if any (e.g. the codex
+   * Provider's `developer_instructions`). Resolved from the provider
+   * registry so no Provider id is hardcoded here: any Provider whose
+   * `read.bodyField` is set drives both the inline body rendering and the
+   * metadata exclusion below. `undefined` for ordinary frontmatter-fence
+   * Providers.
+   */
+  protected readonly bodyFieldForNode = computed<string | undefined>(
+    () => this.providerRegistry.lookup(this.node()?.provider ?? '')?.bodyField,
+  );
+
+  /**
+   * The effective body for a `bodyField` Provider: the named frontmatter
+   * field's string value (the parsed prompt already ships in
+   * `node.frontmatter`). Mirrors the kernel's `resolveEffectiveBody`: the
+   * `bodyField` only governs the body when the frontmatter actually carries
+   * it as a string, otherwise the body comes from the file as usual.
+   *
+   * `undefined` (routing the body card to its on-demand fetch) when:
+   *   - the node's Provider declares no `bodyField`, OR
+   *   - it declares one but THIS node doesn't carry it as a string.
+   * The second case matters because a Provider's `bodyField` is a per-read-
+   * rule fact flattened to one value on the registry: the codex Provider
+   * declares `developer_instructions` for its `.toml` agents, but its
+   * open-standard `.agents/skills/<name>/SKILL.md` skills (same Provider, no
+   * such field) keep a normal markdown body and must fall through to the
+   * fetch, not render empty.
+   */
+  private readonly inlineBody = computed<string | undefined>(() => {
+    const field = this.bodyFieldForNode();
+    if (field === undefined) return undefined;
+    const value = this.node()?.frontmatter?.[field];
+    return typeof value === 'string' ? value : undefined;
+  });
+
+  /**
    * Body card state machine, owned by `setupBodyState` helper. Field
    * initializers run in the component's injection context so the inner
    * `effect()` resolves cleanly without going through the constructor
@@ -165,9 +208,54 @@ export class InspectorView implements OnInit {
     markdown: this.markdown,
     // Keep the open node's body live when the watcher re-scans an edit.
     scanCompleted$: this.wsEvents.scanCompleted$,
+    // Structured-frontmatter Providers (codex `developer_instructions`)
+    // render their already-parsed body field directly, no disk re-read.
+    inlineBody: this.inlineBody,
   });
   protected readonly bodyState = this.bodyHandle.bodyState;
   protected readonly bodyHtml = this.bodyHandle.bodyHtml;
+  protected readonly bodyRaw = this.bodyHandle.bodyRaw;
+
+  /**
+   * Body view mode: the rendered Markdown (default) or the raw source. A
+   * toggle inside the (expanded) Body section flips it. Sticky across nodes
+   * within the session (a view preference, not per-node state); ephemeral,
+   * resets to `rendered` on reload.
+   */
+  protected readonly bodyView = signal<'rendered' | 'raw'>('rendered');
+  protected toggleBodyView(): void {
+    this.bodyView.update((v) => (v === 'rendered' ? 'raw' : 'rendered'));
+  }
+
+  /**
+   * Raw source for the editor view, trailing blank lines trimmed so the
+   * line-number gutter has no stray number on an empty final line. Leading
+   * indentation is preserved (source fidelity).
+   */
+  protected readonly bodyRawDisplay = computed<string>(() =>
+    (this.bodyRaw() ?? '').replace(/\n+$/, ''),
+  );
+
+  /** Newline-joined "1..N" gutter for the raw editor view. */
+  protected readonly rawLineNumbers = computed<string>(() => {
+    const text = this.bodyRawDisplay();
+    if (text.length === 0) return '';
+    const count = text.split('\n').length;
+    let out = '';
+    for (let i = 1; i <= count; i++) out += i === 1 ? '1' : `\n${i}`;
+    return out;
+  });
+
+  /**
+   * The raw source highlighted as Markdown code (highlight.js token spans,
+   * coloured by the global `themes/highlight.css`), so the raw view reads
+   * like a read-only Markdown editor instead of flat monospace text.
+   */
+  protected readonly rawHighlightedHtml = setupHighlightedSource(
+    () => this.bodyRawDisplay(),
+    this.markdown,
+    'markdown',
+  );
 
   /**
    * Whether the Body section renders at all. The body is fetched eagerly

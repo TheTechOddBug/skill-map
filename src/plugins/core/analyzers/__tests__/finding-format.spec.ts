@@ -52,7 +52,6 @@ const BODY_TEMPLATES: ReadonlyArray<readonly [string, string]> = [
   ['reference-redundant.message', REFERENCE_REDUNDANT_TEXTS.message],
   ['schema-violation.nodeFailure', SCHEMA_VIOLATION_TEXTS.nodeFailure],
   ['schema-violation.linkFailure', SCHEMA_VIOLATION_TEXTS.linkFailure],
-  ['schema-violation.frontmatterBaseFailure', SCHEMA_VIOLATION_TEXTS.frontmatterBaseFailure],
 ];
 
 // `<what>` is a capitalised clause with no `;`, then `; `, then `<why>`.

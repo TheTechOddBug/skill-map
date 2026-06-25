@@ -66,10 +66,12 @@ import type {
 } from '../../../models/api';
 import { DATA_SOURCE } from '../../../services/data-source/data-source.port';
 import { kindTint } from '../../../services/extension-kind-tints';
+import { ProviderRegistryService } from '../../../services/provider-registry';
 
 import {
   clickedInteractive,
   isFailureStatus,
+  pluginDisplayName,
   qualifiedKey,
   sourceLabel,
   statusLabel,
@@ -93,6 +95,7 @@ export class SettingsPlugins {
   private readonly dataSource = inject(DATA_SOURCE);
   private readonly buffer = inject(SettingsBufferService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly providerRegistry = inject(ProviderRegistryService);
 
   /**
    * Section visibility signal. The chassis flips it true when the
@@ -361,6 +364,20 @@ export class SettingsPlugins {
 
   protected sourceLabel(source: IPluginItemApi['source']): string {
     return sourceLabel(source, this.texts);
+  }
+
+  /**
+   * Settings headline for a plugin row: the friendly lens label of its
+   * provider (so the list mirrors the active-lens selector), else the
+   * plugin id. Reads the live `providerRegistry`; only a selectable lens
+   * (`isLens`) lends its label, the non-gated `markdown` base does not.
+   * See `pluginDisplayName` in the utils module.
+   */
+  protected displayName(plugin: IPluginItemApi): string {
+    return pluginDisplayName(plugin, (id) => {
+      const entry = this.providerRegistry.lookup(id);
+      return entry?.isLens ? entry.label : null;
+    });
   }
 
   protected qualifiedExt(pluginId: string, extensionId: string): string {

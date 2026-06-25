@@ -22,7 +22,7 @@ describe('qualifyExtensionForUsage', () => {
   it('passes built-in ids through unchanged', () => {
     assert.equal(qualifyExtensionForUsage('core/markdown-link'), 'core/markdown-link');
     assert.equal(qualifyExtensionForUsage('claude/at-directive'), 'claude/at-directive');
-    assert.equal(qualifyExtensionForUsage('openai/codex'), 'openai/codex');
+    assert.equal(qualifyExtensionForUsage('codex/codex'), 'codex/codex');
     assert.equal(qualifyExtensionForUsage('antigravity/x'), 'antigravity/x');
     assert.equal(qualifyExtensionForUsage('agent-skills/y'), 'agent-skills/y');
   });

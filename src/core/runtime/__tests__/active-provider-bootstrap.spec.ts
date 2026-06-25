@@ -8,9 +8,9 @@
  *   - When `settings.json` carries `activeProvider`, the bootstrap is
  *     a no-op (returns 'ok' source='config' verbatim). No filesystem
  *     scan, no persistence.
- *   - No markers anywhere → `activeProvider: 'markdown'`, source='default',
+ *   - No markers anywhere → `activeProvider: 'agent-skills'`, source='default',
  *     no warning, no persist. Plain-markdown projects keep scanning fine
- *     under the universal markdown lens; a vendor marker added later
+ *     under the open-standard default lens; a vendor marker added later
  *     still auto-detects on the next scan.
  *   - One marker → auto-detect + persist to `.skill-map/settings.json`
  *     (project layer), source='autodetect'. Subsequent scans pick up
@@ -48,7 +48,7 @@ import type { IPrinter } from '../printer.js';
 const TEST_PROVIDERS: IProviderDetectInput[] = [
   { id: 'claude', detect: { markers: ['.claude'] } },
   { id: 'cursor', detect: { markers: ['.cursor'] } },
-  { id: 'openai', detect: { markers: ['.codex'] } },
+  { id: 'codex', detect: { markers: ['.codex'] } },
 ];
 
 interface ICapturedPrinter {
@@ -115,7 +115,7 @@ describe('bootstrapActiveProvider: from settings', () => {
 });
 
 describe('bootstrapActiveProvider: no markers anywhere', () => {
-  it('resolves to the markdown lens silently, no warning, no persist', async () => {
+  it('resolves to the open-standard default lens silently, no warning, no persist', async () => {
     // tmpRoot is empty: no markers in cwd, no markers in any root.
     const cap = capturePrinter();
     const out = await bootstrapActiveProvider({
@@ -128,14 +128,14 @@ describe('bootstrapActiveProvider: no markers anywhere', () => {
       printer: cap.printer,
     });
 
-    assert.deepEqual(out, { kind: 'ok', activeProvider: 'markdown', source: 'default' });
-    assert.equal(cap.warns.length, 0, 'no warning printed for the markdown default');
+    assert.deepEqual(out, { kind: 'ok', activeProvider: 'agent-skills', source: 'default' });
+    assert.equal(cap.warns.length, 0, 'no warning printed for the default lens');
     // The default lens is NOT persisted: a vendor marker added later
     // must still auto-detect on the next scan.
     assert.equal(
       existsSync(join(tmpRoot, '.skill-map', 'settings.json')),
       false,
-      'markdown default must not be written to settings.json',
+      'default lens must not be written to settings.json',
     );
   });
 });

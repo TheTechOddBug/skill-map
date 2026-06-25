@@ -22,7 +22,7 @@ import { resolveTelemetryEnv, type TTelemetryEnv } from './telemetry-env.js';
 export const BUILT_IN_PLUGIN_IDS: ReadonlySet<string> = new Set([
   'claude',
   'antigravity',
-  'openai',
+  'codex',
   'agent-skills',
   'core',
 ]);

@@ -5,7 +5,7 @@
  * and atomic copy in one call.
  */
 
-import { dirname, join, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import { Command, Option } from 'clipanion';
 
@@ -13,7 +13,7 @@ import { relativeIfBelow } from '../../util/path-display.js';
 import { withSqlite } from '../../util/with-sqlite.js';
 import { tx } from '../../../kernel/util/tx.js';
 import { DB_TEXTS } from '../../i18n/db.texts.js';
-import { requireDbOrExit, resolveDbPath } from '../../util/db-path.js';
+import { backupsDirForDb, requireDbOrExit, resolveDbPath } from '../../util/db-path.js';
 import { defaultRuntimeContext } from '../../util/runtime-context.js';
 import { ExitCode } from '../../util/exit-codes.js';
 import { SmCommand } from '../../util/sm-command.js';
@@ -39,7 +39,7 @@ export class DbBackupCommand extends SmCommand {
     if (exit !== null) return exit;
 
     const ts = new Date().toISOString().replace(/[:.]/g, '-');
-    const outPath = this.out ? resolve(this.out) : join(dirname(path), 'backups', `${ts}.db`);
+    const outPath = this.out ? resolve(this.out) : join(backupsDirForDb(path), `${ts}.db`);
 
     // Route through the storage port, the port's `writeBackup` does
     // the WAL checkpoint, parent-directory creation, and atomic file

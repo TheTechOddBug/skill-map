@@ -68,7 +68,7 @@ describe('built-in extensions, execution modes', () => {
 });
 
 describe('built-in extensions, qualified ids (spec § A.6)', () => {
-  it('every built-in declares a recognised pluginId (`core`, `claude`, `antigravity`, `openai`, `agent-skills`)', () => {
+  it('every built-in declares a recognised pluginId (`core`, `claude`, `antigravity`, `codex`, `agent-skills`)', () => {
     const set = builtIns();
     const all = [
       ...set.providers,
@@ -77,7 +77,7 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
       ...set.formatters,
       ...set.actions,
     ];
-    const valid = new Set(['core', 'claude', 'antigravity', 'openai', 'agent-skills']);
+    const valid = new Set(['core', 'claude', 'antigravity', 'codex', 'agent-skills']);
     for (const ext of all) {
       assert.ok(
         valid.has(ext.pluginId),
@@ -131,7 +131,7 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
 
   it('listBuiltIns() rows carry pluginId verbatim', () => {
     const rows = listBuiltIns();
-    const valid = new Set(['core', 'claude', 'antigravity', 'openai', 'agent-skills']);
+    const valid = new Set(['core', 'claude', 'antigravity', 'codex', 'agent-skills']);
     for (const row of rows) {
       assert.ok(
         valid.has(row.pluginId),
@@ -148,7 +148,7 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // `core/unknown-slot` was lifted out of the scan pipeline and into `sm plugins doctor` (it validates plugin manifest metadata, not user content), keeping it at 26 (had briefly grown to 29 with three project-level action stubs `relink-contributions` / `prune-orphan-files` / `node-supersede`, but `relink-contributions` + `prune-orphan-files` were removed because Actions are per-node by design, project-level cleanup belongs in CLI verbs; `node-supersede` remained as a per-node declarer).
     // `core/json` (second built-in formatter; stringifies the persisted `ScanResult` for `sm graph --format json`) brings it to 27.
     // `core/mcp-tools` (extractor that detects `tools: [mcp__<server>__*]` and emits MCP virtual nodes + reference edges) brings it to 28.
-    // OpenAI Codex provider (`openai/openai`) brings it to 29.
+    // OpenAI Codex provider (`codex/codex`) brings it to 29.
     // `core/name-reserved` (analyzer that flags user nodes whose name collides with a Provider runtime's built-in invocable) brings it to 30.
     // `core/reference-redundant` (analyzer that flags multi-form references to the same target) brings it to 31.
     // `core/link-self-loop` (analyzer that flags links whose source is their own resolved target, hidden from the UI by default) brings it to 32.

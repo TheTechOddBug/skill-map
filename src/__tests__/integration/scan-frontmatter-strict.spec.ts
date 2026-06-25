@@ -88,7 +88,7 @@ describe('frontmatter validation (kernel-level)', () => {
 
   it('files with a fence but missing required fields → warn issue by default', async () => {
     const scope = freshScope('warn-default');
-    // Base schema requires name + description (Step 9.5). Provide only name.
+    // The claude agent schema requires name + description. Provide only name.
     writeNode(
       scope.cwd,
       '.claude/agents/incomplete.md',
@@ -203,11 +203,16 @@ describe('frontmatter validation (kernel-level)', () => {
     assert.match(fmIssues[0]!.message, /name|string|type/);
   });
 
-  it('validates against per-kind schemas: skill / agent / command / note all flag missing fields', async () => {
+  it('per-kind required: only strict kinds flag a missing base field (skill/command/markdown relaxed)', async () => {
     const scope = freshScope('multi-kind');
-    // Drop one minimal-but-incomplete file per kind. Each is missing the
-    // `description` field (base.required), so each must produce exactly
-    // one frontmatter-invalid issue tagged with its own kind in `data`.
+    // Drop one minimal-but-incomplete file per kind, each missing the
+    // `description` field. `required: [name, description]` no longer lives on
+    // the universal base; it is declared per kind. Only `agent` mandates them
+    // (Anthropic's documented subagent contract), so only the agent file
+    // produces a frontmatter-invalid issue. Claude skill/command (merged
+    // contract treats both as optional, with name/description defaulting to
+    // the dir/file name and first paragraph) and the generic `markdown`
+    // fallback (no normative Markdown standard mandates frontmatter) pass.
     writeNode(scope.cwd, '.claude/skills/s/SKILL.md', '---\nname: s\n---\nbody\n');
     writeNode(scope.cwd, '.claude/agents/a.md', '---\nname: a\n---\nbody\n');
     writeNode(scope.cwd, '.claude/commands/c.md', '---\nname: c\n---\nbody\n');
@@ -218,11 +223,8 @@ describe('frontmatter validation (kernel-level)', () => {
       extensions: builtIns(),
     });
     const fmIssues = result.issues.filter((i) => i.analyzerId === 'frontmatter-invalid');
-    assert.equal(fmIssues.length, 4);
-    const kinds = new Set(
-      fmIssues.map((i) => (i.data as { kind: string } | undefined)?.kind),
-    );
-    assert.deepEqual(kinds, new Set(['skill', 'agent', 'command', 'markdown']));
+    assert.equal(fmIssues.length, 1);
+    assert.equal((fmIssues[0]!.data as { kind?: string } | undefined)?.kind, 'agent');
   });
 
   it('incremental + strict promotes the cached issue to error', async () => {

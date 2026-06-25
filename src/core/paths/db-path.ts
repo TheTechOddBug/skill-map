@@ -21,7 +21,11 @@
 import { join, resolve } from 'node:path';
 
 import type { IRuntimeContext } from '../runtime/runtime-context.js';
-import { SKILL_MAP_DIR } from '../../kernel/util/skill-map-paths.js';
+import {
+  SKILL_MAP_DIR,
+  BACKUPS_DIRNAME,
+  kernelBackupsDir,
+} from '../../kernel/util/skill-map-paths.js';
 
 /**
  * Per-scope directory the CLI stores its state under (DB file, settings,
@@ -30,7 +34,7 @@ import { SKILL_MAP_DIR } from '../../kernel/util/skill-map-paths.js';
  * innermost layer); it is re-exported here so the CLI / BFF path helpers
  * keep importing it from one place without `core/` owning the literal.
  */
-export { SKILL_MAP_DIR };
+export { SKILL_MAP_DIR, BACKUPS_DIRNAME };
 
 const DB_FILENAME = 'skill-map.db';
 const JOBS_DIRNAME = 'jobs';
@@ -106,6 +110,17 @@ export function defaultProjectJobsDir(ctx: IRuntimeContext): string {
  */
 export function defaultProjectPluginsDir(ctx: IRuntimeContext): string {
   return resolve(ctx.cwd, SKILL_MAP_DIR, PLUGINS_DIRNAME);
+}
+
+/**
+ * `<dbDir>/backups` for a DB file path: where `sm db backup` writes and
+ * where the migrations runner drops its pre-migrate snapshots. Derives
+ * from the DB's OWN directory so a `--db <path>` override keeps backups
+ * beside it. Thin re-export of the kernel primitive so CLI / BFF never
+ * compose the `backups` segment by hand.
+ */
+export function backupsDirForDb(dbPath: string): string {
+  return kernelBackupsDir(dbPath);
 }
 
 /**

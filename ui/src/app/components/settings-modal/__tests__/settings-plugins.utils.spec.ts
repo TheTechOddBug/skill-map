@@ -5,6 +5,7 @@ import type { IPluginExtensionApi, IPluginItemApi } from '../../../../models/api
 import {
   buildStateFromPlugins,
   filterBySource,
+  pluginDisplayName,
   qualifiedKey,
   sourceLabel,
   statusLabel,
@@ -161,5 +162,46 @@ describe('settings-plugins.utils, buildStateFromPlugins', () => {
     };
     const state = buildStateFromPlugins([plugin]);
     expect(state.size).toBe(0);
+  });
+});
+
+describe('settings-plugins.utils, pluginDisplayName', () => {
+  // A lens-label lookup mirroring the live providerRegistry: id -> label,
+  // only for selectable lenses (the non-gated base maps to null).
+  const lensLabelFor = (id: string): string | null =>
+    ({ claude: "Anthropic's Claude", codex: "OpenAI's Codex" })[id] ?? null;
+
+  it("uses the provider's lens label as the headline", () => {
+    const claude = plugin({
+      status: 'enabled',
+      id: 'claude',
+      extensions: [ext({ id: 'claude', kind: 'provider' }), ext({ id: 'at-directive' })],
+    });
+    expect(pluginDisplayName(claude, lensLabelFor)).toBe("Anthropic's Claude");
+  });
+
+  it('falls back to the id when the provider is not a lens (null label)', () => {
+    // `core` owns the non-gated `markdown` base; lensLabelFor maps it to
+    // null, so the row keeps the plain id.
+    const core = plugin({
+      status: 'enabled',
+      id: 'core',
+      extensions: [ext({ id: 'markdown', kind: 'provider' })],
+    });
+    expect(pluginDisplayName(core, lensLabelFor)).toBe('core');
+  });
+
+  it('falls back to the id when the plugin has no provider extension', () => {
+    const toolsOnly = plugin({
+      status: 'enabled',
+      id: 'tools-only',
+      extensions: [ext({ id: 'at-directive' })],
+    });
+    expect(pluginDisplayName(toolsOnly, lensLabelFor)).toBe('tools-only');
+  });
+
+  it('falls back to the id when the plugin has no extensions', () => {
+    const bare = plugin({ status: 'enabled', id: 'broken' });
+    expect(pluginDisplayName(bare, lensLabelFor)).toBe('broken');
   });
 });

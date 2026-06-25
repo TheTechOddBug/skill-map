@@ -27,6 +27,17 @@ const CLAUDE_CONFORMANCE_DIR = resolve(
 const CLAUDE_CASES_DIR = resolve(CLAUDE_CONFORMANCE_DIR, 'cases');
 const CLAUDE_FIXTURES_DIR = resolve(CLAUDE_CONFORMANCE_DIR, 'fixtures');
 
+const OPENAI_CONFORMANCE_DIR = resolve(
+  WORKSPACE,
+  'plugins',
+  'codex',
+  'providers',
+  'codex',
+  'conformance',
+);
+const OPENAI_CASES_DIR = resolve(OPENAI_CONFORMANCE_DIR, 'cases');
+const OPENAI_FIXTURES_DIR = resolve(OPENAI_CONFORMANCE_DIR, 'fixtures');
+
 /**
  * Step 0b reference subset, post-A.13 split:
  *
@@ -42,6 +53,7 @@ const CLAUDE_FIXTURES_DIR = resolve(CLAUDE_CONFORMANCE_DIR, 'fixtures');
  */
 const SPEC_CASES = ['kernel-empty-boot', 'score-phase-confidence'] as const;
 const PROVIDER_CLAUDE_CASES = ['rename-high', 'orphan-detection'] as const;
+const PROVIDER_OPENAI_CASES = ['basic-scan', 'body-links'] as const;
 
 describe('conformance suite (Step 0b subset)', () => {
   for (const caseId of SPEC_CASES) {
@@ -82,6 +94,27 @@ describe('conformance suite (Step 0b subset)', () => {
       assert.ok(
         result.passed,
         `provider:claude case ${caseId} failed\n${summary}\n--- stdout ---\n${result.stdout}\n--- stderr ---\n${result.stderr}`,
+      );
+    });
+  }
+
+  for (const caseId of PROVIDER_OPENAI_CASES) {
+    it(`provider:codex case ${caseId} passes`, () => {
+      const result = runConformanceCase({
+        binary: BIN,
+        specRoot: SPEC_ROOT,
+        casePath: resolve(OPENAI_CASES_DIR, `${caseId}.json`),
+        fixturesRoot: OPENAI_FIXTURES_DIR,
+      });
+      const failures = result.assertions.filter(
+        (a): a is Extract<typeof a, { ok: false }> => !a.ok,
+      );
+      const summary = failures.length
+        ? failures.map((f) => `  - [${f.type}] ${f.reason}`).join('\n')
+        : '';
+      assert.ok(
+        result.passed,
+        `provider:codex case ${caseId} failed\n${summary}\n--- stdout ---\n${result.stdout}\n--- stderr ---\n${result.stderr}`,
       );
     });
   }

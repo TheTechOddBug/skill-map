@@ -45,7 +45,7 @@ function plugin(
     // presentational grouping (no toggle of its own); the inline
     // extension carries the per-extension toggle axis the controller
     // tracks via `onExtensionToggle`. Mirrors the production single-
-    // extension provider plugins like `openai/openai`.
+    // extension provider plugins like `codex/codex`.
     extensions: [
       { id, kind: 'provider', version: '1.0.0', enabled: status === 'enabled' },
     ],

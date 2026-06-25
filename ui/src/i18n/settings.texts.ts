@@ -99,11 +99,9 @@ export const SETTINGS_TEXTS = {
     saveErrorPrefix: 'Could not save project settings:',
     sidecarWritersLabel: 'Allow sidecar writers',
     sidecarWritersDescription:
-      'Lets actions create or edit the `.sm` annotation files next to ' +
-      'your notes (version, tags, stability). Turn this off for a shared ' +
-      'project to keep those files out of the repo: the setting is saved ' +
-      'in the committed settings.json, so it applies to the whole team and ' +
-      'cannot be overridden locally.',
+      'Let actions write `.sm` files (version, tags, stability) next to ' +
+      'your notes. Turn this off on a shared project to keep them out of ' +
+      'the repo: the setting is committed, so it applies to the whole team.',
     referencePathsLabel: 'Folders for link validation',
     referencePathsDescription:
       'If your notes link to files outside this project, list those ' +

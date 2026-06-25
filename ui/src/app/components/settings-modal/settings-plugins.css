@@ -247,13 +247,15 @@
   position: relative;
 }
 
-.settings-plugins__row-id {
+/* Plugin headline: the friendly lens name (mirrors the active-lens
+   selector). The raw id is demoted to a secondary mono pill below. */
+.settings-plugins__row-name {
   font-weight: 600;
-  font-family: var(--sm-font-mono);
 }
 
 /* Shared pill chrome, same shape, padding and typography for every
    inline metadata tag. Color per tag is layered on top below. */
+.settings-plugins__row-id,
 .settings-plugins__row-source,
 .settings-plugins__row-version,
 .settings-plugins__subrow-kind,
@@ -268,13 +270,15 @@
   white-space: nowrap;
 }
 
+.settings-plugins__row-id,
 .settings-plugins__row-version,
 .settings-plugins__subrow-version {
   font-family: var(--sm-font-mono);
 }
 
-/* Neutral pills: source / version. Text-color wash so they stay legible
-   on both themes without leaning on a kind tint. */
+/* Neutral pills: id / source / version. Text-color wash so they stay
+   legible on both themes without leaning on a kind tint. */
+.settings-plugins__row-id,
 .settings-plugins__row-source,
 .settings-plugins__row-version,
 .settings-plugins__subrow-version {
@@ -283,6 +287,7 @@
   color: var(--p-text-color);
 }
 
+:host-context(.app-dark) .settings-plugins__row-id,
 :host-context(.app-dark) .settings-plugins__row-source,
 :host-context(.app-dark) .settings-plugins__row-version,
 :host-context(.app-dark) .settings-plugins__subrow-version {
@@ -355,6 +360,7 @@
 
 /* A failed plugin reads as inactive: dim the identity + description so the
    eye lands on the badge + reason, which stay at full strength. */
+.settings-plugins__row.is-failed .settings-plugins__row-name,
 .settings-plugins__row.is-failed .settings-plugins__row-id,
 .settings-plugins__row.is-failed .settings-plugins__row-description {
   opacity: 0.6;

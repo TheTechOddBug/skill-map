@@ -27,16 +27,22 @@ import type { MarkdownRenderer } from './markdown-renderer';
 /**
  * Shared core: drive a `SafeHtml` signal off a reactive source string,
  * rendered through the given async renderer with a stale-result guard.
+ * `trim` (default `true`) collapses whitespace-only sources to empty for
+ * prose fields; the raw/source highlighter opts out so leading indentation
+ * and line structure survive verbatim.
  */
 function setupMarkdownSignal(
   source: () => string,
   render: (src: string) => Promise<SafeHtml>,
+  options: { trim?: boolean } = {},
 ): Signal<SafeHtml | null> {
+  const trim = options.trim ?? true;
   const html = signal<SafeHtml | null>(null);
   let token = 0;
 
   effect(() => {
-    const src = source().trim();
+    const raw = source();
+    const src = trim ? raw.trim() : raw;
     const myToken = ++token;
     html.set(null);
     if (!src) return;
@@ -71,4 +77,20 @@ export function setupBlockMarkdown(
 ): Signal<SafeHtml | null> {
   assertInInjectionContext(setupBlockMarkdown);
   return setupMarkdownSignal(source, (src) => markdown.render(src));
+}
+
+/**
+ * Syntax-highlighted SOURCE (the raw string shown like a read-only code
+ * editor), highlighted with the given language grammar. Not trimmed, so the
+ * displayed lines match a sibling line-number gutter exactly.
+ */
+export function setupHighlightedSource(
+  source: () => string,
+  markdown: MarkdownRenderer,
+  lang: string,
+): Signal<SafeHtml | null> {
+  assertInInjectionContext(setupHighlightedSource);
+  return setupMarkdownSignal(source, (src) => markdown.highlightSource(src, lang), {
+    trim: false,
+  });
 }

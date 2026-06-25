@@ -198,7 +198,7 @@ describe('sm plugins enable / disable', () => {
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     // Every extension lands as its own qualified id in the output.
     // Built-in counts (per the current catalog): claude=4, antigravity=1,
-    // openai=1, agent-skills=1, core=26. User mocks: mock-c=1, mock-d=1.
+    // codex=1, agent-skills=1, core=26. User mocks: mock-c=1, mock-d=1.
     // Total = 4+1+1+1+26+1+1 = 35 extensions cascaded.
     assert.match(r.stdout, /disabled: \d+ extension\(s\)/);
     assert.match(r.stdout, /- claude\/at-directive/);
@@ -574,13 +574,14 @@ describe('sm plugins doctor, disabled is not a failure', () => {
     const r = sm(['plugins', 'doctor'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     // Disabled is intentional, never an error: exit stays 0. The count
-    // is 7, the disabled `mock-h` drop-in plus the six experimental
-    // built-in extensions that ship disabled by default: the three
-    // experimental providers (`antigravity/antigravity`, `openai/openai`,
-    // `agent-skills/agent-skills`), the experimental extractor
+    // is 5, the disabled `mock-h` drop-in plus the four experimental
+    // built-in extensions that ship disabled by default: the experimental
+    // provider `antigravity/antigravity`, the experimental extractor
     // `core/mcp-tools`, and the gated bump pair `core/node-bump` +
-    // `core/annotation-stale`.
-    assert.match(r.stdout, /disabled\s+7/);
+    // `core/annotation-stale`. (`codex/codex` is beta and
+    // `agent-skills/agent-skills` is now stable + locked, so both ship
+    // enabled and no longer count here.)
+    assert.match(r.stdout, /disabled\s+5/);
   });
 });
 

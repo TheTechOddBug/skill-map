@@ -31,6 +31,17 @@ before(() => {
   write('docs/a.txt', 'should not be yielded under extensions: [".md"]');
   write('docs/a.toml', 'name = "toml"\ndescription = "stays"');
 
+  // Codex-flavoured TOML: the markdown prompt lives in the
+  // `developer_instructions` field, exercised by the `read.bodyField` path.
+  write(
+    'agents/codex.toml',
+    [
+      'name = "codex"',
+      'description = "a codex agent"',
+      'developer_instructions = "read docs/guide.md, ask @helper"',
+    ].join('\n'),
+  );
+
   // Files inside ignored directories.
   write('.git/HEAD', 'ref: refs/heads/main');
   write('node_modules/foo/thing.md', 'should be ignored');
@@ -110,7 +121,40 @@ describe('walkContent', () => {
     })) {
       collected.push(n.path);
     }
-    deepStrictEqual(collected, ['docs/a.toml']);
+    collected.sort();
+    deepStrictEqual(collected, ['agents/codex.toml', 'docs/a.toml']);
+  });
+
+  it('sources the node body from read.bodyField when the field is a string', async () => {
+    const byPath = new Map<string, IRawNode>();
+    for await (const n of walkContent([root], {
+      extensions: ['.toml'],
+      parser: 'toml',
+      bodyField: 'developer_instructions',
+    })) {
+      byPath.set(n.path, n);
+    }
+    const codex = byPath.get('agents/codex.toml');
+    ok(codex, 'agents/codex.toml must be yielded under extensions: [".toml"]');
+    // The TOML `developer_instructions` field becomes the node body (Codex prompts).
+    strictEqual(codex!.body, 'read docs/guide.md, ask @helper');
+    // The field stays in frontmatter too, so frontmatter-scoped extractors
+    // (e.g. core/mcp-tools reading `tools`) are unaffected.
+    strictEqual(codex!.frontmatter['developer_instructions'], 'read docs/guide.md, ask @helper');
+    // A TOML file without the field falls back to the parser body (empty).
+    strictEqual(byPath.get('docs/a.toml')!.body, '');
+  });
+
+  it('falls back to the parser body when bodyField is absent', async () => {
+    let codexBody: string | null = null;
+    for await (const n of walkContent([root], {
+      extensions: ['.toml'],
+      parser: 'toml',
+    })) {
+      if (n.path === 'agents/codex.toml') codexBody = n.body;
+    }
+    // No bodyField → the toml parser's own (empty) body is used unchanged.
+    strictEqual(codexBody, '');
   });
 
   it('uses the `plain` parser to pass content through unparsed', async () => {

@@ -305,7 +305,7 @@ the `__PROVIDER__` token and skip kinds the provider does not claim.
      (`harness-built` for `connect-harness`, `harness-connected` for
      `daily-loop`).
   3. Provision the lens: the seeded portfolio has a root `AGENTS.md`
-     (the `openai`/Codex marker) next to `.claude/`, but `openai` is
+     (the `codex`/Codex marker) next to `.claude/`, but `codex` is
      experimental (ships disabled), so auto-detect ignores it and a plain `sm init`
      resolves the `claude` lens with no prompt. Run `sm init`, then
      `sm scan`. (If `.skill-map/` already exists, just `sm scan`.)

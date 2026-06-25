@@ -100,7 +100,7 @@ export const claudeProvider: IBuiltInManifest<IProvider> = {
   // variant lifts luminosity for dark mode. Verbatim from the previous
   // static UI catalog (`ui/src/services/provider-ui.ts`).
   presentation: {
-    label: 'Claude',
+    label: "Anthropic's Claude",
     color: '#cc785c',
     colorDark: '#e89270',
   },

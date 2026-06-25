@@ -89,6 +89,25 @@ export class MarkdownRenderer {
     return renderer.purify.sanitize(rendered);
   }
 
+  /**
+   * Syntax-highlight a SOURCE string as code (not as markdown to render):
+   * returns highlight.js token spans (`class="hljs-*"`, coloured by
+   * `themes/highlight.css`) so a caller can show the raw source like a
+   * read-only code editor. A recognised `lang` highlights; an unknown one
+   * falls back to a plain escaped block. Same DOMPurify pass + `SafeHtml`
+   * wrap as `render`, so it is safe for an `[innerHTML]` sink. This is the
+   * raw / source counterpart to `render` (which turns markdown into prose).
+   */
+  async highlightSource(src: string, lang: string): Promise<SafeHtml> {
+    const renderer = await this.loadLibs();
+    const language = renderer.hljs.getLanguage(lang) ? lang : null;
+    const out = language
+      ? renderer.hljs.highlight(src, { language, ignoreIllegals: true }).value
+      : escapeHtml(src);
+    const clean = renderer.purify.sanitize(out);
+    return this.sanitizer.bypassSecurityTrustHtml(clean);
+  }
+
   private loadLibs(): Promise<IRenderer> {
     if (!this.libsPromise) {
       this.libsPromise = importRenderer();
@@ -100,6 +119,7 @@ export class MarkdownRenderer {
 interface IRenderer {
   md: { render(src: string): string; renderInline(src: string): string };
   purify: { sanitize(html: string): string };
+  hljs: IHljs;
 }
 
 /**
@@ -162,7 +182,7 @@ async function importRenderer(): Promise<IRenderer> {
     FORBID_TAGS: ['style'],
     FORBID_ATTR: ['style', 'srcset'],
   });
-  return { md, purify };
+  return { md, purify, hljs };
 }
 
 /** Minimal slice of the highlight.js surface the renderer touches. */

@@ -222,8 +222,12 @@ export type TProviderKindIcon =
 export interface IProviderUi {
   /**
    * Human-readable Provider name shown in the lens dropdown, the topbar
-   * lens chip, and the per-node provider chip (e.g. `'Claude'`,
-   * `'OpenAI Codex'`, `'Antigravity'`, `'Open Skills'`, `'Markdown'`).
+   * lens chip, and the per-node provider chip. Vendor lenses use a
+   * possessive `<Vendor>'s <product>` form (`"Anthropic's Claude"`,
+   * `"OpenAI's Codex"`, `"Google's Antigravity"`); the vendor-neutral open
+   * standard uses a `'Standard: <name>'` prefix (`'Standard: Agent skills'`).
+   * The non-gated `'Markdown'` base keeps a label for internal lookups but
+   * is never a selectable lens.
    */
   label: string;
   /** Base hex color (`#RRGGBB`) for the light-theme provider chip. */
@@ -281,7 +285,7 @@ export interface IProviderScaffold {
    * Display-only hints naming the agents that consume this scaffold
    * territory, rendered in parentheses next to the Provider label in the
    * `sm tutorial` destination prompt (e.g. `.agents/skills` is read by
-   * Antigravity and OpenAI Codex). Purely presentational: NOT matched by
+   * Google's Antigravity and OpenAI's Codex). Purely presentational: NOT matched by
    * `--for` (only registered Provider ids are) and has no runtime effect.
    */
   aka?: readonly string[];
@@ -318,7 +322,7 @@ export interface IProvider extends IExtensionBase {
    * When present, the Provider is offered as a destination for newly
    * generated content (a skill folder dropped under `scaffold.skillDir`).
    * Absent means a materialising verb never offers this Provider, e.g.
-   * `openai` until Codex skills land, `antigravity` (skills live under
+   * `codex` until Codex skills land, `antigravity` (skills live under
    * the open-standard `agent-skills` territory), `core/markdown` (owns
    * no authoring convention).
    */
@@ -377,19 +381,31 @@ export interface IProvider extends IExtensionBase {
    * applies the default `{ extensions: ['.md'], parser: 'frontmatter-yaml' }`
    * so the most common Provider shape needs zero configuration.
    *
+   * Either a SINGLE rule (the common case) or an ARRAY of rules. A
+   * Provider that reads several file families with different parsers
+   * declares an array, and `resolveProviderWalk` runs one walk pass per
+   * rule (each filtering by its own `extensions`). The codex provider
+   * uses this to read `.toml` sub-agents (`parser: 'toml'`,
+   * `bodyField: 'developer_instructions'`) AND `.md` open-standard skills
+   * (`parser: 'frontmatter-yaml'`) declaratively, without an escape-hatch
+   * `walk()`. Rules SHOULD use disjoint extensions; overlaps are
+   * tolerated because the orchestrator's first-wins `claimedPaths` dedup
+   * drops a path already claimed on an earlier pass.
+   *
    * Precedence: when both `walk()` (runtime field) and `read` are
    * declared, `walk()` wins, `read` is ignored. The escape-hatch
-   * relationship is intentional: most Providers should use `read`;
-   * Providers with non-standard discovery requirements (custom file
-   * naming, multi-pass walks, dynamic ignore logic) implement `walk()`
-   * directly and accept the duplication of audit-cleared defences.
+   * relationship is intentional: most Providers should use `read` (single
+   * or multi-rule); Providers with genuinely non-standard discovery
+   * requirements (custom file naming, dynamic ignore logic) implement
+   * `walk()` directly and accept the duplication of audit-cleared defences.
    *
    * Built-in parsers: `'frontmatter-yaml'` (markdown with `--- … ---`
    * YAML frontmatter; pollution-strip + JSON_SCHEMA-pinned), `'plain'`
-   * (entire body, empty frontmatter). The set is closed; user plugins
-   * cannot register their own.
+   * (entire body, empty frontmatter), `'toml'` (whole-file TOML as
+   * structured frontmatter). The set is closed; user plugins cannot
+   * register their own.
    */
-  read?: IProviderReadConfig;
+  read?: IProviderReadConfig | IProviderReadConfig[];
 
   /**
    * Walk the given roots and yield every node the Provider recognises.
@@ -464,27 +480,29 @@ export interface IProvider extends IExtensionBase {
   resolution?: Record<string, string[]>;
 
   /**
-   * Lens gating flag for vendor providers. When `true`, this Provider's
+   * Lens gating flag. When `true`, this Provider is a LENS: its
    * `classify()` only runs (and the walker only iterates its territory)
-   * if `provider.id === activeProvider` (the project's active lens).
-   * When `false` or omitted (default), the Provider is universal and
-   * classifies unconditionally, regardless of the active lens.
+   * if `provider.id === activeProvider` (the project's active lens), and
+   * it is offered as a selectable lens (the BFF projects `isLens: true`
+   * from this flag). When `false` or omitted (default), the Provider is a
+   * non-gated universal BASE and classifies unconditionally.
    *
-   * Vendor providers (`claude`, `openai`, `antigravity`) MUST set this
-   * to `true`: the actual runtimes never read each other's on-disk
-   * formats (Claude Code does not consume `.codex/`; Codex CLI does not
-   * consume `.claude/`), and offering every file to every provider
-   * fabricates cross-vendor graph edges the runtimes themselves reject.
+   * Vendor providers (`claude`, `codex`, `antigravity`) and the
+   * open-standard `agent-skills` provider MUST set this `true`: the actual
+   * runtimes never read each other's on-disk formats (Claude Code does not
+   * consume `.codex/`; Codex CLI does not consume `.claude/`), and offering
+   * every file to every provider fabricates cross-vendor graph edges the
+   * runtimes themselves reject.
    *
-   * Universal providers (the open-standard `agent-skills`, the markdown
-   * fallback `core/markdown`, any future format-based fallback) keep
-   * this `false`: their territory is consumed by every vendor and they
-   * MUST run on every scan, regardless of the active lens.
+   * Only the markdown fallback `core/markdown` (and any future
+   * format-based fallback) keeps this `false`: the single non-gated base,
+   * consumed by every lens and run on every scan. It is the substrate, NOT
+   * a selectable lens (`isLens: false`).
    *
-   * There is no unlensed state: a project with no provider markers
-   * resolves to the universal `core/markdown` lens (id `markdown`),
-   * under which every gated Provider stays off (only the universal
-   * Providers run). The resolver never yields a null lens.
+   * There is no unlensed state: a project with no vendor marker resolves
+   * to the open-standard `agent-skills` default lens, under which the
+   * open-standard classifier plus the universal base run. The resolver
+   * never yields a null lens.
    *
    * Default `undefined` ≡ `false` ≡ universal. The field affects
    * classification ONLY; extractors continue to filter via their own
@@ -632,6 +650,23 @@ export interface IProviderReadConfig {
    * the error into a Provider issue with status `invalid-manifest`.
    */
   parser: string;
+  /**
+   * Name of a parsed-frontmatter field that carries the node's markdown
+   * body. When set, the walker feeds `frontmatter[bodyField]` (when it is
+   * a string) to every downstream consumer as the node `body` instead of
+   * the parser's own `body` output: the body hash, byte counts, and every
+   * body-scoped extractor (markdown-link, at-directive, slash, ...) then
+   * see this prose. For formats where the prompt lives inside structured
+   * frontmatter rather than after a fence: OpenAI Codex sub-agents are
+   * pure TOML (`read.parser: 'toml'`) whose markdown prompt is the
+   * triple-quoted `developer_instructions` field, so the codex provider
+   * declares `bodyField: 'developer_instructions'`. When the field is
+   * absent or not a string,
+   * the parser's own `body` is used unchanged (the default for `.md`
+   * providers). The field stays in `frontmatter` too, so frontmatter-scoped
+   * extractors (e.g. `core/mcp-tools` reading `tools`) are unaffected.
+   */
+  bodyField?: string;
 }
 
 const DEFAULT_READ_CONFIG: IProviderReadConfig = Object.freeze({
@@ -646,7 +681,11 @@ const DEFAULT_READ_CONFIG: IProviderReadConfig = Object.freeze({
  *      Escape hatch for Providers with non-standard discovery logic.
  *   2. Else, use `provider.read` (declarative config), or the default
  *      `{ extensions: ['.md'], parser: 'frontmatter-yaml' }` when
- *      `read` is also absent, and route through the kernel walker.
+ *      `read` is also absent, and route through the kernel walker. A
+ *      multi-rule `read` array runs one `walkContent` pass per rule
+ *      (each filtering by its own `extensions`); the rules are yielded
+ *      in declaration order and the orchestrator's `claimedPaths` dedup
+ *      keeps a path that two rules happen to match from double-emitting.
  *
  * Defaulting at the call site (rather than at manifest-load) keeps the
  * AJV-validated manifest equal to what the plugin author wrote, `read`
@@ -669,7 +708,12 @@ export function resolveProviderWalk(
     return walk;
   }
   const read = provider.read ?? DEFAULT_READ_CONFIG;
-  return (roots, options) => walkContent(roots, buildWalkContentOptions(read, options));
+  const rules = Array.isArray(read) ? read : [read];
+  return async function* walkRules(roots, options): AsyncIterable<IRawNode> {
+    for (const rule of rules) {
+      yield* walkContent(roots, buildWalkContentOptions(rule, options));
+    }
+  };
 }
 
 /**
@@ -688,6 +732,7 @@ function buildWalkContentOptions(
     extensions: read.extensions,
     parser: read.parser,
   };
+  if (read.bodyField !== undefined) walkOptions.bodyField = read.bodyField;
   if (options) copyOptionalWalkOptions(walkOptions, options);
   return walkOptions;
 }

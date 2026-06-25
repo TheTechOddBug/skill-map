@@ -287,6 +287,93 @@
   font-style: normal;
 }
 
+/* Raw / Rendered toggle row, top of the expanded Body section, right-aligned
+   so it sits above the content without pushing the prose. */
+.inspector__body-view {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.inspector__body-view-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--p-text-muted-color);
+  background: var(--sm-bg-hover);
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-sm);
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.inspector__body-view-toggle:hover {
+  color: var(--p-text-color);
+  border-color: var(--accent);
+}
+
+.inspector__body-view-toggle .pi {
+  font-size: 0.72rem;
+}
+
+/* Raw source view: a read-only Markdown "editor". A scrolling frame holds a
+   sticky line-number gutter and the highlight.js-coloured source; no wrap so
+   one source line maps 1:1 to one gutter number (authentic editor behaviour,
+   long lines scroll horizontally). The highlighted code arrives via
+   `[innerHTML]`, but the gutter + frame are real component DOM, so only the
+   token spans (themed globally by `themes/highlight.css`) need no scoping. */
+.inspector__body-raw {
+  display: flex;
+  align-items: stretch;
+  margin: 0;
+  max-height: 480px;
+  overflow: auto;
+  background: var(--sm-bg-hover);
+  border: 1px solid color-mix(in srgb, var(--sm-border) 70%, var(--p-text-muted-color));
+  border-radius: var(--sm-radius-md);
+  font-family: var(--sm-font-mono);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.inspector__body-raw-gutter {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0.75rem 0.7rem;
+  font: inherit;
+  text-align: right;
+  color: var(--p-text-muted-color);
+  background: var(--sm-bg-hover);
+  border-right: 1px solid var(--sm-border);
+  user-select: none;
+  /* Pin the gutter so horizontal scroll slides the code under it. */
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+
+.inspector__body-raw-code {
+  flex: 1 1 auto;
+  margin: 0;
+  padding: 0.75rem 0.85rem;
+  font: inherit;
+  white-space: pre;
+}
+
+/* The frame owns the surface, so the inner `<code class="hljs">` drops the
+   theme's own background / chrome (the token-span colours still apply). */
+.inspector__body-raw-code code,
+.inspector__body-raw-code .hljs {
+  background: transparent;
+  padding: 0;
+  border: 0;
+  font: inherit;
+}
+
 /* ---------------------------------------------------------------------
  * Rendered markdown prose (the Body card). The HTML comes in via
  * `[innerHTML]` (MarkdownRenderer output), so it carries NO `_ngcontent`

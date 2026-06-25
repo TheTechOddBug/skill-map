@@ -27,7 +27,10 @@
  *
  * Only `name` and `description` are NOT rendered here, the inspector
  * header already shows them. `color` IS rendered (with a swatch) and
- * also still drives the header accent rail + title shading.
+ * also still drives the header accent rail + title shading. A Provider's
+ * `bodyField` (the codex `developer_instructions`) is likewise excluded:
+ * it is the node's effective body, rendered in the Body section, so it
+ * never shows as a metadata chip.
  *
  * Notes have no vendor surface so the renderer hides entirely. When
  * every field is empty the whole component disappears so the inspector
@@ -95,6 +98,15 @@ export class VendorFrontmatter {
   readonly frontmatter = input.required<TFrontmatter>();
   readonly kind = input.required<TNodeKind>();
   readonly provider = input<string | undefined>(undefined);
+
+  /**
+   * The Provider's `read.bodyField`, when set (e.g. the codex Provider's
+   * `developer_instructions`). That field is the node's effective body,
+   * rendered in the Body section, so it is excluded from the generic
+   * `extraFields` catch-all here to avoid dumping the whole prompt as a
+   * metadata chip. `undefined` for ordinary frontmatter-fence Providers.
+   */
+  readonly bodyField = input<string | undefined>(undefined);
 
   /**
    * Map of skill identifier (the skill node's `frontmatter.name`) to its
@@ -325,9 +337,13 @@ export class VendorFrontmatter {
         : null;
     if (!handled) return [];
     const fm = this.fm();
+    const bodyKey = this.bodyField();
     const out: { key: string; value: string }[] = [];
     for (const key of Object.keys(fm)) {
       if (handled.has(key)) continue;
+      // The body field (codex `developer_instructions`) is the node body,
+      // rendered in the Body section, never a metadata chip.
+      if (bodyKey !== undefined && key === bodyKey) continue;
       const v = fm[key];
       if (v === null || v === undefined) continue;
       const value =

@@ -16,6 +16,7 @@ import {
 import { SKILL_MAP_MODE } from '../../../../services/data-source/runtime-mode';
 import { MarkdownRenderer } from '../../../../services/markdown-renderer';
 import { CollectionLoaderService } from '../../../../services/collection-loader';
+import { ProviderRegistryService } from '../../../../services/provider-registry';
 import type { INodeView, ISidecarOverlay } from '../../../../models/node';
 import type { INodeDetailApi, INodeApi } from '../../../../models/api';
 
@@ -151,6 +152,13 @@ class FakeMarkdownRenderer extends MarkdownRenderer {
   override async render(src: string): Promise<SafeHtml> {
     if (this.mode === 'throw') throw new Error('boom');
     return this.sanitizerRef.bypassSecurityTrustHtml(`<div data-fake>${src}</div>`);
+  }
+
+  // Raw-view highlighter stub: wrap the source verbatim so tests can assert
+  // on its text without loading the real highlight.js chunk in jsdom.
+  override async highlightSource(src: string): Promise<SafeHtml> {
+    if (this.mode === 'throw') throw new Error('boom');
+    return this.sanitizerRef.bypassSecurityTrustHtml(`<span data-fake-raw>${src}</span>`);
   }
 }
 
@@ -408,6 +416,206 @@ describe('InspectorView, body card lifecycle', () => {
     await flush(fixture);
 
     expect(dataSource.getNode).not.toHaveBeenCalled();
+  });
+});
+
+describe('InspectorView, body raw / rendered toggle', () => {
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+  });
+  afterEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  async function renderBody(body: string): Promise<ComponentFixture<InspectorView>> {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body })));
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    return fixture;
+  }
+
+  it('defaults to the rendered view and shows the toggle when the body is ready', async () => {
+    const dom = (await renderBody('# hello\n\nworld')).nativeElement as HTMLElement;
+    expect(dom.querySelector('[data-testid="inspector-body-view-toggle"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-body-rendered"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-body-raw"]')).toBeNull();
+  });
+
+  it('swaps to the raw source on toggle and back to rendered on a second click', async () => {
+    const fixture = await renderBody('# hello\n\nworld');
+    const dom = fixture.nativeElement as HTMLElement;
+
+    (dom.querySelector('[data-testid="inspector-body-view-toggle"]') as HTMLButtonElement).click();
+    await flush(fixture);
+    const raw = dom.querySelector('[data-testid="inspector-body-raw"]');
+    expect(raw).not.toBeNull();
+    // The raw view shows the source verbatim (the `#` markdown is NOT rendered).
+    expect(raw!.textContent).toContain('# hello');
+    expect(dom.querySelector('[data-testid="inspector-body-rendered"]')).toBeNull();
+
+    (dom.querySelector('[data-testid="inspector-body-view-toggle"]') as HTMLButtonElement).click();
+    await flush(fixture);
+    expect(dom.querySelector('[data-testid="inspector-body-rendered"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-body-raw"]')).toBeNull();
+  });
+
+  it('renders the raw view as a line-numbered, highlighted editor', async () => {
+    const fixture = await renderBody('# title\nbody line');
+    const dom = fixture.nativeElement as HTMLElement;
+    (dom.querySelector('[data-testid="inspector-body-view-toggle"]') as HTMLButtonElement).click();
+    await flush(fixture);
+
+    // Gutter: one number per source line.
+    const gutter = dom.querySelector('.inspector__body-raw-gutter');
+    expect(gutter).not.toBeNull();
+    expect(gutter!.textContent).toBe('1\n2');
+
+    // Code: the highlight.js container, source text intact.
+    const code = dom.querySelector('[data-testid="inspector-body-raw-code"]');
+    expect(code).not.toBeNull();
+    expect(code!.classList.contains('hljs')).toBe(true);
+    expect(code!.textContent).toContain('# title');
+  });
+});
+
+describe('InspectorView, codex / bodyField inline body', () => {
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+  });
+  afterEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  function makeCodexNode(developerInstructions: string | undefined): INodeView {
+    const frontmatter: Record<string, unknown> = {
+      name: 'architect',
+      description: 'd',
+      model: 'gpt-5-codex',
+      sandbox_mode: 'read-only',
+    };
+    if (developerInstructions !== undefined) {
+      frontmatter['developer_instructions'] = developerInstructions;
+    }
+    return makeNode({
+      path: '.codex/agents/architect.toml',
+      kind: 'agent',
+      provider: 'codex',
+      frontmatter: frontmatter as unknown as INodeView['frontmatter'],
+    });
+  }
+
+  /** Seed the provider registry with a codex entry declaring its bodyField. */
+  function seedCodexRegistry(): void {
+    TestBed.inject(ProviderRegistryService).ingest({
+      codex: {
+        label: 'OpenAI Codex',
+        color: '#22c55e',
+        isLens: true,
+        bodyField: 'developer_instructions',
+      },
+    });
+  }
+
+  it('renders developer_instructions as the body and never asks the BFF for the raw file', async () => {
+    const node = makeCodexNode('# Codex prompt\n\nbody from the TOML field');
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    // If the body card ever hit the disk-read path it would render this raw
+    // TOML stand-in; the inline path must win.
+    dataSource.getNode.mockResolvedValue(
+      makeDetail(makeApiNode({ provider: 'codex', body: 'RAW TOML never renders' })),
+    );
+
+    const { fixture } = bootstrap({ loader, dataSource });
+    seedCodexRegistry();
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+
+    const dom: HTMLElement = fixture.nativeElement;
+    const rendered = dom.querySelector('[data-testid="inspector-body-rendered"]');
+    expect(rendered).not.toBeNull();
+    expect(rendered!.innerHTML).toContain('# Codex prompt');
+    expect(rendered!.innerHTML).not.toContain('RAW TOML');
+    // The body card never requests the on-demand disk read for a bodyField
+    // provider (other panels may call getNode, but not with includeBody).
+    expect(dataSource.getNode).not.toHaveBeenCalledWith(node.path, { includeBody: true });
+  });
+
+  it('renders a codex skill (.md, no developer_instructions) from its fetched markdown body', async () => {
+    // Regression: the codex Provider declares `bodyField: developer_instructions`
+    // for its `.toml` agents, but its open-standard `.agents/skills/*/SKILL.md`
+    // skills (same provider id) have no such field. They must fall back to the
+    // normal body fetch, not render an empty (hidden) Body section.
+    const node = makeNode({
+      path: '.agents/skills/run-tests/SKILL.md',
+      kind: 'skill',
+      provider: 'codex',
+      frontmatter: { name: 'run-tests', description: 'd' } as unknown as INodeView['frontmatter'],
+    });
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(
+      makeDetail(makeApiNode({ provider: 'codex', kind: 'skill', body: '# Run tests\n\nDo it.' })),
+    );
+
+    const { fixture } = bootstrap({ loader, dataSource });
+    seedCodexRegistry();
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+
+    const dom: HTMLElement = fixture.nativeElement;
+    const rendered = dom.querySelector('[data-testid="inspector-body-rendered"]');
+    expect(rendered).not.toBeNull();
+    expect(rendered!.innerHTML).toContain('# Run tests');
+    // A skill with no bodyField value pulls its body from the disk fetch.
+    expect(dataSource.getNode).toHaveBeenCalledWith(node.path, { includeBody: true });
+  });
+
+  it('shows the raw developer_instructions verbatim when toggled to the raw view', async () => {
+    const node = makeCodexNode('# Codex prompt\n\nbody from the TOML field');
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(
+      makeDetail(makeApiNode({ provider: 'codex', body: 'RAW TOML never renders' })),
+    );
+
+    const { fixture } = bootstrap({ loader, dataSource });
+    seedCodexRegistry();
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+
+    const dom: HTMLElement = fixture.nativeElement;
+    (dom.querySelector('[data-testid="inspector-body-view-toggle"]') as HTMLButtonElement).click();
+    await flush(fixture);
+    const raw = dom.querySelector('[data-testid="inspector-body-raw"]');
+    expect(raw).not.toBeNull();
+    // The raw view is the developer_instructions source, not the BFF's raw TOML.
+    expect(raw!.textContent).toContain('# Codex prompt');
+    expect(raw!.textContent).not.toContain('RAW TOML');
+  });
+
+  it('hides the body section for a codex node with an empty developer_instructions (no disk fallback)', async () => {
+    const node = makeCodexNode('');
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(
+      makeDetail(makeApiNode({ provider: 'codex', body: 'RAW TOML never renders' })),
+    );
+
+    const { fixture } = bootstrap({ loader, dataSource });
+    seedCodexRegistry();
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+
+    const dom: HTMLElement = fixture.nativeElement;
+    // Empty effective body -> the whole section is omitted, and we never
+    // fall back to the disk read (which would hand back raw TOML).
+    expect(dom.querySelector('[data-testid="inspector-card-body"]')).toBeNull();
+    expect(dataSource.getNode).not.toHaveBeenCalledWith(node.path, { includeBody: true });
   });
 });
 

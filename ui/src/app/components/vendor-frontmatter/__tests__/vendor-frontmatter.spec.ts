@@ -201,6 +201,36 @@ describe('VendorFrontmatter, Definition section (agent)', () => {
     expect(section!.querySelector('.vfm__unknown')).not.toBeNull();
   });
 
+  it('excludes the Provider bodyField (codex developer_instructions) from the catch-all', () => {
+    const fm = {
+      name: 'architect',
+      description: 'd',
+      model: 'gpt-5-codex',
+      model_reasoning_effort: 'high',
+      sandbox_mode: 'read-only',
+      developer_instructions: 'You own the system shape. Render me as the BODY, not metadata.',
+    } as unknown as TFrontmatter;
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({});
+    const fixture = TestBed.createComponent(VendorFrontmatter);
+    fixture.componentRef.setInput('frontmatter', fm);
+    fixture.componentRef.setInput('kind', 'agent');
+    fixture.componentRef.setInput('bodyField', 'developer_instructions');
+    fixture.detectChanges();
+    const dom = fixture.nativeElement as HTMLElement;
+    const section = dom.querySelector('[data-testid="vendor-frontmatter-definition"]');
+    expect(section).not.toBeNull();
+    // The curated model row and the other codex fields (generic catch-all)
+    // still render, the metadata section is not empty.
+    expect(section!.textContent).toContain('gpt-5-codex');
+    expect(section!.textContent).toContain('model_reasoning_effort');
+    expect(section!.textContent).toContain('sandbox_mode');
+    // The body field and its prompt text never leak into metadata, the Body
+    // section renders them instead.
+    expect(section!.textContent).not.toContain('developer_instructions');
+    expect(section!.textContent).not.toContain('Render me as the BODY');
+  });
+
   it('does NOT dump name / description / metadata through the catch-all', () => {
     const fm = {
       name: 'theArchitect',

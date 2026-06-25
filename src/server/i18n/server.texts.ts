@@ -480,4 +480,6 @@ export const SERVER_TEXTS = {
     '`activeProvider` cannot be the empty string. Send the id of an enabled provider.',
   activeProviderPersistFailed:
     'Could not persist activeProvider: {{message}}',
+  activeProviderNotSelectable:
+    '`{{id}}` is not a selectable lens. Pick one of: {{selectable}}.',
 } as const;

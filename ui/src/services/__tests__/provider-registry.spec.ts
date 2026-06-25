@@ -4,9 +4,23 @@ import { ProviderRegistryService } from '../provider-registry';
 import type { IProviderRegistryApi } from '../../models/api';
 
 const REGISTRY: IProviderRegistryApi = {
-  claude: { label: 'Claude', color: '#cc785c', colorDark: '#e89270' },
-  openai: { label: 'OpenAI Codex', color: '#22c55e', colorDark: '#4ade80' },
-  markdown: { label: 'Markdown', color: '#9ca3af', colorDark: '#6b7280', hideChip: true },
+  claude: { label: 'Claude', color: '#cc785c', colorDark: '#e89270', isLens: true },
+  codex: {
+    label: 'OpenAI Codex',
+    color: '#22c55e',
+    colorDark: '#4ade80',
+    isLens: true,
+    bodyField: 'developer_instructions',
+  },
+  // The non-gated base: kept in the registry for chip lookups, `isLens:
+  // false` so the dropdown (filtered elsewhere) never lists it.
+  markdown: {
+    label: 'Markdown',
+    color: '#9ca3af',
+    colorDark: '#6b7280',
+    isLens: false,
+    hideChip: true,
+  },
 };
 
 function seed(): ProviderRegistryService {
@@ -18,13 +32,24 @@ function seed(): ProviderRegistryService {
 describe('ProviderRegistryService', () => {
   it('ingests entries preserving id order', () => {
     const svc = seed();
-    expect(svc.providers().map((p) => p.id)).toEqual(['claude', 'openai', 'markdown']);
+    expect(svc.providers().map((p) => p.id)).toEqual(['claude', 'codex', 'markdown']);
   });
 
   it('lookup returns the entry with its id', () => {
     const svc = seed();
     expect(svc.lookup('claude')).toMatchObject({ id: 'claude', label: 'Claude' });
     expect(svc.lookup('nope')).toBeUndefined();
+  });
+
+  it('carries bodyField through ingest so the inspector can resolve the body field', () => {
+    const svc = seed();
+    expect(svc.lookup('codex')).toMatchObject({
+      id: 'codex',
+      bodyField: 'developer_instructions',
+    });
+    // A provider without a body field leaves it undefined (ordinary
+    // frontmatter-fence providers like claude / markdown).
+    expect(svc.lookup('claude')?.bodyField).toBeUndefined();
   });
 
   it('ingest is a no-op for null / undefined / structurally-equal payloads', () => {
@@ -65,7 +90,7 @@ describe('ProviderRegistryService', () => {
   });
 
   describe('lensChip', () => {
-    it('shows even hideChip providers (markdown is a valid lens)', () => {
+    it('renders even a hideChip entry (it ignores hideChip, unlike cardChip)', () => {
       expect(seed().lensChip('markdown')).toEqual({
         label: 'Markdown',
         color: '#9ca3af',

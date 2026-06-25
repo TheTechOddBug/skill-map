@@ -4,19 +4,22 @@
  *
  *   GET /api/active-provider → `{ activeProvider, detected, source, selectable }`
  *
- * `selectable` is the set of registered-Provider ids that are enabled
- * right now (the subset of `providerRegistry` eligible to become the
- * lens). A Provider the operator disabled in `settings.json#/plugins`
- * drops out of `selectable` even though it stays in `providerRegistry`,
- * which is what lets the SPA grey it out in the lens dropdown instead of
- * offering a Provider whose extractors would never run.
+ * `selectable` is the set of registered LENS Provider ids (gated,
+ * `gatedByActiveLens: true`) that are enabled right now (the subset of
+ * `providerRegistry` eligible to become the lens). A lens the operator
+ * disabled in `settings.json#/plugins` drops out of `selectable` even
+ * though it stays in `providerRegistry`, which lets the SPA grey it out in
+ * the dropdown. The non-gated `markdown` base is never in `selectable` (it
+ * is the substrate, not a lens).
  *
  * Confirms:
- *   - every enabled, non-coming-soon Provider is selectable; coming-soon
- *     Providers (`openai`, `antigravity`, `agent-skills`) never are.
+ *   - enabled lenses are selectable: `claude` (stable), `codex` (beta),
+ *     and `agent-skills` (stable, the locked open default); the
+ *     experimental `antigravity` ships disabled, so it is not until
+ *     enabled. The non-gated `markdown` base is never selectable.
  *   - disabling a Provider's extension (`claude/claude`) drops only that
- *     Provider from `selectable`; the rest stay (including the locked
- *     `core/markdown`, surfaced under its registry id `markdown`).
+ *     lens from `selectable`; the rest stay (including the locked open
+ *     default `agent-skills`).
  */
 
 import { strict as assert } from 'node:assert';
@@ -104,19 +107,20 @@ describe('GET /api/active-provider selectable', () => {
         assert.equal(res.status, 200);
         const body = (await res.json()) as IActiveProviderWire;
         assert.ok(Array.isArray(body.selectable));
-        // Enabled, non-coming-soon Providers are selectable.
-        for (const id of ['claude', 'markdown']) {
+        // Enabled lenses are selectable: claude (stable), codex (beta),
+        // and agent-skills (stable, the locked open default).
+        for (const id of ['claude', 'codex', 'agent-skills']) {
           assert.ok(
             body.selectable.includes(id),
             `expected '${id}' to be selectable, got ${JSON.stringify(body.selectable)}`,
           );
         }
-        // Coming-soon Providers ship in the registry but are never
-        // selectable as the lens.
-        for (const id of ['openai', 'antigravity', 'agent-skills']) {
+        // The experimental `antigravity` lens ships disabled; the non-gated
+        // `markdown` base is not a lens at all. Neither is selectable.
+        for (const id of ['antigravity', 'markdown']) {
           assert.ok(
             !body.selectable.includes(id),
-            `expected coming-soon '${id}' to be excluded, got ${JSON.stringify(body.selectable)}`,
+            `expected '${id}' to be excluded, got ${JSON.stringify(body.selectable)}`,
           );
         }
       });
@@ -136,11 +140,12 @@ describe('GET /api/active-provider selectable', () => {
           !body.selectable.includes('claude'),
           `expected 'claude' to be excluded, got ${JSON.stringify(body.selectable)}`,
         );
-        // Other selectable Providers are untouched; the locked universal
-        // fallback (`core/markdown`, registry id `markdown`) is always
-        // enabled. (`openai` is coming-soon, so excluded for that reason.)
-        assert.ok(!body.selectable.includes('openai'));
-        assert.ok(body.selectable.includes('markdown'));
+        // Other selectable lenses are untouched: `codex` (beta) and the
+        // locked open default `agent-skills` stay. The non-gated `markdown`
+        // base is never selectable (it is the substrate, not a lens).
+        assert.ok(body.selectable.includes('codex'));
+        assert.ok(body.selectable.includes('agent-skills'));
+        assert.ok(!body.selectable.includes('markdown'));
       });
     } finally {
       rmSync(cwd, { recursive: true, force: true });

@@ -24,6 +24,8 @@ import { ansiFor } from './ansi.js';
 import { ExitCode, type TExitCode } from './exit-codes.js';
 
 export {
+  backupsDirForDb,
+  BACKUPS_DIRNAME,
   defaultDbPath,
   defaultIgnoreFilePath,
   defaultLocalSettingsPath,

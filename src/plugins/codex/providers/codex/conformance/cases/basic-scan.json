@@ -1,0 +1,16 @@
+{
+  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "id": "basic-scan",
+  "description": "Scanning the demo-codex fixture under the auto-detected codex lens (the `.codex/` marker resolves it unambiguously) classifies the three `.codex/agents/*.toml` files as codex/agent and the four markdown files (AGENTS.md, the two docs, the note) via the core/markdown fallback. Seven nodes, no issues: a TOML-only agent corpus plus its referenced docs resolves into a clean graph.",
+  "fixture": "demo-codex",
+  "invoke": {
+    "verb": "scan",
+    "flags": ["--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "json-path", "path": "$.schemaVersion", "equals": 1 },
+    { "type": "json-path", "path": "$.stats.nodesCount", "equals": 7 },
+    { "type": "json-path", "path": "$.stats.issuesCount", "equals": 0 }
+  ]
+}

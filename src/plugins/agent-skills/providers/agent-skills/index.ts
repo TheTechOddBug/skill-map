@@ -6,7 +6,7 @@
  * (Antigravity CLI, which retired the Gemini CLI in May 2026 and
  * adopted the open standard rather than carrying forward a vendor-
  * specific `.gemini/` layout). Owning this path with a dedicated
- * Provider keeps the vendor-specific Providers (`claude`, `openai`,
+ * Provider keeps the vendor-specific Providers (`claude`, `codex`,
  * `antigravity`) from claiming it themselves, the spec's
  * `provider-ambiguous` rule would otherwise fire when a second
  * vendor lands.
@@ -127,9 +127,14 @@ export const agentSkillsProvider: IBuiltInManifest<IProvider> = {
   // and the per-node provider chip. Neutral slate (this is the
   // vendor-agnostic open-standard Provider, not a brand). The reusable
   // open-standard pieces it owns use a `COMMONS_*` vocabulary internally;
-  // the user-facing label stays the descriptive "Open Skills".
+  // the user-facing label is the descriptive "Standard: Agent skills" (the
+  // `Standard:` prefix marks it as the vendor-neutral lens, distinct from
+  // the possessive `<Vendor>'s <product>` form the brand lenses use). This
+  // is the single open lens shown in the selector when no vendor is active; the
+  // non-gated `core/markdown` base sits underneath it and is never offered
+  // as a lens of its own.
   presentation: {
-    label: 'Open Skills',
+    label: 'Standard: Agent skills',
     color: '#64748b',
     colorDark: '#94a3b8',
   },
@@ -140,11 +145,12 @@ export const agentSkillsProvider: IBuiltInManifest<IProvider> = {
   // universal provider. Keeps the "one active lens" model honest.
   gatedByActiveLens: true,
 
-  // Not yet ready for end users: ships disabled by default. The operator
-  // opts in via `sm plugins enable` / the Settings toggle / the tutorial's
-  // `--experimental` flow, so it neither classifies nor auto-detects until
-  // enabled.
-  stability: 'experimental',
+  // The open-standard lens is the universal default: stable and locked
+  // enabled (`agent-skills/agent-skills` in the host lock-list), so it is
+  // the lens a project falls back to when no vendor marker is present, and
+  // it cannot be disabled out from under that role. Auto-detects `.agents/`
+  // and classifies skills under its own lens.
+  stability: 'stable',
 
   // Auto-detect marker: a `.agents/` directory marks an open-standard
   // project. This is also the marker a Google/Antigravity project carries
@@ -159,7 +165,7 @@ export const agentSkillsProvider: IBuiltInManifest<IProvider> = {
   // OpenAI Codex (skills mirror the open standard), so `aka` surfaces both
   // names in the destination prompt to orient testers on those agents.
   // `aka` is display-only, `--for` still matches the `agent-skills` id.
-  scaffold: { skillDir: '.agents/skills', aka: ['Antigravity', 'OpenAI Codex'] },
+  scaffold: { skillDir: '.agents/skills', aka: ["Google's Antigravity", "OpenAI's Codex"] },
 
   read: COMMONS_READ,
 

@@ -18,7 +18,7 @@
  *
  * `PATCH /api/plugins/:id` is the **cascade endpoint**: it fans the
  * toggle out across every extension inside the plugin. Single-extension
- * plugins (`openai`, `antigravity`, `agent-skills`) flip just their
+ * plugins (`codex`, `antigravity`, `agent-skills`) flip just their
  * provider; multi-extension plugins (`claude`, `core`, user plugins)
  * flip every child. External automation calling this endpoint is
  * expected to know it's asking for a macro.

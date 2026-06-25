@@ -1,7 +1,7 @@
 {
   "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
   "id": "basic-scan",
-  "description": "Scanning the minimal-agent-skills fixture detects exactly one `skill` node at the open-standard path `.agents/skills/<name>/SKILL.md` with no issues. `agent-skills` is experimental (ships disabled) and gated by the active lens, so the fixture's `settings.json` both enables `agent-skills/agent-skills` and pins `activeProvider: agent-skills`; under its own lens the provider classifies the file as `provider: agent-skills, kind: skill` rather than falling through to the universal `core/markdown` fallback.",
+  "description": "Scanning the minimal-agent-skills fixture detects exactly one `skill` node at the open-standard path `.agents/skills/<name>/SKILL.md` with no issues. `agent-skills` is the stable, locked open default lens (a `.agents/` project also auto-detects it); the fixture pins `activeProvider: agent-skills` for determinism. Under its lens the provider classifies the file as `provider: agent-skills, kind: skill` rather than falling through to the universal `core/markdown` base.",
   "fixture": "minimal-agent-skills",
   "invoke": {
     "verb": "scan",

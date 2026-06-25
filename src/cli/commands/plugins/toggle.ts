@@ -17,7 +17,7 @@
  *     direct toggle. Always applies to that one extension; no prompt.
  *   - **bare plugin id** (`claude`, `core`): the macro form. Fans the
  *     toggle out across every extension inside the plugin:
- *       * Plugin with exactly one extension (`openai`,
+ *       * Plugin with exactly one extension (`codex`,
  *         `agent-skills`, `antigravity`): applies the toggle directly
  *         to the single child. No prompt (1-1 mapping).
  *       * Plugin with two or more extensions (`claude`, `core`):
@@ -313,7 +313,7 @@ abstract class TogglePluginsBase extends SmCommand {
  * A target needs the macro confirm prompt when it expands across more
  * than one extension. The macro shape is either `--all` (cascade
  * across every plugin) or a bare plugin id whose plugin holds ≥2
- * children. Single-child plugins (`openai`, `antigravity`,
+ * children. Single-child plugins (`codex`, `antigravity`,
  * `agent-skills`) and qualified ids skip the prompt entirely.
  */
 function requiresMacroConfirm(target: IResolvedTarget): boolean {
@@ -363,7 +363,7 @@ export class PluginsEnableCommand extends TogglePluginsBase {
       ids (\`claude\`, which fans the toggle out across every extension
       inside the plugin). Multi-extension plugins need --yes (or an
       interactive TTY confirm) to avoid flipping 27 core extensions by
-      accident. Single-extension plugins (openai, agent-skills,
+      accident. Single-extension plugins (codex, agent-skills,
       antigravity) apply without prompting.
 
       Batches are all-or-nothing: a single unknown id aborts before
@@ -392,7 +392,7 @@ export class PluginsDisableCommand extends TogglePluginsBase {
       ids (\`core\`, which fans the toggle out across every extension
       inside the plugin). Multi-extension plugins need --yes (or an
       interactive TTY confirm) to avoid flipping 27 core extensions by
-      accident. Single-extension plugins (openai, agent-skills,
+      accident. Single-extension plugins (codex, agent-skills,
       antigravity) apply without prompting.
 
       Batches are all-or-nothing: a single unknown id aborts before

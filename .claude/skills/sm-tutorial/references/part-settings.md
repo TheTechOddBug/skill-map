@@ -146,7 +146,7 @@ Expected: the scan prints a line like `Auto-detected activeProvider
 .skill-map/settings.json`, and `get` then reports `claude`. The lens
 is just a key in `settings.json`, persisted like any other setting.
 
-> Other lenses exist in the engine (`openai` for Codex,
+> Other lenses exist in the engine (`codex` for Codex,
 > `agent-skills`, `antigravity`), but they are **experimental** (ship
 > disabled by default): today we demo the `claude` lens only. The idea to keep is
 > the one above, one project reads through exactly one provider at a

@@ -29,9 +29,9 @@ pre-flight, so the tester sees only the portfolio. If anything demo
 lingers, mention it once and move on.
 
 **Context (agent, do not narrate the plumbing): the lens.** This
-project has a root `AGENTS.md` (the `openai`/Codex marker) sitting next
+project has a root `AGENTS.md` (the `codex`/Codex marker) sitting next
 to the `.claude/` folder (the `claude` marker, where the tutorial skill
-itself lives). `openai` is **experimental** (ships disabled), though, so auto-detect
+itself lives). `codex` is **experimental** (ships disabled), though, so auto-detect
 ignores its marker and `sm init` resolves the lens to `claude`
 silently, exactly like the prologue: only `claude` is selectable today,
 so there is no ambiguity and no prompt. Do not promise the tester a

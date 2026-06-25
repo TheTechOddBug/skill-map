@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { TestBed } from '@angular/core/testing';
+import { SecurityContext } from '@angular/core';
+import { DomSanitizer } from '@angular/platform-browser';
 
 import { MarkdownRenderer } from '../markdown-renderer';
 
@@ -95,6 +97,30 @@ describe('MarkdownRenderer', () => {
     // SafeHtml is an opaque marker, assert it's not the raw string.
     expect(typeof safe).not.toBe('string');
     expect(safe).toBeDefined();
+  });
+
+  describe('highlightSource (raw editor view)', () => {
+    function unwrap(safe: unknown): string {
+      // A value created via `bypassSecurityTrustHtml` is unwrapped to its
+      // inner string by `sanitize` in the HTML context.
+      const sanitizer = TestBed.inject(DomSanitizer);
+      return sanitizer.sanitize(SecurityContext.HTML, safe as never) ?? '';
+    }
+
+    it('highlights a markdown source string with hljs token spans', async () => {
+      const r = makeRenderer();
+      const html = unwrap(await r.highlightSource('# Heading\n\nsome text', 'markdown'));
+      expect(html).toContain('Heading');
+      // The markdown grammar emits at least one hljs token span for the heading.
+      expect(html).toMatch(/hljs-/);
+    });
+
+    it('escapes the source for an unknown language instead of passing it live', async () => {
+      const r = makeRenderer();
+      const html = unwrap(await r.highlightSource('<b>raw</b>', 'nope-not-a-lang'));
+      expect(html).toContain('&lt;b&gt;raw&lt;/b&gt;');
+      expect(html.toLowerCase()).not.toContain('<b>raw</b>');
+    });
   });
 
   // Audit `app-hacker` M-1, narrow ALLOWED_URI_REGEXP. DOMPurify's

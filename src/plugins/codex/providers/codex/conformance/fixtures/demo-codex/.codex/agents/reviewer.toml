@@ -1,0 +1,11 @@
+name = "reviewer"
+description = "Reviews the build for regressions before a release."
+model_reasoning_effort = "medium"
+sandbox_mode = "read-only"
+developer_instructions = """
+Review the pending diff for regressions, then ping @deployer with findings.
+"""
+
+[[skills.config]]
+path = ".agents/skills/lint-check/SKILL.md"
+enabled = true

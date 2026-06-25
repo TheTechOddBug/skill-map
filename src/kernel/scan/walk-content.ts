@@ -64,6 +64,17 @@ export interface IWalkContentOptions {
    */
   parser: string;
   /**
+   * Optional parsed-frontmatter field that carries the node's markdown
+   * body (mirror of `IProviderReadConfig.bodyField`). When set and
+   * `frontmatter[bodyField]` is a string, the walker yields that string as
+   * the node `body` instead of the parser's own `body` output, so the body
+   * hash + every body-scoped extractor see the prose that lives inside
+   * structured frontmatter (e.g. an OpenAI Codex agent's TOML
+   * `developer_instructions` field). Absent or non-string → the parser's
+   * `body` is used unchanged.
+   */
+  bodyField?: string;
+  /**
    * Project ignore filter. When omitted the walker uses the bundled
    * defaults (`buildIgnoreFilter()` with no extra layers), keeping
    * direct test invocations working without ceremony. Production callers
@@ -136,18 +147,26 @@ export async function* walkContent(
   const extensions = options.extensions;
   const sizeLimit = buildSizeLimit(options);
 
+  const bodyField = options.bodyField;
+
   // Scoped read (watcher incremental path): the caller handed us the
   // exact list of changed files, so skip the directory traversal
   // entirely and read only those. See `IWalkContentOptions.scopedPaths`.
   if (options.scopedPaths !== undefined) {
-    yield* walkScoped(roots, options.scopedPaths, extensions, sizeLimit, parser);
+    yield* walkScoped(roots, options.scopedPaths, extensions, sizeLimit, parser, bodyField);
     return;
   }
 
   for (const root of roots) {
     for await (const entry of walkRoot(root, root, filter, extensions, sizeLimit)) {
       const relPath = relative(root, entry.full).split(sep).join('/');
-      const rec = await traversedEntryToNode(entry, relPath, options.priorMtimes, parser);
+      const rec = await traversedEntryToNode(
+        entry,
+        relPath,
+        options.priorMtimes,
+        parser,
+        bodyField,
+      );
       if (rec !== null) yield rec;
     }
   }
@@ -165,6 +184,7 @@ async function traversedEntryToNode(
   relPath: string,
   priorMtimes: ReadonlyMap<string, number> | undefined,
   parser: ReturnType<typeof getParser>,
+  bodyField: string | undefined,
 ): Promise<IRawNode | null> {
   // Incremental fast path: the file's mtime matches the prior scan, so
   // its body is byte-identical. Skip the read + parse (the dominant
@@ -173,10 +193,10 @@ async function traversedEntryToNode(
   // sidecar edit forces re-extraction.
   const priorMtime = priorMtimes?.get(relPath);
   if (priorMtime !== undefined && priorMtime === entry.modifiedAtMs) {
-    return buildUnchangedRecord(entry.full, relPath, entry.modifiedAtMs, parser);
+    return buildUnchangedRecord(entry.full, relPath, entry.modifiedAtMs, parser, bodyField);
   }
 
-  const parsed = await readAndParse(entry.full, relPath, parser);
+  const parsed = await readAndParse(entry.full, relPath, parser, bodyField);
   if (parsed === null) return null; // unreadable, silently skipped
   return {
     path: relPath,
@@ -205,6 +225,7 @@ function buildUnchangedRecord(
   relPath: string,
   modifiedAtMs: number,
   parser: ReturnType<typeof getParser>,
+  bodyField: string | undefined,
 ): IRawNode {
   return {
     path: relPath,
@@ -214,7 +235,7 @@ function buildUnchangedRecord(
     modifiedAtMs,
     unchanged: true,
     reread: async () => {
-      const re = await readAndParse(full, relPath, parser);
+      const re = await readAndParse(full, relPath, parser, bodyField);
       // `null` => the file vanished between the walk and the reread
       // (rare race). Degrade to empty content so the re-extract pass
       // emits nothing for it rather than throwing mid-batch.
@@ -240,10 +261,11 @@ async function* walkScoped(
   extensions: readonly string[],
   sizeLimit: IWalkSizeLimit,
   parser: ReturnType<typeof getParser>,
+  bodyField: string | undefined,
 ): AsyncIterable<IRawNode> {
   const absRoots = roots.map((r) => (isAbsolute(r) ? r : resolve(r)));
   for (const scoped of scopedPaths) {
-    const rec = await scopedPathToNode(scoped, absRoots, extensions, sizeLimit, parser);
+    const rec = await scopedPathToNode(scoped, absRoots, extensions, sizeLimit, parser, bodyField);
     if (rec !== null) yield rec;
   }
 }
@@ -260,6 +282,7 @@ async function scopedPathToNode(
   extensions: readonly string[],
   sizeLimit: IWalkSizeLimit,
   parser: ReturnType<typeof getParser>,
+  bodyField: string | undefined,
 ): Promise<IRawNode | null> {
   const full = isAbsolute(scoped) ? scoped : resolve(scoped);
   const relPath = relativeFromRoots(full, absRoots);
@@ -267,7 +290,7 @@ async function scopedPathToNode(
   if (!hasMatchingExtension(full, extensions)) return null; // not this provider's
   const s = await statRegularFile(full, relPath, sizeLimit);
   if (s === null) return null; // vanished, non-regular, or oversized
-  const parsed = await readAndParse(full, relPath, parser);
+  const parsed = await readAndParse(full, relPath, parser, bodyField);
   if (parsed === null) return null; // unreadable, silently skipped
   return {
     path: relPath,
@@ -331,6 +354,7 @@ async function readAndParse(
   full: string,
   relPath: string,
   parser: ReturnType<typeof getParser>,
+  bodyField: string | undefined,
 ): Promise<{
   body: string;
   frontmatterRaw: string;
@@ -345,11 +369,31 @@ async function readAndParse(
   }
   const parsed = parser!.parse(raw, relPath);
   return {
-    body: parsed.body,
+    body: resolveEffectiveBody(parsed.body, parsed.frontmatter, bodyField),
     frontmatterRaw: parsed.frontmatterRaw,
     frontmatter: parsed.frontmatter,
     ...(parsed.issues && parsed.issues.length > 0 ? { parseIssues: parsed.issues } : {}),
   };
+}
+
+/**
+ * Pick the node body the walker yields. When the Provider declared a
+ * `bodyField` (e.g. codex's `developer_instructions`) and that frontmatter key is a
+ * string, it IS the markdown body (formats that carry the prompt inside
+ * structured frontmatter, like Codex's pure-TOML sub-agents). Otherwise the
+ * parser's own `body` (everything after the frontmatter fence) is used,
+ * unchanged, the default for every `.md` provider.
+ */
+function resolveEffectiveBody(
+  parsedBody: string,
+  frontmatter: Record<string, unknown>,
+  bodyField: string | undefined,
+): string {
+  if (bodyField !== undefined) {
+    const candidate = frontmatter[bodyField];
+    if (typeof candidate === 'string') return candidate;
+  }
+  return parsedBody;
 }
 
 /**

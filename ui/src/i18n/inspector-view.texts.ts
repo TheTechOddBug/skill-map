@@ -38,6 +38,17 @@ export const INSPECTOR_VIEW_TEXTS = {
     // render (empty / unavailable / error states), so only the
     // transient loading line survives in the catalog.
     loading: 'Loading body…',
+    /**
+     * Raw / Rendered toggle shown at the top of the expanded Body section.
+     * The label names the view the button switches TO; the tooltip spells
+     * it out.
+     */
+    view: {
+      showRaw: 'Raw',
+      showRendered: 'Rendered',
+      showRawTooltip: 'Show the raw source',
+      showRenderedTooltip: 'Show the rendered Markdown',
+    },
   },
   /** Findings list, fix hint label rendered before the per-issue summary. */
   findingHintLabel: 'Hint:',

@@ -84,7 +84,7 @@ function recordingProvider(over: {
 
 interface IRecorders {
   claude: string[];
-  openai: string[];
+  codex: string[];
   agentSkills: string[];
   coreMarkdown: string[];
 }
@@ -96,10 +96,10 @@ function buildRegistry(rec: IRecorders): IProvider[] {
     calls: rec.claude,
     kindFor: (p) => (p.startsWith('.claude/') ? 'stub' : null),
   });
-  const openai = recordingProvider({
-    id: 'openai',
+  const codex = recordingProvider({
+    id: 'codex',
     gatedByActiveLens: true,
-    calls: rec.openai,
+    calls: rec.codex,
     kindFor: (p) => (p.startsWith('.codex/') ? 'stub' : null),
   });
   const agentSkills = recordingProvider({
@@ -117,7 +117,7 @@ function buildRegistry(rec: IRecorders): IProvider[] {
   // The universal fallback runs last in iteration order (mirrors the
   // real `built-ins.ts` registration order); the orchestrator's
   // path-dedup keeps it from re-claiming vendor-classified paths.
-  return [claude, openai, agentSkills, coreMarkdown];
+  return [claude, codex, agentSkills, coreMarkdown];
 }
 
 interface IWalkInvocation {
@@ -156,11 +156,11 @@ async function runWalk(opts: IWalkInvocation): Promise<void> {
 }
 
 function emptyRecorders(): IRecorders {
-  return { claude: [], openai: [], agentSkills: [], coreMarkdown: [] };
+  return { claude: [], codex: [], agentSkills: [], coreMarkdown: [] };
 }
 
 describe('walkAndExtract / active-lens classification gate', () => {
-  it("activeProvider='claude': only claude + universals run, openai is filtered out", async () => {
+  it("activeProvider='claude': only claude + universals run, codex is filtered out", async () => {
     const recorders = emptyRecorders();
     await runWalk({ activeProvider: 'claude', recorders });
 
@@ -171,7 +171,7 @@ describe('walkAndExtract / active-lens classification gate', () => {
       'claude (gated) should run when activeProvider=claude',
     );
     // Vendor gated, NOT the current lens: did NOT run.
-    deepStrictEqual(recorders.openai, [], 'openai (gated) MUST NOT run under claude lens');
+    deepStrictEqual(recorders.codex, [], 'codex (gated) MUST NOT run under claude lens');
     // Universals: always run.
     strictEqual(
       recorders.agentSkills.length > 0,
@@ -185,15 +185,15 @@ describe('walkAndExtract / active-lens classification gate', () => {
     );
   });
 
-  it("activeProvider='openai': only openai + universals run, claude is filtered out", async () => {
+  it("activeProvider='codex': only codex + universals run, claude is filtered out", async () => {
     const recorders = emptyRecorders();
-    await runWalk({ activeProvider: 'openai', recorders });
+    await runWalk({ activeProvider: 'codex', recorders });
 
-    deepStrictEqual(recorders.claude, [], 'claude (gated) MUST NOT run under openai lens');
+    deepStrictEqual(recorders.claude, [], 'claude (gated) MUST NOT run under codex lens');
     strictEqual(
-      recorders.openai.length > 0,
+      recorders.codex.length > 0,
       true,
-      'openai (gated) should run when activeProvider=openai',
+      'codex (gated) should run when activeProvider=codex',
     );
     strictEqual(
       recorders.agentSkills.length > 0,
@@ -212,7 +212,7 @@ describe('walkAndExtract / active-lens classification gate', () => {
     await runWalk({ activeProvider: 'markdown', recorders });
 
     deepStrictEqual(recorders.claude, [], 'claude (gated) MUST NOT run under markdown lens');
-    deepStrictEqual(recorders.openai, [], 'openai (gated) MUST NOT run under markdown lens');
+    deepStrictEqual(recorders.codex, [], 'codex (gated) MUST NOT run under markdown lens');
     strictEqual(
       recorders.agentSkills.length > 0,
       true,
@@ -230,7 +230,7 @@ describe('walkAndExtract / active-lens classification gate', () => {
     await runWalk({ activeProvider: null, recorders });
 
     deepStrictEqual(recorders.claude, [], 'claude (gated) MUST NOT run for a bare null caller');
-    deepStrictEqual(recorders.openai, [], 'openai (gated) MUST NOT run for a bare null caller');
+    deepStrictEqual(recorders.codex, [], 'codex (gated) MUST NOT run for a bare null caller');
     strictEqual(
       recorders.agentSkills.length > 0,
       true,
