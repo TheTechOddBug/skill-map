@@ -52,12 +52,12 @@ describe('buildProviderRegistry', () => {
 
   it('omits absent optional fields rather than emitting undefined', () => {
     const agentSkills = fakeProvider('agent-skills', {
-      label: 'Commons',
+      label: 'Open Skills',
       color: '#64748b',
     });
     const registry = buildProviderRegistry([agentSkills]);
     deepStrictEqual(registry, {
-      'agent-skills': { label: 'Commons', color: '#64748b' },
+      'agent-skills': { label: 'Open Skills', color: '#64748b' },
     });
   });
 

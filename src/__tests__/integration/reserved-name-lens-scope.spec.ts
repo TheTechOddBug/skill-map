@@ -46,8 +46,8 @@ before(() => {
   // `deploy` is not a built-in, negative control that must never flag.
   write('.agents/skills/deploy/SKILL.md', skill('deploy', 'Deploy to staging or prod.'));
   // `help` is a UNIVERSAL slash command in the open-standard base catalog
-  // (`OPEN_SKILLS_RESERVED_NAMES`, owned by agent-skills), so it flags under
-  // any standard lens, including the neutral agent-skills/Commons lens.
+  // (`COMMONS_RESERVED_NAMES`, owned by agent-skills), so it flags under
+  // any standard lens, including the neutral agent-skills lens.
   write('.agents/skills/help/SKILL.md', skill('help', 'User skill that shadows the universal /help.'));
 });
 
@@ -102,7 +102,7 @@ describe('core/name-reserved (self scope, end-to-end through runScan)', () => {
   });
 });
 
-describe('core/name-reserved (open-standard base, under the agent-skills/Commons lens)', () => {
+describe('core/name-reserved (open-standard base, under the agent-skills lens)', () => {
   it('flags a skill shadowing a UNIVERSAL base verb under the agent-skills lens', async () => {
     const result = await scan('agent-skills');
 
@@ -113,7 +113,7 @@ describe('core/name-reserved (open-standard base, under the agent-skills/Commons
       data: Record<string, unknown>;
     };
     assert.equal(issue.severity, 'warn');
-    // The Commons lens classifies the skill itself (open-standard
+    // The agent-skills lens classifies the skill itself (open-standard
     // classifier), so the node carries provider 'agent-skills' and self
     // scope flags it against the base catalog it owns.
     assert.equal(issue.data['surface'], 'target');
@@ -123,7 +123,7 @@ describe('core/name-reserved (open-standard base, under the agent-skills/Commons
 
   it('does NOT flag a VENDOR-specific verb (goal) under the agent-skills lens', async () => {
     // `goal` is Antigravity-specific, not part of the open-standard base,
-    // so the neutral Commons lens leaves it alone (only antigravity reserves it).
+    // so the neutral agent-skills lens leaves it alone (only antigravity reserves it).
     const result = await scan('agent-skills');
     assert.equal(reservedFor(result.issues, '.agents/skills/goal/SKILL.md').length, 0);
   });

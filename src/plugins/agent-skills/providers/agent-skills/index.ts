@@ -43,12 +43,12 @@ import { AGENT_SKILLS_PLUGIN_ID } from '../../../ids.js';
  * classified with its provider id and its `reservedNames` apply via self
  * scope, no cross-provider kernel rule needed.
  */
-export const OPEN_SKILLS_READ: IProviderReadConfig = {
+export const COMMONS_READ: IProviderReadConfig = {
   extensions: ['.md'],
   parser: 'frontmatter-yaml',
 };
 
-export const OPEN_SKILLS_KINDS: Record<string, IProviderKind> = {
+export const COMMONS_KINDS: Record<string, IProviderKind> = {
   skill: {
     schema: './schemas/skill.schema.json',
     schemaJson: skillSchema,
@@ -66,24 +66,24 @@ export const OPEN_SKILLS_KINDS: Record<string, IProviderKind> = {
 };
 
 // The open standard documents slash-style invocation of skills.
-export const OPEN_SKILLS_RESOLUTION: Record<string, string[]> = { invokes: ['skill'] };
+export const COMMONS_RESOLUTION: Record<string, string[]> = { invokes: ['skill'] };
 
 /**
  * Base reserved-name catalog for the open standard, owned here and
  * inherited by every Provider that adopts the `.agents/skills/` layout
- * (manifest composition, same pattern as the `OPEN_SKILLS_*` pieces above,
+ * (manifest composition, same pattern as the `COMMONS_*` pieces above,
  * not a kernel rule). These are the slash commands an agent CLI ships
  * built-in regardless of vendor (the cross-vendor common subset, present
  * in both Claude's and Antigravity's catalogs), so a user skill that
  * shadows one is flagged by `core/name-reserved` under ANY lens that uses
- * the open standard, including the neutral Commons lens itself. Vendor
+ * the open standard, including the neutral `agent-skills` lens itself. Vendor
  * Providers spread this and append their OWN runtime-specific verbs (e.g.
  * Antigravity adds `goal`, `grill-me`, ...); the neutral standard never
  * carries vendor verbs. Authored lowercase, no leading `/` (the analyzer
  * normalises both sides). Declared under `skill`, the only open-standard
  * kind.
  */
-export const OPEN_SKILLS_RESERVED_NAMES: Record<string, readonly string[]> = {
+export const COMMONS_RESERVED_NAMES: Record<string, readonly string[]> = {
   skill: [
     'add-dir',
     'agents',
@@ -112,7 +112,7 @@ export const OPEN_SKILLS_RESERVED_NAMES: Record<string, readonly string[]> = {
  * entry-point `SKILL.md` is the canonical node, mirroring the open-standard
  * contract.
  */
-export function classifyOpenSkillsPath(path: string): string | null {
+export function classifyCommonsPath(path: string): string | null {
   if (/^\.agents\/skills\/[^/]+\/skill\.md$/.test(path.toLowerCase())) return 'skill';
   return null;
 }
@@ -124,13 +124,12 @@ export const agentSkillsProvider: IBuiltInManifest<IProvider> = {
   description: 'Classifies files under `.agents/skills/<name>/SKILL.md` as Agent Skills.',
 
   // Provider identity for the active-lens dropdown, the topbar lens chip,
-  // and the per-node provider chip. Neutral slate: this is the
-  // vendor-neutral commons layer (owner of the open `.agents/skills/` path
-  // and source of the base reserved-name catalog below), not a brand. The
-  // label is deliberately NOT the open standard's proper name ("Agent
-  // Skills"): this Provider is our shared baseline, not the standard itself.
+  // and the per-node provider chip. Neutral slate (this is the
+  // vendor-agnostic open-standard Provider, not a brand). The reusable
+  // open-standard pieces it owns use a `COMMONS_*` vocabulary internally;
+  // the user-facing label stays the descriptive "Open Skills".
   presentation: {
-    label: 'Commons',
+    label: 'Open Skills',
     color: '#64748b',
     colorDark: '#94a3b8',
   },
@@ -162,16 +161,16 @@ export const agentSkillsProvider: IBuiltInManifest<IProvider> = {
   // `aka` is display-only, `--for` still matches the `agent-skills` id.
   scaffold: { skillDir: '.agents/skills', aka: ['Antigravity', 'OpenAI Codex'] },
 
-  read: OPEN_SKILLS_READ,
+  read: COMMONS_READ,
 
-  kinds: OPEN_SKILLS_KINDS,
+  kinds: COMMONS_KINDS,
 
-  resolution: OPEN_SKILLS_RESOLUTION,
+  resolution: COMMONS_RESOLUTION,
 
-  // Base reserved-name catalog (self-scope under the Commons lens). The
+  // Base reserved-name catalog (self-scope under the `agent-skills` lens). The
   // shared export is inherited by every Provider that adopts the open
-  // standard (see `OPEN_SKILLS_RESERVED_NAMES` above).
-  reservedNames: OPEN_SKILLS_RESERVED_NAMES,
+  // standard (see `COMMONS_RESERVED_NAMES` above).
+  reservedNames: COMMONS_RESERVED_NAMES,
 
-  classify: classifyOpenSkillsPath,
+  classify: classifyCommonsPath,
 };

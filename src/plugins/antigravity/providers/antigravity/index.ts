@@ -47,11 +47,11 @@
 import type { IBuiltInManifest, IProvider } from '../../../../kernel/extensions/index.js';
 import { ANTIGRAVITY_PLUGIN_ID } from '../../../ids.js';
 import {
-  OPEN_SKILLS_READ,
-  OPEN_SKILLS_KINDS,
-  OPEN_SKILLS_RESOLUTION,
-  OPEN_SKILLS_RESERVED_NAMES,
-  classifyOpenSkillsPath,
+  COMMONS_READ,
+  COMMONS_KINDS,
+  COMMONS_RESOLUTION,
+  COMMONS_RESERVED_NAMES,
+  classifyCommonsPath,
 } from '../../../agent-skills/providers/agent-skills/index.js';
 
 export const antigravityProvider: IBuiltInManifest<IProvider> = {
@@ -96,15 +96,15 @@ export const antigravityProvider: IBuiltInManifest<IProvider> = {
   // lens, so it never competes here (under the antigravity lens it does
   // not participate). This is why there is no cross-provider lens-scope
   // rule in the kernel any more.
-  read: OPEN_SKILLS_READ,
-  kinds: OPEN_SKILLS_KINDS,
-  resolution: OPEN_SKILLS_RESOLUTION,
-  classify: classifyOpenSkillsPath,
+  read: COMMONS_READ,
+  kinds: COMMONS_KINDS,
+  resolution: COMMONS_RESOLUTION,
+  classify: classifyCommonsPath,
 
   // Built-in slash-command catalog, captured verbatim from `agy /help`
   // (Antigravity CLI v1.0.3). The universal cross-agent verbs (`help`,
   // `config`, `mcp`, `model`, `clear`, `exit`, ...) come from the
-  // open-standard base catalog (`OPEN_SKILLS_RESERVED_NAMES`, owned by
+  // open-standard base catalog (`COMMONS_RESERVED_NAMES`, owned by
   // `agent-skills` and inherited here by composition); this block adds ONLY
   // Antigravity's OWN runtime-specific verbs on top, so the neutral
   // standard never carries `agy`-specific commands. The earlier provisional
@@ -126,11 +126,11 @@ export const antigravityProvider: IBuiltInManifest<IProvider> = {
   // **Reconciliation marker**: re-capture from `agy /help` on each major
   // Antigravity CLI release, bump the cited version above, and move any
   // verb that becomes universal across agents down into
-  // `OPEN_SKILLS_RESERVED_NAMES`.
+  // `COMMONS_RESERVED_NAMES`.
   reservedNames: {
     skill: [
       // Inherited open-standard base (universal cross-agent slash commands).
-      ...(OPEN_SKILLS_RESERVED_NAMES['skill'] ?? []),
+      ...(COMMONS_RESERVED_NAMES['skill'] ?? []),
       // Antigravity-specific verbs (not part of the open-standard base).
       'artifact',
       'branch',

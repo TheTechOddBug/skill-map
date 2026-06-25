@@ -19,7 +19,7 @@
         "label": {
           "type": "string",
           "minLength": 1,
-          "description": "Human-readable Provider name shown in the active-lens dropdown, the topbar lens chip, and the per-node provider chip (e.g. `'Claude'`, `'OpenAI Codex'`, `'Antigravity'`, `'Commons'`, `'Markdown'`)."
+          "description": "Human-readable Provider name shown in the active-lens dropdown, the topbar lens chip, and the per-node provider chip (e.g. `'Claude'`, `'OpenAI Codex'`, `'Antigravity'`, `'Open Skills'`, `'Markdown'`)."
         },
         "color": {
           "type": "string",

@@ -12,7 +12,7 @@ import { describe, it } from 'node:test';
 import { strictEqual, ok } from 'node:assert';
 
 import { antigravityProvider } from '../index.js';
-import { OPEN_SKILLS_RESERVED_NAMES } from '../../../../agent-skills/providers/agent-skills/index.js';
+import { COMMONS_RESERVED_NAMES } from '../../../../agent-skills/providers/agent-skills/index.js';
 
 describe('antigravity provider, manifest shape', () => {
   it('adopts the open-standard `.agents/skills/` layout (inherited classifier + kind)', () => {
@@ -90,11 +90,11 @@ describe('antigravity provider, reserved-name catalog (official, captured from `
     // The universal cross-agent verbs are owned by `agent-skills` and
     // spread in here; antigravity only appends its own runtime-specific
     // verbs on top. No base verb may be missing (and no dupes, per above).
-    for (const base of OPEN_SKILLS_RESERVED_NAMES['skill'] ?? []) {
+    for (const base of COMMONS_RESERVED_NAMES['skill'] ?? []) {
       ok(commands.includes(base), `missing inherited base verb: ${base}`);
     }
     // `goal` is Antigravity-specific, so it must NOT live in the neutral base.
-    ok(!(OPEN_SKILLS_RESERVED_NAMES['skill'] ?? []).includes('goal'));
+    ok(!(COMMONS_RESERVED_NAMES['skill'] ?? []).includes('goal'));
   });
 
   it('flags the high-collision verbs (`skills`, `hooks`, `agents`, `mcp`) that back Antigravity extensibility', () => {

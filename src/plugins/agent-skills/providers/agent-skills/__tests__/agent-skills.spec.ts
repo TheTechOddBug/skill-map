@@ -58,7 +58,7 @@ describe('agent-skills provider', () => {
   it('declares the open-standard base reserved-name catalog under `skill`', () => {
     const reserved = agentSkillsProvider.reservedNames?.['skill'] ?? [];
     // Universal cross-agent slash commands ARE reserved under the neutral
-    // Commons lens (a user skill named after one is silently shadowed)...
+    // agent-skills lens (a user skill named after one is silently shadowed)...
     ok(reserved.includes('help'), 'expected the universal `help` in the base catalog');
     ok(reserved.includes('config'), 'expected the universal `config` in the base catalog');
     // ...but vendor-specific verbs are NOT part of the neutral standard;
@@ -118,6 +118,41 @@ describe('agent-skills provider', () => {
       compatibility: 'a'.repeat(501),
     });
     strictEqual(result.ok, false, 'compatibility over 500 chars must be rejected');
+  });
+
+  it('skill schema enforces the open-standard `name` rules (lowercase/hyphen pattern + maxLength 64)', async () => {
+    const { buildProviderFrontmatterValidator } = await import(
+      '../../../../../kernel/adapters/schema-validators.js'
+    );
+    const validator = buildProviderFrontmatterValidator([agentSkillsProvider]);
+    ok(
+      validator.validate(agentSkillsProvider, 'skill', { name: 'pdf-processing', description: 'y' }).ok,
+      'a valid lowercase-hyphen name must validate',
+    );
+    // uppercase, leading/trailing hyphen, consecutive hyphens, over 64 chars.
+    for (const bad of ['PDF-Processing', '-foo', 'foo-', 'a--b', 'a'.repeat(65)]) {
+      strictEqual(
+        validator.validate(agentSkillsProvider, 'skill', { name: bad, description: 'y' }).ok,
+        false,
+        `name '${bad}' must be rejected by the open-standard pattern/length`,
+      );
+    }
+  });
+
+  it('skill schema enforces the open-standard `description` maxLength (1024)', async () => {
+    const { buildProviderFrontmatterValidator } = await import(
+      '../../../../../kernel/adapters/schema-validators.js'
+    );
+    const validator = buildProviderFrontmatterValidator([agentSkillsProvider]);
+    ok(
+      validator.validate(agentSkillsProvider, 'skill', { name: 'x', description: 'a'.repeat(1024) }).ok,
+      'description of exactly 1024 chars must validate',
+    );
+    strictEqual(
+      validator.validate(agentSkillsProvider, 'skill', { name: 'x', description: 'a'.repeat(1025) }).ok,
+      false,
+      'description over 1024 chars must be rejected',
+    );
   });
 
   it('declares normalised UI presentation (mirrors Claude for the `skill` kind)', () => {

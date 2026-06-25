@@ -180,7 +180,7 @@
     "files": {
       "CHANGELOG.md": "f8bb4c603a79d734e24091d5dd9f3f90f5e4c7c27266794885227ace2246be9f",
       "README.md": "a790cd010b46d47883d1f37e3893cea9d7aa69ec4750c0202e6a0c99991e7980",
-      "architecture.md": "31b2ab18ee9d8756603722f8320954d6e6c39fff30ad6e3405577481fb27988c",
+      "architecture.md": "8fa0a5c5e628621f0fe0b72cd00efd7570ed7e011daf103eeeaee77fc2e03e0a",
       "cli-contract.md": "7c90de3b680e428bff16f0e1991046b6417a3c94851994e1194fa32c33584e45",
       "conformance/README.md": "dcbef7249f161acf597552a05dcadc813cd0ced430dcd3f813fcf5e1c876335d",
       "conformance/cases/backtick-path-extraction.json": "4620e7f8bc161fc57cb44001e9d99879c7e22b4865a0c27a20dc28969cd936d9",
@@ -251,7 +251,7 @@
       "schemas/extensions/formatter.schema.json": "880dc379ad545a62404403533a01eda5171edba0390561fc46ec6e986e0b9bd3",
       "schemas/extensions/hook.schema.json": "f56aef59e9986ffdf7d86aa2e048dccccf217000a358b8c64737cbd911c48dad",
       "schemas/extensions/provider-kind.schema.json": "499b2418bbe6d8a84a1608e26c56b52c2652a30ce314bc2989094418797dc1e6",
-      "schemas/extensions/provider.schema.json": "96d2f8e9af74e406583c02570f0a471315632f6d8a02d13621ce13650b023e73",
+      "schemas/extensions/provider.schema.json": "30f1f001192b3ca9fc1e3aa383b23419f8d6c179d0239f54cb7f41910126a6bb",
       "schemas/frontmatter/base.schema.json": "cff81510ed94824dfd12ab8b30ce9fbac65e42d61ae0edf3fbb6bbb6bb8bcb8c",
       "schemas/history-stats.schema.json": "436aa0ffe744bdb699000447e86b45724fbd2cc4642781074eb1527522b9058c",
       "schemas/input-types.schema.json": "93b27a1cbd1f131d42730eb9a89cf3af6889e9f17b20a48ce36133885503e01b",

@@ -223,7 +223,7 @@ export interface IProviderUi {
   /**
    * Human-readable Provider name shown in the lens dropdown, the topbar
    * lens chip, and the per-node provider chip (e.g. `'Claude'`,
-   * `'OpenAI Codex'`, `'Antigravity'`, `'Commons'`, `'Markdown'`).
+   * `'OpenAI Codex'`, `'Antigravity'`, `'Open Skills'`, `'Markdown'`).
    */
   label: string;
   /** Base hex color (`#RRGGBB`) for the light-theme provider chip. */
