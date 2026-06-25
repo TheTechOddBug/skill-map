@@ -26,6 +26,14 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: true
+          # Attribute the "version packages" PR (and its branch push) to a
+          # real user instead of github-actions[bot]. A bot-authored PR has
+          # its FIRST CI run gated behind "Approve and run" on every release
+          # cycle (GitHub anti-recursion policy on GITHUB_TOKEN-triggered
+          # runs); a user-authored PR runs without that manual approval.
+          # Falls back to the default token when CHANGESETS_TOKEN is unset,
+          # so the pipeline keeps working unchanged until the secret exists.
+          token: ${{ secrets.CHANGESETS_TOKEN || github.token }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -39,7 +47,30 @@ jobs:
       - name: Install deps
         run: pnpm install --frozen-lockfile
 
+      - name: Detect release pass
+        id: pass
+        # This workflow fires on every push to main that bumps a package.json
+        # or lands a changeset, so it runs in two distinct passes per cycle:
+        #   - version-PR pass: pending .changeset/*.md exist, the changesets
+        #     action only opens / updates the "version packages" PR (no publish).
+        #   - publish pass: no pending changesets (versions already bumped on
+        #     main), the action runs `changeset publish`.
+        # Only the publish pass needs the built dist + sourcemaps (the npm
+        # tarball ships them); opening the version PR just bumps versions and
+        # changelogs. Detecting the pass here lets every heavy build step below
+        # self-skip on the version-PR pass, saving the build minutes that each
+        # changeset push would otherwise waste.
+        run: |
+          if [ -n "$(find .changeset -maxdepth 1 -name '*.md' ! -name 'README.md' -print -quit)" ]; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "Pending changeset(s) present -> version-PR pass (skipping build)."
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "No pending changesets -> publish pass (building dist)."
+          fi
+
       - name: Build UI
+        if: steps.pass.outputs.publish == 'true'
         # The CLI publish step depends on the Angular SPA being built so
         # tsup's onSuccess hook can copy `ui/dist/ui/browser/` into
         # `src/dist/ui/`. The runtime resolver in `src/server/paths.ts`
@@ -66,9 +97,11 @@ jobs:
           fi
 
       - name: Build CLI
+        if: steps.pass.outputs.publish == 'true'
         run: pnpm --filter @skill-map/cli build
 
       - name: Inject Sentry debug IDs into the CLI bundle
+        if: steps.pass.outputs.publish == 'true'
         # Node packages install to per-machine paths, so the browser-style
         # `release` + `url-prefix` matching the UI upload uses CANNOT resolve
         # CLI stack frames (the abs path differs on every install). Debug IDs
@@ -96,6 +129,7 @@ jobs:
           fi
 
       - name: Stage and strip CLI sourcemaps from the published bundle
+        if: steps.pass.outputs.publish == 'true'
         # Mirror of the UI strip, for the CLI's own maps. The `.map` files
         # must NOT ship in the npm tarball (they embed the original TS via
         # `sourcesContent`), but the post-publish upload still needs them.
@@ -123,6 +157,7 @@ jobs:
           echo "Staged + stripped ${staged} CLI sourcemap(s) from the published bundle."
 
       - name: Strip UI sourcemaps from the published bundle
+        if: steps.pass.outputs.publish == 'true'
         # The `.map` files stay under `ui/dist/` for the post-publish upload,
         # but must NEVER ship inside the npm tarball (they would expose the
         # original TypeScript source). Scoped to `src/dist/ui` so the CLI's
@@ -134,6 +169,7 @@ jobs:
           echo "Removed ${before} UI sourcemap(s) from the published bundle."
 
       - name: Verify spec index is up to date
+        if: steps.pass.outputs.publish == 'true'
         run: pnpm --filter @skill-map/spec spec:check
 
       - name: Changesets — version PR or publish
@@ -145,7 +181,13 @@ jobs:
           commit: "chore: version packages"
           title: "chore: version packages"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The changesets action creates / updates the "version packages"
+          # PR through this token, so the token's identity becomes the PR
+          # author and the workflow-trigger actor. A PAT here makes that a
+          # real user and dodges the per-cycle "Approve and run" gate that a
+          # github-actions[bot] PR triggers. Same fallback as the checkout
+          # above: defaults to GITHUB_TOKEN until CHANGESETS_TOKEN is set.
+          GITHUB_TOKEN: ${{ secrets.CHANGESETS_TOKEN || secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Smoke install from npm (post-publish)
