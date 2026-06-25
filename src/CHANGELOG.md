@@ -1,5 +1,11 @@
 # skill-map
 
+## 0.64.1
+
+### Patch Changes
+
+- Patch release of `@skill-map/cli` with no functional change, used to exercise the changesets version-packages PR and the end-to-end release pipeline.
+
 ## 0.64.0
 
 ### Minor Changes
