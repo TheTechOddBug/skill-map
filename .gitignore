@@ -96,7 +96,3 @@ Thumbs.db
 .antigravitycli
 .skill-map/settings.local.json
 .skill-map/skill-map.db
-fixtures/ignore
-fixtures/local-scope.old
-fixtures/ai-engineering
-fixtures/skills
