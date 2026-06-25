@@ -8,6 +8,7 @@
   ],
   "type": "object",
   "additionalProperties": true,
+  "required": ["name", "description"],
   "properties": {
     "tools": {
       "type": "array",
@@ -21,7 +22,7 @@
     },
     "model": {
       "type": "string",
-      "description": "Model alias (`sonnet`, `opus`, `haiku`), full Claude id (e.g. `claude-3-7-sonnet-latest`), or the literal `inherit` to defer to the parent session's model."
+      "description": "Model alias (`sonnet`, `opus`, `haiku`, `fable`), a full Claude id (e.g. `claude-opus-4-8`, `claude-sonnet-4-6`), or the literal `inherit` to defer to the parent session's model."
     },
     "permissionMode": {
       "type": "string",
@@ -40,8 +41,8 @@
     },
     "mcpServers": {
       "type": "array",
-      "description": "MCP servers this agent connects to at startup. Shape is platform-defined; preserved as opaque objects.",
-      "items": { "type": "object" }
+      "description": "MCP servers this agent connects to at startup. Each item is either a bare server name referencing an already-configured server (e.g. `github`) or an inline definition object keyed by server name. Shape is platform-defined; preserved opaque.",
+      "items": { "type": ["string", "object"] }
     },
     "hooks": {
       "type": "object",

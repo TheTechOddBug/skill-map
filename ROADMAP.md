@@ -719,10 +719,12 @@ Spec artifact: `spec/schemas/frontmatter/base.schema.json`. Per-kind schemas shi
 
 ### Base (universal, lives in spec)
 
-**Two fields, both required**:
+**Two fields, both defined, neither required at base level**:
 
 - `name`, short human-readable identifier (`string`, `minLength: 1`).
 - `description`, one-to-three-sentence description (`string`, `minLength: 1`).
+
+The base DEFINES these two cross-vendor fields (so a present value is validated as non-empty) but deliberately does NOT mark them `required`: whether either is mandatory is a per-kind decision, not a universal one. A kind whose vendor mandates the fields adds `required` on its own per-kind extension (Claude `agent`, OpenAI Codex `agent`, the Agent Skills `skill`); the generic `markdown` fallback and Claude `skill` / `command` leave them optional, no normative Markdown standard mandates frontmatter fields, and Anthropic's merged skill/command contract defaults `name` to the directory/file name and `description` to the first paragraph. This refines Decision #124 (which originally placed `required: [name, description]` on the universal base); the requirement now lives per-kind, so the per-kind schema is the single source of truth and the kernel enforces it at scan time via `frontmatter-invalid`.
 
 The base declares `additionalProperties: true` so vendor-specific fields and skill-map annotation fields flow through validation silently, formal validation of those happens in the per-kind extension (vendor fields) or in a future skill-map annotation schema (annotation fields, see §Skill-map annotation fields below).
 

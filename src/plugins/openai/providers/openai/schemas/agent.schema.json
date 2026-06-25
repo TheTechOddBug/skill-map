@@ -8,7 +8,7 @@
   ],
   "type": "object",
   "additionalProperties": true,
-  "required": ["developer_instructions"],
+  "required": ["name", "description", "developer_instructions"],
   "properties": {
     "name": {
       "type": "string",
@@ -29,8 +29,8 @@
     },
     "model_reasoning_effort": {
       "type": "string",
-      "enum": ["low", "medium", "high"],
-      "description": "Reasoning effort the sub-agent runs at. Inherits the parent's setting when omitted."
+      "enum": ["minimal", "low", "medium", "high", "xhigh"],
+      "description": "Reasoning effort the sub-agent runs at (`xhigh` is model-dependent). Inherits the parent's setting when omitted."
     },
     "sandbox_mode": {
       "type": "string",

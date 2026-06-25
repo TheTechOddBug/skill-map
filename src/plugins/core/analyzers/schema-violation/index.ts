@@ -27,7 +27,6 @@ import type { Issue, Link, Node } from '../../../../kernel/types.js';
 import { loadSchemaValidators, type ISchemaValidators } from '../../../../kernel/adapters/schema-validators.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { formatFinding } from '../../../../kernel/util/finding-format.js';
-import { FRONTMATTER_ISSUE_ANALYZERS } from '../../../../kernel/orchestrator/frontmatter-issue-ids.js';
 import { SCHEMA_VIOLATION_TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
@@ -63,27 +62,17 @@ export const schemaViolationAnalyzer: IBuiltInManifest<IAnalyzer> = {
     type TWorst = 'warn' | 'danger';
     const perNode = new Map<string, { count: number; worst: TWorst }>();
 
-    // Nodes the kernel already flagged with a frontmatter diagnostic
-    // (`frontmatter-invalid` / `-malformed` / `-parse-error`, seeded into
-    // `accumulatedIssues` before analyzers run). The base-field check
-    // below skips these so the operator never sees the same defect warned
-    // twice (kernel + this rule), the base check only adds value when the
-    // kernel said nothing.
-    const kernelFlaggedNodes = collectKernelFlaggedNodes(ctx.accumulatedIssues);
-
+    // Frontmatter `name` / `description` requiredness is NOT re-derived
+    // here: each Provider's per-kind schema decides it (Claude agent,
+    // OpenAI Codex agent and the Agent Skills skill declare `required`;
+    // the `markdown` fallback and Claude skill/command leave it optional),
+    // and the kernel enforces that per-kind contract at scan time
+    // (`frontmatter-invalid`). A universal base check here would only
+    // re-impose the requirement on the kinds that deliberately relaxed it,
+    // so the per-kind schema stays the single source of truth.
     for (const node of ctx.nodes) {
       const before = findings.length;
       collectNodeFindings(validators, node, findings);
-      // Universal base check: every `.md` MUST surface a non-empty
-      // `frontmatter.name` and `frontmatter.description`. The node
-      // schema itself only types frontmatter as a permissive object
-      // (`additionalProperties: true`); per-kind schemas elsewhere
-      // enforce the requirement, but when YAML parsing or schema
-      // dispatch fails the kernel surfaces a blank frontmatter
-      // here. Catch that case explicitly so the operator sees the
-      // alert badge even on nodes the per-kind validation never
-      // touched, but stay silent when the kernel already flagged it.
-      collectFrontmatterBaseFindings(node, findings, kernelFlaggedNodes);
       if (findings.length > before) {
         let worst: TWorst = 'warn';
         for (let i = before; i < findings.length; i++) {
@@ -128,77 +117,6 @@ function collectNodeFindings(v: ISchemaValidators, node: Node, out: Issue[]): vo
     }),
     data: { target: 'node', path: node.path },
   });
-}
-
-/**
- * Collapse `accumulatedIssues` to the set of node paths the kernel itself
- * already flagged with a frontmatter diagnostic. The base-field check below
- * skips those paths so a node never carries both the kernel's
- * `frontmatter-invalid` and this rule's "missing name/description" warning
- * for the same underlying defect.
- */
-function collectKernelFlaggedNodes(accumulated: readonly Issue[] | undefined): ReadonlySet<string> {
-  const flagged = new Set<string>();
-  for (const issue of accumulated ?? []) {
-    if (!FRONTMATTER_ISSUE_ANALYZERS.has(issue.analyzerId)) continue;
-    for (const id of issue.nodeIds) flagged.add(id);
-  }
-  return flagged;
-}
-
-function collectFrontmatterBaseFindings(node: Node, out: Issue[], kernelFlagged: ReadonlySet<string>): void {
-  // The kernel already surfaced a frontmatter diagnostic for this node
-  // (`frontmatter-invalid` / `-malformed` / `-parse-error`); a second
-  // "missing name/description" warning here would duplicate it. The kernel's
-  // AJV errors already enumerate the missing required props, so nothing is
-  // lost by staying silent.
-  if (kernelFlagged.has(node.path)) return;
-  // Catch-all `markdown` nodes (README.md, CHANGELOG.md, notes/…)
-  // legitimately ship with no `name` / `description` in their
-  // frontmatter, vendor providers (`claude`, `openai`, `agent-skills`)
-  // are the ones whose per-kind schemas declare those two as
-  // required. Skip the catch-all here so the analyzer does not
-  // flag every project doc as broken.
-  if (node.provider === 'markdown') return;
-  // Skip nodes that have no frontmatter block at all (`bytes.frontmatter === 0`).
-  // These are markdown files that intentionally ship without
-  // frontmatter, README.md / CHANGELOG.md inside a vendor scope
-  // (e.g. `.claude/skills/<x>/references/foo.md`) is the typical
-  // shape. Only flag when bytes were spent on a frontmatter block
-  // AND the result is missing the base fields, that's the signal
-  // for "parsed/validated badly" rather than "intentionally absent".
-  if (node.bytes.frontmatter === 0) return;
-  const fm = node.frontmatter ?? {};
-  const missing: string[] = [];
-  if (isMissingStringField(fm, 'name')) missing.push('name');
-  if (isMissingStringField(fm, 'description')) missing.push('description');
-  if (missing.length === 0) return;
-  out.push({
-    analyzerId: ID,
-    // `warn` (not `error`) so the default `sm scan` exit code stays
-    // 0 even when nodes are missing frontmatter base fields. Strict
-    // mode (`sm scan --strict`) still escalates to exit 1. Matches
-    // the `frontmatter-invalid` severity policy of the orchestrator.
-    severity: 'warn',
-    nodeIds: [node.path],
-    message: formatFinding({
-      body: tx(SCHEMA_VIOLATION_TEXTS.frontmatterBaseFailure, {
-        missing: missing.join(', '),
-      }),
-    }),
-    data: { target: 'frontmatter', path: node.path, missing },
-  });
-}
-
-/**
- * True when the given frontmatter field is absent, not a string, or
- * an empty string. Extracted to keep `collectFrontmatterBaseFindings`
- * within the project's per-function cyclomatic budget (`||` branches
- * count toward complexity in ESLint).
- */
-function isMissingStringField(fm: Record<string, unknown>, field: string): boolean {
-  const v = fm[field];
-  return typeof v !== 'string' || v.length === 0;
 }
 
 function collectLinkFindings(v: ISchemaValidators, link: Link, out: Issue[]): void {
