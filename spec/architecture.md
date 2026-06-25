@@ -436,6 +436,20 @@ The contract:
 
 A path written in prose without any wrapping (neither backticks nor markdown-link syntax) stays invisible in this revision; the code-region domain is the verified, bounded surface.
 
+### Analyzer · body backtick balance (`core/backtick-balance`)
+
+The code-strip policy (§Extractor · code-region file references) assumes every fence and every inline code span in a `.md` body is BALANCED. An unbalanced backtick breaks that assumption at the source: an opening fence with no closer makes `stripCodeBlocks` treat the entire remainder of the file as code, so every prose-side extractor (`markdown-link`, `at-directive`, `slash-command`, `external-url-counter`) sees a blank body past the dangling fence and stops emitting real edges. This is a body-syntax defect, not a frontmatter-shape one, so it is not expressible as a JSON Schema constraint; the built-in `core/backtick-balance` analyzer (`phase: 'detect'`, `mode: 'deterministic'`) owns it.
+
+The analyzer re-reads each node's file from disk (the graph carries `node.bytes.body`, the byte size, not the text), resolving `node.path` against `IAnalyzerContext.cwd`. It skips virtual nodes (`node.virtual === true`, no backing file) and any node whose file cannot be read. The frontmatter block (`^---\n…\n---\n?`) is stripped before analysis and its line height remembered, so every reported line is **relative to the file** (body line + frontmatter line count), not to the stripped body.
+
+Two checks run in order over the post-frontmatter body:
+
+1. **Fenced block balance.** Walking line by line, a line opening with three or more backticks or tildes (`^\s*(`{3,}|~{3,})`) toggles fence state, a closer must use the same fence character as the opener. If the body ends with a fence still open, the analyzer emits ONE finding for the unclosed fenced block (reporting the opening fence line) and **stops**: a dangling fence has already corrupted the masking, so the inline pass below would only produce noise. This is the "fence cuts the inline count" rule.
+
+2. **Inline span balance.** Only when every fence is balanced. Fenced-code lines are blanked (preserving line numbers), then backslash-escaped characters are masked (`\` + any non-newline → two spaces), because a literal `` \` `` in prose is text in CommonMark and never opens a span; without this mask it would be a false positive. Over the masked text, runs of backticks pair by the CommonMark rule: a run of N backticks is closed by the next run of EXACTLY N backticks; runs of any other length in between are span content. The first run with no equal-length closer is an unclosed inline backtick, reported at its file line with the offending source line as the finding detail.
+
+Every finding is severity `warn` (fixed, not configurable, consistent with the other body-level core analyzers) and carries a `fix.summary` naming the remediation (close the fence / close the inline run or escape the literal backtick). A body with balanced fences and balanced inline spans yields no finding.
+
 ### Extractor · enrichment layer
 
 `ctx.enrichNode(partial)` is the only writable surface the Extractor pipeline has on a node. The author's frontmatter on `scan_nodes.frontmatter_json` is read-only from any Extractor. Implementations MUST:

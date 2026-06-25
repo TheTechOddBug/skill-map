@@ -30,6 +30,7 @@ import { mcpToolsExtractor as _mcpToolsExtractor } from './core/extractors/mcp-t
 import { annotationFieldUnknownAnalyzer as _annotationFieldUnknownAnalyzer } from './core/analyzers/annotation-field-unknown/index.js';
 import { annotationOrphanAnalyzer as _annotationOrphanAnalyzer } from './core/analyzers/annotation-orphan/index.js';
 import { annotationStaleAnalyzer as _annotationStaleAnalyzer } from './core/analyzers/annotation-stale/index.js';
+import { backtickBalanceAnalyzer as _backtickBalanceAnalyzer } from './core/analyzers/backtick-balance/index.js';
 import { contributionOrphanAnalyzer as _contributionOrphanAnalyzer } from './core/analyzers/contribution-orphan/index.js';
 import { extractorCollisionAnalyzer as _extractorCollisionAnalyzer } from './core/analyzers/extractor-collision/index.js';
 import { issueCounterAnalyzer as _issueCounterAnalyzer } from './core/analyzers/issue-counter/index.js';
@@ -64,6 +65,7 @@ const mcpToolsExtractor = { ..._mcpToolsExtractor, pluginId: 'core', version: VE
 const annotationFieldUnknownAnalyzer = { ..._annotationFieldUnknownAnalyzer, pluginId: 'core', version: VERSION };
 const annotationOrphanAnalyzer = { ..._annotationOrphanAnalyzer, pluginId: 'core', version: VERSION };
 const annotationStaleAnalyzer = { ..._annotationStaleAnalyzer, pluginId: 'core', version: VERSION };
+const backtickBalanceAnalyzer = { ..._backtickBalanceAnalyzer, pluginId: 'core', version: VERSION };
 const contributionOrphanAnalyzer = { ..._contributionOrphanAnalyzer, pluginId: 'core', version: VERSION };
 const extractorCollisionAnalyzer = { ..._extractorCollisionAnalyzer, pluginId: 'core', version: VERSION };
 const issueCounterAnalyzer = { ..._issueCounterAnalyzer, pluginId: 'core', version: VERSION };
@@ -144,6 +146,7 @@ export const builtInPlugins: IBuiltInPlugin[] = [
       annotationFieldUnknownAnalyzer,
       annotationOrphanAnalyzer,
       annotationStaleAnalyzer,
+      backtickBalanceAnalyzer,
       contributionOrphanAnalyzer,
       extractorCollisionAnalyzer,
       issueCounterAnalyzer,
