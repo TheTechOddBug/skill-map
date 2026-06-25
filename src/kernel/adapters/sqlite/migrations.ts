@@ -20,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 
 import { MIGRATIONS_TEXTS } from '../../i18n/migrations.texts.js';
 import { formatErrorMessage } from '../../util/format-error.js';
+import { kernelBackupsDir } from '../../util/skill-map-paths.js';
 import { tx } from '../../util/tx.js';
 
 import type {
@@ -188,7 +189,7 @@ function resolveMigrationTarget(to: number | undefined, files: IMigrationFile[])
 function writePreMigrateBackup(dbPath: string, target: number): string | null {
   return writeBackup(
     dbPath,
-    join(dirname(resolve(dbPath)), 'backups', `skill-map-pre-migrate-v${target}.db`),
+    join(kernelBackupsDir(dbPath), `skill-map-pre-migrate-v${target}.db`),
   );
 }
 

@@ -13,7 +13,7 @@ against the matrix below and fails on drift.
 
 | # | Schema | Case(s) | Status | Notes |
 |---|---|---|---|---|
-| 1 | `schemas/agent.schema.json` | `basic-scan`, `body-links` | 🟢 covered | `demo-openai/.codex/agents/{deployer,builder,reviewer}.toml` exercise the Codex sub-agent shape (`name` + `description` + `model` + `instructions`), classified as `openai`/`agent` under the auto-detected openai lens. `body-links` additionally drives the `instructions` field through the body pipeline via `read.bodyField`. |
+| 1 | `schemas/agent.schema.json` | `basic-scan`, `body-links` | 🟢 covered | `demo-openai/.codex/agents/{deployer,builder,reviewer}.toml` exercise the real Codex sub-agent shape: the required `name` + `description` + `developer_instructions`, plus the optional `model`, `model_reasoning_effort`, `sandbox_mode`, `nickname_candidates`, the `[mcp_servers.<name>]` table (deployer) and the `[[skills.config]]` array (reviewer). Classified as `openai`/`agent` under the auto-detected openai lens. `body-links` additionally drives the `developer_instructions` field through the body pipeline via `read.bodyField`. |
 
 Status legend: 🟢 covered (at least one case asserts the schema
 end-to-end) · 🟡 partial (covered only indirectly or via a sub-shape) ·
@@ -24,7 +24,7 @@ end-to-end) · 🟡 partial (covered only indirectly or via a sub-shape) ·
 | Id | Verifies | Fixture(s) |
 |---|---|---|
 | `basic-scan` | Scanning the `demo-openai` corpus classifies three `.codex/agents/*.toml` files as `openai`/`agent` and four markdown files (`AGENTS.md`, two docs, one note) via the `core/markdown` fallback, seven nodes with no issues. | `demo-openai` |
-| `body-links` | The Codex body extractor feeds each agent's TOML `instructions` field through the link pipeline (`read.bodyField: 'instructions'`), producing six resolved edges (`@mention` agent-to-agent links via the lens-gated `at-directive`, plus markdown links to the docs), so a TOML-only corpus with no file bodies still yields a connected graph. | `demo-openai` |
+| `body-links` | The Codex body extractor feeds each agent's TOML `developer_instructions` field through the link pipeline (`read.bodyField: 'developer_instructions'`), producing six resolved edges (`@mention` agent-to-agent links via the lens-gated `at-directive`, plus markdown links to the docs), so a TOML-only corpus with no file bodies still yields a connected graph. | `demo-openai` |
 
 Each case file under [`cases/`](./cases/) is self-describing, see
 [`spec/conformance/README.md`](../../../../../../spec/conformance/README.md)

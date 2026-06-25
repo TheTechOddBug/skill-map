@@ -78,8 +78,8 @@ export const atDirectiveExtractor: IBuiltInManifest<IExtractor> = {
   scope: 'body',
   // Authorised under the claude AND openai lenses: OpenAI Codex sub-agents
   // reference each other with the same `@<name>` mention grammar, and their
-  // prompt (the TOML `instructions` body, fed in via the openai provider's
-  // `read.bodyField`) carries the same `@` tokens. The gate is the active
+  // prompt (the TOML `developer_instructions` body, fed in via the openai
+  // provider's `read.bodyField`) carries the same `@` tokens. The gate is the active
   // lens, not the node's provider, so under `openai` this parses `@` across
   // the project's markdown surface just as it does under `claude`.
   precondition: { provider: ['claude', 'openai'] },

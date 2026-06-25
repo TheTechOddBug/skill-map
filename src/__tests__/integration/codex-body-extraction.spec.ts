@@ -2,10 +2,10 @@
  * Integration: the OpenAI Codex body extractor (ROADMAP Step 13).
  *
  * Codex sub-agents are pure TOML under `.codex/agents/*.toml`; their
- * markdown prompt lives in the triple-quoted `instructions` field, not
- * after a frontmatter fence. The openai provider declares
- * `read.bodyField: 'instructions'`, so the kernel walker yields that field
- * as the node body and the normal body pipeline runs over it:
+ * markdown prompt lives in the triple-quoted `developer_instructions`
+ * field, not after a frontmatter fence. The openai provider declares
+ * `read.bodyField: 'developer_instructions'`, so the kernel walker yields
+ * that field as the node body and the normal body pipeline runs over it:
  *
  *   - `core/markdown-link` (universal) turns `[the guide](guide.md)` into a
  *     `references` edge.
@@ -14,8 +14,8 @@
  *     Codex agent (openai `resolution.mentions: ['agent']`).
  *
  * The contrast test pins the lens gate: under the `claude` lens the Codex
- * agent is not classified at all, so its instructions never reach any
- * extractor and it contributes no links.
+ * agent is not classified at all, so its developer_instructions never reach
+ * any extractor and it contributes no links.
  */
 
 import { describe, it, before, after } from 'node:test';
@@ -39,22 +39,24 @@ before(() => {
     writeFileSync(abs, body);
   };
 
-  // Two Codex sub-agents. `deployer`'s prompt (the TOML `instructions`
-  // field) references the other agent (`@builder`), a doc by markdown
-  // link, and an external URL.
+  // Two Codex sub-agents. `deployer`'s prompt (the TOML
+  // `developer_instructions` field) references the other agent
+  // (`@builder`), a doc by markdown link, and an external URL.
   write(
     DEPLOYER,
     [
       'name = "deployer"',
       'description = "Coordinates a release"',
-      'instructions = "Coordinate with @builder before shipping. See [the guide](guide.md). CI at https://example.com/ci."',
+      'developer_instructions = "Coordinate with @builder before shipping. See [the guide](guide.md). CI at https://example.com/ci."',
     ].join('\n'),
   );
   write(
     '.codex/agents/builder.toml',
-    ['name = "builder"', 'description = "Builds artifacts"', 'instructions = "Just build."'].join(
-      '\n',
-    ),
+    [
+      'name = "builder"',
+      'description = "Builds artifacts"',
+      'developer_instructions = "Just build."',
+    ].join('\n'),
   );
 });
 
@@ -72,8 +74,8 @@ async function scan(activeProvider: string): Promise<ScanResult> {
   });
 }
 
-describe('Codex body extraction (read.bodyField = instructions)', () => {
-  it("under the openai lens, the agent's instructions body feeds the link pipeline", async () => {
+describe('Codex body extraction (read.bodyField = developer_instructions)', () => {
+  it("under the openai lens, the agent's developer_instructions body feeds the link pipeline", async () => {
     const result = await scan('openai');
 
     // The Codex agent is classified under the openai lens.
@@ -85,20 +87,20 @@ describe('Codex body extraction (read.bodyField = instructions)', () => {
     const fromDeployer = result.links.filter((l) => l.source === DEPLOYER);
     ok(
       fromDeployer.length > 0,
-      'the body extractor must surface links from the instructions field',
+      'the body extractor must surface links from the developer_instructions field',
     );
 
     // markdown-link (universal) parsed `[the guide](guide.md)`.
     ok(
       fromDeployer.some((l) => l.kind === 'references' && l.target.endsWith('guide.md')),
-      'a markdown link in instructions becomes a references edge',
+      'a markdown link in developer_instructions becomes a references edge',
     );
 
     // at-directive (now authorised under openai) parsed `@builder` and the
     // resolver matched it to the builder agent (mentions -> agent).
     ok(
       fromDeployer.some((l) => l.kind === 'mentions'),
-      'an @mention in instructions becomes a mentions edge under the openai lens',
+      'an @mention in developer_instructions becomes a mentions edge under the openai lens',
     );
   });
 

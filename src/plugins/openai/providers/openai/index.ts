@@ -76,13 +76,15 @@ export const openaiProvider: IBuiltInManifest<IProvider> = {
   stability: 'beta',
 
   // The Codex sub-agent's markdown prompt lives in the TOML
-  // triple-quoted `instructions` field, not after a frontmatter fence
-  // (the whole file is structured frontmatter). `bodyField` tells the
-  // kernel walker to feed that string as the node body, so the universal
-  // body extractors (markdown-link, backtick-path, external-url) plus the
-  // lens-gated at-directive / slash run over the prompt and surface the
-  // Codex agent's references in the graph.
-  read: { extensions: ['.toml'], parser: 'toml', bodyField: 'instructions' },
+  // triple-quoted `developer_instructions` field, not after a frontmatter
+  // fence (the whole file is structured frontmatter). This is the field
+  // name the Codex CLI itself reads; it rejects an agent role file that
+  // omits it, and our agent schema marks it `required` to surface the same
+  // gap. `bodyField` tells the kernel walker to feed that string as the
+  // node body, so the universal body extractors (markdown-link,
+  // backtick-path, external-url) plus the lens-gated at-directive / slash
+  // run over the prompt and surface the Codex agent's references in the graph.
+  read: { extensions: ['.toml'], parser: 'toml', bodyField: 'developer_instructions' },
 
   kinds: {
     agent: {

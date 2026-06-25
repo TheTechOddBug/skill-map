@@ -1,7 +1,9 @@
 name = "builder"
 description = "Implements features against the design the architect agreed."
 model = "gpt-5-codex"
-instructions = """
+model_reasoning_effort = "medium"
+sandbox_mode = "workspace-write"
+developer_instructions = """
 Implement what @architect designed. Keep each change small and follow
 [the testing guide](../../docs/testing.md) as you go.
 

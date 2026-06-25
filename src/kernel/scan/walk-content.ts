@@ -70,8 +70,8 @@ export interface IWalkContentOptions {
    * the node `body` instead of the parser's own `body` output, so the body
    * hash + every body-scoped extractor see the prose that lives inside
    * structured frontmatter (e.g. an OpenAI Codex agent's TOML
-   * `instructions` field). Absent or non-string → the parser's `body` is
-   * used unchanged.
+   * `developer_instructions` field). Absent or non-string → the parser's
+   * `body` is used unchanged.
    */
   bodyField?: string;
   /**
@@ -378,7 +378,7 @@ async function readAndParse(
 
 /**
  * Pick the node body the walker yields. When the Provider declared a
- * `bodyField` (e.g. openai's `instructions`) and that frontmatter key is a
+ * `bodyField` (e.g. openai's `developer_instructions`) and that frontmatter key is a
  * string, it IS the markdown body (formats that carry the prompt inside
  * structured frontmatter, like Codex's pure-TOML sub-agents). Otherwise the
  * parser's own `body` (everything after the frontmatter fence) is used,

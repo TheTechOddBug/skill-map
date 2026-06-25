@@ -31,14 +31,14 @@ before(() => {
   write('docs/a.txt', 'should not be yielded under extensions: [".md"]');
   write('docs/a.toml', 'name = "toml"\ndescription = "stays"');
 
-  // Codex-flavoured TOML: the markdown prompt lives in the `instructions`
-  // field, exercised by the `read.bodyField` path.
+  // Codex-flavoured TOML: the markdown prompt lives in the
+  // `developer_instructions` field, exercised by the `read.bodyField` path.
   write(
     'agents/codex.toml',
     [
       'name = "codex"',
       'description = "a codex agent"',
-      'instructions = "read docs/guide.md, ask @helper"',
+      'developer_instructions = "read docs/guide.md, ask @helper"',
     ].join('\n'),
   );
 
@@ -130,17 +130,17 @@ describe('walkContent', () => {
     for await (const n of walkContent([root], {
       extensions: ['.toml'],
       parser: 'toml',
-      bodyField: 'instructions',
+      bodyField: 'developer_instructions',
     })) {
       byPath.set(n.path, n);
     }
     const codex = byPath.get('agents/codex.toml');
     ok(codex, 'agents/codex.toml must be yielded under extensions: [".toml"]');
-    // The TOML `instructions` field becomes the node body (Codex prompts).
+    // The TOML `developer_instructions` field becomes the node body (Codex prompts).
     strictEqual(codex!.body, 'read docs/guide.md, ask @helper');
     // The field stays in frontmatter too, so frontmatter-scoped extractors
     // (e.g. core/mcp-tools reading `tools`) are unaffected.
-    strictEqual(codex!.frontmatter['instructions'], 'read docs/guide.md, ask @helper');
+    strictEqual(codex!.frontmatter['developer_instructions'], 'read docs/guide.md, ask @helper');
     // A TOML file without the field falls back to the parser body (empty).
     strictEqual(byPath.get('docs/a.toml')!.body, '');
   });

@@ -1,7 +1,9 @@
 name = "releaser"
 description = "Cuts and ships releases once review has signed off."
 model = "gpt-5-codex"
-instructions = """
+model_reasoning_effort = "high"
+sandbox_mode = "workspace-write"
+developer_instructions = """
 Ship the release after @reviewer signs off. Follow
 [the release runbook](../../docs/release.md) step by step, and roll back
 immediately if the post-deploy smoke checks fail.

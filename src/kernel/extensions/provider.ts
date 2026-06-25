@@ -647,8 +647,9 @@ export interface IProviderReadConfig {
    * see this prose. For formats where the prompt lives inside structured
    * frontmatter rather than after a fence: OpenAI Codex sub-agents are
    * pure TOML (`read.parser: 'toml'`) whose markdown prompt is the
-   * triple-quoted `instructions` field, so the openai provider declares
-   * `bodyField: 'instructions'`. When the field is absent or not a string,
+   * triple-quoted `developer_instructions` field, so the openai provider
+   * declares `bodyField: 'developer_instructions'`. When the field is
+   * absent or not a string,
    * the parser's own `body` is used unchanged (the default for `.md`
    * providers). The field stays in `frontmatter` too, so frontmatter-scoped
    * extractors (e.g. `core/mcp-tools` reading `tools`) are unaffected.

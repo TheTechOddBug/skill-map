@@ -76,7 +76,7 @@ export const slashCommandExtractor: IBuiltInManifest<IExtractor> = {
   description: 'Turns `/command` invocations in a node\'s body into arrows that point at the resolved slash command or skill, using Claude Code routing rules. Example: `/deploy` in the body draws an arrow to the `deploy` command.',
   scope: 'body',
   // Also authorised under the openai lens so a Codex agent's prompt body
-  // (the TOML `instructions` field) has its `/command` tokens parsed for
+  // (the TOML `developer_instructions` field) has its `/command` tokens parsed for
   // pipeline parity with the claude body. openai declares no `invokes`
   // resolution today, so these signals stay unresolved (no spurious edges)
   // until Codex slash commands land in Phase 6b.

@@ -8,9 +8,10 @@
  * its precondition is `claude/agent` only: skills and commands declare
  * their tool surface under `allowed-tools` (different shape, different
  * semantics) and would deserve their own extractor if the chip is ever
- * wanted there; Codex sub-agents declare a similar `tools: string[]`
- * in their TOML, but that is deliberately out of scope today and would
- * belong to an `openai`-bundled extractor, not this one.
+ * wanted there. Codex sub-agents have no tool-allowlist array at all,
+ * they bind MCP servers through a `[mcp_servers.<name>]` TOML table (not
+ * the Claude `tools: string[]` convention), so there is nothing for this
+ * chip to count under the openai lens.
  *
  * Replaces the hardcoded wrench + count block that used to live in
  * `node-card.html` (legacy `toolsCount()` computed in `node-card.ts`).

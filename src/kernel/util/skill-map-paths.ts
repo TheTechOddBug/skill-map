@@ -11,7 +11,7 @@
  * (`conformance/index.ts`).
  */
 
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 /**
  * Per-scope directory the kernel + CLI both store state under (DB file,
@@ -22,6 +22,16 @@ export const SKILL_MAP_DIR = '.skill-map';
 
 /** Historic kernel-side alias for {@link SKILL_MAP_DIR}. */
 export const KERNEL_SKILL_MAP_DIR = SKILL_MAP_DIR;
+
+/**
+ * Subdirectory beside the DB file that holds DB backups: both the
+ * automatic pre-migration snapshots (`skill-map-pre-migrate-v<N>.db`,
+ * written by the migrations runner before it applies a schema migration)
+ * and the manual `sm db backup` output (`<timestamp>.db`). Single
+ * canonical source for the `backups` segment; the `core/paths/db-path.ts`
+ * re-export feeds the CLI so neither side composes the literal by hand.
+ */
+export const BACKUPS_DIRNAME = 'backups';
 
 const SETTINGS_FILENAME = 'settings.json';
 const LOCAL_SETTINGS_FILENAME = 'settings.local.json';
@@ -41,4 +51,15 @@ export function kernelSettingsPath(scopeRoot: string): string {
  */
 export function kernelLocalSettingsPath(scopeRoot: string): string {
   return join(scopeRoot, KERNEL_SKILL_MAP_DIR, LOCAL_SETTINGS_FILENAME);
+}
+
+/**
+ * `<dbDir>/backups` for a given DB file path. Derived from the DB file's
+ * OWN directory (not a fixed `.skill-map/`) so a `--db <path>` override
+ * keeps its backups beside it. Consumed by the kernel migrations runner
+ * and, via the `core/paths` re-export, by `sm db backup`, so the `backups`
+ * segment lives in exactly one place.
+ */
+export function kernelBackupsDir(dbPath: string): string {
+  return join(dirname(resolve(dbPath)), BACKUPS_DIRNAME);
 }
