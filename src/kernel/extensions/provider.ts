@@ -222,10 +222,12 @@ export type TProviderKindIcon =
 export interface IProviderUi {
   /**
    * Human-readable Provider name shown in the lens dropdown, the topbar
-   * lens chip, and the per-node provider chip (e.g. `'Claude'`,
-   * `'OpenAI Codex'`, `'Antigravity'`, `'Agent Skills'`). The non-gated
-   * `'Markdown'` base keeps a label for internal lookups but is never a
-   * selectable lens.
+   * lens chip, and the per-node provider chip. Vendor lenses use a
+   * possessive `<Vendor>'s <product>` form (`"Anthropic's Claude"`,
+   * `"OpenAI's Codex"`, `"Google's Antigravity"`); the vendor-neutral open
+   * standard uses a `'Standard: <name>'` prefix (`'Standard: Agent skills'`).
+   * The non-gated `'Markdown'` base keeps a label for internal lookups but
+   * is never a selectable lens.
    */
   label: string;
   /** Base hex color (`#RRGGBB`) for the light-theme provider chip. */
@@ -283,7 +285,7 @@ export interface IProviderScaffold {
    * Display-only hints naming the agents that consume this scaffold
    * territory, rendered in parentheses next to the Provider label in the
    * `sm tutorial` destination prompt (e.g. `.agents/skills` is read by
-   * Antigravity and OpenAI Codex). Purely presentational: NOT matched by
+   * Google's Antigravity and OpenAI's Codex). Purely presentational: NOT matched by
    * `--for` (only registered Provider ids are) and has no runtime effect.
    */
   aka?: readonly string[];

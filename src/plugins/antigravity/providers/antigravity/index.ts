@@ -65,7 +65,7 @@ export const antigravityProvider: IBuiltInManifest<IProvider> = {
   // and the per-node provider chip. Antigravity violet, distinct from the
   // other vendor palettes.
   presentation: {
-    label: 'Antigravity',
+    label: "Google's Antigravity",
     color: '#7c3aed',
     colorDark: '#a78bfa',
   },

@@ -127,12 +127,14 @@ export const agentSkillsProvider: IBuiltInManifest<IProvider> = {
   // and the per-node provider chip. Neutral slate (this is the
   // vendor-agnostic open-standard Provider, not a brand). The reusable
   // open-standard pieces it owns use a `COMMONS_*` vocabulary internally;
-  // the user-facing label is the descriptive "Agent Skills". This is the
-  // single open lens shown in the selector when no vendor is active; the
+  // the user-facing label is the descriptive "Standard: Agent skills" (the
+  // `Standard:` prefix marks it as the vendor-neutral lens, distinct from
+  // the possessive `<Vendor>'s <product>` form the brand lenses use). This
+  // is the single open lens shown in the selector when no vendor is active; the
   // non-gated `core/markdown` base sits underneath it and is never offered
   // as a lens of its own.
   presentation: {
-    label: 'Agent Skills',
+    label: 'Standard: Agent skills',
     color: '#64748b',
     colorDark: '#94a3b8',
   },
@@ -163,7 +165,7 @@ export const agentSkillsProvider: IBuiltInManifest<IProvider> = {
   // OpenAI Codex (skills mirror the open standard), so `aka` surfaces both
   // names in the destination prompt to orient testers on those agents.
   // `aka` is display-only, `--for` still matches the `agent-skills` id.
-  scaffold: { skillDir: '.agents/skills', aka: ['Antigravity', 'OpenAI Codex'] },
+  scaffold: { skillDir: '.agents/skills', aka: ["Google's Antigravity", "OpenAI's Codex"] },
 
   read: COMMONS_READ,
 

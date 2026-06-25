@@ -48,7 +48,7 @@ export const openaiProvider: IBuiltInManifest<IProvider> = {
   // and the per-node provider chip. Codex green, distinct from the Claude
   // palette so the chip reads at a glance.
   presentation: {
-    label: 'OpenAI Codex',
+    label: "OpenAI's Codex",
     color: '#22c55e',
     colorDark: '#4ade80',
   },
