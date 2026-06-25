@@ -2,6 +2,68 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.66.0",
+      "date": "2026-06-25",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "The provider lens picker is simpler: one open \"Agent Skills\" lens (the default when no vendor like Claude or Codex is detected) replaces the old separate \"Markdown\" and \"Open Skills\" entries. Plain `.md` files are still mapped, same as before.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "OpenAI Codex projects now show their Agent Skills (`.agents/skills/<name>/SKILL.md`) on the map as skill nodes next to the Codex agents, and a slash invocation from an agent to a skill is drawn as a link.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "The provider lens names now read consistently: \"Anthropic's Claude\", \"OpenAI's Codex\", \"Google's Antigravity\", and \"Standard: Agent skills\". The change shows up in the lens dropdown, the topbar lens chip, and the per-node provider chips.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "The inspector's Body section now has a Raw / Rendered toggle: flip between the formatted Markdown and a read-only, syntax-highlighted source view (with line numbers) of a node's body, without leaving the panel.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Codex agents (`.codex/agents/*.toml`) now open in the inspector with a proper metadata section and a readable, Markdown-rendered body, instead of a wall of raw TOML.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "OpenAI Codex is now a built-in provider. Open a project with a `.codex/` folder and skill-map maps your Codex sub-agents plus the links inside their developer instructions, the same way it does for Claude. Pick it anytime from the provider lens.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**Frontmatter checks now follow each vendor's rules.** Plain Markdown files and Claude skills/commands without a `name` or `description` are no longer flagged, and Codex/Claude model fields accept current values like `xhigh` reasoning effort and the `fable` model alias.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "The OpenAI Codex provider id is now `codex` (was `openai`). If you set it by hand, use `codex` in `sm config set activeProvider` or `sm plugins enable`. The name shown in the app is unchanged.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.65.0",
       "date": "2026-06-25",
       "kind": "user-facing",
