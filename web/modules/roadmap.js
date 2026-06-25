@@ -219,7 +219,7 @@
       .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
   }
 
-  // --- Build the strip (5 segments) ---
+  // --- Build the strip (7 segments) ---
   const strip = document.createElement('div');
   strip.className = 'roadmap__strip';
 

@@ -46,6 +46,15 @@
     "url": "https://skill-map.ai",
     "license": "https://opensource.org/licenses/MIT",
     "author": {
+      "@type": "Person",
+      "name": "Crystian",
+      "url": "https://www.linkedin.com/in/crystian/",
+      "sameAs": [
+        "https://www.linkedin.com/in/crystian/",
+        "https://github.com/crystian"
+      ]
+    },
+    "publisher": {
       "@type": "Organization",
       "name": "Makersia",
       "url": "https://www.makersia.com"
@@ -188,7 +197,7 @@
           <div class="hero__graph-legend">
             <div><i style="background:#00C853"></i><span data-i18n="graph.legend.skill">Skill</span></div>
             <div><i style="background:#7C3AED"></i><span data-i18n="graph.legend.agent">Agent</span></div>
-            <div><i style="background:#A78BFA"></i><span data-i18n="graph.legend.hook">Hook</span></div>
+            <div><i style="background:#A78BFA"></i><span data-i18n="graph.legend.mcp">MCP</span></div>
             <div><i style="background:#8A93A1"></i><span data-i18n="graph.legend.markdown">Markdown</span></div>
             <div><i style="background:#4C1D95"></i><span data-i18n="graph.legend.command">Command</span></div>
             <div><i style="background:transparent;border:1px dashed #5A6472"></i><span data-i18n="graph.legend.orphan">Orphan</span></div>
@@ -209,8 +218,8 @@
               <line class="edge" data-from="deploy"    data-to="reviewer"   x1="460" y1="140" x2="340" y2="360"/>
               <line class="edge" data-from="deploy"    data-to="ship"       x1="460" y1="140" x2="580" y2="240"/>
               <line class="edge" data-from="deploy"    data-to="release"    x1="460" y1="140" x2="480" y2="340"/>
-              <line class="edge" data-from="reviewer"  data-to="pre-commit" x1="340" y1="360" x2="170" y2="320"/>
-              <line class="edge" data-from="reviewer"  data-to="post-merge" x1="340" y1="360" x2="220" y2="460"/>
+              <line class="edge" data-from="reviewer"  data-to="mcp-github" x1="340" y1="360" x2="170" y2="320"/>
+              <line class="edge" data-from="reviewer"  data-to="mcp-fs" x1="340" y1="360" x2="220" y2="460"/>
               <line class="edge" data-from="planner"   data-to="ship"       x1="700" y1="380" x2="580" y2="240"/>
               <line class="edge" data-from="planner"   data-to="fs-read"    x1="700" y1="380" x2="800" y2="240"/>
               <line class="edge" data-from="planner"   data-to="git-log"    x1="700" y1="380" x2="760" y2="130"/>
@@ -231,8 +240,8 @@
               <g class="node" data-id="release"    data-type="skill"   data-tokens="1,609" data-bytes="5.4 KB"  data-lastscan="295ms" transform="translate(480, 340)"><circle r="14" fill="#00C853" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="30" text-anchor="middle">release</text></g>
               <g class="node" data-id="reviewer"   data-type="agent"   data-tokens="2,134" data-bytes="8.4 KB"  data-lastscan="287ms" data-warn="warn.collision" transform="translate(340, 360)"><circle r="22" fill="#7C3AED" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="38" text-anchor="middle">reviewer</text></g>
               <g class="node" data-id="planner"    data-type="agent"   data-tokens="4,872" data-bytes="15.9 KB" data-lastscan="301ms" transform="translate(700, 380)"><circle r="20" fill="#7C3AED" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="36" text-anchor="middle">planner</text></g>
-              <g class="node" data-id="pre-commit" data-type="hook"    data-tokens="412"   data-bytes="1.3 KB"  data-lastscan="276ms" transform="translate(170, 320)"><circle r="12" fill="#A78BFA" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="28" text-anchor="middle">pre-commit</text></g>
-              <g class="node" data-id="post-merge" data-type="hook"    data-tokens="389"   data-bytes="1.2 KB"  data-lastscan="269ms" transform="translate(220, 460)"><circle r="12" fill="#A78BFA" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="28" text-anchor="middle">post-merge</text></g>
+              <g class="node" data-id="mcp-github" data-type="mcp"    data-tokens="412"   data-bytes="1.3 KB"  data-lastscan="276ms" transform="translate(170, 320)"><circle r="12" fill="#A78BFA" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="28" text-anchor="middle">mcp:github</text></g>
+              <g class="node" data-id="mcp-fs" data-type="mcp"    data-tokens="389"   data-bytes="1.2 KB"  data-lastscan="269ms" transform="translate(220, 460)"><circle r="12" fill="#A78BFA" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="28" text-anchor="middle">mcp:fs</text></g>
               <g class="node" data-id="fs-read"    data-type="command" data-tokens="217"   data-bytes="720 B"   data-lastscan="245ms" transform="translate(800, 240)"><circle r="14" fill="#4C1D95" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="30" text-anchor="middle">fs/read</text></g>
               <g class="node" data-id="git-log"    data-type="command" data-tokens="184"   data-bytes="612 B"   data-lastscan="241ms" transform="translate(760, 130)"><circle r="14" fill="#4C1D95" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="30" text-anchor="middle">git/log</text></g>
               <g class="node" data-id="legacy"     data-type="orphan"  data-tokens="987"   data-bytes="3.2 KB"  data-lastscan="14d"   data-warn="warn.orphan" transform="translate(100, 180)"><circle r="11" fill="transparent" stroke="#5A6472" stroke-width="1.5" stroke-dasharray="3 3"/><text class="node-label" y="27" text-anchor="middle">legacy.md</text></g>
@@ -277,7 +286,7 @@
           <div class="qterm__body">
             <span class="qterm__line"><span class="qterm__prompt" aria-hidden="true">$</span>npm i -g @skill-map/cli</span>
             <span class="qterm__line"><span class="qterm__prompt" aria-hidden="true">$</span>mkdir try-skill-map &amp;&amp; cd try-skill-map</span>
-            <span class="qterm__line"><span class="qterm__prompt" aria-hidden="true">$</span>sm tutorial<span class="qterm__cmt" data-i18n="qs.cmt.scaffold"># writes sm-tutorial.md</span></span>
+            <span class="qterm__line"><span class="qterm__prompt" aria-hidden="true">$</span>sm tutorial<span class="qterm__cmt" data-i18n="qs.cmt.scaffold"># installs the tutorial skill</span></span>
             <span class="qterm__line"><span class="qterm__prompt" aria-hidden="true">$</span>claude<span class="qterm__cmt" data-i18n="qs.cmt.open"># opens Claude Code here</span></span>
           </div>
         </div>
@@ -354,7 +363,7 @@
             <h3 class="feature__title" data-i18n="feat.modes.t">Deterministic &amp; probabilistic, side by side</h3>
             <span class="feature__tag">modes</span>
           </div>
-          <p class="feature__body" data-i18n="feat.modes.b">Static analysis runs in milliseconds; LLM analysis runs in jobs. Same plugin model, same context, same graph.</p>
+          <p class="feature__body" data-i18n="feat.modes.b">Static analysis runs in milliseconds; LLM analysis runs in jobs. One graph, analyzed from two angles.</p>
         </article>
 
         <article class="feature feature--violet">
@@ -384,7 +393,7 @@
           </div>
           <div>
             <h3 class="features-list__title" data-i18n="feat.xref.t">Cross-references</h3>
-            <p class="features-list__body" data-i18n="feat.xref.b">Every link between files: /slash invocations, @-mentions, imports, fetched URLs. The directory becomes a graph.</p>
+            <p class="features-list__body" data-i18n="feat.xref.b">Every link between files: /slash invocations, @-mentions, imports, URLs. The directory becomes a graph.</p>
           </div>
         </li>
 
@@ -399,7 +408,7 @@
           </div>
           <div>
             <h3 class="features-list__title" data-i18n="feat.broken.t">Broken refs</h3>
-            <p class="features-list__body" data-i18n="feat.broken.b">References pointing to triggers that don't exist. Caught at scan time, before the runtime drops the ball.</p>
+            <p class="features-list__body" data-i18n="feat.broken.b">References pointing to triggers that don't exist. You catch them at scan time, before the agent drops the ball.</p>
           </div>
         </li>
 
@@ -411,7 +420,7 @@
           </div>
           <div>
             <h3 class="features-list__title" data-i18n="feat.coll.t">Trigger collisions</h3>
-            <p class="features-list__body" data-i18n="feat.coll.b">Two skills claiming the same invocation? Flagged before the runtime picks the wrong one.</p>
+            <p class="features-list__body" data-i18n="feat.coll.b">Two skills claiming the same invocation? You catch it before the agent picks the wrong one.</p>
           </div>
         </li>
 
@@ -423,7 +432,7 @@
           </div>
           <div>
             <h3 class="features-list__title" data-i18n="feat.deps.t">External deps</h3>
-            <p class="features-list__body" data-i18n="feat.deps.b">Lists every URL and asset your workspace fetches. Audit your supply chain.</p>
+            <p class="features-list__body" data-i18n="feat.deps.b">Lists every external URL that appears in your workspace. Audit your supply chain.</p>
           </div>
         </li>
       </ul>
@@ -787,7 +796,7 @@ export default {
         <li class="howit-step">
           <div class="howit-step__num"><span>02</span></div>
           <h3 class="howit-step__title" data-i18n="how.s2.t">It spots the problems.</h3>
-          <p class="howit-step__body" data-i18n="how.s2.b">Trigger collisions, orphans, broken references, bloated skills, semantic duplicates. Static analysis runs locally in milliseconds; semantic checks (LLM) run when you want them.</p>
+          <p class="howit-step__body" data-i18n="how.s2.b">Bloated skills eating your tokens, trigger collisions, orphans, broken references, semantic duplicates. Static analysis runs locally in milliseconds; semantic checks (LLM) run when you want them.</p>
           <div class="howit-step__code"><span>7 issues</span><span>3 collisions · 2 orphans</span><span>2 broken refs</span></div>
         </li>
 
@@ -816,7 +825,7 @@ export default {
         <article class="case case--green">
           <div class="case__tag" data-i18n="cases.c1.tag">For authors</div>
           <h3 class="case__title" data-i18n="cases.c1.t">Optimize before you publish.</h3>
-          <p class="case__body" data-i18n="cases.c1.b">Skill, agent, or plain markdown: all your files live connected to the rest. skill-map shows duplicates, redundancies, and optimization opportunities before you publish.</p>
+          <p class="case__body" data-i18n="cases.c1.b">Skill, agent, or markdown: all your Markdown lives connected to the rest. skill-map shows duplicates, redundancies, and optimization opportunities before you publish.</p>
         </article>
 
         <article class="case case--violet">
@@ -945,7 +954,7 @@ export default {
         <div>
           <h2 class="roadmap__title">
             <span data-i18n="rm.title">Roadmap.</span><br>
-            <span class="roadmap__title-soft" data-i18n="rm.sub">A definition, three phases to 1.0, and what comes after.</span>
+            <span class="roadmap__title-soft" data-i18n="rm.sub">120+ decisions documented before the first commit. Six phases until 1.0. No shortcuts.</span>
           </h2>
         </div>
       </div>
@@ -989,7 +998,7 @@ export default {
           <ul>
             <li><a href="https://github.com/crystian/skill-map#readme" target="_blank" rel="noopener">README</a></li>
             <li><a href="https://github.com/crystian/skill-map/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
-            <li><a href="https://github.com/crystian/skill-map/blob/main/context/cli-reference.md" target="_blank" rel="noopener">CLI reference</a></li>
+            <li><a href="https://github.com/crystian/skill-map/blob/main/spec/cli-contract.md" target="_blank" rel="noopener">CLI contract</a></li>
             <li><a href="/spec/v0/">Spec browse</a></li>
           </ul>
         </div>

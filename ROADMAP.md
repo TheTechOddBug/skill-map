@@ -187,7 +187,7 @@ The full normative contract lives in [`spec/architecture.md`](./spec/architectur
 
 ## Visual roadmap
 
-Mirrors the interactive timeline on `skill-map.ai` (driven by `web/app.js` `PHASES`). Five phases (0 / A / B / C / D); 0 ships highlights, A/B/C ship numbered steps, D ships sketches.
+Mirrors the interactive timeline on `skill-map.ai` (driven by `web/modules/roadmap.js` `PHASES`). Seven segments (0 / A / B / C / D / E / F): six phases to 1.0 (0 through E), plus F beyond; 0 ships highlights, A/B/D/E ship numbered steps, C/F ship sketches.
 
 ```text
 ═══════════════════════════════════════════════════════════════════════════

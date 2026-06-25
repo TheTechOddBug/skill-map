@@ -96,7 +96,7 @@
   --node-skill:    #00C853;
   --node-agent:    #7C3AED;
   --node-command:  #4C1D95;
-  --node-hook:     #A78BFA;
+  --node-mcp:      #A78BFA;
   --node-note:     var(--ink-400);
   --node-orphan:   var(--ink-500);
 
@@ -104,7 +104,7 @@
   --skill-dark-bg:   #003D1C;  --skill-dark-fg:   #8FE8B3;
   --agent-dark-bg:   #4C1D95;  --agent-dark-fg:   #DDD6FE;
   --command-dark-bg: #2E1065;  --command-dark-fg: #C4B5FD;
-  --hook-dark-bg:    #5B21B6;  --hook-dark-fg:    #EDE9FE;
+  --mcp-dark-bg:     #5B21B6;  --mcp-dark-fg:     #EDE9FE;
 
   /* ---------- TYPOGRAPHY ---------- */
   --font-sans:    "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
