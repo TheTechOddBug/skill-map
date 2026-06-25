@@ -124,6 +124,15 @@ export interface IProviderRegistryEntry {
   isLens: boolean;
   /** Suppress the per-card chip (universal `markdown` base). */
   hideChip?: boolean;
+  /**
+   * Name of the parsed-frontmatter field that carries this Provider's node
+   * body, projected from `read.bodyField`. Present only for Providers whose
+   * prompt lives inside structured frontmatter (Codex sub-agents are pure
+   * TOML whose markdown prompt is `developer_instructions`). The UI renders
+   * that field as the node body and omits it from the metadata dump; absent
+   * for ordinary frontmatter-fence Providers.
+   */
+  bodyField?: string;
 }
 
 /**

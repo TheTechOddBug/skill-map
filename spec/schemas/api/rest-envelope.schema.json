@@ -178,6 +178,11 @@
           "hideChip": {
             "type": "boolean",
             "description": "When `true`, the UI suppresses this Provider's per-card chip (reserved for the universal `markdown` base). Combined with `isLens: false` the base appears on no lens surface at all."
+          },
+          "bodyField": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Name of the parsed-frontmatter field that carries this Provider's node body, projected from its `read.bodyField` (see `provider.schema.json`). Present only for Providers whose prompt lives inside structured frontmatter rather than after a fence (OpenAI Codex sub-agents are pure TOML whose markdown prompt is `developer_instructions`). The UI uses it to render that field as the node body and to omit it from the metadata dump; absent for ordinary frontmatter-fence Providers."
           }
         }
       }

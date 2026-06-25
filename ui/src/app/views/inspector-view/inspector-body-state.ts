@@ -14,7 +14,7 @@
  * not have to host the signals + effect + async method.
  */
 
-import { assertInInjectionContext, effect, signal, type Signal } from '@angular/core';
+import { assertInInjectionContext, effect, signal, untracked, type Signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import type { SafeHtml } from '@angular/platform-browser';
 import type { Observable } from 'rxjs';
@@ -39,6 +39,23 @@ export interface IBodyStateConfig {
    * why the body was the one card that did not update live.
    */
   scanCompleted$?: Observable<unknown>;
+  /**
+   * Optional source of an already-in-hand body string. When this signal
+   * returns a `string` (including `''`), the body is that markdown and is
+   * rendered directly, skipping the `getNode({ includeBody: true })` disk
+   * re-read entirely. When it returns `undefined`, the body is fetched on
+   * demand as before.
+   *
+   * This is how structured-frontmatter Providers (Codex sub-agents, whose
+   * markdown prompt lives in the TOML `developer_instructions` field, not
+   * after a frontmatter fence) render their effective body: the parsed
+   * field already ships in `node.frontmatter`, so the inspector hands it in
+   * here rather than asking the BFF, whose on-demand read would only strip a
+   * (non-existent) `---` fence and hand back the raw TOML. The signal is
+   * read untracked on a path change and re-read on each `scanCompleted$`
+   * refresh, mirroring the fetch path's loud-load / silent-refresh split.
+   */
+  inlineBody?: Signal<string | undefined>;
 }
 
 export interface IBodyStateHandle {
@@ -57,11 +74,32 @@ export interface IBodyStateHandle {
  */
 export function setupBodyState(config: IBodyStateConfig): IBodyStateHandle {
   assertInInjectionContext(setupBodyState);
-  const { path: pathSignal, dataSource, markdown } = config;
+  const { path: pathSignal, dataSource, markdown, inlineBody } = config;
 
   const bodyState = signal<TBodyState>('idle');
   const bodyHtml = signal<SafeHtml | null>(null);
   let fetchToken = 0;
+
+  /**
+   * Render an already-in-hand body string (the `inlineBody` path). Empty /
+   * whitespace-only resolves to `empty` (hidden section); otherwise renders
+   * the markdown. Never touches the network, so it doubles as the silent
+   * refresh for inline providers.
+   */
+  const renderInlineBody = async (body: string, token: number): Promise<void> => {
+    if (body.trim().length === 0) {
+      if (token === fetchToken) bodyState.set('empty');
+      return;
+    }
+    try {
+      const html = await markdown.render(body);
+      if (token !== fetchToken) return;
+      bodyHtml.set(html);
+      bodyState.set('ready');
+    } catch {
+      if (token === fetchToken) bodyState.set('error');
+    }
+  };
 
   const fetchAndRender = async (path: string, token: number): Promise<void> => {
     try {
@@ -101,7 +139,15 @@ export function setupBodyState(config: IBodyStateConfig): IBodyStateHandle {
       return;
     }
     bodyState.set('loading');
-    void fetchAndRender(path, myToken);
+    // Read `inlineBody` untracked so this effect re-runs on path change only,
+    // not on every content change, the `scanCompleted$` subscription owns the
+    // silent same-path refresh (matching the fetch path's contract).
+    const inline = untracked(() => inlineBody?.());
+    if (inline !== undefined) {
+      void renderInlineBody(inline, myToken);
+    } else {
+      void fetchAndRender(path, myToken);
+    }
   });
 
   // Reactive refresh: re-render the OPEN node's body when a watcher-driven
@@ -113,7 +159,17 @@ export function setupBodyState(config: IBodyStateConfig): IBodyStateHandle {
   // of the inspector.
   config.scanCompleted$?.pipe(takeUntilDestroyed()).subscribe(() => {
     const path = pathSignal();
-    if (path) void fetchAndRender(path, ++fetchToken);
+    if (!path) return;
+    // Same inline-vs-fetch split as the path-change effect, but silent (no
+    // `loading` flash, no `bodyHtml` reset). For an inline provider this
+    // re-reads the freshly-scanned `developer_instructions` from the node
+    // signal instead of re-fetching raw TOML from disk.
+    const inline = inlineBody?.();
+    if (inline !== undefined) {
+      void renderInlineBody(inline, ++fetchToken);
+    } else {
+      void fetchAndRender(path, ++fetchToken);
+    }
   });
 
   return {

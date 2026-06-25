@@ -4,9 +4,10 @@
  * `buildKindRegistry`).
  *
  * The registry mirrors `spec/schemas/api/rest-envelope.schema.json#/properties/providerRegistry`:
- * provider id → `{ label, color, colorDark?, emoji?, icon?, isLens, hideChip? }`,
+ * provider id → `{ label, color, colorDark?, emoji?, icon?, isLens, hideChip?, bodyField? }`,
  * projected from each Provider's `presentation` block plus its
- * `gatedByActiveLens` flag (as `isLens`).
+ * `gatedByActiveLens` flag (as `isLens`) and its `read.bodyField` (when set,
+ * for structured-frontmatter Providers like Codex).
  *
  * The UI consumes it to render the active-lens dropdown, the topbar lens
  * chip, and the per-node provider chip from the real registered-Provider
@@ -23,8 +24,23 @@
  * so this only guards against a malformed runtime object).
  */
 
-import type { IProvider } from '../kernel/extensions/index.js';
+import type { IProvider, IProviderUi } from '../kernel/extensions/index.js';
 import type { IProviderRegistryEntry, TProviderRegistry } from './envelope.js';
+
+/**
+ * Copy the presentation block's optional visuals (everything past the
+ * required `label` / `color`) without emitting `undefined` keys. Extracted
+ * so `buildProviderRegistry` keeps a low branch count as the optional-field
+ * set grows.
+ */
+function presentationOptionals(ui: IProviderUi): Partial<IProviderRegistryEntry> {
+  const out: Partial<IProviderRegistryEntry> = {};
+  if (ui.colorDark !== undefined) out.colorDark = ui.colorDark;
+  if (ui.emoji !== undefined) out.emoji = ui.emoji;
+  if (ui.icon !== undefined) out.icon = ui.icon;
+  if (ui.hideChip !== undefined) out.hideChip = ui.hideChip;
+  return out;
+}
 
 export function buildProviderRegistry(
   providers: ReadonlyArray<IProvider>,
@@ -39,11 +55,12 @@ export function buildProviderRegistry(
       // A Provider is a selectable lens iff it gates on the active lens;
       // the non-gated `markdown` base projects `isLens: false`.
       isLens: provider.gatedByActiveLens === true,
+      ...presentationOptionals(ui),
     };
-    if (ui.colorDark !== undefined) entry.colorDark = ui.colorDark;
-    if (ui.emoji !== undefined) entry.emoji = ui.emoji;
-    if (ui.icon !== undefined) entry.icon = ui.icon;
-    if (ui.hideChip !== undefined) entry.hideChip = ui.hideChip;
+    // Surface the Provider's body field (Codex's `developer_instructions`)
+    // so the UI can render it as the node body and exclude it from the
+    // metadata dump, without hardcoding any Provider id client-side.
+    if (provider.read?.bodyField !== undefined) entry.bodyField = provider.read.bodyField;
     registry[provider.id] = entry;
   }
   return registry;

@@ -5,7 +5,13 @@ import type { IProviderRegistryApi } from '../../models/api';
 
 const REGISTRY: IProviderRegistryApi = {
   claude: { label: 'Claude', color: '#cc785c', colorDark: '#e89270', isLens: true },
-  codex: { label: 'OpenAI Codex', color: '#22c55e', colorDark: '#4ade80', isLens: true },
+  codex: {
+    label: 'OpenAI Codex',
+    color: '#22c55e',
+    colorDark: '#4ade80',
+    isLens: true,
+    bodyField: 'developer_instructions',
+  },
   // The non-gated base: kept in the registry for chip lookups, `isLens:
   // false` so the dropdown (filtered elsewhere) never lists it.
   markdown: {
@@ -33,6 +39,17 @@ describe('ProviderRegistryService', () => {
     const svc = seed();
     expect(svc.lookup('claude')).toMatchObject({ id: 'claude', label: 'Claude' });
     expect(svc.lookup('nope')).toBeUndefined();
+  });
+
+  it('carries bodyField through ingest so the inspector can resolve the body field', () => {
+    const svc = seed();
+    expect(svc.lookup('codex')).toMatchObject({
+      id: 'codex',
+      bodyField: 'developer_instructions',
+    });
+    // A provider without a body field leaves it undefined (ordinary
+    // frontmatter-fence providers like claude / markdown).
+    expect(svc.lookup('claude')?.bodyField).toBeUndefined();
   });
 
   it('ingest is a no-op for null / undefined / structurally-equal payloads', () => {

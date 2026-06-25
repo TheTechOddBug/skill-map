@@ -16,6 +16,7 @@ import {
 import { SKILL_MAP_MODE } from '../../../../services/data-source/runtime-mode';
 import { MarkdownRenderer } from '../../../../services/markdown-renderer';
 import { CollectionLoaderService } from '../../../../services/collection-loader';
+import { ProviderRegistryService } from '../../../../services/provider-registry';
 import type { INodeView, ISidecarOverlay } from '../../../../models/node';
 import type { INodeDetailApi, INodeApi } from '../../../../models/api';
 
@@ -408,6 +409,90 @@ describe('InspectorView, body card lifecycle', () => {
     await flush(fixture);
 
     expect(dataSource.getNode).not.toHaveBeenCalled();
+  });
+});
+
+describe('InspectorView, codex / bodyField inline body', () => {
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+  });
+  afterEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  function makeCodexNode(developerInstructions: string | undefined): INodeView {
+    const frontmatter: Record<string, unknown> = {
+      name: 'architect',
+      description: 'd',
+      model: 'gpt-5-codex',
+      sandbox_mode: 'read-only',
+    };
+    if (developerInstructions !== undefined) {
+      frontmatter['developer_instructions'] = developerInstructions;
+    }
+    return makeNode({
+      path: '.codex/agents/architect.toml',
+      kind: 'agent',
+      provider: 'codex',
+      frontmatter: frontmatter as unknown as INodeView['frontmatter'],
+    });
+  }
+
+  /** Seed the provider registry with a codex entry declaring its bodyField. */
+  function seedCodexRegistry(): void {
+    TestBed.inject(ProviderRegistryService).ingest({
+      codex: {
+        label: 'OpenAI Codex',
+        color: '#22c55e',
+        isLens: true,
+        bodyField: 'developer_instructions',
+      },
+    });
+  }
+
+  it('renders developer_instructions as the body and never asks the BFF for the raw file', async () => {
+    const node = makeCodexNode('# Codex prompt\n\nbody from the TOML field');
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    // If the body card ever hit the disk-read path it would render this raw
+    // TOML stand-in; the inline path must win.
+    dataSource.getNode.mockResolvedValue(
+      makeDetail(makeApiNode({ provider: 'codex', body: 'RAW TOML never renders' })),
+    );
+
+    const { fixture } = bootstrap({ loader, dataSource });
+    seedCodexRegistry();
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+
+    const dom: HTMLElement = fixture.nativeElement;
+    const rendered = dom.querySelector('[data-testid="inspector-body-rendered"]');
+    expect(rendered).not.toBeNull();
+    expect(rendered!.innerHTML).toContain('# Codex prompt');
+    expect(rendered!.innerHTML).not.toContain('RAW TOML');
+    // The body card never requests the on-demand disk read for a bodyField
+    // provider (other panels may call getNode, but not with includeBody).
+    expect(dataSource.getNode).not.toHaveBeenCalledWith(node.path, { includeBody: true });
+  });
+
+  it('hides the body section for a codex node with an empty developer_instructions (no disk fallback)', async () => {
+    const node = makeCodexNode('');
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(
+      makeDetail(makeApiNode({ provider: 'codex', body: 'RAW TOML never renders' })),
+    );
+
+    const { fixture } = bootstrap({ loader, dataSource });
+    seedCodexRegistry();
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+
+    const dom: HTMLElement = fixture.nativeElement;
+    // Empty effective body -> the whole section is omitted, and we never
+    // fall back to the disk read (which would hand back raw TOML).
+    expect(dom.querySelector('[data-testid="inspector-card-body"]')).toBeNull();
+    expect(dataSource.getNode).not.toHaveBeenCalledWith(node.path, { includeBody: true });
   });
 });
 

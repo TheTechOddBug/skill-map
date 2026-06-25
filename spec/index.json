@@ -239,7 +239,7 @@
       "plugin-quickstart.md": "19092b278d80df357ea623dc3bd9f833d059582ee1356f317621913d91e50512",
       "prompt-preamble.md": "5d0f836688aa23eafc32104c3174132340b268361f6060326eec84da17c6ad6d",
       "schemas/annotations.schema.json": "09fcebc86e3b793bf9f03a35b38e5ca2a08d79ac3504f6f03895ac2ae1c2aded",
-      "schemas/api/rest-envelope.schema.json": "e990b8ffd826c92e014a0a5858d8ac4d464e437867d8a309bc6e95366937707e",
+      "schemas/api/rest-envelope.schema.json": "28b9155476dbeca18b51ba019deb5cfa687503574f8b1d691830c60746ede9d4",
       "schemas/bump-report.schema.json": "c763e1f89f2665c479d6a4985c1d324c65e5278331ebab82220287a07e4c4429",
       "schemas/conformance-case.schema.json": "958b316d646d0c64a715a7a28cee66d2c2d2498a60dbfc5ae8970687c2a96954",
       "schemas/conformance-result.schema.json": "14f983a8f4e62cd4ff964688c9b2b026a3bee3a0b762b64091c8c34db5b75777",

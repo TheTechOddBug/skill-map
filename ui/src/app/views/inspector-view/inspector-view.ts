@@ -23,6 +23,7 @@ import {
 import { MarkdownRenderer } from '../../../services/markdown-renderer';
 import { setupInlineMarkdown } from '../../../services/markdown-inline-signal';
 import { ActionDispatchService } from '../../../services/action-dispatch';
+import { ProviderRegistryService } from '../../../services/provider-registry';
 import {
   AnnotationsPanel,
   overlayHasAnnotationsContent,
@@ -83,6 +84,7 @@ export class InspectorView implements OnInit {
   private readonly markdown = inject(MarkdownRenderer);
   private readonly wsEvents = inject(WsEventStreamService);
   private readonly actionDispatch = inject(ActionDispatchService);
+  private readonly providerRegistry = inject(ProviderRegistryService);
 
   protected readonly texts = INSPECTOR_VIEW_TEXTS;
   /** Reused to format the sub-stat tooltips identically to the card. */
@@ -153,6 +155,34 @@ export class InspectorView implements OnInit {
   });
 
   /**
+   * The active node's Provider `bodyField`, if any (e.g. the codex
+   * Provider's `developer_instructions`). Resolved from the provider
+   * registry so no Provider id is hardcoded here: any Provider whose
+   * `read.bodyField` is set drives both the inline body rendering and the
+   * metadata exclusion below. `undefined` for ordinary frontmatter-fence
+   * Providers.
+   */
+  protected readonly bodyFieldForNode = computed<string | undefined>(
+    () => this.providerRegistry.lookup(this.node()?.provider ?? '')?.bodyField,
+  );
+
+  /**
+   * The effective body for a `bodyField` Provider: the named frontmatter
+   * field's string value (the parsed prompt already ships in
+   * `node.frontmatter`). `undefined` when the node's Provider declares no
+   * `bodyField`, which routes the body card back to its on-demand disk
+   * fetch. A `bodyField` Provider whose field is missing / non-string
+   * yields `''` (empty body, hidden section) rather than falling through to
+   * the fetch, which would hand back raw TOML for a TOML node.
+   */
+  private readonly inlineBody = computed<string | undefined>(() => {
+    const field = this.bodyFieldForNode();
+    if (field === undefined) return undefined;
+    const value = this.node()?.frontmatter?.[field];
+    return typeof value === 'string' ? value : '';
+  });
+
+  /**
    * Body card state machine, owned by `setupBodyState` helper. Field
    * initializers run in the component's injection context so the inner
    * `effect()` resolves cleanly without going through the constructor
@@ -165,6 +195,9 @@ export class InspectorView implements OnInit {
     markdown: this.markdown,
     // Keep the open node's body live when the watcher re-scans an edit.
     scanCompleted$: this.wsEvents.scanCompleted$,
+    // Structured-frontmatter Providers (codex `developer_instructions`)
+    // render their already-parsed body field directly, no disk re-read.
+    inlineBody: this.inlineBody,
   });
   protected readonly bodyState = this.bodyHandle.bodyState;
   protected readonly bodyHtml = this.bodyHandle.bodyHtml;
