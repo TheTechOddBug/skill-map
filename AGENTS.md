@@ -36,6 +36,7 @@ The hard rules for working in this repo, grouped by area. Each rule keeps a **bo
 ### Git & commits
 
 - **Never run `git push`**, pushing is manual.
+- **Work on `main` by default; never create a branch on your own initiative.** This repo's normal flow commits straight to `main`. Do NOT spin up a feature branch, a worktree, or a PR branch unprompted; this explicitly overrides the generic harness default of "branch first when on the default branch". Create a branch ONLY when the user asks for it in so many words (`creá un branch`, `hacelo en una rama`, `branch para X`, `armemos un PR`, or any equivalent imperative). Absent that explicit request, every commit lands on `main`. A vague "let's work on X" is NOT a branch request; when unsure, stay on `main` and ask.
 - **Never commit automatically**, completing work ≠ commit. Commit only when the user explicitly asks for it (`commit`, `commiteamos`, `armemos el commit`, `guardalo en git`, or any equivalent imperative). **Do not offer to commit unprompted**, not at the end of a task, not as a closing "next step", not as a question (`querés que commitee?`). Soft confirmations (`looks good`, `dale`, `perfecto`) are NOT commit triggers. If the user wants the change persisted, they will say so explicitly.
 
 ### Releases & changelogs
