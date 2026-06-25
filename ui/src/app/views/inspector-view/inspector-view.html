@@ -176,13 +176,52 @@
               <p class="inspector__body-status" data-testid="inspector-body-loading">{{ texts.body.loading }}</p>
             }
             @case ('ready') {
+              @let raw = bodyView() === 'raw';
               <!--
-                `[innerHTML]` is intentional: `bodyHtml()` is the SafeHtml
-                output of `MarkdownRenderer.render()`, which already runs
-                two sanitization layers (`markdown-it` with `html: false` +
-                DOMPurify) over project-controlled markdown bytes.
+                Raw / Rendered toggle. Lives inside the body content (not the
+                section header, which is itself a button) so it only paints
+                when the section is expanded. The label names the view it
+                switches TO.
               -->
-              <div class="inspector__body-rendered" data-testid="inspector-body-rendered" [innerHTML]="bodyHtml()"></div>
+              <div class="inspector__body-view">
+                <button
+                  type="button"
+                  class="inspector__body-view-toggle"
+                  data-testid="inspector-body-view-toggle"
+                  (click)="toggleBodyView()"
+                  [pTooltip]="raw ? texts.body.view.showRenderedTooltip : texts.body.view.showRawTooltip"
+                  [attr.aria-label]="raw ? texts.body.view.showRenderedTooltip : texts.body.view.showRawTooltip"
+                >
+                  <i
+                    class="pi"
+                    [class.pi-code]="!raw"
+                    [class.pi-eye]="raw"
+                    aria-hidden="true"
+                  ></i>
+                  <span>{{ raw ? texts.body.view.showRendered : texts.body.view.showRaw }}</span>
+                </button>
+              </div>
+              @if (raw) {
+                <!--
+                  Read-only Markdown "editor" view: a line-number gutter plus
+                  the source highlighted by highlight.js (`[innerHTML]` is the
+                  SafeHtml from `MarkdownRenderer.highlightSource`, sanitized
+                  by DOMPurify). Kept on single lines so the `<pre>` carries no
+                  stray leading whitespace.
+                -->
+                <div class="inspector__body-raw" data-testid="inspector-body-raw">
+                  <pre class="inspector__body-raw-gutter" aria-hidden="true">{{ rawLineNumbers() }}</pre>
+                  <pre class="inspector__body-raw-code"><code class="hljs language-markdown" data-testid="inspector-body-raw-code" [innerHTML]="rawHighlightedHtml()"></code></pre>
+                </div>
+              } @else {
+                <!--
+                  `[innerHTML]` is intentional: `bodyHtml()` is the SafeHtml
+                  output of `MarkdownRenderer.render()`, which already runs
+                  two sanitization layers (`markdown-it` with `html: false` +
+                  DOMPurify) over project-controlled markdown bytes.
+                -->
+                <div class="inspector__body-rendered" data-testid="inspector-body-rendered" [innerHTML]="bodyHtml()"></div>
+              }
             }
           }
         }

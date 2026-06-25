@@ -63,6 +63,13 @@ export interface IBodyStateHandle {
   readonly bodyState: Signal<TBodyState>;
   /** Sanitized HTML for the `ready` state. `null` otherwise. */
   readonly bodyHtml: Signal<SafeHtml | null>;
+  /**
+   * The raw body source (the markdown / `developer_instructions` string
+   * before rendering) for the `ready` state, `null` otherwise. Lets the
+   * inspector offer a Raw / Rendered toggle over the same content without a
+   * second fetch.
+   */
+  readonly bodyRaw: Signal<string | null>;
 }
 
 /**
@@ -78,6 +85,7 @@ export function setupBodyState(config: IBodyStateConfig): IBodyStateHandle {
 
   const bodyState = signal<TBodyState>('idle');
   const bodyHtml = signal<SafeHtml | null>(null);
+  const bodyRaw = signal<string | null>(null);
   let fetchToken = 0;
 
   /**
@@ -94,6 +102,7 @@ export function setupBodyState(config: IBodyStateConfig): IBodyStateHandle {
     try {
       const html = await markdown.render(body);
       if (token !== fetchToken) return;
+      bodyRaw.set(body);
       bodyHtml.set(html);
       bodyState.set('ready');
     } catch {
@@ -120,6 +129,7 @@ export function setupBodyState(config: IBodyStateConfig): IBodyStateHandle {
       }
       const html = await markdown.render(body);
       if (token !== fetchToken) return;
+      bodyRaw.set(body);
       bodyHtml.set(html);
       bodyState.set('ready');
     } catch {
@@ -134,6 +144,7 @@ export function setupBodyState(config: IBodyStateConfig): IBodyStateHandle {
     const path = pathSignal();
     const myToken = ++fetchToken;
     bodyHtml.set(null);
+    bodyRaw.set(null);
     if (!path) {
       bodyState.set('idle');
       return;
@@ -175,5 +186,6 @@ export function setupBodyState(config: IBodyStateConfig): IBodyStateHandle {
   return {
     bodyState: bodyState.asReadonly(),
     bodyHtml: bodyHtml.asReadonly(),
+    bodyRaw: bodyRaw.asReadonly(),
   };
 }
