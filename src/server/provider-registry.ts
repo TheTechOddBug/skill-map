@@ -42,6 +42,21 @@ function presentationOptionals(ui: IProviderUi): Partial<IProviderRegistryEntry>
   return out;
 }
 
+/**
+ * Resolve the Provider's body field from its `read` config, which is
+ * either a single rule or a multi-rule array. Returns the first rule's
+ * `bodyField` that is set (today only Codex's `.toml` rule carries one;
+ * its `.md` skills rule does not). `undefined` when no rule declares one.
+ */
+function resolveProviderBodyField(read: IProvider['read']): string | undefined {
+  if (read === undefined) return undefined;
+  const rules = Array.isArray(read) ? read : [read];
+  for (const rule of rules) {
+    if (rule.bodyField !== undefined) return rule.bodyField;
+  }
+  return undefined;
+}
+
 export function buildProviderRegistry(
   providers: ReadonlyArray<IProvider>,
 ): TProviderRegistry {
@@ -60,7 +75,8 @@ export function buildProviderRegistry(
     // Surface the Provider's body field (Codex's `developer_instructions`)
     // so the UI can render it as the node body and exclude it from the
     // metadata dump, without hardcoding any Provider id client-side.
-    if (provider.read?.bodyField !== undefined) entry.bodyField = provider.read.bodyField;
+    const bodyField = resolveProviderBodyField(provider.read);
+    if (bodyField !== undefined) entry.bodyField = bodyField;
     registry[provider.id] = entry;
   }
   return registry;

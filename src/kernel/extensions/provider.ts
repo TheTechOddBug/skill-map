@@ -381,19 +381,31 @@ export interface IProvider extends IExtensionBase {
    * applies the default `{ extensions: ['.md'], parser: 'frontmatter-yaml' }`
    * so the most common Provider shape needs zero configuration.
    *
+   * Either a SINGLE rule (the common case) or an ARRAY of rules. A
+   * Provider that reads several file families with different parsers
+   * declares an array, and `resolveProviderWalk` runs one walk pass per
+   * rule (each filtering by its own `extensions`). The codex provider
+   * uses this to read `.toml` sub-agents (`parser: 'toml'`,
+   * `bodyField: 'developer_instructions'`) AND `.md` open-standard skills
+   * (`parser: 'frontmatter-yaml'`) declaratively, without an escape-hatch
+   * `walk()`. Rules SHOULD use disjoint extensions; overlaps are
+   * tolerated because the orchestrator's first-wins `claimedPaths` dedup
+   * drops a path already claimed on an earlier pass.
+   *
    * Precedence: when both `walk()` (runtime field) and `read` are
    * declared, `walk()` wins, `read` is ignored. The escape-hatch
-   * relationship is intentional: most Providers should use `read`;
-   * Providers with non-standard discovery requirements (custom file
-   * naming, multi-pass walks, dynamic ignore logic) implement `walk()`
-   * directly and accept the duplication of audit-cleared defences.
+   * relationship is intentional: most Providers should use `read` (single
+   * or multi-rule); Providers with genuinely non-standard discovery
+   * requirements (custom file naming, dynamic ignore logic) implement
+   * `walk()` directly and accept the duplication of audit-cleared defences.
    *
    * Built-in parsers: `'frontmatter-yaml'` (markdown with `--- … ---`
    * YAML frontmatter; pollution-strip + JSON_SCHEMA-pinned), `'plain'`
-   * (entire body, empty frontmatter). The set is closed; user plugins
-   * cannot register their own.
+   * (entire body, empty frontmatter), `'toml'` (whole-file TOML as
+   * structured frontmatter). The set is closed; user plugins cannot
+   * register their own.
    */
-  read?: IProviderReadConfig;
+  read?: IProviderReadConfig | IProviderReadConfig[];
 
   /**
    * Walk the given roots and yield every node the Provider recognises.
@@ -669,7 +681,11 @@ const DEFAULT_READ_CONFIG: IProviderReadConfig = Object.freeze({
  *      Escape hatch for Providers with non-standard discovery logic.
  *   2. Else, use `provider.read` (declarative config), or the default
  *      `{ extensions: ['.md'], parser: 'frontmatter-yaml' }` when
- *      `read` is also absent, and route through the kernel walker.
+ *      `read` is also absent, and route through the kernel walker. A
+ *      multi-rule `read` array runs one `walkContent` pass per rule
+ *      (each filtering by its own `extensions`); the rules are yielded
+ *      in declaration order and the orchestrator's `claimedPaths` dedup
+ *      keeps a path that two rules happen to match from double-emitting.
  *
  * Defaulting at the call site (rather than at manifest-load) keeps the
  * AJV-validated manifest equal to what the plugin author wrote, `read`
@@ -692,7 +708,12 @@ export function resolveProviderWalk(
     return walk;
   }
   const read = provider.read ?? DEFAULT_READ_CONFIG;
-  return (roots, options) => walkContent(roots, buildWalkContentOptions(read, options));
+  const rules = Array.isArray(read) ? read : [read];
+  return async function* walkRules(roots, options): AsyncIterable<IRawNode> {
+    for (const rule of rules) {
+      yield* walkContent(roots, buildWalkContentOptions(rule, options));
+    }
+  };
 }
 
 /**

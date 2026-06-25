@@ -12,10 +12,12 @@
  *
  * Scan once per lens and assert the resulting nodes. `agent-skills` is
  * `gatedByActiveLens` (and stable, the locked open default lens), so the
- * open-standard `SKILL.md` is classified as a `skill` ONLY under the
- * `agent-skills` lens; under a vendor lens it falls through to the
- * universal `core/markdown` base. `core/markdown` is the only non-gated
- * base provider.
+ * open-standard `SKILL.md` classifies as a `skill` under `agent-skills`
+ * AND under any vendor lens that COMPOSES the open-standard classifier
+ * (today `codex`, which reads its skills from `.agents/skills/`). Under a
+ * vendor lens that does NOT compose it (`claude`), the file falls through
+ * to the universal `core/markdown` base. `core/markdown` is the only
+ * non-gated base provider.
  *
  *   Under `activeProvider = 'claude'`:
  *     foo.md           -> claude/agent           (vendor active)
@@ -26,7 +28,7 @@
  *   Under `activeProvider = 'codex'`:
  *     foo.md           -> markdown/markdown      (claude gated off; fallback)
  *     bar.toml         -> codex/agent           (vendor active)
- *     baz/SKILL.md     -> markdown/markdown      (agent-skills gated off)
+ *     baz/SKILL.md     -> codex/skill           (codex composes the open standard)
  *     random.md        -> markdown/markdown      (universal fallback)
  *
  *   Under `activeProvider = 'agent-skills'`:
@@ -153,13 +155,15 @@ describe('lens-gated classification (integration)', () => {
       { provider: 'markdown', kind: 'markdown' },
     );
 
-    // SKILL.md: agent-skills is gated off under the codex lens too, so
-    // the file falls through to the universal core/markdown fallback.
+    // SKILL.md: the codex provider composes the open-standard `.agents/skills/`
+    // classifier (Codex reads its skills from that layout), so under the codex
+    // lens the file is claimed as codex/skill, NOT the markdown fallback.
+    // `agent-skills` itself stays gated off; codex owns the path here.
     const baz = nodes.find((n) => n.path === '.agents/skills/baz/SKILL.md');
-    ok(baz, 'open-standard SKILL.md must classify under the markdown fallback when agent-skills is gated off');
+    ok(baz, 'open-standard SKILL.md must classify as codex/skill under the codex lens');
     deepStrictEqual(
       { provider: baz!.provider, kind: baz!.kind },
-      { provider: 'markdown', kind: 'markdown' },
+      { provider: 'codex', kind: 'skill' },
     );
 
     // notes/random.md still falls through to the universal markdown fallback.

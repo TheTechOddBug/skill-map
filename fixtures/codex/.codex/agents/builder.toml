@@ -7,5 +7,6 @@ developer_instructions = """
 Implement what @architect designed. Keep each change small and follow
 [the testing guide](../../docs/testing.md) as you go.
 
-When the build is green and the tests pass, hand off to @reviewer.
+Run /run-tests before the handoff. When the build is green and the tests
+pass, hand off to @reviewer.
 """

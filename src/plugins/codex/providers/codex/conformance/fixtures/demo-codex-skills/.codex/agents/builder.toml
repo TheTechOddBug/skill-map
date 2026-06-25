@@ -1,0 +1,7 @@
+name = "builder"
+description = "Implements features and runs the suite before review."
+model = "gpt-5-codex"
+sandbox_mode = "workspace-write"
+developer_instructions = """
+Implement the change, then run /run-tests before handing off.
+"""

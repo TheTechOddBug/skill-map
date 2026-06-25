@@ -77,10 +77,17 @@ Thumbs.db
 # `.codex/` (OpenAI Codex's directory) is ignored everywhere by default:
 # the repo itself may carry one we don't want tracked. The codex dev
 # fixture is the deliberate exception, its `.codex/agents/*.toml` sub-agents
-# ARE the fixture, so re-include that subtree.
+# ARE the fixture, so re-include that subtree. Conformance fixtures
+# (spec-owned and built-in-Provider-owned) ship the same `.codex/` source
+# subtree, mirror the `.skill-map/` negation above so those fixtures are
+# tracked too.
 .codex
 !fixtures/codex/.codex/
 !fixtures/codex/.codex/**
+!spec/conformance/fixtures/**/.codex/
+!spec/conformance/fixtures/**/.codex/**
+!src/plugins/**/conformance/fixtures/**/.codex/
+!src/plugins/**/conformance/fixtures/**/.codex/**
 
 # Claude Code / sandbox dotfile mounts. The sandbox virtualises certain
 # host dotfiles as /dev/null character devices in the repo root so the

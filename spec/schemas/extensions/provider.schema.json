@@ -133,15 +133,29 @@
       }
     },
     "read": {
+      "description": "Declarative file-discovery config consumed by the kernel walker. Either a SINGLE rule (the common case) or an ARRAY of rules (a Provider that reads several file families, each with its own parser). For each rule the kernel walks every root, includes files whose extension matches the rule's `extensions`, parses each with the rule's `parser`, and yields raw nodes the orchestrator consumes; an array runs one walk pass per rule. When absent, the kernel applies the default `{ extensions: ['.md'], parser: 'frontmatter-yaml' }` so the most common Provider shape needs no configuration. When a Provider also declares the runtime `walk()` method (TypeScript-only, never appears in this manifest), `walk()` wins and `read` is ignored: the runtime field is the escape hatch for Providers with non-standard discovery requirements. The multi-rule array is the declarative path for a mixed-format Provider, so an escape-hatch `walk()` is not needed: the OpenAI Codex provider reads `.toml` sub-agents (parser `toml`, `bodyField: 'developer_instructions'`) AND `.md` open-standard skills (parser `frontmatter-yaml`) as two rules. Rules SHOULD declare disjoint `extensions`; if two rules (or a rule and another Provider) match the same path, the orchestrator's first-wins claim dedups it. Built-in parsers ship with the kernel (`frontmatter-yaml`, `plain`, `toml`); the set is closed by design and user plugins cannot register their own.",
+      "oneOf": [
+        { "$ref": "#/$defs/providerReadRule" },
+        {
+          "type": "array",
+          "minItems": 1,
+          "description": "Multiple read rules, one walk pass each (see `#/$defs/providerReadRule`).",
+          "items": { "$ref": "#/$defs/providerReadRule" }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "providerReadRule": {
       "type": "object",
       "required": ["extensions", "parser"],
       "additionalProperties": false,
-      "description": "Declarative file-discovery config consumed by the kernel walker. When present, the kernel walks every root, includes files whose extension matches `extensions`, parses each with the parser registered as `parser`, and yields raw nodes the orchestrator consumes. When absent, the kernel applies the default `{ extensions: ['.md'], parser: 'frontmatter-yaml' }` so the most common Provider shape needs no configuration. When a Provider also declares the runtime `walk()` method (TypeScript-only, never appears in this manifest), `walk()` wins and `read` is ignored: the runtime field is the escape hatch for Providers with non-standard discovery requirements. Built-in parsers ship with the kernel (`frontmatter-yaml`, `plain`); the set is closed by design and user plugins cannot register their own.",
+      "description": "One declarative read rule: an extension set, the parser to apply to those files, and an optional `bodyField`. A Provider's `read` is either one of these or an array of them.",
       "properties": {
         "extensions": {
           "type": "array",
           "minItems": 1,
-          "description": "File extensions the walker yields. Strings include the leading dot. Lowercase-only by convention, match is case-sensitive and Providers MUST list every casing they want recognised.",
+          "description": "File extensions the walker yields for this rule. Strings include the leading dot. Lowercase-only by convention, match is case-sensitive and Providers MUST list every casing they want recognised.",
           "items": {
             "type": "string",
             "pattern": "^\\.[a-z0-9]+$"
@@ -150,7 +164,7 @@
         "parser": {
           "type": "string",
           "minLength": 1,
-          "description": "Identifier of a parser registered in the kernel-internal registry. Built-ins: `frontmatter-yaml` (markdown with `--- … ---` YAML frontmatter, prototype-pollution-safe, `js-yaml` JSON_SCHEMA-pinned), `plain` (entire body, empty frontmatter, for files carrying no frontmatter convention; the Provider derives `name` from the path inside `classify()`). Unknown ids surface as `UnknownParserError` from the walker; the orchestrator translates the error into a Provider issue with status `invalid-manifest`."
+          "description": "Identifier of a parser registered in the kernel-internal registry. Built-ins: `frontmatter-yaml` (markdown with `--- … ---` YAML frontmatter, prototype-pollution-safe, `js-yaml` JSON_SCHEMA-pinned), `plain` (entire body, empty frontmatter, for files carrying no frontmatter convention; the Provider derives `name` from the path inside `classify()`), `toml` (whole-file TOML parsed as structured frontmatter, e.g. Codex `.codex/agents/*.toml`). Unknown ids surface as `UnknownParserError` from the walker; the orchestrator translates the error into a Provider issue with status `invalid-manifest`."
         },
         "bodyField": {
           "type": "string",

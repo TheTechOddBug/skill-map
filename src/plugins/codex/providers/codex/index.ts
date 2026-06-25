@@ -1,48 +1,57 @@
 /**
- * Built-in `codex` Provider. Phase 6 of the active-lens migration:
- * onboards OpenAI Codex CLI conventions into skill-map.
+ * Built-in `codex` Provider. Onboards OpenAI Codex CLI conventions into
+ * skill-map under the `codex` active lens.
  *
- * MVP scope (this revision):
+ * Two on-disk families, read declaratively via a multi-rule `read` (one
+ * `walkContent` pass per rule, no `walk()` escape hatch):
  *
- *   - Classifies `.codex/agents/<name>.toml` as `kind: agent`. The TOML
- *     parser (registered in `kernel/scan/parsers/index.ts`) reads the
- *     entire file as structured frontmatter; `body` is empty (Codex
- *     sub-agent definitions are pure TOML, no markdown body).
- *   - Provider-level UI metadata for the `agent` kind so the grafo
- *     renders Codex sub-agents with their own colour / icon.
+ *   - `.codex/agents/<name>.toml` → `kind: agent`. The whole file is
+ *     structured TOML frontmatter (`parser: 'toml'`); the markdown prompt
+ *     lives in the triple-quoted `developer_instructions` field, surfaced
+ *     as the node body via `read.bodyField` so the universal body
+ *     extractors (markdown-link, backtick-path, external-url) plus the
+ *     lens-gated `@`-directive / `/`-command run over it.
+ *   - `.agents/skills/<name>/SKILL.md` → `kind: skill`. Codex adopted the
+ *     OPEN `.agents/skills/` standard for skills (per
+ *     https://developers.openai.com/codex/skills Codex scans
+ *     `.agents/skills` from the CWD up to the repo root), the same on-disk
+ *     home the neutral `agent-skills` Provider owns. We reuse its
+ *     open-standard pieces (`COMMONS_READ` / `COMMONS_KINDS` /
+ *     `COMMONS_RESOLUTION` / `COMMONS_RESERVED_NAMES` /
+ *     `classifyCommonsPath`) by manifest composition, so under the `codex`
+ *     lens those skills classify as `{ provider: 'codex', kind: 'skill' }`
+ *     and the reserved-name catalog applies via SELF scope. `agent-skills`
+ *     is itself gated to its own lens, so it never competes here. This is
+ *     the same composition pattern `antigravity` uses; codex differs only
+ *     in ALSO carrying the TOML agent rule (hence the multi-rule `read`).
+ *     NOTE: this is the open `.agents/skills/`, NOT a proprietary
+ *     `.codex/skills/` (Codex's official docs document only the open
+ *     layout).
  *
- * Out of scope for this revision (Phase 6b, future work):
- *
- *   - Hierarchical AGENTS.md walker (Codex's instruction file
- *     cascade: project root → subdir → CWD, with optional
- *     `AGENTS.override.md` shadows per level). Lands together with a
- *     dedicated kernel surface for layered-instruction nodes; today
- *     plain AGENTS.md falls through to the universal `core/markdown`
- *     fallback.
- *   - `.codex/skills/<name>/SKILL.md` walking (Codex skills mirror
- *     the open standard; will land when the cross-provider
- *     skill-folder convention is formalised in the agent-skills
- *     provider).
- *   - `~/.codex/config.toml` / `<cwd>/.codex/config.toml` reading
- *     (Phase 5b MCP config-side discovery).
- *
- * The provider uses declarative `read` (no `walk()` escape hatch) so
- * the kernel's universal walker handles symlink / TOCTOU / sandboxing
- * uniformly with the other built-in providers. Only `.toml` is read
- * here; `AGENTS.md` and other markdown stays the universal markdown
- * fallback's responsibility for now.
+ * Codex's proprietary `.codex/` territory beyond `.codex/agents/` (e.g.
+ * `config.toml`, `hooks.json`) stays disclaimed for now; the hierarchical
+ * AGENTS.md walker is the remaining deferred piece (the other half of the
+ * former Phase 6b). Today plain AGENTS.md falls through to the universal
+ * `core/markdown` fallback.
  */
 
 import type { IBuiltInManifest, IProvider } from '../../../../kernel/extensions/index.js';
-import type { NodeKind } from '../../../../kernel/types.js';
 import agentSchema from './schemas/agent.schema.json' with { type: 'json' };
 import { OPENAI_PLUGIN_ID } from '../../../ids.js';
+import {
+  COMMONS_READ,
+  COMMONS_KINDS,
+  COMMONS_RESOLUTION,
+  COMMONS_RESERVED_NAMES,
+  classifyCommonsPath,
+} from '../../../agent-skills/providers/agent-skills/index.js';
 
 export const codexProvider: IBuiltInManifest<IProvider> = {
   id: 'codex',
   pluginId: OPENAI_PLUGIN_ID,
   kind: 'provider',
-  description: 'Classifies files under `.codex/agents/*.toml` as OpenAI Codex CLI sub-agents.',
+  description:
+    'Classifies `.codex/agents/*.toml` as OpenAI Codex CLI sub-agents and `.agents/skills/*/SKILL.md` as Codex skills (open standard).',
 
   // Provider identity for the active-lens dropdown, the topbar lens chip,
   // and the per-node provider chip. Codex green, distinct from the Claude
@@ -58,15 +67,18 @@ export const codexProvider: IBuiltInManifest<IProvider> = {
   // standard (present in many non-Codex repos, and commonly alongside a
   // `.claude/` directory), so keying auto-detect off it would mis-route a
   // plain-markdown repo to the Codex lens and force an ambiguous prompt on
-  // any project that carries both. A genuine Codex project is identified by
-  // `.codex/`. Provider-owned (replaces the old central detection table in
-  // `src/core/config/active-provider.ts`).
+  // any project that carries both. `.agents/` is likewise NOT a marker: it
+  // is the vendor-neutral open standard (owned by `agent-skills` for
+  // auto-detect), so a project that only carries `.agents/skills/` is an
+  // open-standard project, not necessarily a Codex one. A genuine Codex
+  // project is identified by `.codex/`.
   detect: { markers: ['.codex'] },
 
-  // Vendor provider: Codex CLI only reads its own `.codex/` territory.
-  // Gating the classifier behind the active lens keeps the walker from
-  // claiming Codex agents under a `claude` (or any other) lens, where
-  // the Codex runtime would never resolve them anyway.
+  // Vendor provider: Codex CLI only reads its own territory (its `.codex/`
+  // agents plus the open `.agents/skills/` skills it adopted). Gating the
+  // classifier behind the active lens keeps the walker from claiming Codex
+  // agents under a `claude` (or any other) lens, where the Codex runtime
+  // would never resolve them anyway.
   gatedByActiveLens: true,
 
   // Beta: ships enabled by default (auto-detects `.codex/`, selectable as
@@ -75,16 +87,19 @@ export const codexProvider: IBuiltInManifest<IProvider> = {
   // real-world mileage.
   stability: 'beta',
 
-  // The Codex sub-agent's markdown prompt lives in the TOML
-  // triple-quoted `developer_instructions` field, not after a frontmatter
-  // fence (the whole file is structured frontmatter). This is the field
-  // name the Codex CLI itself reads; it rejects an agent role file that
-  // omits it, and our agent schema marks it `required` to surface the same
-  // gap. `bodyField` tells the kernel walker to feed that string as the
-  // node body, so the universal body extractors (markdown-link,
-  // backtick-path, external-url) plus the lens-gated at-directive / slash
-  // run over the prompt and surface the Codex agent's references in the graph.
-  read: { extensions: ['.toml'], parser: 'toml', bodyField: 'developer_instructions' },
+  // Multi-rule read: `.toml` sub-agents and `.md` open-standard skills,
+  // each with its own parser. `resolveProviderWalk` runs one walk pass per
+  // rule; the extensions are disjoint.
+  //   1. Codex sub-agents are pure TOML (`parser: 'toml'`); the markdown
+  //      prompt is the triple-quoted `developer_instructions` field, fed
+  //      to the body pipeline via `bodyField` so the universal body
+  //      extractors plus the lens-gated at-directive / slash run over it.
+  //   2. Skills reuse the open-standard `agent-skills` read config
+  //      (`COMMONS_READ`: `.md` + `frontmatter-yaml`).
+  read: [
+    { extensions: ['.toml'], parser: 'toml', bodyField: 'developer_instructions' },
+    COMMONS_READ,
+  ],
 
   kinds: {
     agent: {
@@ -103,22 +118,37 @@ export const codexProvider: IBuiltInManifest<IProvider> = {
       // explicitly.
       identifiers: ['frontmatter.name', 'filename-basename'],
     },
+    // Open-standard `skill` kind, inherited from `agent-skills` by manifest
+    // composition (same schema + UI every standard adopter shares).
+    // `.agents/skills/<name>/SKILL.md` resolves by dirname or
+    // `frontmatter.name`.
+    ...COMMONS_KINDS,
   },
 
-  // Codex's invocation surface is mention-style today (`@<name>`); slash
-  // invocation and skill nodes land in Phase 6b. Empty `invokes` keeps
-  // the contract narrow until skills arrive.
+  // Mentions resolve to agents (`@<name>`, the Codex sub-agent handle).
+  // Slash invocations resolve to skills (`invokes: ['skill']`, inherited
+  // from the open standard), so a `/skill-name` in an agent's prompt links
+  // to its `.agents/skills/` skill.
   resolution: {
     mentions: ['agent'],
+    ...COMMONS_RESOLUTION,
   },
 
-  classify(path: string): NodeKind | null {
+  // Open-standard reserved-name base (the universal cross-agent slash
+  // verbs an agent CLI ships built-in), inherited from `agent-skills` and
+  // applied under the codex lens via SELF scope: a user skill that shadows
+  // one is flagged by `core/name-reserved`.
+  reservedNames: COMMONS_RESERVED_NAMES,
+
+  classify(path: string): string | null {
     const lower = path.toLowerCase();
     // Strict prefix match. Codex sub-agents live under `.codex/agents/`
     // verbatim; anything else under `.codex/` (e.g. `config.toml`,
     // `hooks.json`) is intentionally disclaimed for now and will be
-    // claimed by the future Phase 6b config readers.
+    // claimed by the future AGENTS.md / config readers.
     if (lower.startsWith('.codex/agents/') && lower.endsWith('.toml')) return 'agent';
-    return null;
+    // Open-standard skills: `.agents/skills/<name>/SKILL.md` (one folder
+    // level), reusing the shared classifier. Everything else → `null`.
+    return classifyCommonsPath(path);
   },
 };

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "id": "skills-scan",
+  "description": "Codex classifies the open-standard `.agents/skills/<name>/SKILL.md` as `codex`/`skill` alongside its `.codex/agents/*.toml` sub-agents, via manifest composition of the `agent-skills` open-standard pieces over a multi-rule `read` (TOML agents + Markdown skills). The fixture carries BOTH a `.codex/` and a `.agents/` marker, so the lens is pinned to `codex` in `.skill-map/settings.json` (no auto-detect ambiguity). Three nodes (one agent, one skill, AGENTS.md via the `core/markdown` fallback) and no issues: codex claims the skill path so `core/markdown` disclaims it, no `provider-ambiguous`. Two resolved links exercise the resolution matrix end to end: the agent's `/run-tests` resolves to the skill (`invokes` -> `skill`) and the skill's `@builder` resolves to the agent (`mentions` -> `agent`).",
+  "fixture": "demo-codex-skills",
+  "invoke": {
+    "verb": "scan",
+    "flags": ["--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "json-path", "path": "$.stats.nodesCount", "equals": 3 },
+    { "type": "json-path", "path": "$.stats.issuesCount", "equals": 0 },
+    { "type": "json-path", "path": "$.stats.linksCount", "equals": 2 }
+  ]
+}
