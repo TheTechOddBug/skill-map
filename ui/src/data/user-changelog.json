@@ -2,6 +2,27 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.64.0",
+      "date": "2026-06-25",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "Run `sm` in an empty folder and it now asks how you want to start: a guided tutorial, or a ready-made example project to explore. Pick one and it sets it up for you.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "New `sm example` command: run it in an empty folder to drop a small ready-made project, then `sm scan` and `sm serve` to explore it as a live graph. The fastest way to try skill-map without setting up your own files first.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.63.0",
       "date": "2026-06-24",
       "kind": "user-facing",
