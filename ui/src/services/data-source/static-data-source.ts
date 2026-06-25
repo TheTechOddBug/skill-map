@@ -222,9 +222,10 @@ export class StaticDataSource implements IDataSourcePort {
    * its path equals a prefix verbatim or starts with `<prefix>/`); an
    * empty array = the whole corpus. Stable path order, capped at `limit`
    * (or the whole union when absent, the demo corpus is small enough
-   * that no scan cap is recorded), then keeps only links whose endpoints
-   * are both in the slice and issues touching the slice, mirroring the
-   * live `/api/branch` SQL scoping.
+   * that no scan cap is recorded), then keeps only links whose source AND
+   * resolved endpoint (`resolvedTarget`, else the raw `target` for
+   * path-style links) are both in the slice, and issues touching the
+   * slice, mirroring the live `/api/branch` SQL scoping.
    */
   async loadBranch(paths: string[] = [], limit?: number): Promise<IBranchResponseApi> {
     const scan = await this.loadScan();
@@ -239,7 +240,14 @@ export class StaticDataSource implements IDataSourcePort {
     const cap = limit !== undefined && limit > 0 ? limit : total;
     const nodes = branchNodes.slice(0, cap);
     const inSlice = new Set(nodes.map((n) => n.path));
-    const links = scan.links.filter((l) => inSlice.has(l.source) && inSlice.has(l.target));
+    // Scope on the RESOLVED endpoint: a trigger-style link (mentions /
+    // invokes) carries the raw trigger in `target` (`@agent`, `/cmd`) and
+    // the real node path in `resolvedTarget`. Filtering on the raw `target`
+    // dropped every resolved trigger edge from the demo map. Mirrors the
+    // live SQL `loadBranch` projection (see `storage.ts` IBranchProjection).
+    const links = scan.links.filter(
+      (l) => inSlice.has(l.source) && inSlice.has(l.resolvedTarget ?? l.target),
+    );
     const issues = scan.issues.filter((i) => i.nodeIds.some((id) => inSlice.has(id)));
     return {
       schemaVersion: '1',

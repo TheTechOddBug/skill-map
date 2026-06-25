@@ -200,6 +200,35 @@ describe('StaticDataSource', () => {
     });
   });
 
+  it('loadBranch() keeps trigger edges scoped by resolvedTarget, not the raw trigger', async () => {
+    // A mentions/invokes link carries the trigger in `target` (`@c`) and
+    // the node path in `resolvedTarget` (`c.md`). The branch projection
+    // must scope on the resolved endpoint, or the edge is dropped.
+    const scanWithTrigger = {
+      ...SCAN_FIXTURE,
+      links: [
+        {
+          source: 'b.md',
+          target: '@c',
+          kind: 'mentions',
+          confidence: 'high',
+          sources: ['at-directive'],
+          resolvedTarget: 'c.md',
+        },
+      ],
+    };
+    const dsT = new StaticDataSource(
+      makeFetch({ 'data.meta.json': META_FIXTURE, 'data.json': scanWithTrigger }),
+      makeFakeRegistry(),
+      makeFakeProviderRegistry(),
+      makeFakeContributionsRegistry(),
+    );
+    const branch = await dsT.loadBranch([]);
+    expect(branch.links).toHaveLength(1);
+    expect(branch.links[0]!.target).toBe('@c');
+    expect(branch.links[0]!.resolvedTarget).toBe('c.md');
+  });
+
   it('loadScan() returns the full ScanResult from data.json', async () => {
     await expect(ds.loadScan()).resolves.toEqual(SCAN_FIXTURE);
   });
