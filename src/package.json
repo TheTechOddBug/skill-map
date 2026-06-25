@@ -1,6 +1,6 @@
 {
   "name": "@skill-map/cli",
-  "version": "0.63.0",
+  "version": "0.64.0",
   "description": "skill-map reference implementation — kernel + CLI + adapters.",
   "license": "MIT",
   "type": "module",
