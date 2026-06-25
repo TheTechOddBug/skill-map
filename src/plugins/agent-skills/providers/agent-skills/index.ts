@@ -69,6 +69,42 @@ export const OPEN_SKILLS_KINDS: Record<string, IProviderKind> = {
 export const OPEN_SKILLS_RESOLUTION: Record<string, string[]> = { invokes: ['skill'] };
 
 /**
+ * Base reserved-name catalog for the open standard, owned here and
+ * inherited by every Provider that adopts the `.agents/skills/` layout
+ * (manifest composition, same pattern as the `OPEN_SKILLS_*` pieces above,
+ * not a kernel rule). These are the slash commands an agent CLI ships
+ * built-in regardless of vendor (the cross-vendor common subset, present
+ * in both Claude's and Antigravity's catalogs), so a user skill that
+ * shadows one is flagged by `core/name-reserved` under ANY lens that uses
+ * the open standard, including the neutral Commons lens itself. Vendor
+ * Providers spread this and append their OWN runtime-specific verbs (e.g.
+ * Antigravity adds `goal`, `grill-me`, ...); the neutral standard never
+ * carries vendor verbs. Authored lowercase, no leading `/` (the analyzer
+ * normalises both sides). Declared under `skill`, the only open-standard
+ * kind.
+ */
+export const OPEN_SKILLS_RESERVED_NAMES: Record<string, readonly string[]> = {
+  skill: [
+    'add-dir',
+    'agents',
+    'clear',
+    'config',
+    'exit',
+    'feedback',
+    'help',
+    'hooks',
+    'logout',
+    'mcp',
+    'model',
+    'permissions',
+    'quit',
+    'resume',
+    'statusline',
+    'usage',
+  ],
+};
+
+/**
  * Strict folder-based classifier for the open standard:
  * `.agents/skills/<name>/SKILL.md` with exactly one folder level between
  * `skills/` and the file. Supporting files (README.md, references/,
@@ -88,11 +124,13 @@ export const agentSkillsProvider: IBuiltInManifest<IProvider> = {
   description: 'Classifies files under `.agents/skills/<name>/SKILL.md` as Agent Skills.',
 
   // Provider identity for the active-lens dropdown, the topbar lens chip,
-  // and the per-node provider chip. Neutral slate (this is the
-  // vendor-agnostic open-standard Provider, not a brand). Verbatim from
-  // the previous static UI catalog (`ui/src/services/provider-ui.ts`).
+  // and the per-node provider chip. Neutral slate: this is the
+  // vendor-neutral commons layer (owner of the open `.agents/skills/` path
+  // and source of the base reserved-name catalog below), not a brand. The
+  // label is deliberately NOT the open standard's proper name ("Agent
+  // Skills"): this Provider is our shared baseline, not the standard itself.
   presentation: {
-    label: 'Open Skills',
+    label: 'Commons',
     color: '#64748b',
     colorDark: '#94a3b8',
   },
@@ -129,6 +167,11 @@ export const agentSkillsProvider: IBuiltInManifest<IProvider> = {
   kinds: OPEN_SKILLS_KINDS,
 
   resolution: OPEN_SKILLS_RESOLUTION,
+
+  // Base reserved-name catalog (self-scope under the Commons lens). The
+  // shared export is inherited by every Provider that adopts the open
+  // standard (see `OPEN_SKILLS_RESERVED_NAMES` above).
+  reservedNames: OPEN_SKILLS_RESERVED_NAMES,
 
   classify: classifyOpenSkillsPath,
 };

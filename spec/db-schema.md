@@ -73,7 +73,7 @@ One row per detected node, matching [`schemas/node.schema.json`](./schemas/node.
 | Column | Type | Constraint | Notes |
 |---|---|---|---|
 | `path` | TEXT | PRIMARY KEY | Relative path from scope root. Canonical node identifier. |
-| `kind` | TEXT | NOT NULL | Open-by-design (`node.schema.json#/properties/kind`): whatever the classifying Provider declares. Built-in catalogs: `claude` ships `skill` / `agent` / `command` / `mcp`; `openai` ships `agent`; `agent-skills` ships `skill`; `core/markdown` ships the format-named generic fallback `markdown` (universal, picks up any `.md` no vendor Provider claims, see `architecture.md` §Provider · dispatch order). The metadata-only `antigravity` Provider ships no kinds; Antigravity skills route through `agent-skills`. External Providers MAY emit their own. |
+| `kind` | TEXT | NOT NULL | Open-by-design (`node.schema.json#/properties/kind`): whatever the classifying Provider declares. Built-in catalogs: `claude` ships `skill` / `agent` / `command` / `mcp`; `openai` ships `agent`; `agent-skills` ships `skill`; `core/markdown` ships the format-named generic fallback `markdown` (universal, picks up any `.md` no vendor Provider claims, see `architecture.md` §Provider · dispatch order). The `antigravity` Provider reuses the `agent-skills` `skill` kind + classifier (manifest composition), so under its lens `.agents/skills/<n>/SKILL.md` rows carry `provider: 'antigravity'`, `kind: 'skill'`. External Providers MAY emit their own. |
 | `provider` | TEXT | NOT NULL | Provider extension id. |
 | `title` | TEXT | NULL | |
 | `description` | TEXT | NULL | |

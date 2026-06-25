@@ -55,6 +55,17 @@ describe('agent-skills provider', () => {
     strictEqual(agentSkillsProvider.walk, undefined);
   });
 
+  it('declares the open-standard base reserved-name catalog under `skill`', () => {
+    const reserved = agentSkillsProvider.reservedNames?.['skill'] ?? [];
+    // Universal cross-agent slash commands ARE reserved under the neutral
+    // Commons lens (a user skill named after one is silently shadowed)...
+    ok(reserved.includes('help'), 'expected the universal `help` in the base catalog');
+    ok(reserved.includes('config'), 'expected the universal `config` in the base catalog');
+    // ...but vendor-specific verbs are NOT part of the neutral standard;
+    // each adopter (e.g. antigravity) appends its own.
+    ok(!reserved.includes('goal'), '`goal` is Antigravity-specific, not open-standard base');
+  });
+
   it('skill schema validates name + description (the open-standard required fields)', async () => {
     const { buildProviderFrontmatterValidator } = await import(
       '../../../../../kernel/adapters/schema-validators.js'

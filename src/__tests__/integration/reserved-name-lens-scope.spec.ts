@@ -45,6 +45,10 @@ before(() => {
   write('.agents/skills/goal/SKILL.md', skill('goal', 'User skill that shadows /goal.'));
   // `deploy` is not a built-in, negative control that must never flag.
   write('.agents/skills/deploy/SKILL.md', skill('deploy', 'Deploy to staging or prod.'));
+  // `help` is a UNIVERSAL slash command in the open-standard base catalog
+  // (`OPEN_SKILLS_RESERVED_NAMES`, owned by agent-skills), so it flags under
+  // any standard lens, including the neutral agent-skills/Commons lens.
+  write('.agents/skills/help/SKILL.md', skill('help', 'User skill that shadows the universal /help.'));
 });
 
 after(() => {
@@ -94,6 +98,33 @@ describe('core/name-reserved (self scope, end-to-end through runScan)', () => {
     // unlensed: `.agents/skills/goal/SKILL.md` falls through to
     // `core/markdown`, so there is no `antigravity/skill` node to flag.
     const result = await scan(null);
+    assert.equal(reservedFor(result.issues, '.agents/skills/goal/SKILL.md').length, 0);
+  });
+});
+
+describe('core/name-reserved (open-standard base, under the agent-skills/Commons lens)', () => {
+  it('flags a skill shadowing a UNIVERSAL base verb under the agent-skills lens', async () => {
+    const result = await scan('agent-skills');
+
+    const helpIssues = reservedFor(result.issues, '.agents/skills/help/SKILL.md');
+    assert.equal(helpIssues.length, 1, 'expected one reserved-name warn on the help skill');
+    const issue = helpIssues[0] as unknown as {
+      severity: string;
+      data: Record<string, unknown>;
+    };
+    assert.equal(issue.severity, 'warn');
+    // The Commons lens classifies the skill itself (open-standard
+    // classifier), so the node carries provider 'agent-skills' and self
+    // scope flags it against the base catalog it owns.
+    assert.equal(issue.data['surface'], 'target');
+    assert.equal(issue.data['provider'], 'agent-skills');
+    assert.equal(issue.data['kind'], 'skill');
+  });
+
+  it('does NOT flag a VENDOR-specific verb (goal) under the agent-skills lens', async () => {
+    // `goal` is Antigravity-specific, not part of the open-standard base,
+    // so the neutral Commons lens leaves it alone (only antigravity reserves it).
+    const result = await scan('agent-skills');
     assert.equal(reservedFor(result.issues, '.agents/skills/goal/SKILL.md').length, 0);
   });
 });

@@ -50,6 +50,7 @@ import {
   OPEN_SKILLS_READ,
   OPEN_SKILLS_KINDS,
   OPEN_SKILLS_RESOLUTION,
+  OPEN_SKILLS_RESERVED_NAMES,
   classifyOpenSkillsPath,
 } from '../../../agent-skills/providers/agent-skills/index.js';
 
@@ -101,19 +102,19 @@ export const antigravityProvider: IBuiltInManifest<IProvider> = {
   classify: classifyOpenSkillsPath,
 
   // Built-in slash-command catalog, captured verbatim from `agy /help`
-  // (Antigravity CLI v1.0.3). This REPLACES the earlier provisional list
-  // that mirrored Gemini CLI's verbs: `agy` ships its own surface. It
-  // DROPPED Gemini-only verbs (`vim`, `theme`, `terminal-setup`,
-  // `setup-github`, `bashes`, `shells`, `policies`, `extensions`, `about`,
-  // `auth`, `bug`, `chat`, `compress`, `docs`, `editor`, `ide`, `init`,
-  // `memory`, `restore`, `stats`, `tools`, `upgrade`, `?`, `dir`) and
-  // ADDED agent-first ones (`goal`, `grill-me`, `schedule`, `fast`, `btw`,
-  // `artifact`, `context`, `diff`, `fork`, `tasks`, `add-dir`, `credits`,
-  // `feedback`, `logout`, `open`, `planning`, `rename`, `statusline`,
-  // `title`, `usage`). Both the 35 primary verbs and the 8 documented
-  // aliases (`new`, `settings`, `quit`, `branch`, `switch`, `conversation`,
-  // `undo`, `quota`) are reserved: a user skill named after either is
-  // silently shadowed by the built-in once the catalog activates.
+  // (Antigravity CLI v1.0.3). The universal cross-agent verbs (`help`,
+  // `config`, `mcp`, `model`, `clear`, `exit`, ...) come from the
+  // open-standard base catalog (`OPEN_SKILLS_RESERVED_NAMES`, owned by
+  // `agent-skills` and inherited here by composition); this block adds ONLY
+  // Antigravity's OWN runtime-specific verbs on top, so the neutral
+  // standard never carries `agy`-specific commands. The earlier provisional
+  // list mirrored Gemini CLI; `agy` dropped Gemini-only verbs (`vim`,
+  // `theme`, `terminal-setup`, `setup-github`, `bashes`, `shells`,
+  // `policies`, `extensions`, `?`, `dir`, ...) and added agent-first ones.
+  // Both the primary verbs and the 8 documented aliases (`new`, `settings`,
+  // `quit`, `branch`, `switch`, `conversation`, `undo`, `quota`) are
+  // reserved: a user skill named after either is silently shadowed by the
+  // built-in once the catalog activates.
   //
   // Declared under the `skill` kind (NOT `command`): Antigravity has no
   // vendor-specific command directory, its user slash-commands are skills
@@ -123,52 +124,41 @@ export const antigravityProvider: IBuiltInManifest<IProvider> = {
   // is built-in.
   //
   // **Reconciliation marker**: re-capture from `agy /help` on each major
-  // Antigravity CLI release and bump the cited version above.
+  // Antigravity CLI release, bump the cited version above, and move any
+  // verb that becomes universal across agents down into
+  // `OPEN_SKILLS_RESERVED_NAMES`.
   reservedNames: {
     skill: [
-      'add-dir',
-      'agents',
+      // Inherited open-standard base (universal cross-agent slash commands).
+      ...(OPEN_SKILLS_RESERVED_NAMES['skill'] ?? []),
+      // Antigravity-specific verbs (not part of the open-standard base).
       'artifact',
       'branch',
       'btw',
       'changelog',
-      'clear',
-      'config',
       'context',
       'conversation',
       'copy',
       'credits',
       'diff',
-      'exit',
       'fast',
-      'feedback',
       'fork',
       'goal',
       'grill-me',
-      'help',
-      'hooks',
       'keybindings',
-      'logout',
-      'mcp',
-      'model',
       'new',
       'open',
-      'permissions',
       'planning',
-      'quit',
       'quota',
       'rename',
-      'resume',
       'rewind',
       'schedule',
       'settings',
       'skills',
-      'statusline',
       'switch',
       'tasks',
       'title',
       'undo',
-      'usage',
     ],
   },
 };
