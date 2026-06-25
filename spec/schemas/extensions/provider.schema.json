@@ -19,7 +19,7 @@
         "label": {
           "type": "string",
           "minLength": 1,
-          "description": "Human-readable Provider name shown in the active-lens dropdown, the topbar lens chip, and the per-node provider chip (e.g. `'Claude'`, `'OpenAI Codex'`, `'Antigravity'`, `'Open Skills'`, `'Markdown'`)."
+          "description": "Human-readable Provider name shown in the active-lens dropdown, the topbar lens chip, and the per-node provider chip (e.g. `'Claude'`, `'OpenAI Codex'`, `'Antigravity'`, `'Agent Skills'`). The non-gated `core/markdown` base keeps a `'Markdown'` label for internal lookups even though it is never a selectable lens."
         },
         "color": {
           "type": "string",
@@ -70,7 +70,7 @@
         },
         "hideChip": {
           "type": "boolean",
-          "description": "When `true`, the UI does NOT paint this Provider's chip on node cards. Reserved for the universal fallback Provider (`markdown`): the majority of nodes in any project carry it, so badging every generic `.md` would be visual noise and dilute the chip's purpose (signalling when a node came from a NON-default platform). The Provider still appears in the active-lens dropdown and the topbar lens chip; only the per-card badge is suppressed. Defaults to `false` (chip shown)."
+          "description": "When `true`, the UI does NOT paint this Provider's chip on node cards. Reserved for the universal base Provider (`markdown`): the majority of nodes in any project carry it, so badging every generic `.md` would be visual noise and dilute the chip's purpose (signalling when a node came from a NON-default platform). The markdown base is non-gated (`gatedByActiveLens: false`, `isLens: false`), so it is not a selectable lens and never appears in the active-lens dropdown or topbar lens chip either; `hideChip` additionally suppresses its per-card badge. Defaults to `false` (chip shown)."
         }
       }
     },
@@ -115,7 +115,7 @@
     },
     "gatedByActiveLens": {
       "type": "boolean",
-      "description": "Lens gating flag for vendor providers. When `true`, this Provider's `classify()` only runs (and the walker only iterates its territory) if `provider.id === activeProvider` (the project's active lens). When `false` or omitted (default), the Provider is universal and classifies unconditionally. Vendor providers (`claude`, `openai`, `antigravity`) MUST set this to `true`: the actual runtimes never read each other's on-disk formats (Claude Code does not consume `.codex/`; Codex CLI does not consume `.claude/`), and offering every file to every provider fabricates cross-vendor graph edges the runtimes themselves reject. Universal providers (open-standard `agent-skills`, markdown fallback `core/markdown`, any future format-based fallback) keep this `false` so their territory is consumed by every vendor and they run on every scan. When `activeProvider === null` (no lens resolved), the walker bypasses the gate entirely and every gated Provider runs, mirroring the permissive extractor-side fallback for unlensed projects. Affects classification ONLY; extractors continue to filter via their own `precondition.provider` allowlist."
+      "description": "Lens gating flag. When `true`, this Provider is a **lens**: its `classify()` only runs (and the walker only iterates its territory) if `provider.id === activeProvider` (the project's active lens), and it is offered in the active-lens dropdown / `selectable` set (projected to the envelope entry as `isLens: true`). When `false` or omitted (default), the Provider is a universal **base**: it classifies unconditionally on every scan and is never offered as a selectable lens (`isLens: false`). Vendor providers (`claude`, `openai`, `antigravity`) and the open-standard `agent-skills` provider MUST set this `true`: the actual runtimes never read each other's on-disk formats (Claude Code does not consume `.codex/`; Codex CLI does not consume `.claude/`), and offering every file to every provider fabricates cross-vendor graph edges the runtimes themselves reject. Only the markdown fallback `core/markdown` (and any future format-based fallback) keeps this `false`, the single universal base beneath whatever lens is active, never offered as a selectable lens. The resolver always yields a concrete lens (a vendor id, or `agent-skills` as the open default when no vendor marker is present), so there is no unlensed branch. Affects classification ONLY; extractors continue to filter via their own `precondition.provider` allowlist."
     },
     "resolverRules": {
       "type": "object",
@@ -151,6 +151,11 @@
           "type": "string",
           "minLength": 1,
           "description": "Identifier of a parser registered in the kernel-internal registry. Built-ins: `frontmatter-yaml` (markdown with `--- … ---` YAML frontmatter, prototype-pollution-safe, `js-yaml` JSON_SCHEMA-pinned), `plain` (entire body, empty frontmatter, for files carrying no frontmatter convention; the Provider derives `name` from the path inside `classify()`). Unknown ids surface as `UnknownParserError` from the walker; the orchestrator translates the error into a Provider issue with status `invalid-manifest`."
+        },
+        "bodyField": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional name of a parsed-frontmatter field that holds the node's markdown body. When set and `frontmatter[bodyField]` is a string, the kernel walker yields that string as the node `body` (so the body hash, byte counts, and every body-scoped extractor, markdown-link / at-directive / slash / backtick-path / external-url, see it) instead of the parser's own `body` output. Use it for formats whose prompt lives inside structured frontmatter rather than after a fence: OpenAI Codex sub-agents are pure TOML (`parser: 'toml'`) whose markdown prompt is the triple-quoted `instructions` field, so the openai provider declares `bodyField: 'instructions'`. The field remains in `frontmatter` as well, so frontmatter-scoped extractors are unaffected. When absent or not a string, the parser's own `body` is used unchanged (the default for `.md` providers)."
         }
       }
     }

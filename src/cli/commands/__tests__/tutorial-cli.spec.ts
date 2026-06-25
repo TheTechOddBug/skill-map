@@ -290,16 +290,15 @@ describe('sm tutorial, legacy positional argument', () => {
 });
 
 describe('sm tutorial, --for provider selection', () => {
-  it('rejects --for agent-skills because it is coming-soon (not a destination)', () => {
+  it('--for agent-skills seeds into the open-standard path', () => {
     const scope = freshScope('for-agent-skills');
     const r = sm(['tutorial', '--for', 'agent-skills'], scope);
 
-    // `agent-skills` declares a `scaffold.skillDir` but is coming-soon,
-    // so it is filtered out of the destination catalog: only `claude` is
-    // selectable today.
-    assert.equal(r.status, 2, `stderr: ${r.stderr}`);
-    assert.match(r.stderr, /unknown provider 'agent-skills' for --for/);
-    assert.equal(existsSync(join(scope.cwd, '.agents')), false);
+    // `agent-skills` is the stable open-standard destination
+    // (`scaffold.skillDir: .agents/skills`), so `--for` accepts it and
+    // seeds the canonical tutorial skill there.
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assertDirsEqual(SKILL_SOURCE_TUTORIAL, join(scope.cwd, '.agents', 'skills', 'sm-tutorial'));
     assert.equal(existsSync(join(scope.cwd, '.claude')), false);
   });
 
@@ -325,8 +324,8 @@ describe('sm tutorial, --for provider selection', () => {
 
   it('exits 2 for a built-in that is not a selectable destination (openai)', () => {
     const scope = freshScope('for-no-scaffold');
-    // openai is coming-soon (and declares no scaffold either way), so it
-    // is not a valid `--for` destination.
+    // openai declares no `scaffold.skillDir` (regardless of being beta),
+    // so it is not a valid `--for` destination.
     const r = sm(['tutorial', '--for', 'openai'], scope);
 
     assert.equal(r.status, 2, `stderr: ${r.stderr}`);

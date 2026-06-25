@@ -6,10 +6,12 @@
  * prompt itself).
  *
  * Contract under test:
- *   - by default the catalog lists only ready destinations (`claude`);
- *     experimental providers (`agent-skills`) are omitted;
- *   - with `--experimental` (the `includeExperimental` arg) experimental
- *     destinations join the list;
+ *   - by default the catalog lists the ready scaffold destinations
+ *     (`claude` + the stable open-standard `agent-skills`); the universal
+ *     `markdown` base declares no scaffold, so it never appears;
+ *   - the experimental gate still exists (`includeExperimental`), though no
+ *     built-in scaffolder is experimental today, so the flag adds nothing
+ *     among built-ins;
  *   - `classifyAnswer` resolves an answer to the row it names.
  */
 
@@ -19,24 +21,25 @@ import { describe, it } from 'node:test';
 import { classifyAnswer, listScaffoldTargets } from '../tutorial.js';
 
 describe('sm tutorial destination catalog', () => {
-  it('lists only ready destinations by default (claude)', () => {
+  it('lists the ready scaffold destinations by default (claude, agent-skills)', () => {
     const targets = listScaffoldTargets();
+    // Only `claude` and `agent-skills` declare a `scaffold.skillDir`; both
+    // are stable now, so both appear by default, in registration order.
     assert.deepEqual(
       targets.map((t) => t.id),
-      ['claude'],
+      ['claude', 'agent-skills'],
     );
     assert.ok(targets[0]!.skillDir, 'claude must carry a skillDir');
   });
 
-  it('includes experimental destinations only under --experimental', () => {
+  it('carries the stable open-standard by default; the markdown base never scaffolds', () => {
     const ids = listScaffoldTargets(true).map((t) => t.id);
     assert.ok(ids.includes('claude'), `got ${JSON.stringify(ids)}`);
-    // agent-skills is experimental and declares a `scaffold.skillDir`, so it
-    // joins the list only with the flag.
+    // agent-skills is stable and declares a `scaffold.skillDir`, so it is in
+    // the default catalog too (no `--experimental` needed).
     assert.ok(ids.includes('agent-skills'), `got ${JSON.stringify(ids)}`);
-    // The default catalog must NOT carry it.
-    assert.ok(!listScaffoldTargets().some((t) => t.id === 'agent-skills'));
-    // The universal markdown fallback declares no scaffold, so it never appears.
+    assert.ok(listScaffoldTargets().some((t) => t.id === 'agent-skills'));
+    // The universal markdown base declares no scaffold, so it never appears.
     assert.ok(!ids.includes('markdown'));
   });
 });

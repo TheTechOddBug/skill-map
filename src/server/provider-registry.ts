@@ -4,13 +4,16 @@
  * `buildKindRegistry`).
  *
  * The registry mirrors `spec/schemas/api/rest-envelope.schema.json#/properties/providerRegistry`:
- * provider id → `{ label, color, colorDark?, emoji?, icon?, hideChip? }`,
- * projected straight from each Provider's `presentation` block.
+ * provider id → `{ label, color, colorDark?, emoji?, icon?, isLens, hideChip? }`,
+ * projected from each Provider's `presentation` block plus its
+ * `gatedByActiveLens` flag (as `isLens`).
  *
  * The UI consumes it to render the active-lens dropdown, the topbar lens
  * chip, and the per-node provider chip from the real registered-Provider
- * set instead of a hardcoded list. `hideChip` (set by the universal
- * `markdown` fallback) suppresses only the per-card chip.
+ * set instead of a hardcoded list. The dropdown lists only `isLens`
+ * entries (gated Providers), so the non-gated `markdown` base never shows
+ * there; `hideChip` (set by that base) additionally suppresses its
+ * per-card chip.
  *
  * Deterministic: insertion order = Provider iteration order. The input
  * array comes from the same source the scan composer and `buildKindRegistry`
@@ -33,6 +36,9 @@ export function buildProviderRegistry(
     const entry: IProviderRegistryEntry = {
       label: ui.label,
       color: ui.color,
+      // A Provider is a selectable lens iff it gates on the active lens;
+      // the non-gated `markdown` base projects `isLens: false`.
+      isLens: provider.gatedByActiveLens === true,
     };
     if (ui.colorDark !== undefined) entry.colorDark = ui.colorDark;
     if (ui.emoji !== undefined) entry.emoji = ui.emoji;

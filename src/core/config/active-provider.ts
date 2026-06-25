@@ -13,9 +13,10 @@
  *      check each Provider's `detect.markers` in registration order.
  *      Multiple matches return the first detected entry plus the full
  *      list so the CLI / UI can prompt the operator to pick.
- *   3. Setting absent AND no filesystem signal, resolve to the
- *      universal markdown lens (`MARKDOWN_LENS_ID`) with source
- *      `'default'`. The resolver never yields a null lens.
+ *   3. Setting absent (or a stale `markdown` base id) AND no vendor
+ *      marker, resolve to the open-standard default lens
+ *      (`DEFAULT_LENS_ID`, `agent-skills`) with source `'default'`. The
+ *      resolver never yields a null lens.
  *
  * The reader does NOT persist the auto-detect result. Persistence is
  * a separate, explicit step the consumer takes (typically via
@@ -37,26 +38,36 @@ import { readConfigValue } from './helper.js';
 export type { IProviderDetectInput };
 
 /**
- * The universal markdown lens id, the resolver's fallback when no vendor
- * marker is present. This is the SHORT provider id (`coreMarkdownProvider.id`),
- * NOT the qualified `core/markdown`: the active lens is compared against
- * `provider.id` everywhere (walk gate, detect, BFF `selectable`). A unit test
- * asserts this equals `coreMarkdownProvider.id` so the short-vs-qualified
- * mismatch can never regress.
+ * The open-standard default lens id, the resolver's fallback when no vendor
+ * marker is present. This is the SHORT provider id (`agentSkillsProvider.id`),
+ * NOT a qualified id: the active lens is compared against `provider.id`
+ * everywhere (walk gate, detect, BFF `selectable`). A unit test asserts this
+ * equals `agentSkillsProvider.id` so the short-vs-qualified mismatch can never
+ * regress. `agent-skills` is locked-enabled (see `kernel/config/locked-plugins.ts`),
+ * so the floor lens is always a valid, selectable target.
  */
-export const MARKDOWN_LENS_ID = 'markdown';
+export const DEFAULT_LENS_ID = 'agent-skills';
+
+/**
+ * The universal `core/markdown` base provider id. It is the non-gated
+ * substrate, NOT a selectable lens; a stale `activeProvider: 'markdown'`
+ * persisted by an older project is coerced to `DEFAULT_LENS_ID` in
+ * `resolveActiveProvider` below.
+ */
+export const MARKDOWN_BASE_ID = 'markdown';
 
 export interface IActiveProviderResolution {
   /**
-   * The persisted `activeProvider` value when present in settings,
-   * otherwise the first auto-detected provider id, otherwise the
-   * universal markdown lens (`MARKDOWN_LENS_ID`). Never `null`.
+   * The persisted `activeProvider` value when present in settings (and not
+   * the stale `markdown` base id), otherwise the first auto-detected
+   * provider id, otherwise the open-standard default lens
+   * (`DEFAULT_LENS_ID`). Never `null`.
    */
   resolved: string;
   /**
    * `'config'` when the value came from `settings.json`, `'autodetect'`
    * when the filesystem heuristic supplied it, `'default'` when neither
-   * source produced a result and the universal markdown lens applies.
+   * source produced a result and the open-standard default lens applies.
    */
   source: 'config' | 'autodetect' | 'default';
   /**
@@ -87,11 +98,19 @@ export function resolveActiveProvider(
 ): IActiveProviderResolution {
   const detected = detectProvidersFromFilesystem(cwd, providers);
   const fromConfig = readConfigValue('activeProvider', { cwd });
-  if (typeof fromConfig === 'string' && fromConfig.length > 0) {
+  // A persisted lens wins, EXCEPT a stale `markdown`: the universal base is
+  // no longer a selectable lens, so an older project that pinned it is
+  // coerced to the open-standard default (auto-detect, else `agent-skills`)
+  // rather than left on a lens the UI can neither show nor switch away from.
+  if (
+    typeof fromConfig === 'string' &&
+    fromConfig.length > 0 &&
+    fromConfig !== MARKDOWN_BASE_ID
+  ) {
     return { resolved: fromConfig, source: 'config', detected };
   }
   if (detected.length > 0) {
     return { resolved: detected[0]!, source: 'autodetect', detected };
   }
-  return { resolved: MARKDOWN_LENS_ID, source: 'default', detected };
+  return { resolved: DEFAULT_LENS_ID, source: 'default', detected };
 }

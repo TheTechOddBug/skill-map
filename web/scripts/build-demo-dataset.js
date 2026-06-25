@@ -231,15 +231,17 @@ const DEMO_KIND_REGISTRY = {
  * Pre-baked providerRegistry mirroring the built-in Providers'
  * `presentation` blocks (sibling of `DEMO_KIND_REGISTRY`). Tracks the
  * provider manifests under `src/plugins`; the demo never boots the
- * kernel, so the values are kept in deliberate sync. `markdown` carries
- * `hideChip` so the demo cards don't badge every generic note.
+ * kernel, so the values are kept in deliberate sync. The gated lenses set
+ * `isLens: true`; `markdown` is the non-gated base, so it carries
+ * `isLens: false` (never offered in the lens dropdown) and `hideChip` so
+ * the demo cards don't badge every generic note.
  */
 const DEMO_PROVIDER_REGISTRY = {
-  claude: { label: 'Claude', color: '#cc785c', colorDark: '#e89270' },
-  antigravity: { label: 'Antigravity', color: '#7c3aed', colorDark: '#a78bfa' },
-  openai: { label: 'OpenAI Codex', color: '#22c55e', colorDark: '#4ade80' },
-  'agent-skills': { label: 'Open Skills', color: '#64748b', colorDark: '#94a3b8' },
-  markdown: { label: 'Markdown', color: '#9ca3af', colorDark: '#6b7280', hideChip: true },
+  claude: { label: 'Claude', color: '#cc785c', colorDark: '#e89270', isLens: true },
+  antigravity: { label: 'Antigravity', color: '#7c3aed', colorDark: '#a78bfa', isLens: true },
+  openai: { label: 'OpenAI Codex', color: '#22c55e', colorDark: '#4ade80', isLens: true },
+  'agent-skills': { label: 'Agent Skills', color: '#64748b', colorDark: '#94a3b8', isLens: true },
+  markdown: { label: 'Markdown', color: '#9ca3af', colorDark: '#6b7280', isLens: false, hideChip: true },
 };
 
 function buildNodesEnvelope(scan) {

@@ -158,16 +158,16 @@ describe('sm config get', () => {
 
   // Regression for bd-25m: schema-declared keys whose runtime value is
   // computed (today only `activeProvider`) MUST return the runtime
-  // value (the universal `markdown` default when no filesystem signal,
-  // or the auto-detected provider id) instead of "Unknown config key".
-  // Pre-bd-25m every such read errored with exit 5 because the key
+  // value (the open-standard `agent-skills` default when no filesystem
+  // signal, or the auto-detected provider id) instead of "Unknown config
+  // key". Pre-bd-25m every such read errored with exit 5 because the key
   // wasn't materialised in `defaults.json`, leaving operators confused
   // why `set` succeeded while `get` returned "Unknown".
-  it('returns the markdown default for activeProvider when settings + filesystem yield nothing', () => {
+  it('returns the open-standard default for activeProvider when settings + filesystem yield nothing', () => {
     const scope = freshScope('get-active-provider-default');
     const r = sm(['config', 'get', 'activeProvider'], scope);
     assert.equal(r.status, 0, `expected 0, stderr=${r.stderr}`);
-    assert.equal(r.stdout.trim(), 'markdown');
+    assert.equal(r.stdout.trim(), 'agent-skills');
   });
 
   it('returns the filesystem auto-detect for activeProvider when settings is empty', () => {
@@ -324,22 +324,28 @@ describe('sm config set', () => {
     assert.deepEqual(written['activeProviderMarkers'], ['claude']);
   });
 
-  it('captures detected markers but excludes coming-soon providers', () => {
+  it('captures every detected enabled marker in the snapshot', () => {
     const scope = freshScope('set-active-provider-multi');
-    // Both `.claude/` AND `.codex/` exist on disk; operator picks
-    // claude. `openai` (the `.codex/` marker) is coming-soon, so
-    // auto-detect ignores it and it must NOT land in the snapshot:
-    // only selectable, non-coming-soon markers are captured.
+    // Both `.claude/` AND `.agents/` exist on disk; the operator picks
+    // claude. Both `claude` and `agent-skills` are enabled, detectable
+    // lenses (the latter is the stable open default that auto-detects
+    // `.agents/`), so BOTH land in the snapshot even though only claude was
+    // chosen. The marker snapshot records on-disk reality, not the choice.
     mkdirSync(join(scope.cwd, '.claude'), { recursive: true });
-    mkdirSync(join(scope.cwd, '.codex'), { recursive: true });
+    mkdirSync(join(scope.cwd, '.agents'), { recursive: true });
     const r = sm(['config', 'set', 'activeProvider', 'claude'], scope);
     assert.equal(r.status, 0, r.stderr);
     const written = JSON.parse(
       readFileSync(join(scope.cwd, '.skill-map', 'settings.json'), 'utf8'),
     ) as Record<string, unknown>;
     assert.equal(written['activeProvider'], 'claude');
-    // Coming-soon `openai` is filtered out; the snapshot is claude-only.
-    assert.deepEqual(written['activeProviderMarkers'], ['claude']);
+    const markers = written['activeProviderMarkers'] as string[];
+    assert.ok(markers.includes('claude'), `expected claude in ${JSON.stringify(markers)}`);
+    assert.ok(
+      markers.includes('agent-skills'),
+      `expected agent-skills in ${JSON.stringify(markers)}`,
+    );
+    assert.equal(markers.length, 2);
   });
 });
 

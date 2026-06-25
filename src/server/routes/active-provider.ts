@@ -16,7 +16,7 @@
  *
  *   ```json
  *   {
- *     "activeProvider": "claude" | "markdown",
+ *     "activeProvider": "claude" | "agent-skills",
  *     "detected": ["claude", "openai"],
  *     "source": "config" | "autodetect" | "default"
  *   }
@@ -56,17 +56,18 @@ export interface IActiveProviderEnvelope {
   detected: readonly string[];
   source: 'config' | 'autodetect' | 'default';
   /**
-   * Registered-Provider ids that are enabled right now, resolved against
-   * the live per-extension resolver (`config_plugins` layered over
-   * `settings.json#/plugins`, the same resolution `GET /api/plugins`
-   * applies). This is the subset of `providerRegistry` eligible to
-   * become the lens. A Provider the operator disabled, or one that ships
-   * disabled by default (`stability: experimental`), drops out of
-   * `selectable` but stays in `providerRegistry` (the static boot catalog
-   * keeps it so already-scanned nodes still render their chip).
-   * The SPA greys out (and refuses to select) any dropdown entry absent
-   * from this set, so a disabled Provider can never be picked as the
-   * lens. See `spec/cli-contract.md` §Active provider lens.
+   * Registered LENS Provider ids (gated, `gatedByActiveLens: true`) that
+   * are enabled right now, resolved against the live per-extension resolver
+   * (`config_plugins` layered over `settings.json#/plugins`, the same
+   * resolution `GET /api/plugins` applies). This is the subset of
+   * `providerRegistry` eligible to become the lens. The non-gated
+   * `markdown` base is never here (it is the substrate, not a lens). A
+   * lens the operator disabled, or one that ships disabled by default
+   * (`stability: experimental`), drops out of `selectable` but stays in
+   * `providerRegistry` (the static boot catalog keeps it so already-scanned
+   * nodes still render their chip). The SPA greys out (and refuses to
+   * select) any dropdown entry absent from this set, so a disabled lens can
+   * never be picked. See `spec/cli-contract.md` §Active provider lens.
    */
   selectable: readonly string[];
 }
@@ -86,6 +87,18 @@ export function registerActiveProviderRoute(app: Hono, deps: IRouteDeps): void {
 
   app.patch('/api/active-provider', async (c) => {
     const body = await parsePatchBody(c.req.raw);
+    // Only a selectable lens may become the active lens. This rejects the
+    // non-gated `markdown` base (never a lens) and any disabled provider,
+    // closing the loop the SPA enforces client-side via the dropdown.
+    const selectable = await resolveSelectableProviders(deps);
+    if (!selectable.includes(body.activeProvider)) {
+      throw new HTTPException(400, {
+        message: tx(SERVER_TEXTS.activeProviderNotSelectable, {
+          id: body.activeProvider,
+          selectable: selectable.join(', '),
+        }),
+      });
+    }
     const result = applyLensSwitch(deps, body.activeProvider);
     deps.configService.reload();
     return c.json({ ...(await buildEnvelope(deps)), switch: result });
@@ -118,11 +131,16 @@ async function resolveSelectableProviders(deps: IRouteDeps): Promise<string[]> {
   });
   const selectable = new Set<string>();
   for (const provider of deps.providers) {
-    // A provider is selectable when it is enabled right now.
+    // A provider is selectable when it is a LENS (gated on the active lens)
+    // AND enabled right now. The non-gated `markdown` base is the universal
+    // substrate, not a lens, so it drops out here even though it is enabled.
     // `isPluginExtensionEnabled` threads `installedDefaultEnabled(stability)`,
-    // so experimental providers (ships-disabled by default) drop out here
+    // so experimental providers (ships-disabled by default) also drop out
     // until the operator enables them.
-    if (isPluginExtensionEnabled(provider, resolveEnabled)) {
+    if (
+      provider.gatedByActiveLens === true &&
+      isPluginExtensionEnabled(provider, resolveEnabled)
+    ) {
       selectable.add(provider.id);
     }
   }

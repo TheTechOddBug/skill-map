@@ -114,7 +114,15 @@ export interface IProviderRegistryEntry {
   colorDark?: string;
   emoji?: string;
   icon?: TProviderKindIcon;
-  /** Suppress the per-card chip (universal `markdown` fallback). */
+  /**
+   * True when this Provider is a selectable lens (projected from
+   * `gatedByActiveLens`). The active-lens dropdown lists only `isLens`
+   * entries; the non-gated `markdown` base is `false` and never appears
+   * there. Independent of the dynamic `selectable` set (which marks which
+   * lenses are enabled right now).
+   */
+  isLens: boolean;
+  /** Suppress the per-card chip (universal `markdown` base). */
   hideChip?: boolean;
 }
 

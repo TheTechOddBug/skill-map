@@ -137,14 +137,16 @@ export class SettingsProject {
    * this scope, never a hardcoded list. Downstream `'' → null`
    * conversion stays in `onActiveProviderChange()`.
    *
-   * Each registry Provider absent from the envelope's `selectable` set
-   * (the ids enabled right now) is rendered disabled: greyed and not
-   * selectable (`optionDisabled` in the template) plus a "(disabled)"
-   * suffix, so it stays visible but can never be chosen as the lens. This
-   * covers both operator-disabled providers and the experimental ones
-   * that ship disabled by default. Before the envelope loads
-   * (`selectable === null`) nothing is greyed, to avoid a flash of
-   * all-disabled rows.
+   * Only LENS Providers (`isLens: true`) are listed: the non-gated
+   * `markdown` base is the universal substrate, not a pickable lens, so it
+   * is filtered out entirely (never even a greyed row). Among the lenses,
+   * each one absent from the envelope's `selectable` set (the ids enabled
+   * right now) is rendered disabled: greyed and not selectable
+   * (`optionDisabled` in the template) plus a "(disabled)" suffix, so it
+   * stays visible but can never be chosen. This covers both
+   * operator-disabled lenses and the experimental ones that ship disabled
+   * by default. Before the envelope loads (`selectable === null`) nothing
+   * is greyed, to avoid a flash of all-disabled rows.
    */
   protected readonly providerOptions = computed<
     { id: string; label: string; disabled: boolean }[]
@@ -153,6 +155,9 @@ export class SettingsProject {
     const selectable = env ? new Set(env.selectable) : null;
     const providers = this.providerRegistry
       .providers()
+      // Only lenses are pickable. The non-gated `markdown` base (`isLens:
+      // false`) is the substrate beneath every lens, never a dropdown row.
+      .filter((p) => p.isLens)
       .map((p) => {
         const disabled = selectable !== null && !selectable.has(p.id);
         const label = disabled

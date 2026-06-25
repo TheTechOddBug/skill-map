@@ -142,7 +142,7 @@
       "description": "Catalog of Providers registered in the current scope, keyed by Provider id. Built once per server boot from every registered Provider's `ui` block and embedded into every payload-bearing envelope so the UI renders the active-lens dropdown, the topbar lens chip, and the per-node provider chip from the real Provider set instead of a hardcoded list. Sentinel envelopes (`health`, `scan`, `graph`), action-result envelopes (`sidecar.bumped`), and the catalog envelopes (`annotations.registered`, `contributions.registered`) are exempt. Mirror of `kindRegistry`, parallel surface. The active lens itself (current value + filesystem-detected candidates + the enabled `selectable` set) is NOT here; it is served by `GET /api/active-provider`, a per-project dynamic surface orthogonal to this static boot catalog.",
       "additionalProperties": {
         "type": "object",
-        "required": ["label", "color"],
+        "required": ["label", "color", "isLens"],
         "additionalProperties": false,
         "properties": {
           "label": { "type": "string", "minLength": 1 },
@@ -171,9 +171,13 @@
               }
             ]
           },
+          "isLens": {
+            "type": "boolean",
+            "description": "True when this Provider is a selectable lens, projected from its `gatedByActiveLens` flag. The active-lens dropdown lists only `isLens: true` entries; the non-gated `core/markdown` base is `false` and never appears there. Independent of `selectable` (which marks which lenses are ENABLED right now): a disabled lens stays `isLens: true` and renders greyed."
+          },
           "hideChip": {
             "type": "boolean",
-            "description": "When `true`, the UI suppresses this Provider's per-card chip (reserved for the universal `markdown` fallback). The Provider still appears in the lens dropdown and the topbar lens chip."
+            "description": "When `true`, the UI suppresses this Provider's per-card chip (reserved for the universal `markdown` base). Combined with `isLens: false` the base appears on no lens surface at all."
           }
         }
       }

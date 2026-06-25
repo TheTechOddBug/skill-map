@@ -3,7 +3,7 @@
 Authoritative map of the Provider-owned schemas at
 [`../schemas/`](../schemas/) to the conformance cases that exercise them.
 Phase 5 / A.13 split the original spec-wide matrix in two: spec-owned
-rows (kernel-agnostic, listed in [`../../../../../spec/conformance/coverage.md`](../../../../../spec/conformance/coverage.md))
+rows (kernel-agnostic, listed in [`../../../../../../spec/conformance/coverage.md`](../../../../../../spec/conformance/coverage.md))
 and Provider-owned rows (this file). Every Provider that declares its
 own `kinds` map MUST ship a coverage matrix for those kinds before
 cutting v1.0 of the Provider; missing case → release blocked.
@@ -39,7 +39,7 @@ end-to-end) · 🟡 partial (covered only indirectly or via a sub-shape) ·
 | `orphan-detection` | Deleting a `skill` file with no replacement triggers the orphan branch of the rename heuristic: exactly one issue with analyzerId `orphan` is emitted, severity `info`. | `orphan-before` (prior scan) + `orphan-after` |
 
 Each case file under [`cases/`](./cases/) is self-describing, see
-[`spec/conformance/README.md`](../../../../../spec/conformance/README.md)
+[`spec/conformance/README.md`](../../../../../../spec/conformance/README.md)
 for the case format and assertion catalog.
 
 ## Release gates

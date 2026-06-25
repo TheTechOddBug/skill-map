@@ -13,12 +13,13 @@ import type { IActiveProviderApi, IProviderRegistryApi } from '../../../../model
 /**
  * SettingsProject · active-lens dropdown gating.
  *
- * `providerOptions` maps the `providerRegistry` (every registered
- * Provider) against the active-provider envelope's `selectable` set
- * (the ids enabled right now). A Provider absent from `selectable` is
- * rendered disabled, greyed + non-selectable (`optionDisabled` in the
- * template) plus a "(disabled)" label suffix, so a disabled Provider
- * stays visible but can never be picked as the lens.
+ * `providerOptions` lists only LENS Providers (`isLens: true`) from the
+ * `providerRegistry`, filtering out the non-gated `markdown` base (the
+ * universal substrate, never a pickable lens). Among the lenses, each one
+ * absent from the active-provider envelope's `selectable` set (the ids
+ * enabled right now) is rendered disabled, greyed + non-selectable
+ * (`optionDisabled` in the template) plus a "(disabled)" label suffix, so a
+ * disabled lens stays visible but can never be picked.
  *
  * The spec drives the component's imperative surface directly (the
  * `activeProviderEnvelope` signal + the root `ProviderRegistryService`)
@@ -32,13 +33,16 @@ interface IProjectProto {
 }
 
 const REGISTRY: IProviderRegistryApi = {
-  claude: { label: 'Claude', color: '#000000' },
-  openai: { label: 'OpenAI', color: '#111111' },
-  markdown: { label: 'Markdown', color: '#222222', hideChip: true },
+  claude: { label: 'Claude', color: '#000000', isLens: true },
+  openai: { label: 'OpenAI', color: '#111111', isLens: true },
+  'agent-skills': { label: 'Agent Skills', color: '#333333', isLens: true },
+  // The non-gated base: present in the registry (for chip lookups) but
+  // `isLens: false`, so it must never appear in the dropdown.
+  markdown: { label: 'Markdown', color: '#222222', isLens: false, hideChip: true },
 };
 
 function envelope(selectable: string[]): IActiveProviderApi {
-  return { activeProvider: 'markdown', detected: [], source: 'default', selectable };
+  return { activeProvider: 'agent-skills', detected: [], source: 'default', selectable };
 }
 
 function bootstrap(): { proto: IProjectProto } {
@@ -63,13 +67,21 @@ describe('SettingsProject providerOptions', () => {
     // `activeProviderEnvelope` is still null here.
     const opts = proto.providerOptions();
     expect(opts.every((o) => !o.disabled)).toBe(true);
-    // The three registry Providers (no synthetic "(none)" entry).
+    // The three lens Providers; the non-lens `markdown` base is filtered out.
     expect(opts).toHaveLength(3);
   });
 
-  it('marks Providers absent from selectable as disabled', () => {
+  it('excludes the non-lens markdown base from the dropdown', () => {
     const { proto } = bootstrap();
-    proto.activeProviderEnvelope.set(envelope(['openai', 'markdown']));
+    proto.activeProviderEnvelope.set(envelope(['claude', 'openai', 'agent-skills']));
+    const ids = proto.providerOptions().map((o) => o.id);
+    expect(ids).not.toContain('markdown');
+    expect(ids).toEqual(expect.arrayContaining(['claude', 'openai', 'agent-skills']));
+  });
+
+  it('marks lenses absent from selectable as disabled', () => {
+    const { proto } = bootstrap();
+    proto.activeProviderEnvelope.set(envelope(['openai', 'agent-skills']));
 
     const byId = new Map(proto.providerOptions().map((o) => [o.id, o]));
 
@@ -77,18 +89,19 @@ describe('SettingsProject providerOptions', () => {
     expect(byId.get('claude')?.label).toBe('Claude (disabled)');
     expect(byId.get('openai')?.disabled).toBe(false);
     expect(byId.get('openai')?.label).toBe('OpenAI');
-    expect(byId.get('markdown')?.disabled).toBe(false);
-    // Markdown is the neutral, always-selectable base lens.
-    expect(byId.get('markdown')?.label).toBe('Markdown');
+    expect(byId.get('agent-skills')?.disabled).toBe(false);
+    expect(byId.get('agent-skills')?.label).toBe('Agent Skills');
+    // The base is gone from the dropdown entirely, not greyed.
+    expect(byId.has('markdown')).toBe(false);
   });
 
-  it('keeps every Provider selectable when all are enabled', () => {
+  it('keeps every lens selectable when all are enabled', () => {
     const { proto } = bootstrap();
-    proto.activeProviderEnvelope.set(envelope(['claude', 'openai', 'markdown']));
+    proto.activeProviderEnvelope.set(envelope(['claude', 'openai', 'agent-skills']));
     expect(proto.providerOptions().every((o) => !o.disabled)).toBe(true);
   });
 
-  it('labels a not-selectable Provider with the "(disabled)" suffix', () => {
+  it('labels a not-selectable lens with the "(disabled)" suffix', () => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [
@@ -100,12 +113,13 @@ describe('SettingsProject providerOptions', () => {
     fixture.componentRef.setInput('visible', false);
     fixture.detectChanges();
     TestBed.inject(ProviderRegistryService).ingest({
-      claude: { label: 'Claude', color: '#000000' },
-      openai: { label: 'OpenAI', color: '#111111' },
+      claude: { label: 'Claude', color: '#000000', isLens: true },
+      openai: { label: 'OpenAI', color: '#111111', isLens: true },
     });
     const proto = fixture.componentInstance as unknown as IProjectProto;
-    // openai is experimental (ships disabled), so the BFF leaves it out of
-    // `selectable`; the dropdown greys it with a "(disabled)" suffix.
+    // When a lens is absent from `selectable` (e.g. the operator disabled
+    // it), the BFF leaves it out and the dropdown greys it with a
+    // "(disabled)" suffix. Here openai is excluded to exercise that path.
     proto.activeProviderEnvelope.set(envelope(['claude']));
 
     const byId = new Map(proto.providerOptions().map((o) => [o.id, o]));

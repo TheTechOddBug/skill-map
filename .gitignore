@@ -64,16 +64,23 @@ Thumbs.db
 # the provider under its own lens. Track them for the same reason.
 !src/plugins/**/conformance/fixtures/**/.skill-map/
 !src/plugins/**/conformance/fixtures/**/.skill-map/**
-# fixtures/demo-scope pins its active lens in a committed
-# `.skill-map/settings.json` so the public demo build
-# (web/scripts/build-demo-dataset.js) scans deterministically: the project
-# has both a `.claude/` and a root `AGENTS.md`, an ambiguous marker set that
-# would otherwise make the non-interactive scan prompt or fail. Only
-# settings.json is tracked; db / settings.local / backups stay ignored.
+# fixtures/demo-scope and fixtures/codex pin their active lens in a
+# committed `.skill-map/settings.json` so dev scopes (and the public demo
+# build, web/scripts/build-demo-dataset.js) scan deterministically without
+# relying on auto-detect. Only settings.json is tracked; db /
+# settings.local / backups stay ignored.
 !fixtures/demo-scope/.skill-map/
 !fixtures/demo-scope/.skill-map/settings.json
+!fixtures/codex/.skill-map/
+!fixtures/codex/.skill-map/settings.json
 
+# `.codex/` (OpenAI Codex's directory) is ignored everywhere by default:
+# the repo itself may carry one we don't want tracked. The codex dev
+# fixture is the deliberate exception, its `.codex/agents/*.toml` sub-agents
+# ARE the fixture, so re-include that subtree.
 .codex
+!fixtures/codex/.codex/
+!fixtures/codex/.codex/**
 
 # Claude Code / sandbox dotfile mounts. The sandbox virtualises certain
 # host dotfiles as /dev/null character devices in the repo root so the

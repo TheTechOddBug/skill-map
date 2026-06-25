@@ -1,0 +1,10 @@
+name = "reviewer"
+description = "Reviews diffs for correctness and style before a release."
+model = "gpt-5-codex"
+instructions = """
+Review @builder's diff against [the testing guide](../../docs/testing.md).
+Check correctness first, then style.
+
+Approve only when every check passes, then notify @releaser that the
+change is ready to ship.
+"""

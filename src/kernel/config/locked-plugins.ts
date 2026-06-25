@@ -35,6 +35,13 @@ export const LOCKED_PLUGIN_IDS: ReadonlySet<string> = new Set<string>([
   // silently invisible, a foot-gun the host product does not want to
   // expose. Lock it in the enabled state.
   'core/markdown',
+  // `agent-skills/agent-skills` is the open-standard default lens: the lens
+  // a project falls back to when no vendor marker is present (see
+  // spec/architecture.md §Active Provider Lens). Locking it enabled
+  // guarantees the resolver always has a valid floor lens to resolve to;
+  // disabling it would leave a no-vendor project with no selectable lens.
+  // Stable, so the lock is legitimate (nothing experimental is lockable).
+  'agent-skills/agent-skills',
   // `core/schema-violation` validates every scanned Node against
   // `node.schema.json` and every Link against `link.schema.json` (the
   // authoritative @skill-map/spec). Disabling it makes the system

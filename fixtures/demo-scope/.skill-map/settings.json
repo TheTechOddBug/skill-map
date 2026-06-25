@@ -1,7 +1,6 @@
 {
   "activeProvider": "claude",
   "activeProviderMarkers": [
-    "claude",
-    "openai"
+    "claude"
   ]
 }

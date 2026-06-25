@@ -127,9 +127,12 @@ export const agentSkillsProvider: IBuiltInManifest<IProvider> = {
   // and the per-node provider chip. Neutral slate (this is the
   // vendor-agnostic open-standard Provider, not a brand). The reusable
   // open-standard pieces it owns use a `COMMONS_*` vocabulary internally;
-  // the user-facing label stays the descriptive "Open Skills".
+  // the user-facing label is the descriptive "Agent Skills". This is the
+  // single open lens shown in the selector when no vendor is active; the
+  // non-gated `core/markdown` base sits underneath it and is never offered
+  // as a lens of its own.
   presentation: {
-    label: 'Open Skills',
+    label: 'Agent Skills',
     color: '#64748b',
     colorDark: '#94a3b8',
   },
@@ -140,11 +143,12 @@ export const agentSkillsProvider: IBuiltInManifest<IProvider> = {
   // universal provider. Keeps the "one active lens" model honest.
   gatedByActiveLens: true,
 
-  // Not yet ready for end users: ships disabled by default. The operator
-  // opts in via `sm plugins enable` / the Settings toggle / the tutorial's
-  // `--experimental` flow, so it neither classifies nor auto-detects until
-  // enabled.
-  stability: 'experimental',
+  // The open-standard lens is the universal default: stable and locked
+  // enabled (`agent-skills/agent-skills` in the host lock-list), so it is
+  // the lens a project falls back to when no vendor marker is present, and
+  // it cannot be disabled out from under that role. Auto-detects `.agents/`
+  // and classifies skills under its own lens.
+  stability: 'stable',
 
   // Auto-detect marker: a `.agents/` directory marks an open-standard
   // project. This is also the marker a Google/Antigravity project carries

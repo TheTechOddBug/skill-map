@@ -11,11 +11,11 @@
  *   - `notes/random.md`                  -> universal markdown fallback
  *
  * Scan once per lens and assert the resulting nodes. `agent-skills` is
- * now `gatedByActiveLens` (and experimental), so the open-standard
- * `SKILL.md` is classified as a `skill` ONLY under the `agent-skills`
- * lens; under any other lens it falls through to the universal
- * `core/markdown` provider. `core/markdown` is the only universal
- * provider now.
+ * `gatedByActiveLens` (and stable, the locked open default lens), so the
+ * open-standard `SKILL.md` is classified as a `skill` ONLY under the
+ * `agent-skills` lens; under a vendor lens it falls through to the
+ * universal `core/markdown` base. `core/markdown` is the only non-gated
+ * base provider.
  *
  *   Under `activeProvider = 'claude'`:
  *     foo.md           -> claude/agent           (vendor active)

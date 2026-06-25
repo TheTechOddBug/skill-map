@@ -46,8 +46,12 @@ export const coreMarkdownProvider: IBuiltInManifest<IProvider> = {
   // Provider identity. `hideChip: true` suppresses the per-card provider
   // chip: this fallback carries the majority of nodes in any project, so
   // badging every generic `.md` would be noise and dilute the chip's
-  // purpose (signalling a NON-default platform). The Provider still shows
-  // in the active-lens dropdown and the topbar lens chip with this label.
+  // purpose (signalling a NON-default platform). This Provider is the
+  // non-gated universal BASE, not a lens: `gatedByActiveLens` is false, so
+  // the BFF projects `isLens: false` and the UI never lists it in the
+  // active-lens dropdown nor as the topbar lens chip. The label is retained
+  // only for internal registry lookups (and any legacy node still tagged
+  // `provider: 'markdown'`).
   presentation: {
     label: 'Markdown',
     color: '#9ca3af',
@@ -55,9 +59,11 @@ export const coreMarkdownProvider: IBuiltInManifest<IProvider> = {
     hideChip: true,
   },
 
-  // No `detect` block: the universal fallback is never auto-suggested as a
-  // lens (selecting it would gate out every vendor Provider). Operators
-  // pick it manually if they want an open-standard-only view.
+  // No `detect` block: the universal base is never auto-suggested, and
+  // since it is non-gated (`gatedByActiveLens` omitted == false) it is not
+  // a selectable lens at all. A no-vendor project resolves to the
+  // open-standard `agent-skills` default lens; this base runs underneath
+  // every lens regardless.
 
   read: { extensions: ['.md'], parser: 'frontmatter-yaml' },
 

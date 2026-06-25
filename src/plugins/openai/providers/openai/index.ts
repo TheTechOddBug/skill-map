@@ -53,10 +53,15 @@ export const openaiProvider: IBuiltInManifest<IProvider> = {
     colorDark: '#4ade80',
   },
 
-  // Auto-detect markers: a `.codex/` directory or a root `AGENTS.md` marks
-  // a Codex CLI project. Provider-owned (replaces the old central
-  // detection table in `src/core/config/active-provider.ts`).
-  detect: { markers: ['.codex', 'AGENTS.md'] },
+  // Auto-detect marker: a `.codex/` directory marks a Codex CLI project.
+  // `AGENTS.md` is intentionally NOT a marker: it is the open agents.md
+  // standard (present in many non-Codex repos, and commonly alongside a
+  // `.claude/` directory), so keying auto-detect off it would mis-route a
+  // plain-markdown repo to the Codex lens and force an ambiguous prompt on
+  // any project that carries both. A genuine Codex project is identified by
+  // `.codex/`. Provider-owned (replaces the old central detection table in
+  // `src/core/config/active-provider.ts`).
+  detect: { markers: ['.codex'] },
 
   // Vendor provider: Codex CLI only reads its own `.codex/` territory.
   // Gating the classifier behind the active lens keeps the walker from
@@ -64,12 +69,20 @@ export const openaiProvider: IBuiltInManifest<IProvider> = {
   // the Codex runtime would never resolve them anyway.
   gatedByActiveLens: true,
 
-  // Not yet ready for end users: ships disabled by default (the operator
-  // opts in via `sm plugins enable` / Settings / the tutorial's
-  // `--experimental` flow). Replaces the retired `comingSoon` flag.
-  stability: 'experimental',
+  // Beta: ships enabled by default (auto-detects `.codex/`, selectable as
+  // the active lens) with a maturity badge, since the Codex body extractor
+  // is freshly landed. Promote to `stable` (drop the field) once it has
+  // real-world mileage.
+  stability: 'beta',
 
-  read: { extensions: ['.toml'], parser: 'toml' },
+  // The Codex sub-agent's markdown prompt lives in the TOML
+  // triple-quoted `instructions` field, not after a frontmatter fence
+  // (the whole file is structured frontmatter). `bodyField` tells the
+  // kernel walker to feed that string as the node body, so the universal
+  // body extractors (markdown-link, backtick-path, external-url) plus the
+  // lens-gated at-directive / slash run over the prompt and surface the
+  // Codex agent's references in the graph.
+  read: { extensions: ['.toml'], parser: 'toml', bodyField: 'instructions' },
 
   kinds: {
     agent: {

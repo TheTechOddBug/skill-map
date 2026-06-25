@@ -7,11 +7,13 @@
  *   2. When the lens came from filesystem auto-detect (no settings
  *      value), branch on `detected.length`:
  *
- *      - 0 detected → no provider markers anywhere. Resolve to the
- *        universal markdown lens (`source: 'default'`), no warning and
- *        no persist. Provider-specific extractors silently no-op under
- *        that lens; the universal `core/*` extractors keep running so
- *        plain-markdown projects scan fine.
+ *      - 0 detected → no vendor markers anywhere. Resolve to the
+ *        open-standard default lens `agent-skills` (`source: 'default'`),
+ *        no warning and no persist. The vendor-specific extractors
+ *        silently no-op under that lens (the open lens is not in their
+ *        allowlist); the universal `core/*` extractors keep running and
+ *        `.agents/skills/*` classify as skills, so plain-markdown
+ *        projects scan fine.
  *      - 1 detected → persist the detected id to
  *        `.skill-map/settings.json` (project layer) alongside a
  *        `activeProviderMarkers` snapshot of the detected set, so
@@ -37,9 +39,10 @@
  *      known-good snapshot.
  *
  * Always returns a concrete lens: a vendor id when a marker is present
- * or chosen, otherwise the universal markdown lens. Under the markdown
- * lens the orchestrator's gate skips every provider-specific extractor
- * for the scan.
+ * or chosen, otherwise the open-standard default lens `agent-skills`.
+ * Under that default the orchestrator's gate runs the open-standard
+ * classifier plus the universal base, and skips the vendor-specific
+ * extractors.
  *
  * Side effects: may write `.skill-map/settings.json` in the project
  * layer (twice, `activeProvider` then `activeProviderMarkers`), may
@@ -53,7 +56,7 @@ import { isAbsolute, join } from 'node:path';
 
 import {
   resolveActiveProvider,
-  MARKDOWN_LENS_ID,
+  DEFAULT_LENS_ID,
   type IProviderDetectInput,
 } from '../config/active-provider.js';
 import { readConfigValue, writeConfigValue } from '../config/helper.js';
@@ -151,11 +154,11 @@ export async function bootstrapActiveProvider(
     opts.providers,
   );
   if (detected.length === 0) {
-    // No provider markers anywhere. Resolve to the universal markdown
+    // No vendor markers anywhere. Resolve to the open-standard default
     // lens silently and do NOT persist it: a vendor marker added later
-    // still auto-detects on the next scan (persisting would let config
-    // freeze the project on markdown forever).
-    return { kind: 'ok', activeProvider: MARKDOWN_LENS_ID, source: 'default' };
+    // still auto-detects on the next scan (persisting would freeze the
+    // project on this lens forever).
+    return { kind: 'ok', activeProvider: DEFAULT_LENS_ID, source: 'default' };
   }
   if (detected.length === 1) {
     const picked = detected[0]!;
