@@ -33,13 +33,13 @@ import type { IPrinter } from '../printer.js';
 
 /**
  * Detection markers for these drift tests. Provider-owned: the bootstrap
- * reads `detect.markers` off this list. `.codex` maps to `openai` so the
- * multi-marker drift case sees `openai` as the added id.
+ * reads `detect.markers` off this list. `.codex` maps to `codex` so the
+ * multi-marker drift case sees `codex` as the added id.
  */
 const TEST_PROVIDERS: IProviderDetectInput[] = [
   { id: 'claude', detect: { markers: ['.claude'] } },
   { id: 'cursor', detect: { markers: ['.cursor'] } },
-  { id: 'openai', detect: { markers: ['.codex'] } },
+  { id: 'codex', detect: { markers: ['.codex'] } },
 ];
 
 interface ICapturedPrinter {
@@ -237,7 +237,7 @@ describe('bootstrapActiveProvider: drift detection from config', () => {
     mkdirSync(join(tmpRoot, '.codex'), { recursive: true });
     writeSettings(tmpRoot, {
       activeProvider: 'claude',
-      // Was [claude, cursor], now [claude, openai] (cursor gone, openai new).
+      // Was [claude, cursor], now [claude, codex] (cursor gone, codex new).
       activeProviderMarkers: ['claude', 'cursor'],
     });
 
@@ -253,7 +253,7 @@ describe('bootstrapActiveProvider: drift detection from config', () => {
     });
 
     assert.equal(cap.warns.length, 1, 'one warn even with multi-marker drift');
-    assert.match(cap.warns[0]!, /New: openai/);
+    assert.match(cap.warns[0]!, /New: codex/);
     assert.match(cap.warns[0]!, /Removed: cursor/);
   });
 

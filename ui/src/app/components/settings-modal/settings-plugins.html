@@ -182,7 +182,10 @@
 
             <div class="settings-plugins__row-text">
               <div class="settings-plugins__row-headline">
-                <span class="settings-plugins__row-id">{{ plugin.id }}</span>
+                <span class="settings-plugins__row-name">{{ displayName(plugin) }}</span>
+                @if (displayName(plugin) !== plugin.id) {
+                  <span class="settings-plugins__row-id">{{ plugin.id }}</span>
+                }
                 <span class="settings-plugins__row-source">{{ sourceLabel(plugin.source) }}</span>
                 @if (plugin.source === 'project' && plugin.version) {
                   <span class="settings-plugins__row-version">v{{ plugin.version }}</span>

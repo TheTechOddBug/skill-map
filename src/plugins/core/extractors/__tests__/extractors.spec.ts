@@ -361,7 +361,7 @@ describe('at-directive extractor', () => {
 // "agnostic" actually means in skill-map, and it's how the tester
 // can trust that fixing the extractor once fixes the experience
 // for every supported runtime.
-describe('cross-provider invariance (claude / openai / agent-skills)', () => {
+describe('cross-provider invariance (claude / codex / agent-skills)', () => {
   // Single body that exercises every branch the LLM-aligned semantics
   // care about: bare mention, namespaced mention, file ref by ext,
   // file ref by path, code-block silence, slash command, slash path.
@@ -379,7 +379,7 @@ describe('cross-provider invariance (claude / openai / agent-skills)', () => {
 
   // The provider is purely metadata on the node, not an input to the
   // extractor. Looping over it documents the invariant.
-  const PROVIDERS = ['claude', 'openai', 'agent-skills'] as const;
+  const PROVIDERS = ['claude', 'codex', 'agent-skills'] as const;
 
   for (const provider of PROVIDERS) {
     it(`emits the same links under provider="${provider}"`, async () => {

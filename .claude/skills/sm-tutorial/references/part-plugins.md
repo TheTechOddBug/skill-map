@@ -70,7 +70,7 @@ Mark `tour-1-intro: done`.
 >    Decides what kind each `.md` file is. The `claude` provider,
 >    for instance, walks `.claude/` and types each file it finds
 >    (agent, command, or skill).
->    Examples: `claude`, `antigravity`, `openai`, `agent-skills`.
+>    Examples: `claude`, `antigravity`, `codex`, `agent-skills`.
 >
 > 🔍 **extractor**
 >    Reads a node's body and emits structured findings (links,
@@ -184,7 +184,7 @@ Mark `tour-3-explore: done`.
 >
 > - What plugins, extensions, and the six kinds are.
 > - Five plugins ship pre-installed (`claude`, `antigravity`,
->   `openai`, `agent-skills`, `core`).
+>   `codex`, `agent-skills`, `core`).
 > - How to list, inspect, diagnose, and toggle extensions from
 >   the CLI (and the same lives in the UI).
 >

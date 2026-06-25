@@ -107,7 +107,7 @@ describe('sm init --force DB reset (greenfield posture)', () => {
     const settingsPath = join(skillMapDir, 'settings.json');
     writeFileSync(
       settingsPath,
-      JSON.stringify({ schemaVersion: 1, activeProvider: 'openai' }, null, 2) + '\n',
+      JSON.stringify({ schemaVersion: 1, activeProvider: 'codex' }, null, 2) + '\n',
     );
 
     // Pre-condition: stale schema is missing the Phase-2 columns.

@@ -260,16 +260,16 @@ on-disk convention:
 |----------------|-------------------|-----------------------------|--------------------------------------------------------|
 | `claude`       | `.claude/`        | `agent`, `command`, `skill` | `CLAUDECODE=1` OR `AI_AGENT` starts with `claude-code` |
 | `agent-skills` | `.agents/skills/` | `skill` only (vendor-neutral; also the on-disk home for Google's Antigravity CLI, which replaced the Gemini CLI on 2026-05-19 and adopted this open standard) | experimental (ships disabled; `sm tutorial --experimental` to offer it) |
-| `openai`       | `.codex/`         | `agent` (`.codex/agents/*.toml`) | experimental (ships disabled by default) |
+| `codex`       | `.codex/`         | `agent` (`.codex/agents/*.toml`) | experimental (ships disabled by default) |
 
 **Decision logic, applied silently during pre-flight**: the tutorial
-demonstrates the `claude` provider only. `agent-skills` and `openai`
+demonstrates the `claude` provider only. `agent-skills` and `codex`
 are **experimental** (ship disabled by default) and are not selectable
 here, so there is no runtime to detect or opt into.
 
 1. `provider = claude`, `<provider_dir> = .claude`, kinds =
    `{agent, command, skill}`. Always.
-2. Do NOT offer Antigravity / agent-skills / openai as an alternative,
+2. Do NOT offer Antigravity / agent-skills / codex as an alternative,
    and do NOT ask the tester which runtime hosts them. If a tester
    says they use another runtime, acknowledge it briefly and explain
    that those providers are experimental, the tutorial demos `claude`
@@ -291,7 +291,7 @@ not claim, and report the adjusted `nodeCount` plus the `skipped`
 list in their summary. Today `provider` is always `claude`, so the
 narration uses `.claude/` throughout; the `--provider` plumbing stays
 wired so the coming-soon providers (`agent-skills` / Antigravity,
-`openai`) drop in later without a narrative rewrite. The campaign
+`codex`) drop in later without a narrative rewrite. The campaign
 cross-link chapters target `claude` today (see the reality check
 below).
 

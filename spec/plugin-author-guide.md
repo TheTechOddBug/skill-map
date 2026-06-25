@@ -92,7 +92,7 @@ Examples from the reference impl's built-in extensions:
 Built-ins split between two namespaces:
 
 - **`core/`**, kernel-internal primitives, platform-agnostic: every built-in analyzer, the ASCII formatter, the cross-vendor extractors (`annotations`, `markdown-link`, `backtick-path`, `external-url-counter`), the universal `markdown` Provider fallback, and the `update-check` hook.
-- **`claude/`**, the Claude Code Provider plugin: the Provider plus the Claude-flavoured extractors (`slash-command`, `at-directive`). Other vendor plugins (`antigravity`, `openai`, `agent-skills`) follow the same shape (Provider only).
+- **`claude/`**, the Claude Code Provider plugin: the Provider plus the Claude-flavoured extractors (`slash-command`, `at-directive`). Other vendor plugins (`antigravity`, `codex`, `agent-skills`) follow the same shape (Provider only).
 
 ### Extension id shape
 
@@ -108,7 +108,7 @@ Two id shapes resolve at the toggle surface:
 
 - **Qualified id** (`<plugin>/<ext-id>`): flips exactly that extension. No prompt.
 - **Bare plugin id** (`claude`, `core`): the **bundle (aggregate) macro form**, fans the toggle across every extension inside the plugin.
-  - Single-extension plugin (`openai`, `antigravity`, `agent-skills`): applies directly, no prompt.
+  - Single-extension plugin (`codex`, `antigravity`, `agent-skills`): applies directly, no prompt.
   - Multi-extension plugin (`claude`, `core`): requires `--yes` OR an interactive TTY confirm. CI / pipe contexts must pass `--yes`.
 
 `--all` is the cascade variant: expands to every extension in every discovered plugin under the same `--yes` / TTY-confirm gate.

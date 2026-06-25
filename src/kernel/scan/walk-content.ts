@@ -378,7 +378,7 @@ async function readAndParse(
 
 /**
  * Pick the node body the walker yields. When the Provider declared a
- * `bodyField` (e.g. openai's `developer_instructions`) and that frontmatter key is a
+ * `bodyField` (e.g. codex's `developer_instructions`) and that frontmatter key is a
  * string, it IS the markdown body (formats that carry the prompt inside
  * structured frontmatter, like Codex's pure-TOML sub-agents). Otherwise the
  * parser's own `body` (everything after the frontmatter fence) is used,

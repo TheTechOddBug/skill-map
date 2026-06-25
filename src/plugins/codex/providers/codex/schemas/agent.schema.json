@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.ai/providers/openai/v1/frontmatter/agent.schema.json",
+  "$id": "https://skill-map.ai/providers/codex/v1/frontmatter/agent.schema.json",
   "title": "FrontmatterCodexAgent",
-  "description": "Frontmatter shape for nodes classified as `agent` by the OpenAI Codex Provider. Codex sub-agents live as standalone TOML files under `.codex/agents/<name>.toml`; the entire file IS the agent definition (no markdown body, the prompt is the `developer_instructions` field). The TOML parser feeds the parsed root object into `frontmatter`, so this schema validates the same shape skill-map's other providers carry on per-kind frontmatter. Field set mirrors the documented Codex custom-agent contract (https://developers.openai.com/codex/subagents); `additionalProperties: true` lets any other inherited `config.toml` key flow through unchanged.",
+  "description": "Frontmatter shape for nodes classified as `agent` by the OpenAI Codex Provider. Codex sub-agents live as standalone TOML files under `.codex/agents/<name>.toml`; the entire file IS the agent definition (no markdown body, the prompt is the `developer_instructions` field). The TOML parser feeds the parsed root object into `frontmatter`, so this schema validates the same shape skill-map's other providers carry on per-kind frontmatter. Field set mirrors the documented Codex custom-agent contract (https://developers.codex.com/codex/subagents); `additionalProperties: true` lets any other inherited `config.toml` key flow through unchanged.",
   "allOf": [
     { "$ref": "https://skill-map.ai/spec/v0/frontmatter/base.schema.json" }
   ],

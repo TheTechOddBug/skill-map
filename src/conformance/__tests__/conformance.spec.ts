@@ -30,9 +30,9 @@ const CLAUDE_FIXTURES_DIR = resolve(CLAUDE_CONFORMANCE_DIR, 'fixtures');
 const OPENAI_CONFORMANCE_DIR = resolve(
   WORKSPACE,
   'plugins',
-  'openai',
+  'codex',
   'providers',
-  'openai',
+  'codex',
   'conformance',
 );
 const OPENAI_CASES_DIR = resolve(OPENAI_CONFORMANCE_DIR, 'cases');
@@ -99,7 +99,7 @@ describe('conformance suite (Step 0b subset)', () => {
   }
 
   for (const caseId of PROVIDER_OPENAI_CASES) {
-    it(`provider:openai case ${caseId} passes`, () => {
+    it(`provider:codex case ${caseId} passes`, () => {
       const result = runConformanceCase({
         binary: BIN,
         specRoot: SPEC_ROOT,
@@ -114,7 +114,7 @@ describe('conformance suite (Step 0b subset)', () => {
         : '';
       assert.ok(
         result.passed,
-        `provider:openai case ${caseId} failed\n${summary}\n--- stdout ---\n${result.stdout}\n--- stderr ---\n${result.stderr}`,
+        `provider:codex case ${caseId} failed\n${summary}\n--- stdout ---\n${result.stdout}\n--- stderr ---\n${result.stderr}`,
       );
     });
   }

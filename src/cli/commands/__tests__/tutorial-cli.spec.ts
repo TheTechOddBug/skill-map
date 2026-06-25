@@ -322,14 +322,14 @@ describe('sm tutorial, --for provider selection', () => {
     assert.equal(existsSync(join(scope.cwd, '.agents')), false);
   });
 
-  it('exits 2 for a built-in that is not a selectable destination (openai)', () => {
+  it('exits 2 for a built-in that is not a selectable destination (codex)', () => {
     const scope = freshScope('for-no-scaffold');
-    // openai declares no `scaffold.skillDir` (regardless of being beta),
+    // codex declares no `scaffold.skillDir` (regardless of being beta),
     // so it is not a valid `--for` destination.
-    const r = sm(['tutorial', '--for', 'openai'], scope);
+    const r = sm(['tutorial', '--for', 'codex'], scope);
 
     assert.equal(r.status, 2, `stderr: ${r.stderr}`);
-    assert.match(r.stderr, /unknown provider 'openai' for --for/);
+    assert.match(r.stderr, /unknown provider 'codex' for --for/);
     assert.equal(existsSync(join(scope.cwd, '.codex')), false);
   });
 });

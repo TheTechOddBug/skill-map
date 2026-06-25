@@ -50,18 +50,18 @@ describe('buildKindRegistry', () => {
         ui: { label: 'Agents', color: '#3b82f6' },
       },
     });
-    const openai = fakeProvider('openai', {
+    const codex = fakeProvider('codex', {
       agent: {
         schema: './ga.json',
         schemaJson: {},
         ui: { label: 'Codex Agents', color: '#22c55e' },
       },
     });
-    const registry = buildKindRegistry([claude, openai]);
+    const registry = buildKindRegistry([claude, codex]);
     strictEqual(registry['agent']!.primaryProviderId, 'claude');
-    deepStrictEqual(Object.keys(registry['agent']!.providers).sort(), ['claude', 'openai']);
+    deepStrictEqual(Object.keys(registry['agent']!.providers).sort(), ['claude', 'codex']);
     strictEqual(registry['agent']!.providers['claude']!.color, '#3b82f6');
-    strictEqual(registry['agent']!.providers['openai']!.color, '#22c55e');
+    strictEqual(registry['agent']!.providers['codex']!.color, '#22c55e');
   });
 
   it('order matters, first provider in the input array wins primaryProviderId', () => {
@@ -72,18 +72,18 @@ describe('buildKindRegistry', () => {
         ui: { label: 'Agents', color: '#3b82f6' },
       },
     });
-    const openai = fakeProvider('openai', {
+    const codex = fakeProvider('codex', {
       agent: {
         schema: './ga.json',
         schemaJson: {},
         ui: { label: 'Codex Agents', color: '#22c55e' },
       },
     });
-    const registryOpenaiFirst = buildKindRegistry([openai, claude]);
-    strictEqual(registryOpenaiFirst['agent']!.primaryProviderId, 'openai');
+    const registryOpenaiFirst = buildKindRegistry([codex, claude]);
+    strictEqual(registryOpenaiFirst['agent']!.primaryProviderId, 'codex');
     deepStrictEqual(
       Object.keys(registryOpenaiFirst['agent']!.providers).sort(),
-      ['claude', 'openai'],
+      ['claude', 'codex'],
     );
   });
 

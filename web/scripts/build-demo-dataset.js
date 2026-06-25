@@ -239,7 +239,7 @@ const DEMO_KIND_REGISTRY = {
 const DEMO_PROVIDER_REGISTRY = {
   claude: { label: 'Claude', color: '#cc785c', colorDark: '#e89270', isLens: true },
   antigravity: { label: 'Antigravity', color: '#7c3aed', colorDark: '#a78bfa', isLens: true },
-  openai: { label: 'OpenAI Codex', color: '#22c55e', colorDark: '#4ade80', isLens: true },
+  codex: { label: 'OpenAI Codex', color: '#22c55e', colorDark: '#4ade80', isLens: true },
   'agent-skills': { label: 'Agent Skills', color: '#64748b', colorDark: '#94a3b8', isLens: true },
   markdown: { label: 'Markdown', color: '#9ca3af', colorDark: '#6b7280', isLens: false, hideChip: true },
 };

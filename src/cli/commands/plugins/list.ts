@@ -258,7 +258,7 @@ interface IExtensionListItem {
   /**
    * Optional. Populated for user-plugin extensions so the plugin-detail
    * block surfaces per-extension semver. Omitted for built-in extensions
-   * (`core`, `claude`, `antigravity`, `openai`, `agent-skills`), which
+   * (`core`, `claude`, `antigravity`, `codex`, `agent-skills`), which
    * inherit the CLI version and are not versioned independently.
    */
   version?: string;

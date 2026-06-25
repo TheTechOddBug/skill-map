@@ -23,15 +23,15 @@
  *     baz/SKILL.md     -> markdown/markdown      (agent-skills gated off)
  *     random.md        -> markdown/markdown      (universal fallback)
  *
- *   Under `activeProvider = 'openai'`:
+ *   Under `activeProvider = 'codex'`:
  *     foo.md           -> markdown/markdown      (claude gated off; fallback)
- *     bar.toml         -> openai/agent           (vendor active)
+ *     bar.toml         -> codex/agent           (vendor active)
  *     baz/SKILL.md     -> markdown/markdown      (agent-skills gated off)
  *     random.md        -> markdown/markdown      (universal fallback)
  *
  *   Under `activeProvider = 'agent-skills'`:
  *     foo.md           -> markdown/markdown      (claude gated off; fallback)
- *     bar.toml         -> NO NODE                (openai gated off)
+ *     bar.toml         -> NO NODE                (codex gated off)
  *     baz/SKILL.md     -> agent-skills/skill     (vendor active under its lens)
  *     random.md        -> markdown/markdown      (universal fallback)
  */
@@ -111,7 +111,7 @@ describe('lens-gated classification (integration)', () => {
       { provider: 'claude', kind: 'agent' },
     );
 
-    // bar.toml has no node: openai is gated off; no universal claims .toml.
+    // bar.toml has no node: codex is gated off; no universal claims .toml.
     const bar = nodes.find((n) => n.path === '.codex/agents/bar.toml');
     strictEqual(bar, undefined, '.codex/*.toml MUST NOT produce a node under claude lens');
 
@@ -133,27 +133,27 @@ describe('lens-gated classification (integration)', () => {
     );
   });
 
-  it("activeProvider='openai': codex classifies its territory, claude territory falls back to markdown", async () => {
-    const nodes = await scanWithLens('openai');
+  it("activeProvider='codex': codex classifies its territory, claude territory falls back to markdown", async () => {
+    const nodes = await scanWithLens('codex');
 
-    // bar.toml classifies as openai/agent (vendor active under this lens).
+    // bar.toml classifies as codex/agent (vendor active under this lens).
     const bar = nodes.find((n) => n.path === '.codex/agents/bar.toml');
-    ok(bar, 'codex territory file must be classified under openai lens');
+    ok(bar, 'codex territory file must be classified under codex lens');
     deepStrictEqual(
       { provider: bar!.provider, kind: bar!.kind },
-      { provider: 'openai', kind: 'agent' },
+      { provider: 'codex', kind: 'agent' },
     );
 
-    // foo.md: claude is gated off under openai, but the file is still .md
+    // foo.md: claude is gated off under codex, but the file is still .md
     // so core/markdown's universal fallback claims it.
     const foo = nodes.find((n) => n.path === '.claude/agents/foo.md');
-    ok(foo, '.claude/*.md must still classify via core/markdown fallback under openai lens');
+    ok(foo, '.claude/*.md must still classify via core/markdown fallback under codex lens');
     deepStrictEqual(
       { provider: foo!.provider, kind: foo!.kind },
       { provider: 'markdown', kind: 'markdown' },
     );
 
-    // SKILL.md: agent-skills is gated off under the openai lens too, so
+    // SKILL.md: agent-skills is gated off under the codex lens too, so
     // the file falls through to the universal core/markdown fallback.
     const baz = nodes.find((n) => n.path === '.agents/skills/baz/SKILL.md');
     ok(baz, 'open-standard SKILL.md must classify under the markdown fallback when agent-skills is gated off');
@@ -194,7 +194,7 @@ describe('lens-gated classification (integration)', () => {
       { provider: 'markdown', kind: 'markdown' },
     );
 
-    // bar.toml has no node: openai is gated off; no universal claims .toml.
+    // bar.toml has no node: codex is gated off; no universal claims .toml.
     const bar = nodes.find((n) => n.path === '.codex/agents/bar.toml');
     strictEqual(bar, undefined, '.codex/*.toml MUST NOT produce a node under the agent-skills lens');
 

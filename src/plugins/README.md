@@ -4,7 +4,7 @@ The reference implementation's bundled extensions live here, organized by extens
 
 The built-in **plugins** are declared in [`built-ins.ts`](./built-ins.ts):
 
-- **`claude`** / **`antigravity`** / **`openai`** / **`agent-skills`** group the vendor Provider extensions (and, for `claude`, the two vendor-specific extractors that decode its `@`-directive and `/`-slash grammar). Today `antigravity`, `openai`, and `agent-skills` each ship just their Provider; `claude` ships its Provider plus the two extractors.
+- **`claude`** / **`antigravity`** / **`codex`** / **`agent-skills`** group the vendor Provider extensions (and, for `claude`, the two vendor-specific extractors that decode its `@`-directive and `/`-slash grammar). Today `antigravity`, `codex`, and `agent-skills` each ship just their Provider; `claude` ships its Provider plus the two extractors.
 - **`core`** ships the kernel-internal primitives (every Rule, the Formatter, the markdown / URL-counter Extractors, the `core-markdown` fallback Provider).
 
 Every extension is independently toggle-able by its qualified id `<plugin>/<ext-id>`, satisfying §Boot invariant: "no extension is privileged". Plugins are presentational grouping only; the bare plugin id maps to a CLI / BFF cascade macro (`sm plugins disable claude` fans out across every extension inside `claude`; multi-extension plugins need `--yes` in non-TTY contexts).

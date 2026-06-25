@@ -3,15 +3,15 @@
  *
  * Codex sub-agents are pure TOML under `.codex/agents/*.toml`; their
  * markdown prompt lives in the triple-quoted `developer_instructions`
- * field, not after a frontmatter fence. The openai provider declares
+ * field, not after a frontmatter fence. The codex provider declares
  * `read.bodyField: 'developer_instructions'`, so the kernel walker yields
  * that field as the node body and the normal body pipeline runs over it:
  *
  *   - `core/markdown-link` (universal) turns `[the guide](guide.md)` into a
  *     `references` edge.
- *   - `claude/at-directive` (precondition widened to `['claude','openai']`)
+ *   - `claude/at-directive` (precondition widened to `['claude','codex']`)
  *     turns `@builder` into a `mentions` edge that resolves to the other
- *     Codex agent (openai `resolution.mentions: ['agent']`).
+ *     Codex agent (codex `resolution.mentions: ['agent']`).
  *
  * The contrast test pins the lens gate: under the `claude` lens the Codex
  * agent is not classified at all, so its developer_instructions never reach
@@ -75,13 +75,13 @@ async function scan(activeProvider: string): Promise<ScanResult> {
 }
 
 describe('Codex body extraction (read.bodyField = developer_instructions)', () => {
-  it("under the openai lens, the agent's developer_instructions body feeds the link pipeline", async () => {
-    const result = await scan('openai');
+  it("under the codex lens, the agent's developer_instructions body feeds the link pipeline", async () => {
+    const result = await scan('codex');
 
-    // The Codex agent is classified under the openai lens.
+    // The Codex agent is classified under the codex lens.
     ok(
-      result.nodes.some((n) => n.path === DEPLOYER && n.provider === 'openai'),
-      'deployer.toml must classify as an openai agent',
+      result.nodes.some((n) => n.path === DEPLOYER && n.provider === 'codex'),
+      'deployer.toml must classify as an codex agent',
     );
 
     const fromDeployer = result.links.filter((l) => l.source === DEPLOYER);
@@ -96,11 +96,11 @@ describe('Codex body extraction (read.bodyField = developer_instructions)', () =
       'a markdown link in developer_instructions becomes a references edge',
     );
 
-    // at-directive (now authorised under openai) parsed `@builder` and the
+    // at-directive (now authorised under codex) parsed `@builder` and the
     // resolver matched it to the builder agent (mentions -> agent).
     ok(
       fromDeployer.some((l) => l.kind === 'mentions'),
-      'an @mention in developer_instructions becomes a mentions edge under the openai lens',
+      'an @mention in developer_instructions becomes a mentions edge under the codex lens',
     );
   });
 

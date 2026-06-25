@@ -727,7 +727,7 @@ async function runScanInternal(
  *
  *   - `kindRegistry`: `<providerId>/<kindName>` → kind descriptor. The
  *     compound key is required because two Providers may declare the
- *     same kind name (`claude` and `openai` both ship `agent`); the
+ *     same kind name (`claude` and `codex` both ship `agent`); the
  *     post-walk consumer looks up a node by its `provider`/`kind`
  *     tuple, not by `kind` alone.
  *   - `providerResolution`: provider id → `resolution` map. Read at

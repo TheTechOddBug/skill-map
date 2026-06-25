@@ -17,7 +17,7 @@
  *   ```json
  *   {
  *     "activeProvider": "claude" | "agent-skills",
- *     "detected": ["claude", "openai"],
+ *     "detected": ["claude", "codex"],
  *     "source": "config" | "autodetect" | "default"
  *   }
  *   ```

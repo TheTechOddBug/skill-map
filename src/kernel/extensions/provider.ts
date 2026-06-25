@@ -322,7 +322,7 @@ export interface IProvider extends IExtensionBase {
    * When present, the Provider is offered as a destination for newly
    * generated content (a skill folder dropped under `scaffold.skillDir`).
    * Absent means a materialising verb never offers this Provider, e.g.
-   * `openai` until Codex skills land, `antigravity` (skills live under
+   * `codex` until Codex skills land, `antigravity` (skills live under
    * the open-standard `agent-skills` territory), `core/markdown` (owns
    * no authoring convention).
    */
@@ -475,7 +475,7 @@ export interface IProvider extends IExtensionBase {
    * from this flag). When `false` or omitted (default), the Provider is a
    * non-gated universal BASE and classifies unconditionally.
    *
-   * Vendor providers (`claude`, `openai`, `antigravity`) and the
+   * Vendor providers (`claude`, `codex`, `antigravity`) and the
    * open-standard `agent-skills` provider MUST set this `true`: the actual
    * runtimes never read each other's on-disk formats (Claude Code does not
    * consume `.codex/`; Codex CLI does not consume `.claude/`), and offering
@@ -647,7 +647,7 @@ export interface IProviderReadConfig {
    * see this prose. For formats where the prompt lives inside structured
    * frontmatter rather than after a fence: OpenAI Codex sub-agents are
    * pure TOML (`read.parser: 'toml'`) whose markdown prompt is the
-   * triple-quoted `developer_instructions` field, so the openai provider
+   * triple-quoted `developer_instructions` field, so the codex provider
    * declares `bodyField: 'developer_instructions'`. When the field is
    * absent or not a string,
    * the parser's own `body` is used unchanged (the default for `.md`

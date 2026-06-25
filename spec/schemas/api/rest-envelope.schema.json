@@ -67,7 +67,7 @@
           "providers": {
             "type": "object",
             "minProperties": 1,
-            "description": "Per-provider visuals for this kind name. Keyed by Provider id (e.g. `'claude'`, `'openai'`). Lets the UI render a node painted with its own Provider's color via `entry.providers[node.provider]` when the kind name is shared across Providers.",
+            "description": "Per-provider visuals for this kind name. Keyed by Provider id (e.g. `'claude'`, `'codex'`). Lets the UI render a node painted with its own Provider's color via `entry.providers[node.provider]` when the kind name is shared across Providers.",
             "additionalProperties": {
               "type": "object",
               "required": ["label", "color"],

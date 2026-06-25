@@ -11,7 +11,7 @@
  * wanted there. Codex sub-agents have no tool-allowlist array at all,
  * they bind MCP servers through a `[mcp_servers.<name>]` TOML table (not
  * the Claude `tools: string[]` convention), so there is nothing for this
- * chip to count under the openai lens.
+ * chip to count under the codex lens.
  *
  * Replaces the hardcoded wrench + count block that used to live in
  * `node-card.html` (legacy `toolsCount()` computed in `node-card.ts`).

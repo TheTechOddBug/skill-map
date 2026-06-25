@@ -5,7 +5,7 @@ import type { IProviderRegistryApi } from '../../models/api';
 
 const REGISTRY: IProviderRegistryApi = {
   claude: { label: 'Claude', color: '#cc785c', colorDark: '#e89270', isLens: true },
-  openai: { label: 'OpenAI Codex', color: '#22c55e', colorDark: '#4ade80', isLens: true },
+  codex: { label: 'OpenAI Codex', color: '#22c55e', colorDark: '#4ade80', isLens: true },
   // The non-gated base: kept in the registry for chip lookups, `isLens:
   // false` so the dropdown (filtered elsewhere) never lists it.
   markdown: {
@@ -26,7 +26,7 @@ function seed(): ProviderRegistryService {
 describe('ProviderRegistryService', () => {
   it('ingests entries preserving id order', () => {
     const svc = seed();
-    expect(svc.providers().map((p) => p.id)).toEqual(['claude', 'openai', 'markdown']);
+    expect(svc.providers().map((p) => p.id)).toEqual(['claude', 'codex', 'markdown']);
   });
 
   it('lookup returns the entry with its id', () => {

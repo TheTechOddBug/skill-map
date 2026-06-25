@@ -10,7 +10,7 @@
 const BUILT_IN_PLUGIN_IDS: ReadonlySet<string> = new Set([
   'claude',
   'antigravity',
-  'openai',
+  'codex',
   'agent-skills',
   'core',
 ]);

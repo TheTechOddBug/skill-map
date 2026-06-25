@@ -48,7 +48,7 @@ import type { IPrinter } from '../printer.js';
 const TEST_PROVIDERS: IProviderDetectInput[] = [
   { id: 'claude', detect: { markers: ['.claude'] } },
   { id: 'cursor', detect: { markers: ['.cursor'] } },
-  { id: 'openai', detect: { markers: ['.codex'] } },
+  { id: 'codex', detect: { markers: ['.codex'] } },
 ];
 
 interface ICapturedPrinter {

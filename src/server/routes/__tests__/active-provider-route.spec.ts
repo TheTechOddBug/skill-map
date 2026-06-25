@@ -13,7 +13,7 @@
  * is the substrate, not a lens).
  *
  * Confirms:
- *   - enabled lenses are selectable: `claude` (stable), `openai` (beta),
+ *   - enabled lenses are selectable: `claude` (stable), `codex` (beta),
  *     and `agent-skills` (stable, the locked open default); the
  *     experimental `antigravity` ships disabled, so it is not until
  *     enabled. The non-gated `markdown` base is never selectable.
@@ -107,9 +107,9 @@ describe('GET /api/active-provider selectable', () => {
         assert.equal(res.status, 200);
         const body = (await res.json()) as IActiveProviderWire;
         assert.ok(Array.isArray(body.selectable));
-        // Enabled lenses are selectable: claude (stable), openai (beta),
+        // Enabled lenses are selectable: claude (stable), codex (beta),
         // and agent-skills (stable, the locked open default).
-        for (const id of ['claude', 'openai', 'agent-skills']) {
+        for (const id of ['claude', 'codex', 'agent-skills']) {
           assert.ok(
             body.selectable.includes(id),
             `expected '${id}' to be selectable, got ${JSON.stringify(body.selectable)}`,
@@ -140,10 +140,10 @@ describe('GET /api/active-provider selectable', () => {
           !body.selectable.includes('claude'),
           `expected 'claude' to be excluded, got ${JSON.stringify(body.selectable)}`,
         );
-        // Other selectable lenses are untouched: `openai` (beta) and the
+        // Other selectable lenses are untouched: `codex` (beta) and the
         // locked open default `agent-skills` stay. The non-gated `markdown`
         // base is never selectable (it is the substrate, not a lens).
-        assert.ok(body.selectable.includes('openai'));
+        assert.ok(body.selectable.includes('codex'));
         assert.ok(body.selectable.includes('agent-skills'));
         assert.ok(!body.selectable.includes('markdown'));
       });

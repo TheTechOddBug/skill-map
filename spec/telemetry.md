@@ -206,7 +206,7 @@ Rules:
   scan do not), so the signal is "which extractors this project exercises",
   aggregated across runs.
 - **Third-party ids collapse.** Any extension id whose plugin is not a
-  built-in (`claude`, `antigravity`, `openai`, `agent-skills`, `core`) MUST be
+  built-in (`claude`, `antigravity`, `codex`, `agent-skills`, `core`) MUST be
   replaced with `external_plugin` before the event leaves the machine.
 - **No node paths, titles, or content** in any UI event; the view / feature is
   the event name, from a closed set, and nothing else is attached.

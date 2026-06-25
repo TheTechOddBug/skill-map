@@ -91,7 +91,7 @@ export const PINNED_PLUGIN_ORDER: readonly string[] = [
   'core',
   'claude',
   'antigravity',
-  'openai',
+  'codex',
   'agent-skills',
 ];
 
@@ -413,6 +413,28 @@ export function stripLocked(plugin: IPluginItemApi): IPluginItemApi[] {
   const visibleExtensions = plugin.extensions.filter((ext) => !ext.locked);
   if (visibleExtensions.length === 0) return [];
   return [{ ...plugin, extensions: visibleExtensions }];
+}
+
+/**
+ * The Settings headline for a plugin: the friendly lens label of the
+ * plugin's provider, so the plugins list mirrors the active-lens selector
+ * ("Anthropic's Claude", "OpenAI's Codex", ...). Falls back to the plugin
+ * id when the plugin has no lens provider (e.g. `core`, whose only
+ * provider is the non-lens `markdown` base) or when the provider has no
+ * registry entry. `lensLabelFor` returns the label ONLY for a provider
+ * that is a selectable lens (`isLens`), `null` otherwise, so the
+ * non-gated base never lends its name to a plugin row.
+ */
+export function pluginDisplayName(
+  plugin: IPluginItemApi,
+  lensLabelFor: (providerId: string) => string | null,
+): string {
+  const provider = plugin.extensions?.find((e) => e.kind === 'provider');
+  if (provider) {
+    const label = lensLabelFor(provider.id);
+    if (label) return label;
+  }
+  return plugin.id;
 }
 
 /**

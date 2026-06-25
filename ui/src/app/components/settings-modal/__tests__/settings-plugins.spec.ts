@@ -58,7 +58,7 @@ function plugin(
     // presentational grouping (no toggle of its own), so the inline
     // extension carries the toggle axis tests reach into via
     // `onExtensionToggle`. Use the same id as the plugin (mirrors the
-    // single-extension provider plugins like `openai/openai`).
+    // single-extension provider plugins like `codex/codex`).
     extensions: [
       {
         id,

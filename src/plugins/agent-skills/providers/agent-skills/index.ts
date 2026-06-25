@@ -6,7 +6,7 @@
  * (Antigravity CLI, which retired the Gemini CLI in May 2026 and
  * adopted the open standard rather than carrying forward a vendor-
  * specific `.gemini/` layout). Owning this path with a dedicated
- * Provider keeps the vendor-specific Providers (`claude`, `openai`,
+ * Provider keeps the vendor-specific Providers (`claude`, `codex`,
  * `antigravity`) from claiming it themselves, the spec's
  * `provider-ambiguous` rule would otherwise fire when a second
  * vendor lands.

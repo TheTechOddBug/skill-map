@@ -41,7 +41,7 @@ describe('matchesProviderPrecondition', () => {
       const cases: ReadonlyArray<string | null> = [
         'claude',
         'antigravity',
-        'openai',
+        'codex',
         'agent-skills',
         null,
       ];
@@ -87,7 +87,7 @@ describe('matchesProviderPrecondition', () => {
     });
 
     it('skips when the lens is outside the allowlist', () => {
-      strictEqual(matchesProviderPrecondition(ex, 'openai'), false);
+      strictEqual(matchesProviderPrecondition(ex, 'codex'), false);
     });
 
     it('skips when the lens is null', () => {

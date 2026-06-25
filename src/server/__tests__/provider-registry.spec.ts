@@ -43,12 +43,12 @@ describe('buildProviderRegistry', () => {
       colorDark: '#6b7280',
       hideChip: true,
     }); // non-gated base
-    const openai = fakeProvider(
-      'openai',
+    const codex = fakeProvider(
+      'codex',
       { label: 'OpenAI Codex', color: '#22c55e', icon: { kind: 'pi', id: 'pi-bolt' } },
       true,
     );
-    const registry = buildProviderRegistry([markdown, openai]);
+    const registry = buildProviderRegistry([markdown, codex]);
     deepStrictEqual(registry, {
       markdown: {
         label: 'Markdown',
@@ -57,7 +57,7 @@ describe('buildProviderRegistry', () => {
         isLens: false,
         hideChip: true,
       },
-      openai: {
+      codex: {
         label: 'OpenAI Codex',
         color: '#22c55e',
         isLens: true,
@@ -81,10 +81,10 @@ describe('buildProviderRegistry', () => {
   it('preserves provider iteration order in the keys', () => {
     const registry = buildProviderRegistry([
       fakeProvider('claude', { label: 'Claude', color: '#cc785c' }, true),
-      fakeProvider('openai', { label: 'OpenAI Codex', color: '#22c55e' }, true),
+      fakeProvider('codex', { label: 'OpenAI Codex', color: '#22c55e' }, true),
       fakeProvider('markdown', { label: 'Markdown', color: '#9ca3af', hideChip: true }),
     ]);
-    deepStrictEqual(Object.keys(registry), ['claude', 'openai', 'markdown']);
+    deepStrictEqual(Object.keys(registry), ['claude', 'codex', 'markdown']);
   });
 
   it('returns an empty registry for no providers', () => {
