@@ -389,8 +389,8 @@ Notes:
 - Initialise the signals **in a field initializer** (not after `ngOnInit`) — the binding is evaluated on first template pass.
 - `(fCanvasChange)` MUST write back into the signals. That is what keeps the bound value in sync with the canvas. Skipping the write is the bug.
 - The `hasCompletedInitialLayout` guard is essential. Without it, the first auto-fired `fCanvasChange` (triggered by the initial binding) overwrites storage with `{0,0,1}` before the user has touched anything.
-- Never mix: do NOT bind `[position]` / `[scale]` AND then call `setPosition()` / `setScale()` imperatively on the same mount. The library expects one source of truth per mount.
-- `setPosition` / `setScale` are still valid for post-mount interactions (e.g. a middle-mouse pan handler that drives the canvas directly outside the binding loop); the restore path is the specific case where they fail.
+- Never mix two sources of truth for the SAME axis on one mount: position has only one public path anyway (the `[position]` binding, see below); for scale, pick the `[scale]` binding OR `setScale()`, not both.
+- **Foblex 18.6 removed the public `setPosition`** (it is now an internal `_setPosition`), so there is NO imperative pan setter left: EVERY position change goes through the `[position]` signal binding, the restore path AND post-mount interactions like a middle-mouse pan. Drive the pan by writing the same `viewportPosition` signal `[position]` is bound to, Foblex applies the transform and redraws on the input change (no manual `redraw()`), which is exactly what `middle-mouse-pan.ts` does. `setScale()` stays public for post-mount zoom (wheel / pinch / buttons), and `getPosition()` / `getScale()` still read the live viewport.
 
 ### Selection-driven node + edge highlighting (click → light up neighbours)
 

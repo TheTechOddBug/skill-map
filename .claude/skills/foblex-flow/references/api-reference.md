@@ -160,7 +160,7 @@ Selector: `f-canvas`
 |--------|-----------|-------------|
 | redraw | redraw(): void | Force immediate redraw |
 | getPosition | getPosition(): IPoint | Get current pan position |
-| setPosition | setPosition(position: IPoint): void | Set pan position |
+| setPosition | **Removed in 18.6** (now internal `_setPosition`) | Was: set pan position. Drive the `[position]` input signal instead (see SKILL.md "Persisted viewport"). |
 | getScale | getScale(): number | Get current zoom scale |
 | setScale | setScale(scale: number, toPosition?: IPoint): void | Set zoom with optional pivot point |
 | resetScale | resetScale(): void | Reset zoom to 1 |
