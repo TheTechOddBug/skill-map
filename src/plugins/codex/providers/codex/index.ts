@@ -74,6 +74,13 @@ export const codexProvider: IBuiltInManifest<IProvider> = {
   // project is identified by `.codex/`.
   detect: { markers: ['.codex'] },
 
+  // Tutorial scaffold target (rich track). Codex skills adopt the open
+  // `.agents/skills/` layout, but the codex LENS resolves off `.codex/`,
+  // which the open territory does not carry, so `sm tutorial --for codex`
+  // also drops a `.codex/` marker (the home its TOML agents land under) to
+  // disambiguate from the `agent-skills` lens that shares `.agents/skills/`.
+  scaffold: { skillDir: '.agents/skills', marker: '.codex' },
+
   // Vendor provider: Codex CLI only reads its own territory (its `.codex/`
   // agents plus the open `.agents/skills/` skills it adopted). Gating the
   // classifier behind the active lens keeps the walker from claiming Codex

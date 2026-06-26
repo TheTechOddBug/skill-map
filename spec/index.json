@@ -251,7 +251,7 @@
       "schemas/extensions/formatter.schema.json": "880dc379ad545a62404403533a01eda5171edba0390561fc46ec6e986e0b9bd3",
       "schemas/extensions/hook.schema.json": "f56aef59e9986ffdf7d86aa2e048dccccf217000a358b8c64737cbd911c48dad",
       "schemas/extensions/provider-kind.schema.json": "499b2418bbe6d8a84a1608e26c56b52c2652a30ce314bc2989094418797dc1e6",
-      "schemas/extensions/provider.schema.json": "1a6def468c69f4cff7d76d7699e7670c799317724babce84d98ab23bb18c42fd",
+      "schemas/extensions/provider.schema.json": "33f189cb6d6e987d7af1d5a8968834f92ba674f5621953aaa1f84d3a079a53e3",
       "schemas/frontmatter/base.schema.json": "47f05ffa2a51f465f1b8df70cc7a1e7afe2c40f8d37826cd8a569977e9036b8d",
       "schemas/history-stats.schema.json": "436aa0ffe744bdb699000447e86b45724fbd2cc4642781074eb1527522b9058c",
       "schemas/input-types.schema.json": "93b27a1cbd1f131d42730eb9a89cf3af6889e9f17b20a48ce36133885503e01b",

@@ -7,15 +7,22 @@
 export const PROVIDER_TOKEN = '__PROVIDER__';
 
 export function providerDir(provider) {
-  // agent-skills and Antigravity share the open `.agents/skills/` layout.
-  return provider === 'agent-skills' || provider === 'antigravity'
+  // agent-skills, Antigravity and Codex all keep their SKILLS under the
+  // open `.agents/skills/` layout. (Codex additionally has TOML agents under
+  // `.codex/agents/`, supplied by the codex overlay's literal paths, not this
+  // single base dir.)
+  return provider === 'agent-skills' || provider === 'antigravity' || provider === 'codex'
     ? '.agents/skills'
     : '.claude';
 }
 
 export const PROVIDER_KINDS = {
   claude: new Set(['agent', 'command', 'skill', 'markdown']),
-  codex: new Set(['agent', 'skill', 'markdown']),
+  // Codex authors its agents as TOML under `.codex/agents/` (a different shape
+  // than the base `__PROVIDER__/agents/*.md`), so the base tier lays only its
+  // shared skill + markdown nodes; the codex overlay supplies the TOML agents
+  // and the command-as-skill nodes (Codex has no `command` kind).
+  codex: new Set(['skill', 'markdown']),
   'agent-skills': new Set(['skill', 'markdown']),
   antigravity: new Set(['skill', 'markdown']),
 };
@@ -49,6 +56,20 @@ export function overlayKey(provider) {
 }
 
 /**
+ * Kinds whose edit fragments (the todo-connectors hub bullets, etc.) apply for
+ * a provider, keyed by TRACK, not by the base-tier kinds. A rich provider links
+ * to every node role even when it renders some differently, Codex's agent is a
+ * TOML overlay and its command-node is a skill, but an `@agent` mention and a
+ * `/command` invocation still resolve, so every bullet applies. A basic
+ * provider only has skill + markdown, so the agent / command bullets fold away.
+ */
+export function fragmentKindsFor(provider) {
+  return trackFor(provider) === 'rich'
+    ? new Set(['agent', 'command', 'skill', 'markdown'])
+    : new Set(['skill', 'markdown']);
+}
+
+/**
  * Per-provider kind directories. The token path is always written in
  * the claude shape (`__PROVIDER__/skills/<name>/...`); resolving it is
  * NOT a flat string swap, because agent-skills puts skills directly
@@ -56,6 +77,7 @@ export function overlayKey(provider) {
  */
 const KIND_DIRS = {
   claude: { agents: '.claude/agents', commands: '.claude/commands', skills: '.claude/skills' },
+  codex: { skills: '.agents/skills' },
   'agent-skills': { skills: '.agents/skills' },
   antigravity: { skills: '.agents/skills' },
 };
@@ -105,5 +127,10 @@ export function nodeIdForTokenPath(tokenRelPath) {
   if (flat) return flat[1];
   const skill = tokenRelPath.match(/^__PROVIDER__\/skills\/([^/]+)\//);
   if (skill) return skill[1];
+  // Codex renders an agent as a literal `.codex/agents/<name>.toml`; map it
+  // to the same id as the claude-shaped `__PROVIDER__/agents/<name>.md` so a
+  // `--only` filter (or the skipped-node dedup) matches across the two shapes.
+  const codexAgent = tokenRelPath.match(/^\.codex\/agents\/(.+)\.toml$/);
+  if (codexAgent) return codexAgent[1];
   return tokenRelPath;
 }

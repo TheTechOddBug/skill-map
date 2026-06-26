@@ -1,0 +1,10 @@
+name = "master-agent"
+description = "Agente de ejemplo que usa el tutorial avanzado. Es el nodo objetivo cuando ejercitamos extractors, analyzers y el flujo de autoría de plugins."
+model = "gpt-5-codex"
+developer_instructions = """
+# master-agent
+
+Recorre las salidas de master-skill y reporta hallazgos. Se usa como
+el nodo objetivo cuando ejercitamos extractors, analyzers y el flujo
+de autoría de plugins.
+"""

@@ -285,23 +285,25 @@ syntax. claude/codex add `/` and `@` as vendor features on top.
 
 **Decision logic, applied silently at pre-flight:**
 
-1. The provider is the lens of the home the skill was scaffolded into:
-   - skill under `.claude/skills/sm-tutorial/` → `provider = claude`,
+1. The provider is the lens the scaffold set up. Check the vendor markers
+   FIRST (they ride on top of the shared `.agents/skills/` skill home), then
+   the skill home itself:
+   - a `.codex/` dir present (the marker `sm tutorial --for codex` drops) →
+     `provider = codex`, `track = rich`.
+   - else a `.agent/workflows/` dir present → `provider = antigravity`,
+     `track = basic`.
+   - else skill under `.claude/skills/sm-tutorial/` → `provider = claude`,
      `<provider_dir> = .claude`, `track = rich`.
-   - skill under `.agents/skills/sm-tutorial/` → `provider = agent-skills`,
+   - else skill under `.agents/skills/sm-tutorial/` → `provider = agent-skills`,
      `<provider_dir> = .agents/skills`, `track = basic`.
-   Codex / Antigravity testers run the same book per track; only the
-   marker (and, for codex, the TOML agent file format) differ. They
-   apply only when the project already carries `.codex/` or
-   `.agent/workflows/` and the beta lens is enabled, treat codex as the
-   rich variant, antigravity as the basic one. Antigravity adopts the
-   open `.agents/skills/` layout, so its marker (`.agent/workflows/`)
-   coexists with the `agent-skills` marker (`.agents/`) and a plain
-   `sm scan --yes` reports the lens as ambiguous; for an antigravity
-   tester set it explicitly once (`sm config set activeProvider
-   antigravity --yes`) before the first scan, then the basic book runs
-   unchanged (the fixture overlays are shared across the open-standard
-   family, so `--provider antigravity` reuses the `agent-skills` ones).
+   **Lens ambiguity for codex / antigravity**: both adopt the open
+   `.agents/skills/` layout, so their own marker (`.codex/` or
+   `.agent/workflows/`) coexists with the `agent-skills` marker (`.agents/`)
+   and a plain `sm scan --yes` reports the lens as ambiguous. For those two,
+   set it explicitly once before the first scan, `sm config set
+   activeProvider <codex|antigravity> --yes`, then the book runs unchanged
+   (the fixture engine renders the right shape: codex its TOML agents +
+   command-as-skill, antigravity reuses the `agent-skills` overlays).
 2. `state.js init --provider <p>` persists `provider` plus the derived
    `track`, so a resumed session never re-detects.
 3. Render only the parts whose `track` is `tutorial.track` (or `both`).
@@ -320,6 +322,32 @@ above, never a hard-coded `.claude/`.
 at `.claude/skills/sm-tutorial/` (this repo is itself a Claude project);
 `sm tutorial` materializes it under `.claude/skills/` (rich) or
 `.agents/skills/` (basic). Both are real, walkable books.
+
+### Rendering the rich book on Codex
+
+The rich track has two lenses, `claude` and `codex`. They teach the SAME
+lessons with the SAME connectors (`/` invocations, `@` mentions, markdown
+references all resolve on both), so the rich part bodies are written in the
+`claude` shape; when `tutorial.provider == codex`, apply these substitutions:
+
+- **Agents are TOML.** A Codex agent is a single `.codex/agents/<name>.toml`
+  file (the prompt lives in its `developer_instructions` field), NOT a
+  `.claude/agents/<name>.md`. The fixtures lay them, so when a chapter says
+  "open the agent file" point at the `.toml`; a chapter that has the tester
+  read or tweak an agent works on the TOML frontmatter / `developer_instructions`.
+- **No `command` kind.** Where the claude book authors a `command` (the
+  `/publish` command, the reserved-name chapter's `init` command), Codex uses a
+  **skill** at `.agents/skills/<name>/SKILL.md`. The body is identical (same
+  `/check-links` + `@content-editor` + deploy reference); only the kind and path
+  change. `cat <set> --file … --provider codex` already returns the Codex skill
+  body, so the create-the-file block stays a copy-paste. The reserved-name beat
+  uses a skill named with a reserved verb (Codex inherits the open-standard
+  `COMMONS_RESERVED_NAMES`, e.g. `config`), exactly like the basic track's
+  `reserved` chapter, on a skill instead of a command.
+- **Skills** live under `.agents/skills/<name>/SKILL.md` (the open layout Codex
+  adopted), same as the basic family.
+- Everything else (the `@`/`/` syntax, the confidence numbers, the hub, the
+  broken-reference contrast) is identical to claude; the graph topology matches.
 
 ## Per-step cycle (inside a chapter)
 

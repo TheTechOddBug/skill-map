@@ -233,6 +233,12 @@ export class TutorialCommand extends SmCommand {
       rmSync(targetDir, { recursive: true, force: true });
       mkdirSync(dirname(targetDir), { recursive: true });
       cpSync(sourceDir, targetDir, { recursive: true });
+      // Drop the lens marker (e.g. Codex's `.codex/`) so a project whose
+      // skillDir is shared open-standard territory still resolves the chosen
+      // lens rather than the default open-standard one.
+      if (target.marker !== undefined) {
+        mkdirSync(join(ctx.cwd, target.marker), { recursive: true });
+      }
     } catch (err) {
       this.printer!.error(
         tx(TUTORIAL_TEXTS.writeFailed, {
@@ -361,6 +367,8 @@ interface IScaffoldTarget {
   id: string;
   label: string;
   skillDir: string;
+  /** Marker dir to create alongside the skill so the chosen lens resolves. */
+  marker?: string;
   aka: readonly string[];
 }
 
@@ -386,6 +394,7 @@ function toScaffoldTarget(
     id: provider.id,
     label: provider.presentation.label,
     skillDir: scaffold.skillDir,
+    ...(scaffold.marker !== undefined ? { marker: scaffold.marker } : {}),
     aka: scaffold.aka ?? [],
   };
 }

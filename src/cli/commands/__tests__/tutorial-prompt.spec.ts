@@ -7,8 +7,9 @@
  *
  * Contract under test:
  *   - by default the catalog lists the ready scaffold destinations
- *     (`claude` + the stable open-standard `agent-skills`); the universal
- *     `markdown` base declares no scaffold, so it never appears;
+ *     (`claude`, the beta rich-track `codex`, and the stable open-standard
+ *     `agent-skills`); the universal `markdown` base declares no scaffold, so
+ *     it never appears;
  *   - the experimental gate still exists (`includeExperimental`), though no
  *     built-in scaffolder is experimental today, so the flag adds nothing
  *     among built-ins;
@@ -21,15 +22,19 @@ import { describe, it } from 'node:test';
 import { classifyAnswer, listScaffoldTargets } from '../tutorial.js';
 
 describe('sm tutorial destination catalog', () => {
-  it('lists the ready scaffold destinations by default (claude, agent-skills)', () => {
+  it('lists the ready scaffold destinations by default (claude, codex, agent-skills)', () => {
     const targets = listScaffoldTargets();
-    // Only `claude` and `agent-skills` declare a `scaffold.skillDir`; both
-    // are stable now, so both appear by default, in registration order.
+    // claude (stable, rich), codex (beta, rich) and agent-skills (stable,
+    // basic) all declare a `scaffold.skillDir`; beta ships enabled, so all
+    // three appear by default, in registration order.
     assert.deepEqual(
       targets.map((t) => t.id),
-      ['claude', 'agent-skills'],
+      ['claude', 'codex', 'agent-skills'],
     );
     assert.ok(targets[0]!.skillDir, 'claude must carry a skillDir');
+    // Codex shares the `.agents/skills` territory with the basic family, so it
+    // carries a `.codex` marker the verb drops to disambiguate its lens.
+    assert.equal(targets.find((t) => t.id === 'codex')?.marker, '.codex');
   });
 
   it('carries the stable open-standard by default; the markdown base never scaffolds', () => {

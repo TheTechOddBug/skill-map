@@ -322,15 +322,17 @@ describe('sm tutorial, --for provider selection', () => {
     assert.equal(existsSync(join(scope.cwd, '.agents')), false);
   });
 
-  it('exits 2 for a built-in that is not a selectable destination (codex)', () => {
-    const scope = freshScope('for-no-scaffold');
-    // codex declares no `scaffold.skillDir` (regardless of being beta),
-    // so it is not a valid `--for` destination.
+  it('--for codex seeds into the open-standard path and drops the .codex marker', () => {
+    const scope = freshScope('for-codex');
+    // codex is a beta rich-track destination: its skills adopt the open
+    // `.agents/skills/` layout, and the verb drops a `.codex/` marker so the
+    // codex lens resolves (it shares the skill territory with agent-skills).
     const r = sm(['tutorial', '--for', 'codex'], scope);
 
-    assert.equal(r.status, 2, `stderr: ${r.stderr}`);
-    assert.match(r.stderr, /unknown provider 'codex' for --for/);
-    assert.equal(existsSync(join(scope.cwd, '.codex')), false);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assertDirsEqual(SKILL_SOURCE_TUTORIAL, join(scope.cwd, '.agents', 'skills', 'sm-tutorial'));
+    assert.ok(existsSync(join(scope.cwd, '.codex')), 'codex marker must be created');
+    assert.equal(existsSync(join(scope.cwd, '.claude')), false);
   });
 });
 

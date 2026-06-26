@@ -34,7 +34,8 @@ import { parseArgs } from './lib/args.js';
 import { emit, succeed, die } from './lib/io.js';
 import { loadFixturesManifest, fixturesDir, resolveFootprint } from './lib/fixtures-manifest.js';
 import {
-  providerDir, kindsFor, resolveTargetPath, kindForPath, nodeIdForTokenPath, overlayKey, PROVIDER_TOKEN,
+  providerDir, kindsFor, resolveTargetPath, kindForPath, nodeIdForTokenPath, overlayKey,
+  fragmentKindsFor, PROVIDER_TOKEN,
 } from './lib/paths.js';
 
 function opts(args) {
@@ -164,7 +165,11 @@ function applyEdit(manifest, id, o) {
   const targetAbs = join(process.cwd(), target);
   if (!existsSync(targetAbs)) die('edit-target-missing', `edit '${id}' target not found: ${target}`);
 
-  const fragments = (def.fragments ?? []).filter((f) => !f.requiresKind || kinds.has(f.requiresKind));
+  // Fragment gating is by TRACK, not the base-tier `kinds`: a rich provider
+  // (codex) links to agent / command roles it renders via overlay (TOML agent,
+  // command-as-skill), so those bullets apply even though its base kinds omit them.
+  const fragKinds = fragmentKindsFor(o.provider);
+  const fragments = (def.fragments ?? []).filter((f) => !f.requiresKind || fragKinds.has(f.requiresKind));
   if (fragments.length === 0) return { target, appended: [] };
 
   let content = readFileSync(targetAbs, 'utf8');
@@ -257,7 +262,15 @@ const VERBS = {
     const langDir = existsSync(join(base, o.lang)) ? o.lang : (manifest.defaultLang ?? 'en');
     // Accept a resolved path (`.claude/...`) or token form; normalise to token.
     const tokenForm = file.startsWith(`${pdir}/`) ? PROVIDER_TOKEN + file.slice(pdir.length) : file;
-    const found = [join(base, langDir, tokenForm), join(base, 'shared', tokenForm)].find((c) => existsSync(c));
+    // Prefer the per-provider overlay (so codex / agent-skills get their own
+    // shape, e.g. the publish skill or the TOML agent) before the base.
+    const oKey = overlayKey(o.provider);
+    const found = [
+      join(base, 'providers', oKey, langDir, tokenForm),
+      join(base, 'providers', oKey, 'shared', tokenForm),
+      join(base, langDir, tokenForm),
+      join(base, 'shared', tokenForm),
+    ].find((c) => existsSync(c));
     if (!found) {
       emit({ ok: false, code: 'not-found', error: `file '${file}' not found in set '${set}'.` });
       process.exit(1);
