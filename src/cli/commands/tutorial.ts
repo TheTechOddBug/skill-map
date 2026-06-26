@@ -224,21 +224,7 @@ export class TutorialCommand extends SmCommand {
     }
 
     try {
-      // Unconditional rm to keep the post-condition simple
-      // (`targetDir` matches the bundled payload byte-for-byte). The
-      // clobber guard above guarantees we only reach this point when
-      // either the target does not exist OR `--force` was passed, so
-      // wiping is always safe; `rmSync({ force: true })` is a no-op
-      // on a missing path.
-      rmSync(targetDir, { recursive: true, force: true });
-      mkdirSync(dirname(targetDir), { recursive: true });
-      cpSync(sourceDir, targetDir, { recursive: true });
-      // Drop the lens marker (e.g. Codex's `.codex/`) so a project whose
-      // skillDir is shared open-standard territory still resolves the chosen
-      // lens rather than the default open-standard one.
-      if (target.marker !== undefined) {
-        mkdirSync(join(ctx.cwd, target.marker), { recursive: true });
-      }
+      materializeSkillFolder(sourceDir, targetDir, ctx.cwd, target.marker);
     } catch (err) {
       this.printer!.error(
         tx(TUTORIAL_TEXTS.writeFailed, {
@@ -349,6 +335,30 @@ export class TutorialCommand extends SmCommand {
       return null;
     }
     return picked;
+  }
+}
+
+/**
+ * Write the skill folder under `targetDir` (a clean copy of `sourceDir`), then
+ * drop the lens `marker` (e.g. Codex's `.codex/`) when the Provider declares
+ * one so a project whose `skillDir` is shared open-standard territory still
+ * resolves the chosen lens. The unconditional `rm` keeps the post-condition
+ * simple (`targetDir` matches the bundled payload byte-for-byte); the caller's
+ * clobber guard guarantees we only reach here when the target is absent or
+ * `--force` was passed, so wiping is safe (`rmSync({ force: true })` no-ops on a
+ * missing path).
+ */
+function materializeSkillFolder(
+  sourceDir: string,
+  targetDir: string,
+  cwd: string,
+  marker: string | undefined,
+): void {
+  rmSync(targetDir, { recursive: true, force: true });
+  mkdirSync(dirname(targetDir), { recursive: true });
+  cpSync(sourceDir, targetDir, { recursive: true });
+  if (marker !== undefined) {
+    mkdirSync(join(cwd, marker), { recursive: true });
   }
 }
 
