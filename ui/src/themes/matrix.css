@@ -78,11 +78,17 @@ html.app-matrix body {
   --p-primary-contrast-color: #001a05;
   /* Primary button hover/active states, else they fall back to the
      violet preset and a themed button flashes violet on hover. Mirrors
-     the danger-button idiom below (lighter on hover, darker on press);
-     secondary-text (Discard) gets a themed hover/active wash too (the
-     toolbar already scopes the same tokens, this is the global default). */
+     the danger-button idiom below (lighter on hover, darker on press).
+     Secondary-text buttons (dialog Discard / Reject / Cancel, the zoom
+     toolbar) get the FULL themed chain here: base colour one notch down
+     (accent-dim) so they stay subordinate to the primary action, hover
+     lifting to the full accent with the matching wash. Set globally so
+     it reaches dialogs appended to <body>, not just the in-shell
+     toolbar (which used to be the only place the base colour was set). */
   --p-primary-hover-color: color-mix(in srgb, var(--sm-matrix-accent) 80%, #ffffff);
   --p-primary-active-color: color-mix(in srgb, var(--sm-matrix-accent) 70%, #000000);
+  --p-button-text-secondary-color: var(--sm-matrix-accent-dim);
+  --p-button-text-secondary-hover-color: var(--sm-matrix-accent);
   --p-button-text-secondary-hover-background: color-mix(in srgb, var(--sm-matrix-accent) 18%, transparent);
   --p-button-text-secondary-active-background: color-mix(in srgb, var(--sm-matrix-accent) 26%, transparent);
   --p-content-background: var(--sm-bg-content);
@@ -376,20 +382,11 @@ html.app-matrix .graph__canvas-wrap {
   --ff-minimap-shadow: var(--sm-shadow-floating);
 }
 
-/* Floating zoom toolbar: PrimeNG `severity="secondary" [text]` reads
-   the `--p-button-text-secondary-*` chain. Override the chain at the
-   wrapper so the green tint propagates without fighting selector
-   specificity inside the button. Same logic as the minimap: the
-   toolbar is auxiliary navigation, not the primary signal, so the
-   accents drop one notch (full accent → accent-dim) and the
-   hover / active backgrounds shrink to ~70% of their previous alpha
-   so the buttons sit under the graph's noise floor instead of
-   competing with it. */
+/* Floating zoom toolbar. The secondary-text accent chain now comes from
+   the global theme block above (it already uses accent-dim, the notch the
+   toolbar wanted), so the toolbar only carries its floating-surface chrome
+   here. */
 html.app-matrix .graph__toolbar {
-  --p-button-text-secondary-color: var(--sm-matrix-accent-dim);
-  --p-button-text-secondary-hover-color: var(--sm-matrix-accent);
-  --p-button-text-secondary-hover-background: color-mix(in srgb, var(--sm-matrix-accent) 18%, transparent);
-  --p-button-text-secondary-active-background: color-mix(in srgb, var(--sm-matrix-accent) 26%, transparent);
   /* Share the same glow shape + intensities as the cards so the
      toolbar reads as another matrix surface, not a brighter outlier.
      `--sm-shadow-card` = `0 0 18px ...20%`, idle halo even around
