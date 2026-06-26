@@ -1,8 +1,13 @@
 :host {
-  /* Default kind-accent. Per-kind classes below override; the default
-     here makes the invariant explicit and lets us use `var(--accent)`
-     bare downstream (no inline fallback masking a missing host class). */
+  /* Neutral fallbacks for the kind-driven accent + icon tint. The real
+     per-kind values arrive via the `--accent` / `--kind-bg` / `--kind-fg`
+     host style bindings (node-card.ts), which resolve the runtime
+     `--sm-kind-<kind>` registry vars so the colour lives in the kind
+     declaration, not a hardcoded list here. These statics only cover the
+     first paint before the binding applies and an unregistered kind. */
   --accent: var(--sm-kind-markdown);
+  --kind-bg: var(--sm-kind-markdown-bg);
+  --kind-fg: var(--sm-kind-markdown-fg);
 
   position: relative;
   display: inline-block;
@@ -38,11 +43,6 @@
   background: var(--accent);
 }
 
-:host([data-kind='skill']) { --accent: var(--sm-kind-skill); }
-:host([data-kind='agent']) { --accent: var(--sm-kind-agent); }
-:host([data-kind='command']) { --accent: var(--sm-kind-command); }
-:host([data-kind='markdown']) { --accent: var(--sm-kind-markdown); }
-
 :host(.sm-gnode--deprecated) { opacity: 0.55; }
 
 :host(.sm-gnode--selected) {
@@ -67,11 +67,9 @@
 }
 
 .sm-gnode__icon-box {
-  /* Default kind tint. Per-kind classes below override; bare `var(--kind-bg)` /
-     `var(--kind-fg)` downstream relies on this default being declared. */
-  --kind-bg: var(--sm-kind-markdown-bg);
-  --kind-fg: var(--sm-kind-markdown-fg);
-
+  /* Tint inherited from the host's kind-driven `--kind-bg` / `--kind-fg`
+     (set by the node-card.ts style bindings from the `--sm-kind-<kind>`
+     registry vars), so the icon glyph paints the kind's own colour. */
   width: 38px;
   height: 38px;
   border-radius: var(--sm-radius-lg);
@@ -85,11 +83,6 @@
   grid-row: 1 / span 2;
   align-self: center;
 }
-
-:host([data-kind='skill']) .sm-gnode__icon-box { --kind-bg: var(--sm-kind-skill-bg); --kind-fg: var(--sm-kind-skill-fg); }
-:host([data-kind='agent']) .sm-gnode__icon-box { --kind-bg: var(--sm-kind-agent-bg); --kind-fg: var(--sm-kind-agent-fg); }
-:host([data-kind='command']) .sm-gnode__icon-box { --kind-bg: var(--sm-kind-command-bg); --kind-fg: var(--sm-kind-command-fg); }
-:host([data-kind='markdown']) .sm-gnode__icon-box { --kind-bg: var(--sm-kind-markdown-bg); --kind-fg: var(--sm-kind-markdown-fg); }
 
 .sm-gnode__content {
   min-width: 0;

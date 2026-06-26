@@ -6,6 +6,7 @@
       [pTooltip]="entry.label"
       [ariaLabel]="entry.label"
       [styleClass]="'kind-palette__btn kind-palette__btn--' + entry.kind"
+      [style.--kind-accent]="'var(--sm-kind-' + entry.kind + ')'"
       [pt]="$any({ content: { class: 'kind-palette__content' } })"
       [attr.data-testid]="'kind-palette-' + entry.kind"
     >

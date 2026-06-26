@@ -76,21 +76,14 @@
   color: var(--p-text-muted-color);
 }
 
-/* Per-kind icon tint when active, sm-kind-icon's SVGs use currentColor. */
+/* Per-kind icon tint when active. The accent comes from `--kind-accent`,
+   bound per button from the kind registry's `--sm-kind-<kind>` var
+   (kind-palette.html), so the colour lives in the kind declaration, not a
+   hardcoded list here, every Provider-declared kind tints automatically.
+   `sm-kind-icon`'s SVGs use currentColor, so the glyph picks up this
+   `color`; falls back to the plain text colour for an unregistered kind. */
 :host ::ng-deep .kind-palette__btn[aria-pressed='true'] sm-kind-icon {
-  color: var(--p-text-color);
-}
-:host ::ng-deep .kind-palette__btn--skill[aria-pressed='true'] sm-kind-icon {
-  color: var(--sm-kind-skill);
-}
-:host ::ng-deep .kind-palette__btn--agent[aria-pressed='true'] sm-kind-icon {
-  color: var(--sm-kind-agent);
-}
-:host ::ng-deep .kind-palette__btn--command[aria-pressed='true'] sm-kind-icon {
-  color: var(--sm-kind-command);
-}
-:host ::ng-deep .kind-palette__btn--markdown[aria-pressed='true'] sm-kind-icon {
-  color: var(--sm-kind-markdown);
+  color: var(--kind-accent, var(--p-text-color));
 }
 
 /* Favorites entry, same compact pill chassis but the icon is a

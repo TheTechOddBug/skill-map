@@ -69,6 +69,9 @@ const DEFAULT_SELECTION: ISelectionView = {
     '[class.sm-gnode--highlighted]': 'selection().highlighted',
     '[class.sm-gnode--dimmed]': 'selection().dimmed',
     '[style.--node-color]': 'nodeColor()',
+    '[style.--accent]': 'kindAccentVar()',
+    '[style.--kind-bg]': 'kindBgVar()',
+    '[style.--kind-fg]': 'kindFgVar()',
   },
 })
 export class NodeCard {
@@ -196,6 +199,32 @@ export class NodeCard {
     // colour to block `url(...)` beacons (see `css-guard.ts`).
     return cssColorOrNull(fm['color']);
   });
+
+  /**
+   * Kind-driven accent + icon tint. Resolves the runtime kind registry's
+   * `--sm-kind-<kind>` / `-bg` / `-fg` CSS vars (injected by
+   * `KindRegistryService.applyCssVars` from each Provider's declared
+   * `ui.color`) with a neutral `markdown` fallback, then binds them to
+   * the host so the colour lives in the kind declaration, NOT a hardcoded
+   * per-kind list in `node-card.css`. The accent bar reads `--accent`;
+   * `.sm-gnode__icon-box` inherits `--kind-bg` / `--kind-fg`. A
+   * Provider-declared kind (e.g. Antigravity `workflow`) therefore paints
+   * its own colour, icon glyph included, with no CSS change per kind.
+   *
+   * Kind names are constrained to `[a-zA-Z][a-zA-Z0-9_-]{0,63}` by the
+   * kernel (`spec/schemas/node.schema.json#/properties/kind`) and again by
+   * the registry's CSS-var guard, so the interpolation is safe inside a
+   * `var()` name (same pattern as `inspector-view.html`).
+   */
+  protected readonly kindAccentVar = computed<string>(
+    () => `var(--sm-kind-${this.node().kind}, var(--sm-kind-markdown))`,
+  );
+  protected readonly kindBgVar = computed<string>(
+    () => `var(--sm-kind-${this.node().kind}-bg, var(--sm-kind-markdown-bg))`,
+  );
+  protected readonly kindFgVar = computed<string>(
+    () => `var(--sm-kind-${this.node().kind}-fg, var(--sm-kind-markdown-fg))`,
+  );
 
   private readonly markdown = inject(MarkdownRenderer);
 
