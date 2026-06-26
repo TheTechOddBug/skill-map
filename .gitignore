@@ -88,6 +88,8 @@ Thumbs.db
 !spec/conformance/fixtures/**/.codex/**
 !src/plugins/**/conformance/fixtures/**/.codex/
 !src/plugins/**/conformance/fixtures/**/.codex/**
+!.claude/skills/sm-tutorial/fixtures-data/**/.codex/
+!.claude/skills/sm-tutorial/fixtures-data/**/.codex/**
 
 # Claude Code / sandbox dotfile mounts. The sandbox virtualises certain
 # host dotfiles as /dev/null character devices in the repo root so the
