@@ -26,7 +26,7 @@ import { dirname, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 
 import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
-import yaml from 'js-yaml';
+import { load as yamlLoad, JSON_SCHEMA } from 'js-yaml';
 
 import { stripPrototypePollution } from '../util/strip-prototype-pollution.js';
 
@@ -95,7 +95,7 @@ export function readSidecarFor(mdAbsolutePath: string): ISidecarReadResult {
   try {
     // Explicit JSON_SCHEMA to match the frontmatter parser and harden
     // against a future js-yaml default-schema loosening (audit M1).
-    parsedYaml = yaml.load(raw, { schema: yaml.JSON_SCHEMA });
+    parsedYaml = yamlLoad(raw, { schema: JSON_SCHEMA });
   } catch (err) {
     return {
       parsed: null,

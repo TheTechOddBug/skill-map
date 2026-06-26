@@ -39,7 +39,7 @@ import { dirname, join, resolve } from 'node:path';
 import { after, before, beforeEach, describe, it } from 'node:test';
 
 import { Ajv2020 } from 'ajv/dist/2020.js';
-import yaml from 'js-yaml';
+import { dump as yamlDump, load as yamlLoad } from 'js-yaml';
 
 import { SqliteStorageAdapter } from '../../../kernel/adapters/sqlite/index.js';
 import { persistScanResult } from '../../../kernel/adapters/sqlite/scan-persistence.js';
@@ -117,7 +117,7 @@ async function primeFixture(grantConsent: boolean): Promise<void> {
   // --- stale node ---------------------------------------------------------
   const stalePath = 'docs/stale.md';
   writeFile(stalePath, '---\nname: stale\n---\nlive body content\n');
-  writeFile('docs/stale.sm', yaml.dump({
+  writeFile('docs/stale.sm', yamlDump({
     identity: {
       path: stalePath,
       bodyHash: HASH_OLD_BODY,
@@ -129,7 +129,7 @@ async function primeFixture(grantConsent: boolean): Promise<void> {
   // --- fresh node ---------------------------------------------------------
   const freshPath = 'docs/fresh.md';
   writeFile(freshPath, '---\nname: fresh\n---\nlive body content\n');
-  writeFile('docs/fresh.sm', yaml.dump({
+  writeFile('docs/fresh.sm', yamlDump({
     identity: {
       path: freshPath,
       bodyHash: HASH_LIVE_BODY,
@@ -203,7 +203,7 @@ function writeFile(rel: string, content: string): void {
 function readConsentFlag(): unknown {
   const p = join(root.fixtureRoot, '.skill-map', 'settings.local.json');
   if (!existsSync(p)) return undefined;
-  const parsed = yaml.load(readFileSync(p, 'utf8')) as Record<string, unknown> | null;
+  const parsed = yamlLoad(readFileSync(p, 'utf8')) as Record<string, unknown> | null;
   return parsed?.['allowEditSmFiles'];
 }
 
@@ -289,7 +289,7 @@ describe('POST /api/actions/:pluginId/:actionId', () => {
       assert.ok(typeof env.elapsedMs === 'number');
 
       // On-disk sidecar reflects the new version + invoker stamp.
-      const parsed = yaml.load(
+      const parsed = yamlLoad(
         readFileSync(join(root.fixtureRoot, 'docs/stale.sm'), 'utf8'),
       ) as Record<string, unknown>;
       assert.equal((parsed['annotations'] as Record<string, unknown>)['version'], 4);
@@ -330,7 +330,7 @@ describe('POST /api/actions/:pluginId/:actionId', () => {
       assert.equal(client.sent.length, 0);
 
       // Sidecar untouched.
-      const parsed = yaml.load(
+      const parsed = yamlLoad(
         readFileSync(join(root.fixtureRoot, 'docs/stale.sm'), 'utf8'),
       ) as Record<string, unknown>;
       assert.equal((parsed['annotations'] as Record<string, unknown>)['version'], 3);
@@ -360,7 +360,7 @@ describe('POST /api/actions/:pluginId/:actionId', () => {
       assert.equal(body.error.details.report['reason'], 'fresh');
 
       // Sidecar untouched + no broadcast.
-      const parsed = yaml.load(
+      const parsed = yamlLoad(
         readFileSync(join(root.fixtureRoot, 'docs/fresh.sm'), 'utf8'),
       ) as Record<string, unknown>;
       assert.equal((parsed['annotations'] as Record<string, unknown>)['version'], 7);
@@ -385,7 +385,7 @@ describe('POST /api/actions/:pluginId/:actionId', () => {
       assert.equal(env.value.report['noop'], true);
 
       // Sidecar untouched on disk; no broadcast on no-op.
-      const parsed = yaml.load(
+      const parsed = yamlLoad(
         readFileSync(join(root.fixtureRoot, 'docs/fresh.sm'), 'utf8'),
       ) as Record<string, unknown>;
       assert.equal((parsed['annotations'] as Record<string, unknown>)['version'], 7);
@@ -431,7 +431,7 @@ describe('POST /api/actions/:pluginId/:actionId', () => {
         assert.equal(body.error.details.key, 'allowEditSmFiles');
 
         // Sidecar unchanged + flag never persisted.
-        const parsed = yaml.load(
+        const parsed = yamlLoad(
           readFileSync(join(root.fixtureRoot, 'docs/stale.sm'), 'utf8'),
         ) as Record<string, unknown>;
         assert.equal((parsed['annotations'] as Record<string, unknown>)['version'], 3);
@@ -451,7 +451,7 @@ describe('POST /api/actions/:pluginId/:actionId', () => {
         assert.equal(env.value.report['version'], 4);
 
         // Write landed.
-        const parsed = yaml.load(
+        const parsed = yamlLoad(
           readFileSync(join(root.fixtureRoot, 'docs/stale.sm'), 'utf8'),
         ) as Record<string, unknown>;
         assert.equal((parsed['annotations'] as Record<string, unknown>)['version'], 4);
@@ -475,7 +475,7 @@ describe('POST /api/actions/:pluginId/:actionId', () => {
         assert.equal(res.status, 200);
 
         // Write landed + flag persisted to project-local settings.
-        const parsed = yaml.load(
+        const parsed = yamlLoad(
           readFileSync(join(root.fixtureRoot, 'docs/stale.sm'), 'utf8'),
         ) as Record<string, unknown>;
         assert.equal((parsed['annotations'] as Record<string, unknown>)['version'], 4);
@@ -524,7 +524,7 @@ describe('POST /api/actions/:pluginId/:actionId', () => {
         assert.equal(body.error.details.key, 'allowSidecarWriters');
 
         // Sidecar untouched + no broadcast: the policy refused the write.
-        const parsed = yaml.load(
+        const parsed = yamlLoad(
           readFileSync(join(root.fixtureRoot, 'docs/stale.sm'), 'utf8'),
         ) as Record<string, unknown>;
         assert.equal((parsed['annotations'] as Record<string, unknown>)['version'], 3);

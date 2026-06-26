@@ -20,7 +20,7 @@ import { strictEqual, ok, deepStrictEqual, rejects } from 'node:assert';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import yaml from 'js-yaml';
+import { dump as yamlDump, load as yamlLoad } from 'js-yaml';
 
 import {
   FilesystemSidecarStore,
@@ -144,7 +144,7 @@ describe('FilesystemSidecarStore.applyPatch', () => {
     }, consentBag());
 
     ok(existsSync(target));
-    const parsed = yaml.load(readFileSync(target, 'utf8')) as Record<string, unknown>;
+    const parsed = yamlLoad(readFileSync(target, 'utf8')) as Record<string, unknown>;
     const identityBlock = parsed['identity'] as Record<string, unknown>;
     strictEqual(identityBlock['bodyHash'], VALID_HASH_A);
     strictEqual((parsed['annotations'] as Record<string, unknown>)['version'], 1);
@@ -164,14 +164,14 @@ describe('FilesystemSidecarStore.applyPatch', () => {
       annotations: { version: 1, stability: 'stable' },
       'example-plugin': { customField: 'original-value', extra: { nested: 1 } },
     };
-    writeFileSync(target, yaml.dump(seed), { encoding: 'utf8' });
+    writeFileSync(target, yamlDump(seed), { encoding: 'utf8' });
 
     await store.applyPatch(target, {
       annotations: { version: 2 },
       audit: { lastBumpedAt: '2026-05-05T10:00:00Z', lastBumpedBy: 'cli' },
     }, consentBag());
 
-    const parsed = yaml.load(readFileSync(target, 'utf8')) as Record<string, unknown>;
+    const parsed = yamlLoad(readFileSync(target, 'utf8')) as Record<string, unknown>;
     const annotations = parsed['annotations'] as Record<string, unknown>;
     // Bumped version.
     strictEqual(annotations['version'], 2);
@@ -216,7 +216,7 @@ describe('FilesystemSidecarStore.applyPatch', () => {
       audit: { lastBumpedAt: '2026-05-05T10:00:00Z', lastBumpedBy: 'cli' },
     }, consentBag());
 
-    const parsed = yaml.load(readFileSync(target, 'utf8')) as Record<string, unknown>;
+    const parsed = yamlLoad(readFileSync(target, 'utf8')) as Record<string, unknown>;
     strictEqual(
       Object.prototype.hasOwnProperty.call(parsed, '__proto__'),
       false,
@@ -241,7 +241,7 @@ describe('FilesystemSidecarStore.applyPatch', () => {
     // Seed.
     writeFileSync(
       target,
-      yaml.dump({
+      yamlDump({
         identity: {
           path: 'foo.md',
           bodyHash: VALID_HASH_A,
@@ -260,7 +260,7 @@ describe('FilesystemSidecarStore.applyPatch', () => {
     }, consentBag());
     await Promise.all([a, b]);
 
-    const parsed = yaml.load(readFileSync(target, 'utf8')) as Record<string, unknown>;
+    const parsed = yamlLoad(readFileSync(target, 'utf8')) as Record<string, unknown>;
     const annotations = parsed['annotations'] as Record<string, unknown>;
     const audit = parsed['audit'] as Record<string, unknown>;
     // Version from the first patch survived.
@@ -283,7 +283,7 @@ describe('FilesystemSidecarStore.applyPatch', () => {
       },
       annotations: { version: 1 },
     };
-    const seedYaml = yaml.dump(seed);
+    const seedYaml = yamlDump(seed);
     writeFileSync(target, seedYaml);
 
     await rejects(

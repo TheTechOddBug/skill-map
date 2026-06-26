@@ -1,6 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2023",
+    // TypeScript 6 turns deprecated options into hard errors (TS5101).
+    // tsup's DTS build injects `baseUrl` internally for module
+    // resolution, so silence the deprecation here per TS's own migration
+    // guidance. Re-evaluate when tsup stops setting baseUrl or at TS 7.
+    "ignoreDeprecations": "6.0",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "lib": ["ES2023"],

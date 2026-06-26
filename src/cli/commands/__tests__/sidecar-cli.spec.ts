@@ -18,7 +18,7 @@ import {
 } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { Readable } from 'node:stream';
-import yaml from 'js-yaml';
+import { dump as yamlDump, load as yamlLoad } from 'js-yaml';
 
 import type { BaseContext } from 'clipanion';
 
@@ -160,9 +160,9 @@ describe('sm sidecar refresh', () => {
 
     // Hand-edit the sidecar to v3 so we can see refresh leave it alone.
     const sidecarPath = join(fixture, 'notes/skill.sm');
-    const current = yaml.load(readFileSync(sidecarPath, 'utf8')) as Record<string, unknown>;
+    const current = yamlLoad(readFileSync(sidecarPath, 'utf8')) as Record<string, unknown>;
     (current['annotations'] as Record<string, unknown>)['version'] = 3;
-    writeFileSync(sidecarPath, yaml.dump(current, { sortKeys: true }));
+    writeFileSync(sidecarPath, yamlDump(current, { sortKeys: true }));
 
     // Drift the body so refresh has work to do.
     writeFile(fixture, 'notes/skill.md',
@@ -177,7 +177,7 @@ describe('sm sidecar refresh', () => {
     cmd.context = cap.context;
     strictEqual(await cmd.execute(), 0);
 
-    const after = yaml.load(readFileSync(sidecarPath, 'utf8')) as Record<string, unknown>;
+    const after = yamlLoad(readFileSync(sidecarPath, 'utf8')) as Record<string, unknown>;
     // version preserved
     strictEqual((after['annotations'] as Record<string, unknown>)['version'], 3);
     // body hash updated, should differ from the post-bump-v1 hash.
@@ -210,7 +210,7 @@ describe('sm sidecar prune', () => {
     const dbPath = freshDbPath('prune-dry');
     // Create a sidecar with no .md sibling, definitely an orphan.
     writeFile(fixture, 'notes/orphan.sm',
-      yaml.dump({
+      yamlDump({
         identity: { path: 'notes/orphan.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
         annotations: {},
       }),
@@ -235,7 +235,7 @@ describe('sm sidecar prune', () => {
     const fixture = freshFixture('prune-real');
     const dbPath = freshDbPath('prune-real');
     writeFile(fixture, 'notes/orphan.sm',
-      yaml.dump({
+      yamlDump({
         identity: { path: 'notes/orphan.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
         annotations: {},
       }),
@@ -258,7 +258,7 @@ describe('sm sidecar prune', () => {
     const fixture = freshFixture('prune-decline');
     const dbPath = freshDbPath('prune-decline');
     writeFile(fixture, 'notes/orphan.sm',
-      yaml.dump({
+      yamlDump({
         identity: { path: 'notes/orphan.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
         annotations: {},
       }),
@@ -305,7 +305,7 @@ describe('sm sidecar annotate', () => {
 
     const sidecarPath = join(fixture, 'notes/skill.sm');
     ok(existsSync(sidecarPath), 'scaffold created');
-    const parsed = yaml.load(readFileSync(sidecarPath, 'utf8')) as Record<string, unknown>;
+    const parsed = yamlLoad(readFileSync(sidecarPath, 'utf8')) as Record<string, unknown>;
     ok(parsed['identity'], 'identity: block present');
     const ann = parsed['annotations'] as Record<string, unknown>;
     strictEqual(Object.keys(ann).length, 0, 'annotations is an empty mapping');
@@ -318,7 +318,7 @@ describe('sm sidecar annotate', () => {
       ['---', 'name: skill', '---', 'Body.'].join('\n'),
     );
     writeFile(fixture, 'notes/skill.sm',
-      yaml.dump({ identity: { path: 'notes/skill.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) }, annotations: { version: 9 } }),
+      yamlDump({ identity: { path: 'notes/skill.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) }, annotations: { version: 9 } }),
     );
     process.chdir(fixture);
     await runScanAndPersist(fixture, dbPath);
@@ -331,7 +331,7 @@ describe('sm sidecar annotate', () => {
     strictEqual(await cmd.execute(), 2);
 
     // Original content preserved.
-    const after = yaml.load(readFileSync(join(fixture, 'notes/skill.sm'), 'utf8')) as Record<string, unknown>;
+    const after = yamlLoad(readFileSync(join(fixture, 'notes/skill.sm'), 'utf8')) as Record<string, unknown>;
     strictEqual((after['annotations'] as Record<string, unknown>)['version'], 9);
   });
 
@@ -342,7 +342,7 @@ describe('sm sidecar annotate', () => {
       ['---', 'name: skill', '---', 'Body.'].join('\n'),
     );
     writeFile(fixture, 'notes/skill.sm',
-      yaml.dump({ identity: { path: 'notes/skill.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) }, annotations: { version: 9 } }),
+      yamlDump({ identity: { path: 'notes/skill.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) }, annotations: { version: 9 } }),
     );
     process.chdir(fixture);
     await runScanAndPersist(fixture, dbPath);
@@ -353,7 +353,7 @@ describe('sm sidecar annotate', () => {
     cmd.db = dbPath; cmd.nodePath = 'notes/skill.md'; cmd.force = true;
     cmd.context = cap.context;
     strictEqual(await cmd.execute(), 0);
-    const after = yaml.load(readFileSync(join(fixture, 'notes/skill.sm'), 'utf8')) as Record<string, unknown>;
+    const after = yamlLoad(readFileSync(join(fixture, 'notes/skill.sm'), 'utf8')) as Record<string, unknown>;
     strictEqual(Object.keys(after['annotations'] as Record<string, unknown>).length, 0);
   });
 

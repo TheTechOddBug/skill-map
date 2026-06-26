@@ -18,7 +18,7 @@ import { strictEqual, ok, deepStrictEqual } from 'node:assert';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import yaml from 'js-yaml';
+import { dump as yamlDump, load as yamlLoad } from 'js-yaml';
 
 import {
   nodeSetTagsAction,
@@ -160,7 +160,7 @@ describe('built-in node-set-tags action, round-trip through FilesystemSidecarSto
       annotations: { version: 4, tags: ['old-a', 'old-b'] },
       'example-plugin': { reviewedBy: 'agent-x', notes: ['ok'] },
     };
-    writeFileSync(target, yaml.dump(seed));
+    writeFileSync(target, yamlDump(seed));
 
     const node = makeNode({ path: 'docs/x.md' });
     const result = callSetTags(
@@ -174,7 +174,7 @@ describe('built-in node-set-tags action, round-trip through FilesystemSidecarSto
       if (w.kind === 'sidecar') await store.applyPatch(w.path, w.changes, consentBag());
     }
 
-    const parsed = yaml.load(readFileSync(target, 'utf8')) as Record<string, unknown>;
+    const parsed = yamlLoad(readFileSync(target, 'utf8')) as Record<string, unknown>;
     const ann = parsed['annotations'] as Record<string, unknown>;
     // Whole-array replace: the old tags are gone, not merged.
     deepStrictEqual(ann['tags'], ['new-only']);

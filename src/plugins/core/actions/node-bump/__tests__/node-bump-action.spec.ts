@@ -14,7 +14,7 @@ import { strictEqual, ok, deepStrictEqual } from 'node:assert';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import yaml from 'js-yaml';
+import { dump as yamlDump, load as yamlLoad } from 'js-yaml';
 
 import {
   nodeBumpAction,
@@ -205,7 +205,7 @@ describe('built-in bump action, round-trip through FilesystemSidecarStore', () =
       annotations: { version: 4, stability: 'stable' },
       'example-plugin': { reviewedBy: 'agent-x', notes: ['ok'] },
     };
-    writeFileSync(target, yaml.dump(seed));
+    writeFileSync(target, yamlDump(seed));
 
     const node = makeNode({
       bodyHash: HASH_C, // body drifted
@@ -226,7 +226,7 @@ describe('built-in bump action, round-trip through FilesystemSidecarStore', () =
       }
     }
 
-    const parsed = yaml.load(readFileSync(target, 'utf8')) as Record<string, unknown>;
+    const parsed = yamlLoad(readFileSync(target, 'utf8')) as Record<string, unknown>;
     // Version bumped.
     strictEqual((parsed['annotations'] as Record<string, unknown>)['version'], 5);
     // stability survived.
@@ -257,7 +257,7 @@ describe('built-in bump action, round-trip through FilesystemSidecarStore', () =
     }
 
     ok(existsSync(target));
-    const parsed = yaml.load(readFileSync(target, 'utf8')) as Record<string, unknown>;
+    const parsed = yamlLoad(readFileSync(target, 'utf8')) as Record<string, unknown>;
     const audit = parsed['audit'] as Record<string, unknown>;
     strictEqual(audit['createdAt'], '2026-05-05T12:00:00.000Z');
     strictEqual(audit['createdBy'], 'cli');

@@ -32,7 +32,7 @@ import { dirname, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 
 import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
-import yaml from 'js-yaml';
+import { dump as yamlDump, load as yamlLoad, CORE_SCHEMA, JSON_SCHEMA } from 'js-yaml';
 
 import { writeFileAtomicExclusive } from '../util/atomic-write.js';
 import { applyAjvFormats } from '../util/ajv-interop.js';
@@ -202,11 +202,13 @@ export class FilesystemSidecarStore implements ISidecarStore {
         `sidecar patch produces a schema-invalid result at ${sidecarAbsPath}: ${errors}`,
       );
     }
-    const yamlText = yaml.dump(merged, {
+    const yamlText = yamlDump(merged, {
       sortKeys: true,
       lineWidth: -1,
       noRefs: true,
-      noCompatMode: true,
+      // js-yaml v5: CORE_SCHEMA reproduces the old `noCompatMode: true`
+      // output (YAML 1.2, no 1.1-compat quoting of yes/no/on/off).
+      schema: CORE_SCHEMA,
     });
     atomicWriteFile(sidecarAbsPath, yamlText);
   }
@@ -274,7 +276,7 @@ function readSidecarObject(sidecarAbsPath: string): Record<string, unknown> {
   const raw = readFileSync(sidecarAbsPath, 'utf8');
   // Explicit JSON_SCHEMA to match the frontmatter parser and harden
   // against a future js-yaml default-schema loosening (audit M1).
-  const parsed = yaml.load(raw, { schema: yaml.JSON_SCHEMA });
+  const parsed = yamlLoad(raw, { schema: JSON_SCHEMA });
   if (parsed === null || parsed === undefined) return {};
   if (!isPlainObject(parsed)) {
     throw new Error(
