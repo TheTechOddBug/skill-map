@@ -2,6 +2,8 @@ import { cpSync, existsSync, readFileSync, readdirSync, rmSync, writeFileSync } 
 import { join, relative } from 'node:path';
 import { defineConfig } from 'tsup';
 
+import { SKILL_MAP_DIR } from './kernel/util/skill-map-paths.js';
+
 /**
  * Post-build pass: restore `from "node:sqlite"` specifiers that esbuild
  * strips down to bare `"sqlite"`. Esbuild rewrites the canonical form
@@ -136,7 +138,7 @@ function copyExamplePayload(): void {
   rmSync(dest, { recursive: true, force: true });
   cpSync(source, dest, {
     recursive: true,
-    filter: (src) => !relative(source, src).split(/[\\/]/).includes('.skill-map'),
+    filter: (src) => !relative(source, src).split(/[\\/]/).includes(SKILL_MAP_DIR),
   });
 }
 

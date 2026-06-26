@@ -46,6 +46,7 @@ import { Command, Option } from 'clipanion';
 import { tx } from '../../kernel/util/tx.js';
 import { EXAMPLE_TEXTS } from '../i18n/example.texts.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
+import { SKILL_MAP_DIR } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { displayCwd, isDirEmpty, listCwdEntries } from '../util/empty-cwd.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
@@ -220,7 +221,7 @@ function resolveExampleSourceDir(): string {
 function isExamplePayloadEntry(sourceRoot: string, src: string): boolean {
   const rel = relative(sourceRoot, src);
   if (rel === '') return true; // the payload root itself
-  return rel.split(/[\\/]/)[0] !== '.skill-map';
+  return rel.split(/[\\/]/)[0] !== SKILL_MAP_DIR;
 }
 
 /** Test-only, drop the cache so a unit test can simulate a missing dir. */
