@@ -87,14 +87,24 @@ export function isPluginExtensionEnabled(
 }
 
 /**
- * Build the layered settings.json + DB enabled-resolver. Mirrors the
- * shape of `buildResolver` in `src/cli/commands/plugins.ts` (Step 6.6)
- * to keep the resolution policy in lock-step. Any divergence between
- * `sm plugins list` and the runtime would be a confusing UX regression.
+ * Layered resolver inputs read once from config + DB: the enabled
+ * resolver AND the raw DB override map that backs the import-trust gate.
+ * Bundled so `loadPluginRuntime` builds both from a single DB read.
  */
-export async function buildEnabledResolver(
+export interface IResolverInputs {
+  resolveEnabled: EnabledResolver;
+  /** `config_plugins` rows, the LOCAL trust signal (never settings.json). */
+  dbOverrides: Map<string, boolean>;
+}
+
+/**
+ * Read config + the DB override map once and return both the enabled
+ * resolver and the raw override map. The override map is the local-only
+ * signal the import-trust gate consumes (`makeImportTrustResolver`).
+ */
+export async function buildResolverInputs(
   ctx: IRuntimeContext,
-): Promise<EnabledResolver> {
+): Promise<IResolverInputs> {
   const { effective: cfg } = loadConfig({ ...ctx });
   const dbPath = resolveDbPath({
     db: undefined,
@@ -105,5 +115,17 @@ export async function buildEnabledResolver(
       { databasePath: dbPath, autoBackup: false },
       (adapter) => adapter.pluginConfig.loadOverrideMap(),
     )) ?? new Map<string, boolean>();
-  return makeEnabledResolver(cfg, dbOverrides);
+  return { resolveEnabled: makeEnabledResolver(cfg, dbOverrides), dbOverrides };
+}
+
+/**
+ * Build the layered settings.json + DB enabled-resolver. Mirrors the
+ * shape of `buildResolver` in `src/cli/commands/plugins.ts` (Step 6.6)
+ * to keep the resolution policy in lock-step. Any divergence between
+ * `sm plugins list` and the runtime would be a confusing UX regression.
+ */
+export async function buildEnabledResolver(
+  ctx: IRuntimeContext,
+): Promise<EnabledResolver> {
+  return (await buildResolverInputs(ctx)).resolveEnabled;
 }

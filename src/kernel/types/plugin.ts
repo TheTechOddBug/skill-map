@@ -190,6 +190,19 @@ export interface IDiscoveredPlugin {
   storageSchemas?: Record<string, IPluginStorageSchema>;
   /** Human-readable diagnostic shown by `sm plugins list/show`. */
   reason?: string;
+  /**
+   * Runtime-only, never persisted, never spec-modeled.
+   *
+   * Set by the loader when a project-local disk plugin was discovered
+   * (manifest parsed + surfaced) but its extension code was NOT imported
+   * because the operator never granted local trust (no `config_plugins`
+   * override enables the plugin or any of its extensions). The plugin
+   * still rides as `status: 'disabled'` (extensions absent), this flag
+   * lets the runtime distinguish "not yet trusted" from an explicit
+   * `sm plugins disable`, so it can emit a one-time "found but not
+   * loaded, run `sm plugins enable`" notice. See spec § Plugin trust.
+   */
+  untrusted?: boolean;
 }
 
 /**

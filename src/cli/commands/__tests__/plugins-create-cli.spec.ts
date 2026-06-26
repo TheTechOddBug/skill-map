@@ -23,6 +23,7 @@ import { fileURLToPath } from 'node:url';
 import { after, before, describe, it } from 'node:test';
 
 import { EXTENSION_KINDS } from '../../../kernel/registry.js';
+import { withSqlite } from '../../../core/sqlite/with-sqlite.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BIN = resolve(HERE, '..', '..', '..', 'bin', 'sm.js');
@@ -61,6 +62,23 @@ function sm(
     },
   });
   return { status: r.status ?? 0, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
+}
+
+/**
+ * Grant local import-trust for a project-local plugin, the in-test
+ * equivalent of `sm plugins enable <id>`: write a `config_plugins`
+ * override into the project DB so the H1 import-trust gate (default-
+ * disabled for cloned project-local plugins) loads the plugin's code on
+ * the next `sm scan`. The spawned binary reads the override from
+ * `<cwd>/.skill-map/skill-map.db` (the default project DB that
+ * `sm init` already created); we open that same file in-process to set
+ * the row, then the scan runs in a separate process afterwards.
+ */
+async function trustProjectPlugin(cwd: string, pluginId: string): Promise<void> {
+  const dbPath = join(cwd, '.skill-map', 'skill-map.db');
+  await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
+    await adapter.pluginConfig.set(pluginId, true);
+  });
 }
 
 before(() => {
@@ -143,10 +161,14 @@ describe('sm plugins create, scaffolder shape', () => {
     assert.equal(JSON.parse(detail.stdout).status, 'enabled');
   });
 
-  it('scaffolded extractor emits its contribution on scan', () => {
+  it('scaffolded extractor emits its contribution on scan', async () => {
     const scope = freshScope('emit');
     assert.equal(sm(['init', '--no-scan'], scope).status, 0);
     assert.equal(sm(['plugins', 'create', 'extractor', 'demo-highlight'], scope).status, 0);
+    // Post-H1 gate: the scaffolded project-local plugin is discovered but
+    // its code stays dormant until locally trusted, so grant trust (the
+    // in-test equivalent of `sm plugins enable`) before the scan loads it.
+    await trustProjectPlugin(scope.cwd, 'demo-highlight');
 
     mkdirSync(join(scope.cwd, 'notes'), { recursive: true });
     writeFileSync(

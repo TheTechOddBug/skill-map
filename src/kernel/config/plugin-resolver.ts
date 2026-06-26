@@ -94,3 +94,33 @@ export function makeEnabledResolver(
   return (pluginId, installedDefault) =>
     resolvePluginEnabled(pluginId, cfg, dbOverrides, installedDefault);
 }
+
+/**
+ * Build the loader's import-trust gate (security boundary): may a
+ * project-local disk plugin's code be imported AT ALL?
+ *
+ * Trust is granted ONLY by a LOCAL signal, the DB override map
+ * (`config_plugins`, written by `sm plugins enable` / the Settings UI),
+ * and NEVER by the committed `settings.json` baseline: a cloned repo
+ * controls its own `.skill-map/settings.json`, so honouring it would let
+ * a hostile repo auto-execute its plugins on the victim's first `sm
+ * scan`. A plugin is trusted when the operator has locally enabled the
+ * plugin itself (`<id>`) or any of its extensions (`<id>/<ext>`); a fresh
+ * clone has no such row, so its plugins are discovered but never run.
+ *
+ * Locked host plugins (built-ins) are always trusted, they never reach
+ * the disk loader, but the arm keeps the gate total.
+ */
+export function makeImportTrustResolver(
+  dbOverrides: Map<string, boolean>,
+): (pluginId: string) => boolean {
+  return (pluginId) => {
+    if (isPluginLocked(pluginId)) return true;
+    const prefix = `${pluginId}/`;
+    for (const [key, enabled] of dbOverrides) {
+      if (!enabled) continue;
+      if (key === pluginId || key.startsWith(prefix)) return true;
+    }
+    return false;
+  };
+}

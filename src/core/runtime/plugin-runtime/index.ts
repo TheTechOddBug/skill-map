@@ -51,9 +51,10 @@ import type { IPrinter } from '../printer.js';
 import type { IRuntimeContext } from '../runtime-context.js';
 
 import {
-  buildEnabledResolver,
+  buildResolverInputs,
   defaultResolveEnabled,
 } from './resolver.js';
+import { makeImportTrustResolver } from '../../../kernel/config/plugin-resolver.js';
 import { bucketLoaded } from './bucketing.js';
 import {
   emitWarnings,
@@ -189,13 +190,17 @@ export async function loadPluginRuntime(
   const validators = loadSchemaValidators();
 
   let resolveEnabled: ((id: string) => boolean) | undefined;
+  let dbOverrides: Map<string, boolean> | undefined;
   try {
-    resolveEnabled = await buildEnabledResolver(ctx);
+    const inputs = await buildResolverInputs(ctx);
+    resolveEnabled = inputs.resolveEnabled;
+    dbOverrides = inputs.dbOverrides;
   } catch {
     // Config / DB read failure here is non-fatal, fall through with
     // the loader's default ("every plugin enabled"). The actual scan
     // pipeline still runs; the user gets `sm plugins doctor` as the
-    // dedicated diagnostic surface.
+    // dedicated diagnostic surface. `dbOverrides` stays undefined, so the
+    // trust gate below trusts nothing (fails closed, the safe default).
   }
 
   const loaderOpts: IPluginLoaderOptions = {
@@ -204,6 +209,16 @@ export async function loadPluginRuntime(
     specVersion: installedSpecVersion(),
   };
   if (resolveEnabled) loaderOpts.resolveEnabled = resolveEnabled;
+  // Import-trust gate (security boundary, H1). Only project-local
+  // discovery is gated: an explicit `--plugin-dir` is the operator
+  // pointing the loader at code on purpose, while project discovery is
+  // the clone-and-scan path where a hostile repo's `.skill-map/plugins/`
+  // must NOT auto-execute. `dbOverrides` defaults to empty (trust
+  // nothing) when the config/DB read failed above, so the gate fails
+  // closed rather than open.
+  if (!opts.pluginDir) {
+    loaderOpts.resolveImportTrust = makeImportTrustResolver(dbOverrides ?? new Map());
+  }
   const loader = createPluginLoader(loaderOpts);
   const discovered = await loader.discoverAndLoadAll();
 
@@ -225,6 +240,17 @@ export async function loadPluginRuntime(
     }
     if (plugin.status === 'disabled') continue;
     runtime.warnings.push(formatWarning(plugin));
+  }
+
+  // H1: one-time aggregate notice when project-local plugins were found
+  // on disk but left unexecuted for lack of local trust. Keeps the
+  // common case (no plugins) silent while making the "your cloned repo
+  // ships plugins, none ran" situation discoverable.
+  const untrustedCount = discovered.filter((p) => p.untrusted === true).length;
+  if (untrustedCount > 0) {
+    runtime.warnings.push(
+      tx(PLUGIN_LOADER_TEXTS.untrustedPluginsFoundNotice, { count: untrustedCount }),
+    );
   }
 
   // Spec § 9.6.6, cross-plugin collision detection on annotation

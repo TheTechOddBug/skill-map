@@ -50,6 +50,12 @@ privacy gate (`sm config set --yes` or the Settings UI confirm dialog).
 Plugins load from `<cwd>/.skill-map/plugins/` by default; an arbitrary
 external location MAY be loaded via the `--plugin-dir <path>` escape
 hatch on the `sm plugins …` verb family, user-explicit per invocation.
+Project-local plugins are discovered but their code is NOT executed by
+`sm scan` / `sm serve` (and the other runtime verbs) until the operator
+grants local trust via `sm plugins enable <id>`; the committed
+`settings.json` does not grant it. `--plugin-dir` and built-ins are not
+gated. See [`architecture.md` §Locality](./architecture.md) (import
+trust) for the normative model.
 
 ### User-settings file (narrow, documented exception)
 

@@ -38,6 +38,7 @@ import { DatabaseSync } from 'node:sqlite';
 import type { BaseContext } from 'clipanion';
 
 import { DbMigrateCommand } from '../../db.js';
+import { withSqlite } from '../../../../core/sqlite/with-sqlite.js';
 
 let tmpRoot: string;
 let counter = 0;
@@ -45,6 +46,24 @@ let counter = 0;
 function freshFixture(label: string): string {
   counter += 1;
   return mkdtempSync(join(tmpRoot, `${label}-${counter}-`));
+}
+
+/**
+ * Grant local import-trust for a project-local plugin, the in-test
+ * equivalent of `sm plugins enable <id>`: write a `config_plugins`
+ * override into the project DB so the H1 import-trust gate (default-
+ * disabled for cloned project-local plugins) loads the plugin's code on
+ * the next `sm db migrate` discovery pass. Without this an untrusted
+ * plugin stays `status: 'disabled'`, so its dedicated-storage migrations
+ * are never discovered. The gate reads `<fixture>/.skill-map/skill-map.db`
+ * (the same DB the verb migrates); creating it here is harmless, the verb
+ * opens it with `autoMigrate: false` and finds the kernel ledger ready.
+ */
+async function trustProjectPlugin(fixture: string, pluginId: string): Promise<void> {
+  const dbPath = join(fixture, '.skill-map', 'skill-map.db');
+  await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
+    await adapter.pluginConfig.set(pluginId, true);
+  });
 }
 
 before(() => {
@@ -212,6 +231,9 @@ describe('Step 9.2, sm db migrate (kernel + plugin)', () => {
         `,
       },
     });
+    // Post-H1 gate: trust the planted plugin so its dedicated-storage
+    // migration is discovered and applied.
+    await trustProjectPlugin(fixture, 'fixture-store');
 
     const original = process.cwd();
     process.chdir(fixture);
@@ -246,6 +268,9 @@ describe('Step 9.2, sm db migrate (kernel + plugin)', () => {
         '001_pwn.sql': 'CREATE TABLE evil_table (id INTEGER PRIMARY KEY);',
       },
     });
+    // Post-H1 gate: trust the plugin (its manifest is valid; only the SQL
+    // is malicious) so the migration reaches the Layer 1 namespace check.
+    await trustProjectPlugin(fixture, 'evil-plugin');
 
     const original = process.cwd();
     process.chdir(fixture);
@@ -277,6 +302,8 @@ describe('Step 9.2, sm db migrate (kernel + plugin)', () => {
         '001_init.sql': 'CREATE TABLE plugin_idem_plugin_t (a INTEGER);',
       },
     });
+    // Post-H1 gate: trust the planted plugin so its migration applies.
+    await trustProjectPlugin(fixture, 'idem-plugin');
 
     const original = process.cwd();
     process.chdir(fixture);
@@ -341,6 +368,10 @@ describe('Step 9.2, sm db migrate (kernel + plugin)', () => {
         '001_init.sql': 'CREATE TABLE plugin_untargeted_t (a INTEGER);',
       },
     });
+    // Post-H1 gate: trust both plugins so they load; `--plugin targeted`
+    // (not the trust gate) is what scopes the run to one of them.
+    await trustProjectPlugin(fixture, 'targeted');
+    await trustProjectPlugin(fixture, 'untargeted');
 
     const original = process.cwd();
     process.chdir(fixture);
@@ -410,6 +441,8 @@ describe('Step 9.2, sm db migrate (kernel + plugin)', () => {
         '001_init.sql': 'CREATE TABLE plugin_status_plugin_t (a INTEGER);',
       },
     });
+    // Post-H1 gate: trust the planted plugin so `--status` reports its ledger.
+    await trustProjectPlugin(fixture, 'status-plugin');
 
     const original = process.cwd();
     process.chdir(fixture);
@@ -439,6 +472,8 @@ describe('Step 9.2, sm db migrate (kernel + plugin)', () => {
         '001_init.sql': 'CREATE TABLE plugin_dry_plugin_t (a INTEGER);',
       },
     });
+    // Post-H1 gate: trust the planted plugin so the dry-run plans its migration.
+    await trustProjectPlugin(fixture, 'dry-plugin');
 
     const original = process.cwd();
     process.chdir(fixture);

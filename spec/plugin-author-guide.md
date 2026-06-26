@@ -60,6 +60,8 @@ The kernel scans one root: `<cwd>/.skill-map/plugins/`, committed-with-the-repo 
 
 A plugin is any direct child directory of that root containing a `plugin.json`. Nested directories are not searched recursively. Pass `--plugin-dir <path>` to replace the default root with a custom directory (mostly for testing, or a plugin set the operator opts into).
 
+**Import trust.** A project-local plugin is discovered (manifest parsed, listed by `sm plugins list`) but its code is NOT imported by the runtime verbs (`sm scan`, `sm serve`, ...) until the operator trusts it locally with `sm plugins enable <id>` (or the Settings toggle), which writes a `config_plugins` override. This is a security boundary: cloning a repo and scanning it must not auto-execute the repo's plugins, so the committed `settings.json` baseline cannot grant import trust, only the local DB override can. Authors developing a plugin enable it once locally; `--plugin-dir` is not gated. See [`architecture.md` §Locality](./architecture.md).
+
 After every change to `plugins/`, run `sm plugins list` to see each plugin's load status. The seven statuses are documented under [Diagnostics](#diagnostics).
 
 ### Plugin id uniqueness

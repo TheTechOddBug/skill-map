@@ -102,6 +102,24 @@ export interface IPluginLoaderOptions {
    */
   resolveEnabled?: (pluginId: string) => boolean;
   /**
+   * Import-trust gate (security boundary). When supplied, the loader
+   * calls this with every parsed plugin id AFTER manifest + specCompat
+   * validation but BEFORE importing any extension entry. A return value
+   * of `false` short-circuits the load WITHOUT executing plugin code:
+   * the plugin is reported with `status: 'disabled'` + `untrusted: true`
+   * and a directed reason, so `sm plugins list` still surfaces it.
+   *
+   * This is distinct from `resolveEnabled` (the per-config enable gate):
+   * trust answers "may this disk code run at all?" and is driven ONLY by
+   * a LOCAL signal (`config_plugins`), never the committed
+   * `settings.json` baseline, since a cloned repo controls the latter.
+   * The runtime passes this for project-local discovery so `sm scan` /
+   * `sm serve` never auto-execute a cloned repo's plugins; the
+   * `sm plugins` management family and explicit `--plugin-dir` omit it.
+   * Omitted == "trust everything" (built-ins, tests, explicit dirs).
+   */
+  resolveImportTrust?: (pluginId: string) => boolean;
+  /**
    * Per-extension dynamic-import timeout in milliseconds. A plugin whose
    * top-level work (imports, side effects) exceeds this is reported as
    * `load-error` with a message naming the timeout, instead of hanging
@@ -198,16 +216,9 @@ export class PluginLoader implements PluginLoaderPort {
     if (!manifestResult.ok) return manifestResult.failure;
     const manifest = manifestResult.manifest;
 
-    // --- enabled resolution ----------------------------------------------
-    if (this.#options.resolveEnabled && !this.#options.resolveEnabled(pluginId)) {
-      return {
-        path: pluginPath,
-        id: pluginId,
-        status: 'disabled',
-        manifest,
-        reason: PLUGIN_LOADER_TEXTS.disabledByConfig,
-      };
-    }
+    // --- pre-import gates: enable resolution + import trust ---------------
+    const gated = this.#preImportGate(pluginPath, pluginId, manifest);
+    if (gated) return gated;
 
     // --- extension imports + kind validation ------------------------------
     const loaded: ILoadedExtension[] = [];
@@ -236,6 +247,44 @@ export class PluginLoader implements PluginLoaderPort {
         ? { storageSchemas: storageSchemasResult.schemas }
         : {}),
     };
+  }
+
+  /**
+   * Pre-import gates run AFTER the JSON manifest parse (safe) and BEFORE
+   * any extension `import()` (executes code). Returns a short-circuit
+   * `disabled` discovery (manifest kept, code NOT imported) when a gate
+   * refuses, or `null` to proceed to the import loop:
+   *
+   *   - enable resolution: the per-config `resolveEnabled` plugin gate.
+   *   - import trust: the security boundary, refuse to execute a
+   *     project-local plugin the operator has not locally trusted; the
+   *     plugin stays discoverable in `sm plugins list` without running.
+   */
+  #preImportGate(
+    pluginPath: string,
+    pluginId: string,
+    manifest: IPluginManifest,
+  ): IDiscoveredPlugin | null {
+    if (this.#options.resolveEnabled && !this.#options.resolveEnabled(pluginId)) {
+      return {
+        path: pluginPath,
+        id: pluginId,
+        status: 'disabled',
+        manifest,
+        reason: PLUGIN_LOADER_TEXTS.disabledByConfig,
+      };
+    }
+    if (this.#options.resolveImportTrust && !this.#options.resolveImportTrust(pluginId)) {
+      return {
+        path: pluginPath,
+        id: pluginId,
+        status: 'disabled',
+        untrusted: true,
+        manifest,
+        reason: tx(PLUGIN_LOADER_TEXTS.untrustedNotLoaded, { pluginId }),
+      };
+    }
+    return null;
   }
 
   /**

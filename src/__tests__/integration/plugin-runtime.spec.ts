@@ -39,6 +39,7 @@ import type { BaseContext } from 'clipanion';
 import { GraphCommand } from '../../cli/commands/graph.js';
 import { ScanCommand } from '../../cli/commands/scan.js';
 import { formatWarning } from '../../cli/util/plugin-runtime.js';
+import { withSqlite } from '../../core/sqlite/with-sqlite.js';
 import type { ScanResult } from '../../kernel/index.js';
 import type { IDiscoveredPlugin } from '../../kernel/types/plugin.js';
 
@@ -54,6 +55,20 @@ function writeFixtureFile(root: string, rel: string, content: string): void {
   const abs = join(root, rel);
   mkdirSync(join(abs, '..'), { recursive: true });
   writeFileSync(abs, content);
+}
+
+/**
+ * Grant local import-trust for a project-local plugin, the in-test
+ * equivalent of `sm plugins enable <id>`: write a `config_plugins`
+ * override so the H1 import-trust gate (default-disabled for cloned
+ * project-local plugins) loads the plugin's code on the next scan/graph.
+ * Creates the project DB if absent (mirrors the real enable flow).
+ */
+async function trustProjectPlugin(fixture: string, pluginId: string): Promise<void> {
+  const dbPath = join(fixture, '.skill-map', 'skill-map.db');
+  await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
+    await adapter.pluginConfig.set(pluginId, true);
+  });
 }
 
 before(() => {
@@ -229,6 +244,7 @@ describe('Step 9.1, plugin runtime wiring', () => {
     plantClaudeFixture(fixture);
     const target = '/synthetic-step9-target';
     plantPluginExtractor(fixture, 'fixture-emitter', target);
+    await trustProjectPlugin(fixture, 'fixture-emitter');
 
     const original = process.cwd();
     process.chdir(fixture);
@@ -249,6 +265,71 @@ describe('Step 9.1, plugin runtime wiring', () => {
       ok(planted, `expected synthetic link with target=${target}; got ${JSON.stringify(result.links)}`);
       strictEqual(planted.kind, 'references');
       ok(planted.sources.includes('fixture-emitter-extractor'));
+    } finally {
+      process.chdir(original);
+    }
+  });
+
+  it('untrusted project-local plugin is discovered but NOT executed (H1)', async () => {
+    const fixture = freshFixture('untrusted-plugin');
+    plantClaudeFixture(fixture);
+    const target = '/synthetic-untrusted-target';
+    // Plant the extractor but DO NOT trust it: the clone-and-scan path.
+    plantPluginExtractor(fixture, 'fixture-untrusted', target);
+
+    const original = process.cwd();
+    process.chdir(fixture);
+    try {
+      const cap = captureContext();
+      const cmd = buildScan({ json: true });
+      cmd.context = cap.context;
+      const code = await cmd.execute();
+      // The extractor never ran, so no unresolved synthetic link exists:
+      // scan exits 0 (clean) and the planted target is absent.
+      strictEqual(code, 0, `scan exited ${code}; stderr=${cap.stderr()}`);
+      const result = parseScanResult(cap.stdout());
+      strictEqual(
+        result.links.find((l) => l.target === target),
+        undefined,
+        'untrusted plugin must not contribute links',
+      );
+      // The operator is told the plugin exists but did not run.
+      match(cap.stderr(), /not loaded|untrusted/i);
+    } finally {
+      process.chdir(original);
+    }
+  });
+
+  it('committed settings.json does NOT grant import trust (clone-and-scan defense, H1)', async () => {
+    const fixture = freshFixture('settings-no-trust');
+    plantClaudeFixture(fixture);
+    const target = '/synthetic-settings-trap';
+    plantPluginExtractor(fixture, 'fixture-settings-trap', target);
+    // The threat model: a hostile cloned repo controls its own committed
+    // `.skill-map/settings.json`. Enabling the plugin there MUST NOT load
+    // its code, only a LOCAL `config_plugins` override (sm plugins enable)
+    // grants import trust.
+    writeFixtureFile(
+      fixture,
+      join('.skill-map', 'settings.json'),
+      JSON.stringify({ plugins: { 'fixture-settings-trap': { enabled: true } } }),
+    );
+
+    const original = process.cwd();
+    process.chdir(fixture);
+    try {
+      const cap = captureContext();
+      const cmd = buildScan({ json: true });
+      cmd.context = cap.context;
+      const code = await cmd.execute();
+      strictEqual(code, 0, `scan exited ${code}; stderr=${cap.stderr()}`);
+      const result = parseScanResult(cap.stdout());
+      strictEqual(
+        result.links.find((l) => l.target === target),
+        undefined,
+        'settings.json must not load the plugin; only a local DB override does',
+      );
+      match(cap.stderr(), /not loaded|untrusted/i);
     } finally {
       process.chdir(original);
     }
@@ -306,6 +387,7 @@ describe('Step 9.1, plugin runtime wiring', () => {
     const fixture = freshFixture('plugin-formatter');
     plantClaudeFixture(fixture);
     plantPluginFormatter(fixture, 'fixture-shouter', 'shout', 'PLUGIN-FORMATTER-SENTINEL');
+    await trustProjectPlugin(fixture, 'fixture-shouter');
 
     const original = process.cwd();
     process.chdir(fixture);
