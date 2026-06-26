@@ -309,6 +309,34 @@ describe('VendorFrontmatter, skill / command kinds', () => {
     expect(dom.textContent).toContain('When refactoring TypeScript.');
   });
 
+  it('renders the externalized "disabled" value when disable-model-invocation is set', () => {
+    const fm = {
+      name: 'a',
+      description: 'd',
+      metadata: { version: '' },
+      'disable-model-invocation': true,
+    } as unknown as TFrontmatter;
+    const { dom } = bootstrap(fm, 'skill');
+    const base = dom.querySelector('[data-testid="vendor-frontmatter-skill-base"]');
+    expect(base).not.toBeNull();
+    // Label + the catalog-sourced value (texts.skillBaseFields.disabledValue),
+    // not an inlined literal in the template.
+    expect(base!.textContent).toContain('Model invocation');
+    expect(base!.querySelector('code')?.textContent).toBe('disabled');
+  });
+
+  it('omits the Model invocation row when disable-model-invocation is false', () => {
+    const fm = {
+      name: 'a',
+      description: 'd',
+      metadata: { version: '' },
+      'disable-model-invocation': false,
+      when_to_use: 'keep the section alive',
+    } as unknown as TFrontmatter;
+    const { dom } = bootstrap(fm, 'skill');
+    expect(dom.textContent).not.toContain('Model invocation');
+  });
+
   it('hides the renderer for a skill with zero populated skill-base fields', () => {
     const fm = {
       name: 'a',

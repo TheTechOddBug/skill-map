@@ -157,7 +157,7 @@ Several unrelated escape-hatches also live under `::ng-deep`, none targets a Pri
 
 ## Themes
 
-The UI ships three themes today: **light** (default), **dark** (system pref or explicit), and **matrix** (extra theme). They live as **sibling files** under `ui/src/themes/` with the same shape, so a fourth theme is one file plus one registry entry plus one `angular.json` line.
+The UI ships **light** (default), **dark** (system pref or explicit), and four specialty themes registered in `EXTRA_THEMES`: **matrix**, **neon** (Neon B), **neon-green** (Neon G), and **neon-red** (Neon R). They live as **sibling files** under `ui/src/themes/` with the same shape, so another theme is one file plus one registry entry plus one `angular.json` line.
 
 ### File layout
 
@@ -165,13 +165,17 @@ The UI ships three themes today: **light** (default), **dark** (system pref or e
 ui/src/
 ├── styles.css                   <-- cross-theme foundations (fonts, radii, violet ramp, resets, scrollbars, empty-state)
 ├── themes/
-│   ├── light.css                <-- :root { --sm-bg-*, --sm-edge-*, --sm-link-*, --sm-severity-*, --sm-stat-*, --sm-accent-fg, --sm-shadow-* }
+│   ├── light.css                <-- :root { --sm-bg-*, --sm-edge-*, --sm-link-*, --sm-severity-*, --sm-stat-*, --sm-hl-*, --sm-accent-fg, --sm-shadow-* }
 │   ├── dark.css                 <-- .app-dark { same tokens, dark values }
 │   ├── matrix.css               <-- :root.app-matrix + html.app-matrix .X (palette + per-element retints)
+│   ├── neon.css                 <-- :root.app-neon + html.app-neon .X (Neon B; same shape as matrix)
+│   ├── neon-green.css           <-- :root.app-neon-green + html.app-neon-green .X (Neon G)
+│   ├── neon-red.css             <-- :root.app-neon-red + html.app-neon-red .X (Neon R)
+│   ├── highlight.css            <-- theme-agnostic syntax-highlight, maps hljs-* to the active theme's --sm-hl-* tokens
 │   └── registry.ts              <-- EXTRA_THEMES catalog consumed by ThemeService + Settings UI
 ```
 
-**Authority**: opening `light.css`, `dark.css`, or `matrix.css` reveals the **same sections in the same order** (`Surface palette` → `Edge palette` → `Link badge palette` → `Severity, foreground` → `Severity, row tint` → `Physical-stat chip tints` → `Accent foreground` → `Elevation shadows`). Keep that symmetry when extending: a token added to one theme must land in the same section across all three.
+**Authority**: opening `light.css`, `dark.css`, or any specialty theme reveals the **same sections in the same order** (`Surface palette` → `Edge palette` → `Link badge palette` → `Severity, foreground` → `Severity, row tint` → `Physical-stat chip tints` → `Accent foreground` → `Elevation shadows`). Keep that symmetry when extending: a token added to one theme must land in the same section across every theme.
 
 ### Selector strategy
 
@@ -190,7 +194,11 @@ node_modules/@fortawesome/fontawesome-free/css/all.min.css
 src/styles.css            <-- cross-theme foundations
 src/themes/light.css      <-- :root palette
 src/themes/dark.css       <-- .app-dark overrides
-src/themes/matrix.css     <-- specialty theme, last so it beats everything
+src/themes/matrix.css     <-- specialty themes, after dark so they beat the base palettes
+src/themes/neon.css
+src/themes/neon-green.css
+src/themes/neon-red.css
+src/themes/highlight.css  <-- theme-agnostic syntax-highlight, last
 ```
 
 Every new specialty theme appends **after** `dark.css` so the bare `:root` and `.app-dark` palettes resolve first, then the specialty class wins on activation.
