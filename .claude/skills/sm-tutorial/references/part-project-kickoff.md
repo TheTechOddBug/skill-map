@@ -28,14 +28,13 @@ disk. The orchestrator's `portfolio-init` already cleared it during
 pre-flight, so the tester sees only the portfolio. If anything demo
 lingers, mention it once and move on.
 
-**Context (agent, do not narrate the plumbing): the lens.** This
-project has a root `AGENTS.md` (the `codex`/Codex marker) sitting next
-to the `.claude/` folder (the `claude` marker, where the tutorial skill
-itself lives). `codex` is **experimental** (ships disabled), though, so auto-detect
-ignores its marker and `sm init` resolves the lens to `claude`
-silently, exactly like the prologue: only `claude` is selectable today,
-so there is no ambiguity and no prompt. Do not promise the tester a
-lens prompt here.
+**Context (agent, do not narrate the plumbing): the lens.** The skill
+was scaffolded under `.claude/` (the `claude` marker, where the tutorial
+skill itself lives), so `sm init` auto-detects the `claude` lens with no
+prompt. The root `AGENTS.md` is the vendor-neutral handbook, NOT a lens
+marker, so it never forces an ambiguous prompt. (This is the rich track;
+a Codex project resolves the `codex` lens the same way from its
+`.codex/` marker.) Do not promise the tester a lens prompt here.
 
 ```bash
 sm init
@@ -49,9 +48,8 @@ Tell the tester:
 > `.claude/` folder is the **harness** (the helpers that maintain the
 > site). skill-map maps that harness.
 >
-> Run `sm init`, it auto-detects the `claude` lens (this is a Claude
-> project; the other lenses are experimental). Then run `sm` to boot the
-> live UI.
+> Run `sm init`, it auto-detects the `claude` lens from the `.claude/`
+> folder. Then run `sm` to boot the live UI.
 >
 > Open the URL `sm` printed. You'll see **one node**: `AGENTS.md`,
 > the project's handbook (the operating manual for the site).
@@ -99,9 +97,7 @@ Wait for confirmation. Mark `manual`: done.
 ## Chapter `first-agent` - The first harness agent (~2 min)
 
 Lay the first harness agent (its content + translation live in
-`fixtures-data/`). The script resolves `__PROVIDER__`; on
-`agent-skills` / Antigravity, which has no `agent` kind, adjust the
-prose to the skill the set lays there. Backstage (silent):
+`fixtures-data/`). Backstage (silent):
 
 ```
 node .claude/skills/sm-tutorial/scripts/fixtures.js lay portfolio --only "__PROVIDER__/agents/content-editor.md" --provider <provider> --lang <lang>

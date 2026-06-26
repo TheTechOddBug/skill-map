@@ -38,7 +38,7 @@ Wait for confirmation. Mark `init`: done.
 
 Leave the browser open and the terminal with `sm` running. You create five more nodes **without any cross-fixture links** yet, pure standalone nodes, so the tester sees five new nodes pop in. Three new **kinds** show up in this step (skill, command, markdown); the last two files are sibling `markdown` notes (`demo-guideline`, `demo-guideline2`) the hub in the `connectors` chapter reaches two ways, a bare mention that resolves to nothing (which lands as a broken reference, no arrow drawn) and the same handle plus `.md` that resolves to a real file (a solid arrow).
 
-Lay these five files in one go (their content + translation live in `fixtures-data/`). The script resolves `__PROVIDER__` and auto-skips kinds the provider does not claim (`agent-skills` / Antigravity: both `demo-agent` and `demo-command` fold away, only the skill + the three markdown notes remain), so read the actual node count from the summary's `nodeCount`. Backstage (silent):
+Lay these five files in one go (their content + translation live in `fixtures-data/`). The script resolves `__PROVIDER__` to the claude layout (this is the rich track). Backstage (silent):
 
 ```
 node .claude/skills/sm-tutorial/scripts/fixtures.js lay prologue --only "__PROVIDER__/skills/demo-skill/SKILL.md,__PROVIDER__/commands/demo-command.md,notes/todo.md,notes/demo-guideline.md,notes/demo-guideline2.md" --provider <provider> --lang <lang>
@@ -109,7 +109,7 @@ You edit `notes/todo.md` so it becomes the **hub** that points to each of the ot
 
 Five bullets, three kinds: `invokes` and `mentions` each appear twice, `references` once. The last two bullets are the resolution lesson: a bare `@demo-guideline` mention (which resolves to no agent, so it lands as a broken reference and draws no arrow) next to `@demo-guideline2.md`, the same handle shape plus a `.md` extension that points at a real sibling file (so it resolves and draws a solid arrow). Two separate nodes, one broken and one resolved. Five bullets but only four arrows on the canvas.
 
-Apply the hub bullets (their content + translation live in `fixtures-data/`). The edit appends after the `# Pending` heading; the script drops any bullet whose target kind the provider does not claim (on `agent-skills` / Antigravity there is no agent and no command → the `@demo-agent` and `/demo-command` bullets fold away; the two guideline bullets stay, so the resolution contrast, broken mention 0.50 (no arrow drawn) vs resolved reference 1.00 (solid arrow), is intact on those providers too). Backstage (silent):
+Apply the hub bullets (their content + translation live in `fixtures-data/`). The edit appends after the `# Pending` heading. Backstage (silent):
 
 ```
 node .claude/skills/sm-tutorial/scripts/fixtures.js edit todo-connectors --provider <provider> --lang <lang>
@@ -223,13 +223,11 @@ Once they confirm, the second edit fixes the broken reference. Tell the tester:
 >
 > Confirm when the new arrow is in and the red marker is gone.
 
-You verify by reading `notes/todo.md` to confirm both edits landed (the `@demo-agent` bullet gone, `@demo-guideline` now `@demo-guideline.md`); the prologue's broken reference is now resolved. (On `agent-skills`, where the `@demo-agent` bullet was never created in the `connectors` chapter, ask the tester to remove the only bullet they did add for the first edit; the `.md` fix on `@demo-guideline` is identical.) Once they confirm, leave the server running, the next chapter reuses it. Mark `edit-link`: done.
+You verify by reading `notes/todo.md` to confirm both edits landed (the `@demo-agent` bullet gone, `@demo-guideline` now `@demo-guideline.md`); the prologue's broken reference is now resolved. Once they confirm, leave the server running, the next chapter reuses it. Mark `edit-link`: done.
 
 ## Chapter `workspace` - Navigate the workspace (files, search, isolate) (~2 min)
 
 **Context**: you've built the graph and understood it; this beat is about *moving around* it. The workspace has two halves: the **Map** you've been working in, and a **Files** panel, a folder tree of every node. You'll open that tree and filter it with the search box. The same `sm` session you booted back in the `init` chapter is still running.
-
-Per §Provider detection, on `agent-skills` / Antigravity the fixture has fewer nodes (`demo-skill` plus the two `notes/` files), so swap the node names below for ones that exist in that set; the gestures are identical.
 
 Walk the three tester actions below one at a time (open the Files
 panel, then search, then isolate); each ends with its own

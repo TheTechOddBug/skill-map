@@ -394,8 +394,11 @@ function toScaffoldTarget(
  * Prompt rows in catalog order (vendor providers first per the codegen
  * `PLUGIN_ORDER`, so `claude` leads). The tutorial is a pre-bootstrap
  * helper, so this reads the built-in catalog directly rather than project
- * config. When `includeExperimental` is set, experimental destinations
- * (today `agent-skills`) join the list; otherwise only ready ones appear.
+ * config. The default-offered rows are the stable, book-ready destinations:
+ * `claude` (rich track) and the open-standard `agent-skills` (basic track).
+ * When `includeExperimental` is set, experimental destinations join, today
+ * none declare a `scaffold.skillDir`, so the flag is a no-op until the beta
+ * providers (codex / antigravity) become scaffold targets.
  */
 export function listScaffoldTargets(includeExperimental = false): IScaffoldTarget[] {
   const out: IScaffoldTarget[] = [];

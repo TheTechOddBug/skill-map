@@ -108,7 +108,7 @@
         "aka": {
           "type": "array",
           "minItems": 1,
-          "description": "Display-only hints naming the agents that consume this Provider's scaffold territory, shown in parentheses next to the Provider label in the `sm tutorial` destination prompt (e.g. the open-standard `.agents/skills` is read by Google's Antigravity and OpenAI's Codex, so its `agent-skills` Provider lists them here). Purely presentational: these strings are NOT matched by `--for` (only registered Provider ids are) and have no runtime effect. Optional; absent means the prompt shows the bare Provider label.",
+          "description": "Display-only hints naming the agents that consume this Provider's scaffold territory AND share its tutorial track, shown in parentheses next to the Provider label in the `sm tutorial` destination prompt (e.g. the open-standard `.agents/skills` `agent-skills` Provider lists Google's Antigravity, which shares both the territory and the basic track; OpenAI's Codex also reads that territory but is a rich-track lens, so it is NOT listed here, advertising it under the basic row would hand it the wrong book). Purely presentational: these strings are NOT matched by `--for` (only registered Provider ids are) and have no runtime effect. Optional; absent means the prompt shows the bare Provider label.",
           "items": { "type": "string", "minLength": 1 }
         }
       }

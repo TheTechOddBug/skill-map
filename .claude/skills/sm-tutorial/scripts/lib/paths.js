@@ -15,12 +15,37 @@ export function providerDir(provider) {
 
 export const PROVIDER_KINDS = {
   claude: new Set(['agent', 'command', 'skill', 'markdown']),
+  codex: new Set(['agent', 'skill', 'markdown']),
   'agent-skills': new Set(['skill', 'markdown']),
   antigravity: new Set(['skill', 'markdown']),
 };
 
 export function kindsFor(provider) {
   return PROVIDER_KINDS[provider] ?? PROVIDER_KINDS.claude;
+}
+
+/**
+ * Tutorial track for a provider, by the "does this lens have an `agent`
+ * kind?" axis (see `_core.md` §Provider detection):
+ *   - `rich`  (agent + skill + slash + `@`): `claude`, `codex`.
+ *   - `basic` (skill + markdown, connected by markdown references): the
+ *     open-standard family `agent-skills`, `antigravity`.
+ * The book renders the track's parts; the same lens always resolves to
+ * the same track, so a resumed session never re-derives it.
+ */
+export function trackFor(provider) {
+  return provider === 'claude' || provider === 'codex' ? 'rich' : 'basic';
+}
+
+/**
+ * The provider whose fixture overlays a given provider reuses. The
+ * open-standard family (`agent-skills`, `antigravity`) shares one on-disk
+ * shape (`.agents/skills/`, skill + markdown, connected by markdown
+ * references), so `antigravity` reuses the canonical `agent-skills`
+ * overlays rather than duplicating them. Every other provider keys its own.
+ */
+export function overlayKey(provider) {
+  return provider === 'antigravity' ? 'agent-skills' : provider;
 }
 
 /**
@@ -63,4 +88,22 @@ export function kindForPath(tokenRelPath) {
   if (tokenRelPath.startsWith(`${PROVIDER_TOKEN}/commands/`)) return 'command';
   if (tokenRelPath.startsWith(`${PROVIDER_TOKEN}/skills/`)) return 'skill';
   return 'markdown';
+}
+
+/**
+ * Logical, lens-agnostic node id for a token-form path. The SAME
+ * conceptual node renders in a different kind per lens (a `content-editor`
+ * is an `agent` on claude but a `skill` on agent-skills), so a `--only`
+ * filter or an edit target written in the claude shape must still match
+ * the agent-skills overlay. Agents / commands use the file stem; skills
+ * use the skill directory name; everything else (markdown, notes, docs)
+ * keeps its relpath verbatim. So both `__PROVIDER__/agents/content-editor.md`
+ * and `__PROVIDER__/skills/content-editor/SKILL.md` resolve to `content-editor`.
+ */
+export function nodeIdForTokenPath(tokenRelPath) {
+  const flat = tokenRelPath.match(/^__PROVIDER__\/(?:agents|commands)\/(.+)\.md$/);
+  if (flat) return flat[1];
+  const skill = tokenRelPath.match(/^__PROVIDER__\/skills\/([^/]+)\//);
+  if (skill) return skill[1];
+  return tokenRelPath;
 }

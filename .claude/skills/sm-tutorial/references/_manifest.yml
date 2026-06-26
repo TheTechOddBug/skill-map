@@ -27,6 +27,14 @@
 #   fixture      which fixture this part lays (see fixtures.md / the
 #                part body); `inline` means the chapters lay it as a
 #                taught step.
+#   track        which capability track shows this part (see _core.md
+#                §Provider detection): `rich` (claude/codex: agent +
+#                command + slash + `@`), `basic` (the open-standard
+#                family agent-skills/antigravity: skill + markdown,
+#                connected by markdown references), or `both` (renders
+#                lens-aware, slash/`@` on rich, references on basic).
+#                The menu shows only parts whose track is the resolved
+#                `tutorial.track` or `both`.
 #   status       active (default, shown) | planned (no body yet, hidden).
 
 parts:
@@ -39,12 +47,32 @@ parts:
     pace: per-step
     preflight: taught-init
     fixture: inline           # the chapters lay the basics fixture as taught steps
+    track: rich               # claude/codex prologue: agent/command kinds, slash + @ connectors
     status: active
     chapters:
       - id: init            ; title: "Your first node (sm init, sm, the UI)" ; est_min: 2
       - id: kinds           ; title: "The other kinds appear"               ; est_min: 1
       - id: first-edit      ; title: "Your first edit (the watcher reacts)" ; est_min: 1
       - id: connectors      ; title: "The connectors light up"             ; est_min: 2
+      - id: inspector       ; title: "The inspector and connections"       ; est_min: 1
+      - id: edit-link       ; title: "Edit a link, the topology changes"   ; est_min: 3
+      - id: workspace       ; title: "Navigate the workspace (files, search, isolate)" ; est_min: 2
+      - id: ignore          ; title: "Silence a file via .skillmapignore"  ; est_min: 2
+
+  - id: basic-fundamentals
+    order: 0
+    title: "The live map (prologue)"
+    step_file: part-basic-fundamentals.md
+    pace: per-step
+    preflight: taught-init    # same flavour as `fundamentals`; the boot node is demo-skill on the basic track
+    fixture: inline           # the chapters lay the basics fixture (skill + markdown only) as taught steps
+    track: basic              # open-standard family: skill + markdown, connected by markdown references
+    status: active
+    chapters:
+      - id: init            ; title: "Your first node (sm init, sm, the UI)" ; est_min: 2
+      - id: kinds           ; title: "Skills and notes appear"             ; est_min: 1
+      - id: first-edit      ; title: "Your first edit (the watcher reacts)" ; est_min: 1
+      - id: connectors      ; title: "Connect with references (markdown links)" ; est_min: 2
       - id: inspector       ; title: "The inspector and connections"       ; est_min: 1
       - id: edit-link       ; title: "Edit a link, the topology changes"   ; est_min: 3
       - id: workspace       ; title: "Navigate the workspace (files, search, isolate)" ; est_min: 2
@@ -64,6 +92,7 @@ parts:
     pace: auto-advance
     preflight: backstage-init  # lays the fixture below + sm init --no-scan
     fixture: master            # master-agent / master-skill / notes/ideas (fixtures.md)
+    track: both                # settings / plugins / authoring are lens-agnostic
     status: active
     chapters:
       - id: settings-1-layers        ; title: "The config layers and `sm config list`" ; est_min: 3
@@ -86,6 +115,7 @@ parts:
     preflight: seed            # self-seeds the Part 0 demo fixture
     seed: prologue-built       # the prologue demo fixture (not the cumulative portfolio)
     prereq: fundamentals       # recommended predecessor; cli self-seeds, so it is always shown
+    track: both                # CLI verbs are lens-agnostic; prose notes lens-specific node counts
     status: active
     chapters:
       - id: browse           ; title: "list / show / check" ; est_min: 3
@@ -108,6 +138,7 @@ parts:
     pace: per-step
     preflight: portfolio-init   # lays the Express skeleton + AGENTS.md; clears the prologue demo fixture if present
     fixture: portfolio
+    track: rich                 # uses the agent kind; basic track has its own counterpart
     status: active
     chapters:
       - id: kickoff     ; title: "Start the portfolio (sm init on the real skeleton)" ; est_min: 2
@@ -123,6 +154,7 @@ parts:
     preflight: seed
     seed: harness-built     # fast-forward to here if project-kickoff is not done
     prereq: project-kickoff
+    track: rich             # /publish command + @mentions; basic track connects via references
     status: active
     chapters:
       - id: check-links ; title: "The check-links skill" ; est_min: 2
@@ -139,6 +171,7 @@ parts:
     seed: harness-connected   # fast-forward to here if the earlier parts are not done
     prereq: connect-harness
     fixture: portfolio        # reuses the wired harness; lays the pretty site (style.css + pages) as taught steps
+    track: rich               # agent-driven page add + reserved command; basic track has its own counterpart
     status: active
     chapters:
       - id: setup            ; title: "Make it yours and bring it up" ; est_min: 5
@@ -149,6 +182,62 @@ parts:
       - id: stability        ; title: "Set a node's stability (and the `.sm` sidecar)" ; est_min: 3
       - id: golive           ; title: "Your portfolio, live next to the graph" ; est_min: 3
 
+  # ----- the basic-track campaign (open-standard family: agent-skills / antigravity) -----
+  # Mirrors the rich campaign arc with skill + markdown only, connected by
+  # markdown references. Same fixtures (portfolio / harness) laid under the
+  # basic provider, which renders the agent/command nodes as skills.
+
+  - id: basic-kickoff
+    order: 1
+    title: "The project from zero"
+    step_file: part-basic-kickoff.md
+    pace: per-step
+    preflight: portfolio-init
+    fixture: portfolio
+    track: basic
+    status: active
+    chapters:
+      - id: kickoff      ; title: "Start the portfolio (sm init on the real skeleton)" ; est_min: 2
+      - id: manual       ; title: "The handbook (AGENTS.md) and an entry pointer" ; est_min: 2
+      - id: first-skill  ; title: "The first harness skill (content-editor)" ; est_min: 2
+      - id: real-kinds   ; title: "The kinds in context" ; est_min: 2
+
+  - id: basic-connect
+    order: 2
+    title: "Connect the harness"
+    step_file: part-basic-connect.md
+    pace: auto-advance
+    preflight: seed
+    seed: harness-built
+    prereq: basic-kickoff
+    track: basic
+    status: active
+    chapters:
+      - id: check-links ; title: "The link checker" ; est_min: 3
+      - id: publish     ; title: "The publish skill references the harness" ; est_min: 4
+      - id: links       ; title: "The handbook becomes the hub (references)" ; est_min: 4
+      - id: confidence  ; title: "Connector confidence (opacity = certainty)" ; est_min: 3
+
+  - id: basic-daily
+    order: 3
+    title: "The daily loop (add, improve, publish)"
+    step_file: part-basic-daily.md
+    pace: auto-advance
+    preflight: seed
+    seed: harness-connected
+    prereq: basic-connect
+    fixture: portfolio
+    track: basic
+    status: active
+    chapters:
+      - id: setup       ; title: "Make it yours and bring it up" ; est_min: 5
+      - id: add-page    ; title: "Add a page with your skill" ; est_min: 4
+      - id: broken-ref  ; title: "A rename breaks a link" ; est_min: 4
+      - id: reserved    ; title: "A reserved name collides" ; est_min: 2
+      - id: publish     ; title: "Ship it: run the publish skill for real" ; est_min: 4
+      - id: stability   ; title: "Set a node's stability (and the `.sm` sidecar)" ; est_min: 3
+      - id: golive      ; title: "Your portfolio, live next to the graph" ; est_min: 3
+
   # ----- parked: MCP returns later as its own iteration (body kept in part-mcp.md) -----
   - id: mcp
     order: 6
@@ -158,6 +247,7 @@ parts:
     preflight: seed
     seed: harness-connected
     prereq: connect-harness
+    track: rich               # MCP tool declaration sits on an agent/command body
     status: planned           # temporarily disabled, hidden from the menu. Body exists; re-enable when MCP returns.
     chapters:
       - id: mcp-node ; title: "content-editor declares an MCP tool; the mcp:// node appears" ; est_min: 3

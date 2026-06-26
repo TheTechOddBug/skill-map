@@ -111,6 +111,7 @@ function parseManifest(text) {
       else if (key === 'seed') cur.seed = val;
       else if (key === 'prereq') cur.prereq = val;
       else if (key === 'pace') cur.pace = val;
+      else if (key === 'track') cur.track = val;
       continue;
     }
 
@@ -128,6 +129,7 @@ function parseManifest(text) {
       seed: p.seed ?? null,
       prereq: p.prereq ?? null,
       pace: p.pace ?? null,
+      track: p.track ?? null,
       chapters: p.chapters.map((c) => ({ id: c.id, title: c.title, est_min: c.est_min })),
     })),
     findings_file: findingsFile,

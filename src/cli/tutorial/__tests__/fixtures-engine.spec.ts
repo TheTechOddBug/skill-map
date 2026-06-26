@@ -188,10 +188,18 @@ describe('sm-tutorial fixtures.js', () => {
     );
   });
 
-  it('content-editor-style edit is skipped on agent-skills (agent target unsupported)', () => {
+  it('content-editor-style edit falls back to the skill overlay on agent-skills', () => {
+    // The agent kind is unclaimed on agent-skills, but the content-editor is
+    // rendered as a skill there, so the edit retargets the skill overlay
+    // (depth-correct link) instead of skipping.
     const cwd = freshCwd();
     run(['lay', 'portfolio', '--provider', 'agent-skills', '--lang', 'en'], cwd);
-    assert.equal(run(['edit', 'content-editor-style', '--provider', 'agent-skills'], cwd).json.skipped, true);
+    const r = run(['edit', 'content-editor-style', '--provider', 'agent-skills'], cwd);
+    assert.notEqual(r.json.skipped, true);
+    assert.match(
+      readFileSync(join(cwd, '.agents/skills/content-editor/SKILL.md'), 'utf8'),
+      /\[style guide\]\(\.\.\/\.\.\/\.\.\/docs\/STYLE\.md\)/,
+    );
   });
 
   it('lay master and cli-external write their fixtures', () => {

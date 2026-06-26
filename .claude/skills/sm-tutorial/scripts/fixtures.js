@@ -34,7 +34,7 @@ import { parseArgs } from './lib/args.js';
 import { emit, succeed, die } from './lib/io.js';
 import { loadFixturesManifest, fixturesDir, resolveFootprint } from './lib/fixtures-manifest.js';
 import {
-  providerDir, kindsFor, resolveTargetPath, kindForPath, PROVIDER_TOKEN,
+  providerDir, kindsFor, resolveTargetPath, kindForPath, nodeIdForTokenPath, overlayKey, PROVIDER_TOKEN,
 } from './lib/paths.js';
 
 function opts(args) {
@@ -68,38 +68,76 @@ function writeFileEnsuring(abs, content) {
 
 /**
  * Lay one set's files for the given lang + provider. `only` (a Set of
- * token-form relpaths) restricts to those files, for the prologue's
- * progressive reveal where each chapter lands its own nodes.
+ * token-form relpaths, claude-shaped and lens-agnostic) restricts to those
+ * nodes, for the prologue's progressive reveal where each chapter lands its
+ * own nodes; matching is by logical node id so a claude-shaped `--only`
+ * entry still selects the agent-skills skill overlay of the same node.
+ *
+ * Tiers, in lay order (later wins): lang-invariant `shared/`, the language
+ * tier, then the per-provider overlay (`providers/<provider>/{shared,<lang>}/`).
+ * The overlay carries the skill-shaped variants of nodes a lens renders
+ * differently (e.g. the `content-editor` agent becomes a skill on
+ * agent-skills); claude declares no overlay because the base IS its shape.
  */
 function laySet(manifest, set, o, only = null) {
   const { kinds } = pdirAndKinds(o);
   if (!manifest.sets.includes(set)) die('unknown-set', `set '${set}' is not in the manifest.`);
   const base = join(fixturesDir(), 'sets', set);
   const langDir = existsSync(join(base, o.lang)) ? o.lang : (manifest.defaultLang ?? 'en');
+  const onlyIds = only ? new Set([...only].map(nodeIdForTokenPath)) : null;
+  const oKey = overlayKey(o.provider);
   const laid = [];
+  const laidIds = new Set();
   const skipped = [];
-  // Lang-invariant `shared/` tier first, then the language tier.
-  for (const tier of ['shared', langDir]) {
-    const tierRoot = join(base, tier);
+  const tiers = [
+    join(base, 'shared'),
+    join(base, langDir),
+    join(base, 'providers', oKey, 'shared'),
+    join(base, 'providers', oKey, langDir),
+  ];
+  for (const tierRoot of tiers) {
     for (const rel of walk(tierRoot)) {
       // `rel` is the token-form target path (e.g. __PROVIDER__/agents/x.md).
-      if (only && !only.has(rel)) continue;
+      if (onlyIds && !onlyIds.has(nodeIdForTokenPath(rel))) continue;
       const kind = kindForPath(rel);
       if (!kinds.has(kind)) { skipped.push({ path: rel, kind }); continue; }
       const target = resolveTargetPath(rel, o.provider);
       writeFileEnsuring(join(process.cwd(), target), readFileSync(join(tierRoot, rel)));
       laid.push(target);
+      laidIds.add(nodeIdForTokenPath(rel));
     }
   }
-  return { laid, skipped };
+  // Drop from `skipped` any node that the overlay laid under another kind
+  // (the claude-shaped agent file is skipped, but its skill overlay landed),
+  // so the report only flags nodes genuinely absent on this lens.
+  const netSkipped = skipped.filter((s) => !laidIds.has(nodeIdForTokenPath(s.path)));
+  return { laid, skipped: netSkipped };
 }
 
-const nodeCount = (paths) => paths.filter((p) => p.endsWith('.md')).length;
+// Count UNIQUE `.md` targets: a per-provider overlay can overwrite a base
+// file (e.g. the open-standard `AGENTS.md` handbook), so `laid` may list the
+// same target twice; the node count is the on-disk reality, not the write count.
+const nodeCount = (paths) => new Set(paths.filter((p) => p.endsWith('.md'))).size;
 
-/** Resolve a fragment file path, falling back to the default language. */
-function fragmentPath(manifest, id, lang, file) {
-  const langTry = join(fixturesDir(), 'edits', id, lang, file);
-  return existsSync(langTry) ? langTry : join(fixturesDir(), 'edits', id, manifest.defaultLang ?? 'en', file);
+/**
+ * Resolve a fragment file path. A per-provider overlay
+ * (`edits/<id>/providers/<provider>/<lang>/`) wins when present, mirroring
+ * the set overlay, a fragment with a relative link to a provider-dir file
+ * is depth-sensitive (the content-editor lives one level deeper as a skill
+ * under agent-skills), so its link text differs per lens. Falls back to the
+ * shared fragment, then to the default language for either tier.
+ */
+function fragmentPath(manifest, id, o, file) {
+  const def = manifest.defaultLang ?? 'en';
+  const dir = join(fixturesDir(), 'edits', id);
+  const oKey = overlayKey(o.provider);
+  const candidates = [
+    join(dir, 'providers', oKey, o.lang, file),
+    join(dir, 'providers', oKey, def, file),
+    join(dir, o.lang, file),
+    join(dir, def, file),
+  ];
+  return candidates.find((c) => existsSync(c)) ?? candidates[candidates.length - 1];
 }
 
 /** Apply one manifest edit (append fragments) honoring requiresKind. */
@@ -107,10 +145,22 @@ function applyEdit(manifest, id, o) {
   const { kinds } = pdirAndKinds(o);
   const def = manifest.edits?.[id];
   if (!def) die('unknown-edit', `edit '${id}' is not in the manifest.`);
-  const target = resolveTargetPath(def.target, o.provider);
-  // Skip the whole edit if the target's own kind is unsupported (e.g. a
-  // content-editor agent does not exist on agent-skills).
-  if (!kinds.has(kindForPath(def.target))) return { target, appended: [], skipped: true };
+  // Resolve the target to the shape this provider actually laid. When the
+  // declared (claude-shaped) target's kind is unclaimed, fall back to the
+  // skill-overlay path for the same node id, agent-skills renders the
+  // content-editor agent as a skill, so the style fragment must append to
+  // that skill body. Only genuinely-absent nodes skip the edit.
+  let targetTok = def.target;
+  if (!kinds.has(kindForPath(targetTok))) {
+    const skillTok = `${PROVIDER_TOKEN}/skills/${nodeIdForTokenPath(def.target)}/SKILL.md`;
+    const skillAbs = join(process.cwd(), resolveTargetPath(skillTok, o.provider));
+    if (kinds.has('skill') && existsSync(skillAbs)) {
+      targetTok = skillTok;
+    } else {
+      return { target: resolveTargetPath(def.target, o.provider), appended: [], skipped: true };
+    }
+  }
+  const target = resolveTargetPath(targetTok, o.provider);
   const targetAbs = join(process.cwd(), target);
   if (!existsSync(targetAbs)) die('edit-target-missing', `edit '${id}' target not found: ${target}`);
 
@@ -122,7 +172,7 @@ function applyEdit(manifest, id, o) {
   if (def.prefix) content += def.prefix;
   const appended = [];
   for (const frag of fragments) {
-    content += readFileSync(fragmentPath(manifest, id, o.lang, frag.file), 'utf8');
+    content += readFileSync(fragmentPath(manifest, id, o, frag.file), 'utf8');
     appended.push(frag.file);
   }
   writeFileSync(targetAbs, content);

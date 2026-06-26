@@ -65,7 +65,16 @@ export const COMMONS_KINDS: Record<string, IProviderKind> = {
   },
 };
 
-// The open standard documents slash-style invocation of skills.
+// Resolution map: an `invokes` link resolves to a `skill` target. NOTE: the
+// Agent Skills standard itself does NOT define a `/`-invocation syntax, a skill
+// activates by its `description` (progressive disclosure) and connects to other
+// files via relative markdown links (`[text](path)`). This export exists for
+// VENDOR composition: the providers that DO parse slash (claude / codex /
+// antigravity, listed in the `slash-command` extractor precondition) spread it
+// so their `/skill` invocations resolve to skills. Under the neutral
+// `agent-skills` lens it is dormant: no extractor emits `invokes` here, so only
+// markdown `references` form. Do NOT add `agent-skills` to the slash precondition,
+// that would inject a vendor `/` convention into the vendor-neutral lens.
 export const COMMONS_RESOLUTION: Record<string, string[]> = { invokes: ['skill'] };
 
 /**
@@ -160,12 +169,14 @@ export const agentSkillsProvider: IBuiltInManifest<IProvider> = {
   detect: { markers: ['.agents'] },
 
   // Authoring target for `sm tutorial`: the open standard discovers skills
-  // under `.agents/skills/<name>/SKILL.md`. The same path is consumed by
-  // Antigravity (adopted the standard rather than a `.gemini/` layout) and
-  // OpenAI Codex (skills mirror the open standard), so `aka` surfaces both
-  // names in the destination prompt to orient testers on those agents.
-  // `aka` is display-only, `--for` still matches the `agent-skills` id.
-  scaffold: { skillDir: '.agents/skills', aka: ["Google's Antigravity", "OpenAI's Codex"] },
+  // under `.agents/skills/<name>/SKILL.md`. `aka` lists Antigravity, which
+  // shares this territory AND the BASIC tutorial track (skill + markdown,
+  // references), so a tester on Antigravity scaffolds here. OpenAI Codex
+  // also reads `.agents/skills/`, but Codex is a RICH-track lens (it has the
+  // `agent` kind, slash and `@`), so advertising it under this basic row
+  // would hand it the wrong book; Codex is surfaced once a Codex rich
+  // scaffold target lands. `aka` is display-only, `--for` matches the id.
+  scaffold: { skillDir: '.agents/skills', aka: ["Google's Antigravity"] },
 
   read: COMMONS_READ,
 

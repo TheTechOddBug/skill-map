@@ -1,0 +1,1 @@
+- [ ] Mirá la [demo-skill](../.agents/skills/demo-skill/SKILL.md) para los pasos.

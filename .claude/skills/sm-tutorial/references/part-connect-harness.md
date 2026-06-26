@@ -30,8 +30,6 @@ Wait for confirmation. Mark `check-links`: done.
 
 **Context**: this is the chapter where the graph comes alive. The `/publish` command ties three pieces together in one body: it invokes the link checker, mentions the content editor, and references the deploy runbook. Three connectors light up from a single new node, one per link syntax.
 
-On `agent-skills` / Antigravity there is no `command` kind, so skip this whole chapter and fold its purpose into the prose of the next one.
-
 Tell the tester to create the file themselves (it is their project's file, Inviolable rule #2). Substitute `<provider_dir>` per `_core.md` in the path you give them. Backstage, get the content: `node .claude/skills/sm-tutorial/scripts/fixtures.js cat harness --file "__PROVIDER__/commands/publish.md" --provider <provider> --lang <lang>`, then render it as a **top-level fenced code block**: at column 0, NOT inside the `> ` blockquote and with NO leading indentation, so the tester's copy keeps every line flush left. The frontmatter fences (`---`) MUST land on column 0. If the block is rendered (or pasted) indented, the opening and closing `---` shift off column 0, the YAML never parses, and the `publish` node loads body-only without its `name` / `description` (`sm check` then warns `frontmatter-malformed`). Present the block below exactly as written.
 
 > Create `.claude/commands/publish.md` with exactly this content (the first line is `---`, nothing before it):
@@ -86,8 +84,7 @@ Wait for confirmation. You MAY use `Read` on the file afterwards to verify it la
 
 Apply both edits (their content + translation live in `fixtures-data/`).
 The first appends the two hub bullets to `AGENTS.md`; the second adds
-the style-guide reference line to the content-editor (an agent target,
-so it folds away on `agent-skills`). Backstage (silent):
+the style-guide reference line to the content-editor. Backstage (silent):
 
 ```
 node .claude/skills/sm-tutorial/scripts/fixtures.js edit agents-hub --provider <provider> --lang <lang>

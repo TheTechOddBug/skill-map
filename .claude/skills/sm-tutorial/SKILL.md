@@ -242,12 +242,18 @@ All commands below are backstage (silent); fill `<provider>` and
 `<lang>` from `tutorial.{provider,lang}`. The fixture scripts resolve
 the `__PROVIDER__` token and skip kinds the provider does not claim.
 
-- **`taught-init`** (Part 0 `fundamentals`): the prologue reveals its
-  fixture progressively, so on entry lay ONLY the boot node, just
-  before the tester's `sm init` in the `init` chapter:
+- **`taught-init`** (Part 0 `fundamentals` rich / `basic-fundamentals`
+  basic): the prologue reveals its fixture progressively, so on entry
+  lay ONLY the boot node, just before the tester's `sm init` in the
+  `init` chapter. The boot node is the lens's first authored kind, an
+  `agent` on the rich track, a `skill` on the basic track (where the
+  agent kind folds away):
 
   ```bash
+  # rich track (claude / codex)
   node .claude/skills/sm-tutorial/scripts/fixtures.js lay prologue --only "__PROVIDER__/agents/demo-agent.md" --provider <provider> --lang <lang>
+  # basic track (agent-skills / antigravity)
+  node .claude/skills/sm-tutorial/scripts/fixtures.js lay prologue --only "__PROVIDER__/skills/demo-skill/SKILL.md" --provider <provider> --lang <lang>
   ```
 
   The universal `.skillmapignore` is already on disk, so the first
@@ -304,11 +310,13 @@ the `__PROVIDER__` token and skip kinds the provider does not claim.
   2. Seed: `fixtures.js seed <harness-built|harness-connected> --provider <provider> --lang <lang>`
      (`harness-built` for `connect-harness`, `harness-connected` for
      `daily-loop`).
-  3. Provision the lens: the seeded portfolio has a root `AGENTS.md`
-     (the `codex`/Codex marker) next to `.claude/`, but `codex` is
-     experimental (ships disabled), so auto-detect ignores it and a plain `sm init`
-     resolves the `claude` lens with no prompt. Run `sm init`, then
-     `sm scan`. (If `.skill-map/` already exists, just `sm scan`.)
+  3. Provision the lens: the seeded portfolio carries the scaffold
+     marker (`.claude/` on the rich track, `.agents/` on the basic
+     track), so a plain `sm init` resolves the matching lens with no
+     prompt. (The root `AGENTS.md` is the vendor-neutral agents.md file,
+     NOT a marker, so it never forces an ambiguous prompt.) Run `sm
+     init`, then `sm scan`. (If `.skill-map/` already exists, just
+     `sm scan`.)
   4. Mark the skipped predecessors: `state.js set-part <predecessor> skipped`
      for each (they stay in the menu). Then emit exactly ONE
      tester-facing line:

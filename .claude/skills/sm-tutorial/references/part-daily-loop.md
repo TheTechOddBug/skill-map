@@ -18,11 +18,11 @@ what the tester names their portfolio. Persist the answer with
 `state.js set-identity --name "<name>" --tagline "<tagline>"` (it records
 `tester.site_identity` in `tutorial-state.json`).
 
-**Provider note (read once).** Substitute `.claude/` with the detected
-`<provider_dir>`. On `agent-skills` / Antigravity the `content-editor` is a
-**skill**, not an agent (invoke it as a skill); there is no `command` kind, so
-the `reserved` chapter is skipped and the `broken-ref` / `publish` chapters use
-their agent-skills variant (notes inline).
+**Provider note (read once).** This is the rich track; the paths below are the
+`claude` layout (`.claude/`). The open-standard family (agent-skills /
+antigravity) walks its own `basic-daily` part instead. Codex (also rich) authors
+agents as TOML and has no `command` kind; its adaptation of the command chapters
+is deferred, so demo this part on `claude` today.
 
 **Real-execution contract (read once).** When invoking the `content-editor` via
 the Task tool, instruct it explicitly to write ONLY `.html` files under
@@ -225,8 +225,8 @@ Tell the tester:
 > page.
 
 When the tester answers, invoke the project's `content-editor` (the
-`<provider_dir>/agents/content-editor.md` agent, or the skill on `agent-skills`)
-via the Task tool, honouring the real-execution contract above: write ONE new
+`.claude/agents/content-editor.md` agent) via the Task tool, honouring the
+real-execution contract above: write ONE new
 `.html` page under `public/` named after the topic (default `public/projects.html`),
 following the agent's own steps and `docs/STYLE.md` (the shared shell, link
 `/style.css`, one `<h1>`, a nav link back to Home), and add the new page to the
@@ -259,10 +259,6 @@ Wait for confirmation. Mark `add-page`: done. Auto-advance to `broken-ref`.
 its keep. You rename a doc, and a link that pointed at the old name goes stale.
 skill-map catches it the moment you re-scan.
 
-On `agent-skills` / Antigravity there is no `/publish` command holding the deploy
-link; use the variant in the note at the end of this chapter (rename
-`docs/STYLE.md` to break the `content-editor`'s style-guide reference instead).
-
 **Preparation**: none (the tester drives). Everything here is watched live on
 the Map; no `sm` commands.
 
@@ -293,22 +289,11 @@ Wait for confirmation. The harness MUST be clean again (the red marker gone)
 before Act C (the real `/publish` later follows this runbook). Mark `broken-ref`:
 done. Auto-advance to `reserved`.
 
-On `agent-skills` / Antigravity (no `command` kind), run the same beat on a link
-that exists there: `mv docs/STYLE.md docs/STYLE-GUIDE.md`, which breaks the
-`content-editor` skill's `[style guide]` reference; the Map flags the broken
-reference on the `content-editor`; fix the link in the skill body and watch it
-clear.
-
 ## Chapter `reserved` - A reserved name collides (~2 min)
 
 **Context**: you add a quick command to scaffold new pages and, without
 thinking, name it `init`, a name Claude Code already owns for its own slash
 command. skill-map warns you before the runtime silently ignores your file.
-
-On `agent-skills` / Antigravity there is no `command` kind: **skip this chapter**
-and fold a one-line mention ("skill-map also warns when a file's name collides
-with a runtime built-in") into the close of the previous chapter. Adjust the
-section's chapter count accordingly.
 
 **Preparation**: `Write` `.claude/commands/init.md`:
 ```markdown
@@ -358,10 +343,6 @@ Wait for confirmation. Mark `reserved`: done. Auto-advance to `publish`.
 checker over your pages, briefs the `content-editor` if anything needs a fix,
 then follows the deploy runbook. This is the same Layer 1 / Layer 2 split, the
 pages are output, so the Map stays put while the pipeline runs.
-
-On `agent-skills` / Antigravity there is no `/publish` command: run the
-`check-links` skill directly over `public/`, then follow `docs/DEPLOYMENT.md` by
-hand. Everything else in this chapter is identical.
 
 **Preparation**: make sure the pages exist (`index`, `about`, `projects` from the
 earlier chapters; lay any that are missing from the templates in `setup`). When the tester asks to publish, **execute the publish flow for real**

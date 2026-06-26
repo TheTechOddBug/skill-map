@@ -191,7 +191,7 @@ The destination is the selected Provider's `scaffold.skillDir` (e.g. `.claude/sk
 - Without `--for`, the default is the first scaffold-capable Provider in catalog order (Claude). The verb requires an empty cwd (see below), so there is no marker to detect: provider auto-detection does not apply.
 - Without `--for`, on interactive stdin the verb prompts with a numbered list of Providers declaring `scaffold.skillDir`, marking the default (Claude); an empty answer accepts it. Each option shows the Provider label plus any `scaffold.aka` agents in parentheses (e.g. the open standard lists Antigravity and OpenAI Codex). The `aka` strings are display-only, NOT accepted by `--for`.
 - Without `--for`, on non-interactive stdin (pipes, CI) the verb selects the default without prompting, staying scriptable.
-- `--experimental` includes Providers flagged `stability: 'experimental'` (today `agent-skills`) as scaffold destinations and enables them in the seeded fixture so the demo scan classifies their nodes. Without it, experimental Providers are omitted from the prompt and `--for <experimental-id>` is a usage error (they ship disabled by default). Default behaviour offers only stable Providers (Claude).
+- `--experimental` includes Providers flagged `stability: 'experimental'` as scaffold destinations and enables them in the seeded fixture so the demo scan classifies their nodes. Without it, experimental Providers are omitted from the prompt and `--for <experimental-id>` is a usage error (they ship disabled by default). Default behaviour offers the stable, ready destinations (today Claude, the rich-track anchor, and the open-standard `agent-skills`, the basic-track anchor).
 
 Behaviour:
 

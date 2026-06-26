@@ -31,7 +31,7 @@ import { rmSync, rmdirSync, readdirSync } from 'node:fs';
 import { parseArgs } from './lib/args.js';
 import { exists, readJson, writeJson, succeed, die } from './lib/io.js';
 import { loadManifest, findPart } from './lib/manifest.js';
-import { providerDir } from './lib/paths.js';
+import { providerDir, trackFor } from './lib/paths.js';
 import { loadFixturesManifest, resolveFootprint } from './lib/fixtures-manifest.js';
 
 const STATE_FILE = 'tutorial-state.json';
@@ -68,13 +68,18 @@ const VERBS = {
     if (exists(p) && !args.flags.force) {
       die('exists', `${STATE_FILE} already exists; pass --force to overwrite.`);
     }
+    const provider = args.flags.provider ?? 'claude';
     const state = {
       tutorial: {
         version: STATE_VERSION,
         started_at: now(),
         cwd: args.flags.cwd ?? process.cwd(),
         sm_version: args.flags['sm-version'] ?? null,
-        provider: args.flags.provider ?? 'claude',
+        provider,
+        // Derived from the provider (`_core.md` §Provider detection): the
+        // book renders this track's parts. `rich` = claude/codex,
+        // `basic` = the open-standard family (agent-skills/antigravity).
+        track: trackFor(provider),
         lang: args.flags.lang ?? 'en',
       },
       tester: { level: 2 },
@@ -148,8 +153,13 @@ const VERBS = {
   status() {
     const state = loadState();
     const manifest = loadManifest();
+    // Show only the active track's parts (plus `both`). The rich and basic
+    // campaigns share titles and order, so a session sees exactly one book,
+    // the track resolved at pre-flight (see `_core.md` §Routing + menu).
+    const track = state.tutorial?.track ?? 'rich';
     const parts = manifest.parts
       .filter((p) => p.status === 'active' || state.parts[p.id])
+      .filter((p) => !p.track || p.track === 'both' || p.track === track)
       .map((p) => {
         const tracked = state.parts[p.id];
         return {
@@ -221,8 +231,14 @@ function computeWipePaths(state) {
   const paths = new Set(['tutorial-state.json', 'findings.md', '.skillmapignore', '.skill-map']);
   const addFootprint = (name) => resolveFootprint(manifest, name, provider).forEach((p) => paths.add(p));
 
-  if (has('fundamentals')) addFootprint('prologue');
-  if (has('project-kickoff') || has('connect-harness') || has('daily-loop')) addFootprint('portfolio');
+  // Each footprint covers both tracks: the rich and basic prologues /
+  // campaigns lay the same fixtures (the basic one under the open-standard
+  // provider), so either part's presence means that fixture is on disk.
+  if (has('fundamentals') || has('basic-fundamentals')) addFootprint('prologue');
+  if (
+    has('project-kickoff') || has('connect-harness') || has('daily-loop')
+    || has('basic-kickoff') || has('basic-connect') || has('basic-daily')
+  ) addFootprint('portfolio');
   if (has('extend')) addFootprint('master');
   // `cli` seeds the prologue demo fixture plus its external-ref demo.
   if (has('cli')) { addFootprint('prologue'); addFootprint('cli-external'); }

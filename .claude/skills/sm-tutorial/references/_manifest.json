@@ -9,6 +9,7 @@
       "seed": null,
       "prereq": null,
       "pace": "per-step",
+      "track": "rich",
       "chapters": [
         {
           "id": "init",
@@ -53,6 +54,59 @@
       ]
     },
     {
+      "id": "basic-fundamentals",
+      "order": 0,
+      "title": "The live map (prologue)",
+      "status": "active",
+      "preflight": "taught-init",
+      "seed": null,
+      "prereq": null,
+      "pace": "per-step",
+      "track": "basic",
+      "chapters": [
+        {
+          "id": "init",
+          "title": "Your first node (sm init, sm, the UI)",
+          "est_min": 2
+        },
+        {
+          "id": "kinds",
+          "title": "Skills and notes appear",
+          "est_min": 1
+        },
+        {
+          "id": "first-edit",
+          "title": "Your first edit (the watcher reacts)",
+          "est_min": 1
+        },
+        {
+          "id": "connectors",
+          "title": "Connect with references (markdown links)",
+          "est_min": 2
+        },
+        {
+          "id": "inspector",
+          "title": "The inspector and connections",
+          "est_min": 1
+        },
+        {
+          "id": "edit-link",
+          "title": "Edit a link, the topology changes",
+          "est_min": 3
+        },
+        {
+          "id": "workspace",
+          "title": "Navigate the workspace (files, search, isolate)",
+          "est_min": 2
+        },
+        {
+          "id": "ignore",
+          "title": "Silence a file via .skillmapignore",
+          "est_min": 2
+        }
+      ]
+    },
+    {
       "id": "project-kickoff",
       "order": 1,
       "title": "The project from zero",
@@ -61,6 +115,7 @@
       "seed": null,
       "prereq": null,
       "pace": "per-step",
+      "track": "rich",
       "chapters": [
         {
           "id": "kickoff",
@@ -85,6 +140,39 @@
       ]
     },
     {
+      "id": "basic-kickoff",
+      "order": 1,
+      "title": "The project from zero",
+      "status": "active",
+      "preflight": "portfolio-init",
+      "seed": null,
+      "prereq": null,
+      "pace": "per-step",
+      "track": "basic",
+      "chapters": [
+        {
+          "id": "kickoff",
+          "title": "Start the portfolio (sm init on the real skeleton)",
+          "est_min": 2
+        },
+        {
+          "id": "manual",
+          "title": "The handbook (AGENTS.md) and an entry pointer",
+          "est_min": 2
+        },
+        {
+          "id": "first-skill",
+          "title": "The first harness skill (content-editor)",
+          "est_min": 2
+        },
+        {
+          "id": "real-kinds",
+          "title": "The kinds in context",
+          "est_min": 2
+        }
+      ]
+    },
+    {
       "id": "connect-harness",
       "order": 2,
       "title": "Connect the harness",
@@ -93,6 +181,7 @@
       "seed": "harness-built",
       "prereq": "project-kickoff",
       "pace": "auto-advance",
+      "track": "rich",
       "chapters": [
         {
           "id": "check-links",
@@ -117,6 +206,39 @@
       ]
     },
     {
+      "id": "basic-connect",
+      "order": 2,
+      "title": "Connect the harness",
+      "status": "active",
+      "preflight": "seed",
+      "seed": "harness-built",
+      "prereq": "basic-kickoff",
+      "pace": "auto-advance",
+      "track": "basic",
+      "chapters": [
+        {
+          "id": "check-links",
+          "title": "The link checker",
+          "est_min": 3
+        },
+        {
+          "id": "publish",
+          "title": "The publish skill references the harness",
+          "est_min": 4
+        },
+        {
+          "id": "links",
+          "title": "The handbook becomes the hub (references)",
+          "est_min": 4
+        },
+        {
+          "id": "confidence",
+          "title": "Connector confidence (opacity = certainty)",
+          "est_min": 3
+        }
+      ]
+    },
+    {
       "id": "daily-loop",
       "order": 3,
       "title": "The daily loop (add, improve, publish)",
@@ -125,6 +247,7 @@
       "seed": "harness-connected",
       "prereq": "connect-harness",
       "pace": "auto-advance",
+      "track": "rich",
       "chapters": [
         {
           "id": "setup",
@@ -164,6 +287,54 @@
       ]
     },
     {
+      "id": "basic-daily",
+      "order": 3,
+      "title": "The daily loop (add, improve, publish)",
+      "status": "active",
+      "preflight": "seed",
+      "seed": "harness-connected",
+      "prereq": "basic-connect",
+      "pace": "auto-advance",
+      "track": "basic",
+      "chapters": [
+        {
+          "id": "setup",
+          "title": "Make it yours and bring it up",
+          "est_min": 5
+        },
+        {
+          "id": "add-page",
+          "title": "Add a page with your skill",
+          "est_min": 4
+        },
+        {
+          "id": "broken-ref",
+          "title": "A rename breaks a link",
+          "est_min": 4
+        },
+        {
+          "id": "reserved",
+          "title": "A reserved name collides",
+          "est_min": 2
+        },
+        {
+          "id": "publish",
+          "title": "Ship it: run the publish skill for real",
+          "est_min": 4
+        },
+        {
+          "id": "stability",
+          "title": "Set a node's stability (and the `.sm` sidecar)",
+          "est_min": 3
+        },
+        {
+          "id": "golive",
+          "title": "Your portfolio, live next to the graph",
+          "est_min": 3
+        }
+      ]
+    },
+    {
       "id": "extend",
       "order": 4,
       "title": "Extend skill-map for the site",
@@ -172,6 +343,7 @@
       "seed": null,
       "prereq": null,
       "pace": "auto-advance",
+      "track": "both",
       "chapters": [
         {
           "id": "settings-1-layers",
@@ -239,6 +411,7 @@
       "seed": "prologue-built",
       "prereq": "fundamentals",
       "pace": "auto-advance",
+      "track": "both",
       "chapters": [
         {
           "id": "browse",
@@ -276,6 +449,7 @@
       "seed": "harness-connected",
       "prereq": "connect-harness",
       "pace": "auto-advance",
+      "track": "rich",
       "chapters": [
         {
           "id": "mcp-node",
