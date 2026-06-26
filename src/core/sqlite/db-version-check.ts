@@ -39,6 +39,9 @@
  * for the rendering path).
  */
 
+import { existsSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
+
 import type { Kysely } from 'kysely';
 
 import type { IDatabase } from '../../kernel/adapters/sqlite/schema.js';
@@ -135,6 +138,37 @@ export function classifyVersionSkew(
     return { kind: 'error-newer', dbVersion, currentVersion };
   }
   return { kind: 'warn-older', dbVersion, currentVersion };
+}
+
+/**
+ * Read `scan_meta.scanned_by_version` from an existing DB file via a
+ * short-lived read-only handle. Returns `null` for `:memory:`, a missing
+ * file, an absent `scan_meta` row / column, or any open / query error
+ * (corrupt or non-SQLite file). Best-effort, not a gate: the version
+ * classifier treats a `null` as "no skew signal".
+ *
+ * Shared by the version-skew seam, the schema-drift reset flow
+ * (`db-drift-reset.ts`), and the `sm db restore` source check
+ * (`restore-validation.ts`), so the `readOnly` open and the exact
+ * `scanned_by_version` column live in one place.
+ */
+export function readScannedByVersion(dbPath: string): string | null {
+  if (dbPath === ':memory:' || !existsSync(dbPath)) return null;
+  let raw: DatabaseSync | null = null;
+  try {
+    raw = new DatabaseSync(dbPath, { readOnly: true });
+    const row = raw
+      .prepare('SELECT scanned_by_version AS v FROM scan_meta LIMIT 1')
+      .get() as { v?: string } | undefined;
+    const v = row?.v;
+    return typeof v === 'string' && v.length > 0 ? v : null;
+  } catch {
+    // Unreadable / table absent / corrupt → no signal. Best-effort,
+    // not a gate; the version-skew classifier takes the same stance.
+    return null;
+  } finally {
+    raw?.close();
+  }
 }
 
 /**

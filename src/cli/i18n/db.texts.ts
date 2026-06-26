@@ -41,6 +41,29 @@ export const DB_TEXTS = {
     '   {{hint}}\n',
   restoreSourceNotFoundHint:
     'Run `sm db backup` first, or pick an existing file (the default backups directory is `.skill-map/backups/`).',
+  /**
+   * Source exists but is not a SQLite database (missing the header).
+   * Restoring it would swap a non-DB into place; refuse with exit 2.
+   */
+  restoreSourceNotSqlite:
+    '{{glyph}}  Not a SQLite database: {{sourcePath}}\n' +
+    '   {{hint}}\n',
+  restoreSourceNotSqliteHint:
+    'The file is missing the SQLite header. Pick a real backup (created by `sm db backup`).',
+  /**
+   * Source is a valid DB but was written by a CLI this binary cannot
+   * read forward (newer minor or different major). Refuse with exit 2.
+   */
+  restoreSourceVersionSkew:
+    '{{glyph}}  Refusing to restore {{sourcePath}}\n' +
+    '   {{detail}}\n' +
+    '   {{hint}}\n',
+  restoreSourceVersionNewerDetail:
+    'It was written by skill-map {{dbVersion}}, newer than this CLI ({{currentVersion}}).',
+  restoreSourceVersionMajorDetail:
+    'It was written by skill-map {{dbVersion}}, a different major than this CLI ({{currentVersion}}).',
+  restoreSourceVersionSkewHint:
+    'Upgrade `sm` to a matching version before restoring this backup.',
   restoreConfirm: 'Restore {{sourcePath}} over {{target}}? This overwrites the current DB.',
   restoreDone: '{{glyph}}  Restored {{sourcePath}} → {{target}}\n',
 

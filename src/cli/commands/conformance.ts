@@ -27,9 +27,6 @@
  * Stub caveats, the surface beyond the dispatch loop is intentionally
  * thin in this bump:
  *
- *   - No `--json` mode yet. The verb prints human-readable summaries
- *     to stdout; failures detail to stderr. JSON output lands when the
- *     conformance reporter shape stabilises (Step 2's full runner pass).
  *   - No parallelism. Cases run sequentially per scope; the runner
  *     already provisions an isolated tmp directory per case so this is
  *     a perf knob, not a correctness one.

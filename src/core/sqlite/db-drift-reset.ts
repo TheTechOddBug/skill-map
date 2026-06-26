@@ -42,11 +42,9 @@
  * replaced by real up-only migrations.
  */
 
-import { existsSync } from 'node:fs';
 import { createInterface } from 'node:readline';
-import { DatabaseSync } from 'node:sqlite';
 
-import { classifyVersionSkew } from './db-version-check.js';
+import { classifyVersionSkew, readScannedByVersion } from './db-version-check.js';
 import { removeDbFiles } from './db-files.js';
 import { classifyFingerprint } from '../../kernel/adapters/sqlite/schema-fingerprint.js';
 import { DB_DRIFT_TEXTS } from './i18n/db-drift.texts.js';
@@ -152,30 +150,6 @@ function detectDriftReason(dbPath: string, currentVersion: string): TDriftReason
   // Fingerprint axis. `no-meta` (no scan_meta row) is no-signal;
   // `drift` (mismatch OR a NULL / missing column) is schema drift.
   return classifyFingerprint(dbPath).kind === 'drift' ? 'schema' : null;
-}
-
-/**
- * Read `scan_meta.scanned_by_version` from an existing DB file via a
- * short-lived read-only handle. Returns `null` for `:memory:`, a
- * missing file, an absent `scan_meta` row, or any open / query error.
- */
-function readScannedByVersion(dbPath: string): string | null {
-  if (dbPath === ':memory:' || !existsSync(dbPath)) return null;
-  let raw: DatabaseSync | null = null;
-  try {
-    raw = new DatabaseSync(dbPath, { readOnly: true });
-    const row = raw
-      .prepare('SELECT scanned_by_version AS v FROM scan_meta LIMIT 1')
-      .get() as { v?: string } | undefined;
-    const v = row?.v;
-    return typeof v === 'string' && v.length > 0 ? v : null;
-  } catch {
-    // Unreadable / table absent / corrupt → no signal. Best-effort,
-    // not a gate; the version-skew classifier takes the same stance.
-    return null;
-  } finally {
-    raw?.close();
-  }
 }
 
 /** Render the human reason fragment interpolated as `{{reason}}`. */

@@ -50,6 +50,26 @@ export function tryParseNonNegativeInt(raw: string): number | null {
 }
 
 /**
+ * Pure parse: trim + strict integer + `>= 1`. Returns `null` on any
+ * rejection, the parsed value otherwise.
+ *
+ * Side-effect-free sibling of {@link tryParseNonNegativeInt} for verbs
+ * that defer error rendering, `sm scan` / `sm serve` / `sm watch` each
+ * build a verb-specific `--max-scan` / `--max-nodes` error line later.
+ * Keeps those `>= 1` flags in lock-step with `--port` / `--limit`,
+ * which the old inline `Number(raw)` copies did not: `Number('1e3')` is
+ * `1000`, so `sm scan --max-scan 1e3` was silently accepted as 1000
+ * while `sm serve --port 1e3` was rejected.
+ *
+ * Accepts: `'1'`, `'42'`, `'  100  '`.
+ * Rejects: `''`, `'0'`, `'-3'`, `'1.5'`, `'12abc'`, `'1e3'`, `'NaN'`, `'inf'`.
+ */
+export function tryParsePositiveInt(raw: string): number | null {
+  const parsed = tryParseNonNegativeInt(raw);
+  return parsed === null || parsed === 0 ? null : parsed;
+}
+
+/**
  * Parse `raw` as a strict positive integer (`>= 1`). Writes a
  * scoped-by-`label` error line to `stderr` on rejection and returns
  * `null` so the caller can short-circuit to the appropriate exit

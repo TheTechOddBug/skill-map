@@ -190,9 +190,13 @@ describe('sm db restore --dry-run', () => {
 
   it('--dry-run reports "would be created" when the target does NOT exist', () => {
     const scope = freshScope('restore-fresh');
-    // Don't init, target DB absent.
+    // Don't init `scope`, its target DB stays absent. Seed a valid
+    // SQLite backup from a throwaway init so the source clears the
+    // header / version gate.
+    const seed = freshScope('restore-fresh-seed');
+    sm(['init', '--no-scan'], seed);
     const backup = join(scope.cwd, 'seed.db');
-    writeFileSync(backup, 'fake-sqlite-bytes-irrelevant-for-dry-run');
+    copyFileSync(dbPath(seed), backup);
 
     const r = sm(['db', 'restore', backup, '--dry-run'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
@@ -200,6 +204,22 @@ describe('sm db restore --dry-run', () => {
 
     // Target still absent.
     assert.equal(existsSync(dbPath(scope)), false);
+  });
+
+  it('refuses a non-SQLite source with exit 2 (header gate), even under --dry-run', () => {
+    const scope = freshScope('restore-not-sqlite');
+    sm(['init', '--no-scan'], scope);
+    const target = dbPath(scope);
+    const targetBefore = fileChecksum(target);
+    const bogus = join(scope.cwd, 'notes.txt');
+    writeFileSync(bogus, 'this is not a database');
+
+    const r = sm(['db', 'restore', bogus, '--dry-run'], scope);
+    assert.equal(r.status, 2, `stdout: ${r.stdout}`);
+    assert.match(r.stderr, /Not a SQLite database/);
+
+    // The gate runs before any preview / swap: live DB untouched.
+    assert.equal(fileChecksum(target), targetBefore, 'live DB must be untouched');
   });
 
   it('--dry-run with a missing source still exits 5 (NotFound)', () => {

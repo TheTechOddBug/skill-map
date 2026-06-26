@@ -141,10 +141,10 @@ All verbs use this shared table. Additional codes MAY be defined per-verb (docum
 |---|---|---|
 | `0` | OK | Command completed, no issues at or above the configured severity threshold. |
 | `1` | Issues found | Command completed, but deterministic issues at `error` severity exist. Applies to `sm scan`, `sm check`, `sm doctor`. |
-| `2` | Operational error | Bad flags, missing DB, unreadable file, corrupt config, runtime / environment mismatch (e.g. wrong Node version, missing native dependency), unhandled exception. Accompanied by an error message on stderr. |
+| `2` | Operational error | Bad flags, a present-but-unreadable / corrupt DB, unreadable file, corrupt config, runtime / environment mismatch (e.g. wrong Node version, missing native dependency), unhandled exception. Accompanied by an error message on stderr. (An *absent* project DB file is `5`, see below.) |
 | `3` | Duplicate conflict | Job submission refused because an active duplicate exists (same `action + version + node + contentHash`). Returned by `sm job submit`. |
 | `4` | Nonce mismatch | `sm record` called with an `id`/`nonce` pair that does not match. |
-| `5` | Not found | A named resource does not exist (node id, job id, plugin id, config key). |
+| `5` | Not found | A named resource does not exist (node id, job id, plugin id, config key), or the project DB file is absent so a read verb (`sm check`, `list`, `show`, `graph`, `export`, `history`, `orphans`, `db dump` / `reset` / `backup` / `shell`, `job prune`) has nothing to open, run `sm scan` first. An explicit `--db <path>` that does not exist is the same case (see §Server boot resilience). |
 
 Codes 6–15 are reserved. Codes ≥ 16 are free for verb-specific use.
 
