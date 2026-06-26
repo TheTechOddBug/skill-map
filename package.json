@@ -44,11 +44,6 @@
   "devDependencies": {
     "@changesets/cli": "2.31.0"
   },
-  "pnpm": {
-    "overrides": {
-      "fast-uri": "3.1.2"
-    }
-  },
   "engines": {
     "node": ">=24.0"
   },
