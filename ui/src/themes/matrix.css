@@ -192,12 +192,11 @@ html.app-matrix .shell__nav a.is-active {
   text-shadow: 0 0 10px color-mix(in srgb, var(--sm-matrix-accent) 50%, transparent);
 }
 
-/* Settings modal sidebar: the base rule uses the default PrimeNG
-   `--p-highlight-*` chain which lands as a violet tint in matrix
-   (the tokens are not overridden globally to avoid bleed into other
-   highlight surfaces). Override locally so the active section reads
-   as matrix accent on a dark bg, matching the topbar nav active
-   state pattern (translucent accent fill + glowing label). */
+/* Settings modal sidebar: the `--p-highlight-*` chain is now retinted to
+   the matrix accent globally (see the Form fields block), so the active
+   section already reads green instead of the preset violet. This local
+   rule keeps the stronger bespoke treatment (denser accent fill + glowing
+   label) matching the topbar nav active state pattern. */
 html.app-matrix .settings-modal__sidebar-item:hover {
   background: color-mix(in srgb, var(--sm-matrix-accent) 10%, transparent);
 }
@@ -273,6 +272,17 @@ html.app-matrix {
   --p-form-field-icon-color: var(--sm-matrix-accent-dim);
   --p-form-field-float-label-color: var(--sm-matrix-muted);
   --p-form-field-float-label-focus-color: var(--sm-matrix-accent);
+  /* Selected-state highlight chain. Aura bakes `--p-highlight-*` from the
+     preset's violet primary as literal colours (re-keying `--p-primary-*`
+     does NOT reach them), so a `p-select` / multiselect / autocomplete /
+     listbox selected option reads violet and its focused row the surface
+     grey. Retint to the accent so every overlay's selected option matches
+     the shell, the active-provider `<select>` (Settings, Project) is the
+     visible one. */
+  --p-highlight-background: color-mix(in srgb, var(--sm-matrix-accent) 18%, transparent);
+  --p-highlight-focus-background: color-mix(in srgb, var(--sm-matrix-accent) 26%, transparent);
+  --p-highlight-color: var(--sm-matrix-accent);
+  --p-highlight-focus-color: var(--sm-matrix-accent);
 }
 
 /* Selectbutton selected pill. The togglebutton root uses surface.* by

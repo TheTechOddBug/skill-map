@@ -31,6 +31,7 @@ import {
   inject,
   input,
   signal,
+  viewChild,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
@@ -38,7 +39,7 @@ import { ConfirmationService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { MessageModule } from 'primeng/message';
-import { SelectModule } from 'primeng/select';
+import { Select, SelectModule } from 'primeng/select';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
@@ -86,6 +87,15 @@ export class SettingsProject {
   private readonly providerRegistry = inject(ProviderRegistryService);
 
   readonly visible = input.required<boolean>();
+
+  /**
+   * The active-provider `<p-select>`. Held so we can force its overlay
+   * shut when the section / dialog closes: the panel renders with
+   * `appendTo="body"`, so it lives OUTSIDE the dialog DOM and the modal
+   * hiding (the chassis keeps its content mounted, it does not destroy it)
+   * would otherwise leave the open dropdown orphaned on `<body>`.
+   */
+  private readonly providerSelect = viewChild(Select);
 
   protected readonly texts = SETTINGS_TEXTS;
   // ---- reference-paths state -------------------------------------------
@@ -193,6 +203,14 @@ export class SettingsProject {
         void this.refreshIgnore();
         void this.refreshActiveProvider();
       }
+    });
+
+    // Close the provider dropdown when the section / dialog closes. The
+    // panel is `appendTo="body"` so it outlives a still-mounted trigger;
+    // without this an open dropdown orphans on `<body>` after the modal
+    // hides. `hide()` is a no-op when the overlay is already closed.
+    effect(() => {
+      if (!this.visible()) this.providerSelect()?.hide();
     });
   }
 

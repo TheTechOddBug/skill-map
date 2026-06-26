@@ -204,6 +204,17 @@ html.app-neon-red {
   --p-form-field-icon-color: var(--sm-nred-accent-dim);
   --p-form-field-float-label-color: var(--sm-nred-muted);
   --p-form-field-float-label-focus-color: var(--sm-nred-accent);
+  /* Selected-state highlight chain. Aura bakes `--p-highlight-*` from the
+     preset's violet primary as literal colours (re-keying `--p-primary-*`
+     does NOT reach them), so a `p-select` / multiselect / autocomplete /
+     listbox selected option reads violet and its focused row the surface
+     grey. Retint to the accent so every overlay's selected option matches
+     the shell, the active-provider `<select>` (Settings, Project) is the
+     visible one. */
+  --p-highlight-background: color-mix(in srgb, var(--sm-nred-accent) 18%, transparent);
+  --p-highlight-focus-background: color-mix(in srgb, var(--sm-nred-accent) 26%, transparent);
+  --p-highlight-color: var(--sm-nred-accent);
+  --p-highlight-focus-color: var(--sm-nred-accent);
 }
 
 /* Selectbutton selected pill, retinted on both layers (root surface +
