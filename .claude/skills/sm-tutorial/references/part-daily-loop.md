@@ -18,11 +18,25 @@ what the tester names their portfolio. Persist the answer with
 `state.js set-identity --name "<name>" --tagline "<tagline>"` (it records
 `tester.site_identity` in `tutorial-state.json`).
 
-**Provider note (read once).** This is the rich track; the paths below are the
+**Provider note (read once).** This is the rich track; the bodies below are the
 `claude` layout (`.claude/`). The open-standard family (agent-skills /
-antigravity) walks its own `basic-daily` part instead. Codex (also rich) authors
-agents as TOML and has no `command` kind; its adaptation of the command chapters
-is deferred, so demo this part on `claude` today.
+antigravity) walks its own `basic-daily` part. **Codex deltas** (when
+`tutorial.provider == codex`): the `content-editor` is a TOML agent at
+`.codex/agents/content-editor.toml`, and Codex has no `command` kind, so
+`publish` is a **skill** at `.agents/skills/publish/SKILL.md`. The `@`/`/`
+connectors all resolve on Codex, so every beat lands the same; only the path /
+kind of those two nodes changes. Per chapter:
+
+- `add-page`: invoke the `content-editor` TOML agent via the Task tool (same flow).
+- `broken-ref`: the deploy link that breaks lives in the `publish` SKILL; fix it
+  in `.agents/skills/publish/SKILL.md` (not a `.claude/commands/` file).
+- `reserved`: Codex has no command, so create a SKILL with a reserved name
+  instead, `Write` `.agents/skills/config/SKILL.md` named `config` (it shadows
+  the open-standard `COMMONS_RESERVED_NAMES`); clear it by renaming the folder +
+  `frontmatter.name` to `new-page`, exactly like the basic track's `reserved`
+  chapter, on a skill.
+- `publish`: run the `publish` SKILL's steps for real (same `/check-links` +
+  `@content-editor` + deploy runbook).
 
 **Real-execution contract (read once).** When invoking the `content-editor` via
 the Task tool, instruct it explicitly to write ONLY `.html` files under

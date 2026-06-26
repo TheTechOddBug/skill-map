@@ -16,6 +16,25 @@ which are `.md`, so the scan ignores them), the portfolio
 `.skillmapignore`, and the handbook `AGENTS.md` (the one boot node).
 The chapters grow the harness from there.
 
+**Codex deltas (rich track).** When `tutorial.provider == codex`:
+
+- `kickoff` / `manual`: identical. A `.codex/` project resolves the `codex`
+  lens; `CLAUDE.md`'s `@AGENTS.md` reference resolves the same (Codex has the
+  `@`-directive). `AGENTS.md` is still the one boot node.
+- `first-agent`: the `content-editor` is a **TOML agent** at
+  `.codex/agents/content-editor.toml`, not a `.claude/agents/*.md` file; point
+  the tester at the `.toml` if they want to peek. Its body references the style
+  guide from the start (baked into `developer_instructions`), so lay
+  `docs/STYLE.md` together with it (`fixtures.js lay portfolio --only
+  "__PROVIDER__/agents/content-editor.md,docs/STYLE.md" --provider codex …`,
+  the `--only` matches the TOML overlay by node id) so the
+  `content-editor -> docs/STYLE.md` arrow resolves immediately instead of
+  showing a transient broken-reference.
+- `real-kinds`: Codex's kinds are `agent` (TOML) + `skill` + `markdown`, there is
+  no `command`. Lay only `docs/DEPLOY.md` here (STYLE landed in `first-agent`),
+  and name the kinds as agent + skill + markdown (the skill + the publish piece
+  arrive in Part 2 as skills).
+
 ## Chapter `kickoff` - Start the portfolio (~2 min)
 
 **Context**: same `sm init` the tester learned in the prologue, but

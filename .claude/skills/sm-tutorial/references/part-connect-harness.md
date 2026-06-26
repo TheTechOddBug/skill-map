@@ -2,6 +2,11 @@
 
 This is the wiring part. Part 1 grew a small set of standalone nodes around the handbook (the portfolio harness); here the tester turns that scatter of dots into a connected graph: a link checker, a publish command that pulls three pieces together, the handbook becoming a real hub, and a close-up on how sure skill-map is of each connection. `pace: auto-advance` (walk straight into the next chapter once one is marked done), `preflight: seed` (it builds on the portfolio harness from Part 1, reusing the accumulated state when its predecessors are done, no fresh fixture of its own). Shared conventions (tone, provider detection / substitution, the `> ` rendering rule, the per-step cycle) live in `_core.md`; do not restate them here.
 
+**Codex deltas (rich track).** When `tutorial.provider == codex`, the bodies below are written in the claude shape; apply per chapter (the `/` invocation and `@` mention both resolve on Codex, so the lessons and the graph are identical, only the kind / path of the `publish` node changes):
+
+- `publish`: Codex has no `command` kind, so the tester creates a **skill** at `.agents/skills/publish/SKILL.md` instead of `.claude/commands/publish.md`. The body is the Codex one (same `/check-links` + `@content-editor` + deploy reference); fetch it with `fixtures.js cat harness --file "__PROVIDER__/skills/publish/SKILL.md" --provider codex --lang <lang>`. Tell the tester they are creating a `skill` (one node, three connectors, same as the claude command). The fixture lays no `publish` for codex in this chapter (the tester authors it), so the `cat` is the source.
+- `links`: the `content-editor-style` reference is baked into the Codex content-editor's TOML (`developer_instructions`) at lay time, so the `edit content-editor-style` step is a no-op on Codex, the `content-editor -> docs/STYLE.md` arrow is already drawn from Part 1. Run only `edit agents-hub` and narrate the two `AGENTS.md` arrows; mention the style-guide arrow as already present.
+
 ## Chapter `check-links` - The link checker (~3 min)
 
 **Context**: the harness needs a guard that runs before publishing: a skill that walks every page and checks the internal links resolve. We only create it here (its first standalone `skill` node); the `publish` command in the next chapter is what invokes it.

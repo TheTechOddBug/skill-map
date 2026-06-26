@@ -2,6 +2,13 @@
 
 The live-UI prologue: the tester runs `sm init`, opens the browser, and watches the map update in real time as files are written and edited. `pace: per-step` (one chapter per exchange; the chapter's own confirmation advances to the next, NO separate "¿seguimos?"), `preflight: taught-init` (the tester runs `sm init` as the first taught step, not pre-flight), and the chapters lay the basics fixture progressively, one node at a time. Shared conventions (tone, provider detection / substitution, the `> ` rendering rule, the per-step cycle) live in `_core.md`; do not restate them here.
 
+**Codex deltas (rich track).** When `tutorial.provider == codex` the lay commands are unchanged (the `--only` ids match the Codex overlay), but the on-disk shapes differ; substitute in the tester-facing prose:
+
+- `init`: the boot node `demo-agent` is a **TOML agent** at `.codex/agents/demo-agent.toml`.
+- `kinds`: the node list reads `.codex/agents/demo-agent.toml` (agent), `.agents/skills/demo-command/SKILL.md` (Codex has no `command`, so this node is a **skill**), `.agents/skills/demo-skill/SKILL.md` (skill), and the `notes/*.md`. Name the kinds as agent + skill + markdown.
+- `first-edit`: the description to edit lives in `.codex/agents/demo-agent.toml` (the `description = "…"` TOML field, not YAML frontmatter).
+- `connectors` onward: identical, the `@`/`/` bullets resolve the same on Codex; only the `ignore` chapter's directory tree shows `.codex/agents/` + `.agents/skills/` instead of `.claude/`.
+
 ## Chapter `init` - Your first node (~2 min)
 
 Agent background (do NOT render this as a separate context paragraph; the tester-facing version is folded into the message below): `sm init` creates a hidden `.skill-map/` folder in the cwd holding the database where skill-map stores what it learns about the project, and runs an initial scan (mandatory first step). Typing `sm` alone (no arguments) in an initialised dir then starts the UI server with the watcher built in (it is just an alias of `sm serve` with all defaults; the moment you need any flag you write `sm serve --flag ...` explicitly). One process, one terminal: it boots the server, scans the `.md` files, detects changes, and pushes events over WebSocket to the live UI. The next chapters all run against this same `sm` session, you boot it here and keep it alive through the `ignore` chapter.
