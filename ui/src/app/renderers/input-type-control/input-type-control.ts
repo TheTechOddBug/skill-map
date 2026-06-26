@@ -66,7 +66,7 @@ import type {
   ISettingEnumOptionApi,
   ISettingKeyValueEntryApi,
 } from '../../../models/api';
-import { INPUT_TYPE_CONTROL_TEXTS } from './input-type-control.texts';
+import { INPUT_TYPE_CONTROL_TEXTS } from '../../../i18n/input-type-control.texts';
 
 /** A single choice for the `enum-pick` / `enum-multipick` widgets. */
 export type IInputTypeOption = ISettingEnumOptionApi;

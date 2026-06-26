@@ -52,6 +52,8 @@ export class App {
   protected readonly texts = APP_TEXTS;
   /** `'demo'` in the static demo bundle; shortens the beta chip there. */
   protected readonly isDemo = inject(SKILL_MAP_MODE) === 'demo';
+  /** Beta chip copy, shared by the chip content and its aria-label. */
+  protected readonly betaLabel = this.isDemo ? this.texts.betaDemo : this.texts.beta;
   protected readonly settingsTexts = SETTINGS_TEXTS;
   /**
    * Settings modal visibility. The modal is `@defer`-wrapped in the

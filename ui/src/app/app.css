@@ -486,7 +486,7 @@
   width: 100%;
 }
 
-/* Tighten the topbar at the lower end of the supported range (768–1280px).
+/* Tighten the topbar at the lower end of the supported range (768-1280px).
    Below 768px the viewport-warning overlay takes over, so no further
    responsive shrinking is needed. */
 @media (max-width: 1280px) {

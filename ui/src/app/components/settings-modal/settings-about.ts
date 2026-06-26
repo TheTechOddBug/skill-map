@@ -6,6 +6,7 @@
  * `GET /api/health`, fetched lazily when the section becomes visible.
  */
 
+import { NgOptimizedImage } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -29,6 +30,7 @@ import { UpdateCheckService } from '../../services/update-check';
   selector: 'sm-settings-about',
   templateUrl: './settings-about.html',
   styleUrl: './settings-about.css',
+  imports: [NgOptimizedImage],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SettingsAbout {

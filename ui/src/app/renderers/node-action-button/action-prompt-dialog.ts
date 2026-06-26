@@ -36,7 +36,7 @@ import {
   type IInputTypeDescriptor,
   type TInputTypeValue,
 } from '../input-type-control/input-type-control';
-import { ACTION_PROMPT_DIALOG_TEXTS } from './action-prompt-dialog.texts';
+import { ACTION_PROMPT_DIALOG_TEXTS } from '../../../i18n/action-prompt-dialog.texts';
 
 @Component({
   selector: 'sm-action-prompt-dialog',

@@ -15,7 +15,7 @@ import { ActionDispatchService } from '../../../services/action-dispatch';
 import { ActionPromptDialog } from './action-prompt-dialog';
 import type { IInputTypeDescriptor } from '../input-type-control/input-type-control';
 import type { TInputTypeValue } from '../input-type-control/input-type-control';
-import { NODE_ACTION_BUTTON_TEXTS } from './node-action-button.texts';
+import { NODE_ACTION_BUTTON_TEXTS } from '../../../i18n/node-action-button.texts';
 
 /**
  * Renderer for the `inspector.action.button` slot. Draws a `<p-button>`

@@ -49,6 +49,8 @@ export const VENDOR_FRONTMATTER_TEXTS = {
     shell: 'Shell',
     paths: 'Paths',
     disableModelInvocation: 'Model invocation',
+    /** Rendered value when `disableModelInvocation` is set on a skill. */
+    disabledValue: 'disabled',
     userInvocable: 'User invocable',
   },
   /** Tooltip on the warning icon next to a catch-all (non-provider) field. */
