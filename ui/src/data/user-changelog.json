@@ -2,6 +2,38 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.68.0",
+      "date": "2026-06-26",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "**Project plugins no longer run until you trust them.** Plugins committed in a repo's `.skill-map/plugins/` are now listed but not executed by `sm scan` / `sm serve` until you run `sm plugins enable <id>`, so cloning and scanning a repo no longer auto-runs its plugins.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Safer restores, stricter limits.** `sm db restore` now refuses a backup that isn't a real database, or one written by a newer `sm`, before touching your data. And `--max-scan` / `--max-nodes` reject values like `1e3` instead of silently treating them as 1000.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Provider kinds get their own colour.** Node kinds added by providers (for example Antigravity workflows) now show their declared colour in the graph and the kind filter, icon included, instead of falling back to grey.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "`sm tutorial` now runs end to end beyond Claude: a basic skills-and-references book on the open Agent Skills standard (agent-skills / Antigravity) and a rich book for OpenAI Codex, each matching how scans resolve your project.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.67.0",
       "date": "2026-06-26",
       "kind": "user-facing",

@@ -1,5 +1,41 @@
 # skill-map
 
+## 0.68.0
+
+### Minor Changes
+
+- Project-local plugins under `<cwd>/.skill-map/plugins/` are now discovered but their code is NOT imported or executed by the runtime verbs until the operator grants local trust with `sm plugins enable <id>`; the committed `settings.json` cannot grant it, so cloning and scanning a repo no longer auto-runs its plugins. Built-ins and `--plugin-dir` stay exempt. The BFF actions route also rejects a sidecar write whose path escapes the project root (400).
+
+  ## User-facing
+
+  **Project plugins no longer run until you trust them.** Plugins committed in a repo's `.skill-map/plugins/` are now listed but not executed by `sm scan` / `sm serve` until you run `sm plugins enable <id>`, so cloning and scanning a repo no longer auto-runs its plugins.
+
+- The `sm tutorial` book now adapts to the active provider lens via two tracks: a rich track (Claude / Codex, with agents, commands, slash and mentions) and a basic track (the open-standard Agent Skills / Antigravity family, skills and markdown wired by markdown references). Scaffolding for the open standard now lays a complete references-based campaign instead of a Claude-shaped book with gaps, and the provider/lens narration was corrected to the current model.
+
+  ## User-facing
+
+  `sm tutorial` now runs end to end beyond Claude: a basic skills-and-references book on the open Agent Skills standard (agent-skills / Antigravity) and a rich book for OpenAI Codex, each matching how scans resolve your project.
+
+### Patch Changes
+
+- `sm db restore` now validates the source before previewing or swapping: it refuses a non-SQLite file, or a backup written by a newer minor or different major than the running CLI (same version rules `sm scan` applies on open). `--dry-run` and the live swap share one read-only check, so a dry run no longer green-lights a source the restore would reject. Separately, `--max-scan` / `--max-nodes` on `scan` / `serve` / `watch` now reject exponent notation like `1e3`, matching `--port`.
+
+  ## User-facing
+
+  **Safer restores, stricter limits.** `sm db restore` now refuses a backup that isn't a real database, or one written by a newer `sm`, before touching your data. And `--max-scan` / `--max-nodes` reject values like `1e3` instead of silently treating them as 1000.
+
+- `<sm-node-card>` and `<sm-kind-palette>` hardcoded per-kind colours in CSS for only the four core kinds, so any Provider-declared kind (e.g. Antigravity's `workflow`) fell back to neutral markdown grey, icon included. The colour now comes from the kind: the node card binds `--accent` / `--kind-bg` / `--kind-fg` from the runtime kind registry's `--sm-kind-<kind>` vars and the palette binds the accent per button, so every Provider-declared kind paints its declared colour with no per-kind CSS.
+
+  ## User-facing
+
+  **Provider kinds get their own colour.** Node kinds added by providers (for example Antigravity workflows) now show their declared colour in the graph and the kind filter, icon included, instead of falling back to grey.
+
+- Hardened the local server and opt-in telemetry. The BFF Content-Security-Policy now carries `object-src 'none'`, a zero-breakage backstop that blocks plugin-content (`<object>` / `<embed>`) script execution if the markdown sanitizer ever regresses. Separately, the opt-in UI error-telemetry SDK no longer auto-records console, fetch, xhr, or DOM breadcrumbs, which could otherwise carry project paths or request URLs into a report; navigation breadcrumbs stay and are still home-scrubbed.
+
+- Updated every outdated `src/` dependency to its latest exact pin and migrated the code the four major bumps required. The only runtime-touching change is js-yaml 4 to 5: importers switch to named `load`/`dump` with `schema: CORE_SCHEMA`, which emits byte-identical YAML 1.2 so canonical frontmatter and sidecar hashes are unchanged. TypeScript 6, @types/node 26, @hono/node-server and kysely 0.29 needed only build-config and type-cast tweaks. The bumps clear the known CLI-tree advisories.
+
+- Updated UI dependencies to close the advisories from the UI security audit. Angular moves to 21.2.17 (the XSS sanitizer-bypass fixes) and `dompurify` to 3.4.11; a pnpm-workspace override forces `posthog-js`'s bundled `dompurify` to the same 3.4.11 so the shipped bundle no longer carries a vulnerable copy. `@sentry/angular`, `markdown-it`, `posthog-js`, `primeng`, and `vitest` also move to current patches.
+
 ## 0.67.0
 
 ### Minor Changes
