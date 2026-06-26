@@ -38,6 +38,17 @@ const OPENAI_CONFORMANCE_DIR = resolve(
 const OPENAI_CASES_DIR = resolve(OPENAI_CONFORMANCE_DIR, 'cases');
 const OPENAI_FIXTURES_DIR = resolve(OPENAI_CONFORMANCE_DIR, 'fixtures');
 
+const ANTIGRAVITY_CONFORMANCE_DIR = resolve(
+  WORKSPACE,
+  'plugins',
+  'antigravity',
+  'providers',
+  'antigravity',
+  'conformance',
+);
+const ANTIGRAVITY_CASES_DIR = resolve(ANTIGRAVITY_CONFORMANCE_DIR, 'cases');
+const ANTIGRAVITY_FIXTURES_DIR = resolve(ANTIGRAVITY_CONFORMANCE_DIR, 'fixtures');
+
 /**
  * Step 0b reference subset, post-A.13 split:
  *
@@ -54,6 +65,7 @@ const OPENAI_FIXTURES_DIR = resolve(OPENAI_CONFORMANCE_DIR, 'fixtures');
 const SPEC_CASES = ['kernel-empty-boot', 'score-phase-confidence'] as const;
 const PROVIDER_CLAUDE_CASES = ['rename-high', 'orphan-detection'] as const;
 const PROVIDER_OPENAI_CASES = ['basic-scan', 'body-links'] as const;
+const PROVIDER_ANTIGRAVITY_CASES = ['basic-scan', 'workflow-links', 'reserved-names'] as const;
 
 describe('conformance suite (Step 0b subset)', () => {
   for (const caseId of SPEC_CASES) {
@@ -115,6 +127,27 @@ describe('conformance suite (Step 0b subset)', () => {
       assert.ok(
         result.passed,
         `provider:codex case ${caseId} failed\n${summary}\n--- stdout ---\n${result.stdout}\n--- stderr ---\n${result.stderr}`,
+      );
+    });
+  }
+
+  for (const caseId of PROVIDER_ANTIGRAVITY_CASES) {
+    it(`provider:antigravity case ${caseId} passes`, () => {
+      const result = runConformanceCase({
+        binary: BIN,
+        specRoot: SPEC_ROOT,
+        casePath: resolve(ANTIGRAVITY_CASES_DIR, `${caseId}.json`),
+        fixturesRoot: ANTIGRAVITY_FIXTURES_DIR,
+      });
+      const failures = result.assertions.filter(
+        (a): a is Extract<typeof a, { ok: false }> => !a.ok,
+      );
+      const summary = failures.length
+        ? failures.map((f) => `  - [${f.type}] ${f.reason}`).join('\n')
+        : '';
+      assert.ok(
+        result.passed,
+        `provider:antigravity case ${caseId} failed\n${summary}\n--- stdout ---\n${result.stdout}\n--- stderr ---\n${result.stderr}`,
       );
     });
   }

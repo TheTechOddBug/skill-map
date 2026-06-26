@@ -113,7 +113,7 @@ export const builtInPlugins: IBuiltInPlugin[] = [
   },
   {
     id: 'antigravity',
-    description: 'Google Antigravity CLI platform integration (replaces the retired Gemini CLI). Antigravity adopted the open-standard `.agents/` layout, so skills are classified by the neutral `agent-skills` provider; this plugin contributes the Antigravity runtime identity and a seed list of reserved built-in names.',
+    description: 'Google Antigravity CLI platform integration (replaces the retired Gemini CLI). Classifies Antigravity workflows under `.agent/workflows/*.md` (its own kind) and adopts the open-standard `.agents/skills/` layout for skills; contributes the Antigravity runtime identity and reserved built-in names.',
     extensions: [
       antigravityProvider,
     ],

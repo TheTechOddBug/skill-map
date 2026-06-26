@@ -13,10 +13,9 @@
  * is the substrate, not a lens).
  *
  * Confirms:
- *   - enabled lenses are selectable: `claude` (stable), `codex` (beta),
- *     and `agent-skills` (stable, the locked open default); the
- *     experimental `antigravity` ships disabled, so it is not until
- *     enabled. The non-gated `markdown` base is never selectable.
+ *   - enabled lenses are selectable: `claude` (stable), `antigravity` (beta),
+ *     `codex` (beta), and `agent-skills` (stable, the locked open default).
+ *     The non-gated `markdown` base is never selectable.
  *   - disabling a Provider's extension (`claude/claude`) drops only that
  *     lens from `selectable`; the rest stay (including the locked open
  *     default `agent-skills`).
@@ -107,22 +106,19 @@ describe('GET /api/active-provider selectable', () => {
         assert.equal(res.status, 200);
         const body = (await res.json()) as IActiveProviderWire;
         assert.ok(Array.isArray(body.selectable));
-        // Enabled lenses are selectable: claude (stable), codex (beta),
-        // and agent-skills (stable, the locked open default).
-        for (const id of ['claude', 'codex', 'agent-skills']) {
+        // Enabled lenses are selectable: claude (stable), antigravity (beta),
+        // codex (beta), and agent-skills (stable, the locked open default).
+        for (const id of ['claude', 'antigravity', 'codex', 'agent-skills']) {
           assert.ok(
             body.selectable.includes(id),
             `expected '${id}' to be selectable, got ${JSON.stringify(body.selectable)}`,
           );
         }
-        // The experimental `antigravity` lens ships disabled; the non-gated
-        // `markdown` base is not a lens at all. Neither is selectable.
-        for (const id of ['antigravity', 'markdown']) {
-          assert.ok(
-            !body.selectable.includes(id),
-            `expected '${id}' to be excluded, got ${JSON.stringify(body.selectable)}`,
-          );
-        }
+        // The non-gated `markdown` base is not a lens at all, never selectable.
+        assert.ok(
+          !body.selectable.includes('markdown'),
+          `expected 'markdown' to be excluded, got ${JSON.stringify(body.selectable)}`,
+        );
       });
     } finally {
       rmSync(cwd, { recursive: true, force: true });
