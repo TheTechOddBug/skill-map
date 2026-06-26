@@ -6,14 +6,17 @@
  * inside `createApp`) so tests can exercise the contract without
  * standing up the full app graph.
  *
- *   - `Content-Security-Policy: frame-ancestors 'none'; base-uri 'self'; form-action 'self'`,
+ *   - `Content-Security-Policy: frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'`,
  *     blocks the SPA from being framed by any other local page
  *     (defence against local clickjacking from other processes,
  *     malicious file:// pages, or browser extensions), pins `<base>`
  *     to same-origin, and constrains form submissions to same-origin.
  *     `frame-ancestors` only takes effect via header (the spec ignores
  *     it from `<meta http-equiv>`), which is why the policy lives here
- *     and not in `index.html`.
+ *     and not in `index.html`. `object-src 'none'` kills `<object>` /
+ *     `<embed>` / `<applet>`, a zero-breakage backstop (the app renders
+ *     none of those) that closes the plugin-content script-execution
+ *     vector if the markdown sanitiser (DOMPurify) ever regresses.
  *   - `X-Frame-Options: DENY`, legacy clickjacking guard kept as
  *     belt-and-suspenders for browsers that don't honour
  *     `frame-ancestors`.
@@ -24,10 +27,11 @@
  *     `source` / `docsUrl` annotations; we never want the local
  *     skill-map origin (with port + path) leaking to those targets.
  *
- * `script-src` / `style-src` are intentionally not set: PrimeNG ships
- * inline styles and the SPA bundle uses inline init scripts, locking
- * those down requires nonce wiring through the build pipeline (out of
- * scope for this audit).
+ * `script-src` / `style-src` are intentionally still not set: PrimeNG
+ * ships inline styles and the SPA bundle uses inline init scripts, so a
+ * meaningful lockdown needs per-response nonce wiring through the build
+ * pipeline (a separate task). `object-src 'none'` is added here because
+ * it carries that backstop intent with zero breakage and no nonce work.
  *
  * Each header is set only when missing so a later middleware or route
  * (e.g. a dev affordance) can override without an extra strip step.
@@ -36,7 +40,7 @@
 import type { Context, Next } from 'hono';
 
 export const DEFAULT_CSP =
-  "frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+  "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'";
 
 export function createSecurityHeaders(): (c: Context, next: Next) => Promise<void> {
   return async (c, next) => {

@@ -30,6 +30,13 @@ describe('createSecurityHeaders, baseline headers', () => {
     strictEqual(res.headers.get('content-security-policy'), DEFAULT_CSP);
   });
 
+  it("CSP carries object-src 'none' (plugin-content backstop if DOMPurify regresses)", async () => {
+    const app = buildApp();
+    const res = await app.fetch(new Request('http://127.0.0.1/api/health'));
+    const csp = res.headers.get('content-security-policy') ?? '';
+    strictEqual(csp.includes("object-src 'none'"), true);
+  });
+
   it('sets X-Frame-Options DENY', async () => {
     const app = buildApp();
     const res = await app.fetch(new Request('http://127.0.0.1/api/health'));
