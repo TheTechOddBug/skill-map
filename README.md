@@ -16,7 +16,7 @@
 
 From multi-agent chaos to predictable agents and skills, the missing map for your Markdown-based generative-AI harness (Claude Code, Codex, Antigravity, Copilot, and others). Detects collisions, orphans, semantic duplicates, and bloated skills on a single graph, with deterministic and optional semantic (LLM) analysis.
 
-![skill-map UI](https://skill-map.ai/img/screenshot-1.png)
+![skill-map UI](https://skill-map.ai/img/screenshot-1.jpg)
 
 ## The problem it solves
 
