@@ -2,6 +2,20 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.68.1",
+      "date": "2026-06-27",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "The `sm tutorial` picker now lists each agent by name (Claude, OpenAI Codex, Google's Antigravity) instead of its install folder. The guided tutorial is tighter: building and connecting your project's harness is now one continuous part, with clearer copy throughout.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.68.0",
       "date": "2026-06-26",
       "kind": "user-facing",
