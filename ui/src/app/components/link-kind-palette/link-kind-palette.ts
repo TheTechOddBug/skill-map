@@ -6,6 +6,8 @@ import { TooltipModule } from 'primeng/tooltip';
 import { LINK_KIND_PALETTE_TEXTS } from '../../../i18n/link-kind-palette.texts';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { ALL_LINK_KINDS, FilterStoreService } from '../../../services/filter-store';
+import { ProviderRegistryService } from '../../../services/provider-registry';
+import { ProjectInfoService } from '../../services/project-info';
 import type { TLinkKindApi } from '../../../models/api';
 
 /**
@@ -18,6 +20,12 @@ import type { TLinkKindApi } from '../../../models/api';
  * the operator recognises the source syntax instantly; kinds that
  * live in `[text](path)` markdown (`references`) use a representative
  * PrimeIcon because their source has no single-glyph signature.
+ *
+ * The `invokes` glyph is the one that is NOT fixed: the invocation
+ * syntax is lens-dependent (`/skill` on claude / antigravity, `$skill`
+ * on codex), so its `text` + tooltip are resolved per active lens from
+ * the Provider's `invocationSigil` (see the `entries` computed). The
+ * catalog carries `/` as the static fallback.
  */
 interface ILinkKindEntry {
   readonly kind: TLinkKindApi;
@@ -27,12 +35,21 @@ interface ILinkKindEntry {
   readonly text?: string;
 }
 
+/**
+ * Glyph the `invokes` entry falls back to when the active lens declares
+ * no `invocationSigil` (or the registry has not loaded yet). Historically
+ * the palette hardcoded `/`; under a lens with no `/`/`$` invocation
+ * channel (`agent-skills`) there are no `invokes` edges anyway, so the
+ * fallback is never actually painted.
+ */
+const DEFAULT_INVOCATION_SIGIL = '/';
+
 const ENTRY_CATALOG: readonly ILinkKindEntry[] = [
   {
     kind: 'invokes',
     label: LINK_KIND_PALETTE_TEXTS.kinds.invokes,
-    tooltip: LINK_KIND_PALETTE_TEXTS.tooltips.invokes,
-    text: '/',
+    tooltip: LINK_KIND_PALETTE_TEXTS.tooltips.invokes(DEFAULT_INVOCATION_SIGIL),
+    text: DEFAULT_INVOCATION_SIGIL,
   },
   {
     kind: 'references',
@@ -92,8 +109,23 @@ for (const e of ENTRY_CATALOG) {
 export class LinkKindPalette {
   private readonly loader = inject(CollectionLoaderService);
   private readonly filters = inject(FilterStoreService);
+  private readonly providerRegistry = inject(ProviderRegistryService);
+  private readonly projectInfo = inject(ProjectInfoService);
 
   protected readonly texts = LINK_KIND_PALETTE_TEXTS;
+
+  /**
+   * Invocation glyph for the active lens, joined from the lens id
+   * (`ProjectInfoService.activeProvider`) against the Provider's
+   * `invocationSigil` in the registry. `/` on claude / antigravity,
+   * `$` on codex; falls back to `DEFAULT_INVOCATION_SIGIL` when the
+   * active lens declares none or the registry has not loaded.
+   */
+  private readonly invocationSigil = computed<string>(() => {
+    const active = this.projectInfo.activeProvider();
+    if (!active) return DEFAULT_INVOCATION_SIGIL;
+    return this.providerRegistry.lookup(active)?.invocationSigil ?? DEFAULT_INVOCATION_SIGIL;
+  });
 
   /** Per-kind link counts derived from `scan().links`. Drives which buttons
    *  paint (kinds present in the project). NOT scoped to the node-curation:
@@ -121,10 +153,22 @@ export class LinkKindPalette {
     const counts = this.counts();
     const selected = this.filters.selectedLinkKinds();
     const explicitlyActive = new Set<TLinkKindApi>(selected);
+    const sigil = this.invocationSigil();
     return ENTRY_CATALOG.filter(
       (e) => (counts.get(e.kind) ?? 0) > 0 || explicitlyActive.has(e.kind),
-    );
+    ).map((e) => (e.kind === 'invokes' ? this.withInvocationSigil(e, sigil) : e));
   });
+
+  /**
+   * Repaint the `invokes` entry's glyph + tooltip for the active lens's
+   * invocation sigil. Returns the entry untouched when the sigil already
+   * matches the catalog default, so non-codex lenses reuse the static
+   * object (no needless allocation).
+   */
+  private withInvocationSigil(entry: ILinkKindEntry, sigil: string): ILinkKindEntry {
+    if (sigil === DEFAULT_INVOCATION_SIGIL) return entry;
+    return { ...entry, text: sigil, tooltip: this.texts.tooltips.invokes(sigil) };
+  }
 
   constructor() {
     // Drop any whitelist entry whose kind just emptied in the data.

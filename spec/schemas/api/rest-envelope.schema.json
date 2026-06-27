@@ -183,6 +183,12 @@
             "type": "string",
             "minLength": 1,
             "description": "Name of the parsed-frontmatter field that carries this Provider's node body, projected from its `read.bodyField` (see `provider.schema.json`). Present only for Providers whose prompt lives inside structured frontmatter rather than after a fence (OpenAI Codex sub-agents are pure TOML whose markdown prompt is `developer_instructions`). The UI uses it to render that field as the node body and to omit it from the metadata dump; absent for ordinary frontmatter-fence Providers."
+          },
+          "invocationSigil": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1,
+            "description": "Single glyph this lens's runtime uses to invoke a skill / command, projected from its `presentation.invocationSigil` (see `provider.schema.json`). The UI joins it against the active lens to paint the `invokes` edge-kind glyph (and tooltip example) in the link-kind palette: `/` for `claude` / `antigravity`, `$` for `codex`. Absent for lenses with no invocation channel (`agent-skills`, `markdown`), under which no `invokes` edge arises."
           }
         }
       }

@@ -59,6 +59,10 @@ export const codexProvider: IBuiltInManifest<IProvider> = {
     label: "OpenAI's Codex",
     color: '#22c55e',
     colorDark: '#4ade80',
+    // Codex invokes skills with `$` (`$publish`); `/` is reserved for its
+    // own built-in commands (`/model`, `/init`), so the `invokes` edge glyph
+    // under the codex lens is the dollar, not the slash.
+    invocationSigil: '$',
   },
 
   // Auto-detect marker: a `.codex/` directory marks a Codex CLI project.

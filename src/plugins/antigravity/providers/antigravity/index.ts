@@ -140,6 +140,9 @@ export const antigravityProvider: IBuiltInManifest<IProvider> = {
     label: "Google's Antigravity",
     color: '#7c3aed',
     colorDark: '#a78bfa',
+    // Antigravity bolts `/`-invocation onto the open standard (skills and
+    // workflows are `/<name>`), so the `invokes` edge glyph is the slash.
+    invocationSigil: '/',
   },
 
   // Auto-detect marker: Antigravity's workflows live under `.agent/workflows/`

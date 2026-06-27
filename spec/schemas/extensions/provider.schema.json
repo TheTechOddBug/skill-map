@@ -71,6 +71,12 @@
         "hideChip": {
           "type": "boolean",
           "description": "When `true`, the UI does NOT paint this Provider's chip on node cards. Reserved for the universal base Provider (`markdown`): the majority of nodes in any project carry it, so badging every generic `.md` would be visual noise and dilute the chip's purpose (signalling when a node came from a NON-default platform). The markdown base is non-gated (`gatedByActiveLens: false`, `isLens: false`), so it is not a selectable lens and never appears in the active-lens dropdown or topbar lens chip either; `hideChip` additionally suppresses its per-card badge. Defaults to `false` (chip shown)."
+        },
+        "invocationSigil": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1,
+          "description": "Single glyph the lens's runtime uses to invoke a skill / command, surfaced as the `invokes` edge-kind glyph (and its tooltip example) in the link-kind palette so the operator recognises this lens's source syntax instantly. `/` for the slash-invoking lenses (`claude` commands + skills, `antigravity` skills + workflows), `$` for `codex` (whose skills are invoked `$skill`, with `/` reserved for Codex's own built-in commands). Omitted for lenses with no `/`/`$` invocation channel (the open-standard `agent-skills`, where skills activate by `description`, and the non-lens `markdown` base): under those lenses no `invokes` edge arises, so the palette never paints the glyph. Mirrors `IProviderUi.invocationSigil`; projected into `providerRegistry` (`api/rest-envelope.schema.json`) and joined client-side against the active lens."
         }
       }
     },

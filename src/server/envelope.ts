@@ -133,6 +133,14 @@ export interface IProviderRegistryEntry {
    * for ordinary frontmatter-fence Providers.
    */
   bodyField?: string;
+  /**
+   * Single glyph this lens's runtime uses to invoke a skill / command,
+   * projected from `presentation.invocationSigil`. The UI joins it against
+   * the active lens to paint the `invokes` edge-kind glyph in the link-kind
+   * palette (`/` for claude / antigravity, `$` for codex). Absent for lenses
+   * with no invocation channel (`agent-skills`, `markdown`).
+   */
+  invocationSigil?: string;
 }
 
 /**

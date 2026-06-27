@@ -246,6 +246,21 @@ export interface IProviderUi {
    * topbar lens chip; only the per-card badge is suppressed.
    */
   hideChip?: boolean;
+  /**
+   * Single glyph this lens's runtime uses to invoke a skill / command,
+   * surfaced as the `invokes` edge-kind glyph (and its tooltip example)
+   * in the link-kind palette so the operator recognises the source
+   * syntax instantly. `/` for the slash-invoking lenses (`claude`
+   * commands + skills, `antigravity` skills + workflows), `$` for
+   * `codex` (skills are `$skill`; `/` is reserved for Codex's own
+   * built-in commands). Omitted for lenses with no `/`/`$` invocation
+   * channel (the open-standard `agent-skills`, where skills activate by
+   * `description`, and the non-lens `markdown` base): under those no
+   * `invokes` edge arises, so the palette never paints the glyph.
+   * Projected into `providerRegistry` and joined client-side against
+   * the active lens.
+   */
+  invocationSigil?: string;
 }
 
 /**

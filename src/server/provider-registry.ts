@@ -4,8 +4,9 @@
  * `buildKindRegistry`).
  *
  * The registry mirrors `spec/schemas/api/rest-envelope.schema.json#/properties/providerRegistry`:
- * provider id → `{ label, color, colorDark?, emoji?, icon?, isLens, hideChip?, bodyField? }`,
- * projected from each Provider's `presentation` block plus its
+ * provider id → `{ label, color, colorDark?, emoji?, icon?, isLens, hideChip?, bodyField?, invocationSigil? }`,
+ * projected from each Provider's `presentation` block (including the
+ * `invocationSigil` the link-kind palette paints for the active lens) plus its
  * `gatedByActiveLens` flag (as `isLens`) and its `read.bodyField` (when set,
  * for structured-frontmatter Providers like Codex).
  *
@@ -39,6 +40,7 @@ function presentationOptionals(ui: IProviderUi): Partial<IProviderRegistryEntry>
   if (ui.emoji !== undefined) out.emoji = ui.emoji;
   if (ui.icon !== undefined) out.icon = ui.icon;
   if (ui.hideChip !== undefined) out.hideChip = ui.hideChip;
+  if (ui.invocationSigil !== undefined) out.invocationSigil = ui.invocationSigil;
   return out;
 }
 
