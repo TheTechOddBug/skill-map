@@ -29,22 +29,78 @@ command) and `@` is a file picker (not an agent mention), so `$publish` /
 `$check-links` invoke and the `content-editor` agent is referenced by a
 markdown link to its `.toml`. Per chapter:
 
-- `add-page`: invoke the `content-editor` TOML agent via the Task tool (same flow).
+- `add-page` (Codex: the tester runs the agent for real in a fresh Codex).
+  Codex loads its agents only at startup and has no live reload (`/agent`
+  just switches existing threads), and the `content-editor` was created
+  mid-tutorial, so it is not invocable in any running session. Do NOT invoke
+  it via the Task tool and do NOT tell the tester to "reload". Instead hand
+  the run to the tester in a fresh Codex so they watch their own agent work,
+  reusing the **third terminal** (the one running `node server.js`); `sm`
+  stays up in the second terminal so the "Map unchanged" beat still lands.
+  Skip the claude `add-page` body and run this flow. First ask what page
+  they want:
+
+  > Your turn to delegate, for real, and the page is yours: tell me what to
+  > add, about anything you like, your projects, your talks, a reading list,
+  > whatever fits your site.
+
+  When they answer, guide them, dropping the topic they chose into the
+  `<your topic>` placeholder below:
+
+  > Your `content-editor` is a real Codex agent
+  > (`.codex/agents/content-editor.toml`). Heads up, this is a Codex
+  > limitation: Codex reads its agents only when it boots and has no way to
+  > reload them mid-session, so an agent you just created is not available
+  > until you start Codex again. That is why we run it in a fresh Codex now,
+  > and you get to watch it work. In your **third terminal** (the one running
+  > `node server.js`), stop the site with `Ctrl+C`, then start Codex in the
+  > same folder:
+
+  ```bash
+  codex
+  ```
+
+  > Once it is up, ask it for the page you chose, in your own words, for
+  > example:
+
+  ```text
+  Use the content-editor agent to add a page about <your topic>.
+  ```
+
+  > Watch it run: it writes your new page under `public/` for real, the way
+  > it would on a normal day. When it finishes, exit Codex (`Ctrl+D`), bring the
+  > site back up with `node server.js`, and refresh
+  > `http://localhost:3000`. Your new page is there, in the same style.
+  >
+  > Now glance at the **Map** (still running in your second terminal): same
+  > nodes as before, nothing new. The page is Layer 2 output; the harness on
+  > the canvas is Layer 1. Your nodes are not a diagram, they are runnable,
+  > and you just ran one.
+  >
+  > See the new page on the site, and the Map unchanged?
+
+  Wait for confirmation, then mark `add-page` done. If the tester's Codex
+  goes off-script (writes a `.md`, touches the harness, or the page lands
+  wrong), help them steer it, or as a last resort act as the `content-editor`
+  yourself following its rules + `docs/STYLE.md` so the beat still lands.
 - `broken-ref`: the deploy link that breaks lives in the `publish` SKILL; fix it
   in `.agents/skills/publish/SKILL.md` (not a `.claude/commands/` file).
-- `reserved`: Codex `$`-invokes skills, a namespace disjoint from its `/`
-  built-in commands, so a skill named like a built-in (`model`) does NOT
-  collide with `/model` and is NOT flagged. The claude beat (a `/model` COMMAND
-  shadows the built-in) has no Codex equivalent, so REFRAME it: `Write`
-  `.agents/skills/model/SKILL.md` named `model`, have the tester watch the Map,
-  and narrate that NO warning appears, on Codex `$model` (your skill) and
-  `/model` (Codex's built-in command) are separate namespaces, so naming a
-  skill after a built-in is fine. There is no rename beat (nothing to fix);
-  mark `reserved` done and move on. Do NOT claim a collision or a reserved-name
-  warning that Codex does not produce.
+- `reserved` (Codex: SKIP this chapter, it cannot be reproduced). The reserved-
+  name collision is a claude `/`-command beat: a user `/model` COMMAND shadows
+  Codex's own built-in `/model`. On Codex skills are `$`-invoked, a namespace
+  disjoint from the `/` built-in commands, so a skill named like a built-in
+  (`model`) never collides and skill-map flags nothing, there is no beat to
+  show. Do NOT write a `model` skill, do NOT narrate a (non-)warning, do NOT
+  make a beat of it. Silently `state.js mark daily-loop reserved skipped` and go
+  from `broken-ref` straight to `publish`. Keep the numbering it already has:
+  it is position-based, so `publish` stays 3.5, `stability` 3.6, `golive` 3.7
+  (do NOT renumber); the tester simply never sees a 3.4 on Codex.
 - `publish`: run the `publish` SKILL's steps for real (`$check-links` invokes
   the link checker, the `content-editor` markdown-link reference, the deploy
   runbook).
+- `golive`: when you name the harness pieces on the graph, say the **publish
+  skill**, not "the publish command" (Codex has no command kind); everything
+  else is identical.
 
 **Real-execution contract (read once).** When invoking the `content-editor` via
 the Task tool, instruct it explicitly to write ONLY `.html` files under
@@ -442,12 +498,17 @@ Tell the tester:
 > The first time skill-map writes its own metadata it asks for **consent**:
 > confirm it in the dialog that pops up. Two things happen at once: a stability
 > badge for the stage you picked appears on the `AGENTS` node, and skill-map
-> creates a **`.sm` sidecar file** (`AGENTS.sm`) right next to the handbook to
-> hold that metadata, your `AGENTS.md` itself is never touched. Your consent is
-> remembered for the project, so it will not ask again.
+> creates a **`.sm` sidecar file** right next to the handbook, named after it
+> (`AGENTS.md` becomes `AGENTS.sm` in the same folder), to hold that metadata.
+> Your `AGENTS.md` itself is never touched. Your consent is remembered for the
+> project, so it will not ask again.
 >
-> That sidecar is where skill-map keeps what it knows about a node that does not
-> belong in the vendor file (stability, version, tags).
+> What is a **sidecar**? A sibling file that lives in the same folder as the
+> node it describes and is committed to the same repository, so it travels with
+> the `.md` wherever it goes. skill-map keeps what it learns about a node
+> (stability, version, tags) there ON PURPOSE: that is the tool's bookkeeping,
+> not your content, so it stays OUT of your source markdown. Your `.md` files
+> stay clean and authored by you, never polluted by skill-map.
 >
 > See the new stability badge on the handbook?
 
@@ -455,23 +516,25 @@ Wait for confirmation. Mark `stability`: done. Auto-advance to `golive`.
 
 ## Chapter `golive` - Your website, live next to the graph (~3 min)
 
-One of the few chapters where the tester runs non-`sm` commands themselves;
-guide them, do not run it for them. `npm install` is idempotent, so it is safe
-whether or not they ran it in `setup`.
+The site is already serving from `add-page` (the tester brought `node server.js`
+back up in their third terminal after their agent wrote its page), so for most
+testers the finale is just opening it, not restarting anything. Only if they
+closed that terminal do they bring it back with the block below; guide them, do
+not run it for them. `npm install` is idempotent if they do restart.
 
 **Preparation**: none. `server.js` / `package.json` exist from the kickoff; the
 pages exist from the earlier chapters.
+
+> Last step, the fun one. Your site is still serving from earlier in your third
+> terminal, so just open `http://localhost:3000` and click through Home, About,
+> and the page you added, the pages your harness produced and shipped through the
+> publish flow you just ran. (If you closed that terminal, bring it back up first
+> with the commands below.)
 
 ```bash
 npm install
 node server.js
 ```
-
-> Last step, the fun one. `npm install` confirms the one small library is there,
-> and `node server.js` starts the server (`Listening on http://localhost:3000`).
->
-> Open `http://localhost:3000` and click through Home, About, and Projects, the
-> pages your harness produced and shipped through the publish flow you just ran.
 >
 > Now take it in at once. On one side, your real running website, named after
 > you, that you could deploy as-is. On the other, the skill-map graph of the

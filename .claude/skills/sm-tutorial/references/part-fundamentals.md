@@ -254,8 +254,12 @@ action itself.
 > two guideline nodes (`demo-guideline` and `demo-guideline2`). The
 > search matches a node's name, path, or description, and filters
 > live as you type, no Enter needed. The **Map** stays put: by
-> default the search filters only the files list, not the map (the
-> tip below changes that).
+> default the search filters only the files list, not the map.
+>
+> 💡 Tip: the map-icon button right next to the search box controls
+> whether the search also filters the **Map**. It's off by default,
+> which is why the **Map** stayed put while only the tree narrowed.
+> Click it on if you want a search to filter the map too.
 >
 > Now clear the box. All six nodes come back in the tree. Confirm you
 > saw it filter and then restore.
@@ -273,12 +277,6 @@ action itself.
 > To bring the rest back, look at the toolbar along the bottom of
 > the Map: there's a **Show all** button (an eye icon). Click it and
 > all six nodes return.
->
-> 💡 Tip: remember the search box from a moment ago? The map-icon
-> button right next to it controls whether the search also filters
-> the **Map**. It's off by default, which is why the **Map** stayed
-> put while only the tree narrowed when you searched `guideline`.
-> Click it on if you want a search to filter the map too.
 >
 > Did the map isolate and then restore?
 

@@ -251,8 +251,12 @@ each ends with its own confirmation. Do NOT prepend an intro line to a block.
 > `Search…`). Type `guideline`. Watch the tree narrow to the two
 > guideline nodes. The search matches a node's name, path, or
 > description, and filters live, no Enter needed. The **Map** stays
-> put: by default the search filters only the files list, not the map
-> (the tip below changes that).
+> put: by default the search filters only the files list, not the map.
+>
+> 💡 Tip: the map-icon button next to the search box controls whether
+> the search also filters the **Map** (off by default, which is why the
+> map stayed put while only the tree narrowed). Click it on if you want
+> a search to filter the map too.
 >
 > Now clear the box. All four nodes come back in the tree. Confirm you
 > saw it filter and then restore.
@@ -269,11 +273,6 @@ each ends with its own confirmation. Do NOT prepend an intro line to a block.
 > To bring the rest back, look at the toolbar along the bottom of the
 > Map: there's a **Show all** button (an eye icon). Click it and all
 > four nodes return.
->
-> 💡 Tip: the map-icon button next to the search box controls whether
-> the search also filters the **Map** (off by default, which is why the
-> map stayed put while only the tree narrowed). Click it on if you want
-> a search to filter the map too.
 >
 > Did the map isolate and then restore?
 
