@@ -20,7 +20,7 @@ Two numbering systems coexist; keep them apart:
 
 - **Internal (authoring only)**: the `order` field in `_manifest.yml`
   and the `# Part N` file headers, 0-based (Part 0 the prologue …
-  Part 4 the CLI deep-dive; `mcp` at Part 5 is parked / hidden). Use it
+  Part 3 the CLI deep-dive, Part 4 the Extend dev section; `mcp` at Part 5 is parked / hidden). Use it
   in `**Context**:` blocks and author
   notes; NEVER say it to the tester, it is off by one from what they
   see.
@@ -444,7 +444,7 @@ promise or pre-announce the next part, the close and the menu own the
 transition. Sample (Claude variant, mirror the tester's language,
 apply the host rendering rule):
 
-> ✓ Listo, terminaste **El proyecto desde cero**. Levantaste un
+> ✓ Listo, terminaste **El harness desde cero**. Levantaste un
 > proyecto real, su handbook y el harness `.claude/` con sus primeros
 > nodos.
 >
@@ -484,7 +484,7 @@ fill the parts and durations from `_manifest.yml`):
 **1. El mapa en vivo** (~12 min)
 > El prólogo: corrés `sm`, abrís el browser y ves el mapa actualizarse en vivo mientras editás `.md`. Si es tu primera vez, empezá por acá.
 
-**2. El proyecto desde cero** (~8 min)
+**2. El harness desde cero** (~8 min)
 > Arrancás un proyecto real (un portfolio) y su harness `.claude/`.
 
 ¿Cuál?
@@ -503,7 +503,7 @@ the title stays plain):
 **1. El mapa en vivo** (~12 min)
 > ✓ Ya la hiciste.
 
-**2. El proyecto desde cero** (~8 min)
+**2. El harness desde cero** (~8 min)
 > Arrancás un proyecto real (un portfolio) y su harness `.claude/`.
 ```
 

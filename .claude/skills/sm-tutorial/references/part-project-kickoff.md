@@ -1,4 +1,4 @@
-# Part 1: The project from zero (step library, `kickoff-*` ids)
+# Part 1: The harness from zero (step library, `kickoff-*` ids)
 
 The campaign turns real here. After the abstract prologue, the tester
 starts an actual project: a tiny personal **portfolio website**,

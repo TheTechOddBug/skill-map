@@ -53,11 +53,11 @@ parts:
       - id: init            ; title: "Your first node (sm init, sm, the UI)" ; est_min: 2
       - id: kinds           ; title: "The other kinds appear"               ; est_min: 1
       - id: first-edit      ; title: "Your first edit (the watcher reacts)" ; est_min: 1
-      - id: connectors      ; title: "The connectors light up"             ; est_min: 2
+      - id: connectors      ; title: "The connectors light up"             ; est_min: 1
       - id: inspector       ; title: "The inspector and connections"       ; est_min: 1
-      - id: edit-link       ; title: "Edit a link, the topology changes"   ; est_min: 3
-      - id: workspace       ; title: "Navigate the workspace (files, search, isolate)" ; est_min: 2
-      - id: ignore          ; title: "Silence a file via .skillmapignore"  ; est_min: 2
+      - id: edit-link       ; title: "Edit a link, the topology changes"   ; est_min: 2
+      - id: workspace       ; title: "Navigate the workspace (files, search, isolate)" ; est_min: 1
+      - id: ignore          ; title: "Silence a file via .skillmapignore"  ; est_min: 1
 
   - id: basic-fundamentals
     order: 0
@@ -72,15 +72,15 @@ parts:
       - id: init            ; title: "Your first node (sm init, sm, the UI)" ; est_min: 2
       - id: kinds           ; title: "Skills and notes appear"             ; est_min: 1
       - id: first-edit      ; title: "Your first edit (the watcher reacts)" ; est_min: 1
-      - id: connectors      ; title: "Connect with references (markdown links)" ; est_min: 2
+      - id: connectors      ; title: "Connect with references (markdown links)" ; est_min: 1
       - id: inspector       ; title: "The inspector and connections"       ; est_min: 1
-      - id: edit-link       ; title: "Edit a link, the topology changes"   ; est_min: 3
-      - id: workspace       ; title: "Navigate the workspace (files, search, isolate)" ; est_min: 2
-      - id: ignore          ; title: "Silence a file via .skillmapignore"  ; est_min: 2
+      - id: edit-link       ; title: "Edit a link, the topology changes"   ; est_min: 2
+      - id: workspace       ; title: "Navigate the workspace (files, search, isolate)" ; est_min: 1
+      - id: ignore          ; title: "Silence a file via .skillmapignore"  ; est_min: 1
 
   - id: extend
-    order: 3
-    title: "Extend skill-map for the site"
+    order: 4
+    title: "Extend skill-map with plugins"
     # Spans three chapter libraries; dispatch by chapter-id prefix:
     #   settings-*  -> part-settings.md
     #   tour-*      -> part-plugins.md
@@ -97,10 +97,10 @@ parts:
     chapters:
       - id: settings-1-layers        ; title: "The config layers and `sm config list`" ; est_min: 3
       - id: settings-2-resolve       ; title: "Read, resolve, and set a value with `sm config`" ; est_min: 3
-      - id: settings-3-lens          ; title: "The active provider lens (`activeProvider`)" ; est_min: 4
-      - id: tour-1-intro             ; title: "How plugins work" ; est_min: 4
-      - id: tour-2-kinds             ; title: "The six extension kinds" ; est_min: 5
-      - id: tour-3-explore           ; title: "Explore one extension up close" ; est_min: 4
+      - id: settings-3-lens          ; title: "The active provider lens (`activeProvider`)" ; est_min: 3
+      - id: tour-1-intro             ; title: "How plugins work" ; est_min: 3
+      - id: tour-2-kinds             ; title: "The six extension kinds" ; est_min: 4
+      - id: tour-3-explore           ; title: "Explore one extension up close" ; est_min: 3
       - id: authoring-1-scaffold     ; title: "`sm plugins create extractor demo-highlight`" ; est_min: 2
       - id: authoring-2-anatomy      ; title: "Tour the scaffold (plugin.json + stubs + README)" ; est_min: 3
       - id: authoring-3-edit-setting ; title: "Edit a setting (string-list) and observe it in the UI" ; est_min: 3
@@ -108,8 +108,8 @@ parts:
       - id: authoring-5-doctor-author ; title: "Catch a manifest mistake with `sm plugins doctor`" ; est_min: 2
 
   - id: cli
-    order: 4
-    title: "The CLI in depth"
+    order: 3
+    title: "The CLI for you and your agent"
     step_file: part-cli.md
     pace: auto-advance
     preflight: seed            # self-seeds the Part 0 demo fixture
@@ -118,11 +118,11 @@ parts:
     track: both                # CLI verbs are lens-agnostic; prose notes lens-specific node counts
     status: active
     chapters:
-      - id: browse           ; title: "list / show / check" ; est_min: 3
-      - id: graph-export     ; title: "graph / export (query, formatters)" ; est_min: 3
-      - id: issues           ; title: "Issues and broken refs (--analyzers, --json)" ; est_min: 3
+      - id: browse           ; title: "list / show / check" ; est_min: 2
+      - id: graph-export     ; title: "graph / export (query, formatters)" ; est_min: 2
+      - id: issues           ; title: "Issues and broken refs (--analyzers, --json)" ; est_min: 2
       - id: annotations      ; title: "Annotations and the .sm consent prompt" ; est_min: 3
-      - id: reference-paths  ; title: "Validate links to folders outside the scan scope" ; est_min: 4
+      - id: reference-paths  ; title: "Validate links to folders outside the scan scope" ; est_min: 3
 
   # ----- the portfolio campaign (the spine's real project) -----
   # Each part builds on the prior one's accumulated harness. Run in
@@ -133,7 +133,7 @@ parts:
 
   - id: project-kickoff
     order: 1
-    title: "The project from zero"
+    title: "The harness from zero"
     step_file: part-project-kickoff.md
     pace: per-step
     preflight: portfolio-init   # lays the Express skeleton + AGENTS.md; clears the prologue demo fixture if present
@@ -144,10 +144,10 @@ parts:
       - id: kickoff     ; title: "Start the portfolio (sm init on the real skeleton)" ; est_min: 2
       - id: manual      ; title: "The handbook (AGENTS.md) and CLAUDE.md" ; est_min: 2
       - id: first-agent ; title: "The first harness agent (content-editor)" ; est_min: 2
-      - id: real-kinds  ; title: "The real kinds in context" ; est_min: 2
-      - id: check-links ; title: "The check-links skill" ; est_min: 2
-      - id: publish     ; title: "The /publish command invokes the skill" ; est_min: 3
-      - id: links       ; title: "Mentions (@) and references between assets" ; est_min: 3
+      - id: real-kinds  ; title: "The real kinds in context" ; est_min: 1
+      - id: check-links ; title: "The check-links skill" ; est_min: 1
+      - id: publish     ; title: "The /publish command invokes the skill" ; est_min: 2
+      - id: links       ; title: "Mentions (@) and references between assets" ; est_min: 2
       - id: confidence  ; title: "Connector confidence (opacity = certainty)" ; est_min: 2
 
   - id: daily-loop
@@ -162,11 +162,11 @@ parts:
     track: rich               # agent-driven page add + reserved command; basic track has its own counterpart
     status: active
     chapters:
-      - id: setup            ; title: "Make it yours and bring it up" ; est_min: 5
-      - id: add-page         ; title: "Add a page with your agent" ; est_min: 4
-      - id: broken-ref       ; title: "A rename breaks a link" ; est_min: 4
+      - id: setup            ; title: "Make it yours and bring it up" ; est_min: 4
+      - id: add-page         ; title: "Add a page with your agent" ; est_min: 3
+      - id: broken-ref       ; title: "A rename breaks a link" ; est_min: 3
       - id: reserved         ; title: "A reserved name collides" ; est_min: 2
-      - id: publish          ; title: "Ship it: run /publish for real" ; est_min: 4
+      - id: publish          ; title: "Ship it: run /publish for real" ; est_min: 3
       - id: stability        ; title: "Set a node's stability (and the `.sm` sidecar)" ; est_min: 3
       - id: golive           ; title: "Your website, live next to the graph" ; est_min: 3
 
@@ -177,7 +177,7 @@ parts:
 
   - id: basic-kickoff
     order: 1
-    title: "The project from zero"
+    title: "The harness from zero"
     step_file: part-basic-kickoff.md
     pace: per-step
     preflight: portfolio-init
@@ -189,10 +189,10 @@ parts:
       - id: manual       ; title: "The handbook (AGENTS.md) and an entry pointer" ; est_min: 2
       - id: first-skill  ; title: "The first harness skill (content-editor)" ; est_min: 2
       - id: real-kinds   ; title: "The kinds in context" ; est_min: 2
-      - id: check-links ; title: "The link checker" ; est_min: 3
-      - id: publish     ; title: "The publish skill references the harness" ; est_min: 4
-      - id: links       ; title: "The handbook becomes the hub (references)" ; est_min: 4
-      - id: confidence  ; title: "Connector confidence (opacity = certainty)" ; est_min: 3
+      - id: check-links ; title: "The link checker" ; est_min: 2
+      - id: publish     ; title: "The publish skill references the harness" ; est_min: 3
+      - id: links       ; title: "The handbook becomes the hub (references)" ; est_min: 3
+      - id: confidence  ; title: "Connector confidence (opacity = certainty)" ; est_min: 2
 
   - id: basic-daily
     order: 2
@@ -206,11 +206,11 @@ parts:
     track: basic
     status: active
     chapters:
-      - id: setup       ; title: "Make it yours and bring it up" ; est_min: 5
-      - id: add-page    ; title: "Add a page with your skill" ; est_min: 4
-      - id: broken-ref  ; title: "A rename breaks a link" ; est_min: 4
+      - id: setup       ; title: "Make it yours and bring it up" ; est_min: 4
+      - id: add-page    ; title: "Add a page with your skill" ; est_min: 3
+      - id: broken-ref  ; title: "A rename breaks a link" ; est_min: 3
       - id: reserved    ; title: "A reserved name collides" ; est_min: 2
-      - id: publish     ; title: "Ship it: run the publish skill for real" ; est_min: 4
+      - id: publish     ; title: "Ship it: run the publish skill for real" ; est_min: 3
       - id: stability   ; title: "Set a node's stability (and the `.sm` sidecar)" ; est_min: 3
       - id: golive      ; title: "Your website, live next to the graph" ; est_min: 3
 

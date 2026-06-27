@@ -1,4 +1,4 @@
-# Part 1 (basic track): The project from zero (step library, `kickoff-*` ids)
+# Part 1 (basic track): The harness from zero (step library, `kickoff-*` ids)
 
 The campaign turns real here for the **basic track** (the open-standard family:
 `agent-skills`, `antigravity`). After the abstract prologue, the tester starts an

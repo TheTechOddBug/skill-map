@@ -1,6 +1,6 @@
-# Part 3 (c): Extend skill-map - build plugins (step library, `authoring-*` ids)
+# Part 4 (c): Extend skill-map - build plugins (step library, `authoring-*` ids)
 
-Step bodies for the plugin-authoring chapters of Part 3.
+Step bodies for the plugin-authoring chapters of Part 4.
 The SKILL.md orchestrator dispatches each `authoring-*` chapter id
 here; `settings-*` ids it dispatches to `part-settings.md`.
 
@@ -161,12 +161,6 @@ Booting runs a fresh scan, so the extractor re-reads
 the browser, click `notes/ideas`, and find the chip in the card's
 **left footer** (it also shows in the inspector). It reads
 `🔍 kw 3`, one match per keyword.
-
-> Heads up: editing only the fixture (`notes/ideas.md`) updates
-> live through the watcher, but it recounts with the OLD keyword
-> set, so the chip would read `🔍 kw 2`. The new `XXX` keyword
-> lives in the plugin, and the plugin is read at boot, that is why
-> restarting `sm` is the step that takes the count to 3.
 
 > Three matches. The setting flowed from the extension's `settings`
 > through `ctx.settings.keywords` into the extractor, the extractor

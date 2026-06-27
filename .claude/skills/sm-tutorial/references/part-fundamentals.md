@@ -177,7 +177,7 @@ The canvas only draws the resolved arrows; the full per-link breakdown, includin
 > confidence: the numeric value. Here you'll see the contrast, the
 > `references` to `demo-guideline2` reads `1.00` (resolved), while the
 > `mentions` to `demo-guideline` reads `0.50` and is marked broken,
-> that 0.5 is the broken-reference penalty, not "half sure".
+> that 0.5 is the broken-reference penalty, it's a "half sure".
 >
 > Now open the Inspector for a couple of the nodes to read their
 > Incoming count. The four resolved nodes (`demo-agent`,
@@ -313,7 +313,7 @@ Give the tester a mental map of the folder so they know where the file lives, th
 │   └── skills/
 │       ├── demo-skill/SKILL.md
 │       └── sm-tutorial/SKILL.md   ← the tutorial you loaded
-├── .skill-map/              ← project DB + settings (managed)
+├── .skill-map/              ← project DB + settings
 ├── .skillmapignore          ← the file we're about to edit
 └── notes/
     ├── todo.md

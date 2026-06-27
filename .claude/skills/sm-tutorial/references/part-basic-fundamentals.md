@@ -315,7 +315,7 @@ host-dependent rendering rule. Per Inviolable rule #2, the agent does NOT touch
 ├── .agents/skills/
 │   ├── demo-skill/SKILL.md
 │   └── sm-tutorial/SKILL.md   ← the tutorial you loaded
-├── .skill-map/              ← project DB + settings (managed)
+├── .skill-map/              ← project DB + settings
 ├── .skillmapignore          ← the file we're about to edit
 └── notes/
     ├── todo.md

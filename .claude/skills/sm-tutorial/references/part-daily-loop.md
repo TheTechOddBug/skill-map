@@ -338,40 +338,83 @@ Wait for confirmation. Mark `reserved`: done. Auto-advance to `publish`.
 
 ## Chapter `publish` - Ship it: run /publish for real (~4 min)
 
+**Context**: the publish flow only earns its keep when something is actually
+wrong, so first you plant a real bug in the site, then watch `/publish` catch and
+fix it for real.
+
 **Preparation**: make sure the pages exist (`index`, `about`, `projects` from the
-earlier chapters; lay any that are missing from the templates in `setup`). When the tester asks to publish, **execute the publish flow for real**
-by following `.claude/commands/publish.md`: run the `check-links` logic over
-every `.html` under `public/` (does each internal `href` resolve to a file that
-exists?); if any link is broken, brief the `content-editor` to fix it and
-re-run the check; then walk the deploy runbook steps. Do not role-play it.
+earlier chapters; lay any that are missing from the templates in `setup`).
 
-Tell the tester:
+This chapter has two beats: the tester breaks a link in the HTML first, then runs
+`/publish` so the skill catches the break. The split is required, the publish run
+cannot demonstrate the catch until the break is in place.
 
-> The site is ready. Tell me to publish (or type `/publish`) and I'll run your
-> publish command for real: I follow its steps, run the link check across your
-> pages, fix anything through the `content-editor`, and walk the deploy runbook,
-> exactly what the command says to do. (You can read the command's content
-> anytime by clicking the `publish` node on the Map, then opening its **Body**
-> section.)
+**Beat 1, plant the bug (the tester breaks the HTML, their file).** Tell the
+tester:
 
-After running the flow, report what actually happened (keep the promises
-conditional on the real result):
+> Before we ship, let's break something on purpose. Open `public/index.html` in
+> your editor and find the **About** link in the top nav:
+>
+> ```html
+> <a href="/about.html">About</a>
+> ```
+>
+> Change the target to a typo that points at a page that does not exist, then
+> save:
+>
+> ```html
+> <a href="/abuot.html">About</a>
+> ```
+>
+> Now watch the **Map**. Nothing happens: no arrow moves, no red marker. Back in
+> the `broken-ref` chapter, breaking a link between your `.md` files lit up the
+> graph the instant you saved. This break is invisible to it, and that is
+> correct: skill-map maps your **harness** (the `.md` files, Layer 1), not the
+> HTML pages it produces (Layer 2, your `public/` folder, which is even in
+> `.skillmapignore`). A broken link inside your actual site never shows on the
+> graph. The one thing that catches it is your `check-links` skill, which is
+> exactly what `/publish` runs as its first step.
+>
+> Saved the typo, and the Map stayed unchanged?
+
+Wait for confirmation. The Map MUST stay unchanged; if a marker appeared they
+edited a `.md` by mistake, point them back at `public/index.html`.
+
+**Beat 2, run /publish for real.** Tell the tester:
+
+> Now ship it. Tell me to publish (or type `/publish`) and I'll run your publish
+> command for real, exactly as written. (You can read the command anytime by
+> clicking the `publish` node on the Map, then opening its **Body** section.)
+
+When the tester asks to publish, **execute the publish flow for real** by
+following `.claude/commands/publish.md`: run the `check-links` logic over every
+`.html` under `public/` (does each internal `href` resolve to a file that
+exists?), which now finds the planted typo; per step 2, brief the
+`content-editor` to fix it (point the link back at `/about.html`), re-run the
+check until it is clean, then walk the deploy runbook. Do not role-play it;
+`Read` `public/index.html` before and after the fix so the report is honest.
+
+After running the flow, report what actually happened:
 
 > Here is what just ran, for real:
 >
 > - **check-links** walked every page under `public/` and followed each internal
->   link. Result: 0 broken links. (Had it found one, the next step would have
->   briefed `content-editor` to fix it, then re-checked, that is what step 2 is
->   for.)
+>   link. It caught **1 broken link**: `/abuot.html` on `index.html`, the typo
+>   you planted. The graph never flagged it, but the skill did, because the skill
+>   reads your real pages.
+> - **step 2 kicked in**: I briefed your `content-editor` to fix it. It pointed
+>   the link back at `/about.html`, and a re-run of **check-links** came back
+>   clean: 0 broken links.
 > - the **deploy runbook** (`docs/DEPLOYMENT.md`) lists the ship steps:
->   regenerate the pages (done), run the link check (done), start the server
->   (next chapter).
+>   regenerate the pages (done), run the link check (done, now clean), start the
+>   server (next chapter).
 >
-> As you saw in the lines just above, I did not report anything odd: the link
-> check came back clean and `/publish` is wired correctly across your pages.
-> Shall we continue?
+> That is the whole point of the harness: you broke the site, the graph stayed
+> quiet because the HTML is its output and not its map, and your own publish
+> command caught the break and fixed it before it shipped. Shall we continue?
 
-Wait for confirmation. Mark `publish`: done. Auto-advance to `stability`.
+Wait for confirmation. The site MUST be clean again (the typo fixed) before
+`golive`. Mark `publish`: done. Auto-advance to `stability`.
 
 ## Chapter `stability` - Set a node's stability (and the `.sm` sidecar) (~3 min)
 
