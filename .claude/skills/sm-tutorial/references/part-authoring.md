@@ -41,12 +41,35 @@ Created /<cwd>/.skill-map/plugins/demo-highlight
 Next:
   - Edit extractors/demo-highlight-extractor/index.js
   - Run sm plugins doctor to confirm it loads
+  - Run sm plugins trust demo-highlight to let its code run (project-local plugins are untrusted until you allow them)
   - sm plugins slots list: browse slots and input-types
 ```
 
 **Heads up on the id**: it must be **kebab-case lowercase**, no
 slashes, no uppercase. `demo-highlight` is fine, `demo/highlight`
 or `Demo-Highlight` are rejected.
+
+**Trust it before it can run.** A project-local plugin you just dropped
+into `.skill-map/plugins/` is discovered but its code does NOT run until
+you trust it on this machine, a security gate so cloning a repo never
+auto-executes its plugins behind your back. The plugin is yours (you just
+wrote it), so grant trust now; the next chapters need it to run. Tell the
+tester:
+
+> One more step before your plugin can run. skill-map found it but will
+> not execute its code until you **trust** it, your local consent that
+> this code may run on your machine. It is yours, so trust it:
+
+```bash
+sm plugins trust demo-highlight
+```
+
+> Two separate ideas, on purpose: **enable** says "this plugin is part of
+> the project" (shared, lives in the config), **trust** says "I let it run
+> on this machine" (local, never travels in a commit). A scaffolded plugin
+> is enabled by default, so trusting it is all it needs to run. You can
+> revoke later with `sm plugins untrust demo-highlight`, or use the
+> per-plugin Trust control in the Settings UI.
 
 Mark `authoring-1-scaffold: done`.
 
@@ -161,12 +184,6 @@ Booting runs a fresh scan, so the extractor re-reads
 the browser, click `notes/ideas`, and find the chip in the card's
 **left footer** (it also shows in the inspector). It reads
 `🔍 kw 3`, one match per keyword.
-
-> Heads up: editing only the fixture (`notes/ideas.md`) updates
-> live through the watcher, but it recounts with the OLD keyword
-> set, so the chip would read `🔍 kw 2`. The new `XXX` keyword
-> lives in the plugin, and the plugin is read at boot, that is why
-> restarting `sm` is the step that takes the count to 3.
 
 > Three matches. The setting flowed from the extension's `settings`
 > through `ctx.settings.keywords` into the extractor, the extractor

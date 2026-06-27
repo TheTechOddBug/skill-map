@@ -1,23 +1,27 @@
 /**
- * Decide whether a plugin is enabled, given the layered inputs.
+ * Two orthogonal axes for a project-local plugin, resolved here.
  *
- * Decision (recorded against the option-3 vote in the plan):
+ *   - **Enabled** (operational, shareable). Is this plugin / extension
+ *     part of the project? Lives in the config layers
+ *     (`plugins.<id>.enabled` / `plugins.<id>.extensions.<ext>.enabled`
+ *     in `settings.json` committed, `settings.local.json` per-checkout).
+ *     `resolvePluginEnabled` / `makeEnabledResolver` own this question.
  *
- *   `.skill-map/settings.json#/plugins/<id>/enabled` is the **team-shared
- *   baseline** committed to the repo; `config_plugins.enabled` in the DB
- *   is the **user override** that takes precedence locally without
- *   requiring a commit.
+ *   - **Trusted** (security, LOCAL, per-machine). Does THIS machine's
+ *     operator consent to importing the plugin's code? Lives in the DB
+ *     (`config_plugins` trust store, written by `sm plugins trust`),
+ *     plus a local opt-in escape hatch (`pluginTrust.projectEnabled`).
+ *     `makeTrustResolver` owns this question.
  *
- * Effective order (highest precedence first):
+ * A project-local plugin's code is imported iff it is **enabled** (config)
+ * AND (it is **trusted** (DB) OR the local opt-in `pluginTrust.projectEnabled`
+ * is set). Per-extension enable is applied AFTER import, at registration.
  *
- *   1. DB override     (`config_plugins` row, if present)
- *   2. settings.json   (`cfg.plugins[id].enabled`, if defined)
- *   3. installed default, supplied by the caller (`true` for ordinary
- *      extensions, `false` for `experimental` ones, see
- *      `installedDefaultEnabled`)
- *
- * The same precedence applies whether the scope is `project` or
- * `global`; the caller picks which scope's DB to read.
+ * The two axes are deliberately split: a committed `settings.json` can
+ * mark a plugin enabled (team-shared "this is part of the project") but
+ * can NEVER grant import trust, since the DB never travels in a commit.
+ * A fresh clone has no DB trust row and no local opt-in, so its
+ * project-local plugins are discovered but never executed.
  */
 
 import type { TExtensionStability } from '../extensions/base.js';
@@ -26,12 +30,12 @@ import { isPluginLocked } from './locked-plugins.js';
 
 /**
  * Resolver signature consumed across the runtime. The optional
- * `installedDefault` is the value returned when neither the DB nor
- * `settings.json` carries an explicit override for the id; it lets the
- * caller (which holds the extension manifest) push the per-extension
- * default down without the resolver having to know the manifest catalog.
- * Omitted == `true`, the historical "everything enabled until told
- * otherwise" behaviour used by plugin-level (bare id) lookups.
+ * `installedDefault` is the value returned when neither the per-extension
+ * nor the plugin-level config carries an explicit override for the id; it
+ * lets the caller (which holds the extension manifest) push the
+ * per-extension default down without the resolver having to know the
+ * manifest catalog. Omitted == `true`, the historical "everything enabled
+ * until told otherwise" behaviour used by plugin-level (bare id) lookups.
  */
 export type EnabledResolver = (id: string, installedDefault?: boolean) => boolean;
 
@@ -59,38 +63,110 @@ export function installedDefaultEnabled(stability?: TExtensionStability): boolea
   return stability === undefined || !SHIPS_DISABLED.has(stability);
 }
 
+/**
+ * Decide whether a plugin / extension is **enabled** (operational axis)
+ * under the layered config. Enable lives entirely in the config layers
+ * now (the DB no longer carries it); trust is a separate axis resolved
+ * by `makeTrustResolver`.
+ *
+ * Two id shapes resolve here:
+ *
+ *   - **bare** `<plugin>`: `cfg.plugins[id]?.enabled ?? installedDefault`.
+ *   - **qualified** `<plugin>/<ext>`: the per-extension override
+ *     (`cfg.plugins[p]?.extensions?.[e]?.enabled`) wins; else the
+ *     plugin-level override (`cfg.plugins[p]?.enabled`); else
+ *     `installedDefault`.
+ *
+ * The qualified-id walk is load-bearing: the registration filters in
+ * `composer.ts` / `resolver.ts` call it with qualified ids.
+ */
 export function resolvePluginEnabled(
   pluginId: string,
   cfg: Pick<IEffectiveConfig, 'plugins'>,
-  dbOverrides: Map<string, boolean>,
   installedDefault = true,
 ): boolean {
   // Defense in depth, the host lock-list (`./locked-plugins.ts`) is
   // policy. Both the CLI (`sm plugins enable|disable`) and the BFF
   // (`PATCH /api/plugins/...`) reject writes against locked ids up
-  // front, but if a stale `config_plugins` row or a hand-edited
-  // `settings.json` ever slips one through, the resolver overrides it
-  // and returns enabled. This makes "lock" unbreakable at runtime
-  // regardless of persisted state. (Nothing experimental is lockable, so
-  // the lock arm intentionally ignores `installedDefault`.)
+  // front, but if a hand-edited `settings.json` ever slips one through,
+  // the resolver overrides it and returns enabled. This makes "lock"
+  // unbreakable at runtime regardless of persisted state. (Nothing
+  // experimental is lockable, so the lock arm intentionally ignores
+  // `installedDefault`.)
   if (isPluginLocked(pluginId)) return true;
-  if (dbOverrides.has(pluginId)) return dbOverrides.get(pluginId) === true;
+
+  const slash = pluginId.indexOf('/');
+  if (slash >= 0) {
+    return resolveQualifiedEnabled(
+      pluginId.slice(0, slash),
+      pluginId.slice(slash + 1),
+      cfg,
+      installedDefault,
+    );
+  }
+
   const settingsEntry = cfg.plugins[pluginId];
   if (settingsEntry?.enabled !== undefined) return settingsEntry.enabled;
   return installedDefault;
 }
 
 /**
+ * Qualified-id enable walk: per-extension override wins, then the
+ * plugin-level override, then the installed default. Split out of
+ * `resolvePluginEnabled` so the entry point stays within the complexity
+ * budget; the nested optional reads live here.
+ */
+function resolveQualifiedEnabled(
+  plugin: string,
+  ext: string,
+  cfg: Pick<IEffectiveConfig, 'plugins'>,
+  installedDefault: boolean,
+): boolean {
+  const pluginEntry = cfg.plugins[plugin];
+  const perExt = pluginEntry?.extensions?.[ext]?.enabled;
+  if (perExt !== undefined) return perExt;
+  if (pluginEntry?.enabled !== undefined) return pluginEntry.enabled;
+  return installedDefault;
+}
+
+/**
  * Build a closure suitable for `IPluginLoaderOptions.resolveEnabled`.
- * Captures the layered settings and DB override map once so the
- * loader can ask per-plugin without re-reading anything. Forwards the
- * caller-supplied `installedDefault` (per-extension experimental gate)
- * straight through to `resolvePluginEnabled`.
+ * Captures the layered settings once so the loader can ask per-plugin
+ * without re-reading anything. Forwards the caller-supplied
+ * `installedDefault` (per-extension experimental gate) straight through
+ * to `resolvePluginEnabled`.
  */
 export function makeEnabledResolver(
   cfg: Pick<IEffectiveConfig, 'plugins'>,
-  dbOverrides: Map<string, boolean>,
 ): EnabledResolver {
   return (pluginId, installedDefault) =>
-    resolvePluginEnabled(pluginId, cfg, dbOverrides, installedDefault);
+    resolvePluginEnabled(pluginId, cfg, installedDefault);
+}
+
+/**
+ * Build the loader's import-trust gate (security boundary): may a
+ * project-local disk plugin's code be imported AT ALL?
+ *
+ * A plugin is trusted when EITHER the per-machine `config_plugins` trust
+ * store carries a `trusted = true` row for its bare id (written by
+ * `sm plugins trust`), OR the local opt-in `pluginTrust.projectEnabled`
+ * is set (which trusts every plugin the project enables). Both signals
+ * are LOCAL: the DB never travels in a commit and the opt-in is stripped
+ * from the committed config layer, so a cloned repo's `settings.json`
+ * can never auto-execute its own plugins on the victim's first scan.
+ *
+ * `trustMap` is keyed by BARE plugin id (trust is per-plugin); the loader
+ * calls `resolveImportTrust(pluginId)` with a bare id, so shapes match.
+ *
+ * Locked host plugins (built-ins) are always trusted, they never reach
+ * the disk loader, but the arm keeps the gate total.
+ */
+export function makeTrustResolver(
+  trustMap: Map<string, boolean>,
+  trustProjectEnabled: boolean,
+): (pluginId: string) => boolean {
+  return (pluginId) =>
+    isPluginLocked(pluginId) ||
+    trustMap.get(pluginId) === true ||
+    trustProjectEnabled;
 }

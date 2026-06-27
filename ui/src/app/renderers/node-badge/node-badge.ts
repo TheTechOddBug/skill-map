@@ -3,7 +3,7 @@ import { TooltipModule } from 'primeng/tooltip';
 
 import type { IRendererInputs } from '../../slots/slot-renderer-map';
 import { Icon } from '../../slots/icon';
-import { NODE_BADGE_TEXTS } from './node-badge.texts';
+import { NODE_BADGE_TEXTS } from '../../../i18n/node-badge.texts';
 
 /**
  * Renderer for the unified `inspector.header.badge` slot. A generic

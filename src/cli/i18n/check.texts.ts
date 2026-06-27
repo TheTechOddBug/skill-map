@@ -17,6 +17,15 @@ export const CHECK_TEXTS = {
 
   /** Header summary line: `sm check: 10 warnings · 0 errors`. */
   summaryHeader: 'sm check: {{summary}}\n\n',
+  /**
+   * Summary fragments joined by ` · `, each colored at the call site.
+   * `{{plural}}` is `''` / `'s'` resolved by count, matching the
+   * `{{plural}}`-slot pattern used across the other verbs (info has no
+   * plural form).
+   */
+  summaryErrorFragment: '{{count}} error{{plural}}',
+  summaryWarningFragment: '{{count}} warning{{plural}}',
+  summaryInfoFragment: '{{count}} info',
   /** Section heading: one per file with at least one issue. */
   fileSection: '  {{file}}\n',
   /**

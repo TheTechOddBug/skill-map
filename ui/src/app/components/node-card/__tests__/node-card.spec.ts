@@ -182,13 +182,13 @@ describe('NodeCard, catalog curation surfaces (2026-05-07)', () => {
     TestBed.configureTestingModule({});
     // Seed the registry so `agent` carries Claude (primary) AND Gemini.
     // Per the design directive landed during the link-matrix session:
-    // kind dictates the visual, provider does NOT. The host MUST leave
-    // `--accent` empty so the kind-class CSS rule
-    // (`:host([data-kind='agent']) { --accent: var(--sm-kind-agent); }`)
-    // paints the primary's colour. Provider identity surfaces via the
-    // subtitle chip, not via icon / colour overrides that fight the
-    // kind visual. See `kind-icon.ts` for the matching directive on
-    // the icon resolver.
+    // kind dictates the visual, provider does NOT. The host binds
+    // `--accent` to the KIND's registry var (`--sm-kind-agent`), the same
+    // value for a gemini-classified agent as for a claude one, so provider
+    // identity never tints the accent. Provider identity surfaces via the
+    // subtitle chip, not via icon / colour overrides that fight the kind
+    // visual. See `kind-icon.ts` for the matching directive on the icon
+    // resolver.
     const registry = TestBed.inject(KindRegistryService);
     registry.ingest({
       agent: {
@@ -209,10 +209,12 @@ describe('NodeCard, catalog curation surfaces (2026-05-07)', () => {
     fixture.componentRef.setInput('node', node);
     fixture.detectChanges();
     const host = fixture.elementRef.nativeElement as HTMLElement;
-    expect(host.style.getPropertyValue('--accent')).toBe('');
+    // Kind, not provider, drives the accent: `--accent` resolves the kind's
+    // registry var (`--sm-kind-agent`), NOT gemini's #9b72cb.
+    expect(host.style.getPropertyValue('--accent')).toBe('var(--sm-kind-agent, var(--sm-kind-markdown))');
   });
 
-  it('does NOT override --accent when the node is from the primary Provider', () => {
+  it('drives --accent from the kind registry var, independent of provider', () => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({});
     const registry = TestBed.inject(KindRegistryService);
@@ -235,9 +237,9 @@ describe('NodeCard, catalog curation surfaces (2026-05-07)', () => {
     fixture.componentRef.setInput('node', node);
     fixture.detectChanges();
     const host = fixture.elementRef.nativeElement as HTMLElement;
-    // Empty inline --accent → CSS rule paints the primary's color via
-    // the `--sm-kind-agent` var (no inline override needed).
-    expect(host.style.getPropertyValue('--accent')).toBe('');
+    // Same kind var as the gemini case above, so the provider never changes
+    // the accent; the colour comes straight from the kind registry var.
+    expect(host.style.getPropertyValue('--accent')).toBe('var(--sm-kind-agent, var(--sm-kind-markdown))');
   });
 
   it('reads vendor color from agent frontmatter (not metadata.color)', () => {

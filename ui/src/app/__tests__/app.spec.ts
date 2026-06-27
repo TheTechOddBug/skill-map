@@ -177,6 +177,15 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
       counts: { total: 0, returned: 0 },
       kindRegistry: {},
     }),
+  setPluginTrusted: () =>
+    Promise.resolve({
+      schemaVersion: '1',
+      kind: 'plugins',
+      items: [],
+      filters: {},
+      counts: { total: 0, returned: 0 },
+      kindRegistry: {},
+    }),
   applyPluginChanges: () =>
     Promise.resolve({
       schemaVersion: '1',

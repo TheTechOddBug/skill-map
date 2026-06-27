@@ -18,6 +18,11 @@ import { resolveDbPath } from '../../util/db-path.js';
 import { defaultRuntimeContext } from '../../util/runtime-context.js';
 import { ExitCode } from '../../util/exit-codes.js';
 import { pathExists, statOrNull } from '../../util/fs.js';
+import {
+  validateRestorableDb,
+  type TRestoreValidation,
+} from '../../../core/sqlite/restore-validation.js';
+import { VERSION } from '../../version.js';
 import { SmCommand } from '../../util/sm-command.js';
 
 /**
@@ -72,21 +77,18 @@ export class DbRestoreCommand extends SmCommand {
       return ExitCode.NotFound;
     }
 
+    // Header + schema-version gate (spec § Database): refuse a non-DB or
+    // a backup written by a CLI this binary cannot read forward, before
+    // previewing or swapping. Shared by both paths so --dry-run never
+    // green-lights a source the live restore would reject.
+    const validation = await validateRestorableDb(sourcePath, VERSION);
+    if (!validation.ok) {
+      this.printValidationError(validation, sourcePath);
+      return ExitCode.Error;
+    }
+
     if (this.dryRun) {
-      this.printer!.data(DB_TEXTS.dryRunHeader);
-      const sourceBytes = sourceStat.size;
-      const targetClause = (await pathExists(target))
-        ? DB_TEXTS.dryRunRestoreTargetExistsClause
-        : DB_TEXTS.dryRunRestoreTargetMissingClause;
-      this.printer!.data(
-        tx(DB_TEXTS.dryRunRestoreWouldOverwrite, {
-          sourcePath,
-          sourceBytes,
-          target,
-          targetClause,
-        }),
-      );
-      return ExitCode.Ok;
+      return this.previewRestore(sourcePath, sourceStat.size, target);
     }
 
     if (!this.yes) {
@@ -122,5 +124,63 @@ export class DbRestoreCommand extends SmCommand {
       }),
     );
     return ExitCode.Ok;
+  }
+
+  /**
+   * `--dry-run` preview: report the source size and whether the target
+   * would be created or overwritten, without copying or unlinking. The
+   * validation gate has already run, so this only describes the swap.
+   */
+  private async previewRestore(
+    sourcePath: string,
+    sourceBytes: number,
+    target: string,
+  ): Promise<number> {
+    this.printer!.data(DB_TEXTS.dryRunHeader);
+    const targetClause = (await pathExists(target))
+      ? DB_TEXTS.dryRunRestoreTargetExistsClause
+      : DB_TEXTS.dryRunRestoreTargetMissingClause;
+    this.printer!.data(
+      tx(DB_TEXTS.dryRunRestoreWouldOverwrite, {
+        sourcePath,
+        sourceBytes,
+        target,
+        targetClause,
+      }),
+    );
+    return ExitCode.Ok;
+  }
+
+  /** Render a `validateRestorableDb` rejection to stderr. */
+  private printValidationError(
+    validation: Exclude<TRestoreValidation, { ok: true }>,
+    sourcePath: string,
+  ): void {
+    const ansi = this.ansiFor('stderr');
+    if (validation.reason === 'not-sqlite') {
+      this.printer!.error(
+        tx(DB_TEXTS.restoreSourceNotSqlite, {
+          glyph: ansi.red('✕'),
+          sourcePath,
+          hint: ansi.dim(DB_TEXTS.restoreSourceNotSqliteHint),
+        }),
+      );
+      return;
+    }
+    const detailTemplate =
+      validation.reason === 'version-newer'
+        ? DB_TEXTS.restoreSourceVersionNewerDetail
+        : DB_TEXTS.restoreSourceVersionMajorDetail;
+    this.printer!.error(
+      tx(DB_TEXTS.restoreSourceVersionSkew, {
+        glyph: ansi.red('✕'),
+        sourcePath,
+        detail: tx(detailTemplate, {
+          dbVersion: validation.dbVersion,
+          currentVersion: validation.currentVersion,
+        }),
+        hint: ansi.dim(DB_TEXTS.restoreSourceVersionSkewHint),
+      }),
+    );
   }
 }

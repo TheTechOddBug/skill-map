@@ -210,6 +210,38 @@
                     {{ texts.lockedLabel }}
                   </span>
                 }
+                @if (isTrusted(plugin)) {
+                  <span
+                    class="settings-plugins__row-trusted"
+                    [title]="texts.trust.trustedTooltip"
+                    [attr.data-testid]="'settings-row-trusted-' + plugin.id"
+                  >
+                    <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
+                    {{ texts.trust.trustedBadge }}
+                  </span>
+                }
+                @if (isUntrusted(plugin) && !plugin.locked) {
+                  <p-button
+                    class="settings-plugins__row-trust-action"
+                    [label]="texts.trust.trustLabel"
+                    severity="primary"
+                    size="small"
+                    [ariaLabel]="texts.trust.a11y.trust(plugin.id)"
+                    (onClick)="onTrustPlugin(plugin); $event.stopPropagation()"
+                    [attr.data-testid]="'settings-row-trust-' + plugin.id"
+                  />
+                } @else if (isTrusted(plugin) && !plugin.locked) {
+                  <p-button
+                    class="settings-plugins__row-trust-action"
+                    [label]="texts.trust.untrustLabel"
+                    severity="secondary"
+                    size="small"
+                    [outlined]="true"
+                    [ariaLabel]="texts.trust.a11y.untrust(plugin.id)"
+                    (onClick)="onUntrustPlugin(plugin); $event.stopPropagation()"
+                    [attr.data-testid]="'settings-row-untrust-' + plugin.id"
+                  />
+                }
                 @if (hasRuntimeErrors(plugin)) {
                   <span
                     class="settings-plugins__row-runtime-errors"
@@ -224,7 +256,7 @@
               @if (plugin.description) {
                 <p class="settings-plugins__row-description">{{ plugin.description }}</p>
               }
-              @if (plugin.reason) {
+              @if (plugin.reason && isFailed(plugin)) {
                 <span class="settings-plugins__row-reason">{{ plugin.reason }}</span>
               }
               @if (showStartsAsDisabledHint(plugin)) {
@@ -234,6 +266,24 @@
                 >
                   <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
                   {{ texts.startsAsDisabledRowHint }}
+                </p>
+              }
+              @if (isUntrusted(plugin) && !hasLoadedExtensions(plugin)) {
+                <p
+                  class="settings-plugins__row-reason settings-plugins__row-untrusted"
+                  [attr.data-testid]="'settings-row-untrusted-reason-' + plugin.id"
+                >
+                  <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
+                  {{ texts.trust.untrustedReason }}
+                </p>
+              }
+              @if (needsRestartToLoad(plugin) || needsRestartToUnload(plugin)) {
+                <p
+                  class="settings-plugins__row-hint"
+                  [attr.data-testid]="'settings-row-trust-restart-' + plugin.id"
+                >
+                  <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
+                  {{ needsRestartToLoad(plugin) ? texts.trust.trustRestartLoad : texts.trust.trustRestartUnload }}
                 </p>
               }
               @if (hasRuntimeErrors(plugin)) {

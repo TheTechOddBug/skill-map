@@ -2,6 +2,13 @@
 
 The live-UI prologue: the tester runs `sm init`, opens the browser, and watches the map update in real time as files are written and edited. `pace: per-step` (one chapter per exchange; the chapter's own confirmation advances to the next, NO separate "¿seguimos?"), `preflight: taught-init` (the tester runs `sm init` as the first taught step, not pre-flight), and the chapters lay the basics fixture progressively, one node at a time. Shared conventions (tone, provider detection / substitution, the `> ` rendering rule, the per-step cycle) live in `_core.md`; do not restate them here.
 
+**Codex deltas (rich track).** When `tutorial.provider == codex` the lay commands are unchanged (the `--only` ids match the Codex overlay), but the on-disk shapes differ; substitute in the tester-facing prose:
+
+- `init`: the boot node `demo-agent` is a **TOML agent** at `.codex/agents/demo-agent.toml`.
+- `kinds`: the node list reads `.codex/agents/demo-agent.toml` (agent), `.agents/skills/demo-command/SKILL.md` (skill), `.agents/skills/demo-skill/SKILL.md` (skill), and the `notes/*.md`. Name the kinds as agent + skill + markdown (two new kinds this step: skill + markdown). Present `demo-command` as a plain skill: do NOT tell the tester it "is a command" or narrate any command-to-skill substitution. Codex has no `command` kind, so on this track `demo-command` is simply one of the two skills, nothing to explain.
+- `first-edit`: the description to edit lives in `.codex/agents/demo-agent.toml` (the `description = "…"` TOML field, not YAML frontmatter).
+- `connectors` onward: identical, the `@`/`/` bullets resolve the same on Codex; only the `ignore` chapter's directory tree shows `.codex/agents/` + `.agents/skills/` instead of `.claude/`.
+
 ## Chapter `init` - Your first node (~2 min)
 
 Agent background (do NOT render this as a separate context paragraph; the tester-facing version is folded into the message below): `sm init` creates a hidden `.skill-map/` folder in the cwd holding the database where skill-map stores what it learns about the project, and runs an initial scan (mandatory first step). Typing `sm` alone (no arguments) in an initialised dir then starts the UI server with the watcher built in (it is just an alias of `sm serve` with all defaults; the moment you need any flag you write `sm serve --flag ...` explicitly). One process, one terminal: it boots the server, scans the `.md` files, detects changes, and pushes events over WebSocket to the live UI. The next chapters all run against this same `sm` session, you boot it here and keep it alive through the `ignore` chapter.
@@ -38,7 +45,7 @@ Wait for confirmation. Mark `init`: done.
 
 Leave the browser open and the terminal with `sm` running. You create five more nodes **without any cross-fixture links** yet, pure standalone nodes, so the tester sees five new nodes pop in. Three new **kinds** show up in this step (skill, command, markdown); the last two files are sibling `markdown` notes (`demo-guideline`, `demo-guideline2`) the hub in the `connectors` chapter reaches two ways, a bare mention that resolves to nothing (which lands as a broken reference, no arrow drawn) and the same handle plus `.md` that resolves to a real file (a solid arrow).
 
-Lay these five files in one go (their content + translation live in `fixtures-data/`). The script resolves `__PROVIDER__` and auto-skips kinds the provider does not claim (`agent-skills` / Antigravity: both `demo-agent` and `demo-command` fold away, only the skill + the three markdown notes remain), so read the actual node count from the summary's `nodeCount`. Backstage (silent):
+Lay these five files in one go (their content + translation live in `fixtures-data/`). The script resolves `__PROVIDER__` to the claude layout (this is the rich track). Backstage (silent):
 
 ```
 node .claude/skills/sm-tutorial/scripts/fixtures.js lay prologue --only "__PROVIDER__/skills/demo-skill/SKILL.md,__PROVIDER__/commands/demo-command.md,notes/todo.md,notes/demo-guideline.md,notes/demo-guideline2.md" --provider <provider> --lang <lang>
@@ -109,7 +116,7 @@ You edit `notes/todo.md` so it becomes the **hub** that points to each of the ot
 
 Five bullets, three kinds: `invokes` and `mentions` each appear twice, `references` once. The last two bullets are the resolution lesson: a bare `@demo-guideline` mention (which resolves to no agent, so it lands as a broken reference and draws no arrow) next to `@demo-guideline2.md`, the same handle shape plus a `.md` extension that points at a real sibling file (so it resolves and draws a solid arrow). Two separate nodes, one broken and one resolved. Five bullets but only four arrows on the canvas.
 
-Apply the hub bullets (their content + translation live in `fixtures-data/`). The edit appends after the `# Pending` heading; the script drops any bullet whose target kind the provider does not claim (on `agent-skills` / Antigravity there is no agent and no command → the `@demo-agent` and `/demo-command` bullets fold away; the two guideline bullets stay, so the resolution contrast, broken mention 0.50 (no arrow drawn) vs resolved reference 1.00 (solid arrow), is intact on those providers too). Backstage (silent):
+Apply the hub bullets (their content + translation live in `fixtures-data/`). The edit appends after the `# Pending` heading. Backstage (silent):
 
 ```
 node .claude/skills/sm-tutorial/scripts/fixtures.js edit todo-connectors --provider <provider> --lang <lang>
@@ -145,14 +152,10 @@ Tell the tester:
 > (That is also why `@demo-agent` drew fine: an `@name` mention
 > resolves when an agent by that name really exists.)
 >
-> One word on solidity: skill-map draws each connector's
-> **confidence** as opacity, and every arrow you see here is fully
-> solid (1.00) because each one lands on a real node. The faint,
-> partial case shows up later in the campaign; for now the rule is
-> simple, a reference
-> that resolves draws a solid arrow, a reference that points at
-> nothing is not drawn at all and gets flagged instead. The exact
-> per-link numbers live in the inspector, next chapter.
+> 💡 Tip: if all these changes left the nodes crowded together, the
+> map toolbar has a **Re-arrange layout** button: it tidies the
+> layout so everything reads better. If you've moved nodes by hand it
+> asks for confirmation first, otherwise it just re-arranges.
 >
 > Confirm when you see the four arrows plus the broken-reference
 > marker on the hub. If an arrow is missing, refresh the browser and
@@ -164,12 +167,6 @@ Expected: four drawn arrows plus one `core/reference-broken` error on `notes/tod
 
 The canvas only draws the resolved arrows; the full per-link breakdown, including the broken one that never drew, lives in the Inspector. Open it on the hub so the tester registers the surface before the `edit-link` chapter changes topology.
 
-> 💡 Tip: if all these changes left the nodes crowded together, the
-> map toolbar has a **Re-arrange layout** button (tooltip "Re-arrange
-> the visible nodes"): it tidies the layout so everything reads
-> better. If you've moved nodes by hand it asks for confirmation
-> first, otherwise it just re-arranges.
->
 > 🆕 Open the Inspector for **Demo TODO list** (click the node on
 > the map). Find the **Connections** section: it has two sections,
 > **Outgoing** and **Incoming**.
@@ -180,7 +177,7 @@ The canvas only draws the resolved arrows; the full per-link breakdown, includin
 > confidence: the numeric value. Here you'll see the contrast, the
 > `references` to `demo-guideline2` reads `1.00` (resolved), while the
 > `mentions` to `demo-guideline` reads `0.50` and is marked broken,
-> that 0.5 is the broken-reference penalty, not a "halfway sure".
+> that 0.5 is the broken-reference penalty, it's a "half sure".
 >
 > Now open the Inspector for a couple of the nodes to read their
 > Incoming count. The four resolved nodes (`demo-agent`,
@@ -188,6 +185,11 @@ The canvas only draws the resolved arrows; the full per-link breakdown, includin
 > incoming. Open `demo-guideline` and it shows **0**: the broken
 > mention never landed on it, so nothing points in. Five outgoing
 > links on the hub, but only four of them reach a node.
+>
+> 💡 Tip: skill-map draws each connector's **confidence** as opacity.
+> Every arrow here is solid (1.00) because it lands on a real node; a
+> reference that points at nothing is flagged instead of drawn. The
+> fainter, partial case shows up later in the campaign.
 >
 > Let me know when you see it.
 
@@ -223,13 +225,11 @@ Once they confirm, the second edit fixes the broken reference. Tell the tester:
 >
 > Confirm when the new arrow is in and the red marker is gone.
 
-You verify by reading `notes/todo.md` to confirm both edits landed (the `@demo-agent` bullet gone, `@demo-guideline` now `@demo-guideline.md`); the prologue's broken reference is now resolved. (On `agent-skills`, where the `@demo-agent` bullet was never created in the `connectors` chapter, ask the tester to remove the only bullet they did add for the first edit; the `.md` fix on `@demo-guideline` is identical.) Once they confirm, leave the server running, the next chapter reuses it. Mark `edit-link`: done.
+You verify by reading `notes/todo.md` to confirm both edits landed (the `@demo-agent` bullet gone, `@demo-guideline` now `@demo-guideline.md`); the prologue's broken reference is now resolved. Once they confirm, leave the server running, the next chapter reuses it. Mark `edit-link`: done.
 
 ## Chapter `workspace` - Navigate the workspace (files, search, isolate) (~2 min)
 
 **Context**: you've built the graph and understood it; this beat is about *moving around* it. The workspace has two halves: the **Map** you've been working in, and a **Files** panel, a folder tree of every node. You'll open that tree and filter it with the search box. The same `sm` session you booted back in the `init` chapter is still running.
-
-Per §Provider detection, on `agent-skills` / Antigravity the fixture has fewer nodes (`demo-skill` plus the two `notes/` files), so swap the node names below for ones that exist in that set; the gestures are identical.
 
 Walk the three tester actions below one at a time (open the Files
 panel, then search, then isolate); each ends with its own
@@ -247,18 +247,20 @@ action itself.
 > Tell me when the tree is open.
 
 > At the top of that sidebar there's a search box (placeholder
-> `Search…`). Type `guideline`. Watch both halves at once: the tree
-> narrows down to the two guideline nodes (`demo-guideline` and
-> `demo-guideline2`) and the **Map** drops every node except those
-> two. The search matches a node's name, path,
-> or description, and filters live as you type, no Enter needed.
+> `Search…`). Type `guideline`. Watch the tree narrow down to the
+> two guideline nodes (`demo-guideline` and `demo-guideline2`). The
+> search matches a node's name, path, or description, and filters
+> live as you type, no Enter needed. The **Map** stays put: by
+> default the search filters only the files list, not the map (the
+> tip below changes that).
 >
-> Now clear the box. All six nodes come back, in both the tree and
-> the Map. Confirm you saw it filter and then restore.
+> Now clear the box. All six nodes come back in the tree. Confirm you
+> saw it filter and then restore.
 
-> Last one. In the tree, find the **Demo TODO list** row: at its
-> right edge there's a small **sitemap** icon (its tooltip reads
-> "Isolate this node and its direct links on the map"). Click it.
+> Last one. In the tree, find the `notes/todo` row (the **Demo TODO
+> list** hub, the tree labels rows by file name): at its right edge
+> there's a small **sitemap** icon (its tooltip reads "Isolate this
+> node and its direct links on the map"). Click it.
 >
 > The Map collapses to **Demo TODO list** plus only the nodes it
 > draws an arrow to (`demo-command`, `demo-skill`,
@@ -271,10 +273,9 @@ action itself.
 >
 > 💡 Tip: remember the search box from a moment ago? The map-icon
 > button right next to it controls whether the search also filters
-> the **Map**. It's on by default, that's why the **Map** narrowed
-> along with the tree when you searched `guideline`. Click it to
-> switch to filtering only the files list, leaving the map's layout
-> in place.
+> the **Map**. It's off by default, which is why the **Map** stayed
+> put while only the tree narrowed when you searched `guideline`.
+> Click it on if you want a search to filter the map too.
 >
 > Did the map isolate and then restore?
 
@@ -312,7 +313,7 @@ Give the tester a mental map of the folder so they know where the file lives, th
 │   └── skills/
 │       ├── demo-skill/SKILL.md
 │       └── sm-tutorial/SKILL.md   ← the tutorial you loaded
-├── .skill-map/              ← project DB + settings (managed)
+├── .skill-map/              ← project DB + settings
 ├── .skillmapignore          ← the file we're about to edit
 └── notes/
     ├── todo.md

@@ -45,6 +45,7 @@ import {
   type IServerOptions,
   type IServerHandle,
 } from '../../index.js';
+import { withSqlite } from '../../../core/sqlite/with-sqlite.js';
 
 interface IRegisteredAnnotationKeyWire {
   pluginId: string;
@@ -72,7 +73,7 @@ let dbPath: string;
  */
 let populatedRoot: string;
 
-before(() => {
+before(async () => {
   tmp = mkdtempSync(join(tmpdir(), 'skill-map-annot-endpoint-'));
   dbPath = join(tmp, 'primed.db');
 
@@ -94,6 +95,14 @@ before(() => {
     location: 'root',
     ownership: 'exclusive',
   });
+  // Post-H1 import-trust gate: project-local plugins are discovered but
+  // their code stays dormant until locally trusted. Grant trust (the
+  // in-test equivalent of `sm plugins enable`) so the populated boot
+  // actually imports both extensions and surfaces their contributions.
+  // The gate reads `config_plugins` from the default project DB under
+  // `runtimeContext.cwd` (`populatedRoot`), so the override lands there.
+  await trustProjectPlugin(populatedRoot, 'reviewer');
+  await trustProjectPlugin(populatedRoot, 'governance');
 });
 
 after(() => {
@@ -143,6 +152,22 @@ function plantContributionPlugin(
       extract() {},
     };`,
   );
+}
+
+/**
+ * Grant local import-trust for a project-local plugin, the in-test
+ * equivalent of `sm plugins enable <id>`: write a `config_plugins`
+ * override into the project DB so the H1 import-trust gate (default-
+ * disabled for cloned project-local plugins) imports the plugin's code
+ * when the BFF boots. The gate reads the override from
+ * `<cwd>/.skill-map/skill-map.db`, where `cwd` is the boot's
+ * `runtimeContext.cwd`, so trust must land under that same root.
+ */
+async function trustProjectPlugin(cwd: string, pluginId: string): Promise<void> {
+  const dbPath = join(cwd, '.skill-map', 'skill-map.db');
+  await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
+    await adapter.trust.set(pluginId, true);
+  });
 }
 
 function defaultOptions(overrides: Partial<IServerOptions> = {}): IServerOptions {

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "id": "reserved-names",
+  "description": "The reserved-name catalog applies to BOTH slash-invocable kinds. The demo-antigravity-reserved corpus has a workflow named `tasks` and a skill named `goal`, each shadowing an `agy` built-in slash command. Under the antigravity lens both classify (workflow + skill) and `core/name-reserved` flags both via self scope: two nodes, two warn issues. Proves the catalog covers the `workflow` kind, not only `skill`.",
+  "fixture": "demo-antigravity-reserved",
+  "invoke": {
+    "verb": "scan",
+    "flags": ["--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "json-path", "path": "$.stats.nodesCount", "equals": 2 },
+    { "type": "json-path", "path": "$.stats.issuesCount", "equals": 2 }
+  ]
+}

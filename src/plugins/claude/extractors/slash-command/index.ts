@@ -75,12 +75,16 @@ export const slashCommandExtractor: IBuiltInManifest<IExtractor> = {
   kind: 'extractor',
   description: 'Turns `/command` invocations in a node\'s body into arrows that point at the resolved slash command or skill, using Claude Code routing rules. Example: `/deploy` in the body draws an arrow to the `deploy` command.',
   scope: 'body',
-  // Also authorised under the codex lens so a Codex agent's prompt body
-  // (the TOML `developer_instructions` field) has its `/command` tokens parsed for
-  // pipeline parity with the claude body. codex declares no `invokes`
-  // resolution today, so these signals stay unresolved (no spurious edges)
-  // until Codex slash commands land in Phase 6b.
-  precondition: { provider: ['claude', 'codex'] },
+  // Also authorised under the codex and antigravity lenses, which share the
+  // `/command` grammar. Under codex a sub-agent's prompt body (the TOML
+  // `developer_instructions` field) has its `/command` tokens parsed for
+  // pipeline parity; codex resolves them to its open-standard skills
+  // (`invokes: ['skill']`). Under antigravity a workflow / skill / AGENTS.md
+  // body's `/name` tokens resolve to BOTH skills and workflows
+  // (`invokes: ['skill', 'workflow']`), since Antigravity invokes either by
+  // the same slash. A lens that declares no `invokes` resolution leaves the
+  // signals unresolved (no spurious edges).
+  precondition: { provider: ['claude', 'codex', 'antigravity'] },
 
   extract(ctx: IExtractorContext): void {
     const seen = new Set<string>();

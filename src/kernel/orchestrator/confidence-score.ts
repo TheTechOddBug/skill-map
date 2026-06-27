@@ -21,7 +21,7 @@
  *      a single `set` simply replaces the base.
  *   3. `delta`: additive (may be negative), summed.
  *   4. `floor`: raise to at least the value (`max`).
- *   5. `ceil`: lower to at most the value (`min`) — today's broken cap.
+ *   5. `ceil`: lower to at most the value (`min`), today's broken cap.
  *      Applied AFTER floor so a cap dominates a floor/ceil collision.
  *   6. clamp to [0,1] ONCE at the end, so opposing deltas round-trip
  *      (e.g. `-0.4` then `+0.4` returns to base, never clipped midway).

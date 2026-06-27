@@ -7,20 +7,66 @@
 export const PROVIDER_TOKEN = '__PROVIDER__';
 
 export function providerDir(provider) {
-  // agent-skills and Antigravity share the open `.agents/skills/` layout.
-  return provider === 'agent-skills' || provider === 'antigravity'
+  // agent-skills, Antigravity and Codex all keep their SKILLS under the
+  // open `.agents/skills/` layout. (Codex additionally has TOML agents under
+  // `.codex/agents/`, supplied by the codex overlay's literal paths, not this
+  // single base dir.)
+  return provider === 'agent-skills' || provider === 'antigravity' || provider === 'codex'
     ? '.agents/skills'
     : '.claude';
 }
 
 export const PROVIDER_KINDS = {
   claude: new Set(['agent', 'command', 'skill', 'markdown']),
+  // Codex authors its agents as TOML under `.codex/agents/` (a different shape
+  // than the base `__PROVIDER__/agents/*.md`), so the base tier lays only its
+  // shared skill + markdown nodes; the codex overlay supplies the TOML agents
+  // and the command-as-skill nodes (Codex has no `command` kind).
+  codex: new Set(['skill', 'markdown']),
   'agent-skills': new Set(['skill', 'markdown']),
   antigravity: new Set(['skill', 'markdown']),
 };
 
 export function kindsFor(provider) {
   return PROVIDER_KINDS[provider] ?? PROVIDER_KINDS.claude;
+}
+
+/**
+ * Tutorial track for a provider, by the "does this lens have an `agent`
+ * kind?" axis (see `_core.md` §Provider detection):
+ *   - `rich`  (agent + skill + slash + `@`): `claude`, `codex`.
+ *   - `basic` (skill + markdown, connected by markdown references): the
+ *     open-standard family `agent-skills`, `antigravity`.
+ * The book renders the track's parts; the same lens always resolves to
+ * the same track, so a resumed session never re-derives it.
+ */
+export function trackFor(provider) {
+  return provider === 'claude' || provider === 'codex' ? 'rich' : 'basic';
+}
+
+/**
+ * The provider whose fixture overlays a given provider reuses. The
+ * open-standard family (`agent-skills`, `antigravity`) shares one on-disk
+ * shape (`.agents/skills/`, skill + markdown, connected by markdown
+ * references), so `antigravity` reuses the canonical `agent-skills`
+ * overlays rather than duplicating them. Every other provider keys its own.
+ */
+export function overlayKey(provider) {
+  return provider === 'antigravity' ? 'agent-skills' : provider;
+}
+
+/**
+ * Kinds whose edit fragments (the todo-connectors hub bullets, etc.) apply for
+ * a provider, keyed by TRACK, not by the base-tier kinds. A rich provider links
+ * to every node role even when it renders some differently, Codex's agent is a
+ * TOML overlay and its command-node is a skill, but an `@agent` mention and a
+ * `/command` invocation still resolve, so every bullet applies. A basic
+ * provider only has skill + markdown, so the agent / command bullets fold away.
+ */
+export function fragmentKindsFor(provider) {
+  return trackFor(provider) === 'rich'
+    ? new Set(['agent', 'command', 'skill', 'markdown'])
+    : new Set(['skill', 'markdown']);
 }
 
 /**
@@ -31,6 +77,7 @@ export function kindsFor(provider) {
  */
 const KIND_DIRS = {
   claude: { agents: '.claude/agents', commands: '.claude/commands', skills: '.claude/skills' },
+  codex: { skills: '.agents/skills' },
   'agent-skills': { skills: '.agents/skills' },
   antigravity: { skills: '.agents/skills' },
 };
@@ -63,4 +110,27 @@ export function kindForPath(tokenRelPath) {
   if (tokenRelPath.startsWith(`${PROVIDER_TOKEN}/commands/`)) return 'command';
   if (tokenRelPath.startsWith(`${PROVIDER_TOKEN}/skills/`)) return 'skill';
   return 'markdown';
+}
+
+/**
+ * Logical, lens-agnostic node id for a token-form path. The SAME
+ * conceptual node renders in a different kind per lens (a `content-editor`
+ * is an `agent` on claude but a `skill` on agent-skills), so a `--only`
+ * filter or an edit target written in the claude shape must still match
+ * the agent-skills overlay. Agents / commands use the file stem; skills
+ * use the skill directory name; everything else (markdown, notes, docs)
+ * keeps its relpath verbatim. So both `__PROVIDER__/agents/content-editor.md`
+ * and `__PROVIDER__/skills/content-editor/SKILL.md` resolve to `content-editor`.
+ */
+export function nodeIdForTokenPath(tokenRelPath) {
+  const flat = tokenRelPath.match(/^__PROVIDER__\/(?:agents|commands)\/(.+)\.md$/);
+  if (flat) return flat[1];
+  const skill = tokenRelPath.match(/^__PROVIDER__\/skills\/([^/]+)\//);
+  if (skill) return skill[1];
+  // Codex renders an agent as a literal `.codex/agents/<name>.toml`; map it
+  // to the same id as the claude-shaped `__PROVIDER__/agents/<name>.md` so a
+  // `--only` filter (or the skipped-node dedup) matches across the two shapes.
+  const codexAgent = tokenRelPath.match(/^\.codex\/agents\/(.+)\.toml$/);
+  if (codexAgent) return codexAgent[1];
+  return tokenRelPath;
 }

@@ -97,18 +97,24 @@
       "type": "object",
       "required": ["skillDir"],
       "additionalProperties": false,
-      "description": "Authoring targets for verbs that MATERIALISE files into this Provider's on-disk territory (today only `sm tutorial`, which drops a skill folder where the Provider's runtime will discover it). Distinct from `detect` (which READS markers to suggest a lens) and from `classify` (which READS paths during a scan): `scaffold` is the WRITE side, the directory a generator drops new content into so the target runtime picks it up. Optional: a Provider with no `scaffold` block is never offered as a destination by a materialising verb (e.g. `codex` until Codex skills land, `antigravity` whose skills live under the open-standard `agent-skills` territory, `core/markdown` which owns no authoring convention). The skill-folder convention is uniform across hosts (`<skillDir>/<name>/SKILL.md`), so a single `skillDir` is enough today; a future verb that scaffolds agents or commands adds a sibling field (`agentDir`, `commandDir`) without breaking this one.",
+      "description": "Authoring targets for verbs that MATERIALISE files into this Provider's on-disk territory (today only `sm tutorial`, which drops a skill folder where the Provider's runtime will discover it). Distinct from `detect` (which READS markers to suggest a lens) and from `classify` (which READS paths during a scan): `scaffold` is the WRITE side, the directory a generator drops new content into so the target runtime picks it up. Optional: a Provider with no `scaffold` block is never offered as a destination by a materialising verb (e.g. `antigravity`, whose skills and basic-track book are already covered by the open-standard `agent-skills` row, and `core/markdown`, which owns no authoring convention). The skill-folder convention is uniform across hosts (`<skillDir>/<name>/SKILL.md`), so a single `skillDir` is enough today; a future verb that scaffolds agents or commands adds a sibling field (`agentDir`, `commandDir`) without breaking this one.",
       "properties": {
         "skillDir": {
           "type": "string",
           "minLength": 1,
           "pattern": "^\\.?[A-Za-z0-9][A-Za-z0-9._/-]*$",
-          "description": "Directory (relative to the scope root) under which a materialising verb writes a skill folder, e.g. `.claude/skills` for Claude, `.agents/skills` for the open standard. The verb appends `/<skillName>/SKILL.md`. Relative, no leading slash and no `..` traversal (the pattern forbids both); the consuming verb joins it onto the cwd."
+          "description": "Directory (relative to the scope root) under which a materialising verb writes a skill folder, e.g. `.claude/skills` for Claude, `.agents/skills` for the open standard (also Codex, whose skills adopt that layout). The verb appends `/<skillName>/SKILL.md`. Relative, no leading slash and no `..` traversal (the pattern forbids both); the consuming verb joins it onto the cwd."
+        },
+        "marker": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^\\.?[A-Za-z0-9][A-Za-z0-9._/-]*$",
+          "description": "Optional directory the materialising verb creates so the active-lens resolver picks THIS Provider when its `skillDir` is shared with another lens. The open `.agents/skills` territory is read by several lenses (`agent-skills`, `antigravity`, `codex`), so a Provider whose skillDir is that shared territory but whose lens needs a distinct marker (e.g. Codex's `.codex`) declares it here, and `sm tutorial --for <id>` drops the marker alongside the skill so the project resolves the intended lens. Omitted when the skillDir's own parent IS the marker (`.claude/skills` → the `.claude` marker)."
         },
         "aka": {
           "type": "array",
           "minItems": 1,
-          "description": "Display-only hints naming the agents that consume this Provider's scaffold territory, shown in parentheses next to the Provider label in the `sm tutorial` destination prompt (e.g. the open-standard `.agents/skills` is read by Google's Antigravity and OpenAI's Codex, so its `agent-skills` Provider lists them here). Purely presentational: these strings are NOT matched by `--for` (only registered Provider ids are) and have no runtime effect. Optional; absent means the prompt shows the bare Provider label.",
+          "description": "Display-only hints naming the agents that consume this Provider's scaffold territory AND share its tutorial track, shown in parentheses next to the Provider label in the `sm tutorial` destination prompt (e.g. the open-standard `.agents/skills` `agent-skills` Provider lists Google's Antigravity, which shares both the territory and the basic track; OpenAI's Codex also reads that territory but is a rich-track lens, so it is NOT listed here, advertising it under the basic row would hand it the wrong book). Purely presentational: these strings are NOT matched by `--for` (only registered Provider ids are) and have no runtime effect. Optional; absent means the prompt shows the bare Provider label.",
           "items": { "type": "string", "minLength": 1 }
         }
       }

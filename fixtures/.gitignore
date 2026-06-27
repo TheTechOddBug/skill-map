@@ -1,4 +1,7 @@
 ignore
 local-scope.old
 ai-engineering
-skills
+# Anchored to the top-level `fix:skills` scratch fixture only. Unanchored
+# `skills` also matched every fixture's `.agents/skills/` directory, which
+# silently dropped committed skill corpora (e.g. antigravity, codex).
+/skills/

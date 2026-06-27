@@ -1,6 +1,12 @@
 /**
  * Build a `resolveEnabled` closure that reflects the current state of
- * `config_plugins` in the DB layered over `settings.json#/plugins`.
+ * the layered config (`settings.json#/plugins` over installed defaults).
+ *
+ * Enable is a pure-config concern now (the DB no longer carries it, it
+ * carries the orthogonal import-trust grant), so this is a thin wrapper
+ * over `makeEnabledResolver`. The "freshness" the consumers below need
+ * comes from `configService.reload()` after a settings write, NOT from a
+ * per-call SQLite read.
  *
  * Consumers:
  *
@@ -8,17 +14,13 @@
  *     sees the post-PATCH state on F5 / re-open even though the runtime
  *     itself is boot-cached.
  *   - `src/server/routes/plugins.ts`, `PATCH /api/plugins[/...]` to
- *     project the post-write state into the response envelope.
+ *     project the post-write state into the response envelope (after a
+ *     `configService.reload()`).
  *   - `src/server/routes/scan.ts`, `POST /api/scan` (the topbar
  *     refresh) so a manual refresh after a toggle honours the new
  *     value without restarting `sm serve`.
  *   - `src/core/watcher/runtime.ts`, per chokidar batch, so
  *     edit-driven scans honour toggles made in the same session.
- *
- * One SQLite read per call (`SELECT plugin_id, enabled FROM
- * config_plugins`); the layered `IEffectiveConfig` is supplied by the
- * caller (cached via `ConfigService` in the BFF, loaded per process by
- * watcher / CLI offline callers).
  *
  * The `startsAsDisabled` exception (drop-in plugins whose discovery-time
  * `status === 'disabled'`) is enforced at compose time in
@@ -30,53 +32,36 @@
 
 import type { IEffectiveConfig } from '../../kernel/config/loader.js';
 import { makeEnabledResolver } from '../../kernel/config/plugin-resolver.js';
-import { tryWithSqlite } from '../sqlite/with-sqlite.js';
 
 export interface IFreshResolverDeps {
-  /** Absolute path to the project / global SQLite DB. */
-  databasePath: string;
   /**
    * Effective config provider. The BFF passes its cached
    * `configService.effective` bound method; offline callers (`runScanForCommand`,
    * the watcher's batch loop) pass a closure over their already-loaded config.
    */
   effectiveConfig: () => Pick<IEffectiveConfig, 'plugins'>;
-  /**
-   * Resolver to return when the DB file is absent. Read-side callers
-   * degrade to the boot-cached resolver here so the request still
-   * returns a usable shape; mutating callers should never hit this path
-   * (the DB-missing gate runs before the write).
-   */
-  fallbackResolver: (id: string) => boolean;
 }
 
 /**
- * Build a resolver from a fresh `config_plugins` read.
- *
- * Returns the `fallbackResolver` when the DB file is absent (read-paths
- * degrade; mutating callers fail fast with `db-missing` upstream).
+ * Build a resolver from the current layered config. Async-shaped so the
+ * BFF / watcher call sites that previously awaited a SQLite read keep
+ * the same `await` ergonomics; the implementation no longer touches the
+ * DB.
  */
 export async function buildFreshResolver(
   deps: IFreshResolverDeps,
 ): Promise<(id: string) => boolean> {
-  const overrides = await tryWithSqlite(
-    { databasePath: deps.databasePath, autoBackup: false },
-    async (adapter) => adapter.pluginConfig.loadOverrideMap(),
-  );
-  if (overrides === null) return deps.fallbackResolver;
-  return makeEnabledResolver(deps.effectiveConfig(), overrides);
+  return makeEnabledResolver(deps.effectiveConfig());
 }
 
 /**
- * Build a resolver from an already-loaded overrides map. Used by
- * `PATCH /api/plugins[/...]` right after the write transaction: the
- * route loads the map inside the same transaction that wrote it, then
- * composes the resolver to project the post-write state into the
- * response envelope without a second SQLite open.
+ * Build a resolver from an already-loaded effective config. Used by
+ * `PATCH /api/plugins[/...]` right after the write + `configService.reload()`
+ * to project the post-write enable state into the response envelope
+ * without re-reading the config.
  */
 export function composeResolver(
   effectiveConfig: Pick<IEffectiveConfig, 'plugins'>,
-  overrides: Map<string, boolean>,
 ): (id: string) => boolean {
-  return makeEnabledResolver(effectiveConfig, overrides);
+  return makeEnabledResolver(effectiveConfig);
 }

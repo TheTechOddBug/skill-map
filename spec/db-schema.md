@@ -431,22 +431,22 @@ The BFF's `/api/nodes` route loads the full set of favorited paths once per requ
 
 ### `config_plugins`
 
-Persists user-toggled enable/disable overrides. Discovery is still filesystem-based; this table records user intent.
+Records the operator's LOCAL import-trust grants for project-local drop-in plugins. This is the **security** axis (may THIS machine import and run the plugin's code), NOT the operational enable/disable toggle, which lives in the config layers (`plugins.<id>.enabled` / `plugins.<id>.extensions.<ext>.enabled` in `settings.json` / `settings.local.json`). Discovery is still filesystem-based; this table records per-machine consent. The table name is retained for continuity.
 
 | Column | Type | Constraint |
 |---|---|---|
 | `plugin_id` | TEXT | PRIMARY KEY |
-| `enabled` | INTEGER | NOT NULL DEFAULT 1 |
-| `config_json` | TEXT | NULL |
+| `trusted` | INTEGER | NOT NULL DEFAULT 0, CHECK (`trusted` IN (0,1)) |
 | `updated_at` | INTEGER | NOT NULL |
 
-**Effective enable/disable resolution.** A plugin is enabled iff the highest-precedence layer that mentions it says so. Order from highest to lowest:
+**Effective trust resolution.** A project-local plugin's code is imported iff it is **enabled** (config layers) AND it is **trusted** locally. A plugin is trusted iff either:
 
-1. `config_plugins.enabled` for the row whose `plugin_id` matches, written by `sm plugins enable/disable`. Local-machine user override; never committed (the DB is gitignored unless the team removes the `.gitignore` entry).
-2. `.skill-map/settings.json#/plugins/<id>/enabled`, committed team-shared baseline.
-3. Installed default, every discovered plugin is enabled until told otherwise.
+1. A `config_plugins` row with `trusted = 1` exists for its `plugin_id`, written by `sm plugins trust` (cleared by `sm plugins untrust`). Keyed by the **bare plugin id** (trust is per-plugin; a qualified `<plugin>/<ext>` collapses to its plugin), OR
+2. the local opt-in `pluginTrust.projectEnabled` (project-local-only config, honoured only from `settings.local.json`) is set, which trusts every plugin the project enables.
 
-The DB takes precedence over `settings.json` so a developer can locally disable a misbehaving plugin without committing the toggle to the team's config. Conversely, a team baseline that explicitly enables a plugin is overridable per-machine, no agreement required to experiment.
+The store is structurally LOCAL: the DB never travels in a commit and is not a config layer, so a cloned repo's committed `settings.json` can never grant import trust to its own plugins (the supply-chain guard). Built-ins and `--plugin-dir` are not trust-gated. See [`architecture.md` §Locality](./architecture.md) (plugin enable vs import trust).
+
+Greenfield note: this table previously stored the enable/disable toggle (`enabled` plus a vestigial `config_json`); both were dropped when enable moved to the config layers. Per the pre-1.0 greenfield posture the redefinition is applied inline to `001_initial.sql` with no migration file; the `scan_meta.schema_fingerprint` drift path rebuilds the cache on the first scan.
 
 ### `config_preferences`
 

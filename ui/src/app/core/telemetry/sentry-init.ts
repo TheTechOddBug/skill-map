@@ -15,6 +15,11 @@
  *      (`preferences.telemetry.errorsEnabled`). Absent / false is OFF;
  *      `true` is the only value that enables reporting.
  *
+ * Today the DSN ships populated (a real `skill-map-ui` project), so gate
+ * (1) is satisfied in normal builds and the live, default-off gate is
+ * consent (2). The `''` DSN stays a kill switch for forks / forced
+ * dormancy, it is not the day-to-day reason telemetry is off.
+ *
  * The `@sentry/angular` SDK is DYNAMICALLY imported, never statically.
  * That keeps ~90 KB of SDK out of the eager initial bundle: while the
  * feature is dormant (consent off) the chunk is never even fetched, so
@@ -63,10 +68,12 @@ let initialised = false;
 let sdk: typeof import('@sentry/angular') | null = null;
 
 /**
- * `true` when a real UI DSN has been configured. While the placeholder
- * is empty the entire telemetry surface stays dormant; exposed so the
- * bootstrap (and any future consent affordance) can gate on it and so
- * the dormant contract is unit-testable without standing up the SDK.
+ * `true` when a real UI DSN has been configured (it ships populated, so
+ * this is `true` in normal builds). Set the DSN to `''` (a fork /
+ * kill-switch build) and the whole telemetry surface stays dormant
+ * regardless of consent; exposed so the bootstrap (and any future
+ * consent affordance) can gate on it and so the dormant contract is
+ * unit-testable without standing up the SDK.
  */
 export function isUiDsnConfigured(): boolean {
   return SENTRY_DSN_UI !== '';
@@ -100,14 +107,10 @@ export async function initUiSentry(opts: {
     dsn: SENTRY_DSN_UI,
     release: opts.release ?? undefined,
     environment: opts.environment,
-    // Errors only: drop the default `browserSessionIntegration` so NO
-    // release-health session beacon is sent on page load / route change.
-    // The error surface MUST stay silent until a real error
-    // (`spec/telemetry.md` §Surface: Errors); a proactive session POST on
-    // every load contradicts that. Filter rather than replace so the
-    // remaining defaults (global error + unhandled-rejection handlers,
-    // breadcrumbs) stay. No browserTracing / replay / feedback added.
-    integrations: (defaults) => defaults.filter((integration) => integration.name !== 'BrowserSession'),
+    // Errors only, plus a tightened breadcrumb set. The transform is
+    // factored into `buildUiIntegrations` (below) so the privacy posture
+    // is unit-testable without loading the SDK or calling `Sentry.init`.
+    integrations: (defaults) => buildUiIntegrations(Sentry.breadcrumbsIntegration, defaults),
     tracesSampleRate: 0,
     sendDefaultPii: false,
     // Loopback-only reporting: the UI is only ever served from
@@ -134,4 +137,41 @@ export async function initUiSentry(opts: {
 export function captureUiException(error: unknown): void {
   if (!initialised || sdk === null) return;
   sdk.captureException(error);
+}
+
+/** The SDK's `breadcrumbsIntegration` factory (erased type-only import). */
+type BreadcrumbsFactory = (typeof import('@sentry/angular'))['breadcrumbsIntegration'];
+/** A Sentry integration, as produced by the SDK's own factories. */
+export type UiIntegration = ReturnType<BreadcrumbsFactory>;
+
+/**
+ * Build the UI integration set from the SDK defaults. Pure (no SDK init,
+ * no network), exported so the privacy posture is unit-testable without
+ * loading `@sentry/angular` or calling `Sentry.init`.
+ *
+ *   - Drops `BrowserSession` so NO release-health session beacon is sent
+ *     on page load / route change: the error surface MUST stay silent
+ *     until a real error (`spec/telemetry.md` §Surface: Errors). The
+ *     global error + unhandled-rejection handlers stay.
+ *   - Re-configures `Breadcrumbs` to stop auto-recording the sources that
+ *     carry free-form strings the home-only scrubber cannot fully redact:
+ *     console log text, fetch / xhr request URLs (with `?path=` / `?node=`
+ *     query), and DOM interaction selectors. Navigation (history)
+ *     breadcrumbs stay for triage; their route is home-scrubbed in
+ *     `beforeSend`.
+ *
+ * Every other default integration passes through untouched. No
+ * browserTracing / replay / feedback is ever added.
+ */
+export function buildUiIntegrations(
+  breadcrumbsIntegration: BreadcrumbsFactory,
+  defaults: UiIntegration[],
+): UiIntegration[] {
+  return defaults
+    .filter((integration) => integration.name !== 'BrowserSession')
+    .map((integration) =>
+      integration.name === 'Breadcrumbs'
+        ? breadcrumbsIntegration({ console: false, fetch: false, xhr: false, dom: false })
+        : integration,
+    );
 }

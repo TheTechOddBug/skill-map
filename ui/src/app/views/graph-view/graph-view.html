@@ -47,7 +47,7 @@
     <div
       class="graph__canvas-wrap"
       #canvasWrap
-      [smMiddleMousePan]="canvas()"
+      [smMiddleMousePan]="panTarget"
       (click)="onCanvasClick($event)"
       data-testid="graph-canvas-wrap"
     >

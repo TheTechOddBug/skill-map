@@ -436,15 +436,27 @@ function groupRowsByFile(rows: IRenderRow[]): Map<string, IRenderRow[]> {
 function formatSummary(counts: Record<Severity, number>, ansi: IAnsi): string {
   const parts: string[] = [];
   if (counts.error > 0) {
-    parts.push(ansi.red(`${counts.error} error${counts.error === 1 ? '' : 's'}`));
+    parts.push(
+      ansi.red(
+        tx(CHECK_TEXTS.summaryErrorFragment, {
+          count: counts.error,
+          plural: counts.error === 1 ? '' : 's',
+        }),
+      ),
+    );
   }
   if (counts.warn > 0) {
     parts.push(
-      ansi.yellow(`${counts.warn} warning${counts.warn === 1 ? '' : 's'}`),
+      ansi.yellow(
+        tx(CHECK_TEXTS.summaryWarningFragment, {
+          count: counts.warn,
+          plural: counts.warn === 1 ? '' : 's',
+        }),
+      ),
     );
   }
   if (counts.info > 0) {
-    parts.push(ansi.cyan(`${counts.info} info`));
+    parts.push(ansi.cyan(tx(CHECK_TEXTS.summaryInfoFragment, { count: counts.info })));
   }
   return parts.join(' · ');
 }

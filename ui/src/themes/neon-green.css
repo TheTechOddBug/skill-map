@@ -69,10 +69,17 @@
      themed but `--p-primary-hover-color` / `--p-primary-active-color`
      fall back to the violet preset, so a themed button flashes violet on
      hover. Mirrors the matrix danger-button idiom (lighter on hover,
-     darker on press). Secondary-text (e.g. the Discard button) gets a
-     themed hover/active wash so it stops using the neutral default. */
+     darker on press). Secondary-text buttons (dialog Discard / Reject /
+     Cancel, the zoom toolbar) get the FULL themed chain here: base colour
+     one notch down (accent-dim) so they stay subordinate to the primary
+     action, hover lifting to the full accent with the matching wash. Set
+     globally so it reaches dialogs appended to <body>, not just the
+     in-shell toolbar (which used to be the only place the base colour
+     was set). */
   --p-primary-hover-color: color-mix(in srgb, var(--sm-ngreen-accent) 80%, #ffffff);
   --p-primary-active-color: color-mix(in srgb, var(--sm-ngreen-accent) 70%, #000000);
+  --p-button-text-secondary-color: var(--sm-ngreen-accent-dim);
+  --p-button-text-secondary-hover-color: var(--sm-ngreen-accent);
   --p-button-text-secondary-hover-background: color-mix(in srgb, var(--sm-ngreen-accent) 18%, transparent);
   --p-button-text-secondary-active-background: color-mix(in srgb, var(--sm-ngreen-accent) 26%, transparent);
   --p-content-background: var(--sm-bg-content);
@@ -198,6 +205,17 @@ html.app-neon-green {
   --p-form-field-icon-color: var(--sm-ngreen-accent-dim);
   --p-form-field-float-label-color: var(--sm-ngreen-muted);
   --p-form-field-float-label-focus-color: var(--sm-ngreen-accent);
+  /* Selected-state highlight chain. Aura bakes `--p-highlight-*` from the
+     preset's violet primary as literal colours (re-keying `--p-primary-*`
+     does NOT reach them), so a `p-select` / multiselect / autocomplete /
+     listbox selected option reads violet and its focused row the surface
+     grey. Retint to the accent so every overlay's selected option matches
+     the shell, the active-provider `<select>` (Settings, Project) is the
+     visible one. */
+  --p-highlight-background: color-mix(in srgb, var(--sm-ngreen-accent) 18%, transparent);
+  --p-highlight-focus-background: color-mix(in srgb, var(--sm-ngreen-accent) 26%, transparent);
+  --p-highlight-color: var(--sm-ngreen-accent);
+  --p-highlight-focus-color: var(--sm-ngreen-accent);
 }
 
 /* Selectbutton selected pill, retinted on both layers (root surface +
@@ -300,15 +318,12 @@ html.app-neon-green .f-connection.f-selected {
   filter: drop-shadow(0 0 6px color-mix(in srgb, var(--sm-ngreen-accent) 85%, transparent));
 }
 
-/* Floating zoom toolbar: PrimeNG `severity="secondary" [text]` reads the
-   `--p-button-text-secondary-*` chain. Override at the wrapper so the
-   green tint propagates without fighting specificity inside the button.
-   Shares the card glow shape so the pill reads as another neon surface. */
+/* Floating zoom toolbar. The secondary-text accent chain now comes from
+   the global theme block above (it already uses accent-dim, the notch the
+   toolbar wanted), so the toolbar only carries its floating-surface chrome
+   here (card glow + page background so the pill reads as another neon
+   surface). */
 html.app-neon-green .graph__toolbar {
-  --p-button-text-secondary-color: var(--sm-ngreen-accent-dim);
-  --p-button-text-secondary-hover-color: var(--sm-ngreen-accent);
-  --p-button-text-secondary-hover-background: color-mix(in srgb, var(--sm-ngreen-accent) 18%, transparent);
-  --p-button-text-secondary-active-background: color-mix(in srgb, var(--sm-ngreen-accent) 26%, transparent);
   box-shadow: var(--sm-shadow-card);
   background: var(--sm-bg-page);
 }

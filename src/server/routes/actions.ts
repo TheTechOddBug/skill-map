@@ -66,7 +66,7 @@
 import type { Hono } from 'hono';
 // eslint-disable-next-line import-x/extensions
 import { HTTPException } from 'hono/http-exception';
-import { resolve } from 'node:path';
+import { relative, resolve } from 'node:path';
 
 import { assertContained } from '../../core/paths/path-guard.js';
 import { ActionRefusedError } from '../app.js';
@@ -344,11 +344,35 @@ function invokeAction(
  * `ESidecarWritersForbiddenError` so it maps to 403
  * `sidecar-writers-forbidden`; any other failure surfaces as a 500.
  */
+/**
+ * L1 (defense in depth): the sidecar `w.path` is whatever the Action
+ * returned. Built-in Actions derive it from the already-contained node
+ * path, but a buggy or hostile plugin Action could return an out-of-tree
+ * absolute path. Validate containment (relative to cwd, which also
+ * rejects an absolute path on another root) for every sidecar write
+ * BEFORE any of them runs, so one bad path aborts the whole batch
+ * instead of clobbering a file outside the project. The symlink-leaf
+ * check in `assertContained` additionally refuses to patch through a
+ * swapped symlink (TOCTOU against the `.sm` file).
+ */
+export function assertSidecarWritesContained(writes: TActionWrite[] | undefined, cwd: string): void {
+  for (const w of writes ?? []) {
+    if (w.kind !== 'sidecar') continue;
+    try {
+      assertContained(cwd, relative(cwd, w.path));
+    } catch (err) {
+      throw new HTTPException(400, { message: formatErrorMessage(err) });
+    }
+  }
+}
+
 async function materializeWrites(
   writes: TActionWrite[] | undefined,
   body: IActionBody,
   cwd: string,
 ): Promise<void> {
+  assertSidecarWritesContained(writes, cwd);
+
   const store = new FilesystemSidecarStore(ensureSidecarWritesAllowed);
   try {
     for (const w of writes ?? []) {

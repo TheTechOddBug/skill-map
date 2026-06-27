@@ -1,11 +1,16 @@
 /**
- * Step 6.6, `config_plugins` storage + resolver + PluginLoader
- * `disabled` status. Three layers:
+ * Split plugin **enable** (operational, config layers) from **trust**
+ * (security, `config_plugins` DB store). Four layers:
  *
- *   1. Direct storage helper round-trips (set/get/list/delete).
- *   2. resolvePluginEnabled precedence (DB > settings.json > default).
- *   3. PluginLoader honours the resolver: returns status='disabled'
- *      with the manifest still attached, no extensions imported.
+ *   1. Trust-store helper round-trips (set/get/list/delete/loadTrustMap).
+ *   2. resolvePluginEnabled precedence (per-extension > plugin-level >
+ *      installed default), config-only, with the qualified-id walk.
+ *   3. makeTrustResolver (bare-id trust map + `pluginTrust.projectEnabled`
+ *      opt-in + locked arm + fail-closed empty map).
+ *   4. PluginLoader honours BOTH gates in order: enabled-but-untrusted =>
+ *      not loaded (`untrusted: true`); trust granted => loaded; an
+ *      explicit config-disable reads `disabledByConfig`, never re-reads as
+ *      untrusted (the bug this split fixes).
  */
 
 import { strict as assert } from 'node:assert';
@@ -18,14 +23,16 @@ import { PluginLoader, installedSpecVersion } from '../../kernel/adapters/plugin
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import {
-  deletePluginOverride,
-  getPluginEnabled,
-  loadPluginOverrideMap,
-  setPluginEnabled,
+  deletePluginTrust,
+  getPluginTrusted,
+  listPluginTrust,
+  loadPluginTrustMap,
+  setPluginTrusted,
 } from '../../kernel/adapters/sqlite/plugins.js';
 import {
   installedDefaultEnabled,
   makeEnabledResolver,
+  makeTrustResolver,
   resolvePluginEnabled,
 } from '../../kernel/config/plugin-resolver.js';
 import type { IEffectiveConfig } from '../../kernel/config/loader.js';
@@ -49,55 +56,57 @@ after(() => {
 });
 
 // -----------------------------------------------------------------------------
-// Storage helpers
+// Trust-store helpers
 // -----------------------------------------------------------------------------
 
-describe('config_plugins storage helpers', () => {
-  it('setPluginEnabled + getPluginEnabled round-trip', async () => {
+describe('config_plugins trust-store helpers', () => {
+  it('setPluginTrusted + getPluginTrusted round-trip', async () => {
     const dbPath = freshDb('round-trip');
     const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
     await adapter.init();
     try {
-      assert.equal(await getPluginEnabled(adapter.db, 'foo'), undefined);
-      await setPluginEnabled(adapter.db, 'foo', false);
-      assert.equal(await getPluginEnabled(adapter.db, 'foo'), false);
-      await setPluginEnabled(adapter.db, 'foo', true);
-      assert.equal(await getPluginEnabled(adapter.db, 'foo'), true);
+      assert.equal(await getPluginTrusted(adapter.db, 'foo'), undefined);
+      await setPluginTrusted(adapter.db, 'foo', false);
+      assert.equal(await getPluginTrusted(adapter.db, 'foo'), false);
+      await setPluginTrusted(adapter.db, 'foo', true);
+      assert.equal(await getPluginTrusted(adapter.db, 'foo'), true);
     } finally {
       await adapter.close();
     }
   });
 
-  it('loadPluginOverrideMap returns every row', async () => {
+  it('loadPluginTrustMap returns every row keyed by bare id', async () => {
     const dbPath = freshDb('list');
     const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
     await adapter.init();
     try {
-      await setPluginEnabled(adapter.db, 'a', true);
-      await setPluginEnabled(adapter.db, 'b', false);
-      await setPluginEnabled(adapter.db, 'c', false);
-      const map = await loadPluginOverrideMap(adapter.db);
+      await setPluginTrusted(adapter.db, 'a', true);
+      await setPluginTrusted(adapter.db, 'b', false);
+      await setPluginTrusted(adapter.db, 'c', true);
+      const map = await loadPluginTrustMap(adapter.db);
       assert.equal(map.size, 3);
       assert.equal(map.get('a'), true);
       assert.equal(map.get('b'), false);
-      assert.equal(map.get('c'), false);
+      assert.equal(map.get('c'), true);
+      const rows = await listPluginTrust(adapter.db);
+      assert.deepEqual(rows.map((r) => r.pluginId), ['a', 'b', 'c']);
     } finally {
       await adapter.close();
     }
   });
 
-  it('deletePluginOverride drops the row; idempotent on missing id', async () => {
+  it('deletePluginTrust drops the row; idempotent on missing id', async () => {
     const dbPath = freshDb('delete');
     const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
     await adapter.init();
     try {
-      await setPluginEnabled(adapter.db, 'foo', false);
-      assert.equal(await getPluginEnabled(adapter.db, 'foo'), false);
-      await deletePluginOverride(adapter.db, 'foo');
-      assert.equal(await getPluginEnabled(adapter.db, 'foo'), undefined);
+      await setPluginTrusted(adapter.db, 'foo', true);
+      assert.equal(await getPluginTrusted(adapter.db, 'foo'), true);
+      await deletePluginTrust(adapter.db, 'foo');
+      assert.equal(await getPluginTrusted(adapter.db, 'foo'), undefined);
       // Idempotent
-      await deletePluginOverride(adapter.db, 'foo');
-      await deletePluginOverride(adapter.db, 'never-existed');
+      await deletePluginTrust(adapter.db, 'foo');
+      await deletePluginTrust(adapter.db, 'never-existed');
     } finally {
       await adapter.close();
     }
@@ -105,62 +114,61 @@ describe('config_plugins storage helpers', () => {
 });
 
 // -----------------------------------------------------------------------------
-// Resolver precedence
+// resolvePluginEnabled (config-only) precedence
 // -----------------------------------------------------------------------------
 
 function cfg(plugins: IEffectiveConfig['plugins']): Pick<IEffectiveConfig, 'plugins'> {
   return { plugins };
 }
 
-describe('resolvePluginEnabled, precedence', () => {
-  it('default = true when neither layer mentions the id', () => {
-    assert.equal(resolvePluginEnabled('foo', cfg({}), new Map()), true);
+describe('resolvePluginEnabled, config-only precedence', () => {
+  it('default = true when the config does not mention the id', () => {
+    assert.equal(resolvePluginEnabled('foo', cfg({})), true);
   });
 
-  it('settings.json overrides the default', () => {
+  it('plugin-level enabled overrides the default (bare id)', () => {
+    assert.equal(resolvePluginEnabled('foo', cfg({ foo: { enabled: false } })), false);
+    assert.equal(resolvePluginEnabled('foo', cfg({ foo: { enabled: true } })), true);
+  });
+
+  it('qualified id: per-extension enabled wins over plugin-level and default', () => {
+    // Per-extension override present -> it wins.
     assert.equal(
-      resolvePluginEnabled('foo', cfg({ foo: { enabled: false } }), new Map()),
+      resolvePluginEnabled(
+        'foo/ext',
+        cfg({ foo: { enabled: true, extensions: { ext: { enabled: false } } } }),
+      ),
       false,
     );
-  });
-
-  it('DB override overrides settings.json', () => {
-    const dbOverrides = new Map<string, boolean>([['foo', true]]);
+    // No per-extension override -> falls back to plugin-level.
     assert.equal(
-      resolvePluginEnabled('foo', cfg({ foo: { enabled: false } }), dbOverrides),
-      true,
-    );
-    const dbOff = new Map<string, boolean>([['foo', false]]);
-    assert.equal(
-      resolvePluginEnabled('foo', cfg({ foo: { enabled: true } }), dbOff),
+      resolvePluginEnabled('foo/ext', cfg({ foo: { enabled: false } })),
       false,
     );
+    // Neither -> installed default.
+    assert.equal(resolvePluginEnabled('foo/ext', cfg({})), true);
   });
 
-  it('makeEnabledResolver curries cfg + dbOverrides into a (id) => boolean', () => {
+  it('makeEnabledResolver curries cfg into a (id) => boolean (no DB arg)', () => {
     const resolver = makeEnabledResolver(
-      cfg({ foo: { enabled: false } }),
-      new Map<string, boolean>([['bar', true]]),
+      cfg({ foo: { enabled: false, extensions: { only: { enabled: true } } } }),
     );
-    assert.equal(resolver('foo'), false);   // settings.json wins
-    assert.equal(resolver('bar'), true);    // DB wins
-    assert.equal(resolver('baz'), true);    // default
+    assert.equal(resolver('foo'), false); // plugin-level off
+    assert.equal(resolver('foo/only'), true); // per-extension on
+    assert.equal(resolver('foo/other'), false); // falls back to plugin-level off
+    assert.equal(resolver('baz'), true); // default
   });
 
   it('installedDefault flips the no-override fall-back (experimental / deprecated ship off)', () => {
-    // No DB row, no settings entry: the caller-supplied installed
-    // default decides. Experimental / deprecated extensions pass `false`.
-    assert.equal(resolvePluginEnabled('exp', cfg({}), new Map(), false), false);
-    assert.equal(resolvePluginEnabled('ord', cfg({}), new Map(), true), true);
+    assert.equal(resolvePluginEnabled('exp', cfg({}), false), false);
+    assert.equal(resolvePluginEnabled('ord', cfg({}), true), true);
     // An explicit enable override still wins over a `false` default.
     assert.equal(
-      resolvePluginEnabled('exp', cfg({ exp: { enabled: true } }), new Map(), false),
+      resolvePluginEnabled('exp', cfg({ exp: { enabled: true } }), false),
       true,
     );
-    const dbOn = new Map<string, boolean>([['exp', true]]);
-    assert.equal(resolvePluginEnabled('exp', cfg({}), dbOn, false), true);
     // The curried resolver forwards the installed default verbatim.
-    const resolver = makeEnabledResolver(cfg({}), new Map());
+    const resolver = makeEnabledResolver(cfg({}));
     assert.equal(resolver('exp', false), false);
     assert.equal(resolver('exp', true), true);
   });
@@ -175,7 +183,40 @@ describe('resolvePluginEnabled, precedence', () => {
 });
 
 // -----------------------------------------------------------------------------
-// PluginLoader respects resolveEnabled
+// makeTrustResolver (the import-trust gate)
+// -----------------------------------------------------------------------------
+
+describe('makeTrustResolver', () => {
+  it('trusts nothing with an empty map + no opt-in (fresh clone, fail-closed)', () => {
+    const trust = makeTrustResolver(new Map(), false);
+    assert.equal(trust('evil'), false);
+    assert.equal(trust('anything'), false);
+  });
+
+  it('trusts a plugin whose bare id carries a trusted = true row', () => {
+    const trust = makeTrustResolver(new Map([['my-plugin', true]]), false);
+    assert.equal(trust('my-plugin'), true);
+    assert.equal(trust('other'), false);
+  });
+
+  it('a trusted = false row does not grant trust', () => {
+    const trust = makeTrustResolver(new Map([['my-plugin', false]]), false);
+    assert.equal(trust('my-plugin'), false);
+  });
+
+  it('the pluginTrust.projectEnabled opt-in trusts every plugin', () => {
+    const trust = makeTrustResolver(new Map(), true);
+    assert.equal(trust('a'), true);
+    assert.equal(trust('b'), true);
+  });
+
+  it('always trusts a locked host id (defense-in-depth arm)', () => {
+    assert.equal(makeTrustResolver(new Map(), false)('core/markdown'), true);
+  });
+});
+
+// -----------------------------------------------------------------------------
+// PluginLoader respects BOTH gates (enable then trust)
 // -----------------------------------------------------------------------------
 
 function writeMockPlugin(rootDir: string, id: string): string {
@@ -190,10 +231,6 @@ function writeMockPlugin(rootDir: string, id: string): string {
       catalogCompat: '*',
     }),
   );
-  // Structure-as-truth: kind and id come from the folder path, not the
-  // manifest export. The exported object stays pure data so AJV's
-  // `unevaluatedProperties: false` passes without needing the runtime
-  // extractor contract, perfect for testing enable/disable flow.
   const extDir = join(dir, 'extractors', `${id}-extractor`);
   mkdirSync(extDir, { recursive: true });
   writeFileSync(
@@ -206,29 +243,66 @@ function writeMockPlugin(rootDir: string, id: string): string {
   return dir;
 }
 
-describe('PluginLoader, disabled status', () => {
-  it('returns status=disabled when resolveEnabled returns false; manifest preserved, extensions empty', async () => {
+describe('PluginLoader, enable + trust gates', () => {
+  it('enabled but untrusted => not loaded, untrusted: true, reason points at trust', async () => {
+    const dir = mkdtempSync(join(root, 'loader-untrusted-'));
+    writeMockPlugin(dir, 'needs-trust');
+    const loader = new PluginLoader({
+      searchPaths: [dir],
+      validators: loadSchemaValidators(),
+      specVersion: installedSpecVersion(),
+      resolveEnabled: () => true, // enabled in config
+      resolveImportTrust: () => false, // but not trusted on this machine
+    });
+    const plugins = await loader.discoverAndLoadAll();
+    assert.equal(plugins.length, 1);
+    const p = plugins[0]!;
+    assert.equal(p.status, 'disabled');
+    assert.equal(p.untrusted, true);
+    assert.equal(p.extensions, undefined);
+    assert.match(p.reason ?? '', /trust/);
+  });
+
+  it('enabled and trusted => loaded (status enabled, extensions imported)', async () => {
+    const dir = mkdtempSync(join(root, 'loader-trusted-'));
+    writeMockPlugin(dir, 'all-good');
+    const loader = new PluginLoader({
+      searchPaths: [dir],
+      validators: loadSchemaValidators(),
+      specVersion: installedSpecVersion(),
+      resolveEnabled: () => true,
+      resolveImportTrust: () => true,
+    });
+    const plugins = await loader.discoverAndLoadAll();
+    assert.equal(plugins.length, 1);
+    const p = plugins[0]!;
+    assert.equal(p.status, 'enabled');
+    assert.equal(p.untrusted, undefined);
+    assert.equal(p.extensions?.length, 1);
+  });
+
+  it('config-disabled reads disabledByConfig, NOT untrusted (the split bug fixed)', async () => {
+    // The enable gate runs BEFORE the trust gate: a plugin the operator
+    // turned off in config reports `disabledByConfig`, never re-reads as
+    // untrusted even when no trust grant exists.
     const dir = mkdtempSync(join(root, 'loader-disabled-'));
     writeMockPlugin(dir, 'opt-out');
     const loader = new PluginLoader({
       searchPaths: [dir],
       validators: loadSchemaValidators(),
       specVersion: installedSpecVersion(),
-      resolveEnabled: (id) => id !== 'opt-out',
+      resolveEnabled: (id) => id !== 'opt-out', // disabled in config
+      resolveImportTrust: () => false, // and would be untrusted too
     });
     const plugins = await loader.discoverAndLoadAll();
     assert.equal(plugins.length, 1);
     const p = plugins[0]!;
-    assert.equal(p.id, 'opt-out');
     assert.equal(p.status, 'disabled');
-    assert.ok(p.manifest, 'manifest preserved');
-    // Structure-as-truth: manifest no longer carries `id`; the discovery
-    // row computes it from the directory name and surfaces it on `p.id`.
-    assert.equal(p.extensions, undefined);
-    assert.match(p.reason ?? '', /disabled/);
+    assert.notEqual(p.untrusted, true); // NOT flagged untrusted
+    assert.match(p.reason ?? '', /disabled by/);
   });
 
-  it('omitting resolveEnabled treats every plugin as enabled (back-compat)', async () => {
+  it('omitting both gates treats every plugin as enabled + trusted (back-compat)', async () => {
     const dir = mkdtempSync(join(root, 'loader-default-'));
     writeMockPlugin(dir, 'default-on');
     const loader = new PluginLoader({

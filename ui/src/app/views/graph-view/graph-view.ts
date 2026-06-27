@@ -55,7 +55,7 @@ import { ViewContributionsHost } from '../../components/view-contributions-host/
 import { DebugPerfService } from '../../services/debug-perf';
 import { UsageTrackerService } from '../../services/usage-tracker';
 import { InspectorView } from '../inspector-view/inspector-view';
-import { MiddleMousePanDirective } from './middle-mouse-pan';
+import { MiddleMousePanDirective, type IMiddleMousePanTarget } from './middle-mouse-pan';
 import {
   computeDagreLayout,
   computeForceLayoutPositions,
@@ -176,8 +176,8 @@ export class GraphView implements OnInit {
   private readonly usageTracker = inject(UsageTrackerService);
 
   private readonly flow = viewChild(FFlowComponent);
-  // Protected: template binds `[smMiddleMousePan]="canvas()"` to feed
-  // the middle-mouse pan directive.
+  // Protected: `panTarget` (below) reads this for the middle-mouse pan's
+  // final `emitCanvasChangeEvent()` flush.
   protected readonly canvas = viewChild(FCanvasComponent);
   private readonly zoom = viewChild(FZoomDirective);
   private readonly canvasWrap = viewChild<ElementRef<HTMLElement>>('canvasWrap');
@@ -231,6 +231,18 @@ export class GraphView implements OnInit {
   });
   protected readonly viewportPosition = this.viewportStore.viewportPosition;
   protected readonly viewportScale = this.viewportStore.viewportScale;
+  /**
+   * Accessors the middle-mouse pan directive drives. Foblex 18.6 dropped
+   * the public `setPosition`, so the pan writes the `[position]` signal
+   * (the same path the viewport animations use) instead of poking the
+   * canvas imperatively; `emitChange` flushes a final persist at the end
+   * of the gesture.
+   */
+  protected readonly panTarget: IMiddleMousePanTarget = {
+    readPosition: () => this.viewportPosition(),
+    writePosition: (p) => this.viewportPosition.set(p),
+    emitChange: () => this.canvas()?.emitCanvasChangeEvent(),
+  };
   protected readonly canZoomIn = this.viewportStore.canZoomIn;
   protected readonly canZoomOut = this.viewportStore.canZoomOut;
 

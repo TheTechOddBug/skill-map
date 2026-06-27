@@ -119,7 +119,7 @@ export interface IScanRunOpts {
   /**
    * Optional resolver override that the composer threads into
    * `composeScanExtensions(..., resolveEnabled)`. The BFF builds this
-   * fresh from `config_plugins` on every `POST /api/scan` / watcher
+   * fresh from the layered config on every `POST /api/scan` / watcher
    * batch so a mid-session toggle is honoured without restarting
    * `sm serve` (see `core/runtime/fresh-resolver.ts`). CLI offline
    * callers (`sm scan`) leave this undefined, the runtime is reloaded

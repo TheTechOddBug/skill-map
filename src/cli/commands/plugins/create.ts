@@ -107,6 +107,7 @@ export class PluginsCreateCommand extends SmCommand {
       tx(PLUGINS_TEXTS.createSuccess, {
         targetDir: sanitizeForTerminal(targetDir),
         mainFile,
+        pluginId: this.pluginId,
       }),
     );
     return ExitCode.Ok;

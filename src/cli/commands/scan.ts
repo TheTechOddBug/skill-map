@@ -8,6 +8,7 @@ import { SCAN_RUNNER_TEXTS } from '../../core/runtime/i18n/scan-runner.texts.js'
 import { SCAN_TEXTS } from '../i18n/scan.texts.js';
 import type { IAnsi } from '../util/ansi.js';
 import { ExitCode } from '../util/exit-codes.js';
+import { tryParsePositiveInt } from '../util/option-validators.js';
 import { readConformanceKillSwitches } from '../util/conformance-env.js';
 import { relativeIfBelow } from '../util/path-display.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
@@ -224,8 +225,8 @@ export class ScanCommand extends SmCommand {
     invalidHint: string,
   ): { kind: 'ok'; value: number | undefined } | { kind: 'error'; exit: number } {
     if (raw === undefined) return { kind: 'ok', value: undefined };
-    const n = Number(raw);
-    if (!Number.isInteger(n) || n < 1) {
+    const n = tryParsePositiveInt(raw);
+    if (n === null) {
       const ansi = this.ansiFor('stderr');
       this.printer!.info(
         tx(invalidTemplate, {

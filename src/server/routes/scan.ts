@@ -95,7 +95,7 @@ async function runPersistedScan(c: Context, deps: IScanRouteDeps): Promise<Respo
   }
   try {
     return await withScanMutex(async () => {
-      // Build a fresh resolver from `config_plugins` BEFORE invoking
+      // Build a fresh resolver from the layered config BEFORE invoking
       // the runner so a mid-session PATCH to `/api/plugins[/...]` is
       // honoured by this scan without restarting `sm serve`. The cached
       // `deps.pluginRuntime` carries the boot-time resolver; this one
@@ -153,9 +153,7 @@ async function runPersistedScan(c: Context, deps: IScanRouteDeps): Promise<Respo
  */
 async function buildBffResolverOverride(deps: IRouteDeps): Promise<(id: string) => boolean> {
   return buildFreshResolver({
-    databasePath: deps.options.dbPath,
     effectiveConfig: () => deps.configService.effective(),
-    fallbackResolver: deps.pluginRuntime.resolveEnabled,
   });
 }
 

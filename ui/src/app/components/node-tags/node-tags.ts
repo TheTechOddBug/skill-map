@@ -48,7 +48,7 @@ import {
   type IInputTypeDescriptor,
   type TInputTypeValue,
 } from '../../renderers/input-type-control/input-type-control';
-import { NODE_TAGS_TEXTS } from './node-tags.texts';
+import { NODE_TAGS_TEXTS } from '../../../i18n/node-tags.texts';
 
 /** Qualified id of the deterministic Action that writes the tags. */
 const SET_TAGS_ACTION_ID = 'core/node-set-tags';

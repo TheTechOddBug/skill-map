@@ -7,8 +7,10 @@
   "footprints": {
     "prologue": [
       "__PROVIDER__/agents/demo-agent.md",
+      ".codex/agents/demo-agent.toml",
       "__PROVIDER__/skills/demo-skill",
       "__PROVIDER__/commands/demo-command.md",
+      "__PROVIDER__/skills/demo-command",
       "notes/todo.md",
       "notes/demo-guideline.md",
       "notes/demo-guideline2.md",
@@ -28,12 +30,18 @@
       "docs/DEPLOY.md",
       "docs/DEPLOYMENT.md",
       "__PROVIDER__/agents/content-editor.md",
+      ".codex/agents/content-editor.toml",
+      "__PROVIDER__/skills/content-editor",
       "__PROVIDER__/skills/check-links",
       "__PROVIDER__/commands/publish.md",
-      "__PROVIDER__/commands/new-page.md"
+      "__PROVIDER__/skills/publish",
+      "__PROVIDER__/commands/new-page.md",
+      "__PROVIDER__/skills/new-page"
     ],
     "master": [
       "__PROVIDER__/agents/master-agent.md",
+      ".codex/agents/master-agent.toml",
+      "__PROVIDER__/skills/master-agent",
       "__PROVIDER__/skills/master-skill",
       "notes/ideas.md"
     ],
@@ -73,9 +81,6 @@
       "lay": ["prologue"],
       "edits": ["todo-connectors"],
       "drop": ["notes/private-credentials.md"]
-    },
-    "harness-built": {
-      "lay": ["portfolio"]
     },
     "harness-connected": {
       "lay": ["portfolio", "harness"],

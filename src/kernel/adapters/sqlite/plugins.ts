@@ -1,8 +1,15 @@
 /**
- * Storage helpers for the `config_plugins` table, persists the user's
- * enable/disable overrides for discovered plugins. Read-side feeds
- * `sm plugins list/show/doctor`; write-side feeds
- * `sm plugins enable/disable`.
+ * Storage helpers for the `config_plugins` table, the per-machine plugin
+ * import-trust store (the SECURITY axis). Read-side feeds
+ * `sm plugins list/show/doctor` and the scan-boot import-trust gate;
+ * write-side feeds `sm plugins trust/untrust` and
+ * `PATCH /api/plugins/:id/trust`.
+ *
+ * The operational enable/disable toggle does NOT live here, it lives in
+ * the config layers (`plugins.<id>.enabled` /
+ * `plugins.<id>.extensions.<ext>.enabled`). This table records only
+ * per-machine consent to import a project-local plugin's code, keyed by
+ * the bare plugin id.
  *
  * The table schema is shipped in the kernel's initial migration (see
  * `src/migrations/001_initial.sql`). This module only adds the helpers.
@@ -11,33 +18,32 @@
 import type { Kysely, Transaction } from 'kysely';
 
 import type { IDatabase } from './schema.js';
-import type { IPluginConfigRow } from '../../types/storage.js';
+import type { IPluginTrustRow } from '../../types/storage.js';
 
-export type { IPluginConfigRow } from '../../types/storage.js';
+export type { IPluginTrustRow } from '../../types/storage.js';
 
 type TDbOrTx = Kysely<IDatabase> | Transaction<IDatabase>;
 
 /**
- * Upsert a single `config_plugins` row. `now` defaults to `Date.now()`
- * when omitted.
+ * Upsert a single `config_plugins` trust row. `now` defaults to
+ * `Date.now()` when omitted.
  */
-export async function setPluginEnabled(
+export async function setPluginTrusted(
   db: TDbOrTx,
   pluginId: string,
-  enabled: boolean,
+  trusted: boolean,
   now: number = Date.now(),
 ): Promise<void> {
   await db
     .insertInto('config_plugins')
     .values({
       pluginId,
-      enabled: enabled ? 1 : 0,
-      configJson: null,
+      trusted: trusted ? 1 : 0,
       updatedAt: now,
     })
     .onConflict((oc) =>
       oc.column('pluginId').doUpdateSet({
-        enabled: enabled ? 1 : 0,
+        trusted: trusted ? 1 : 0,
         updatedAt: now,
       }),
     )
@@ -45,44 +51,43 @@ export async function setPluginEnabled(
 }
 
 /**
- * Fetch the enabled override for one plugin id. Returns `undefined`
- * when the user has not set an override (the caller falls back to
- * `settings.json` → installed default).
+ * Fetch the trust grant for one plugin id. Returns `undefined` when no
+ * row exists (the plugin is untrusted unless the local opt-in
+ * `pluginTrust.projectEnabled` is set).
  */
-export async function getPluginEnabled(
+export async function getPluginTrusted(
   db: TDbOrTx,
   pluginId: string,
 ): Promise<boolean | undefined> {
   const row = await db
     .selectFrom('config_plugins')
-    .select(['enabled'])
+    .select(['trusted'])
     .where('pluginId', '=', pluginId)
     .executeTakeFirst();
   if (!row) return undefined;
-  return row.enabled === 1;
+  return row.trusted === 1;
 }
 
-/** List every override row. Useful for `sm plugins list`. */
-export async function listPluginOverrides(db: TDbOrTx): Promise<IPluginConfigRow[]> {
+/** List every trust row. Useful for `sm plugins list`. */
+export async function listPluginTrust(db: TDbOrTx): Promise<IPluginTrustRow[]> {
   const rows = await db
     .selectFrom('config_plugins')
-    .select(['pluginId', 'enabled', 'configJson', 'updatedAt'])
+    .select(['pluginId', 'trusted', 'updatedAt'])
     .orderBy('pluginId', 'asc')
     .execute();
   return rows.map((r) => ({
     pluginId: r.pluginId,
-    enabled: r.enabled === 1,
-    configJson: r.configJson,
+    trusted: r.trusted === 1,
     updatedAt: r.updatedAt,
   }));
 }
 
 /**
- * Drop the user override for one plugin so the next resolution falls
- * back to `settings.json` → installed default. Idempotent, removing a
+ * Drop the trust grant for one plugin so the next resolution falls back
+ * to "untrusted unless the local opt-in is set". Idempotent, removing a
  * non-existent row is a no-op.
  */
-export async function deletePluginOverride(
+export async function deletePluginTrust(
   db: TDbOrTx,
   pluginId: string,
 ): Promise<void> {
@@ -93,15 +98,15 @@ export async function deletePluginOverride(
 }
 
 /**
- * Fetch every override at once and return a `Map<pluginId, enabled>`.
- * `PluginLoader` consumers use this once per process to avoid one
- * round-trip per plugin during discovery.
+ * Fetch every trust grant at once and return a `Map<pluginId, trusted>`
+ * keyed by bare plugin id. `PluginLoader` consumers use this once per
+ * process to avoid one round-trip per plugin during discovery.
  */
-export async function loadPluginOverrideMap(
+export async function loadPluginTrustMap(
   db: TDbOrTx,
 ): Promise<Map<string, boolean>> {
-  const rows = await listPluginOverrides(db);
+  const rows = await listPluginTrust(db);
   const out = new Map<string, boolean>();
-  for (const row of rows) out.set(row.pluginId, row.enabled);
+  for (const row of rows) out.set(row.pluginId, row.trusted);
   return out;
 }

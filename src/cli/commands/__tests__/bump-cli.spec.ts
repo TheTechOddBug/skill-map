@@ -29,7 +29,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join, resolve } from 'node:path';
-import yaml from 'js-yaml';
+import { dump as yamlDump, load as yamlLoad } from 'js-yaml';
 
 import type { BaseContext } from 'clipanion';
 
@@ -188,7 +188,7 @@ describe('sm bump <node-path>, single-node mode', () => {
     strictEqual(code, 0);
     const sidecarPath = join(fixture, '.claude/skills/foo.sm');
     ok(existsSync(sidecarPath), '.sm file was created');
-    const parsed = yaml.load(readFileSync(sidecarPath, 'utf8')) as Record<string, unknown>;
+    const parsed = yamlLoad(readFileSync(sidecarPath, 'utf8')) as Record<string, unknown>;
     strictEqual((parsed['annotations'] as Record<string, unknown>)['version'], 1);
     const audit = parsed['audit'] as Record<string, unknown>;
     // The bump invoker resolves to the project's Git author (here the
@@ -317,8 +317,8 @@ describe('sm bump --pending, batch mode', () => {
     strictEqual(env.refused, 0);
 
     // Both sidecars should now be at v2.
-    const a = yaml.load(readFileSync(join(fixture, '.claude/skills/a.sm'), 'utf8')) as Record<string, unknown>;
-    const b = yaml.load(readFileSync(join(fixture, '.claude/skills/b.sm'), 'utf8')) as Record<string, unknown>;
+    const a = yamlLoad(readFileSync(join(fixture, '.claude/skills/a.sm'), 'utf8')) as Record<string, unknown>;
+    const b = yamlLoad(readFileSync(join(fixture, '.claude/skills/b.sm'), 'utf8')) as Record<string, unknown>;
     strictEqual((a['annotations'] as Record<string, unknown>)['version'], 2);
     strictEqual((b['annotations'] as Record<string, unknown>)['version'], 2);
   });

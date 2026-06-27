@@ -264,6 +264,18 @@ export const SERVER_TEXTS = {
     'Request body must be a JSON object.',
   pluginsEnabledRequired:
     '`enabled` is required and must be a boolean.',
+  pluginsTrustedRequired:
+    '`trusted` is required and must be a boolean.',
+
+  // 403, trust toggle targeted a built-in (or host-locked) id. Those are
+  // never import-trust-gated, so a trust grant is meaningless. Reuses the
+  // 403 `locked` envelope code per the spec.
+  pluginsTrustBuiltIn:
+    'Plugin "{{id}}" is a built-in (or host-locked) and is never import-trust-gated.',
+  // 400, the trust route received a qualified `<plugin>/<ext>` id; trust
+  // is per-plugin, so it must be a bare plugin id.
+  pluginsTrustQualifiedRejected:
+    'Plugin id "{{id}}" contains "/"; import trust is per-plugin, pass the bare plugin id.',
 
   // 400, cascade route rejects qualified ids: the bare-id PATCH is the
   // bundle macro endpoint. Anything containing `/` needs the dedicated
@@ -360,9 +372,12 @@ export const SERVER_TEXTS = {
   projectPrefsBodyNotJson: 'Request body must be valid JSON.',
   projectPrefsBodyNotObject: 'Request body must be a JSON object.',
   projectPrefsBodyEmpty:
-    'Request body must contain `allowSidecarWriters` and/or a `scan` block with `referencePaths`.',
+    'Request body must contain `allowSidecarWriters`, a `scan` block with `referencePaths`, and/or a `pluginTrust` block with `projectEnabled`.',
   projectPrefsConfirmNotBoolean: '`confirm` must be a boolean.',
   projectPrefsSidecarWritersNotBoolean: '`allowSidecarWriters` must be a boolean.',
+  projectPrefsTrustNotObject:
+    '`pluginTrust` must be an object (e.g. `{"pluginTrust": {"projectEnabled": true}}`).',
+  projectPrefsTrustEnabledNotBoolean: '`pluginTrust.projectEnabled` must be a boolean.',
   // Server-stderr advisory after `PATCH /api/project-preferences`
   // toggles the committed sidecar-writer policy. Lets the operator see
   // the team-shared change land without opening settings.json.
@@ -377,6 +392,16 @@ export const SERVER_TEXTS = {
   projectPrefsConfirmRequired:
     'This change opens disk access outside the project: {{paths}}. ' +
     'Re-issue the request with `confirm: true` to proceed.',
+  // 412, turning on the local plugin-trust opt-in. Expands the LOCAL
+  // code-execution surface (every plugin the project enables becomes
+  // trusted), so the route refuses without `confirm: true`.
+  projectPrefsTrustConfirmRequired:
+    'Turning on pluginTrust.projectEnabled trusts every plugin this project enables; ' +
+    'their code may then import and run on this machine. ' +
+    'Re-issue the request with `confirm: true` to proceed.',
+  // Server-stderr advisory after the local plugin-trust opt-in changes.
+  projectPrefsTrustSet:
+    'project-prefs: pluginTrust.projectEnabled = {{value}}',
   projectPrefsPersistFailed:
     'Could not persist `{{key}}`: {{message}}',
   // Returned for every NEW entry that does not resolve to an existing

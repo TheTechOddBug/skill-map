@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { captureUiException, initUiSentry, isUiDsnConfigured } from '../sentry-init';
+import {
+  buildUiIntegrations,
+  captureUiException,
+  initUiSentry,
+  isUiDsnConfigured,
+  type UiIntegration,
+} from '../sentry-init';
 
 /**
  * Locks the DORMANT-UNLESS-CONSENT contract (`spec/telemetry.md`). A real
@@ -38,5 +44,46 @@ describe('sentry-init (dormant unless consent)', () => {
 
   it('captureUiException is a no-op (does not throw) while the SDK was never initialised', () => {
     expect(() => captureUiException(new Error('boom'))).not.toThrow();
+  });
+});
+
+/**
+ * Locks the privacy posture of the integration set independently of the
+ * consent-ON init path (which the suite above deliberately never runs).
+ * `buildUiIntegrations` is pure, so we drive it with fake defaults and a
+ * fake breadcrumbs factory, no SDK load, no `Sentry.init`.
+ */
+describe('buildUiIntegrations (privacy posture)', () => {
+  const make = (name: string): UiIntegration => ({ name }) as UiIntegration;
+
+  it('drops the BrowserSession integration so no release-health beacon is sent', () => {
+    const out = buildUiIntegrations(
+      () => make('Breadcrumbs'),
+      [make('BrowserSession'), make('Breadcrumbs'), make('GlobalHandlers')],
+    );
+    expect(out.some((i) => i.name === 'BrowserSession')).toBe(false);
+    expect(out.some((i) => i.name === 'GlobalHandlers')).toBe(true);
+  });
+
+  it('reconfigures Breadcrumbs to disable console/fetch/xhr/dom (the path/url-bearing sources)', () => {
+    let captured: unknown = null;
+    const out = buildUiIntegrations(
+      (options) => {
+        captured = options;
+        return make('Breadcrumbs');
+      },
+      [make('Breadcrumbs')],
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0]?.name).toBe('Breadcrumbs');
+    expect(captured).toEqual({ console: false, fetch: false, xhr: false, dom: false });
+  });
+
+  it('passes every other default integration through untouched', () => {
+    const out = buildUiIntegrations(
+      () => make('Breadcrumbs'),
+      [make('GlobalHandlers'), make('LinkedErrors'), make('HttpContext')],
+    );
+    expect(out.map((i) => i.name)).toEqual(['GlobalHandlers', 'LinkedErrors', 'HttpContext']);
   });
 });

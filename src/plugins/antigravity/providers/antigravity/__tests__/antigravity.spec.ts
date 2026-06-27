@@ -1,15 +1,16 @@
 /**
- * Unit tests for the built-in `antigravity` Provider. It adopts the
- * open-standard `.agents/skills/` layout by reusing the `agent-skills`
- * classifier + kind, and carries a reserved-name catalog captured verbatim
- * from `agy /help` (Antigravity CLI v1.0.3) under the `skill` kind. Under
- * the antigravity lens, `.agents/skills/<name>/SKILL.md` classifies as
- * `antigravity`/`skill`, so the catalog fires via SELF scope (see
- * `reserved-name-lens-scope.spec.ts` for the end-to-end case).
+ * Unit tests for the built-in `antigravity` Provider. It has two on-disk
+ * families: the open-standard `skill` (reusing the `agent-skills` classifier
+ * + kind at `.agents/skills/<name>/SKILL.md`) and its OWN `workflow` kind at
+ * `.agent/workflows/<name>.md`. It carries a reserved-name catalog captured
+ * verbatim from `agy /help` (Antigravity CLI v1.0.3) under the `skill` kind;
+ * under the antigravity lens a skill classifies as `antigravity`/`skill`, so
+ * the catalog fires via SELF scope (see `reserved-name-lens-scope.spec.ts`
+ * for the end-to-end case).
  */
 
 import { describe, it } from 'node:test';
-import { strictEqual, ok } from 'node:assert';
+import { strictEqual, ok, deepStrictEqual } from 'node:assert';
 
 import { antigravityProvider } from '../index.js';
 import { COMMONS_RESERVED_NAMES } from '../../../../agent-skills/providers/agent-skills/index.js';
@@ -20,7 +21,7 @@ describe('antigravity provider, manifest shape', () => {
     strictEqual(antigravityProvider.pluginId, 'antigravity');
     strictEqual(antigravityProvider.kind, 'provider');
     strictEqual(antigravityProvider.gatedByActiveLens, true);
-    strictEqual(antigravityProvider.stability, 'experimental');
+    strictEqual(antigravityProvider.stability, 'beta');
     // Inherited from agent-skills: the open-standard skill kind, read
     // config, and classifier.
     ok(antigravityProvider.kinds['skill'], 'expected the inherited skill kind');
@@ -28,6 +29,45 @@ describe('antigravity provider, manifest shape', () => {
     strictEqual(antigravityProvider.classify?.('.agents/skills/foo/SKILL.md', {}), 'skill');
     strictEqual(antigravityProvider.classify?.('AGENTS.md', {}), null);
     strictEqual(antigravityProvider.classify?.('random.md', {}), null);
+  });
+
+  it('declares `.agent/workflows/` as its one vendor detect marker', () => {
+    // Singular `.agent`, not the shared open-standard `.agents/` (owned by
+    // agent-skills). Live now that antigravity ships beta (enabled by
+    // default), so a `.agent/workflows/` project auto-detects this lens.
+    deepStrictEqual(antigravityProvider.detect, { markers: ['.agent/workflows'] });
+  });
+});
+
+describe('antigravity provider, own `workflow` kind', () => {
+  it('declares the `workflow` kind alongside the inherited `skill`', () => {
+    ok(antigravityProvider.kinds['workflow'], 'expected the own workflow kind');
+    ok(antigravityProvider.kinds['skill'], 'expected the inherited skill kind');
+    strictEqual(antigravityProvider.kinds['workflow']?.ui.label, 'Workflows');
+    // The handle is ALWAYS the filename stem: Antigravity workflows have no
+    // `name` frontmatter field, so there is no override source.
+    deepStrictEqual(antigravityProvider.kinds['workflow']?.identifiers, [
+      'filename-basename',
+    ]);
+  });
+
+  it('classifies `.agent/workflows/<name>.md` (singular) as `workflow`', () => {
+    strictEqual(antigravityProvider.classify?.('.agent/workflows/deploy.md', {}), 'workflow');
+    strictEqual(antigravityProvider.classify?.('.agent/workflows/run_app.md', {}), 'workflow');
+    // Case-insensitive, mirroring the skill classifier.
+    strictEqual(antigravityProvider.classify?.('.agent/workflows/Deploy.MD', {}), 'workflow');
+  });
+
+  it('does NOT claim the plural `.agents/workflows/` nor nested workflow paths', () => {
+    // Plural `.agents/` is the open standard (skills home); a `workflows`
+    // subdir there is not Antigravity's territory.
+    strictEqual(antigravityProvider.classify?.('.agents/workflows/deploy.md', {}), null);
+    // One file level only: no subfolder between `workflows/` and the file.
+    strictEqual(antigravityProvider.classify?.('.agent/workflows/sub/deploy.md', {}), null);
+  });
+
+  it('resolves `/<name>` slash invocations to BOTH skills and workflows', () => {
+    deepStrictEqual(antigravityProvider.resolution, { invokes: ['skill', 'workflow'] });
   });
 });
 
@@ -38,8 +78,15 @@ describe('antigravity provider, reserved-name catalog (official, captured from `
   // catalog fires via self scope.
   const commands = antigravityProvider.reservedNames?.['skill'] ?? [];
 
-  it('declares its catalog under the `skill` kind (self-scope target), not `command`', () => {
+  it('declares its catalog under both slash-invocable kinds (`skill` + `workflow`), not `command`', () => {
     ok(antigravityProvider.reservedNames?.['skill'], 'expected reservedNames.skill');
+    ok(antigravityProvider.reservedNames?.['workflow'], 'expected reservedNames.workflow');
+    // Both kinds are `/<name>`-invocable, so the catalog is identical.
+    deepStrictEqual(
+      antigravityProvider.reservedNames?.['workflow'],
+      antigravityProvider.reservedNames?.['skill'],
+    );
+    // Antigravity has no on-disk command directory.
     strictEqual(antigravityProvider.reservedNames?.['command'], undefined);
   });
 

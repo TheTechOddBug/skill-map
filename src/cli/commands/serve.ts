@@ -57,7 +57,7 @@ import { resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { loadConfig } from '../../kernel/config/loader.js';
-import { tryParseNonNegativeInt } from '../util/option-validators.js';
+import { tryParseNonNegativeInt, tryParsePositiveInt } from '../util/option-validators.js';
 import { defaultRuntimeContext, type IRuntimeContext } from '../util/runtime-context.js';
 import { renderBanner, resolveColorEnabled } from '../util/serve-banner.js';
 import { SmCommand } from '../util/sm-command.js';
@@ -253,7 +253,7 @@ export class ServeCommand extends SmCommand {
     //     Same shape as the watcher-debounce parser: omit → undefined
     //     (the runtime falls back to scan.maxScan / scan.maxNodes),
     //     positive integer → honoured for every scan the server runs.
-    const maxScanResult = parseMaxScan(this.maxScan);
+    const maxScanResult = parseMaxIntFlag(this.maxScan);
     if (!maxScanResult.ok) {
       this.printer!.info(
         tx(SERVE_TEXTS.maxScanInvalid, {
@@ -264,7 +264,7 @@ export class ServeCommand extends SmCommand {
       );
       return ExitCode.Error;
     }
-    const maxNodesResult = parseMaxNodes(this.maxNodes);
+    const maxNodesResult = parseMaxIntFlag(this.maxNodes);
     if (!maxNodesResult.ok) {
       this.printer!.info(
         tx(SERVE_TEXTS.maxNodesInvalid, {
@@ -453,17 +453,16 @@ function parseDebounce(raw: string | undefined): IDebounceOk | IDebounceErr {
 interface IMaxIntOk { ok: true; value: number | undefined; }
 interface IMaxIntErr { ok: false; value: string; }
 
-function parseMaxScan(raw: string | undefined): IMaxIntOk | IMaxIntErr {
+/**
+ * Parse a `--max-scan` / `--max-nodes` value (positive integer, or absent
+ * → `undefined`). Both flags share the same grammar, so one parser backs
+ * both; the verb renders a flag-specific error from the `{ ok: false }`
+ * branch later.
+ */
+function parseMaxIntFlag(raw: string | undefined): IMaxIntOk | IMaxIntErr {
   if (raw === undefined) return { ok: true, value: undefined };
-  const n = Number(raw);
-  if (!Number.isInteger(n) || n < 1) return { ok: false, value: raw };
-  return { ok: true, value: n };
-}
-
-function parseMaxNodes(raw: string | undefined): IMaxIntOk | IMaxIntErr {
-  if (raw === undefined) return { ok: true, value: undefined };
-  const n = Number(raw);
-  if (!Number.isInteger(n) || n < 1) return { ok: false, value: raw };
+  const n = tryParsePositiveInt(raw);
+  if (n === null) return { ok: false, value: raw };
   return { ok: true, value: n };
 }
 

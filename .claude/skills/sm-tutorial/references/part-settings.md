@@ -125,16 +125,19 @@ Mark `settings-2-resolve: done`.
 
 **Context**: the single most consequential setting, the lens that
 decides which provider types the project's files. It auto-detects and
-never touches your `.md` files.
+never touches your `.md` files. (Agent: substitute `<provider>` with
+`tutorial.provider`, the lens this run was scaffolded for.)
 
 > One setting earns its own step: the **active provider lens**. A
 > skill-map project reads its files through exactly **one** provider
 > at a time, and that lens decides how each file is interpreted, so
 > the same files can read differently depending on which lens is active.
 
-> The lens auto-detects on the first scan from your project's layout
-> (a `.claude/` folder selects the `claude` lens). Scan once and check
-> where it landed:
+> The lens auto-detects on the first scan from the project's layout. A
+> marker folder selects its lens: `.claude/` → `claude`, `.codex/` →
+> `codex`, `.agent/workflows/` → `antigravity`; a project with only
+> `.agents/skills/` and no vendor marker falls back to the open-standard
+> `agent-skills` lens. Scan once and check where it landed:
 
 ```bash
 sm scan
@@ -142,17 +145,18 @@ sm config get activeProvider
 ```
 
 Expected: the scan prints a line like `Auto-detected activeProvider
-= claude from filesystem markers; persisted to
-.skill-map/settings.json`, and `get` then reports `claude`. The lens
+= <provider> from filesystem markers; persisted to
+.skill-map/settings.json`, and `get` then reports `<provider>`. The lens
 is just a key in `settings.json`, persisted like any other setting.
 
-> Other lenses exist in the engine (`codex` for Codex,
-> `agent-skills`, `antigravity`), but they are **experimental** (ship
-> disabled by default): today we demo the `claude` lens only. The idea to keep is
-> the one above, one project reads through exactly one provider at a
-> time, chosen by `activeProvider`. The lens is cheap to change later
-> because the graph is always rebuilt from your files, never the
-> other way around.
+> The other lenses are just as real: `claude` and the open-standard
+> `agent-skills` are stable; `codex` (OpenAI) and `antigravity` (Google)
+> are beta but ship enabled and auto-detect their own marker. The open
+> `agent-skills` lens is the default a project falls back to when no
+> vendor marker is present. The idea to keep: one project reads through
+> exactly one lens at a time, chosen by `activeProvider`, and it is cheap
+> to change later because the graph is always rebuilt from your files,
+> never the other way around.
 
 Mark `settings-3-lens: done`.
 

@@ -1,14 +1,20 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { provideZonelessChangeDetection, type WritableSignal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { ConfirmationService } from 'primeng/api';
 
 import { SettingsProject } from '../settings-project';
 import {
   DATA_SOURCE,
+  DataSourceError,
   type IDataSourcePort,
 } from '../../../../services/data-source/data-source.port';
 import { ProviderRegistryService } from '../../../../services/provider-registry';
-import type { IActiveProviderApi, IProviderRegistryApi } from '../../../../models/api';
+import type {
+  IActiveProviderApi,
+  IProjectPreferencesApi,
+  IProviderRegistryApi,
+} from '../../../../models/api';
 
 /**
  * SettingsProject · active-lens dropdown gating.
@@ -127,5 +133,130 @@ describe('SettingsProject providerOptions', () => {
     expect(byId.get('codex')?.label).toBe('OpenAI (disabled)');
     expect(byId.get('claude')?.disabled).toBe(false);
     expect(byId.get('claude')?.label).toBe('Claude');
+  });
+});
+
+/**
+ * SettingsProject · `pluginTrust.projectEnabled` machine-local opt-in.
+ *
+ * The toggle persists through `setProjectPreferences`. Turning it OFF
+ * narrows the local code-execution surface (direct write). Turning it ON
+ * expands it, so the BFF answers 412 `confirm-required`; the component
+ * reuses the same `<p-confirmdialog>` / `ConfirmationService` mechanism as
+ * `scan.referencePaths`, re-issuing the patch with `confirm: true` only
+ * after the operator accepts. The spec drives the component's imperative
+ * surface + the component-provided `ConfirmationService` so it stays
+ * independent of the network fetch and PrimeNG's overlay portal.
+ */
+interface ITrustProto {
+  preferences: WritableSignal<IProjectPreferencesApi | null>;
+  pluginTrustEnabled(): boolean;
+  onProjectTrustToggle(next: boolean): void;
+}
+
+function prefs(projectEnabled: boolean): IProjectPreferencesApi {
+  return {
+    allowSidecarWriters: true,
+    scan: { referencePaths: [] },
+    pluginTrust: { projectEnabled },
+  };
+}
+
+function bootstrapTrust(stub: Partial<IDataSourcePort>): {
+  fixture: ReturnType<typeof TestBed.createComponent<SettingsProject>>;
+  proto: ITrustProto;
+} {
+  TestBed.resetTestingModule();
+  TestBed.configureTestingModule({
+    providers: [
+      provideZonelessChangeDetection(),
+      { provide: DATA_SOURCE, useValue: stub },
+    ],
+  });
+  const fixture = TestBed.createComponent(SettingsProject);
+  fixture.componentRef.setInput('visible', false);
+  fixture.detectChanges();
+  const proto = fixture.componentInstance as unknown as ITrustProto;
+  return { fixture, proto };
+}
+
+async function flush(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
+describe('SettingsProject pluginTrust opt-in', () => {
+  it('reads pluginTrust.projectEnabled from the loaded preferences', () => {
+    const { proto } = bootstrapTrust({});
+    expect(proto.pluginTrustEnabled()).toBe(false);
+    proto.preferences.set(prefs(true));
+    expect(proto.pluginTrustEnabled()).toBe(true);
+  });
+
+  it('turning the opt-in OFF persists directly (no confirm)', async () => {
+    const setProjectPreferences = vi.fn().mockResolvedValue(prefs(false));
+    const { proto } = bootstrapTrust({
+      setProjectPreferences,
+    } as Partial<IDataSourcePort>);
+
+    proto.onProjectTrustToggle(false);
+    await flush();
+
+    expect(setProjectPreferences).toHaveBeenCalledWith({
+      pluginTrust: { projectEnabled: false },
+    });
+  });
+
+  it('turning the opt-in ON surfaces the confirm dialog and retries with confirm:true on accept', async () => {
+    const setProjectPreferences = vi
+      .fn()
+      .mockRejectedValueOnce(new DataSourceError('confirm-required', 'needs confirm'))
+      .mockResolvedValueOnce(prefs(true));
+    const { fixture, proto } = bootstrapTrust({
+      setProjectPreferences,
+    } as Partial<IDataSourcePort>);
+    const confirmation = fixture.debugElement.injector.get(ConfirmationService);
+    const confirmSpy = vi
+      .spyOn(confirmation, 'confirm')
+      .mockReturnValue(confirmation);
+
+    proto.onProjectTrustToggle(true);
+    await flush();
+
+    expect(setProjectPreferences).toHaveBeenNthCalledWith(1, {
+      pluginTrust: { projectEnabled: true },
+    });
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+
+    // Simulate the operator accepting the confirm dialog.
+    confirmSpy.mock.calls[0][0].accept?.();
+    await flush();
+
+    expect(setProjectPreferences).toHaveBeenNthCalledWith(2, {
+      pluginTrust: { projectEnabled: true },
+      confirm: true,
+    });
+    expect(proto.pluginTrustEnabled()).toBe(true);
+  });
+
+  it('does not retry when the operator dismisses the confirm dialog', async () => {
+    const setProjectPreferences = vi
+      .fn()
+      .mockRejectedValueOnce(new DataSourceError('confirm-required', 'needs confirm'));
+    const { fixture, proto } = bootstrapTrust({
+      setProjectPreferences,
+    } as Partial<IDataSourcePort>);
+    const confirmation = fixture.debugElement.injector.get(ConfirmationService);
+    const confirmSpy = vi
+      .spyOn(confirmation, 'confirm')
+      .mockReturnValue(confirmation);
+
+    proto.onProjectTrustToggle(true);
+    await flush();
+
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    // The operator cancels: no retry fires and the toggle stays off.
+    expect(setProjectPreferences).toHaveBeenCalledTimes(1);
+    expect(proto.pluginTrustEnabled()).toBe(false);
   });
 });

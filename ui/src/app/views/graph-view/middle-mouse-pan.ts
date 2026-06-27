@@ -1,29 +1,44 @@
 /**
  * `[smMiddleMousePan]`, middle-mouse drag handler that pans a
- * Foblex `<f-canvas>` without going through the user-facing zoom /
- * touchpad pipeline.
+ * Foblex `<f-canvas>`.
  *
  * Mouse events (not pointer) mirror the panel-resize handler in
  * graph-view.ts: fDragHandle on graph nodes consumes pointerup
  * elsewhere, so listening on `mouseup` is the reliable channel.
  *
- * High-polling mice fire mousemove 500-1000×/sec. setPosition needs a
- * matching `canvas.redraw()` to flush to the DOM, but redrawing per
- * event is wasteful, coalesce into one redraw per animation frame.
+ * High-polling mice fire mousemove 500-1000×/sec. The pan applies each
+ * new position by writing the `viewportPosition` signal that backs the
+ * `<f-canvas>` `[position]` binding: Foblex 18.6 dropped the public
+ * `setPosition`, so driving the input is the only path, and it is the
+ * same path the viewport animations take (Foblex applies the transform
+ * and redraws on the input change, no manual `redraw()`). The writes are
+ * coalesced into one per animation frame so a high-polling mouse does not
+ * thrash change detection.
  *
  * Apply to the canvas wrap element:
  *
- *   <div #wrap [smMiddleMousePan]="canvas()"> ... </div>
+ *   <div #wrap [smMiddleMousePan]="panTarget"> ... </div>
  *
- * The bound value is the `FCanvasComponent` instance (from a viewChild
- * signal). The directive reads it lazily on every event, so a late
- * mount is tolerated; nothing happens until the canvas is ready.
+ * The bound value is a small accessor object the host wires to its
+ * viewport signals (see `IMiddleMousePanTarget`); the directive reads it
+ * lazily on every event, so a late canvas mount is tolerated.
  */
 
 import { Directive, OnDestroy, input } from '@angular/core';
-import type { FCanvasComponent } from '@foblex/flow';
 
 import type { IPoint } from './graph-layout';
+
+/**
+ * What the directive needs from its host to pan the canvas: read the
+ * current viewport position, write a new one (drives the `[position]`
+ * binding, which Foblex applies and redraws), and flush a final
+ * canvas-change so the viewport persists when the gesture ends.
+ */
+export interface IMiddleMousePanTarget {
+  readPosition(): IPoint;
+  writePosition(position: IPoint): void;
+  emitChange(): void;
+}
 
 @Directive({
   selector: '[smMiddleMousePan]',
@@ -32,8 +47,8 @@ import type { IPoint } from './graph-layout';
   },
 })
 export class MiddleMousePanDirective implements OnDestroy {
-  /** Bound canvas instance (typically a viewChild signal's value). */
-  readonly smMiddleMousePan = input.required<FCanvasComponent | undefined>();
+  /** Viewport accessors, typically wired to the host's viewport signals. */
+  readonly smMiddleMousePan = input.required<IMiddleMousePanTarget>();
 
   private origin: { mouseX: number; mouseY: number; canvasX: number; canvasY: number } | null = null;
   private rafId: number | null = null;
@@ -41,10 +56,8 @@ export class MiddleMousePanDirective implements OnDestroy {
 
   onMouseDown(event: MouseEvent): void {
     if (event.button !== 1) return;
-    const canvas = this.smMiddleMousePan();
-    if (!canvas) return;
     event.preventDefault();
-    const pos = canvas.getPosition() ?? { x: 0, y: 0 };
+    const pos = this.smMiddleMousePan().readPosition();
     this.origin = {
       mouseX: event.clientX,
       mouseY: event.clientY,
@@ -68,10 +81,8 @@ export class MiddleMousePanDirective implements OnDestroy {
     if (this.rafId !== null) return;
     this.rafId = requestAnimationFrame(() => {
       this.rafId = null;
-      const canvas = this.smMiddleMousePan();
-      if (!canvas || !this.pendingPosition) return;
-      canvas.setPosition(this.pendingPosition);
-      canvas.redraw();
+      if (!this.pendingPosition) return;
+      this.smMiddleMousePan().writePosition(this.pendingPosition);
     });
   };
 
@@ -80,10 +91,13 @@ export class MiddleMousePanDirective implements OnDestroy {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
     }
+    const wasPanning = this.origin !== null;
     this.pendingPosition = null;
     this.origin = null;
     document.removeEventListener('mousemove', this.onMove);
     document.removeEventListener('mouseup', this.onEnd);
-    this.smMiddleMousePan()?.emitCanvasChangeEvent();
+    // Flush a final canvas-change so the viewport persists, but only when
+    // a pan actually ran (avoid a spurious emit on plain teardown).
+    if (wasPanning) this.smMiddleMousePan().emitChange();
   };
 }

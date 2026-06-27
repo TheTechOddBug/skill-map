@@ -1075,4 +1075,68 @@ describe('PluginLoader', () => {
       strictEqual(result[0]?.extensions?.length ?? 0, 0);
     });
   });
+
+  describe('import-trust gate (resolveImportTrust)', () => {
+    const MANIFEST = {
+      version: '0.1.0',
+      description: 'test',
+      specCompat: '>=0.0.0',
+      catalogCompat: '*',
+    };
+
+    it('refuses an untrusted plugin: disabled + untrusted, manifest kept, code NEVER runs', async () => {
+      const root = makePluginsDir('trust-deny');
+      // A module that throws at import time: if the loader EVER imported
+      // it, the status would be 'load-error'. Getting 'disabled' instead
+      // proves the gate short-circuited BEFORE the dynamic import, the
+      // security guarantee (no cloned-repo code executes untrusted).
+      writePlugin(root, 'untrusted-plugin', MANIFEST, {
+        'extractor/boom.mjs': 'throw new Error("plugin module top-level executed");',
+      });
+      const loader = new PluginLoader({
+        searchPaths: [root],
+        validators: loadSchemaValidators(),
+        specVersion: installedSpecVersion(),
+        resolveImportTrust: () => false,
+      });
+
+      const result = await loader.discoverAndLoadAll();
+      strictEqual(result.length, 1);
+      const only = result[0]!;
+      strictEqual(only.status, 'disabled');
+      strictEqual(only.untrusted, true);
+      ok(only.manifest, 'manifest must be surfaced so sm plugins list still shows it');
+      strictEqual(only.extensions, undefined, 'extensions must NOT be imported');
+    });
+
+    it('loads a trusted plugin normally when resolveImportTrust returns true', async () => {
+      const root = makePluginsDir('trust-allow');
+      writePlugin(root, 'trusted-plugin', MANIFEST, {
+        'extractor/url-counter.mjs': "export default { version: '1.0.0', description: 'x' };",
+      });
+      const loader = new PluginLoader({
+        searchPaths: [root],
+        validators: loadSchemaValidators(),
+        specVersion: installedSpecVersion(),
+        resolveImportTrust: () => true,
+      });
+
+      const result = await loader.discoverAndLoadAll();
+      strictEqual(result.length, 1);
+      strictEqual(result[0]!.status, 'enabled');
+      strictEqual(result[0]!.extensions?.length, 1);
+      strictEqual(result[0]!.untrusted, undefined);
+    });
+
+    it('omitting resolveImportTrust trusts everything (built-ins / explicit --plugin-dir / tests)', async () => {
+      const root = makePluginsDir('trust-omit');
+      writePlugin(root, 'ungated-plugin', MANIFEST, {
+        'extractor/url-counter.mjs': "export default { version: '1.0.0', description: 'x' };",
+      });
+      // No resolveImportTrust option at all.
+      const result = await loaderFor(root).discoverAndLoadAll();
+      strictEqual(result[0]!.status, 'enabled');
+      strictEqual(result[0]!.extensions?.length, 1);
+    });
+  });
 });

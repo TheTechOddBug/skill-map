@@ -16,6 +16,7 @@
     "fix:ai": "bash scripts/start.sh ai-engineering",
     "fix:skills": "bash scripts/start.sh skills",
     "fix:codex": "bash scripts/start.sh codex",
+    "fix:antigravity": "bash scripts/start.sh antigravity",
     "sm": "node src/bin/sm.js",
     "sm:reset": "bash scripts/dev-reset.sh",
     "sqlite": "node src/bin/sm.js db browser",
@@ -42,11 +43,6 @@
   },
   "devDependencies": {
     "@changesets/cli": "2.31.0"
-  },
-  "pnpm": {
-    "overrides": {
-      "fast-uri": "3.1.2"
-    }
   },
   "engines": {
     "node": ">=24.0"

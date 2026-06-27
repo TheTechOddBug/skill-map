@@ -20,7 +20,7 @@ Two numbering systems coexist; keep them apart:
 
 - **Internal (authoring only)**: the `order` field in `_manifest.yml`
   and the `# Part N` file headers, 0-based (Part 0 the prologue …
-  Part 5 the CLI deep-dive; `mcp` at Part 6 is parked / hidden). Use it
+  Part 3 the CLI deep-dive, Part 4 the Extend dev section; `mcp` at Part 5 is parked / hidden). Use it
   in `**Context**:` blocks and author
   notes; NEVER say it to the tester, it is off by one from what they
   see.
@@ -251,54 +251,112 @@ first kind quoted, the second kind never.
    command blocks assume the second terminal is anchored to the
    fixture folder.
 
-## Provider detection
+## Provider detection (and the track it selects)
 
-Skill-map ships built-in vendor providers, each walking its own
-on-disk convention:
+A skill-map project reads its files through exactly ONE active lens
+(provider). The built-in providers and what each claims:
 
-| Provider       | Base dir          | Kinds it claims             | Detect via env var(s)                                  |
-|----------------|-------------------|-----------------------------|--------------------------------------------------------|
-| `claude`       | `.claude/`        | `agent`, `command`, `skill` | `CLAUDECODE=1` OR `AI_AGENT` starts with `claude-code` |
-| `agent-skills` | `.agents/skills/` | `skill` only (vendor-neutral; also the on-disk home for Google's Antigravity CLI, which replaced the Gemini CLI on 2026-05-19 and adopted this open standard) | experimental (ships disabled; `sm tutorial --experimental` to offer it) |
-| `codex`       | `.codex/`         | `agent` (`.codex/agents/*.toml`) | experimental (ships disabled by default) |
+| Provider       | Asset layout                              | Kinds                          | Connectors that form           | Marker             | Stability        | Track   |
+|----------------|-------------------------------------------|--------------------------------|--------------------------------|--------------------|------------------|---------|
+| `claude`       | `.claude/` (agents, commands, skills)     | agent, command, skill, markdown| `/` invokes, `@` mentions, refs| `.claude/`         | stable           | rich    |
+| `codex`        | `.codex/agents/*.toml` + `.agents/skills/`| agent (TOML), skill, markdown  | `/` invokes, `@` mentions, refs| `.codex/`          | beta             | rich    |
+| `antigravity`  | `.agents/skills/`                         | skill, markdown                | `/` invokes, refs              | `.agent/workflows/`| beta             | basic   |
+| `agent-skills` | `.agents/skills/`                         | skill, markdown                | refs only                      | `.agents/`         | stable (default) | basic   |
 
-**Decision logic, applied silently during pre-flight**: the tutorial
-demonstrates the `claude` provider only. `agent-skills` and `codex`
-are **experimental** (ship disabled by default) and are not selectable
-here, so there is no runtime to detect or opt into.
+`core/markdown` classifies every orphan `.md` under whatever lens is
+active; it is the universal base, never a selectable lens.
 
-1. `provider = claude`, `<provider_dir> = .claude`, kinds =
-   `{agent, command, skill}`. Always.
-2. Do NOT offer Antigravity / agent-skills / codex as an alternative,
-   and do NOT ask the tester which runtime hosts them. If a tester
-   says they use another runtime, acknowledge it briefly and explain
-   that those providers are experimental, the tutorial demos `claude`
-   (`.claude/`) today:
+**Two tracks, by capability** (the axis is "does the lens have an
+`agent` kind?"):
 
-   > Heads up: skill-map also reads Antigravity, agent-skills and
-   > Codex projects, but those providers are experimental in this
-   > tutorial. We'll demo skill-map's Claude provider (`.claude/`)
-   > today.
+- **rich** (`claude`, `codex`): agents + skills (+ commands on claude),
+  wired with `/` invocations and `@` mentions plus markdown references.
+- **basic** (`agent-skills`, `antigravity`): the open-standard family,
+  `skill` + `markdown` only, wired with **markdown references**
+  (`[text](path)`), the one connection the Agent Skills standard
+  documents. No `@`. `/` invocation is an Antigravity-only bonus, it is
+  NOT part of the neutral standard, so under the `agent-skills` lens only
+  references form.
 
-Persist `provider` into the state file (`tutorial.provider`) so a
-resumed session does not re-detect. (It is always `claude` for now.)
+Why references and not slash on the open standard: the Agent Skills
+spec (agentskills.io) activates a skill by its `description` and
+connects files by relative markdown links; it has no `/`-invocation
+syntax. claude/codex add `/` and `@` as vendor features on top.
+
+**Decision logic, applied silently at pre-flight:**
+
+1. The provider is the lens the scaffold set up. Check the vendor markers
+   FIRST (they ride on top of the shared `.agents/skills/` skill home), then
+   the skill home itself:
+   - a `.codex/` dir present (the marker `sm tutorial --for codex` drops) →
+     `provider = codex`, `track = rich`.
+   - else a `.agent/workflows/` dir present → `provider = antigravity`,
+     `track = basic`.
+   - else skill under `.claude/skills/sm-tutorial/` → `provider = claude`,
+     `<provider_dir> = .claude`, `track = rich`.
+   - else skill under `.agents/skills/sm-tutorial/` → `provider = agent-skills`,
+     `<provider_dir> = .agents/skills`, `track = basic`.
+   **Lens ambiguity for codex / antigravity**: both adopt the open
+   `.agents/skills/` layout, so their own marker (`.codex/` or
+   `.agent/workflows/`) coexists with the `agent-skills` marker (`.agents/`)
+   and a plain `sm scan --yes` reports the lens as ambiguous. For those two,
+   set it explicitly once before the first scan, `sm config set
+   activeProvider <codex|antigravity> --yes`, then the book runs unchanged
+   (the fixture engine renders the right shape: codex its TOML agents +
+   command-as-skill, antigravity reuses the `agent-skills` overlays).
+2. `state.js init --provider <p>` persists `provider` plus the derived
+   `track`, so a resumed session never re-detects.
+3. Render only the parts whose `track` is `tutorial.track` (or `both`).
+   Never offer a rich-only part under the basic track, or vice versa.
 
 **Global substitution rule**: the fixture scripts do the file-level
 work. You pass `--provider <p>` (the value persisted in
 `tutorial.provider`) and `--lang <l>`, and they resolve the
-`__PROVIDER__` path token, skip files whose kind the provider does
-not claim, and report the adjusted `nodeCount` plus the `skipped`
-list in their summary. Today `provider` is always `claude`, so the
-narration uses `.claude/` throughout; the `--provider` plumbing stays
-wired so the coming-soon providers (`agent-skills` / Antigravity,
-`codex`) drop in later without a narrative rewrite. The campaign
-cross-link chapters target `claude` today (see the reality check
-below).
+`__PROVIDER__` path token, skip files whose kind the provider does not
+claim, lay any per-provider skill overlay (the open standard renders an
+agent/command as a `skill`), and report the adjusted `nodeCount` plus
+the `skipped` list. Narrate with `<provider_dir>` resolved to the value
+above, never a hard-coded `.claude/`.
 
-**Reality check (don't mention to the tester)**: this skill ships
-at `.claude/skills/sm-tutorial/`, so Claude Code is the only host
-today. The detection wiring is here so mirrored skills at
-`.agents/skills/sm-tutorial/` reuse it as-is.
+**Reality check (don't mention to the tester)**: the source skill ships
+at `.claude/skills/sm-tutorial/` (this repo is itself a Claude project);
+`sm tutorial` materializes it under `.claude/skills/` (rich) or
+`.agents/skills/` (basic). Both are real, walkable books.
+
+### Rendering the rich book on Codex
+
+The rich track has two lenses, `claude` and `codex`. They teach the SAME
+lessons with the SAME connectors (`/` invocations, `@` mentions, markdown
+references all resolve on both), so the rich part bodies are written in the
+`claude` shape; when `tutorial.provider == codex`, apply these substitutions:
+
+- **Agents are TOML.** A Codex agent is a single `.codex/agents/<name>.toml`
+  file (the prompt lives in its `developer_instructions` field), NOT a
+  `.claude/agents/<name>.md`. The fixtures lay them, so when a chapter says
+  "open the agent file" point at the `.toml`; a chapter that has the tester
+  read or tweak an agent works on the TOML frontmatter / `developer_instructions`.
+- **No `command` kind.** Where the claude book authors a `command` (the
+  `/publish` command, the reserved-name chapter's `model` command), Codex uses a
+  **skill** at `.agents/skills/<name>/SKILL.md`. The body is identical (same
+  `/check-links` + `@content-editor` + deploy reference); only the kind and path
+  change. `cat <set> --file … --provider codex` already returns the Codex skill
+  body, so the create-the-file block stays a copy-paste. The reserved-name beat
+  uses a skill named with a reserved verb (Codex inherits the open-standard
+  `COMMONS_RESERVED_NAMES`, e.g. `model`), exactly like the basic track's
+  `reserved` chapter, on a skill instead of a command.
+  **Apply every substitution silently.** Use the Codex path, kind and file
+  directly in the tester-facing prose, but never EXPLAIN the substitution or
+  compare it to the claude shape. The Codex tester only ever sees a `skill`
+  where the claude book has a command; never tell them "Codex has no `command`
+  kind", never say a node "is a command that shows as a skill", never reference
+  "the claude command". On Codex these nodes were always skills, there is
+  nothing to explain. (Same for the TOML-agent and path swaps above: point the
+  tester at the real `.toml` / `.agents/` file when they interact with it, just
+  do not narrate that it "would be" something else on claude.)
+- **Skills** live under `.agents/skills/<name>/SKILL.md` (the open layout Codex
+  adopted), same as the basic family.
+- Everything else (the `@`/`/` syntax, the confidence numbers, the hub, the
+  broken-reference contrast) is identical to claude; the graph topology matches.
 
 ## Per-step cycle (inside a chapter)
 
@@ -357,10 +415,14 @@ For every chapter:
   parts with a `✓` in their description line, not on the title (see
   §Menu format).
 - **Which parts to list**: parts in `order`, `status: active` only
-  (`planned` parts are hidden). A part with a `seed` (the campaign
-  parts plus `cli`) is always shown, even out of order, its
-  `preflight: seed` fast-forwards the project into it (SKILL.md
-  §Entering a part). A part with a `prereq` but NO `seed` would be
+  (`planned` parts are hidden), AND **matching the active track**, a
+  part whose `track` is `tutorial.track` (`rich` or `basic`) or `both`.
+  The rich and basic campaigns share titles and `order`, so the track
+  filter is what keeps the menu showing exactly ONE book, never both;
+  list a part once, by the track the session resolved at pre-flight.
+  A part with a `seed` (the campaign parts plus `cli`) is always shown,
+  even out of order, its `preflight: seed` fast-forwards the project
+  into it (SKILL.md §Entering a part). A part with a `prereq` but NO `seed` would be
   shown only once its `prereq` is `done`; no active part is in that
   state today (`cli` used to be, now it self-seeds).
 - **After the tester picks**: walk that part; when it ends, run
@@ -391,7 +453,7 @@ promise or pre-announce the next part, the close and the menu own the
 transition. Sample (Claude variant, mirror the tester's language,
 apply the host rendering rule):
 
-> ✓ Listo, terminaste **El proyecto desde cero**. Levantaste un
+> ✓ Listo, terminaste **El harness desde cero**. Levantaste un
 > proyecto real, su handbook y el harness `.claude/` con sus primeros
 > nodos.
 >
@@ -431,7 +493,7 @@ fill the parts and durations from `_manifest.yml`):
 **1. El mapa en vivo** (~12 min)
 > El prólogo: corrés `sm`, abrís el browser y ves el mapa actualizarse en vivo mientras editás `.md`. Si es tu primera vez, empezá por acá.
 
-**2. El proyecto desde cero** (~8 min)
+**2. El harness desde cero** (~8 min)
 > Arrancás un proyecto real (un portfolio) y su harness `.claude/`.
 
 ¿Cuál?
@@ -450,7 +512,7 @@ the title stays plain):
 **1. El mapa en vivo** (~12 min)
 > ✓ Ya la hiciste.
 
-**2. El proyecto desde cero** (~8 min)
+**2. El harness desde cero** (~8 min)
 > Arrancás un proyecto real (un portfolio) y su harness `.claude/`.
 ```
 

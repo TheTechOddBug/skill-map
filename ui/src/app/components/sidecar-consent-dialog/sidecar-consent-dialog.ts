@@ -29,7 +29,7 @@ import { ButtonModule } from 'primeng/button';
 import { CheckboxModule } from 'primeng/checkbox';
 import { DialogModule } from 'primeng/dialog';
 
-import { SIDECAR_CONSENT_DIALOG_TEXTS } from './sidecar-consent-dialog.texts';
+import { SIDECAR_CONSENT_DIALOG_TEXTS } from '../../../i18n/sidecar-consent-dialog.texts';
 
 /** The user's answer to the consent prompt. */
 export interface ISidecarConsentDecision {

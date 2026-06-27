@@ -31,6 +31,7 @@ import {
   inject,
   input,
   signal,
+  viewChild,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
@@ -38,7 +39,7 @@ import { ConfirmationService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { MessageModule } from 'primeng/message';
-import { SelectModule } from 'primeng/select';
+import { Select, SelectModule } from 'primeng/select';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
@@ -87,6 +88,15 @@ export class SettingsProject {
 
   readonly visible = input.required<boolean>();
 
+  /**
+   * The active-provider `<p-select>`. Held so we can force its overlay
+   * shut when the section / dialog closes: the panel renders with
+   * `appendTo="body"`, so it lives OUTSIDE the dialog DOM and the modal
+   * hiding (the chassis keeps its content mounted, it does not destroy it)
+   * would otherwise leave the open dropdown orphaned on `<body>`.
+   */
+  private readonly providerSelect = viewChild(Select);
+
   protected readonly texts = SETTINGS_TEXTS;
   // ---- reference-paths state -------------------------------------------
   protected readonly loading = signal(false);
@@ -112,6 +122,18 @@ export class SettingsProject {
    */
   protected readonly allowSidecarWriters = computed<boolean>(() => {
     return this.preferences()?.allowSidecarWriters ?? true;
+  });
+
+  /**
+   * Machine-local plugin-trust opt-in (`pluginTrust.projectEnabled`).
+   * `false` (default) requires per-plugin trust; `true` locally trusts
+   * every plugin the project enables. Read defensively so an older
+   * envelope that predates the field renders the switch off rather than
+   * flashing. Flipping it ON expands the local code-execution surface, so
+   * the write goes through the same confirm dialog as reference-paths.
+   */
+  protected readonly pluginTrustEnabled = computed<boolean>(() => {
+    return this.preferences()?.pluginTrust?.projectEnabled ?? false;
   });
 
   // ---- ignore-patterns state -------------------------------------------
@@ -194,6 +216,14 @@ export class SettingsProject {
         void this.refreshActiveProvider();
       }
     });
+
+    // Close the provider dropdown when the section / dialog closes. The
+    // panel is `appendTo="body"` so it outlives a still-mounted trigger;
+    // without this an open dropdown orphans on `<body>` after the modal
+    // hides. `hide()` is a no-op when the overlay is already closed.
+    effect(() => {
+      if (!this.visible()) this.providerSelect()?.hide();
+    });
   }
 
   protected isPending(key: string): boolean {
@@ -212,7 +242,11 @@ export class SettingsProject {
       return;
     }
     const next = [...this.referencePaths(), raw];
-    void this.runPatch('scan.referencePaths', { scan: { referencePaths: next } }).then(
+    void this.runPatch(
+      'scan.referencePaths',
+      { scan: { referencePaths: next } },
+      this.referencePathsConfirmFlow(),
+    ).then(
       (ok) => {
         // Only clear the input on a successful persist; a 400 (path
         // does not exist, comma, malformed) or 412 (confirm required
@@ -234,6 +268,26 @@ export class SettingsProject {
 
   protected onSidecarWritersToggle(next: boolean): void {
     void this.runPatch('allowSidecarWriters', { allowSidecarWriters: next });
+  }
+
+  // -----------------------------------------------------------------
+  // Plugin-trust opt-in handler
+  // -----------------------------------------------------------------
+
+  /**
+   * Flip the machine-local `pluginTrust.projectEnabled` opt-in. Turning
+   * it ON expands the local code-execution surface, so the BFF answers
+   * 412 `confirm-required`; `runPatch` then surfaces the dedicated trust
+   * confirm dialog and retries with `confirm: true` on accept. Turning it
+   * OFF narrows the surface and persists directly. On a 412 the user
+   * dismisses, the toggle snaps back because `preferences()` is unchanged.
+   */
+  protected onProjectTrustToggle(next: boolean): void {
+    void this.runPatch(
+      'pluginTrust.projectEnabled',
+      { pluginTrust: { projectEnabled: next } },
+      this.pluginTrustConfirmFlow(),
+    );
   }
 
   // -----------------------------------------------------------------
@@ -385,18 +439,26 @@ export class SettingsProject {
   }
 
   /**
-   * Try the patch; if the BFF answers `confirm-required`, surface
-   * the confirm dialog with the paths the change would expose, and
-   * on user accept retry with `confirm: true`. On any other error
-   * surface in `saveError`. Returns `true` only when the PATCH (or
-   * the confirmed retry) actually persisted; `false` on validation
-   * errors, on a 412 the user did not yet accept (callers like
+   * Try the patch; if the BFF answers `confirm-required` AND the caller
+   * supplied a `confirm` flow, surface that flow's confirm dialog and on
+   * user accept retry with `confirm: true`. On any other error (or a 412
+   * with no confirm flow, which only narrowing callers hit, never in
+   * practice) surface in `saveError`. Returns `true` only when the PATCH
+   * (or the confirmed retry) actually persisted; `false` on validation
+   * errors or on a 412 the user did not yet accept (callers like
    * `onReferencePathAdd` use this to keep the input value editable
    * instead of clearing it).
+   *
+   * The confirm dialog is parameterised per surface-expanding key: the
+   * mechanism (try -> catch 412 -> dialog -> retry with `confirm: true`)
+   * is shared, the dialog copy and the post-confirm side effect are not
+   * (reference-paths enumerates the exposed paths and clears its input;
+   * plugin-trust shows its own machine-local warning).
    */
   private async runPatch(
     key: string,
     patch: IProjectPreferencesPatchApi,
+    confirm?: IConfirmFlow,
   ): Promise<boolean> {
     if (this.pending().has(key)) return false;
     const next = new Set(this.pending());
@@ -409,16 +471,20 @@ export class SettingsProject {
       this.preferences.set(envelope);
       success = true;
     } catch (err) {
-      if (err instanceof DataSourceError && err.code === 'confirm-required') {
+      if (
+        err instanceof DataSourceError &&
+        err.code === 'confirm-required' &&
+        confirm
+      ) {
         const exposed = (err as DataSourceError & { paths?: string[] }).paths ?? [];
-        this.confirmDialog(exposed, async () => {
+        confirm.present(exposed, async () => {
           try {
             const envelope = await this.dataSource.setProjectPreferences({
               ...patch,
               confirm: true,
             });
             this.preferences.set(envelope);
-            this.newReferencePath.set('');
+            confirm.onConfirmed?.();
           } catch (innerErr) {
             this.saveError.set(formatErr(innerErr));
           }
@@ -432,6 +498,28 @@ export class SettingsProject {
       this.pending.set(after);
     }
     return success;
+  }
+
+  /**
+   * Confirm flow for `scan.referencePaths`: enumerate the exposed paths
+   * in the dialog and clear the new-path input after a confirmed retry.
+   */
+  private referencePathsConfirmFlow(): IConfirmFlow {
+    return {
+      present: (exposed, onAccept) => this.confirmDialog(exposed, onAccept),
+      onConfirmed: () => this.newReferencePath.set(''),
+    };
+  }
+
+  /**
+   * Confirm flow for `pluginTrust.projectEnabled`: a dedicated
+   * machine-local trust warning (the exposed-paths list does not apply to
+   * a code-execution surface, so it is ignored).
+   */
+  private pluginTrustConfirmFlow(): IConfirmFlow {
+    return {
+      present: (_exposed, onAccept) => this.confirmProjectTrustDialog(onAccept),
+    };
   }
 
   /**
@@ -478,6 +566,33 @@ export class SettingsProject {
       },
     });
   }
+
+  private confirmProjectTrustDialog(onAccept: () => Promise<void>): void {
+    this.confirmation.confirm({
+      header: SETTINGS_TEXTS.project.pluginTrustConfirmHeader,
+      message: SETTINGS_TEXTS.project.pluginTrustConfirmIntro,
+      acceptLabel: SETTINGS_TEXTS.project.pluginTrustConfirmAccept,
+      rejectLabel: SETTINGS_TEXTS.project.pluginTrustConfirmReject,
+      acceptButtonProps: { severity: 'primary' },
+      rejectButtonProps: { severity: 'secondary' },
+      accept: () => {
+        void onAccept();
+      },
+    });
+  }
+}
+
+/**
+ * Per-key confirm flow injected into `runPatch`. The 412 handling
+ * mechanism is shared; this carries the surface-specific dialog
+ * presentation and an optional post-confirm side effect.
+ */
+interface IConfirmFlow {
+  /** Open the confirm dialog. `exposed` is the path list the 412 carried
+   *  (empty for non-path surfaces); call `onAccept` on confirm. */
+  present(exposed: string[], onAccept: () => Promise<void>): void;
+  /** Ran after a confirmed retry persists (e.g. clear the input box). */
+  onConfirmed?: () => void;
 }
 
 function formatErr(err: unknown): string {

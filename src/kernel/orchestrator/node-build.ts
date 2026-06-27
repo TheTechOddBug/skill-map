@@ -16,7 +16,7 @@ import { isAbsolute, resolve as resolvePath } from 'node:path';
 // dual-package CJS subpath exports.
 // eslint-disable-next-line import-x/extensions
 import { Tiktoken } from 'js-tiktoken/lite';
-import yaml from 'js-yaml';
+import { dump as yamlDump, CORE_SCHEMA } from 'js-yaml';
 
 import type { IProvider, IRawNode } from '../extensions/index.js';
 import type { IProviderFrontmatterValidator } from '../adapters/schema-validators.js';
@@ -109,7 +109,8 @@ export function sha256(input: string): string {
  *   1. Take the parsed object the Provider already produced.
  *   2. Re-emit via `yaml.dump` with `sortKeys: true`, `lineWidth: -1`
  *      (no auto-wrap), `noRefs: true` (no `*alias` shorthand),
- *      `noCompatMode: true` (modern YAML 1.2 output).
+ *      `schema: CORE_SCHEMA` (js-yaml v5's modern YAML 1.2 output; the
+ *      v4 `noCompatMode: true` equivalent, no 1.1-compat quoting).
  *   3. Hash the result.
  *
  * Fallback: when `parsed` is the empty object `{}` BUT `raw` is
@@ -129,11 +130,11 @@ export function canonicalFrontmatter(
     // identity for malformed-YAML files across scans.
     return raw;
   }
-  return yaml.dump(parsed, {
+  return yamlDump(parsed, {
     sortKeys: true,
     lineWidth: -1,
     noRefs: true,
-    noCompatMode: true,
+    schema: CORE_SCHEMA,
   });
 }
 
@@ -147,20 +148,20 @@ export function canonicalFrontmatter(
  *     literally `{}` all canonicalise to `{}` so the hash is stable
  *     across "no sidecar" → "empty annotations" transitions and a
  *     plain sidecar-less node never accidentally invalidates the cache.
- *   - Object keys are sorted by `yaml.dump({ sortKeys: true })` so a
+ *   - Object keys are sorted by `yamlDump({ sortKeys: true })` so a
  *     hand-edit that only re-orders keys produces the same hash.
  */
 export function canonicalSidecarAnnotations(
   annotations: Record<string, unknown> | null | undefined,
 ): string {
   if (!annotations || typeof annotations !== 'object' || Array.isArray(annotations)) {
-    return yaml.dump({}, { sortKeys: true, lineWidth: -1, noRefs: true, noCompatMode: true });
+    return yamlDump({}, { sortKeys: true, lineWidth: -1, noRefs: true, schema: CORE_SCHEMA });
   }
-  return yaml.dump(annotations, {
+  return yamlDump(annotations, {
     sortKeys: true,
     lineWidth: -1,
     noRefs: true,
-    noCompatMode: true,
+    schema: CORE_SCHEMA,
   });
 }
 

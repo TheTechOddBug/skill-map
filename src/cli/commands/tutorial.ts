@@ -18,8 +18,11 @@
  *   - `--for <provider-id>` picks it explicitly (validated against the
  *     scaffold-capable Providers, experimental ones gated by `--experimental`).
  *   - Without `--for` on an interactive stdin, the verb prompts with a
- *     numbered list (default: the first, Claude; empty answer accepts it).
- *     With only Claude selectable today, there is no prompt.
+ *     numbered list of scaffold-capable Providers by vendor name (today
+ *     Claude, OpenAI Codex, and the open standard shown as Google's
+ *     Antigravity); the first, Claude, is the default an empty answer
+ *     accepts. The destination folder is not shown (several Providers share
+ *     `.agents/skills`, so it does not identify the lens).
  *   - Without `--for` on a non-interactive stdin (pipes, CI), the verb
  *     picks the default Provider (Claude), so it stays scriptable.
  *
@@ -224,15 +227,7 @@ export class TutorialCommand extends SmCommand {
     }
 
     try {
-      // Unconditional rm to keep the post-condition simple
-      // (`targetDir` matches the bundled payload byte-for-byte). The
-      // clobber guard above guarantees we only reach this point when
-      // either the target does not exist OR `--force` was passed, so
-      // wiping is always safe; `rmSync({ force: true })` is a no-op
-      // on a missing path.
-      rmSync(targetDir, { recursive: true, force: true });
-      mkdirSync(dirname(targetDir), { recursive: true });
-      cpSync(sourceDir, targetDir, { recursive: true });
+      materializeSkillFolder(sourceDir, targetDir, ctx.cwd, target.marker);
     } catch (err) {
       this.printer!.error(
         tx(TUTORIAL_TEXTS.writeFailed, {
@@ -346,6 +341,30 @@ export class TutorialCommand extends SmCommand {
   }
 }
 
+/**
+ * Write the skill folder under `targetDir` (a clean copy of `sourceDir`), then
+ * drop the lens `marker` (e.g. Codex's `.codex/`) when the Provider declares
+ * one so a project whose `skillDir` is shared open-standard territory still
+ * resolves the chosen lens. The unconditional `rm` keeps the post-condition
+ * simple (`targetDir` matches the bundled payload byte-for-byte); the caller's
+ * clobber guard guarantees we only reach here when the target is absent or
+ * `--force` was passed, so wiping is safe (`rmSync({ force: true })` no-ops on a
+ * missing path).
+ */
+function materializeSkillFolder(
+  sourceDir: string,
+  targetDir: string,
+  cwd: string,
+  marker: string | undefined,
+): void {
+  rmSync(targetDir, { recursive: true, force: true });
+  mkdirSync(dirname(targetDir), { recursive: true });
+  cpSync(sourceDir, targetDir, { recursive: true });
+  if (marker !== undefined) {
+    mkdirSync(join(cwd, marker), { recursive: true });
+  }
+}
+
 // -----------------------------------------------------------------------------
 // Destination Provider catalog
 // -----------------------------------------------------------------------------
@@ -361,6 +380,8 @@ interface IScaffoldTarget {
   id: string;
   label: string;
   skillDir: string;
+  /** Marker dir to create alongside the skill so the chosen lens resolves. */
+  marker?: string;
   aka: readonly string[];
 }
 
@@ -386,6 +407,7 @@ function toScaffoldTarget(
     id: provider.id,
     label: provider.presentation.label,
     skillDir: scaffold.skillDir,
+    ...(scaffold.marker !== undefined ? { marker: scaffold.marker } : {}),
     aka: scaffold.aka ?? [],
   };
 }
@@ -394,8 +416,13 @@ function toScaffoldTarget(
  * Prompt rows in catalog order (vendor providers first per the codegen
  * `PLUGIN_ORDER`, so `claude` leads). The tutorial is a pre-bootstrap
  * helper, so this reads the built-in catalog directly rather than project
- * config. When `includeExperimental` is set, experimental destinations
- * (today `agent-skills`) join the list; otherwise only ready ones appear.
+ * config. The default-offered rows are the book-ready destinations that
+ * declare a `scaffold.skillDir` and ship enabled: `claude` (rich track),
+ * the beta `codex` (rich track), and the open-standard `agent-skills`
+ * (basic track). `beta` ships enabled, so `codex` appears by default;
+ * `--experimental` would add any `stability: experimental` scaffolder, of
+ * which there is none today (they ship disabled), so the flag is a no-op
+ * among current built-ins.
  */
 export function listScaffoldTargets(includeExperimental = false): IScaffoldTarget[] {
   const out: IScaffoldTarget[] = [];
@@ -406,9 +433,16 @@ export function listScaffoldTargets(includeExperimental = false): IScaffoldTarge
   return out;
 }
 
-/** Render a target's prompt label, appending `(aka1, aka2)` when present. */
-function labelWithAka(target: IScaffoldTarget): string {
-  return target.aka.length > 0 ? `${target.label} (${target.aka.join(', ')})` : target.label;
+/**
+ * Render a target's prompt label. When the target carries `aka` vendors
+ * (the open standard lists `Google's Antigravity`), the aka vendor LEADS and
+ * the provider label follows in parentheses (`Google's Antigravity (Standard:
+ * Agent skills)`); the vendor name is the recognisable handle, the standard
+ * name the qualifier. Without `aka` (Claude, Codex) it is just the label.
+ * Exported for unit coverage.
+ */
+export function labelWithAka(target: IScaffoldTarget): string {
+  return target.aka.length > 0 ? `${target.aka.join(', ')} (${target.label})` : target.label;
 }
 
 /** Render the numbered destination list. */
@@ -424,7 +458,6 @@ function renderTargetLines(
       tx(TUTORIAL_TEXTS.promptOption, {
         index: i + 1,
         label: labelWithAka(t),
-        skillDir: `${t.skillDir}/`,
         marker: t.id === def.id ? TUTORIAL_TEXTS.promptDefaultMarker : '',
       }),
     );

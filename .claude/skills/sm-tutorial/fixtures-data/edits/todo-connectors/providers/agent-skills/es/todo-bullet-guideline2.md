@@ -1,0 +1,1 @@
+- [ ] Seguí la [demo-guideline2](demo-guideline2.md) para el resto.

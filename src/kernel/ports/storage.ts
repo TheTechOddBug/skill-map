@@ -14,7 +14,7 @@
  *
  * Phase A lands the **scans / issues / enrichments / transaction**
  * namespaces, the core scan pipeline. The remaining namespaces
- * (history / jobs / pluginConfig / migrations / pluginMigrations)
+ * (history / jobs / trust / migrations / pluginMigrations)
  * arrive in subsequent phases. The port shape declared here is the
  * Phase A subset; later phases extend it without reshaping what
  * lands today.
@@ -56,9 +56,9 @@ import type {
   IPersistOptions,
   IPluginApplyOptions,
   IPluginApplyResult,
-  IPluginConfigRow,
   IPluginMigrationFile,
   IPluginMigrationPlan,
+  IPluginTrustRow,
   IPruneResult,
   THistoryStatsPeriod,
 } from '../types/storage.js';
@@ -101,7 +101,7 @@ export interface ITransactionalStorage {
      */
     migrateNodeFks(from: string, to: string): Promise<IMigrateNodeFksReport>;
   };
-  // jobs / pluginConfig namespaces land in Phases C-D.
+  // jobs / trust namespaces land in Phases C-D.
 }
 
 export interface StoragePort {
@@ -306,25 +306,31 @@ export interface StoragePort {
   // read shape lands when a non-refresh consumer surfaces; the
   // contract starts minimal on purpose.
 
-  // --- pluginConfig namespace -------------------------------------------
-  pluginConfig: {
+  // --- trust namespace --------------------------------------------------
+  /**
+   * Per-machine plugin import-trust store (`config_plugins`, the SECURITY
+   * axis). Keyed by bare plugin id. Written by `sm plugins trust /
+   * untrust` and `PATCH /api/plugins/:id/trust`. The operational
+   * enable/disable toggle lives in the config layers, NOT here.
+   */
+  trust: {
     /**
-     * Upsert the per-plugin enabled override into `config_plugins`.
-     * Caller is `sm plugins enable / disable`.
+     * Upsert the per-plugin trust grant into `config_plugins`. Caller is
+     * `sm plugins trust / untrust` (and the BFF trust route).
      */
-    set(pluginId: string, enabled: boolean): Promise<void>;
-    /** Read a single override; `undefined` when no row exists. */
+    set(pluginId: string, trusted: boolean): Promise<void>;
+    /** Read a single trust grant; `undefined` when no row exists. */
     get(pluginId: string): Promise<boolean | undefined>;
-    /** Every override row, sorted by `pluginId` for stable rendering. */
-    list(): Promise<IPluginConfigRow[]>;
-    /** Drop a single override row (no-op when absent). */
+    /** Every trust row, sorted by `pluginId` for stable rendering. */
+    list(): Promise<IPluginTrustRow[]>;
+    /** Drop a single trust row (no-op when absent). */
     delete(pluginId: string): Promise<void>;
     /**
-     * Load every override into a map for quick lookup by id. Used by
-     * `loadPluginRuntime` to layer the DB overrides over the
-     * `settings.json` defaults at scan boot.
+     * Load every trust grant into a map for quick lookup by bare plugin
+     * id. Used by `loadPluginRuntime` to feed the import-trust gate at
+     * scan boot.
      */
-    loadOverrideMap(): Promise<Map<string, boolean>>;
+    loadTrustMap(): Promise<Map<string, boolean>>;
   };
 
   // --- jobs namespace ----------------------------------------------------
@@ -515,10 +521,10 @@ export type {
   IPersistOptions,
   IPluginApplyOptions,
   IPluginApplyResult,
-  IPluginConfigRow,
   IPluginMigrationFile,
   IPluginMigrationPlan,
   IPluginMigrationRecord,
+  IPluginTrustRow,
   IPruneResult,
   THistoryStatsPeriod,
 } from '../types/storage.js';

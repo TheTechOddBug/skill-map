@@ -7,8 +7,9 @@
  *
  * Contract under test:
  *   - by default the catalog lists the ready scaffold destinations
- *     (`claude` + the stable open-standard `agent-skills`); the universal
- *     `markdown` base declares no scaffold, so it never appears;
+ *     (`claude`, the beta rich-track `codex`, and the stable open-standard
+ *     `agent-skills`); the universal `markdown` base declares no scaffold, so
+ *     it never appears;
  *   - the experimental gate still exists (`includeExperimental`), though no
  *     built-in scaffolder is experimental today, so the flag adds nothing
  *     among built-ins;
@@ -18,18 +19,23 @@
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
-import { classifyAnswer, listScaffoldTargets } from '../tutorial.js';
+import { classifyAnswer, labelWithAka, listScaffoldTargets } from '../tutorial.js';
+import { TUTORIAL_TEXTS } from '../../i18n/tutorial.texts.js';
 
 describe('sm tutorial destination catalog', () => {
-  it('lists the ready scaffold destinations by default (claude, agent-skills)', () => {
+  it('lists the ready scaffold destinations by default (claude, codex, agent-skills)', () => {
     const targets = listScaffoldTargets();
-    // Only `claude` and `agent-skills` declare a `scaffold.skillDir`; both
-    // are stable now, so both appear by default, in registration order.
+    // claude (stable, rich), codex (beta, rich) and agent-skills (stable,
+    // basic) all declare a `scaffold.skillDir`; beta ships enabled, so all
+    // three appear by default, in registration order.
     assert.deepEqual(
       targets.map((t) => t.id),
-      ['claude', 'agent-skills'],
+      ['claude', 'codex', 'agent-skills'],
     );
     assert.ok(targets[0]!.skillDir, 'claude must carry a skillDir');
+    // Codex shares the `.agents/skills` territory with the basic family, so it
+    // carries a `.codex` marker the verb drops to disambiguate its lens.
+    assert.equal(targets.find((t) => t.id === 'codex')?.marker, '.codex');
   });
 
   it('carries the stable open-standard by default; the markdown base never scaffolds', () => {
@@ -41,6 +47,33 @@ describe('sm tutorial destination catalog', () => {
     assert.ok(listScaffoldTargets().some((t) => t.id === 'agent-skills'));
     // The universal markdown base declares no scaffold, so it never appears.
     assert.ok(!ids.includes('markdown'));
+  });
+});
+
+describe('sm tutorial prompt rendering', () => {
+  const targets = listScaffoldTargets();
+  const byId = (id: string) => targets.find((t) => t.id === id)!;
+
+  it('renders Claude and Codex by their plain vendor label (no aka)', () => {
+    assert.equal(labelWithAka(byId('claude')), "Anthropic's Claude");
+    assert.equal(labelWithAka(byId('codex')), "OpenAI's Codex");
+  });
+
+  it('leads with the aka vendor for the open standard, provider label in parens', () => {
+    // Several providers share `.agents/skills`, so the folder cannot identify
+    // the lens; the vendor name does. The open standard leads with its aka
+    // vendor (Antigravity) and keeps the standard label as the qualifier.
+    assert.equal(
+      labelWithAka(byId('agent-skills')),
+      "Google's Antigravity (Standard: Agent skills)",
+    );
+  });
+
+  it('omits the destination folder from the option template', () => {
+    // The folder is deliberately not interpolated: `.agents/skills` is shared
+    // by codex + agent-skills, so showing it would be ambiguous.
+    assert.ok(!TUTORIAL_TEXTS.promptOption.includes('skillDir'));
+    assert.ok(TUTORIAL_TEXTS.promptOption.includes('{{label}}'));
   });
 });
 

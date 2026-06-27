@@ -42,20 +42,27 @@ import {
 import { readJsonObjectOrEmpty, writeJsonAtomic } from '../../kernel/util/atomic-write.js';
 
 /**
- * Keys whose value can OPEN disk access outside the project root,
- * the operator must opt in via `--yes` (CLI) or a confirm dialog
- * (UI) before the write goes through. Surfaces:
+ * Keys whose value EXPANDS the project's surface, the operator must opt
+ * in via `--yes` (CLI) or a confirm dialog (UI) before the write goes
+ * through. Two flavours of surface:
  *
- *   - `scan.referencePaths`: string[] of directories walked for link
- *     validation only.
+ *   - disk access OUTSIDE the project root, `scan.referencePaths`
+ *     (string[] of directories walked for link validation only). The
+ *     "exposure" is the list of out-of-project paths the change adds.
+ *   - the LOCAL code-execution surface, `pluginTrust.projectEnabled`
+ *     (boolean), which locally trusts every plugin the project enables.
+ *     The "exposure" is "turning blanket plugin trust on".
  *
- * The CLI wrapper (`sm config set`) consults this set + the
- * "expanding the surface?" predicate to decide whether `--yes` is
- * required (writes that NARROW the surface, removing paths, are
- * not gated).
+ * The CLI wrapper (`sm config set`) and the BFF (`PATCH
+ * /api/project-preferences`) consult this set + the "expanding the
+ * surface?" predicate (`projectPathExposure` for the path key,
+ * `projectTrustExposure` for the trust key) to decide whether `--yes` /
+ * `confirm: true` is required. Writes that NARROW the surface (removing
+ * paths, turning trust off) are not gated.
  */
 export const PRIVACY_SENSITIVE_KEYS: ReadonlySet<string> = new Set<string>([
   'scan.referencePaths',
+  'pluginTrust.projectEnabled',
 ]);
 
 /**
@@ -312,6 +319,32 @@ export function projectPathExposure(inputs: IPathExposureInputs): IPathExposureR
     .filter((abs): abs is string => abs !== null && !isUnderProject(abs, inputs.cwd));
   if (exposed.length === 0) return empty;
   return { expandsSurface: true, exposedPaths: exposed };
+}
+
+/**
+ * Project the code-execution-surface expansion of a `pluginTrust.projectEnabled`
+ * write. Returns `{ expandsSurface: true }` only when the operator is
+ * turning the local opt-in ON (`value === true`) and it is not already
+ * on; turning it OFF (or leaving it on) never expands the surface, so it
+ * is not gated.
+ *
+ * Unlike `projectPathExposure` there is no path list to enumerate, the
+ * "exposure" is the blanket "trust every plugin the project enables".
+ * The CLI / UI surface a generic confirm; computing the exact list of
+ * currently-untrusted-but-enabled plugins needs the plugin runtime + DB
+ * trust map (not available here), so the helper stays config-only.
+ */
+export function projectTrustExposure(inputs: {
+  value: unknown;
+  cwd: string;
+}): { expandsSurface: boolean } {
+  if (inputs.value !== true) return { expandsSurface: false };
+  const before =
+    readConfigValue<boolean>('pluginTrust.projectEnabled', {
+      cwd: inputs.cwd,
+      default: false,
+    }) ?? false;
+  return { expandsSurface: before !== true };
 }
 
 function resolveScanPathForExposure(raw: string, cwd: string): string | null {

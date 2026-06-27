@@ -48,6 +48,9 @@ Current acceptable locations (not exhaustive, but the pattern):
 - Chevrons in `settings-plugins`, `node-card`, `vendor-frontmatter`, and the inspector's collapsible cards.
 - Sidebar nav items in `<sm-settings-modal>` (styled with `aria-current="page"`).
 - Debug toggle in `<sm-inspector-view>`.
+- CTA buttons in `<sm-skipped-files-banner>` and `<sm-oversized-banner>` (token-aware paint, see below).
+
+**Second exception, theme-token-aware CTAs**: the two scan banners (`skipped-files-banner`, `oversized-banner`) paint their CTA off `currentColor`, which inherits the banner's `--sm-severity-warn` foreground. That lets the matrix theme retint the button to its green accent automatically when it swaps the SM severity tokens. `<p-button>`'s secondary chrome tracks the PrimeNG palette, not the SM severity tokens, so wrapping these CTAs would break the matrix retint. The rationale is documented inline in each banner's `.css`. These stay plain `<button>` (real `type="button"` + `aria-label`, full focus ring), not for layout reasons but for token-coupling reasons.
 
 Anywhere else, default to `<p-button>`. When in doubt, default to `<p-button>` and only fall back to plain `<button>` after measuring the layout cost.
 
@@ -140,7 +143,7 @@ The workspace ships TWO `services/` folders. The split is intentional, do not co
 2. Does it react to the router, manage page chrome (title, banners, toggles), or coordinate domain services for an app-level concern? → `ui/src/app/services/`.
 3. Is it ambiguous? Prefer `ui/src/services/` (default) and document the placement in the file's top JSDoc. The next reviewer can move it if the contract drifts toward app-shell.
 
-The same split applies to `ui/src/i18n/` (single folder, but every catalog file is sibling to its consumer's "natural" layer, no `ui/src/app/i18n/` exists yet, do not introduce one without first hitting a real cross-cutting i18n pattern).
+Text catalogs live in a single folder, `ui/src/i18n/`, one `*.texts.ts` file per consumer, named after it (e.g. `node-tags.texts.ts` for `<sm-node-tags>`). Do NOT co-locate a catalog next to its component, and do not introduce a second i18n root (`ui/src/app/i18n/`) without first hitting a real cross-cutting i18n pattern.
 
 ### Non-PrimeNG `::ng-deep` (out of M1 scope)
 
@@ -150,10 +153,11 @@ Several unrelated escape-hatches also live under `::ng-deep`, none targets a Pri
 - **Rendered markdown DOM** injected via `[innerHTML]`, so component encapsulation does not reach it and child styles go through `::ng-deep`: `settings-changelog.css` (5 blocks under `.settings-changelog__highlight-body`), the inline-markdown description fields in `inspector-view.css` (`.inspector__desc` `code` / `a`) and `node-card.css` (`.sm-gnode__desc` `code` / `a`), and the rendered author quote in `vendor-frontmatter.css` (`.vfm__quote` `> :first-child` / `> :last-child` / `code` / `a`). The description `a` rules also restore link affordance over the global `a` reset.
 - **Shared `.sm-block` section vocabulary**: `inspector-view.css` styles the `.sm-block*` family (rail, toggle row, chevron, dense `dt`/`dd` grid) via `::ng-deep` so the child components that emit that markup, `<sm-vendor-frontmatter>`, `<sm-annotations-panel>`, and `<sm-collapsible-section>` (the generic toggle row the inspector sections are built from), inherit the chrome without redeclaring it. Project-owned classes on project-owned child DOM, never a PrimeNG internal.
 - **Custom-element children** in `kind-palette.css` (the `<sm-kind-icon>` tints and PrimeIcon `.pi` rules), styling a project-owned custom element from its parent, again outside Angular encapsulation.
+- **Custom-child label suppression** in `node-tags.css` (1 block, `.node-tags__control ::ng-deep .itc__label`), hides the `<sm-input-type-control>` child's own "Tags" label inside the inline tag editor where it is redundant (the label survives as the autocomplete's `aria-label`). Project-owned class on a project-owned child component, never a PrimeNG internal.
 
 ## Themes
 
-The UI ships three themes today: **light** (default), **dark** (system pref or explicit), and **matrix** (extra theme). They live as **sibling files** under `ui/src/themes/` with the same shape, so a fourth theme is one file plus one registry entry plus one `angular.json` line.
+The UI ships **light** (default), **dark** (system pref or explicit), and four specialty themes registered in `EXTRA_THEMES`: **matrix**, **neon** (Neon B), **neon-green** (Neon G), and **neon-red** (Neon R). They live as **sibling files** under `ui/src/themes/` with the same shape, so another theme is one file plus one registry entry plus one `angular.json` line.
 
 ### File layout
 
@@ -161,13 +165,17 @@ The UI ships three themes today: **light** (default), **dark** (system pref or e
 ui/src/
 ├── styles.css                   <-- cross-theme foundations (fonts, radii, violet ramp, resets, scrollbars, empty-state)
 ├── themes/
-│   ├── light.css                <-- :root { --sm-bg-*, --sm-edge-*, --sm-link-*, --sm-severity-*, --sm-stat-*, --sm-accent-fg, --sm-shadow-* }
+│   ├── light.css                <-- :root { --sm-bg-*, --sm-edge-*, --sm-link-*, --sm-severity-*, --sm-stat-*, --sm-hl-*, --sm-accent-fg, --sm-shadow-* }
 │   ├── dark.css                 <-- .app-dark { same tokens, dark values }
 │   ├── matrix.css               <-- :root.app-matrix + html.app-matrix .X (palette + per-element retints)
+│   ├── neon.css                 <-- :root.app-neon + html.app-neon .X (Neon B; same shape as matrix)
+│   ├── neon-green.css           <-- :root.app-neon-green + html.app-neon-green .X (Neon G)
+│   ├── neon-red.css             <-- :root.app-neon-red + html.app-neon-red .X (Neon R)
+│   ├── highlight.css            <-- theme-agnostic syntax-highlight, maps hljs-* to the active theme's --sm-hl-* tokens
 │   └── registry.ts              <-- EXTRA_THEMES catalog consumed by ThemeService + Settings UI
 ```
 
-**Authority**: opening `light.css`, `dark.css`, or `matrix.css` reveals the **same sections in the same order** (`Surface palette` → `Edge palette` → `Link badge palette` → `Severity, foreground` → `Severity, row tint` → `Physical-stat chip tints` → `Accent foreground` → `Elevation shadows`). Keep that symmetry when extending: a token added to one theme must land in the same section across all three.
+**Authority**: opening `light.css`, `dark.css`, or any specialty theme reveals the **same sections in the same order** (`Surface palette` → `Edge palette` → `Link badge palette` → `Severity, foreground` → `Severity, row tint` → `Physical-stat chip tints` → `Accent foreground` → `Elevation shadows`). Keep that symmetry when extending: a token added to one theme must land in the same section across every theme.
 
 ### Selector strategy
 
@@ -186,7 +194,11 @@ node_modules/@fortawesome/fontawesome-free/css/all.min.css
 src/styles.css            <-- cross-theme foundations
 src/themes/light.css      <-- :root palette
 src/themes/dark.css       <-- .app-dark overrides
-src/themes/matrix.css     <-- specialty theme, last so it beats everything
+src/themes/matrix.css     <-- specialty themes, after dark so they beat the base palettes
+src/themes/neon.css
+src/themes/neon-green.css
+src/themes/neon-red.css
+src/themes/highlight.css  <-- theme-agnostic syntax-highlight, last
 ```
 
 Every new specialty theme appends **after** `dark.css` so the bare `:root` and `.app-dark` palettes resolve first, then the specialty class wins on activation.

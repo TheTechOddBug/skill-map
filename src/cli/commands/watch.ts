@@ -37,7 +37,7 @@ import { createCliProgressEmitter } from '../util/cli-progress-emitter.js';
 import { readConformanceKillSwitches } from '../util/conformance-env.js';
 import { resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
-import { tryParseNonNegativeInt } from '../util/option-validators.js';
+import { tryParseNonNegativeInt, tryParsePositiveInt } from '../util/option-validators.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { createPrinter, type IPrinter } from '../util/printer.js';
 import { SmCommand } from '../util/sm-command.js';
@@ -437,8 +437,8 @@ function parseMaxScanLimit(
   noColor: boolean,
 ): number | undefined | null {
   if (raw === undefined) return undefined;
-  const n = Number(raw);
-  if (!Number.isInteger(n) || n < 1) {
+  const n = tryParsePositiveInt(raw);
+  if (n === null) {
     const stderrTty = stderr as NodeJS.WriteStream & { isTTY?: boolean };
     const ansi = ansiFor({ isTTY: stderrTty.isTTY === true, noColorFlag: noColor });
     stderr.write(
@@ -465,8 +465,8 @@ function parseMaxNodesLimit(
   noColor: boolean,
 ): number | undefined | null {
   if (raw === undefined) return undefined;
-  const n = Number(raw);
-  if (!Number.isInteger(n) || n < 1) {
+  const n = tryParsePositiveInt(raw);
+  if (n === null) {
     const stderrTty = stderr as NodeJS.WriteStream & { isTTY?: boolean };
     const ansi = ansiFor({ isTTY: stderrTty.isTTY === true, noColorFlag: noColor });
     stderr.write(

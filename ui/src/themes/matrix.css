@@ -78,11 +78,17 @@ html.app-matrix body {
   --p-primary-contrast-color: #001a05;
   /* Primary button hover/active states, else they fall back to the
      violet preset and a themed button flashes violet on hover. Mirrors
-     the danger-button idiom below (lighter on hover, darker on press);
-     secondary-text (Discard) gets a themed hover/active wash too (the
-     toolbar already scopes the same tokens, this is the global default). */
+     the danger-button idiom below (lighter on hover, darker on press).
+     Secondary-text buttons (dialog Discard / Reject / Cancel, the zoom
+     toolbar) get the FULL themed chain here: base colour one notch down
+     (accent-dim) so they stay subordinate to the primary action, hover
+     lifting to the full accent with the matching wash. Set globally so
+     it reaches dialogs appended to <body>, not just the in-shell
+     toolbar (which used to be the only place the base colour was set). */
   --p-primary-hover-color: color-mix(in srgb, var(--sm-matrix-accent) 80%, #ffffff);
   --p-primary-active-color: color-mix(in srgb, var(--sm-matrix-accent) 70%, #000000);
+  --p-button-text-secondary-color: var(--sm-matrix-accent-dim);
+  --p-button-text-secondary-hover-color: var(--sm-matrix-accent);
   --p-button-text-secondary-hover-background: color-mix(in srgb, var(--sm-matrix-accent) 18%, transparent);
   --p-button-text-secondary-active-background: color-mix(in srgb, var(--sm-matrix-accent) 26%, transparent);
   --p-content-background: var(--sm-bg-content);
@@ -186,12 +192,11 @@ html.app-matrix .shell__nav a.is-active {
   text-shadow: 0 0 10px color-mix(in srgb, var(--sm-matrix-accent) 50%, transparent);
 }
 
-/* Settings modal sidebar: the base rule uses the default PrimeNG
-   `--p-highlight-*` chain which lands as a violet tint in matrix
-   (the tokens are not overridden globally to avoid bleed into other
-   highlight surfaces). Override locally so the active section reads
-   as matrix accent on a dark bg, matching the topbar nav active
-   state pattern (translucent accent fill + glowing label). */
+/* Settings modal sidebar: the `--p-highlight-*` chain is now retinted to
+   the matrix accent globally (see the Form fields block), so the active
+   section already reads green instead of the preset violet. This local
+   rule keeps the stronger bespoke treatment (denser accent fill + glowing
+   label) matching the topbar nav active state pattern. */
 html.app-matrix .settings-modal__sidebar-item:hover {
   background: color-mix(in srgb, var(--sm-matrix-accent) 10%, transparent);
 }
@@ -267,6 +272,17 @@ html.app-matrix {
   --p-form-field-icon-color: var(--sm-matrix-accent-dim);
   --p-form-field-float-label-color: var(--sm-matrix-muted);
   --p-form-field-float-label-focus-color: var(--sm-matrix-accent);
+  /* Selected-state highlight chain. Aura bakes `--p-highlight-*` from the
+     preset's violet primary as literal colours (re-keying `--p-primary-*`
+     does NOT reach them), so a `p-select` / multiselect / autocomplete /
+     listbox selected option reads violet and its focused row the surface
+     grey. Retint to the accent so every overlay's selected option matches
+     the shell, the active-provider `<select>` (Settings, Project) is the
+     visible one. */
+  --p-highlight-background: color-mix(in srgb, var(--sm-matrix-accent) 18%, transparent);
+  --p-highlight-focus-background: color-mix(in srgb, var(--sm-matrix-accent) 26%, transparent);
+  --p-highlight-color: var(--sm-matrix-accent);
+  --p-highlight-focus-color: var(--sm-matrix-accent);
 }
 
 /* Selectbutton selected pill. The togglebutton root uses surface.* by
@@ -376,20 +392,11 @@ html.app-matrix .graph__canvas-wrap {
   --ff-minimap-shadow: var(--sm-shadow-floating);
 }
 
-/* Floating zoom toolbar: PrimeNG `severity="secondary" [text]` reads
-   the `--p-button-text-secondary-*` chain. Override the chain at the
-   wrapper so the green tint propagates without fighting selector
-   specificity inside the button. Same logic as the minimap: the
-   toolbar is auxiliary navigation, not the primary signal, so the
-   accents drop one notch (full accent → accent-dim) and the
-   hover / active backgrounds shrink to ~70% of their previous alpha
-   so the buttons sit under the graph's noise floor instead of
-   competing with it. */
+/* Floating zoom toolbar. The secondary-text accent chain now comes from
+   the global theme block above (it already uses accent-dim, the notch the
+   toolbar wanted), so the toolbar only carries its floating-surface chrome
+   here. */
 html.app-matrix .graph__toolbar {
-  --p-button-text-secondary-color: var(--sm-matrix-accent-dim);
-  --p-button-text-secondary-hover-color: var(--sm-matrix-accent);
-  --p-button-text-secondary-hover-background: color-mix(in srgb, var(--sm-matrix-accent) 18%, transparent);
-  --p-button-text-secondary-active-background: color-mix(in srgb, var(--sm-matrix-accent) 26%, transparent);
   /* Share the same glow shape + intensities as the cards so the
      toolbar reads as another matrix surface, not a brighter outlier.
      `--sm-shadow-card` = `0 0 18px ...20%`, idle halo even around

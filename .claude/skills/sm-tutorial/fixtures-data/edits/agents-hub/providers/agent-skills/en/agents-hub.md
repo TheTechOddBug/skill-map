@@ -1,0 +1,2 @@
+- When a page needs writing or fixing, hand it to the [content-editor](.agents/skills/content-editor/SKILL.md).
+- When the site is ready to go out, run [publish](.agents/skills/publish/SKILL.md).

@@ -282,11 +282,21 @@ export interface IProviderScaffold {
    */
   skillDir: string;
   /**
+   * Optional directory the materialising verb creates so the active-lens
+   * resolver picks THIS Provider when its `skillDir` is shared with another
+   * lens. The open `.agents/skills` territory is read by several lenses
+   * (`agent-skills`, `antigravity`, `codex`); a Provider whose skillDir is
+   * that shared territory but whose lens needs a distinct marker (Codex's
+   * `.codex`) declares it here, and `sm tutorial --for <id>` drops the marker
+   * alongside the skill. Omitted when the skillDir's parent IS the marker.
+   */
+  marker?: string;
+  /**
    * Display-only hints naming the agents that consume this scaffold
-   * territory, rendered in parentheses next to the Provider label in the
-   * `sm tutorial` destination prompt (e.g. `.agents/skills` is read by
-   * Google's Antigravity and OpenAI's Codex). Purely presentational: NOT matched by
-   * `--for` (only registered Provider ids are) and has no runtime effect.
+   * territory AND share its tutorial track, rendered in parentheses next to
+   * the Provider label in the `sm tutorial` destination prompt. Purely
+   * presentational: NOT matched by `--for` (only registered Provider ids
+   * are) and has no runtime effect.
    */
   aka?: readonly string[];
 }

@@ -9,6 +9,7 @@
       "seed": null,
       "prereq": null,
       "pace": "per-step",
+      "track": "rich",
       "chapters": [
         {
           "id": "init",
@@ -28,7 +29,7 @@
         {
           "id": "connectors",
           "title": "The connectors light up",
-          "est_min": 2
+          "est_min": 1
         },
         {
           "id": "inspector",
@@ -38,29 +39,83 @@
         {
           "id": "edit-link",
           "title": "Edit a link, the topology changes",
-          "est_min": 3
+          "est_min": 2
         },
         {
           "id": "workspace",
           "title": "Navigate the workspace (files, search, isolate)",
-          "est_min": 2
+          "est_min": 1
         },
         {
           "id": "ignore",
           "title": "Silence a file via .skillmapignore",
+          "est_min": 1
+        }
+      ]
+    },
+    {
+      "id": "basic-fundamentals",
+      "order": 0,
+      "title": "The live map (prologue)",
+      "status": "active",
+      "preflight": "taught-init",
+      "seed": null,
+      "prereq": null,
+      "pace": "per-step",
+      "track": "basic",
+      "chapters": [
+        {
+          "id": "init",
+          "title": "Your first node (sm init, sm, the UI)",
           "est_min": 2
+        },
+        {
+          "id": "kinds",
+          "title": "Skills and notes appear",
+          "est_min": 1
+        },
+        {
+          "id": "first-edit",
+          "title": "Your first edit (the watcher reacts)",
+          "est_min": 1
+        },
+        {
+          "id": "connectors",
+          "title": "Connect with references (markdown links)",
+          "est_min": 1
+        },
+        {
+          "id": "inspector",
+          "title": "The inspector and connections",
+          "est_min": 1
+        },
+        {
+          "id": "edit-link",
+          "title": "Edit a link, the topology changes",
+          "est_min": 2
+        },
+        {
+          "id": "workspace",
+          "title": "Navigate the workspace (files, search, isolate)",
+          "est_min": 1
+        },
+        {
+          "id": "ignore",
+          "title": "Silence a file via .skillmapignore",
+          "est_min": 1
         }
       ]
     },
     {
       "id": "project-kickoff",
       "order": 1,
-      "title": "The project from zero",
+      "title": "The harness from zero",
       "status": "active",
       "preflight": "portfolio-init",
       "seed": null,
       "prereq": null,
       "pace": "per-step",
+      "track": "rich",
       "chapters": [
         {
           "id": "kickoff",
@@ -80,33 +135,74 @@
         {
           "id": "real-kinds",
           "title": "The real kinds in context",
+          "est_min": 1
+        },
+        {
+          "id": "check-links",
+          "title": "The check-links skill",
+          "est_min": 1
+        },
+        {
+          "id": "publish",
+          "title": "The /publish command invokes the skill",
+          "est_min": 2
+        },
+        {
+          "id": "links",
+          "title": "Mentions (@) and references between assets",
+          "est_min": 2
+        },
+        {
+          "id": "confidence",
+          "title": "Connector confidence (opacity = certainty)",
           "est_min": 2
         }
       ]
     },
     {
-      "id": "connect-harness",
-      "order": 2,
-      "title": "Connect the harness",
+      "id": "basic-kickoff",
+      "order": 1,
+      "title": "The harness from zero",
       "status": "active",
-      "preflight": "seed",
-      "seed": "harness-built",
-      "prereq": "project-kickoff",
-      "pace": "auto-advance",
+      "preflight": "portfolio-init",
+      "seed": null,
+      "prereq": null,
+      "pace": "per-step",
+      "track": "basic",
       "chapters": [
         {
+          "id": "kickoff",
+          "title": "Start the portfolio (sm init on the real skeleton)",
+          "est_min": 2
+        },
+        {
+          "id": "manual",
+          "title": "The handbook (AGENTS.md) and an entry pointer",
+          "est_min": 2
+        },
+        {
+          "id": "first-skill",
+          "title": "The first harness skill (content-editor)",
+          "est_min": 2
+        },
+        {
+          "id": "real-kinds",
+          "title": "The kinds in context",
+          "est_min": 2
+        },
+        {
           "id": "check-links",
-          "title": "The check-links skill",
+          "title": "The link checker",
           "est_min": 2
         },
         {
           "id": "publish",
-          "title": "The /publish command invokes the skill",
+          "title": "The publish skill references the harness",
           "est_min": 3
         },
         {
           "id": "links",
-          "title": "Mentions (@) and references between assets",
+          "title": "The handbook becomes the hub (references)",
           "est_min": 3
         },
         {
@@ -118,28 +214,29 @@
     },
     {
       "id": "daily-loop",
-      "order": 3,
+      "order": 2,
       "title": "The daily loop (add, improve, publish)",
       "status": "active",
       "preflight": "seed",
       "seed": "harness-connected",
-      "prereq": "connect-harness",
+      "prereq": "project-kickoff",
       "pace": "auto-advance",
+      "track": "rich",
       "chapters": [
         {
           "id": "setup",
           "title": "Make it yours and bring it up",
-          "est_min": 5
+          "est_min": 4
         },
         {
           "id": "add-page",
           "title": "Add a page with your agent",
-          "est_min": 4
+          "est_min": 3
         },
         {
           "id": "broken-ref",
           "title": "A rename breaks a link",
-          "est_min": 4
+          "est_min": 3
         },
         {
           "id": "reserved",
@@ -149,7 +246,7 @@
         {
           "id": "publish",
           "title": "Ship it: run /publish for real",
-          "est_min": 4
+          "est_min": 3
         },
         {
           "id": "stability",
@@ -158,7 +255,93 @@
         },
         {
           "id": "golive",
-          "title": "Your portfolio, live next to the graph",
+          "title": "Your website, live next to the graph",
+          "est_min": 3
+        }
+      ]
+    },
+    {
+      "id": "basic-daily",
+      "order": 2,
+      "title": "The daily loop (add, improve, publish)",
+      "status": "active",
+      "preflight": "seed",
+      "seed": "harness-connected",
+      "prereq": "basic-kickoff",
+      "pace": "auto-advance",
+      "track": "basic",
+      "chapters": [
+        {
+          "id": "setup",
+          "title": "Make it yours and bring it up",
+          "est_min": 4
+        },
+        {
+          "id": "add-page",
+          "title": "Add a page with your skill",
+          "est_min": 3
+        },
+        {
+          "id": "broken-ref",
+          "title": "A rename breaks a link",
+          "est_min": 3
+        },
+        {
+          "id": "reserved",
+          "title": "A reserved name collides",
+          "est_min": 2
+        },
+        {
+          "id": "publish",
+          "title": "Ship it: run the publish skill for real",
+          "est_min": 3
+        },
+        {
+          "id": "stability",
+          "title": "Set a node's stability (and the `.sm` sidecar)",
+          "est_min": 3
+        },
+        {
+          "id": "golive",
+          "title": "Your website, live next to the graph",
+          "est_min": 3
+        }
+      ]
+    },
+    {
+      "id": "cli",
+      "order": 3,
+      "title": "The CLI for you and your agent",
+      "status": "active",
+      "preflight": "seed",
+      "seed": "prologue-built",
+      "prereq": "fundamentals",
+      "pace": "auto-advance",
+      "track": "both",
+      "chapters": [
+        {
+          "id": "browse",
+          "title": "list / show / check",
+          "est_min": 2
+        },
+        {
+          "id": "graph-export",
+          "title": "graph / export (query, formatters)",
+          "est_min": 2
+        },
+        {
+          "id": "issues",
+          "title": "Issues and broken refs (--analyzers, --json)",
+          "est_min": 2
+        },
+        {
+          "id": "annotations",
+          "title": "Annotations and the .sm consent prompt",
+          "est_min": 3
+        },
+        {
+          "id": "reference-paths",
+          "title": "Validate links to folders outside the scan scope",
           "est_min": 3
         }
       ]
@@ -166,12 +349,13 @@
     {
       "id": "extend",
       "order": 4,
-      "title": "Extend skill-map for the site",
+      "title": "Extend skill-map with plugins",
       "status": "active",
       "preflight": "backstage-init",
       "seed": null,
       "prereq": null,
       "pace": "auto-advance",
+      "track": "both",
       "chapters": [
         {
           "id": "settings-1-layers",
@@ -186,22 +370,22 @@
         {
           "id": "settings-3-lens",
           "title": "The active provider lens (`activeProvider`)",
-          "est_min": 4
+          "est_min": 3
         },
         {
           "id": "tour-1-intro",
           "title": "How plugins work",
-          "est_min": 4
+          "est_min": 3
         },
         {
           "id": "tour-2-kinds",
           "title": "The six extension kinds",
-          "est_min": 5
+          "est_min": 4
         },
         {
           "id": "tour-3-explore",
           "title": "Explore one extension up close",
-          "est_min": 4
+          "est_min": 3
         },
         {
           "id": "authoring-1-scaffold",
@@ -231,51 +415,15 @@
       ]
     },
     {
-      "id": "cli",
-      "order": 5,
-      "title": "The CLI in depth",
-      "status": "active",
-      "preflight": "seed",
-      "seed": "prologue-built",
-      "prereq": "fundamentals",
-      "pace": "auto-advance",
-      "chapters": [
-        {
-          "id": "browse",
-          "title": "list / show / check",
-          "est_min": 3
-        },
-        {
-          "id": "graph-export",
-          "title": "graph / export (query, formatters)",
-          "est_min": 3
-        },
-        {
-          "id": "issues",
-          "title": "Issues and broken refs (--analyzers, --json)",
-          "est_min": 3
-        },
-        {
-          "id": "annotations",
-          "title": "Annotations and the .sm consent prompt",
-          "est_min": 3
-        },
-        {
-          "id": "reference-paths",
-          "title": "Validate links to folders outside the scan scope",
-          "est_min": 4
-        }
-      ]
-    },
-    {
       "id": "mcp",
-      "order": 6,
+      "order": 5,
       "title": "MCP",
       "status": "planned",
       "preflight": "seed",
       "seed": "harness-connected",
-      "prereq": "connect-harness",
+      "prereq": "project-kickoff",
       "pace": "auto-advance",
+      "track": "rich",
       "chapters": [
         {
           "id": "mcp-node",

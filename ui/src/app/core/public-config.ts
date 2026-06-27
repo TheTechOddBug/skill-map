@@ -7,9 +7,12 @@
  */
 
 /**
- * DSN for the `skill-map-ui` Sentry project. Typed `string` so the `=== ''`
- * dormancy gate stays a valid comparison; set to `''` to force the UI
- * telemetry surface dormant.
+ * DSN for the `skill-map-ui` Sentry project. Ships populated (below), so
+ * the runtime default-off gate is the per-machine consent flag
+ * (`telemetry.errorsEnabled`), not this value. Typed `string` so the
+ * `=== ''` dormancy gate stays a valid comparison; set to `''` to force
+ * the UI telemetry surface dormant regardless of consent (fork / kill
+ * switch).
  */
 export const SENTRY_DSN_UI: string =
   'https://bb9dce0fd2cb4ab27ac0475aa394aeb4@o4511475590037504.ingest.de.sentry.io/4511475725959248';

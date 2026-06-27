@@ -278,6 +278,27 @@ export interface IDataSourcePort {
   ): Promise<IListEnvelopeApi<TPluginItem>>;
 
   /**
+   * Grant (`trusted: true`) or revoke (`trusted: false`) LOCAL import
+   * trust for a single plugin. Mirrors `PATCH /api/plugins/:id/trust`
+   * with body `{ trusted }`; `id` MUST be a bare plugin id (no slash).
+   * This is the security axis, orthogonal to the enable toggles: a
+   * plugin runs only when it is both enabled (config) AND trusted (this
+   * write). The grant is per-machine and never travels in a commit.
+   *
+   * Returns the same `IListEnvelopeApi<TPluginItem>` shape as
+   * `listPlugins()` reflecting the post-write `trusted` projection, so
+   * the caller can replace its state in one shot. Built-ins and locked
+   * ids reject with `code: 'locked'` (403); demo mode rejects with
+   * `code: 'demo-readonly'`.
+   *
+   * Apply window: granting trust lets the plugin's code import on the
+   * next scan / `sm serve` restart (handlers load on restart, like the
+   * `startsAsDisabled` case); revoking reverts it to discovered-but-
+   * unexecuted. Does NOT touch the enable axis.
+   */
+  setPluginTrusted(id: string, trusted: boolean): Promise<IListEnvelopeApi<TPluginItem>>;
+
+  /**
    * Apply a buffered batch of plugin changes atomically. Mirrors the
    * bulk `PATCH /api/plugins` endpoint. Each change carries an `id`
    * (plugin id `claude`, or qualified `<plugin>/<ext>` id
@@ -328,12 +349,14 @@ export interface IDataSourcePort {
   /**
    * Persist a partial patch of the project-scope preferences
    * envelope. Mirrors `PATCH /api/project-preferences`. Writes that
-   * EXPAND the scan's disk-access surface MUST set `confirm: true`
-   * in the patch body, otherwise the BFF rejects with 412
-   * `confirm-required` (surfaces as `DataSourceError` with code
-   * `confirm-required` and a `paths` field listing what the change
-   * would expose). Demo mode rejects every write with
-   * `code: 'demo-readonly'`.
+   * EXPAND a surface MUST set `confirm: true` in the patch body,
+   * otherwise the BFF rejects with 412 `confirm-required` (surfaces
+   * as `DataSourceError` with code `confirm-required` and a `paths`
+   * field listing what the change would expose). Two surface-
+   * expanding sub-keys ride this route: `scan.referencePaths` (disk
+   * access outside the project) and `pluginTrust.projectEnabled`
+   * (local code-execution trust for every enabled plugin). Demo mode
+   * rejects every write with `code: 'demo-readonly'`.
    */
   setProjectPreferences(patch: IProjectPreferencesPatchApi): Promise<IProjectPreferencesApi>;
 

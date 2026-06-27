@@ -52,6 +52,7 @@ import {
   PROJECT_LOCAL_ONLY_KEYS,
   ProjectLocalOnlyKeyError,
   projectPathExposure,
+  projectTrustExposure,
   removeConfigValue,
   writeConfigValue,
 } from '../../core/config/helper.js';
@@ -582,7 +583,7 @@ export class ConfigSetCommand extends SmCommand {
   key = Option.String({ required: true });
   value = Option.String({ required: true });
   yes = Option.Boolean('--yes', false, {
-    description: 'Confirm a privacy-sensitive write that opens disk access outside the project (scan.referencePaths).',
+    description: 'Confirm a surface-expanding write: disk access outside the project (scan.referencePaths) or blanket local plugin trust (pluginTrust.projectEnabled).',
   });
 
   // CLI orchestrator: each branch is one validation gate (forbidden
@@ -599,37 +600,16 @@ export class ConfigSetCommand extends SmCommand {
 
     const value = parseCliValue(this.value);
 
-    // Privacy gate: writes that EXPAND the scan surface beyond the
-    // project root require `--yes`. Writes that NARROW it (removing
-    // paths) pass through without confirmation.
-    if (PRIVACY_SENSITIVE_KEYS.has(this.key)) {
-      const exposure = projectPathExposure({
-        key: this.key,
-        value,
-        cwd: ctx.cwd,
-      });
-      if (exposure.expandsSurface && !this.yes) {
-        this.printer!.info(
-          tx(CONFIG_TEXTS.privacyGateRequired, {
-            glyph: errGlyph,
-            key: this.key,
-            paths: exposure.exposedPaths.map((p) => `  - ${p}`).join('\n'),
-            hint: stderrAnsi.dim(CONFIG_TEXTS.privacyGateRequiredHint),
-          }),
-        );
-        return ExitCode.Error;
-      }
-      if (exposure.expandsSurface) {
-        // `--yes` confirmed, print the same list as a receipt so the
-        // operator sees on screen what they just opted into.
-        this.printer!.info(
-          tx(CONFIG_TEXTS.privacyGateConfirmed, {
-            glyph: stderrAnsi.dim('ⓘ'),
-            key: this.key,
-            paths: exposure.exposedPaths.map((p) => `  - ${p}`).join('\n'),
-          }),
-        );
-      }
+    // Privacy gate: writes that EXPAND the project surface require
+    // `--yes`. Writes that NARROW it pass through without confirmation.
+    // `pluginTrust.projectEnabled` expands the LOCAL code-execution
+    // surface (its own gate); `scan.referencePaths` expands disk access.
+    if (this.key === 'pluginTrust.projectEnabled') {
+      const trustGate = this.#applyTrustGate(value, ctx.cwd, errGlyph, stderrAnsi);
+      if (trustGate !== null) return trustGate;
+    } else if (PRIVACY_SENSITIVE_KEYS.has(this.key)) {
+      const pathGate = this.#applyPathGate(value, ctx.cwd, errGlyph, stderrAnsi);
+      if (pathGate !== null) return pathGate;
     }
 
     // `activeProvider` rejects unknown ids at set time, the lens
@@ -729,6 +709,72 @@ export class ConfigSetCommand extends SmCommand {
     }
 
     return ExitCode.Ok;
+  }
+
+  /**
+   * Disk-access privacy gate for `scan.referencePaths`-style keys.
+   * Returns an exit code to bail with (gate refused) or `null` to
+   * proceed. On a confirmed (`--yes`) expansion it prints the receipt
+   * and returns `null`.
+   */
+  #applyPathGate(
+    value: unknown,
+    cwd: string,
+    errGlyph: string,
+    stderrAnsi: IAnsi,
+  ): number | null {
+    const exposure = projectPathExposure({ key: this.key, value, cwd });
+    if (!exposure.expandsSurface) return null;
+    if (!this.yes) {
+      this.printer!.info(
+        tx(CONFIG_TEXTS.privacyGateRequired, {
+          glyph: errGlyph,
+          key: this.key,
+          paths: exposure.exposedPaths.map((p) => `  - ${p}`).join('\n'),
+          hint: stderrAnsi.dim(CONFIG_TEXTS.privacyGateRequiredHint),
+        }),
+      );
+      return ExitCode.Error;
+    }
+    // `--yes` confirmed, print the same list as a receipt so the
+    // operator sees on screen what they just opted into.
+    this.printer!.info(
+      tx(CONFIG_TEXTS.privacyGateConfirmed, {
+        glyph: stderrAnsi.dim('ⓘ'),
+        key: this.key,
+        paths: exposure.exposedPaths.map((p) => `  - ${p}`).join('\n'),
+      }),
+    );
+    return null;
+  }
+
+  /**
+   * Code-execution-surface gate for `pluginTrust.projectEnabled`.
+   * Turning the local opt-in ON trusts every plugin the project enables,
+   * so it requires `--yes`. Returns an exit code to bail with, or `null`
+   * to proceed (on a confirmed expansion it prints the receipt).
+   */
+  #applyTrustGate(
+    value: unknown,
+    cwd: string,
+    errGlyph: string,
+    stderrAnsi: IAnsi,
+  ): number | null {
+    const exposure = projectTrustExposure({ value, cwd });
+    if (!exposure.expandsSurface) return null;
+    if (!this.yes) {
+      this.printer!.info(
+        tx(CONFIG_TEXTS.trustGateRequired, {
+          glyph: errGlyph,
+          hint: stderrAnsi.dim(CONFIG_TEXTS.trustGateRequiredHint),
+        }),
+      );
+      return ExitCode.Error;
+    }
+    this.printer!.info(
+      tx(CONFIG_TEXTS.trustGateConfirmed, { glyph: stderrAnsi.dim('ⓘ') }),
+    );
+    return null;
   }
 
   /**

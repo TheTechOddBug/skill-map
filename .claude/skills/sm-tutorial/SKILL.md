@@ -44,7 +44,7 @@ prefix when a part spans several files: `settings-*` →
 > For the tester this is a single guided session, never a course
 > catalogue. Refer to a chapter by its tester-facing `section.chapter`
 > number plus its friendly title (`_core.md` §Numbering); never expose
-> the internal `order` index ("Part 4", off by one from the menu), a
+> the internal `order` index ("Part 3", off by one from the menu), a
 > raw "chapter id", or tour jargon ("the settings tour").
 
 ## Pre-flight (run once, silent on success)
@@ -214,9 +214,10 @@ for the data layout and the verb surface.
 
 - **Fixture sets** (laid by `fixtures.js lay <set>` / `seed <snap>`):
   `universal` (the two files above), `prologue` (the Part 0 demo),
-  `portfolio` (Part 1 boot + harness members), `harness` (the Part 2
-  additions), `master` (Part 4), `cli-external` (Part 5
-  reference-paths). The script resolves the `__PROVIDER__` token,
+  `portfolio` (Part 1 boot + harness members), `harness` (the connect
+  chapters, now folded into Part 1), `master` (Part 3 Extend),
+  `cli-external` (Part 4 reference-paths). The script resolves the
+  `__PROVIDER__` token,
   skips kinds the provider does not claim, and reports `nodeCount` +
   `skipped` for you to narrate.
 - **Footprints** (the on-disk reach of each fixture, including files a
@@ -242,12 +243,18 @@ All commands below are backstage (silent); fill `<provider>` and
 `<lang>` from `tutorial.{provider,lang}`. The fixture scripts resolve
 the `__PROVIDER__` token and skip kinds the provider does not claim.
 
-- **`taught-init`** (Part 0 `fundamentals`): the prologue reveals its
-  fixture progressively, so on entry lay ONLY the boot node, just
-  before the tester's `sm init` in the `init` chapter:
+- **`taught-init`** (Part 0 `fundamentals` rich / `basic-fundamentals`
+  basic): the prologue reveals its fixture progressively, so on entry
+  lay ONLY the boot node, just before the tester's `sm init` in the
+  `init` chapter. The boot node is the lens's first authored kind, an
+  `agent` on the rich track, a `skill` on the basic track (where the
+  agent kind folds away):
 
   ```bash
+  # rich track (claude / codex)
   node .claude/skills/sm-tutorial/scripts/fixtures.js lay prologue --only "__PROVIDER__/agents/demo-agent.md" --provider <provider> --lang <lang>
+  # basic track (agent-skills / antigravity)
+  node .claude/skills/sm-tutorial/scripts/fixtures.js lay prologue --only "__PROVIDER__/skills/demo-skill/SKILL.md" --provider <provider> --lang <lang>
   ```
 
   The universal `.skillmapignore` is already on disk, so the first
@@ -271,7 +278,7 @@ the `__PROVIDER__` token and skip kinds the provider does not claim.
   parts use `preflight: seed`; `portfolio-init` is Part 1's flavour,
   handling the Part 0 to Part 1 transition.)
 
-- **`backstage-init`** (Part 4 `extend`): teaches plugins on its own
+- **`backstage-init`** (Part 3 `extend`): teaches plugins on its own
   **master fixture**. On entry, silently:
   1. Clear whatever prior fixture is present (each a no-op when absent),
      then drop the DB: `fixtures.js clear prologue --provider <provider>`,
@@ -279,10 +286,10 @@ the `__PROVIDER__` token and skip kinds the provider does not claim.
   2. `sm init --no-scan` (the pre-flight `.skillmapignore` stays).
   3. `fixtures.js lay master --provider <provider> --lang <lang>`.
 
-  On a Part 4 re-entry where the master fixture is already in place the
+  On a Part 3 re-entry where the master fixture is already in place the
   clears + lay are idempotent; just `sm scan`.
 
-- **`seed: prologue-built`** (Part 5 `cli`): reads the Part 0 demo
+- **`seed: prologue-built`** (Part 4 `cli`): reads the Part 0 demo
   fixture, NOT the portfolio. On entry:
   1. If the portfolio is present, clear it + drop the DB:
      `fixtures.js clear portfolio --provider <provider>`, `rm -rf .skill-map`.
@@ -295,20 +302,20 @@ the `__PROVIDER__` token and skip kinds the provider does not claim.
   3. `sm init` (single `.claude/` marker, no lens prompt), then `sm scan`.
      If `.skill-map/` already exists, skip the init and just `sm scan`.
 
-- **`seed`** (campaign parts `connect-harness`, `daily-loop`): builds
-  on the accumulating portfolio, but the tester may have jumped here.
-  Run `state.js status`; if every predecessor up the `prereq` chain is
-  `done`, the harness is already on disk, just `sm scan`. Otherwise
-  **fast-forward, silently**:
+- **`seed`** (campaign part `daily-loop`): builds on the accumulating
+  portfolio, but the tester may have jumped here. Run `state.js status`;
+  if every predecessor up the `prereq` chain is `done`, the harness is
+  already on disk, just `sm scan`. Otherwise **fast-forward, silently**:
   1. If the prologue ran first here, `fixtures.js clear prologue --provider <provider>`.
-  2. Seed: `fixtures.js seed <harness-built|harness-connected> --provider <provider> --lang <lang>`
-     (`harness-built` for `connect-harness`, `harness-connected` for
-     `daily-loop`).
-  3. Provision the lens: the seeded portfolio has a root `AGENTS.md`
-     (the `codex`/Codex marker) next to `.claude/`, but `codex` is
-     experimental (ships disabled), so auto-detect ignores it and a plain `sm init`
-     resolves the `claude` lens with no prompt. Run `sm init`, then
-     `sm scan`. (If `.skill-map/` already exists, just `sm scan`.)
+  2. Seed: `fixtures.js seed harness-connected --provider <provider> --lang <lang>`
+     (the wired harness that `daily-loop` builds on).
+  3. Provision the lens: the seeded portfolio carries the scaffold
+     marker (`.claude/` on the rich track, `.agents/` on the basic
+     track), so a plain `sm init` resolves the matching lens with no
+     prompt. (The root `AGENTS.md` is the vendor-neutral agents.md file,
+     NOT a marker, so it never forces an ambiguous prompt.) Run `sm
+     init`, then `sm scan`. (If `.skill-map/` already exists, just
+     `sm scan`.)
   4. Mark the skipped predecessors: `state.js set-part <predecessor> skipped`
      for each (they stay in the menu). Then emit exactly ONE
      tester-facing line:

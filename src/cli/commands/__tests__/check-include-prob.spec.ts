@@ -51,6 +51,7 @@ import type { BaseContext } from 'clipanion';
 
 import { CheckCommand } from '../check.js';
 import { SqliteStorageAdapter } from '../../../kernel/adapters/sqlite/index.js';
+import { withSqlite } from '../../../core/sqlite/with-sqlite.js';
 
 // --- shared scaffolding ----------------------------------------------------
 
@@ -195,6 +196,23 @@ async function insertWarnIssue(
   }
 }
 
+/**
+ * Grant local import-trust for a project-local plugin, the in-test
+ * equivalent of `sm plugins enable <id>`: write a `config_plugins`
+ * override into the project DB so the H1 import-trust gate (default-
+ * disabled for cloned project-local plugins) loads the plugin's code on
+ * the next `sm check` plugin-runtime pass. The gate reads the override
+ * from `<projectRoot>/.skill-map/skill-map.db` (the default project DB),
+ * NOT the `--db` issue store, so trust always lands there. Creates the
+ * DB if absent (mirrors the real enable flow).
+ */
+async function trustProjectPlugin(projectRoot: string, pluginId: string): Promise<void> {
+  const dbPath = join(projectRoot, '.skill-map', 'skill-map.db');
+  await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
+    await adapter.trust.set(pluginId, true);
+  });
+}
+
 before(() => {
   tmpRoot = mkdtempSync(join(tmpdir(), 'skill-map-check-prob-'));
 });
@@ -209,6 +227,9 @@ describe('sm check (no --include-prob), baseline det-only behaviour', () => {
   it('(a) prob analyzers registered but flag absent → no advisory', async () => {
     const projectRoot = freshDir('a-project');
     plantRulePlugin(projectRoot, 'prob-pkg', 'prob-analyzer', 'probabilistic');
+    // Post-H1 gate: the planted prob plugin only registers when locally
+    // trusted, so the "registered but flag absent" intent holds.
+    await trustProjectPlugin(projectRoot, 'prob-pkg');
     const dbPath = freshDbPath('a-db');
     await initEmptyDb(dbPath);
 
@@ -238,6 +259,9 @@ describe('sm check --include-prob, advisory path', () => {
   it('(b) prob analyzer registered → stderr advisory names the analyzer id', async () => {
     const projectRoot = freshDir('b-project');
     plantRulePlugin(projectRoot, 'prob-pkg', 'prob-analyzer', 'probabilistic');
+    // Post-H1 gate: trust the planted prob plugin so its analyzer is
+    // registered and the advisory fires.
+    await trustProjectPlugin(projectRoot, 'prob-pkg');
     const dbPath = freshDbPath('b-db');
     await initEmptyDb(dbPath);
     // Plant a det-rule warning so we exercise the "det rules ran as
@@ -301,6 +325,9 @@ describe('sm check --include-prob --analyzers <ids>', () => {
   it('(d) --analyzers filter excludes the planted prob analyzer → no advisory', async () => {
     const projectRoot = freshDir('d-project');
     plantRulePlugin(projectRoot, 'prob-pkg', 'prob-analyzer', 'probabilistic');
+    // Post-H1 gate: trust the planted prob plugin so it registers; the
+    // `--analyzers` filter (not the gate) is what suppresses the advisory.
+    await trustProjectPlugin(projectRoot, 'prob-pkg');
     const dbPath = freshDbPath('d-db');
     await initEmptyDb(dbPath);
     // Insert a det issue under `core/schema-violation` so the `--analyzers`
@@ -343,6 +370,8 @@ describe('sm check --include-prob --async, reserved companion', () => {
   it('(e) advisory shape mentions --async; behaviour identical to (b)', async () => {
     const projectRoot = freshDir('e-project');
     plantRulePlugin(projectRoot, 'prob-pkg', 'prob-analyzer', 'probabilistic');
+    // Post-H1 gate: trust the planted prob plugin so the advisory fires.
+    await trustProjectPlugin(projectRoot, 'prob-pkg');
     const dbPath = freshDbPath('e-db');
     await initEmptyDb(dbPath);
 

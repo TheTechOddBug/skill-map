@@ -43,7 +43,7 @@
  * boots it directly with a synthetic `IServerOptions`.
  */
 
-import { serve } from '@hono/node-server';
+import { serve, type WebSocketServerLike } from '@hono/node-server';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { WebSocketServer } from 'ws';
@@ -440,7 +440,13 @@ function listenAsync(
         fetch: fetchCallback,
         hostname: host,
         port,
-        websocket: { server: wss },
+        // `wss` IS a structural `WebSocketServerLike` at runtime (created
+        // with `{ noServer: true }` above). The cast bridges a pure
+        // type-skew: @hono/node-server 2.0.6 declares
+        // `WebSocketServerLike.options.noServer` as `boolean` while
+        // @types/ws declares it `boolean | undefined`, which our
+        // `exactOptionalPropertyTypes: true` tsconfig rejects.
+        websocket: { server: wss as WebSocketServerLike },
       },
       () => {
         if (settled) return;

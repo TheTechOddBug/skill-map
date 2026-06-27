@@ -27,12 +27,9 @@ an external service, not a file on disk). If several harness members
 named the same server, skill-map would draw a single shared
 `mcp://images` node, not one per caller.
 
-**Preparation**: `Edit` `<provider_dir>/agents/content-editor.md`
-(substitute `<provider_dir>` per `_core.md`; on `agent-skills` /
-Antigravity the editor is a `skill` instead, edit that file's
-frontmatter the same way). Do NOT rewrite the file. Change only the
-`tools:` line in the frontmatter so the MCP tool joins the existing
-two:
+**Preparation**: `Edit` `.claude/agents/content-editor.md`. Do NOT
+rewrite the file. Change only the `tools:` line in the frontmatter so
+the MCP tool joins the existing two:
 
 ```yaml
 tools: [Read, Write, mcp__images__search]

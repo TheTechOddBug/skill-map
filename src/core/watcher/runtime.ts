@@ -579,11 +579,12 @@ export function createWatcherRuntime(
       // initial batch and every follow-up batch are covered without
       // duplicating the call. `onBatch` (success or error) stops it.
       notifyBatchStart();
-      // Build a fresh resolver from `config_plugins` on every batch so
+      // Build a fresh resolver from the layered config on every batch so
       // a `PATCH /api/plugins` made mid-session is honoured by the
       // next chokidar-driven scan WITHOUT restarting `sm serve`. The
       // runtime itself stays cached (no re-discovery, no module
-      // re-import). One SQLite read per batch, cheap. See
+      // re-import). Enable is pure config now, so this re-reads the
+      // already-loaded `cfg` with no DB hit. See
       // `core/runtime/fresh-resolver.ts`.
       //
       // Exception: drop-in plugins whose discovery-time `status` was
@@ -592,9 +593,7 @@ export function createWatcherRuntime(
       // carries this exception and the SPA surfaces it per-row via
       // the `startsAsDisabled` wire flag.
       const resolveEnabledOverride = await buildFreshResolver({
-        databasePath: opts.dbPath,
         effectiveConfig: () => cfg,
-        fallbackResolver: pluginRuntime.resolveEnabled,
       });
 
       const kernel = createKernel();

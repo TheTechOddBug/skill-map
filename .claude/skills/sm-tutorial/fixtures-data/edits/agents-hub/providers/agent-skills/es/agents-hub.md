@@ -1,0 +1,2 @@
+- Cuando una página necesita escribirse o arreglarse, pasásela al [content-editor](.agents/skills/content-editor/SKILL.md).
+- Cuando el sitio esté listo para salir, corré [publish](.agents/skills/publish/SKILL.md).

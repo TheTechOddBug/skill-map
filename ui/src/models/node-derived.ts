@@ -136,7 +136,7 @@ export function effectiveStaleTooltip(
 
 /**
  * Pretty number formatting for bytes / tokens (`12420` → `12k`).
- * Below 1k passes through; 1k–10k keeps one decimal (`1.2k`); 10k+
+ * Below 1k passes through; 1k-10k keeps one decimal (`1.2k`); 10k+
  * rounds to integers (`12k`).
  */
 export function compactNumber(n: number): string {
