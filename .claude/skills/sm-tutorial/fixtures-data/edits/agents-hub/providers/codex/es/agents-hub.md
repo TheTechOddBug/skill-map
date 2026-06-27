@@ -1,0 +1,2 @@
+- Cuando una página necesita escribirse o arreglarse, informa a [content-editor](.codex/agents/content-editor.toml).
+- Cuando el sitio esté listo para salir, corre $publish.

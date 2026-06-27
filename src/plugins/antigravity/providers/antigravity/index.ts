@@ -53,8 +53,9 @@
  * a project carrying `.agent/workflows/` auto-detects the antigravity lens
  * (`installedDefaultEnabled('beta')` is true, so it participates in
  * `detectProvidersFromFilesystem`). A project that ALSO carries `.agents/`
- * surfaces an ambiguous prompt (antigravity vs the `agent-skills` open
- * default); a project with no vendor marker still falls back to the `stable`
+ * resolves to antigravity outright: `agent-skills` declares `detect.fallback`,
+ * so its `.agents/` candidate yields to the vendor marker (no ambiguous
+ * prompt). A project with no vendor marker still falls back to the `stable`
  * `agent-skills` lens. Skills under the shared `.agents/` are owned by
  * `agent-skills` for auto-detect, not by antigravity.
  */
@@ -139,6 +140,9 @@ export const antigravityProvider: IBuiltInManifest<IProvider> = {
     label: "Google's Antigravity",
     color: '#7c3aed',
     colorDark: '#a78bfa',
+    // Antigravity bolts `/`-invocation onto the open standard (skills and
+    // workflows are `/<name>`), so the `invokes` edge glyph is the slash.
+    invocationSigil: '/',
   },
 
   // Auto-detect marker: Antigravity's workflows live under `.agent/workflows/`

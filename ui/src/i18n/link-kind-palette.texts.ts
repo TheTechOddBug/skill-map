@@ -29,9 +29,14 @@ export const LINK_KIND_PALETTE_TEXTS = {
    * its own kind (`points`, from `core/backtick-path`). A mention
    * example must NOT carry a file extension: `@agent.md` is dispatched
    * as a reference, not a mention.
+   *
+   * `invokes` is a function of the active lens's invocation sigil
+   * (`presentation.invocationSigil`): the example glyph follows the lens
+   * (`/skill-command` on claude / antigravity, `$skill-command` on codex)
+   * so the tooltip never contradicts the glyph painted on the button.
    */
   tooltips: {
-    invokes: 'Invokes:\n"/skill-command"',
+    invokes: (sigil: string): string => `Invokes:\n"${sigil}skill-command"`,
     references: 'References:\n"[link](./link.md)"\n"@./link.md"',
     points: 'Points:\n"`references/link.md`" (path in backticks or code blocks)',
     mentions: 'Mention:\n"@agent"',

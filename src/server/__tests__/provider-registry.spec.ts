@@ -127,6 +127,30 @@ describe('buildProviderRegistry', () => {
     });
   });
 
+  it('projects invocationSigil when the presentation declares one', () => {
+    const codex = fakeProvider(
+      'codex',
+      { label: 'OpenAI Codex', color: '#22c55e', invocationSigil: '$' },
+      true,
+    );
+    const registry = buildProviderRegistry([codex]);
+    deepStrictEqual(registry, {
+      codex: { label: 'OpenAI Codex', color: '#22c55e', isLens: true, invocationSigil: '$' },
+    });
+  });
+
+  it('omits invocationSigil when the presentation declares none', () => {
+    const agentSkills = fakeProvider(
+      'agent-skills',
+      { label: 'Agent Skills', color: '#64748b' },
+      true,
+    );
+    const registry = buildProviderRegistry([agentSkills]);
+    deepStrictEqual(registry, {
+      'agent-skills': { label: 'Agent Skills', color: '#64748b', isLens: true },
+    });
+  });
+
   it('returns an empty registry for no providers', () => {
     deepStrictEqual(buildProviderRegistry([]), {});
   });

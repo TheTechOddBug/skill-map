@@ -71,6 +71,12 @@
         "hideChip": {
           "type": "boolean",
           "description": "When `true`, the UI does NOT paint this Provider's chip on node cards. Reserved for the universal base Provider (`markdown`): the majority of nodes in any project carry it, so badging every generic `.md` would be visual noise and dilute the chip's purpose (signalling when a node came from a NON-default platform). The markdown base is non-gated (`gatedByActiveLens: false`, `isLens: false`), so it is not a selectable lens and never appears in the active-lens dropdown or topbar lens chip either; `hideChip` additionally suppresses its per-card badge. Defaults to `false` (chip shown)."
+        },
+        "invocationSigil": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1,
+          "description": "Single glyph the lens's runtime uses to invoke a skill / command, surfaced as the `invokes` edge-kind glyph (and its tooltip example) in the link-kind palette so the operator recognises this lens's source syntax instantly. `/` for the slash-invoking lenses (`claude` commands + skills, `antigravity` skills + workflows), `$` for `codex` (whose skills are invoked `$skill`, with `/` reserved for Codex's own built-in commands). Omitted for lenses with no `/`/`$` invocation channel (the open-standard `agent-skills`, where skills activate by `description`, and the non-lens `markdown` base): under those lenses no `invokes` edge arises, so the palette never paints the glyph. Mirrors `IProviderUi.invocationSigil`; projected into `providerRegistry` (`api/rest-envelope.schema.json`) and joined client-side against the active lens."
         }
       }
     },
@@ -78,13 +84,17 @@
       "type": "object",
       "required": ["markers"],
       "additionalProperties": false,
-      "description": "Auto-detection markers for the active-provider lens. The lens resolver checks each marker path (relative to the scope root) and, when present, suggests this Provider as a candidate lens. Replaces the former hardcoded detection table: the set of detectable Providers now derives from the registered Providers themselves. Optional, a Provider with no `detect` block is never auto-suggested (it can still be selected manually). When several Providers match, the resolver returns the full candidate list in Provider iteration order and the first match is the default suggestion.",
+      "description": "Auto-detection markers for the active-provider lens. The lens resolver checks each marker path (relative to the scope root) and, when present, suggests this Provider as a candidate lens. Replaces the former hardcoded detection table: the set of detectable Providers now derives from the registered Providers themselves. Optional, a Provider with no `detect` block is never auto-suggested (it can still be selected manually). When several Providers match, the resolver returns the full candidate list in Provider iteration order and the first match is the default suggestion. **Fallback precedence**: a Provider whose `detect.fallback` is `true` (the open-standard `agent-skills` lens, whose `.agents/` marker is also the shared skill home that vendor lenses populate) is dropped from the candidate list whenever any non-fallback (vendor) Provider also matched, so a project carrying `.codex/` alongside `.agents/` resolves to `codex` outright instead of prompting `codex` vs `agent-skills`. The fallback only stands when no vendor marker is present; several vendor markers still produce a genuine ambiguous list.",
       "properties": {
         "markers": {
           "type": "array",
           "minItems": 1,
           "description": "Paths relative to the scope root whose existence signals this Provider's presence (e.g. `['.claude']`, `['.codex', 'AGENTS.md']`). A directory or a file both count; existence is the only test.",
           "items": { "type": "string", "minLength": 1 }
+        },
+        "fallback": {
+          "type": "boolean",
+          "description": "When `true`, this Provider is the open-standard FALLBACK lens: its markers produce a detection candidate ONLY when no non-fallback (vendor) Provider matched under the same scope. Reserved for `agent-skills`, whose `.agents/` marker is the shared open-standard skill home that vendor lenses (`codex`, `antigravity`) also populate; without this flag a `.codex/` + `.agents/` project would falsely read as an ambiguous `codex` vs `agent-skills` pair. Vendor Providers omit it (default `false`) so two vendor markers still surface a real ambiguous prompt. Mirrors `IProviderDetect.fallback`."
         }
       }
     },

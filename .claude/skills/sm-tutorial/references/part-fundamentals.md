@@ -4,10 +4,13 @@ The live-UI prologue: the tester runs `sm init`, opens the browser, and watches 
 
 **Codex deltas (rich track).** When `tutorial.provider == codex` the lay commands are unchanged (the `--only` ids match the Codex overlay), but the on-disk shapes differ; substitute in the tester-facing prose:
 
-- `init`: the boot node `demo-agent` is a **TOML agent** at `.codex/agents/demo-agent.toml`.
+- `init`: the boot node `demo-agent` is a **TOML agent** at `.codex/agents/demo-agent.toml`. `sm init` resolves the `codex` lens with no prompt (the `.codex/` marker outranks the shared `.agents/` open default), so the commands stay `sm init` then `sm`, exactly like claude.
 - `kinds`: the node list reads `.codex/agents/demo-agent.toml` (agent), `.agents/skills/demo-command/SKILL.md` (skill), `.agents/skills/demo-skill/SKILL.md` (skill), and the `notes/*.md`. Name the kinds as agent + skill + markdown (two new kinds this step: skill + markdown). Present `demo-command` as a plain skill: do NOT tell the tester it "is a command" or narrate any command-to-skill substitution. Codex has no `command` kind, so on this track `demo-command` is simply one of the two skills, nothing to explain.
 - `first-edit`: the description to edit lives in `.codex/agents/demo-agent.toml` (the `description = "…"` TOML field, not YAML frontmatter).
-- `connectors` onward: identical, the `@`/`/` bullets resolve the same on Codex; only the `ignore` chapter's directory tree shows `.codex/agents/` + `.agents/skills/` instead of `.claude/`.
+- `connectors`: the hub wires its nodes with the CODEX grammar, NOT claude's `/`+`@`-mention (the `todo-connectors` codex overlay lays the right bullets automatically; you only narrate the shapes). The two skill bullets INVOKE with `$` (`$demo-command`, `$demo-skill`); the agent bullet is a markdown-link reference to the agent file (`[demo-agent](../.codex/agents/demo-agent.toml)`, since Codex cannot `@`-mention an agent); `@demo-guideline2.md` is a file reference (Codex's `@` is a file picker). The bare `@demo-guideline` (no extension) forms NO edge on Codex (`@` points at a FILE, not a name), so the hub shows **four resolved arrows and NO broken-reference marker** (claude's fifth, broken bullet does not exist here). `Expected`: four drawn arrows, zero issues.
+- `inspector` (Codex): the hub lists **four** outgoing links, all resolved at `1.00`, and zero incoming. There is no `0.50` broken row (the bare `@demo-guideline` formed nothing); adapt the claude "five links, one broken" wording to "four links, all resolved".
+- `edit-link` (Codex): the tester turns the inert bare `@demo-guideline` into a file reference by adding `.md` (`@demo-guideline.md`), and the new arrow appears live. Same muscle memory as claude ("add `.md`"), but the Codex lesson is "`@` needs a filename to be a file reference, a bare `@handle` is just text".
+- `workspace` / `ignore`: identical; only the directory tree shows `.codex/agents/` + `.agents/skills/` instead of `.claude/`.
 
 ## Chapter `init` - Your first node (~2 min)
 
@@ -251,8 +254,12 @@ action itself.
 > two guideline nodes (`demo-guideline` and `demo-guideline2`). The
 > search matches a node's name, path, or description, and filters
 > live as you type, no Enter needed. The **Map** stays put: by
-> default the search filters only the files list, not the map (the
-> tip below changes that).
+> default the search filters only the files list, not the map.
+>
+> 💡 Tip: the map-icon button right next to the search box controls
+> whether the search also filters the **Map**. It's off by default,
+> which is why the **Map** stayed put while only the tree narrowed.
+> Click it on if you want a search to filter the map too.
 >
 > Now clear the box. All six nodes come back in the tree. Confirm you
 > saw it filter and then restore.
@@ -270,12 +277,6 @@ action itself.
 > To bring the rest back, look at the toolbar along the bottom of
 > the Map: there's a **Show all** button (an eye icon). Click it and
 > all six nodes return.
->
-> 💡 Tip: remember the search box from a moment ago? The map-icon
-> button right next to it controls whether the search also filters
-> the **Map**. It's off by default, which is why the **Map** stayed
-> put while only the tree narrowed when you searched `guideline`.
-> Click it on if you want a search to filter the map too.
 >
 > Did the map isolate and then restore?
 

@@ -1,7 +1,7 @@
 name = "builder"
 description = "Compiles and bundles the project artifacts."
-model = "gpt-5-codex"
+model = "gpt-5.5"
 developer_instructions = """
 Build the project. Follow [the style guide](../../docs/style.md).
-When the build is green, report back to @deployer.
+When the build is green, report back to @deployer.toml.
 """

@@ -161,8 +161,9 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // `core/score-resolution` (a former `score`-phase analyzer that assigned the resolved-link 1.0 confidence) was briefly added (38) then deleted: the kernel now seeds the 1.0 confidence baseline on every link directly, and only the `core/name-reserved` / `core/reference-broken` detectors apply penalty deltas on top, dropping the total back to 37.
     // `core/job-file-orphan` (the rule that flagged orphan MD files under .skill-map/jobs/) was removed, to be reintroduced later under a probabilistic evaluation model; the `findOrphanJobFiles` helper + `sm job prune --orphan-files` verb stay, dropping the total to 36.
     // The supersede feature was removed wholesale: the `core/annotations` extractor (its only producer), the `core/node-supersede` action, and the `core/node-superseded` analyzer were all deleted, dropping the total to 33.
-    // `core/backtick-balance` (analyzer that flags an unclosed backtick, fenced block or inline span, in a node body, the body-syntax defect that corrupts the code-strip policy) brings it to 34.
-    assert.equal(rows.length, 34);
+    // The codex `$skill` / `@`-file grammar split added two codex-owned extractors (`codex/dollar-skill`, `codex/at-file`), bringing it to 35.
+    // `core/backtick-balance` (analyzer that flags an unclosed backtick, fenced block or inline span, in a node body, the body-syntax defect that corrupts the code-strip policy) brings it to 36.
+    assert.equal(rows.length, 36);
   });
 
   // Convention guard: every built-in EXTRACTOR description ends with a

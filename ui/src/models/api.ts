@@ -482,6 +482,14 @@ export interface IProviderRegistryEntryApi {
    * renders that field as the node body and omits it from the metadata dump.
    */
   bodyField?: string;
+  /**
+   * Single glyph this lens's runtime uses to invoke a skill / command
+   * (projected from `presentation.invocationSigil`). The link-kind palette
+   * paints it as the `invokes` edge glyph (and tooltip example) for the
+   * active lens: `/` for claude / antigravity, `$` for codex. Absent for
+   * lenses with no invocation channel (`agent-skills`, `markdown`).
+   */
+  invocationSigil?: string;
 }
 
 export type IProviderRegistryApi = Record<string, IProviderRegistryEntryApi>;

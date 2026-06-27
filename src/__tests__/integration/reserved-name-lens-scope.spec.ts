@@ -102,23 +102,18 @@ describe('core/name-reserved (self scope, end-to-end through runScan)', () => {
   });
 });
 
-describe('core/name-reserved (open-standard base, under the agent-skills lens)', () => {
-  it('flags a skill shadowing a UNIVERSAL base verb under the agent-skills lens', async () => {
+describe('core/name-reserved (open standard declares no reserved skill names, under the agent-skills lens)', () => {
+  it('does NOT flag a skill shadowing a universal slash verb under the agent-skills lens', async () => {
     const result = await scan('agent-skills');
-
-    const helpIssues = reservedFor(result.issues, '.agents/skills/help/SKILL.md');
-    assert.equal(helpIssues.length, 1, 'expected one reserved-name warn on the help skill');
-    const issue = helpIssues[0] as unknown as {
-      severity: string;
-      data: Record<string, unknown>;
-    };
-    assert.equal(issue.severity, 'warn');
-    // The agent-skills lens classifies the skill itself (open-standard
-    // classifier), so the node carries provider 'agent-skills' and self
-    // scope flags it against the base catalog it owns.
-    assert.equal(issue.data['surface'], 'target');
-    assert.equal(issue.data['provider'], 'agent-skills');
-    assert.equal(issue.data['kind'], 'skill');
+    // The neutral Agent Skills standard has no `/`-invocation (a skill
+    // activates by its `description`, connects via markdown links), so a skill
+    // name cannot shadow a built-in `/` command; the agent-skills lens
+    // declares no reservedNames, so the `help` skill is left alone.
+    assert.equal(
+      reservedFor(result.issues, '.agents/skills/help/SKILL.md').length,
+      0,
+      'a help skill is NOT reserved under the neutral open-standard lens',
+    );
   });
 
   it('does NOT flag a VENDOR-specific verb (goal) under the agent-skills lens', async () => {

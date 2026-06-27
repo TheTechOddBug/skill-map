@@ -68,17 +68,42 @@ interface ITestRoot {
 }
 
 let root: ITestRoot;
+// Saved Git-config env so `after` can restore it (see the isolation note
+// in `before`).
+let savedGitEnv: { global: string | undefined; system: string | undefined };
 
 before(() => {
   const tmp = mkdtempSync(join(tmpdir(), 'skill-map-actions-endpoint-'));
   const fixtureRoot = mkdtempSync(join(tmp, 'fixture-'));
   const dbPath = join(tmp, 'primed.db');
   root = { tmp, fixtureRoot, dbPath };
+  // The bump route stamps `audit.lastBumpedBy` with the resolved Git author
+  // (`resolveGitAuthorName(cwd) ?? 'ui'`); these tests assert the `'ui'`
+  // fallback, so the resolution must yield nothing. Isolate Git config so a
+  // developer's global `user.name` cannot leak into the stamp, the fixture
+  // lives under `tmpdir()`, and a stray `.git` above it (e.g. a junk
+  // `/tmp/.git`) would otherwise make the resolver read the global name.
+  // `git config` consults only the global + system files; pointing both at
+  // `/dev/null` makes the name empty and the route falls back to `'ui'`,
+  // hermetic regardless of the host's Git setup.
+  savedGitEnv = {
+    global: process.env['GIT_CONFIG_GLOBAL'],
+    system: process.env['GIT_CONFIG_SYSTEM'],
+  };
+  process.env['GIT_CONFIG_GLOBAL'] = '/dev/null';
+  process.env['GIT_CONFIG_SYSTEM'] = '/dev/null';
 });
 
 after(() => {
   rmSync(root.tmp, { recursive: true, force: true });
+  restoreEnv('GIT_CONFIG_GLOBAL', savedGitEnv.global);
+  restoreEnv('GIT_CONFIG_SYSTEM', savedGitEnv.system);
 });
+
+function restoreEnv(key: string, prior: string | undefined): void {
+  if (prior === undefined) delete process.env[key];
+  else process.env[key] = prior;
+}
 
 beforeEach(async () => {
   // Re-prime the DB + fixtures from scratch on every test so a previous

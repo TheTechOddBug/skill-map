@@ -94,7 +94,7 @@ Examples from the reference impl's built-in extensions:
 Built-ins split between two namespaces:
 
 - **`core/`**, kernel-internal primitives, platform-agnostic: every built-in analyzer, the ASCII formatter, the cross-vendor extractors (`annotations`, `markdown-link`, `backtick-path`, `external-url-counter`), the universal `markdown` Provider fallback, and the `update-check` hook.
-- **`claude/`**, the Claude Code Provider plugin: the Provider plus the Claude-flavoured extractors (`slash-command`, `at-directive`). Other vendor plugins (`antigravity`, `codex`, `agent-skills`) follow the same shape (Provider only).
+- **`claude/`**, the Claude Code Provider plugin: the Provider plus the Claude-flavoured extractors (`slash-command`, `at-directive`). **`codex/`** ships the Provider plus its OWN grammar extractors (`dollar-skill` for `$skill` invocation, `at-file` for `@`-file references), because Codex's invocation grammar differs from Claude's (`/` is a built-in command, `@` is a file picker). The other vendor plugins (`antigravity`, `agent-skills`) are Provider-only: Antigravity reuses claude's `/command` parser via its precondition list (it shares the `/`-invoke grammar), and the neutral `agent-skills` lens relies on the universal `core/` extractors only.
 
 ### Extension id shape
 

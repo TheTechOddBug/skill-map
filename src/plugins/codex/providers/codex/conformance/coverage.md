@@ -21,19 +21,21 @@ end-to-end) · 🟡 partial (covered only indirectly or via a sub-shape) ·
 
 The `skill` kind is NOT codex-owned: codex composes the open-standard
 `.agents/skills/<name>/SKILL.md` classification from the `agent-skills`
-Provider (read rule, kind, schema, resolution, reserved names), so its
-schema is exercised by `agent-skills`'s own conformance suite. The
-`skills-scan` case below proves the composition end to end under the
-codex lens (skills classify as `codex`/`skill`, agent `/skill` invocations
-resolve).
+Provider (read rule, kind, schema, resolution), so its schema is
+exercised by `agent-skills`'s own conformance suite. Codex does NOT
+compose the reserved-name catalog: it invokes skills via `$` (not `/`),
+a namespace disjoint from its built-in `/` commands, so a `$`-skill
+cannot shadow a `/` command. The `skills-scan` case below proves the
+composition end to end under the codex lens (skills classify as
+`codex`/`skill`, agent `$skill` invocations resolve).
 
 ## Cases shipped with this Provider
 
 | Id | Verifies | Fixture(s) |
 |---|---|---|
 | `basic-scan` | Scanning the `demo-codex` corpus classifies three `.codex/agents/*.toml` files as `codex`/`agent` and four markdown files (`AGENTS.md`, two docs, one note) via the `core/markdown` fallback, seven nodes with no issues. | `demo-codex` |
-| `body-links` | The Codex body extractor feeds each agent's TOML `developer_instructions` field through the link pipeline (`read.bodyField: 'developer_instructions'`), producing six resolved edges (`@mention` agent-to-agent links via the lens-gated `at-directive`, plus markdown links to the docs), so a TOML-only corpus with no file bodies still yields a connected graph. | `demo-codex` |
-| `skills-scan` | Codex's multi-rule `read` classifies `.agents/skills/<name>/SKILL.md` as `codex`/`skill` (open-standard composition) next to a `.codex/agents/*.toml` agent, three nodes with no `provider-ambiguous`, and resolves both an `invokes` -> `skill` edge (agent `/run-tests`) and a `mentions` -> `agent` edge (skill `@builder`). Lens pinned via `.skill-map/settings.json` (the fixture carries both a `.codex/` and a `.agents/` marker). | `demo-codex-skills` |
+| `body-links` | The Codex body extractor feeds each agent's TOML `developer_instructions` field through the link pipeline (`read.bodyField: 'developer_instructions'`), producing six resolved `references` edges (`@<agent>.toml` file references between agents via the codex `at-file` extractor, plus markdown links to the docs), so a TOML-only corpus with no file bodies still yields a connected graph. | `demo-codex` |
+| `skills-scan` | Codex's multi-rule `read` classifies `.agents/skills/<name>/SKILL.md` as `codex`/`skill` (open-standard composition) next to a `.codex/agents/*.toml` agent, three nodes with no `provider-ambiguous`, and resolves both an `invokes` -> `skill` edge (agent `$run-tests`, Codex's `$` skill-invocation grammar) and a `references` edge (skill's markdown link to `.codex/agents/builder.toml`). Lens pinned via `.skill-map/settings.json` (the fixture carries both a `.codex/` and a `.agents/` marker). | `demo-codex-skills` |
 
 Each case file under [`cases/`](./cases/) is self-describing, see
 [`spec/conformance/README.md`](../../../../../../spec/conformance/README.md)

@@ -280,6 +280,58 @@ describe('bootstrapActiveProvider: ambiguous (multiple markers)', () => {
   });
 });
 
+describe('bootstrapActiveProvider: fallback precedence (vendor + .agents)', () => {
+  // A catalog with the open-standard fallback lens alongside the vendors,
+  // mirroring the real built-ins. The codex scaffold leaves `.codex/` AND
+  // `.agents/skills/`, so detection sees both markers; precedence must
+  // resolve codex outright with NO ambiguous prompt.
+  const PROVIDERS_WITH_FALLBACK: IProviderDetectInput[] = [
+    ...TEST_PROVIDERS,
+    { id: 'agent-skills', detect: { markers: ['.agents'], fallback: true } },
+  ];
+
+  it('resolves the vendor with no prompt when .codex/ sits alongside .agents/', async () => {
+    mkdirSync(join(tmpRoot, '.codex'), { recursive: true });
+    mkdirSync(join(tmpRoot, '.agents', 'skills'), { recursive: true });
+
+    const cap = capturePrinter();
+    const out = await bootstrapActiveProvider({
+      cwd: tmpRoot,
+      effectiveRoots: [tmpRoot],
+      providers: PROVIDERS_WITH_FALLBACK,
+      // yes:true would EXIT non-zero on a genuine ambiguity; here it must
+      // sail through, proving the detection collapsed to a single id.
+      yes: true,
+      stdin: inlineStdin(''),
+      stderr: noopStderr(),
+      printer: cap.printer,
+    });
+
+    assert.deepEqual(out, { kind: 'ok', activeProvider: 'codex', source: 'autodetect' });
+    const persisted = JSON.parse(
+      readFileSync(join(tmpRoot, '.skill-map', 'settings.json'), 'utf8'),
+    ) as Record<string, unknown>;
+    assert.equal(persisted['activeProvider'], 'codex');
+  });
+
+  it('still detects the open fallback when .agents/ is the only marker', async () => {
+    mkdirSync(join(tmpRoot, '.agents', 'skills'), { recursive: true });
+
+    const cap = capturePrinter();
+    const out = await bootstrapActiveProvider({
+      cwd: tmpRoot,
+      effectiveRoots: [tmpRoot],
+      providers: PROVIDERS_WITH_FALLBACK,
+      yes: true,
+      stdin: inlineStdin(''),
+      stderr: noopStderr(),
+      printer: cap.printer,
+    });
+
+    assert.deepEqual(out, { kind: 'ok', activeProvider: 'agent-skills', source: 'autodetect' });
+  });
+});
+
 describe('warnIfLensPluginDisabled (bd-23c regression)', () => {
   it('warns when activeProvider points at a disabled plugin', () => {
     const cap = capturePrinter();

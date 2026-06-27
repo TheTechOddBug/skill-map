@@ -259,7 +259,7 @@ A skill-map project reads its files through exactly ONE active lens
 | Provider       | Asset layout                              | Kinds                          | Connectors that form           | Marker             | Stability        | Track   |
 |----------------|-------------------------------------------|--------------------------------|--------------------------------|--------------------|------------------|---------|
 | `claude`       | `.claude/` (agents, commands, skills)     | agent, command, skill, markdown| `/` invokes, `@` mentions, refs| `.claude/`         | stable           | rich    |
-| `codex`        | `.codex/agents/*.toml` + `.agents/skills/`| agent (TOML), skill, markdown  | `/` invokes, `@` mentions, refs| `.codex/`          | beta             | rich    |
+| `codex`        | `.codex/agents/*.toml` + `.agents/skills/`| agent (TOML), skill, markdown  | `$` invokes, `@` file-refs, refs| `.codex/`         | beta             | rich    |
 | `antigravity`  | `.agents/skills/`                         | skill, markdown                | `/` invokes, refs              | `.agent/workflows/`| beta             | basic   |
 | `agent-skills` | `.agents/skills/`                         | skill, markdown                | refs only                      | `.agents/`         | stable (default) | basic   |
 
@@ -269,8 +269,11 @@ active; it is the universal base, never a selectable lens.
 **Two tracks, by capability** (the axis is "does the lens have an
 `agent` kind?"):
 
-- **rich** (`claude`, `codex`): agents + skills (+ commands on claude),
-  wired with `/` invocations and `@` mentions plus markdown references.
+- **rich** (`claude`, `codex`): agents + skills (+ commands on claude).
+  Claude wires `/` invocations and `@` mentions; Codex wires `$` invocations
+  (skills) and `@`-FILE references (Codex's `@` is a file picker, it cannot
+  mention an agent by name, and `/` is a Codex built-in command, not a skill
+  invocation). Both also use markdown references.
 - **basic** (`agent-skills`, `antigravity`): the open-standard family,
   `skill` + `markdown` only, wired with **markdown references**
   (`[text](path)`), the one connection the Agent Skills standard
@@ -280,8 +283,10 @@ active; it is the universal base, never a selectable lens.
 
 Why references and not slash on the open standard: the Agent Skills
 spec (agentskills.io) activates a skill by its `description` and
-connects files by relative markdown links; it has no `/`-invocation
-syntax. claude/codex add `/` and `@` as vendor features on top.
+connects files by relative markdown links; it has no invocation sigil.
+Vendors add their own on top: claude `/`-invokes and `@`-mentions; Codex
+`$`-invokes skills and treats `@` as a file picker (`/` is a Codex
+built-in command, not a skill invocation).
 
 **Decision logic, applied silently at pre-flight:**
 
@@ -296,14 +301,17 @@ syntax. claude/codex add `/` and `@` as vendor features on top.
      `<provider_dir> = .claude`, `track = rich`.
    - else skill under `.agents/skills/sm-tutorial/` → `provider = agent-skills`,
      `<provider_dir> = .agents/skills`, `track = basic`.
-   **Lens ambiguity for codex / antigravity**: both adopt the open
-   `.agents/skills/` layout, so their own marker (`.codex/` or
-   `.agent/workflows/`) coexists with the `agent-skills` marker (`.agents/`)
-   and a plain `sm scan --yes` reports the lens as ambiguous. For those two,
-   set it explicitly once before the first scan, `sm config set
-   activeProvider <codex|antigravity> --yes`, then the book runs unchanged
-   (the fixture engine renders the right shape: codex its TOML agents +
-   command-as-skill, antigravity reuses the `agent-skills` overlays).
+   **Lens precedence for codex / antigravity**: both adopt the open
+   `.agents/skills/` layout, so the scaffold leaves the vendor marker
+   (`.codex/` or `.agent/workflows/`) alongside the `agent-skills` marker
+   (`.agents/`). The vendor marker WINS: `sm init` resolves `codex` /
+   `antigravity` outright with no prompt (the `.agents/` open default only
+   competes when no vendor marker is present). So the codex book runs
+   exactly like claude, `sm init` then `sm`, with no lens prompt and no
+   `sm config set activeProvider` step anywhere (tester chapters or
+   backstage seeds). The fixture engine still renders the right shape:
+   codex its TOML agents + command-as-skill, antigravity reuses the
+   `agent-skills` overlays.
 2. `state.js init --provider <p>` persists `provider` plus the derived
    `track`, so a resumed session never re-detects.
 3. Render only the parts whose `track` is `tutorial.track` (or `both`).
@@ -325,31 +333,42 @@ at `.claude/skills/sm-tutorial/` (this repo is itself a Claude project);
 
 ### Rendering the rich book on Codex
 
-The rich track has two lenses, `claude` and `codex`. They teach the SAME
-lessons with the SAME connectors (`/` invocations, `@` mentions, markdown
-references all resolve on both), so the rich part bodies are written in the
-`claude` shape; when `tutorial.provider == codex`, apply these substitutions:
+The rich track has two lenses, `claude` and `codex`. They teach the same
+lessons, but Codex's CONNECTOR GRAMMAR differs from claude's (see the
+Connectors bullet below), so the rich part bodies are written in the `claude`
+shape; when `tutorial.provider == codex`, apply these substitutions:
 
 - **Agents are TOML.** A Codex agent is a single `.codex/agents/<name>.toml`
   file (the prompt lives in its `developer_instructions` field), NOT a
   `.claude/agents/<name>.md`. The fixtures lay them, so when a chapter says
   "open the agent file" point at the `.toml`; a chapter that has the tester
   read or tweak an agent works on the TOML frontmatter / `developer_instructions`.
+- **Connectors differ.** Codex invokes a skill with `$<name>` (NOT `/`, which
+  is a Codex built-in command), and `@<name>` is a FILE picker, not an agent
+  mention. So where the claude book writes `/check-links` (invoke) say
+  `$check-links`; where it writes `@content-editor` (mention an agent),
+  reference the agent's FILE instead, a markdown link `[content-editor](<rel-path>.toml)`
+  or a file-shaped `@<file>.md` / `@<file>.toml`; a bare `@<name>` (no
+  path/extension) forms NOTHING on Codex. The codex fixture overlays already
+  carry the `$`/file-ref shapes, narrate them, do not re-derive.
 - **No `command` kind.** Where the claude book authors a `command` (the
-  `/publish` command, the reserved-name chapter's `model` command), Codex uses a
-  **skill** at `.agents/skills/<name>/SKILL.md`. The body is identical (same
-  `/check-links` + `@content-editor` + deploy reference); only the kind and path
-  change. `cat <set> --file … --provider codex` already returns the Codex skill
-  body, so the create-the-file block stays a copy-paste. The reserved-name beat
-  uses a skill named with a reserved verb (Codex inherits the open-standard
-  `COMMONS_RESERVED_NAMES`, e.g. `model`), exactly like the basic track's
-  `reserved` chapter, on a skill instead of a command.
+  `/publish` command), Codex uses a **skill** at `.agents/skills/<name>/SKILL.md`.
+  The body uses the CODEX grammar (`$check-links` to invoke, a file reference to
+  `content-editor` instead of an `@`-mention, per Connectors above); the codex
+  fixture overlay already carries that shape, so the create-the-file block
+  (`cat <set> --file … --provider codex`) stays a copy-paste.
+- **No reserved skill names on Codex.** Codex `$`-invokes skills, a namespace
+  disjoint from its `/` built-in commands, so a skill named like a built-in
+  (`model`) does NOT collide with `/model` and is NOT flagged. The claude
+  `reserved` chapter (a `/model` COMMAND collides) has no Codex equivalent; the
+  daily-loop `reserved` Codex delta reframes / skips it (see that chapter).
   **Apply every substitution silently.** Use the Codex path, kind and file
   directly in the tester-facing prose, but never EXPLAIN the substitution or
   compare it to the claude shape. The Codex tester only ever sees a `skill`
   where the claude book has a command; never tell them "Codex has no `command`
-  kind", never say a node "is a command that shows as a skill", never reference
-  "the claude command". On Codex these nodes were always skills, there is
+  kind", never say a node "is a command that shows as a skill" or that it
+  "replaces" / "stands in for" / "reemplaza" a command, never append a parenthetical
+  like "(in Codex this replaces the command)", never reference "the claude command". On Codex these nodes were always skills, there is
   nothing to explain. (Same for the TOML-agent and path swaps above: point the
   tester at the real `.toml` / `.agents/` file when they interact with it, just
   do not narrate that it "would be" something else on claude.)

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { resolveProviderWalk } from '../../../../../kernel/extensions/index.js';
-import { agentSkillsProvider } from '../index.js';
+import { agentSkillsProvider, COMMONS_RESERVED_NAMES } from '../index.js';
 
 let root: string;
 
@@ -55,15 +55,15 @@ describe('agent-skills provider', () => {
     strictEqual(agentSkillsProvider.walk, undefined);
   });
 
-  it('declares the open-standard base reserved-name catalog under `skill`', () => {
-    const reserved = agentSkillsProvider.reservedNames?.['skill'] ?? [];
-    // Universal cross-agent slash commands ARE reserved under the neutral
-    // agent-skills lens (a user skill named after one is silently shadowed)...
-    ok(reserved.includes('help'), 'expected the universal `help` in the base catalog');
-    ok(reserved.includes('config'), 'expected the universal `config` in the base catalog');
-    // ...but vendor-specific verbs are NOT part of the neutral standard;
-    // each adopter (e.g. antigravity) appends its own.
-    ok(!reserved.includes('goal'), '`goal` is Antigravity-specific, not open-standard base');
+  it('declares NO reserved skill names (the neutral open standard has no `/`-invocation)', () => {
+    // The Agent Skills standard activates a skill by its `description`, not a
+    // `/` command, so a skill name cannot shadow a built-in `/` command; the
+    // neutral lens reserves nothing.
+    strictEqual(agentSkillsProvider.reservedNames, undefined);
+    // The shared COMMONS_RESERVED_NAMES catalog still exists, but only for
+    // `/`-invoking vendors (e.g. antigravity) to spread into their OWN manifest.
+    ok(COMMONS_RESERVED_NAMES['skill']?.includes('help'), 'shared base still carries the universal `help`');
+    ok(!COMMONS_RESERVED_NAMES['skill']?.includes('goal'), '`goal` is Antigravity-specific, not the shared base');
   });
 
   it('skill schema validates name + description (the open-standard required fields)', async () => {

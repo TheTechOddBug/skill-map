@@ -9,9 +9,10 @@
  *
  *   - `core/markdown-link` (universal) turns `[the guide](guide.md)` into a
  *     `references` edge.
- *   - `claude/at-directive` (precondition widened to `['claude','codex']`)
- *     turns `@builder` into a `mentions` edge that resolves to the other
- *     Codex agent (codex `resolution.mentions: ['agent']`).
+ *   - `codex/at-file` (codex-owned) turns a file-shaped `@builder.toml` into
+ *     a path-resolved `references` edge to the other Codex agent's file.
+ *     Codex's `@` is a file picker, not an agent-mention grammar, so the
+ *     claude `at-directive` is NOT gated under codex.
  *
  * The contrast test pins the lens gate: under the `claude` lens the Codex
  * agent is not classified at all, so its developer_instructions never reach
@@ -40,14 +41,15 @@ before(() => {
   };
 
   // Two Codex sub-agents. `deployer`'s prompt (the TOML
-  // `developer_instructions` field) references the other agent
-  // (`@builder`), a doc by markdown link, and an external URL.
+  // `developer_instructions` field) references the other agent's FILE
+  // (`@builder.toml`, a Codex `@`-file reference), a doc by markdown link,
+  // and an external URL.
   write(
     DEPLOYER,
     [
       'name = "deployer"',
       'description = "Coordinates a release"',
-      'developer_instructions = "Coordinate with @builder before shipping. See [the guide](guide.md). CI at https://example.com/ci."',
+      'developer_instructions = "Coordinate with @builder.toml before shipping. See [the guide](guide.md). CI at https://example.com/ci."',
     ].join('\n'),
   );
   write(
@@ -96,11 +98,17 @@ describe('Codex body extraction (read.bodyField = developer_instructions)', () =
       'a markdown link in developer_instructions becomes a references edge',
     );
 
-    // at-directive (now authorised under codex) parsed `@builder` and the
-    // resolver matched it to the builder agent (mentions -> agent).
+    // at-file (the codex `@`-file extractor) parsed `@builder.toml` and the
+    // resolver path-matched it to the builder agent FILE (references). Codex's
+    // `@` is a file picker, so it forms a `references` edge, not a `mentions`.
     ok(
-      fromDeployer.some((l) => l.kind === 'mentions'),
-      'an @mention in developer_instructions becomes a mentions edge under the codex lens',
+      fromDeployer.some((l) => l.kind === 'references' && l.target.endsWith('builder.toml')),
+      'a file-shaped @ token in developer_instructions becomes a references edge under the codex lens',
+    );
+    // And NO `mentions` edge forms (Codex has no agent-mention grammar).
+    ok(
+      !fromDeployer.some((l) => l.kind === 'mentions'),
+      'a bare @handle does not form a mentions edge under the codex lens',
     );
   });
 

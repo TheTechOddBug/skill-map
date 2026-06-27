@@ -1,7 +1,7 @@
 {
   "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
   "id": "body-links",
-  "description": "The Codex body extractor (read.bodyField = developer_instructions). Codex sub-agents are pure TOML with no file body; their markdown prompt lives in the triple-quoted `developer_instructions` field. The walker yields that field as the node body, so the universal markdown-link extractor plus the lens-gated at-directive run over it: the three agents' prompts produce six resolved edges (@mentions between agents + markdown links to the docs). A TOML-only corpus still yields a connected graph.",
+  "description": "The Codex body extractor (read.bodyField = developer_instructions). Codex sub-agents are pure TOML with no file body; their markdown prompt lives in the triple-quoted `developer_instructions` field. The walker yields that field as the node body, so the universal markdown-link extractor plus the codex `at-file` extractor run over it: the three agents' prompts produce six resolved `references` edges (`@<agent>.toml` file references between agents + markdown links to the docs). Codex's `@` is a file picker, so a `@<name>.toml` token path-resolves to the sibling agent file. A TOML-only corpus still yields a connected graph.",
   "fixture": "demo-codex",
   "invoke": {
     "verb": "scan",

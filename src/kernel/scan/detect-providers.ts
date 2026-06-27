@@ -40,7 +40,7 @@ import type { TExtensionStability } from '../extensions/index.js';
  */
 export interface IProviderDetectInput {
   id: string;
-  detect?: { markers?: readonly string[] };
+  detect?: { markers?: readonly string[]; fallback?: boolean };
   /**
    * Lifecycle label. Providers that ship disabled by default
    * (`experimental` / `deprecated`, per `installedDefaultEnabled`) are not
@@ -55,20 +55,34 @@ export interface IProviderDetectInput {
  * Return the unique provider ids whose `detect.markers` resolve to an
  * existing path under `cwd`, in Provider iteration order. No config
  * read, no prompt, no write.
+ *
+ * **Fallback precedence**: a Provider flagged `detect.fallback` (the
+ * open-standard `agent-skills` lens, whose `.agents/` marker is also the
+ * shared skill home vendor lenses populate) is kept ONLY when no vendor
+ * (non-fallback) Provider matched. So a `.codex/` + `.agents/` project
+ * returns `['codex']`, not the ambiguous `['codex', 'agent-skills']` pair,
+ * delivering what the scaffold `marker` field promises. Several vendor
+ * markers still return a multi-id (ambiguous) list.
  */
 export function detectProvidersFromFilesystem(
   cwd: string,
   providers: ReadonlyArray<IProviderDetectInput>,
 ): string[] {
   const seen = new Set<string>();
-  const out: string[] = [];
+  const matched: IProviderDetectInput[] = [];
   for (const provider of providers) {
     if (seen.has(provider.id)) continue;
     if (!isDetectableUnderCwd(cwd, provider)) continue;
     seen.add(provider.id);
-    out.push(provider.id);
+    matched.push(provider);
   }
-  return out;
+  // Drop fallback lenses once any vendor (non-fallback) lens matched: the
+  // shared `.agents/` home must not turn a single-vendor project into an
+  // ambiguous prompt. When no vendor matched, the fallback stands as the
+  // sole candidate (a pure open-standard project resolves to it).
+  const hasVendor = matched.some((p) => p.detect?.fallback !== true);
+  const kept = hasVendor ? matched.filter((p) => p.detect?.fallback !== true) : matched;
+  return kept.map((p) => p.id);
 }
 
 /**

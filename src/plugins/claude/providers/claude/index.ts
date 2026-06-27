@@ -103,6 +103,9 @@ export const claudeProvider: IBuiltInManifest<IProvider> = {
     label: "Anthropic's Claude",
     color: '#cc785c',
     colorDark: '#e89270',
+    // Claude Code invokes both commands and skills with `/`; the palette
+    // paints this as the `invokes` edge glyph under the claude lens.
+    invocationSigil: '/',
   },
 
   // Auto-detect marker: a `.claude/` directory under the scope root marks

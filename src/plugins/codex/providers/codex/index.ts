@@ -42,7 +42,6 @@ import {
   COMMONS_READ,
   COMMONS_KINDS,
   COMMONS_RESOLUTION,
-  COMMONS_RESERVED_NAMES,
   classifyCommonsPath,
 } from '../../../agent-skills/providers/agent-skills/index.js';
 
@@ -60,6 +59,10 @@ export const codexProvider: IBuiltInManifest<IProvider> = {
     label: "OpenAI's Codex",
     color: '#22c55e',
     colorDark: '#4ade80',
+    // Codex invokes skills with `$` (`$publish`); `/` is reserved for its
+    // own built-in commands (`/model`, `/init`), so the `invokes` edge glyph
+    // under the codex lens is the dollar, not the slash.
+    invocationSigil: '$',
   },
 
   // Auto-detect marker: a `.codex/` directory marks a Codex CLI project.
@@ -132,20 +135,22 @@ export const codexProvider: IBuiltInManifest<IProvider> = {
     ...COMMONS_KINDS,
   },
 
-  // Mentions resolve to agents (`@<name>`, the Codex sub-agent handle).
-  // Slash invocations resolve to skills (`invokes: ['skill']`, inherited
-  // from the open standard), so a `/skill-name` in an agent's prompt links
-  // to its `.agents/skills/` skill.
+  // Skill invocations resolve to skills (`invokes: ['skill']`, inherited
+  // from the open standard): a `$skill-name` in an agent's prompt (parsed by
+  // the codex `dollar-skill` extractor) links to its `.agents/skills/` skill.
+  // NO `mentions` entry: Codex's `@` is a file picker, parsed by the
+  // codex-owned `at-file` extractor as a path-resolved `references` link, not
+  // an agent-mention grammar.
   resolution: {
-    mentions: ['agent'],
     ...COMMONS_RESOLUTION,
   },
 
-  // Open-standard reserved-name base (the universal cross-agent slash
-  // verbs an agent CLI ships built-in), inherited from `agent-skills` and
-  // applied under the codex lens via SELF scope: a user skill that shadows
-  // one is flagged by `core/name-reserved`.
-  reservedNames: COMMONS_RESERVED_NAMES,
+  // NO `reservedNames`: Codex invokes skills via `$` (the `dollar-skill`
+  // extractor), a namespace disjoint from its built-in `/` commands, so a
+  // `$`-skill named `model` does NOT collide with `/model`. Reserved-skill
+  // names only apply to lenses that invoke skills through the `/` command
+  // channel (claude, antigravity). See spec/architecture.md §Provider ·
+  // reservedNames.
 
   classify(path: string): string | null {
     const lower = path.toLowerCase();
