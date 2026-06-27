@@ -326,13 +326,15 @@ describe('sm config set', () => {
 
   it('captures every detected enabled marker in the snapshot', () => {
     const scope = freshScope('set-active-provider-multi');
-    // Both `.claude/` AND `.agents/` exist on disk; the operator picks
-    // claude. Both `claude` and `agent-skills` are enabled, detectable
-    // lenses (the latter is the stable open default that auto-detects
-    // `.agents/`), so BOTH land in the snapshot even though only claude was
-    // chosen. The marker snapshot records on-disk reality, not the choice.
+    // Both `.claude/` AND `.codex/` exist on disk; the operator picks
+    // claude. Both are enabled, detectable VENDOR lenses, so BOTH land in
+    // the snapshot even though only claude was chosen. The marker snapshot
+    // records on-disk reality, not the choice. (Two VENDOR markers on
+    // purpose: a vendor plus the open `agent-skills` fallback would record
+    // just `['claude']`, the fallback yields to any vendor via the
+    // `detect.fallback` precedence asserted in the next case.)
     mkdirSync(join(scope.cwd, '.claude'), { recursive: true });
-    mkdirSync(join(scope.cwd, '.agents'), { recursive: true });
+    mkdirSync(join(scope.cwd, '.codex'), { recursive: true });
     const r = sm(['config', 'set', 'activeProvider', 'claude'], scope);
     assert.equal(r.status, 0, r.stderr);
     const written = JSON.parse(
@@ -341,11 +343,25 @@ describe('sm config set', () => {
     assert.equal(written['activeProvider'], 'claude');
     const markers = written['activeProviderMarkers'] as string[];
     assert.ok(markers.includes('claude'), `expected claude in ${JSON.stringify(markers)}`);
-    assert.ok(
-      markers.includes('agent-skills'),
-      `expected agent-skills in ${JSON.stringify(markers)}`,
-    );
+    assert.ok(markers.includes('codex'), `expected codex in ${JSON.stringify(markers)}`);
     assert.equal(markers.length, 2);
+  });
+
+  it('fallback precedence: a vendor marker drops `agent-skills` from the snapshot', () => {
+    const scope = freshScope('set-active-provider-fallback-precedence');
+    // `.codex/` (vendor) + `.agents/` (the open `agent-skills` fallback home)
+    // both on disk. `agent-skills` declares `detect.fallback`, so it yields to
+    // the vendor: only `codex` is detected, so the snapshot records just
+    // `['codex']`, never an ambiguous `codex` + `agent-skills` pair.
+    mkdirSync(join(scope.cwd, '.codex'), { recursive: true });
+    mkdirSync(join(scope.cwd, '.agents'), { recursive: true });
+    const r = sm(['config', 'set', 'activeProvider', 'codex'], scope);
+    assert.equal(r.status, 0, r.stderr);
+    const written = JSON.parse(
+      readFileSync(join(scope.cwd, '.skill-map', 'settings.json'), 'utf8'),
+    ) as Record<string, unknown>;
+    assert.equal(written['activeProvider'], 'codex');
+    assert.deepEqual(written['activeProviderMarkers'], ['codex']);
   });
 });
 

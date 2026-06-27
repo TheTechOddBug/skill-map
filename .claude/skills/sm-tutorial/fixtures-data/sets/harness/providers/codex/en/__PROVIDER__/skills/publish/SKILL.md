@@ -10,6 +10,6 @@ description: |
 The one skill you run when the site is ready to go out.
 
 ## Steps
-1. Run /check-links on the pages in public/. If it reports broken links, stop and fix them first.
-2. If a page needs a content fix, brief @content-editor with the change.
+1. Run $check-links on the pages in public/. If it reports broken links, stop and fix them first.
+2. If a page needs a content fix, brief [content-editor](../../../.codex/agents/content-editor.toml) with the change.
 3. Follow the [deploy runbook](../../../docs/DEPLOY.md): regenerate pages, run the link check, start the server.

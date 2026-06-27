@@ -165,23 +165,28 @@ Creates a blank page so you can start writing.
 The watcher picks up the new skill. Tell the tester:
 
 > I added a skill named `model`. Watch the **Map**: the new `model` skill node
-> appears, but flagged with a **warning** marker. Open its inspector: it reads
-> `name-reserved`, `model` shadows one of the agent runtime's own built-in verbs
-> (like `help`, `clear`, `config`), so the runtime would silently ignore your
-> skill, it never runs. The fix is a name the runtime does not own.
+> appears **clean, no warning**. On the open Agent Skills standard a skill is
+> activated by its `description`, not invoked by a `/` command, so a skill name
+> can never collide with a built-in command, there are NO reserved skill names.
+> Name your skills anything you like, even after a CLI built-in like `model` or
+> `help`.
 >
-> Rename it to `new-page`: first rename the folder `<provider_dir>/model/` to
-> `<provider_dir>/new-page/`. Then open `new-page/SKILL.md` and, at the top where
-> the frontmatter says `name: model`, change it to `name: new-page`. Save.
+> The one exception is a vendor that bolts `/`-invocation onto the standard:
+> Google's Antigravity invokes skills with `/<name>`, so under the Antigravity
+> lens a skill named after one of its built-in verbs (like `goal`) WOULD be
+> flagged `name-reserved`. The neutral open standard you are on reserves nothing.
 >
-> Watch the **Map** again: the warning clears and the node is now `new-page`, all
-> live. What cleared it was changing `frontmatter.name` (which for a skill must
-> match its folder, so you renamed both). Now `new-page` is yours and the runtime
-> will run it.
->
-> Did the warning clear after the rename?
+> See the `model` node land clean, with no warning?
 
 Wait for confirmation. Mark `reserved`: done. Auto-advance to `publish`.
+
+**Antigravity delta** (`tutorial.provider == antigravity`): skills ARE
+`/`-invoked here, so a built-in verb DOES collide. Name the skill `goal` (an
+Antigravity built-in) instead of `model`, narrate the `name-reserved`
+**warning** that appears, and have the tester clear it by renaming the folder +
+`frontmatter.name` to `new-page` (the warning clears live). That collision-and-
+fix beat is the Antigravity version; `agent-skills` gets the "names are free"
+lesson above.
 
 ---
 

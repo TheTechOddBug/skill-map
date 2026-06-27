@@ -58,9 +58,10 @@ export function overlayKey(provider) {
 /**
  * Kinds whose edit fragments (the todo-connectors hub bullets, etc.) apply for
  * a provider, keyed by TRACK, not by the base-tier kinds. A rich provider links
- * to every node role even when it renders some differently, Codex's agent is a
- * TOML overlay and its command-node is a skill, but an `@agent` mention and a
- * `/command` invocation still resolve, so every bullet applies. A basic
+ * to every node role even when it renders some differently (Codex's agent is a
+ * TOML overlay and its command-node is a skill), so every hub bullet applies;
+ * the per-provider overlay then supplies the right connector grammar (claude
+ * `/`+`@`, codex `$`-invoke + `@`-file / markdown-link references). A basic
  * provider only has skill + markdown, so the agent / command bullets fold away.
  */
 export function fragmentKindsFor(provider) {

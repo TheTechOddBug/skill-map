@@ -50,7 +50,6 @@ export const atFileExtractor: IBuiltInManifest<IExtractor> = {
   // `@handle` → agent mention) is NOT gated under codex.
   precondition: { provider: ['codex'] },
 
-  // eslint-disable-next-line complexity
   extract(ctx: IExtractorContext): void {
     const seenReferences = new Set<string>();
     const body = stripCodeAndHtml(ctx.body);
@@ -60,17 +59,10 @@ export const atFileExtractor: IBuiltInManifest<IExtractor> = {
     for (const match of body.matchAll(AT_RE)) {
       const original = match[1]!;
       const bare = original.slice(1); // drop the leading `@`
-      // Absolute paths (`@/abs/x`) are skipped, mirroring
-      // `core/markdown-link`'s leading-`/` ambiguity handling.
-      if (bare.startsWith('/')) continue;
-      const isReference =
-        bare.startsWith('./') ||
-        bare.startsWith('../') ||
-        FILE_EXT_RE.test(bare);
-      // Bare handles (no path prefix, no extension) are prose under the
-      // codex lens, NOT file references. Skip them entirely (no phantom
-      // mentions link).
-      if (!isReference) continue;
+      // Classify the token: a file-shaped one yields its rationale; a bare
+      // handle or an absolute path yields null and forms no edge.
+      const rationale = classifyAtToken(bare);
+      if (rationale === null) continue;
 
       const target = resolveSourceRelative(sourceDir, bare);
       const dedupKey = target.toLowerCase();
@@ -92,9 +84,7 @@ export const atFileExtractor: IBuiltInManifest<IExtractor> = {
             // 0.85: strong file signal (path prefix or known extension),
             // one degree of inference (the runtime resolves the path).
             confidence: 0.85,
-            rationale: bare.startsWith('./') || bare.startsWith('../')
-              ? 'relative path prefix'
-              : 'known file extension',
+            rationale,
             trigger: {
               originalTrigger: original,
               normalizedTrigger: target,
@@ -105,6 +95,22 @@ export const atFileExtractor: IBuiltInManifest<IExtractor> = {
     }
   },
 };
+
+/**
+ * Classify a `@`-token body (the token minus the leading `@`) under the
+ * Codex file-picker grammar. Returns the Signal `rationale` for a file-shaped
+ * token, a relative path prefix (`./` / `../`) or a known file extension, and
+ * `null` for a token that forms no edge: a bare handle (prose, no phantom
+ * mentions link) or an absolute path (`@/abs/x`, skipped to mirror
+ * `core/markdown-link`'s leading-`/` ambiguity handling). Split out of
+ * `extract` so that loop stays within the complexity budget.
+ */
+function classifyAtToken(bare: string): string | null {
+  if (bare.startsWith('/')) return null;
+  if (bare.startsWith('./') || bare.startsWith('../')) return 'relative path prefix';
+  if (FILE_EXT_RE.test(bare)) return 'known file extension';
+  return null;
+}
 
 /**
  * Resolve `bare` (the `@`-token minus the leading `@`) against the source

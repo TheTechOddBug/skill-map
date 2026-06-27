@@ -67,7 +67,9 @@ ls -A
 infrastructure, not user content): the provider scaffold dirs `sm
 tutorial` drops for the active lens, `.claude`, `.codex`, `.agents`,
 `.agent` (the vendor marker plus the open-standard skill home, e.g.
-codex drops both `.codex/` and `.agents/skills/`), `.tmp` (Claude Code
+codex drops both `.codex/` and `.agents/skills/`), `.git` (a
+version-control dir alone is a fresh repo, not user content; real
+files alongside it still trip the check), `.tmp` (Claude Code
 scratch dir), `SKILL.md` / `sm-tutorial.md` (loose copies of this
 skill), `tutorial-state.json` (resume mode).
 

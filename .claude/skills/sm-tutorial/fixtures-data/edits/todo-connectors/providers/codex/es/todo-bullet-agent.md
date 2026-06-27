@@ -1,0 +1,1 @@
+- [ ] Informa a [demo-agent](../.codex/agents/demo-agent.toml) sobre los detalles pendientes.

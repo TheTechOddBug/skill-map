@@ -1,0 +1,2 @@
+- When a page needs writing or fixing, brief [content-editor](.codex/agents/content-editor.toml).
+- When the site is ready to go out, run $publish.

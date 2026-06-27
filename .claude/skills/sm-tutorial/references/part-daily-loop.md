@@ -23,20 +23,28 @@ what the tester names their portfolio. Persist the answer with
 antigravity) walks its own `basic-daily` part. **Codex deltas** (when
 `tutorial.provider == codex`): the `content-editor` is a TOML agent at
 `.codex/agents/content-editor.toml`, and Codex has no `command` kind, so
-`publish` is a **skill** at `.agents/skills/publish/SKILL.md`. The `@`/`/`
-connectors all resolve on Codex, so every beat lands the same; only the path /
-kind of those two nodes changes. Per chapter:
+`publish` is a **skill** at `.agents/skills/publish/SKILL.md`. The CONNECTOR
+GRAMMAR differs: Codex invokes a skill with `$` (not `/`, a Codex built-in
+command) and `@` is a file picker (not an agent mention), so `$publish` /
+`$check-links` invoke and the `content-editor` agent is referenced by a
+markdown link to its `.toml`. Per chapter:
 
 - `add-page`: invoke the `content-editor` TOML agent via the Task tool (same flow).
 - `broken-ref`: the deploy link that breaks lives in the `publish` SKILL; fix it
   in `.agents/skills/publish/SKILL.md` (not a `.claude/commands/` file).
-- `reserved`: Codex has no command, so create a SKILL with a reserved name
-  instead, `Write` `.agents/skills/model/SKILL.md` named `model` (it shadows
-  the open-standard `COMMONS_RESERVED_NAMES`); clear it by renaming the folder +
-  `frontmatter.name` to `new-page`, exactly like the basic track's `reserved`
-  chapter, on a skill.
-- `publish`: run the `publish` SKILL's steps for real (same `/check-links` +
-  `@content-editor` + deploy runbook).
+- `reserved`: Codex `$`-invokes skills, a namespace disjoint from its `/`
+  built-in commands, so a skill named like a built-in (`model`) does NOT
+  collide with `/model` and is NOT flagged. The claude beat (a `/model` COMMAND
+  shadows the built-in) has no Codex equivalent, so REFRAME it: `Write`
+  `.agents/skills/model/SKILL.md` named `model`, have the tester watch the Map,
+  and narrate that NO warning appears, on Codex `$model` (your skill) and
+  `/model` (Codex's built-in command) are separate namespaces, so naming a
+  skill after a built-in is fine. There is no rename beat (nothing to fix);
+  mark `reserved` done and move on. Do NOT claim a collision or a reserved-name
+  warning that Codex does not produce.
+- `publish`: run the `publish` SKILL's steps for real (`$check-links` invokes
+  the link checker, the `content-editor` markdown-link reference, the deploy
+  runbook).
 
 **Real-execution contract (read once).** When invoking the `content-editor` via
 the Task tool, instruct it explicitly to write ONLY `.html` files under

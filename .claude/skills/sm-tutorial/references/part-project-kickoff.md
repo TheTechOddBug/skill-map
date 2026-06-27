@@ -24,8 +24,9 @@ The chapters grow the harness from there.
 
 - `kickoff` / `manual`: identical flow (`sm init` then `sm`, no lens
   prompt, `.codex/` outranks the shared `.agents/` home). `CLAUDE.md`'s
-  `@AGENTS.md` reference resolves the same (Codex has the `@`-directive).
-  `AGENTS.md` is still the one boot node.
+  `@AGENTS.md` reference resolves the same (it carries `.md`, so Codex reads
+  `@AGENTS.md` as a FILE reference, Codex's `@` is a file picker, not an agent
+  mention). `AGENTS.md` is still the one boot node.
 - `first-agent`: the `content-editor` is a **TOML agent** at
   `.codex/agents/content-editor.toml`, not a `.claude/agents/*.md` file; point
   the tester at the `.toml` if they want to peek. Its body references the style
@@ -39,7 +40,7 @@ The chapters grow the harness from there.
   no `command`. Lay only `docs/DEPLOY.md` here (STYLE landed in `first-agent`),
   and name the kinds as agent + skill + markdown (the skill + the publish piece
   arrive later in this part as skills).
-- `publish`: Codex has no `command` kind, so the tester creates a **skill** at `.agents/skills/publish/SKILL.md` instead of `.claude/commands/publish.md`. The body is the Codex one (same `/check-links` + `@content-editor` + deploy reference); fetch it with `fixtures.js cat harness --file "__PROVIDER__/skills/publish/SKILL.md" --provider codex --lang <lang>`. Tell the tester they are creating a `skill` (one node, three connectors); present it plainly as a skill, with no mention of a command or a substitution (per _core.md §Rendering the rich book on Codex, silent substitution). The fixture lays no `publish` for codex in this chapter (the tester authors it), so the `cat` is the source.
+- `publish`: Codex has no `command` kind, so the tester creates a **skill** at `.agents/skills/publish/SKILL.md` instead of `.claude/commands/publish.md`. The body uses the CODEX grammar (`$check-links` invokes the link checker; a markdown link references `content-editor`; the deploy runbook is a markdown reference), so the three connectors still light up, just `$`/file-ref instead of `/`+`@`-mention. Fetch it with `fixtures.js cat harness --file "__PROVIDER__/skills/publish/SKILL.md" --provider codex --lang <lang>`. Tell the tester they are creating a `skill` (one node, three connectors); present it plainly as a skill, with no mention of a command or a substitution (per _core.md §Rendering the rich book on Codex, silent substitution). The fixture lays no `publish` for codex in this chapter (the tester authors it), so the `cat` is the source.
 - `links`: the `content-editor-style` reference is baked into the Codex content-editor's TOML (`developer_instructions`) at lay time, so the `edit content-editor-style` step is a no-op on Codex, the `content-editor -> docs/STYLE.md` arrow is already drawn from earlier in this part. Run only `edit agents-hub` and narrate the two `AGENTS.md` arrows; mention the style-guide arrow as already present.
 
 ## Chapter `kickoff` - Start the portfolio (~2 min)
