@@ -152,14 +152,10 @@ Tell the tester:
 > (That is also why `@demo-agent` drew fine: an `@name` mention
 > resolves when an agent by that name really exists.)
 >
-> One word on solidity: skill-map draws each connector's
-> **confidence** as opacity, and every arrow you see here is fully
-> solid (1.00) because each one lands on a real node. The faint,
-> partial case shows up later in the campaign; for now the rule is
-> simple, a reference
-> that resolves draws a solid arrow, a reference that points at
-> nothing is not drawn at all and gets flagged instead. The exact
-> per-link numbers live in the inspector, next chapter.
+> 💡 Tip: if all these changes left the nodes crowded together, the
+> map toolbar has a **Re-arrange layout** button: it tidies the
+> layout so everything reads better. If you've moved nodes by hand it
+> asks for confirmation first, otherwise it just re-arranges.
 >
 > Confirm when you see the four arrows plus the broken-reference
 > marker on the hub. If an arrow is missing, refresh the browser and
@@ -171,12 +167,6 @@ Expected: four drawn arrows plus one `core/reference-broken` error on `notes/tod
 
 The canvas only draws the resolved arrows; the full per-link breakdown, including the broken one that never drew, lives in the Inspector. Open it on the hub so the tester registers the surface before the `edit-link` chapter changes topology.
 
-> 💡 Tip: if all these changes left the nodes crowded together, the
-> map toolbar has a **Re-arrange layout** button (tooltip "Re-arrange
-> the visible nodes"): it tidies the layout so everything reads
-> better. If you've moved nodes by hand it asks for confirmation
-> first, otherwise it just re-arranges.
->
 > 🆕 Open the Inspector for **Demo TODO list** (click the node on
 > the map). Find the **Connections** section: it has two sections,
 > **Outgoing** and **Incoming**.
@@ -187,7 +177,7 @@ The canvas only draws the resolved arrows; the full per-link breakdown, includin
 > confidence: the numeric value. Here you'll see the contrast, the
 > `references` to `demo-guideline2` reads `1.00` (resolved), while the
 > `mentions` to `demo-guideline` reads `0.50` and is marked broken,
-> that 0.5 is the broken-reference penalty, not a "halfway sure".
+> that 0.5 is the broken-reference penalty, not "half sure".
 >
 > Now open the Inspector for a couple of the nodes to read their
 > Incoming count. The four resolved nodes (`demo-agent`,
@@ -195,6 +185,11 @@ The canvas only draws the resolved arrows; the full per-link breakdown, includin
 > incoming. Open `demo-guideline` and it shows **0**: the broken
 > mention never landed on it, so nothing points in. Five outgoing
 > links on the hub, but only four of them reach a node.
+>
+> 💡 Tip: skill-map draws each connector's **confidence** as opacity.
+> Every arrow here is solid (1.00) because it lands on a real node; a
+> reference that points at nothing is flagged instead of drawn. The
+> fainter, partial case shows up later in the campaign.
 >
 > Let me know when you see it.
 
@@ -252,18 +247,20 @@ action itself.
 > Tell me when the tree is open.
 
 > At the top of that sidebar there's a search box (placeholder
-> `Search…`). Type `guideline`. Watch both halves at once: the tree
-> narrows down to the two guideline nodes (`demo-guideline` and
-> `demo-guideline2`) and the **Map** drops every node except those
-> two. The search matches a node's name, path,
-> or description, and filters live as you type, no Enter needed.
+> `Search…`). Type `guideline`. Watch the tree narrow down to the
+> two guideline nodes (`demo-guideline` and `demo-guideline2`). The
+> search matches a node's name, path, or description, and filters
+> live as you type, no Enter needed. The **Map** stays put: by
+> default the search filters only the files list, not the map (the
+> tip below changes that).
 >
-> Now clear the box. All six nodes come back, in both the tree and
-> the Map. Confirm you saw it filter and then restore.
+> Now clear the box. All six nodes come back in the tree. Confirm you
+> saw it filter and then restore.
 
-> Last one. In the tree, find the **Demo TODO list** row: at its
-> right edge there's a small **sitemap** icon (its tooltip reads
-> "Isolate this node and its direct links on the map"). Click it.
+> Last one. In the tree, find the `notes/todo` row (the **Demo TODO
+> list** hub, the tree labels rows by file name): at its right edge
+> there's a small **sitemap** icon (its tooltip reads "Isolate this
+> node and its direct links on the map"). Click it.
 >
 > The Map collapses to **Demo TODO list** plus only the nodes it
 > draws an arrow to (`demo-command`, `demo-skill`,
@@ -276,10 +273,9 @@ action itself.
 >
 > 💡 Tip: remember the search box from a moment ago? The map-icon
 > button right next to it controls whether the search also filters
-> the **Map**. It's on by default, that's why the **Map** narrowed
-> along with the tree when you searched `guideline`. Click it to
-> switch to filtering only the files list, leaving the map's layout
-> in place.
+> the **Map**. It's off by default, which is why the **Map** stayed
+> put while only the tree narrowed when you searched `guideline`.
+> Click it on if you want a search to filter the map too.
 >
 > Did the map isolate and then restore?
 

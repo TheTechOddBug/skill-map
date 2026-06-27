@@ -18,8 +18,11 @@
  *   - `--for <provider-id>` picks it explicitly (validated against the
  *     scaffold-capable Providers, experimental ones gated by `--experimental`).
  *   - Without `--for` on an interactive stdin, the verb prompts with a
- *     numbered list (default: the first, Claude; empty answer accepts it).
- *     With only Claude selectable today, there is no prompt.
+ *     numbered list of scaffold-capable Providers by vendor name (today
+ *     Claude, OpenAI Codex, and the open standard shown as Google's
+ *     Antigravity); the first, Claude, is the default an empty answer
+ *     accepts. The destination folder is not shown (several Providers share
+ *     `.agents/skills`, so it does not identify the lens).
  *   - Without `--for` on a non-interactive stdin (pipes, CI), the verb
  *     picks the default Provider (Claude), so it stays scriptable.
  *
@@ -413,11 +416,13 @@ function toScaffoldTarget(
  * Prompt rows in catalog order (vendor providers first per the codegen
  * `PLUGIN_ORDER`, so `claude` leads). The tutorial is a pre-bootstrap
  * helper, so this reads the built-in catalog directly rather than project
- * config. The default-offered rows are the stable, book-ready destinations:
- * `claude` (rich track) and the open-standard `agent-skills` (basic track).
- * When `includeExperimental` is set, experimental destinations join, today
- * none declare a `scaffold.skillDir`, so the flag is a no-op until the beta
- * providers (codex / antigravity) become scaffold targets.
+ * config. The default-offered rows are the book-ready destinations that
+ * declare a `scaffold.skillDir` and ship enabled: `claude` (rich track),
+ * the beta `codex` (rich track), and the open-standard `agent-skills`
+ * (basic track). `beta` ships enabled, so `codex` appears by default;
+ * `--experimental` would add any `stability: experimental` scaffolder, of
+ * which there is none today (they ship disabled), so the flag is a no-op
+ * among current built-ins.
  */
 export function listScaffoldTargets(includeExperimental = false): IScaffoldTarget[] {
   const out: IScaffoldTarget[] = [];
@@ -428,9 +433,16 @@ export function listScaffoldTargets(includeExperimental = false): IScaffoldTarge
   return out;
 }
 
-/** Render a target's prompt label, appending `(aka1, aka2)` when present. */
-function labelWithAka(target: IScaffoldTarget): string {
-  return target.aka.length > 0 ? `${target.label} (${target.aka.join(', ')})` : target.label;
+/**
+ * Render a target's prompt label. When the target carries `aka` vendors
+ * (the open standard lists `Google's Antigravity`), the aka vendor LEADS and
+ * the provider label follows in parentheses (`Google's Antigravity (Standard:
+ * Agent skills)`); the vendor name is the recognisable handle, the standard
+ * name the qualifier. Without `aka` (Claude, Codex) it is just the label.
+ * Exported for unit coverage.
+ */
+export function labelWithAka(target: IScaffoldTarget): string {
+  return target.aka.length > 0 ? `${target.aka.join(', ')} (${target.label})` : target.label;
 }
 
 /** Render the numbered destination list. */
@@ -446,7 +458,6 @@ function renderTargetLines(
       tx(TUTORIAL_TEXTS.promptOption, {
         index: i + 1,
         label: labelWithAka(t),
-        skillDir: `${t.skillDir}/`,
         marker: t.id === def.id ? TUTORIAL_TEXTS.promptDefaultMarker : '',
       }),
     );

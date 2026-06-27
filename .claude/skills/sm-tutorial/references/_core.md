@@ -20,7 +20,7 @@ Two numbering systems coexist; keep them apart:
 
 - **Internal (authoring only)**: the `order` field in `_manifest.yml`
   and the `# Part N` file headers, 0-based (Part 0 the prologue …
-  Part 5 the CLI deep-dive; `mcp` at Part 6 is parked / hidden). Use it
+  Part 4 the CLI deep-dive; `mcp` at Part 5 is parked / hidden). Use it
   in `**Context**:` blocks and author
   notes; NEVER say it to the tester, it is off by one from what they
   see.

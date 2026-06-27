@@ -1,4 +1,4 @@
-# Part 3 (basic track): The daily loop (step library, `daily-loop`)
+# Part 2 (basic track): The daily loop (step library, `daily-loop`)
 
 The campaign's payoff and finale, basic track. The tester operates the harness
 they built the way they would on any normal day, **for real**. Three acts:
@@ -35,13 +35,14 @@ has NO `sm scan` / `sm check` steps: the watcher re-scans on every save.
 ## Chapter `setup` - Make it yours and bring it up (~5 min)
 
 **Context**: the harness is wired. Now put it to work on a real day. First make
-the site yours and give it a look you would share, then serve it. The HTML and
+the site yours, about whatever you like, then serve it. The HTML and
 CSS are Layer 2 (the harness's output); skill-map maps the harness (Layer 1, the
 `.md` files), so the site landing on disk does NOT move the graph.
 
 **Preparation**:
-1. Ask the tester, in one short exchange: what the site should be called and one
-   line about what it is for. If they do not care, offer defaults ("My Portfolio"
+1. Ask the tester the two questions straight, with no "before we build, let's
+   make it yours" lead-in: what the site should be called and one line about what
+   it is for. If they do not care, offer defaults ("My Portfolio"
    / "Small, sturdy things on the web"). Persist both with
    `node .claude/skills/sm-tutorial/scripts/state.js set-identity --name "<name>" --tagline "<tagline>"`.
 2. Backstage, `Write` `public/style.css`, `public/index.html`, and
@@ -69,10 +70,6 @@ node server.js
 > Open `http://localhost:3000`: there is your site, named after you. Click
 > **About** and back to **Home**.
 >
-> Now glance at the Map: it did not move. What you watched grow is your harness
-> (Layer 1, the `.md` files and their references). The pages and stylesheet are
-> Layer 2, what the harness produces. Two layers, one project.
->
 > Does the site load and look clean?
 
 Wait for confirmation. If `node server.js` reports `Cannot find module
@@ -80,11 +77,6 @@ Wait for confirmation. If `node server.js` reports `Cannot find module
 `add-page`.
 
 ## Chapter `add-page` - Add a page with your skill (~4 min)
-
-**Context**: the daily move. You want a new page, so you ask your
-`content-editor` to write it, the first time it runs **for real**. It reads
-`docs/STYLE.md` and the shared stylesheet and writes a new page into `public/`.
-The graph does not move (HTML is Layer 2).
 
 Tell the tester:
 
@@ -119,13 +111,17 @@ Wait for confirmation. Mark `add-page`: done. Auto-advance to `broken-ref`.
 
 ## Chapter `broken-ref` - A rename breaks a link (~4 min)
 
-**Context**: real reorganizing breaks things, and this is where skill-map earns
-its keep. You rename a doc, and a link that pointed at the old name goes stale.
-skill-map catches it the moment the watcher re-scans.
+**Context**: the daily safety net, and where skill-map earns its keep: rename and
+move things freely, and skill-map shows you exactly what you forgot to update
+before it ships broken.
 
 **Preparation**: none (the tester drives). Everything is watched live.
 
-Tell the tester to rename the deploy runbook (their file):
+Tell the tester to free the third terminal, then rename the deploy runbook
+themselves (their file):
+
+> In your **third terminal** (the one running `node server.js`), press
+> **Ctrl+C** to stop the site server, then rename the deploy runbook there:
 
 ```bash
 mv docs/DEPLOY.md docs/DEPLOYMENT.md
@@ -141,9 +137,7 @@ mv docs/DEPLOY.md docs/DEPLOYMENT.md
 > and point the deploy-runbook link at `docs/DEPLOYMENT.md` (the new name). Save.
 >
 > Watch the **Map** again: the arrow snaps back, solid, and the red marker
-> clears, all live. That is the daily safety net: rename and move things freely,
-> and skill-map shows you exactly what you forgot to update before it ships
-> broken.
+> clears, all live.
 >
 > Did the broken marker appear and then clear?
 
@@ -151,10 +145,6 @@ Wait for confirmation. The harness MUST be clean again before Act C. Mark
 `broken-ref`: done. Auto-advance to `reserved`.
 
 ## Chapter `reserved` - A reserved name collides (~2 min)
-
-**Context**: you add a quick helper skill and, without thinking, name it
-`config`, a name the agent runtime already owns for its own built-in slash verb.
-skill-map warns you before the runtime silently ignores your skill.
 
 **Preparation**: `Write` `<provider_dir>/config/SKILL.md`:
 ```markdown
@@ -179,13 +169,12 @@ The watcher picks up the new skill. Tell the tester:
 >
 > Rename it to `new-page`: first rename the folder `<provider_dir>/config/` to
 > `<provider_dir>/new-page/`. Then open `new-page/SKILL.md` and, at the top where
-> the frontmatter says `name: config`, change it to `name: new-page`; also change
-> the H1 to `# new-page`. Save.
+> the frontmatter says `name: config`, change it to `name: new-page`. Save.
 >
 > Watch the **Map** again: the warning clears and the node is now `new-page`, all
-> live. Notice what cleared it: changing the **name** (`frontmatter.name`), which
-> for a skill must match its folder, so you rename both. Now `new-page` is yours
-> and the runtime will actually run it.
+> live. What cleared it was changing `frontmatter.name` (which for a skill must
+> match its folder, so you renamed both). Now `new-page` is yours and the runtime
+> will run it.
 >
 > Did the warning clear after the rename?
 
@@ -196,12 +185,6 @@ Wait for confirmation. Mark `reserved`: done. Auto-advance to `publish`.
 **Act C - Publish**
 
 ## Chapter `publish` - Ship it: run the publish skill for real (~4 min)
-
-**Context**: the harness is a set of instructions, and the `publish` skill ties
-them together. You run it **for real**: it runs the link checker over your pages,
-hands off to the `content-editor` if anything needs a fix, then follows the
-deploy runbook. Same Layer 1 / Layer 2 split, the pages are output, so the Map
-stays put while the pipeline runs.
 
 **Preparation**: make sure the pages exist (`index`, `about`, `projects`). When
 the tester asks to publish, **execute the publish flow for real** by following
@@ -215,7 +198,8 @@ Tell the tester:
 > The site is ready. Tell me to publish and I'll run your `publish` skill for
 > real: I follow its steps, run the link check across your pages, fix anything
 > through the `content-editor`, and walk the deploy runbook, exactly what the
-> skill says to do.
+> skill says to do. (You can read the skill's content anytime by clicking the
+> `publish` node on the Map, then opening its **Body** section.)
 
 After running the flow, report what actually happened (keep promises conditional
 on the real result):
@@ -229,9 +213,6 @@ on the real result):
 >   regenerate the pages (done), run the link check (done), start the server
 >   (next chapter).
 >
-> And the Map did not move while the pipeline ran: the pages are Layer 2 output;
-> the harness on the canvas is Layer 1.
->
 > The link check came back clean and `publish` is wired correctly across your
 > pages. Shall we continue?
 
@@ -239,24 +220,17 @@ Wait for confirmation. Mark `publish`: done. Auto-advance to `stability`.
 
 ## Chapter `stability` - Set a node's stability (and the `.sm` sidecar) (~3 min)
 
-**Context**: real maintenance includes marking how mature each piece is. skill-map
-lets you tag a node's **stability** from the inspector. That is skill-map's own
-metadata, so it lands in a co-located **`.sm` sidecar** next to the file (the
-vendor file stays untouched), and the first `.sm` write asks for your consent.
-
 This chapter is lens-agnostic: follow the `stability` chapter in the rich
-daily-loop (`part-daily-loop.md`) verbatim, marking the `AGENTS` handbook node
-`stable` from the inspector, confirming the consent dialog, and watching the
-`stable` badge plus the `AGENTS.sm` sidecar appear. Nothing here depends on the
+daily-loop (`part-daily-loop.md`) verbatim, setting the `AGENTS` handbook node's
+stability from the inspector, confirming the consent dialog, and watching the
+stability badge plus the `AGENTS.sm` sidecar appear. Nothing here depends on the
 lens.
 
 Mark `stability`: done. Auto-advance to `golive`.
 
-## Chapter `golive` - Your portfolio, live next to the graph (~3 min)
+## Chapter `golive` - Your website, live next to the graph (~3 min)
 
-**Context**: the climax. Serve the finished multi-page site and click through it,
-ending with the running portfolio on one side and the full harness graph on the
-other. Lens-agnostic: follow the `golive` chapter in the rich daily-loop
+Lens-agnostic: follow the `golive` chapter in the rich daily-loop
 (`part-daily-loop.md`) verbatim (the serve commands and the closing congratulation
 are identical), except when you name the harness pieces on the graph, say "the
 handbook, the content-editor, the style guide, the publish skill, the link

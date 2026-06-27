@@ -116,7 +116,8 @@ export class FilterStoreService {
   /**
    * Whether the text search also filters the MAP (graph view). The
    * files rail always honours the search; the map only does when this
-   * is on, which it is by default. A persisted preference, not a
+   * toggle is on, which ships off by default (see
+   * `readStoredSearchAffectsMap`). A persisted preference, not a
    * filter: `reset()` leaves it untouched and `isActive` does not
    * consult it.
    */

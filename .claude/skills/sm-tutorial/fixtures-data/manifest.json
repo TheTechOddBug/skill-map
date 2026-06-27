@@ -82,9 +82,6 @@
       "edits": ["todo-connectors"],
       "drop": ["notes/private-credentials.md"]
     },
-    "harness-built": {
-      "lay": ["portfolio"]
-    },
     "harness-connected": {
       "lay": ["portfolio", "harness"],
       "edits": ["agents-hub", "content-editor-style"]

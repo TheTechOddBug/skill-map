@@ -108,7 +108,10 @@ describe('sm-tutorial state.js', () => {
     const cwd = freshCwd();
     init(cwd);
     run(['pick', 'project-kickoff'], cwd);
-    const chapters = ['kickoff', 'manual', 'first-agent', 'real-kinds'];
+    const chapters = [
+      'kickoff', 'manual', 'first-agent', 'real-kinds',
+      'check-links', 'publish', 'links', 'confidence',
+    ];
     let last: Run | undefined;
     for (const ch of chapters) last = run(['mark', 'project-kickoff', ch, 'done'], cwd);
     assert.equal(last!.json.allDone, true);
@@ -124,7 +127,11 @@ describe('sm-tutorial state.js', () => {
     run(['mark', 'project-kickoff', 'kickoff', 'done'], cwd);
     run(['mark', 'project-kickoff', 'manual', 'done'], cwd);
     run(['mark', 'project-kickoff', 'first-agent', 'failed'], cwd);
-    const r = run(['mark', 'project-kickoff', 'real-kinds', 'done'], cwd);
+    run(['mark', 'project-kickoff', 'real-kinds', 'done'], cwd);
+    run(['mark', 'project-kickoff', 'check-links', 'done'], cwd);
+    run(['mark', 'project-kickoff', 'publish', 'done'], cwd);
+    run(['mark', 'project-kickoff', 'links', 'done'], cwd);
+    const r = run(['mark', 'project-kickoff', 'confidence', 'done'], cwd);
     assert.equal(r.json.allDone, true);
     assert.equal((r.json.part as any).status, 'in_progress');
   });
@@ -163,7 +170,7 @@ describe('sm-tutorial state.js', () => {
     run(['mark', 'fundamentals', 'init', 'done'], cwd);
     const r = run(['status'], cwd);
     const parts = r.json.parts as any[];
-    assert.deepEqual(parts.map((p) => p.id), ['fundamentals', 'project-kickoff', 'connect-harness', 'daily-loop', 'extend', 'cli']);
+    assert.deepEqual(parts.map((p) => p.id), ['fundamentals', 'project-kickoff', 'daily-loop', 'extend', 'cli']);
     assert.equal(parts.find((p) => p.id === 'mcp'), undefined);
     const fund = parts[0];
     assert.equal(fund.status, 'in_progress');

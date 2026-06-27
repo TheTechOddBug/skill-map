@@ -19,7 +19,8 @@
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
-import { classifyAnswer, listScaffoldTargets } from '../tutorial.js';
+import { classifyAnswer, labelWithAka, listScaffoldTargets } from '../tutorial.js';
+import { TUTORIAL_TEXTS } from '../../i18n/tutorial.texts.js';
 
 describe('sm tutorial destination catalog', () => {
   it('lists the ready scaffold destinations by default (claude, codex, agent-skills)', () => {
@@ -46,6 +47,33 @@ describe('sm tutorial destination catalog', () => {
     assert.ok(listScaffoldTargets().some((t) => t.id === 'agent-skills'));
     // The universal markdown base declares no scaffold, so it never appears.
     assert.ok(!ids.includes('markdown'));
+  });
+});
+
+describe('sm tutorial prompt rendering', () => {
+  const targets = listScaffoldTargets();
+  const byId = (id: string) => targets.find((t) => t.id === id)!;
+
+  it('renders Claude and Codex by their plain vendor label (no aka)', () => {
+    assert.equal(labelWithAka(byId('claude')), "Anthropic's Claude");
+    assert.equal(labelWithAka(byId('codex')), "OpenAI's Codex");
+  });
+
+  it('leads with the aka vendor for the open standard, provider label in parens', () => {
+    // Several providers share `.agents/skills`, so the folder cannot identify
+    // the lens; the vendor name does. The open standard leads with its aka
+    // vendor (Antigravity) and keeps the standard label as the qualifier.
+    assert.equal(
+      labelWithAka(byId('agent-skills')),
+      "Google's Antigravity (Standard: Agent skills)",
+    );
+  });
+
+  it('omits the destination folder from the option template', () => {
+    // The folder is deliberately not interpolated: `.agents/skills` is shared
+    // by codex + agent-skills, so showing it would be ambiguous.
+    assert.ok(!TUTORIAL_TEXTS.promptOption.includes('skillDir'));
+    assert.ok(TUTORIAL_TEXTS.promptOption.includes('{{label}}'));
   });
 });
 

@@ -155,11 +155,8 @@ Tell the tester:
 > the link finds the real file and draws a solid arrow. Same kind of
 > note, one `.md` apart: one resolves, the other does not.
 >
-> One word on solidity: skill-map draws each connector's **confidence**
-> as opacity. Both drawn arrows are fully solid (1.00) because each
-> lands on a real file; the broken one would read 0.50 (a penalty, not
-> "half sure") and is not drawn at all. The exact per-link numbers live
-> in the inspector, next chapter.
+> 💡 Tip: if the nodes are crowded, the map toolbar has a **Re-arrange
+> layout** button that tidies things up.
 >
 > Confirm when you see the two arrows plus the broken-reference marker
 > on the hub. If an arrow is missing, refresh the browser and let me
@@ -175,9 +172,6 @@ by hand in `edit-link`). If an arrow is missing, do not advance. Mark
 The canvas only draws the resolved arrows; the full per-link breakdown,
 including the broken one, lives in the Inspector. Open it on the hub.
 
-> 💡 Tip: if the nodes are crowded, the map toolbar has a **Re-arrange
-> layout** button that tidies things up.
->
 > 🆕 Open the Inspector for **Demo TODO list** (click the node). Find
 > the **Connections** section: **Outgoing** and **Incoming**.
 > Demo TODO list lists **3 links** under Outgoing (the canvas drew two
@@ -191,6 +185,10 @@ including the broken one, lives in the Inspector. Open it on the hub.
 > count. `demo-skill` and `demo-guideline2` each show **1** incoming.
 > Open `demo-guideline` and it shows **0**: the broken link never landed
 > on it. Three outgoing links on the hub, but only two reach a node.
+>
+> 💡 Tip: skill-map draws each connector's **confidence** as opacity.
+> Both drawn arrows are solid (1.00) because each lands on a real file;
+> the broken one is flagged instead of drawn.
 >
 > Let me know when you see it.
 
@@ -250,17 +248,19 @@ each ends with its own confirmation. Do NOT prepend an intro line to a block.
 > Tell me when the tree is open.
 
 > At the top of the sidebar there's a search box (placeholder
-> `Search…`). Type `guideline`. Watch both halves: the tree narrows to
-> the two guideline nodes and the **Map** drops every node except those
-> two. The search matches a node's name, path, or description, and
-> filters live, no Enter needed.
+> `Search…`). Type `guideline`. Watch the tree narrow to the two
+> guideline nodes. The search matches a node's name, path, or
+> description, and filters live, no Enter needed. The **Map** stays
+> put: by default the search filters only the files list, not the map
+> (the tip below changes that).
 >
-> Now clear the box. All four nodes come back, in both the tree and the
-> Map. Confirm you saw it filter and then restore.
+> Now clear the box. All four nodes come back in the tree. Confirm you
+> saw it filter and then restore.
 
-> Last one. In the tree, find the **Demo TODO list** row: at its right
-> edge there's a small **sitemap** icon (tooltip "Isolate this node and
-> its direct links on the map"). Click it.
+> Last one. In the tree, find the `notes/todo` row (the **Demo TODO
+> list** hub, the tree labels rows by file name): at its right edge
+> there's a small **sitemap** icon (tooltip "Isolate this node and its
+> direct links on the map"). Click it.
 >
 > The Map collapses to **Demo TODO list** plus only the nodes it draws
 > an arrow to (`demo-skill`, `demo-guideline2`). That's how you focus on
@@ -271,8 +271,9 @@ each ends with its own confirmation. Do NOT prepend an intro line to a block.
 > four nodes return.
 >
 > 💡 Tip: the map-icon button next to the search box controls whether
-> the search also filters the **Map** (on by default). Click it to
-> filter only the files list, leaving the map in place.
+> the search also filters the **Map** (off by default, which is why the
+> map stayed put while only the tree narrowed). Click it on if you want
+> a search to filter the map too.
 >
 > Did the map isolate and then restore?
 

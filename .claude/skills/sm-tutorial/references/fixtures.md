@@ -38,10 +38,10 @@ fixtures-data/
 |---|---|---|
 | `universal` | `.skillmapignore`, `findings.md` | pre-flight |
 | `prologue` | the seven Part 0 demo nodes | Part 0 (progressive, `--only`), `prologue-built` seed |
-| `portfolio` | Express skeleton, handbook, `content-editor`, `docs/STYLE` + `DEPLOY` | Part 1 (`--only` boot, chapters lay the rest), `harness-*` seeds |
-| `harness` | `check-links` skill, `publish` command | Part 2 chapters, `harness-connected` seed |
-| `master` | `master-agent`, `master-skill`, `notes/ideas` | Part 4 `backstage-init` |
-| `cli-external` | `link-validation/hijoA` + `hijoB` | Part 5 `reference-paths` |
+| `portfolio` | Express skeleton, handbook, `content-editor`, `docs/STYLE` + `DEPLOY` | Part 1 (`--only` boot, chapters lay the rest), `harness-connected` seed |
+| `harness` | `check-links` skill, `publish` command | Part 1 connect chapters, `harness-connected` seed |
+| `master` | `master-agent`, `master-skill`, `notes/ideas` | Part 3 `backstage-init` |
+| `cli-external` | `link-validation/hijoA` + `hijoB` | Part 4 `reference-paths` |
 
 ## Edits (append fragments)
 
@@ -62,9 +62,8 @@ entered out of order.
 
 | Seed | Lays | Edits | Drops |
 |---|---|---|---|
-| `prologue-built` (Part 5) | `prologue` | `todo-connectors` | `notes/private-credentials.md` |
-| `harness-built` (Part 2) | `portfolio` | , | , |
-| `harness-connected` (Part 3) | `portfolio` + `harness` | `agents-hub`, `content-editor-style` | , |
+| `prologue-built` (Part 4) | `prologue` | `todo-connectors` | `notes/private-credentials.md` |
+| `harness-connected` (Part 2) | `portfolio` + `harness` | `agents-hub`, `content-editor-style` | , |
 
 ## Footprints (what `clear` and `wipe` remove)
 

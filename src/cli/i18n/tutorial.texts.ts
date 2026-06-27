@@ -38,13 +38,15 @@ export const TUTORIAL_TEXTS = {
   writtenLabelEs: 'Español',
 
   // Destination-provider prompt (interactive stdin, no `--for`). Header
-  // uses a yellow `?` glyph; options are a numbered list of provider
-  // label (with any `aka` agents in parentheses) + skill directory, with
-  // a `(default)` marker on the first option (Claude). The input line
-  // accepts a number, a provider id, or an empty answer (which takes the
-  // default).
+  // uses a yellow `?` glyph; options are a numbered list of the provider's
+  // vendor name (for a provider with an `aka`, the aka vendor leads and the
+  // provider label follows in parentheses), with a `(default)` marker on
+  // the first option (Claude). The destination folder is deliberately NOT
+  // shown: several providers share `.agents/skills`, so the folder does not
+  // identify the lens. The input line accepts a number, a provider id, or
+  // an empty answer (which takes the default).
   promptHeader: '{{glyph}}  Which agent should host the tutorial skill?',
-  promptOption: '     {{index}}) {{label}}: {{skillDir}}{{marker}}',
+  promptOption: '     {{index}}) {{label}}{{marker}}',
   promptDefaultMarker: '  (default)',
   promptInput: '  Enter the number or provider id [default {{index}}]: ',
 

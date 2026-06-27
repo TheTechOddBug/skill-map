@@ -236,8 +236,8 @@ function computeWipePaths(state) {
   // provider), so either part's presence means that fixture is on disk.
   if (has('fundamentals') || has('basic-fundamentals')) addFootprint('prologue');
   if (
-    has('project-kickoff') || has('connect-harness') || has('daily-loop')
-    || has('basic-kickoff') || has('basic-connect') || has('basic-daily')
+    has('project-kickoff') || has('daily-loop')
+    || has('basic-kickoff') || has('basic-daily')
   ) addFootprint('portfolio');
   if (has('extend')) addFootprint('master');
   // `cli` seeds the prologue demo fixture plus its external-ref demo.

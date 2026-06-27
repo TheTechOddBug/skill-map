@@ -1,4 +1,4 @@
-# Part 3: The daily loop (step library, `daily-loop`)
+# Part 2: The daily loop (step library, `daily-loop`)
 
 The campaign's payoff and finale fused into one part: the tester operates the
 harness they built the way they would on any normal day, **for real**. Three
@@ -62,9 +62,9 @@ broken-reference markers, and confidence live.
 ## Chapter `setup` - Make it yours and bring it up (~5 min)
 
 **Context**: the harness is wired (you built it in the earlier parts). Now you
-put it to work on a real day. First, make the site yours and give it a look you
-would not be embarrassed to share, then serve it and open it in the browser, the
-early payoff before the daily loop fills it with pages. The honest beat: the HTML
+put it to work on a real day. First, make the site yours, about whatever you
+like, then serve it and open it in the browser, the early payoff before the
+daily loop fills it with pages. The honest beat: the HTML
 and CSS are Layer 2 (the harness's output); skill-map maps the harness (Layer 1,
 the `.md` files), so the site landing on disk does NOT move the graph, and that
 is correct, not a bug. The tester runs the serve commands themselves (one of the
@@ -72,10 +72,11 @@ few non-`sm` beats); guide them, do not run them.
 
 **Preparation**:
 
-1. Ask the tester, in one short exchange: what the site should be called (their
-   name or a title) and one line about what it is for. Keep it light; if they do
-   not care, offer defaults ("My Portfolio" / "Small, sturdy things on the
-   web"). Persist both with
+1. Ask the tester the two questions straight, with no "before we build, let's
+   make it yours" lead-in: what the site should be called (their name or a
+   title) and one line about what it is for. Keep it light; if they do not care,
+   offer defaults ("My Portfolio" / "Small, sturdy things on the web"). Persist
+   both with
    `node .claude/skills/sm-tutorial/scripts/state.js set-identity --name "<name>" --tagline "<tagline>"`
    (it writes `tester.site_identity` into `tutorial-state.json`).
 2. Backstage, `Write` `public/style.css` exactly as below (Layer 2, ignored by
@@ -208,12 +209,6 @@ node server.js
 > Open `http://localhost:3000`: there is your site, named after you, with a
 > clean layout. Click **About** and back to **Home**.
 >
-> Now glance at the Map: it did not move. Everything you watched grow on the
-> canvas is your harness, the `.md` files and how they reference each other
-> (Layer 1). The pages and the stylesheet are Layer 2, what the harness
-> produces, and skill-map maps the harness, not its output. Two layers, one
-> project.
->
 > Does the site load and look clean?
 
 Wait for confirmation. If `node server.js` reports `Cannot find module
@@ -223,11 +218,6 @@ project root and Node is on PATH. Mark `setup`: done. Auto-advance to
 `add-page`.
 
 ## Chapter `add-page` - Add a page with your agent (~4 min)
-
-**Context**: the daily move. You want a new page, so you ask your
-`content-editor` to write it. This is the first time it runs **for real** (no
-more playing the agent). It reads `docs/STYLE.md` and the shared stylesheet and
-writes a new page into `public/`. The graph does not move (HTML is Layer 2).
 
 **Preparation**: none until the tester asks.
 
@@ -269,14 +259,18 @@ Wait for confirmation. Mark `add-page`: done. Auto-advance to `broken-ref`.
 
 ## Chapter `broken-ref` - A rename breaks a link (~4 min)
 
-**Context**: real reorganizing breaks things, and this is where skill-map earns
-its keep. You rename a doc, and a link that pointed at the old name goes stale.
-skill-map catches it the moment you re-scan.
+**Context**: the daily safety net, and where skill-map earns its keep: rename and
+move things freely, and skill-map shows you exactly what you forgot to update
+before it ships broken.
 
 **Preparation**: none (the tester drives). Everything here is watched live on
 the Map; no `sm` commands.
 
-Tell the tester to rename the deploy runbook (their file):
+Tell the tester to free the third terminal, then rename the deploy runbook
+themselves (their file):
+
+> In your **third terminal** (the one running `node server.js`), press
+> **Ctrl+C** to stop the site server, then rename the deploy runbook there:
 
 ```bash
 mv docs/DEPLOY.md docs/DEPLOYMENT.md
@@ -293,9 +287,7 @@ mv docs/DEPLOY.md docs/DEPLOYMENT.md
 > point the deploy-runbook link at `docs/DEPLOYMENT.md` (the new name). Save.
 >
 > Watch the **Map** again: the arrow snaps back, solid, and the red marker
-> clears, all live, no command to run. That is the daily safety net: rename and
-> move things freely, and skill-map shows you exactly what you forgot to update
-> before it ships broken.
+> clears, all live, no command to run.
 >
 > Did the broken marker appear and then clear?
 
@@ -304,10 +296,6 @@ before Act C (the real `/publish` later follows this runbook). Mark `broken-ref`
 done. Auto-advance to `reserved`.
 
 ## Chapter `reserved` - A reserved name collides (~2 min)
-
-**Context**: you add a quick command to scaffold new pages and, without
-thinking, name it `init`, a name Claude Code already owns for its own slash
-command. skill-map warns you before the runtime silently ignores your file.
 
 **Preparation**: `Write` `.claude/commands/init.md`:
 ```markdown
@@ -333,14 +321,12 @@ The watcher picks up the new command. Tell the tester:
 > Rename it to `new-page`: first rename the file `.claude/commands/init.md` to
 > `.claude/commands/new-page.md`. Then open it in your text editor / IDE and, at
 > the top, where the frontmatter says `name: init`, change it to
-> `name: new-page`; also change the H1 to `# new-page` (a command's H1 stays a
-> plain title, never `# /new-page`). Save.
+> `name: new-page`. Save.
 >
 > Watch the **Map** again: the warning clears and the node is now `new-page`,
-> all live. Notice what cleared it: changing the **name** (`frontmatter.name`),
-> not just the filename, the reserved check looks at the command's name, which
-> is why the warning said to rename "the file or `frontmatter.name`". Now
-> `new-page` is yours and the runtime will actually run it.
+> all live. What cleared it was changing `frontmatter.name` (not just the
+> filename), the reserved check looks at the name. Now `new-page` is yours and
+> the runtime will run it.
 >
 > Did the warning clear after the rename?
 
@@ -351,12 +337,6 @@ Wait for confirmation. Mark `reserved`: done. Auto-advance to `publish`.
 **Act C - Publish**
 
 ## Chapter `publish` - Ship it: run /publish for real (~4 min)
-
-**Context**: the harness is not a picture, it is a set of instructions, and
-`/publish` ties them together. You run it **for real** now: it invokes the link
-checker over your pages, briefs the `content-editor` if anything needs a fix,
-then follows the deploy runbook. This is the same Layer 1 / Layer 2 split, the
-pages are output, so the Map stays put while the pipeline runs.
 
 **Preparation**: make sure the pages exist (`index`, `about`, `projects` from the
 earlier chapters; lay any that are missing from the templates in `setup`). When the tester asks to publish, **execute the publish flow for real**
@@ -370,7 +350,9 @@ Tell the tester:
 > The site is ready. Tell me to publish (or type `/publish`) and I'll run your
 > publish command for real: I follow its steps, run the link check across your
 > pages, fix anything through the `content-editor`, and walk the deploy runbook,
-> exactly what the command says to do.
+> exactly what the command says to do. (You can read the command's content
+> anytime by clicking the `publish` node on the Map, then opening its **Body**
+> section.)
 
 After running the flow, report what actually happened (keep the promises
 conditional on the real result):
@@ -385,9 +367,6 @@ conditional on the real result):
 >   regenerate the pages (done), run the link check (done), start the server
 >   (next chapter).
 >
-> And the Map did not move while the pipeline ran: the pages are Layer 2 output;
-> the harness on the canvas is Layer 1, and that is what skill-map maps.
->
 > As you saw in the lines just above, I did not report anything odd: the link
 > check came back clean and `/publish` is wired correctly across your pages.
 > Shall we continue?
@@ -396,46 +375,35 @@ Wait for confirmation. Mark `publish`: done. Auto-advance to `stability`.
 
 ## Chapter `stability` - Set a node's stability (and the `.sm` sidecar) (~3 min)
 
-**Context**: real maintenance includes marking how mature each piece is. skill-map
-lets you tag a node's **stability** (`experimental` / `stable` / `deprecated`)
-from the inspector. That is skill-map's own metadata, so it lands in a co-located
-**`.sm` sidecar** next to the file (the vendor file stays untouched), and the
-first `.sm` write asks for your consent. Good moment now that the site shipped:
-mark the handbook as the stable core it is.
-
 **Preparation**: none for a first-time tester. (If re-entering a dir where the
 sidecar already exists, reset consent first with `rm -f AGENTS.sm
 .skill-map/settings.local.json` so the consent prompt shows again.)
 
 Tell the tester:
 
-> Your harness shipped, so let's mark the handbook as the **stable** core it is.
-> Open the Inspector for the `AGENTS` node (click it on the **Map**) and find the
-> **stability** action (the action button in the inspector). Click it and pick
-> `stable` from the list.
+> Your harness shipped, so let's set its **stability**. Open the Inspector for
+> the `AGENTS` node (click it on the **Map**) and click the **Set stability**
+> button. Pick any of `experimental` / `stable` / `deprecated` from the list.
 >
 > The first time skill-map writes its own metadata it asks for **consent**:
-> confirm it in the dialog that pops up. Two things happen at once: a `stable`
-> badge appears on the `AGENTS` node, and skill-map creates a **`.sm` sidecar**
-> (`AGENTS.sm`) right next to the handbook to hold that metadata, your `AGENTS.md`
-> itself is never touched. Your consent is remembered for the project, so it
-> will not ask again.
+> confirm it in the dialog that pops up. Two things happen at once: a stability
+> badge for the stage you picked appears on the `AGENTS` node, and skill-map
+> creates a **`.sm` sidecar file** (`AGENTS.sm`) right next to the handbook to
+> hold that metadata, your `AGENTS.md` itself is never touched. Your consent is
+> remembered for the project, so it will not ask again.
 >
 > That sidecar is where skill-map keeps what it knows about a node that does not
-> belong in the vendor file (stability, version, tags). You just wrote your first
-> one, by clicking, no command needed.
+> belong in the vendor file (stability, version, tags).
 >
-> See the `stable` badge on the handbook?
+> See the new stability badge on the handbook?
 
 Wait for confirmation. Mark `stability`: done. Auto-advance to `golive`.
 
-## Chapter `golive` - Your portfolio, live next to the graph (~3 min)
+## Chapter `golive` - Your website, live next to the graph (~3 min)
 
-**Context**: the climax. Serve the finished multi-page site and click through it,
-ending with the running portfolio on one side and the full harness graph on the
-other. One of the few chapters where the tester runs non-`sm` commands
-themselves; guide them, do not run it for them. `npm install` is idempotent, so
-it is safe whether or not they ran it in `setup`.
+One of the few chapters where the tester runs non-`sm` commands themselves;
+guide them, do not run it for them. `npm install` is idempotent, so it is safe
+whether or not they ran it in `setup`.
 
 **Preparation**: none. `server.js` / `package.json` exist from the kickoff; the
 pages exist from the earlier chapters.
@@ -451,7 +419,7 @@ node server.js
 > Open `http://localhost:3000` and click through Home, About, and Projects, the
 > pages your harness produced and shipped through the publish flow you just ran.
 >
-> Now take it in at once. On one side, your real running portfolio, named after
+> Now take it in at once. On one side, your real running website, named after
 > you, that you could deploy as-is. On the other, the skill-map graph of the
 > harness that built it: the handbook, the content-editor, the style guide, the
 > publish command, the link checker, the deploy runbook, all wired together. You
@@ -466,7 +434,7 @@ Wait for confirmation. The tester runs the commands; do not run them. If
 server with Ctrl+C and apply the ports edge case.
 
 This is the campaign finale. Congratulate them plainly: they went from an empty
-directory to a real, running portfolio plus a complete map of its harness. Then
+directory to a real, running website plus a complete map of its harness. Then
 invite them to keep going on their own:
 
 > And this site is yours to keep playing with: add more pages, refine the style
