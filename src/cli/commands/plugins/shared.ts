@@ -48,12 +48,8 @@ import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
 import { tx } from '../../../kernel/util/tx.js';
 import { PLUGINS_TEXTS } from '../../i18n/plugins.texts.js';
 import type { IAnsi } from '../../util/ansi.js';
-import {
-  defaultProjectPluginsDir,
-  resolveDbPath,
-} from '../../util/db-path.js';
+import { defaultProjectPluginsDir } from '../../util/db-path.js';
 import { defaultRuntimeContext } from '../../util/runtime-context.js';
-import { tryWithSqlite } from '../../util/with-sqlite.js';
 import { resolve } from 'node:path';
 
 export interface IPluginDirOption {
@@ -71,20 +67,17 @@ export function resolveSearchPaths(opts: IPluginDirOption, cwd: string): string[
 }
 
 /**
- * Build a resolver from the layered config (settings.json) + the DB
- * overrides (config_plugins). Either layer may be absent (no
- * settings.json, no DB), both fall through gracefully.
+ * Build a resolver from the layered config (settings.json). Enable is a
+ * pure-config concern now (the DB carries the orthogonal import-trust
+ * grant, not enable), so this is a thin wrapper over the layered config
+ * read. `loadAll` passes the resulting resolver as `resolveEnabled` only
+ * (NOT `resolveImportTrust`), so `sm plugins list` still surfaces
+ * untrusted plugins instead of hiding them.
  */
 export async function buildResolver(): Promise<EnabledResolver> {
   const ctx = defaultRuntimeContext();
   const { effective: cfg } = loadConfig({ cwd: ctx.cwd });
-  const dbPath = resolveDbPath({ db: undefined, cwd: ctx.cwd });
-  const dbOverrides =
-    (await tryWithSqlite(
-      { databasePath: dbPath, autoBackup: false },
-      (adapter) => adapter.pluginConfig.loadOverrideMap(),
-    )) ?? new Map<string, boolean>();
-  return makeEnabledResolver(cfg, dbOverrides);
+  return makeEnabledResolver(cfg);
 }
 
 /**

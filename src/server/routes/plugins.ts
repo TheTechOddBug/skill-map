@@ -4,17 +4,21 @@
  *   GET   /api/plugins                                             , list (read-only)
  *   PATCH /api/plugins/:id                                         , bundle macro toggle
  *   PATCH /api/plugins/:pluginId/extensions/:extensionId           , single-extension toggle
+ *   PATCH /api/plugins/:id/trust                                   , plugin-level import-trust toggle
  *
  * Read side: rows carry `extensions[]` whenever the plugin declares
  * any. Every extension is independently toggle-able by its qualified
  * id; the plugin is a presentational grouping and has no plugin-level
- * toggle of its own.
+ * enable toggle of its own. The optional `trusted` flag carries the
+ * orthogonal LOCAL import-trust grant per drop-in plugin.
  *
- * Write side: persists to `config_plugins` via `IConfigPluginsPort.set`,
- * same path the CLI's `sm plugins enable / disable` uses. The loaded
- * plugin runtime is boot-cached; the new value applies on the next
- * `sm scan` or `sm serve` restart. Spec: cli-contract.md §`PATCH
- * /api/plugins/:id`.
+ * Write side: enable persists to the CONFIG layers (`settings.json`) via
+ * `writeConfigValue`, same path the CLI's `sm plugins enable / disable`
+ * uses; trust persists to the `config_plugins` DB store via
+ * `adapter.trust.set`, same path as `sm plugins trust / untrust`. The
+ * loaded plugin runtime is boot-cached; a newly-trusted plugin's
+ * handlers load on the next `sm serve` restart. Spec: cli-contract.md
+ * §`PATCH /api/plugins/:id` + §`PATCH /api/plugins/:id/trust`.
  *
  * `PATCH /api/plugins/:id` is the **cascade endpoint**: it fans the
  * toggle out across every extension inside the plugin. Single-extension
@@ -33,6 +37,7 @@
  *     status: 'enabled' | 'disabled' | 'incompatible-spec' | 'invalid-manifest' | 'load-error' | 'id-collision';
  *     reason: string | null;
  *     source: 'built-in' | 'project';
+ *     trusted?: boolean;
  *     extensions?: Array<{ id, kind, version, enabled }>;
  *   }
  *   ```
@@ -44,10 +49,11 @@ import { HTTPException } from 'hono/http-exception';
 
 import { builtInPlugins, type IBuiltInPlugin } from '../../plugins/built-ins.js';
 import { sortPluginsForPresentation } from '../../plugins/presentation-order.js';
+import { writeConfigValue } from '../../core/config/helper.js';
 import { defaultProjectPluginsDir } from '../../core/paths/db-path.js';
 import {
-  buildFreshResolver as buildFreshResolverFromDb,
-  composeResolver as composeResolverFromOverrides,
+  buildFreshResolver as buildFreshResolverFromConfig,
+  composeResolver as composeResolverFromConfig,
 } from '../../core/runtime/fresh-resolver.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import type { IContributionErrorRecord } from '../../kernel/adapters/sqlite/contributions.js';
@@ -154,9 +160,10 @@ export interface IPluginListItem {
   locked?: boolean;
   /**
    * Stamped `true` on drop-in plugins whose discovery-time `status` was
-   * `'disabled'`, that is, the user had them disabled in
-   * `config_plugins` / `settings.json` at `sm serve` boot, so their
-   * handlers were never bucketed into the runtime. Re-enabling them via
+   * `'disabled'` for a reason OTHER than untrust, that is, the user had
+   * them disabled in the config layers (`settings.json` /
+   * `settings.local.json`) at `sm serve` boot, so their handlers were
+   * never bucketed into the runtime. Re-enabling them via
    * PATCH persists the override but requires `sm serve` restart for
    * the handlers to be loaded; the rest of the toggle pipeline applies
    * live. The SPA renders a per-row hint when this flag is set AND the
@@ -166,6 +173,16 @@ export interface IPluginListItem {
    * shape lean for the common case.
    */
   startsAsDisabled?: boolean;
+  /**
+   * Stamped `true` on a drop-in plugin that carries a LOCAL import-trust
+   * grant, either a `config_plugins` trust row (written by
+   * `sm plugins trust` / `PATCH /api/plugins/:id/trust`) or the local
+   * opt-in `pluginTrust.projectEnabled`. Omitted when false, so an
+   * untrusted project-local plugin reads `trusted` absent. Built-ins
+   * always omit it (they are never trust-gated). The SPA renders the
+   * per-plugin Trust control off this flag.
+   */
+  trusted?: boolean;
   /**
    * Runtime view-contribution rejections from the LAST scan that the
    * kernel attributed to this plugin (read from `scan_contribution_errors`
@@ -198,8 +215,20 @@ interface IPatchBody {
   enabled: boolean;
 }
 
+interface ITrustPatchBody {
+  trusted: boolean;
+}
+
 interface IBulkPatchBody {
   changes: readonly IBulkChange[];
+}
+
+/** Trust state for the read projection: the DB trust map + the opt-in. */
+interface ITrustState {
+  /** `config_plugins` trust rows keyed by bare plugin id. */
+  trustMap: Map<string, boolean>;
+  /** `pluginTrust.projectEnabled` local opt-in (trusts every enabled plugin). */
+  trustProjectEnabled: boolean;
 }
 
 const SINGLE_PATCH_BODY_SCHEMA = {
@@ -219,6 +248,26 @@ const parsePatchBody = makeBodyValidator<IPatchBody>(SINGLE_PATCH_BODY_SCHEMA, {
     ':required:enabled': SERVER_TEXTS.pluginsEnabledRequired,
     '/enabled:required': SERVER_TEXTS.pluginsEnabledRequired,
     '/enabled:type:boolean': SERVER_TEXTS.pluginsEnabledRequired,
+  },
+});
+
+const TRUST_PATCH_BODY_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['trusted'],
+  properties: {
+    trusted: { type: 'boolean' },
+  },
+} as const;
+
+const parseTrustPatchBody = makeBodyValidator<ITrustPatchBody>(TRUST_PATCH_BODY_SCHEMA, {
+  notJson: SERVER_TEXTS.pluginsBodyNotJson,
+  notObject: SERVER_TEXTS.pluginsBodyNotObject,
+  invalid: SERVER_TEXTS.pluginsTrustedRequired,
+  mapping: {
+    ':required:trusted': SERVER_TEXTS.pluginsTrustedRequired,
+    '/trusted:required': SERVER_TEXTS.pluginsTrustedRequired,
+    '/trusted:type:boolean': SERVER_TEXTS.pluginsTrustedRequired,
   },
 });
 
@@ -288,7 +337,8 @@ export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
     // re-engage, the read row carries `startsAsDisabled: true` so the
     // SPA can surface a per-row hint for that case.
     const resolveEnabled = await buildFreshResolver(deps);
-    const items = listItems(deps, resolveEnabled);
+    const trust = await loadTrustState(deps);
+    const items = listItems(deps, resolveEnabled, trust);
     // Embed the last scan's runtime contribution-rejections per plugin
     // (read-only). The errors are read from `scan_contribution_errors`
     // via the storage port and grouped by `pluginId`; usually zero, so
@@ -370,7 +420,36 @@ export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
       });
     }
     const body = await parsePatchBody(c.req.raw);
-    return await persistAndProject(c, deps, qualified, body.enabled);
+    return await persistManyAndProject(c, deps, [qualified], body.enabled);
+  });
+
+  // PATCH /api/plugins/:id/trust, plugin-level LOCAL import-trust toggle
+  // (the SECURITY axis, orthogonal to enable). `:id` MUST be a bare
+  // plugin id (no slash); trust is per-plugin. Built-ins and locked ids
+  // are rejected with 403 (they are never trust-gated). Writes (true) or
+  // clears (false) the plugin's `config_plugins` trust row.
+  app.patch('/api/plugins/:id/trust', async (c) => {
+    const id = c.req.param('id');
+    if (id.includes('/')) {
+      throw new HTTPException(400, {
+        message: tx(SERVER_TEXTS.pluginsTrustQualifiedRejected, { id }),
+      });
+    }
+    const handle = findHandle(id, deps);
+    if (!handle) {
+      throw new HTTPException(404, {
+        message: tx(SERVER_TEXTS.pluginsUnknown, { id }),
+      });
+    }
+    // Built-ins and host-locked ids are never import-trust-gated; reject
+    // with 403 (mirrors the spec's `locked` envelope for trust).
+    if (handle.kind === 'built-in' || isPluginLocked(id)) {
+      throw new HTTPException(403, {
+        message: tx(SERVER_TEXTS.pluginsTrustBuiltIn, { id }),
+      });
+    }
+    const body = await parseTrustPatchBody(c.req.raw);
+    return await persistTrustAndProject(c, deps, id, body.trusted);
   });
 
   // PATCH /api/plugins, bulk toggle. Validates the entire batch BEFORE
@@ -416,6 +495,7 @@ export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
 function listItems(
   deps: IRouteDeps,
   resolveEnabled: (id: string) => boolean,
+  trust: ITrustState,
 ): IPluginListItem[] {
   // Merged effective config, read once per list build so every
   // extension's `settingValues` projects off the same snapshot. Routes
@@ -424,8 +504,25 @@ function listItems(
   const config = deps.configService.effective();
   return [
     ...(deps.options.noBuiltIns ? [] : buildBuiltInItems(resolveEnabled, config)),
-    ...buildDiscoveredItems(deps.pluginRuntime.discovered, deps, resolveEnabled, config),
+    ...buildDiscoveredItems(deps.pluginRuntime.discovered, deps, resolveEnabled, config, trust),
   ];
+}
+
+/**
+ * Read the LOCAL trust state for the read projection: the `config_plugins`
+ * trust map (DB) plus the `pluginTrust.projectEnabled` opt-in (config).
+ * A missing DB degrades to an empty map (every drop-in untrusted unless
+ * the opt-in is on). Built-ins are never trust-gated and ignore both.
+ */
+async function loadTrustState(deps: IRouteDeps): Promise<ITrustState> {
+  const trustMap =
+    (await tryWithSqlite(
+      { databasePath: deps.options.dbPath, autoBackup: false },
+      (adapter) => adapter.trust.loadTrustMap(),
+    )) ?? new Map<string, boolean>();
+  const trustProjectEnabled =
+    deps.configService.effective().pluginTrust?.projectEnabled ?? false;
+  return { trustMap, trustProjectEnabled };
 }
 
 function buildBuiltInItems(
@@ -484,8 +581,9 @@ function buildDiscoveredItems(
   deps: IRouteDeps,
   resolveEnabled: (id: string) => boolean,
   config: IEffectiveConfig,
+  trust: ITrustState,
 ): IPluginListItem[] {
-  return discovered.map((plugin) => buildDiscoveredItem(plugin, deps, resolveEnabled, config));
+  return discovered.map((plugin) => buildDiscoveredItem(plugin, deps, resolveEnabled, config, trust));
 }
 
 function buildDiscoveredItem(
@@ -493,20 +591,11 @@ function buildDiscoveredItem(
   deps: IRouteDeps,
   resolveEnabled: (id: string) => boolean,
   config: IEffectiveConfig,
+  trust: ITrustState,
 ): IPluginListItem {
   const pluginLocked = isPluginLocked(plugin.id);
   const extensions = projectExtensionRows(plugin, resolveEnabled, pluginLocked, config);
   const optional = optionalDiscoveredFields(plugin, extensions);
-  // `startsAsDisabled` snapshots the BOOT-time loader verdict, NOT the
-  // current resolver projection. A plugin can be `status === 'disabled'`
-  // here for two unrelated reasons: (a) the user disabled it in
-  // `settings.json` / `config_plugins` AT BOOT, which is the case we
-  // surface to the SPA so it can warn that re-enabling needs a restart;
-  // or (b) the user toggled it off mid-session and the fresh resolver
-  // now projects `disabled`. The latter is NOT a restart case, the
-  // handlers are still in memory and re-enabling will hot-apply. The
-  // `discovered.status` field carries the boot-time value (the loader
-  // never mutates it), so reading it here gives us (a) without (b).
   return {
     id: plugin.id,
     version: plugin.manifest?.version ?? null,
@@ -515,8 +604,39 @@ function buildDiscoveredItem(
     reason: plugin.reason ?? null,
     source: classifyPluginSource(plugin.path, deps),
     ...optional,
+    ...discoveredFlags(plugin, pluginLocked, trust),
+  };
+}
+
+/**
+ * The optional boolean flags (`locked`, `trusted`, `startsAsDisabled`)
+ * that ride a discovered plugin's list item. Pulled out of
+ * `buildDiscoveredItem` to keep it within the complexity budget.
+ *
+ * `trusted`: a drop-in is trusted when it carries a `config_plugins` trust
+ * row OR the local `pluginTrust.projectEnabled` opt-in is on (omitted when
+ * false).
+ *
+ * `startsAsDisabled`: snapshots the BOOT-time loader verdict, stamped only
+ * when the plugin was config-disabled at boot (`status: 'disabled'` for a
+ * reason OTHER than untrust). An UNTRUSTED plugin is also `status:
+ * 'disabled'` at boot but carries its own untrusted notice, so it does NOT
+ * get `startsAsDisabled`. The loader never mutates `discovered.status`, so
+ * reading it gives the boot value without the mid-session resolver
+ * projection.
+ */
+function discoveredFlags(
+  plugin: IDiscoveredPlugin,
+  pluginLocked: boolean,
+  trust: ITrustState,
+): Partial<Pick<IPluginListItem, 'locked' | 'trusted' | 'startsAsDisabled'>> {
+  const trusted = trust.trustMap.get(plugin.id) === true || trust.trustProjectEnabled;
+  return {
     ...(pluginLocked ? { locked: true } : {}),
-    ...(plugin.status === 'disabled' ? { startsAsDisabled: true } : {}),
+    ...(trusted ? { trusted: true } : {}),
+    ...(plugin.status === 'disabled' && plugin.untrusted !== true
+      ? { startsAsDisabled: true }
+      : {}),
   };
 }
 
@@ -701,39 +821,16 @@ function attachRuntimeContributionErrors(
 // --- write side -----------------------------------------------------------
 
 /**
- * Persist the override and project the post-write list. Returns the
- * full list envelope so the UI can replace its state in one shot, the
- * single-plugin PATCH could return one row, but the cached resolver
- * across the rest of the table doesn't change, so the wire shape stays
- * symmetric with `GET /api/plugins`.
+ * Persist a per-extension enable change to the CONFIG layers
+ * (`settings.json`) and project the post-write list. Returns the full
+ * list envelope so the UI can replace its state in one shot.
  *
- * DB absence ⇒ `db-missing` envelope at status 500. Read-side routes
- * degrade to empty shapes; mutations cannot persist without a DB so
- * they fail fast (per spec/cli-contract.md §Error code sources).
- */
-async function persistAndProject(
-  c: Context,
-  deps: IRouteDeps,
-  configKey: string,
-  enabled: boolean,
-): Promise<Response> {
-  const overrides = await tryWithSqlite(
-    { databasePath: deps.options.dbPath, autoBackup: false },
-    async (adapter) => {
-      await applyChangeToAdapter(adapter, configKey, enabled);
-      return await adapter.pluginConfig.loadOverrideMap();
-    },
-  );
-  return projectListResponse(c, deps, overrides);
-}
-
-/**
- * Cascade variant of `persistAndProject`: apply the same boolean to
- * every qualified id in `keys` inside a single SQLite transaction.
- * Used by `PATCH /api/plugins/:id` to fan the macro out across the
- * plugin's children. Empty `keys` (every child happened to be locked
- * and got filtered out at the route level) still reaches here and
- * returns the unchanged list, no DB writes, no envelope error.
+ * Enable lives in the config layers now (not the DB), so a missing DB
+ * never blocks an enable write; the only DB touch is the best-effort
+ * contributions purge on disable. `keys` are qualified `<plugin>/<ext>`
+ * ids (the cascade route expanded bare ids upstream). Empty `keys`
+ * (every child happened to be locked and got filtered out at the route
+ * level) returns the unchanged list, no writes.
  */
 async function persistManyAndProject(
   c: Context,
@@ -741,67 +838,97 @@ async function persistManyAndProject(
   keys: readonly string[],
   enabled: boolean,
 ): Promise<Response> {
-  const overrides = await tryWithSqlite(
-    { databasePath: deps.options.dbPath, autoBackup: false },
-    async (adapter) => {
-      for (const key of keys) {
-        await applyChangeToAdapter(adapter, key, enabled);
-      }
-      return await adapter.pluginConfig.loadOverrideMap();
-    },
-  );
-  return projectListResponse(c, deps, overrides);
-}
-
-/**
- * Apply one change inside an open SQLite adapter. Shared between
- * `persistAndProject` (single-id PATCH) and `persistBulkAndProject`
- * (bulk PATCH): both upsert the `config_plugins` row and, on disable,
- * purge persisted contributions immediately so the UI stops rendering
- * the plugin's chips before the next scan. Mirrors the CLI's
- * `sm plugins disable` purge path (`src/cli/commands/plugins.ts` →
- * `TogglePluginsBase.toggle`).
- *
- * `configKey` is either a bare plugin id (`claude`) or a qualified
- * `<plugin>/<ext>` (`core/slash-command`); the split mirrors how
- * `scan_contributions` rows are grouped.
- */
-async function applyChangeToAdapter(
-  adapter: Parameters<Parameters<typeof tryWithSqlite>[1]>[0],
-  configKey: string,
-  enabled: boolean,
-): Promise<void> {
-  await adapter.pluginConfig.set(configKey, enabled);
-  if (enabled) return;
-  const slash = configKey.indexOf('/');
-  if (slash < 0) {
-    await adapter.contributions.purgeByPlugin(configKey);
-    return;
+  const cwd = deps.runtimeContext.cwd;
+  for (const key of keys) {
+    writeConfigValue(toEnableConfigKey(key), enabled, { target: 'project', cwd });
   }
-  await adapter.contributions.purgeByPlugin(
-    configKey.slice(0, slash),
-    configKey.slice(slash + 1),
-  );
+  // On disable, purge persisted contributions so the UI stops rendering
+  // the plugin's chips before the next scan. Best-effort: a missing DB
+  // (no scan yet) simply has nothing to purge.
+  if (!enabled && keys.length > 0) await purgeContributionsForKeys(deps, keys);
+  // Enable writes mutated settings.json; drop the cached layered view so
+  // the projection (and any later read) sees the fresh values.
+  if (keys.length > 0) deps.configService.reload();
+  return await projectListResponse(c, deps);
 }
 
 /**
- * Common tail for `persistAndProject` and `persistBulkAndProject`:
- * given the overrides map returned by the write transaction (or `null`
- * when the DB file was absent), emit either the `db-missing` envelope
- * or the projected list envelope.
+ * Persist a plugin-level import-trust grant to the `config_plugins` DB
+ * store and project the post-write list. Trust is DB-only, so a missing
+ * DB fails fast (`db-missing`): the write cannot persist without it.
  */
-function projectListResponse(
+async function persistTrustAndProject(
   c: Context,
   deps: IRouteDeps,
-  overrides: Map<string, boolean> | null,
-): Response {
-  if (overrides === null) {
+  pluginId: string,
+  trusted: boolean,
+): Promise<Response> {
+  const ok = await tryWithSqlite(
+    { databasePath: deps.options.dbPath, autoBackup: false },
+    async (adapter) => {
+      await adapter.trust.set(pluginId, trusted);
+      return true;
+    },
+  );
+  if (ok === null) {
     throw new DbMissingError(
       tx(SERVER_TEXTS.pluginsDbMissing, { path: deps.options.dbPath }),
     );
   }
-  const freshResolver = composeResolver(deps, overrides);
-  const items = listItems(deps, freshResolver);
+  return await projectListResponse(c, deps);
+}
+
+/**
+ * Map a toggle key to its config dot-path. Qualified `<plugin>/<ext>`
+ * ids map to `plugins.<plugin>.extensions.<ext>.enabled`; a bare plugin
+ * id (defensive) maps to the plugin-level `plugins.<plugin>.enabled`.
+ */
+function toEnableConfigKey(id: string): string {
+  const slash = id.indexOf('/');
+  if (slash < 0) return `plugins.${id}.enabled`;
+  return `plugins.${id.slice(0, slash)}.extensions.${id.slice(slash + 1)}.enabled`;
+}
+
+/**
+ * Open the DB once and purge persisted `scan_contributions` rows for
+ * every disabled key. Mirrors the CLI's `sm plugins disable` purge path
+ * (`src/cli/commands/plugins/toggle.ts`). Each key is a bare plugin id
+ * or qualified `<plugin>/<ext>`; the split mirrors how
+ * `scan_contributions` rows are grouped. Best-effort: a missing DB
+ * returns null (nothing to purge).
+ */
+async function purgeContributionsForKeys(
+  deps: IRouteDeps,
+  keys: readonly string[],
+): Promise<void> {
+  await tryWithSqlite(
+    { databasePath: deps.options.dbPath, autoBackup: false },
+    async (adapter) => {
+      for (const key of keys) {
+        const slash = key.indexOf('/');
+        if (slash < 0) {
+          await adapter.contributions.purgeByPlugin(key);
+        } else {
+          await adapter.contributions.purgeByPlugin(key.slice(0, slash), key.slice(slash + 1));
+        }
+      }
+    },
+  );
+}
+
+/**
+ * Project the post-write list envelope. Enable comes from the (reloaded)
+ * layered config; trust comes from a fresh `config_plugins` read. No
+ * `db-missing` here: enable is config-only, and the trust write already
+ * confirmed the DB.
+ */
+async function projectListResponse(
+  c: Context,
+  deps: IRouteDeps,
+): Promise<Response> {
+  const resolveEnabled = composeResolver(deps);
+  const trust = await loadTrustState(deps);
+  const items = listItems(deps, resolveEnabled, trust);
   return c.json(
     buildListEnvelope({
       kind: 'plugins',
@@ -1001,47 +1128,51 @@ async function persistBulkAndProject(
   deps: IRouteDeps,
   changes: readonly IBulkChange[],
 ): Promise<Response> {
-  // 1. Enabled toggles land in `config_plugins` (SQLite). Only changes
-  //    carrying `enabled` participate; a settings-only change skips the
-  //    toggle pass entirely. Opening the DB here also confirms its
-  //    presence BEFORE any settings file write, so a missing DB fails
-  //    fast (db-missing) without leaving a half-applied config on disk.
-  const overrides = await tryWithSqlite(
-    { databasePath: deps.options.dbPath, autoBackup: false },
-    async (adapter) => {
-      for (const change of changes) {
-        if (change.enabled === undefined) continue;
-        // Bare plugin ids cascade across every child extension (same
-        // semantic as the single-id `PATCH /api/plugins/:id` macro);
-        // qualified `<plugin>/<ext>` ids are applied verbatim.
-        const writeKeys = expandBulkChangeKeys(change, deps);
-        for (const key of writeKeys) {
-          await applyChangeToAdapter(adapter, key, change.enabled);
-        }
-      }
-      return await adapter.pluginConfig.loadOverrideMap();
-    },
-  );
-  // DB absent ⇒ fail fast before any settings write touches disk.
-  if (overrides === null) {
-    throw new DbMissingError(
-      tx(SERVER_TEXTS.pluginsDbMissing, { path: deps.options.dbPath }),
-    );
-  }
+  // 1. Enable toggles land in the config layers (settings.json). Bare
+  //    plugin ids cascade across every child; qualified ids apply
+  //    verbatim. Returns the disabled keys for the contributions purge.
+  const { disabledKeys, toggleTouched } = applyBulkEnableWrites(deps, changes);
 
   // 2. Settings writes land in settings.json / settings.local.json via
   //    `writeConfigValue` (file writes, AJV-revalidated per write).
-  //    `cwd` comes from the runtime context the composition root
-  //    threaded in.
   const settingsTouched = persistBulkSettings(deps, changes);
 
-  // 3. Settings writes mutated the on-disk config; drop the cached
-  //    layered view so the projection below (and any later read) sees
-  //    the fresh values. Toggle writes go to SQLite, not the config
-  //    layers, so they need no reload.
-  if (settingsTouched) deps.configService.reload();
+  // 3. Purge contributions for every disabled key so the UI stops
+  //    rendering its chips before the next scan (best-effort; a missing
+  //    DB simply has nothing to purge).
+  if (disabledKeys.length > 0) await purgeContributionsForKeys(deps, disabledKeys);
 
-  return projectListResponse(c, deps, overrides);
+  // 4. The on-disk config mutated; drop the cached layered view so the
+  //    projection below (and any later read) sees the fresh values.
+  if (toggleTouched || settingsTouched) deps.configService.reload();
+
+  return await projectListResponse(c, deps);
+}
+
+/**
+ * Apply every bulk change's enable toggle to the config layers and
+ * collect the disabled keys (for the contributions purge). Bare plugin
+ * ids cascade across every child extension; qualified `<plugin>/<ext>`
+ * ids apply verbatim. Extracted from `persistBulkAndProject` so the
+ * orchestrator stays within the complexity budget.
+ */
+function applyBulkEnableWrites(
+  deps: IRouteDeps,
+  changes: readonly IBulkChange[],
+): { disabledKeys: string[]; toggleTouched: boolean } {
+  const cwd = deps.runtimeContext.cwd;
+  const disabledKeys: string[] = [];
+  let toggleTouched = false;
+  for (const change of changes) {
+    if (change.enabled === undefined) continue;
+    const writeKeys = expandBulkChangeKeys(change, deps);
+    for (const key of writeKeys) {
+      writeConfigValue(toEnableConfigKey(key), change.enabled, { target: 'project', cwd });
+      if (!change.enabled) disabledKeys.push(key);
+    }
+    if (writeKeys.length > 0) toggleTouched = true;
+  }
+  return { disabledKeys, toggleTouched };
 }
 
 /**
@@ -1102,35 +1233,28 @@ function expandBulkChangeKeys(change: IBulkChange, deps: IRouteDeps): string[] {
 }
 
 /**
- * Read-side helper: build a resolver from a fresh `config_plugins` read.
+ * Read-side helper: build a resolver from the current layered config.
  * Used by `GET /api/plugins` so a PATCH from the same session surfaces
- * immediately on F5 / re-open. The boot-cached `deps.pluginRuntime.resolveEnabled`
- * is the fallback when the DB file is absent (read paths degrade
- * gracefully; mutations fail fast with `db-missing` instead).
+ * immediately on F5 / re-open. Enable is pure config now, so this is a
+ * thin wrapper over the cached `configService.effective()` (no DB read,
+ * no fallback path).
  *
  * Thin adapter over `core/runtime/fresh-resolver.ts:buildFreshResolver`
  * which is the shared implementation reused by scan routes + watcher.
  */
 async function buildFreshResolver(deps: IRouteDeps): Promise<(id: string) => boolean> {
-  return buildFreshResolverFromDb({
-    databasePath: deps.options.dbPath,
+  return buildFreshResolverFromConfig({
     effectiveConfig: () => deps.configService.effective(),
-    fallbackResolver: deps.pluginRuntime.resolveEnabled,
   });
 }
 
 /**
- * Write-side helper: build a resolver from an overrides map already
- * loaded inside the PATCH transaction. The cached layered-config view
- * is reused (no per-request `loadConfig` walk). Routes that mutate the
- * config invalidate the cache via `configService.reload()` so the next
- * read sees the new state.
+ * Write-side helper: build a resolver from the (reloaded) cached layered
+ * config. Routes that mutate the config invalidate the cache via
+ * `configService.reload()` so this view reflects the post-write state.
  */
-function composeResolver(
-  deps: IRouteDeps,
-  overrides: Map<string, boolean>,
-): (id: string) => boolean {
-  return composeResolverFromOverrides(deps.configService.effective(), overrides);
+function composeResolver(deps: IRouteDeps): (id: string) => boolean {
+  return composeResolverFromConfig(deps.configService.effective());
 }
 
 // --- handle helpers -------------------------------------------------------

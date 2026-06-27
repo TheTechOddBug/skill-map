@@ -133,7 +133,7 @@ function dropSecretPlugin(scope: IScope, pluginId: string, extId: string): void 
 async function trustProjectPlugin(scope: IScope, pluginId: string): Promise<void> {
   const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
   await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-    await adapter.pluginConfig.set(pluginId, true);
+    await adapter.trust.set(pluginId, true);
   });
 }
 

@@ -101,6 +101,9 @@ inside the `> ` blockquote):
 > output; the harness on the canvas is Layer 1. Your nodes are not a diagram,
 > they are runnable, and you just ran one.
 >
+> If the new page is not showing, refresh the browser with F5, the site does
+> not reload on its own.
+>
 > See the new page on the site, and the Map unchanged?
 
 Wait for confirmation. Mark `add-page`: done. Auto-advance to `broken-ref`.
@@ -146,30 +149,30 @@ Wait for confirmation. The harness MUST be clean again before Act C. Mark
 
 ## Chapter `reserved` - A reserved name collides (~2 min)
 
-**Preparation**: `Write` `<provider_dir>/config/SKILL.md`:
+**Preparation**: `Write` `<provider_dir>/model/SKILL.md`:
 ```markdown
 ---
-name: config
+name: model
 description: |
   Scaffolds a new empty page in public/ from the shared template.
 ---
 
-# config
+# model
 
 Creates a blank page so you can start writing.
 ```
 
 The watcher picks up the new skill. Tell the tester:
 
-> I added a skill named `config`. Watch the **Map**: the new `config` skill node
+> I added a skill named `model`. Watch the **Map**: the new `model` skill node
 > appears, but flagged with a **warning** marker. Open its inspector: it reads
-> `name-reserved`, `config` shadows one of the agent runtime's own built-in verbs
-> (like `help`, `clear`, `model`), so the runtime would silently ignore your
+> `name-reserved`, `model` shadows one of the agent runtime's own built-in verbs
+> (like `help`, `clear`, `config`), so the runtime would silently ignore your
 > skill, it never runs. The fix is a name the runtime does not own.
 >
-> Rename it to `new-page`: first rename the folder `<provider_dir>/config/` to
+> Rename it to `new-page`: first rename the folder `<provider_dir>/model/` to
 > `<provider_dir>/new-page/`. Then open `new-page/SKILL.md` and, at the top where
-> the frontmatter says `name: config`, change it to `name: new-page`. Save.
+> the frontmatter says `name: model`, change it to `name: new-page`. Save.
 >
 > Watch the **Map** again: the warning clears and the node is now `new-page`, all
 > live. What cleared it was changing `frontmatter.name` (which for a skill must

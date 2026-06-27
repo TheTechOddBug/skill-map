@@ -1,60 +1,98 @@
 /**
- * Coverage for `kernel/config/plugin-resolver:makeImportTrustResolver`,
- * the import-trust gate behind the H1 fix (project-local disk plugins
- * default DISABLED, only the local `config_plugins` map grants trust).
+ * Coverage for `kernel/config/plugin-resolver`, the two-axis model:
  *
- * Behaviour pinned here:
- *   - An empty override map trusts nothing (a fresh clone).
- *   - A bare `<id>: true` override trusts the plugin.
- *   - A `<id>/<ext>: true` override trusts the plugin (any enabled
- *     extension implies the code may run).
- *   - A `false` override never grants trust.
- *   - Prefix matching is boundary-safe: `foobar/x` does not trust `foo`.
- *   - Locked host ids are always trusted (defense-in-depth arm).
+ *   - `makeTrustResolver(trustMap, trustProjectEnabled)`, the import-trust
+ *     gate (security). `trustMap` is keyed by BARE plugin id; a
+ *     `trusted = true` row OR the `pluginTrust.projectEnabled` opt-in OR a
+ *     locked host id grants trust. An empty map + no opt-in trusts nothing
+ *     (fail-closed, a fresh clone).
+ *   - `resolvePluginEnabled(id, cfg, installedDefault)`, the operational
+ *     enable axis (config-only). Bare ids read the plugin-level toggle;
+ *     qualified `<plugin>/<ext>` ids walk per-extension > plugin-level >
+ *     installed default.
  */
 
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
-import { makeImportTrustResolver } from '../plugin-resolver.js';
+import {
+  makeTrustResolver,
+  resolvePluginEnabled,
+} from '../plugin-resolver.js';
+import type { IEffectiveConfig } from '../loader.js';
 
-function trust(entries: Array<[string, boolean]>): (pluginId: string) => boolean {
-  return makeImportTrustResolver(new Map(entries));
+function trust(
+  entries: Array<[string, boolean]>,
+  projectEnabled = false,
+): (pluginId: string) => boolean {
+  return makeTrustResolver(new Map(entries), projectEnabled);
 }
 
-describe('makeImportTrustResolver', () => {
-  it('trusts nothing when the override map is empty (fresh clone)', () => {
+function cfg(plugins: IEffectiveConfig['plugins']): Pick<IEffectiveConfig, 'plugins'> {
+  return { plugins };
+}
+
+describe('makeTrustResolver', () => {
+  it('trusts nothing when the map is empty and the opt-in is off (fresh clone)', () => {
     const resolve = trust([]);
     assert.equal(resolve('evil'), false);
     assert.equal(resolve('anything'), false);
   });
 
-  it('trusts a plugin enabled by its bare id', () => {
+  it('trusts a plugin whose BARE id carries a trusted = true row', () => {
     const resolve = trust([['my-plugin', true]]);
     assert.equal(resolve('my-plugin'), true);
     assert.equal(resolve('other'), false);
   });
 
-  it('trusts a plugin when any of its extensions is enabled', () => {
-    const resolve = trust([['my-plugin/analyzer', true]]);
-    assert.equal(resolve('my-plugin'), true);
-  });
-
-  it('does not trust on a false override (bare or qualified)', () => {
+  it('does not trust on a trusted = false row', () => {
     assert.equal(trust([['my-plugin', false]])('my-plugin'), false);
-    assert.equal(trust([['my-plugin/analyzer', false]])('my-plugin'), false);
   });
 
-  it('is boundary-safe: a sibling-prefixed id does not leak trust', () => {
-    // `foobar/x` must NOT trust `foo` (startsWith('foo/') is false).
-    const resolve = trust([['foobar/x', true]]);
-    assert.equal(resolve('foo'), false);
-    assert.equal(resolve('foobar'), true);
+  it('keys are BARE plugin ids: a qualified entry does not match the bare lookup', () => {
+    // Trust is per-plugin; the loader calls the gate with a bare id, so a
+    // qualified key in the map never lines up (it should never be stored).
+    const resolve = trust([['my-plugin/analyzer', true]]);
+    assert.equal(resolve('my-plugin'), false);
+  });
+
+  it('the pluginTrust.projectEnabled opt-in trusts every plugin', () => {
+    const resolve = trust([], true);
+    assert.equal(resolve('a'), true);
+    assert.equal(resolve('b'), true);
   });
 
   it('always trusts a locked host id (defense-in-depth arm)', () => {
-    // Locked built-ins never reach the disk loader, but the arm keeps
-    // the gate total even against a stale / empty override map.
     assert.equal(trust([])('core/markdown'), true);
+  });
+});
+
+describe('resolvePluginEnabled, config-only enable axis', () => {
+  it('bare id: default true, plugin-level override wins', () => {
+    assert.equal(resolvePluginEnabled('foo', cfg({})), true);
+    assert.equal(resolvePluginEnabled('foo', cfg({ foo: { enabled: false } })), false);
+  });
+
+  it('qualified id walk: per-extension > plugin-level > installed default', () => {
+    // per-extension override present
+    assert.equal(
+      resolvePluginEnabled(
+        'foo/ext',
+        cfg({ foo: { enabled: true, extensions: { ext: { enabled: false } } } }),
+      ),
+      false,
+    );
+    // no per-extension, fall back to plugin-level
+    assert.equal(resolvePluginEnabled('foo/ext', cfg({ foo: { enabled: false } })), false);
+    // neither, installed default
+    assert.equal(resolvePluginEnabled('foo/ext', cfg({})), true);
+    assert.equal(resolvePluginEnabled('foo/ext', cfg({}), false), false);
+  });
+
+  it('locked ids are always enabled regardless of config', () => {
+    assert.equal(
+      resolvePluginEnabled('core/markdown', cfg({ core: { enabled: false } })),
+      true,
+    );
   });
 });

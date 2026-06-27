@@ -526,10 +526,17 @@ export interface IStateNodeFavoritesTable {
 
 // --- Config zone -----------------------------------------------------------
 
+/**
+ * `config_plugins`, the per-machine plugin import-trust store (the
+ * SECURITY axis). One row per trusted bare plugin id; the operational
+ * enable/disable toggle lives in the config layers (`settings.json` /
+ * `settings.local.json`), NOT here. The table name is retained for
+ * continuity. `trusted` is a SQLite INTEGER (0 / 1) bridging to a runtime
+ * boolean.
+ */
 export interface IConfigPluginsTable {
   pluginId: string;
-  enabled: Generated<number>;
-  configJson: string | null;
+  trusted: Generated<number>;
   updatedAt: number;
 }
 

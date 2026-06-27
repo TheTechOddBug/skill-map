@@ -1,13 +1,16 @@
 /**
  * `sm plugins enable <id>...` / `sm plugins disable <id>...`, flip
- * the persisted enable-state for one or more extensions (or every
- * extension via `--all`).
+ * the persisted OPERATIONAL enable-state for one or more extensions (or
+ * every extension via `--all`).
  *
- * Writes to `config_plugins`, which takes precedence over the
- * team-shared baseline at `settings.json#/plugins/<id>/enabled`. On
- * disable, also purges persisted `scan_contributions` rows so the UI
- * stops rendering the plugin's footer / card chips before the next
- * scan.
+ * Persists the per-extension `enabled` toggle in the config layers
+ * (`plugins.<plugin>.extensions.<ext>.enabled`), defaulting to the
+ * team-shared `settings.json`; `--local` writes the gitignored
+ * `settings.local.json` instead. This is the OPERATIONAL axis only, it
+ * does NOT grant import trust for a project-local plugin (use
+ * `sm plugins trust`). On disable, also purges persisted
+ * `scan_contributions` rows so the UI stops rendering the plugin's
+ * footer / card chips before the next scan.
  *
  * **Toggle model**: every extension is independently toggle-able by
  * its qualified id `<plugin>/<ext>`. The plugin itself is a
@@ -32,6 +35,7 @@
 
 import { Command, Option } from 'clipanion';
 
+import { writeConfigValue } from '../../../core/config/helper.js';
 import { isPluginLocked } from '../../../kernel/config/locked-plugins.js';
 import { qualifiedExtensionId } from '../../../kernel/registry.js';
 import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
@@ -73,6 +77,10 @@ abstract class TogglePluginsBase extends SmCommand {
   yes = Option.Boolean('--yes,-y', false, {
     description:
       'Skip the interactive confirm when a bare plugin id (or --all) fans the toggle out across multiple extensions.',
+  });
+  local = Option.Boolean('--local', false, {
+    description:
+      'Write the enable toggle to the gitignored settings.local.json (per-checkout) instead of the team-shared settings.json.',
   });
   ids = Option.Rest({ name: 'ids' });
 
@@ -277,20 +285,28 @@ abstract class TogglePluginsBase extends SmCommand {
   }
 
   /**
-   * Persist every qualified id in `config_plugins`. On disable, also
-   * purge the plugin's `scan_contributions` rows immediately (matches
-   * the BFF route, see `server/routes/plugins.ts:applyChangeToAdapter`).
-   * Every key is `<plugin>/<ext>` shape so the contribution purge can
-   * split into `(pluginId, extensionId)` cleanly.
+   * Persist the per-extension `enabled` toggle for every qualified id in
+   * the config layers (`plugins.<plugin>.extensions.<ext>.enabled`),
+   * targeting `settings.json` by default or `settings.local.json` with
+   * `--local`. On disable, also purge the plugin's `scan_contributions`
+   * rows immediately (matches the BFF route, see
+   * `server/routes/plugins.ts:applyChangeToAdapter`). Every key is
+   * `<plugin>/<ext>` shape so both the config dot-path and the
+   * contribution purge split into `(pluginId, extensionId)` cleanly.
    */
   async #persistKeys(keys: string[], enabled: boolean): Promise<void> {
     const ctx = defaultRuntimeContext();
+    const target: 'project' | 'project-local' = this.local ? 'project-local' : 'project';
+    for (const id of keys) {
+      writeConfigValue(toEnableConfigKey(id), enabled, { target, cwd: ctx.cwd });
+    }
+    // On disable, purge persisted contributions so the UI stops
+    // rendering the plugin's chips before the next scan. Open the DB
+    // only for that (enable no longer writes to the DB).
+    if (enabled) return;
     const dbPath = resolveDbPath({ db: undefined, cwd: ctx.cwd });
     await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-      for (const id of keys) {
-        await adapter.pluginConfig.set(id, enabled);
-        if (!enabled) await purgeContributionsFor(adapter, id);
-      }
+      for (const id of keys) await purgeContributionsFor(adapter, id);
     });
   }
 
@@ -347,17 +363,31 @@ async function purgeContributionsFor(
   await adapter.contributions.purgeByPlugin(id.slice(0, slash), id.slice(slash + 1));
 }
 
+/**
+ * Map a toggle key to its config dot-path. Every key arriving here is the
+ * qualified `<plugin>/<ext>` shape (bare ids were expanded to their
+ * children upstream), so the path is always the per-extension
+ * `plugins.<plugin>.extensions.<ext>.enabled`. A bare id (defensive
+ * fall-through) maps to the plugin-level `plugins.<plugin>.enabled`.
+ */
+function toEnableConfigKey(id: string): string {
+  const slash = id.indexOf('/');
+  if (slash < 0) return `plugins.${id}.enabled`;
+  return `plugins.${id.slice(0, slash)}.extensions.${id.slice(slash + 1)}.enabled`;
+}
+
 export class PluginsEnableCommand extends TogglePluginsBase {
   static override paths = [['plugins', 'enable']];
   static override usage = Command.Usage({
     category: 'Plugins',
-    description: 'Enable one or more extensions (or --all). Persists in config_plugins.',
+    description: 'Enable one or more extensions (or --all). Persists the per-extension enabled in the config layers.',
     details: `
-      Writes a row to config_plugins with enabled=1 per qualified
-      extension id. Takes precedence over the team-shared baseline at
-      settings.json#/plugins/<id>/enabled. Use sm plugins disable to
-      flip; sm config reset plugins.<id>.enabled drops the settings.json
-      baseline.
+      Writes plugins.<plugin>.extensions.<ext>.enabled=true per qualified
+      extension id to the team-shared settings.json (or settings.local.json
+      with --local). This is the OPERATIONAL axis only; it does NOT grant
+      import trust for a project-local plugin (use sm plugins trust).
+      Use sm plugins disable to flip; sm config reset
+      plugins.<plugin>.extensions.<ext>.enabled drops the override.
 
       Accepts qualified ids (\`claude/at-directive\`) and bare plugin
       ids (\`claude\`, which fans the toggle out across every extension
@@ -381,10 +411,11 @@ export class PluginsDisableCommand extends TogglePluginsBase {
   static override paths = [['plugins', 'disable']];
   static override usage = Command.Usage({
     category: 'Plugins',
-    description: 'Disable one or more extensions (or --all). Persists in config_plugins; does not delete files.',
+    description: 'Disable one or more extensions (or --all). Persists the per-extension enabled in the config layers; does not delete files.',
     details: `
-      Writes a row to config_plugins with enabled=0 per qualified
-      extension id. Discovery still surfaces the plugin in
+      Writes plugins.<plugin>.extensions.<ext>.enabled=false per qualified
+      extension id to the team-shared settings.json (or settings.local.json
+      with --local). Discovery still surfaces the plugin in
       sm plugins list, but with status=disabled; the kernel will not
       run any of its disabled extensions.
 

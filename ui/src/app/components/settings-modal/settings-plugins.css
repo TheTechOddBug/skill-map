@@ -395,6 +395,38 @@
   color: color-mix(in oklab, var(--p-message-warn-color) 85%, var(--p-surface-50));
 }
 
+/* Trusted badge: same pill chrome as the locked tag, success-toned so a
+   plugin the operator has locally trusted to run reads as a positive,
+   settled state (distinct from the amber advisory lock). Only project
+   (drop-in) plugins are trust-gated; built-ins never carry it. */
+.settings-plugins__row-trusted {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--sm-radius-pill);
+  white-space: nowrap;
+  background: color-mix(in oklab, var(--p-message-success-color) 14%, transparent);
+  border: 1px solid color-mix(in oklab, var(--p-message-success-color) 35%, transparent);
+  color: color-mix(in oklab, var(--p-message-success-color) 70%, var(--p-surface-900));
+}
+
+:host-context(.app-dark) .settings-plugins__row-trusted {
+  background: color-mix(in oklab, var(--p-message-success-color) 22%, transparent);
+  border-color: color-mix(in oklab, var(--p-message-success-color) 55%, transparent);
+  color: color-mix(in oklab, var(--p-message-success-color) 85%, var(--p-surface-50));
+}
+
+/* Trust / Untrust action button: the headline aligns its pills on the
+   baseline, but a `<p-button>` reads better centered against the text
+   row, so it opts out of the baseline alignment. */
+.settings-plugins__row-trust-action {
+  align-self: center;
+}
+
 /* Runtime-contribution-errors badge: same pill chrome as the failure
    badge but warn-toned, not error-toned. A plugin can load fine
    (`status: enabled`) yet still have emissions the kernel rejected
@@ -433,6 +465,20 @@
   color: var(--p-message-error-color);
   font-family: var(--sm-font-mono);
   margin-top: 0.25rem;
+}
+
+/* Untrusted-plugin warning: keeps the red `row-reason` colour but reads as
+   prose (not the mono command style) with the shield icon inline. The Trust
+   push button is the action; no command is shown. */
+.settings-plugins__row-untrusted {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-family: inherit;
+}
+
+.settings-plugins__row-untrusted i {
+  margin-top: 0.125rem;
 }
 
 .settings-plugins__sublist {

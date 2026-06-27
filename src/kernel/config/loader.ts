@@ -70,6 +70,15 @@ export interface IPluginConfigEntry {
 
 export interface IPluginExtensionConfigEntry {
   /**
+   * Per-extension operational on/off (the OPERATIONAL axis), resolved
+   * over the plugin-level `enabled` and the extension's installed
+   * default. Shareable: lands in `settings.json` (team baseline) or
+   * `settings.local.json` (per-checkout override) via the normal config
+   * layering. Does NOT grant import trust for a project-local plugin,
+   * that is the separate `pluginTrust` axis.
+   */
+  enabled?: boolean;
+  /**
    * Operator-supplied values for the extension's declared settings,
    * keyed by `settingId`. Intentionally permissive (`unknown` value):
    * the static schema cannot know which input-type a given `settingId`
@@ -77,6 +86,23 @@ export interface IPluginExtensionConfigEntry {
    * (`core/config/plugin-settings.ts`), not AJV's.
    */
   settings?: Record<string, unknown>;
+}
+
+/**
+ * Local, per-machine plugin import-trust preferences (top-level config
+ * key). NOT part of the shareable enable/disable axis. Project-local
+ * only (stripped from the committed `project` layer), so a cloned repo
+ * can never auto-grant import trust to its own project-local plugins.
+ */
+export interface IPluginTrustConfig {
+  /**
+   * When `true`, every plugin this project ENABLES is treated as locally
+   * trusted, so its code may be imported without an explicit per-plugin
+   * trust grant in the `config_plugins` (DB) trust store. Default
+   * `false`. Surface-expanding (gated behind a confirm), project-local
+   * only.
+   */
+  projectEnabled?: boolean;
 }
 
 export interface IScanWatchConfig {
@@ -161,6 +187,15 @@ export interface IEffectiveConfig {
   ignore: string[];
   scan: IScanConfig;
   plugins: Record<string, IPluginConfigEntry>;
+  /**
+   * **Project-local only** (per `PROJECT_LOCAL_ONLY_KEYS`). Local,
+   * per-machine plugin import-trust opt-in. Absent on most projects
+   * (the default is "no blanket trust"); when present and
+   * `projectEnabled === true`, the loader trusts every plugin the
+   * project enables. Stripped from the committed `project` layer so a
+   * cloned repo can never auto-trust its own plugins.
+   */
+  pluginTrust?: IPluginTrustConfig;
   jobs: IJobsConfig;
 }
 
@@ -180,6 +215,7 @@ export interface IEffectiveConfig {
 export const PROJECT_LOCAL_ONLY_KEYS: ReadonlySet<string> = new Set<string>([
   'allowEditSmFiles',
   'scan.referencePaths',
+  'pluginTrust.projectEnabled',
 ]);
 
 export type TConfigLayer =

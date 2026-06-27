@@ -336,14 +336,23 @@ references all resolve on both), so the rich part bodies are written in the
   "open the agent file" point at the `.toml`; a chapter that has the tester
   read or tweak an agent works on the TOML frontmatter / `developer_instructions`.
 - **No `command` kind.** Where the claude book authors a `command` (the
-  `/publish` command, the reserved-name chapter's `init` command), Codex uses a
+  `/publish` command, the reserved-name chapter's `model` command), Codex uses a
   **skill** at `.agents/skills/<name>/SKILL.md`. The body is identical (same
   `/check-links` + `@content-editor` + deploy reference); only the kind and path
   change. `cat <set> --file … --provider codex` already returns the Codex skill
   body, so the create-the-file block stays a copy-paste. The reserved-name beat
   uses a skill named with a reserved verb (Codex inherits the open-standard
-  `COMMONS_RESERVED_NAMES`, e.g. `config`), exactly like the basic track's
+  `COMMONS_RESERVED_NAMES`, e.g. `model`), exactly like the basic track's
   `reserved` chapter, on a skill instead of a command.
+  **Apply every substitution silently.** Use the Codex path, kind and file
+  directly in the tester-facing prose, but never EXPLAIN the substitution or
+  compare it to the claude shape. The Codex tester only ever sees a `skill`
+  where the claude book has a command; never tell them "Codex has no `command`
+  kind", never say a node "is a command that shows as a skill", never reference
+  "the claude command". On Codex these nodes were always skills, there is
+  nothing to explain. (Same for the TOML-agent and path swaps above: point the
+  tester at the real `.toml` / `.agents/` file when they interact with it, just
+  do not narrate that it "would be" something else on claude.)
 - **Skills** live under `.agents/skills/<name>/SKILL.md` (the open layout Codex
   adopted), same as the basic family.
 - Everything else (the `@`/`/` syntax, the confidence numbers, the hub, the

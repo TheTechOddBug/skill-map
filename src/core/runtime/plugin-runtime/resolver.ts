@@ -1,7 +1,10 @@
 /**
- * Layered enabled-resolver helpers, combine the `settings.json`
- * baseline with the DB override map, and expose the per-extension
- * checks every compose helper needs.
+ * Layered enabled-resolver helpers, read the per-extension enable state
+ * straight from the `settings.json` config layers, and expose the
+ * per-extension checks every compose helper needs. The DB no longer
+ * carries enable, it carries the orthogonal import-trust grant (the
+ * `trustMap` below), surfaced alongside the resolver for the loader's
+ * import-trust gate.
  *
  * The resolver layer is the single place that owns the
  * "is this id enabled right now?" question; the composer / catalogs /
@@ -38,7 +41,8 @@ export function defaultResolveEnabled(_id: string, installedDefault = true): boo
 /**
  * Per-extension enabled filter for built-in plugins. Honours the spec
  * promise that "no extension is privileged", every built-in is
- * removable via `config_plugins` / `settings.json`. The plugin row is a
+ * removable via the config layers (`settings.json` /
+ * `settings.local.json`). The plugin row is a
  * presentational grouping only; the lookup key is always the qualified
  * extension id `<plugin.id>/<ext.id>`. The installed default comes from
  * the extension's `stability` (experimental ships disabled).
@@ -87,20 +91,24 @@ export function isPluginExtensionEnabled(
 }
 
 /**
- * Layered resolver inputs read once from config + DB: the enabled
- * resolver AND the raw DB override map that backs the import-trust gate.
- * Bundled so `loadPluginRuntime` builds both from a single DB read.
+ * Layered resolver inputs read once from config + DB: the (config-only)
+ * enabled resolver AND the orthogonal import-trust inputs (the DB trust
+ * map keyed by bare plugin id + the local `pluginTrust.projectEnabled`
+ * opt-in) that back the import-trust gate. Bundled so `loadPluginRuntime`
+ * builds everything from a single DB read.
  */
 export interface IResolverInputs {
   resolveEnabled: EnabledResolver;
-  /** `config_plugins` rows, the LOCAL trust signal (never settings.json). */
-  dbOverrides: Map<string, boolean>;
+  /** `config_plugins` trust rows keyed by BARE plugin id (the LOCAL security signal). */
+  trustMap: Map<string, boolean>;
+  /** `pluginTrust.projectEnabled` local opt-in: trust every enabled plugin. */
+  trustProjectEnabled: boolean;
 }
 
 /**
- * Read config + the DB override map once and return both the enabled
- * resolver and the raw override map. The override map is the local-only
- * signal the import-trust gate consumes (`makeImportTrustResolver`).
+ * Read config + the DB trust map once and return the config-only enabled
+ * resolver plus the import-trust inputs (`trustMap`,
+ * `trustProjectEnabled`) the gate consumes (`makeTrustResolver`).
  */
 export async function buildResolverInputs(
   ctx: IRuntimeContext,
@@ -110,18 +118,22 @@ export async function buildResolverInputs(
     db: undefined,
     ...ctx,
   });
-  const dbOverrides =
+  const trustMap =
     (await tryWithSqlite(
       { databasePath: dbPath, autoBackup: false },
-      (adapter) => adapter.pluginConfig.loadOverrideMap(),
+      (adapter) => adapter.trust.loadTrustMap(),
     )) ?? new Map<string, boolean>();
-  return { resolveEnabled: makeEnabledResolver(cfg, dbOverrides), dbOverrides };
+  return {
+    resolveEnabled: makeEnabledResolver(cfg),
+    trustMap,
+    trustProjectEnabled: cfg.pluginTrust?.projectEnabled ?? false,
+  };
 }
 
 /**
- * Build the layered settings.json + DB enabled-resolver. Mirrors the
- * shape of `buildResolver` in `src/cli/commands/plugins.ts` (Step 6.6)
- * to keep the resolution policy in lock-step. Any divergence between
+ * Build the layered settings.json enabled-resolver. Mirrors the shape of
+ * `buildResolver` in `src/cli/commands/plugins/shared.ts` to keep the
+ * resolution policy in lock-step. Any divergence between
  * `sm plugins list` and the runtime would be a confusing UX regression.
  */
 export async function buildEnabledResolver(

@@ -94,9 +94,9 @@ export function composeScanExtensions(opts: {
   pluginRuntime: IPluginRuntime;
   /**
    * Optional override that wins over `pluginRuntime.resolveEnabled`.
-   * The BFF and the watcher pass a fresh resolver built from
-   * `config_plugins` so a toggle made mid-session is honoured without
-   * restarting `sm serve`. CLI offline callers (`sm scan`) omit the
+   * The BFF and the watcher pass a fresh resolver built from the layered
+   * config so a toggle made mid-session is honoured without restarting
+   * `sm serve`. CLI offline callers (`sm scan`) omit the
    * override and inherit the loader-time resolver (the runtime is
    * loaded fresh per CLI invocation anyway). See
    * `core/runtime/fresh-resolver.ts`.

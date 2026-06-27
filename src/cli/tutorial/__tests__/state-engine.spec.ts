@@ -170,7 +170,7 @@ describe('sm-tutorial state.js', () => {
     run(['mark', 'fundamentals', 'init', 'done'], cwd);
     const r = run(['status'], cwd);
     const parts = r.json.parts as any[];
-    assert.deepEqual(parts.map((p) => p.id), ['fundamentals', 'project-kickoff', 'daily-loop', 'extend', 'cli']);
+    assert.deepEqual(parts.map((p) => p.id), ['fundamentals', 'project-kickoff', 'daily-loop', 'cli', 'extend']);
     assert.equal(parts.find((p) => p.id === 'mcp'), undefined);
     const fund = parts[0];
     assert.equal(fund.status, 'in_progress');

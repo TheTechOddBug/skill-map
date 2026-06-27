@@ -7,7 +7,7 @@
  *
  * **Storage-port-promotion (Phase A).** The adapter exposes the
  * non-transactional namespaces (`scans`, `issues`, `history`, `jobs`,
- * `pluginConfig`, `migrations`, `pluginMigrations`) as direct
+ * `trust`, `migrations`, `pluginMigrations`) as direct
  * properties. `enrichments` is transactional-only by design, it lives
  * exclusively on the `ITransactionalStorage` subset returned by
  * `port.transaction(...)`, never as a top-level namespace, so writers
@@ -82,11 +82,11 @@ import {
   resolvePluginMigrationsDir,
 } from './plugin-migrations.js';
 import {
-  deletePluginOverride,
-  getPluginEnabled,
-  listPluginOverrides,
-  loadPluginOverrideMap,
-  setPluginEnabled,
+  deletePluginTrust,
+  getPluginTrusted,
+  listPluginTrust,
+  loadPluginTrustMap,
+  setPluginTrusted,
 } from './plugins.js';
 import {
   loadBranch,
@@ -185,7 +185,7 @@ export class SqliteStorageAdapter implements StoragePort {
   jobs!: StoragePort['jobs'];
   favorites!: StoragePort['favorites'];
   preferences!: StoragePort['preferences'];
-  pluginConfig!: StoragePort['pluginConfig'];
+  trust!: StoragePort['trust'];
   migrations!: StoragePort['migrations'];
   pluginMigrations!: StoragePort['pluginMigrations'];
 
@@ -335,12 +335,12 @@ export class SqliteStorageAdapter implements StoragePort {
       saveUpdateCheckCache: (cache) => saveUpdateCheckCache(this.db, cache),
     };
 
-    this.pluginConfig = {
-      set: (pluginId, enabled) => setPluginEnabled(this.db, pluginId, enabled),
-      get: (pluginId) => getPluginEnabled(this.db, pluginId),
-      list: () => listPluginOverrides(this.db),
-      delete: (pluginId) => deletePluginOverride(this.db, pluginId),
-      loadOverrideMap: () => loadPluginOverrideMap(this.db),
+    this.trust = {
+      set: (pluginId, trusted) => setPluginTrusted(this.db, pluginId, trusted),
+      get: (pluginId) => getPluginTrusted(this.db, pluginId),
+      list: () => listPluginTrust(this.db),
+      delete: (pluginId) => deletePluginTrust(this.db, pluginId),
+      loadTrustMap: () => loadPluginTrustMap(this.db),
     };
 
     const path = this.#options.databasePath;

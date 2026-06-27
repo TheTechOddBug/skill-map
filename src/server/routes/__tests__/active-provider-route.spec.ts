@@ -126,7 +126,7 @@ describe('GET /api/active-provider selectable', () => {
   });
 
   it('drops a disabled Provider from selectable but keeps the rest', async () => {
-    const cwd = makeCwd({ plugins: { 'claude/claude': { enabled: false } } });
+    const cwd = makeCwd({ plugins: { claude: { extensions: { claude: { enabled: false } } } } });
     try {
       await boot(cwd, async (handle) => {
         const res = await fetch(url(handle, '/api/active-provider'));

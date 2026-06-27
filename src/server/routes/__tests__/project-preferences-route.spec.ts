@@ -29,6 +29,7 @@ import {
 interface IProjectPrefsEnvelopeWire {
   allowSidecarWriters: boolean;
   scan: { referencePaths: string[] };
+  pluginTrust: { projectEnabled: boolean };
 }
 
 interface IErrorEnvelopeWire {
@@ -93,6 +94,7 @@ describe('GET /api/project-preferences', () => {
       assert.deepEqual(env, {
         allowSidecarWriters: true,
         scan: { referencePaths: [] },
+        pluginTrust: { projectEnabled: false },
       });
     });
   });

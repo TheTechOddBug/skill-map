@@ -62,6 +62,24 @@ export const CONFIG_TEXTS = {
     '{{paths}}\n',
 
   /**
+   * Surfaced when `sm config set pluginTrust.projectEnabled true` is run
+   * without `--yes`. Turning the opt-in on expands the LOCAL
+   * code-execution surface (every plugin the project enables becomes
+   * trusted), so the verb refuses without confirmation.
+   */
+  trustGateRequired:
+    '{{glyph}}  sm config: setting "pluginTrust.projectEnabled" to true trusts every plugin this project enables.\n' +
+    '   Their code may then import and run on this machine without a per-plugin trust grant.\n' +
+    '   {{hint}}\n',
+  trustGateRequiredHint:
+    'Rerun with --yes to confirm. Turning it off needs no flag. Prefer per-plugin `sm plugins trust <id>` for narrower consent.',
+  /**
+   * Receipt printed when the trust gate has been confirmed via `--yes`.
+   */
+  trustGateConfirmed:
+    '{{glyph}}  Local plugin trust opt-in enabled: every plugin this project enables is now trusted on this machine.\n',
+
+  /**
    * Confirmation printed after `sm config set activeProvider <id>`
    * succeeds. The lens change atomically drops the scan_* zone (per
    * `architecture.md` §Active Provider Lens) so the persisted graph

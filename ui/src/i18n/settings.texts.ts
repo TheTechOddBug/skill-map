@@ -102,6 +102,26 @@ export const SETTINGS_TEXTS = {
       'Let actions write `.sm` files (version, tags, stability) next to ' +
       'your notes. Turn this off on a shared project to keep them out of ' +
       'the repo: the setting is committed, so it applies to the whole team.',
+    /**
+     * Machine-local plugin-trust opt-in (`pluginTrust.projectEnabled`).
+     * Surface-expanding (it locally trusts every plugin the project
+     * enables), so flipping it ON goes through the same confirm dialog as
+     * the reference-paths key. Persists in settings.local.json, never
+     * committed.
+     */
+    pluginTrustLabel: 'Trust plugins this project enables (this machine only)',
+    pluginTrustDescription:
+      'Run any plugin under .skill-map/plugins/ that the project enables, ' +
+      'without trusting each one by hand. This applies only to your ' +
+      'machine and is never committed. Turn it off to require per-plugin ' +
+      'trust again.',
+    pluginTrustConfirmHeader: 'Trust every plugin this project enables?',
+    pluginTrustConfirmIntro:
+      'This lets any plugin the project enables run its code on this ' +
+      'machine, including ones you have not reviewed. It applies only to ' +
+      'your machine and is never committed.',
+    pluginTrustConfirmAccept: 'Trust project plugins',
+    pluginTrustConfirmReject: 'Cancel',
     referencePathsLabel: 'Folders for link validation',
     referencePathsDescription:
       'If your notes link to files outside this project, list those ' +
@@ -364,6 +384,46 @@ export const SETTINGS_TEXTS = {
       /** Aria for the collapsible toggle button. */
       toggle: (pluginId: string, count: number): string =>
         `Runtime errors for plugin ${pluginId} (${count})`,
+    },
+  },
+
+  /**
+   * Plugin import-trust controls (the security axis, per-plugin,
+   * machine-local). A drop-in (`source: 'project'`) plugin is discovered
+   * but never executed until the operator trusts it on THIS machine;
+   * trust lives in the local DB and never travels in a commit. Distinct
+   * from the enable axis (operational, shareable). Built-ins are never
+   * trust-gated, so these strings surface only on project-source rows.
+   */
+  trust: {
+    /** Action button on an untrusted project-plugin row. */
+    trustLabel: 'Trust',
+    /** Action to revoke trust on a trusted project-plugin row. */
+    untrustLabel: 'Untrust',
+    /** Badge shown on a trusted project-plugin row (next to status / locked). */
+    trustedBadge: 'Trusted',
+    trustedTooltip: 'You trusted this plugin to run on this machine.',
+    /** Tooltip on the Trust action. */
+    trustTooltip:
+      'Allow this plugin to run on this machine. Local only, never committed.',
+    /**
+     * Untrusted-row warning (red, command-free; the Trust push button is
+     * the action): the plugin will not run until trusted.
+     */
+    untrustedReason:
+      'Enabled but not trusted on this machine, so its code does not run.',
+    /**
+     * Restart hints shown when the trust state and the load state disagree
+     * (a mid-session trust / untrust takes effect only on the next server
+     * restart): `trustRestartLoad` once trusted but not loaded yet,
+     * `trustRestartUnload` once untrusted but still running.
+     */
+    trustRestartLoad: 'Restart the server to load it.',
+    trustRestartUnload: 'Restart the server to unload it.',
+    a11y: {
+      trust: (id: string): string =>
+        `Trust plugin ${id} to run on this machine`,
+      untrust: (id: string): string => `Stop trusting plugin ${id}`,
     },
   },
 

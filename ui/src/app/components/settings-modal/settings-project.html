@@ -83,6 +83,21 @@
     />
   </div>
 
+  <div class="settings-project__row" data-testid="settings-project-plugin-trust-row">
+    <div class="settings-project__row-text">
+      <div class="settings-project__row-label">{{ texts.project.pluginTrustLabel }}</div>
+      <div class="settings-project__row-description">
+        {{ texts.project.pluginTrustDescription }}
+      </div>
+    </div>
+    <p-toggleswitch
+      [ngModel]="pluginTrustEnabled()"
+      (ngModelChange)="onProjectTrustToggle($event)"
+      [disabled]="loading() || isPending('pluginTrust.projectEnabled') || preferences() === null"
+      data-testid="settings-project-plugin-trust-toggle"
+    />
+  </div>
+
   @if (loadError(); as err) {
     <p-message severity="error" [closable]="false" data-testid="settings-project-load-error">
       {{ texts.project.loadErrorPrefix }} {{ err }}

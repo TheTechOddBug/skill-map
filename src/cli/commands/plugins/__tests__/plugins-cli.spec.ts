@@ -1,8 +1,14 @@
 /**
- * Step 6.6, `sm plugins enable / disable` end-to-end through the real
- * binary. Each test isolates HOME and cwd so the host's `~/.skill-map/`
- * is never touched. A helper drops a mock plugin under the project
- * scope's plugin directory so the toggle verbs have something to act on.
+ * `sm plugins enable / disable / trust / untrust` end-to-end through the
+ * real binary. Each test isolates HOME and cwd so the host's
+ * `~/.skill-map/` is never touched. A helper drops a mock plugin under the
+ * project scope's plugin directory so the verbs have something to act on.
+ *
+ * Two orthogonal axes (post-split): enable persists the per-extension
+ * `enabled` to the CONFIG layers (`settings.json` /
+ * `settings.local.json`), trust persists a per-plugin row to the
+ * `config_plugins` DB store. The enable assertions read the config back
+ * via `sm config get`; the trust assertions read the DB row directly.
  */
 
 import { strict as assert } from 'node:assert';
@@ -25,7 +31,7 @@ import {
   replaceAllScanContributions,
   type IContributionErrorRecord,
 } from '../../../../kernel/adapters/sqlite/contributions.js';
-import { getPluginEnabled } from '../../../../kernel/adapters/sqlite/plugins.js';
+import { getPluginTrusted } from '../../../../kernel/adapters/sqlite/plugins.js';
 import { installedSpecVersion } from '../../../../kernel/adapters/plugin-loader.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -123,6 +129,37 @@ function sm(args: string[], scope: IScope) {
   return { status: r.status ?? 0, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 }
 
+/** Map a qualified `<plugin>/<ext>` (or bare) id to its enable config key. */
+function enableConfigKey(id: string): string {
+  const slash = id.indexOf('/');
+  if (slash < 0) return `plugins.${id}.enabled`;
+  return `plugins.${id.slice(0, slash)}.extensions.${id.slice(slash + 1)}.enabled`;
+}
+
+/**
+ * Read the persisted per-extension `enabled` from the CONFIG layers via
+ * `sm config get`. Returns `undefined` when no layer set it (the verb
+ * exits 5 "Unknown config key"), mirroring the old `getPluginEnabled`
+ * "no override" return so the existing assertions read identically.
+ */
+function readEnabled(scope: IScope, id: string): boolean | undefined {
+  const r = sm(['config', 'get', enableConfigKey(id), '--json'], scope);
+  if (r.status !== 0) return undefined;
+  return JSON.parse(r.stdout) as boolean;
+}
+
+/** Read the per-plugin trust grant from the `config_plugins` DB store. */
+async function readTrusted(scope: IScope, pluginId: string): Promise<boolean | undefined> {
+  const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
+  const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+  await adapter.init();
+  try {
+    return await getPluginTrusted(adapter.db, pluginId);
+  } finally {
+    await adapter.close();
+  }
+}
+
 before(() => {
   root = mkdtempSync(join(tmpdir(), 'skill-map-plugins-cli-'));
 });
@@ -143,15 +180,8 @@ describe('sm plugins enable / disable', () => {
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     assert.match(r.stdout, /disabled: mock-a\/mock-a-extractor/);
 
-    // DB row reflects disabled (qualified key, the macro path expands).
-    const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
-    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-    await adapter.init();
-    try {
-      assert.equal(await getPluginEnabled(adapter.db, 'mock-a/mock-a-extractor'), false);
-    } finally {
-      await adapter.close();
-    }
+    // Config layer reflects disabled (qualified key, the macro path expands).
+    assert.equal(readEnabled(scope, 'mock-a/mock-a-extractor'), false);
 
     // sm plugins list reflects the toggle, the row glyph aggregates
     // children, so a single-extension plugin whose one child is
@@ -171,14 +201,7 @@ describe('sm plugins enable / disable', () => {
     assert.equal(r.status, 0);
     assert.match(r.stdout, /enabled: mock-b\/mock-b-extractor/);
 
-    const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
-    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-    await adapter.init();
-    try {
-      assert.equal(await getPluginEnabled(adapter.db, 'mock-b/mock-b-extractor'), true);
-    } finally {
-      await adapter.close();
-    }
+    assert.equal(readEnabled(scope, 'mock-b/mock-b-extractor'), true);
 
     const list = sm(['plugins', 'list'], scope);
     assert.match(list.stdout, /✓\s+mock-b\b/);
@@ -206,20 +229,14 @@ describe('sm plugins enable / disable', () => {
     assert.match(r.stdout, /- mock-c\/mock-c-extractor/);
     assert.match(r.stdout, /- mock-d\/mock-d-extractor/);
 
-    const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
-    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-    await adapter.init();
-    try {
-      assert.equal(await getPluginEnabled(adapter.db, 'mock-c/mock-c-extractor'), false);
-      assert.equal(await getPluginEnabled(adapter.db, 'mock-d/mock-d-extractor'), false);
-      assert.equal(await getPluginEnabled(adapter.db, 'claude/at-directive'), false);
-      assert.equal(await getPluginEnabled(adapter.db, 'core/markdown-link'), false);
-      // Bare plugin ids are NEVER persisted, the cascade always expands.
-      assert.equal(await getPluginEnabled(adapter.db, 'claude'), undefined);
-      assert.equal(await getPluginEnabled(adapter.db, 'core'), undefined);
-    } finally {
-      await adapter.close();
-    }
+    assert.equal(readEnabled(scope, 'mock-c/mock-c-extractor'), false);
+    assert.equal(readEnabled(scope, 'mock-d/mock-d-extractor'), false);
+    assert.equal(readEnabled(scope, 'claude/at-directive'), false);
+    assert.equal(readEnabled(scope, 'core/markdown-link'), false);
+    // Bare plugin ids are NEVER persisted, the cascade always expands to
+    // the per-extension config keys.
+    assert.equal(readEnabled(scope, 'claude'), undefined);
+    assert.equal(readEnabled(scope, 'core'), undefined);
   });
 
   it('--all without --yes refuses in non-TTY contexts', () => {
@@ -314,19 +331,22 @@ describe('sm plugins enable / disable', () => {
     assert.match(r.stderr, /not both/);
   });
 
-  it('settings.json baseline is overridden by DB user override', async () => {
+  it('settings.local.json (--local) overrides the committed settings.json baseline', async () => {
     const scope = freshScope('precedence');
     sm(['init', '--no-scan'], scope);
     dropMockPlugin(scope, 'mock-f');
-    // settings.json says the extension is disabled; the DB override
-    // for the qualified id flips it back on. The macro form
-    // (`enable mock-f`) cascades to the single child extension.
-    sm(['config', 'set', 'plugins.mock-f/mock-f-extractor.enabled', 'false'], scope);
-    sm(['plugins', 'enable', 'mock-f'], scope);
+    // The team-shared settings.json disables the extension; a per-checkout
+    // `--local` enable (settings.local.json) flips it back on. Resolution
+    // is layered (project-local over project), so the local override wins.
+    sm(['plugins', 'disable', 'mock-f'], scope); // writes settings.json
+    sm(['plugins', 'enable', 'mock-f', '--local'], scope); // writes settings.local.json
+
+    // The merged config reads the local override as the effective value.
+    assert.equal(readEnabled(scope, 'mock-f/mock-f-extractor'), true);
 
     const list = sm(['plugins', 'list'], scope);
     assert.equal(list.status, 0);
-    // DB says enabled → status enabled (aggregate over the single child)
+    // Effective enabled → status enabled (aggregate over the single child)
     assert.match(list.stdout, /✓\s+mock-f\b/);
   });
 
@@ -357,16 +377,9 @@ describe('sm plugins enable / disable', () => {
     assert.match(r.stdout, /- mock-many-b\/mock-many-b-extractor/);
     assert.match(r.stdout, /- mock-many-c\/mock-many-c-extractor/);
 
-    const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
-    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-    await adapter.init();
-    try {
-      assert.equal(await getPluginEnabled(adapter.db, 'mock-many-a/mock-many-a-extractor'), false);
-      assert.equal(await getPluginEnabled(adapter.db, 'mock-many-b/mock-many-b-extractor'), false);
-      assert.equal(await getPluginEnabled(adapter.db, 'mock-many-c/mock-many-c-extractor'), false);
-    } finally {
-      await adapter.close();
-    }
+    assert.equal(readEnabled(scope, 'mock-many-a/mock-many-a-extractor'), false);
+    assert.equal(readEnabled(scope, 'mock-many-b/mock-many-b-extractor'), false);
+    assert.equal(readEnabled(scope, 'mock-many-c/mock-many-c-extractor'), false);
   });
 
   it('enables multiple plugins in one call after disabling them', async () => {
@@ -380,15 +393,8 @@ describe('sm plugins enable / disable', () => {
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     assert.match(r.stdout, /enabled: 2 extension\(s\)/);
 
-    const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
-    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-    await adapter.init();
-    try {
-      assert.equal(await getPluginEnabled(adapter.db, 'mock-en-a/mock-en-a-extractor'), true);
-      assert.equal(await getPluginEnabled(adapter.db, 'mock-en-b/mock-en-b-extractor'), true);
-    } finally {
-      await adapter.close();
-    }
+    assert.equal(readEnabled(scope, 'mock-en-a/mock-en-a-extractor'), true);
+    assert.equal(readEnabled(scope, 'mock-en-b/mock-en-b-extractor'), true);
   });
 
   it('batch is all-or-nothing: unknown id aborts before any DB write', async () => {
@@ -405,18 +411,11 @@ describe('sm plugins enable / disable', () => {
     assert.match(r.stderr, /Plugin not found/);
 
     // Neither known id should have been written: the loop aborts on
-    // the first bad entry, before the persist phase. `getPluginEnabled`
-    // returns `undefined` when no config_plugins row exists (the plugin
-    // is enabled by default via discovery, no override).
-    const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
-    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-    await adapter.init();
-    try {
-      assert.equal(await getPluginEnabled(adapter.db, 'mock-batch-a/mock-batch-a-extractor'), undefined);
-      assert.equal(await getPluginEnabled(adapter.db, 'mock-batch-b/mock-batch-b-extractor'), undefined);
-    } finally {
-      await adapter.close();
-    }
+    // the first bad entry, before the persist phase. `readEnabled`
+    // returns `undefined` when no config override exists (the plugin is
+    // enabled by default via discovery).
+    assert.equal(readEnabled(scope, 'mock-batch-a/mock-batch-a-extractor'), undefined);
+    assert.equal(readEnabled(scope, 'mock-batch-b/mock-batch-b-extractor'), undefined);
   });
 
   it('dedupes repeated ids in a batch', async () => {
@@ -431,6 +430,107 @@ describe('sm plugins enable / disable', () => {
     // single-extension plugin to its one child id.
     assert.match(r.stdout, /disabled: mock-dedupe\/mock-dedupe-extractor/);
     assert.equal(/disabled: \d+ extension\(s\)/.test(r.stdout), false);
+  });
+});
+
+// Trust is the SECURITY axis, orthogonal to enable. `sm plugins trust /
+// untrust` write a per-plugin row to the `config_plugins` DB store
+// (bare plugin id) and never touch the config-layer enable state. A
+// project-local plugin runs only when it is BOTH enabled and trusted.
+describe('sm plugins trust / untrust', () => {
+  it('trust grants a per-plugin DB row; enable state in config is untouched', async () => {
+    const scope = freshScope('trust-grant');
+    sm(['init', '--no-scan'], scope);
+    dropMockPlugin(scope, 'mock-trust');
+
+    const r = sm(['plugins', 'trust', 'mock-trust'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.match(r.stdout, /trusted: mock-trust/);
+
+    // DB trust row written; enable config untouched (no override).
+    assert.equal(await readTrusted(scope, 'mock-trust'), true);
+    assert.equal(readEnabled(scope, 'mock-trust/mock-trust-extractor'), undefined);
+  });
+
+  it('untrust clears the trust row; enable state unchanged', async () => {
+    const scope = freshScope('untrust-clear');
+    sm(['init', '--no-scan'], scope);
+    dropMockPlugin(scope, 'mock-untrust');
+    sm(['plugins', 'trust', 'mock-untrust'], scope);
+    assert.equal(await readTrusted(scope, 'mock-untrust'), true);
+
+    const r = sm(['plugins', 'untrust', 'mock-untrust'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.match(r.stdout, /untrusted: mock-untrust/);
+    assert.equal(await readTrusted(scope, 'mock-untrust'), false);
+  });
+
+  it('trust collapses a qualified <plugin>/<ext> id to its bare plugin', async () => {
+    const scope = freshScope('trust-qualified');
+    sm(['init', '--no-scan'], scope);
+    dropMockPlugin(scope, 'mock-tq');
+
+    const r = sm(['plugins', 'trust', 'mock-tq/mock-tq-extractor'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.match(r.stdout, /trusted: mock-tq/);
+    assert.equal(await readTrusted(scope, 'mock-tq'), true);
+  });
+
+  it('trust --all grants every discovered drop-in plugin (not built-ins)', async () => {
+    const scope = freshScope('trust-all');
+    sm(['init', '--no-scan'], scope);
+    dropMockPlugin(scope, 'mock-all-a');
+    dropMockPlugin(scope, 'mock-all-b');
+
+    const r = sm(['plugins', 'trust', '--all'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.equal(await readTrusted(scope, 'mock-all-a'), true);
+    assert.equal(await readTrusted(scope, 'mock-all-b'), true);
+    // Built-ins are never trust-gated, so they get no row.
+    assert.equal(await readTrusted(scope, 'core'), undefined);
+    assert.equal(await readTrusted(scope, 'claude'), undefined);
+  });
+
+  it('trust rejects a built-in id (never trust-gated) with exit 5', async () => {
+    const scope = freshScope('trust-builtin');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['plugins', 'trust', 'core'], scope);
+    assert.equal(r.status, 5, `stderr: ${r.stderr}`);
+    assert.match(r.stderr, /built-in \(or host-locked\) and is never import-trust-gated/);
+    assert.equal(await readTrusted(scope, 'core'), undefined);
+  });
+
+  it('trust on an unknown plugin id exits 5', () => {
+    const scope = freshScope('trust-unknown');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['plugins', 'trust', 'no-such-plugin'], scope);
+    assert.equal(r.status, 5, `stderr: ${r.stderr}`);
+    assert.match(r.stderr, /Plugin not found/);
+  });
+
+  it('exit 2 when both <id> and --all are passed to trust', () => {
+    const scope = freshScope('trust-both');
+    sm(['init', '--no-scan'], scope);
+    dropMockPlugin(scope, 'mock-tb');
+
+    const r = sm(['plugins', 'trust', 'mock-tb', '--all'], scope);
+    assert.equal(r.status, 2, `stderr: ${r.stderr}`);
+    assert.match(r.stderr, /not both/);
+  });
+
+  it('sm plugins list still surfaces an enabled-but-untrusted plugin', () => {
+    // The list resolver passes only `resolveEnabled` (no import-trust
+    // gate), so an untrusted drop-in is still enumerated rather than
+    // hidden, the operator can see what is waiting for a trust grant.
+    const scope = freshScope('trust-list-surface');
+    sm(['init', '--no-scan'], scope);
+    dropMockPlugin(scope, 'mock-untrusted-list');
+
+    const r = sm(['plugins', 'list'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.match(r.stdout, /mock-untrusted-list\b.*user/);
   });
 });
 
@@ -460,19 +560,12 @@ describe('sm plugins enable / disable, bundle macro', () => {
     assert.match(r.stdout, /- claude\/at-directive/);
     assert.match(r.stdout, /- claude\/slash-command/);
 
-    const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
-    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-    await adapter.init();
-    try {
-      // Every child extension flipped; the bare plugin id is never
-      // persisted (the macro path always expands to qualified ids).
-      assert.equal(await getPluginEnabled(adapter.db, 'claude/claude'), false);
-      assert.equal(await getPluginEnabled(adapter.db, 'claude/at-directive'), false);
-      assert.equal(await getPluginEnabled(adapter.db, 'claude/slash-command'), false);
-      assert.equal(await getPluginEnabled(adapter.db, 'claude'), undefined);
-    } finally {
-      await adapter.close();
-    }
+    // Every child extension flipped; the bare plugin id is never
+    // persisted (the macro path always expands to qualified config keys).
+    assert.equal(readEnabled(scope, 'claude/claude'), false);
+    assert.equal(readEnabled(scope, 'claude/at-directive'), false);
+    assert.equal(readEnabled(scope, 'claude/slash-command'), false);
+    assert.equal(readEnabled(scope, 'claude'), undefined);
   });
 
   it('disable claude/at-directive (qualified id) flips just that extension, no prompt', async () => {
@@ -483,17 +576,10 @@ describe('sm plugins enable / disable, bundle macro', () => {
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     assert.match(r.stdout, /disabled: claude\/at-directive/);
 
-    const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
-    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-    await adapter.init();
-    try {
-      assert.equal(await getPluginEnabled(adapter.db, 'claude/at-directive'), false);
-      // Sibling extensions untouched.
-      assert.equal(await getPluginEnabled(adapter.db, 'claude/claude'), undefined);
-      assert.equal(await getPluginEnabled(adapter.db, 'claude/slash-command'), undefined);
-    } finally {
-      await adapter.close();
-    }
+    assert.equal(readEnabled(scope, 'claude/at-directive'), false);
+    // Sibling extensions untouched.
+    assert.equal(readEnabled(scope, 'claude/claude'), undefined);
+    assert.equal(readEnabled(scope, 'claude/slash-command'), undefined);
   });
 
   it('disable core (multi-extension built-in) requires --yes', () => {
@@ -513,17 +599,10 @@ describe('sm plugins enable / disable, bundle macro', () => {
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     assert.match(r.stdout, /disabled: core\/name-collision/);
 
-    const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
-    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-    await adapter.init();
-    try {
-      assert.equal(await getPluginEnabled(adapter.db, 'core/name-collision'), false);
-      // Other core extensions and the claude plugin untouched.
-      assert.equal(await getPluginEnabled(adapter.db, 'claude'), undefined);
-      assert.equal(await getPluginEnabled(adapter.db, 'core/reference-broken'), undefined);
-    } finally {
-      await adapter.close();
-    }
+    assert.equal(readEnabled(scope, 'core/name-collision'), false);
+    // Other core extensions and the claude plugin untouched.
+    assert.equal(readEnabled(scope, 'claude'), undefined);
+    assert.equal(readEnabled(scope, 'core/reference-broken'), undefined);
   });
 
   it('(i) sm plugins list shows every plugin + user plugin', () => {

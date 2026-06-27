@@ -329,10 +329,10 @@ function replaceFixture(scope: string, fixturesRoot: string, fixture: string): v
 
 /**
  * Grant local import-trust to every drop-in plugin in the provisioned
- * scope by writing a bare-id `config_plugins` override (`enabled = 1`),
+ * scope by writing a bare-id `config_plugins` trust row (`trusted = 1`),
  * the persisted signal the loader's import-trust gate reads. The plugin
  * id IS the directory name, so this works WITHOUT importing the plugin,
- * including for intentionally-broken plugins a `sm plugins enable` could
+ * including for intentionally-broken plugins a `sm plugins trust` could
  * not enumerate (e.g. the `plugin-missing-ui-rejected` case, whose
  * plugin must be imported to be rejected for its missing UI).
  *
@@ -366,8 +366,8 @@ function grantFixturePluginTrust(scope: string, binary: string, env: NodeJS.Proc
   const db = new DatabaseSync(dbPath);
   try {
     const stmt = db.prepare(
-      'INSERT INTO config_plugins (plugin_id, enabled, updated_at) VALUES (?, 1, 0) ' +
-        'ON CONFLICT(plugin_id) DO UPDATE SET enabled = 1',
+      'INSERT INTO config_plugins (plugin_id, trusted, updated_at) VALUES (?, 1, 0) ' +
+        'ON CONFLICT(plugin_id) DO UPDATE SET trusted = 1',
     );
     for (const id of ids) stmt.run(id);
   } finally {

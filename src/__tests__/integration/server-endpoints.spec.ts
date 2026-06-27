@@ -881,12 +881,19 @@ describe('PATCH /api/plugins/:id (bundle macro cascade)', () => {
     });
   });
 
-  it('returns 500 db-missing when the project DB does not exist', async () => {
-    await bootAndUse(defaultOptions({ dbPath: root.missingDb }), async (handle) => {
-      const out = await patchJson(handle, '/api/plugins/claude', { enabled: false });
-      assert.equal(out.status, 500);
-      assert.equal((out.json as IErrorBody).error.code, 'db-missing');
-    });
+  it('cascade enable PATCH succeeds without a DB (enable is config-based now)', async () => {
+    // Post-split: the cascade enable route persists to the CONFIG layers,
+    // not the DB, so a missing project DB no longer blocks it. Isolated
+    // tempdir cwd so the config write never touches the repo.
+    const cwd = mkdtempSync(join(root.tmp, 'cascade-no-db-'));
+    await bootAndUse(
+      defaultOptions({ dbPath: root.missingDb }),
+      async (handle) => {
+        const out = await patchJson(handle, '/api/plugins/claude', { enabled: false });
+        assert.equal(out.status, 200);
+      },
+      { runtimeContext: { cwd } },
+    );
   });
 });
 
@@ -1206,14 +1213,21 @@ describe('PATCH /api/plugins (bulk)', () => {
     });
   });
 
-  it('returns 500 db-missing when the project DB does not exist', async () => {
-    await bootAndUse(defaultOptions({ dbPath: root.missingDb }), async (handle) => {
-      const out = await patchJson(handle, '/api/plugins', {
-        changes: [{ id: 'claude', enabled: false }],
-      });
-      assert.equal(out.status, 500);
-      assert.equal((out.json as IErrorBody).error.code, 'db-missing');
-    });
+  it('enable PATCH succeeds without a DB (enable is config-based now, not db-missing)', async () => {
+    // Post-split: enable persists to the CONFIG layers, not the DB, so a
+    // missing project DB no longer blocks an enable toggle. Use an
+    // isolated tempdir cwd so the config write never touches the repo.
+    const cwd = mkdtempSync(join(root.tmp, 'enable-no-db-'));
+    await bootAndUse(
+      defaultOptions({ dbPath: root.missingDb }),
+      async (handle) => {
+        const out = await patchJson(handle, '/api/plugins', {
+          changes: [{ id: 'claude', enabled: false }],
+        });
+        assert.equal(out.status, 200);
+      },
+      { runtimeContext: { cwd } },
+    );
   });
 });
 
@@ -1308,8 +1322,7 @@ describe('boot-cached registries include built-ins regardless of enabled state',
       join(cwd, '.skill-map', 'settings.json'),
       JSON.stringify({
         plugins: {
-          claude: { enabled: false },
-          'claude/tools-counter': { enabled: false },
+          claude: { enabled: false, extensions: { 'tools-counter': { enabled: false } } },
         },
       }),
     );

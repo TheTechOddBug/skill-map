@@ -62,7 +62,7 @@ function freshFixture(label: string): string {
 async function trustProjectPlugin(fixture: string, pluginId: string): Promise<void> {
   const dbPath = join(fixture, '.skill-map', 'skill-map.db');
   await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-    await adapter.pluginConfig.set(pluginId, true);
+    await adapter.trust.set(pluginId, true);
   });
 }
 

@@ -29,6 +29,7 @@ import { HTTPException } from 'hono/http-exception';
 
 import {
   projectPathExposure,
+  projectTrustExposure,
   readConfigValue,
   writeConfigValue,
 } from '../../core/config/helper.js';
@@ -52,6 +53,15 @@ export interface IProjectPreferencesEnvelope {
   scan: {
     referencePaths: readonly string[];
   };
+  /**
+   * Local, per-machine plugin import-trust opt-in. When `true`, every
+   * plugin the project enables is treated as locally trusted. Default
+   * `false`. Project-local only (stripped from the committed layer);
+   * turning it ON is surface-expanding (412 confirm gate).
+   */
+  pluginTrust: {
+    projectEnabled: boolean;
+  };
 }
 
 interface IPatchBody {
@@ -59,6 +69,9 @@ interface IPatchBody {
   allowSidecarWriters?: boolean;
   scan?: {
     referencePaths?: string[];
+  };
+  pluginTrust?: {
+    projectEnabled?: boolean;
   };
 }
 
@@ -89,6 +102,13 @@ function buildEnvelope(deps: IRouteDeps): IProjectPreferencesEnvelope {
           default: [],
         }) ?? [],
     },
+    pluginTrust: {
+      projectEnabled:
+        readConfigValue<boolean>('pluginTrust.projectEnabled', {
+          cwd,
+          default: false,
+        }) ?? false,
+    },
   };
 }
 
@@ -112,16 +132,60 @@ async function applyPatch(deps: IRouteDeps, body: IPatchBody): Promise<void> {
   // (an actual add / remove) drives the watcher restart.
   const scan = applyScanWrites(body, cwd);
 
+  // Local plugin-trust opt-in: a project-local-only boolean. Turning it
+  // ON expands the local code-execution surface, so it carries its own
+  // 412 confirm gate (see `applyTrustWrite`).
+  const trustChanged = applyTrustWrite(body, cwd);
+
   // Best-effort watcher restart: the runtime re-reads config every
   // batch so the next file edit picks the change up anyway, but the
   // restart guarantees the operator sees the effect (new path list,
   // dropped / restored writer buttons) without waiting for an
   // unrelated edit. Failures here do not roll back the on-disk write.
+  // The trust opt-in is NOT restart-applicable (handlers load at boot),
+  // so it does not trigger a restart.
   if (policyChanged || scan.mutated) await maybeRestartWatcher(deps);
   // Successful writes mutate the on-disk config; the cached view would
   // now hand out stale state. Drop it so the next consumer re-reads
   // from disk.
-  if (policyChanged || scan.attempted) deps.configService.reload();
+  if (policyChanged || scan.attempted || trustChanged) deps.configService.reload();
+}
+
+/**
+ * Apply the `pluginTrust.projectEnabled` sub-key of the patch. Turning
+ * the local opt-in ON expands the code-execution surface (every plugin
+ * the project enables becomes trusted), so without `confirm: true` the
+ * route returns 412 `confirm-required`. Turning it OFF (or a no-op) is
+ * not gated. Persisted to the gitignored `project-local` layer (the key
+ * is project-local only). Returns `true` when the value actually
+ * changed, so the caller reloads the config cache.
+ */
+function applyTrustWrite(body: IPatchBody, cwd: string): boolean {
+  const next = body.pluginTrust?.projectEnabled;
+  if (next === undefined) return false;
+  const before =
+    readConfigValue<boolean>('pluginTrust.projectEnabled', { cwd, default: false }) ?? false;
+  if (before === next) return false;
+
+  // Confirm gate: only a turn-ON expands the surface.
+  if (projectTrustExposure({ value: next, cwd }).expandsSurface && body.confirm !== true) {
+    throw new HTTPException(412, {
+      message: SERVER_TEXTS.projectPrefsTrustConfirmRequired,
+    });
+  }
+
+  try {
+    writeConfigValue('pluginTrust.projectEnabled', next, { target: 'project-local', cwd });
+  } catch (err) {
+    throw new HTTPException(400, {
+      message: tx(SERVER_TEXTS.projectPrefsPersistFailed, {
+        key: 'pluginTrust.projectEnabled',
+        message: formatErrorMessage(err),
+      }),
+    });
+  }
+  log.warn(tx(SERVER_TEXTS.projectPrefsTrustSet, { value: String(next) }));
+  return true;
 }
 
 /**
@@ -398,7 +462,11 @@ function isExistingDirectory(entry: string, cwd: string): boolean {
 const PATCH_BODY_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  anyOf: [{ required: ['allowSidecarWriters'] }, { required: ['scan'] }],
+  anyOf: [
+    { required: ['allowSidecarWriters'] },
+    { required: ['scan'] },
+    { required: ['pluginTrust'] },
+  ],
   properties: {
     confirm: { type: 'boolean' },
     allowSidecarWriters: { type: 'boolean' },
@@ -413,6 +481,14 @@ const PATCH_BODY_SCHEMA = {
         },
       },
     },
+    pluginTrust: {
+      type: 'object',
+      additionalProperties: false,
+      minProperties: 1,
+      properties: {
+        projectEnabled: { type: 'boolean' },
+      },
+    },
   },
 } as const;
 
@@ -424,6 +500,9 @@ const parsePatchBody = makeBodyValidator<IPatchBody>(PATCH_BODY_SCHEMA, {
     ':anyOf': SERVER_TEXTS.projectPrefsBodyEmpty,
     '/scan:minProperties': SERVER_TEXTS.projectPrefsBodyEmpty,
     '/scan:type:object': SERVER_TEXTS.projectPrefsScanNotObject,
+    '/pluginTrust:minProperties': SERVER_TEXTS.projectPrefsBodyEmpty,
+    '/pluginTrust:type:object': SERVER_TEXTS.projectPrefsTrustNotObject,
+    '/pluginTrust/projectEnabled:type:boolean': SERVER_TEXTS.projectPrefsTrustEnabledNotBoolean,
     '/confirm:type:boolean': SERVER_TEXTS.projectPrefsConfirmNotBoolean,
     '/allowSidecarWriters:type:boolean': SERVER_TEXTS.projectPrefsSidecarWritersNotBoolean,
     '/scan/referencePaths:type:array': tx(SERVER_TEXTS.projectPrefsListNotArray, { key: 'scan.referencePaths' }),

@@ -58,8 +58,8 @@ export interface IActiveProviderEnvelope {
   /**
    * Registered LENS Provider ids (gated, `gatedByActiveLens: true`) that
    * are enabled right now, resolved against the live per-extension resolver
-   * (`config_plugins` layered over `settings.json#/plugins`, the same
-   * resolution `GET /api/plugins` applies). This is the subset of
+   * (the layered config `settings.json#/plugins`, the same resolution
+   * `GET /api/plugins` applies). This is the subset of
    * `providerRegistry` eligible to become the lens. The non-gated
    * `markdown` base is never here (it is the substrate, not a lens). A
    * lens the operator disabled, or one that ships disabled by default
@@ -117,17 +117,15 @@ async function buildEnvelope(deps: IRouteDeps): Promise<IActiveProviderEnvelope>
 
 /**
  * Project the set of registered Providers that are enabled right now.
- * Reads a fresh resolver (`config_plugins` layered over
- * `settings.json#/plugins`) so a mid-session toggle is honoured without
- * restarting `sm serve`, mirroring `GET /api/plugins`. Keyed by
+ * Reads a fresh resolver from the layered config (`settings.json#/plugins`)
+ * so a mid-session toggle is honoured without restarting `sm serve`,
+ * mirroring `GET /api/plugins`. Keyed by
  * `provider.id` to line up with the `providerRegistry` the dropdown
  * iterates; deduped to stay stable when a plugin shadows a built-in id.
  */
 async function resolveSelectableProviders(deps: IRouteDeps): Promise<string[]> {
   const resolveEnabled = await buildFreshResolver({
-    databasePath: deps.options.dbPath,
     effectiveConfig: () => deps.configService.effective(),
-    fallbackResolver: deps.pluginRuntime.resolveEnabled,
   });
   const selectable = new Set<string>();
   for (const provider of deps.providers) {

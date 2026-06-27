@@ -166,7 +166,7 @@ function plantContributionPlugin(
 async function trustProjectPlugin(cwd: string, pluginId: string): Promise<void> {
   const dbPath = join(cwd, '.skill-map', 'skill-map.db');
   await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-    await adapter.pluginConfig.set(pluginId, true);
+    await adapter.trust.set(pluginId, true);
   });
 }
 

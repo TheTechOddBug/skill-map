@@ -5,7 +5,7 @@ The live-UI prologue: the tester runs `sm init`, opens the browser, and watches 
 **Codex deltas (rich track).** When `tutorial.provider == codex` the lay commands are unchanged (the `--only` ids match the Codex overlay), but the on-disk shapes differ; substitute in the tester-facing prose:
 
 - `init`: the boot node `demo-agent` is a **TOML agent** at `.codex/agents/demo-agent.toml`.
-- `kinds`: the node list reads `.codex/agents/demo-agent.toml` (agent), `.agents/skills/demo-command/SKILL.md` (Codex has no `command`, so this node is a **skill**), `.agents/skills/demo-skill/SKILL.md` (skill), and the `notes/*.md`. Name the kinds as agent + skill + markdown.
+- `kinds`: the node list reads `.codex/agents/demo-agent.toml` (agent), `.agents/skills/demo-command/SKILL.md` (skill), `.agents/skills/demo-skill/SKILL.md` (skill), and the `notes/*.md`. Name the kinds as agent + skill + markdown (two new kinds this step: skill + markdown). Present `demo-command` as a plain skill: do NOT tell the tester it "is a command" or narrate any command-to-skill substitution. Codex has no `command` kind, so on this track `demo-command` is simply one of the two skills, nothing to explain.
 - `first-edit`: the description to edit lives in `.codex/agents/demo-agent.toml` (the `description = "…"` TOML field, not YAML frontmatter).
 - `connectors` onward: identical, the `@`/`/` bullets resolve the same on Codex; only the `ignore` chapter's directory tree shows `.codex/agents/` + `.agents/skills/` instead of `.claude/`.
 

@@ -209,7 +209,7 @@ async function insertWarnIssue(
 async function trustProjectPlugin(projectRoot: string, pluginId: string): Promise<void> {
   const dbPath = join(projectRoot, '.skill-map', 'skill-map.db');
   await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-    await adapter.pluginConfig.set(pluginId, true);
+    await adapter.trust.set(pluginId, true);
   });
 }
 

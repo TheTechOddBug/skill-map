@@ -111,6 +111,47 @@ function extensionPlugin(
   };
 }
 
+/**
+ * Drop-in (`source: 'project'`) plugin, the only kind that is
+ * trust-gated. An UNTRUSTED one carries no `trusted` flag and no
+ * `extensions[]` (its code was never imported); a TRUSTED one carries
+ * `trusted: true` and its imported extensions.
+ */
+function projectPlugin(
+  id: string,
+  opts: {
+    trusted?: boolean;
+    extensions?: Array<{ id: string; enabled: boolean }>;
+    reason?: string;
+  } = {},
+): IPluginItemApi {
+  const base: IPluginItemApi = {
+    id,
+    version: '1.0.0',
+    kinds: ['extractor'],
+    status: opts.trusted ? 'enabled' : 'disabled',
+    reason: opts.reason ?? null,
+    source: 'project',
+  };
+  if (opts.trusted) base.trusted = true;
+  if (opts.extensions) {
+    base.extensions = opts.extensions.map((e) => ({
+      id: e.id,
+      kind: 'extractor',
+      version: '1.0.0',
+      enabled: e.enabled,
+    }));
+  }
+  return base;
+}
+
+interface ITrustProto {
+  onTrustPlugin(plugin: IPluginItemApi): void;
+  onUntrustPlugin(plugin: IPluginItemApi): void;
+  plugins(): readonly IPluginItemApi[];
+  dirtyIds(): ReadonlySet<string>;
+}
+
 interface IBootstrapResult {
   cmp: SettingsPlugins;
   fixture: ReturnType<typeof TestBed.createComponent<SettingsPlugins>>;
@@ -539,6 +580,253 @@ describe('SettingsPlugins, runtime contribution errors', () => {
     );
     expect(list?.textContent).toContain('beacon/beacon-analyzer');
     expect(list?.textContent).toContain('inspector.body');
+  });
+});
+
+describe('SettingsPlugins, plugin-level trust', () => {
+  it('untrusted project plugin shows the Trust action + a command-free warning, no command, no restart note', async () => {
+    const items = [
+      projectPlugin('demo-highlight', {
+        reason:
+          'not loaded: project-local plugin is enabled but not trusted on this machine. Run `sm plugins trust demo-highlight` to load it.',
+      }),
+    ];
+    const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
+    const { fixture } = bootstrap({ listPlugins } as Partial<IDataSourcePort>);
+
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    // The Trust push button is the action (no command shown).
+    expect(
+      host.querySelector('[data-testid="settings-row-trust-demo-highlight"]'),
+    ).not.toBeNull();
+    // Red command-free warning replaces the raw reason / old hint.
+    expect(
+      host.querySelector('[data-testid="settings-row-untrusted-reason-demo-highlight"]'),
+    ).not.toBeNull();
+    // The CLI command carried in the loader reason is NOT surfaced in the UI.
+    expect(host.textContent).not.toContain('sm plugins trust');
+    // The restart note belongs to the post-trust state, not here.
+    expect(
+      host.querySelector('[data-testid="settings-row-trust-restart-demo-highlight"]'),
+    ).toBeNull();
+    expect(
+      host.querySelector('[data-testid="settings-row-trusted-demo-highlight"]'),
+    ).toBeNull();
+    expect(
+      host.querySelector('[data-testid="settings-row-untrust-demo-highlight"]'),
+    ).toBeNull();
+  });
+
+  it('just-trusted project plugin (no extensions loaded yet) shows the restart hint, not the stale untrusted command', async () => {
+    // Mid-session trust: the BFF re-projects `trusted: true` but the boot
+    // discovery still carries the untrusted reason (code not re-imported), so
+    // the stale command text must NOT leak into the post-trust row.
+    const items = [
+      projectPlugin('demo-highlight', {
+        trusted: true,
+        reason:
+          'not loaded: project-local plugin is enabled but not trusted on this machine. Run `sm plugins trust demo-highlight` to load it.',
+      }),
+    ];
+    const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
+    const { fixture } = bootstrap({ listPlugins } as Partial<IDataSourcePort>);
+
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(
+      host.querySelector('[data-testid="settings-row-trust-restart-demo-highlight"]'),
+    ).not.toBeNull();
+    expect(
+      host.querySelector('[data-testid="settings-row-trusted-demo-highlight"]'),
+    ).not.toBeNull();
+    // The stale loader reason (with its CLI command) is suppressed.
+    expect(host.textContent).not.toContain('sm plugins trust');
+    expect(host.textContent).not.toContain('not loaded');
+    // Direction: it needs a restart to LOAD it.
+    expect(host.textContent).toContain('Restart the server to load it.');
+  });
+
+  it('just-untrusted project plugin still loaded shows the restart-to-unload hint, no does-not-run warning', async () => {
+    // Mid-session untrust: the code stays imported (extensions present) until
+    // the next boot, so the plugin keeps running and the row must say to
+    // restart to UNLOAD it, not claim its code does not run.
+    const items = [
+      projectPlugin('demo-highlight', {
+        extensions: [{ id: 'highlight', enabled: true }],
+      }),
+    ];
+    const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
+    const { fixture } = bootstrap({ listPlugins } as Partial<IDataSourcePort>);
+
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    // Trust action still offered (re-trust), restart-to-unload hint shown.
+    expect(
+      host.querySelector('[data-testid="settings-row-trust-demo-highlight"]'),
+    ).not.toBeNull();
+    expect(
+      host.querySelector('[data-testid="settings-row-trust-restart-demo-highlight"]'),
+    ).not.toBeNull();
+    expect(host.textContent).toContain('Restart the server to unload it.');
+    // The "code does not run" warning must NOT show while it is still loaded.
+    expect(
+      host.querySelector('[data-testid="settings-row-untrusted-reason-demo-highlight"]'),
+    ).toBeNull();
+  });
+
+  it('trusted project plugin renders the Trusted badge + the Untrust action, no Trust action', async () => {
+    const items = [
+      projectPlugin('demo-highlight', {
+        trusted: true,
+        extensions: [{ id: 'highlight', enabled: true }],
+      }),
+    ];
+    const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
+    const { fixture } = bootstrap({ listPlugins } as Partial<IDataSourcePort>);
+
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(
+      host.querySelector('[data-testid="settings-row-trusted-demo-highlight"]'),
+    ).not.toBeNull();
+    expect(
+      host.querySelector('[data-testid="settings-row-untrust-demo-highlight"]'),
+    ).not.toBeNull();
+    expect(
+      host.querySelector('[data-testid="settings-row-trust-demo-highlight"]'),
+    ).toBeNull();
+    expect(
+      host.querySelector('[data-testid="settings-row-untrusted-reason-demo-highlight"]'),
+    ).toBeNull();
+    // Loaded (extensions present), so no restart-to-load hint.
+    expect(
+      host.querySelector('[data-testid="settings-row-trust-restart-demo-highlight"]'),
+    ).toBeNull();
+  });
+
+  it('built-in plugins never render trust controls', async () => {
+    const items = [plugin('claude')];
+    const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
+    const { fixture } = bootstrap({ listPlugins } as Partial<IDataSourcePort>);
+
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.querySelector('[data-testid="settings-row-trust-claude"]')).toBeNull();
+    expect(host.querySelector('[data-testid="settings-row-trusted-claude"]')).toBeNull();
+    expect(host.querySelector('[data-testid="settings-row-untrust-claude"]')).toBeNull();
+  });
+
+  it('onTrustPlugin calls setPluginTrusted(id, true) and reflects the post-write trusted flag', async () => {
+    const items = [projectPlugin('demo-highlight')];
+    const trustedAfter = [
+      projectPlugin('demo-highlight', {
+        trusted: true,
+        extensions: [{ id: 'highlight', enabled: true }],
+      }),
+    ];
+    const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
+    const setPluginTrusted = vi
+      .fn()
+      .mockResolvedValue(pluginsEnvelope(trustedAfter));
+    const { cmp, fixture } = bootstrap({
+      listPlugins,
+      setPluginTrusted,
+    } as Partial<IDataSourcePort>);
+
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+
+    (cmp as unknown as ITrustProto).onTrustPlugin(items[0]);
+    await flushAsync();
+
+    expect(setPluginTrusted).toHaveBeenCalledWith('demo-highlight', true);
+    const after = (cmp as unknown as ITrustProto).plugins();
+    expect(after[0].trusted).toBe(true);
+  });
+
+  it('onUntrustPlugin calls setPluginTrusted(id, false)', async () => {
+    const items = [
+      projectPlugin('demo-highlight', {
+        trusted: true,
+        extensions: [{ id: 'highlight', enabled: true }],
+      }),
+    ];
+    const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
+    const setPluginTrusted = vi
+      .fn()
+      .mockResolvedValue(pluginsEnvelope([projectPlugin('demo-highlight')]));
+    const { cmp, fixture } = bootstrap({
+      listPlugins,
+      setPluginTrusted,
+    } as Partial<IDataSourcePort>);
+
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+
+    (cmp as unknown as ITrustProto).onUntrustPlugin(items[0]);
+    await flushAsync();
+
+    expect(setPluginTrusted).toHaveBeenCalledWith('demo-highlight', false);
+  });
+
+  it('trusting a plugin preserves pending enable edits on other rows', async () => {
+    const core = extensionPlugin('core', [{ id: 'ext', enabled: true }]);
+    const demo = projectPlugin('demo-highlight');
+    const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope([core, demo]));
+    const setPluginTrusted = vi.fn().mockResolvedValue(
+      pluginsEnvelope([
+        extensionPlugin('core', [{ id: 'ext', enabled: true }]),
+        projectPlugin('demo-highlight', {
+          trusted: true,
+          extensions: [{ id: 'highlight', enabled: true }],
+        }),
+      ]),
+    );
+    const { cmp, fixture } = bootstrap({
+      listPlugins,
+      setPluginTrusted,
+    } as Partial<IDataSourcePort>);
+
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+
+    (cmp as unknown as ITogglesProtoApi).onExtensionToggle(
+      'core',
+      { id: 'ext' },
+      false,
+    );
+    expect(cmp.dirtyIds().has('core/ext')).toBe(true);
+
+    (cmp as unknown as ITrustProto).onTrustPlugin(demo);
+    await flushAsync();
+
+    expect(setPluginTrusted).toHaveBeenCalledWith('demo-highlight', true);
+    // The buffered enable edit on the unrelated row survives the trust write.
+    expect(cmp.dirtyIds().has('core/ext')).toBe(true);
   });
 });
 

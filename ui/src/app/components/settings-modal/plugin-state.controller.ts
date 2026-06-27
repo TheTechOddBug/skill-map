@@ -58,6 +58,14 @@ export interface IPluginStateHandle {
   pendingEnabled(id: string): boolean;
   isDirty(id: string): boolean;
   refresh(): Promise<void>;
+  /**
+   * Grant / revoke LOCAL import trust for a plugin via an IMMEDIATE
+   * `PATCH /api/plugins/:id/trust` (the security axis is orthogonal to
+   * the buffered enable toggles, so it is not staged). On success the
+   * post-write list is reconciled into local state WITHOUT discarding any
+   * pending enable edits. Errors surface in `toggleError`.
+   */
+  setTrusted(pluginId: string, trusted: boolean): Promise<void>;
   onExtensionToggle(
     pluginId: string,
     ext: IPluginExtensionApi,
@@ -155,6 +163,48 @@ export function setupPluginState(deps: IPluginStateDeps): IPluginStateHandle {
     }
   };
 
+  /**
+   * Apply a post-trust-write plugin list while PRESERVING any pending
+   * enable edits. Trusting is an immediate security write on a separate
+   * axis; it must not silently throw away the operator's buffered enable
+   * toggles. We capture the current dirty deltas, re-seed `plugins` +
+   * `originalState` from the new list, then replay the still-applicable
+   * deltas onto `pendingState`. (An untrusted plugin carries no
+   * extensions, so trusting it adds no keys until restart; the merge is a
+   * no-op for the common case but stays correct if the BFF ever returns
+   * extensions inline.)
+   */
+  const reconcileAfterTrust = (items: readonly IPluginItemApi[]): void => {
+    const prevOriginal = originalState();
+    const prevPending = pendingState();
+    const deltas = new Map<string, boolean>();
+    for (const [key, value] of prevPending) {
+      if (prevOriginal.get(key) !== value) deltas.set(key, value);
+    }
+    plugins.set([...items]);
+    const fresh = buildStateFromPlugins(items);
+    originalState.set(fresh);
+    const nextPending = new Map(fresh);
+    for (const [key, value] of deltas) {
+      if (nextPending.has(key)) nextPending.set(key, value);
+    }
+    pendingState.set(nextPending);
+    toggleError.set(null);
+  };
+
+  const setTrusted = async (
+    pluginId: string,
+    trusted: boolean,
+  ): Promise<void> => {
+    toggleError.set(null);
+    try {
+      const envelope = await deps.dataSource.setPluginTrusted(pluginId, trusted);
+      reconcileAfterTrust(envelope.items);
+    } catch (err) {
+      toggleError.set(formatErr(err));
+    }
+  };
+
   const onExtensionToggle = (
     pluginId: string,
     ext: IPluginExtensionApi,
@@ -211,6 +261,7 @@ export function setupPluginState(deps: IPluginStateDeps): IPluginStateHandle {
     pendingEnabled,
     isDirty,
     refresh,
+    setTrusted,
     onExtensionToggle,
     collectChanges,
     reseed,

@@ -241,12 +241,16 @@ CREATE TABLE state_node_favorites (
 
 -- --- Config zone -----------------------------------------------------------
 
+-- Per-machine plugin import-trust store (the SECURITY axis). The
+-- operational enable/disable toggle lives in the config layers
+-- (settings.json / settings.local.json), NOT here. Keyed by bare plugin
+-- id. Redefined inline (greenfield, no migration file, no user_version
+-- bump): the scan_meta.schema_fingerprint drift path rebuilds the cache.
 CREATE TABLE config_plugins (
   plugin_id TEXT PRIMARY KEY,
-  enabled INTEGER NOT NULL DEFAULT 1,
-  config_json TEXT,
+  trusted INTEGER NOT NULL DEFAULT 0,
   updated_at INTEGER NOT NULL,
-  CONSTRAINT ck_config_plugins_enabled CHECK (enabled IN (0,1))
+  CONSTRAINT ck_config_plugins_trusted CHECK (trusted IN (0,1))
 );
 
 CREATE TABLE config_preferences (

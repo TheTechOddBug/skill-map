@@ -278,6 +278,20 @@ export class RestDataSource implements IDataSourcePort {
     return envelope;
   }
 
+  async setPluginTrusted(
+    id: string,
+    trusted: boolean,
+  ): Promise<IListEnvelopeApi<TPluginItem>> {
+    const envelope = await this.patchJson<IListEnvelopeApi<TPluginItem>>(
+      `${BASE}/plugins/${encodeURIComponent(id)}/trust`,
+      { trusted },
+    );
+    this.ingestRegistry(envelope.kindRegistry);
+    this.ingestContributionsRegistry(envelope.contributionsRegistry);
+    this.ingestProviderRegistry(envelope.providerRegistry);
+    return envelope;
+  }
+
   async applyPluginChanges(
     changes: ReadonlyArray<IPluginChange>,
   ): Promise<IListEnvelopeApi<TPluginItem>> {

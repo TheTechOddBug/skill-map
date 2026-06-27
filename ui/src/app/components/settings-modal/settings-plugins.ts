@@ -52,6 +52,7 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ButtonModule } from 'primeng/button';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
@@ -86,7 +87,7 @@ import { SettingsBufferService, type IBufferOwner } from './settings-buffer.serv
 
 @Component({
   selector: 'sm-settings-plugins',
-  imports: [FormsModule, IconFieldModule, InputIconModule, InputTextModule, MessageModule, ToggleButtonModule, ToggleSwitchModule],
+  imports: [FormsModule, ButtonModule, IconFieldModule, InputIconModule, InputTextModule, MessageModule, ToggleButtonModule, ToggleSwitchModule],
   templateUrl: './settings-plugins.html',
   styleUrl: './settings-plugins.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -264,6 +265,72 @@ export class SettingsPlugins {
     nextValue: boolean,
   ): void {
     this.pluginState.onExtensionToggle(pluginId, ext, nextValue);
+  }
+
+  /**
+   * Whether the row should surface plugin-level trust controls at all.
+   * Only drop-in (`source: 'project'`) plugins are trust-gated; built-ins
+   * ship with the CLI and are never gated, so they carry no `trusted`
+   * field and get no trust UI.
+   */
+  protected isTrustGated(plugin: IPluginItemApi): boolean {
+    return plugin.source === 'project';
+  }
+
+  /**
+   * A project plugin the operator has NOT trusted on this machine. Its
+   * code was never imported, so it carries no `extensions[]`; the row
+   * shows a plugin-level Trust action plus the "will not run until
+   * trusted" hint instead of toggles.
+   */
+  protected isUntrusted(plugin: IPluginItemApi): boolean {
+    return (
+      this.isTrustGated(plugin) && plugin.trusted !== true && !this.isFailed(plugin)
+    );
+  }
+
+  /** A project plugin the operator HAS trusted on this machine. */
+  protected isTrusted(plugin: IPluginItemApi): boolean {
+    return this.isTrustGated(plugin) && plugin.trusted === true;
+  }
+
+  /**
+   * Whether the plugin's code is loaded this session: its imported
+   * `extensions[]` are present on the wire. False for a project plugin whose
+   * code was never imported (untrusted at boot, or trusted mid-session and
+   * not restarted yet). Built-ins / trusted-at-boot plugins carry them.
+   */
+  protected hasLoadedExtensions(plugin: IPluginItemApi): boolean {
+    return Boolean(plugin.extensions && plugin.extensions.length > 0);
+  }
+
+  /**
+   * Trusted on this machine but not loaded yet (mid-session trust, no
+   * extensions imported): needs an `sm serve` restart to LOAD it.
+   */
+  protected needsRestartToLoad(plugin: IPluginItemApi): boolean {
+    return (
+      this.isTrusted(plugin) && !this.isFailed(plugin) && !this.hasLoadedExtensions(plugin)
+    );
+  }
+
+  /**
+   * Untrusted on this machine but still loaded (mid-session untrust, the
+   * code stays in memory until the next boot): needs an `sm serve` restart
+   * to UNLOAD it. Until then the plugin keeps running.
+   */
+  protected needsRestartToUnload(plugin: IPluginItemApi): boolean {
+    return this.isUntrusted(plugin) && this.hasLoadedExtensions(plugin);
+  }
+
+  /** Grant local import trust (immediate PATCH, not buffered). */
+  protected onTrustPlugin(plugin: IPluginItemApi): void {
+    void this.pluginState.setTrusted(plugin.id, true);
+  }
+
+  /** Revoke local import trust (immediate PATCH, not buffered). */
+  protected onUntrustPlugin(plugin: IPluginItemApi): void {
+    void this.pluginState.setTrusted(plugin.id, false);
   }
 
   /**

@@ -66,18 +66,19 @@ export const PLUGIN_LOADER_TEXTS = {
     '(network call, infinite loop, large blocking work). Move side effects ' +
     'into the runtime methods (`detect` / `evaluate` / `render` / etc.).',
 
-  disabledByConfig: 'disabled by config_plugins or settings.json',
+  disabledByConfig: 'disabled by settings.json (plugins.<id>.enabled)',
 
   /**
    * Reason stamped on a project-local disk plugin discovered but not
-   * imported because the operator never granted local trust. Distinct
-   * from `disabledByConfig` (an explicit toggle-off): this id has no
-   * `config_plugins` override at all, so its code stays unexecuted until
-   * `sm plugins enable` records local intent.
+   * imported because the operator never granted local import trust.
+   * Distinct from `disabledByConfig` (an explicit operational toggle-off
+   * in the config layers): this id is enabled but carries no
+   * `config_plugins` trust grant, so its code stays unexecuted until
+   * `sm plugins trust` records local consent.
    */
   untrustedNotLoaded:
-    'not loaded: project-local plugin is untrusted until enabled. ' +
-    'Run `sm plugins enable {{pluginId}}` to load it.',
+    'not loaded: project-local plugin is enabled but not trusted on this machine. ' +
+    'Run `sm plugins trust {{pluginId}}` to load it.',
 
   /**
    * One-time aggregate notice the runtime emits when project-local
@@ -87,7 +88,7 @@ export const PLUGIN_LOADER_TEXTS = {
   untrustedPluginsFoundNotice:
     '{{count}} project-local plugin(s) found in .skill-map/plugins/ but not loaded ' +
     '(untrusted). Their code did NOT run. Review with `sm plugins list`, then ' +
-    'enable any you trust with `sm plugins enable <id>`.',
+    'trust any you vetted with `sm plugins trust <id>`.',
 
   invalidManifestDirMismatch:
     "directory name '{{dirName}}' does not match manifest id '{{manifestId}}'. " +

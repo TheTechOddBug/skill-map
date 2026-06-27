@@ -31,7 +31,7 @@ kind of those two nodes changes. Per chapter:
 - `broken-ref`: the deploy link that breaks lives in the `publish` SKILL; fix it
   in `.agents/skills/publish/SKILL.md` (not a `.claude/commands/` file).
 - `reserved`: Codex has no command, so create a SKILL with a reserved name
-  instead, `Write` `.agents/skills/config/SKILL.md` named `config` (it shadows
+  instead, `Write` `.agents/skills/model/SKILL.md` named `model` (it shadows
   the open-standard `COMMONS_RESERVED_NAMES`); clear it by renaming the folder +
   `frontmatter.name` to `new-page`, exactly like the basic track's `reserved`
   chapter, on a skill.
@@ -249,6 +249,9 @@ the `> ` blockquote, do NOT drop the bar when you personalise it.
 > output; the harness on the canvas is Layer 1. Your nodes are not a diagram,
 > they are runnable, and you just ran one.
 >
+> If the new page is not showing, refresh the browser with F5, the site does
+> not reload on its own.
+>
 > See the new page on the site, and the Map unchanged?
 
 Wait for confirmation. Mark `add-page`: done. Auto-advance to `broken-ref`.
@@ -297,30 +300,30 @@ done. Auto-advance to `reserved`.
 
 ## Chapter `reserved` - A reserved name collides (~2 min)
 
-**Preparation**: `Write` `.claude/commands/init.md`:
+**Preparation**: `Write` `.claude/commands/model.md`:
 ```markdown
 ---
-name: init
+name: model
 description: |
   Scaffolds a new empty page in public/ from the shared template.
 ---
 
-# init
+# model
 
 Creates a blank page so you can start writing.
 ```
 
 The watcher picks up the new command. Tell the tester:
 
-> I added a command named `init`. Watch the **Map**: the new `init` command node
+> I added a command named `model`. Watch the **Map**: the new `model` command node
 > appears, but flagged with a **warning** marker. Open its inspector: it reads
-> `name-reserved`, `init` shadows one of Claude Code's own slash commands (like
+> `name-reserved`, `model` shadows one of Claude Code's own slash commands (like
 > `/help`, `/clear`, `/config`), so the runtime would silently ignore your file,
 > it never runs. The fix is a name the runtime does not own.
 >
-> Rename it to `new-page`: first rename the file `.claude/commands/init.md` to
+> Rename it to `new-page`: first rename the file `.claude/commands/model.md` to
 > `.claude/commands/new-page.md`. Then open it in your text editor / IDE and, at
-> the top, where the frontmatter says `name: init`, change it to
+> the top, where the frontmatter says `name: model`, change it to
 > `name: new-page`. Save.
 >
 > Watch the **Map** again: the warning clears and the node is now `new-page`,

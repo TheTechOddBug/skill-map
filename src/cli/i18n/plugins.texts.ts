@@ -148,6 +148,27 @@ export const PLUGINS_TEXTS = {
   toggleAppliedManyHeader: '{{verbPast}}: {{count}} extension(s)\n',
   toggleAppliedManyRow: '  - {{id}}\n',
 
+  // --- trust / untrust -------------------------------------------------
+  /**
+   * Receipt printed after `sm plugins trust|untrust`. `verbPast` is
+   * `trusted` / `untrusted`. Trust is per-plugin (bare id), so the rows
+   * carry plugin ids, not qualified extension ids.
+   */
+  trustAppliedSingle: '{{verbPast}}: {{id}}\n',
+  trustAppliedManyHeader: '{{verbPast}}: {{count}} plugin(s)\n',
+  trustAppliedManyRow: '  - {{id}}\n',
+  /**
+   * Rejection when a trust verb targets a built-in (or host-locked) id.
+   * Those are never import-trust-gated, so a trust grant is meaningless.
+   */
+  trustBuiltInRejected:
+    '{{glyph}}  Plugin "{{id}}" is a built-in (or host-locked) and is never import-trust-gated.\n' +
+    '   {{hint}}\n',
+  trustBuiltInRejectedHint:
+    'Import trust applies only to project-local drop-in plugins under .skill-map/plugins/.',
+  /** `--all` found no project-local drop-in plugins to act on. */
+  trustNoPlugins: 'No project-local plugins discovered to {{verb}}.\n',
+
   /**
    * Macro expansion summary printed on stderr before the confirm
    * prompt (or before the `--yes` rejection). The block lists every
@@ -299,6 +320,7 @@ export const PLUGINS_TEXTS = {
     'Next:\n' +
     '  - Edit {{mainFile}}\n' +
     '  - Run sm plugins doctor to confirm it loads\n' +
+    '  - Run sm plugins trust {{pluginId}} to let its code run (project-local plugins are untrusted until you allow them)\n' +
     '  - sm plugins slots list: browse slots and input-types\n',
 
   // --- slots list verb -------------------------------------------------

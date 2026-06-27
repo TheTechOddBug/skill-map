@@ -25,7 +25,7 @@ import type { TSettingDeclaration } from '../types/view-catalog.js';
  * to DISABLED, so the extension does not load (does not run, does not
  * register) unless the operator opts in (`sm plugins enable
  * <plugin>/<ext>`, the Settings toggle, or a `settings.json` /
- * `config_plugins` override). The opt-in is a plain enable override,
+ * `settings.local.json` override). The opt-in is a plain enable override,
  * once set it wins over the installed default exactly like any other
  * extension (so a deprecated extension can still be kept running during
  * a migration). The remaining values are presentation-only and default

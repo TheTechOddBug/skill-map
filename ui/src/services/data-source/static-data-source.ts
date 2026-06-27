@@ -491,6 +491,16 @@ export class StaticDataSource implements IDataSourcePort {
     );
   }
 
+  async setPluginTrusted(
+    _id: string,
+    _trusted: boolean,
+  ): Promise<IListEnvelopeApi<TPluginItem>> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Plugin trust is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
   async runScan(): Promise<IScanResultApi> {
     throw new DataSourceError(
       'demo-readonly',
@@ -525,7 +535,11 @@ export class StaticDataSource implements IDataSourcePort {
   }
 
   async getProjectPreferences(): Promise<IProjectPreferencesApi> {
-    return { allowSidecarWriters: true, scan: { referencePaths: [] } };
+    return {
+      allowSidecarWriters: true,
+      scan: { referencePaths: [] },
+      pluginTrust: { projectEnabled: false },
+    };
   }
 
   async setProjectPreferences(
