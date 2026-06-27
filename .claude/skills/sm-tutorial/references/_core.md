@@ -296,14 +296,17 @@ syntax. claude/codex add `/` and `@` as vendor features on top.
      `<provider_dir> = .claude`, `track = rich`.
    - else skill under `.agents/skills/sm-tutorial/` → `provider = agent-skills`,
      `<provider_dir> = .agents/skills`, `track = basic`.
-   **Lens ambiguity for codex / antigravity**: both adopt the open
-   `.agents/skills/` layout, so their own marker (`.codex/` or
-   `.agent/workflows/`) coexists with the `agent-skills` marker (`.agents/`)
-   and a plain `sm scan --yes` reports the lens as ambiguous. For those two,
-   set it explicitly once before the first scan, `sm config set
-   activeProvider <codex|antigravity> --yes`, then the book runs unchanged
-   (the fixture engine renders the right shape: codex its TOML agents +
-   command-as-skill, antigravity reuses the `agent-skills` overlays).
+   **Lens precedence for codex / antigravity**: both adopt the open
+   `.agents/skills/` layout, so the scaffold leaves the vendor marker
+   (`.codex/` or `.agent/workflows/`) alongside the `agent-skills` marker
+   (`.agents/`). The vendor marker WINS: `sm init` resolves `codex` /
+   `antigravity` outright with no prompt (the `.agents/` open default only
+   competes when no vendor marker is present). So the codex book runs
+   exactly like claude, `sm init` then `sm`, with no lens prompt and no
+   `sm config set activeProvider` step anywhere (tester chapters or
+   backstage seeds). The fixture engine still renders the right shape:
+   codex its TOML agents + command-as-skill, antigravity reuses the
+   `agent-skills` overlays.
 2. `state.js init --provider <p>` persists `provider` plus the derived
    `track`, so a resumed session never re-detects.
 3. Render only the parts whose `track` is `tutorial.track` (or `both`).
@@ -348,8 +351,9 @@ references all resolve on both), so the rich part bodies are written in the
   directly in the tester-facing prose, but never EXPLAIN the substitution or
   compare it to the claude shape. The Codex tester only ever sees a `skill`
   where the claude book has a command; never tell them "Codex has no `command`
-  kind", never say a node "is a command that shows as a skill", never reference
-  "the claude command". On Codex these nodes were always skills, there is
+  kind", never say a node "is a command that shows as a skill" or that it
+  "replaces" / "stands in for" / "reemplaza" a command, never append a parenthetical
+  like "(in Codex this replaces the command)", never reference "the claude command". On Codex these nodes were always skills, there is
   nothing to explain. (Same for the TOML-agent and path swaps above: point the
   tester at the real `.toml` / `.agents/` file when they interact with it, just
   do not narrate that it "would be" something else on claude.)

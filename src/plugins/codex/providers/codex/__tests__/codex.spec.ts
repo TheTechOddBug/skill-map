@@ -2,16 +2,17 @@
  * Unit tests for the built-in `codex` Provider. It classifies two on-disk
  * families under the codex lens: `.codex/agents/*.toml` sub-agents (its own
  * TOML rule) and `.agents/skills/<name>/SKILL.md` open-standard skills
- * (reusing the `agent-skills` classifier + kind + read + resolution +
- * reserved-name catalog by manifest composition). The mixed-format read is
- * expressed as a multi-rule `read` array, one parser per family.
+ * (reusing the `agent-skills` classifier + kind + read + resolution by
+ * manifest composition, but NOT the reserved-name catalog: Codex invokes
+ * skills via `$`, not `/`, so a `$`-skill cannot shadow a `/` command). The
+ * mixed-format read is expressed as a multi-rule `read` array, one parser per
+ * family.
  */
 
 import { describe, it } from 'node:test';
 import { strictEqual, deepStrictEqual, ok } from 'node:assert';
 
 import { codexProvider } from '../index.js';
-import { COMMONS_RESERVED_NAMES } from '../../../../agent-skills/providers/agent-skills/index.js';
 
 describe('codex provider, manifest shape', () => {
   it('declares the vendor identity (gated lens, beta)', () => {
@@ -49,17 +50,17 @@ describe('codex provider, manifest shape', () => {
     strictEqual(md.bodyField, undefined);
   });
 
-  it('resolves `@` mentions to agents and `/` invocations to skills', () => {
-    deepStrictEqual(codexProvider.resolution?.['mentions'], ['agent']);
+  it('resolves `$` skill invocations to skills, with no `@` mention resolution', () => {
     deepStrictEqual(codexProvider.resolution?.['invokes'], ['skill']);
+    // Codex's `@` is a file picker (path-resolved references via the `at-file`
+    // extractor), not an agent-mention grammar, so there is no `mentions` entry.
+    strictEqual(codexProvider.resolution?.['mentions'], undefined);
   });
 
-  it('inherits the open-standard reserved-name base under `skill` (self scope)', () => {
-    const reserved = codexProvider.reservedNames?.['skill'] ?? [];
-    ok(reserved.length > 0, 'expected an inherited reserved-name catalog');
-    for (const base of COMMONS_RESERVED_NAMES['skill'] ?? []) {
-      ok(reserved.includes(base), `missing inherited base verb: ${base}`);
-    }
+  it('declares no reserved skill names (Codex invokes skills via `$`, not `/`)', () => {
+    // A `$`-skill named `model` cannot shadow Codex's built-in `/model`
+    // command (disjoint namespaces), so codex omits `reservedNames` entirely.
+    strictEqual(codexProvider.reservedNames, undefined);
   });
 });
 

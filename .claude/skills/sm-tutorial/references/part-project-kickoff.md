@@ -22,9 +22,10 @@ The chapters grow the harness from there.
 
 **Codex deltas (rich track).** When `tutorial.provider == codex`:
 
-- `kickoff` / `manual`: identical. A `.codex/` project resolves the `codex`
-  lens; `CLAUDE.md`'s `@AGENTS.md` reference resolves the same (Codex has the
-  `@`-directive). `AGENTS.md` is still the one boot node.
+- `kickoff` / `manual`: identical flow (`sm init` then `sm`, no lens
+  prompt, `.codex/` outranks the shared `.agents/` home). `CLAUDE.md`'s
+  `@AGENTS.md` reference resolves the same (Codex has the `@`-directive).
+  `AGENTS.md` is still the one boot node.
 - `first-agent`: the `content-editor` is a **TOML agent** at
   `.codex/agents/content-editor.toml`, not a `.claude/agents/*.md` file; point
   the tester at the `.toml` if they want to peek. Its body references the style
@@ -53,13 +54,13 @@ disk. The orchestrator's `portfolio-init` already cleared it during
 pre-flight, so the tester sees only the portfolio. If anything demo
 lingers, mention it once and move on.
 
-**Context (agent, do not narrate the plumbing): the lens.** The skill
-was scaffolded under `.claude/` (the `claude` marker, where the tutorial
-skill itself lives), so `sm init` auto-detects the `claude` lens with no
-prompt. The root `AGENTS.md` is the vendor-neutral handbook, NOT a lens
-marker, so it never forces an ambiguous prompt. (This is the rich track;
-a Codex project resolves the `codex` lens the same way from its
-`.codex/` marker.) Do not promise the tester a lens prompt here.
+**Context (agent, do not narrate the plumbing): the lens.** `sm init`
+auto-detects the lens with no prompt: claude from its lone `.claude/`
+marker, codex from `.codex/` (which outranks the shared `.agents/` open
+default, so the extra `.agents/skills/` skill home does NOT trigger an
+ambiguous prompt). The root `AGENTS.md` is the vendor-neutral handbook,
+NOT a lens marker, so it never forces a prompt either. Do not promise the
+tester a lens prompt here.
 
 ```bash
 sm init

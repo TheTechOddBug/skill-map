@@ -76,13 +76,11 @@ export const atDirectiveExtractor: IBuiltInManifest<IExtractor> = {
   kind: 'extractor',
   description: 'Detects `@<token>` directives in a node\'s body using Claude Code rules, choosing the link kind by token shape. Example: a bare handle `@team` becomes a `mentions` link, while a file-flavoured token `@docs/api.md` becomes a `references` link.',
   scope: 'body',
-  // Authorised under the claude AND codex lenses: OpenAI Codex sub-agents
-  // reference each other with the same `@<name>` mention grammar, and their
-  // prompt (the TOML `developer_instructions` body, fed in via the codex
-  // provider's `read.bodyField`) carries the same `@` tokens. The gate is the active
-  // lens, not the node's provider, so under `codex` this parses `@` across
-  // the project's markdown surface just as it does under `claude`.
-  precondition: { provider: ['claude', 'codex'] },
+  // Claude-only. This is Claude's `@<name>` grammar, where a bare handle is
+  // an agent / entity MENTION. OpenAI Codex's `@` is a file-path picker, not
+  // a mention grammar, so codex is NOT gated here; the codex-owned `at-file`
+  // extractor covers `@`-as-file-reference under the codex lens.
+  precondition: { provider: ['claude'] },
 
   // eslint-disable-next-line complexity
   extract(ctx: IExtractorContext): void {

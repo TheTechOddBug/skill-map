@@ -1,6 +1,6 @@
 name = "master-agent"
 description = "Example agent used by the advanced tutorial. The target node when we exercise extractors, analyzers, and the plugin-authoring flow."
-model = "gpt-5-codex"
+model = "gpt-5.5"
 developer_instructions = """
 # master-agent
 

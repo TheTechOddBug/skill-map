@@ -66,31 +66,36 @@ export const COMMONS_KINDS: Record<string, IProviderKind> = {
 };
 
 // Resolution map: an `invokes` link resolves to a `skill` target. NOTE: the
-// Agent Skills standard itself does NOT define a `/`-invocation syntax, a skill
+// Agent Skills standard itself does NOT define an invocation syntax, a skill
 // activates by its `description` (progressive disclosure) and connects to other
 // files via relative markdown links (`[text](path)`). This export exists for
-// VENDOR composition: the providers that DO parse slash (claude / codex /
-// antigravity, listed in the `slash-command` extractor precondition) spread it
-// so their `/skill` invocations resolve to skills. Under the neutral
-// `agent-skills` lens it is dormant: no extractor emits `invokes` here, so only
-// markdown `references` form. Do NOT add `agent-skills` to the slash precondition,
-// that would inject a vendor `/` convention into the vendor-neutral lens.
+// VENDOR composition: vendors whose runtime invokes skills spread it so their
+// invocations resolve to skills. The invocation SIGIL is vendor-specific:
+// claude / antigravity emit `invokes` from `/`-slash (the `slash-command`
+// extractor precondition), OpenAI Codex from `$` (its own `dollar-skill`
+// extractor, since `/` is a Codex built-in command). Under the neutral
+// `agent-skills` lens this map is dormant: no extractor emits `invokes` here, so
+// only markdown `references` form. Do NOT add `agent-skills` to the slash
+// precondition, that would inject a vendor `/` convention into the neutral lens.
 export const COMMONS_RESOLUTION: Record<string, string[]> = { invokes: ['skill'] };
 
 /**
- * Base reserved-name catalog for the open standard, owned here and
- * inherited by every Provider that adopts the `.agents/skills/` layout
- * (manifest composition, same pattern as the `COMMONS_*` pieces above,
- * not a kernel rule). These are the slash commands an agent CLI ships
- * built-in regardless of vendor (the cross-vendor common subset, present
- * in both Claude's and Antigravity's catalogs), so a user skill that
- * shadows one is flagged by `core/name-reserved` under ANY lens that uses
- * the open standard, including the neutral `agent-skills` lens itself. Vendor
- * Providers spread this and append their OWN runtime-specific verbs (e.g.
- * Antigravity adds `goal`, `grill-me`, ...); the neutral standard never
- * carries vendor verbs. Authored lowercase, no leading `/` (the analyzer
- * normalises both sides). Declared under `skill`, the only open-standard
- * kind.
+ * Shared reserved-name catalog: the universal cross-agent slash commands an
+ * agent CLI ships built-in (`help`, `config`, `model`, ...), present in both
+ * Claude's and Antigravity's catalogs. Exported for VENDOR composition: a
+ * Provider whose runtime invokes skills through the `/` command channel
+ * spreads this base (and appends its own runtime verbs) so a user skill that
+ * could be `/`-invoked and shadows a built-in is flagged by
+ * `core/name-reserved`. Antigravity does exactly this (its skills + workflows
+ * are `/`-invoked, plus `goal`, `grill-me`, ...).
+ *
+ * It is deliberately NOT applied by the neutral `agent-skills` lens, nor by
+ * `codex`: the open Agent Skills standard documents no `/`-invocation (a skill
+ * activates by its `description`), and Codex invokes skills with `$` in a
+ * namespace disjoint from its built-in `/` commands, so a skill named `model`
+ * cannot shadow `/model`. Reserving their skill names would flag a collision
+ * that cannot happen. Authored lowercase, no leading `/` (the analyzer
+ * normalises both sides). Declared under `skill`.
  */
 export const COMMONS_RESERVED_NAMES: Record<string, readonly string[]> = {
   skill: [
@@ -163,17 +168,21 @@ export const agentSkillsProvider: IBuiltInManifest<IProvider> = {
 
   // Auto-detect marker: a `.agents/` directory marks an open-standard
   // project. This is also the marker a Google/Antigravity project carries
-  // (Antigravity adopted the open standard). The marker only produces an
-  // auto-detect candidate once this experimental provider is enabled.
-  // Provider-owned.
-  detect: { markers: ['.agents'] },
+  // (Antigravity adopted the open standard) and the shared skill home a
+  // Codex project populates under `.agents/skills/`. `fallback: true` makes
+  // this candidate yield to any vendor marker present alongside `.agents/`:
+  // a `.codex/` + `.agents/` project resolves `codex` outright, never an
+  // ambiguous `codex` vs `agent-skills` prompt. The `.agents/` marker only
+  // wins when no vendor marker is present. Provider-owned.
+  detect: { markers: ['.agents'], fallback: true },
 
   // Authoring target for `sm tutorial`: the open standard discovers skills
   // under `.agents/skills/<name>/SKILL.md`. `aka` lists Antigravity, which
   // shares this territory AND the BASIC tutorial track (skill + markdown,
   // references), so a tester on Antigravity scaffolds here. OpenAI Codex
   // also reads `.agents/skills/`, but Codex is a RICH-track lens (it has the
-  // `agent` kind, slash and `@`), so advertising it under this basic row
+  // `agent` kind, plus `$`-skill invocation and `@`-file references), so
+  // advertising it under this basic row
   // would hand it the wrong book; Codex is surfaced once a Codex rich
   // scaffold target lands. `aka` is display-only, `--for` matches the id.
   scaffold: { skillDir: '.agents/skills', aka: ["Google's Antigravity"] },
@@ -184,10 +193,12 @@ export const agentSkillsProvider: IBuiltInManifest<IProvider> = {
 
   resolution: COMMONS_RESOLUTION,
 
-  // Base reserved-name catalog (self-scope under the `agent-skills` lens). The
-  // shared export is inherited by every Provider that adopts the open
-  // standard (see `COMMONS_RESERVED_NAMES` above).
-  reservedNames: COMMONS_RESERVED_NAMES,
+  // NO `reservedNames`: the neutral open standard has no `/`-invocation, a
+  // skill activates by its `description` and connects via markdown links, so
+  // a skill name cannot shadow a built-in `/` command. The shared
+  // `COMMONS_RESERVED_NAMES` export above is for `/`-invoking vendors
+  // (Antigravity) to spread, NOT applied here. See spec/architecture.md
+  // §Provider · reservedNames.
 
   classify: classifyCommonsPath,
 };

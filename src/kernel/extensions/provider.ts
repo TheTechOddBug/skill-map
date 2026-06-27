@@ -263,6 +263,18 @@ export interface IProviderDetect {
    * A directory or a file both count; existence is the only test.
    */
   markers: string[];
+  /**
+   * When `true`, this Provider is the open-standard FALLBACK lens: its
+   * markers produce a detection candidate ONLY when no non-fallback
+   * (vendor) Provider matched under the same scope. Reserved for
+   * `agent-skills`, whose `.agents/` marker is the shared skill home that
+   * vendor lenses (`codex`, `antigravity`) also populate; without this flag
+   * a `.codex/` + `.agents/` project would falsely read as an ambiguous
+   * `codex` vs `agent-skills` pair. Vendor Providers omit it (default
+   * `false`) so two vendor markers still surface a real ambiguous prompt.
+   * Mirrors `provider.schema.json#/properties/detect/properties/fallback`.
+   */
+  fallback?: boolean;
 }
 
 /**

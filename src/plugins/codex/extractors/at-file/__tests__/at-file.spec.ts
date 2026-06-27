@@ -1,0 +1,103 @@
+import { describe, it } from 'node:test';
+import { strictEqual } from 'node:assert';
+
+import { atFileExtractor } from '../index.js';
+import type { IExtractorContext, IEmittedNode } from '../../../../../kernel/extensions/index.js';
+import { resolveSignals } from '../../../../../kernel/orchestrator/resolver.js';
+import type { Link, Node, Signal } from '../../../../../kernel/types.js';
+
+function mockNode(path: string): Node {
+  return {
+    path,
+    kind: 'agent',
+    provider: 'codex',
+    bodyHash: '0'.repeat(64),
+    frontmatterHash: '0'.repeat(64),
+    bytes: { frontmatter: 0, body: 0, total: 0 },
+    linksOutCount: 0,
+    linksInCount: 0,
+    externalRefsCount: 0,
+    frontmatter: {},
+  };
+}
+
+function makeContext(node: Node, body: string): {
+  ctx: IExtractorContext;
+  links: Link[];
+  signals: Signal[];
+  virtualNodes: IEmittedNode[];
+} {
+  const links: Link[] = [];
+  const signals: Signal[] = [];
+  const virtualNodes: IEmittedNode[] = [];
+  const ctx: IExtractorContext = {
+    node,
+    body,
+    frontmatter: node.frontmatter ?? {},
+    settings: {},
+    emitLink: (link) => links.push(link),
+    enrichNode: () => undefined,
+    emitContribution: () => undefined,
+    emitSignal: (s) => signals.push(s),
+    emitNode: (n) => virtualNodes.push(n),
+  };
+  return { ctx, links, signals, virtualNodes };
+}
+
+async function runAndResolve(helper: ReturnType<typeof makeContext>): Promise<void> {
+  await atFileExtractor.extract(helper.ctx);
+  if (helper.signals.length === 0) return;
+  const resolved = resolveSignals({
+    signals: helper.signals,
+    activeProvider: null,
+    extractorOrder: ['at-file'],
+  });
+  for (const link of resolved.links) helper.links.push(link);
+}
+
+describe('at-file extractor (codex)', () => {
+  it('emits a references link for a sibling file token (known extension)', async () => {
+    const helper = makeContext(mockNode('.codex/agents/deployer.toml'), 'hand off to @builder.toml when done');
+    await runAndResolve(helper);
+    strictEqual(helper.links.length, 1);
+    const link = helper.links[0]!;
+    strictEqual(link.kind, 'references');
+    strictEqual(link.target, '.codex/agents/builder.toml');
+    strictEqual(link.confidence, 0.85);
+    strictEqual(link.sources[0], 'at-file');
+  });
+
+  it('emits a references link for a relative path token', async () => {
+    const helper = makeContext(mockNode('.codex/agents/deployer.toml'), 'see @./style.md for rules');
+    await runAndResolve(helper);
+    strictEqual(helper.links.length, 1);
+    strictEqual(helper.links[0]!.kind, 'references');
+    strictEqual(helper.links[0]!.target, '.codex/agents/style.md');
+  });
+
+  it('forms NO edge for a bare handle (no path, no extension)', async () => {
+    const helper = makeContext(mockNode('.codex/agents/deployer.toml'), 'brief @reviewer before shipping');
+    await runAndResolve(helper);
+    strictEqual(helper.links.length, 0);
+    strictEqual(helper.signals.length, 0);
+  });
+
+  it('skips absolute path tokens', async () => {
+    const helper = makeContext(mockNode('x.toml'), 'open @/etc/passwd.txt please');
+    await runAndResolve(helper);
+    strictEqual(helper.links.length, 0);
+    strictEqual(helper.signals.length, 0);
+  });
+
+  it('skips tokens inside code spans and fenced blocks', async () => {
+    const helper = makeContext(mockNode('x.toml'), 'inline `@foo.md` and:\n```\n@bar.md\n```\n');
+    await runAndResolve(helper);
+    strictEqual(helper.links.length, 0);
+  });
+
+  it('deduplicates a file token repeated in the body', async () => {
+    const helper = makeContext(mockNode('a/x.toml'), 'see @notes.md and again @notes.md');
+    await runAndResolve(helper);
+    strictEqual(helper.links.length, 1);
+  });
+});

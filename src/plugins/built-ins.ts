@@ -21,6 +21,8 @@ import { slashCommandExtractor as _slashCommandExtractor } from './claude/extrac
 import { toolsCounterExtractor as _toolsCounterExtractor } from './claude/extractors/tools-counter/index.js';
 import { antigravityProvider as _antigravityProvider } from './antigravity/providers/antigravity/index.js';
 import { codexProvider as _codexProvider } from './codex/providers/codex/index.js';
+import { atFileExtractor as _atFileExtractor } from './codex/extractors/at-file/index.js';
+import { dollarSkillExtractor as _dollarSkillExtractor } from './codex/extractors/dollar-skill/index.js';
 import { agentSkillsProvider as _agentSkillsProvider } from './agent-skills/providers/agent-skills/index.js';
 import { coreMarkdownProvider as _coreMarkdownProvider } from './core/providers/core-markdown/index.js';
 import { backtickPathExtractor as _backtickPathExtractor } from './core/extractors/backtick-path/index.js';
@@ -55,6 +57,8 @@ const slashCommandExtractor = { ..._slashCommandExtractor, pluginId: 'claude', v
 const toolsCounterExtractor = { ..._toolsCounterExtractor, pluginId: 'claude', version: VERSION };
 const antigravityProvider = { ..._antigravityProvider, pluginId: 'antigravity', version: VERSION };
 const codexProvider = { ..._codexProvider, pluginId: 'codex', version: VERSION };
+const atFileExtractor = { ..._atFileExtractor, pluginId: 'codex', version: VERSION };
+const dollarSkillExtractor = { ..._dollarSkillExtractor, pluginId: 'codex', version: VERSION };
 const agentSkillsProvider = { ..._agentSkillsProvider, pluginId: 'agent-skills', version: VERSION };
 const coreMarkdownProvider = { ..._coreMarkdownProvider, pluginId: 'core', version: VERSION };
 const backtickPathExtractor = { ..._backtickPathExtractor, pluginId: 'core', version: VERSION };
@@ -123,6 +127,8 @@ export const builtInPlugins: IBuiltInPlugin[] = [
     description: 'OpenAI Codex CLI platform integration. Classifies TOML sub-agent definitions under `.codex/agents/*.toml`.',
     extensions: [
       codexProvider,
+      atFileExtractor,
+      dollarSkillExtractor,
     ],
   },
   {

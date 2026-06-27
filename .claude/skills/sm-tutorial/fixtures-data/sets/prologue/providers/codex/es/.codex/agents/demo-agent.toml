@@ -1,6 +1,6 @@
 name = "demo-agent"
 description = "Agente de ejemplo que maneja tareas de lectura y shell. Nodo solo al arranque; se conecta al resto del fixture demo durante el paso de UI en vivo."
-model = "gpt-5-codex"
+model = "gpt-5.5"
 developer_instructions = """
 # demo-agent
 

@@ -228,14 +228,16 @@ function lookupAllowedKinds(
 }
 
 /**
- * Strip the leading `@` or `/` sigil from a normalized trigger so the
- * remaining handle aligns with the name index entries (which are
- * stored sigil-free). Returns `null` when the trigger is empty / absent
+ * Strip the leading `@`, `/` or `$` sigil from a normalized trigger so
+ * the remaining handle aligns with the name index entries (which are
+ * stored sigil-free). `$` is Codex's skill-invocation sigil (`$skill`,
+ * emitted by the codex `dollar-skill` extractor), the analog of `/` for
+ * claude/antigravity. Returns `null` when the trigger is empty / absent
  * so the caller can short-circuit.
  */
 function stripTriggerSigil(normalized: string | undefined): string | null {
   if (!normalized) return null;
-  const trimmed = normalized.replace(/^[/@]/, '').trim();
+  const trimmed = normalized.replace(/^[/@$]/, '').trim();
   return trimmed.length === 0 ? null : trimmed;
 }
 

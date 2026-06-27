@@ -1,6 +1,6 @@
 name = "content-editor"
 description = "Escribe y edita las páginas del portfolio. Lee un brief, sigue la guía de estilo y emite el HTML en public/."
-model = "gpt-5-codex"
+model = "gpt-5.5"
 developer_instructions = """
 # content-editor
 

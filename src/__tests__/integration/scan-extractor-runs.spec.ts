@@ -277,13 +277,25 @@ describe('scan_extractor_runs, fine-grained Extractor cache', () => {
     const probeRows = runRows.filter((r) => r.extractorId === 'test/probe');
     strictEqual(probeRows.length, 2, 'probe ran on both nodes');
     const fixtureKinds = ['agent', 'command'];
+    // The fixture is a `.claude/` corpus, so the active lens is `claude`.
+    const activeLens = 'claude';
     for (const built of baseline.extractors) {
       const qualified = `${built.pluginId}/${built.id}`;
       const rows = runRows.filter((r) => r.extractorId === qualified);
-      // Structure-as-truth: filter lives in `precondition.kind` (qualified
+      // A provider-gated extractor only runs when the active lens is in its
+      // `precondition.provider` list. A codex-only extractor (codex/dollar-skill,
+      // codex/at-file) never runs under the claude lens, so it persists zero rows.
+      const preconditionProviders = built.precondition?.provider;
+      const providerGatedOff =
+        preconditionProviders !== undefined &&
+        preconditionProviders.length > 0 &&
+        !preconditionProviders.includes(activeLens);
+      // Structure-as-truth: kind filter lives in `precondition.kind` (qualified
       // `<plugin>/<kindName>`); match against the kind segment after the slash.
       const preconditionKinds = built.precondition?.kind;
-      const expected = preconditionKinds && preconditionKinds.length > 0
+      const expected = providerGatedOff
+        ? 0
+        : preconditionKinds && preconditionKinds.length > 0
         ? fixtureKinds.filter((k) =>
             preconditionKinds.some((qk) => {
               const i = qk.indexOf('/');
@@ -294,7 +306,7 @@ describe('scan_extractor_runs, fine-grained Extractor cache', () => {
       strictEqual(
         rows.length,
         expected,
-        `built-in ${qualified} carries forward expected nodes (precondition.kind=${preconditionKinds ? preconditionKinds.join(',') : 'any'})`,
+        `built-in ${qualified} carries forward expected nodes (precondition.provider=${preconditionProviders ? preconditionProviders.join(',') : 'any'}, precondition.kind=${preconditionKinds ? preconditionKinds.join(',') : 'any'})`,
       );
     }
   });
@@ -466,10 +478,17 @@ describe('scan_extractor_runs, fine-grained Extractor cache', () => {
 
     // Every applicable extractor visited the changed file exactly once,
     // and never visited the unchanged sibling.
+    const activeLens = 'claude';
     for (const ex of baseline.extractors) {
+      // A provider-gated extractor only runs when the active lens is in its
+      // `precondition.provider` list; a codex-only extractor (codex/dollar-skill,
+      // codex/at-file) never runs under the claude lens, so skip it (it visits
+      // no node). The universal `core` + claude extractors apply here.
+      const provs = ex.precondition?.provider;
+      if (provs && provs.length > 0 && !provs.includes(activeLens)) continue;
       // applicableKinds may exclude some kinds, only assert against
       // those whose filter accepts both 'agent' (architect) and 'command'
-      // (deploy). The four built-ins all apply universally.
+      // (deploy).
       const calls = callsByExtractor.get(ex.id) ?? [];
       ok(
         calls.includes(architectPath),
