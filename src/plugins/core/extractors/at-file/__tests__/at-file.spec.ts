@@ -75,6 +75,14 @@ describe('at-file extractor (core, @-file-picker lenses)', () => {
     strictEqual(helper.links[0]!.target, '.codex/agents/style.md');
   });
 
+  it('resolves a multi-level relative path token (`../../` climbs past one level)', async () => {
+    const helper = makeContext(mockNode('.agent/workflows/build.md'), 'consult @../../docs/guide.md before shipping');
+    await runAndResolve(helper);
+    strictEqual(helper.links.length, 1);
+    strictEqual(helper.links[0]!.kind, 'references');
+    strictEqual(helper.links[0]!.target, 'docs/guide.md');
+  });
+
   it('forms NO edge for a bare handle (no path, no extension)', async () => {
     const helper = makeContext(mockNode('.codex/agents/deployer.toml'), 'brief @reviewer before shipping');
     await runAndResolve(helper);

@@ -19,7 +19,9 @@ import { posix as pathPosix } from 'node:path';
 
 /**
  * Token grammar (after the leading `@`):
- *   - Optional path prefix: `./`, `../`, or leading `/`.
+ *   - Optional path prefix: one or more `./` / `../` segments (so a
+ *     multi-level `../../x` climbs past one directory), or a single leading
+ *     `/`. Matches how the file-picker runtimes resolve a relative `@path`.
  *   - Required first identifier segment: `[a-z0-9][a-z0-9_-]*`.
  *   - Optional path / namespace tail anchored so the LAST char is
  *     alphanumeric or `_` (excludes a trailing `.` sentence punctuation
@@ -29,7 +31,7 @@ import { posix as pathPosix } from 'node:path';
  * match). The match is case-insensitive; capture group 1 is the `@`-token.
  */
 export const AT_TOKEN_RE =
-  /(?:^|[^A-Za-z0-9_@])(@(?:\.{1,2}\/|\/)?[a-z0-9](?:[a-z0-9_\-./]*[a-z0-9_])?(?::[a-z0-9][a-z0-9_-]*)?)/gi;
+  /(?:^|[^A-Za-z0-9_@])(@(?:(?:\.{1,2}\/)+|\/)?[a-z0-9](?:[a-z0-9_\-./]*[a-z0-9_])?(?::[a-z0-9][a-z0-9_-]*)?)/gi;
 
 /**
  * File extensions skill-map treats as a strong "this is a file reference, not
