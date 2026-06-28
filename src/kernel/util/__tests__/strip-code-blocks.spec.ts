@@ -1,7 +1,13 @@
 import { describe, it } from 'node:test';
 import { strictEqual } from 'node:assert/strict';
 
-import { extractCodeRegions, stripCodeAndHtml, stripCodeBlocks, stripHtml } from '../strip-code-blocks.js';
+import {
+  extractCodeRegions,
+  findBacktickImbalance,
+  stripCodeAndHtml,
+  stripCodeBlocks,
+  stripHtml,
+} from '../strip-code-blocks.js';
 
 describe('stripCodeBlocks', () => {
   it('returns empty input untouched', () => {
@@ -198,5 +204,59 @@ describe('stripCodeAndHtml', () => {
     strictEqual(/x\.md/.test(out), false); // html comment gone
     strictEqual(/y\.md/.test(out), false); // attribute gone
     strictEqual(/\[z\]\(z\.md\)/.test(out), true); // real prose link survives
+  });
+});
+
+describe('findBacktickImbalance', () => {
+  it('returns null for empty / code-free prose', () => {
+    strictEqual(findBacktickImbalance(''), null);
+    strictEqual(findBacktickImbalance('plain prose, no backticks'), null);
+  });
+
+  it('returns null when an inline span and a fence are balanced', () => {
+    const body = 'A `inline` span\n\n```js\nconst a = 1;\n```\n\nDone.';
+    strictEqual(findBacktickImbalance(body), null);
+  });
+
+  it('flags an unclosed fenced block at the opening fence line', () => {
+    const body = 'intro\n```js\nconst a = `x\nmore code\n';
+    const r = findBacktickImbalance(body);
+    strictEqual(r?.kind, 'fence');
+    strictEqual(r?.line, 2);
+  });
+
+  it('flags an unclosed inline backtick at its line, with the source line', () => {
+    const body = 'one\ntwo\nthree `oops\n';
+    const r = findBacktickImbalance(body);
+    strictEqual(r?.kind, 'inline');
+    strictEqual(r?.line, 3);
+    strictEqual(r?.sourceLine, 'three `oops');
+  });
+
+  // Regression: a 3-backtick fence shown INSIDE a 4-backtick wrapper is
+  // valid (stripCodeBlocks closes the outer on length >= rule). The old
+  // analyzer's `ch === fenceChar` close (length-blind) mis-fired here.
+  it('does NOT flag a fence nested inside a longer wrapper fence', () => {
+    const body = '````md\nTo start a code block, type:\n```\n````\n';
+    strictEqual(findBacktickImbalance(body), null);
+    // And the policy it protects agrees the block is fully stripped.
+    strictEqual(/type:/.test(stripCodeBlocks(body)), false);
+  });
+
+  it('treats a backslash-escaped backtick as literal text (no false positive)', () => {
+    strictEqual(findBacktickImbalance('A literal \\` backtick stays plain.'), null);
+  });
+
+  it('treats a 4-space-indented ``` as a NON-fence (CommonMark indent rule)', () => {
+    // FENCE_RE allows up to 3 spaces of indent; 4 spaces is an indented
+    // code block, NOT a fence opener (matches stripCodeBlocks). So this
+    // never opens a fence that swallows the rest of the file; the leftover
+    // run reads as an unclosed inline backtick, never `kind: 'fence'`.
+    const r = findBacktickImbalance('prose\n    ```\nmore prose');
+    strictEqual(r?.kind, 'inline');
+  });
+
+  it('returns null for a double-backtick span wrapping a literal backtick', () => {
+    strictEqual(findBacktickImbalance('Use ``code ` here`` to wrap.'), null);
   });
 });

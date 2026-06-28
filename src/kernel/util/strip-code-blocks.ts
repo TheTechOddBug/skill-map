@@ -35,6 +35,71 @@ export function stripCodeBlocks(input: string): string {
 }
 
 /**
+ * The verdict surfaced by `findBacktickImbalance`: which kind of
+ * backtick was left open, and where.
+ */
+export interface IBacktickImbalance {
+  /** `'fence'` for an unclosed ``` / ~~~ block; `'inline'` for an open span. */
+  kind: 'fence' | 'inline';
+  /** 1-indexed line WITHIN `body` (callers add any frontmatter offset). */
+  line: number;
+  /** The offending source line, trimmed, for the issue `detail`. */
+  sourceLine: string;
+}
+
+/**
+ * Find the FIRST unclosed backtick in `body`, deriving the verdict from
+ * the exact same fence + inline scanners `stripCodeBlocks` uses, so a
+ * "backtick balance" warning can never drift from the code-strip policy
+ * it protects. Two checks, in order:
+ *
+ *   1. Fenced block: an opener (``` / ~~~) with no same-char closer of
+ *      length >= the opener (the CommonMark rule `matchClosingFence`
+ *      enforces). An open fence at EOF wins and short-circuits: the
+ *      dangling fence has already corrupted the mask, so the inline pass
+ *      below would be noise.
+ *   2. Inline span: after blanking fenced lines (`scanFences`) and
+ *      masking backslash-escaped chars (a literal `` \` `` is text in
+ *      CommonMark, never opens a span), any backtick that survives
+ *      `stripInline` has no equal-length closer. The first survivor is
+ *      the open span.
+ *
+ * Returns `null` when every fence and every inline span is balanced.
+ */
+export function findBacktickImbalance(body: string): IBacktickImbalance | null {
+  if (!body) return null;
+  const { stripped, openFenceLine } = scanFences(body);
+  if (openFenceLine > 0) {
+    return { kind: 'fence', line: openFenceLine, sourceLine: sourceLineAt(body, openFenceLine) };
+  }
+  const survivor = stripInline(maskEscapes(stripped)).indexOf('`');
+  if (survivor < 0) return null;
+  const line = lineOfIndex(stripped, survivor);
+  return { kind: 'inline', line, sourceLine: sourceLineAt(body, line) };
+}
+
+/**
+ * Mask backslash-escaped chars (`\x` -> two spaces) so a literal `` \` ``
+ * is not read as a span opener. Two spaces keep offsets + line numbers
+ * stable. CommonMark: a backslash escapes the next character.
+ */
+function maskEscapes(text: string): string {
+  return text.replace(/\\[^\n]/g, '  ');
+}
+
+/** 1-indexed line number of char `idx` within `text`. */
+function lineOfIndex(text: string, idx: number): number {
+  let line = 1;
+  for (let i = 0; i < idx; i++) if (text[i] === '\n') line++;
+  return line;
+}
+
+/** The trimmed source line at 1-indexed `line` within `text`. */
+function sourceLineAt(text: string, line: number): string {
+  return text.split('\n')[line - 1]?.trim() ?? '';
+}
+
+/**
  * The exact inverse mask of `stripCodeBlocks`: code-region characters
  * survive, everything else (prose) is blanked to same-length whitespace.
  * Newlines are preserved everywhere, so byte offsets and line numbers
@@ -131,31 +196,43 @@ export function stripCodeAndHtml(input: string): string {
   return stripHtml(stripCodeBlocks(input));
 }
 
-function stripFences(input: string): string {
+/**
+ * Walk `input` line by line, blanking fenced-code lines AND tracking
+ * whether a fence is left open at end of input. `stripFences` is the
+ * blank-only projection of this walk; `findBacktickImbalance` reuses the
+ * SAME walk for its fence verdict, so a "fence never closed" warning can
+ * never drift from the code-strip policy it protects.
+ *
+ * `openFenceLine` is the 1-indexed line of the still-open opener, or 0
+ * when every fence is balanced.
+ */
+function scanFences(input: string): { stripped: string; openFenceLine: number } {
   const out: string[] = [];
   const lines = input.split('\n');
   let openFence: string | null = null;
-  for (const line of lines) {
+  let openFenceLine = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
     if (openFence) {
       // Inside a fenced block; check if this line closes it.
-      const closer = matchClosingFence(line, openFence);
-      if (closer) {
-        out.push(blank(line));
-        openFence = null;
-      } else {
-        out.push(blank(line));
-      }
+      if (matchClosingFence(line, openFence)) openFence = null;
+      out.push(blank(line));
       continue;
     }
     const open = FENCE_RE.exec(line);
     if (open?.groups) {
       openFence = open.groups['fence']!;
+      openFenceLine = i + 1;
       out.push(blank(line));
       continue;
     }
     out.push(line);
   }
-  return out.join('\n');
+  return { stripped: out.join('\n'), openFenceLine: openFence ? openFenceLine : 0 };
+}
+
+function stripFences(input: string): string {
+  return scanFences(input).stripped;
 }
 
 function matchClosingFence(line: string, openFence: string): boolean {

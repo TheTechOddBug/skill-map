@@ -162,8 +162,7 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // `core/job-file-orphan` (the rule that flagged orphan MD files under .skill-map/jobs/) was removed, to be reintroduced later under a probabilistic evaluation model; the `findOrphanJobFiles` helper + `sm job prune --orphan-files` verb stay, dropping the total to 36.
     // The supersede feature was removed wholesale: the `core/annotations` extractor (its only producer), the `core/node-supersede` action, and the `core/node-superseded` analyzer were all deleted, dropping the total to 33.
     // The codex `$skill` / `@`-file grammar split added two codex-owned extractors (`codex/dollar-skill`, `codex/at-file`), bringing it to 35.
-    // `core/backtick-balance` (analyzer that flags an unclosed backtick, fenced block or inline span, in a node body, the body-syntax defect that corrupts the code-strip policy) brings it to 36.
-    assert.equal(rows.length, 36);
+    assert.equal(rows.length, 35);
   });
 
   // Convention guard: every built-in EXTRACTOR description ends with a
