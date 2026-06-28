@@ -60,13 +60,13 @@ Wait for confirmation. Mark `kickoff`: done.
 Tell the tester to create the file themselves (their project's file, Inviolable
 rule #2):
 
-> Create a file called `CLAUDE.md` at the project root with exactly this content:
+> Create a file called `README.md` at the project root with exactly this content:
 >
 > ```markdown
 > See the [handbook](AGENTS.md).
 > ```
 >
-> Save it. Watch the map: a new `CLAUDE.md` node appears with a `references`
+> Save it. Watch the map: a new `README.md` node appears with a `references`
 > connector pointing at `AGENTS.md`, solid at 1.00. The markdown link
 > `[handbook](AGENTS.md)` is a file pointer (the same kind of reference you met
 > in the prologue), and since the handbook is right there the link resolves with
@@ -117,7 +117,7 @@ Tell the tester:
 > front of you:
 >
 > - **skill**: `content-editor` (does work on your behalf).
-> - **markdown**: `AGENTS.md`, `CLAUDE.md`, the two docs (plain notes and
+> - **markdown**: `AGENTS.md`, `README.md`, the two docs (plain notes and
 >   manuals).
 >
 > Your lens authors exactly these two; Claude and Codex projects add `agent` and
@@ -188,10 +188,10 @@ Continue the tester message:
 > - `publish -> content-editor` (the `[content-editor](../content-editor/SKILL.md)` link)
 > - `publish -> docs/DEPLOY.md` (the `[deploy runbook](../../../docs/DEPLOY.md)` link)
 >
-> One node, three connectors, all references. On a vendor lens (claude/codex) the
-> first two would be a `/`-invoke and an `@`-mention; the open standard wires
-> everything with file links, and that is all this lens emits. The harness is
-> starting to look like a real graph.
+> One node, three connectors, all references. Wiring the whole harness with
+> markdown file links keeps it portable: each reference resolves the same way on
+> any runtime that speaks the open standard. The harness is starting to look
+> like a real graph.
 >
 > 💡 Tip: to tidy the layout, click **Re-arrange layout** in the map toolbar.
 >

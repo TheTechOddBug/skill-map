@@ -128,8 +128,8 @@ You edit `notes/todo.md` so it becomes the **hub** that points to the other
 nodes. On this lens there is exactly one connector: the **markdown reference**.
 A bullet links to another file with `[label](relative/path)`; skill-map reads
 that as a `references` link and draws an arrow when the target resolves to a
-real file. (The rich track also has `/`-invokes and `@`-mentions; the open
-standard connects by file links only, and that is all this lens emits.)
+real file. (Wiring everything with file links keeps the harness portable: a
+reference resolves the same way on any runtime that speaks the open standard.)
 
 Apply the hub bullets (content lives in `fixtures-data/`). The edit appends
 three bullets after the `# Pending` heading. Backstage (silent):

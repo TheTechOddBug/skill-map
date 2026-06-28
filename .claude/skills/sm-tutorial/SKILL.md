@@ -276,8 +276,8 @@ the `__PROVIDER__` token and skip kinds the provider does not claim.
      `rm -rf .skill-map`.
   2. Lay the portfolio boot (Express skeleton + handbook):
      `fixtures.js lay portfolio --only "AGENTS.md,server.js,package.json,public/index.html" --provider <provider> --lang <lang>`.
-     The harness members (`CLAUDE.md`, `content-editor`, the docs) are
-     laid by their own chapters.
+     The harness members (the entry pointer, `content-editor`, the docs)
+     are laid by their own chapters.
 
   The tester runs `sm init` in the first chapter. (Later campaign
   parts use `preflight: seed`; `portfolio-init` is Part 1's flavour,

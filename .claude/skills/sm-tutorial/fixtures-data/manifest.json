@@ -19,6 +19,7 @@
     "portfolio": [
       "AGENTS.md",
       "CLAUDE.md",
+      "README.md",
       "server.js",
       "package.json",
       "AGENTS.sm",

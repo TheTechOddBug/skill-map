@@ -78,7 +78,10 @@ function writeFileEnsuring(abs, content) {
  * tier, then the per-provider overlay (`providers/<provider>/{shared,<lang>}/`).
  * The overlay carries the skill-shaped variants of nodes a lens renders
  * differently (e.g. the `content-editor` agent becomes a skill on
- * agent-skills); claude declares no overlay because the base IS its shape.
+ * agent-skills). claude is mostly the base shape, but it still carries a tiny
+ * overlay for the entry-pointer file: the portfolio root pointer is `CLAUDE.md`
+ * (claude/codex overlays) vs `README.md` (agent-skills / antigravity), so it
+ * cannot live in the universal base `shared/` tier.
  */
 function laySet(manifest, set, o, only = null) {
   const { kinds } = pdirAndKinds(o);

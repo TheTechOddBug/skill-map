@@ -12,8 +12,11 @@ model; the per-chapter invocations live in each `part-*.md`.
 fixtures-data/
   manifest.json                 sets, footprints, edits, seeds, providerToken, langs
   sets/<set>/
-    shared/                     lang-invariant files (code: server.js, package.json, CLAUDE.md)
+    shared/                     lang-invariant files (code: server.js, package.json)
     en/  es/                    one tree per language (files with translatable prose)
+    providers/<provider>/       per-lens overlay (shared/ + en/ es/); e.g. the root
+                                entry pointer is CLAUDE.md on claude/codex,
+                                README.md on agent-skills/antigravity
   edits/<edit-id>/
     en/  es/                    append fragments (one file per fragment)
 ```
