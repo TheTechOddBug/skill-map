@@ -6,6 +6,21 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>0.73.0</b> · 2026-06-28</summary>
+
+### CLI Minor
+- Add a dismissable topbar reminder pointing first-time users at `sm tutorial`. Its dismissal persists via a new project-local `tutorialReminderDismissed` config key (`.skill-map/settings.local.json`), read and written through the project-preferences BFF route.
+
+### CLI Patch
+- `sm tutorial` now offers OpenCode alongside Antigravity on the open-standard basic track: OpenCode shows up in the destination prompt and an OpenCode project (detected by `.opencode/`) resolves to the basic walkthrough built on the shared `.agents/skills/` standard.
+- Trim the antigravity and opencode `plugin.json` descriptions to drop text that duplicated their provider extension descriptions (plus a "contributes the runtime identity and reserved built-in names" boilerplate clause the other built-in plugins do not carry); the per-extension provider descriptions still hold the full path-by-path classification detail.
+
+### Spec Minor (0.66.0)
+- Add a dismissable topbar reminder pointing first-time users at `sm tutorial`. Its dismissal persists via a new project-local `tutorialReminderDismissed` config key (`.skill-map/settings.local.json`), read and written through the project-preferences BFF route.
+
+</details>
+
+<details>
 <summary><b>0.72.0</b> · 2026-06-28</summary>
 
 ### CLI Minor
