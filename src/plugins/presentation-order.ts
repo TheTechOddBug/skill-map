@@ -24,6 +24,7 @@ export const BUILT_IN_PLUGIN_PRESENTATION_ORDER: readonly string[] = [
   'claude',
   'antigravity',
   'codex',
+  'opencode',
   'agent-skills',
 ];
 

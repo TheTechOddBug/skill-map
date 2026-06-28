@@ -21,6 +21,7 @@ import { toolsCounterExtractor as _toolsCounterExtractor } from './claude/extrac
 import { antigravityProvider as _antigravityProvider } from './antigravity/providers/antigravity/index.js';
 import { codexProvider as _codexProvider } from './codex/providers/codex/index.js';
 import { dollarSkillExtractor as _dollarSkillExtractor } from './codex/extractors/dollar-skill/index.js';
+import { opencodeProvider as _opencodeProvider } from './opencode/providers/opencode/index.js';
 import { agentSkillsProvider as _agentSkillsProvider } from './agent-skills/providers/agent-skills/index.js';
 import { coreMarkdownProvider as _coreMarkdownProvider } from './core/providers/core-markdown/index.js';
 import { atFileExtractor as _atFileExtractor } from './core/extractors/at-file/index.js';
@@ -57,6 +58,7 @@ const toolsCounterExtractor = { ..._toolsCounterExtractor, pluginId: 'claude', v
 const antigravityProvider = { ..._antigravityProvider, pluginId: 'antigravity', version: VERSION };
 const codexProvider = { ..._codexProvider, pluginId: 'codex', version: VERSION };
 const dollarSkillExtractor = { ..._dollarSkillExtractor, pluginId: 'codex', version: VERSION };
+const opencodeProvider = { ..._opencodeProvider, pluginId: 'opencode', version: VERSION };
 const agentSkillsProvider = { ..._agentSkillsProvider, pluginId: 'agent-skills', version: VERSION };
 const coreMarkdownProvider = { ..._coreMarkdownProvider, pluginId: 'core', version: VERSION };
 const atFileExtractor = { ..._atFileExtractor, pluginId: 'core', version: VERSION };
@@ -127,6 +129,13 @@ export const builtInPlugins: IBuiltInPlugin[] = [
     extensions: [
       codexProvider,
       dollarSkillExtractor,
+    ],
+  },
+  {
+    id: 'opencode',
+    description: 'OpenCode CLI platform integration (open-source, model-agnostic terminal coding agent). Classifies OpenCode agents under `.opencode/agent/*.md` and commands under `.opencode/commands/*.md` (its own kinds), and adopts the skill homes OpenCode reads (`.opencode/skills/`, `.claude/skills/`, `.agents/skills/`); contributes the OpenCode runtime identity and reserved built-in names.',
+    extensions: [
+      opencodeProvider,
     ],
   },
   {

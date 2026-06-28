@@ -1,5 +1,5 @@
 import { describe, it } from 'node:test';
-import { strictEqual } from 'node:assert';
+import { strictEqual, deepStrictEqual } from 'node:assert';
 
 import { slashCommandExtractor } from '../index.js';
 import type { IExtractorContext, IEmittedNode } from '../../../../../kernel/extensions/index.js';
@@ -56,6 +56,20 @@ async function runAndResolve(helper: ReturnType<typeof makeContext>): Promise<vo
 }
 
 describe('slash-command extractor', () => {
+  it('authorises the slash grammar under claude, antigravity, and opencode only', () => {
+    // Locks the shared `/`-invocation precondition: the lenses whose runtimes
+    // invoke a command / skill / workflow with `/<name>`. Codex is deliberately
+    // absent (it reserves `/` for its built-ins and invokes skills with `$`).
+    // OpenCode resolves `/<name>` to its `.opencode/commands/` (its provider
+    // declares `invokes: ['command']`); dropping it here would silently kill
+    // that edge, so this assertion guards the precondition against regressions.
+    deepStrictEqual(slashCommandExtractor.precondition?.provider, [
+      'claude',
+      'antigravity',
+      'opencode',
+    ]);
+  });
+
   it('emits an invokes link for a slash command', async () => {
     const helper = makeContext(mockNode('cmds/deploy.md'), 'run /deploy to ship');
     await runAndResolve(helper);

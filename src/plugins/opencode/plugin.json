@@ -1,0 +1,6 @@
+{
+  "version": "1.0.0",
+  "specCompat": "^0.27.0",
+  "catalogCompat": "^1.0.0",
+  "description": "OpenCode CLI platform integration (open-source, model-agnostic terminal coding agent). Classifies OpenCode agents under `.opencode/agent/*.md` and commands under `.opencode/commands/*.md` (its own kinds), and adopts the skill homes OpenCode reads (`.opencode/skills/`, `.claude/skills/`, `.agents/skills/`); contributes the OpenCode runtime identity and reserved built-in names."
+}

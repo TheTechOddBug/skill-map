@@ -282,7 +282,7 @@ describe('plugin-runtime, branch coverage', () => {
       // The `claude` provider drops; the other vendor providers and the
       // markdown fallback stay.
       const providerIds = composed.providers.map((p) => p.id).sort();
-      assert.deepEqual(providerIds, ['agent-skills', 'antigravity', 'codex', 'markdown']);
+      assert.deepEqual(providerIds, ['agent-skills', 'antigravity', 'codex', 'markdown', 'opencode']);
       // The two claude-bundled extractors (at-directive, tools-counter) drop
       // alongside the provider; the survivors are the vendor-neutral `core`
       // extractors (including the moved `slash-command` + `at-file`) PLUS
@@ -340,7 +340,7 @@ describe('plugin-runtime, branch coverage', () => {
       ]);
       // claude / antigravity / codex / agent-skills / core-markdown providers
       // untouched; core extractors unaffected.
-      assert.equal(composed.providers.length, 5);
+      assert.equal(composed.providers.length, 6);
       assert.equal(composed.extractors.length, 9, 'all 9 extractors stay');
       // Formatter composer also respects the filter.
       const formatters = composeFormatters({ pluginRuntime: runtime });
@@ -354,7 +354,7 @@ describe('plugin-runtime, branch coverage', () => {
         pluginRuntime: emptyPluginRuntime(),
       });
       assert.ok(composed);
-      assert.equal(composed.providers.length, 5, 'claude + antigravity (beta) + codex (beta) + agent-skills (stable, locked) + core-markdown load by default');
+      assert.equal(composed.providers.length, 6, 'claude + antigravity (beta) + codex (beta) + opencode (beta) + agent-skills (stable, locked) + core-markdown load by default');
       assert.equal(composed.extractors.length, 8, '8 of 9 extractors loaded; core/mcp-tools is experimental so it ships disabled by default (the two codex grammar extractors, dollar-skill + at-file, are stable and load)');
       assert.equal(composed.analyzers.length, 14, '14 of 15 analyzers loaded; core/annotation-stale is experimental so it ships disabled by default (the former projector analyzers core/supersede + core/tags were deleted; the remaining inspector buttons self-project from their actions and tag editing moved inline; core/score-resolution was deleted, the kernel now seeds the 1.0 baseline directly; core/job-file-orphan was removed, to return under a probabilistic evaluation model)');
       // Actions load into the pipeline as dispatch targets; those with a
@@ -497,7 +497,7 @@ describe('plugin-runtime, branch coverage', () => {
         killSwitches: { extractors: true },
       });
       assert.ok(composed);
-      assert.equal(composed.providers.length, 5, 'providers untouched (5: claude + antigravity (beta) + codex (beta) + agent-skills (stable, locked) + core-markdown load)');
+      assert.equal(composed.providers.length, 6, 'providers untouched (6: claude + antigravity (beta) + codex (beta) + opencode (beta) + agent-skills (stable, locked) + core-markdown load)');
       assert.equal(composed.extractors.length, 0);
       assert.equal(composed.analyzers.length, 14);
     });
@@ -509,7 +509,7 @@ describe('plugin-runtime, branch coverage', () => {
         killSwitches: { analyzers: true },
       });
       assert.ok(composed);
-      assert.equal(composed.providers.length, 5, 'providers untouched (5: claude + antigravity (beta) + codex (beta) + agent-skills (stable, locked) + core-markdown load)');
+      assert.equal(composed.providers.length, 6, 'providers untouched (6: claude + antigravity (beta) + codex (beta) + opencode (beta) + agent-skills (stable, locked) + core-markdown load)');
       assert.equal(composed.extractors.length, 8);
       assert.equal(composed.analyzers.length, 0);
     });

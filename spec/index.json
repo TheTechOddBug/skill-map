@@ -180,7 +180,7 @@
     "files": {
       "CHANGELOG.md": "44f2ede341c9c7affd4aaed8ce0aa0a2145feed820bb050e03b3261ff31ba9e3",
       "README.md": "a790cd010b46d47883d1f37e3893cea9d7aa69ec4750c0202e6a0c99991e7980",
-      "architecture.md": "82fb909152417fed0f25079352eb2c39b4212ce17a1ff81dfe4aebad553ea3d2",
+      "architecture.md": "49a2808dc374de4a2118c50f6fe57dbef646a8bad465a1e623fcda87d1d6c8c9",
       "cli-contract.md": "198469bab4a9a1cc31870136bf9a5fb90ea9bc80372c2926a65564c2f6c5b217",
       "conformance/README.md": "dcbef7249f161acf597552a05dcadc813cd0ced430dcd3f813fcf5e1c876335d",
       "conformance/cases/backtick-path-extraction.json": "4620e7f8bc161fc57cb44001e9d99879c7e22b4865a0c27a20dc28969cd936d9",
@@ -189,7 +189,7 @@
       "conformance/cases/kernel-empty-boot.json": "9b51b85ff62479cd0eee37cad260245208d94f6d79644f7ee40945a934960913",
       "conformance/cases/no-global-scope.json": "1c83343422144be2ad9e3d27d2062e61af87c7c1c1f3b051b6b9f687d845ac7b",
       "conformance/cases/orphan-markdown-fallback.json": "506119323ddde85c1fb4c986c7f6f40a345d44adb06de8d84002591df0e479ee",
-      "conformance/cases/plugin-missing-ui-rejected.json": "0d9954cc8b83b4991aa19811194934d414705a0fda802f087dfdf84acb0963f2",
+      "conformance/cases/plugin-missing-ui-rejected.json": "2c471732c8d6289bec5c19e764caf7fb06964da06f88d94d0065041a2b476b8f",
       "conformance/cases/score-phase-confidence.json": "aa3a06149d78ff056dd1a47852baaedc200e47b0d5b1e778d3459ae62f65f390",
       "conformance/cases/sidecar-end-to-end.json": "06374e619df1691f1593b0847b3671299318525d4a7bf4ff9bfda3ab03032a5f",
       "conformance/cases/view-action-button.json": "51331f725be1c3655351f8fca6fc9d3d301ae68ea1741ff6c79998332ba2dfeb",

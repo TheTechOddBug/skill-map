@@ -10,12 +10,13 @@
   "assertions": [
     { "type": "exit-code", "value": 0 },
     { "type": "stderr-matches", "pattern": "plugin bad-provider \\(invalid-manifest\\), all extensions skipped:.*must have required property 'ui'" },
-    { "type": "json-path", "path": "$.providers.length", "equals": 5 },
+    { "type": "json-path", "path": "$.providers.length", "equals": 6 },
     { "type": "json-path", "path": "$.providers[0]", "equals": "claude" },
     { "type": "json-path", "path": "$.providers[1]", "equals": "antigravity" },
     { "type": "json-path", "path": "$.providers[2]", "equals": "codex" },
-    { "type": "json-path", "path": "$.providers[3]", "equals": "agent-skills" },
-    { "type": "json-path", "path": "$.providers[4]", "equals": "markdown" },
+    { "type": "json-path", "path": "$.providers[3]", "equals": "opencode" },
+    { "type": "json-path", "path": "$.providers[4]", "equals": "agent-skills" },
+    { "type": "json-path", "path": "$.providers[5]", "equals": "markdown" },
     { "type": "json-path", "path": "$.nodes.length", "equals": 1 }
   ]
 }

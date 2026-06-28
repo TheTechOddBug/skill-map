@@ -92,6 +92,7 @@ export const PINNED_PLUGIN_ORDER: readonly string[] = [
   'claude',
   'antigravity',
   'codex',
+  'opencode',
   'agent-skills',
 ];
 

@@ -40,7 +40,7 @@ const OUTPUT = join(PLUGINS_ROOT, 'built-ins.ts');
  * composer encounters them before the markdown fallback in `core`. The
  * matching directories under `src/plugins/<id>/` must all exist.
  */
-const PLUGIN_ORDER = ['claude', 'antigravity', 'codex', 'agent-skills', 'core'];
+const PLUGIN_ORDER = ['claude', 'antigravity', 'codex', 'opencode', 'agent-skills', 'core'];
 
 /**
  * Within a plugin, kinds register in this order so the resulting list

@@ -68,7 +68,7 @@ describe('built-in extensions, execution modes', () => {
 });
 
 describe('built-in extensions, qualified ids (spec § A.6)', () => {
-  it('every built-in declares a recognised pluginId (`core`, `claude`, `antigravity`, `codex`, `agent-skills`)', () => {
+  it('every built-in declares a recognised pluginId (`core`, `claude`, `antigravity`, `codex`, `opencode`, `agent-skills`)', () => {
     const set = builtIns();
     const all = [
       ...set.providers,
@@ -77,7 +77,7 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
       ...set.formatters,
       ...set.actions,
     ];
-    const valid = new Set(['core', 'claude', 'antigravity', 'codex', 'agent-skills']);
+    const valid = new Set(['core', 'claude', 'antigravity', 'codex', 'opencode', 'agent-skills']);
     for (const ext of all) {
       assert.ok(
         valid.has(ext.pluginId),
@@ -131,7 +131,7 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
 
   it('listBuiltIns() rows carry pluginId verbatim', () => {
     const rows = listBuiltIns();
-    const valid = new Set(['core', 'claude', 'antigravity', 'codex', 'agent-skills']);
+    const valid = new Set(['core', 'claude', 'antigravity', 'codex', 'opencode', 'agent-skills']);
     for (const row of rows) {
       assert.ok(
         valid.has(row.pluginId),
@@ -163,7 +163,8 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // The supersede feature was removed wholesale: the `core/annotations` extractor (its only producer), the `core/node-supersede` action, and the `core/node-superseded` analyzer were all deleted, dropping the total to 33.
     // The codex `$skill` / `@`-file grammar split added two extractors (`codex/dollar-skill`, `codex/at-file`), bringing it to 35.
     // The `@`/`/` grammar consolidation then moved the shared `slash-command` (claude -> core) and `at-file` (codex -> core) into the vendor-neutral `core` plugin; a move, not an add/remove, so the total stays 35.
-    assert.equal(rows.length, 35);
+    // The OpenCode provider (`opencode/opencode`, its own agent + command kinds plus the composed open-standard skill kind) brings it to 36.
+    assert.equal(rows.length, 36);
   });
 
   // Convention guard: every built-in EXTRACTOR description ends with a

@@ -17,3 +17,4 @@ export const CLAUDE_PLUGIN_ID = 'claude';
 export const CODEX_PLUGIN_ID = 'codex';
 export const ANTIGRAVITY_PLUGIN_ID = 'antigravity';
 export const AGENT_SKILLS_PLUGIN_ID = 'agent-skills';
+export const OPENCODE_PLUGIN_ID = 'opencode';

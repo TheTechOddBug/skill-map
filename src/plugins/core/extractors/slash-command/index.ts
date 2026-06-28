@@ -73,7 +73,7 @@ export const slashCommandExtractor: IBuiltInManifest<IExtractor> = {
   id: ID,
   pluginId: CORE_PLUGIN_ID,
   kind: 'extractor',
-  description: 'Turns `/command` invocations in a node\'s body into arrows that point at the resolved slash command, skill, or workflow, using the `/`-grammar shared by Claude and Antigravity. Example: `/deploy` in the body draws an arrow to the `deploy` command.',
+  description: 'Turns `/command` invocations in a node\'s body into arrows that point at the resolved slash command, skill, or workflow, using the `/`-grammar shared by Claude, Antigravity, and OpenCode. Example: `/deploy` in the body draws an arrow to the `deploy` command.',
   scope: 'body',
   // Also authorised under the antigravity lens, which shares the `/command`
   // grammar: a workflow / skill / AGENTS.md body's `/name` tokens resolve to
@@ -83,7 +83,13 @@ export const slashCommandExtractor: IBuiltInManifest<IExtractor> = {
   // `/init`, ...) and invokes user skills with `$` instead (parsed by the
   // codex `dollar-skill` extractor). A lens that declares no `invokes`
   // resolution leaves the signals unresolved (no spurious edges).
-  precondition: { provider: ['claude', 'antigravity'] },
+  //
+  // Also authorised under the opencode lens: OpenCode invokes its custom
+  // `.opencode/commands/<name>.md` with `/<name>` (the opencode provider maps
+  // `invokes: ['command']`, since OpenCode loads skills via its native `skill`
+  // tool rather than the slash channel). Additive: claude / antigravity runs
+  // are unchanged.
+  precondition: { provider: ['claude', 'antigravity', 'opencode'] },
 
   extract(ctx: IExtractorContext): void {
     const seen = new Set<string>();

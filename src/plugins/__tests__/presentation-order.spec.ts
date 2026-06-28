@@ -10,7 +10,7 @@
  * Two invariants pin the contract:
  *
  *   1. The configured pin list (`core, claude, antigravity, codex,
- *      agent-skills`) is honoured verbatim and ids outside it land at
+ *      opencode, agent-skills`) is honoured verbatim and ids outside it land at
  *      the end, alphabetically.
  *   2. The sort is stable / pure: same input order, same output;
  *      empty input is allowed; the helper never mutates the caller's
@@ -35,7 +35,7 @@ describe('BUILT_IN_PLUGIN_PRESENTATION_ORDER', () => {
   });
 
   it('lists every vendor plugin that ships in `builtInPlugins` today', () => {
-    const expected = ['core', 'claude', 'antigravity', 'codex', 'agent-skills'];
+    const expected = ['core', 'claude', 'antigravity', 'codex', 'opencode', 'agent-skills'];
     assert.deepEqual([...BUILT_IN_PLUGIN_PRESENTATION_ORDER], expected);
   });
 
