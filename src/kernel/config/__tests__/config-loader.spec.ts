@@ -264,6 +264,29 @@ describe('config loader, project-local-only locality', () => {
     ok(!warnings.some((w) => /project-local only/.test(w)));
   });
 
+  it('strips tutorialReminderDismissed from the project layer + warns', () => {
+    const { cwd } = freshScope('plonly-tutorial-reminder');
+    writeSettings(cwd, 'settings', { tutorialReminderDismissed: true });
+    const { effective, sources, warnings } = loadConfig({ cwd });
+    // Stripped → defaults (false) wins: a developer's UI dismissal must
+    // never leak to teammates through the committed layer.
+    strictEqual(effective.tutorialReminderDismissed, false);
+    strictEqual(sources.get('tutorialReminderDismissed'), 'defaults');
+    ok(
+      warnings.some(
+        (w) => /tutorialReminderDismissed/.test(w) && /project-local only/.test(w),
+      ),
+    );
+  });
+
+  it('preserves tutorialReminderDismissed in the project-local layer', () => {
+    const { cwd } = freshScope('plonly-tutorial-reminder-local');
+    writeSettings(cwd, 'settings.local', { tutorialReminderDismissed: true });
+    const { effective, sources } = loadConfig({ cwd });
+    strictEqual(effective.tutorialReminderDismissed, true);
+    strictEqual(sources.get('tutorialReminderDismissed'), 'project-local');
+  });
+
   it('strict mode throws on a stripped project-layer entry', () => {
     const { cwd } = freshScope('plonly-strict');
     writeSettings(cwd, 'settings', { allowEditSmFiles: true });
