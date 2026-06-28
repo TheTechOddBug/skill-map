@@ -2,6 +2,38 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.71.0",
+      "date": "2026-06-28",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "Antigravity projects now draw `@filename` file references on the map: an `@path` token in a workflow or skill body becomes an arrow to that file, the same file-picker behavior Codex already had.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "`@`-file references that climb more than one folder (e.g. `@../../docs/guide.md`) now draw an arrow to the target file; before, only single-level `@../x` references were recognised.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Scans now warn when a Markdown file has an unclosed backtick (a code fence ``` never closed, or an inline `code` span missing its closer). The warning carries the offending line so you can fix it before it breaks how the file's links are read.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Antigravity workflows now show in the same amber as Claude commands on the map (a workflow plays the same role as a command). And `sm tutorial` lists the open standard as `Standard: Agent skills (Google's Antigravity, others)` instead of fronting one vendor.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.70.0",
       "date": "2026-06-27",
       "kind": "user-facing",
