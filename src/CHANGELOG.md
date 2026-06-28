@@ -1,5 +1,35 @@
 # skill-map
 
+## 0.71.0
+
+### Minor Changes
+
+- The `@<file>` and `/<command>` grammars are consolidated into one vendor-neutral pair of `core` extractors (`core/at-file`, `core/slash-command`), each gated by `precondition.provider` to the lenses whose runtime reads that syntax. Antigravity now draws `@filename` file references (a file-shaped `@path` becomes a path-resolved `references` edge, the file-picker grammar Codex already had); `claude/at-directive` narrows to bare-handle agent mentions.
+
+  ## User-facing
+
+  Antigravity projects now draw `@filename` file references on the map: an `@path` token in a workflow or skill body becomes an arrow to that file, the same file-picker behavior Codex already had.
+
+- The kernel now flags an unclosed backtick in a node body during the scan walk: an opening fenced block (``` or ~~~) that is never closed, or an inline span whose backtick run has no equal-length closer. The verdict is derived from the same code-strip scanner the prose extractors rely on, so it pinpoints the body-syntax defect where a dangling fence swallows the rest of the file and prose extractors stop emitting edges. The warning is persisted and reused across incremental scans.
+
+  ## User-facing
+
+  Scans now warn when a Markdown file has an unclosed backtick (a code fence ```never closed, or an inline`code` span missing its closer). The warning carries the offending line so you can fix it before it breaks how the file's links are read.
+
+### Patch Changes
+
+- The shared `@`-token grammar (`kernel/util/at-token.ts`) now recognises a multi-level relative prefix (`@../../x`), not just a single `./` / `../` level. So a file-shaped `@`-reference that climbs more than one directory (in a Claude, Codex, or Antigravity body) resolves to its target instead of being silently dropped.
+
+  ## User-facing
+
+  `@`-file references that climb more than one folder (e.g. `@../../docs/guide.md`) now draw an arrow to the target file; before, only single-level `@../x` references were recognised.
+
+- The Antigravity `workflow` kind now uses the same amber as Claude's `command` kind, since a workflow is Antigravity's command-equivalent, so node colors read as one cross-provider vocabulary. The `sm tutorial` open-standard destination is relabelled to lead with the standard (`Standard: Agent skills (Google's Antigravity, others)`), and the basic tutorial track is reframed as the Agent Skills open standard, with supporting vendors noted parenthetically rather than fronting the book.
+
+  ## User-facing
+
+  Antigravity workflows now show in the same amber as Claude commands on the map (a workflow plays the same role as a command). And `sm tutorial` lists the open standard as `Standard: Agent skills (Google's Antigravity, others)` instead of fronting one vendor.
+
 ## 0.70.0
 
 ### Minor Changes
