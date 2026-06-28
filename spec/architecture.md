@@ -436,6 +436,22 @@ The contract:
 
 A path written in prose without any wrapping (neither backticks nor markdown-link syntax) stays invisible in this revision; the code-region domain is the verified, bounded surface.
 
+### Kernel check · body backtick balance
+
+The code-strip policy (§Extractor · code-region file references) assumes every fence and every inline code span in a `.md` body is BALANCED. An unbalanced backtick breaks that assumption at the source: an opening fence with no closer makes `stripCodeBlocks` treat the entire remainder of the file as code, so every prose-side extractor (`markdown-link`, `at-directive`, `slash-command`, `external-url-counter`) sees a blank body past the dangling fence and stops emitting real edges. This is a body-syntax defect, not a frontmatter-shape one, so it is not expressible as a JSON Schema constraint.
+
+Because the check reads the BODY, the kernel stamps it during the walk (in `node-build`), where the body is still in memory, NOT in the analyzer pass (which sees only the merged graph, the body byte size on `node.bytes.body`, not the text). The verdict is derived from the SAME fence and inline scanners `stripCodeBlocks` is built on (the shared `findBacktickImbalance` helper), so the warning can never drift from the policy it protects. Computing it where the body lives also means the file is never re-read: the issue is persisted and reused per node across an incremental scan, exactly like the kernel-stamped frontmatter diagnostics, so an unchanged file keeps its warning on a clean re-scan without touching disk.
+
+The check emits a single issue with `analyzerId: 'backtick-unbalanced'`, `nodeIds: [path]`, `data: { kind, line }` and a `detail` carrying the offending source line. The line is relative to the analysed BODY, not the file: a Provider MAY carry the body inside a frontmatter field (`bodyField`), so a file-absolute line is not universally defined; the `detail` is the concrete locator. Severity is `warn`, lifted to `error` under `--strict`, consistent with the frontmatter diagnostics it ships beside.
+
+Two checks run in order over the body:
+
+1. **Fenced block balance.** A line opening with three or more backticks or tildes (CommonMark fence, up to three leading spaces of indent) toggles fence state; a closer MUST use the same fence character and be at least as long as the opener. If the body ends with a fence still open, the check reports the unclosed fenced block (`kind: 'fence'`, the opening fence line) and **stops**: a dangling fence has already corrupted the mask, so the inline pass below would only produce noise.
+
+2. **Inline span balance.** Only when every fence is balanced. After the fenced lines are blanked (line numbers preserved) and backslash-escaped characters are masked (a literal `` \` `` is text in CommonMark and never opens a span), any backtick that survives the inline-span pass has no equal-length closer per the CommonMark rule. The first survivor is reported as an unclosed inline backtick (`kind: 'inline'`).
+
+A body with balanced fences and balanced inline spans yields no issue.
+
 ### Extractor · enrichment layer
 
 `ctx.enrichNode(partial)` is the only writable surface the Extractor pipeline has on a node. The author's frontmatter on `scan_nodes.frontmatter_json` is read-only from any Extractor. Implementations MUST:

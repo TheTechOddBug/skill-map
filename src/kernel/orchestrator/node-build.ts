@@ -27,6 +27,7 @@ import {
 import type { Issue, Node, TripleSplit } from '../types.js';
 import { stripPrototypePollution } from '../util/strip-prototype-pollution.js';
 import { detectMalformedFrontmatter, validateFrontmatter } from './frontmatter.js';
+import { detectUnclosedBacktick } from './body-syntax.js';
 
 export interface IBuildNodeArgs {
   path: string;
@@ -305,6 +306,18 @@ function pickStability(value: unknown): 'experimental' | 'stable' | 'deprecated'
 }
 
 /**
+ * Append `issue` to `list` when a detector actually produced one. The
+ * frontmatter / body-syntax detectors (`validateFrontmatter`,
+ * `detectMalformedFrontmatter`, `detectUnclosedBacktick`) all return
+ * `Issue | null`; routing them through this helper keeps the nullable-push
+ * branch out of `buildFreshNodeAndValidateFrontmatter`, so adding a new
+ * body-syntax check never re-trips its cyclomatic-complexity budget.
+ */
+function pushIssue(list: Issue[], issue: Issue | null): void {
+  if (issue) list.push(issue);
+}
+
+/**
  * Build a brand-new `Node` row from raw provider output and validate
  * its frontmatter. Used by the "no cache hit" branch of
  * `walkAndExtract`. Two frontmatter issue paths:
@@ -355,19 +368,32 @@ export function buildFreshNodeAndValidateFrontmatter(opts: {
     }
   }
   if (opts.raw.frontmatterRaw.length > 0) {
-    const fmIssue = validateFrontmatter(
-      opts.providerFrontmatter,
-      opts.provider,
-      opts.kind,
-      opts.raw.frontmatter,
-      opts.raw.path,
-      opts.strict,
+    pushIssue(
+      frontmatterIssues,
+      validateFrontmatter(
+        opts.providerFrontmatter,
+        opts.provider,
+        opts.kind,
+        opts.raw.frontmatter,
+        opts.raw.path,
+        opts.strict,
+      ),
     );
-    if (fmIssue) frontmatterIssues.push(fmIssue);
   } else {
-    const malformed = detectMalformedFrontmatter(opts.raw.body, opts.raw.path, opts.strict);
-    if (malformed) frontmatterIssues.push(malformed);
+    pushIssue(
+      frontmatterIssues,
+      detectMalformedFrontmatter(opts.raw.body, opts.raw.path, opts.strict),
+    );
   }
+
+  // Body-syntax: an unclosed backtick (fenced block / inline span)
+  // corrupts the code-strip policy. Kernel-stamped here (body is live)
+  // and cached across incremental scans alongside the frontmatter ids,
+  // so the warning survives a clean re-scan without re-reading the file.
+  pushIssue(
+    frontmatterIssues,
+    detectUnclosedBacktick(opts.raw.body, opts.raw.path, opts.strict),
+  );
 
   return { node, frontmatterIssues };
 }

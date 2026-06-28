@@ -27,6 +27,16 @@ export const ORCHESTRATOR_TEXTS = {
     'at column 0 was found). The file was scanned as body-only and every metadata field was ' +
     'silently lost. Add a closing `---` line below the metadata block.',
 
+  bodyBacktickUnclosedFence:
+    'Body of {{path}} has an unclosed fenced code block opened at body line {{line}} (no ' +
+    'matching closing ``` or ~~~). The code-strip policy then reads the rest of the file as ' +
+    'code, so prose extractors stop emitting edges past it. Close the fence.',
+
+  bodyBacktickUnclosedInline:
+    'Body of {{path}} has an unclosed inline backtick at body line {{line}} (the backtick run ' +
+    'has no equal-length closer). Close the inline span with a matching backtick run, or escape ' +
+    'a literal backtick with a backslash.',
+
   extensionErrorLinkKindNotDeclared:
     'Extractor "{{extractorId}}" emitted a link of kind "{{linkKind}}" outside its ' +
     'declared `emitsLinkKinds` set [{{declaredKinds}}]. Link dropped.',

@@ -17,7 +17,7 @@ import type { IExtractor } from '../extensions/index.js';
 import type { IPriorExtractorRun } from '../adapters/sqlite/scan-load.js';
 import { qualifiedExtensionId } from '../registry.js';
 import type { IExtractorRunRecord } from './extractors.js';
-import { FRONTMATTER_ISSUE_ANALYZERS } from './frontmatter-issue-ids.js';
+import { CACHED_KERNEL_ISSUE_ANALYZERS } from './frontmatter-issue-ids.js';
 
 export interface IPriorIndex {
   /** Prior nodes keyed by path so per-file lookup is O(1). */
@@ -76,14 +76,15 @@ function indexPriorLinks(
 // only flows through the non-cache path; a cached node skips the rebuild,
 // so the prior issue MUST survive the incremental scan or the warning
 // silently disappears on a clean re-scan of an unchanged file. The id set
-// itself lives in `frontmatter-issue-ids.ts` (shared with
-// `core/schema-violation`).
+// itself lives in `frontmatter-issue-ids.ts`. The caching set is the
+// superset (frontmatter shape + body backtick balance); the narrower
+// frontmatter-only set stays reserved for `core/schema-violation`.
 function indexPriorFrontmatterIssues(
   issues: readonly Issue[],
   byNode: Map<string, Issue[]>,
 ): void {
   for (const issue of issues) {
-    if (!FRONTMATTER_ISSUE_ANALYZERS.has(issue.analyzerId)) continue;
+    if (!CACHED_KERNEL_ISSUE_ANALYZERS.has(issue.analyzerId)) continue;
     if (issue.nodeIds.length !== 1) continue;
     const path = issue.nodeIds[0]!;
     const list = byNode.get(path);
