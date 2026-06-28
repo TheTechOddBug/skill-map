@@ -1,7 +1,8 @@
 # Part 1 (basic track): The harness from zero (step library, `kickoff-*` ids)
 
-The campaign turns real here for the **basic track** (the open-standard family:
-`agent-skills`, `antigravity`). After the abstract prologue, the tester starts an
+The campaign turns real here for the **basic track**: the **Agent Skills open
+standard** (the `agent-skills` lens; vendors like Antigravity build on it).
+After the abstract prologue, the tester starts an
 actual project: a tiny personal **portfolio website**, fully static, served by a
 ~15-line Express server, plus the `.agents/skills/` **harness** that maintains
 it. skill-map maps the harness (the `.md` assets and how they reference each

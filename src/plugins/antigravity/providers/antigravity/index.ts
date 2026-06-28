@@ -185,10 +185,15 @@ export const antigravityProvider: IBuiltInManifest<IProvider> = {
       schemaJson: workflowSchema,
       ui: {
         label: 'Workflows',
-        // Antigravity violet, so a workflow node reads as Antigravity's own
-        // (skills keep the normalised cross-provider green of COMMONS_KINDS).
-        color: '#7c3aed',
-        colorDark: '#a78bfa',
+        // A workflow is Antigravity's command-equivalent (its own slash-
+        // invocable procedural kind, the slot Claude fills with `command`),
+        // so it adopts the SAME color as Claude's `command` kind (amber) for a
+        // uniform cross-provider vocabulary, the same way skills normalise to
+        // the cross-provider green of COMMONS_KINDS. The Antigravity violet
+        // stays on the provider-level `presentation` (the lens identity), not
+        // on this kind.
+        color: '#f59e0b',
+        colorDark: '#fbbf24',
         icon: { kind: 'pi', id: 'pi-sitemap' },
       },
       // The handle is ALWAYS the filename stem (`/<name>`): Antigravity

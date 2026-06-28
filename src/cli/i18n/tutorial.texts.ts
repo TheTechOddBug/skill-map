@@ -39,15 +39,20 @@ export const TUTORIAL_TEXTS = {
 
   // Destination-provider prompt (interactive stdin, no `--for`). Header
   // uses a yellow `?` glyph; options are a numbered list of the provider's
-  // vendor name (for a provider with an `aka`, the aka vendor leads and the
-  // provider label follows in parentheses), with a `(default)` marker on
-  // the first option (Claude). The destination folder is deliberately NOT
-  // shown: several providers share `.agents/skills`, so the folder does not
-  // identify the lens. The input line accepts a number, a provider id, or
-  // an empty answer (which takes the default).
+  // label (for a provider with an `aka`, the standard label leads and the
+  // supporting vendors follow in parentheses, closed by `akaOthers` to mark
+  // the set as open), with a `(default)` marker on the first option (Claude).
+  // The destination folder is deliberately NOT shown: several providers share
+  // `.agents/skills`, so the folder does not identify the lens. The input line
+  // accepts a number, a provider id, or an empty answer (which takes the
+  // default).
   promptHeader: '{{glyph}}  Which agent should host the tutorial skill?',
   promptOption: '     {{index}}) {{label}}{{marker}}',
   promptDefaultMarker: '  (default)',
+  // Trailing token appended to the `aka` vendor list in the open-lens label
+  // ("... (Google's Antigravity, others)"), signalling the open standard is
+  // not tied to a single vendor and more will support it.
+  akaOthers: 'others',
   promptInput: '  Enter the number or provider id [default {{index}}]: ',
 
   // Prompt answer matched neither an index nor an id. Goes to stderr,

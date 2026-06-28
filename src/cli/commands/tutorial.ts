@@ -434,15 +434,18 @@ export function listScaffoldTargets(includeExperimental = false): IScaffoldTarge
 }
 
 /**
- * Render a target's prompt label. When the target carries `aka` vendors
- * (the open standard lists `Google's Antigravity`), the aka vendor LEADS and
- * the provider label follows in parentheses (`Google's Antigravity (Standard:
- * Agent skills)`); the vendor name is the recognisable handle, the standard
- * name the qualifier. Without `aka` (Claude, Codex) it is just the label.
- * Exported for unit coverage.
+ * Render a target's prompt label. The basic book teaches the OPEN STANDARD
+ * itself, not a single vendor, so the standard label LEADS and any `aka`
+ * vendors that build on it follow in parentheses, closed by `akaOthers`
+ * (`Standard: Agent skills (Google's Antigravity, others)`); the standard is
+ * what the book covers, the vendors are who also support it and the trailing
+ * `others` marks the set as open. Without `aka` (Claude, Codex) it is just the
+ * label. Exported for unit coverage.
  */
 export function labelWithAka(target: IScaffoldTarget): string {
-  return target.aka.length > 0 ? `${target.aka.join(', ')} (${target.label})` : target.label;
+  return target.aka.length > 0
+    ? `${target.label} (${[...target.aka, TUTORIAL_TEXTS.akaOthers].join(', ')})`
+    : target.label;
 }
 
 /** Render the numbered destination list. */

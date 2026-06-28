@@ -59,13 +59,14 @@ describe('sm tutorial prompt rendering', () => {
     assert.equal(labelWithAka(byId('codex')), "OpenAI's Codex");
   });
 
-  it('leads with the aka vendor for the open standard, provider label in parens', () => {
+  it('leads with the standard label for the open lens, supporting vendors in parens', () => {
     // Several providers share `.agents/skills`, so the folder cannot identify
-    // the lens; the vendor name does. The open standard leads with its aka
-    // vendor (Antigravity) and keeps the standard label as the qualifier.
+    // the lens. The basic book teaches the open standard itself, so the
+    // standard label leads and the vendors that build on it (Antigravity, then
+    // a trailing `others`) follow in parens, never the other way round.
     assert.equal(
       labelWithAka(byId('agent-skills')),
-      "Google's Antigravity (Standard: Agent skills)",
+      "Standard: Agent skills (Google's Antigravity, others)",
     );
   });
 

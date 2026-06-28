@@ -170,10 +170,10 @@ parts:
       - id: stability        ; title: "Set a node's stability (and the `.sm` sidecar)" ; est_min: 3
       - id: golive           ; title: "Your website, live next to the graph" ; est_min: 3
 
-  # ----- the basic-track campaign (open-standard family: agent-skills / antigravity) -----
+  # ----- the basic-track campaign (the Agent Skills open standard; vendors like Antigravity build on it) -----
   # Mirrors the rich campaign arc with skill + markdown only, connected by
   # markdown references. Same fixtures (portfolio / harness) laid under the
-  # basic provider, which renders the agent/command nodes as skills.
+  # `agent-skills` lens, which renders the agent/command nodes as skills.
 
   - id: basic-kickoff
     order: 1

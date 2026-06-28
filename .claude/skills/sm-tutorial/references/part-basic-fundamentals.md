@@ -1,7 +1,9 @@
 # Part 0 (basic track): The live map (prologue) - step library
 
-The live-UI prologue for the **basic track** (the open-standard family:
-`agent-skills`, `antigravity`). Same arc as the rich prologue, the tester runs
+The live-UI prologue for the **basic track**: the **Agent Skills open
+standard** (the `agent-skills` lens; vendors like Antigravity build on it and
+add their own extras, which this book does not teach). Same arc as the rich
+prologue, the tester runs
 `sm init`, opens the browser, and watches the map update in real time, but this
 lens authors only **skills** and **markdown notes**, and assets connect by
 **markdown references** (`[text](path)`), the one link the Agent Skills standard

@@ -180,14 +180,6 @@ The watcher picks up the new skill. Tell the tester:
 
 Wait for confirmation. Mark `reserved`: done. Auto-advance to `publish`.
 
-**Antigravity delta** (`tutorial.provider == antigravity`): skills ARE
-`/`-invoked here, so a built-in verb DOES collide. Name the skill `goal` (an
-Antigravity built-in) instead of `model`, narrate the `name-reserved`
-**warning** that appears, and have the tester clear it by renaming the folder +
-`frontmatter.name` to `new-page` (the warning clears live). That collision-and-
-fix beat is the Antigravity version; `agent-skills` gets the "names are free"
-lesson above.
-
 ---
 
 **Act C - Publish**
