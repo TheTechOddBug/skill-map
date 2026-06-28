@@ -24,7 +24,7 @@ import { posix as pathPosix } from 'node:path';
 import type { IBuiltInManifest, IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
 import { stripCodeAndHtml } from '../../../../kernel/util/strip-code-blocks.js';
 import { computeLineStarts, lineFor } from '../../../../kernel/util/line-tracking.js';
-import { OPENAI_PLUGIN_ID } from '../../../ids.js';
+import { CODEX_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'at-file';
 
@@ -41,7 +41,7 @@ const FILE_EXT_RE = /\.(md|mdx|js|jsx|ts|tsx|json|yml|yaml|toml|txt|html|css|scs
 
 export const atFileExtractor: IBuiltInManifest<IExtractor> = {
   id: ID,
-  pluginId: OPENAI_PLUGIN_ID,
+  pluginId: CODEX_PLUGIN_ID,
   kind: 'extractor',
   description: 'Detects `@<file>` references in a node\'s body under the OpenAI Codex lens, where `@` is a file picker. A path- or extension-shaped token becomes a `references` link to that file; a bare `@handle` forms no edge. Example: `@builder.toml` in an agent\'s prompt draws an arrow to the `builder` agent file.',
   scope: 'body',

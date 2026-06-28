@@ -37,7 +37,7 @@
 
 import type { IBuiltInManifest, IProvider } from '../../../../kernel/extensions/index.js';
 import agentSchema from './schemas/agent.schema.json' with { type: 'json' };
-import { OPENAI_PLUGIN_ID } from '../../../ids.js';
+import { CODEX_PLUGIN_ID } from '../../../ids.js';
 import {
   COMMONS_READ,
   COMMONS_KINDS,
@@ -47,7 +47,7 @@ import {
 
 export const codexProvider: IBuiltInManifest<IProvider> = {
   id: 'codex',
-  pluginId: OPENAI_PLUGIN_ID,
+  pluginId: CODEX_PLUGIN_ID,
   kind: 'provider',
   description:
     'Classifies `.codex/agents/*.toml` as OpenAI Codex CLI sub-agents and `.agents/skills/*/SKILL.md` as Codex skills (open standard).',

@@ -33,7 +33,7 @@ import type { IBuiltInManifest, IExtractor, IExtractorContext } from '../../../.
 import { stripCodeAndHtml } from '../../../../kernel/util/strip-code-blocks.js';
 import { computeLineStarts, lineFor } from '../../../../kernel/util/line-tracking.js';
 import { normalizeTrigger } from '../../../../kernel/trigger-normalize.js';
-import { OPENAI_PLUGIN_ID } from '../../../ids.js';
+import { CODEX_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'dollar-skill';
 
@@ -46,7 +46,7 @@ const DOLLAR_RE = /(?<![A-Za-z0-9_$])(\$[a-z][a-z0-9_-]*)/g;
 
 export const dollarSkillExtractor: IBuiltInManifest<IExtractor> = {
   id: ID,
-  pluginId: OPENAI_PLUGIN_ID,
+  pluginId: CODEX_PLUGIN_ID,
   kind: 'extractor',
   description: 'Turns `$skill` invocations in a node\'s body into arrows that point at the resolved Codex skill, using OpenAI Codex routing rules. Example: `$check-links` in the body draws an arrow to the `check-links` skill.',
   scope: 'body',
