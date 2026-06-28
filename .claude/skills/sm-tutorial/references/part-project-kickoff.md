@@ -45,10 +45,6 @@ The chapters grow the harness from there.
 
 ## Chapter `kickoff` - Start the portfolio (~2 min)
 
-**Context**: same `sm init` the tester learned in the prologue, but
-now on a real project. The map will show the project's harness, not
-throwaway demo nodes.
-
 If the prologue (`fundamentals`) ran first in this directory, the
 demo fixture (`demo-agent`, `demo-skill`, `notes/…`) is still on
 disk. The orchestrator's `portfolio-init` already cleared it during
@@ -89,12 +85,6 @@ Tell the tester:
 Wait for confirmation. Mark `kickoff`: done.
 
 ## Chapter `manual` - The handbook (AGENTS.md) and CLAUDE.md (~2 min)
-
-**Context**: the dogfood beat. Real Claude Code projects can
-reference the generic `AGENTS.md` from their `CLAUDE.md` (this very
-repo does). That one-line pointer is a real `references` link (the
-`.md` extension makes `@AGENTS.md` a file pointer), the tester's first
-connector on the real project.
 
 Tell the tester to create the file themselves (it is their project's
 file, Inviolable rule #2). Backstage, get the content:
@@ -147,11 +137,6 @@ Wait for confirmation. Mark `first-agent`: done.
 
 ## Chapter `real-kinds` - The real kinds in context (~2 min)
 
-**Context**: the prologue showed the four kinds on abstract demo
-nodes. Now name them on the real project, and add the two markdown
-docs the harness references later (the style guide and the deploy
-runbook), so the Daily Loop's maintenance beats have something to point at.
-
 Lay the two markdown docs the harness references later (their content
 + translation live in `fixtures-data/`). Backstage (silent):
 
@@ -181,8 +166,6 @@ Wait for confirmation. Mark `real-kinds`: done.
 
 ## Chapter `check-links` - The link checker (~3 min)
 
-**Context**: the harness needs a guard that runs before publishing, a skill that checks the site's internal links resolve before it ships. We only create the `skill` node here; the `publish` command in the next chapter is its caller.
-
 Lay the `check-links` skill (its content + translation live in
 `fixtures-data/`; this kind exists on every provider, so no skip).
 Backstage (silent):
@@ -203,9 +186,7 @@ Wait for confirmation. Mark `check-links`: done.
 
 ## Chapter `publish` - The publish command (~4 min)
 
-**Context**: this is the chapter where the graph comes alive. The `/publish` command ties three pieces together in one body: it invokes the link checker, mentions the content editor, and references the deploy runbook. Three connectors light up from a single new node, one per link syntax.
-
-Tell the tester to create the file themselves (it is their project's file, Inviolable rule #2). Substitute `<provider_dir>` per `_core.md` in the path you give them. Backstage, get the content: `node .claude/skills/sm-tutorial/scripts/fixtures.js cat harness --file "__PROVIDER__/commands/publish.md" --provider <provider> --lang <lang>`, then render it as a **top-level fenced code block**: at column 0, NOT inside the `> ` blockquote and with NO leading indentation, so the tester's copy keeps every line flush left. The frontmatter fences (`---`) MUST land on column 0. If the block is rendered (or pasted) indented, the opening and closing `---` shift off column 0, the YAML never parses, and the `publish` node loads body-only without its `name` / `description` (`sm check` then warns `frontmatter-malformed`). Present the block below exactly as written.
+Tell the tester to create the file themselves (it is their project's file, Inviolable rule #2). Substitute `<provider_dir>` per `_core.md` in the path you give them. Backstage, get the content: `node .claude/skills/sm-tutorial/scripts/fixtures.js cat harness --file "__PROVIDER__/commands/publish.md" --provider <provider> --lang <lang>`, then render it as a **top-level fenced code block**: at column 0, NOT inside the `> ` blockquote and with NO leading indentation, so the tester's copy keeps every line flush left. The frontmatter fences (`---`) MUST land on column 0. If the block is rendered (or pasted) indented, the opening and closing `---` shift off column 0, the YAML never parses, and the `publish` node loads body-only without its `name` / `description` (`sm check` then warns `frontmatter-malformed`). Present the block below exactly as written, line for line: never soft-wrap, and never let a newline fall inside a `[text](path)` link (a break inside the `(path)`, e.g. `(../../docs/DEPLOY.md)`, splits it and the link stops resolving). See `_core.md` §Language mirroring + fixture content.
 
 > Create `.claude/commands/publish.md` with exactly this content (the first line is `---`, nothing before it):
 
@@ -252,8 +233,6 @@ Continue the tester message:
 Wait for confirmation. You MAY use `Read` on the file afterwards to verify it landed, in particular that the opening and closing `---` are flush at column 0. If a later `sm check` flags `frontmatter-malformed` on `publish.md`, the fences got indented on paste: have the tester re-align every line flush left (strip the leading spaces so `---` is at column 0), then the next scan reads it clean. Mark `publish`: done.
 
 ## Chapter `links` - The handbook becomes the hub (~4 min)
-
-**Context**: the handbook (`AGENTS.md`) has been a lonely node since the start of this part. Here it becomes the hub: we add two bullets so it mentions the content editor and invokes the publish command. We also give the content editor a reference to the style guide it follows. Several connectors land, and we recap the three link kinds and which syntax produced each.
 
 Apply both edits (their content + translation live in `fixtures-data/`).
 The first appends the two hub bullets to `AGENTS.md`; the second adds
@@ -325,9 +304,10 @@ Tell the tester:
 >
 > **IMPORTANT:** why does confidence matter? It mirrors how the runtime itself
 > resolves a reference: a deterministic name-and-path lookup, no guessing
-> and no scanning the tree for a file under some other extension. That is
-> cheaper and it does not fail, so the agent spends fewer tokens and less
-> time, the same reason a clean, well-named harness is worth keeping.
+> and no scanning the tree for a file under some other extension. A link that
+> does not resolve sends the agent guessing and retrying, which burns time and
+> tokens; a deterministic one does not fail and resolves first try, the same
+> reason a clean, well-named harness is worth keeping.
 >
 > Do you see every badge reading 1.00 in the Inspector?
 

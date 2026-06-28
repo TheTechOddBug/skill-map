@@ -21,9 +21,8 @@ Two numbering systems coexist; keep them apart:
 - **Internal (authoring only)**: the `order` field in `_manifest.yml`
   and the `# Part N` file headers, 0-based (Part 0 the prologue …
   Part 3 the CLI deep-dive, Part 4 the Extend dev section; `mcp` at Part 5 is parked / hidden). Use it
-  in `**Context**:` blocks and author
-  notes; NEVER say it to the tester, it is off by one from what they
-  see.
+  in author notes; NEVER say it to the tester, it is off by one from
+  what they see.
 - **Tester-facing (`S.N`)**: every part is a **section** numbered by
   its 1-based position in the menu (section `1` is the prologue), and
   every chapter inside it carries a `section.chapter` number like a
@@ -160,9 +159,9 @@ documented exceptions to "all prose is quoted" are the plain
 with `> `, keep that prefix verbatim (Claude mode). Do NOT strip
 `> ` on short intro lines, do NOT merge adjacent blockquote
 paragraphs into plain prose. The source already encodes which lines
-are tester-facing (`> `-prefixed) vs agent-only (plain prose in
-`**Context**:` blocks, `Expected:` lines, `Mark <chapter-id>: done`
-markers, "Walk the tester through …" meta instructions). Render the
+are tester-facing (`> `-prefixed) vs agent-only (plain prose,
+`Expected:` lines, `Mark <chapter-id>: done` markers, "Walk the
+tester through …" meta instructions). Render the
 first kind quoted, the second kind never.
 
 ### Language mirroring + fixture content
@@ -178,6 +177,15 @@ first kind quoted, the second kind never.
   English regardless**: file paths and filenames, frontmatter keys,
   node identifiers, link target paths inside `[...]( ... )`, code
   snippets, fenced blocks, anything the kernel parses structurally.
+- **Copyable blocks are byte-exact**: when you render a fenced block
+  the tester copies verbatim (a `SKILL.md` / command body, a config
+  snippet), reproduce it line for line, preserving every line break,
+  indentation level, and tab. NEVER soft-wrap a long line, and in
+  particular NEVER let a newline fall inside a markdown link: the
+  `[text](path)` token, above all the `(path)` half, must stay on one
+  physical line. A break inside the path (`(../content-` then a newline
+  then `editor/SKILL.md)`) splits it, the link stops resolving, and no
+  arrow is drawn.
 - **No em dashes** in tester-facing prose: prefer a comma or
   parentheses (project-wide style).
 
@@ -402,15 +410,8 @@ For every chapter:
    the chapter inside that part, resetting per part (§Numbering), so
    section 5's third chapter announces as `Capítulo 5.3`. The title
    comes from the chapter's `title` in `_manifest.yml` (translated per
-   §Tone), not the internal id. When the source has a `**Context**:`
-   field, follow the announcement with one tester-facing sentence of
-   context, and render it **under the `> ` bar as the opening line of
-   the SAME blockquote as the chapter's instructions** (Claude variant:
-   put `>` on the blank line between the context and the instructions
-   so they read as one continuous separator bar, never two stacked
-   blocks; the context line is tester-facing, so it is never plain
-   prose). When the source has no `**Context**:` field, announce the
-   title alone.
+   §Tone), not the internal id. Announce the title alone, then go
+   straight into the chapter's instructions.
 2. **Preparation** (if applicable): create or modify the fixture
    files the chapter calls for (silently, per §Silence).
 3. **The tester's part**: the command block(s) and instructions,

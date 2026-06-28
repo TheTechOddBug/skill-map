@@ -200,8 +200,6 @@ Mark `inspector`: done.
 
 ## Chapter `edit-link` - Edit a link, the topology changes (~3 min)
 
-**Context**: the `first-edit` chapter had the tester edit a scalar (`description`) and watch the inspector card refresh. This chapter raises the bar: edit Markdown links and watch the MAP TOPOLOGY change both ways, a connector disappears when you remove a link, and a new one appears (clearing the broken-reference error) when you fix the unresolved one.
-
 The server has been live since the `init` chapter, leave it running; this chapter and the next two (the workspace tour, then `.skillmapignore`) reuse it.
 
 > Your turn. Edit `notes/todo.md` with your editor of choice and
@@ -231,8 +229,6 @@ Once they confirm, the second edit fixes the broken reference. Tell the tester:
 You verify by reading `notes/todo.md` to confirm both edits landed (the `@demo-agent` bullet gone, `@demo-guideline` now `@demo-guideline.md`); the prologue's broken reference is now resolved. Once they confirm, leave the server running, the next chapter reuses it. Mark `edit-link`: done.
 
 ## Chapter `workspace` - Navigate the workspace (files, search, isolate) (~2 min)
-
-**Context**: you've built the graph and understood it; this beat is about *moving around* it. The workspace has two halves: the **Map** you've been working in, and a **Files** panel, a folder tree of every node. You'll open that tree and filter it with the search box. The same `sm` session you booted back in the `init` chapter is still running.
 
 Walk the three tester actions below one at a time (open the Files
 panel, then search, then isolate); each ends with its own

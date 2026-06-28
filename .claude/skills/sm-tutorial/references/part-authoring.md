@@ -21,13 +21,6 @@ gone, re-invoke the tutorial from an empty dir") and stop.
 
 ## Step `authoring-1-scaffold` - `sm plugins create extractor demo-highlight` (~2 min)
 
-**Context**: We're building `demo-highlight`: a tiny extractor
-that scans each node's body for the keywords `TODO` and `FIXME`
-and shows the count as a chip on the node card. The scaffolder
-emits a working version of it; over the next steps we'll tweak
-its setting, move the chip to a different slot, and break the
-manifest on purpose to see the diagnostic catch it.
-
 > Let's scaffold it with `sm plugins create`:
 
 ```bash

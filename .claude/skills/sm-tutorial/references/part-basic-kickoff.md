@@ -23,9 +23,6 @@ The chapters grow the harness from there.
 
 ## Chapter `kickoff` - Start the portfolio (~2 min)
 
-**Context**: same `sm init` from the prologue, now on a real project. The map
-shows the project's harness, not throwaway demo nodes.
-
 If the prologue (`basic-fundamentals`) ran first here, `portfolio-init` already
 cleared the demo fixture during pre-flight, so the tester sees only the
 portfolio. If anything demo lingers, mention it once and move on.
@@ -59,11 +56,6 @@ Tell the tester:
 Wait for confirmation. Mark `kickoff`: done.
 
 ## Chapter `manual` - The handbook and an entry pointer (~2 min)
-
-**Context**: the first connector on the real project. A project often keeps a
-short entry file that points readers (and tools) at the handbook. On this lens
-that pointer is a plain **markdown link**, the only connector the open standard
-defines, and it is the tester's first real reference here.
 
 Tell the tester to create the file themselves (their project's file, Inviolable
 rule #2):
@@ -111,11 +103,6 @@ Wait for confirmation. Mark `first-skill`: done.
 
 ## Chapter `real-kinds` - The kinds in context (~2 min)
 
-**Context**: the prologue showed this lens's two kinds on abstract demo nodes.
-Now name them on the real project, and add the two markdown docs the harness
-references later (the style guide and the deploy runbook), so the daily loop's
-maintenance beats have something to point at.
-
 Lay the two docs (content lives in `fixtures-data/`). Backstage (silent):
 
 ```
@@ -143,10 +130,6 @@ Wait for confirmation. Mark `real-kinds`: done.
 
 ## Chapter `check-links` - The link checker (~3 min)
 
-**Context**: the harness needs a guard that runs before publishing, a skill that
-checks the site's internal links resolve before it ships. We only create the
-`skill` node here; the `publish` skill in the next chapter is what calls it.
-
 Lay the `check-links` skill (content lives in `fixtures-data/`). Backstage
 (silent):
 
@@ -165,15 +148,14 @@ Wait for confirmation. Mark `check-links`: done.
 
 ## Chapter `publish` - The publish skill (~4 min)
 
-**Context**: the chapter where the graph comes alive. The `publish` skill ties
-three pieces together in one body: it points at the link checker, at the content
-editor, and at the deploy runbook. On this lens all three are **markdown
-references**, so three reference arrows light up from a single new node.
-
 Tell the tester to create the file themselves (Inviolable rule #2). Render the
 block as a **top-level fenced code block** at column 0, NOT inside the `> `
 blockquote, so the frontmatter fences (`---`) land on column 0 (indented fences
-never parse, and `sm check` then warns `frontmatter-malformed`).
+never parse, and `sm check` then warns `frontmatter-malformed`). Emit every line
+verbatim: never soft-wrap, and never let a newline fall inside a `[text](path)`
+link, a break inside the `(path)` splits it (`(../content-editor/SKILL.md)` must
+stay on one line) and the link stops resolving (see `_core.md` §Language
+mirroring + fixture content).
 
 > Create `<provider_dir>/publish/SKILL.md` with exactly this content (the first
 > line is `---`, nothing before it):
@@ -220,10 +202,6 @@ flush at column 0 (if `sm check` flags `frontmatter-malformed`, the fences got
 indented on paste, re-align every line flush left). Mark `publish`: done.
 
 ## Chapter `links` - The handbook becomes the hub (~4 min)
-
-**Context**: the handbook (`AGENTS.md`) has been a lonely node since the start of
-this part. Here it becomes the hub: two bullets point it at the content editor
-and the publish skill. We also give the content editor a reference to the style guide it follows.
 
 Apply both edits (content lives in `fixtures-data/`). The first appends two hub
 bullets (markdown links) to `AGENTS.md`; the second adds the style-guide
@@ -276,8 +254,10 @@ Tell the tester:
 > file, and it drew a solid arrow at **1.00**.
 >
 > **IMPORTANT:** why does confidence matter? It mirrors how an agent resolves a
-> reference, a deterministic name-and-path lookup, no guessing. That is cheaper
-> and does not fail, the same reason a clean, well-named harness is worth keeping.
+> reference, a deterministic name-and-path lookup, no guessing. A link that does
+> not resolve sends the agent guessing and retrying, which burns time and tokens;
+> a deterministic one is cheaper and does not fail, the same reason a clean,
+> well-named harness is worth keeping.
 >
 > Do you see every badge reading 1.00 in the Inspector?
 

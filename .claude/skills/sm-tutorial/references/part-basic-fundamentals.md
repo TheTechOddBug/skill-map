@@ -198,11 +198,6 @@ Mark `inspector`: done.
 
 ## Chapter `edit-link` - Edit a link, the topology changes (~3 min)
 
-**Context**: `first-edit` changed a scalar and watched a card refresh. This
-chapter edits the markdown links and watches the MAP TOPOLOGY change both ways,
-a connector disappears when you remove a link, and a new one appears (clearing
-the broken-reference error) when you fix the unresolved one.
-
 The server has been live since `init`, leave it running; this chapter and the
 next two reuse it.
 
@@ -233,10 +228,6 @@ You verify by reading `notes/todo.md` (the `demo-skill` bullet gone, the
 `edit-link`: done.
 
 ## Chapter `workspace` - Navigate the workspace (files, search, isolate) (~2 min)
-
-**Context**: you've built the graph and understood it; this beat is about
-*moving around* it. The workspace has two halves: the **Map**, and a **Files**
-panel (a folder tree of every node). The same `sm` session is still running.
 
 Walk the three actions one at a time (open the Files panel, search, isolate);
 each ends with its own confirmation. Do NOT prepend an intro line to a block.

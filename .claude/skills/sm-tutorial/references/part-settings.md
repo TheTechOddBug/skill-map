@@ -22,9 +22,6 @@ stop, do not try to re-init mid-chapter.
 
 ## Step `settings-1-layers` - the config layers (~3 min)
 
-**Context**: where settings live and how `sm` resolves a value
-when more than one place sets it.
-
 > `sm` resolves every setting through a stack of **layers**, each
 > one overriding the layer below it:
 >
@@ -74,9 +71,6 @@ Mark `settings-1-layers: done`.
 
 ## Step `settings-2-resolve` - read, resolve, and set a value (~3 min)
 
-**Context**: the four config verbs (`get`, `show`, `set`, `reset`)
-and how `show --source` reveals which layer won.
-
 > Read a single setting. We'll use `scan.maxNodes`, the cap on how
 > many nodes a scan walks:
 
@@ -123,10 +117,8 @@ Mark `settings-2-resolve: done`.
 
 ## Step `settings-3-lens` - the active provider lens (~2 min)
 
-**Context**: the single most consequential setting, the lens that
-decides which provider types the project's files. It auto-detects and
-never touches your `.md` files. (Agent: substitute `<provider>` with
-`tutorial.provider`, the lens this run was scaffolded for.)
+(Agent: substitute `<provider>` with `tutorial.provider`, the lens
+this run was scaffolded for.)
 
 > One setting earns its own step: the **active provider lens**. A
 > skill-map project reads its files through exactly **one** provider

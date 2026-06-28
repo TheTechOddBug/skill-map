@@ -34,11 +34,6 @@ has NO `sm scan` / `sm check` steps: the watcher re-scans on every save.
 
 ## Chapter `setup` - Make it yours and bring it up (~5 min)
 
-**Context**: the harness is wired. Now put it to work on a real day. First make
-the site yours, about whatever you like, then serve it. The HTML and
-CSS are Layer 2 (the harness's output); skill-map maps the harness (Layer 1, the
-`.md` files), so the site landing on disk does NOT move the graph.
-
 **Preparation**:
 1. Ask the tester the two questions straight, with no "before we build, let's
    make it yours" lead-in: what the site should be called and one line about what
@@ -114,10 +109,6 @@ Wait for confirmation. Mark `add-page`: done. Auto-advance to `broken-ref`.
 
 ## Chapter `broken-ref` - A rename breaks a link (~4 min)
 
-**Context**: the daily safety net, and where skill-map earns its keep: rename and
-move things freely, and skill-map shows you exactly what you forgot to update
-before it ships broken.
-
 **Preparation**: none (the tester drives). Everything is watched live.
 
 Tell the tester to free the third terminal, then rename the deploy runbook
@@ -185,10 +176,6 @@ Wait for confirmation. Mark `reserved`: done. Auto-advance to `publish`.
 **Act C - Publish**
 
 ## Chapter `publish` - Ship it: run the publish skill for real (~4 min)
-
-**Context**: the publish flow only earns its keep when something is actually
-wrong, so first you plant a real bug in the site, then watch the publish skill
-catch and fix it for real.
 
 **Preparation**: make sure the pages exist (`index`, `about`, `projects`).
 

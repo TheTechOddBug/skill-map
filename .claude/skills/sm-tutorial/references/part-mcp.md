@@ -12,20 +12,10 @@ only. Shared conventions live in `_core.md`.
 
 ## Chapter `mcp-node` - The agent reaches for an MCP tool (~3 min)
 
-**Context**: until now every node on the map has been a file you can
-open. This chapter introduces a node that is NOT a file: an MCP
-server the `content-editor` agent calls. MCP (Model Context
-Protocol) is the standard way an agent reaches an external tool, and
-Claude names those tools `mcp__<server>__<tool>` in an agent's
-frontmatter. When the agent declares it uses `mcp__images__search`
-(an image-search tool, so it can find art for the pages), skill-map's
-`core/mcp-tools` extractor reads that declaration and draws a
-virtual `mcp://images` node plus a `references` link from
-content-editor to it. The link confidence is around 0.85 (high, but
-not the 1.00 of a markdown link to a real file, because the target is
-an external service, not a file on disk). If several harness members
-named the same server, skill-map would draw a single shared
-`mcp://images` node, not one per caller.
+Agent note (not narrated, the demo only adds one tool so it never
+manifests here): if several harness members named the same MCP
+server, skill-map draws ONE shared `mcp://images` node, not one per
+caller.
 
 **Preparation**: `Edit` `.claude/agents/content-editor.md`. Do NOT
 rewrite the file. Change only the `tools:` line in the frontmatter so

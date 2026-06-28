@@ -125,15 +125,6 @@ broken-reference markers, and confidence live.
 
 ## Chapter `setup` - Make it yours and bring it up (~5 min)
 
-**Context**: the harness is wired (you built it in the earlier parts). Now you
-put it to work on a real day. First, make the site yours, about whatever you
-like, then serve it and open it in the browser, the early payoff before the
-daily loop fills it with pages. The honest beat: the HTML
-and CSS are Layer 2 (the harness's output); skill-map maps the harness (Layer 1,
-the `.md` files), so the site landing on disk does NOT move the graph, and that
-is correct, not a bug. The tester runs the serve commands themselves (one of the
-few non-`sm` beats); guide them, do not run them.
-
 **Preparation**:
 
 1. Ask the tester the two questions straight, with no "before we build, let's
@@ -326,10 +317,6 @@ Wait for confirmation. Mark `add-page`: done. Auto-advance to `broken-ref`.
 
 ## Chapter `broken-ref` - A rename breaks a link (~4 min)
 
-**Context**: the daily safety net, and where skill-map earns its keep: rename and
-move things freely, and skill-map shows you exactly what you forgot to update
-before it ships broken.
-
 **Preparation**: none (the tester drives). Everything here is watched live on
 the Map; no `sm` commands.
 
@@ -404,10 +391,6 @@ Wait for confirmation. Mark `reserved`: done. Auto-advance to `publish`.
 **Act C - Publish**
 
 ## Chapter `publish` - Ship it: run /publish for real (~4 min)
-
-**Context**: the publish flow only earns its keep when something is actually
-wrong, so first you plant a real bug in the site, then watch `/publish` catch and
-fix it for real.
 
 **Preparation**: make sure the pages exist (`index`, `about`, `projects` from the
 earlier chapters; lay any that are missing from the templates in `setup`).

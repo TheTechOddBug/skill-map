@@ -23,10 +23,6 @@ restore the files.") and stop.
 
 ## Step `tour-1-intro` - how plugins work (~4 min)
 
-**Context**: A short tour of what a plugin is, how it groups
-extensions, and a peek at the five plugins that ship
-pre-installed.
-
 > Plugins are how skill-map gets extended. A **plugin** is the
 > deployable unit: one directory with a `plugin.json` manifest and
 > the extension code. It groups one or more **extensions**, the
@@ -129,10 +125,6 @@ you'll toggle one yourself in the next step.
 Mark `tour-2-kinds: done`.
 
 ## Step `tour-3-explore` - explore one extension up close (~4 min)
-
-**Context**: Drill into a single extension to see its detail,
-run the diagnostic, then toggle one off and back on so you see
-the change persists.
 
 > Pick one extension and look at its details. We'll use
 > `core/external-url-counter`, an extractor that counts how many

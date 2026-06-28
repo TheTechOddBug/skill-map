@@ -67,8 +67,6 @@ Mark `issues`: done.
 
 ## Chapter `annotations` - Annotations and the .sm consent prompt (~3 min)
 
-**Context**: skill-map keeps each tracked `.md`'s metadata (version, history, tags, annotations) in a sibling **`.sm` companion file** so the `.md` stays clean, and the first time it writes one in a project it asks for consent (remembered in the gitignored `settings.local.json`). The Maintain part walks that consent flow in full; this chapter does not re-teach it. The CLI focus here is what Maintain does not cover: the **three sidecar verbs** and the `--yes` non-interactive switch. A tester who jumped straight here gets a one-line refresher in the demo below.
-
 Create a scaffold for `notes/todo.md` so there is a `.sm` on disk to talk about. **Reset any prior consent state first** so the prompt appears (an earlier step may have flipped the flag, in which case the verb skips straight past it):
 
 ```bash
@@ -89,8 +87,6 @@ And for automation: a CI / non-interactive session has no one to answer the `[Y/
 Mark `annotations`: done.
 
 ## Chapter `reference-paths` - Validate links to folders outside the scan scope (~4 min)
-
-**Context**: until now the map saw only files inside the cwd. In real projects a repo often links to files in a sibling repo (a specs project, a sibling package in a monorepo). Skill-map only scans from its cwd downwards, so a link to `../sibling/file.md` shows up as broken. The fix is to declare the external folders in `scan.referencePaths`, which lets the `reference-broken` analyzer validate path-style links against those extra roots **without indexing their files as nodes**. The folders are checked, not walked as part of the map.
 
 **Setup (you, silent)**: lay the fixture under the tutorial cwd so both sub-projects are siblings of each other but children of the tutorial root (its content + translation live in `fixtures-data/`). No confirmation beat needed, the tester learns about the files in the next message. Backstage (silent):
 
