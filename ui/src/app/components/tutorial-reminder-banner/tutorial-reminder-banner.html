@@ -1,0 +1,17 @@
+@if (visible()) {
+  <div class="tutorial-reminder" role="status" data-testid="tutorial-reminder-banner">
+    <span class="tutorial-reminder__icon fa-solid fa-graduation-cap" aria-hidden="true"></span>
+    <span class="tutorial-reminder__body">{{ texts.body }}</span>
+    <code class="tutorial-reminder__cmd" data-testid="tutorial-reminder-banner-cmd">{{ texts.command }}</code>
+    <p-button
+      icon="fa-solid fa-xmark"
+      [ariaLabel]="texts.dismissAria"
+      severity="secondary"
+      [text]="true"
+      [rounded]="true"
+      size="small"
+      (onClick)="dismiss()"
+      data-testid="tutorial-reminder-banner-dismiss"
+    />
+  </div>
+}

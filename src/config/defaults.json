@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "allowEditSmFiles": false,
   "allowSidecarWriters": true,
+  "tutorialReminderDismissed": false,
   "tokenizer": "cl100k_base",
   "roots": [],
   "ignore": [],

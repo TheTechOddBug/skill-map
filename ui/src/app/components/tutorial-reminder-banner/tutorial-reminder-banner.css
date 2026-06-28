@@ -1,0 +1,44 @@
+/*
+ * Centered topbar nudge to the interactive tutorial. `display: contents`
+ * so the host adds no box of its own; the `.shell__center` wrapper in the
+ * shell owns the centering, this component just paints the pill.
+ */
+:host {
+  display: contents;
+}
+
+.tutorial-reminder {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.2rem 0.3rem 0.2rem 0.75rem;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: var(--sm-radius-md);
+  background: var(--p-highlight-background);
+  color: var(--p-text-color);
+  font-size: 0.85rem;
+}
+
+.tutorial-reminder__icon {
+  flex: none;
+  color: var(--p-primary-color);
+  font-size: 1rem;
+}
+
+.tutorial-reminder__body {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tutorial-reminder__cmd {
+  flex: none;
+  font-family: var(--sm-font-mono);
+  background: var(--p-content-background);
+  border: 1px solid var(--p-content-border-color);
+  border-radius: var(--sm-radius-sm);
+  padding: 0.05rem 0.4rem;
+  font-size: 0.85em;
+}

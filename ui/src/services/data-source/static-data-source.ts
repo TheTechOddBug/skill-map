@@ -539,6 +539,7 @@ export class StaticDataSource implements IDataSourcePort {
       allowSidecarWriters: true,
       scan: { referencePaths: [] },
       pluginTrust: { projectEnabled: false },
+      tutorialReminderDismissed: false,
     };
   }
 

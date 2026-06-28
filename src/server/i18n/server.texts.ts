@@ -375,6 +375,7 @@ export const SERVER_TEXTS = {
     'Request body must contain `allowSidecarWriters`, a `scan` block with `referencePaths`, and/or a `pluginTrust` block with `projectEnabled`.',
   projectPrefsConfirmNotBoolean: '`confirm` must be a boolean.',
   projectPrefsSidecarWritersNotBoolean: '`allowSidecarWriters` must be a boolean.',
+  projectPrefsReminderNotBoolean: '`tutorialReminderDismissed` must be a boolean.',
   projectPrefsTrustNotObject:
     '`pluginTrust` must be an object (e.g. `{"pluginTrust": {"projectEnabled": true}}`).',
   projectPrefsTrustEnabledNotBoolean: '`pluginTrust.projectEnabled` must be a boolean.',

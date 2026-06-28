@@ -21,6 +21,7 @@ import { ThemeService } from '../services/theme';
 import { ProviderRegistryService, type IProviderUi } from '../services/provider-registry';
 import { SKILL_MAP_MODE } from '../services/data-source/runtime-mode';
 import { DemoBanner } from './components/demo-banner/demo-banner';
+import { TutorialReminderBanner } from './components/tutorial-reminder-banner/tutorial-reminder-banner';
 import { OversizedBanner } from './components/oversized-banner/oversized-banner';
 import { SkippedFilesBanner } from './components/skipped-files-banner/skipped-files-banner';
 import { ConnectionBanner } from './components/connection-banner/connection-banner';
@@ -30,7 +31,7 @@ import { ViewContributionsHost } from './components/view-contributions-host/view
 
 @Component({
   selector: 'sm-root',
-  imports: [RouterOutlet, ButtonModule, InputTextModule, TooltipModule, FormsModule, NgOptimizedImage, DemoBanner, OversizedBanner, SkippedFilesBanner, ConnectionBanner, SettingsModal, /* DEBUG-SLOTS */ ViewContributionsHost],
+  imports: [RouterOutlet, ButtonModule, InputTextModule, TooltipModule, FormsModule, NgOptimizedImage, DemoBanner, TutorialReminderBanner, OversizedBanner, SkippedFilesBanner, ConnectionBanner, SettingsModal, /* DEBUG-SLOTS */ ViewContributionsHost],
   templateUrl: './app.html',
   styleUrl: './app.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

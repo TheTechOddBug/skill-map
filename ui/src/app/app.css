@@ -59,6 +59,17 @@
   gap: 0.75rem;
 }
 
+/* Centered topbar slot (currently the tutorial reminder). Takes the free
+   space between the brand and the nav so its content centers in the row;
+   `min-width: 0` lets the child's ellipsis kick in instead of overflowing. */
+.shell__center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 0;
+}
+
 .shell__brand-mark {
   width: 2rem;
   height: 2rem;

@@ -163,6 +163,10 @@
     "allowSidecarWriters": {
       "type": "boolean",
       "description": "**Project policy, team-shared** (committed in `<cwd>/.skill-map/settings.json`, NOT project-local). Default `true`. When `false`, every extension whose manifest declares `writes: ['sidecar']` (the built-in `core/node-bump`, `core/node-set-tags`, `core/node-set-stability`, plus any external action) is dropped from the scan composer so its `inspector.action.button` never renders, and the sidecar store refuses the write with `ESidecarWritersForbiddenError`. This is a HARD gate that wins over the per-machine `allowEditSmFiles` consent: a developer cannot re-enable sidecar writes locally, and `--yes` does not bypass it. Reads of existing `.sm` sidecars (annotation orphan fields) are unaffected, the policy governs writes / generation only. Unlike `allowEditSmFiles` this key is meant to travel via the shared repo, so it is NOT stripped from the committed `project` layer."
+    },
+    "tutorialReminderDismissed": {
+      "type": "boolean",
+      "description": "**Project-local only** (per `core/config/helper:PROJECT_LOCAL_ONLY_KEYS`). UI preference: when `true`, the web UI hides the topbar reminder that nudges first-time users to run `sm tutorial`. Default `false` (the reminder shows). Set to `true` by the reminder's dismiss button, persisted to `<cwd>/.skill-map/settings.local.json` (gitignored, per-checkout), so it never shows again on this checkout; reset with `sm config reset tutorialReminderDismissed`. Stripped with a warning if found in the committed `project` layer (the dismissal is per-developer, not a team-shared decision)."
     }
   }
 }

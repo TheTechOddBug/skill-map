@@ -62,6 +62,11 @@ export interface IProjectPreferencesEnvelope {
   pluginTrust: {
     projectEnabled: boolean;
   };
+  /**
+   * Project-local UI preference: when `true`, the web UI hides the topbar
+   * reminder nudging first-time users to run `sm tutorial`. Default `false`.
+   */
+  tutorialReminderDismissed: boolean;
 }
 
 interface IPatchBody {
@@ -73,6 +78,7 @@ interface IPatchBody {
   pluginTrust?: {
     projectEnabled?: boolean;
   };
+  tutorialReminderDismissed?: boolean;
 }
 
 export function registerProjectPreferencesRoute(app: Hono, deps: IRouteDeps): void {
@@ -109,6 +115,11 @@ function buildEnvelope(deps: IRouteDeps): IProjectPreferencesEnvelope {
           default: false,
         }) ?? false,
     },
+    tutorialReminderDismissed:
+      readConfigValue<boolean>('tutorialReminderDismissed', {
+        cwd,
+        default: false,
+      }) ?? false,
   };
 }
 
@@ -137,6 +148,11 @@ async function applyPatch(deps: IRouteDeps, body: IPatchBody): Promise<void> {
   // 412 confirm gate (see `applyTrustWrite`).
   const trustChanged = applyTrustWrite(body, cwd);
 
+  // Project-local UI preference: the tutorial-reminder dismissal. A plain
+  // boolean written to the gitignored project-local layer, no privacy or
+  // confirm gate (it neither expands disk access nor trusts code).
+  const reminderChanged = applyTutorialReminderWrite(body, cwd);
+
   // Best-effort watcher restart: the runtime re-reads config every
   // batch so the next file edit picks the change up anyway, but the
   // restart guarantees the operator sees the effect (new path list,
@@ -148,7 +164,8 @@ async function applyPatch(deps: IRouteDeps, body: IPatchBody): Promise<void> {
   // Successful writes mutate the on-disk config; the cached view would
   // now hand out stale state. Drop it so the next consumer re-reads
   // from disk.
-  if (policyChanged || scan.attempted || trustChanged) deps.configService.reload();
+  if (policyChanged || scan.attempted || trustChanged || reminderChanged)
+    deps.configService.reload();
 }
 
 /**
@@ -185,6 +202,33 @@ function applyTrustWrite(body: IPatchBody, cwd: string): boolean {
     });
   }
   log.warn(tx(SERVER_TEXTS.projectPrefsTrustSet, { value: String(next) }));
+  return true;
+}
+
+/**
+ * Apply the `tutorialReminderDismissed` key of the patch: a project-local
+ * UI preference (the web UI's topbar tutorial reminder). No privacy /
+ * confirm gate, it neither expands disk access nor trusts code. Persisted
+ * to the gitignored `project-local` layer (the key is project-local only).
+ * Returns `true` when the value actually changed, so the caller reloads the
+ * config cache.
+ */
+function applyTutorialReminderWrite(body: IPatchBody, cwd: string): boolean {
+  const next = body.tutorialReminderDismissed;
+  if (next === undefined) return false;
+  const before =
+    readConfigValue<boolean>('tutorialReminderDismissed', { cwd, default: false }) ?? false;
+  if (before === next) return false;
+  try {
+    writeConfigValue('tutorialReminderDismissed', next, { target: 'project-local', cwd });
+  } catch (err) {
+    throw new HTTPException(400, {
+      message: tx(SERVER_TEXTS.projectPrefsPersistFailed, {
+        key: 'tutorialReminderDismissed',
+        message: formatErrorMessage(err),
+      }),
+    });
+  }
   return true;
 }
 
@@ -466,10 +510,12 @@ const PATCH_BODY_SCHEMA = {
     { required: ['allowSidecarWriters'] },
     { required: ['scan'] },
     { required: ['pluginTrust'] },
+    { required: ['tutorialReminderDismissed'] },
   ],
   properties: {
     confirm: { type: 'boolean' },
     allowSidecarWriters: { type: 'boolean' },
+    tutorialReminderDismissed: { type: 'boolean' },
     scan: {
       type: 'object',
       additionalProperties: false,
@@ -505,6 +551,7 @@ const parsePatchBody = makeBodyValidator<IPatchBody>(PATCH_BODY_SCHEMA, {
     '/pluginTrust/projectEnabled:type:boolean': SERVER_TEXTS.projectPrefsTrustEnabledNotBoolean,
     '/confirm:type:boolean': SERVER_TEXTS.projectPrefsConfirmNotBoolean,
     '/allowSidecarWriters:type:boolean': SERVER_TEXTS.projectPrefsSidecarWritersNotBoolean,
+    '/tutorialReminderDismissed:type:boolean': SERVER_TEXTS.projectPrefsReminderNotBoolean,
     '/scan/referencePaths:type:array': tx(SERVER_TEXTS.projectPrefsListNotArray, { key: 'scan.referencePaths' }),
     '/scan/referencePaths/*:type:string': tx(SERVER_TEXTS.projectPrefsListEntryNotString, { key: 'scan.referencePaths' }),
     '/scan/referencePaths/*:pattern': SERVER_TEXTS.projectPrefsEntryHasComma,

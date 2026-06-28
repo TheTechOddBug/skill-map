@@ -182,6 +182,16 @@ export interface IEffectiveConfig {
    * governs writes / generation only.
    */
   allowSidecarWriters: boolean;
+  /**
+   * **Project-local only** (per `PROJECT_LOCAL_ONLY_KEYS`). UI preference:
+   * when `true`, the web UI hides the topbar reminder that nudges
+   * first-time users to run `sm tutorial`. Default `false`. Set by the
+   * reminder's dismiss button, persisted to
+   * `<cwd>/.skill-map/settings.local.json` (gitignored, per-checkout);
+   * reset with `sm config reset tutorialReminderDismissed`. Stripped from
+   * the committed `project` layer (the dismissal is per-developer).
+   */
+  tutorialReminderDismissed: boolean;
   tokenizer: string;
   roots: string[];
   ignore: string[];
@@ -214,6 +224,7 @@ export interface IEffectiveConfig {
  */
 export const PROJECT_LOCAL_ONLY_KEYS: ReadonlySet<string> = new Set<string>([
   'allowEditSmFiles',
+  'tutorialReminderDismissed',
   'scan.referencePaths',
   'pluginTrust.projectEnabled',
 ]);

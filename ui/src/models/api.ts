@@ -1000,6 +1000,13 @@ export interface IProjectPreferencesApi {
   pluginTrust?: {
     projectEnabled: boolean;
   };
+  /**
+   * Project-local UI preference: when `true`, the web UI hides the topbar
+   * reminder nudging first-time users to run `sm tutorial`. Default `false`.
+   * Optional only to tolerate an older BFF envelope that predates it; the
+   * current BFF always emits a concrete boolean.
+   */
+  tutorialReminderDismissed?: boolean;
 }
 
 /**
@@ -1027,6 +1034,8 @@ export interface IProjectPreferencesPatchApi {
   pluginTrust?: {
     projectEnabled?: boolean;
   };
+  /** Dismiss (or restore) the topbar tutorial reminder (project-local). */
+  tutorialReminderDismissed?: boolean;
 }
 
 /**
