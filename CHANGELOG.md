@@ -6,6 +6,17 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>0.72.0</b> · 2026-06-28</summary>
+
+### CLI Minor
+- Add an `opencode` built-in provider lens for the OpenCode CLI. Under the opencode lens, skill-map classifies OpenCode agents (`.opencode/agent/*.md`) and commands (`.opencode/commands/*.md`), and discovers skills from the three homes OpenCode reads (`.opencode/skills/`, `.claude/skills/`, `.agents/skills/`). Claude compatibility is asymmetric: OpenCode reads Claude skills but not Claude agents or commands, so those fall through to markdown. A `.opencode/` folder auto-detects the lens (beta).
+
+### Spec Patch (0.65.1)
+- Add an `opencode` built-in provider lens for the OpenCode CLI. Under the opencode lens, skill-map classifies OpenCode agents (`.opencode/agent/*.md`) and commands (`.opencode/commands/*.md`), and discovers skills from the three homes OpenCode reads (`.opencode/skills/`, `.claude/skills/`, `.agents/skills/`). Claude compatibility is asymmetric: OpenCode reads Claude skills but not Claude agents or commands, so those fall through to markdown. A `.opencode/` folder auto-detects the lens (beta).
+
+</details>
+
+<details>
 <summary><b>0.71.0</b> · 2026-06-28</summary>
 
 ### CLI Minor
