@@ -282,12 +282,16 @@
      `bdi` (in the template) so the chars render LTR but the overflow
      truncates at the visual start (the LEFT edge of the row). The
      full path is exposed via `title` on the host so the user can
-     hover for the canonical string. */
+     hover for the canonical string. `text-align: left` pins the
+     visible path to the row's left edge (without it, `direction: rtl`
+     right-aligns the string); the ellipsis still lands on the left
+     because that edge is governed by `direction`, not `text-align`. */
   max-width: 40rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   direction: rtl;
+  text-align: left;
 }
 
 .shell__nav {
