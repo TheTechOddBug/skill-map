@@ -62,11 +62,12 @@ describe('sm tutorial prompt rendering', () => {
   it('leads with the standard label for the open lens, supporting vendors in parens', () => {
     // Several providers share `.agents/skills`, so the folder cannot identify
     // the lens. The basic book teaches the open standard itself, so the
-    // standard label leads and the vendors that build on it (Antigravity, then
-    // a trailing `others`) follow in parens, never the other way round.
+    // standard label leads and the vendors that build on it (Antigravity and
+    // OpenCode, then a trailing `others`) follow in parens, never the other
+    // way round.
     assert.equal(
       labelWithAka(byId('agent-skills')),
-      "Standard: Agent skills (Google's Antigravity, others)",
+      "Standard: Agent skills (Google's Antigravity, OpenCode, others)",
     );
   });
 

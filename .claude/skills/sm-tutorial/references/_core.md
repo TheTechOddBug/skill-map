@@ -269,7 +269,14 @@ A skill-map project reads its files through exactly ONE active lens
 | `claude`       | `.claude/` (agents, commands, skills)     | agent, command, skill, markdown| `/` invokes, `@` mentions, refs| `.claude/`         | stable           | rich    |
 | `codex`        | `.codex/agents/*.toml` + `.agents/skills/`| agent (TOML), skill, markdown  | `$` invokes, `@` file-refs, refs| `.codex/`         | beta             | rich    |
 | `antigravity`  | `.agents/skills/` + `.agent/workflows/`   | skill, workflow, markdown      | `/` invokes, `@` file-refs, refs | `.agent/workflows/`| beta             | basic   |
+| `opencode`     | `.agents/skills/` (basic scope) + `.opencode/` | skill, markdown           | refs only                      | `.opencode/`       | beta             | basic   |
 | `agent-skills` | `.agents/skills/`                         | skill, markdown                | refs only                      | `.agents/`         | stable (default) | basic   |
+
+`opencode` is the one rich-capable lens on the basic track: the OpenCode product
+has `agent` + `command` kinds and `/`-invocation, but its tutorial teaches only
+the shared open-standard `.agents/skills/` skills + markdown references (its
+agents / commands are a deliberate out-of-scope simplification here; the real
+OpenCode lens still classifies them in a live project).
 
 `core/markdown` classifies every orphan `.md` under whatever lens is
 active; it is the universal base, never a selectable lens.
@@ -282,7 +289,7 @@ active; it is the universal base, never a selectable lens.
   (skills) and `@`-FILE references (Codex's `@` is a file picker, it cannot
   mention an agent by name, and `/` is a Codex built-in command, not a skill
   invocation). Both also use markdown references.
-- **basic** (`agent-skills`, `antigravity`): the open-standard family,
+- **basic** (`agent-skills`, `antigravity`, `opencode`): the open-standard family,
   built on `skill` + `markdown` and wired with **markdown references**
   (`[text](path)`), the one connection the Agent Skills standard
   documents. They diverge on what Antigravity bolts on top of the
@@ -311,14 +318,19 @@ built-in command, not a skill invocation).
      `provider = codex`, `track = rich`.
    - else a `.agent/workflows/` dir present → `provider = antigravity`,
      `track = basic`.
+   - else a `.opencode/` dir present → `provider = opencode`,
+     `<provider_dir> = .agents/skills`, `track = basic` (OpenCode joins the
+     open standard for the tutorial; its `.opencode/` marker rides on top of
+     the shared `.agents/skills/` skill home, like `.codex/` and
+     `.agent/workflows/` do).
    - else skill under `.claude/skills/sm-tutorial/` → `provider = claude`,
      `<provider_dir> = .claude`, `track = rich`.
    - else skill under `.agents/skills/sm-tutorial/` → `provider = agent-skills`,
      `<provider_dir> = .agents/skills`, `track = basic`.
-   **Lens precedence for codex / antigravity**: both adopt the open
+   **Lens precedence for codex / antigravity / opencode**: each adopts the open
    `.agents/skills/` layout, so the scaffold leaves the vendor marker
-   (`.codex/` or `.agent/workflows/`) alongside the `agent-skills` marker
-   (`.agents/`). The vendor marker WINS: `sm init` resolves `codex` /
+   (`.codex/`, `.agent/workflows/`, or `.opencode/`) alongside the
+   `agent-skills` marker (`.agents/`). The vendor marker WINS: `sm init` resolves `codex` /
    `antigravity` outright with no prompt (the `.agents/` open default only
    competes when no vendor marker is present). So the codex book runs
    exactly like claude, `sm init` then `sm`, with no lens prompt and no

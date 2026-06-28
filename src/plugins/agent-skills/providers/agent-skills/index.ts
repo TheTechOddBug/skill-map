@@ -177,15 +177,17 @@ export const agentSkillsProvider: IBuiltInManifest<IProvider> = {
   detect: { markers: ['.agents'], fallback: true },
 
   // Authoring target for `sm tutorial`: the open standard discovers skills
-  // under `.agents/skills/<name>/SKILL.md`. `aka` lists Antigravity, which
-  // shares this territory AND the BASIC tutorial track (skill + markdown,
-  // references), so a tester on Antigravity scaffolds here. OpenAI Codex
+  // under `.agents/skills/<name>/SKILL.md`. `aka` lists Antigravity and
+  // OpenCode, which share this territory AND the BASIC tutorial track (skill +
+  // markdown, references), so a tester on either scaffolds here. OpenCode is
+  // rich-capable (`agent` + `command` kinds) but is deliberately taught on the
+  // basic track via the shared open standard. OpenAI Codex
   // also reads `.agents/skills/`, but Codex is a RICH-track lens (it has the
   // `agent` kind, plus `$`-skill invocation and `@`-file references), so
   // advertising it under this basic row
   // would hand it the wrong book; Codex is surfaced once a Codex rich
   // scaffold target lands. `aka` is display-only, `--for` matches the id.
-  scaffold: { skillDir: '.agents/skills', aka: ["Google's Antigravity"] },
+  scaffold: { skillDir: '.agents/skills', aka: ["Google's Antigravity", 'OpenCode'] },
 
   read: COMMONS_READ,
 

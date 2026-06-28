@@ -7,11 +7,13 @@
 export const PROVIDER_TOKEN = '__PROVIDER__';
 
 export function providerDir(provider) {
-  // agent-skills, Antigravity and Codex all keep their SKILLS under the
-  // open `.agents/skills/` layout. (Codex additionally has TOML agents under
-  // `.codex/agents/`, supplied by the codex overlay's literal paths, not this
-  // single base dir.)
-  return provider === 'agent-skills' || provider === 'antigravity' || provider === 'codex'
+  // agent-skills, Antigravity, Codex, and OpenCode all keep their SKILLS under
+  // the open `.agents/skills/` layout. (Codex additionally has TOML agents
+  // under `.codex/agents/`, supplied by the codex overlay's literal paths, not
+  // this single base dir. OpenCode is rich-capable but joins the open-standard
+  // BASIC track here: the tutorial teaches its shared `.agents/skills/` layer,
+  // not its own `.opencode/` agents/commands.)
+  return provider === 'agent-skills' || provider === 'antigravity' || provider === 'codex' || provider === 'opencode'
     ? '.agents/skills'
     : '.claude';
 }
@@ -25,6 +27,10 @@ export const PROVIDER_KINDS = {
   codex: new Set(['skill', 'markdown']),
   'agent-skills': new Set(['skill', 'markdown']),
   antigravity: new Set(['skill', 'markdown']),
+  // OpenCode is rich-capable (it has agent + command kinds in the product), but
+  // its tutorial runs on the BASIC track via the shared open standard, so only
+  // skill + markdown are taught here (its agents/commands are out of scope).
+  opencode: new Set(['skill', 'markdown']),
 };
 
 export function kindsFor(provider) {
@@ -36,7 +42,8 @@ export function kindsFor(provider) {
  * kind?" axis (see `_core.md` §Provider detection):
  *   - `rich`  (agent + skill + slash + `@`): `claude`, `codex`.
  *   - `basic` (skill + markdown, connected by markdown references): the
- *     open-standard family `agent-skills`, `antigravity`.
+ *     open-standard family `agent-skills`, `antigravity`, `opencode`
+ *     (OpenCode is rich-capable but joins basic via the shared open standard).
  * The book renders the track's parts; the same lens always resolves to
  * the same track, so a resumed session never re-derives it.
  */
@@ -46,13 +53,14 @@ export function trackFor(provider) {
 
 /**
  * The provider whose fixture overlays a given provider reuses. The
- * open-standard family (`agent-skills`, `antigravity`) shares one on-disk
- * shape (`.agents/skills/`, skill + markdown, connected by markdown
- * references), so `antigravity` reuses the canonical `agent-skills`
- * overlays rather than duplicating them. Every other provider keys its own.
+ * open-standard family (`agent-skills`, `antigravity`, `opencode`) shares one
+ * on-disk shape (`.agents/skills/`, skill + markdown, connected by markdown
+ * references), so `antigravity` and `opencode` reuse the canonical
+ * `agent-skills` overlays rather than duplicating them. Every other provider
+ * keys its own.
  */
 export function overlayKey(provider) {
-  return provider === 'antigravity' ? 'agent-skills' : provider;
+  return provider === 'antigravity' || provider === 'opencode' ? 'agent-skills' : provider;
 }
 
 /**
@@ -81,6 +89,7 @@ const KIND_DIRS = {
   codex: { skills: '.agents/skills' },
   'agent-skills': { skills: '.agents/skills' },
   antigravity: { skills: '.agents/skills' },
+  opencode: { skills: '.agents/skills' },
 };
 
 /**
