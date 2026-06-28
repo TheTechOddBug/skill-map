@@ -209,7 +209,7 @@ parts:
       - id: setup       ; title: "Make it yours and bring it up" ; est_min: 4
       - id: add-page    ; title: "Add a page with your skill" ; est_min: 3
       - id: broken-ref  ; title: "A rename breaks a link" ; est_min: 3
-      - id: reserved    ; title: "A reserved name collides" ; est_min: 2
+      - id: reserved    ; title: "A reserved name collides" ; est_min: 4
       - id: publish     ; title: "Ship it: run the publish skill for real" ; est_min: 3
       - id: stability   ; title: "Set a node's stability (and the `.sm` sidecar)" ; est_min: 3
       - id: golive      ; title: "Your website, live next to the graph" ; est_min: 3

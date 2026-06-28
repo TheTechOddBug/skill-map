@@ -289,7 +289,7 @@
         {
           "id": "reserved",
           "title": "A reserved name collides",
-          "est_min": 2
+          "est_min": 4
         },
         {
           "id": "publish",

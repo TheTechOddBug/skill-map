@@ -138,7 +138,7 @@ mv docs/DEPLOY.md docs/DEPLOYMENT.md
 Wait for confirmation. The harness MUST be clean again before Act C. Mark
 `broken-ref`: done. Auto-advance to `reserved`.
 
-## Chapter `reserved` - A reserved name collides (~2 min)
+## Chapter `reserved` - A reserved name collides (~4 min)
 
 **Preparation**: `Write` `<provider_dir>/model/SKILL.md`:
 ```markdown
@@ -169,7 +169,51 @@ The watcher picks up the new skill. Tell the tester:
 >
 > See the `model` node land clean, with no warning?
 
-Wait for confirmation. Mark `reserved`: done. Auto-advance to `publish`.
+Wait for confirmation.
+
+**Beat 2, prove the vendor exception by switching the lens (hands-on).** First
+`Write` `<provider_dir>/goal/SKILL.md` (a skill named after the Antigravity
+built-in verb `goal`):
+
+```markdown
+---
+name: goal
+description: |
+  Captures a goal for the site and tracks it to done.
+---
+
+# goal
+
+Notes a goal and checks it off when shipped.
+```
+
+The watcher adds it clean (on your open-standard lens `goal` is just a name). The
+agent does NOT touch settings (Inviolable rule #2); the tester drives the
+Settings UI. Tell the tester:
+
+> Now let's make that warning real by switching the lens. I added one more skill,
+> `goal`, an Antigravity built-in verb. On your open standard it landed clean,
+> same as `model`.
+>
+> Open **Settings** (the sliders icon, top right) and the **Project** tab. Find
+> **Active provider** and switch it from the open standard to **Google's
+> Antigravity**, then confirm. skill-map clears the old lens's scan, so the Map
+> goes quiet; click the **refresh** button (the sync icon in the topbar) to
+> re-scan under the new lens.
+>
+> Watch the Map: `goal` now wears a **`name-reserved`** warning (under Antigravity
+> `/goal` is a built-in command, so your skill would be shadowed), while `model`
+> stays clean (it is not one of Antigravity's verbs). Same files, different lens:
+> the lens decides what is reserved.
+>
+> Now switch **Active provider** back to the open standard, confirm, and click
+> refresh once more. The warning on `goal` clears, you are back on the neutral
+> standard that reserves nothing.
+>
+> Did the warning appear under Antigravity and clear when you switched back?
+
+Wait for confirmation. The lens MUST be back on the open standard before
+continuing. Mark `reserved`: done. Auto-advance to `publish`.
 
 ---
 
