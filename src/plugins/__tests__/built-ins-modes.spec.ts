@@ -106,7 +106,7 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     assert.equal(qualifiedByKindAndShort.get('provider:agent-skills'), 'agent-skills/agent-skills');
 
     // Core kernel built-ins.
-    assert.equal(qualifiedByKindAndShort.get('extractor:slash-command'), 'claude/slash-command');
+    assert.equal(qualifiedByKindAndShort.get('extractor:slash-command'), 'core/slash-command');
     assert.equal(qualifiedByKindAndShort.get('extractor:at-directive'), 'claude/at-directive');
     assert.equal(qualifiedByKindAndShort.get('extractor:external-url-counter'), 'core/external-url-counter');
     assert.equal(qualifiedByKindAndShort.get('analyzer:name-collision'), 'core/name-collision');
@@ -161,7 +161,8 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // `core/score-resolution` (a former `score`-phase analyzer that assigned the resolved-link 1.0 confidence) was briefly added (38) then deleted: the kernel now seeds the 1.0 confidence baseline on every link directly, and only the `core/name-reserved` / `core/reference-broken` detectors apply penalty deltas on top, dropping the total back to 37.
     // `core/job-file-orphan` (the rule that flagged orphan MD files under .skill-map/jobs/) was removed, to be reintroduced later under a probabilistic evaluation model; the `findOrphanJobFiles` helper + `sm job prune --orphan-files` verb stay, dropping the total to 36.
     // The supersede feature was removed wholesale: the `core/annotations` extractor (its only producer), the `core/node-supersede` action, and the `core/node-superseded` analyzer were all deleted, dropping the total to 33.
-    // The codex `$skill` / `@`-file grammar split added two codex-owned extractors (`codex/dollar-skill`, `codex/at-file`), bringing it to 35.
+    // The codex `$skill` / `@`-file grammar split added two extractors (`codex/dollar-skill`, `codex/at-file`), bringing it to 35.
+    // The `@`/`/` grammar consolidation then moved the shared `slash-command` (claude -> core) and `at-file` (codex -> core) into the vendor-neutral `core` plugin; a move, not an add/remove, so the total stays 35.
     assert.equal(rows.length, 35);
   });
 

@@ -55,7 +55,7 @@ async function runAndResolve(helper: ReturnType<typeof makeContext>): Promise<vo
   for (const link of resolved.links) helper.links.push(link);
 }
 
-describe('at-file extractor (codex)', () => {
+describe('at-file extractor (core, @-file-picker lenses)', () => {
   it('emits a references link for a sibling file token (known extension)', async () => {
     const helper = makeContext(mockNode('.codex/agents/deployer.toml'), 'hand off to @builder.toml when done');
     await runAndResolve(helper);

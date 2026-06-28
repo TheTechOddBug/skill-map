@@ -1,8 +1,9 @@
 import { describe, it } from 'node:test';
 import { strictEqual, deepStrictEqual, ok } from 'node:assert';
 
-import { slashCommandExtractor } from '../../../claude/extractors/slash-command/index.js';
+import { slashCommandExtractor } from '../slash-command/index.js';
 import { atDirectiveExtractor } from '../../../claude/extractors/at-directive/index.js';
+import { atFileExtractor } from '../at-file/index.js';
 import { externalUrlCounterExtractor } from '../external-url-counter/index.js';
 import { markdownLinkExtractor } from '../markdown-link/index.js';
 import type { IExtractorContext, IExtractor, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
@@ -194,7 +195,7 @@ describe('slash extractor', () => {
 
   it('emits the right manifest shape', () => {
     strictEqual(slashCommandExtractor.id, 'slash-command');
-    strictEqual(slashCommandExtractor.pluginId, 'claude');
+    strictEqual(slashCommandExtractor.pluginId, 'core');
     // emitsLinkKinds / defaultConfidence retired per structure-as-truth refactor.
     strictEqual(slashCommandExtractor.scope, 'body');
   });
@@ -245,48 +246,10 @@ describe('at-directive extractor', () => {
     strictEqual(atDirectiveExtractor.scope, 'body');
   });
 
-  // The four tests below codify the LLM-aligned semantics from the
-  // research note (Claude Code / Antigravity CLI / Cursor all read
-  // `@name` vs `@file.ext` differently): plain handles stay mentions,
-  // file-flavoured tokens become references, and code regions are
-  // skipped.
-
-  it('treats `@<name>.<ext>` as a `references` link (file-ref semantics)', async () => {
-    // Reproduces the tester finding: `re-invoca @sm-tutorial.md desde
-    // la misma carpeta` used to emit a broken `@sm-tutorial` mention.
-    // Now it lands as a references link to `sm-tutorial.md`, the same
-    // way Claude Code would resolve `@sm-tutorial.md` as a file ref.
-    const { ctx: context, links } = ctx(
-      'a.md',
-      'Re-invoke @sm-tutorial.md from the same folder.',
-    );
-    await extract(atDirectiveExtractor, context);
-    strictEqual(links.length, 1);
-    strictEqual(links[0]?.kind, 'references');
-    strictEqual(links[0]?.target, 'sm-tutorial.md');
-    strictEqual(links[0]?.trigger?.originalTrigger, '@sm-tutorial.md');
-  });
-
-  it('treats `@<dir>/<file>.<ext>` as a `references` link', async () => {
-    const { ctx: context, links } = ctx(
-      'a.md',
-      'See @docs/api/v1.md for the schema.',
-    );
-    await extract(atDirectiveExtractor, context);
-    strictEqual(links.length, 1);
-    strictEqual(links[0]?.kind, 'references');
-    strictEqual(links[0]?.target, 'docs/api/v1.md');
-  });
-
-  it('treats `@./<file>` and `@../<file>` as `references` links', async () => {
-    const relative = ctx('a.md', 'Inline @./sibling.md and @../parent/file.md.');
-    await extract(atDirectiveExtractor, relative.ctx);
-    strictEqual(relative.links.length, 2);
-    strictEqual(relative.links[0]?.kind, 'references');
-    strictEqual(relative.links[0]?.target, 'sibling.md');
-    strictEqual(relative.links[1]?.kind, 'references');
-    strictEqual(relative.links[1]?.target, '../parent/file.md');
-  });
+  // at-directive is mention-only: file-shaped `@<path>` tokens are deferred
+  // to `core/at-file` (see the at-file describe + the cross-provider block
+  // below). The tests here cover the mention + code-skip semantics that stay
+  // claude's.
 
   it('does not match tokens inside fenced or inline code', async () => {
     const { ctx: context, links } = ctx(
@@ -305,43 +268,6 @@ describe('at-directive extractor', () => {
     strictEqual(links[0]?.trigger?.originalTrigger, '@real-handle');
   });
 
-  // Regression for bd-3nr: when the source node lives below the scope
-  // root (e.g. `.claude/agents/x.md`), the path-style `@-token` resolves
-  // via the source dir + normalize, producing the root-relative
-  // `Node.path` of the referenced file. This is what unlocks
-  // cross-extractor dedup against `core/markdown-link` (which has
-  // always done dirname+normalize). Pre-bd-3nr the extractor stripped
-  // `./` only, so `.claude/agents/source.md` + `@./foo.md` produced
-  // target=`foo.md` instead of `.claude/agents/foo.md`.
-  it('resolves `@./<file>` against the source node dirname (root-relative target)', async () => {
-    const { ctx: context, links } = ctx(
-      '.claude/agents/source.md',
-      'See @./foo.md',
-    );
-    await extract(atDirectiveExtractor, context);
-    strictEqual(links.length, 1);
-    strictEqual(links[0]?.kind, 'references');
-    strictEqual(links[0]?.target, '.claude/agents/foo.md');
-    strictEqual(links[0]?.trigger?.normalizedTrigger, '.claude/agents/foo.md');
-  });
-
-  it('resolves bare `@<file>.<ext>` against the source node dirname', async () => {
-    const { ctx: context, links } = ctx('.claude/agents/source.md', 'Inline @foo.md');
-    await extract(atDirectiveExtractor, context);
-    strictEqual(links.length, 1);
-    strictEqual(links[0]?.target, '.claude/agents/foo.md');
-  });
-
-  it('resolves `@../<file>` against the source node dirname (climbs one level)', async () => {
-    const { ctx: context, links } = ctx(
-      '.claude/agents/source.md',
-      'Try @../commands/deploy.md',
-    );
-    await extract(atDirectiveExtractor, context);
-    strictEqual(links.length, 1);
-    strictEqual(links[0]?.target, '.claude/commands/deploy.md');
-  });
-
   it('skips absolute `@/abs/<path>` (aligned with markdown-link)', async () => {
     // Pre-bd-3nr at-directive emitted leading-`/` paths verbatim. Now
     // it skips them, matching `core/markdown-link`'s "absolute paths
@@ -353,9 +279,10 @@ describe('at-directive extractor', () => {
   });
 });
 
-// Cross-provider invariant: the extractors live in `core/` and run
-// over the node body regardless of which Provider classified the
-// node. The contract we check below is: for the SAME prose body,
+// Cross-provider invariant: the `@`/`/` extractors run over the node
+// body regardless of which Provider classified the node (their lens
+// gating via `precondition.provider` is a separate concern, exercised
+// in scan-extractor-runs). The contract we check below is: for the SAME prose body,
 // the SAME set of links lands no matter whether the host file is
 // under `.claude/`, `.codex/`, or `.agents/skills/`. This is what
 // "agnostic" actually means in skill-map, and it's how the tester
@@ -409,6 +336,7 @@ describe('cross-provider invariance (claude / codex / agent-skills)', () => {
 
       await extract(atDirectiveExtractor, baseCtx);
       await extract(slashCommandExtractor, baseCtx);
+      await extract(atFileExtractor, baseCtx);
 
       const triggers = links
         .map((l) => `${l.kind}:${l.trigger?.originalTrigger ?? l.target}`)

@@ -558,13 +558,13 @@ describe('sm plugins enable / disable, bundle macro', () => {
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     assert.match(r.stdout, /- claude\/claude/);
     assert.match(r.stdout, /- claude\/at-directive/);
-    assert.match(r.stdout, /- claude\/slash-command/);
+    assert.match(r.stdout, /- claude\/tools-counter/);
 
     // Every child extension flipped; the bare plugin id is never
     // persisted (the macro path always expands to qualified config keys).
     assert.equal(readEnabled(scope, 'claude/claude'), false);
     assert.equal(readEnabled(scope, 'claude/at-directive'), false);
-    assert.equal(readEnabled(scope, 'claude/slash-command'), false);
+    assert.equal(readEnabled(scope, 'claude/tools-counter'), false);
     assert.equal(readEnabled(scope, 'claude'), undefined);
   });
 
@@ -579,7 +579,7 @@ describe('sm plugins enable / disable, bundle macro', () => {
     assert.equal(readEnabled(scope, 'claude/at-directive'), false);
     // Sibling extensions untouched.
     assert.equal(readEnabled(scope, 'claude/claude'), undefined);
-    assert.equal(readEnabled(scope, 'claude/slash-command'), undefined);
+    assert.equal(readEnabled(scope, 'claude/tools-counter'), undefined);
   });
 
   it('disable core (multi-extension built-in) requires --yes', () => {

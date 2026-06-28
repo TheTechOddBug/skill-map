@@ -206,7 +206,12 @@ export const antigravityProvider: IBuiltInManifest<IProvider> = {
   // `/<name>` slash invocations resolve to BOTH skills and workflows: under
   // the antigravity lens a `/deploy` links to either `.agents/skills/deploy`
   // or `.agent/workflows/deploy.md`. Overrides the open-standard default
-  // (`invokes: ['skill']`) to add the own `workflow` kind.
+  // (`invokes: ['skill']`) to add the own `workflow` kind. Antigravity's OTHER
+  // connector, `@filename` file references (the documented rules / skill /
+  // workflow file pointer, a file-picker grammar like Codex's, distinct from
+  // Claude's `@`-agent-mention), needs no entry here: the shared `core/at-file`
+  // extractor (gated to claude / codex / antigravity) emits them as
+  // `references` resolved by PATH, lens-independent.
   resolution: { invokes: ['skill', 'workflow'] },
 
   classify(path: string): string | null {

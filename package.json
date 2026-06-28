@@ -16,7 +16,7 @@
     "fix:ai": "bash scripts/start.sh ai-engineering",
     "fix:skills": "bash scripts/start.sh skills",
     "fix:codex": "bash scripts/start.sh codex",
-    "fix:antigravity": "bash scripts/start.sh antigravity",
+    "fix:agy": "bash scripts/start.sh antigravity",
     "sm": "node src/bin/sm.js",
     "sm:reset": "bash scripts/dev-reset.sh",
     "sqlite": "node src/bin/sm.js db browser",

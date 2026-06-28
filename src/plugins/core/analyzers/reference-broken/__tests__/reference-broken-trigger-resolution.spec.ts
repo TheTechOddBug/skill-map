@@ -56,7 +56,7 @@ after(() => {
 async function scan(fixture: string) {
   const kernel = createKernel();
   // `activeProvider: 'claude'` is required so the provider-gated
-  // `claude/at-directive` and `claude/slash-command` extractors run against
+  // `claude/at-directive` and `core/slash-command` extractors run against
   // the `.claude/*` fixtures. The kernel's runtime callers
   // (scan-runner) auto-resolve this from filesystem markers; tests
   // that bypass the runtime declare it explicitly.

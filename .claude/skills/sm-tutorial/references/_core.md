@@ -268,7 +268,7 @@ A skill-map project reads its files through exactly ONE active lens
 |----------------|-------------------------------------------|--------------------------------|--------------------------------|--------------------|------------------|---------|
 | `claude`       | `.claude/` (agents, commands, skills)     | agent, command, skill, markdown| `/` invokes, `@` mentions, refs| `.claude/`         | stable           | rich    |
 | `codex`        | `.codex/agents/*.toml` + `.agents/skills/`| agent (TOML), skill, markdown  | `$` invokes, `@` file-refs, refs| `.codex/`         | beta             | rich    |
-| `antigravity`  | `.agents/skills/` + `.agent/workflows/`   | skill, workflow, markdown      | `/` invokes, refs              | `.agent/workflows/`| beta             | basic   |
+| `antigravity`  | `.agents/skills/` + `.agent/workflows/`   | skill, workflow, markdown      | `/` invokes, `@` file-refs, refs | `.agent/workflows/`| beta             | basic   |
 | `agent-skills` | `.agents/skills/`                         | skill, markdown                | refs only                      | `.agents/`         | stable (default) | basic   |
 
 `core/markdown` classifies every orphan `.md` under whatever lens is
@@ -285,13 +285,15 @@ active; it is the universal base, never a selectable lens.
 - **basic** (`agent-skills`, `antigravity`): the open-standard family,
   built on `skill` + `markdown` and wired with **markdown references**
   (`[text](path)`), the one connection the Agent Skills standard
-  documents. No `@` on either lens. They diverge on what Antigravity
-  bolts on top of the standard: `agent-skills` is the pure subset (skill
-  + markdown, references only), while `antigravity` adds its OWN
-  `workflow` kind (`.agent/workflows/*.md`) and `/`-invocation (the slash
-  resolves to both skills and workflows). That slash and the `workflow`
-  kind are Antigravity-only, NOT part of the neutral standard, so under
-  the `agent-skills` lens only references form.
+  documents. They diverge on what Antigravity bolts on top of the
+  standard: `agent-skills` is the pure subset (skill + markdown,
+  references only, no `@`), while `antigravity` adds its OWN `workflow`
+  kind (`.agent/workflows/*.md`), `/`-invocation (the slash resolves to
+  both skills and workflows), and `@`-file references (a file-shaped
+  `@path` token, the same file-picker grammar Codex uses, distinct from
+  Claude's `@`-agent-mention). That slash, the `workflow` kind, and the
+  `@`-file refs are Antigravity-only, NOT part of the neutral standard,
+  so under the `agent-skills` lens only markdown references form.
 
 Why references and not slash on the open standard: the Agent Skills
 spec (agentskills.io) activates a skill by its `description` and

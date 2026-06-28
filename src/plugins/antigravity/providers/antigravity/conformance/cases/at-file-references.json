@@ -1,0 +1,16 @@
+{
+  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "id": "at-file-references",
+  "description": "Under the antigravity lens the vendor-neutral `core/at-file` extractor runs (its `@`-file-picker grammar is gated to claude / codex / antigravity), so a file-shaped `@<path>` token in a workflow or skill body forms a path-resolved `references` edge. Antigravity reads `@filename` as a file pointer (the documented rules / skill / workflow file reference), the same family as Codex, distinct from Claude's bare-handle agent mention. The demo-antigravity-at-file corpus wires a workflow to a sibling workflow (`@test.md`) and a skill to a sibling skill (`@../notify/SKILL.md`): four nodes (two workflows, two skills), two resolved `references` edges, no issues.",
+  "fixture": "demo-antigravity-at-file",
+  "invoke": {
+    "verb": "scan",
+    "flags": ["--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "json-path", "path": "$.stats.nodesCount", "equals": 4 },
+    { "type": "json-path", "path": "$.stats.linksCount", "equals": 2 },
+    { "type": "json-path", "path": "$.stats.issuesCount", "equals": 0 }
+  ]
+}

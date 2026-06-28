@@ -1,5 +1,5 @@
 import { describe, it } from 'node:test';
-import { deepStrictEqual, strictEqual } from 'node:assert';
+import { strictEqual } from 'node:assert';
 
 import { atDirectiveExtractor } from '../index.js';
 import type { IExtractorContext, IEmittedNode } from '../../../../../kernel/extensions/index.js';
@@ -67,36 +67,11 @@ describe('at-directive extractor', () => {
     strictEqual(link.sources[0], 'at-directive');
   });
 
-  it('emits a references link for a path-flavoured token, resolved against the source dir', async () => {
-    const helper = makeContext(mockNode('docs/guide.md'), 'see @./api.md');
-    await runAndResolve(helper);
-    strictEqual(helper.links.length, 1);
-    const link = helper.links[0]!;
-    strictEqual(link.kind, 'references');
-    strictEqual(link.target, 'docs/api.md');
-    strictEqual(link.confidence, 0.85);
-  });
-
-  it('treats a known file extension as a reference even without a path prefix', async () => {
-    const helper = makeContext(mockNode('readme.md'), 'read @notes.md now');
-    await runAndResolve(helper);
-    strictEqual(helper.links.length, 1);
-    strictEqual(helper.links[0]!.kind, 'references');
-    strictEqual(helper.links[0]!.target, 'notes.md');
-  });
-
   it('keeps a namespaced handle (single slash, no extension) as a mention', async () => {
     const helper = makeContext(mockNode('readme.md'), 'use @my-plugin/foo-extractor here');
     await runAndResolve(helper);
     strictEqual(helper.links.length, 1);
     strictEqual(helper.links[0]!.kind, 'mentions');
-  });
-
-  it('emits two links for the same handle in mention and file form', async () => {
-    const helper = makeContext(mockNode('readme.md'), '@foo and @foo.md');
-    await runAndResolve(helper);
-    strictEqual(helper.links.length, 2);
-    deepStrictEqual(helper.links.map((l) => l.kind).sort(), ['mentions', 'references']);
   });
 
   it('does not match emails or doubled @', async () => {

@@ -17,18 +17,18 @@ import { VERSION } from '../version.js';
 
 import { claudeProvider as _claudeProvider } from './claude/providers/claude/index.js';
 import { atDirectiveExtractor as _atDirectiveExtractor } from './claude/extractors/at-directive/index.js';
-import { slashCommandExtractor as _slashCommandExtractor } from './claude/extractors/slash-command/index.js';
 import { toolsCounterExtractor as _toolsCounterExtractor } from './claude/extractors/tools-counter/index.js';
 import { antigravityProvider as _antigravityProvider } from './antigravity/providers/antigravity/index.js';
 import { codexProvider as _codexProvider } from './codex/providers/codex/index.js';
-import { atFileExtractor as _atFileExtractor } from './codex/extractors/at-file/index.js';
 import { dollarSkillExtractor as _dollarSkillExtractor } from './codex/extractors/dollar-skill/index.js';
 import { agentSkillsProvider as _agentSkillsProvider } from './agent-skills/providers/agent-skills/index.js';
 import { coreMarkdownProvider as _coreMarkdownProvider } from './core/providers/core-markdown/index.js';
+import { atFileExtractor as _atFileExtractor } from './core/extractors/at-file/index.js';
 import { backtickPathExtractor as _backtickPathExtractor } from './core/extractors/backtick-path/index.js';
 import { externalUrlCounterExtractor as _externalUrlCounterExtractor } from './core/extractors/external-url-counter/index.js';
 import { markdownLinkExtractor as _markdownLinkExtractor } from './core/extractors/markdown-link/index.js';
 import { mcpToolsExtractor as _mcpToolsExtractor } from './core/extractors/mcp-tools/index.js';
+import { slashCommandExtractor as _slashCommandExtractor } from './core/extractors/slash-command/index.js';
 import { annotationFieldUnknownAnalyzer as _annotationFieldUnknownAnalyzer } from './core/analyzers/annotation-field-unknown/index.js';
 import { annotationOrphanAnalyzer as _annotationOrphanAnalyzer } from './core/analyzers/annotation-orphan/index.js';
 import { annotationStaleAnalyzer as _annotationStaleAnalyzer } from './core/analyzers/annotation-stale/index.js';
@@ -53,18 +53,18 @@ import { updateCheckHook as _updateCheckHook } from './core/hooks/update-check/i
 
 const claudeProvider = { ..._claudeProvider, pluginId: 'claude', version: VERSION };
 const atDirectiveExtractor = { ..._atDirectiveExtractor, pluginId: 'claude', version: VERSION };
-const slashCommandExtractor = { ..._slashCommandExtractor, pluginId: 'claude', version: VERSION };
 const toolsCounterExtractor = { ..._toolsCounterExtractor, pluginId: 'claude', version: VERSION };
 const antigravityProvider = { ..._antigravityProvider, pluginId: 'antigravity', version: VERSION };
 const codexProvider = { ..._codexProvider, pluginId: 'codex', version: VERSION };
-const atFileExtractor = { ..._atFileExtractor, pluginId: 'codex', version: VERSION };
 const dollarSkillExtractor = { ..._dollarSkillExtractor, pluginId: 'codex', version: VERSION };
 const agentSkillsProvider = { ..._agentSkillsProvider, pluginId: 'agent-skills', version: VERSION };
 const coreMarkdownProvider = { ..._coreMarkdownProvider, pluginId: 'core', version: VERSION };
+const atFileExtractor = { ..._atFileExtractor, pluginId: 'core', version: VERSION };
 const backtickPathExtractor = { ..._backtickPathExtractor, pluginId: 'core', version: VERSION };
 const externalUrlCounterExtractor = { ..._externalUrlCounterExtractor, pluginId: 'core', version: VERSION };
 const markdownLinkExtractor = { ..._markdownLinkExtractor, pluginId: 'core', version: VERSION };
 const mcpToolsExtractor = { ..._mcpToolsExtractor, pluginId: 'core', version: VERSION };
+const slashCommandExtractor = { ..._slashCommandExtractor, pluginId: 'core', version: VERSION };
 const annotationFieldUnknownAnalyzer = { ..._annotationFieldUnknownAnalyzer, pluginId: 'core', version: VERSION };
 const annotationOrphanAnalyzer = { ..._annotationOrphanAnalyzer, pluginId: 'core', version: VERSION };
 const annotationStaleAnalyzer = { ..._annotationStaleAnalyzer, pluginId: 'core', version: VERSION };
@@ -111,7 +111,6 @@ export const builtInPlugins: IBuiltInPlugin[] = [
     extensions: [
       claudeProvider,
       atDirectiveExtractor,
-      slashCommandExtractor,
       toolsCounterExtractor,
     ],
   },
@@ -127,7 +126,6 @@ export const builtInPlugins: IBuiltInPlugin[] = [
     description: 'OpenAI Codex CLI platform integration. Classifies TOML sub-agent definitions under `.codex/agents/*.toml`.',
     extensions: [
       codexProvider,
-      atFileExtractor,
       dollarSkillExtractor,
     ],
   },
@@ -143,10 +141,12 @@ export const builtInPlugins: IBuiltInPlugin[] = [
     description: 'Core extensions shared across providers: parsers, extractors, analyzers, actions, hooks, formatters, and the universal `.md` fallback provider.',
     extensions: [
       coreMarkdownProvider,
+      atFileExtractor,
       backtickPathExtractor,
       externalUrlCounterExtractor,
       markdownLinkExtractor,
       mcpToolsExtractor,
+      slashCommandExtractor,
       annotationFieldUnknownAnalyzer,
       annotationOrphanAnalyzer,
       annotationStaleAnalyzer,

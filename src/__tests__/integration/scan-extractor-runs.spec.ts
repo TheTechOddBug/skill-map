@@ -283,8 +283,8 @@ describe('scan_extractor_runs, fine-grained Extractor cache', () => {
       const qualified = `${built.pluginId}/${built.id}`;
       const rows = runRows.filter((r) => r.extractorId === qualified);
       // A provider-gated extractor only runs when the active lens is in its
-      // `precondition.provider` list. A codex-only extractor (codex/dollar-skill,
-      // codex/at-file) never runs under the claude lens, so it persists zero rows.
+      // `precondition.provider` list. A codex-only extractor (codex/dollar-skill)
+      // never runs under the claude lens, so it persists zero rows.
       const preconditionProviders = built.precondition?.provider;
       const providerGatedOff =
         preconditionProviders !== undefined &&
@@ -481,9 +481,10 @@ describe('scan_extractor_runs, fine-grained Extractor cache', () => {
     const activeLens = 'claude';
     for (const ex of baseline.extractors) {
       // A provider-gated extractor only runs when the active lens is in its
-      // `precondition.provider` list; a codex-only extractor (codex/dollar-skill,
-      // codex/at-file) never runs under the claude lens, so skip it (it visits
-      // no node). The universal `core` + claude extractors apply here.
+      // `precondition.provider` list; a codex-only extractor (codex/dollar-skill)
+      // never runs under the claude lens, so skip it (it visits no node). The
+      // universal `core` + claude extractors apply here (`core/at-file` among
+      // them: its `@`-file grammar is gated to claude / codex / antigravity).
       const provs = ex.precondition?.provider;
       if (provs && provs.length > 0 && !provs.includes(activeLens)) continue;
       // applicableKinds may exclude some kinds, only assert against

@@ -275,7 +275,6 @@ describe('plugin-runtime, branch coverage', () => {
         ![
           'claude/claude',
           'claude/at-directive',
-          'claude/slash-command',
           'claude/tools-counter',
         ].includes(id);
       const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: runtime });
@@ -284,10 +283,10 @@ describe('plugin-runtime, branch coverage', () => {
       // markdown fallback stay.
       const providerIds = composed.providers.map((p) => p.id).sort();
       assert.deepEqual(providerIds, ['agent-skills', 'antigravity', 'codex', 'markdown']);
-      // The three claude-bundled extractors drop alongside the provider;
-      // the survivors are the universal `core` extractors PLUS codex's OWN
-      // grammar extractors (`dollar-skill` / `at-file`), which are lens-gated
-      // to codex at scan time but composed by default like any built-in.
+      // The two claude-bundled extractors (at-directive, tools-counter) drop
+      // alongside the provider; the survivors are the vendor-neutral `core`
+      // extractors (including the moved `slash-command` + `at-file`) PLUS
+      // codex's OWN `dollar-skill`, all composed by default like any built-in.
       const extractorIds = composed.extractors.map((d) => d.id).sort();
       assert.deepEqual(extractorIds, [
         'at-file',
@@ -296,6 +295,7 @@ describe('plugin-runtime, branch coverage', () => {
         'external-url-counter',
         'markdown-link',
         'mcp-tools',
+        'slash-command',
       ]);
       // core/* rules unaffected.
       assert.ok(composed.analyzers.length >= 5, 'every core rule should survive');
@@ -388,7 +388,7 @@ describe('plugin-runtime, branch coverage', () => {
     it('(e) per-extension override flips one extension while keeping the rest of the plugin live', () => {
       // Every extension is independently toggle-able; disabling
       // `claude/at-directive` drops only that extractor. The provider
-      // and `claude/slash-command` stay in the pipeline.
+      // and its `claude/tools-counter` sibling stay in the pipeline.
       const runtime = emptyPluginRuntime();
       runtime.resolveEnabled = (id: string) => id !== 'claude/at-directive';
       const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: runtime });
@@ -400,8 +400,8 @@ describe('plugin-runtime, branch coverage', () => {
         'claude/at-directive must be silenced by the per-extension override',
       );
       assert.ok(
-        extractorIds.includes('slash-command'),
-        'claude/slash-command stays live (sibling extension, no override on it)',
+        extractorIds.includes('tools-counter'),
+        'claude/tools-counter stays live (sibling extension, no override on it)',
       );
       const providerIds = composed.providers.map((p) => p.id).sort();
       assert.ok(
@@ -442,7 +442,7 @@ describe('plugin-runtime, branch coverage', () => {
       const all = listBuiltIns();
       // Disable every claude extension by qualified id AND
       // `core/name-collision`; everything else stays.
-      const claudeIds = new Set(['claude/claude', 'claude/at-directive', 'claude/slash-command']);
+      const claudeIds = new Set(['claude/claude', 'claude/at-directive', 'claude/tools-counter']);
       const survivors = filterBuiltInManifests(all, (id: string) => {
         if (claudeIds.has(id)) return false;
         if (id === 'core/name-collision') return false;
@@ -451,8 +451,11 @@ describe('plugin-runtime, branch coverage', () => {
       const surviveIds = survivors.map((m) => `${m.pluginId}/${m.id}`).sort();
       assert.equal(surviveIds.includes('claude/claude'), false);
       assert.equal(surviveIds.includes('core/name-collision'), false);
-      assert.equal(surviveIds.includes('claude/slash-command'), false);
+      assert.equal(surviveIds.includes('claude/tools-counter'), false);
       assert.equal(surviveIds.includes('claude/at-directive'), false);
+      // `slash-command` / `at-file` moved to the vendor-neutral `core` plugin,
+      // so a claude-scoped filter no longer touches them.
+      assert.ok(surviveIds.includes('core/slash-command'));
       assert.ok(surviveIds.includes('core/markdown-link'));
       assert.ok(surviveIds.includes('core/reference-broken'));
       assert.ok(surviveIds.includes('core/external-url-counter'));

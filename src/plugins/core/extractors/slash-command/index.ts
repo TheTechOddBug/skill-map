@@ -35,7 +35,7 @@ import type { IBuiltInManifest, IExtractor, IExtractorContext } from '../../../.
 import { stripCodeAndHtml } from '../../../../kernel/util/strip-code-blocks.js';
 import { computeLineStarts, lineFor } from '../../../../kernel/util/line-tracking.js';
 import { normalizeTrigger } from '../../../../kernel/trigger-normalize.js';
-import { CLAUDE_PLUGIN_ID } from '../../../ids.js';
+import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'slash-command';
 
@@ -71,9 +71,9 @@ const SLASH_RE = /(?<![A-Za-z0-9_/.:?#=&])(\/[a-z0-9][a-z0-9_-]*(?::[a-z0-9][a-z
 
 export const slashCommandExtractor: IBuiltInManifest<IExtractor> = {
   id: ID,
-  pluginId: CLAUDE_PLUGIN_ID,
+  pluginId: CORE_PLUGIN_ID,
   kind: 'extractor',
-  description: 'Turns `/command` invocations in a node\'s body into arrows that point at the resolved slash command or skill, using Claude Code routing rules. Example: `/deploy` in the body draws an arrow to the `deploy` command.',
+  description: 'Turns `/command` invocations in a node\'s body into arrows that point at the resolved slash command, skill, or workflow, using the `/`-grammar shared by Claude and Antigravity. Example: `/deploy` in the body draws an arrow to the `deploy` command.',
   scope: 'body',
   // Also authorised under the antigravity lens, which shares the `/command`
   // grammar: a workflow / skill / AGENTS.md body's `/name` tokens resolve to

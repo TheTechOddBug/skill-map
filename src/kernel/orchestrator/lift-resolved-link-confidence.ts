@@ -214,7 +214,7 @@ function lookupAllowedKinds(
   // Per `spec/architecture.md` §Provider · resolution rules, the
   // resolver authority mirrors the extractor authority (the active
   // provider lens). The source node's provider is intentionally NOT
-  // consulted: a lens-gated extractor (e.g. `claude/slash-command`
+  // consulted: a lens-gated extractor (e.g. `core/slash-command`
   // under the `claude` lens) emits links from universal-provider
   // bodies (`notes/todo.md` classified by `core/markdown`); resolving
   // by the source's provider would short-circuit those emissions to

@@ -9,10 +9,11 @@
  *
  *   - `core/markdown-link` (universal) turns `[the guide](guide.md)` into a
  *     `references` edge.
- *   - `codex/at-file` (codex-owned) turns a file-shaped `@builder.toml` into
- *     a path-resolved `references` edge to the other Codex agent's file.
- *     Codex's `@` is a file picker, not an agent-mention grammar, so the
- *     claude `at-directive` is NOT gated under codex.
+ *   - `core/at-file` (the vendor-neutral `@`-file-picker extractor, gated to
+ *     claude / codex / antigravity) turns a file-shaped `@builder.toml` into a
+ *     path-resolved `references` edge to the other Codex agent's file. Codex's
+ *     `@` is a file picker, not an agent-mention grammar, so the claude
+ *     `at-directive` (bare-handle mentions) is NOT gated under codex.
  *
  * The contrast test pins the lens gate: under the `claude` lens the Codex
  * agent is not classified at all, so its developer_instructions never reach
