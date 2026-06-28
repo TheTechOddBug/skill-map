@@ -2,6 +2,26 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.73.0",
+      "date": "2026-06-28",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "**OpenCode tutorial.** `sm tutorial` now lists OpenCode as a destination, and running it in an OpenCode project gives you the basic open-standard walkthrough.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Tutorial reminder.** The map's header now shows a one-time reminder to run `sm tutorial`, with a dismiss button that remembers your choice for this project.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.72.0",
       "date": "2026-06-28",
       "kind": "user-facing",
