@@ -118,7 +118,7 @@ export const builtInPlugins: IBuiltInPlugin[] = [
   },
   {
     id: 'antigravity',
-    description: 'Google Antigravity CLI platform integration (replaces the retired Gemini CLI). Classifies Antigravity workflows under `.agent/workflows/*.md` (its own kind) and adopts the open-standard `.agents/skills/` layout for skills; contributes the Antigravity runtime identity and reserved built-in names.',
+    description: 'Google Antigravity CLI platform integration (replaces the retired Gemini CLI). Classifies workflows under `.agent/workflows/`, plus the open-standard `.agents/skills/` layout.',
     extensions: [
       antigravityProvider,
     ],
@@ -133,7 +133,7 @@ export const builtInPlugins: IBuiltInPlugin[] = [
   },
   {
     id: 'opencode',
-    description: 'OpenCode CLI platform integration (open-source, model-agnostic terminal coding agent). Classifies OpenCode agents under `.opencode/agent/*.md` and commands under `.opencode/commands/*.md` (its own kinds), and adopts the skill homes OpenCode reads (`.opencode/skills/`, `.claude/skills/`, `.agents/skills/`); contributes the OpenCode runtime identity and reserved built-in names.',
+    description: 'OpenCode CLI platform integration (open-source, model-agnostic terminal coding agent). Classifies agents and commands under `.opencode/`, plus the skill homes it reads.',
     extensions: [
       opencodeProvider,
     ],
