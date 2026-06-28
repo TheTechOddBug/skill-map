@@ -164,8 +164,9 @@ async function applyPatch(deps: IRouteDeps, body: IPatchBody): Promise<void> {
   // Successful writes mutate the on-disk config; the cached view would
   // now hand out stale state. Drop it so the next consumer re-reads
   // from disk.
-  if (policyChanged || scan.attempted || trustChanged || reminderChanged)
+  if (policyChanged || scan.attempted || trustChanged || reminderChanged) {
     deps.configService.reload();
+  }
 }
 
 /**
