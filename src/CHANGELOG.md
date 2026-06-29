@@ -1,5 +1,25 @@
 # skill-map
 
+## 0.73.0
+
+### Minor Changes
+
+- Add a dismissable topbar reminder pointing first-time users at `sm tutorial`. Its dismissal persists via a new project-local `tutorialReminderDismissed` config key (`.skill-map/settings.local.json`), read and written through the project-preferences BFF route.
+
+  ## User-facing
+
+  **Tutorial reminder.** The map's header now shows a one-time reminder to run `sm tutorial`, with a dismiss button that remembers your choice for this project.
+
+### Patch Changes
+
+- `sm tutorial` now offers OpenCode alongside Antigravity on the open-standard basic track: OpenCode shows up in the destination prompt and an OpenCode project (detected by `.opencode/`) resolves to the basic walkthrough built on the shared `.agents/skills/` standard.
+
+  ## User-facing
+
+  **OpenCode tutorial.** `sm tutorial` now lists OpenCode as a destination, and running it in an OpenCode project gives you the basic open-standard walkthrough.
+
+- Trim the antigravity and opencode `plugin.json` descriptions to drop text that duplicated their provider extension descriptions (plus a "contributes the runtime identity and reserved built-in names" boilerplate clause the other built-in plugins do not carry); the per-extension provider descriptions still hold the full path-by-path classification detail.
+
 ## 0.72.0
 
 ### Minor Changes
