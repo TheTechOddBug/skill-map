@@ -46,7 +46,7 @@ import type { IScanDelta, ScanResult } from '../../kernel/index.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { buildSettingsResolver } from '../../core/config/plugin-settings.js';
-import { buildIgnoreFilter, readIgnoreFileText } from '../../kernel/scan/ignore.js';
+import { composeScopeIgnoreFilter } from '../../kernel/scan/ignore.js';
 import { tx } from '../../kernel/util/tx.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { SCAN_TEXTS } from '../i18n/scan.texts.js';
@@ -154,11 +154,7 @@ export class ScanCompareCommand extends SmCommand {
       this.printer!.info(tx(SCAN_TEXTS.compareErrorPrefix, { message }));
       return ExitCode.Error;
     }
-    const ignoreFileText = readIgnoreFileText(ctx.cwd);
-    const ignoreFilterOpts: Parameters<typeof buildIgnoreFilter>[0] = {};
-    if (cfg.ignore.length > 0) ignoreFilterOpts.configIgnore = cfg.ignore;
-    if (ignoreFileText !== undefined) ignoreFilterOpts.ignoreFileText = ignoreFileText;
-    const ignoreFilter = buildIgnoreFilter(ignoreFilterOpts);
+    const ignoreFilter = composeScopeIgnoreFilter(ctx.cwd, cfg.ignore);
     const effectiveStrict = this.strict || cfg.scan.strict === true;
 
     const composedExtensions = composeScanExtensions({

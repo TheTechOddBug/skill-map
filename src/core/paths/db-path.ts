@@ -42,6 +42,7 @@ const PLUGINS_DIRNAME = 'plugins';
 const SETTINGS_FILENAME = 'settings.json';
 const LOCAL_SETTINGS_FILENAME = 'settings.local.json';
 const IGNORE_FILENAME = '.skillmapignore';
+const GITIGNORE_FILENAME = '.gitignore';
 
 /**
  * Single source of truth for the relative DB path inside the project
@@ -156,4 +157,13 @@ export function defaultLocalSettingsPath(scopeRoot: string): string {
  */
 export function defaultIgnoreFilePath(scopeRoot: string): string {
   return join(scopeRoot, IGNORE_FILENAME);
+}
+
+/**
+ * Default `.gitignore` path (`<scopeRoot>/.gitignore`). The root file the
+ * meta-watcher observes so editing it rebuilds the ignore filter live;
+ * its content is also folded into the scan/watcher ignore layers.
+ */
+export function defaultGitignorePath(scopeRoot: string): string {
+  return join(scopeRoot, GITIGNORE_FILENAME);
 }

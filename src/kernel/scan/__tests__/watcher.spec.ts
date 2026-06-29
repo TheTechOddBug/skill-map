@@ -147,6 +147,64 @@ describe('createChokidarWatcher', () => {
     }
   });
 
+  it('with watchedExtensions, only those file types fire onBatch (dirs still traversed)', async () => {
+    const dir = freshScope('ext-gate');
+    // Pre-create the subdir so chokidar watches it from the initial walk;
+    // the gate MUST let directories pass so it descends to the .md inside.
+    mkdirSync(join(dir, 'sub'));
+    const { collector, onBatch } = makeCollector();
+    const watcher = createChokidarWatcher({
+      cwd: root,
+      roots: [dir],
+      debounceMs: 60,
+      watchedExtensions: ['.md', '.toml', '.sm'],
+      onBatch,
+    });
+    try {
+      await watcher.ready;
+      writeFileSync(join(dir, 'note.md'), 'x');
+      writeFileSync(join(dir, 'agent.toml'), 'x');
+      writeFileSync(join(dir, 'side.sm'), 'x');
+      writeFileSync(join(dir, 'sub', 'deep.md'), 'x');
+      writeFileSync(join(dir, 'data.json'), 'x'); // gated out
+      writeFileSync(join(dir, 'readme.txt'), 'x'); // gated out
+      const batch = await collector.next();
+      const names = batch.paths.map((p) => p.split('/').pop()).sort();
+      assert.deepEqual(names, ['agent.toml', 'deep.md', 'note.md', 'side.sm']);
+      await delay(120);
+      assert.equal(collector.batches.length, 0, 'non-watched extensions never fire');
+    } finally {
+      await watcher.close();
+    }
+  });
+
+  it('the extension gate composes with the ignore filter', async () => {
+    const dir = freshScope('ext-gate-ignore');
+    mkdirSync(join(dir, 'private'));
+    const { collector, onBatch } = makeCollector();
+    const watcher = createChokidarWatcher({
+      cwd: root,
+      roots: [dir],
+      debounceMs: 60,
+      watchedExtensions: ['.md'],
+      ignoreFilter: buildIgnoreFilter({ includeDefaults: false, configIgnore: ['private/'] }),
+      onBatch,
+    });
+    try {
+      await watcher.ready;
+      writeFileSync(join(dir, 'kept.md'), 'x');
+      writeFileSync(join(dir, 'private', 'secret.md'), 'x'); // ignore-filtered
+      writeFileSync(join(dir, 'note.json'), 'x'); // extension-gated
+      const batch = await collector.next();
+      const names = batch.paths.map((p) => p.split('/').pop()).sort();
+      assert.deepEqual(names, ['kept.md']);
+      await delay(120);
+      assert.equal(collector.batches.length, 0);
+    } finally {
+      await watcher.close();
+    }
+  });
+
   it('respects a getter ignoreFilter, swapping the filter at runtime updates ignored paths', async () => {
     // Pin for the BFF live-rebuild flow: the meta-file watcher in
     // `src/server/watcher.ts` swaps the ignore filter when the user

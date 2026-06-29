@@ -44,6 +44,12 @@ export interface IBuildIgnoreFilterOptions {
    */
   ignoreFileText?: string | undefined;
   /**
+   * Raw text of the project's root `.gitignore`. Folded in as a layer so
+   * the scan + watcher skip whatever git already skips. `undefined` when
+   * the file is absent. Comments / blank lines tolerated by `ignore`.
+   */
+  gitignoreText?: string | undefined;
+  /**
    * When `false`, the bundled defaults are NOT pre-loaded. Default is
    * `true`. Tests use `false` to assert the precise effect of a single
    * pattern.
@@ -60,18 +66,21 @@ export interface IBuildIgnoreFilterOptions {
  *
  * Later layers override earlier ones via gitignore negation rules
  * (`!pattern` re-includes a path the prior layer excluded).
+ *
+ * Full order with `.gitignore` folded in:
+ *   defaults → `.gitignore` → `configIgnore` → `.skillmapignore`
+ * so a project `.skillmapignore` can `!`-re-include a git-ignored path.
  */
 export function buildIgnoreFilter(opts: IBuildIgnoreFilterOptions = {}): IIgnoreFilter {
   const ig = ignoreFactory();
-  if (opts.includeDefaults !== false) {
-    ig.add(loadDefaultsText());
-  }
-  if (opts.configIgnore && opts.configIgnore.length > 0) {
-    ig.add(opts.configIgnore);
-  }
-  if (opts.ignoreFileText && opts.ignoreFileText.length > 0) {
-    ig.add(opts.ignoreFileText);
-  }
+  const addLayer = (layer: string | string[] | undefined): void => {
+    if (layer === undefined) return;
+    if (layer.length > 0) ig.add(layer);
+  };
+  if (opts.includeDefaults !== false) ig.add(loadDefaultsText());
+  addLayer(opts.gitignoreText);
+  addLayer(opts.configIgnore);
+  addLayer(opts.ignoreFileText);
   return {
     ignores(relativePath: string): boolean {
       // `ignore` requires a non-empty relative path; the empty string
@@ -84,6 +93,27 @@ export function buildIgnoreFilter(opts: IBuildIgnoreFilterOptions = {}): IIgnore
       return ig.ignores(normalised);
     },
   };
+}
+
+/**
+ * Read a scope's `.gitignore` + `.skillmapignore` from disk and build the
+ * layered filter (defaults → `.gitignore` → `config.ignore` →
+ * `.skillmapignore`). The one-shot composer the CLI scan paths share so
+ * they don't each re-duplicate the read + layer wiring. The watcher
+ * composes from STABLE async reads instead (atomic-save race), see
+ * `readGitignoreTextStable` / `readIgnoreFileTextStable`.
+ */
+export function composeScopeIgnoreFilter(
+  scopeRoot: string,
+  configIgnore?: readonly string[],
+): IIgnoreFilter {
+  const opts: IBuildIgnoreFilterOptions = {};
+  if (configIgnore && configIgnore.length > 0) opts.configIgnore = [...configIgnore];
+  const gitignoreText = readGitignoreText(scopeRoot);
+  if (gitignoreText !== undefined) opts.gitignoreText = gitignoreText;
+  const ignoreFileText = readIgnoreFileText(scopeRoot);
+  if (ignoreFileText !== undefined) opts.ignoreFileText = ignoreFileText;
+  return buildIgnoreFilter(opts);
 }
 
 /**
@@ -102,7 +132,21 @@ export function loadBundledIgnoreText(): string {
  * to `buildIgnoreFilter`.
  */
 export function readIgnoreFileText(scopeRoot: string): string | undefined {
-  const path = resolve(scopeRoot, '.skillmapignore');
+  return readScopeFileText(scopeRoot, '.skillmapignore');
+}
+
+/**
+ * Read `<root>/.gitignore` if it exists, else `undefined`. Root file only
+ * (not nested git-style), mirroring how `.skillmapignore` is root-only.
+ * Caller passes the result as `gitignoreText` to `buildIgnoreFilter`.
+ */
+export function readGitignoreText(scopeRoot: string): string | undefined {
+  return readScopeFileText(scopeRoot, '.gitignore');
+}
+
+/** Read `<root>/<filename>` as utf8; `undefined` when absent or unreadable. */
+function readScopeFileText(scopeRoot: string, filename: string): string | undefined {
+  const path = resolve(scopeRoot, filename);
   if (!existsSync(path)) return undefined;
   try {
     return readFileSync(path, 'utf8');
@@ -137,12 +181,37 @@ export async function readIgnoreFileTextStable(
   scopeRoot: string,
   opts: { pollMs?: number; maxAttempts?: number } = {},
 ): Promise<string | undefined> {
+  return readFileTextStable(() => readIgnoreFileText(scopeRoot), opts);
+}
+
+/**
+ * Stable read of `<root>/.gitignore`, the `.gitignore` counterpart to
+ * `readIgnoreFileTextStable` (used by the meta-watcher when `.gitignore`
+ * is edited, so the rebuilt filter sees the settled content).
+ */
+export async function readGitignoreTextStable(
+  scopeRoot: string,
+  opts: { pollMs?: number; maxAttempts?: number } = {},
+): Promise<string | undefined> {
+  return readFileTextStable(() => readGitignoreText(scopeRoot), opts);
+}
+
+/**
+ * Poll `read()` until two consecutive reads agree (or the attempt cap),
+ * absorbing the truncate-then-write window of an editor save. Shared by
+ * the `.skillmapignore` / `.gitignore` stable readers (knobs default
+ * `pollMs: 50`, `maxAttempts: 10`, the canonical chokidar recipe).
+ */
+async function readFileTextStable(
+  read: () => string | undefined,
+  opts: { pollMs?: number; maxAttempts?: number },
+): Promise<string | undefined> {
   const pollMs = opts.pollMs ?? 50;
   const maxAttempts = opts.maxAttempts ?? 10;
-  let prev = readIgnoreFileText(scopeRoot);
+  let prev = read();
   for (let i = 0; i < maxAttempts; i++) {
     await new Promise<void>((r) => setTimeout(r, pollMs));
-    const curr = readIgnoreFileText(scopeRoot);
+    const curr = read();
     if (curr === prev) return curr;
     prev = curr;
   }

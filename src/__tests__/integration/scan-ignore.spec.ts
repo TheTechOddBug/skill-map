@@ -18,6 +18,7 @@ import { createKernel, runScan } from '../../kernel/index.js';
 import { builtIns } from '../../plugins/built-ins.js';
 import {
   buildIgnoreFilter,
+  readGitignoreText,
   readIgnoreFileText,
 } from '../../kernel/scan/ignore.js';
 
@@ -107,6 +108,25 @@ describe('buildIgnoreFilter, ignoreFileText layer', () => {
   });
 });
 
+describe('buildIgnoreFilter, gitignoreText layer', () => {
+  it('excludes whatever the .gitignore text excludes', () => {
+    const filter = buildIgnoreFilter({ gitignoreText: 'build/\n*.gen.md\n' });
+    assert.equal(filter.ignores('build/out.md'), true);
+    assert.equal(filter.ignores('skills/foo.gen.md'), true);
+    assert.equal(filter.ignores('skills/foo.md'), false);
+  });
+
+  it('.skillmapignore can !-re-include a path the .gitignore excluded (later layer wins)', () => {
+    // Precedence: defaults -> .gitignore -> config.ignore -> .skillmapignore.
+    const filter = buildIgnoreFilter({
+      gitignoreText: 'generated/*.md\n',
+      ignoreFileText: '!generated/keep.md\n',
+    });
+    assert.equal(filter.ignores('generated/drop.md'), true);
+    assert.equal(filter.ignores('generated/keep.md'), false);
+  });
+});
+
 describe('buildIgnoreFilter, layering', () => {
   it('combines all three layers; later layers can negate earlier ones', () => {
     // gitignore semantics: re-including a file inside an excluded
@@ -144,6 +164,19 @@ describe('readIgnoreFileText', () => {
   it('returns undefined when missing', () => {
     const dir = freshScope('readignore-missing');
     assert.equal(readIgnoreFileText(dir), undefined);
+  });
+});
+
+describe('readGitignoreText', () => {
+  it('returns the .gitignore contents when present', () => {
+    const dir = freshScope('readgitignore-present');
+    writeFileSync(join(dir, '.gitignore'), 'dist/\n');
+    assert.equal(readGitignoreText(dir), 'dist/\n');
+  });
+
+  it('returns undefined when missing', () => {
+    const dir = freshScope('readgitignore-missing');
+    assert.equal(readGitignoreText(dir), undefined);
   });
 });
 
@@ -204,6 +237,26 @@ describe('scan integration, filter applied at the walker', () => {
 
     const paths = result.nodes.map((n) => n.path).sort();
     assert.deepEqual(paths, ['.claude/agents/real.md']);
+  });
+
+  it('respects .gitignore: a git-ignored .md is absent from the scan result', async () => {
+    const dir = freshScope('e2e-gitignore');
+    writeMd(dir, '.claude/agents/keep.md', 'agent');
+    writeMd(dir, 'generated/leaked.md', 'agent');
+    writeFileSync(join(dir, '.gitignore'), 'generated/\n');
+
+    const filter = buildIgnoreFilter({
+      gitignoreText: readGitignoreText(dir),
+    });
+    const kernel = await createKernel();
+    const result = await runScan(kernel, {
+      roots: [dir],
+      extensions: builtIns(),
+      ignoreFilter: filter,
+    });
+
+    const paths = result.nodes.map((n) => n.path).sort();
+    assert.deepEqual(paths, ['.claude/agents/keep.md']);
   });
 
   it('negation: ignore-file un-includes a file the config layer excluded', async () => {

@@ -26,6 +26,7 @@
  * paths agree on what "ignored" means.
  */
 
+import type { Stats } from 'node:fs';
 import { resolve, relative, sep } from 'node:path';
 
 import chokidar from 'chokidar';
@@ -93,6 +94,18 @@ export interface ICreateFsWatcherOptions {
    * Forwarded verbatim to chokidar's `depth` option.
    */
   depth?: number;
+  /**
+   * Extension gate. When set, chokidar holds a watch on (and fires events
+   * for) only FILES whose name ends with one of these suffixes (e.g.
+   * `['.md', '.toml', '.sm']`). Directories always pass so the tree is
+   * still traversed to reach matching files. Omitted ⇒ no gate (every
+   * non-ignored file is watched, the legacy behaviour). Applied BEFORE
+   * the ignore filter. The suffixes mirror the scan walker's provider
+   * `read.extensions` (plus the `.sm` sidecar) so the watcher reacts only
+   * to the file types a scan would actually open. NOT passed to the
+   * meta-watcher, which targets specific config files by path instead.
+   */
+  watchedExtensions?: readonly string[] | undefined;
   /** Called once per debounced batch. Awaited; concurrent batches are serialised. */
   onBatch: (batch: IWatchBatch) => void | Promise<void>;
   /**
@@ -105,6 +118,38 @@ export interface ICreateFsWatcherOptions {
 // -----------------------------------------------------------------------------
 // Public API
 // -----------------------------------------------------------------------------
+
+/**
+ * Build the chokidar `ignored` predicate, combining the optional extension
+ * gate (only FILES ending in `watchedExts` are watched; directories pass
+ * so the tree is still traversed) with the optional ignore filter. Returns
+ * `undefined` when neither is configured (watch everything). The two-arg
+ * `(path, stats)` shape and the `stats?.isFile()` gate follow the chokidar
+ * v5 recipe `ignored: (p, stats) => stats?.isFile() && !p.endsWith(ext)`.
+ * Extracted to keep `createChokidarWatcher` under the complexity cap.
+ */
+function buildIgnoredPredicate(
+  getFilter: (() => IIgnoreFilter | undefined) | undefined,
+  watchedExts: readonly string[],
+  absRoots: string[],
+): ((path: string, stats?: Stats) => boolean) | undefined {
+  const hasExtGate = watchedExts.length > 0;
+  if (!getFilter && !hasExtGate) return undefined;
+  return (path: string, stats?: Stats): boolean => {
+    if (
+      hasExtGate &&
+      stats?.isFile() === true &&
+      !watchedExts.some((ext) => path.endsWith(ext))
+    ) {
+      return true;
+    }
+    const filter = getFilter?.();
+    if (!filter) return false;
+    const rel = relativePathFromRoots(path, absRoots);
+    if (rel === null) return false;
+    return filter.ignores(rel);
+  };
+}
 
 /**
  * Construct a chokidar-backed watcher. Subscribes immediately; the
@@ -130,15 +175,9 @@ export function createChokidarWatcher(opts: ICreateFsWatcherOptions): IFsWatcher
         ? ignoreFilterOpt
         : (): IIgnoreFilter => ignoreFilterOpt;
 
-  const ignored = getFilter
-    ? (path: string): boolean => {
-        const filter = getFilter();
-        if (!filter) return false;
-        const rel = relativePathFromRoots(path, absRoots);
-        if (rel === null) return false;
-        return filter.ignores(rel);
-      }
-    : undefined;
+  // Combine the optional extension gate + ignore filter into chokidar's
+  // `ignored` predicate (see `buildIgnoredPredicate`).
+  const ignored = buildIgnoredPredicate(getFilter, opts.watchedExtensions ?? [], absRoots);
 
   const watcher: FSWatcher = chokidar.watch(absRoots, {
     ignoreInitial: true,

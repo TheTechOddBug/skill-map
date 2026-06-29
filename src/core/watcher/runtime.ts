@@ -68,14 +68,19 @@ import { buildSettingsResolver } from '../config/plugin-settings.js';
 import { walkReferencePaths } from '../runtime/reference-paths-walker.js';
 import {
   buildIgnoreFilter,
+  readGitignoreText,
+  readGitignoreTextStable,
   readIgnoreFileText,
   readIgnoreFileTextStable,
   type IIgnoreFilter,
 } from '../../kernel/scan/ignore.js';
+import { collectReadExtensions, type IProvider } from '../../kernel/extensions/index.js';
+import { builtIns } from '../../plugins/built-ins.js';
 import type { ProgressEmitterPort } from '../../kernel/ports/progress-emitter.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
 import {
+  defaultGitignorePath,
   defaultIgnoreFilePath,
   defaultSettingsPath,
 } from '../paths/db-path.js';
@@ -437,6 +442,30 @@ function relativeFromRoots(absolute: string, absRoots: readonly string[]): strin
 }
 
 /**
+ * Deduped union of file extensions worth watching: every registered
+ * provider's read extensions (`.md` for every lens, `.toml` for codex)
+ * plus the `.sm` sidecar. Static over ALL registered providers so the live
+ * watcher's initial chokidar watch set is complete. Returns `undefined`
+ * (no extension gate, watch everything) when ANY registered provider ships
+ * a custom `walk()`: `walk()` wins over `read` (see `resolveProviderWalk`)
+ * and can discover arbitrary extensions at scan time, so the gate's set
+ * would be incomplete and the watcher would silently miss that provider's
+ * files. Extracted (and exported) for testing and to keep `start` under
+ * the complexity cap.
+ */
+export function computeWatchedExtensions(
+  noBuiltIns: boolean,
+  pluginProviders: readonly Pick<IProvider, 'read' | 'walk'>[],
+): string[] | undefined {
+  const providers = [
+    ...(noBuiltIns ? [] : builtIns().providers),
+    ...pluginProviders,
+  ];
+  if (providers.some((p) => typeof p.walk === 'function')) return undefined;
+  return [...new Set([...collectReadExtensions(providers), '.sm'])];
+}
+
+/**
  * Resolve the active lens for a watcher batch from the persisted config
  * (`settings.json#/activeProvider`), falling back to filesystem
  * auto-detect via the composed providers, then to the universal markdown
@@ -498,9 +527,11 @@ export function createWatcherRuntime(
   const composeIgnoreFilter = (
     cfgIn: ReturnType<typeof loadEffectiveConfig>,
     ignoreFileText: string | undefined,
+    gitignoreText: string | undefined,
   ): IIgnoreFilter => {
     const filterOpts: Parameters<typeof buildIgnoreFilter>[0] = {};
     if (cfgIn.ignore.length > 0) filterOpts.configIgnore = cfgIn.ignore;
+    if (gitignoreText !== undefined) filterOpts.gitignoreText = gitignoreText;
     if (ignoreFileText !== undefined) filterOpts.ignoreFileText = ignoreFileText;
     return buildIgnoreFilter(filterOpts);
   };
@@ -531,7 +562,7 @@ export function createWatcherRuntime(
     await rebuildWatcherDbOnDrift(opts.dbPath, events);
 
     cfg = loadEffectiveConfig();
-    ignoreFilter = composeIgnoreFilter(cfg, readIgnoreFileText(cwd));
+    ignoreFilter = composeIgnoreFilter(cfg, readIgnoreFileText(cwd), readGitignoreText(cwd));
     applyConfigDerivedState(cfg);
 
     const debounceMs = opts.debounceMsOverride ?? cfg.scan.watch.debounceMs;
@@ -555,6 +586,15 @@ export function createWatcherRuntime(
     for (const warn of pluginRuntime.warnings) {
       events.onPluginWarning?.(warn);
     }
+
+    // Static union of file types worth watching over ALL registered
+    // providers, so chokidar's initial watch set (decided at subscribe
+    // time) is complete; a newly-dropped plugin needs an `sm serve`
+    // restart to be discovered regardless. See `computeWatchedExtensions`.
+    const watchedExtensions = computeWatchedExtensions(
+      opts.noBuiltIns,
+      pluginRuntime.extensions.providers,
+    );
 
     // Single-batch handler. Errors propagate to the caller, the
     // initial-scan path and per-batch handler treat the throw
@@ -763,6 +803,12 @@ export function createWatcherRuntime(
         roots: opts.roots,
         cwd,
         debounceMs,
+        // Watch only the file types a scan would open (provider
+        // `read.extensions` + the `.sm` sidecar); a `.json` / `.txt` edit
+        // no longer wakes the watcher. The meta-watcher below handles the
+        // config files (`.skillmapignore` / `.gitignore` / settings),
+        // which fall outside this set, by exact path.
+        watchedExtensions,
         // Pass a getter, NOT the filter directly: the meta-file watcher
         // mutates `ignoreFilter` after a `.skillmapignore` /
         // `.skill-map/settings.json` edit, and chokidar's `ignored`
@@ -787,12 +833,13 @@ export function createWatcherRuntime(
     const subscribeMeta = (): void => {
       const ignorePath = defaultIgnoreFilePath(cwd);
       const settingsPath = defaultSettingsPath(cwd);
+      const gitignorePath = defaultGitignorePath(cwd);
       // Targets the meta-watcher reacts to. The chokidar watcher itself
       // observes the parent directories; we filter inside `onBatch` so
       // unrelated edits in those directories (a `README.md` save at
       // the project root, an unrelated DB file under `.skill-map/`) do
       // not spuriously rebuild the ignore filter.
-      const metaTargets = new Set<string>([ignorePath, settingsPath]);
+      const metaTargets = new Set<string>([ignorePath, settingsPath, gitignorePath]);
 
       metaHandle = createChokidarWatcher({
         // Watch the PARENT directories with `depth: 0`, not the
@@ -829,8 +876,11 @@ export function createWatcherRuntime(
             // partial. The helper retries until two reads agree (or
             // 500 ms cap). See `readIgnoreFileTextStable` in
             // `kernel/scan/ignore.ts`.
-            const stableText = await readIgnoreFileTextStable(cwd);
-            ignoreFilter = composeIgnoreFilter(cfg, stableText);
+            const [stableText, gitignoreText] = await Promise.all([
+              readIgnoreFileTextStable(cwd),
+              readGitignoreTextStable(cwd),
+            ]);
+            ignoreFilter = composeIgnoreFilter(cfg, stableText, gitignoreText);
             applyConfigDerivedState(cfg);
             if (handleBatch) await handleBatch();
           } catch (err) {

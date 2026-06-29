@@ -30,7 +30,7 @@ import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js
 import type { StoragePort } from '../../kernel/ports/storage.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { buildSettingsResolver } from '../config/plugin-settings.js';
-import { buildIgnoreFilter, readIgnoreFileText } from '../../kernel/scan/ignore.js';
+import { buildIgnoreFilter, composeScopeIgnoreFilter } from '../../kernel/scan/ignore.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
 import { createStderrProgressEmitter } from './progress-emitter.js';
@@ -501,16 +501,15 @@ function loadScanInputs(
   }
 }
 
-/** Compose the scan-time ignore filter from config + `.skillmapignore`. */
+/**
+ * Compose the scan-time ignore filter from `config.ignore` + `.gitignore`
+ * + `.skillmapignore` (layered by `composeScopeIgnoreFilter`).
+ */
 function buildScanIgnoreFilter(
   cfg: ReturnType<typeof loadConfig>['effective'],
   cwd: string,
 ): ReturnType<typeof buildIgnoreFilter> {
-  const ignoreFileText = readIgnoreFileText(cwd);
-  const ignoreFilterOpts: Parameters<typeof buildIgnoreFilter>[0] = {};
-  if (cfg.ignore.length > 0) ignoreFilterOpts.configIgnore = cfg.ignore;
-  if (ignoreFileText !== undefined) ignoreFilterOpts.ignoreFileText = ignoreFileText;
-  return buildIgnoreFilter(ignoreFilterOpts);
+  return composeScopeIgnoreFilter(cwd, cfg.ignore);
 }
 
 /**

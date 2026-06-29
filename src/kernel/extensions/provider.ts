@@ -712,6 +712,29 @@ const DEFAULT_READ_CONFIG: IProviderReadConfig = Object.freeze({
 });
 
 /**
+ * Deduped union of the file extensions every given Provider reads (each
+ * Provider's `read.extensions`, default `['.md']` when `read` is absent;
+ * a multi-rule `read` array contributes every rule's extensions). Mirrors
+ * the read normalization in `resolveProviderWalk`. Used to scope the live
+ * filesystem watcher to the file types a scan would actually open, so it
+ * reacts to `.md` (every lens) and `.toml` (codex) but not arbitrary
+ * files. The `.sm` sidecar is NOT a Provider extension; callers add it.
+ */
+export function collectReadExtensions(
+  providers: readonly Pick<IProvider, 'read'>[],
+): string[] {
+  const out = new Set<string>();
+  for (const provider of providers) {
+    const read = provider.read ?? DEFAULT_READ_CONFIG;
+    const rules = Array.isArray(read) ? read : [read];
+    for (const rule of rules) {
+      for (const ext of rule.extensions) out.add(ext);
+    }
+  }
+  return [...out];
+}
+
+/**
  * Resolve how a Provider walks its roots. Precedence:
  *
  *   1. If the Provider declares `walk()` (runtime field), use it as-is.

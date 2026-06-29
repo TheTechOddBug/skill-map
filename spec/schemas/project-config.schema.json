@@ -32,7 +32,7 @@
     },
     "ignore": {
       "type": "array",
-      "description": "Glob patterns to exclude, in addition to `.skillmapignore`.",
+      "description": "Glob patterns to exclude, in addition to `.gitignore` and `.skillmapignore`.",
       "items": { "type": "string" }
     },
     "scan": {
