@@ -152,6 +152,13 @@ export interface IWalkAndExtractOptions {
    */
   maxFileSizeBytes?: number;
   /**
+   * Mirror of `scan.followSymlinks` (default `false`). Threaded into the
+   * Provider walk so the kernel walker follows symlinked directories /
+   * files (gated by cycle detection + realpath containment). Absent →
+   * hard-skip.
+   */
+  followSymlinks?: boolean;
+  /**
    * Watcher-only incremental fast path. Set ONLY by `runScanInternal`
    * after it has confirmed the gate (prior exists, `enableCache`,
    * tokenizer unchanged). Root-relative POSIX paths, `changed` = files
@@ -439,6 +446,7 @@ export async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWal
     ...(opts.ignoreFilter ? { ignoreFilter: opts.ignoreFilter } : {}),
     onOversizedFile,
     ...(opts.maxFileSizeBytes !== undefined ? { maxFileSizeBytes: opts.maxFileSizeBytes } : {}),
+    ...(opts.followSymlinks !== undefined ? { followSymlinks: opts.followSymlinks } : {}),
     ...(priorMtimes ? { priorMtimes } : {}),
   };
   // Assigned in both branches below (incremental fast path vs full

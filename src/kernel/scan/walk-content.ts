@@ -6,18 +6,27 @@
  * Owns the audit-cleared defences (every Provider that uses the walker
  * inherits these, no duplication needed in `Provider.walk`):
  *
- *   - **Symlinks (audit M7)**, `entry.isSymbolicLink()` is checked
- *     explicitly and the entry is skipped. Without this guard we relied
- *     on `Dirent.isFile()` returning false for symlinks, which is an
- *     implementation detail of node's `withFileTypes`. The explicit
- *     skip is both self-documenting and resilient to future Dirent API
- *     changes. DECISION (2026-05-31): there is deliberately NO
- *     follow-symlinks option. A `scan.followSymlinks` config key plus a
- *     reserved walker option once existed but were removed as unused
- *     chrome (symlinks have always been hard-skipped, the knob never did
- *     anything). Re-add a follow path ONLY when a user actually asks for
- *     it, and ONLY with cycle detection + realpath-resolved containment,
- *     never a bare `true`.
+ *   - **Symlinks (audit M7)**, skipped by default; followed only when
+ *     `options.followSymlinks` is set (mirrors `scan.followSymlinks`,
+ *     default off). The default-skip relied historically on
+ *     `Dirent.isFile()` returning false for symlinks, an implementation
+ *     detail of node's `withFileTypes`; the explicit `isSymbolicLink()`
+ *     branch is self-documenting and resilient to future Dirent API
+ *     changes. DECISION (2026-06-30): the follow path was re-added after
+ *     a user asked for it (a softlinked `.claude/skills` directory), and
+ *     ONLY with the two defences the 2026-05-31 removal demanded, never a
+ *     bare `true`:
+ *       1. **realpath containment** (`isRealpathContained`): a link is
+ *          followed only when its resolved target stays inside one of the
+ *          realpath-resolved scan roots, so a link to `~/.ssh/id_rsa` or
+ *          any out-of-project target is refused before any read.
+ *       2. **cycle detection** (`ctx.visited`): the realpath of every
+ *          directory entered via a symlink is recorded; re-encountering it
+ *          (a loop, or a second link to the same target) is skipped, so a
+ *          symlink cycle can never hang the walk.
+ *     The yielded path keeps the form seen UNDER the link (so node
+ *     identity matches what the user and the watcher see), not the
+ *     resolved target.
  *   - **TOCTOU race (audit M7 / H1)**, `readdir` reports a regular file →
  *     `lstat()` re-verifies before the read. Closes the window where the
  *     entry could be swapped for a symlink between the two calls.
@@ -39,7 +48,7 @@
  * is closed by design.
  */
 
-import { readFile, readdir, lstat } from 'node:fs/promises';
+import { readFile, readdir, lstat, realpath, stat } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import type { IRawNode } from '../extensions/provider.js';
@@ -124,6 +133,16 @@ export interface IWalkContentOptions {
    * caller already knows exactly what changed, there is nothing to gate).
    */
   scopedPaths?: readonly string[];
+  /**
+   * Mirror of `scan.followSymlinks` (default `false`). When `true`, the
+   * traversal follows symbolic links to directories and files instead of
+   * skipping them, gated by cycle detection + realpath containment (see
+   * the module header). Absent / `false` keeps the historical hard-skip.
+   * The scoped path always applies realpath containment regardless, as a
+   * security backstop against an intermediate symlink that escapes the
+   * roots.
+   */
+  followSymlinks?: boolean;
 }
 
 export class UnknownParserError extends Error {
@@ -152,21 +171,58 @@ export async function* walkContent(
   // Scoped read (watcher incremental path): the caller handed us the
   // exact list of changed files, so skip the directory traversal
   // entirely and read only those. See `IWalkContentOptions.scopedPaths`.
+  // `realRoots` is the realpath-resolved root set the scoped reader uses
+  // as the containment backstop (an intermediate symlink in a scoped
+  // path must not escape the roots).
   if (options.scopedPaths !== undefined) {
-    yield* walkScoped(roots, options.scopedPaths, extensions, sizeLimit, parser, bodyField);
+    const realRoots = await resolveRealRoots(roots);
+    yield* walkScoped(
+      roots,
+      options.scopedPaths,
+      extensions,
+      sizeLimit,
+      parser,
+      bodyField,
+      realRoots,
+      options.followSymlinks ?? false,
+    );
     return;
   }
 
+  yield* walkTraversal(roots, options, filter, extensions, sizeLimit, parser, bodyField);
+}
+
+/**
+ * Full directory traversal (the non-scoped path). Resolves the
+ * follow-symlink context once and walks every root. Split out of
+ * `walkContent` to keep that entry point under the complexity cap.
+ */
+async function* walkTraversal(
+  roots: readonly string[],
+  options: IWalkContentOptions,
+  filter: IIgnoreFilter,
+  extensions: readonly string[],
+  sizeLimit: IWalkSizeLimit,
+  parser: ReturnType<typeof getParser>,
+  bodyField: string | undefined,
+): AsyncIterable<IRawNode> {
+  const followSymlinks = options.followSymlinks ?? false;
+  // Resolve the roots to their realpaths once, only when we may follow a
+  // symlink (the containment check needs them). Skipped entirely in the
+  // default hard-skip mode so a plain scan pays zero extra syscalls.
+  const realRoots = followSymlinks ? await resolveRealRoots(roots) : [];
+  const ctx: IWalkRootCtx = {
+    filter,
+    extensions,
+    sizeLimit,
+    followSymlinks,
+    realRoots,
+    visited: new Set<string>(),
+  };
   for (const root of roots) {
-    for await (const entry of walkRoot(root, root, filter, extensions, sizeLimit)) {
+    for await (const entry of walkRoot(root, root, ctx)) {
       const relPath = relative(root, entry.full).split(sep).join('/');
-      const rec = await traversedEntryToNode(
-        entry,
-        relPath,
-        options.priorMtimes,
-        parser,
-        bodyField,
-      );
+      const rec = await traversedEntryToNode(entry, relPath, options.priorMtimes, parser, bodyField);
       if (rec !== null) yield rec;
     }
   }
@@ -262,10 +318,21 @@ async function* walkScoped(
   sizeLimit: IWalkSizeLimit,
   parser: ReturnType<typeof getParser>,
   bodyField: string | undefined,
+  realRoots: readonly string[],
+  followSymlinks: boolean,
 ): AsyncIterable<IRawNode> {
   const absRoots = roots.map((r) => (isAbsolute(r) ? r : resolve(r)));
   for (const scoped of scopedPaths) {
-    const rec = await scopedPathToNode(scoped, absRoots, extensions, sizeLimit, parser, bodyField);
+    const rec = await scopedPathToNode(
+      scoped,
+      absRoots,
+      extensions,
+      sizeLimit,
+      parser,
+      bodyField,
+      realRoots,
+      followSymlinks,
+    );
     if (rec !== null) yield rec;
   }
 }
@@ -283,11 +350,18 @@ async function scopedPathToNode(
   sizeLimit: IWalkSizeLimit,
   parser: ReturnType<typeof getParser>,
   bodyField: string | undefined,
+  realRoots: readonly string[],
+  followSymlinks: boolean,
 ): Promise<IRawNode | null> {
   const full = isAbsolute(scoped) ? scoped : resolve(scoped);
   const relPath = relativeFromRoots(full, absRoots);
-  if (relPath === null) return null; // outside every root
+  if (relPath === null) return null; // outside every root (string form)
   if (!hasMatchingExtension(full, extensions)) return null; // not this provider's
+  // Mirror `walkRoot`'s symlink policy so a watcher-incremental re-scan
+  // indexes exactly what a full scan would (the live `chokidar` events can
+  // bubble through a symlink regardless of any chokidar option, so the
+  // policy MUST be enforced here, not at the watcher).
+  if (!(await scopedSymlinkGuard(full, relPath, realRoots, followSymlinks))) return null;
   const s = await statRegularFile(full, relPath, sizeLimit);
   if (s === null) return null; // vanished, non-regular, or oversized
   const parsed = await readAndParse(full, relPath, parser, bodyField);
@@ -437,13 +511,159 @@ function buildSizeLimit(options: IWalkContentOptions): IWalkSizeLimit {
 // ignore-filter / kind (dir vs file) / extension allow-list. The
 // branching IS the walker; extraction yields helpers that all run
 // once per entry anyway. Per `context/lint.md` category 7 (recursive type-discriminator walkers).
+/**
+ * Constant context threaded through `walkRoot`'s recursion. Everything
+ * here is invariant across the walk; only `root` / `current` change per
+ * call. `realRoots` + `visited` back the follow-symlink defences and stay
+ * empty / unused when `followSymlinks` is false.
+ */
+interface IWalkRootCtx {
+  filter: IIgnoreFilter;
+  extensions: readonly string[];
+  sizeLimit: IWalkSizeLimit;
+  followSymlinks: boolean;
+  /** Realpath-resolved scan roots; a followed link's target must stay within one. */
+  realRoots: readonly string[];
+  /** Realpaths of directories already entered via a symlink (cycle / repeat guard). */
+  visited: Set<string>;
+}
+
+/**
+ * Resolve each root to its realpath once, for the follow-symlink
+ * containment check. A root that does not exist yet (realpath throws)
+ * falls back to its resolved absolute path so a later-created tree under
+ * it still passes containment. Pure helper, no traversal.
+ */
+async function resolveRealRoots(roots: readonly string[]): Promise<string[]> {
+  const out: string[] = [];
+  for (const r of roots) {
+    const abs = isAbsolute(r) ? r : resolve(r);
+    try {
+      out.push(await realpath(abs));
+    } catch {
+      out.push(abs);
+    }
+  }
+  return out;
+}
+
+/**
+ * True when `target` (a realpath-resolved absolute path) stays inside at
+ * least one of `realRoots` (also realpath-resolved). The follow-symlink
+ * containment invariant: a link is dereferenced only when its target does
+ * not escape the scan roots. Kept kernel-local on purpose, the
+ * `core/paths` guard cannot be imported here without inverting the layer
+ * boundary (core depends on kernel, not the reverse).
+ */
+function isRealpathContained(target: string, realRoots: readonly string[]): boolean {
+  for (const root of realRoots) {
+    if (target === root || target.startsWith(root + sep)) return true;
+  }
+  return false;
+}
+
+/**
+ * Mirror `walkRoot`'s symlink policy on the scoped (watcher-incremental)
+ * path so a live re-scan indexes exactly what a full scan would. Resolve
+ * the path's realpath, locate its containing real root, then:
+ *
+ *   - `followSymlinks` ON  → accept as long as the target stays inside a
+ *     root (realpath containment; an intermediate link escaping the roots,
+ *     e.g. `.claude/skills` -> `/etc`, is refused, matching `followSymlink`).
+ *   - `followSymlinks` OFF → accept ONLY when no symlink was crossed below
+ *     the root, detected as the realpath-relative path matching the logical
+ *     `relPath` the watcher reported. A scoped path reaching the file
+ *     THROUGH a symlinked directory (what the full walk skips) is refused.
+ *
+ * Returns `false` (skip) when realpath fails (vanished / broken) or the
+ * path escapes every root. The leaf-symlink case is additionally rejected
+ * downstream by `statRegularFile`'s `lstat` + `isFile()`.
+ */
+async function scopedSymlinkGuard(
+  full: string,
+  relPath: string,
+  realRoots: readonly string[],
+  followSymlinks: boolean,
+): Promise<boolean> {
+  let real: string;
+  try {
+    real = await realpath(full);
+  } catch {
+    return false;
+  }
+  const realRoot = realRoots.find((r) => real === r || real.startsWith(r + sep));
+  if (realRoot === undefined) return false; // escapes every root
+  if (followSymlinks) return true;
+  // OFF: a crossed symlink shows up as the realpath-relative path
+  // diverging from the logical path the watcher reported.
+  return relative(realRoot, real).split(sep).join('/') === relPath;
+}
+
+/**
+ * Resolve and validate a symbolic-link entry on the follow path. Returns
+ * `{ kind: 'dir' }` when the link points at a contained directory to
+ * recurse into (its realpath is recorded in `ctx.visited` first),
+ * `{ kind: 'file', entry }` when it points at a contained, size-OK,
+ * extension-matching regular file to yield, or `null` when the link is
+ * broken, escapes the roots (containment), repeats / cycles (already in
+ * `ctx.visited`), or its target is neither a matching file nor a
+ * directory. `stat` (NOT `lstat`) is used deliberately here: the caller
+ * opted into following links, and the realpath containment check is what
+ * keeps an out-of-project target from being read.
+ */
+async function followSymlink(
+  full: string,
+  name: string,
+  rel: string,
+  ctx: IWalkRootCtx,
+): Promise<{ kind: 'dir' } | { kind: 'file'; entry: IWalkEntry } | null> {
+  let real: string;
+  try {
+    real = await realpath(full);
+  } catch {
+    return null; // broken link
+  }
+  if (!isRealpathContained(real, ctx.realRoots)) return null; // escapes the roots
+  let s;
+  try {
+    s = await stat(full); // follows the link to its target
+  } catch {
+    return null;
+  }
+  if (s.isDirectory()) {
+    if (ctx.visited.has(real)) return null; // cycle, or a second link to the same target
+    ctx.visited.add(real);
+    return { kind: 'dir' };
+  }
+  return symlinkFileEntry(full, name, rel, s, ctx);
+}
+
+/**
+ * Build the yieldable entry for a followed symlink whose target is a
+ * regular file, or `null` when the extension does not match or the file
+ * exceeds the size limit. Split from `followSymlink` to keep it under the
+ * complexity cap.
+ */
+function symlinkFileEntry(
+  full: string,
+  name: string,
+  rel: string,
+  s: import('node:fs').Stats,
+  ctx: IWalkRootCtx,
+): { kind: 'file'; entry: IWalkEntry } | null {
+  if (!(s.isFile() && hasMatchingExtension(name, ctx.extensions))) return null;
+  if (ctx.sizeLimit.maxFileSizeBytes !== undefined && s.size > ctx.sizeLimit.maxFileSizeBytes) {
+    ctx.sizeLimit.onOversizedFile?.({ path: rel, bytes: s.size });
+    return null;
+  }
+  return { kind: 'file', entry: { full, modifiedAtMs: Math.round(s.mtimeMs) } };
+}
+
 // eslint-disable-next-line complexity
 async function* walkRoot(
   root: string,
   current: string,
-  filter: IIgnoreFilter,
-  extensions: readonly string[],
-  sizeLimit: IWalkSizeLimit,
+  ctx: IWalkRootCtx,
 ): AsyncIterable<IWalkEntry> {
   let entries;
   try {
@@ -455,41 +675,26 @@ async function* walkRoot(
     const name = entry.name;
     const full = join(current, name);
     const rel = relative(root, full).split(sep).join('/');
-    if (filter.ignores(rel)) continue;
-    if (entry.isSymbolicLink()) continue;
+    if (ctx.filter.ignores(rel)) continue;
+    if (entry.isSymbolicLink()) {
+      if (!ctx.followSymlinks) continue; // default: hard-skip (historical behaviour)
+      const followed = await followSymlink(full, name, rel, ctx);
+      if (followed === null) continue; // broken, escaping, cyclic, or non-matching
+      if (followed.kind === 'dir') yield* walkRoot(root, full, ctx);
+      else yield followed.entry;
+      continue;
+    }
     if (entry.isDirectory()) {
-      yield* walkRoot(root, full, filter, extensions, sizeLimit);
-    } else if (entry.isFile() && hasMatchingExtension(name, extensions)) {
-      // TOCTOU re-check (audit H1): readdir reported a regular file;
-      // re-verify before reading. We use `lstat` (NOT `stat`) so a
-      // symlink swapped in between `readdir` and the re-check is
-      // detected here. `stat` follows symlinks, which would have let an
-      // attacker race a benign `.md` → symlink to `~/.ssh/id_rsa` and
-      // see the target's contents land in the SQLite body store and
-      // /api/nodes response. `lstat` plus the `isFile()` predicate
-      // rejects both symlinks and any non-regular type (socket, FIFO,
-      // device) that appeared in the race window.
-      try {
-        const s = await lstat(full);
-        if (!s.isFile()) continue;
-        // File-size skip (`scan.maxFileSizeBytes`). The `lstat` above
-        // already supplies `s.size`, so the guard costs zero extra
-        // syscalls. A file over the limit is reported and skipped here
-        // BEFORE the orchestrator ever reads it: an accidental binary
-        // drop or generated artefact never lands in the body store.
-        if (
-          sizeLimit.maxFileSizeBytes !== undefined &&
-          s.size > sizeLimit.maxFileSizeBytes
-        ) {
-          sizeLimit.onOversizedFile?.({ path: rel, bytes: s.size });
-          continue;
-        }
-        // `mtimeMs` is a float on some platforms; round to whole millis
-        // so the value satisfies the spec's `integer` node field.
-        yield { full, modifiedAtMs: Math.round(s.mtimeMs) };
-      } catch {
-        // silently skip unreadable files
-      }
+      yield* walkRoot(root, full, ctx);
+    } else if (entry.isFile() && hasMatchingExtension(name, ctx.extensions)) {
+      // TOCTOU re-check (audit H1): `readdir` reported a regular file;
+      // `statRegularFile`'s `lstat` (NOT `stat`) re-verifies before the
+      // read, so a benign `.md` swapped for a symlink to `~/.ssh/id_rsa`
+      // in the race window is rejected (the leaf is then a symlink, so
+      // `isFile()` is false). It also applies the `maxFileSizeBytes`
+      // guard and supplies the rounded mtime.
+      const s = await statRegularFile(full, rel, ctx.sizeLimit);
+      if (s !== null) yield { full, modifiedAtMs: Math.round(s.mtimeMs) };
     }
   }
 }

@@ -140,6 +140,16 @@ export interface IScanConfig {
    * the UI when the map renders.
    */
   maxNodes: number;
+  /**
+   * When `true`, the scan walker follows symlinks (directories and
+   * files) instead of skipping them. Default `false`. Opt-in and
+   * always gated by cycle detection + realpath containment (a link is
+   * followed only when its resolved target stays inside the configured
+   * scan roots). The incremental (watcher) re-scan applies the same
+   * policy as a full walk, so they agree on which links are indexed. See
+   * `kernel/scan/walk-content.ts`.
+   */
+  followSymlinks: boolean;
   watch: IScanWatchConfig;
   /**
    * **Privacy-sensitive when entries point outside the project**

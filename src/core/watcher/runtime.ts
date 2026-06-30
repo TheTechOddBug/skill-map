@@ -686,6 +686,7 @@ export function createWatcherRuntime(
         maxRenderNodes: cfg.scan.maxNodes,
         overrideMaxRenderNodes: opts.maxNodesOverride ?? null,
         maxFileSizeBytes: cfg.scan.maxFileSizeBytes,
+        followSymlinks: cfg.scan.followSymlinks,
         // Resolve the active lens from the persisted config (settings.json)
         // so a lens switched via `PATCH /api/active-provider` is honoured by
         // the next watcher batch. Without an explicit value the orchestrator

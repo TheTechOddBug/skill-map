@@ -56,6 +56,10 @@
           "minimum": 1,
           "description": "Map render cap: the maximum number of nodes the graph view projects onto the canvas at once. Default 256. This does NOT bound the scan; the full corpus is walked and reference-validated up to `maxScan`, and the folders tree shows all of it. `maxNodes` only limits the Foblex graph projection so a large project stays readable. When a selected folder branch exceeds this cap, the map renders the branch's first N nodes (stable order) and raises an in-view banner inviting the user to pick a narrower sub-folder. Override per invocation with `--max-nodes N` on `sm scan` / `sm watch` / `sm serve`; the value persists in `scan_meta` and is read by the UI when the map renders. Headless `sm scan` records but does not act on it (it renders nothing)."
         },
+        "followSymlinks": {
+          "type": "boolean",
+          "description": "When true, the scan walker follows symbolic links to directories and files instead of skipping them. Default false (symlinks are skipped, the historical behaviour). Opt-in because following links is privacy-sensitive, so it is gated by two defences that always apply when enabled: cycle detection (a symlink loop can never hang the walk) and realpath containment (a link is followed only when its resolved target stays inside the configured scan roots, so a link pointing outside the project, e.g. to a home-directory secret, is never read). The yielded node path keeps the form seen under the link (`.claude/skills/foo.md`), not the resolved target. The incremental (watcher) re-scan applies the same policy as a full scan, so a live edit indexes the same links a full scan would."
+        },
         "watch": {
           "type": "object",
           "additionalProperties": false,

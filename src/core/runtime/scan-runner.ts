@@ -299,6 +299,7 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<TScanRunRes
     cfg.scan.maxScan,
     cfg.scan.maxNodes,
     cfg.scan.maxFileSizeBytes,
+    cfg.scan.followSymlinks,
     cfg.tokenizer,
   );
 
@@ -555,6 +556,7 @@ function makeScanRunner(
   scanCeiling: number,
   maxRenderNodes: number,
   maxFileSizeBytes: number,
+  followSymlinks: boolean,
   tokenizer: string,
 ) {
   return async (
@@ -586,6 +588,7 @@ function makeScanRunner(
       scanCeiling,
       maxRenderNodes,
       maxFileSizeBytes,
+      followSymlinks,
       tokenizer,
       ...(priorExtractorRuns ? { priorExtractorRuns } : {}),
     });
@@ -606,6 +609,7 @@ interface IBuildRunScanOptionsArgs {
   scanCeiling: number;
   maxRenderNodes: number;
   maxFileSizeBytes: number;
+  followSymlinks: boolean;
   tokenizer: string;
   priorExtractorRuns?: Map<string, Map<string, IPriorExtractorRun>>;
 }
@@ -632,6 +636,7 @@ function buildRunScanOptions(args: IBuildRunScanOptionsArgs): Parameters<typeof 
     maxRenderNodes: args.maxRenderNodes,
     overrideMaxRenderNodes: opts.maxNodes ?? null,
     maxFileSizeBytes: args.maxFileSizeBytes,
+    followSymlinks: args.followSymlinks,
   };
   if (args.extensions) runOptions.extensions = args.extensions;
   if (prior) {

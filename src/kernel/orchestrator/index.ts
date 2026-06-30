@@ -442,6 +442,14 @@ export interface RunScanOptions {
    */
   maxFileSizeBytes?: number;
   /**
+   * Mirror of `scan.followSymlinks` (default `false`). Threaded through
+   * `walkAndExtract` into the kernel walker so it follows symlinked
+   * directories / files (gated by cycle detection + realpath containment)
+   * instead of skipping them. Absent → hard-skip (the historical default;
+   * out-of-band callers and synthetic fixtures stay safe).
+   */
+  followSymlinks?: boolean;
+  /**
    * Watcher-only incremental fast path (pure perf, identical output to a
    * full scan). When supplied AND a prior snapshot exists AND
    * `enableCache` is on AND the tokenizer is unchanged, the orchestrator
@@ -574,6 +582,9 @@ async function runScanInternal(
     overrideMaxRenderNodes: options.overrideMaxRenderNodes ?? null,
     ...(options.maxFileSizeBytes !== undefined
       ? { maxFileSizeBytes: options.maxFileSizeBytes }
+      : {}),
+    ...(options.followSymlinks !== undefined
+      ? { followSymlinks: options.followSymlinks }
       : {}),
     // Watcher incremental fast path: only honoured when a prior exists,
     // cache reuse is on, and the tokenizer is unchanged (else a scoped

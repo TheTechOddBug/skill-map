@@ -12,6 +12,7 @@
     "maxFileSizeBytes": 1048576,
     "maxScan": 50000,
     "maxNodes": 256,
+    "followSymlinks": false,
     "watch": {
       "debounceMs": 300
     },

@@ -456,3 +456,215 @@ describe('walkContent, incremental priorMtimes fast path', () => {
     }
   });
 });
+
+describe('walkContent, followSymlinks', () => {
+  const mkRoot = (): string => mkdtempSync(join(tmpdir(), 'walk-symlink-'));
+  const write = (abs: string, content: string): void => {
+    mkdirSync(join(abs, '..'), { recursive: true });
+    writeFileSync(abs, content);
+  };
+  // Create a symlink, returning false when the sandbox forbids it so the
+  // test degrades to a no-op rather than a spurious failure (CI on Linux
+  // always succeeds and exercises the assertions).
+  const link = (target: string, path: string): boolean => {
+    try {
+      symlinkSync(target, path);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const collect = async (scope: string, followSymlinks: boolean): Promise<string[]> => {
+    const out: string[] = [];
+    for await (const n of walkContent([scope], {
+      extensions: ['.md'],
+      parser: 'frontmatter-yaml',
+      followSymlinks,
+    })) {
+      out.push(n.path);
+    }
+    return out.sort();
+  };
+
+  it('follows a symlinked directory when enabled (the .claude/skills softlink case)', async () => {
+    const dir = mkRoot();
+    try {
+      write(join(dir, 'a/skills/one.md'), '---\nname: one\n---\nbody');
+      mkdirSync(join(dir, '.claude'), { recursive: true });
+      // Relative dir symlink whose target resolves inside the root.
+      if (!link('../a/skills', join(dir, '.claude/skills'))) return;
+      const collected = await collect(dir, true);
+      ok(
+        collected.includes('.claude/skills/one.md'),
+        'a file behind the symlinked directory is yielded under the link path',
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('skips a symlinked directory by default (followSymlinks off)', async () => {
+    const dir = mkRoot();
+    try {
+      write(join(dir, 'a/skills/one.md'), '---\nname: one\n---\nbody');
+      mkdirSync(join(dir, '.claude'), { recursive: true });
+      if (!link('../a/skills', join(dir, '.claude/skills'))) return;
+      const collected = await collect(dir, false);
+      ok(
+        !collected.includes('.claude/skills/one.md'),
+        'the symlinked directory is not traversed when the flag is off',
+      );
+      ok(collected.includes('a/skills/one.md'), 'the real target dir is still walked as usual');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('skips a broken symlink without throwing (enabled)', async () => {
+    const dir = mkRoot();
+    try {
+      mkdirSync(join(dir, '.claude'), { recursive: true });
+      if (!link('../a/does-not-exist', join(dir, '.claude/skills'))) return;
+      write(join(dir, 'real.md'), '---\nname: real\n---\nbody');
+      const collected = await collect(dir, true);
+      deepStrictEqual(collected, ['real.md']);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a symlink whose target escapes the roots (realpath containment, enabled)', async () => {
+    const dir = mkRoot();
+    const outside = mkdtempSync(join(tmpdir(), 'walk-symlink-out-'));
+    try {
+      write(join(outside, 'secret.md'), '---\nname: secret\n---\nLEAK');
+      write(join(dir, 'real.md'), '---\nname: real\n---\nbody');
+      // Absolute symlink pointing OUT of the walked root.
+      if (!link(outside, join(dir, 'escape'))) return;
+      const collected: { path: string; body: string }[] = [];
+      for await (const n of walkContent([dir], {
+        extensions: ['.md'],
+        parser: 'frontmatter-yaml',
+        followSymlinks: true,
+      })) {
+        collected.push({ path: n.path, body: n.body });
+      }
+      ok(
+        !collected.some((n) => n.path.startsWith('escape/')),
+        'the escaping symlink directory is never traversed',
+      );
+      ok(
+        !collected.some((n) => n.body.includes('LEAK')),
+        'out-of-root content never leaks through a followed symlink',
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('terminates on a symlink cycle (enabled)', async () => {
+    const dir = mkRoot();
+    try {
+      write(join(dir, 'a/one.md'), '---\nname: one\n---\nbody');
+      // `a/back` points back at its own parent dir `a`: a one-step cycle.
+      // If cycle detection regressed this would recurse forever; the test
+      // merely completing proves termination.
+      if (!link('../a', join(dir, 'a/back'))) return;
+      const collected = await collect(dir, true);
+      ok(collected.includes('a/one.md'), 'the real file is yielded');
+      ok(collected.length <= 2, 'the cycle is bounded, not infinite');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('follows a symlinked file to its target body when enabled', async () => {
+    const dir = mkRoot();
+    try {
+      write(join(dir, 'real.md'), '---\nname: real\n---\nshared body');
+      if (!link('real.md', join(dir, 'link.md'))) return;
+      const collected: { path: string; body: string }[] = [];
+      for await (const n of walkContent([dir], {
+        extensions: ['.md'],
+        parser: 'frontmatter-yaml',
+        followSymlinks: true,
+      })) {
+        collected.push({ path: n.path, body: n.body });
+      }
+      const linked = collected.find((n) => n.path === 'link.md');
+      ok(linked, 'the symlinked file is yielded under its link path');
+      strictEqual(linked?.body.trim(), 'shared body', 'it resolves to the target body');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // Scoped reads are the watcher's incremental path. They must honour the
+  // same symlink policy as the full traversal, since chokidar can surface a
+  // changed file behind a symlink regardless of any watcher option.
+  const collectScoped = async (
+    scope: string,
+    scopedPaths: string[],
+    followSymlinks: boolean,
+  ): Promise<{ path: string; body: string }[]> => {
+    const out: { path: string; body: string }[] = [];
+    for await (const n of walkContent([scope], {
+      extensions: ['.md'],
+      parser: 'frontmatter-yaml',
+      scopedPaths,
+      followSymlinks,
+    })) {
+      out.push({ path: n.path, body: n.body });
+    }
+    return out;
+  };
+
+  it('scoped read drops a path crossing a symlinked directory when disabled', async () => {
+    const dir = mkRoot();
+    try {
+      write(join(dir, 'a/skills/one.md'), '---\nname: one\n---\nbody');
+      mkdirSync(join(dir, '.claude'), { recursive: true });
+      if (!link('../a/skills', join(dir, '.claude/skills'))) return;
+      const collected = await collectScoped(dir, [join(dir, '.claude/skills/one.md')], false);
+      deepStrictEqual(collected, [], 'the symlink-crossing scoped path is not read when off');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('scoped read follows a path through a symlinked directory when enabled', async () => {
+    const dir = mkRoot();
+    try {
+      write(join(dir, 'a/skills/one.md'), '---\nname: one\n---\nbody');
+      mkdirSync(join(dir, '.claude'), { recursive: true });
+      if (!link('../a/skills', join(dir, '.claude/skills'))) return;
+      const collected = await collectScoped(dir, [join(dir, '.claude/skills/one.md')], true);
+      deepStrictEqual(
+        collected.map((n) => n.path),
+        ['.claude/skills/one.md'],
+        'the scoped path is read under the link form when on',
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('scoped read refuses a path escaping the roots via a symlink (enabled)', async () => {
+    const dir = mkRoot();
+    const outside = mkdtempSync(join(tmpdir(), 'walk-symlink-out-'));
+    try {
+      write(join(outside, 'secret.md'), '---\nname: secret\n---\nLEAK');
+      if (!link(outside, join(dir, 'escape'))) return;
+      const collected = await collectScoped(dir, [join(dir, 'escape/secret.md')], true);
+      ok(
+        !collected.some((n) => n.body.includes('LEAK')),
+        'an escaping scoped path never leaks out-of-root content',
+      );
+      deepStrictEqual(collected, [], 'the escaping scoped path yields nothing');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+});
