@@ -107,6 +107,15 @@ export interface IPluginTrustConfig {
 
 export interface IScanWatchConfig {
   debounceMs: number;
+  /**
+   * Primary watcher backend. `'auto'` (default) picks `@parcel/watcher`
+   * for scale, switching to `chokidar` when `scan.followSymlinks` is on
+   * (only chokidar live-watches behind a symlinked directory).
+   * `'parcel'` / `'chokidar'` force that backend regardless. The
+   * meta-watcher is always chokidar. See `core/watcher/runtime.ts`
+   * (`resolveWatcherBackend`).
+   */
+  backend: 'auto' | 'parcel' | 'chokidar';
 }
 
 export interface IScanConfig {

@@ -13,7 +13,7 @@
  */
 
 import { strict as assert } from 'node:assert';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync, unlinkSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync, unlinkSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
@@ -89,6 +89,41 @@ describe('createChokidarWatcher', () => {
       // No leftover batches after the burst settles.
       await delay(150);
       assert.equal(collector.batches.length, 0, 'no follow-up batch');
+    } finally {
+      await watcher.close();
+    }
+  });
+
+  it('follows a symlinked directory (live events behind the link)', async () => {
+    // This is what makes `scan.watch.backend: auto` route to chokidar when
+    // `scan.followSymlinks` is on: chokidar (default `followSymlinks: true`)
+    // observes changes behind a symlinked directory, parcel does not. The
+    // target lives OUTSIDE the watched root so the only way an event arrives
+    // is by following the link.
+    const dir = freshScope('symlink');
+    const outside = mkdtempSync(join(root, 'symlink-target-'));
+    let linked = true;
+    try {
+      symlinkSync(outside, join(dir, 'skills'));
+    } catch {
+      linked = false;
+    }
+    if (!linked) return; // sandbox without symlink support
+    const { collector, onBatch } = makeCollector();
+    const watcher: IFsWatcher = createChokidarWatcher({
+      cwd: dir,
+      roots: [dir],
+      debounceMs: 60,
+      onBatch,
+    });
+    try {
+      await watcher.ready;
+      writeFileSync(join(outside, 'x.md'), '# x'); // reachable only via dir/skills
+      const batch = await collector.next();
+      assert.ok(
+        batch.paths.some((p) => p.endsWith('x.md')),
+        'a change behind the followed symlink reaches onBatch',
+      );
     } finally {
       await watcher.close();
     }

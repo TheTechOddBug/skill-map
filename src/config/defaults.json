@@ -14,7 +14,8 @@
     "maxNodes": 256,
     "followSymlinks": false,
     "watch": {
-      "debounceMs": 300
+      "debounceMs": 300,
+      "backend": "auto"
     },
     "referencePaths": []
   },

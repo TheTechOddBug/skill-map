@@ -180,7 +180,7 @@
     "files": {
       "CHANGELOG.md": "ee154adc6d765621dc3840069d3fdf465793964b7b071b1502c75741fc80067a",
       "README.md": "a790cd010b46d47883d1f37e3893cea9d7aa69ec4750c0202e6a0c99991e7980",
-      "architecture.md": "f6a5bad86e658539ca84a1c4877ea071c1ffcf1a4281004e6bfb3eb000328c78",
+      "architecture.md": "18a8eeb623a5ab329eb81bf217960646c84c816325dd0f1c9547dbfc528fe460",
       "cli-contract.md": "3723f651c415928b1cdcbfdad31d0ef7b6b6998b51e576ebca5db9005a0cb594",
       "conformance/README.md": "dcbef7249f161acf597552a05dcadc813cd0ced430dcd3f813fcf5e1c876335d",
       "conformance/cases/backtick-path-extraction.json": "4620e7f8bc161fc57cb44001e9d99879c7e22b4865a0c27a20dc28969cd936d9",
@@ -261,7 +261,7 @@
       "schemas/node.schema.json": "1ebba38e0c0ae022fccbc0cdf7c298da1720a68d4cb375f0baf9f0847998a0d8",
       "schemas/plugins-doctor.schema.json": "03e2dc51c052a09bf0198c80e2c26e6129734ada4a748e483245de3dd8576c42",
       "schemas/plugins-registry.schema.json": "211d081691fc83526e1593c79ed9741ad8a5dbd4db1a756f72141b0cced2ea15",
-      "schemas/project-config.schema.json": "d94ab06748369c2c413a7674887621d6016ab18cb3720543bf6eb8c82b94e8a2",
+      "schemas/project-config.schema.json": "cc1cdee13ad1234d6ba6f60da3c69e32267b9f6f78ca6c1c2f14b6bad5d5f0ef",
       "schemas/refresh-report.schema.json": "47184d4f6b15e9b7671dc178b3b3886a64422da198898508ecdb2cb27876db04",
       "schemas/report-base-deterministic.schema.json": "59785fe6f3ceb34814bbbd03d10fa7336a32835ce598946f2923d469b32aa32a",
       "schemas/report-base.schema.json": "e4d25f055e24f18ae0f77c24661c1bddc87ff2e43b001b6a827fcb14f9753f44",

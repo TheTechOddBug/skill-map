@@ -48,6 +48,7 @@
 
 import {
   createChokidarWatcher,
+  createParcelWatcher,
   createKernel,
   runScanWithRenames,
   type IFsWatcher,
@@ -466,6 +467,28 @@ export function computeWatchedExtensions(
 }
 
 /**
+ * Resolve which backend the PRIMARY scan watcher uses. Pure: keyed off
+ * the persisted `scan.watch.backend` + `scan.followSymlinks`, so it is
+ * unit-testable without booting a watcher.
+ *
+ *   - `'parcel'` / `'chokidar'` force that backend.
+ *   - `'auto'` (default) returns `chokidar` when `followSymlinks` is on
+ *     (only chokidar observes changes behind a symlinked directory for a
+ *     live update), else `parcel` (a single native inotify instance that
+ *     scales to huge trees without chokidar's `EMFILE` exhaustion).
+ *
+ * The meta-watcher is always chokidar (it needs `depth: 0`); this only
+ * governs the primary.
+ */
+export function resolveWatcherBackend(opts: {
+  backend: 'auto' | 'parcel' | 'chokidar';
+  followSymlinks: boolean;
+}): 'parcel' | 'chokidar' {
+  if (opts.backend !== 'auto') return opts.backend;
+  return opts.followSymlinks ? 'chokidar' : 'parcel';
+}
+
+/**
  * Resolve the active lens for a watcher batch from the persisted config
  * (`settings.json#/activeProvider`), falling back to filesystem
  * auto-detect via the composed providers, then to the universal markdown
@@ -491,7 +514,7 @@ export function createWatcherRuntime(
   const runInitialBatchFlag = opts.runInitialBatch ?? DEFAULT_RUN_INITIAL_BATCH;
   const failOnInitialError = opts.failOnInitialBatchError ?? false;
 
-  let chokidarHandle: IFsWatcher | null = null;
+  let primaryHandle: IFsWatcher | null = null;
   let metaHandle: IFsWatcher | null = null;
   let stopped = false;
   let consecutiveFailures = 0;
@@ -800,7 +823,20 @@ export function createWatcherRuntime(
     };
 
     const subscribePrimary = (): void => {
-      chokidarHandle = createChokidarWatcher({
+      // Pick the PRIMARY watcher backend (see `scan.watch.backend`):
+      // parcel (a single native inotify instance) scales to huge trees
+      // without chokidar's `EMFILE` exhaustion; chokidar is used when
+      // symlinks must be followed live (it observes symlinked dirs, parcel
+      // does not). The meta-watcher below is always chokidar (`depth: 0`,
+      // which parcel cannot express).
+      const createPrimary =
+        resolveWatcherBackend({
+          backend: cfg.scan.watch.backend,
+          followSymlinks: cfg.scan.followSymlinks,
+        }) === 'chokidar'
+          ? createChokidarWatcher
+          : createParcelWatcher;
+      primaryHandle = createPrimary({
         roots: opts.roots,
         cwd,
         debounceMs,
@@ -904,7 +940,7 @@ export function createWatcherRuntime(
       // initial batch queue against the armed chokidar.
       subscribePrimary();
       subscribeMeta();
-      await chokidarHandle!.ready;
+      await primaryHandle!.ready;
       await metaHandle!.ready;
       await runInitial();
     } else {
@@ -912,7 +948,7 @@ export function createWatcherRuntime(
       await runInitial();
       subscribePrimary();
       subscribeMeta();
-      await chokidarHandle!.ready;
+      await primaryHandle!.ready;
       await metaHandle!.ready;
     }
 
@@ -928,18 +964,18 @@ export function createWatcherRuntime(
       }
       metaHandle = null;
     }
-    if (chokidarHandle) {
+    if (primaryHandle) {
       try {
-        await chokidarHandle.close();
+        await primaryHandle.close();
       } catch {
         // ditto.
       }
-      chokidarHandle = null;
+      primaryHandle = null;
     }
   };
 
   const stop = async (): Promise<void> => {
-    if (stopped && !chokidarHandle && !metaHandle) {
+    if (stopped && !primaryHandle && !metaHandle) {
       requestStop();
       return;
     }

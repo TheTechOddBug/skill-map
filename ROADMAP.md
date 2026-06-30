@@ -222,7 +222,7 @@ Mirrors the interactive timeline on `skill-map.ai` (driven by `web/modules/roadm
 ●  4    Scan end-to-end              sm scan persists · per-node tokens · external-url-counter · --changed · sm list/show/check
 ●  5    History + orphans            scan_meta · sm history + stats · auto-rename heuristic · sm orphans · canonical-YAML hash
 ●  6    Config + onboarding          settings(.local).json · 6-layer loader · sm config * · .skillmapignore · sm init · scan strict
-●  7    Robustness                   sm watch + chokidar · link-kind-conflict analyzer · sm job prune · trigger normalization
+●  7    Robustness                   sm watch (parcel primary + chokidar meta) · link-kind-conflict analyzer · sm job prune · trigger normalization
 ●  8    Diff + export                sm graph · sm scan compare-with · sm export with mini query language
 ●  9    Plugin author UX             plugin runtime · plugin migrations · author guide
 ●  ALm  Active-lens migration        Phases 1–6 (2026-05-19→05-23): active-provider lens · Signal IR scaffold · numeric `Confidence` · MCP virtual nodes + `core/mcp-tools` extractor · OpenAI Codex provider (`.codex/agents/*.toml`) · Antigravity onboarded + Gemini retired · lens-only extractor gating · provider-aware confidence bump on resolved links · reserved-name catalog + analyzer + confidence downgrade · observable link analysis (`core/link-counts` chips, in/out per-kind tooltip) · lens-drift warning · db-version skew detection · auto-detect on first scan
@@ -936,7 +936,7 @@ These deps live in `ui/package.json` only. The kernel does NOT import them and M
 - **Logger**: `pino` (JSON lines).
 - **Tokenizer**: `js-tiktoken`, selected by the `tokenizer` project-config key from a closed allow-list of two encoders, `cl100k_base` (default) and `o200k_base`. The chosen rank table is lazily imported per scan (bundler-safe literal dynamic imports), the resolved encoder is persisted in `scan_meta.tokenizer` / `ScanResult.tokenizer`, and changing it forces a token recompute on the next incremental scan (the cache cannot serve counts from the other encoder).
 - **Semver**: `semver` npm package.
-- **File watcher** (Step 7): `chokidar`.
+- **File watcher** (Step 7): the primary scan watcher is selectable via `scan.watch.backend` (`auto` default). `auto` uses `@parcel/watcher` (a single native inotify instance, scales to huge trees without chokidar's per-directory `fs.watch` `EMFILE` exhaustion) and switches to `chokidar` when `scan.followSymlinks` is on (only chokidar observes changes behind a symlinked directory for a live update); `parcel` / `chokidar` force the backend. The meta-watcher (config files at `depth: 0`, which parcel cannot express) is always `chokidar`. Both sit behind the `IFsWatcher` interface (`kernel/scan/watcher.ts`); selection is `resolveWatcherBackend` in `core/watcher/runtime.ts`.
 - **Package layout**: pnpm workspaces, `spec/` (`@skill-map/spec`), `src/` (`@skill-map/cli`, with subpath `exports` for `./kernel` and `./conformance`), `ui/` (private, joins at Step 0c). The `alias/*` glob held un-scoped placeholder packages (`skill-map`, `skill-mapper`) for one publish round; once the names were locked on npm and a `npm deprecate` notice routed users to `@skill-map/cli`, the workspaces were dropped. Further `@skill-map/*` splits deferred until a concrete external consumer justifies them.
 
 ### Tech picks deferred (resolve at the step that first needs them)

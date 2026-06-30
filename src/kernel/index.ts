@@ -155,7 +155,7 @@ export type {
 } from './adapters/plugin-store.js';
 
 // --- scan utilities (./scan/...) ---------------------------------------
-export { createChokidarWatcher } from './scan/watcher.js';
+export { createChokidarWatcher, createParcelWatcher } from './scan/watcher.js';
 export type {
   IFsWatcher,
   IWatchBatch,

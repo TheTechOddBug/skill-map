@@ -35,7 +35,7 @@ flowchart TB
     subgraph DRIVEN["Driven adapters (secondary)"]
         direction LR
         STORAGE["Storage<br/><i>SQLite</i>"]
-        FS["FS<br/><i>walker · watcher (chokidar)</i>"]
+        FS["FS<br/><i>walker · watcher (parcel/chokidar selectable)</i>"]
         subgraph PLUGINS["Plugins (closed catalog, 6 kinds)"]
             direction TB
             EXT["extractors"]

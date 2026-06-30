@@ -48,6 +48,12 @@ export default defineConfig({
   format: ['esm'],
   target: 'node24',
   platform: 'node',
+  // `@parcel/watcher` is a native module (ships per-platform `.node`
+  // binaries). Bundling it would inline JS that resolves the binary by a
+  // path that no longer exists in `dist/`, breaking it at runtime. Keep it
+  // a runtime import; npm installs the correct prebuilt on the user's
+  // machine (it is already in `pnpm-workspace.yaml` allowBuilds).
+  external: ['@parcel/watcher'],
   splitting: false,
   sourcemap: true,
   clean: true,
