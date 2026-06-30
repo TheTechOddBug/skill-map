@@ -2,6 +2,27 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.74.1",
+      "date": "2026-06-30",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "**Watcher scales to large repos.** The file watcher now uses a native single-instance backend, so `sm serve` / `sm watch` no longer crash with `EMFILE: too many open files` on projects with very many folders. Set `scan.watch.backend` (auto / parcel / chokidar) to force a backend.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**Scan symlinked folders.** Turn on `scan.followSymlinks` in settings to index skills behind a symbolic link (for example a `.claude/skills` that points elsewhere). Off by default; links pointing outside your project are never followed.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.74.0",
       "date": "2026-06-29",
       "kind": "user-facing",
