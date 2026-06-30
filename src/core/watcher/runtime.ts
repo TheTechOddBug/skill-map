@@ -698,13 +698,14 @@ export function createWatcherRuntime(
       if (opts.killSwitches) composeOpts.killSwitches = opts.killSwitches;
       const composed = composeScanExtensions(composeOpts);
       const runOptions: Parameters<typeof runScanWithRenames>[1] = {
-        // Resolve relative roots against the runtime's `cwd`, NOT
-        // `process.cwd()` (the walker's fallback for a bare `.`). They
-        // coincide for real `sm` runs (the process runs in the project), so
-        // this is a no-op there; it only matters when a caller passes a
-        // `cwd` that differs from the process cwd (tests), keeping the scan
-        // anchored to the same directory as the config and the watcher.
-        roots: opts.roots.map((r) => (isAbsolute(r) ? r : resolve(cwd, r))),
+        // Roots are preserved verbatim (same as the CLI scan-runner, per
+        // `core/runtime/scan-roots.ts` and `spec/cli-contract.md` § Scan):
+        // `ScanResult.roots` shows what the caller passed; the orchestrator
+        // resolves internally against `process.cwd()`. For real `sm serve` /
+        // `sm watch` runs `process.cwd()` IS the project (== runtimeContext
+        // cwd), so the walk targets the right tree. Tests that pass a `cwd`
+        // differing from `process.cwd()` must pass absolute roots.
+        roots: opts.roots,
         tokenize,
         tokenizer: cfg.tokenizer,
         ignoreFilter,

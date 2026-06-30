@@ -102,9 +102,10 @@ describe('createWatcherRuntime, followSymlinks live updates', () => {
 
     const runtime = createWatcherRuntime({
       dbPath,
-      // Relative root, resolved against `runtimeContext.cwd` (the fixture),
-      // not `process.cwd()` (the repo under the test runner).
-      roots: ['.'],
+      // Absolute root: the orchestrator resolves a relative root against
+      // `process.cwd()` (the project for real runs, but the repo under the
+      // test runner), so point straight at the temp fixture.
+      roots: [cwd],
       runtimeContext: { cwd },
       noBuiltIns: false,
       noPlugins: true,

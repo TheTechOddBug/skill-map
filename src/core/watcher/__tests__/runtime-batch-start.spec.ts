@@ -62,7 +62,7 @@ describe('createWatcherRuntime onBatchStart', () => {
 
     const runtime = createWatcherRuntime({
       dbPath,
-      roots: ['.'],
+      roots: [cwd], // absolute: the orchestrator resolves relative roots against process.cwd()
       runtimeContext: { cwd },
       noBuiltIns: false,
       noPlugins: true,
@@ -113,7 +113,7 @@ describe('createWatcherRuntime active-lens resolution', () => {
 
     const runtime = createWatcherRuntime({
       dbPath,
-      roots: ['.'],
+      roots: [cwd], // absolute: the orchestrator resolves relative roots against process.cwd()
       runtimeContext: { cwd },
       noBuiltIns: false,
       noPlugins: true,
