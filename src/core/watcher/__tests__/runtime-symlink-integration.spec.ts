@@ -102,13 +102,9 @@ describe('createWatcherRuntime, followSymlinks live updates', () => {
 
     const runtime = createWatcherRuntime({
       dbPath,
-      // Absolute root: the runtime resolves a relative root against
-      // `process.cwd()` (the project dir for real `sm` runs, but the repo
-      // under the test runner), so point it straight at the temp fixture.
-      // (A known fragility: the runtime scans `process.cwd()`-relative while
-      // reading config from `runtimeContext.cwd`; they coincide in
-      // production. Tracked as a separate follow-up.)
-      roots: [cwd],
+      // Relative root, resolved against `runtimeContext.cwd` (the fixture),
+      // not `process.cwd()` (the repo under the test runner).
+      roots: ['.'],
       runtimeContext: { cwd },
       noBuiltIns: false,
       noPlugins: true,

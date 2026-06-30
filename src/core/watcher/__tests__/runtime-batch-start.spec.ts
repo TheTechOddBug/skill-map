@@ -86,7 +86,7 @@ describe('createWatcherRuntime onBatchStart', () => {
 });
 
 describe('createWatcherRuntime active-lens resolution', () => {
-  it('honours the persisted lens (markdown) over filesystem detection', async () => {
+  it('honours the persisted lens (agent-skills) over filesystem detection', async () => {
     const cwd = freshCwd('lens-respect');
     // A vendor marker + agent on disk that filesystem detection alone
     // would pick as the lens.
@@ -95,11 +95,12 @@ describe('createWatcherRuntime active-lens resolution', () => {
       join(cwd, '.claude', 'agents', 'foo.md'),
       '---\nname: foo\ndescription: D\n---\n\nBody.\n',
     );
-    // But the operator pinned the lens to markdown in settings.json.
+    // But the operator pinned the lens to the universal `agent-skills`
+    // (`markdown` is the invisible base, not a selectable lens).
     mkdirSync(join(cwd, '.skill-map'), { recursive: true });
     writeFileSync(
       join(cwd, '.skill-map', 'settings.json'),
-      JSON.stringify({ schemaVersion: 1, activeProvider: 'markdown' }),
+      JSON.stringify({ schemaVersion: 1, activeProvider: 'agent-skills' }),
     );
     const dbPath = join(cwd, '.skill-map', 'graph.db');
 
@@ -130,17 +131,18 @@ describe('createWatcherRuntime active-lens resolution', () => {
 
     if (!captured) throw new Error('no batch result was captured');
     const result: ScanResult = captured;
-    // Under the persisted markdown lens, the vendor `claude` classifier is
-    // gated out even though `.claude/` is on disk: the watcher reads the
-    // lens from settings.json, NOT the filesystem-detection fallback. So
-    // `.claude/agents/foo.md` falls through to the universal markdown
-    // provider instead of being classified as a claude `agent`.
+    // Under the persisted `agent-skills` lens, the vendor `claude` provider
+    // is gated out of classification (`gatedByActiveLens`) even though
+    // `.claude/` is on disk: the watcher reads the lens from settings.json,
+    // NOT the filesystem-detection fallback. So `.claude/agents/foo.md`
+    // falls through to the universal `markdown` base instead of being
+    // classified as a claude `agent`.
     const fooNode = result.nodes.find((n) => n.path.endsWith('foo.md'));
     if (!fooNode) throw new Error('foo.md was not scanned');
     assert.equal(
       fooNode.provider,
       'markdown',
-      'foo.md must be classified by markdown under the persisted markdown lens, not claude',
+      'foo.md must fall through to the markdown base under the agent-skills lens, not claude',
     );
   });
 });
