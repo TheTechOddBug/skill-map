@@ -1,7 +1,7 @@
 /**
  * `SqliteStorageAdapter`, default `StoragePort` implementation. Opens a
  * `node:sqlite` database behind the bespoke Kysely dialect, configures
- * the mandatory PRAGMAs (WAL, foreign keys), runs pending kernel
+ * the mandatory PRAGMAs (busy_timeout, WAL, foreign keys), runs pending kernel
  * migrations, and exposes the namespaced port surface plus the typed
  * Kysely instance.
  *
@@ -147,6 +147,32 @@ export interface ISqliteStorageAdapterOptions {
  * CLI also validates upstream (`sm list --sort-by`); this is the
  * defensive second gate.
  */
+/**
+ * Apply the mandatory connection PRAGMAs, in order. `busy_timeout` FIRST so
+ * even the WAL journal-mode switch waits for a held write lock instead of
+ * failing with SQLITE_BUSY; then WAL (skipped for `:memory:`, unsupported),
+ * foreign-key enforcement, and NORMAL synchronous. Exported so a test can
+ * assert the values on a raw connection: PRAGMA reads do NOT round-trip
+ * through the Kysely dialect (it runs them via `exec`, which yields no rows).
+ */
+export function configureConnectionPragmas(
+  db: { exec(sql: string): void },
+  opts: { wal: boolean },
+): void {
+  // Wait (up to 5s) for a held write lock instead of failing immediately with
+  // "database is locked". Covers legitimate concurrent access: a second
+  // `sm serve`, a `sm scan` while the watcher is live, or an editor-triggered
+  // rescan. Contending transactions are short, so the real wait is
+  // milliseconds; the ceiling only bounds pathological stalls.
+  db.exec('PRAGMA busy_timeout = 5000');
+  // WAL journaling: concurrent readers + a single writer. Matches
+  // spec/db-schema.md and survives hard crashes better than the rollback
+  // journal. `:memory:` doesn't support WAL, skip it.
+  if (opts.wal) db.exec('PRAGMA journal_mode = WAL');
+  db.exec('PRAGMA foreign_keys = ON');
+  db.exec('PRAGMA synchronous = NORMAL');
+}
+
 const SORT_BY_COLUMNS: ReadonlySet<string> = new Set([
   'path',
   'kind',
@@ -210,6 +236,9 @@ export class SqliteStorageAdapter implements StoragePort {
       if (files.length > 0) {
         const raw = new DatabaseSync(path);
         try {
+          // Wait for a held write lock instead of failing immediately
+          // (another process may hold the DB); see the connection PRAGMAs below.
+          raw.exec('PRAGMA busy_timeout = 5000');
           raw.exec('PRAGMA foreign_keys = ON');
           applyMigrations(
             raw,
@@ -227,14 +256,7 @@ export class SqliteStorageAdapter implements StoragePort {
       dialect: new NodeSqliteDialect({
         databasePath: path,
         onCreateConnection: (db) => {
-          // WAL journaling: concurrent readers + a single writer. Matches
-          // spec/db-schema.md and survives hard crashes better than the
-          // rollback journal. `:memory:` doesn't support WAL, skip it.
-          if (path !== ':memory:') {
-            db.exec('PRAGMA journal_mode = WAL');
-          }
-          db.exec('PRAGMA foreign_keys = ON');
-          db.exec('PRAGMA synchronous = NORMAL');
+          configureConnectionPragmas(db, { wal: path !== ':memory:' });
         },
       }),
       plugins: [new CamelCasePlugin()],
