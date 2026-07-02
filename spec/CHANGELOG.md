@@ -1,5 +1,25 @@
 # Spec changelog
 
+## 0.69.0
+
+### Minor Changes
+
+- Live node activity v1 (contract in `spec/provider-activity.md`): Providers gain an optional `activity` capability, `sm serve` publishes `.skill-map/serve.json` (bind address plus per-session token) and serves a token-gated `POST /api/activity` that resolves provider hook events to scanned nodes and broadcasts `node.activity` over `/ws`, `sm activity install|uninstall` wires a zero-dependency bridge into the provider's hook config, and the map lights executing nodes. Ships the `claude` adapter.
+
+  ## User-facing
+
+  **Watch your map light up as your assistant works.** With `sm serve` running, run `sm activity install claude`: every skill, agent, or command Claude Code invokes now glows on the map in real time, and the path between an agent and the skill it runs lights up as one chain.
+
+- Add `server.port` / `server.host` project-config keys, resolved through the normal config layering (defaults, project, project-local) with the `--port` / `--host` flags as the per-invocation override, mirroring the `scan.watch.backend` precedent; `sm serve` records the resolved values in `serve.json` and the loopback-only rule applies regardless of which layer supplied the host.
+
+  ## User-facing
+
+  **Pin your port in config.** Set `server.port` (and optionally `server.host`) in `.skill-map/settings.json` and `sm serve` always boots there, no flags needed; `--port` still wins for a one-off run.
+
+### Patch Changes
+
+- Document that cross-filesystem WSL to Windows is unsupported. The inotify-based live watcher (`chokidar` / `parcel`) receives no events on a mounted Windows drive (`/mnt/c`), so `sm serve` / `sm watch` never refresh the map there, and a symlink to a Windows path is followed on a one-shot `sm scan` but not live-watched. Added to `spec/cli-contract.md` §Scan (the watcher paragraph). No behavior change and no polling fallback ships; keep the project on the Linux filesystem for a live map.
+
 ## 0.68.0
 
 ### Minor Changes
