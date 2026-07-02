@@ -86,9 +86,11 @@ import { EMPTY, Observable, Subject, share } from 'rxjs';
 import { filter } from 'rxjs/operators';
 
 import {
+  isNodeActivityEvent,
   isSidecarBumpedEvent,
   isWsEvent,
   type IWsEvent,
+  type IWsNodeActivityEvent,
   type IWsScanCompletedEvent,
   type IWsSidecarBumpedEvent,
 } from '../models/ws-event';
@@ -257,6 +259,14 @@ export class WsEventStreamService implements OnDestroy {
    */
   readonly sidecarBumped$: Observable<IWsSidecarBumpedEvent>;
 
+  /**
+   * Pre-filtered stream of `node.activity` envelopes (live node
+   * activity, `spec/provider-activity.md`), with full payload-shape
+   * validation via `isNodeActivityEvent`. Consumed by the
+   * `NodeActivityService`, which owns the active-set / TTL semantics.
+   */
+  readonly nodeActivity$: Observable<IWsNodeActivityEvent>;
+
   constructor() {
     if (this.mode !== 'live') {
       // Demo mode: never open a socket. Subscribers see immediate
@@ -283,6 +293,9 @@ export class WsEventStreamService implements OnDestroy {
     );
     this.sidecarBumped$ = this.events$.pipe(
       filter(isSidecarBumpedEvent),
+    );
+    this.nodeActivity$ = this.events$.pipe(
+      filter(isNodeActivityEvent),
     );
 
     // Best-effort cleanup on injector teardown (mirrors `disconnect()`

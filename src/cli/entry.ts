@@ -51,6 +51,7 @@ import { ExampleCommand } from './commands/example.js';
 import { ExportCommand } from './commands/export.js';
 import { GraphCommand } from './commands/graph.js';
 import { HelpCommand, RootHelpCommand, registeredVerbPaths, routeHelpArgs } from './commands/help.js';
+import { ACTIVITY_COMMANDS } from './commands/activity.js';
 import { HOOKS_COMMANDS } from './commands/hooks.js';
 import { InitCommand } from './commands/init.js';
 import { HistoryCommand, HistoryStatsCommand } from './commands/history.js';
@@ -110,6 +111,7 @@ for (const cmd of REFRESH_COMMANDS) cli.register(cmd);
 for (const cmd of BUMP_COMMANDS) cli.register(cmd);
 for (const cmd of SIDECAR_COMMANDS) cli.register(cmd);
 for (const cmd of HOOKS_COMMANDS) cli.register(cmd);
+for (const cmd of ACTIVITY_COMMANDS) cli.register(cmd);
 for (const cmd of STUB_COMMANDS) cli.register(cmd);
 
 const { value: logLevelFlag, rest: args } = extractLogLevelFlag(process.argv.slice(2));

@@ -328,6 +328,102 @@ export interface IProviderScaffold {
   aka?: readonly string[];
 }
 
+/**
+ * Phase of one live-activity signal. `start` lights the resolved node;
+ * `end` is emitted only for units whose provider runtime has a native
+ * terminal event (a Claude subagent's matching `SubagentStop`). Units
+ * with no native end (a Claude skill) simply never emit `end`; the UI
+ * owns span decay (TTL). Mirrors `spec/provider-activity.md` §WS event.
+ */
+export type TActivityPhase = 'start' | 'end';
+
+/**
+ * One node-attributable signal derived from a single raw provider hook
+ * payload by `IProviderActivityAdapter.mapEvent`. The Provider names the
+ * unit (`kind` + `name`); it does NOT resolve nodes, the BFF resolves
+ * `(kind, name)` against the scanned node set through the same
+ * `kinds[*].identifiers` contract link resolution uses, and drops
+ * signals that resolve to no scanned node.
+ */
+export interface IActivitySignal {
+  /** Node kind the unit belongs to (`skill`, `agent`, `command`, ...). */
+  kind: string;
+  /** Raw unit name as the runtime reported it (normalised by the resolver). */
+  name: string;
+  /** Signal phase, see `TActivityPhase`. */
+  phase: TActivityPhase;
+  /**
+   * Opaque identifier of the executing context (`'main'`, an agent id,
+   * a session id, provider-dependent). Consumers treat it as a grouping
+   * key only; absent when the runtime reports none.
+   */
+  owner?: string;
+}
+
+/**
+ * Declarative install descriptor consumed by `sm activity install
+ * <provider>`: where the provider's PROJECT-LOCAL hook config lives and
+ * which install shape applies. Mirrors
+ * `extensions/provider.schema.json#/properties/activity/properties/install`.
+ */
+export interface IActivityInstall {
+  /**
+   * Install shape. `json-hooks`: merge hook entries that spawn the
+   * activity bridge command into a JSON settings/hooks file.
+   * `plugin-file`: write an in-process plugin file that POSTs to the
+   * ingest route directly (no spawn).
+   */
+  kind: 'json-hooks' | 'plugin-file';
+  /**
+   * Path of the provider's hook config file (`json-hooks`) or the plugin
+   * file to write (`plugin-file`), relative to the scope root. No leading
+   * slash, no `..` traversal; the consuming verb joins it onto the cwd.
+   */
+  configPath: string;
+  /**
+   * For `json-hooks`: the provider lifecycle events to wire the bridge
+   * into, with an optional per-event matcher in the provider runtime's
+   * own matcher grammar. Only the events `mapEvent` actually consumes
+   * belong here, every wired event spawns one bridge process at runtime,
+   * so a tight list keeps the overhead proportional to the signal.
+   * Ignored for `plugin-file` installs.
+   */
+  events?: readonly IActivityInstallEvent[];
+}
+
+/** One provider hook event to wire the bridge into (`json-hooks` installs). */
+export interface IActivityInstallEvent {
+  /** Provider runtime event name, verbatim (e.g. `PreToolUse`). */
+  event: string;
+  /**
+   * Optional matcher in the provider's own grammar (e.g. a Claude tool
+   * regex `^(Skill|Agent)$`). Omitted = the event's match-all form.
+   */
+  matcher?: string;
+}
+
+/**
+ * Optional live-activity capability (see `spec/provider-activity.md`).
+ * Declared by Providers whose runtime exposes a hook system that reports
+ * skill / agent / command invocations in real time. Like `scaffold`, a
+ * provider-owned capability sub-object, NOT a new extension kind. This
+ * surface is UNRELATED to skill-map's internal `hook` extension kind
+ * (scan lifecycle); provider activity consumes an EXTERNAL event source.
+ */
+export interface IProviderActivityAdapter {
+  /** Declarative install descriptor, the manifest (JSON) half. */
+  install: IActivityInstall;
+  /**
+   * Runtime half (TypeScript-only, never in the manifest JSON, mirroring
+   * `classify()` / `walk()`): turn ONE raw provider hook payload into
+   * zero or more activity signals, or `null` to disclaim the event.
+   * MUST be pure and total over arbitrary input (the payload arrives
+   * from an external process verbatim); throwing is treated as a
+   * disclaim by the caller.
+   */
+  mapEvent(raw: unknown): IActivitySignal[] | null;
+}
+
 export interface IProvider extends IExtensionBase {
   /** Discriminant injected by the loader from the folder structure. */
   kind: 'provider';
@@ -364,6 +460,16 @@ export interface IProvider extends IExtensionBase {
    * no authoring convention).
    */
   scaffold?: IProviderScaffold;
+
+  /**
+   * Optional live-activity capability (see `spec/provider-activity.md`
+   * and `IProviderActivityAdapter`). Present only on Providers whose
+   * runtime exposes a hookable event system (claude today; codex /
+   * antigravity / opencode are additive follow-ups). Absent means
+   * `sm activity install` never offers this Provider and the ingest
+   * route drops events tagged with its id.
+   */
+  activity?: IProviderActivityAdapter;
 
   /**
    * Catalog of node kinds this Provider emits. Populated by the loader

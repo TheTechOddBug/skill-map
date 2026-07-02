@@ -35,6 +35,24 @@
       "description": "Glob patterns to exclude, in addition to `.gitignore` and `.skillmapignore`.",
       "items": { "type": "string" }
     },
+    "server": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Bind address for `sm serve` (and the bare `sm` invocation that routes to it), resolved through the normal config layering so a project can pin its port once instead of passing flags per invocation. Precedence at boot: the `--port` / `--host` flags (the `override` layer) win over these keys, which win over the built-in defaults (4242 / 127.0.0.1). The RESOLVED values are what `serve.json` publishes (see `serve-info.schema.json`). The loopback-only rule still applies at boot regardless of which layer supplied the host: a non-loopback host rejects with exit 2 (multi-host serve is deferred pre-1.0).",
+      "properties": {
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "Listening port for `sm serve`. Default 4242. Ephemeral OS-assigned binding (`--port 0`) stays flag-only; this key pins a concrete port for the project."
+        },
+        "host": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Listening host for `sm serve`. Default `127.0.0.1`. Must be a loopback name (`127.0.0.1`, `::1`, `localhost`); any other value is rejected at boot."
+        }
+      }
+    },
     "scan": {
       "type": "object",
       "additionalProperties": false,

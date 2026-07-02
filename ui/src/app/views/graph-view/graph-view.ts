@@ -41,6 +41,7 @@ import { FilterStoreService } from '../../../services/filter-store';
 import { GraphPreferencesService } from '../../../services/graph-preferences';
 import { IssuePathsService } from '../../../services/issue-paths';
 import { MapVisibilityService } from '../../../services/map-visibility';
+import { NodeActivityService } from '../../../services/node-activity';
 import { directNeighborhood } from './node-neighborhood';
 import { resolveConnectionSides } from './connection-sides';
 import { BranchCapBanner } from './branch-cap-banner/branch-cap-banner';
@@ -64,6 +65,7 @@ import {
   topologyFingerprint,
   type IFullLayout,
   type IGraphData,
+  type IGraphEdge,
   type IGraphNode,
   type IPoint,
   type TNodePositions,
@@ -174,6 +176,7 @@ export class GraphView implements OnInit {
   private readonly dagreLayout = inject(DagreLayoutEngine);
   private readonly injector = inject(Injector);
   private readonly usageTracker = inject(UsageTrackerService);
+  protected readonly nodeActivity = inject(NodeActivityService);
 
   private readonly flow = viewChild(FFlowComponent);
   // Protected: `panTarget` (below) reads this for the middle-mouse pan's
@@ -1251,6 +1254,28 @@ export class GraphView implements OnInit {
    */
   edgeSelectionFor(id: string): IEdgeSelectionView {
     return this.selectionState.edgeSelectionView().get(id) ?? EDGE_SELECTION_DEFAULT;
+  }
+
+  /**
+   * Live-activity lookup (spec/provider-activity.md): `true` while the
+   * node's unit is executing in the operator's AI runtime. Graph node
+   * ids ARE node paths, so the `NodeActivityService` set applies with
+   * one O(1) lookup per node; under OnPush only the cards whose value
+   * flips re-render.
+   */
+  isExecuting(id: string): boolean {
+    return this.nodeActivity.activePaths().has(id);
+  }
+
+  /**
+   * Active-spine edge: both endpoints are executing (the agent that is
+   * running and the skill it invoked), so the connection between them
+   * lights up with them and the path reads as one live chain instead of
+   * isolated glowing dots.
+   */
+  isEdgeExecuting(edge: IGraphEdge): boolean {
+    const active = this.nodeActivity.activePaths();
+    return active.has(edge.from) && active.has(edge.to);
   }
 
   // Layout-popover labelers + setters + per-item icon helpers now live

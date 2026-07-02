@@ -57,6 +57,128 @@
 }
 :host(.sm-gnode--dimmed) { opacity: 0.25; }
 
+/*
+ * Live-activity glow (spec/provider-activity.md): the node's unit is
+ * executing in the operator's AI runtime RIGHT NOW. The glow rides the
+ * node's own kind accent (`--accent`, theme-aware via the kind
+ * registry vars), so a skill pulses green, an agent blue, a command
+ * amber, and the specialty themes (neon / matrix) inherit their accent
+ * automatically. Executing outshines dim: an active node must stay
+ * readable even while a selection dims its neighborhood.
+ */
+/*
+ * Live-activity, the "AI is working" treatment: a rotating rainbow
+ * conic ring around the card (the border is painted by a conic
+ * gradient via the padding-box/border-box two-layer trick, so nothing
+ * needs to escape the host's overflow clip) plus a halo that cycles
+ * through the same hues. The rainbow is deliberately literal (five
+ * saturated stops shared by every theme): the effect IS the color, no
+ * theme token can express a multi-hue sweep.
+ */
+@property --sm-exec-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+:host(.sm-gnode--executing) {
+  --sm-exec-c1: #a78bfa;
+  --sm-exec-c2: #22d3ee;
+  --sm-exec-c3: #34d399;
+  --sm-exec-c4: #fbbf24;
+  --sm-exec-c5: #fb7185;
+  border-color: transparent;
+  background:
+    linear-gradient(var(--sm-bg-content), var(--sm-bg-content)) padding-box,
+    conic-gradient(
+        from var(--sm-exec-angle),
+        var(--sm-exec-c1),
+        var(--sm-exec-c2),
+        var(--sm-exec-c3),
+        var(--sm-exec-c4),
+        var(--sm-exec-c5),
+        var(--sm-exec-c1)
+      )
+      border-box;
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--sm-exec-c1) 65%, transparent),
+    0 0 28px color-mix(in srgb, var(--sm-exec-c1) 75%, transparent),
+    0 0 64px color-mix(in srgb, var(--sm-exec-c2) 40%, transparent);
+}
+:host(.sm-gnode--executing.sm-gnode--dimmed) { opacity: 1; }
+
+/* The top bar becomes a sliding rainbow ribbon while running. */
+:host(.sm-gnode--executing)::before {
+  height: 5px;
+  background: linear-gradient(
+    90deg,
+    var(--sm-exec-c1),
+    var(--sm-exec-c2),
+    var(--sm-exec-c3),
+    var(--sm-exec-c4),
+    var(--sm-exec-c5),
+    var(--sm-exec-c1)
+  );
+  background-size: 200% 100%;
+}
+
+/*
+ * Motion, gated on preference: the conic ring spins, the halo cycles
+ * hue, the ribbon slides. Reduced-motion users keep the full static
+ * rainbow ring + halo (state stays loud, nothing moves).
+ */
+@media (prefers-reduced-motion: no-preference) {
+  :host(.sm-gnode--executing) {
+    animation:
+      sm-exec-spin 2.4s linear infinite,
+      sm-exec-halo 4.8s linear infinite;
+  }
+
+  :host(.sm-gnode--executing)::before {
+    animation: sm-exec-ribbon 2.4s linear infinite;
+  }
+
+  @keyframes sm-exec-spin {
+    to {
+      --sm-exec-angle: 360deg;
+    }
+  }
+
+  @keyframes sm-exec-halo {
+    0%,
+    100% {
+      box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--sm-exec-c1) 65%, transparent),
+        0 0 28px color-mix(in srgb, var(--sm-exec-c1) 80%, transparent),
+        0 0 64px color-mix(in srgb, var(--sm-exec-c2) 45%, transparent);
+    }
+    25% {
+      box-shadow:
+        0 0 0 3px color-mix(in srgb, var(--sm-exec-c2) 75%, transparent),
+        0 0 36px color-mix(in srgb, var(--sm-exec-c2) 90%, transparent),
+        0 0 80px color-mix(in srgb, var(--sm-exec-c3) 50%, transparent);
+    }
+    50% {
+      box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--sm-exec-c3) 65%, transparent),
+        0 0 28px color-mix(in srgb, var(--sm-exec-c3) 80%, transparent),
+        0 0 64px color-mix(in srgb, var(--sm-exec-c4) 45%, transparent);
+    }
+    75% {
+      box-shadow:
+        0 0 0 3px color-mix(in srgb, var(--sm-exec-c4) 75%, transparent),
+        0 0 36px color-mix(in srgb, var(--sm-exec-c5) 90%, transparent),
+        0 0 80px color-mix(in srgb, var(--sm-exec-c1) 50%, transparent);
+    }
+  }
+
+  @keyframes sm-exec-ribbon {
+    to {
+      background-position: -200% 0;
+    }
+  }
+}
+
 .sm-gnode__main {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;

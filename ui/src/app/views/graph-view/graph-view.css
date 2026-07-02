@@ -338,6 +338,21 @@
   opacity: 0.15;
 }
 
+/* Live-activity spine (spec/provider-activity.md): both endpoints are
+   executing, so the connection lights with them and the chain reads as
+   one live path. Width up + a soft glow on the edge's OWN kind color
+   (`--ff-connection-color`, set per `.f-conn--<kind>` above); full
+   opacity is forced by the inline `[style.opacity]` binding. Declared
+   after `--highlighted` so the wider width wins by source order.
+   `filter` animates safely here, it never touches the Foblex-owned
+   `transform` (rule 3). */
+.f-conn--executing {
+  --ff-connection-width: 3.5px;
+  filter:
+    drop-shadow(0 0 6px color-mix(in srgb, var(--ff-connection-color) 95%, transparent))
+    drop-shadow(0 0 14px color-mix(in srgb, var(--ff-connection-color) 55%, transparent));
+}
+
 /* User-driven edge selection. Clicking an edge flips Foblex's built-in
    `.f-selected` class on the connection host.
 

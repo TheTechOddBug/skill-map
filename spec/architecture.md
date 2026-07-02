@@ -395,6 +395,14 @@ The lookup normalises both sides through the §Extractor · trigger normalizatio
 
 Default `undefined` ≡ empty map ≡ no reserved names. Links to non-reserved targets keep the 1.0 baseline.
 
+### Provider · activity adapter (live node activity)
+
+Each Provider MAY declare an optional `activity` capability (full contract: [`provider-activity.md`](./provider-activity.md)): the integration point for the **provider runtime's own hook system**, so the map can light the matching node while the operator works in that runtime. Like `scaffold`, it is a capability sub-object on the Provider manifest, NOT a new extension kind: the Provider that owns the on-disk layout and invocation grammar also owns how its runtime reports invocations. It is UNRELATED to skill-map's internal `hook` extension kind (§Hook · curated trigger set), which subscribes to skill-map's own scan lifecycle; provider activity consumes an EXTERNAL event source.
+
+The capability splits along the same declarative/runtime line as the rest of the Provider surface: the manifest carries the declarative `install` descriptor (`kind` + project-local `configPath`, consumed by `sm activity install`), while the runtime method `mapEvent(raw) → signals[] | null` (TypeScript-only, never in the manifest, mirroring `classify()` / `walk()`) turns one raw provider hook payload into `{ kind, name, phase, owner? }` signals. Node resolution stays OUT of the Provider: the BFF resolves `(kind, name)` against the scanned node set through the same §Provider · kind identifiers contract that link resolution uses, and drops signals that resolve to no scanned node.
+
+The kernel's role ends at the abstraction: it defines the capability shape and validates it at load time. The runtime pipeline (bridge → `POST /api/activity` → WS `node.activity` → UI) is owned by the BFF and specified in `provider-activity.md`; the kernel is a scan-time engine and never transports activity events. Activity state is ephemeral (in-memory in the BFF): nothing lands in `scan_*` or `state_*` at v1.
+
 ### Extractor · output callbacks
 
 The `Extractor` runtime contract is `extract(ctx) → void`. The extractor emits its work through three callbacks the kernel binds onto `ctx`:

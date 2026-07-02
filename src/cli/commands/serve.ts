@@ -53,10 +53,11 @@ import {
 } from '../../server/index.js';
 import { initSentryBff } from '../../server/telemetry/sentry.js';
 import { SERVE_TEXTS } from '../i18n/serve.texts.js';
-import { resolveDbPath } from '../util/db-path.js';
+import { defaultServeInfoPath, resolveDbPath } from '../util/db-path.js';
+import { buildServeInfo, removeServeInfo, writeServeInfo } from '../util/serve-info.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
-import { loadConfig } from '../../kernel/config/loader.js';
+import { loadConfig, type IEffectiveConfig } from '../../kernel/config/loader.js';
 import { tryParseNonNegativeInt, tryParsePositiveInt } from '../util/option-validators.js';
 import { defaultRuntimeContext, type IRuntimeContext } from '../util/runtime-context.js';
 import { renderBanner, resolveColorEnabled } from '../util/serve-banner.js';
@@ -297,8 +298,24 @@ export class ServeCommand extends SmCommand {
       return ExitCode.Error;
     }
 
+    // 3e. Config-layer peek, loaded ONCE and reused by the bind
+    //     resolution here and the banner below. Best-effort: a
+    //     malformed config falls back to built-in defaults (the same
+    //     posture the banner always had); `sm config show` is the
+    //     surface that reports the breakage.
+    let projectCfg: IEffectiveConfig | null = null;
+    try {
+      projectCfg = loadConfig({ cwd: runtimeCtx.cwd }).effective;
+    } catch {
+      // Defaults apply; never block boot on a decoration/config read.
+    }
+
     // 4. Validate the assembled options bag (loopback + dev-cors check,
     //    port range check). Errors map to the right SERVE_TEXTS template.
+    //    Bind precedence: flag (override layer) > `server.port` /
+    //    `server.host` config keys > validator defaults (4242 /
+    //    127.0.0.1). A config-supplied non-loopback host hits the same
+    //    loopback rejection as a flag-supplied one.
     const input: IServerOptionsInput = {
       dbPath,
       uiDist: resolvedUiDist,
@@ -309,8 +326,10 @@ export class ServeCommand extends SmCommand {
       devCors: this.devCors,
       noWatcher: this.noWatcher,
     };
-    if (portResult.port !== undefined) input.port = portResult.port;
-    if (this.host !== undefined) input.host = this.host;
+    const boundPort = portResult.port ?? projectCfg?.server.port;
+    const boundHost = this.host ?? projectCfg?.server.host;
+    if (boundPort !== undefined) input.port = boundPort;
+    if (boundHost !== undefined) input.host = boundHost;
     if (debounceResult.value !== undefined) input.watcherDebounceMs = debounceResult.value;
     if (maxScanResult.value !== undefined) input.maxScan = maxScanResult.value;
     if (maxNodesResult.value !== undefined) input.maxNodes = maxNodesResult.value;
@@ -369,52 +388,81 @@ export class ServeCommand extends SmCommand {
       return ExitCode.Error;
     }
 
-    // 7. Boot banner. TTY-aware (color box vs flat legacy lines) so
-    //    pipes / redirects keep grep-friendly output. `stderr` / `isTTY`
-    //    / `colorEnabled` were resolved before boot (step 5) so the
-    //    watcher spinner and this banner share one resolution.
-    // Project config peek for the banner. Best-effort: a malformed
-    // config surfaces elsewhere (`sm config show`, the BFF's own
-    // config-loader). The banner just wants `scan.referencePaths` so
-    // the operator sees what got wired in at boot without opening
-    // Settings.
-    let referencePaths: readonly string[] = [];
-    let watcherBackend: 'chokidar' | 'parcel' = watchBackendResult.value ?? 'chokidar';
-    try {
-      const cfg = loadConfig({ cwd: runtimeCtx.cwd }).effective;
-      referencePaths = cfg.scan.referencePaths;
-      watcherBackend = resolveWatcherBackend(cfg.scan.watch.backend, watchBackendResult.value);
-    } catch {
-      // Swallow: the banner is decoration, never block boot on it.
-    }
-
-    this.printer!.info(
-      renderBanner({
-        version: VERSION,
-        host: sanitizeForTerminal(handle.address.host),
+    // 6b. Discovery file (`.skill-map/serve.json`, see
+    //     `spec/provider-activity.md` §serve.json): publish the RESOLVED
+    //     bound address + the per-session ingest token so co-located
+    //     local processes (the activity bridge) can find and
+    //     authenticate against THIS project's server. Best-effort: a
+    //     write failure warns once and the server keeps serving (live
+    //     activity is a bonus surface, never a boot blocker). Removed in
+    //     the shutdown `finally` below; a hard kill leaves a stale copy
+    //     behind and readers fail open by contract.
+    const serveInfoPath = defaultServeInfoPath(runtimeCtx.cwd);
+    const serveInfoWritten = writeServeInfo(
+      serveInfoPath,
+      buildServeInfo({
+        host: handle.address.host,
         port: handle.address.port,
-        dbPath,
-        cwd: runtimeCtx.cwd,
-        openBrowser: validation.options.open,
-        isTTY,
-        colorEnabled,
-        referencePaths,
-        dev: isDevBuild(),
-        backend: watcherBackend,
+        pid: process.pid,
+        scopeRoot: runtimeCtx.cwd,
+        smVersion: VERSION,
+        token: handle.activityToken,
       }),
     );
-
-    // 8. Browser auto-open (best-effort; failure → stderr hint, never a fail).
-    if (validation.options.open) {
-      const url = `http://${handle.address.host}:${handle.address.port}/`;
-      tryOpenBrowser(url, this.context.stderr, warnGlyph);
+    if (!serveInfoWritten) {
+      this.printer!.info(
+        tx(SERVE_TEXTS.serveInfoWriteFailed, {
+          glyph: warnGlyph,
+          path: sanitizeForTerminal(serveInfoPath),
+        }),
+      );
     }
 
-    // 9. Wait for SIGINT / SIGTERM, then close.
-    await waitForShutdown();
-    await handle.close();
-    this.printer!.info(tx(SERVE_TEXTS.shutdown, { glyph: infoGlyph }));
-    return ExitCode.Ok;
+    try {
+      // 7. Boot banner. TTY-aware (color box vs flat legacy lines) so
+      //    pipes / redirects keep grep-friendly output. `stderr` / `isTTY`
+      //    / `colorEnabled` were resolved before boot (step 5) so the
+      //    watcher spinner and this banner share one resolution.
+      //    Reads the step-3e config peek (one load per boot); a failed
+      //    load already degraded to defaults there.
+      const referencePaths: readonly string[] = projectCfg?.scan.referencePaths ?? [];
+      const watcherBackend: 'chokidar' | 'parcel' = projectCfg
+        ? resolveWatcherBackend(projectCfg.scan.watch.backend, watchBackendResult.value)
+        : (watchBackendResult.value ?? 'chokidar');
+
+      this.printer!.info(
+        renderBanner({
+          version: VERSION,
+          host: sanitizeForTerminal(handle.address.host),
+          port: handle.address.port,
+          dbPath,
+          cwd: runtimeCtx.cwd,
+          openBrowser: validation.options.open,
+          isTTY,
+          colorEnabled,
+          referencePaths,
+          dev: isDevBuild(),
+          backend: watcherBackend,
+        }),
+      );
+
+      // 8. Browser auto-open (best-effort; failure → stderr hint, never a fail).
+      if (validation.options.open) {
+        const url = `http://${handle.address.host}:${handle.address.port}/`;
+        tryOpenBrowser(url, this.context.stderr, warnGlyph);
+      }
+
+      // 9. Wait for SIGINT / SIGTERM, then close.
+      await waitForShutdown();
+      await handle.close();
+      this.printer!.info(tx(SERVE_TEXTS.shutdown, { glyph: infoGlyph }));
+      return ExitCode.Ok;
+    } finally {
+      // Discovery-file cleanup, paired with the 6b write. In a `finally`
+      // so the banner / open / shutdown path can never leave a live-
+      // looking serve.json behind (SIGKILL still can; readers fail open).
+      removeServeInfo(serveInfoPath);
+    }
   }
 
   /**

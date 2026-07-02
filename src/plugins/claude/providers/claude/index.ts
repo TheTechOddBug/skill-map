@@ -44,6 +44,7 @@ import skillBaseSchema from './schemas/skill-base.schema.json' with { type: 'jso
 import agentSchema from './schemas/agent.schema.json' with { type: 'json' };
 import commandSchema from './schemas/command.schema.json' with { type: 'json' };
 import { CLAUDE_PLUGIN_ID } from '../../../ids.js';
+import { claudeActivity } from './activity.js';
 
 // Built-in slash-command names documented at
 // https://docs.claude.com/en/docs/claude-code/slash-commands. These
@@ -112,6 +113,14 @@ export const claudeProvider: IBuiltInManifest<IProvider> = {
   // a Claude Code project. Provider-owned (replaces the old central
   // detection table in `src/core/config/active-provider.ts`).
   detect: { markers: ['.claude'] },
+
+  // Live-activity adapter (spec/provider-activity.md): Claude Code's
+  // hook system reports skill / agent / command invocations in real
+  // time; `sm activity install claude` wires the bridge into the
+  // project-local `.claude/settings.json` and this adapter maps each
+  // raw hook payload to node-attributable signals. Implementation +
+  // the per-event mapping rationale live in the sibling `activity.ts`.
+  activity: claudeActivity,
 
   // Authoring target for `sm tutorial`: Claude Code discovers skills under
   // `.claude/skills/<name>/SKILL.md`, so a materialised tutorial folder

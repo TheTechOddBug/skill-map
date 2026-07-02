@@ -24,17 +24,22 @@ import { ansiFor } from './ansi.js';
 import { ExitCode, type TExitCode } from './exit-codes.js';
 
 export {
+  ACTIVITY_BRIDGE_REL,
   backupsDirForDb,
   BACKUPS_DIRNAME,
+  defaultActivityBridgePath,
   defaultDbPath,
   defaultIgnoreFilePath,
   defaultLocalSettingsPath,
+  defaultProjectActivityDir,
   defaultProjectDbPath,
   defaultProjectJobsDir,
   defaultProjectPluginsDir,
+  defaultServeInfoPath,
   defaultSettingsPath,
   GITIGNORE_ENTRIES,
   resolveDbPath,
+  SERVE_INFO_FILENAME,
   SKILL_MAP_DIR,
   type IDbLocationOptions,
 } from '../../core/paths/db-path.js';

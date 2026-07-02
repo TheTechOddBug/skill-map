@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.ai/spec/v0/serve-info.schema.json",
+  "title": "ServeInfo",
+  "description": "Runtime discovery file written by `sm serve` at `<scopeRoot>/.skill-map/serve.json` while the server is up, and deleted on shutdown. It publishes the RESOLVED listening address (after config layering and flag overrides) plus a per-session ingest token, so short-lived local processes (the activity bridge, see `spec/provider-activity.md`) can find and authenticate against the project's running server without re-deriving config. It is a runtime artifact (lockfile-like), NOT user config: gitignored, never committed, overwritten on every boot. A hard kill can leave a stale copy behind, so readers MUST fail open (treat a refused connection as 'no server' and stay silent). Written atomically (temp file + rename) so a reader never observes a half-written document.",
+  "type": "object",
+  "required": ["schemaVersion", "host", "port", "pid", "scopeRoot", "startedAt", "smVersion", "token"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "Shape version of this file. Bumped only on breaking changes to the on-disk shape; pre-1.0 the value stays `1`."
+    },
+    "host": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Hostname the server actually bound (e.g. `127.0.0.1`). Readers MUST verify this is a loopback host (`127.0.0.1`, `::1`, `localhost`) before sending anything; a non-loopback value in this file is treated as tampering and ignored."
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535,
+      "description": "TCP port the server actually bound. Ephemeral OS-assigned ports (`--port 0`) are out of scope for this feature; the recorded value is the resolved configured/flag port."
+    },
+    "pid": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Process id of the `sm serve` process that wrote the file. Advisory staleness hint only; liveness is established by attempting the request (fail-open), not by probing the pid."
+    },
+    "scopeRoot": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Absolute path of the project scope root the server scanned and serves. Readers MUST compare it against their own working directory and stay silent on mismatch, so a hook firing in one project never reaches another project's server."
+    },
+    "startedAt": {
+      "type": "string",
+      "minLength": 1,
+      "description": "ISO-8601 timestamp of the moment the listener bound. Advisory (debugging, staleness heuristics)."
+    },
+    "smVersion": {
+      "type": "string",
+      "minLength": 1,
+      "description": "`@skill-map/cli` version of the writing server. Advisory; lets a future bridge warn on incompatible majors."
+    },
+    "token": {
+      "type": "string",
+      "minLength": 32,
+      "description": "Random per-session shared secret (hex). Ingest requests (`POST /api/activity`) MUST present it in the `x-skill-map-token` header; the server rejects mismatches with `403` before reading the body. Rotates on every server boot. The file is project-local and gitignored, so only co-located local processes can read it."
+    }
+  }
+}

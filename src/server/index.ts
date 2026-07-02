@@ -44,6 +44,7 @@
  */
 
 import { serve, type WebSocketServerLike } from '@hono/node-server';
+import { randomBytes } from 'node:crypto';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { WebSocketServer } from 'ws';
@@ -104,6 +105,14 @@ export interface IServerHandle {
    * state. Production callers should not need this.
    */
   broadcaster: WsBroadcaster;
+  /**
+   * Per-session ingest token for `POST /api/activity` (live node
+   * activity, see `spec/provider-activity.md`). Minted fresh at every
+   * boot; the `sm serve` verb publishes it to co-located local
+   * processes via `.skill-map/serve.json`, and tests read it here to
+   * make authorized ingest requests.
+   */
+  activityToken: string;
 }
 
 export interface ICreateServerOpts {
@@ -137,6 +146,10 @@ export async function createServer(
   const specVersion = await resolveSpecVersion();
   const runtimeContext = extra.runtimeContext ?? defaultRuntimeContext();
   const broadcaster = new WsBroadcaster();
+  // Per-session ingest token for `POST /api/activity`. 32 random bytes
+  // as hex (64 chars); rotates on every boot. Published off-process by
+  // the `sm serve` verb via `.skill-map/serve.json`.
+  const activityToken = randomBytes(32).toString('hex');
   const { pluginRuntime, kindRegistry, providerRegistry, providers } =
     await assemblePluginRuntime(options, runtimeContext);
   const { kernel, contributionsRegistry } = assembleKernel(pluginRuntime, options.noBuiltIns);
@@ -149,6 +162,7 @@ export async function createServer(
   const app = createApp({
     options,
     specVersion,
+    activityToken,
     broadcaster,
     runtimeContext,
     kindRegistry,
@@ -228,7 +242,7 @@ export async function createServer(
     wss.close();
   };
 
-  return { address, close, broadcaster };
+  return { address, close, broadcaster, activityToken };
 }
 
 /**

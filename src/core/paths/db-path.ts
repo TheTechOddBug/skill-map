@@ -43,6 +43,9 @@ const SETTINGS_FILENAME = 'settings.json';
 const LOCAL_SETTINGS_FILENAME = 'settings.local.json';
 const IGNORE_FILENAME = '.skillmapignore';
 const GITIGNORE_FILENAME = '.gitignore';
+export const SERVE_INFO_FILENAME = 'serve.json';
+const ACTIVITY_DIRNAME = 'activity';
+const ACTIVITY_BRIDGE_FILENAME = 'bridge.js';
 
 /**
  * Single source of truth for the relative DB path inside the project
@@ -58,6 +61,7 @@ const DEFAULT_DB_REL = `${SKILL_MAP_DIR}/${DB_FILENAME}`;
 export const GITIGNORE_ENTRIES: readonly string[] = [
   `${SKILL_MAP_DIR}/${LOCAL_SETTINGS_FILENAME}`,
   `${SKILL_MAP_DIR}/${DB_FILENAME}`,
+  `${SKILL_MAP_DIR}/${SERVE_INFO_FILENAME}`,
 ];
 
 /**
@@ -148,6 +152,47 @@ export function defaultSettingsPath(scopeRoot: string): string {
 export function defaultLocalSettingsPath(scopeRoot: string): string {
   return join(scopeRoot, SKILL_MAP_DIR, LOCAL_SETTINGS_FILENAME);
 }
+
+/**
+ * Server discovery file (`<scopeRoot>/.skill-map/serve.json`). Written by
+ * the `sm serve` verb while the server is up (resolved host/port +
+ * per-session ingest token, shape per `spec/schemas/serve-info.schema.json`)
+ * and deleted on shutdown; the activity bridge reads it to find and
+ * authenticate against the project's running server. Runtime artifact,
+ * gitignored via `GITIGNORE_ENTRIES`, never committed.
+ */
+export function defaultServeInfoPath(scopeRoot: string): string {
+  return join(scopeRoot, SKILL_MAP_DIR, SERVE_INFO_FILENAME);
+}
+
+/**
+ * Live-activity artifacts directory (`<scopeRoot>/.skill-map/activity`).
+ * Holds the zero-dependency bridge script `sm activity install <provider>`
+ * writes and the provider hook configs reference (relative to the scope
+ * root, so a committed provider config stays portable across machines).
+ * Committed (NOT gitignored): the bridge is deterministic generated code
+ * a teammate's cloned hooks need present.
+ */
+export function defaultProjectActivityDir(scopeRoot: string): string {
+  return join(scopeRoot, SKILL_MAP_DIR, ACTIVITY_DIRNAME);
+}
+
+/**
+ * The activity bridge script (`<scopeRoot>/.skill-map/activity/bridge.js`).
+ * Contract in `spec/provider-activity.md` §Bridge contract; source
+ * template in `cli/util/activity-bridge.ts`.
+ */
+export function defaultActivityBridgePath(scopeRoot: string): string {
+  return join(scopeRoot, SKILL_MAP_DIR, ACTIVITY_DIRNAME, ACTIVITY_BRIDGE_FILENAME);
+}
+
+/**
+ * The bridge path as referenced FROM provider hook configs: relative,
+ * forward-slash, anchored at the scope root (`.skill-map/activity/bridge.js`).
+ * Doubles as the ownership MARKER `sm activity uninstall` matches to
+ * remove exactly the entries `install` added.
+ */
+export const ACTIVITY_BRIDGE_REL = `${SKILL_MAP_DIR}/${ACTIVITY_DIRNAME}/${ACTIVITY_BRIDGE_FILENAME}`;
 
 /**
  * Default `.skillmapignore` file path

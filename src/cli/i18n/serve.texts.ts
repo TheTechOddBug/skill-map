@@ -181,6 +181,12 @@ export const SERVE_TEXTS = {
   // long-running daemon has wound down cleanly.
   shutdown: '{{glyph}}  sm serve: shutdown complete.\n',
 
+  // Discovery-file write failure (best-effort, warn-and-continue): the
+  // server keeps serving, but the activity bridge cannot find it this
+  // session (see spec/provider-activity.md §serve.json).
+  serveInfoWriteFailed:
+    '{{glyph}}  sm serve: could not write {{path}}; live activity discovery is off for this session.\n',
+
   /**
    * §3.1b error block when the operator declines the pre-boot
    * schema-drift rebuild (TTY, no `--yes`). The server never starts;

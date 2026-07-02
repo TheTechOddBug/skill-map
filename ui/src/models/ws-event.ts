@@ -209,6 +209,38 @@ export function isSidecarBumpedEvent(value: unknown): value is IWsSidecarBumpedE
 }
 
 /**
+ * `node.activity` event payload, broadcast by `POST /api/activity` (live
+ * node activity, `spec/provider-activity.md` §WS event). One envelope per
+ * provider-runtime signal that RESOLVED to a scanned node; the payload is
+ * intentionally minimal (nothing from the raw provider event survives
+ * past the BFF mapper). Consumers narrow on
+ * `event.type === 'node.activity'` and read
+ * `event.data.{nodePath, phase, owner}`.
+ */
+export interface IWsNodeActivityData {
+  /** Resolved scanned node's stable id (its `path`). */
+  nodePath: string;
+  /** `start` lights the node; `end` exists only for natively-terminated units. */
+  phase: 'start' | 'end';
+  /** Opaque executing-context grouping key (`'main'`, an agent id, ...). */
+  owner?: string;
+}
+
+export type IWsNodeActivityEvent = IWsEvent<IWsNodeActivityData> & { type: 'node.activity' };
+
+export function isNodeActivityEvent(value: unknown): value is IWsNodeActivityEvent {
+  if (!isWsEvent(value)) return false;
+  if (value.type !== 'node.activity') return false;
+  const data = value.data as Record<string, unknown> | undefined;
+  if (typeof data !== 'object' || data === null) return false;
+  if (typeof data['nodePath'] !== 'string' || data['nodePath'].length === 0) return false;
+  if (data['phase'] !== 'start' && data['phase'] !== 'end') return false;
+  const owner = data['owner'];
+  if (owner !== undefined && typeof owner !== 'string') return false;
+  return true;
+}
+
+/**
  * Normalize the envelope's timestamp to unix-ms regardless of which form
  * the BFF emitted (kernel emitter → ISO-8601 string, watcher advisories →
  * `Date.now()` number). Returns `Date.now()` as a defensive fallback when

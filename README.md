@@ -75,6 +75,12 @@ That last `sm` opens the Web UI on `http://127.0.0.1:4242` with the watcher runn
 
 Want to try it without installing? Open the [live demo](https://skill-map.ai/demo/).
 
+## Windows / WSL
+
+skill-map runs under WSL2, but keep your project on the **Linux filesystem** (for example `~/projects/...`), not on a mounted Windows drive (`/mnt/c/...`).
+
+The live map's file watcher uses the OS's native change notifications (inotify), and Windows drives mounted into WSL do not deliver those events. A one-shot `sm scan` still reads files under `/mnt/c` (slowly), but `sm serve` / `sm watch` will not refresh the map when they change, and neither watcher backend (`chokidar` or `parcel`) changes that. This cross-filesystem boundary is unsupported by design; there is no polling fallback. A symlink inside a Linux-hosted project that points at a Windows path behaves the same way: it is followed on a full scan, never live-watched.
+
 ## Sidecar `.sm` files (don't be alarmed when they appear)
 
 The first time you run `sm bump` or `sm sidecar annotate`, skill-map writes a sibling YAML file next to each `.md`: `demo-agent.md` → `demo-agent.sm` in the same directory. They are intentional, they are part of the design, and **they belong in your repo**.
