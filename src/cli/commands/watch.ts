@@ -98,6 +98,13 @@ export interface IRunWatchOptions {
    * for every batch this watcher fires.
    */
   maxNodes?: number;
+  /**
+   * Per-invocation override of `scan.watch.backend` (`--watch-backend
+   * <chokidar|parcel>`), the primary watcher backend. Passed through to
+   * `ICreateWatcherRuntimeOpts.watchBackendOverride`; `undefined` means
+   * "use the persisted `scan.watch.backend`".
+   */
+  watchBackend?: 'chokidar' | 'parcel';
 }
 
 const DEFAULT_MAX_CONSECUTIVE_FAILURES = 5;
@@ -204,6 +211,7 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
     ...(opts.maxBatches !== undefined ? { maxBatches: opts.maxBatches } : {}),
     ...(opts.maxScan !== undefined ? { maxScanOverride: opts.maxScan } : {}),
     ...(opts.maxNodes !== undefined ? { maxNodesOverride: opts.maxNodes } : {}),
+    ...(opts.watchBackend !== undefined ? { watchBackendOverride: opts.watchBackend } : {}),
     events: {
       onBatch: (outcome) => {
         if (outcome.kind === 'ok') {
@@ -366,11 +374,20 @@ export class WatchCommand extends SmCommand {
     description:
       'Per-batch override of scan.maxNodes (default 256), the MAP RENDER cap (pure metadata): it does NOT bound the scan, only the graph projection. Bidirectional: raises OR lowers the render cap. Validation: integer >= 1.',
   });
+  watchBackend = Option.String('--watch-backend', {
+    required: false,
+    description:
+      'Per-invocation override of scan.watch.backend, the primary watcher backend. chokidar (the default) observes changes behind a symlinked directory live; parcel is a single native inotify instance that scales to huge trees without chokidar\'s EMFILE exhaustion. Accepted values: chokidar, parcel.',
+  });
 
   // Long-running verb, the watcher prints its own "stopped" line on
   // SIGINT / SIGTERM. Adding `done in <…>` after that would be noise.
   protected override emitElapsed = false;
 
+  // CLI orchestrator with multi-flag handling: each `parse…` gate is one
+  // cyclomatic point kept adjacent to the value it validates. Per
+  // context/lint.md category 1, same shape as `ServeCommand.run`.
+  // eslint-disable-next-line complexity
   protected async run(): Promise<number> {
     const roots = this.roots.length > 0 ? this.roots : ['.'];
     const breaker = parseBreakerLimit(this.maxConsecutiveFailures, this.context.stderr, this.noColor);
@@ -379,6 +396,8 @@ export class WatchCommand extends SmCommand {
     if (maxScan === null) return ExitCode.Error;
     const maxNodes = parseMaxNodesLimit(this.maxNodes, this.context.stderr, this.noColor);
     if (maxNodes === null) return ExitCode.Error;
+    const watchBackend = parseWatchBackend(this.watchBackend, this.context.stderr, this.noColor);
+    if (watchBackend === null) return ExitCode.Error;
     const watchOpts: IRunWatchOptions = {
       roots,
       json: this.json,
@@ -393,6 +412,7 @@ export class WatchCommand extends SmCommand {
     if (breaker !== undefined) watchOpts.maxConsecutiveFailures = breaker;
     if (maxScan !== undefined) watchOpts.maxScan = maxScan;
     if (maxNodes !== undefined) watchOpts.maxNodes = maxNodes;
+    if (watchBackend !== undefined) watchOpts.watchBackend = watchBackend;
     return runWatchLoop(watchOpts);
   }
 }
@@ -479,4 +499,31 @@ function parseMaxNodesLimit(
     return null;
   }
   return n;
+}
+
+/**
+ * Parse the raw `--watch-backend <chokidar|parcel>` flag value (the
+ * primary watcher backend override). Returns `undefined` when the flag is
+ * absent (caller falls through to `scan.watch.backend`), `null` when the
+ * value is invalid (caller exits 2 after this prints the §3.1b block), or
+ * the validated backend id otherwise. Shared by `sm watch` and
+ * `sm scan --watch` so both surfaces reject the same set of values.
+ */
+export function parseWatchBackend(
+  raw: string | undefined,
+  stderr: NodeJS.WritableStream,
+  noColor: boolean,
+): 'chokidar' | 'parcel' | undefined | null {
+  if (raw === undefined) return undefined;
+  if (raw === 'chokidar' || raw === 'parcel') return raw;
+  const stderrTty = stderr as NodeJS.WriteStream & { isTTY?: boolean };
+  const ansi = ansiFor({ isTTY: stderrTty.isTTY === true, noColorFlag: noColor });
+  stderr.write(
+    tx(WATCH_TEXTS.watchBackendInvalid, {
+      glyph: ansi.red('✕'),
+      raw,
+      hint: ansi.dim(WATCH_TEXTS.watchBackendInvalidHint),
+    }),
+  );
+  return null;
 }

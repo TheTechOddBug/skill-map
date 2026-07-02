@@ -231,7 +231,7 @@ payload is still walked). An event MUST have the following removed or replaced:
 - **OS username.**
 - **Third-party plugin ids.** Only built-in plugin ids may appear; any
   non-built-in id MUST be replaced with the literal `external_plugin`.
-- **Settings values** (`scan.extraFolders`, `scan.referencePaths`, etc.).
+- **Settings values** (`scan.referencePaths`, etc.).
 
 The scrubber is a pure function with no SDK dependency, so it can be unit
 tested against hostile inputs (Windows paths, symlinked paths, paths embedded

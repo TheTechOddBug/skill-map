@@ -54,6 +54,12 @@ export interface ICreateWatcherServiceOpts {
   /** Optional override for the chokidar debounce window (ms). Falls back to `scan.watch.debounceMs` from config. */
   debounceMsOverride?: number | undefined;
   /**
+   * Optional override for the primary watcher backend (`--watch-backend
+   * <chokidar|parcel>` on `sm serve`). Falls back to `scan.watch.backend`
+   * from config when `undefined`.
+   */
+  watchBackendOverride?: 'chokidar' | 'parcel' | undefined;
+  /**
    * When set, an animated scan spinner spins on `stream` while each
    * watcher batch runs (file save to re-scan) and clears + prints a
    * one-line confirmation on completion. The CLI verb (`sm serve`)
@@ -235,6 +241,9 @@ export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherS
     };
     if (opts.debounceMsOverride !== undefined) {
       runtimeOpts.debounceMsOverride = opts.debounceMsOverride;
+    }
+    if (opts.watchBackendOverride !== undefined) {
+      runtimeOpts.watchBackendOverride = opts.watchBackendOverride;
     }
     if (opts.options.maxScan !== undefined) {
       runtimeOpts.maxScanOverride = opts.options.maxScan;

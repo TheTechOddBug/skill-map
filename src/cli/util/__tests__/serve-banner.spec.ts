@@ -215,6 +215,67 @@ describe('serve banner, DB path display in TTY mode', () => {
   });
 });
 
+describe('serve banner, watcher backend row', () => {
+  it('shows the resolved watcher backend in the TTY figlet block', () => {
+    const out = renderBanner({
+      version: '0.13.0',
+      host: '127.0.0.1',
+      port: 4242,
+      dbPath: '/projects/skill-map/.skill-map/skill-map.db',
+      cwd: '/projects/skill-map',
+      openBrowser: true,
+      isTTY: true,
+      colorEnabled: false,
+      backend: 'parcel',
+    });
+    assert.ok(out.includes('Watcher'), 'expected a Watcher label in the data block');
+    assert.ok(out.includes('parcel'), 'expected the resolved backend name');
+  });
+
+  it('appends watcher=<backend> to the non-TTY listening line', () => {
+    const out = renderBanner({
+      version: '0.13.0',
+      host: '127.0.0.1',
+      port: 4242,
+      dbPath: '/projects/skill-map/.skill-map/skill-map.db',
+      cwd: '/projects/skill-map',
+      openBrowser: false,
+      isTTY: false,
+      colorEnabled: false,
+      backend: 'parcel',
+    });
+    assert.ok(out.includes('watcher=parcel'), `flat line must carry watcher=: ${out}`);
+  });
+
+  it('omits the watcher annotation when backend is chokidar (the default)', () => {
+    const flat = renderBanner({
+      version: '0.13.0',
+      host: '127.0.0.1',
+      port: 4242,
+      dbPath: '/projects/skill-map/.skill-map/skill-map.db',
+      cwd: '/projects/skill-map',
+      openBrowser: false,
+      isTTY: false,
+      colorEnabled: false,
+      backend: 'chokidar',
+    });
+    assert.ok(!flat.includes('watcher='), `chokidar must not annotate the flat line: ${flat}`);
+
+    const tty = renderBanner({
+      version: '0.13.0',
+      host: '127.0.0.1',
+      port: 4242,
+      dbPath: '/projects/skill-map/.skill-map/skill-map.db',
+      cwd: '/projects/skill-map',
+      openBrowser: true,
+      isTTY: true,
+      colorEnabled: false,
+      backend: 'chokidar',
+    });
+    assert.ok(!tty.includes('Watcher'), `chokidar must not add a Watcher row: ${tty}`);
+  });
+});
+
 describe('resolveColorEnabled, precedence', () => {
   it('disables color when --no-color is set, regardless of TTY / env', () => {
     assert.equal(

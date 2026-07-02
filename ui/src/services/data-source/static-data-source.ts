@@ -565,14 +565,19 @@ export class StaticDataSource implements IDataSourcePort {
 
   async getActiveProvider(): Promise<IActiveProviderApi> {
     const meta = await this.loadMeta();
-    return (
-      meta.activeProvider ?? {
-        activeProvider: 'markdown',
-        detected: [],
-        source: 'default',
-        selectable: [],
-      }
-    );
+    const baked = meta.activeProvider;
+    if (baked) {
+      // The static snapshot never drifts (immutable bundle); default
+      // `markerDrift` to null so an older, pre-drift bundle still loads.
+      return { ...baked, markerDrift: baked.markerDrift ?? null };
+    }
+    return {
+      activeProvider: 'markdown',
+      detected: [],
+      source: 'default',
+      selectable: [],
+      markerDrift: null,
+    };
   }
 
   async setActiveProvider(_activeProvider: string): Promise<IActiveProviderPutEnvelopeApi> {
@@ -580,6 +585,12 @@ export class StaticDataSource implements IDataSourcePort {
       'demo-readonly',
       'Active provider lens is not available in demo mode (static bundle is immutable).',
     );
+  }
+
+  async acceptActiveProviderMarkers(): Promise<IActiveProviderApi> {
+    // The demo bundle never drifts, so accepting markers is a harmless
+    // no-op: return the baked envelope (already `markerDrift: null`).
+    return this.getActiveProvider();
   }
 
   /**

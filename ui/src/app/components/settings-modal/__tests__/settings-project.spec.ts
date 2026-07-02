@@ -48,7 +48,13 @@ const REGISTRY: IProviderRegistryApi = {
 };
 
 function envelope(selectable: string[]): IActiveProviderApi {
-  return { activeProvider: 'agent-skills', detected: [], source: 'default', selectable };
+  return {
+    activeProvider: 'agent-skills',
+    detected: [],
+    source: 'default',
+    selectable,
+    markerDrift: null,
+  };
 }
 
 function bootstrap(): { proto: IProjectProto } {

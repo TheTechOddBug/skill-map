@@ -26,10 +26,9 @@ export const CONFIG_TEXTS = {
 
   /**
    * Surfaced when a PROJECT_LOCAL_ONLY key (`allowEditSmFiles` /
-   * `scan.extraFolders` / `scan.referencePaths`) reaches the writer
-   * with `target: 'project'`, defensive only, the CLI auto-routes to
-   * `project-local`, but the helper enforces the rule for any other
-   * caller too.
+   * `scan.referencePaths`) reaches the writer with `target: 'project'`,
+   * defensive only, the CLI auto-routes to `project-local`, but the
+   * helper enforces the rule for any other caller too.
    */
   projectLocalOnlyKeyRejection:
     '{{glyph}}  sm config: "{{key}}" is project-local only and cannot live in committed settings.json.\n' +
@@ -39,11 +38,10 @@ export const CONFIG_TEXTS = {
 
   /**
    * Surfaced when `sm config set` is invoked on a privacy-sensitive
-   * key (`scan.extraFolders` / `scan.referencePaths`) and the new
-   * value would expand the scan's disk-access surface beyond the
-   * project root. Without `--yes` the verb refuses the write and
-   * lists the paths the change would expose so the operator decides
-   * knowingly.
+   * key (`scan.referencePaths`) and the new value would expand the
+   * scan's disk-access surface beyond the project root. Without `--yes`
+   * the verb refuses the write and lists the paths the change would
+   * expose so the operator decides knowingly.
    */
   privacyGateRequired:
     '{{glyph}}  sm config: setting "{{key}}" to that value opens disk access outside this project.\n' +

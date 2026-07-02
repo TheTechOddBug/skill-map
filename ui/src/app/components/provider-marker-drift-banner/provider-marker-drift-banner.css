@@ -1,0 +1,48 @@
+/*
+ * Centered topbar notice for provider-marker drift. Mirrors the tutorial
+ * reminder pill (`display: contents` host, the shell's `.shell__center`
+ * owns the centering; this component just paints the pill), but rides the
+ * SM warn severity tokens because drift is an actionable warning: the
+ * saved lens snapshot no longer matches what is on disk. Bare provider
+ * tokens, no hardcoded fallbacks; the matrix theme retints the same
+ * severity tokens automatically.
+ */
+:host {
+  display: contents;
+}
+
+.marker-drift {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.2rem 0.3rem 0.2rem 0.75rem;
+  border: 1px solid var(--sm-severity-warn);
+  border-radius: var(--sm-radius-md);
+  background: var(--sm-severity-warn-bg);
+  color: var(--sm-severity-warn);
+  font-size: 0.85rem;
+}
+
+.marker-drift__icon {
+  flex: none;
+  color: var(--sm-severity-warn);
+  font-size: 1rem;
+}
+
+.marker-drift__body {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.marker-drift__markers {
+  flex: none;
+  font-family: var(--sm-font-mono);
+  background: var(--p-content-background);
+  border: 1px solid var(--sm-severity-warn);
+  border-radius: var(--sm-radius-sm);
+  padding: 0.05rem 0.4rem;
+  font-size: 0.85em;
+}

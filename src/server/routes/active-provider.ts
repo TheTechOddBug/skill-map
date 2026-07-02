@@ -2,8 +2,9 @@
  * Active provider lens route, read + write the project's active
  * provider.
  *
- *   GET   /api/active-provider  → current envelope (resolved + detected list)
- *   PATCH /api/active-provider  → switch the lens; atomically drop scan_*
+ *   GET   /api/active-provider                 → current envelope (resolved + detected + drift)
+ *   POST  /api/active-provider/accept-markers  → reconcile the markers snapshot (SPA "Dismiss")
+ *   PATCH /api/active-provider                 → switch the lens; atomically drop scan_*
  *
  * The persisted setting lives at `.skill-map/settings.json` under the
  * `activeProvider` key (project layer, committed). When the operator
@@ -18,9 +19,15 @@
  *   {
  *     "activeProvider": "claude" | "agent-skills",
  *     "detected": ["claude", "codex"],
- *     "source": "config" | "autodetect" | "default"
+ *     "source": "config" | "autodetect" | "default",
+ *     "selectable": ["claude", "codex", "agent-skills"],
+ *     "markerDrift": { "added": ["codex"], "removed": [], "detected": ["claude", "codex"] } | null
  *   }
  *   ```
+ *
+ * `POST /api/active-provider/accept-markers` takes no body: it derives
+ * the detected set server-side, writes it as the `activeProviderMarkers`
+ * snapshot, and returns the same GET envelope (now `markerDrift: null`).
  *
  * PATCH body shape:
  *
@@ -40,6 +47,11 @@ import type { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 
 import { resolveActiveProvider } from '../../core/config/active-provider.js';
+import {
+  computeMarkerDrift,
+  reconcileMarkersSnapshot,
+  type IMarkerDrift,
+} from '../../core/runtime/active-provider-bootstrap.js';
 import { writeConfigValue } from '../../core/config/helper.js';
 import { resolveDbPath } from '../../core/paths/db-path.js';
 import { buildFreshResolver } from '../../core/runtime/fresh-resolver.js';
@@ -70,6 +82,20 @@ export interface IActiveProviderEnvelope {
    * never be picked. See `spec/cli-contract.md` §Active provider lens.
    */
   selectable: readonly string[];
+  /**
+   * Filesystem-marker drift relative to the persisted
+   * `activeProviderMarkers` snapshot (a Provider directory appeared or
+   * vanished since the lens was chosen), or `null` when the detected set
+   * matches the snapshot (or no snapshot exists). Applies the same
+   * ships-disabled exclusion as the scan-time drift check. The SPA
+   * renders a dismissable notice from a non-null value; **Dismiss**
+   * issues `POST /api/active-provider/accept-markers`, which reconciles
+   * the snapshot so the next envelope reads `markerDrift: null`. Unlike
+   * the CLI, the server does NOT log the scan-time drift `⚠` warn; this
+   * field is the operator surface. See `spec/cli-contract.md` §Active
+   * provider lens (Provider-marker drift).
+   */
+  markerDrift: IMarkerDrift | null;
 }
 
 interface IPatchBody {
@@ -82,6 +108,30 @@ interface ILensSwitchResult {
 
 export function registerActiveProviderRoute(app: Hono, deps: IRouteDeps): void {
   app.get('/api/active-provider', async (c) => {
+    return c.json(await buildEnvelope(deps));
+  });
+
+  // SPA "Dismiss" action for the marker-drift notice. Reconciles the
+  // persisted `activeProviderMarkers` snapshot with the current
+  // filesystem-detected set so the drift clears in both the SPA and the
+  // CLI (`sm scan` stops warning), then returns the refreshed envelope
+  // (now `markerDrift: null`). No request body: the detected set is
+  // derived server-side. A later, different marker change drifts again.
+  app.post('/api/active-provider/accept-markers', async (c) => {
+    const cwd = deps.runtimeContext.cwd;
+    const detected = resolveActiveProvider(cwd, deps.providers).detected;
+    try {
+      reconcileMarkersSnapshot(cwd, detected);
+    } catch (err) {
+      throw new HTTPException(400, {
+        message: tx(SERVER_TEXTS.activeProviderMarkersPersistFailed, {
+          message: formatErrorMessage(err),
+        }),
+      });
+    }
+    // The write changed on-disk config; reload the cached service so a
+    // subsequent read through it stays coherent (mirrors the PATCH path).
+    deps.configService.reload();
     return c.json(await buildEnvelope(deps));
   });
 
@@ -112,6 +162,9 @@ async function buildEnvelope(deps: IRouteDeps): Promise<IActiveProviderEnvelope>
     detected: r.detected,
     source: r.source,
     selectable: await resolveSelectableProviders(deps),
+    // Same provider list the envelope resolved `detected` from, so the
+    // drift's `detected` lines up with the envelope's `detected`.
+    markerDrift: computeMarkerDrift(deps.runtimeContext.cwd, deps.providers),
   };
 }
 

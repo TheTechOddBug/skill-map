@@ -121,6 +121,11 @@ async function runPersistedScan(c: Context, deps: IScanRouteDeps): Promise<Respo
         // the operator via the Settings UI (PATCH /api/active-provider)
         // before the scan, not via interactive prompt here.
         yes: true,
+        // Suppress the config-lens drift `⚠` warn on the server: the SPA
+        // surfaces drift via `GET /api/active-provider`'s `markerDrift`,
+        // so the server log would carry repetitive noise no operator
+        // reads. `sm scan` / `sm watch` on the CLI keep the warn.
+        warnOnDrift: false,
         // `--max-scan` (walk ceiling) and `--max-nodes` (render cap)
         // from the `sm serve` invocation (or the bare `sm --max-scan
         // <N>` / `sm --max-nodes <N>` shortcut) flow through to every
@@ -304,6 +309,10 @@ async function runFreshScan(deps: IRouteDeps): Promise<ScanResult> {
     // BFF has no TTY; ambiguous activeProvider is the operator's
     // problem to resolve via the Settings UI, not via prompt here.
     yes: true,
+    // Suppress the config-lens drift `⚠` warn on the server (same as
+    // POST /api/scan): the SPA surfaces drift via
+    // `GET /api/active-provider`'s `markerDrift` field.
+    warnOnDrift: false,
     // Carry `--max-scan` (walk ceiling) and `--max-nodes` (render cap)
     // from `sm serve` into the fresh-scan path too so a UI-driven
     // refresh honours the same knobs as the watcher.

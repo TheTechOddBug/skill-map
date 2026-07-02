@@ -109,6 +109,7 @@
 
     <div class="shell__center" data-testid="shell-center">
       <sm-tutorial-reminder-banner />
+      <sm-provider-marker-drift-banner (switchLens)="onSwitchLens()" />
     </div>
 
     <nav class="shell__nav" [attr.aria-label]="texts.a11y.viewSwitcher" data-testid="shell-nav">
@@ -168,6 +169,7 @@
   @defer (when settingsOpen()) {
     <sm-settings-modal
       [visible]="settingsOpen()"
+      [initialSection]="settingsInitialSection()"
       (visibleChange)="onSettingsVisibleChange($event)"
     />
   }

@@ -150,6 +150,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
       detected: [],
       source: 'default' as const,
       selectable: [],
+      markerDrift: null,
     }),
   setActiveProvider: () =>
     Promise.resolve({
@@ -157,7 +158,16 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
       detected: [],
       source: 'default' as const,
       selectable: [],
+      markerDrift: null,
       switch: { dropped: null },
+    }),
+  acceptActiveProviderMarkers: () =>
+    Promise.resolve({
+      activeProvider: 'markdown',
+      detected: [],
+      source: 'default' as const,
+      selectable: [],
+      markerDrift: null,
     }),
   setPluginEnabled: () =>
     Promise.resolve({

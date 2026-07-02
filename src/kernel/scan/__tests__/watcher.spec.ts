@@ -95,11 +95,11 @@ describe('createChokidarWatcher', () => {
   });
 
   it('follows a symlinked directory (live events behind the link)', async () => {
-    // This is what makes `scan.watch.backend: auto` route to chokidar when
-    // `scan.followSymlinks` is on: chokidar (default `followSymlinks: true`)
-    // observes changes behind a symlinked directory, parcel does not. The
-    // target lives OUTSIDE the watched root so the only way an event arrives
-    // is by following the link.
+    // chokidar follows symlinks by default, so it observes changes behind a
+    // symlinked directory live, which is why `--watch-backend chokidar` is
+    // the way to keep live symlink watching (parcel does not). The target
+    // lives OUTSIDE the watched root so the only way an event arrives is by
+    // following the link.
     const dir = freshScope('symlink');
     const outside = mkdtempSync(join(root, 'symlink-target-'));
     let linked = true;

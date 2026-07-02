@@ -45,17 +45,6 @@ before(() => {
   // Files inside ignored directories.
   write('.git/HEAD', 'ref: refs/heads/main');
   write('node_modules/foo/thing.md', 'should be ignored');
-
-  // Symlink at the root that points outside, must be skipped (M7).
-  // We point at /etc/hostname which always exists on Linux; the test
-  // asserts the walker did not yield it (ignored as a symlink, not
-  // because of the ignore filter).
-  try {
-    symlinkSync('/etc/hostname', join(root, 'symlinked.md'));
-  } catch {
-    // Some sandboxes block symlink creation, the test still passes
-    // because the file simply does not exist.
-  }
 });
 
 after(() => {
@@ -182,49 +171,60 @@ describe('walkContent', () => {
     ok(!collected.some((p) => p.startsWith('node_modules/')), 'node_modules/ should be skipped');
   });
 
-  it('skips symlinks (audit M7)', async () => {
-    const collected: string[] = [];
-    for await (const n of walkContent([root], {
-      extensions: ['.md'],
-      parser: 'frontmatter-yaml',
-    })) {
-      collected.push(n.path);
+  it('follows a symlinked file (audit M7 decision 2026-07-02: symlinks always followed)', async () => {
+    // M7 was reversed on 2026-07-02: the walker no longer hard-skips
+    // symlinks. A `.md`-suffixed symlink to a real file is dereferenced
+    // and yielded under its link name. Local fixture (not the shared
+    // `root`) so the exact-set test above stays symlink-free.
+    const subRoot = mkdtempSync(join(tmpdir(), 'walk-content-m7-'));
+    try {
+      writeFileSync(join(subRoot, 'real.md'), '---\nname: real\n---\nreal body');
+      let linked = true;
+      try {
+        symlinkSync(join(subRoot, 'real.md'), join(subRoot, 'symlinked.md'));
+      } catch {
+        linked = false; // sandbox without symlink support
+      }
+      const collected: string[] = [];
+      for await (const n of walkContent([subRoot], {
+        extensions: ['.md'],
+        parser: 'frontmatter-yaml',
+      })) {
+        collected.push(n.path);
+      }
+      ok(collected.includes('real.md'), 'the regular file is yielded');
+      if (linked) {
+        ok(collected.includes('symlinked.md'), 'the symlinked .md is now followed and yielded');
+      }
+    } finally {
+      rmSync(subRoot, { recursive: true, force: true });
     }
-    ok(!collected.includes('symlinked.md'), 'symlinks must not be yielded');
   });
 
-  it('rejects symlinks via lstat in the TOCTOU re-check (audit H1)', async () => {
-    // H1 hardens the TOCTOU re-check from `stat` to `lstat`. The
-    // top-level `entry.isSymbolicLink()` filter is the first line of
-    // defence; this test creates a SEPARATE temp tree whose only
-    // `.md`-suffixed entries are symlinks, so a regression that
-    // re-introduces `stat` (which follows the link, returns
-    // `isFile() === true`, and lets the target's content leak into
-    // the walker's output) would be caught here too: the readdir-level
-    // skip continues to guard the happy path, while the lstat
-    // re-verification guards the race window where the entry was a
-    // regular file at `readdir` time but became a symlink before the
-    // re-check. We can't deterministically force the race in user
-    // space, so we assert the walker's observable contract: no
-    // symlinked content ever reaches the consumer, and the body of
-    // the symlink target is never yielded as a node body.
+  it('follows a .md-suffixed symlink to its target body (M7 reversal; H1 lstat still guards the race)', async () => {
+    // The realpath-containment gate + hard symlink-skip were removed
+    // (audit M7 decision 2026-07-02): a `.md`-suffixed symlink is now
+    // dereferenced and its target body IS yielded. The H1 `lstat`
+    // (not `stat`) TOCTOU re-check still guards the race where a dirent
+    // reported as a regular file becomes a symlink before the read, but
+    // that race can't be forced deterministically in user space, so this
+    // test asserts the observable follow behaviour instead.
     const subRoot = mkdtempSync(join(tmpdir(), 'walk-content-h1-'));
     try {
-      const targetFile = join(subRoot, 'secret.txt');
-      writeFileSync(targetFile, 'TOP-SECRET-PAYLOAD-FROM-OUTSIDE');
+      const targetFile = join(subRoot, 'sibling.md');
+      writeFileSync(targetFile, '---\nname: sibling\n---\nSIBLING-PAYLOAD');
 
       // A regular markdown file the walker SHOULD yield.
       const regular = join(subRoot, 'docs');
       mkdirSync(regular, { recursive: true });
       writeFileSync(join(regular, 'real.md'), '---\nname: real\n---\nbody');
 
-      // A `.md`-suffixed symlink pointing at the sensitive sibling.
-      // Skipped at readdir level (M7) AND at the lstat re-check (H1).
+      // A `.md`-suffixed symlink pointing at the sibling. Now followed.
+      let linked = true;
       try {
         symlinkSync(targetFile, join(regular, 'link.md'));
       } catch {
-        // sandboxes that block symlink creation, the rest of the
-        // test still proves real.md is yielded.
+        linked = false; // sandbox without symlink support
       }
 
       const collected: { path: string; body: string }[] = [];
@@ -240,16 +240,14 @@ describe('walkContent', () => {
         collected.some((n) => n.path === 'docs/real.md'),
         'docs/real.md (regular file) must be yielded',
       );
-      // Symlink MUST be skipped (path).
-      ok(
-        !collected.some((n) => n.path === 'docs/link.md'),
-        'docs/link.md (symlink) must not be yielded',
-      );
-      // Symlink target content MUST NOT appear in any yielded body.
-      ok(
-        !collected.some((n) => n.body.includes('TOP-SECRET-PAYLOAD-FROM-OUTSIDE')),
-        'symlink target content must never leak into a yielded body',
-      );
+      if (linked) {
+        const linkNode = collected.find((n) => n.path === 'docs/link.md');
+        ok(linkNode, 'docs/link.md (followed symlink) is now yielded');
+        ok(
+          linkNode!.body.includes('SIBLING-PAYLOAD'),
+          'the followed symlink resolves to its target body',
+        );
+      }
     } finally {
       rmSync(subRoot, { recursive: true, force: true });
     }
@@ -457,7 +455,7 @@ describe('walkContent, incremental priorMtimes fast path', () => {
   });
 });
 
-describe('walkContent, followSymlinks', () => {
+describe('walkContent, symlinks (always followed)', () => {
   const mkRoot = (): string => mkdtempSync(join(tmpdir(), 'walk-symlink-'));
   const write = (abs: string, content: string): void => {
     mkdirSync(join(abs, '..'), { recursive: true });
@@ -474,45 +472,28 @@ describe('walkContent, followSymlinks', () => {
       return false;
     }
   };
-  const collect = async (scope: string, followSymlinks: boolean): Promise<string[]> => {
+  const collect = async (scope: string): Promise<string[]> => {
     const out: string[] = [];
     for await (const n of walkContent([scope], {
       extensions: ['.md'],
       parser: 'frontmatter-yaml',
-      followSymlinks,
     })) {
       out.push(n.path);
     }
     return out.sort();
   };
 
-  it('follows a symlinked directory when enabled (the .claude/skills softlink case)', async () => {
+  it('follows a symlinked directory (the .claude/skills softlink case)', async () => {
     const dir = mkRoot();
     try {
       write(join(dir, 'a/skills/one.md'), '---\nname: one\n---\nbody');
       mkdirSync(join(dir, '.claude'), { recursive: true });
       // Relative dir symlink whose target resolves inside the root.
       if (!link('../a/skills', join(dir, '.claude/skills'))) return;
-      const collected = await collect(dir, true);
+      const collected = await collect(dir);
       ok(
         collected.includes('.claude/skills/one.md'),
         'a file behind the symlinked directory is yielded under the link path',
-      );
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it('skips a symlinked directory by default (followSymlinks off)', async () => {
-    const dir = mkRoot();
-    try {
-      write(join(dir, 'a/skills/one.md'), '---\nname: one\n---\nbody');
-      mkdirSync(join(dir, '.claude'), { recursive: true });
-      if (!link('../a/skills', join(dir, '.claude/skills'))) return;
-      const collected = await collect(dir, false);
-      ok(
-        !collected.includes('.claude/skills/one.md'),
-        'the symlinked directory is not traversed when the flag is off',
       );
       ok(collected.includes('a/skills/one.md'), 'the real target dir is still walked as usual');
     } finally {
@@ -520,42 +501,43 @@ describe('walkContent, followSymlinks', () => {
     }
   });
 
-  it('skips a broken symlink without throwing (enabled)', async () => {
+  it('skips a broken symlink without throwing', async () => {
     const dir = mkRoot();
     try {
       mkdirSync(join(dir, '.claude'), { recursive: true });
       if (!link('../a/does-not-exist', join(dir, '.claude/skills'))) return;
       write(join(dir, 'real.md'), '---\nname: real\n---\nbody');
-      const collected = await collect(dir, true);
+      const collected = await collect(dir);
       deepStrictEqual(collected, ['real.md']);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  it('refuses a symlink whose target escapes the roots (realpath containment, enabled)', async () => {
+  it('follows a symlink whose target escapes the roots (no containment gate)', async () => {
     const dir = mkRoot();
     const outside = mkdtempSync(join(tmpdir(), 'walk-symlink-out-'));
     try {
-      write(join(outside, 'secret.md'), '---\nname: secret\n---\nLEAK');
+      write(join(outside, 'secret.md'), '---\nname: secret\n---\nOUTSIDE');
       write(join(dir, 'real.md'), '---\nname: real\n---\nbody');
-      // Absolute symlink pointing OUT of the walked root.
+      // Absolute symlink pointing OUT of the walked root. The
+      // realpath-containment gate was removed (an in-tree symlink is an
+      // explicit opt-in), so the out-of-root target IS indexed.
       if (!link(outside, join(dir, 'escape'))) return;
       const collected: { path: string; body: string }[] = [];
       for await (const n of walkContent([dir], {
         extensions: ['.md'],
         parser: 'frontmatter-yaml',
-        followSymlinks: true,
       })) {
         collected.push({ path: n.path, body: n.body });
       }
       ok(
-        !collected.some((n) => n.path.startsWith('escape/')),
-        'the escaping symlink directory is never traversed',
+        collected.some((n) => n.path === 'escape/secret.md'),
+        'the out-of-root target is indexed under the link path',
       );
       ok(
-        !collected.some((n) => n.body.includes('LEAK')),
-        'out-of-root content never leaks through a followed symlink',
+        collected.some((n) => n.body.includes('OUTSIDE')),
+        'the out-of-root content is read through the followed symlink',
       );
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -563,7 +545,7 @@ describe('walkContent, followSymlinks', () => {
     }
   });
 
-  it('terminates on a symlink cycle (enabled)', async () => {
+  it('terminates on a symlink cycle and visits the target once', async () => {
     const dir = mkRoot();
     try {
       write(join(dir, 'a/one.md'), '---\nname: one\n---\nbody');
@@ -571,15 +553,16 @@ describe('walkContent, followSymlinks', () => {
       // If cycle detection regressed this would recurse forever; the test
       // merely completing proves termination.
       if (!link('../a', join(dir, 'a/back'))) return;
-      const collected = await collect(dir, true);
-      ok(collected.includes('a/one.md'), 'the real file is yielded');
+      const collected = await collect(dir);
+      const canonical = collected.filter((p) => p === 'a/one.md');
+      strictEqual(canonical.length, 1, 'the real file is visited exactly once under its own path');
       ok(collected.length <= 2, 'the cycle is bounded, not infinite');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  it('follows a symlinked file to its target body when enabled', async () => {
+  it('follows a symlinked file to its target body', async () => {
     const dir = mkRoot();
     try {
       write(join(dir, 'real.md'), '---\nname: real\n---\nshared body');
@@ -588,7 +571,6 @@ describe('walkContent, followSymlinks', () => {
       for await (const n of walkContent([dir], {
         extensions: ['.md'],
         parser: 'frontmatter-yaml',
-        followSymlinks: true,
       })) {
         collected.push({ path: n.path, body: n.body });
       }
@@ -600,68 +582,57 @@ describe('walkContent, followSymlinks', () => {
     }
   });
 
-  // Scoped reads are the watcher's incremental path. They must honour the
-  // same symlink policy as the full traversal, since chokidar can surface a
-  // changed file behind a symlink regardless of any watcher option.
+  // Scoped reads are the watcher's incremental path. They follow the same
+  // always-follow symlink policy as the full traversal, since chokidar can
+  // surface a changed file behind a symlink.
   const collectScoped = async (
     scope: string,
     scopedPaths: string[],
-    followSymlinks: boolean,
   ): Promise<{ path: string; body: string }[]> => {
     const out: { path: string; body: string }[] = [];
     for await (const n of walkContent([scope], {
       extensions: ['.md'],
       parser: 'frontmatter-yaml',
       scopedPaths,
-      followSymlinks,
     })) {
       out.push({ path: n.path, body: n.body });
     }
     return out;
   };
 
-  it('scoped read drops a path crossing a symlinked directory when disabled', async () => {
+  it('scoped read follows a path through a symlinked directory', async () => {
     const dir = mkRoot();
     try {
       write(join(dir, 'a/skills/one.md'), '---\nname: one\n---\nbody');
       mkdirSync(join(dir, '.claude'), { recursive: true });
       if (!link('../a/skills', join(dir, '.claude/skills'))) return;
-      const collected = await collectScoped(dir, [join(dir, '.claude/skills/one.md')], false);
-      deepStrictEqual(collected, [], 'the symlink-crossing scoped path is not read when off');
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it('scoped read follows a path through a symlinked directory when enabled', async () => {
-    const dir = mkRoot();
-    try {
-      write(join(dir, 'a/skills/one.md'), '---\nname: one\n---\nbody');
-      mkdirSync(join(dir, '.claude'), { recursive: true });
-      if (!link('../a/skills', join(dir, '.claude/skills'))) return;
-      const collected = await collectScoped(dir, [join(dir, '.claude/skills/one.md')], true);
+      const collected = await collectScoped(dir, [join(dir, '.claude/skills/one.md')]);
       deepStrictEqual(
         collected.map((n) => n.path),
         ['.claude/skills/one.md'],
-        'the scoped path is read under the link form when on',
+        'the scoped path is read under the link form',
       );
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  it('scoped read refuses a path escaping the roots via a symlink (enabled)', async () => {
+  it('scoped read follows a path escaping the roots via a symlink (no containment gate)', async () => {
     const dir = mkRoot();
     const outside = mkdtempSync(join(tmpdir(), 'walk-symlink-out-'));
     try {
-      write(join(outside, 'secret.md'), '---\nname: secret\n---\nLEAK');
+      write(join(outside, 'secret.md'), '---\nname: secret\n---\nOUTSIDE');
       if (!link(outside, join(dir, 'escape'))) return;
-      const collected = await collectScoped(dir, [join(dir, 'escape/secret.md')], true);
-      ok(
-        !collected.some((n) => n.body.includes('LEAK')),
-        'an escaping scoped path never leaks out-of-root content',
+      const collected = await collectScoped(dir, [join(dir, 'escape/secret.md')]);
+      deepStrictEqual(
+        collected.map((n) => n.path),
+        ['escape/secret.md'],
+        'the escaping scoped path is read under the link form',
       );
-      deepStrictEqual(collected, [], 'the escaping scoped path yields nothing');
+      ok(
+        collected.some((n) => n.body.includes('OUTSIDE')),
+        'the out-of-root content is read through the followed symlink',
+      );
     } finally {
       rmSync(dir, { recursive: true, force: true });
       rmSync(outside, { recursive: true, force: true });

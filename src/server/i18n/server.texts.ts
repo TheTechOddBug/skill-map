@@ -508,4 +508,10 @@ export const SERVER_TEXTS = {
     'Could not persist activeProvider: {{message}}',
   activeProviderNotSelectable:
     '`{{id}}` is not a selectable lens. Pick one of: {{selectable}}.',
+  // 400, `POST /api/active-provider/accept-markers` failed to write the
+  // reconciled `activeProviderMarkers` snapshot (permission, disk full,
+  // AJV revalidation). The SPA "Dismiss" action surfaces this so the
+  // operator knows the drift notice will re-appear on the next read.
+  activeProviderMarkersPersistFailed:
+    'Could not persist activeProviderMarkers: {{message}}',
 } as const;

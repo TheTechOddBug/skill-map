@@ -1086,6 +1086,28 @@ export interface IActiveProviderApi {
   detected: readonly string[];
   source: 'config' | 'autodetect' | 'default';
   selectable: readonly string[];
+  /**
+   * Non-null only when the filesystem-detected provider markers diverge
+   * from the project's persisted `activeProviderMarkers` snapshot (e.g. a
+   * `.claude/` directory appeared after the lens was pinned to
+   * `opencode`). `added` lists the newly-appeared marker ids (the text the
+   * drift notice surfaces), `removed` the ones that disappeared, and
+   * `detected` the full current marker set. `null` when the snapshot is in
+   * sync. A lens switch (`setActiveProvider`) or an explicit accept
+   * (`acceptActiveProviderMarkers`) reconciles the snapshot and clears it.
+   */
+  markerDrift: IActiveProviderMarkerDriftApi | null;
+}
+
+/**
+ * Provider-marker drift descriptor carried by `IActiveProviderApi`. All
+ * three fields are marker-id lists; `added` is the one the drift notice
+ * renders (the markers that newly appeared on disk).
+ */
+export interface IActiveProviderMarkerDriftApi {
+  added: readonly string[];
+  removed: readonly string[];
+  detected: readonly string[];
 }
 
 /**

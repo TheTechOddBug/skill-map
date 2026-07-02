@@ -22,16 +22,17 @@ import { ProviderRegistryService, type IProviderUi } from '../services/provider-
 import { SKILL_MAP_MODE } from '../services/data-source/runtime-mode';
 import { DemoBanner } from './components/demo-banner/demo-banner';
 import { TutorialReminderBanner } from './components/tutorial-reminder-banner/tutorial-reminder-banner';
+import { ProviderMarkerDriftBanner } from './components/provider-marker-drift-banner/provider-marker-drift-banner';
 import { OversizedBanner } from './components/oversized-banner/oversized-banner';
 import { SkippedFilesBanner } from './components/skipped-files-banner/skipped-files-banner';
 import { ConnectionBanner } from './components/connection-banner/connection-banner';
-import { SettingsModal } from './components/settings-modal/settings-modal';
+import { SettingsModal, type TSettingsSection } from './components/settings-modal/settings-modal';
 /* DEBUG-SLOTS: remove with debug-slots.css. */
 import { ViewContributionsHost } from './components/view-contributions-host/view-contributions-host';
 
 @Component({
   selector: 'sm-root',
-  imports: [RouterOutlet, ButtonModule, InputTextModule, TooltipModule, FormsModule, NgOptimizedImage, DemoBanner, TutorialReminderBanner, OversizedBanner, SkippedFilesBanner, ConnectionBanner, SettingsModal, /* DEBUG-SLOTS */ ViewContributionsHost],
+  imports: [RouterOutlet, ButtonModule, InputTextModule, TooltipModule, FormsModule, NgOptimizedImage, DemoBanner, TutorialReminderBanner, ProviderMarkerDriftBanner, OversizedBanner, SkippedFilesBanner, ConnectionBanner, SettingsModal, /* DEBUG-SLOTS */ ViewContributionsHost],
   templateUrl: './app.html',
   styleUrl: './app.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -64,19 +65,43 @@ export class App {
    */
   protected readonly settingsOpen = signal(false);
 
+  /**
+   * Section the Settings modal lands on when it next opens. `null` keeps
+   * the modal's own default; the drift banner sets it to `project` so
+   * "Switch lens" deep-links to the active-lens dropdown. Reset on close
+   * so a plain gear-click opens on the default section again.
+   */
+  protected readonly settingsInitialSection = signal<TSettingsSection | null>(null);
+
   protected openSettings(): void {
     this.settingsOpen.set(true);
     this.usageTracker.trackFeature('settings');
   }
 
   /**
+   * "Switch lens" from the provider-marker drift banner: open Settings on
+   * the Project section, where the existing active-lens dropdown lives.
+   * Reuses the same lens-switch flow (the dropdown), no lens logic here.
+   * On Settings close, `onSettingsVisibleChange` re-probes the active
+   * provider, so a switch clears the drift notice automatically.
+   */
+  protected onSwitchLens(): void {
+    this.settingsInitialSection.set('project');
+    this.openSettings();
+  }
+
+  /**
    * Settings modal visibility handler. On close, re-probe the active
-   * provider lens so the topbar chip reflects a lens switch made in
-   * the Project section without needing a full page reload.
+   * provider lens so the topbar chip (and the provider-marker drift
+   * notice) reflect a lens switch made in the Project section without
+   * needing a full page reload, and reset the deep-link section.
    */
   protected onSettingsVisibleChange(open: boolean): void {
     this.settingsOpen.set(open);
-    if (!open) void this.projectInfo.reloadActiveProvider();
+    if (!open) {
+      this.settingsInitialSection.set(null);
+      void this.projectInfo.reloadActiveProvider();
+    }
   }
 
   /**

@@ -24,16 +24,15 @@
  * `process.env` / `process.cwd()` (kernel-boundary lint rule applies
  * to `core/**`).
  *
- * `~/...` expansion: `scan.referencePaths` / `scan.extraFolders`
- * entries written by the user with a leading `~/` are resolved
- * against the operator's home directory via a direct
- * `os.homedir()` read. This is an EXPLICIT, user-authored read
- * (the value lands in `project-local` config; the user wrote `~/`
- * deliberately) and is therefore consistent with
+ * `~/...` expansion: `scan.referencePaths` entries written by the
+ * user with a leading `~/` are resolved against the operator's home
+ * directory via a direct `os.homedir()` read. This is an EXPLICIT,
+ * user-authored read (the value lands in `project-local` config; the
+ * user wrote `~/` deliberately) and is therefore consistent with
  * `spec/cli-contract.md` §Scope is always project-local, which
  * forbids IMPLICIT `$HOME` reads (auto-walking `~/.skill-map/...`,
  * picking up global state without the operator naming it). The
- * spec's `scan.extraFolders` text mandates that `~/...` entries
+ * spec's `scan.referencePaths` text mandates that `~/...` entries
  * resolve against the user home; this expander honours that.
  */
 
@@ -67,10 +66,10 @@ export interface IReferencePathsWalkResult {
 }
 
 /**
- * Resolve a `scan.referencePaths` / `scan.extraFolders` entry against
- * the project's runtime context. `~` expands to the operator's home
- * (explicit user-authored read, see module header); relative paths
- * resolve against `cwd`; absolute paths pass through.
+ * Resolve a `scan.referencePaths` entry against the project's runtime
+ * context. `~` expands to the operator's home (explicit user-authored
+ * read, see module header); relative paths resolve against `cwd`;
+ * absolute paths pass through.
  */
 export function resolveScanPath(raw: string, cwd: string): string {
   if (raw.startsWith('~/')) return resolve(join(osHomedir(), raw.slice(2)));

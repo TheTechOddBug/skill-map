@@ -125,6 +125,16 @@ export interface IServerOptions {
    * server session.
    */
   maxNodes?: number | undefined;
+
+  /**
+   * Per-invocation override of `scan.watch.backend`, the primary watcher
+   * backend. Mirror of the `--watch-backend <chokidar|parcel>` flag on
+   * `sm serve` (and the bare `sm` invocation, see `cli/entry.ts`). When
+   * set, every watcher session the server runs uses this backend instead
+   * of the persisted `scan.watch.backend`. `undefined` falls back to
+   * config.
+   */
+  watchBackend?: 'chokidar' | 'parcel' | undefined;
 }
 
 export interface IServerOptionsInput {
@@ -141,6 +151,7 @@ export interface IServerOptionsInput {
   watcherDebounceMs?: number | undefined;
   maxScan?: number | undefined;
   maxNodes?: number | undefined;
+  watchBackend?: 'chokidar' | 'parcel' | undefined;
 }
 
 export type TServerOptionsErrorCode =
@@ -152,6 +163,7 @@ export type TServerOptionsErrorCode =
   | 'watcher-debounce-invalid'
   | 'max-scan-invalid'
   | 'max-nodes-invalid'
+  | 'watch-backend-invalid'
   | 'no-ui-conflicts-ui-dist';
 
 export interface IServerOptionsError {
@@ -200,6 +212,9 @@ export function validateServerOptions(input: IServerOptionsInput): TServerOption
   const maxNodesError = validateMaxNodes(input.maxNodes);
   if (maxNodesError !== null) return { ok: false, error: maxNodesError };
 
+  const watchBackendError = validateWatchBackend(input.watchBackend);
+  if (watchBackendError !== null) return { ok: false, error: watchBackendError };
+
   const noUiError = validateNoUi(filled.noUi, filled.uiDist);
   if (noUiError !== null) return { ok: false, error: noUiError };
 
@@ -223,6 +238,9 @@ export function validateServerOptions(input: IServerOptionsInput): TServerOption
   }
   if (input.maxNodes !== undefined) {
     options.maxNodes = input.maxNodes;
+  }
+  if (input.watchBackend !== undefined) {
+    options.watchBackend = input.watchBackend;
   }
   return { ok: true, options };
 }
@@ -355,6 +373,18 @@ function validateMaxNodes(value: number | undefined): IServerOptionsError | null
     return {
       code: 'max-nodes-invalid',
       message: `--max-nodes must be an integer >= 1 (got ${value})`,
+      value: String(value),
+    };
+  }
+  return null;
+}
+
+function validateWatchBackend(value: string | undefined): IServerOptionsError | null {
+  if (value === undefined) return null;
+  if (value !== 'chokidar' && value !== 'parcel') {
+    return {
+      code: 'watch-backend-invalid',
+      message: `--watch-backend must be "chokidar" or "parcel" (got ${value})`,
       value: String(value),
     };
   }

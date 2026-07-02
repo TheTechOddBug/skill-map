@@ -17,7 +17,7 @@ import { describe, it } from 'node:test';
 import { Builtins, Cli } from 'clipanion';
 import type { BaseContext } from 'clipanion';
 
-import { WatchCommand } from '../watch.js';
+import { WatchCommand, parseWatchBackend } from '../watch.js';
 import { ExitCode } from '../../util/exit-codes.js';
 
 interface ICapture {
@@ -99,5 +99,41 @@ describe('sm watch, --max-nodes validation', () => {
       /sm watch: --max-nodes must be an integer >= 1 \(got nope\)/,
       cap.stderr(),
     );
+  });
+});
+
+describe('sm watch, --watch-backend validation', () => {
+  it('rejects --watch-backend nope with exit 2 and a clear hint', async () => {
+    const cap = captureContext();
+    const cli = buildCli();
+    const exit = await cli.run(['watch', '--watch-backend', 'nope'], cap.context);
+    assert.equal(exit, ExitCode.Error);
+    assert.match(
+      cap.stderr(),
+      /sm watch: --watch-backend must be "chokidar" or "parcel" \(got nope\)/,
+      cap.stderr(),
+    );
+    assert.match(cap.stderr(), /Pass one of: chokidar, parcel/, cap.stderr());
+  });
+});
+
+describe('parseWatchBackend', () => {
+  it('returns the backend id for a valid value and writes nothing', () => {
+    const cap = captureContext();
+    assert.equal(parseWatchBackend('chokidar', cap.context.stderr, false), 'chokidar');
+    assert.equal(parseWatchBackend('parcel', cap.context.stderr, false), 'parcel');
+    assert.equal(cap.stderr(), '');
+  });
+
+  it('returns undefined when the flag is absent', () => {
+    const cap = captureContext();
+    assert.equal(parseWatchBackend(undefined, cap.context.stderr, false), undefined);
+    assert.equal(cap.stderr(), '');
+  });
+
+  it('returns null and prints a rejection for an invalid value', () => {
+    const cap = captureContext();
+    assert.equal(parseWatchBackend('nope', cap.context.stderr, false), null);
+    assert.match(cap.stderr(), /--watch-backend must be "chokidar" or "parcel"/, cap.stderr());
   });
 });

@@ -43,10 +43,13 @@ CLI flag wins over env var. Env var wins over config file.
 Every `sm` verb operates on the **project scope** (`<cwd>/.skill-map/`).
 There is no opt-in global scope, no `-g/--global` flag, no
 `SKILL_MAP_SCOPE` env var. Skill-map MUST NOT read anything from
-`$HOME` by default. The only way to extend the scan beyond the project
-root is the `scan.extraFolders` setting (see §Scan), in
-`<cwd>/.skill-map/settings.local.json`, written under an explicit
-privacy gate (`sm config set --yes` or the Settings UI confirm dialog).
+`$HOME` by default, and never adds an out-of-project directory on its
+own initiative. The scan reaches outside the project root only through
+two explicit, user-driven mechanisms (see §Scan): a positional root
+argument to `sm scan [roots...]`, or a symbolic link inside the scanned
+tree, which the walker follows to its target even when that target lies
+outside the project (cycle detection prevents a link loop from hanging
+the walk).
 Plugins load from `<cwd>/.skill-map/plugins/` by default; an arbitrary
 external location MAY be loaded via the `--plugin-dir <path>` escape
 hatch on the `sm plugins …` verb family, user-explicit per invocation.
@@ -123,7 +126,9 @@ CLI surfaces:
 - **Manual override**: `sm config set activeProvider <id>` switches the lens, drops the `scan_*` zone atomically (see [`db-schema.md`](./db-schema.md#zones)), and triggers an immediate rescan under the new lens. `state_*` and `config_*` zones survive.
 - **No per-scan flag**: there is no `sm scan --provider=<id>` flag. The lens is a project-level decision; the drop+rescan cost makes per-invocation switching the wrong default UX.
 
-**UI lens-selection surface.** `GET /api/active-provider` returns `{ activeProvider, detected, source, selectable }`. `selectable` is the set of registered **lens** Provider ids (gated Providers, `gatedByActiveLens: true`) enabled right now, resolved against the live per-extension enabled resolver (`config_plugins` layered over `settings.json#/plugins`, same as `GET /api/plugins`), the subset of `providerRegistry` eligible to become the lens. The non-gated `core/markdown` base is never in `selectable` (it is the substrate, not a lens). A disabled lens Provider is dropped from `selectable` but stays in `providerRegistry` (the static boot catalog keeps it so already-scanned nodes still render their chip / icon). Each `providerRegistry` entry carries an `isLens` flag projected from `gatedByActiveLens`; the SPA's active-lens dropdown lists only the `isLens` Providers and renders those absent from `selectable` disabled (greyed, not selectable), so the markdown base never appears in the dropdown and a disabled lens can never be picked. `PATCH /api/active-provider` rejects an `activeProvider` that is not a selectable lens. This mirrors the scan-time contract that a lens pointing at a disabled Provider runs none of its extractors (the runtime soft-warns on that drift); the dropdown closes the loop by refusing to create the drift.
+**UI lens-selection surface.** `GET /api/active-provider` returns `{ activeProvider, detected, source, selectable, markerDrift }`. `selectable` is the set of registered **lens** Provider ids (gated Providers, `gatedByActiveLens: true`) enabled right now, resolved against the live per-extension enabled resolver (`config_plugins` layered over `settings.json#/plugins`, same as `GET /api/plugins`), the subset of `providerRegistry` eligible to become the lens. The non-gated `core/markdown` base is never in `selectable` (it is the substrate, not a lens). A disabled lens Provider is dropped from `selectable` but stays in `providerRegistry` (the static boot catalog keeps it so already-scanned nodes still render their chip / icon). Each `providerRegistry` entry carries an `isLens` flag projected from `gatedByActiveLens`; the SPA's active-lens dropdown lists only the `isLens` Providers and renders those absent from `selectable` disabled (greyed, not selectable), so the markdown base never appears in the dropdown and a disabled lens can never be picked. `PATCH /api/active-provider` rejects an `activeProvider` that is not a selectable lens. This mirrors the scan-time contract that a lens pointing at a disabled Provider runs none of its extractors (the runtime soft-warns on that drift); the dropdown closes the loop by refusing to create the drift.
+
+**Provider-marker drift.** `GET /api/active-provider` additionally returns `markerDrift: { added, removed, detected } | null`, non-null when the filesystem-detected marker set differs from the persisted `activeProviderMarkers` snapshot (a Provider directory appeared or vanished since the lens was chosen), applying the same ships-disabled exclusion as the scan-time check. The SPA renders it as a dismissable notice ("new provider markers detected: `<added>`") offering to switch lens (the existing `PATCH /api/active-provider`) or dismiss. **Dismiss** issues `POST /api/active-provider/accept-markers`, which reconciles the snapshot (writes `activeProviderMarkers` = the detected set) so the drift clears in both the SPA and the CLI, and returns the refreshed envelope (`markerDrift: null`); a later, different marker change drifts again. Unlike the CLI, the server does NOT log the scan-time drift warning: `sm serve` and `POST /api/scan` suppress it (the SPA notice is the operator surface), while `sm scan` / `sm watch` on the CLI keep emitting the one-per-scan `⚠` warn.
 
 ---
 
@@ -299,9 +304,9 @@ Keys are dot-paths (`jobs.minimumTtlSeconds`, `scan.tokenize`). Unknown keys →
 
 #### Privacy-sensitive config
 
-Keys whose value expands the project's surface, either disk access OUTSIDE the project root (today: `scan.extraFolders`, `scan.referencePaths`) or the local code-execution surface (`pluginTrust.projectEnabled`, which locally trusts every plugin the project enables), are gated behind `--yes` so the user never expands the surface by accident. The analyzer:
+Keys whose value expands the project's surface, either disk access OUTSIDE the project root (today: `scan.referencePaths`) or the local code-execution surface (`pluginTrust.projectEnabled`, which locally trusts every plugin the project enables), are gated behind `--yes` so the user never expands the surface by accident. The analyzer:
 
-- `sm config set <privacy-key> <value>` (without `--yes`), when the new value would expand the surface (adding `extraFolders` / `referencePaths` paths resolving outside the project root, or setting `pluginTrust.projectEnabled` to `true`), exits with code `2` and prints the affected detail to stderr (the exposed paths, or the list of currently-untrusted plugins it would trust), suggesting `--yes` to confirm.
+- `sm config set <privacy-key> <value>` (without `--yes`), when the new value would expand the surface (adding `referencePaths` paths resolving outside the project root, or setting `pluginTrust.projectEnabled` to `true`), exits with code `2` and prints the affected detail to stderr (the exposed paths, or the list of currently-untrusted plugins it would trust), suggesting `--yes` to confirm.
 - `sm config set <privacy-key> <value> --yes`, proceeds and prints the same list as a confirmation receipt.
 - Writes that NARROW the surface (removing paths) do not require `--yes`.
 
@@ -309,7 +314,7 @@ The Settings UI's Project section enforces the same analyzer via a confirm dialo
 
 #### Project-local-only config
 
-The three privacy-sensitive keys above PLUS `allowEditSmFiles` and `pluginTrust.projectEnabled` are members of `PROJECT_LOCAL_ONLY_KEYS` (see [`architecture.md` §Config layering · Per-key locality](./architecture.md#per-key-locality)). The values are per-user-per-project and MUST NOT travel via the committed repo:
+The privacy-sensitive keys above PLUS `allowEditSmFiles` are members of `PROJECT_LOCAL_ONLY_KEYS` (see [`architecture.md` §Config layering · Per-key locality](./architecture.md#per-key-locality)). The values are per-user-per-project and MUST NOT travel via the committed repo:
 
 - `sm config set` writes them to `<cwd>/.skill-map/settings.local.json` (gitignored).
 - The loader strips them (with a warning) when found in the committed `project` layer (`settings.json`). An older install that wrote one to `settings.json` keeps validating against the schema, but the value is ignored at read time and `sm config show --source` surfaces the warning.
@@ -333,12 +338,14 @@ The three privacy-sensitive keys above PLUS `allowEditSmFiles` and `pluginTrust.
 
 **Effective roots** (one-shot `sm scan`):
 
-- `sm scan [roots...]`: positional roots, when given, ARE the effective roots (verbatim). When omitted: `[cwd]` plus the appended set below.
-- `scan.extraFolders[]` (project-local config) is appended verbatim (entries starting with `~` resolve against the user home; relative entries against the project root). This is the ONLY way to extend the scan beyond the project: no implicit `$HOME` walk, no opt-in global scope, and Providers cannot opt their own directory in. See §Scope is always project-local at the top of this file.
+- `sm scan [roots...]`: positional roots, when given, ARE the effective roots (verbatim); a positional root MAY point outside the project. When omitted: `[cwd]`.
+- A symbolic link encountered inside the scanned tree is followed to its target, even when the target resolves outside the project root; cycle detection prevents a link loop from hanging the walk. A positional root and a symlink are the only ways the scan reaches outside the project: no implicit `$HOME` walk, no opt-in global scope, and Providers cannot opt their own directory in. See §Scope is always project-local at the top of this file.
 
 **Reference paths** (`scan.referencePaths[]`): walked in parallel by the scan to collect existing absolute paths into a side set. These files are NOT parsed or indexed as nodes; the kernel passes the set to analyzers via `IAnalyzerContext.referenceablePaths` so `core/reference-broken` can resolve a link against the filesystem when the in-graph lookup misses.
 
 The watcher subscribes to the same roots `sm scan` walks and respects `.gitignore`, `.skillmapignore`, and `config.ignore` exactly as the one-shot scan does (ignore precedence: bundled defaults → `.gitignore` → `config.ignore` → `.skillmapignore`; later layers may `!`-re-include a path an earlier layer excluded). The live watcher holds OS watches only on the file types a scan opens (the registered providers' `read.extensions`, e.g. `.md` and `.toml`, plus `.sm` sidecars; a provider that ships a custom walker disables the gate, since its file set is not statically known); edits to the config files themselves (`.skillmapignore`, `.gitignore`, `.skill-map/settings.json`) are observed by a dedicated meta-watcher that rebuilds the ignore filter. Filesystem events are grouped using `scan.watch.debounceMs` (default 300ms) before the watcher re-runs the incremental scan and persists. `SIGINT` / `SIGTERM` close the watcher cleanly. Exit code on clean shutdown is 0.
+
+**Watcher backend** (`--watch-backend <chokidar|parcel>`): on `sm serve`, `sm watch`, and `sm scan --watch`, selects the primary watcher backend for that invocation, overriding `scan.watch.backend` (default `chokidar`). `chokidar` watches one directory at a time and observes changes behind followed symlinks, so a live edit inside a symlinked directory refreshes the map; `parcel` uses a single native `@parcel/watcher` inotify instance that scales to very large trees without the `EMFILE: too many open files` failure, at the cost of not live-watching behind a symlinked directory (the initial walk still follows the link, but later edits under it do not fire an incremental scan). The meta-watcher that tracks the config files is always chokidar. Validation: the value must be `chokidar` or `parcel`, else exits `2` operational; ignored on a non-watching `sm scan` (no live watcher runs).
 
 **Scan ceiling** (`--max-scan <N>`): on `sm scan`, `sm watch` (alias `sm scan --watch`), and `sm serve`, a hard ceiling on the number of files the walker accepts after `.skillmapignore` filtering, before extractors run. Default from `scan.maxScan` (default 50000). The scan walks, parses, analyzes, and reference-validates every file up to this ceiling, so link resolution sees the whole corpus (a large monorepo) and references resolve across it regardless of how many nodes the map renders. The flag fully overrides the setting and is **bidirectional** (raise or lower). At the ceiling, additional files are dropped in stable provider-walker order and `scan_meta.scan_truncated` is set; the `ScanResult` envelope carries `scanCeiling` and `scanTruncated` so the UI raises a persistent banner pointing at the `.skillmapignore` editor in Settings → Project. The CLI prints a human-mode notice naming both escapes: edit `.skillmapignore` (preferred, trims permanently) or re-run with `--max-scan <N>` (force). `sm refresh` operates on a single already-classified node, so the ceiling does not apply there. Validation: integer ≥ 1, else exits `2` operational.
 

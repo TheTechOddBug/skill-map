@@ -340,8 +340,9 @@ export function createChokidarWatcher(opts: ICreateFsWatcherOptions): IFsWatcher
  *     meta-watcher uses `depth: 0`, and that stays on chokidar).
  *
  * NOTE: parcel's symlink support is weak/undocumented, so live updates
- * behind a symlinked directory (with `scan.followSymlinks` on) may not
- * fire on this backend; a full scan still indexes them.
+ * behind a symlinked directory may not fire on this backend; a full scan
+ * still indexes them (the walker always follows symlinks). Selecting
+ * chokidar via `--watch-backend chokidar` restores live symlink watching.
  */
 export function createParcelWatcher(opts: ICreateFsWatcherOptions): IFsWatcher {
   const absRoots = opts.roots.map((r) => resolve(opts.cwd, r));

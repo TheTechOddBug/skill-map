@@ -1,15 +1,17 @@
 /**
- * End-to-end: `scan.followSymlinks` routes the primary watcher to chokidar
- * and live edits behind a symlinked directory are picked up.
+ * End-to-end: symlinks are ALWAYS followed and the DEFAULT watcher backend
+ * (chokidar) picks up live edits behind a symlinked directory with no
+ * special config.
  *
- * The chain under test: settings `scan.followSymlinks: true` →
- * `resolveWatcherBackend` returns `chokidar` (parcel would not observe a
- * symlinked dir) → the runtime boots chokidar → a file CREATED behind the
- * in-root symlink `.claude/skills -> ../a/skills` surfaces live as a node
- * UNDER THE LINK PATH (`.claude/skills/...`). That link-path node is the
- * isolation: parcel would only ever surface the real `a/skills/...` path,
- * never the link path, so seeing `.claude/skills/new.md` appear after a
- * live create proves chokidar was selected and followed the link.
+ * The chain under test: there is no symlink toggle anymore, the walker
+ * always dereferences an in-root symlink; the default
+ * `scan.watch.backend` is chokidar, which observes changes behind the
+ * symlinked dir → a file CREATED behind the in-root symlink
+ * `.claude/skills -> ../a/skills` surfaces live as a node UNDER THE LINK
+ * PATH (`.claude/skills/...`). That link-path node is the isolation: parcel
+ * would only ever surface the real `a/skills/...` path, never the link path,
+ * so seeing `.claude/skills/new.md` appear after a live create proves the
+ * default chokidar backend followed the link.
  *
  * Real temp-dir cwd + file-based SQLite (not `:memory:`, per
  * `feedback_sqlite_in_memory_workaround.md`). `subscribeBeforeInitial: true`
@@ -47,7 +49,7 @@ after(() => {
   rmSync(tmpRoot, { recursive: true, force: true });
 });
 
-describe('createWatcherRuntime, followSymlinks live updates', () => {
+describe('createWatcherRuntime, symlink live updates (default backend)', () => {
   it('indexes content behind an in-root symlinked dir and picks up live creates', async () => {
     const cwd = freshCwd('sym-live');
     // Real skills target inside the root, exposed via an in-root symlink.
@@ -62,11 +64,12 @@ describe('createWatcherRuntime, followSymlinks live updates', () => {
     }
     if (!linked) return; // sandbox without symlink support
 
-    // Opt into following symlinks; backend stays `auto` (→ chokidar here).
+    // No special config: symlinks are always followed and the default
+    // backend (chokidar) observes the symlinked subtree.
     mkdirSync(join(cwd, '.skill-map'), { recursive: true });
     writeFileSync(
       join(cwd, '.skill-map', 'settings.json'),
-      JSON.stringify({ schemaVersion: 1, scan: { followSymlinks: true } }),
+      JSON.stringify({ schemaVersion: 1 }),
     );
     const dbPath = join(cwd, '.skill-map', 'graph.db');
 
@@ -127,8 +130,8 @@ describe('createWatcherRuntime, followSymlinks live updates', () => {
       );
 
       // Live create behind the symlink → surfaces under the link path,
-      // which only happens if chokidar (selected by followSymlinks) is
-      // observing the symlinked subtree.
+      // which only happens if chokidar (the default backend) is observing
+      // the symlinked subtree.
       writeFileSync(join(cwd, 'a', 'skills', 'new.md'), '---\nname: new\n---\nfresh\n');
       const after = await waitForNode('.claude/skills/new.md');
       assert.ok(

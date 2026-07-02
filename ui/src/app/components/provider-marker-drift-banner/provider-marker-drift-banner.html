@@ -1,0 +1,30 @@
+@if (visible()) {
+  <div class="marker-drift" role="status" data-testid="provider-marker-drift-banner">
+    <span class="marker-drift__icon fa-solid fa-triangle-exclamation" aria-hidden="true"></span>
+    <span class="marker-drift__body">{{ texts.bodyPrefix }}</span>
+    <code
+      class="marker-drift__markers"
+      data-testid="provider-marker-drift-banner-markers"
+    >{{ addedLabel() }}</code>
+    <span class="marker-drift__body">{{ texts.bodySuffix }}</span>
+    <p-button
+      [label]="texts.switchLens"
+      [ariaLabel]="texts.switchLensAria"
+      severity="secondary"
+      [text]="true"
+      size="small"
+      (onClick)="onSwitchLens()"
+      data-testid="provider-marker-drift-banner-switch"
+    />
+    <p-button
+      icon="fa-solid fa-xmark"
+      [ariaLabel]="texts.dismissAria"
+      severity="secondary"
+      [text]="true"
+      [rounded]="true"
+      size="small"
+      (onClick)="onDismiss()"
+      data-testid="provider-marker-drift-banner-dismiss"
+    />
+  </div>
+}

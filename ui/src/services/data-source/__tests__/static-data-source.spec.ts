@@ -180,6 +180,7 @@ describe('StaticDataSource', () => {
       detected: ['claude'],
       source: 'autodetect' as const,
       selectable: ['claude', 'markdown'],
+      markerDrift: null,
     };
     const dsWithLens = new StaticDataSource(
       makeFetch({ 'data.meta.json': { ...META_FIXTURE, activeProvider: lens }, 'data.json': SCAN_FIXTURE }),
@@ -197,6 +198,7 @@ describe('StaticDataSource', () => {
       detected: [],
       source: 'default',
       selectable: [],
+      markerDrift: null,
     });
   });
 

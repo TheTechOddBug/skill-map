@@ -140,8 +140,8 @@ export function writeFileAtomicExclusive(
  * opened with `O_EXCL | O_NOFOLLOW` (audit M1) so a pre-planted
  * symlink at the predicted temp path cannot redirect the write.
  * Settings files (`settings.json`, `settings.local.json`) carry
- * privacy-sensitive paths from `scan.extraFolders` / `referencePaths`
- * and the per-plugin config; on multi-user hosts the default umask
+ * privacy-sensitive paths from `scan.referencePaths` and the
+ * per-plugin config; on multi-user hosts the default umask
  * would leave them world-readable. `db restore` already uses 0o600
  * for the same reason. The mode is set on the temp file and survives
  * the rename (POSIX rename preserves the inode + its mode).

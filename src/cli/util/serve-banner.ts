@@ -93,6 +93,12 @@ export interface IBannerInput {
    * when empty.
    */
   referencePaths?: readonly string[];
+  /**
+   * Resolved primary watcher backend (`scan.watch.backend` after any
+   * `--watch-backend` override). Shown so the operator sees which
+   * file-watch engine is live. Defaults to `chokidar` when omitted.
+   */
+  backend?: 'chokidar' | 'parcel';
 }
 
 /**
@@ -107,6 +113,7 @@ export function renderBanner(input: IBannerInput): string {
   const browserLine = input.openBrowser
     ? 'Opening browser…  Press Ctrl+C to stop.'
     : `Visit ${url}/ in your browser.  Press Ctrl+C to stop.`;
+  const backend = input.backend ?? 'chokidar';
 
   if (!input.isTTY) {
     return renderFlat({
@@ -115,6 +122,7 @@ export function renderBanner(input: IBannerInput): string {
       dbPath: input.dbPath,
       openBrowser: input.openBrowser,
       dev: input.dev === true,
+      backend,
     });
   }
 
@@ -127,6 +135,7 @@ export function renderBanner(input: IBannerInput): string {
     colorEnabled: input.colorEnabled,
     referencePaths: input.referencePaths ?? [],
     dev: input.dev === true,
+    backend,
   });
 }
 
@@ -158,6 +167,7 @@ interface IFlatInput {
   dbPath: string;
   openBrowser: boolean;
   dev: boolean;
+  backend: 'chokidar' | 'parcel';
 }
 
 /**
@@ -170,7 +180,9 @@ function renderFlat(input: IFlatInput): string {
   const url = `http://${safeHost}:${input.port}`;
   const devSuffix = input.dev ? ' [dev]' : '';
   const linesOut: string[] = [];
-  linesOut.push(`sm serve${devSuffix}: listening on ${url} (db=${safeDb})`);
+  // Only annotate the watcher when it deviates from the `chokidar` default.
+  const watcherSuffix = input.backend === 'chokidar' ? '' : `, watcher=${input.backend}`;
+  linesOut.push(`sm serve${devSuffix}: listening on ${url} (db=${safeDb}${watcherSuffix})`);
   if (input.openBrowser) {
     linesOut.push(`sm serve: opening ${url}/ in your browser. Press Ctrl+C to stop.`);
   } else {
@@ -188,6 +200,7 @@ interface IFigletInput {
   colorEnabled: boolean;
   referencePaths: readonly string[];
   dev: boolean;
+  backend: 'chokidar' | 'parcel';
 }
 
 /**
@@ -263,6 +276,11 @@ function renderFiglet(input: IFigletInput): string {
   lines.push(`  ${dimOpen}Server${dimClose}   ${greenUnderline}${input.url}${greenUnderlineClose}`);
   lines.push(`  ${dimOpen}Path${dimClose}     ${input.pathDisplay}`);
   lines.push(`  ${dimOpen}DB${dimClose}       ${input.dbDisplay}`);
+  // Only surface the watcher when it deviates from the `chokidar` default,
+  // so the common case keeps the banner tight (same policy as empty Refs).
+  if (input.backend !== 'chokidar') {
+    lines.push(`  ${dimOpen}Watcher${dimClose}  ${input.backend}`);
+  }
   lines.push(...renderListRows('Refs', input.referencePaths, dimOpen, dimClose));
   lines.push('');
   lines.push(`  ${dimOpen}${input.browserLine}${dimClose}`);

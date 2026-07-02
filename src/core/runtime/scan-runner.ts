@@ -62,10 +62,11 @@ import { defaultRuntimeContext, type IRuntimeContext } from './runtime-context.j
 export interface IScanRunOpts {
   /**
    * Positional roots from `sm scan [roots...]`. When non-empty, used
-   * verbatim (resolved against `cwd`). When empty, the runner derives
-   * the effective roots from the loaded config per
-   * `spec/cli-contract.md` § Scan / Effective roots:
-   *   - cwd + scan.extraFolders (the only way to extend beyond cwd).
+   * verbatim (resolved against `cwd`). When empty, the runner defaults
+   * to `['.']` (the project cwd) per `spec/cli-contract.md` § Scan /
+   * Effective roots. Extending the indexed scan beyond cwd is by passing
+   * extra roots positionally (or via in-tree symlinks, which the walker
+   * always follows).
    */
   roots: string[];
   noBuiltIns: boolean;
@@ -153,6 +154,17 @@ export interface IScanRunOpts {
    * pick the active lens. BFF callers (no TTY) MUST pass `true`.
    */
   yes?: boolean;
+  /**
+   * Whether the active-provider drift check emits the one-per-scan `⚠`
+   * warn (config lens vs on-disk markers). Defaults to `true` (CLI `sm
+   * scan` / `sm watch`). The BFF passes `false` so `POST /api/scan` and
+   * `GET /api/scan?fresh=1` do not log the repetitive drift noise a
+   * browser user never reads; the SPA surfaces the drift via
+   * `GET /api/active-provider`'s `markerDrift` field instead. Forwarded
+   * verbatim to `bootstrapActiveProvider`; the missing-snapshot backfill
+   * is unaffected.
+   */
+  warnOnDrift?: boolean;
   /**
    * Stdin for the interactive lens picker. Defaults to `process.stdin`
    * when omitted; tests override to drive scripted input. Ignored when
@@ -299,7 +311,6 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<TScanRunRes
     cfg.scan.maxScan,
     cfg.scan.maxNodes,
     cfg.scan.maxFileSizeBytes,
-    cfg.scan.followSymlinks,
     cfg.tokenizer,
   );
 
@@ -364,6 +375,7 @@ async function resolveActiveLens(
     effectiveRoots,
     providers,
     yes: opts.yes ?? false,
+    warnOnDrift: opts.warnOnDrift ?? true,
     stdin: opts.stdin ?? process.stdin,
     stderr: opts.stderr,
     printer: opts.printer,
@@ -556,7 +568,6 @@ function makeScanRunner(
   scanCeiling: number,
   maxRenderNodes: number,
   maxFileSizeBytes: number,
-  followSymlinks: boolean,
   tokenizer: string,
 ) {
   return async (
@@ -588,7 +599,6 @@ function makeScanRunner(
       scanCeiling,
       maxRenderNodes,
       maxFileSizeBytes,
-      followSymlinks,
       tokenizer,
       ...(priorExtractorRuns ? { priorExtractorRuns } : {}),
     });
@@ -609,7 +619,6 @@ interface IBuildRunScanOptionsArgs {
   scanCeiling: number;
   maxRenderNodes: number;
   maxFileSizeBytes: number;
-  followSymlinks: boolean;
   tokenizer: string;
   priorExtractorRuns?: Map<string, Map<string, IPriorExtractorRun>>;
 }
@@ -636,7 +645,6 @@ function buildRunScanOptions(args: IBuildRunScanOptionsArgs): Parameters<typeof 
     maxRenderNodes: args.maxRenderNodes,
     overrideMaxRenderNodes: opts.maxNodes ?? null,
     maxFileSizeBytes: args.maxFileSizeBytes,
-    followSymlinks: args.followSymlinks,
   };
   if (args.extensions) runOptions.extensions = args.extensions;
   if (prior) {

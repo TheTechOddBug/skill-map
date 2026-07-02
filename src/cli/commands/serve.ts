@@ -60,6 +60,7 @@ import { loadConfig } from '../../kernel/config/loader.js';
 import { tryParseNonNegativeInt, tryParsePositiveInt } from '../util/option-validators.js';
 import { defaultRuntimeContext, type IRuntimeContext } from '../util/runtime-context.js';
 import { renderBanner, resolveColorEnabled } from '../util/serve-banner.js';
+import { resolveWatcherBackend } from '../../core/watcher/runtime.js';
 import { SmCommand } from '../util/sm-command.js';
 import { VERSION } from '../version.js';
 
@@ -143,6 +144,10 @@ export class ServeCommand extends SmCommand {
   maxNodes = Option.String('--max-nodes', {
     required: false,
     description: 'Per-invocation override of scan.maxNodes (default 256), the MAP RENDER cap (pure metadata): it does NOT bound the scan, only how many nodes the graph view projects onto the canvas. Bidirectional: raises OR lowers the render cap. Same flag is honoured on the bare `sm` invocation, which routes to `sm serve`.',
+  });
+  watchBackend = Option.String('--watch-backend', {
+    required: false,
+    description: 'Per-invocation override of scan.watch.backend, the primary watcher backend. chokidar (the default) observes changes behind a symlinked directory live; parcel is a single native inotify instance that scales to huge trees without chokidar\'s EMFILE exhaustion. Accepted values: chokidar, parcel. Same flag is honoured on the bare `sm` invocation, which routes to `sm serve`.',
   });
 
   // Long-running daemon, `done in <…>` after a graceful shutdown is
@@ -276,6 +281,22 @@ export class ServeCommand extends SmCommand {
       return ExitCode.Error;
     }
 
+    // 3d. Parse --watch-backend (primary watcher backend). Omit →
+    //     undefined (the runtime falls back to scan.watch.backend);
+    //     'chokidar' / 'parcel' → honoured for every watcher session the
+    //     server runs. Any other value rejects with exit 2.
+    const watchBackendResult = parseWatchBackendFlag(this.watchBackend);
+    if (!watchBackendResult.ok) {
+      this.printer!.info(
+        tx(SERVE_TEXTS.watchBackendInvalid, {
+          glyph: errGlyph,
+          value: sanitizeForTerminal(watchBackendResult.value),
+          hint: stderrAnsi.dim(SERVE_TEXTS.watchBackendInvalidHint),
+        }),
+      );
+      return ExitCode.Error;
+    }
+
     // 4. Validate the assembled options bag (loopback + dev-cors check,
     //    port range check). Errors map to the right SERVE_TEXTS template.
     const input: IServerOptionsInput = {
@@ -293,6 +314,7 @@ export class ServeCommand extends SmCommand {
     if (debounceResult.value !== undefined) input.watcherDebounceMs = debounceResult.value;
     if (maxScanResult.value !== undefined) input.maxScan = maxScanResult.value;
     if (maxNodesResult.value !== undefined) input.maxNodes = maxNodesResult.value;
+    if (watchBackendResult.value !== undefined) input.watchBackend = watchBackendResult.value;
 
     const validation = validateServerOptions(input);
     if (!validation.ok) {
@@ -357,9 +379,11 @@ export class ServeCommand extends SmCommand {
     // the operator sees what got wired in at boot without opening
     // Settings.
     let referencePaths: readonly string[] = [];
+    let watcherBackend: 'chokidar' | 'parcel' = watchBackendResult.value ?? 'chokidar';
     try {
       const cfg = loadConfig({ cwd: runtimeCtx.cwd }).effective;
       referencePaths = cfg.scan.referencePaths;
+      watcherBackend = resolveWatcherBackend(cfg.scan.watch.backend, watchBackendResult.value);
     } catch {
       // Swallow: the banner is decoration, never block boot on it.
     }
@@ -376,6 +400,7 @@ export class ServeCommand extends SmCommand {
         colorEnabled,
         referencePaths,
         dev: isDevBuild(),
+        backend: watcherBackend,
       }),
     );
 
@@ -466,6 +491,20 @@ function parseMaxIntFlag(raw: string | undefined): IMaxIntOk | IMaxIntErr {
   return { ok: true, value: n };
 }
 
+interface IWatchBackendOk { ok: true; value: 'chokidar' | 'parcel' | undefined; }
+interface IWatchBackendErr { ok: false; value: string; }
+
+/**
+ * Parse a `--watch-backend` value (`chokidar` / `parcel`, or absent →
+ * `undefined`). Anything else rejects; the verb renders the §3.1b error
+ * block from the `{ ok: false }` branch.
+ */
+function parseWatchBackendFlag(raw: string | undefined): IWatchBackendOk | IWatchBackendErr {
+  if (raw === undefined) return { ok: true, value: undefined };
+  if (raw === 'chokidar' || raw === 'parcel') return { ok: true, value: raw };
+  return { ok: false, value: raw };
+}
+
 interface IUiDistOk { ok: true; uiDist: string | null; }
 interface IUiDistErr { ok: false; message: string; }
 
@@ -548,6 +587,12 @@ function formatValidationError(
         glyph: errGlyph,
         value: sanitizeForTerminal(err.value),
         hint: ansi.dim(SERVE_TEXTS.maxNodesInvalidHint),
+      });
+    case 'watch-backend-invalid':
+      return tx(SERVE_TEXTS.watchBackendInvalid, {
+        glyph: errGlyph,
+        value: sanitizeForTerminal(err.value),
+        hint: ansi.dim(SERVE_TEXTS.watchBackendInvalidHint),
       });
     case 'no-ui-conflicts-ui-dist':
       return tx(SERVE_TEXTS.noUiConflictsUiDist, {

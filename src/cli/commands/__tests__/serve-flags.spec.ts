@@ -25,6 +25,7 @@ import { Builtins, Cli } from 'clipanion';
 import type { BaseContext } from 'clipanion';
 
 import { ServeCommand } from '../serve.js';
+import { validateServerOptions } from '../../../server/options.js';
 import { ExitCode } from '../../util/exit-codes.js';
 
 interface ICapture {
@@ -299,6 +300,38 @@ describe('sm serve, flag validation', () => {
     assert.equal(exit, ExitCode.Error);
     assert.match(cap.stderr(), /cache rebuild declined/, cap.stderr());
     assert.ok(existsSync(dbPath), 'declining the rebuild never deletes the cache');
+  });
+
+  it('rejects --watch-backend nope with exit 2 and a clear hint', async () => {
+    const cap = captureContext();
+    const cli = buildCli();
+    const exit = await cli.run(['serve', '--watch-backend', 'nope'], cap.context);
+    assert.equal(exit, ExitCode.Error);
+    assert.match(
+      cap.stderr(),
+      /sm serve: --watch-backend must be "chokidar" or "parcel" \(got nope\)/,
+      cap.stderr(),
+    );
+    assert.match(cap.stderr(), /Pass one of: chokidar, parcel/, cap.stderr());
+  });
+
+  it('validateServerOptions passes a valid watchBackend through to the options bag', () => {
+    const okChokidar = validateServerOptions({ dbPath: '/tmp/x.db', watchBackend: 'chokidar' });
+    assert.ok(okChokidar.ok);
+    if (okChokidar.ok) assert.equal(okChokidar.options.watchBackend, 'chokidar');
+    const okParcel = validateServerOptions({ dbPath: '/tmp/x.db', watchBackend: 'parcel' });
+    assert.ok(okParcel.ok);
+    if (okParcel.ok) assert.equal(okParcel.options.watchBackend, 'parcel');
+  });
+
+  it('validateServerOptions rejects an invalid watchBackend value', () => {
+    const bad = validateServerOptions(
+      { dbPath: '/tmp/x.db', watchBackend: 'nope' } as unknown as Parameters<
+        typeof validateServerOptions
+      >[0],
+    );
+    assert.equal(bad.ok, false);
+    if (!bad.ok) assert.equal(bad.error.code, 'watch-backend-invalid');
   });
 
   it('accepts --ui-dist when the directory contains index.html', async () => {

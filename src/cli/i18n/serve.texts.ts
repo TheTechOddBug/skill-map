@@ -119,6 +119,15 @@ export const SERVE_TEXTS = {
     '   {{hint}}\n',
   maxNodesInvalidHint: 'Pass a positive integer, e.g. --max-nodes 256.',
 
+  /**
+   * §3.1b error block for an invalid `--watch-backend <chokidar|parcel>`.
+   * Same shape as the watcher-debounce template family.
+   */
+  watchBackendInvalid:
+    '{{glyph}}  sm serve: --watch-backend must be "chokidar" or "parcel" (got {{value}}).\n' +
+    '   {{hint}}\n',
+  watchBackendInvalidHint: 'Pass one of: chokidar, parcel.',
+
   // --- --no-ui flag-validation failures (ExitCode.Error) ------------------
 
   /**

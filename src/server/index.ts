@@ -185,15 +185,9 @@ export async function createServer(
   // continue work on the broken setup).
   let watcherService: IWatcherServiceHandle | null = null;
   if (!options.noWatcher) {
-    const debounce = options.watcherDebounceMs;
-    const svcOpts: Parameters<typeof createWatcherService>[0] = {
-      options,
-      runtimeContext,
-      broadcaster,
-    };
-    if (debounce !== undefined) svcOpts.debounceMsOverride = debounce;
-    if (extra.scanProgress) svcOpts.scanProgress = extra.scanProgress;
-    const candidate = createWatcherService(svcOpts);
+    const candidate = createWatcherService(
+      buildWatcherServiceOpts(options, runtimeContext, broadcaster, extra),
+    );
     try {
       await candidate.start();
       watcherService = candidate;
@@ -235,6 +229,34 @@ export async function createServer(
   };
 
   return { address, close, broadcaster };
+}
+
+/**
+ * Assemble the `createWatcherService` options bag from the resolved
+ * server options + boot context. Extracted from `createServer` so each
+ * optional override (`debounceMsOverride`, `watchBackendOverride`,
+ * `scanProgress`) stays a one-line thread without inflating the
+ * composition root's cyclomatic budget.
+ */
+function buildWatcherServiceOpts(
+  options: IServerOptions,
+  runtimeContext: IRuntimeContext,
+  broadcaster: WsBroadcaster,
+  extra: ICreateServerOpts,
+): Parameters<typeof createWatcherService>[0] {
+  const svcOpts: Parameters<typeof createWatcherService>[0] = {
+    options,
+    runtimeContext,
+    broadcaster,
+  };
+  if (options.watcherDebounceMs !== undefined) {
+    svcOpts.debounceMsOverride = options.watcherDebounceMs;
+  }
+  if (options.watchBackend !== undefined) {
+    svcOpts.watchBackendOverride = options.watchBackend;
+  }
+  if (extra.scanProgress) svcOpts.scanProgress = extra.scanProgress;
+  return svcOpts;
 }
 
 /**

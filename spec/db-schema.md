@@ -12,11 +12,11 @@ The spec assumes a relational, SQL-like store but is **engine-agnostic**. The re
 
 ## Scope and location
 
-One scope. Skill-map operates on the project scope only (`<cwd>/.skill-map/`). No global / user-level DB; the CLI never reads `$HOME` by default (see `cli-contract.md` §Scope is always project-local). To extend the scan beyond the current repository the user adds explicit paths via `scan.extraFolders` in the project-local config; the scan walks those against the same project DB.
+One scope. Skill-map operates on the project scope only (`<cwd>/.skill-map/`). No global / user-level DB; the CLI never reads `$HOME` by default (see `cli-contract.md` §Scope is always project-local). To reach content outside the current repository the user passes a positional root to `sm scan [roots...]`, or places a symbolic link inside the tree (the walker follows it to its target); either way the results land in the same project DB.
 
 | Scope | Default DB location | Scan roots |
 |---|---|---|
-| `project` | `<cwd>/.skill-map/skill-map.db` | The current repository, plus any paths the user added to `scan.extraFolders`. |
+| `project` | `<cwd>/.skill-map/skill-map.db` | The current repository, plus any positional roots or symlink targets the scan reached. |
 
 The project DB is gitignored by default (`sm init` adds the entry). Teams MAY share it by removing that `.gitignore` entry; the file is then committed and the execution log becomes a team artifact.
 

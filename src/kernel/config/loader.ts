@@ -108,14 +108,16 @@ export interface IPluginTrustConfig {
 export interface IScanWatchConfig {
   debounceMs: number;
   /**
-   * Primary watcher backend. `'auto'` (default) picks `@parcel/watcher`
-   * for scale, switching to `chokidar` when `scan.followSymlinks` is on
-   * (only chokidar live-watches behind a symlinked directory).
-   * `'parcel'` / `'chokidar'` force that backend regardless. The
-   * meta-watcher is always chokidar. See `core/watcher/runtime.ts`
-   * (`resolveWatcherBackend`).
+   * Primary watcher backend. `'chokidar'` (default) watches one
+   * directory at a time and observes changes behind followed symlinks,
+   * so a live edit inside a symlinked directory refreshes the map.
+   * `'parcel'` uses `@parcel/watcher` (a single native inotify instance)
+   * for scale on huge trees, but does NOT live-watch behind a symlinked
+   * directory (the initial walk still follows the link). Overridable per
+   * invocation via `--watch-backend` (see `core/watcher/runtime.ts`
+   * `resolveWatcherBackend`). The meta-watcher is always chokidar.
    */
-  backend: 'auto' | 'parcel' | 'chokidar';
+  backend: 'chokidar' | 'parcel';
 }
 
 export interface IScanConfig {
@@ -149,16 +151,6 @@ export interface IScanConfig {
    * the UI when the map renders.
    */
   maxNodes: number;
-  /**
-   * When `true`, the scan walker follows symlinks (directories and
-   * files) instead of skipping them. Default `false`. Opt-in and
-   * always gated by cycle detection + realpath containment (a link is
-   * followed only when its resolved target stays inside the configured
-   * scan roots). The incremental (watcher) re-scan applies the same
-   * policy as a full walk, so they agree on which links are indexed. See
-   * `kernel/scan/walk-content.ts`.
-   */
-  followSymlinks: boolean;
   watch: IScanWatchConfig;
   /**
    * **Privacy-sensitive when entries point outside the project**

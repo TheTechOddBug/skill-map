@@ -402,6 +402,18 @@ export interface IDataSourcePort {
   setActiveProvider(activeProvider: string): Promise<IActiveProviderPutEnvelopeApi>;
 
   /**
+   * Reconcile the persisted provider-marker snapshot with what the
+   * filesystem currently shows, clearing any pending drift. Mirrors
+   * `POST /api/active-provider/accept-markers` (no request body). Returns
+   * the SAME refreshed `GET /api/active-provider` envelope, now with
+   * `markerDrift: null`. This is the "Dismiss" action behind the
+   * provider-marker drift notice: it clears the drift permanently and
+   * only re-surfaces if a later, different marker change occurs. Demo
+   * mode is a read-only no-op that returns the baked envelope unchanged.
+   */
+  acceptActiveProviderMarkers(): Promise<IActiveProviderApi>;
+
+  /**
    * Phase 4 / View contribution system, lazy lookup for a single
    * contribution emitted on a single node. Used by the slot host
    * when the bulk endpoint omitted contributions because

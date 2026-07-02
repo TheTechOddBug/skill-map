@@ -107,6 +107,16 @@ export class SettingsModal {
   readonly visible = input.required<boolean>();
   readonly visibleChange = output<boolean>();
 
+  /**
+   * Section to land on the next time the modal opens. `null` keeps the
+   * default (`plugins`). Callers set it to deep-link the modal, e.g. the
+   * provider-marker drift banner opens on `project` where the active-lens
+   * dropdown lives. Consumed once per open by the effect below; the App
+   * resets it to `null` on close so a subsequent gear-click opens on the
+   * default section.
+   */
+  readonly initialSection = input<TSettingsSection | null>(null);
+
   private readonly confirmation = inject(ConfirmationService);
   private readonly dataSource = inject(DATA_SOURCE);
   /**
@@ -192,6 +202,14 @@ export class SettingsModal {
     // Changelog) on the next open.
     effect(() => {
       if (this.visible()) void this.loadSettingsPlugins();
+    });
+
+    // Deep-link the modal to a requested section on open (e.g. the
+    // drift banner opens on `project`). Only acts while visible and when
+    // a section was requested, so a normal gear-click keeps the default.
+    effect(() => {
+      const requested = this.initialSection();
+      if (this.visible() && requested) this.activeSection.set(requested);
     });
   }
 

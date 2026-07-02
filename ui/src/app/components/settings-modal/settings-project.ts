@@ -400,6 +400,7 @@ export class SettingsProject {
         detected: envelope.detected,
         source: envelope.source,
         selectable: envelope.selectable,
+        markerDrift: envelope.markerDrift,
       });
       const dropped = envelope.switch.dropped;
       if (dropped === null) {

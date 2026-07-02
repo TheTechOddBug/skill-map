@@ -15,7 +15,7 @@ import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { runScanForCommand } from '../util/scan-runner.js';
 import { setScanExtensions } from '../telemetry/posthog-init.js';
 import { buildScanExtensionSet } from '../telemetry/usage-collector.js';
-import { runWatchLoop } from './watch.js';
+import { parseWatchBackend, runWatchLoop } from './watch.js';
 
 /**
  * `sm scan [roots...] [--json] [--no-built-ins] [--no-plugins] [-n|--dry-run] [--changed]`
@@ -120,6 +120,10 @@ export class ScanCommand extends SmCommand {
   maxNodes = Option.String('--max-nodes', {
     required: false,
     description: 'Per-invocation override of `scan.maxNodes` (default 256). The MAP RENDER cap (pure metadata): it does NOT bound the scan, only how many nodes the graph view projects onto the canvas. Bidirectional: raises OR lowers the render cap. Validation: integer >= 1.',
+  });
+  watchBackend = Option.String('--watch-backend', {
+    required: false,
+    description: 'Only with --watch: per-invocation override of scan.watch.backend, the primary watcher backend (chokidar or parcel). Ignored on a non-watching scan.',
   });
 
   // Each branch in the orchestrator maps to one validation gate
@@ -259,6 +263,11 @@ export class ScanCommand extends SmCommand {
     }
     this.emitElapsed = false;
     const roots = this.roots.length > 0 ? this.roots : ['.'];
+    // `--watch-backend` is only meaningful in watch mode, so it is parsed
+    // here (not in `run()`) which keeps it silently ignored on a
+    // non-watching `sm scan`. An invalid value exits 2.
+    const watchBackend = parseWatchBackend(this.watchBackend, this.context.stderr, this.noColor);
+    if (watchBackend === null) return ExitCode.Error;
     // `--max-scan` / `--max-nodes` were already validated in `run()`;
     // re-parse here is a cheap pass-through (Number coercion + integer
     // check).
@@ -274,6 +283,7 @@ export class ScanCommand extends SmCommand {
       context: this.context,
       printer: this.printer!,
       ...(caps.kind === 'ok' ? capOverrides(caps) : {}),
+      ...(watchBackend !== undefined ? { watchBackend } : {}),
     });
   }
 

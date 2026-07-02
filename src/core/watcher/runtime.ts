@@ -223,6 +223,14 @@ export interface ICreateWatcherRuntimeOpts {
    */
   debounceMsOverride?: number | undefined;
   /**
+   * Per-invocation override of the primary watcher backend (from the
+   * `--watch-backend <chokidar|parcel>` flag on `sm serve` / `sm watch` /
+   * `sm scan --watch`). When set, it wins over `cfg.scan.watch.backend`
+   * for the duration of the watcher session; `undefined` falls back to
+   * the persisted config value.
+   */
+  watchBackendOverride?: 'chokidar' | 'parcel' | undefined;
+  /**
    * Build a fresh `ProgressEmitterPort` for each batch. CLI passes
    * `createCliProgressEmitter(stderr)`; BFF passes the broadcaster
    * emitter. Called once per batch so per-emitter state
@@ -468,24 +476,25 @@ export function computeWatchedExtensions(
 
 /**
  * Resolve which backend the PRIMARY scan watcher uses. Pure: keyed off
- * the persisted `scan.watch.backend` + `scan.followSymlinks`, so it is
- * unit-testable without booting a watcher.
+ * the persisted `scan.watch.backend` and the per-invocation
+ * `--watch-backend` override, so it is unit-testable without booting a
+ * watcher.
  *
- *   - `'parcel'` / `'chokidar'` force that backend.
- *   - `'auto'` (default) returns `chokidar` when `followSymlinks` is on
- *     (only chokidar observes changes behind a symlinked directory for a
- *     live update), else `parcel` (a single native inotify instance that
+ *   - `override` (the `--watch-backend <chokidar|parcel>` flag) wins when
+ *     present, letting an operator pin the backend for one `sm serve` /
+ *     `sm watch` / `sm scan --watch` session.
+ *   - Otherwise the persisted `scan.watch.backend` applies (`'chokidar'`
+ *     by default; `'parcel'` for a single native inotify instance that
  *     scales to huge trees without chokidar's `EMFILE` exhaustion).
  *
  * The meta-watcher is always chokidar (it needs `depth: 0`); this only
  * governs the primary.
  */
-export function resolveWatcherBackend(opts: {
-  backend: 'auto' | 'parcel' | 'chokidar';
-  followSymlinks: boolean;
-}): 'parcel' | 'chokidar' {
-  if (opts.backend !== 'auto') return opts.backend;
-  return opts.followSymlinks ? 'chokidar' : 'parcel';
+export function resolveWatcherBackend(
+  backend: 'chokidar' | 'parcel',
+  override?: 'chokidar' | 'parcel',
+): 'chokidar' | 'parcel' {
+  return override ?? backend;
 }
 
 /**
@@ -716,7 +725,6 @@ export function createWatcherRuntime(
         maxRenderNodes: cfg.scan.maxNodes,
         overrideMaxRenderNodes: opts.maxNodesOverride ?? null,
         maxFileSizeBytes: cfg.scan.maxFileSizeBytes,
-        followSymlinks: cfg.scan.followSymlinks,
         // Resolve the active lens from the persisted config (settings.json)
         // so a lens switched via `PATCH /api/active-provider` is honoured by
         // the next watcher batch. Without an explicit value the orchestrator
@@ -830,17 +838,14 @@ export function createWatcherRuntime(
     };
 
     const subscribePrimary = (): void => {
-      // Pick the PRIMARY watcher backend (see `scan.watch.backend`):
-      // parcel (a single native inotify instance) scales to huge trees
-      // without chokidar's `EMFILE` exhaustion; chokidar is used when
-      // symlinks must be followed live (it observes symlinked dirs, parcel
-      // does not). The meta-watcher below is always chokidar (`depth: 0`,
-      // which parcel cannot express).
+      // Pick the PRIMARY watcher backend (see `scan.watch.backend`, plus
+      // the per-invocation `--watch-backend` override): parcel (a single
+      // native inotify instance) scales to huge trees without chokidar's
+      // `EMFILE` exhaustion; chokidar observes changes behind a symlinked
+      // directory live (parcel's symlink support is weak). The meta-watcher
+      // below is always chokidar (`depth: 0`, which parcel cannot express).
       const createPrimary =
-        resolveWatcherBackend({
-          backend: cfg.scan.watch.backend,
-          followSymlinks: cfg.scan.followSymlinks,
-        }) === 'chokidar'
+        resolveWatcherBackend(cfg.scan.watch.backend, opts.watchBackendOverride) === 'chokidar'
           ? createChokidarWatcher
           : createParcelWatcher;
       primaryHandle = createPrimary({

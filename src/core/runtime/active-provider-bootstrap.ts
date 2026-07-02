@@ -94,6 +94,18 @@ export interface IBootstrapActiveProviderOpts {
   stderr: NodeJS.WritableStream;
   printer: IPrinter;
   /**
+   * Whether the config-lens drift check emits the one-per-scan `⚠`
+   * warn through `printer.warn`. Defaults to `true` (the CLI `sm scan`
+   * / `sm watch` surface, where the operator reads the console). The
+   * SERVER passes `false` so `sm serve` boot scans + `POST /api/scan`
+   * do not log repetitive drift noise the browser user never sees; the
+   * SPA surfaces the drift instead via `GET /api/active-provider`'s
+   * `markerDrift` field. The missing-snapshot backfill still runs
+   * regardless of this flag, only the warn emission is gated. See
+   * `spec/cli-contract.md` §Active provider lens (Provider-marker drift).
+   */
+  warnOnDrift?: boolean;
+  /**
    * Pre-rendered glyphs for the human-mode prompt + error blocks per
    * `context/cli-output-style.md`. Optional: when absent, the bootstrap
    * falls back to the bare characters (`⚠`, `✕`) so the bytes still
@@ -274,26 +286,90 @@ function handleDrift(
   });
   if (snapshot === undefined) {
     // Legacy project, no snapshot yet. Backfill with the current set
-    // and stay silent. The next scan diffs against this snapshot.
+    // and stay silent. The next scan diffs against this snapshot. The
+    // backfill fires regardless of `warnOnDrift`, only the warn below
+    // is gated by it.
     backfillMarkersSnapshot(opts.cwd, currentMarkers);
     return;
   }
-  // Ships-disabled Providers (`stability: experimental` / `deprecated`)
-  // are never auto-detectable (`detect-providers` skips them), so they can
-  // never appear in the current detected set. A stale snapshot entry for
-  // one (written before the Provider became experimental, or back when the
-  // retired `comingSoon` flag let it auto-detect) would otherwise report a
-  // permanent, non-actionable "removed" drift on every scan. Exclude them
-  // from both sides of the diff.
+  // Single source of the diff logic: `diffAgainstSnapshot` reads the
+  // snapshot, applies the ships-disabled exclusion, and returns the
+  // added / removed diff (or null when equal). `handleDrift` supplies
+  // the AGGREGATED marker set (cwd + effective roots) so an out-of-tree
+  // scan's markers count toward drift the same way they counted toward
+  // the persisted snapshot; the BFF's `computeMarkerDrift` supplies the
+  // cwd-only set (matching its envelope's `detected`).
+  const drift = diffAgainstSnapshot(opts.cwd, currentMarkers, opts.providers);
+  if (drift === null) return;
+  // Server callers pass `warnOnDrift: false`: the SPA surfaces the drift
+  // via `GET /api/active-provider`'s `markerDrift`, so the console warn
+  // would be repetitive noise no browser user reads.
+  if (opts.warnOnDrift === false) return;
+  emitDriftWarn(opts, resolvedLens, drift);
+}
+
+/**
+ * Marker-drift shape shared by the CLI warn and the BFF envelope.
+ * `added` / `removed` are the ids that appeared / vanished relative to
+ * the persisted `activeProviderMarkers` snapshot; `detected` is the
+ * full filesystem-detected set the diff was taken against.
+ */
+export interface IMarkerDrift {
+  added: string[];
+  removed: string[];
+  detected: string[];
+}
+
+/**
+ * Pure marker-drift computation for a project `cwd`. Resolves the
+ * filesystem-detected marker set (the same `resolveActiveProvider`
+ * detection the BFF's `GET /api/active-provider` envelope reports as
+ * `detected`), reads the persisted `activeProviderMarkers` snapshot,
+ * applies the ships-disabled exclusion, and returns the diff, or
+ * `null` when there is no snapshot (nothing to compare against) or when
+ * the sets are equal (no drift). No side effects: no warn, no backfill,
+ * no write. The BFF active-provider route calls this to populate the
+ * envelope's `markerDrift` field; `handleDrift` shares the underlying
+ * `diffAgainstSnapshot` so the diff logic lives in one place.
+ */
+export function computeMarkerDrift(
+  cwd: string,
+  providers: readonly IProviderDetectInput[],
+): IMarkerDrift | null {
+  const detected = resolveActiveProvider(cwd, providers).detected;
+  return diffAgainstSnapshot(cwd, detected, providers);
+}
+
+/**
+ * Core diff: read the `activeProviderMarkers` snapshot, exclude
+ * ships-disabled Providers from both sides, diff against
+ * `currentMarkers`, and shape the result (or null when the snapshot is
+ * absent or the sets match).
+ *
+ * Ships-disabled Providers (`stability: experimental` / `deprecated`)
+ * are never auto-detectable (`detect-providers` skips them), so they can
+ * never appear in the current detected set. A stale snapshot entry for
+ * one (written before the Provider became experimental, or back when the
+ * retired `comingSoon` flag let it auto-detect) would otherwise report a
+ * permanent, non-actionable "removed" drift on every scan. Exclude them
+ * from both sides of the diff.
+ */
+function diffAgainstSnapshot(
+  cwd: string,
+  currentMarkers: readonly string[],
+  providers: readonly IProviderDetectInput[],
+): IMarkerDrift | null {
+  const snapshot = readConfigValue<readonly string[]>('activeProviderMarkers', { cwd });
+  if (snapshot === undefined) return null;
   const shipsDisabled = new Set(
-    opts.providers.filter((p) => !installedDefaultEnabled(p.stability)).map((p) => p.id),
+    providers.filter((p) => !installedDefaultEnabled(p.stability)).map((p) => p.id),
   );
   const diff = diffMarkers(
     snapshot.filter((id) => !shipsDisabled.has(id)),
     currentMarkers.filter((id) => !shipsDisabled.has(id)),
   );
-  if (diff.added.length === 0 && diff.removed.length === 0) return;
-  emitDriftWarn(opts, resolvedLens, diff);
+  if (diff.added.length === 0 && diff.removed.length === 0) return null;
+  return { added: diff.added, removed: diff.removed, detected: [...currentMarkers] };
 }
 
 function emitDriftWarn(
@@ -316,16 +392,33 @@ function emitDriftWarn(
   );
 }
 
+/**
+ * Write the current marker set as the `activeProviderMarkers` snapshot
+ * (project layer), reconciling it with on-disk reality so a later diff
+ * against it reads clean. THROWS on write failure so callers that need
+ * to surface the error (the BFF `POST /api/active-provider/accept-markers`
+ * route, the SPA "Dismiss" action) can map it to an HTTP error. The
+ * silent scan-entry backfill wraps this in `backfillMarkersSnapshot`.
+ */
+export function reconcileMarkersSnapshot(cwd: string, markers: readonly string[]): void {
+  writeConfigValue('activeProviderMarkers', [...markers], {
+    target: 'project',
+    cwd,
+  });
+}
+
+/**
+ * Thin silent caller of `reconcileMarkersSnapshot` for the legacy-project
+ * backfill inside `handleDrift`. Swallows write failures: the operator
+ * has no actionable step here, the next scan retries, and a noisy warn
+ * on every scan would defeat the purpose.
+ */
 function backfillMarkersSnapshot(cwd: string, markers: readonly string[]): void {
   try {
-    writeConfigValue('activeProviderMarkers', [...markers], {
-      target: 'project',
-      cwd,
-    });
+    reconcileMarkersSnapshot(cwd, markers);
   } catch {
     // Non-fatal: if backfill fails (permission, disk full), the next
-    // scan tries again. Silent because the user has no actionable step
-    // here, and a noisy warn on every scan would defeat the purpose.
+    // scan tries again.
   }
 }
 

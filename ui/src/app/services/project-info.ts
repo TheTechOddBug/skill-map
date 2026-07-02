@@ -16,7 +16,10 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 
 import { PROJECT_INFO_TEXTS } from '../../i18n/project-info.texts';
-import type { IHealthResponseApi } from '../../models/api';
+import type {
+  IActiveProviderMarkerDriftApi,
+  IHealthResponseApi,
+} from '../../models/api';
 import { DATA_SOURCE, type IDataSourcePort } from '../../services/data-source/data-source.port';
 
 @Injectable({ providedIn: 'root' })
@@ -45,6 +48,19 @@ export class ProjectInfoService {
   private readonly activeProviderState = signal<string | null>(null);
   readonly activeProvider = computed<string | null>(() => this.activeProviderState());
 
+  /**
+   * Provider-marker drift snapshot from the last `/api/active-provider`
+   * probe. Non-null only when the filesystem markers diverged from the
+   * project's persisted `activeProviderMarkers` snapshot; drives the
+   * topbar drift notice. Cleared (back to `null`) after a lens switch
+   * (Settings modal close re-probes via `reloadActiveProvider`) or an
+   * explicit accept (`acceptMarkerDrift`).
+   */
+  private readonly markerDriftState = signal<IActiveProviderMarkerDriftApi | null>(null);
+  readonly markerDrift = computed<IActiveProviderMarkerDriftApi | null>(
+    () => this.markerDriftState(),
+  );
+
   async load(): Promise<void> {
     try {
       const payload = await this.dataSource.health();
@@ -67,8 +83,22 @@ export class ProjectInfoService {
     try {
       const lens = await this.dataSource.getActiveProvider();
       this.activeProviderState.set(lens.activeProvider);
+      this.markerDriftState.set(lens.markerDrift);
     } catch {
       // Lens probe is best-effort; a failure leaves the chip as-is.
     }
+  }
+
+  /**
+   * Reconcile the persisted provider-marker snapshot (POST
+   * accept-markers), then adopt the refreshed envelope so `markerDrift`
+   * clears and the drift notice disappears. Rethrows on failure so the
+   * caller (the drift banner) can keep the notice up for a retry; a
+   * failed accept leaves the previous drift state untouched.
+   */
+  async acceptMarkerDrift(): Promise<void> {
+    const lens = await this.dataSource.acceptActiveProviderMarkers();
+    this.activeProviderState.set(lens.activeProvider);
+    this.markerDriftState.set(lens.markerDrift);
   }
 }

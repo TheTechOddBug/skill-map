@@ -666,13 +666,6 @@ export interface IProviderWalkOptions {
    * same speedup but is not required to.
    */
   scopedPaths?: readonly string[];
-  /**
-   * Mirror of `scan.followSymlinks` (default `false`). Forwarded to the
-   * kernel walker so it follows symlinked directories / files (gated by
-   * cycle detection + realpath containment) instead of skipping them. A
-   * Provider shipping its own `walk()` MAY honour it.
-   */
-  followSymlinks?: boolean;
 }
 
 /**
@@ -822,5 +815,4 @@ function copyOptionalWalkOptions(
   if (options.onOversizedFile) walkOptions.onOversizedFile = options.onOversizedFile;
   if (options.priorMtimes) walkOptions.priorMtimes = options.priorMtimes;
   if (options.scopedPaths) walkOptions.scopedPaths = options.scopedPaths;
-  if (options.followSymlinks !== undefined) walkOptions.followSymlinks = options.followSymlinks;
 }

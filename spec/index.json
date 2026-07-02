@@ -181,7 +181,7 @@
       "CHANGELOG.md": "4558a3db8042ead93d7aab203c57f90e5151d53295d3461aaf71d14e8025a217",
       "README.md": "a790cd010b46d47883d1f37e3893cea9d7aa69ec4750c0202e6a0c99991e7980",
       "architecture.md": "18a8eeb623a5ab329eb81bf217960646c84c816325dd0f1c9547dbfc528fe460",
-      "cli-contract.md": "3723f651c415928b1cdcbfdad31d0ef7b6b6998b51e576ebca5db9005a0cb594",
+      "cli-contract.md": "2d0bf5a57ce73e410c3f27e8097531bd9e089d5bfe2f7ad5b25f88d4501fd25d",
       "conformance/README.md": "dcbef7249f161acf597552a05dcadc813cd0ced430dcd3f813fcf5e1c876335d",
       "conformance/cases/backtick-path-extraction.json": "4620e7f8bc161fc57cb44001e9d99879c7e22b4865a0c27a20dc28969cd936d9",
       "conformance/cases/extractor-collision-detection.json": "179a02c61892f0d26492de0c4e2c327fa6b4986d1265a8f119e871df6afe4658",
@@ -230,7 +230,7 @@
       "conformance/fixtures/view-contribution-payloads/notes/example.md": "312b1919cd7fd0f233648b053acfb2975662ede3c65dd391cc508204b67ad6fb",
       "conformance/fixtures/view-slots-all/.skill-map/plugins/all-slots/analyzers/everything/index.js": "ea0022fec7f0fd5a26ba12db1310335f434f2f820682206a3a9542d98db0d346",
       "conformance/fixtures/view-slots-all/.skill-map/plugins/all-slots/plugin.json": "c48e8a0574947ade0b4eb189d6bc27a48e24f92f616aacdc177f2d22d472a599",
-      "db-schema.md": "05a4e323877d391180201f08eca9a226bd70f6ca593e1052602c54827685ef70",
+      "db-schema.md": "f4ca665e5084e49e7c39767d665923ad13203ea318c2920ed42739ea64f30670",
       "interfaces/security-scanner.md": "0996dd782e2d39d4791f2e290da4bb1a68a5b30c1f79187977188ec8e3fe6ef2",
       "job-events.md": "2c7017f5f0003b19653424111a07043487173cbe88b51e961598bb1693987059",
       "job-lifecycle.md": "ce33bc8bb5090ea183f860e495bfccc2a4a0ac2e23f6ebad83b9c28aad59124e",
@@ -261,7 +261,7 @@
       "schemas/node.schema.json": "1ebba38e0c0ae022fccbc0cdf7c298da1720a68d4cb375f0baf9f0847998a0d8",
       "schemas/plugins-doctor.schema.json": "03e2dc51c052a09bf0198c80e2c26e6129734ada4a748e483245de3dd8576c42",
       "schemas/plugins-registry.schema.json": "211d081691fc83526e1593c79ed9741ad8a5dbd4db1a756f72141b0cced2ea15",
-      "schemas/project-config.schema.json": "cc1cdee13ad1234d6ba6f60da3c69e32267b9f6f78ca6c1c2f14b6bad5d5f0ef",
+      "schemas/project-config.schema.json": "131ec1114465e65a918eab581a3667789a1a9c4ce691fcd579e3b55aefc5cee8",
       "schemas/refresh-report.schema.json": "47184d4f6b15e9b7671dc178b3b3886a64422da198898508ecdb2cb27876db04",
       "schemas/report-base-deterministic.schema.json": "59785fe6f3ceb34814bbbd03d10fa7336a32835ce598946f2923d469b32aa32a",
       "schemas/report-base.schema.json": "e4d25f055e24f18ae0f77c24661c1bddc87ff2e43b001b6a827fcb14f9753f44",
@@ -275,7 +275,7 @@
       "schemas/summaries/skill.schema.json": "85d68056054bade62391948cc038fcfa70cdcf465e2b295f69cd520bbdba0134",
       "schemas/user-settings.schema.json": "d155552ffca9c7dd4c6e31398aff4950dd9721d2a1f4b308cf0fe33000ca31b5",
       "schemas/view-slots.schema.json": "886487a1f38fd7e4270fa6213653664c0cf906043e8aa9e832017149932bf6a2",
-      "telemetry.md": "1172bdee6812e7f5f657e36ad8e97ac3879eecfa4688faa7162b04c50d306b39",
+      "telemetry.md": "46ab28d6306cbd02180323a2c89c7a18ad2449df5981d0e95a5246a192091d2d",
       "versioning.md": "142c9cd4521e001216114d477b635d8dff6e38a9a33105cef814b6ca2d2eecf2"
     }
   }

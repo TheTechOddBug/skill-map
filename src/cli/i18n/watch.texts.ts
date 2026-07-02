@@ -70,6 +70,15 @@ export const WATCH_TEXTS = {
     'Pass a positive integer, e.g. --max-nodes 256.',
 
   /**
+   * §3.1b two-line block. Validation rejection for `--watch-backend`.
+   */
+  watchBackendInvalid:
+    '{{glyph}}  sm watch: --watch-backend must be "chokidar" or "parcel" (got {{raw}}).\n' +
+    '   {{hint}}\n',
+  watchBackendInvalidHint:
+    'Pass one of: chokidar, parcel.',
+
+  /**
    * File-size skip WARN, emitted per batch (stderr) when the walker
    * skipped one or more files for exceeding `scan.maxFileSizeBytes`.
    * Mirrors `sm scan`'s notice. `{{files}}` is the pre-rendered list of

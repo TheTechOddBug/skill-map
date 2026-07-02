@@ -345,6 +345,16 @@ export class RestDataSource implements IDataSourcePort {
     );
   }
 
+  async acceptActiveProviderMarkers(): Promise<IActiveProviderApi> {
+    // POST with no body (the endpoint takes none); `null` keeps the
+    // request body empty rather than sending `{}`.
+    return await this.patchJson<IActiveProviderApi>(
+      `${BASE}/active-provider/accept-markers`,
+      null,
+      'POST',
+    );
+  }
+
   async setFavorite(path: string): Promise<void> {
     const encoded = encodeNodePath(path);
     try {
