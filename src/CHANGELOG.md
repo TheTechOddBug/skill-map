@@ -1,5 +1,29 @@
 # skill-map
 
+## 0.75.0
+
+### Minor Changes
+
+- Remove the `scan.followSymlinks` setting: the scan walker now always follows symbolic links, to targets inside or outside the project, guarded only by cycle detection (the realpath-containment gate is gone). Change `scan.watch.backend` to `chokidar` (default) or `parcel` and drop the `auto` value, and add a `--watch-backend <chokidar|parcel>` flag on `sm serve` / `sm watch` / `sm scan --watch` that overrides the setting per invocation.
+
+  ## User-facing
+
+  Symlinked folders are now always indexed, even when the link points outside your project. The file watcher defaults to `chokidar`; pass `--watch-backend parcel` on `sm serve` / `sm watch` for very large trees (scales better, but no live updates behind symlinks).
+
+- Surface provider-marker drift in the web UI instead of the server log. `sm serve` / `POST /api/scan` no longer log the `Provider markers changed` warning; `GET /api/active-provider` now returns a `markerDrift` field and the SPA shows a dismissable notice to switch lens or dismiss. Dismissing (`POST /api/active-provider/accept-markers`) reconciles the `activeProviderMarkers` snapshot so the drift clears in both UI and CLI. `sm scan` / `sm watch` keep the warning.
+
+  ## User-facing
+
+  **Marker-change notice moved into the map.** If a new provider folder (like `.claude/`) appears, the map shows a dismissable banner to switch lens or keep your current one, instead of repeating a warning in the server console. Dismissing it remembers your choice.
+
+### Patch Changes
+
+- Set `PRAGMA busy_timeout` on every SQLite connection so a contended writer waits for a held write lock instead of failing immediately with `SQLITE_BUSY` ("database is locked"). Legitimate concurrent access (a second `sm serve`, a `sm scan` while the watcher is live, an editor-triggered rescan) now succeeds once the brief in-flight transaction commits, instead of surfacing a "watcher batch failed" warning.
+
+  ## User-facing
+
+  **No more spurious "database is locked" errors.** Running `sm scan` while `sm serve` is watching (or two servers on one project) no longer fails with a database-locked error; the operations queue and complete.
+
 ## 0.74.2
 
 ### Patch Changes
