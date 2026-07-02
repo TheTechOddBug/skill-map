@@ -2,6 +2,33 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.75.0",
+      "date": "2026-07-02",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "Symlinked folders are now always indexed, even when the link points outside your project. The file watcher defaults to `chokidar`; pass `--watch-backend parcel` on `sm serve` / `sm watch` for very large trees (scales better, but no live updates behind symlinks).",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**Marker-change notice moved into the map.** If a new provider folder (like `.claude/`) appears, the map shows a dismissable banner to switch lens or keep your current one, instead of repeating a warning in the server console. Dismissing it remembers your choice.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**No more spurious \"database is locked\" errors.** Running `sm scan` while `sm serve` is watching (or two servers on one project) no longer fails with a database-locked error; the operations queue and complete.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.74.2",
       "date": "2026-06-30",
       "kind": "internal",
