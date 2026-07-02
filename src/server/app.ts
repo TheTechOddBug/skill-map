@@ -99,6 +99,7 @@ import { registerProjectIgnoreRoute } from './routes/project-ignore.js';
 import { registerProjectPreferencesRoute } from './routes/project-preferences.js';
 import { registerActiveProviderRoute } from './routes/active-provider.js';
 import { registerActionsRoutes } from './routes/actions.js';
+import { registerActivityRoute } from './routes/activity.js';
 import { registerScanRoute } from './routes/scan.js';
 import { registerUpdateStatusRoute } from './routes/update-status.js';
 import { createSpaFallback, createStaticHandler } from './static.js';
@@ -127,6 +128,7 @@ export type TErrorCode =
   | 'sidecar-writers-forbidden'
   | 'host-not-allowed'
   | 'origin-not-allowed'
+  | 'token-mismatch'
   | 'payload-too-large'
   | 'internal';
 
@@ -182,21 +184,52 @@ export class BulkValidationError extends HTTPException {
 }
 
 /**
+ * Base for policy-refusal 403s whose envelope is intentionally OPAQUE:
+ * a fixed catalog message, a typed `code`, and `details: null` so the
+ * response leaks no per-request state to probes. One `instanceof`
+ * branch in `formatError` serves every subclass, keeping the dispatch
+ * funnel's complexity flat as new opaque 403 gates land.
+ */
+export class OpaqueForbiddenError extends HTTPException {
+  readonly code: TErrorCode;
+
+  constructor(init: { code: TErrorCode; message: string }) {
+    super(403, { message: init.message });
+    this.name = 'OpaqueForbiddenError';
+    this.code = init.code;
+  }
+}
+
+/**
  * First-stage DNS-rebinding / cross-origin gate failure. Thrown by
  * `createLoopbackGate` when the `Host` or `Origin` header hostname is
  * not loopback. Carried as a dedicated subclass so `formatError` can
  * stamp `code: 'host-not-allowed' | 'origin-not-allowed'` without
  * overloading the generic `403 -> 'locked'` mapping used by the plugin
- * lock-list. `details` stays `null` so the response is opaque to probes
- * (no per-request state leaked).
+ * lock-list.
  */
-export class LoopbackGateError extends HTTPException {
-  readonly code: 'host-not-allowed' | 'origin-not-allowed';
+export class LoopbackGateError extends OpaqueForbiddenError {
+  declare readonly code: 'host-not-allowed' | 'origin-not-allowed';
 
   constructor(init: { code: 'host-not-allowed' | 'origin-not-allowed'; message: string }) {
-    super(403, { message: init.message });
+    super(init);
     this.name = 'LoopbackGateError';
-    this.code = init.code;
+  }
+}
+
+/**
+ * Ingest-token gate failure on `POST /api/activity` (live node activity,
+ * see `spec/provider-activity.md` §Ingest). Thrown BEFORE any body
+ * processing when the `x-skill-map-token` header is missing or does not
+ * match the per-session token minted at boot (published via
+ * `.skill-map/serve.json`).
+ */
+export class ActivityTokenError extends OpaqueForbiddenError {
+  declare readonly code: 'token-mismatch';
+
+  constructor() {
+    super({ code: 'token-mismatch', message: SERVER_TEXTS.activityTokenMismatch });
+    this.name = 'ActivityTokenError';
   }
 }
 
@@ -277,6 +310,15 @@ export interface IAppDeps {
   options: IServerOptions;
   /** Pre-resolved spec version threaded through to `/api/health`. */
   specVersion: string;
+  /**
+   * Per-session ingest token for `POST /api/activity` (live node
+   * activity). Minted by the composition root at boot
+   * (`randomBytes(32).toString('hex')`), published to co-located local
+   * processes via `.skill-map/serve.json` (written by the `sm serve`
+   * verb), rotated on every restart. The activity route rejects
+   * requests without it (403 `token-mismatch`).
+   */
+  activityToken: string;
   /**
    * The `/ws` broadcaster. Step 14.4.a wires `attachBroadcasterRoute`
    * inside `createApp` against this instance; the composition root
@@ -467,6 +509,18 @@ export function createApp(deps: IAppDeps): Hono {
   // and fans out an `action.applied` WS event on success. Carries the
   // broadcaster + kernel.
   registerActionsRoutes(app, { ...routeDeps, broadcaster: deps.broadcaster, kernel: deps.kernel });
+  // Live node activity ingest, `POST /api/activity` (see
+  // `spec/provider-activity.md`). Token-gated (403 `token-mismatch`)
+  // BEFORE any body processing; maps the raw provider hook payload via
+  // the Provider's `activity.mapEvent` and broadcasts one
+  // `node.activity` WS event per signal that resolved to a scanned
+  // node. Always answers 202 on a well-formed request (fire-and-forget
+  // bridge contract).
+  registerActivityRoute(app, {
+    ...routeDeps,
+    broadcaster: deps.broadcaster,
+    activityToken: deps.activityToken,
+  });
   // Per-user favorites, `PUT/DELETE /api/favorites/:pathB64`. Persists
   // to `state_node_favorites` (zone `state_`); decorated onto every
   // `/api/nodes` response via in-memory Set membership.
@@ -606,7 +660,7 @@ export function formatError(err: unknown, c: Context): Response {
     return c.json(envelope, err.status as ContentfulStatusCode);
   }
 
-  if (err instanceof LoopbackGateError) {
+  if (err instanceof OpaqueForbiddenError) {
     const envelope: IErrorEnvelope = {
       ok: false,
       error: {

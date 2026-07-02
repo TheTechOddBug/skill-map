@@ -4,6 +4,10 @@
   "allowSidecarWriters": true,
   "tutorialReminderDismissed": false,
   "tokenizer": "cl100k_base",
+  "server": {
+    "port": 4242,
+    "host": "127.0.0.1"
+  },
   "roots": [],
   "ignore": [],
   "scan": {

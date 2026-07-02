@@ -165,6 +165,19 @@ export interface IScanConfig {
   referencePaths: string[];
 }
 
+/**
+ * Bind address for `sm serve`, resolved through the config layering so
+ * a project pins its port once instead of passing flags per invocation.
+ * Precedence at boot: `--port` / `--host` flags > these keys > built-in
+ * defaults (4242 / 127.0.0.1). The loopback-only rule applies at boot
+ * regardless of which layer supplied the host. Mirrors
+ * `project-config.schema.json#/properties/server`.
+ */
+export interface IServerBindConfig {
+  port: number;
+  host: string;
+}
+
 export interface IEffectiveConfig {
   schemaVersion: 1;
   /**
@@ -204,6 +217,7 @@ export interface IEffectiveConfig {
    */
   tutorialReminderDismissed: boolean;
   tokenizer: string;
+  server: IServerBindConfig;
   roots: string[];
   ignore: string[];
   scan: IScanConfig;

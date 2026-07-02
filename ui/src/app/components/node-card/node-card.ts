@@ -68,6 +68,7 @@ const DEFAULT_SELECTION: ISelectionView = {
     '[class.sm-gnode--selected]': 'selection().selected',
     '[class.sm-gnode--highlighted]': 'selection().highlighted',
     '[class.sm-gnode--dimmed]': 'selection().dimmed',
+    '[class.sm-gnode--executing]': 'executing()',
     '[style.--node-color]': 'nodeColor()',
     '[style.--accent]': 'kindAccentVar()',
     '[style.--kind-bg]': 'kindBgVar()',
@@ -88,6 +89,16 @@ export class NodeCard {
    * can mount the card without wiring selection state.
    */
   readonly selection = input<ISelectionView>(DEFAULT_SELECTION);
+
+  /**
+   * Live-activity state (spec/provider-activity.md): `true` while the
+   * node's skill / agent / command is executing in the operator's AI
+   * runtime. Owned by `NodeActivityService` and projected by the graph
+   * view (one O(1) Set lookup per node); the card only paints the
+   * `.sm-gnode--executing` glow. Defaults off so non-live contexts
+   * (files view, prototypes) mount unchanged.
+   */
+  readonly executing = input<boolean>(false);
 
   /**
    * Per-user favorite state. Owned by the graph / list / inspector view

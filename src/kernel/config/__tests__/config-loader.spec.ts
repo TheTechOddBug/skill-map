@@ -296,3 +296,40 @@ describe('config loader, project-local-only locality', () => {
     );
   });
 });
+
+describe('config loader, server bind keys', () => {
+  it('defaults: server.port 4242 / server.host 127.0.0.1', () => {
+    const { cwd } = freshScope('server-defaults');
+    const { effective, sources } = loadConfig({ cwd });
+    strictEqual(effective.server.port, 4242);
+    strictEqual(effective.server.host, '127.0.0.1');
+    strictEqual(sources.get('server.port'), 'defaults');
+  });
+
+  it('project layer pins server.port; the untouched host keeps its default', () => {
+    const { cwd } = freshScope('server-project');
+    writeSettings(cwd, 'settings', { server: { port: 5050 } });
+    const { effective, sources, warnings } = loadConfig({ cwd });
+    strictEqual(effective.server.port, 5050);
+    strictEqual(effective.server.host, '127.0.0.1');
+    strictEqual(sources.get('server.port'), 'project');
+    deepStrictEqual(warnings, []);
+  });
+
+  it('project-local overrides the committed project value', () => {
+    const { cwd } = freshScope('server-local-wins');
+    writeSettings(cwd, 'settings', { server: { port: 5050 } });
+    writeSettings(cwd, 'settings.local', { server: { port: 6060 } });
+    const { effective, sources } = loadConfig({ cwd });
+    strictEqual(effective.server.port, 6060);
+    strictEqual(sources.get('server.port'), 'project-local');
+  });
+
+  it('schema-invalid server.port is stripped with a warning and defaults apply', () => {
+    const { cwd } = freshScope('server-invalid');
+    writeSettings(cwd, 'settings', { server: { port: 'not-a-port' } });
+    const { effective, warnings } = loadConfig({ cwd });
+    strictEqual(effective.server.port, 4242);
+    ok(warnings.length > 0);
+  });
+});

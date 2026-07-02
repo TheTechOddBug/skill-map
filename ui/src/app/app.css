@@ -84,10 +84,9 @@
   color: var(--shell-topbar-text-strong);
 }
 
-/* "Beta" warning banner next to the wordmark. Rectangular chip with a
-   solid red fill so the longer "do not use in production" copy stays
-   legible, replaces the earlier rotated stencil seal. Light theme is
-   the default; dark override below. */
+/* "Beta" chip next to the wordmark. Rectangular chip with a soft red
+   fill, replaces the earlier rotated stencil seal. Light theme is the
+   default; dark override below. */
 .shell__beta {
   font-family: var(--sm-font-display-brand);
   font-weight: 600;

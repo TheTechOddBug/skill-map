@@ -85,6 +85,40 @@ export interface IActionAppliedEventData {
   report: unknown;
 }
 
+/**
+ * Payload of the `node.activity` WS event (live node activity, see
+ * `spec/provider-activity.md` §WS event). Broadcast by the ingest route
+ * (`routes/activity.ts`) once per signal that RESOLVED to a scanned
+ * node; unresolved signals are dropped server-side and never reach the
+ * wire. Carries only the minimal shape (nothing from the raw provider
+ * event survives past the mapper): the node's stable id, the phase, and
+ * an opaque owner grouping key.
+ */
+export interface INodeActivityEventData {
+  /** Resolved scanned node's stable id (its `path`). */
+  nodePath: string;
+  /** `start` lights the node; `end` only exists for natively-terminated units. */
+  phase: 'start' | 'end';
+  /** Opaque executing-context key (`'main'`, an agent id, ...). Absent when unreported. */
+  owner?: string;
+}
+
+/**
+ * Build a `node.activity` envelope. Unix-ms timestamp, matching the
+ * BFF-authored `watcher.*` advisories (the kernel's ISO-8601 form is
+ * reserved for emitter-bridged events).
+ */
+export function buildNodeActivityEvent(
+  data: INodeActivityEventData,
+): IWsEventEnvelope<INodeActivityEventData> {
+  return {
+    type: 'node.activity',
+    timestamp: Date.now(),
+    jobId: null,
+    data,
+  };
+}
+
 /** Watcher-internal advisory, fired once when the watcher subscribes successfully. */
 export interface IWatcherStartedData {
   roots: string[];

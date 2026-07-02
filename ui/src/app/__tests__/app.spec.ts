@@ -279,10 +279,7 @@ function makeUpdateCheckStub(): UpdateCheckService {
  * so it would be a no-op anyway. Driving `status` directly keeps the
  * computed `isOutdated` / `latest` derivations exercised end-to-end.
  */
-async function configure(
-  updateStub: UpdateCheckService,
-  mode: 'live' | 'demo' = 'live',
-): Promise<void> {
+async function configure(updateStub: UpdateCheckService): Promise<void> {
   await TestBed.configureTestingModule({
     imports: [App],
     providers: [
@@ -290,10 +287,9 @@ async function configure(
       provideHttpClientTesting(),
       provideRouter([]),
       { provide: DATA_SOURCE, useValue: STUB_DATA_SOURCE },
-      // The shell mounts <sm-demo-banner> and shows a beta chip, both of
-      // which read SKILL_MAP_MODE on construction. Provide the mode under
-      // test (defaults to 'live'); the beta chip shortens in 'demo'.
-      { provide: SKILL_MAP_MODE, useValue: mode },
+      // The shell mounts <sm-demo-banner>, which reads SKILL_MAP_MODE on
+      // construction; provide it explicitly (the token has no default).
+      { provide: SKILL_MAP_MODE, useValue: 'live' },
       // Keep the live-mode WS service from opening a real socket (see
       // inertWsSocketFactory): without this it logs connection failures.
       { provide: WS_SOCKET_FACTORY, useValue: inertWsSocketFactory },
@@ -402,7 +398,7 @@ describe('App, update chip', () => {
 describe('App, scan spinner', () => {
   it('marks the refresh button spinning + disabled while a scan is in flight', async () => {
     TestBed.resetTestingModule();
-    await configure(makeUpdateCheckStub(), 'live');
+    await configure(makeUpdateCheckStub());
 
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
@@ -431,22 +427,10 @@ describe('App, scan spinner', () => {
   });
 });
 
-describe('App, beta chip (mode-conditional)', () => {
-  it('shows the full beta warning in live mode', async () => {
+describe('App, beta chip', () => {
+  it('shows the beta chip', async () => {
     TestBed.resetTestingModule();
-    await configure(makeUpdateCheckStub(), 'live');
-
-    const fixture = TestBed.createComponent(App);
-    await fixture.whenStable();
-    fixture.detectChanges();
-
-    const chip = (fixture.nativeElement as HTMLElement).querySelector('.shell__beta');
-    expect(chip?.textContent?.trim()).toBe('BETA - do not use in production');
-  });
-
-  it('shortens the chip to "BETA" in demo mode', async () => {
-    TestBed.resetTestingModule();
-    await configure(makeUpdateCheckStub(), 'demo');
+    await configure(makeUpdateCheckStub());
 
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();

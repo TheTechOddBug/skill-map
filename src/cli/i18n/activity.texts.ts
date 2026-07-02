@@ -1,0 +1,46 @@
+/**
+ * Strings for the `sm activity` verb family (live node activity, see
+ * `spec/provider-activity.md` and `cli-contract.md` §Activity).
+ */
+
+export const ACTIVITY_TEXTS = {
+  // Unknown / non-activity provider id passed to install / uninstall.
+  unknownProvider:
+    '{{glyph}}  sm activity: no registered provider "{{provider}}" supports live activity.\n',
+  unknownProviderHint:
+    'Providers with an activity adapter today: {{providers}}.',
+
+  // Consent prompt (TTY). Names the exact file the merge will modify so
+  // the operator approves a concrete change, not an abstract feature.
+  installConfirm:
+    'Wire the live-activity bridge into {{configPath}}? This adds skill-map hook entries (existing hooks are preserved)',
+
+  // Declined / non-TTY without --yes: nothing written.
+  installDeclined: '{{glyph}}  sm activity: install declined; nothing was written.\n',
+  installNeedsTty:
+    '{{glyph}}  sm activity: refusing to modify {{configPath}} without a TTY confirm. Re-run with --yes.\n',
+
+  // Success summaries.
+  installed:
+    '{{glyph}}  sm activity: bridge written to {{bridgePath}} and wired into {{configPath}} ({{events}} events).\n',
+  alreadyInstalled:
+    '{{glyph}}  sm activity: {{configPath}} already carries the bridge hooks; nothing to do.\n',
+  installedHint:
+    'Run `sm serve` and invoke a skill / agent in {{provider}} to watch the map light up. Reverse with `sm activity uninstall {{provider}}`.',
+
+  uninstalled:
+    '{{glyph}}  sm activity: removed the bridge hooks from {{configPath}} and deleted {{bridgePath}}.\n',
+  nothingToUninstall:
+    '{{glyph}}  sm activity: {{configPath}} carries no bridge hooks; nothing to do.\n',
+
+  // Write failures (config merge or bridge artifact).
+  installFailed:
+    '{{glyph}}  sm activity: install failed: {{message}}\n',
+  uninstallFailed:
+    '{{glyph}}  sm activity: uninstall failed: {{message}}\n',
+
+  // A provider whose install shape is not implemented yet (plugin-file
+  // lands with the opencode adapter).
+  installKindUnsupported:
+    '{{glyph}}  sm activity: provider "{{provider}}" declares install kind "{{kind}}", which this version does not support yet.\n',
+} as const;

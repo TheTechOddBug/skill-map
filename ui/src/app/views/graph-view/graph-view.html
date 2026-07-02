@@ -90,7 +90,8 @@
                 [class]="'f-conn--' + edge.kind"
                 [class.f-conn--highlighted]="es.highlighted"
                 [class.f-conn--dimmed]="es.dimmed"
-                [style.opacity]="es.opacity"
+                [class.f-conn--executing]="isEdgeExecuting(edge)"
+                [style.opacity]="isEdgeExecuting(edge) ? 1 : es.opacity"
               >
                 <!-- Schema-designer style: a circular dot at the source and
                      an arrow at the target. The dot uses the `svg[fMarker]`
@@ -157,6 +158,7 @@
                   [stats]="node.stats"
                   [summary]="node.summary"
                   [selection]="selectionFor(node.id)"
+                  [executing]="isExecuting(node.id)"
                   [expanded]="isExpanded(node.id)"
                   [isFavorite]="node.view.isFavorite === true"
                   (expandedChange)="setExpanded(node.id, $event)"
@@ -195,7 +197,8 @@
                     [node]="node.view"
                     [stats]="node.stats"
                     [summary]="node.summary"
-                      [selection]="selectionFor(node.id)"
+                    [selection]="selectionFor(node.id)"
+                    [executing]="isExecuting(node.id)"
                     [expanded]="isExpanded(node.id)"
                     [isFavorite]="node.view.isFavorite === true"
                     (expandedChange)="setExpanded(node.id, $event)"

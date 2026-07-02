@@ -19,6 +19,7 @@
     "fix:agy": "bash scripts/start.sh antigravity",
     "fix:opencode": "bash scripts/start.sh opencode",
     "fix:ignore": "bash scripts/start.sh ignore",
+    "fix:realtime": "bash scripts/start.sh realtime",
     "sm": "node src/bin/sm.js",
     "sm:reset": "bash scripts/dev-reset.sh",
     "sqlite": "node src/bin/sm.js db browser",

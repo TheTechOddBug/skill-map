@@ -25,13 +25,18 @@
  */
 
 export type {
+  IActivityInstall,
+  IActivityInstallEvent,
+  IActivitySignal,
   IProvider,
+  IProviderActivityAdapter,
   IProviderDetect,
   IProviderKind,
   IProviderKindUi,
   IProviderReadConfig,
   IProviderUi,
   IRawNode,
+  TActivityPhase,
   TIdentifierSource,
   TProviderKindIcon,
 } from './provider.js';

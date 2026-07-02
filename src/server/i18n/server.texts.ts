@@ -219,6 +219,21 @@ export const SERVER_TEXTS = {
   actionAlwaysMustBeBoolean:
     '`always` must be a boolean when present.',
 
+  // Live node activity ingest (POST /api/activity, see
+  // spec/provider-activity.md). The 403 message is a fixed string with
+  // zero request-derived interpolation, the response stays opaque to
+  // probes and the (privacy-sensitive) body never leaks into an error.
+  activityTokenMismatch:
+    'Missing or invalid activity token.',
+  activityBodyNotJson:
+    'Request body must be valid JSON.',
+  activityBodyNotObject:
+    'Request body must be a JSON object.',
+  activityProviderRequired:
+    '`provider` is required and must be a non-empty string.',
+  activityEventRequired:
+    '`event` is required and must be an object.',
+
   // 404 envelope when `:qualifiedId` does not resolve to a registered
   // action with an `invoke()`. Covers both "no such action" and "action
   // exists but ships no deterministic entry point" (a probabilistic
