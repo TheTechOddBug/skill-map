@@ -19,7 +19,6 @@ import { UpdateCheckService } from './services/update-check';
 import { UsageTrackerService } from './services/usage-tracker';
 import { ThemeService } from '../services/theme';
 import { ProviderRegistryService, type IProviderUi } from '../services/provider-registry';
-import { SKILL_MAP_MODE } from '../services/data-source/runtime-mode';
 import { DemoBanner } from './components/demo-banner/demo-banner';
 import { TutorialReminderBanner } from './components/tutorial-reminder-banner/tutorial-reminder-banner';
 import { ProviderMarkerDriftBanner } from './components/provider-marker-drift-banner/provider-marker-drift-banner';
@@ -52,10 +51,6 @@ export class App {
   protected readonly updateCheck = inject(UpdateCheckService);
 
   protected readonly texts = APP_TEXTS;
-  /** `'demo'` in the static demo bundle; shortens the beta chip there. */
-  protected readonly isDemo = inject(SKILL_MAP_MODE) === 'demo';
-  /** Beta chip copy, shared by the chip content and its aria-label. */
-  protected readonly betaLabel = this.isDemo ? this.texts.betaDemo : this.texts.beta;
   protected readonly settingsTexts = SETTINGS_TEXTS;
   /**
    * Settings modal visibility. The modal is `@defer`-wrapped in the
