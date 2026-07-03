@@ -128,7 +128,32 @@ function sourceLineAt(text: string, line: number): string {
  */
 export function extractCodeRegions(input: string): string {
   if (!input) return input;
-  const stripped = stripCodeBlocks(input);
+  return inverseMask(input, stripCodeBlocks(input));
+}
+
+/**
+ * The fenced-block subset of `extractCodeRegions`: only characters
+ * inside ``` / ~~~ fences survive, inline spans and prose are blanked.
+ * Consumers use it to CLASSIFY a code-region match rather than to find
+ * one: a position that survives here sits in a fence
+ * (`Signal.context: 'code-block'`); a position that survives the full
+ * inverse mask but not this one sits in an inline span
+ * (`'inline-code'`). Same diff-against-the-stripper construction as
+ * `extractCodeRegions`, so the verdict can never drift from the
+ * blanking rules.
+ */
+export function extractFencedRegions(input: string): string {
+  if (!input) return input;
+  return inverseMask(input, stripFences(input));
+}
+
+/**
+ * Character diff between `input` and its stripped projection: positions
+ * the stripper blanked resurrect (they were code), everything else is
+ * whitespace. Newlines survive everywhere so offsets and line numbers
+ * stay valid against the original body.
+ */
+function inverseMask(input: string, stripped: string): string {
   let out = '';
   for (let i = 0; i < input.length; i++) {
     const ch = input[i]!;

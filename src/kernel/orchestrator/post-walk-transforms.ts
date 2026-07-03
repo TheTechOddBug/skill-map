@@ -30,6 +30,7 @@
 
 import { dedupeLinks } from './extractors.js';
 import { liftResolvedLinkConfidence } from './lift-resolved-link-confidence.js';
+import { pruneUnresolvedCodeTriggers } from './prune-unresolved-code-triggers.js';
 import type { IProviderKind } from '../extensions/index.js';
 import type { Link, Node } from '../types.js';
 
@@ -98,6 +99,13 @@ export interface IPostWalkTransform {
  *      `invokes` / `references` link produced by two extractors
  *      arrives here already merged; the bump runs once against the
  *      final edge.
+ *   3. `prune-unresolved-code-triggers` after the lift, because the
+ *      gate reads `resolvedTarget` (the lift writes it) and must see
+ *      the MERGED occurrence set (a prose occurrence vetoes the prune,
+ *      so pruning before dedup would drop an edge the prose half
+ *      legitimises). Runs before `collectBrokenLinks` and the
+ *      link-count denormalisation in the orchestrator, so a pruned
+ *      edge never flags broken and never inflates counts.
  *
  * New transforms append to this list; the first two positions are
  * load-bearing for the analyzer pipeline downstream.
@@ -117,6 +125,14 @@ export const POST_WALK_TRANSFORMS: readonly IPostWalkTransform[] = [
       'Bump invocation links to confidence 1.0 when target / trigger resolves against the full node graph per the source Provider rules.',
     run(links: Link[], nodes: readonly Node[], ctx: IPostWalkTransformCtx): void {
       liftResolvedLinkConfidence(links, nodes, ctx);
+    },
+  },
+  {
+    id: 'prune-unresolved-code-triggers',
+    description:
+      'Remove mentions / invokes links that resolved to no node and whose every occurrence sits inside a code region (the backtick-mention / backtick-slash resolution gate).',
+    run(links: Link[]): Link[] {
+      return pruneUnresolvedCodeTriggers(links);
     },
   },
 ];

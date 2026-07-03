@@ -218,6 +218,16 @@ export interface LinkOccurrence {
    */
   originalTrigger: string;
   /**
+   * Surface context of this occurrence, copied verbatim from the
+   * originating `Signal.context` when the resolver materialises the
+   * link. Absent for prose occurrences. The post-walk
+   * `prune-unresolved-code-triggers` transform keys on it: an
+   * unresolved `mentions` link whose EVERY occurrence carries a
+   * code-region context (`'code-block'` / `'inline-code'`) is pruned
+   * (see `spec/architecture.md` §Extractor · code-region triggers).
+   */
+  context?: SignalContext | null;
+  /**
    * Position of the occurrence in the body. Optional, an extractor
    * that does not track line numbers yet (legacy emit paths) omits
    * this field; the analyzer falls back to "unknown line" in messages.

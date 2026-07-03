@@ -3,6 +3,7 @@ import { strictEqual } from 'node:assert/strict';
 
 import {
   extractCodeRegions,
+  extractFencedRegions,
   findBacktickImbalance,
   stripCodeAndHtml,
   stripCodeBlocks,
@@ -134,6 +135,27 @@ describe('extractCodeRegions', () => {
     const out = extractCodeRegions(input);
     strictEqual(/href/.test(out), false); // HTML not a code region
     strictEqual(out.includes('refs/a.md'), true); // backtick path survives
+  });
+});
+
+describe('extractFencedRegions', () => {
+  it('returns empty input untouched', () => {
+    strictEqual(extractFencedRegions(''), '');
+  });
+
+  it('keeps fence payload, blanks inline spans AND prose (the classification mask)', () => {
+    // A position that survives here sits in a fence ('code-block');
+    // one that survives extractCodeRegions but not here sits in an
+    // inline span ('inline-code'). backtick-mention keys its
+    // Signal.context on exactly this difference.
+    const input = 'Span `@inline` then:\n```\n@fenced\n```\n';
+    const out = extractFencedRegions(input);
+    strictEqual(out.length, input.length);
+    strictEqual(/@fenced/.test(out), true);
+    strictEqual(/@inline/.test(out), false);
+    strictEqual(/Span/.test(out), false);
+    const at = input.indexOf('@fenced');
+    strictEqual(out[at], '@');
   });
 });
 

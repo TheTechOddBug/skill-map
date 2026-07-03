@@ -32,6 +32,7 @@ import type { IProvider } from '../extensions/provider.js';
 import type {
   ISignalResolution,
   Link,
+  LinkOccurrence,
   Signal,
   SignalCandidate,
   SignalRange,
@@ -373,14 +374,23 @@ function materialise(signal: Signal, winner: SignalCandidate): Link {
   if (signal.range) {
     link.location = { line: signal.range.line ?? 1, offset: signal.range.start };
   }
-  const occurrenceTrigger = winner.trigger?.originalTrigger ?? signal.raw;
-  const occurrenceLocation = signal.range ? { line: signal.range.line ?? 1 } : null;
-  link.occurrences = [
-    {
-      extractor: winner.extractorId,
-      originalTrigger: occurrenceTrigger,
-      location: occurrenceLocation,
-    },
-  ];
+  link.occurrences = [buildOccurrence(signal, winner)];
   return link;
+}
+
+/**
+ * The synthesised occurrence for a materialised candidate. Surface
+ * context travels Signal → occurrence so graph-aware consumers (the
+ * `prune-unresolved-code-triggers` transform) can tell a code-region
+ * site from a prose one after the merge. Split out of `materialise`
+ * to keep its branch count under the lint complexity cap.
+ */
+function buildOccurrence(signal: Signal, winner: SignalCandidate): LinkOccurrence {
+  const occurrence: LinkOccurrence = {
+    extractor: winner.extractorId,
+    originalTrigger: winner.trigger?.originalTrigger ?? signal.raw,
+    location: signal.range ? { line: signal.range.line ?? 1 } : null,
+  };
+  if (signal.context) occurrence.context = signal.context;
+  return occurrence;
 }

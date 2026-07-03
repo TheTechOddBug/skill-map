@@ -176,10 +176,10 @@ describe('applyPostWalkTransforms', () => {
     strictEqual(out[0]!.resolvedTarget, 'reviewer.md');
   });
 
-  it('default registry exposes dedupe-links and lift-resolved-link-confidence in that order', () => {
+  it('default registry exposes dedupe, lift, and the code-mention gate in that order', () => {
     deepStrictEqual(
       POST_WALK_TRANSFORMS.map((t) => t.id),
-      ['dedupe-links', 'lift-resolved-link-confidence'],
+      ['dedupe-links', 'lift-resolved-link-confidence', 'prune-unresolved-code-triggers'],
     );
   });
 });

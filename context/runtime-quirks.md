@@ -4,8 +4,9 @@ Operating manual for understanding **what every supported runtime
 actually does** with `@<mention>`, `/<command>`, `[label](path)`, and
 `http(s)://` URLs that appear inside the body of a `.md` file (skill,
 agent, command, `AGENTS.md`, `CLAUDE.md`). The conclusions here drive
-why `src/kernel/util/strip-code-blocks.ts` exists and why every body
-extractor calls it before matching.
+why `src/kernel/util/strip-code-blocks.ts` exists and why every
+prose-side body extractor calls it before matching (the two code-region
+exceptions are in §5).
 
 **Authority**: same level as `AGENTS.md` (Topical annexes table). The
 runtimes themselves are the source of truth; this annex captures the
@@ -104,10 +105,10 @@ matches (`stripCodeBlocks`), and `stripHtml` does the same for raw HTML
 `core/external-url-counter`, `claude/slash-command`, `claude/at-directive`)
 call the composed `stripCodeAndHtml` so both regions are masked uniformly.
 Do not bypass it to "recover" tokens hidden inside backticks or HTML;
-for invocation tokens (`@handle`, `/command`, URLs) the discard is
-correct because the runtime never resolves them from code regions, and
-the same logic extends to references buried in HTML (no runtime renders
-the `.md`'s HTML to follow `<a href>` / load `<img src>`). The HTML
+for invocation tokens (`/command`, URLs) the discard is correct because
+the runtime never resolves them from code regions, and the same logic
+extends to references buried in HTML (no runtime renders the `.md`'s
+HTML to follow `<a href>` / load `<img src>`). The HTML
 strip is bounded to comments and tag tokens, never the content between
 an open and close tag, so markdown nested in a `<div>` block survives.
 It is kept independent of `stripCodeBlocks`: `extractCodeRegions` is the
@@ -131,18 +132,52 @@ spec-pinned grammar. It never recovers `@` / `/` tokens. Normative
 contract: `spec/architecture.md` §Extractor · code-region file
 references.
 
+**The second exception: trigger tokens (`@handle` mentions, `/command`
+and `$skill` invocations), resolution-gated.** Authors wrap invocations
+in backticks as stylistic highlighting (``use `@reviewer` for the
+final pass``, ``run `/deploy` before shipping``) and the LLM follows
+them exactly like the unwrapped form, so three code-region siblings
+recover them with the SAME grammar as their prose extractors:
+`claude/backtick-mention` (bare handles, claude lens),
+`core/backtick-slash` (slash commands, claude / antigravity / opencode
+lenses, grammar shared via `kernel/util/slash-token.ts`), and
+`codex/backtick-dollar` (dollar skills, codex lens, grammar shared via
+`kernel/util/dollar-token.ts`). But the base rate is inverted versus
+file paths: most trigger-shaped tokens in code regions are code
+payload (npm scopes `@changesets/cli`, decorators `@Injectable`, shell
+paths `/tmp`, shell variables `$file`, CSS at-rules `@media`), and an
+unresolved trigger link would flag a red `reference-broken` error. So
+the emission is paired with a resolution gate: the post-walk
+`prune-unresolved-code-triggers` transform drops every `mentions` /
+`invokes` link that resolves to no node and whose every occurrence
+carries a code-region `Signal.context` (`'inline-code'` /
+`'code-block'`). A token naming a real entity becomes an edge; payload
+silently vanishes. Prose triggers keep the standing dangling-is-broken
+behaviour, and `core/link-self-loop` skips its warn when a self-loop is
+sourced only from code regions (a doc showing its own usage is not a
+loop risk). Under the claude lens the mention matrix is
+priority-ordered `['agent', 'skill', 'markdown']` (Decision #135), so
+backticked `@deploy-site` reaches a skill and `@playbook` reaches a
+plain doc by basename. Normative contract: `spec/architecture.md`
+§Extractor · code-region triggers (Decisions #134 / #135). File-shaped
+`@docs/api.md` in code regions stays out of the mention grammar; its
+`.md` path half is already a `points` edge via `core/backtick-path`.
+
 Per-extractor `precondition.provider` gates do **not** override this
 policy. They scope **which** prose surface gets scanned, never
 **whether** code regions count. A future provider-specific extractor
 (e.g. an Antigravity slash flavour) must still call `stripCodeBlocks`
 on the body it inspects.
 
-If you ever feel the urge to "fix" the strip because the LLM might
-still notice a backticked `@foo`, re-read §1. The LLM might, but the
-runtime never resolves it deterministically, and the graph models
-deterministic edges. File paths earned their exception by meeting that
-bar: the follow-through is documented, cross-vendor, normative
-behaviour, not a maybe.
+If you ever feel the urge to widen the recovery further (a backticked
+URL), re-read §1. The LLM might notice them, but the runtime never
+resolves them deterministically, and the graph models edges the
+consuming runtime acts on. File paths earned a full exception
+(documented, cross-vendor, normative follow-through); backticked
+trigger tokens (`@handle`, `/command`) earned a CONDITIONAL one, the
+edge exists only when resolution confirms the hypothesis, precisely
+because their base rate in code regions is dominated by non-trigger
+payload.
 
 ## 6. Cursor, community-pending
 
@@ -170,5 +205,12 @@ signals.
 The file-path half of this gap is closed: a backticked relative `.md`
 path is no longer discarded, `core/backtick-path` (§5) turns it into a
 real `points` edge (Decision #127), and a path pointing at a missing
-file surfaces through `core/reference-broken`. The remaining gap is
-invocation tokens only.
+file surfaces through `core/reference-broken`. The trigger half is
+half-closed (Decisions #134 / #135): a backticked `@handle` or
+`/command` that resolves becomes a real `mentions` / `invokes` edge via
+`claude/backtick-mention` / `core/backtick-slash` (§5), but one that
+does NOT resolve (including a typo'd `@reviewr` or `/deply`) is
+silently pruned by the resolution gate, no feedback. The remaining gap
+is therefore URL tokens (fully discarded) and unresolved / typo'd
+triggers (pruned without a warning); the post-strip discard-feedback
+analyzer stays the deferred fix for both.

@@ -39,7 +39,7 @@
     "context": {
       "type": ["string", "null"],
       "enum": ["code-block", "inline-code", "escaped", null],
-      "description": "Provider-determined surface context. `code-block` = inside a fenced code block (most providers ignore these). `inline-code` = inside backticks. `escaped` = preceded by `\\` or otherwise marked literal. Null when the signal is in normal prose or when the context concept doesn't apply (frontmatter / sidecar scopes). Drives both extraction filtering and the resolver's confidence weighting."
+      "description": "Provider-determined surface context. `code-block` = inside a fenced code block (most providers ignore these). `inline-code` = inside backticks. `escaped` = preceded by `\\` or otherwise marked literal. Null when the signal is in normal prose or when the context concept doesn't apply (frontmatter / sidecar scopes). Drives extraction filtering, the resolver's confidence weighting, and the post-walk resolution gate for code-region triggers (an unresolved `mentions` / `invokes` link whose every occurrence carries a code-region context is pruned; see architecture.md §Extractor · code-region triggers)."
     },
     "candidates": {
       "type": "array",

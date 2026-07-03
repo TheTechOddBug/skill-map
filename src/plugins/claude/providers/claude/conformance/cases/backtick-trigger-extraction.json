@@ -1,0 +1,33 @@
+{
+  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "id": "backtick-trigger-extraction",
+  "description": "Code-region triggers, end-to-end. Backtick-wrapped triggers MUST produce exactly FOUR resolved Links: `@reviewer` (span + fenced repeat deduped into one `mentions` link to the agent), `@deploy-site` (`mentions` to the skill) and `@playbook` (`mentions` to the plain markdown doc, both via the priority-ordered claude matrix `['agent', 'skill', 'markdown']`), and `/deploy-site` (`invokes` to the skill via `core/backtick-slash`). All lift to confidence 1.0. The npm-scope bait (`@changesets/cli`) and the shell-path bait (`/killdb`) resolve to nothing and MUST be pruned by the resolution gate: no links, no broken issues. The mention + invocation pair converging on the same skill surfaces as the standing `reference-redundant` warn (two authoring forms, one target), the only issue in the run.",
+  "fixture": "backtick-trigger",
+  "invoke": {
+    "verb": "scan",
+    "flags": ["--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "json-path", "path": "$.schemaVersion", "equals": 1 },
+    { "type": "json-path", "path": "$.stats.linksCount", "equals": 4 },
+    { "type": "json-path", "path": "$.links[0].source", "equals": "source.md" },
+    { "type": "json-path", "path": "$.links[0].target", "equals": "@reviewer" },
+    { "type": "json-path", "path": "$.links[0].kind", "equals": "mentions" },
+    { "type": "json-path", "path": "$.links[0].confidence", "equals": 1.0 },
+    { "type": "json-path", "path": "$.links[0].sources[0]", "equals": "backtick-mention" },
+    { "type": "json-path", "path": "$.links[0].resolvedTarget", "equals": ".claude/agents/reviewer.md" },
+    { "type": "json-path", "path": "$.links[1].target", "equals": "@deploy-site" },
+    { "type": "json-path", "path": "$.links[1].kind", "equals": "mentions" },
+    { "type": "json-path", "path": "$.links[1].resolvedTarget", "equals": ".claude/skills/deploy-site/SKILL.md" },
+    { "type": "json-path", "path": "$.links[2].target", "equals": "@playbook" },
+    { "type": "json-path", "path": "$.links[2].kind", "equals": "mentions" },
+    { "type": "json-path", "path": "$.links[2].resolvedTarget", "equals": "docs/playbook.md" },
+    { "type": "json-path", "path": "$.links[3].target", "equals": "/deploy-site" },
+    { "type": "json-path", "path": "$.links[3].kind", "equals": "invokes" },
+    { "type": "json-path", "path": "$.links[3].sources[0]", "equals": "backtick-slash" },
+    { "type": "json-path", "path": "$.links[3].resolvedTarget", "equals": ".claude/skills/deploy-site/SKILL.md" },
+    { "type": "json-path", "path": "$.stats.issuesCount", "equals": 1 },
+    { "type": "json-path", "path": "$.issues[0].analyzerId", "equals": "reference-redundant" }
+  ]
+}

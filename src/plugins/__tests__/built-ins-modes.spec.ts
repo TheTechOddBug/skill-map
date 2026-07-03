@@ -164,7 +164,10 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // The codex `$skill` / `@`-file grammar split added two extractors (`codex/dollar-skill`, `codex/at-file`), bringing it to 35.
     // The `@`/`/` grammar consolidation then moved the shared `slash-command` (claude -> core) and `at-file` (codex -> core) into the vendor-neutral `core` plugin; a move, not an add/remove, so the total stays 35.
     // The OpenCode provider (`opencode/opencode`, its own agent + command kinds plus the composed open-standard skill kind) brings it to 36.
-    assert.equal(rows.length, 36);
+    // `claude/backtick-mention` (extractor that recovers bare `@handle` mentions from code spans / fences, resolution-gated by the `prune-unresolved-code-triggers` post-walk transform) brings it to 37.
+    // `core/backtick-slash` (its `/command` sibling, same code-region domain and resolution gate, lens-gated claude / antigravity / opencode like the prose slash) brings it to 38.
+    // `codex/backtick-dollar` (the `$skill` sibling completing the per-provider code-region trigger family, codex-only like the prose dollar) brings it to 39.
+    assert.equal(rows.length, 39);
   });
 
   // Convention guard: every built-in EXTRACTOR description ends with a

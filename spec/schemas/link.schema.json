@@ -79,6 +79,11 @@
             "type": "string",
             "description": "Verbatim author substring (sigil included)."
           },
+          "context": {
+            "type": ["string", "null"],
+            "enum": ["code-block", "inline-code", "escaped", null],
+            "description": "Surface context of this occurrence, copied verbatim from the originating Signal's `context`. Absent / null for prose occurrences. The post-walk resolution gate prunes an unresolved trigger-style link (`mentions` / `invokes`) whose every occurrence carries a code-region context (`code-block` / `inline-code`); see architecture.md §Extractor · code-region triggers."
+          },
           "location": {
             "type": ["object", "null"],
             "description": "Position of the occurrence in the body, when the extractor records it.",

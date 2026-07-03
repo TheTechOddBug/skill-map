@@ -246,13 +246,18 @@ export const claudeProvider: IBuiltInManifest<IProvider> = {
     },
   },
 
-  // Strict resolution matrix consumed by `liftResolvedLinkConfidence`:
-  // an `@<name>` mention resolves to an agent only; a `/<name>` slash
-  // resolves to a command OR skill (Anthropic merged the two surfaces
-  // per skills.md). MCP nodes are not invocable through either
-  // mention or slash, so they intentionally do not appear here.
+  // Strict resolution matrix consumed by `liftResolvedLinkConfidence`.
+  // Arrays are PRIORITY-ORDERED (first matching kind wins): an
+  // `@<name>` mention resolves to an agent first, then a skill, then a
+  // markdown file by basename; the widened tail models what the LLM
+  // does with a prose or backticked `@deploy-site` / `@playbook`, it
+  // invokes the skill or reads the doc, even though the composer's `@`
+  // autocomplete is agents + paths only. A `/<name>` slash resolves to
+  // a command OR skill (Anthropic merged the two surfaces per
+  // skills.md). MCP nodes are not invocable through either mention or
+  // slash, so they intentionally do not appear here.
   resolution: {
-    mentions: ['agent'],
+    mentions: ['agent', 'skill', 'markdown'],
     invokes: ['command', 'skill'],
   },
 

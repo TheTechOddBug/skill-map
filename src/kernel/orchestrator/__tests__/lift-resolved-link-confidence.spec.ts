@@ -514,6 +514,43 @@ describe('liftResolvedLinkConfidence', () => {
     strictEqual(links[0]!.resolvedTarget, '.claude/skills/help/SKILL.md');
   });
 
+  it('resolves by matrix priority when the trigger names candidates of several kinds', () => {
+    // `@deploy` names BOTH a markdown doc and an agent. The markdown
+    // node is walked FIRST (enqueued first into the name bucket), but
+    // the priority-ordered matrix `mentions: ['agent', 'skill',
+    // 'markdown']` makes the agent win deterministically.
+    const kindRegistry = new Map<string, IProviderKind>([
+      ['claude/agent', makeKind(['frontmatter.name', 'filename-basename'])],
+      ['markdown/markdown', makeKind(['filename-basename'])],
+    ]);
+    const providerResolution = new Map<string, Record<string, readonly string[]>>([
+      ['claude', { mentions: ['agent', 'skill', 'markdown'] }],
+    ]);
+    const nodes = [
+      mockNode({ path: 'docs/deploy.md', kind: 'markdown', provider: 'markdown' }),
+      mockNode({ path: '.claude/agents/deploy.md', kind: 'agent', frontmatter: { name: 'deploy' } }),
+    ];
+    const links = [mockMention('@deploy', 'deploy')];
+    const ctx = makeCtx({ kindRegistry, providerResolution });
+    liftResolvedLinkConfidence(links, nodes, ctx);
+    strictEqual(links[0]!.resolvedTarget, '.claude/agents/deploy.md');
+  });
+
+  it('resolves a mention to a plain markdown file by basename when no named kind claims it', () => {
+    const kindRegistry = new Map<string, IProviderKind>([
+      ['claude/agent', makeKind(['frontmatter.name', 'filename-basename'])],
+      ['markdown/markdown', makeKind(['filename-basename'])],
+    ]);
+    const providerResolution = new Map<string, Record<string, readonly string[]>>([
+      ['claude', { mentions: ['agent', 'skill', 'markdown'] }],
+    ]);
+    const nodes = [mockNode({ path: 'docs/playbook.md', kind: 'markdown', provider: 'markdown' })];
+    const links = [mockMention('@playbook', 'playbook')];
+    const ctx = makeCtx({ kindRegistry, providerResolution });
+    liftResolvedLinkConfidence(links, nodes, ctx);
+    strictEqual(links[0]!.resolvedTarget, 'docs/playbook.md');
+  });
+
   it('does NOT resolve a genuinely-broken slash even when other reserved nodes exist', () => {
     // A reserved node exists but the link does not point at it (path
     // mismatch + name not in the index). `/something-else` resolves to

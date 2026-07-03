@@ -92,10 +92,19 @@ export const coreMarkdownProvider: IBuiltInManifest<IProvider> = {
           path: 'M14 2 H6 a2 2 0 0 0 -2 2 V20 a2 2 0 0 0 2 2 H18 a2 2 0 0 0 2 -2 V8 L14 2 M14 2 V8 H20 M16 13 H8 M16 17 H8 M10 9 H8',
         },
       },
-      // No `identifiers`: markdown nodes are addressed by path, not by a
-      // canonical name. The name index built by `liftResolvedLinkConfidence`
-      // never sees markdown entries; resolution falls through to the
-      // path-match rule only.
+      // Markdown nodes are addressed primarily by path, but they also
+      // enter the name index by filename basename so a trigger-style
+      // `@playbook` can resolve to `docs/playbook.md` under a lens
+      // whose resolution matrix lists `markdown` (claude's `mentions`
+      // does since Decision #135). No `frontmatter.name` source: plain
+      // markdown carries no canonical name contract, and keeping the
+      // basename as the only identifier means `collectNameCollisions`
+      // (frontmatter.name-scoped) still never warns on duplicate
+      // basenames; when several files share one (README.md), the
+      // resolver's priority walk picks the first bucket entry, so a
+      // named kind (agent / skill) should always outrank `markdown` in
+      // a matrix.
+      identifiers: ['filename-basename'],
     },
   },
 

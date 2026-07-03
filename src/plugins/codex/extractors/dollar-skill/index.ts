@@ -27,22 +27,20 @@
  * against the `.agents/skills/` skill catalog via codex's
  * `resolution.invokes: ['skill']`; `reference-broken` marks it invalid if
  * no skill advertises that handle.
+ *
+ * The `$`-token grammar is shared with the code-region sibling
+ * `codex/backtick-dollar` via `kernel/util/dollar-token.ts` (single
+ * source, no drift).
  */
 
 import type { IBuiltInManifest, IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
 import { stripCodeAndHtml } from '../../../../kernel/util/strip-code-blocks.js';
 import { computeLineStarts, lineFor } from '../../../../kernel/util/line-tracking.js';
 import { normalizeTrigger } from '../../../../kernel/trigger-normalize.js';
+import { DOLLAR_TOKEN_RE } from '../../../../kernel/util/dollar-token.js';
 import { CODEX_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'dollar-skill';
-
-// Match `$skill` only when the preceding char is not a word char or
-// another `$` (so `foo$bar` and `$$` don't match), and the handle starts
-// with a lowercase letter (so `$5` currency and `$PATH` / `$HOME` env vars
-// don't match). No `i` flag: the lowercase-letter requirement is the env /
-// currency guard.
-const DOLLAR_RE = /(?<![A-Za-z0-9_$])(\$[a-z][a-z0-9_-]*)/g;
 
 export const dollarSkillExtractor: IBuiltInManifest<IExtractor> = {
   id: ID,
@@ -60,7 +58,7 @@ export const dollarSkillExtractor: IBuiltInManifest<IExtractor> = {
     const body = stripCodeAndHtml(ctx.body);
     const lineStarts = computeLineStarts(body);
 
-    for (const match of body.matchAll(DOLLAR_RE)) {
+    for (const match of body.matchAll(DOLLAR_TOKEN_RE)) {
       const original = match[1]!;
       const normalized = normalizeTrigger(original);
       if (seen.has(normalized)) continue;

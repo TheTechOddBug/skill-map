@@ -27,10 +27,19 @@
  * analyzers like `reference-redundant`). No autofix today,
  * the fix is operator-driven (delete the in-body token or change the
  * heading wording).
+ *
+ * Code-region exemption: a self-loop whose EVERY occurrence carries a
+ * code-region `context` (a backticked `` `/status` `` inside the very
+ * doc that defines `/status`, or a bare `SKILL.md` naming its own
+ * sibling) is a USAGE EXAMPLE, the canonical way an author documents
+ * their own invocable, not a loop risk. The link still exists (chip /
+ * layout handling is unchanged), only the warn is skipped. Same
+ * occurrence-context provenance the `prune-unresolved-code-triggers`
+ * gate uses (spec/architecture.md §Extractor · code-region triggers).
  */
 
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
-import type { Issue } from '../../../../kernel/types.js';
+import type { Issue, Link } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { isSelfLoop, linkLines } from '../../../../kernel/util/link-lines.js';
 import { formatFinding } from '../../../../kernel/util/finding-format.js';
@@ -51,6 +60,7 @@ export const linkSelfLoopAnalyzer: IBuiltInManifest<IAnalyzer> = {
     const issues: Issue[] = [];
     for (const link of ctx.links) {
       if (!isSelfLoop(link)) continue;
+      if (isCodeRegionOnly(link)) continue;
       issues.push({
         analyzerId: ID,
         severity: 'warn',
@@ -71,3 +81,16 @@ export const linkSelfLoopAnalyzer: IBuiltInManifest<IAnalyzer> = {
     return issues;
   },
 };
+
+/**
+ * True when the link's occurrence provenance is entirely code-region
+ * (`'code-block'` / `'inline-code'`): a self-loop sourced only from
+ * usage examples. Links without occurrence data keep the warn (no
+ * provenance, no exemption).
+ */
+function isCodeRegionOnly(link: Link): boolean {
+  if (!link.occurrences || link.occurrences.length === 0) return false;
+  return link.occurrences.every(
+    (occ) => occ.context === 'code-block' || occ.context === 'inline-code',
+  );
+}

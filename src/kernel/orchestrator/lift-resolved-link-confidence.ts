@@ -202,8 +202,39 @@ function resolveByName(
   if (!candidates?.length) return 'none';
   const allowedKinds = lookupAllowedKinds(link, indexes, ctx);
   if (!allowedKinds?.length) return 'none';
-  const winner = candidates.find((c) => allowedKinds.includes(c.kind));
-  return winner ? winner.path : 'none';
+  return pickByPriority(candidates, allowedKinds, ctx.reservedNodePaths);
+}
+
+/**
+ * Priority walk over the name-index bucket (spec/architecture.md
+ * §Provider · resolution rules). Two composed rules:
+ *
+ *   1. The resolution array is PRIORITY-ORDERED: with
+ *      `mentions: ['agent', 'skill', 'markdown']`, a `@deploy` naming
+ *      both an agent and a markdown file resolves to the agent,
+ *      deterministically, instead of whichever kind the walk order
+ *      enqueued first into the bucket.
+ *   2. A NON-reserved candidate beats a reserved one across the whole
+ *      walk (a live skill named `help` outranks the runtime-shadowed
+ *      `commands/help.md` even though `command` has kind priority);
+ *      only when EVERY allowed candidate is reserved does resolution
+ *      land on the first reserved one, and the `core/name-reserved`
+ *      penalty applies (§Provider · reservedNames).
+ */
+function pickByPriority(
+  candidates: readonly INameIndexEntry[],
+  allowedKinds: readonly string[],
+  reservedNodePaths: ReadonlySet<string>,
+): string | 'none' {
+  let reservedFallback: string | 'none' = 'none';
+  for (const kind of allowedKinds) {
+    for (const candidate of candidates) {
+      if (candidate.kind !== kind) continue;
+      if (!reservedNodePaths.has(candidate.path)) return candidate.path;
+      if (reservedFallback === 'none') reservedFallback = candidate.path;
+    }
+  }
+  return reservedFallback;
 }
 
 function lookupAllowedKinds(

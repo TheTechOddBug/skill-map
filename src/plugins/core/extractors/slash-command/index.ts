@@ -25,6 +25,9 @@
  *   `/skill-map:explore`).
  * - Case-insensitive match; the original text is preserved verbatim
  *   in `originalTrigger`.
+ * - The `/`-token grammar (regex + post-match path guard) is shared
+ *   with the code-region sibling `core/backtick-slash` via
+ *   `kernel/util/slash-token.ts` (single source, no drift).
  *
  * Target resolution is left to the rules layer: the extractor emits
  * `target: <command>` as a bare name, and `reference-broken` marks it invalid
@@ -35,39 +38,10 @@ import type { IBuiltInManifest, IExtractor, IExtractorContext } from '../../../.
 import { stripCodeAndHtml } from '../../../../kernel/util/strip-code-blocks.js';
 import { computeLineStarts, lineFor } from '../../../../kernel/util/line-tracking.js';
 import { normalizeTrigger } from '../../../../kernel/trigger-normalize.js';
+import { SLASH_TOKEN_RE, isPathLikeSuffix } from '../../../../kernel/util/slash-token.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'slash-command';
-
-// Match `/command` only when the preceding character is NOT one that
-// would make the `/` part of a URL, file path, or markdown relative
-// link. Negative lookbehind enumerates the disallowed predecessors:
-//
-//   - `A-Za-z0-9_`, mid-word (`foo/bar` shouldn't match `/bar`).
-//   - `/`          , `//` shouldn't match.
-//   - `.`          , `./foo`, `../foo`, `domain.com/path`. This is
-//                     the "markdown relative link" footgun: `[link](./
-//                     file.md)` was extracting `/file` and producing a
-//                     broken-ref link to a non-existent command.
-//   - `:`          , `https://foo`, `c:/Win`. URL schemes / drive letters.
-//   - `?` `#`      , query strings and fragments inside URLs.
-//   - `=` `&`      , query-string value separators (`?q=/foo&r=/bar`).
-//                     Without these, `?q=/algo` would match `/algo`
-//                     because the immediate predecessor `=` was not
-//                     in the negative list.
-//
-// JS supports fixed-width negative lookbehind in V8 since 2018, safe
-// in all our targets (Node 24 / current evergreen browsers).
-//
-// We DO NOT use a regex-level negative lookahead for the "next char
-// is `/`" check: the engine's backtracking lets `/api/v1/items` match
-// `/a` (greedy `[a-z0-9_-]*` shrinks to zero, lookahead then passes
-// because the next char is `p`, not `/`). The path-suffix guard runs
-// post-match in TS instead, against the original char immediately
-// after the full match (see `extract()` below). Same idea every
-// LLM applies: a `/` token followed by more path is a path, not a
-// command.
-const SLASH_RE = /(?<![A-Za-z0-9_/.:?#=&])(\/[a-z0-9][a-z0-9_-]*(?::[a-z0-9][a-z0-9_-]*)?)/gi;
 
 export const slashCommandExtractor: IBuiltInManifest<IExtractor> = {
   id: ID,
@@ -96,17 +70,13 @@ export const slashCommandExtractor: IBuiltInManifest<IExtractor> = {
     const body = stripCodeAndHtml(ctx.body);
     const lineStarts = computeLineStarts(body);
 
-    for (const match of body.matchAll(SLASH_RE)) {
+    for (const match of body.matchAll(SLASH_TOKEN_RE)) {
       const original = match[1]!;
-      // Post-match path guard: if the char IMMEDIATELY after the full
-      // capture is another identifier-or-slash char, the token is
-      // actually a path segment (`/api/v1/items`, `/Volumes/Disk`,
-      // `/cmd-foo` where the foo extends), not a command. Done in TS
-      // because a regex-level lookahead is defeated by backtracking
-      // on the greedy `[a-z0-9_-]*`.
+      // Post-match path guard (see `kernel/util/slash-token.ts`): a
+      // token whose suffix extends into more path (`/api/v1/items`,
+      // `/Volumes/Disk`) is a path segment, not a command.
       const endIdx = (match.index ?? 0) + match[0].length;
-      const nextChar = body[endIdx];
-      if (nextChar && /[A-Za-z0-9_/-]/.test(nextChar)) continue;
+      if (isPathLikeSuffix(body, endIdx)) continue;
 
       const normalized = normalizeTrigger(original);
       if (seen.has(normalized)) continue;

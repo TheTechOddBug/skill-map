@@ -17,15 +17,18 @@ import { VERSION } from '../version.js';
 
 import { claudeProvider as _claudeProvider } from './claude/providers/claude/index.js';
 import { atDirectiveExtractor as _atDirectiveExtractor } from './claude/extractors/at-directive/index.js';
+import { backtickMentionExtractor as _backtickMentionExtractor } from './claude/extractors/backtick-mention/index.js';
 import { toolsCounterExtractor as _toolsCounterExtractor } from './claude/extractors/tools-counter/index.js';
 import { antigravityProvider as _antigravityProvider } from './antigravity/providers/antigravity/index.js';
 import { codexProvider as _codexProvider } from './codex/providers/codex/index.js';
+import { backtickDollarExtractor as _backtickDollarExtractor } from './codex/extractors/backtick-dollar/index.js';
 import { dollarSkillExtractor as _dollarSkillExtractor } from './codex/extractors/dollar-skill/index.js';
 import { opencodeProvider as _opencodeProvider } from './opencode/providers/opencode/index.js';
 import { agentSkillsProvider as _agentSkillsProvider } from './agent-skills/providers/agent-skills/index.js';
 import { coreMarkdownProvider as _coreMarkdownProvider } from './core/providers/core-markdown/index.js';
 import { atFileExtractor as _atFileExtractor } from './core/extractors/at-file/index.js';
 import { backtickPathExtractor as _backtickPathExtractor } from './core/extractors/backtick-path/index.js';
+import { backtickSlashExtractor as _backtickSlashExtractor } from './core/extractors/backtick-slash/index.js';
 import { externalUrlCounterExtractor as _externalUrlCounterExtractor } from './core/extractors/external-url-counter/index.js';
 import { markdownLinkExtractor as _markdownLinkExtractor } from './core/extractors/markdown-link/index.js';
 import { mcpToolsExtractor as _mcpToolsExtractor } from './core/extractors/mcp-tools/index.js';
@@ -54,15 +57,18 @@ import { updateCheckHook as _updateCheckHook } from './core/hooks/update-check/i
 
 const claudeProvider = { ..._claudeProvider, pluginId: 'claude', version: VERSION };
 const atDirectiveExtractor = { ..._atDirectiveExtractor, pluginId: 'claude', version: VERSION };
+const backtickMentionExtractor = { ..._backtickMentionExtractor, pluginId: 'claude', version: VERSION };
 const toolsCounterExtractor = { ..._toolsCounterExtractor, pluginId: 'claude', version: VERSION };
 const antigravityProvider = { ..._antigravityProvider, pluginId: 'antigravity', version: VERSION };
 const codexProvider = { ..._codexProvider, pluginId: 'codex', version: VERSION };
+const backtickDollarExtractor = { ..._backtickDollarExtractor, pluginId: 'codex', version: VERSION };
 const dollarSkillExtractor = { ..._dollarSkillExtractor, pluginId: 'codex', version: VERSION };
 const opencodeProvider = { ..._opencodeProvider, pluginId: 'opencode', version: VERSION };
 const agentSkillsProvider = { ..._agentSkillsProvider, pluginId: 'agent-skills', version: VERSION };
 const coreMarkdownProvider = { ..._coreMarkdownProvider, pluginId: 'core', version: VERSION };
 const atFileExtractor = { ..._atFileExtractor, pluginId: 'core', version: VERSION };
 const backtickPathExtractor = { ..._backtickPathExtractor, pluginId: 'core', version: VERSION };
+const backtickSlashExtractor = { ..._backtickSlashExtractor, pluginId: 'core', version: VERSION };
 const externalUrlCounterExtractor = { ..._externalUrlCounterExtractor, pluginId: 'core', version: VERSION };
 const markdownLinkExtractor = { ..._markdownLinkExtractor, pluginId: 'core', version: VERSION };
 const mcpToolsExtractor = { ..._mcpToolsExtractor, pluginId: 'core', version: VERSION };
@@ -113,6 +119,7 @@ export const builtInPlugins: IBuiltInPlugin[] = [
     extensions: [
       claudeProvider,
       atDirectiveExtractor,
+      backtickMentionExtractor,
       toolsCounterExtractor,
     ],
   },
@@ -128,6 +135,7 @@ export const builtInPlugins: IBuiltInPlugin[] = [
     description: 'OpenAI Codex CLI platform integration. Classifies TOML sub-agent definitions under `.codex/agents/*.toml`.',
     extensions: [
       codexProvider,
+      backtickDollarExtractor,
       dollarSkillExtractor,
     ],
   },
@@ -152,6 +160,7 @@ export const builtInPlugins: IBuiltInPlugin[] = [
       coreMarkdownProvider,
       atFileExtractor,
       backtickPathExtractor,
+      backtickSlashExtractor,
       externalUrlCounterExtractor,
       markdownLinkExtractor,
       mcpToolsExtractor,

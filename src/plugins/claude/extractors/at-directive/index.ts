@@ -19,9 +19,14 @@
  * - Token must start with a standalone `@` (SOL or non-word prefix) so emails
  *   (`foo@bar.com`) and `@@` don't match.
  * - Tokens inside fenced code blocks, inline backticks, or raw HTML (comments
- *   / tags) are skipped entirely (`stripCodeAndHtml`).
- * - The `@`-token grammar is shared with `core/at-file` via
- *   `kernel/util/at-token.ts` (single source, no drift).
+ *   / tags) are skipped HERE (`stripCodeAndHtml`); the code-region half
+ *   (spans + fences, not HTML) belongs to the sibling
+ *   `claude/backtick-mention`, which emits the same `mentions` shape
+ *   gated on resolution (spec/architecture.md §Extractor · code-region
+ *   mentions).
+ * - The `@`-token grammar is shared with `core/at-file` and
+ *   `claude/backtick-mention` via `kernel/util/at-token.ts` (single
+ *   source, no drift).
  */
 
 import type { IBuiltInManifest, IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';

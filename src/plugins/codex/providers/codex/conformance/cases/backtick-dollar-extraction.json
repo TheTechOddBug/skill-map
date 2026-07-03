@@ -1,0 +1,22 @@
+{
+  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "id": "backtick-dollar-extraction",
+  "description": "Code-region `$skill` triggers, end-to-end under the codex lens. A backticked `$check-links` in prose plus its fenced repeat MUST dedupe into exactly ONE `invokes` Link via `codex/backtick-dollar`, resolved to the fixture skill and lifted to confidence 1.0. The lowercase shell variable `$file` inside the sh fence matches the shared grammar but resolves to nothing and MUST be pruned by the resolution gate: no link, no broken issue.",
+  "fixture": "backtick-dollar",
+  "invoke": {
+    "verb": "scan",
+    "flags": ["--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "json-path", "path": "$.schemaVersion", "equals": 1 },
+    { "type": "json-path", "path": "$.stats.linksCount", "equals": 1 },
+    { "type": "json-path", "path": "$.links[0].source", "equals": "notes.md" },
+    { "type": "json-path", "path": "$.links[0].target", "equals": "$check-links" },
+    { "type": "json-path", "path": "$.links[0].kind", "equals": "invokes" },
+    { "type": "json-path", "path": "$.links[0].confidence", "equals": 1.0 },
+    { "type": "json-path", "path": "$.links[0].sources[0]", "equals": "backtick-dollar" },
+    { "type": "json-path", "path": "$.links[0].resolvedTarget", "equals": ".agents/skills/check-links/SKILL.md" },
+    { "type": "json-path", "path": "$.stats.issuesCount", "equals": 0 }
+  ]
+}

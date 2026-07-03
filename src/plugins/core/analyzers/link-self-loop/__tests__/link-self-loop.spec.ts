@@ -123,6 +123,69 @@ describe('core/link-self-loop rule', () => {
     assert.match(issue.message, /Self-reference/);
   });
 
+  it('does NOT emit for a self-loop sourced only from code regions (usage example)', async () => {
+    // A backticked `/real-command` inside the very doc that defines it:
+    // the canonical usage-example shape (`core/backtick-slash` emission,
+    // occurrence context = code region). The link exists but the warn
+    // is skipped per the code-region exemption.
+    const cmd = mockNode({
+      path: '.claude/commands/real-command.md',
+      kind: 'command',
+      frontmatter: { name: 'real-command' },
+    });
+    const usageLoop = mockLink({
+      source: cmd.path,
+      target: '/real-command',
+      kind: 'invokes',
+      confidence: 1.0,
+      sources: ['backtick-slash'],
+      trigger: { originalTrigger: '/real-command', normalizedTrigger: '/real command' },
+      resolvedTarget: cmd.path,
+      occurrences: [
+        {
+          extractor: 'backtick-slash',
+          originalTrigger: '/real-command',
+          context: 'inline-code',
+          location: { line: 2 },
+        },
+      ],
+    });
+    const issues = await linkSelfLoopAnalyzer.evaluate(
+      ctxWith({ nodes: [cmd], links: [usageLoop] }),
+    );
+    assert.deepEqual(issues, []);
+  });
+
+  it('still emits when a self-loop mixes a prose occurrence with code-region ones', async () => {
+    const cmd = mockNode({
+      path: '.claude/commands/real-command.md',
+      kind: 'command',
+      frontmatter: { name: 'real-command' },
+    });
+    const mixedLoop = mockLink({
+      source: cmd.path,
+      target: '/real-command',
+      kind: 'invokes',
+      confidence: 1.0,
+      sources: ['slash-command', 'backtick-slash'],
+      trigger: { originalTrigger: '/real-command', normalizedTrigger: '/real command' },
+      resolvedTarget: cmd.path,
+      occurrences: [
+        { extractor: 'slash-command', originalTrigger: '/real-command', location: { line: 1 } },
+        {
+          extractor: 'backtick-slash',
+          originalTrigger: '/real-command',
+          context: 'inline-code',
+          location: { line: 2 },
+        },
+      ],
+    });
+    const issues = await linkSelfLoopAnalyzer.evaluate(
+      ctxWith({ nodes: [cmd], links: [mixedLoop] }),
+    );
+    assert.equal(issues.length, 1);
+  });
+
   it('does NOT emit for normal cross-node links', async () => {
     const src = mockNode({ path: 'a.md' });
     const dst = mockNode({ path: 'b.md' });
