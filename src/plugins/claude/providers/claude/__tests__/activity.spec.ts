@@ -86,6 +86,61 @@ describe('claudeActivity.mapEvent', () => {
     ]);
   });
 
+  it('an in-scope markdown Read maps to a PATH signal (scope-relative)', () => {
+    const signals = claudeActivity.mapEvent({
+      session_id: '6cfe5636-2e56-4271-91a6-87fc3d4355be',
+      cwd: '/home/user/project',
+      hook_event_name: 'PreToolUse',
+      tool_name: 'Read',
+      tool_input: { file_path: '/home/user/project/notes/todo.md' },
+      tool_use_id: 'toolu_01ReadMarkdownExample0001',
+    });
+    assert.deepEqual(signals, [{ path: 'notes/todo.md', phase: 'start', owner: 'main' }]);
+  });
+
+  it('a markdown Read inside a subagent is owned by that agent_id', () => {
+    const signals = claudeActivity.mapEvent({
+      cwd: '/home/user/project',
+      hook_event_name: 'PreToolUse',
+      agent_id: 'afa6d56495644b2db',
+      agent_type: 'probe-agent',
+      tool_name: 'Read',
+      tool_input: { file_path: '/home/user/project/docs/playbook.md' },
+    });
+    assert.deepEqual(signals, [
+      { path: 'docs/playbook.md', phase: 'start', owner: 'afa6d56495644b2db' },
+    ]);
+  });
+
+  it('Read filter: early-disclaims everything that can never light a node', () => {
+    const base = {
+      cwd: '/home/user/project',
+      hook_event_name: 'PreToolUse',
+      tool_name: 'Read',
+    };
+    // Not a markdown file (the high-frequency case: source code reads).
+    assert.equal(
+      claudeActivity.mapEvent({ ...base, tool_input: { file_path: '/home/user/project/src/index.ts' } }),
+      null,
+    );
+    // Outside the scope root: cannot be a scanned node of this project.
+    assert.equal(
+      claudeActivity.mapEvent({ ...base, tool_input: { file_path: '/somewhere/else/readme.md' } }),
+      null,
+    );
+    // No usable cwd on the event.
+    assert.equal(
+      claudeActivity.mapEvent({
+        hook_event_name: 'PreToolUse',
+        tool_name: 'Read',
+        tool_input: { file_path: '/home/user/project/notes/todo.md' },
+      }),
+      null,
+    );
+    // Missing / empty file_path.
+    assert.equal(claudeActivity.mapEvent({ ...base, tool_input: {} }), null);
+  });
+
   it('plain tool calls are disclaimed (tools are not graph nodes)', () => {
     const signals = claudeActivity.mapEvent({
       hook_event_name: 'PreToolUse',

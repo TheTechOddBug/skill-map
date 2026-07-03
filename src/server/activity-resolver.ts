@@ -79,10 +79,13 @@ async function loadPersistedNodes(dbPath: string): Promise<readonly Node[]> {
 }
 
 /**
- * Pure resolution half, exported for unit tests. For each signal, the
- * first node (stable scan order) classified by THIS provider under the
- * signal's kind whose derived identifiers contain the normalised signal
- * name wins. Unresolved signals are dropped.
+ * Pure resolution half, exported for unit tests. Two signal forms (see
+ * `IActivitySignal`): a PATH signal matches the node with that exact
+ * `path`, across providers and kinds (the path already identifies one
+ * node unambiguously); a NAME signal matches the first node (stable
+ * scan order) classified by THIS provider under the signal's kind whose
+ * derived identifiers contain the normalised name. Unresolved signals
+ * are dropped either way.
  */
 export function resolveSignalsAgainstNodes(
   signals: readonly IActivitySignal[],
@@ -91,9 +94,7 @@ export function resolveSignalsAgainstNodes(
 ): INodeActivityEventData[] {
   const out: INodeActivityEventData[] = [];
   for (const signal of signals) {
-    const wanted = normalizeTrigger(signal.name);
-    if (!wanted) continue;
-    const node = findNodeForSignal(nodes, provider, signal.kind, wanted);
+    const node = findNodeForSignal(nodes, provider, signal);
     if (!node) continue;
     const resolved: INodeActivityEventData = { nodePath: node.path, phase: signal.phase };
     if (signal.owner !== undefined) resolved.owner = signal.owner;
@@ -105,14 +106,19 @@ export function resolveSignalsAgainstNodes(
 function findNodeForSignal(
   nodes: readonly Node[],
   provider: IProvider,
-  kind: string,
-  normalizedName: string,
+  signal: IActivitySignal,
 ): Node | undefined {
-  const descriptor = provider.kinds[kind];
+  if (signal.path !== undefined) {
+    return signal.path.length > 0 ? nodes.find((node) => node.path === signal.path) : undefined;
+  }
+  if (signal.kind === undefined || signal.name === undefined) return undefined;
+  const wanted = normalizeTrigger(signal.name);
+  if (!wanted) return undefined;
+  const descriptor = provider.kinds[signal.kind];
   return nodes.find(
     (node) =>
       node.provider === provider.id &&
-      node.kind === kind &&
-      deriveNodeIdentifiers(node, descriptor).includes(normalizedName),
+      node.kind === signal.kind &&
+      deriveNodeIdentifiers(node, descriptor).includes(wanted),
   );
 }

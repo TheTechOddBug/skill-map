@@ -58,6 +58,27 @@ function bridgeCommand(providerId: string): string {
   return `node ${ACTIVITY_BRIDGE_REL} ${providerId}`;
 }
 
+/**
+ * REFRESH semantics for the provider config: drop our marker-carrying
+ * entries first, then re-add from the CURRENT descriptor. A plain
+ * idempotency check would freeze stale entries in place (an older
+ * install's event list / matchers would never pick up descriptor
+ * changes); the remove+merge pair updates ours while leaving operator
+ * hooks untouched either way. Persists only when something changed.
+ */
+function refreshHookWiring(
+  configPath: string,
+  events: readonly IActivityInstallEvent[],
+  providerId: string,
+): void {
+  const settings = readJsonObjectOrEmpty(configPath);
+  const removedStale = removeActivityHooks(settings, ACTIVITY_BRIDGE_REL);
+  const merge = mergeActivityHooks(settings, events, bridgeCommand(providerId), ACTIVITY_BRIDGE_REL);
+  if (removedStale || merge.changed) {
+    writeJsonAtomic(configPath, settings);
+  }
+}
+
 /** Built-in Providers that declare an activity adapter. */
 function activityProviders(): IProvider[] {
   return builtIns().providers.filter((p) => p.activity !== undefined);
@@ -126,29 +147,15 @@ export class ActivityInstallCommand extends SmCommand {
     if (consented !== null) return consented;
 
     try {
-      const settings = readJsonObjectOrEmpty(configPath);
-      const merge = mergeActivityHooks(
-        settings,
-        events,
-        bridgeCommand(provider.id),
-        ACTIVITY_BRIDGE_REL,
-      );
+      refreshHookWiring(configPath, events, provider.id);
 
-      // The bridge artifact is (re)written even when the hooks were
-      // already wired, so a version upgrade refreshes the script. The
-      // sibling package.json pins CommonJS so an ESM host project
-      // (`"type": "module"`) cannot break the bridge's `require`.
+      // The bridge artifact is (re)written on every install, so a
+      // version upgrade refreshes the script. The sibling package.json
+      // pins CommonJS so an ESM host project (`"type": "module"`)
+      // cannot break the bridge's `require`.
       await mkdir(dirname(bridgePath), { recursive: true });
       await writeFile(bridgePath, renderActivityBridge(), 'utf8');
       await writeFile(join(dirname(bridgePath), 'package.json'), BRIDGE_PACKAGE_JSON, 'utf8');
-
-      if (!merge.changed) {
-        this.printer!.info(
-          tx(ACTIVITY_TEXTS.alreadyInstalled, { glyph: okGlyph, configPath: install.configPath }),
-        );
-        return ExitCode.Ok;
-      }
-      writeJsonAtomic(configPath, settings);
 
       this.printer!.data(
         tx(ACTIVITY_TEXTS.installed, {

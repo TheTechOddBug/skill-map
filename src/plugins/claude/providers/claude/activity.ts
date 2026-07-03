@@ -22,6 +22,11 @@
  *   idempotent). `SubagentStop` events with an EMPTY `agent_type` are
  *   orphan noise (observed firing out of order with unrelated ids) and
  *   are disclaimed.
+ * - **Markdown usage**: `PreToolUse` with `tool_name: 'Read'` carries
+ *   `tool_input.file_path`; in-scope `.md` reads become PATH signals
+ *   (see `mapMarkdownRead`, filter-first: everything else is
+ *   early-disclaimed). Auto-loaded session context (`CLAUDE.md`) fires
+ *   no tool event and stays invisible by design.
  * - Everything else (`Stop`, `SessionEnd`, plain tool calls, ...) is
  *   disclaimed: tools are not graph nodes, and session-level clears are
  *   owned by the UI's TTL decay in v1.
@@ -44,11 +49,13 @@ export const claudeActivity: IProviderActivityAdapter = {
     configPath: '.claude/settings.json',
     // Only the events mapEvent consumes: every wired event spawns one
     // bridge process, so the list stays tight. Tool events are narrowed
-    // to the two attributable tools; plain Bash/Read/... calls never
-    // spawn the bridge at all.
+    // to the three attributable tools (Skill / Agent invocations plus
+    // Read for markdown usage); plain Bash/Grep/... calls never spawn
+    // the bridge at all. Read survivors are further filtered inside
+    // mapEvent (only in-scope `.md` files become signals).
     events: [
       { event: 'UserPromptExpansion', matcher: '*' },
-      { event: 'PreToolUse', matcher: '^(Skill|Agent)$' },
+      { event: 'PreToolUse', matcher: '^(Skill|Agent|Read)$' },
       { event: 'SubagentStart', matcher: '*' },
       { event: 'SubagentStop', matcher: '*' },
     ],
@@ -104,7 +111,41 @@ function mapPreToolUse(event: Record<string, unknown>): IActivitySignal[] | null
     if (!name) return null;
     return [{ kind: 'agent', name, phase: 'start', owner: ownerOf(event) }];
   }
+  if (event['tool_name'] === 'Read') {
+    return mapMarkdownRead(event, input);
+  }
   return null;
+}
+
+/**
+ * Markdown usage: the runtime read a file. `Read` is HIGH-frequency
+ * (every source file the assistant opens), so this is a FILTER FIRST:
+ * every early return below discards an event that can never light a
+ * node, before any node-set work happens downstream.
+ *
+ * - Not a `.md` file: source code, JSON, lockfiles, disclaim.
+ * - No usable `cwd` on the event, or the file lies OUTSIDE it: the
+ *   file cannot be a scanned node of THIS project, disclaim.
+ *
+ * Survivors become a PATH signal (scope-relative, forward-slash): the
+ * resolver matches `node.path` directly, across kinds, so reading
+ * `notes/todo.md` lights the markdown node and reading a skill's
+ * `SKILL.md` lights that skill.
+ */
+function mapMarkdownRead(
+  event: Record<string, unknown>,
+  input: Record<string, unknown>,
+): IActivitySignal[] | null {
+  const filePath = nonEmptyString(input['file_path']);
+  if (!filePath) return null;
+  if (!filePath.toLowerCase().endsWith('.md')) return null;
+  const cwd = nonEmptyString(event['cwd']);
+  if (!cwd) return null;
+  const prefix = cwd.endsWith('/') ? cwd : `${cwd}/`;
+  if (!filePath.startsWith(prefix)) return null;
+  const relative = filePath.slice(prefix.length);
+  if (relative.length === 0) return null;
+  return [{ path: relative, phase: 'start', owner: ownerOf(event) }];
 }
 
 /**

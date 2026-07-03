@@ -79,7 +79,10 @@ async function primeFixture(): Promise<void> {
     scannedAt: Date.now(),
     roots: [root.fixtureRoot],
     providers: ['claude'],
-    nodes: [makeSkillNode('.claude/skills/deploy/SKILL.md')],
+    nodes: [
+      makeSkillNode('.claude/skills/deploy/SKILL.md'),
+      { ...makeSkillNode('notes/todo.md'), kind: 'markdown', provider: 'markdown' },
+    ],
     links: [],
     issues: [],
     stats: {
@@ -218,6 +221,48 @@ describe('POST /api/activity, ingest', () => {
         {
           provider: 'claude',
           event: { hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'ls' } },
+        },
+        handle.activityToken,
+      );
+      assert.equal(res.status, 202);
+      const body = (await res.json()) as { resolved: number };
+      assert.equal(body.resolved, 0);
+    });
+  });
+
+  it('202 resolved: 1 for an in-scope markdown Read (path-based resolution)', async () => {
+    await bootAndUse(async (handle) => {
+      const res = await postActivity(
+        handle,
+        {
+          provider: 'claude',
+          event: {
+            cwd: root.fixtureRoot,
+            hook_event_name: 'PreToolUse',
+            tool_name: 'Read',
+            tool_input: { file_path: `${root.fixtureRoot}/notes/todo.md` },
+          },
+        },
+        handle.activityToken,
+      );
+      assert.equal(res.status, 202);
+      const body = (await res.json()) as { resolved: number };
+      assert.equal(body.resolved, 1);
+    });
+  });
+
+  it('202 resolved: 0 for a non-markdown Read (mapEvent early filter)', async () => {
+    await bootAndUse(async (handle) => {
+      const res = await postActivity(
+        handle,
+        {
+          provider: 'claude',
+          event: {
+            cwd: root.fixtureRoot,
+            hook_event_name: 'PreToolUse',
+            tool_name: 'Read',
+            tool_input: { file_path: `${root.fixtureRoot}/src/index.ts` },
+          },
         },
         handle.activityToken,
       );

@@ -340,16 +340,31 @@ export type TActivityPhase = 'start' | 'end';
 /**
  * One node-attributable signal derived from a single raw provider hook
  * payload by `IProviderActivityAdapter.mapEvent`. The Provider names the
- * unit (`kind` + `name`); it does NOT resolve nodes, the BFF resolves
- * `(kind, name)` against the scanned node set through the same
- * `kinds[*].identifiers` contract link resolution uses, and drops
- * signals that resolve to no scanned node.
+ * unit in ONE of two forms (see `spec/provider-activity.md`); it does
+ * NOT resolve nodes:
+ *
+ * - **By name** (`kind` + `name`): the BFF resolves `(kind, name)`
+ *   against the scanned node set through the same `kinds[*].identifiers`
+ *   contract link resolution uses.
+ * - **By path** (`path`, scope-relative, forward-slash): used when the
+ *   runtime reports a FILE rather than a named unit (a markdown read via
+ *   the provider's file-read tool). Path signals match the scanned node
+ *   with that exact `path` ACROSS providers and kinds, the path already
+ *   identifies one node unambiguously. When `path` is present, `kind` /
+ *   `name` are ignored.
+ *
+ * Signals that resolve to no scanned node are dropped either way.
  */
 export interface IActivitySignal {
-  /** Node kind the unit belongs to (`skill`, `agent`, `command`, ...). */
-  kind: string;
-  /** Raw unit name as the runtime reported it (normalised by the resolver). */
-  name: string;
+  /** Node kind the unit belongs to (`skill`, `agent`, `command`, ...). Required unless `path` is set. */
+  kind?: string;
+  /** Raw unit name as the runtime reported it (normalised by the resolver). Required unless `path` is set. */
+  name?: string;
+  /**
+   * Scope-relative node path (forward-slash). When present, resolution
+   * is a direct `node.path` match and `kind` / `name` are ignored.
+   */
+  path?: string;
   /** Signal phase, see `TActivityPhase`. */
   phase: TActivityPhase;
   /**

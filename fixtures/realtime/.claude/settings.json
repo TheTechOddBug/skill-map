@@ -19,7 +19,16 @@
             "command": "node .skill-map/activity/bridge.js claude"
           }
         ],
-        "matcher": "^(Skill|Agent)$"
+        "matcher": "^(Skill|Agent|Read)$"
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .tmp/hook-probe.mjs"
+          }
+        ]
       }
     ],
     "SubagentStart": [

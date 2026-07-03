@@ -20,11 +20,11 @@ export const ACTIVITY_TEXTS = {
   installNeedsTty:
     '{{glyph}}  sm activity: refusing to modify {{configPath}} without a TTY confirm. Re-run with --yes.\n',
 
-  // Success summaries.
+  // Success summary. Install is REFRESH-semantics (re-running updates
+  // our entries in place), so one message covers first-install and
+  // re-install alike.
   installed:
     '{{glyph}}  sm activity: bridge written to {{bridgePath}} and wired into {{configPath}} ({{events}} events).\n',
-  alreadyInstalled:
-    '{{glyph}}  sm activity: {{configPath}} already carries the bridge hooks; nothing to do.\n',
   installedHint:
     'Run `sm serve` and invoke a skill / agent in {{provider}} to watch the map light up. Reverse with `sm activity uninstall {{provider}}`.',
 

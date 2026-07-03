@@ -112,6 +112,36 @@ describe('resolveSignalsAgainstNodes', () => {
     assert.deepEqual(resolved, []);
   });
 
+  it('PATH signals match by exact node.path, across providers and kinds', () => {
+    const resolved = resolveSignalsAgainstNodes(
+      [
+        // A markdown node classified by the `markdown` provider still
+        // resolves for a claude-tagged event: the path is unambiguous.
+        { path: 'notes/deploy.md', phase: 'start', owner: 'main' },
+        // A skill's SKILL.md read directly lights the skill node.
+        { path: '.claude/skills/deploy/SKILL.md', phase: 'start' },
+      ],
+      provider,
+      NODES,
+    );
+    assert.deepEqual(resolved, [
+      { nodePath: 'notes/deploy.md', phase: 'start', owner: 'main' },
+      { nodePath: '.claude/skills/deploy/SKILL.md', phase: 'start' },
+    ]);
+  });
+
+  it('PATH signals drop when no scanned node carries that path', () => {
+    const resolved = resolveSignalsAgainstNodes(
+      [
+        { path: 'src/index.ts', phase: 'start' },
+        { path: '', phase: 'start' },
+      ],
+      provider,
+      NODES,
+    );
+    assert.deepEqual(resolved, []);
+  });
+
   it('shared slash namespace: command + skill pair resolves only the kind that exists', () => {
     const resolved = resolveSignalsAgainstNodes(
       [

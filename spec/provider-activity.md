@@ -51,11 +51,23 @@ Two halves:
   and which install shape applies (`kind`).
 - **Runtime (TypeScript only, never in the manifest, mirroring `classify()` /
   `walk()`)**: `mapEvent(raw)` receives one raw provider hook payload and returns
-  zero or more activity signals `{ kind, name, phase, owner? }` or `null` to
-  disclaim. The provider owns payload knowledge; it does NOT resolve nodes. The
-  generic BFF mapper resolves `(kind, name)` to a scanned `node.path` using the
-  provider's kind identifiers ([`architecture.md` §Provider · kind identifiers](./architecture.md#provider--kind-identifiers));
-  events that resolve to no scanned node are dropped (a phantom node is never lit).
+  zero or more activity signals, or `null` to disclaim. A signal names its unit in
+  one of two forms:
+  - **By name**: `{ kind, name, phase, owner? }`. The generic BFF mapper resolves
+    `(kind, name)` to a scanned `node.path` using the provider's kind identifiers
+    ([`architecture.md` §Provider · kind identifiers](./architecture.md#provider--kind-identifiers)).
+  - **By path**: `{ path, phase, owner? }`, where `path` is scope-relative
+    (forward-slash). Used when the runtime reports a FILE rather than a named unit
+    (a markdown read via the provider's file-read tool). Path signals match the
+    scanned node with that exact `path`, ACROSS providers and kinds (the file may
+    be a `markdown` node, a skill's `SKILL.md`, anything scanned), because the
+    path already identifies one node unambiguously.
+
+  Either way the provider owns payload knowledge and does NOT resolve nodes;
+  `mapEvent` is also where irrelevant runtime events are FILTERED with an early
+  disclaim (a file-read of a non-markdown source file, a path outside the scope
+  root), so obviously-unresolvable events never reach the node set. Signals that
+  resolve to no scanned node are dropped (a phantom node is never lit).
 
 Install shapes (`install.kind`, closed set, extensible by minor bump):
 
@@ -182,7 +194,7 @@ Live-verified against real runs (2026-06-30). These inform each provider's
 
 | Provider | skill | agent | command | notes |
 |---|---|---|---|---|
-| `claude` | `PreToolUse` tool=`Skill` (`tool_input.skill`), slash form via `UserPromptExpansion.command_name` | `SubagentStart/Stop` + `agent_id`/`agent_type` on inner tool events; deep nesting attributable | `UserPromptExpansion.command_name` (shares the `/` namespace with skills; disambiguate by which node exists) | `Stop` clears, EXCEPT owners listed in `background_tasks[]`; ignore `SubagentStop` orphans with empty `agent_type` |
+| `claude` | `PreToolUse` tool=`Skill` (`tool_input.skill`), slash form via `UserPromptExpansion.command_name` | `SubagentStart/Stop` + `agent_id`/`agent_type` on inner tool events; deep nesting attributable | `UserPromptExpansion.command_name` (shares the `/` namespace with skills; disambiguate by which node exists) | markdown usage: `PreToolUse` tool=`Read` (`tool_input.file_path`, relativized against the event's `cwd`) emits a PATH signal; non-`.md` reads and paths outside the scope root are early-disclaimed. Auto-loaded context (`CLAUDE.md` at session start) fires no tool event and stays invisible. `Stop` clears, EXCEPT owners listed in `background_tasks[]`; ignore `SubagentStop` orphans with empty `agent_type` |
 | `codex` | weak: `$name` only inside `UserPromptSubmit.prompt` | `SubagentStart/Stop` (`agent_id`, generic `worker` type); subagents cannot spawn (depth 1) | none | payload near-identical to claude's |
 | `antigravity` | invisible at hook level | own `conversationId` per subagent; spawn via `invoke_subagent` tool | none | events: Pre/PostToolUse, Pre/PostInvocation, Stop only |
 | `agent-skills` via opencode | `tool.execute.before` tool=`skill` (`args.name`) | `chat.message.agent` (named); own `sessionID` per subagent | dedicated `command.execute.before` hook | in-process plugin API (no spawn) |
