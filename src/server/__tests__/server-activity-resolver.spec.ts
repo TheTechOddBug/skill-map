@@ -87,6 +87,40 @@ describe('resolveSignalsAgainstNodes', () => {
     ]);
   });
 
+  it('passes ownerScope through on owner-scoped ends (and only then)', () => {
+    const resolved = resolveSignalsAgainstNodes(
+      [
+        { kind: 'agent', name: 'code-reviewer', phase: 'end', owner: 'a1b2', ownerScope: true },
+        // ownerScope without an owner is meaningless: stripped.
+        { kind: 'skill', name: 'deploy', phase: 'end', ownerScope: true },
+        // ownerScope on a start is meaningless: stripped.
+        { kind: 'skill', name: 'deploy', phase: 'start', owner: 'a1b2', ownerScope: true },
+      ],
+      provider,
+      NODES,
+    );
+    assert.deepEqual(resolved, [
+      { nodePath: '.claude/agents/reviewer.md', phase: 'end', owner: 'a1b2', ownerScope: true },
+      { nodePath: '.claude/skills/deploy/SKILL.md', phase: 'end' },
+      { nodePath: '.claude/skills/deploy/SKILL.md', phase: 'start', owner: 'a1b2' },
+    ]);
+  });
+
+  it('passes sticky through on starts (and strips it from ends)', () => {
+    const resolved = resolveSignalsAgainstNodes(
+      [
+        { kind: 'agent', name: 'code-reviewer', phase: 'start', owner: 'a1b2', sticky: true },
+        { kind: 'agent', name: 'code-reviewer', phase: 'end', owner: 'a1b2', sticky: true },
+      ],
+      provider,
+      NODES,
+    );
+    assert.deepEqual(resolved, [
+      { nodePath: '.claude/agents/reviewer.md', phase: 'start', owner: 'a1b2', sticky: true },
+      { nodePath: '.claude/agents/reviewer.md', phase: 'end', owner: 'a1b2' },
+    ]);
+  });
+
   it('normalises the signal name like link resolution does', () => {
     const resolved = resolveSignalsAgainstNodes(
       [{ kind: 'skill', name: 'Deploy', phase: 'start' }],

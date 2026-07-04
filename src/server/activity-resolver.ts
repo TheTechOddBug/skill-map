@@ -96,11 +96,27 @@ export function resolveSignalsAgainstNodes(
   for (const signal of signals) {
     const node = findNodeForSignal(nodes, provider, signal);
     if (!node) continue;
-    const resolved: INodeActivityEventData = { nodePath: node.path, phase: signal.phase };
-    if (signal.owner !== undefined) resolved.owner = signal.owner;
-    out.push(resolved);
+    out.push(buildResolvedData(signal, node.path));
   }
   return out;
+}
+
+/**
+ * Project one resolved signal onto the wire shape. The phase-gated
+ * flags are normalised here so consumers never see contradictory
+ * combinations (`ownerScope` only on OWNED ends, `sticky` only on
+ * starts).
+ */
+function buildResolvedData(signal: IActivitySignal, nodePath: string): INodeActivityEventData {
+  const resolved: INodeActivityEventData = { nodePath, phase: signal.phase };
+  if (signal.owner !== undefined) resolved.owner = signal.owner;
+  if (signal.phase === 'end' && signal.ownerScope === true && signal.owner !== undefined) {
+    resolved.ownerScope = true;
+  }
+  if (signal.phase === 'start' && signal.sticky === true) {
+    resolved.sticky = true;
+  }
+  return resolved;
 }
 
 function findNodeForSignal(

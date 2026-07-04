@@ -49,13 +49,14 @@ export const claudeActivity: IProviderActivityAdapter = {
     configPath: '.claude/settings.json',
     // Only the events mapEvent consumes: every wired event spawns one
     // bridge process, so the list stays tight. Tool events are narrowed
-    // to the three attributable tools (Skill / Agent invocations plus
-    // Read for markdown usage); plain Bash/Grep/... calls never spawn
-    // the bridge at all. Read survivors are further filtered inside
-    // mapEvent (only in-scope `.md` files become signals).
+    // to the attributable tools (Skill invocations, Read for markdown
+    // usage, Agent spawns for parent custody); plain Bash/Grep/... calls
+    // never spawn the bridge at all. Survivors are further filtered
+    // inside mapEvent (in-scope `.md` reads, agent-context spawns).
     events: [
       { event: 'UserPromptExpansion', matcher: '*' },
       { event: 'PreToolUse', matcher: '^(Skill|Agent|Read)$' },
+      { event: 'PostToolUse', matcher: '^Agent$' },
       { event: 'SubagentStart', matcher: '*' },
       { event: 'SubagentStop', matcher: '*' },
     ],
@@ -69,6 +70,8 @@ export const claudeActivity: IProviderActivityAdapter = {
         return mapSlashExpansion(event);
       case 'PreToolUse':
         return mapPreToolUse(event);
+      case 'PostToolUse':
+        return mapPostToolUse(event);
       case 'SubagentStart':
         return mapSubagentBoundary(event, 'start');
       case 'SubagentStop':
@@ -106,15 +109,78 @@ function mapPreToolUse(event: Record<string, unknown>): IActivitySignal[] | null
     if (!name) return null;
     return [{ kind: 'skill', name, phase: 'start', owner: ownerOf(event) }];
   }
-  if (event['tool_name'] === 'Agent') {
-    const name = nonEmptyString(input['subagent_type']);
-    if (!name) return null;
-    return [{ kind: 'agent', name, phase: 'start', owner: ownerOf(event) }];
-  }
   if (event['tool_name'] === 'Read') {
     return mapMarkdownRead(event, input);
   }
+  if (event['tool_name'] === 'Agent') {
+    return mapSpawnCustodyStart(event);
+  }
   return null;
+}
+
+/**
+ * Parent custody, spawn side. Claude PAUSES an agent that spawned a
+ * child and fires a non-terminal `SubagentStop` for it (resume fires a
+ * fresh `SubagentStart`); nothing marks the last stop as terminal. So
+ * instead of classifying stops, the spawn keeps the PARENT lit through
+ * custody: a sticky claim on the parent's own node (the event's
+ * `agent_type` IS the parent) owned by the synthetic `spawn:<tool_use_id>`
+ * key. `mapSpawnCustodyHandoff` (PostToolUse) swaps it for a claim the
+ * child's terminal end releases. Spawns from the MAIN context have no
+ * `agent_type` (main is not a node) and are disclaimed.
+ */
+function mapSpawnCustodyStart(event: Record<string, unknown>): IActivitySignal[] | null {
+  const parentName = nonEmptyString(event['agent_type']);
+  const spawnKey = spawnOwnerKey(event);
+  if (!parentName || !spawnKey) return null;
+  return [{ kind: 'agent', name: parentName, phase: 'start', owner: spawnKey, sticky: true }];
+}
+
+/** Only the spawn's PostToolUse is consumed (custody handoff); all else disclaims. */
+function mapPostToolUse(event: Record<string, unknown>): IActivitySignal[] | null {
+  return event['tool_name'] === 'Agent' ? mapSpawnCustodyHandoff(event) : null;
+}
+
+/**
+ * Parent custody, handoff side (`PostToolUse` of the spawn). Releases
+ * the synthetic spawn claim and hands custody to the CHILD's id, but
+ * ONLY while the child is still running (`tool_response.status ===
+ * 'async_launched'`): the child's terminal owner-scoped end then takes
+ * the parent down with it, bottom-up.
+ *
+ * Any other status means the child already FINISHED when this event
+ * fires (observed live 2026-07-04: the spawn's PostToolUse arrived
+ * with `status: 'completed'` ~66ms AFTER the child's terminal
+ * `SubagentStop`), so a child-owned claim created here would be an
+ * orphan nothing ever releases (the cascade already passed). In that
+ * case releasing the spawn key IS the custody ending; the parent keeps
+ * its own lifecycle claim until its own terminal stop.
+ */
+function mapSpawnCustodyHandoff(event: Record<string, unknown>): IActivitySignal[] | null {
+  const parentName = nonEmptyString(event['agent_type']);
+  const spawnKey = spawnOwnerKey(event);
+  if (!parentName || !spawnKey) return null;
+  const signals: IActivitySignal[] = [
+    { kind: 'agent', name: parentName, phase: 'end', owner: spawnKey, ownerScope: true },
+  ];
+  const childId = runningChildId(event['tool_response']);
+  if (childId) {
+    signals.push({ kind: 'agent', name: parentName, phase: 'start', owner: childId, sticky: true });
+  }
+  return signals;
+}
+
+/** The spawned child's id, but ONLY while it is still running (async launch). */
+function runningChildId(response: unknown): string | null {
+  if (response === null || typeof response !== 'object') return null;
+  const shaped = response as Record<string, unknown>;
+  if (shaped['status'] !== 'async_launched') return null;
+  return nonEmptyString(shaped['agentId']);
+}
+
+function spawnOwnerKey(event: Record<string, unknown>): string | null {
+  const toolUseId = nonEmptyString(event['tool_use_id']);
+  return toolUseId ? `spawn:${toolUseId}` : null;
 }
 
 /**
@@ -151,7 +217,10 @@ function mapMarkdownRead(
 /**
  * Native subagent boundary. The `agent_type` names the agent node; the
  * `agent_id` is the owner grouping key (each spawned instance has its
- * own). Empty `agent_type` = orphan noise, disclaimed.
+ * own). Empty `agent_type` = orphan noise, disclaimed. The end is
+ * OWNER-SCOPED: a stopping subagent takes down every claim it holds
+ * (the skills it invoked, the markdowns it read), not just its own
+ * node, so the chain goes dark natively instead of waiting out the TTL.
  */
 function mapSubagentBoundary(
   event: Record<string, unknown>,
@@ -162,6 +231,8 @@ function mapSubagentBoundary(
   const signal: IActivitySignal = { kind: 'agent', name, phase };
   const id = nonEmptyString(event['agent_id']);
   if (id) signal.owner = id;
+  if (phase === 'start') signal.sticky = true;
+  if (phase === 'end' && id) signal.ownerScope = true;
   return [signal];
 }
 

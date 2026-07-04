@@ -38,6 +38,7 @@
     "prompt-preamble.md",
     "db-schema.md",
     "plugin-kv-api.md",
+    "provider-activity.md",
     "plugin-author-guide.md",
     "plugin-quickstart.md",
     "telemetry.md",

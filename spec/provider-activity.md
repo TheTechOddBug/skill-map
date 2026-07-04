@@ -159,6 +159,40 @@ Broadcast over `/ws` in the common envelope of
 - `owner`: opaque identifier of the executing context (`"main"`, an agent id, an
   agent type, a session/conversation id, provider-dependent). Consumers treat it
   as an opaque grouping key.
+- `ownerScope` (optional, only on `phase: "end"`): `true` when the signal marks
+  the END OF THE OWNER'S WHOLE EXECUTION CONTEXT (a subagent terminating), not
+  just of the named node. Consumers then release EVERY claim held by that
+  `owner`, so the units the context lit along the way (the skills it invoked,
+  the markdowns it read) go dark with it instead of waiting out their decay.
+- `sticky` (optional, only on `phase: "start"`): `true` for LIFECYCLE claims
+  (an agent's own span, a parent held lit by a running child). Consumers give
+  sticky claims a much longer decay window than momentary usage claims: they
+  are meant to end via `ownerScope` ends, the long window is only a safety net
+  against a crashed runtime that never sends one.
+
+Consumers SHOULD also treat any owned signal as a HEARTBEAT: every arriving
+signal with `owner` X refreshes the decay window of every claim X already
+holds, so an actively-working context never times out mid-run.
+
+**Pause is not end (parent custody).** Some runtimes emit their subagent-stop
+event when an agent merely PAUSES awaiting a child (Claude fires `SubagentStop`
+on pause and a fresh `SubagentStart` on resume; only the last stop is terminal
+and nothing marks it as such). Adapters therefore keep the parent lit through
+CUSTODY instead of trying to classify stops: the spawn tool-call emits a sticky
+claim on the PARENT node owned first by a synthetic spawn key and then by the
+CHILD's id, so as long as the child runs (and heartbeats), the parent stays
+lit even while "stopped"; the child's terminal owner-scoped end releases the
+parent claim, and the unwind proceeds bottom-up.
+
+Custody MUST only pass to a child that is STILL RUNNING when the spawn's
+completion event arrives (Claude: `tool_response.status === 'async_launched'`).
+Runtimes also deliver the spawn's completion AFTER the child's terminal stop
+(observed live: `status: 'completed'` arriving ~66ms after the child's
+terminal `SubagentStop`); handing custody to an already-terminated child
+creates a claim whose release cascade has ALREADY passed, an orphan that pins
+the parent lit until the sticky window lapses. In the completed case,
+releasing the synthetic spawn key IS the end of custody: the parent's own
+lifecycle claim (its `SubagentStart`) carries it until its own terminal stop.
 
 ## Transport shapes
 
@@ -194,7 +228,7 @@ Live-verified against real runs (2026-06-30). These inform each provider's
 
 | Provider | skill | agent | command | notes |
 |---|---|---|---|---|
-| `claude` | `PreToolUse` tool=`Skill` (`tool_input.skill`), slash form via `UserPromptExpansion.command_name` | `SubagentStart/Stop` + `agent_id`/`agent_type` on inner tool events; deep nesting attributable | `UserPromptExpansion.command_name` (shares the `/` namespace with skills; disambiguate by which node exists) | markdown usage: `PreToolUse` tool=`Read` (`tool_input.file_path`, relativized against the event's `cwd`) emits a PATH signal; non-`.md` reads and paths outside the scope root are early-disclaimed. Auto-loaded context (`CLAUDE.md` at session start) fires no tool event and stays invisible. `Stop` clears, EXCEPT owners listed in `background_tasks[]`; ignore `SubagentStop` orphans with empty `agent_type` |
+| `claude` | `PreToolUse` tool=`Skill` (`tool_input.skill`), slash form via `UserPromptExpansion.command_name` | `SubagentStart` (start) / `SubagentStop` (owner-scoped end, `ownerScope: true`) keyed by `agent_id`; `agent_id`/`agent_type` on inner tool events; deep nesting attributable. The spawning `Agent` `PreToolUse` is deliberately NOT mapped: it would claim the child node under the PARENT's owner, and that claim would outlive the child's own `SubagentStop` (TTL instead of native end) | `UserPromptExpansion.command_name` (shares the `/` namespace with skills; disambiguate by which node exists) | markdown usage: `PreToolUse` tool=`Read` (`tool_input.file_path`, relativized against the event's `cwd`) emits a PATH signal; non-`.md` reads and paths outside the scope root are early-disclaimed. Auto-loaded context (`CLAUDE.md` at session start) fires no tool event and stays invisible. Ignore `SubagentStop` orphans with empty `agent_type` |
 | `codex` | weak: `$name` only inside `UserPromptSubmit.prompt` | `SubagentStart/Stop` (`agent_id`, generic `worker` type); subagents cannot spawn (depth 1) | none | payload near-identical to claude's |
 | `antigravity` | invisible at hook level | own `conversationId` per subagent; spawn via `invoke_subagent` tool | none | events: Pre/PostToolUse, Pre/PostInvocation, Stop only |
 | `agent-skills` via opencode | `tool.execute.before` tool=`skill` (`args.name`) | `chat.message.agent` (named); own `sessionID` per subagent | dedicated `command.execute.before` hook | in-process plugin API (no spawn) |

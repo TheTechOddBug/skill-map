@@ -70,7 +70,7 @@ describe('claudeActivity.mapEvent', () => {
     ]);
   });
 
-  it('Agent PreToolUse (spawn) maps to an agent signal named by subagent_type', () => {
+  it('a spawn from MAIN is disclaimed (main is not a node to keep lit)', () => {
     const signals = claudeActivity.mapEvent({
       hook_event_name: 'PreToolUse',
       tool_name: 'Agent',
@@ -81,8 +81,110 @@ describe('claudeActivity.mapEvent', () => {
       },
       tool_use_id: 'toolu_01Hs3r6xww87USRS7FjNrYyv',
     });
+    assert.equal(signals, null);
+  });
+
+  it('a spawn from an AGENT starts parent custody (sticky claim, spawn-keyed owner)', () => {
+    // Claude PAUSES a spawning parent (non-terminal SubagentStop), so
+    // the spawn itself keeps the parent lit via a synthetic owner the
+    // PostToolUse handoff later releases.
+    const signals = claudeActivity.mapEvent({
+      hook_event_name: 'PreToolUse',
+      agent_id: 'a4e825faeafee3619',
+      agent_type: 'demo-orchestrator',
+      tool_name: 'Agent',
+      tool_input: { prompt: 'continue the chain', subagent_type: 'demo-worker' },
+      tool_use_id: 'toolu_01MEQBSdHNo3B9pMjY8s7ZQK',
+    });
     assert.deepEqual(signals, [
-      { kind: 'agent', name: 'probe-agent', phase: 'start', owner: 'main' },
+      {
+        kind: 'agent',
+        name: 'demo-orchestrator',
+        phase: 'start',
+        owner: 'spawn:toolu_01MEQBSdHNo3B9pMjY8s7ZQK',
+        sticky: true,
+      },
+    ]);
+  });
+
+  it('the spawn PostToolUse hands custody from the spawn key to the child id', () => {
+    const signals = claudeActivity.mapEvent({
+      hook_event_name: 'PostToolUse',
+      agent_id: 'a4e825faeafee3619',
+      agent_type: 'demo-orchestrator',
+      tool_name: 'Agent',
+      tool_input: { prompt: 'continue the chain', subagent_type: 'demo-worker' },
+      tool_response: {
+        isAsync: true,
+        status: 'async_launched',
+        agentId: 'abb6b017ce54ffcdf',
+      },
+      tool_use_id: 'toolu_01MEQBSdHNo3B9pMjY8s7ZQK',
+    });
+    assert.deepEqual(signals, [
+      {
+        kind: 'agent',
+        name: 'demo-orchestrator',
+        phase: 'end',
+        owner: 'spawn:toolu_01MEQBSdHNo3B9pMjY8s7ZQK',
+        ownerScope: true,
+      },
+      {
+        kind: 'agent',
+        name: 'demo-orchestrator',
+        phase: 'start',
+        owner: 'abb6b017ce54ffcdf',
+        sticky: true,
+      },
+    ]);
+  });
+
+  it('a COMPLETED spawn PostToolUse never hands custody to the (dead) child', () => {
+    // Real payload (fixtures/realtime run, 2026-07-04): the runtime fired
+    // this PostToolUse ~66ms AFTER the child's terminal SubagentStop, so
+    // a child-owned claim here would be an orphan nothing releases. Only
+    // `status: 'async_launched'` (child still running) hands custody.
+    const signals = claudeActivity.mapEvent({
+      hook_event_name: 'PostToolUse',
+      agent_id: 'a39dff5df12ce5900',
+      agent_type: 'demo-orchestrator',
+      tool_name: 'Agent',
+      tool_input: { prompt: 'continue the chain', subagent_type: 'demo-worker' },
+      tool_response: {
+        agentId: 'abc65c6e81818dfd1',
+        status: 'completed',
+      },
+      tool_use_id: 'toolu_019tAnpkqUttxYed3ZWyecWX',
+    });
+    assert.deepEqual(signals, [
+      {
+        kind: 'agent',
+        name: 'demo-orchestrator',
+        phase: 'end',
+        owner: 'spawn:toolu_019tAnpkqUttxYed3ZWyecWX',
+        ownerScope: true,
+      },
+    ]);
+  });
+
+  it('a SYNC spawn PostToolUse (no child id) just releases the spawn custody', () => {
+    const signals = claudeActivity.mapEvent({
+      hook_event_name: 'PostToolUse',
+      agent_id: 'a4e825faeafee3619',
+      agent_type: 'demo-orchestrator',
+      tool_name: 'Agent',
+      tool_input: { prompt: 'continue', subagent_type: 'demo-worker' },
+      tool_response: 'child final report text',
+      tool_use_id: 'toolu_01SyncSpawnExample000001',
+    });
+    assert.deepEqual(signals, [
+      {
+        kind: 'agent',
+        name: 'demo-orchestrator',
+        phase: 'end',
+        owner: 'spawn:toolu_01SyncSpawnExample000001',
+        ownerScope: true,
+      },
     ]);
   });
 
@@ -153,7 +255,7 @@ describe('claudeActivity.mapEvent', () => {
     assert.equal(signals, null);
   });
 
-  it('SubagentStart maps to an agent start owned by its agent_id', () => {
+  it('SubagentStart maps to a STICKY agent start owned by its agent_id', () => {
     const signals = claudeActivity.mapEvent({
       session_id: '6cfe5636-2e56-4271-91a6-87fc3d4355be',
       hook_event_name: 'SubagentStart',
@@ -161,11 +263,17 @@ describe('claudeActivity.mapEvent', () => {
       agent_type: 'probe-agent',
     });
     assert.deepEqual(signals, [
-      { kind: 'agent', name: 'probe-agent', phase: 'start', owner: 'afa6d56495644b2db' },
+      {
+        kind: 'agent',
+        name: 'probe-agent',
+        phase: 'start',
+        owner: 'afa6d56495644b2db',
+        sticky: true,
+      },
     ]);
   });
 
-  it('SubagentStop with a matching agent_type maps to an agent end', () => {
+  it('SubagentStop maps to an OWNER-SCOPED agent end (its whole context goes dark)', () => {
     const signals = claudeActivity.mapEvent({
       hook_event_name: 'SubagentStop',
       agent_id: 'afa6d56495644b2db',
@@ -174,7 +282,13 @@ describe('claudeActivity.mapEvent', () => {
       last_assistant_message: 'probe-agent done',
     });
     assert.deepEqual(signals, [
-      { kind: 'agent', name: 'probe-agent', phase: 'end', owner: 'afa6d56495644b2db' },
+      {
+        kind: 'agent',
+        name: 'probe-agent',
+        phase: 'end',
+        owner: 'afa6d56495644b2db',
+        ownerScope: true,
+      },
     ]);
   });
 

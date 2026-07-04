@@ -373,6 +373,23 @@ export interface IActivitySignal {
    * key only; absent when the runtime reports none.
    */
   owner?: string;
+  /**
+   * Only meaningful on `phase: 'end'`: `true` when the signal marks the
+   * end of the OWNER'S WHOLE EXECUTION CONTEXT (a subagent terminating),
+   * not just of the named node. Consumers release every claim held by
+   * that `owner`, so the units the context lit along the way (the
+   * skills it invoked, the markdowns it read) go dark with it instead
+   * of waiting out their decay.
+   */
+  ownerScope?: boolean;
+  /**
+   * Only meaningful on `phase: 'start'`: `true` for LIFECYCLE claims
+   * (an agent's own span, a parent held lit by a running child), which
+   * get a much longer decay window than momentary usage claims. Sticky
+   * claims are meant to end via `ownerScope` ends; the long window is a
+   * safety net against a crashed runtime that never sends one.
+   */
+  sticky?: boolean;
 }
 
 /**

@@ -224,6 +224,18 @@ export interface IWsNodeActivityData {
   phase: 'start' | 'end';
   /** Opaque executing-context grouping key (`'main'`, an agent id, ...). */
   owner?: string;
+  /**
+   * Only on `phase: 'end'`: the owner's whole execution context ended (a
+   * subagent terminated); every claim held by that `owner` is released,
+   * not just this node's.
+   */
+  ownerScope?: boolean;
+  /**
+   * Only on `phase: 'start'`: lifecycle claim (an agent's own span, a
+   * parent held lit by a running child). Gets a much longer decay
+   * window; meant to end via an `ownerScope` end.
+   */
+  sticky?: boolean;
 }
 
 export type IWsNodeActivityEvent = IWsEvent<IWsNodeActivityData> & { type: 'node.activity' };
@@ -237,6 +249,10 @@ export function isNodeActivityEvent(value: unknown): value is IWsNodeActivityEve
   if (data['phase'] !== 'start' && data['phase'] !== 'end') return false;
   const owner = data['owner'];
   if (owner !== undefined && typeof owner !== 'string') return false;
+  const ownerScope = data['ownerScope'];
+  if (ownerScope !== undefined && typeof ownerScope !== 'boolean') return false;
+  const sticky = data['sticky'];
+  if (sticky !== undefined && typeof sticky !== 'boolean') return false;
   return true;
 }
 

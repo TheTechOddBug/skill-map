@@ -101,6 +101,18 @@ export interface INodeActivityEventData {
   phase: 'start' | 'end';
   /** Opaque executing-context key (`'main'`, an agent id, ...). Absent when unreported. */
   owner?: string;
+  /**
+   * Only on `phase: 'end'`: the owner's WHOLE execution context ended
+   * (a subagent terminated). Consumers release every claim held by that
+   * `owner` (its skills, its markdown reads), not just this node's.
+   */
+  ownerScope?: boolean;
+  /**
+   * Only on `phase: 'start'`: lifecycle claim (an agent's own span, a
+   * parent held lit by a running child). Gets a much longer decay
+   * window; meant to end via an `ownerScope` end.
+   */
+  sticky?: boolean;
 }
 
 /**

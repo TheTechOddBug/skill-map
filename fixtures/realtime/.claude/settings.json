@@ -1,16 +1,5 @@
 {
   "hooks": {
-    "UserPromptExpansion": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node .skill-map/activity/bridge.js claude"
-          }
-        ],
-        "matcher": "*"
-      }
-    ],
     "PreToolUse": [
       {
         "hooks": [
@@ -20,15 +9,17 @@
           }
         ],
         "matcher": "^(Skill|Agent|Read)$"
-      },
+      }
+    ],
+    "PostToolUse": [
       {
-        "matcher": "*",
         "hooks": [
           {
             "type": "command",
-            "command": "node .tmp/hook-probe.mjs"
+            "command": "node .skill-map/activity/bridge.js claude"
           }
-        ]
+        ],
+        "matcher": "^Agent$"
       }
     ],
     "SubagentStart": [
@@ -43,6 +34,17 @@
       }
     ],
     "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .skill-map/activity/bridge.js claude"
+          }
+        ],
+        "matcher": "*"
+      }
+    ],
+    "UserPromptExpansion": [
       {
         "hooks": [
           {

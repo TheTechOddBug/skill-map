@@ -31,26 +31,49 @@ import type { IWsNodeActivityData } from '../models/ws-event';
 import { WsEventStreamService } from './ws-event-stream';
 
 /**
- * Decay window for units without a native end signal. Long enough to
- * cover a typical skill-guided turn segment, short enough that a stale
- * glow never outlives the operator's attention. Injectable so tests
- * (and a future settings knob) can shorten it.
+ * Decay window for MOMENTARY usage claims (a skill invocation, a
+ * markdown read) with no native end signal. Long enough to cover a
+ * typical turn segment, short enough that a stale glow never outlives
+ * the operator's attention. Injectable so tests (and a future settings
+ * knob) can shorten it.
  */
 export const NODE_ACTIVITY_TTL_MS = new InjectionToken<number>('NODE_ACTIVITY_TTL_MS', {
   providedIn: 'root',
   factory: () => 12_000,
 });
 
+/**
+ * Decay window for STICKY lifecycle claims (an agent's own span, a
+ * parent held lit by a running child). These are meant to end via
+ * owner-scoped ends; the long window is only a safety net against a
+ * crashed runtime that never sends one. Kept refreshed by the owner
+ * heartbeat while events flow.
+ */
+export const NODE_ACTIVITY_STICKY_TTL_MS = new InjectionToken<number>(
+  'NODE_ACTIVITY_STICKY_TTL_MS',
+  {
+    providedIn: 'root',
+    factory: () => 5 * 60_000,
+  },
+);
+
 /** Owner bucket key for events that carry no `owner`. */
 const ANONYMOUS_OWNER = '';
+
+/** One owner's hold on a node: when it decays and which window class refreshes use. */
+interface IClaim {
+  expiresAt: number;
+  ttlMs: number;
+}
 
 @Injectable({ providedIn: 'root' })
 export class NodeActivityService {
   private readonly ttlMs = inject(NODE_ACTIVITY_TTL_MS);
+  private readonly stickyTtlMs = inject(NODE_ACTIVITY_STICKY_TTL_MS);
   private readonly destroyRef = inject(DestroyRef);
 
-  /** Per-path claims: owner -> expiry (unix ms). A path is active while any claim lives. */
-  private readonly claims = new Map<string, Map<string, number>>();
+  /** Per-path claims by owner. A path is active while any claim lives. */
+  private readonly claims = new Map<string, Map<string, IClaim>>();
 
   /** Rule-9 coalescing buffer: events land here, the signal mutates once per frame. */
   private pending: IWsNodeActivityData[] = [];
@@ -90,16 +113,48 @@ export class NodeActivityService {
 
   private apply(data: IWsNodeActivityData, now: number): void {
     const owner = data.owner ?? ANONYMOUS_OWNER;
+
+    // Owner heartbeat: any signal from a context proves it is alive, so
+    // every claim that owner already holds gets its window refreshed
+    // (each to its own class), an actively-working chain never times
+    // out mid-run even when a particular node stays quiet.
+    if (data.owner !== undefined) {
+      this.refreshOwnerClaims(owner, now);
+    }
+
     if (data.phase === 'start') {
-      const owners = this.claims.get(data.nodePath) ?? new Map<string, number>();
-      owners.set(owner, now + this.ttlMs);
+      const ttl = data.sticky === true ? this.stickyTtlMs : this.ttlMs;
+      const owners = this.claims.get(data.nodePath) ?? new Map<string, IClaim>();
+      owners.set(owner, { expiresAt: now + ttl, ttlMs: ttl });
       this.claims.set(data.nodePath, owners);
+      return;
+    }
+    // Owner-scoped end (a subagent terminated): the whole execution
+    // context goes dark, so EVERY claim that owner holds is released,
+    // the agent node itself plus the skills it invoked and the
+    // markdowns it read, instead of each waiting out its decay.
+    if (data.ownerScope === true && data.owner !== undefined) {
+      this.releaseOwnerEverywhere(owner);
       return;
     }
     const owners = this.claims.get(data.nodePath);
     if (!owners) return;
     owners.delete(owner);
     if (owners.size === 0) this.claims.delete(data.nodePath);
+  }
+
+  private refreshOwnerClaims(owner: string, now: number): void {
+    for (const owners of this.claims.values()) {
+      const claim = owners.get(owner);
+      if (claim) claim.expiresAt = now + claim.ttlMs;
+    }
+  }
+
+  private releaseOwnerEverywhere(owner: string): void {
+    for (const [path, owners] of this.claims) {
+      owners.delete(owner);
+      if (owners.size === 0) this.claims.delete(path);
+    }
   }
 
   /**
@@ -111,12 +166,12 @@ export class NodeActivityService {
     let earliest = Number.POSITIVE_INFINITY;
     const active = new Set<string>();
     for (const [path, owners] of this.claims) {
-      for (const [owner, expiresAt] of owners) {
-        if (expiresAt <= now) {
+      for (const [owner, claim] of owners) {
+        if (claim.expiresAt <= now) {
           owners.delete(owner);
           continue;
         }
-        if (expiresAt < earliest) earliest = expiresAt;
+        if (claim.expiresAt < earliest) earliest = claim.expiresAt;
         active.add(path);
       }
       if (owners.size === 0) this.claims.delete(path);
