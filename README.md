@@ -75,46 +75,6 @@ That last `sm` opens the Web UI on `http://127.0.0.1:4242` with the watcher runn
 
 Want to try it without installing? Open the [live demo](https://skill-map.ai/demo/).
 
-## Windows / WSL
-
-skill-map runs under WSL2, but keep your project on the **Linux filesystem** (for example `~/projects/...`), not on a mounted Windows drive (`/mnt/c/...`).
-
-The live map's file watcher uses the OS's native change notifications (inotify), and Windows drives mounted into WSL do not deliver those events. A one-shot `sm scan` still reads files under `/mnt/c` (slowly), but `sm serve` / `sm watch` will not refresh the map when they change, and neither watcher backend (`chokidar` or `parcel`) changes that. This cross-filesystem boundary is unsupported by design; there is no polling fallback. A symlink inside a Linux-hosted project that points at a Windows path behaves the same way: it is followed on a full scan, never live-watched.
-
-## Sidecar `.sm` files (don't be alarmed when they appear)
-
-The first time you run `sm bump` or `sm sidecar annotate`, skill-map writes a sibling YAML file next to each `.md`: `demo-agent.md` → `demo-agent.sm` in the same directory. They are intentional, they are part of the design, and **they belong in your repo**.
-
-**They appear only when you opt in.** `sm scan`, `sm watch`, and the live UI **never create `.sm` files**, they only read existing ones. If you just installed skill-map and ran `sm init` / `sm` / `sm scan`, no sidecar exists yet; they show up the first time you call `sm bump` (or `sm sidecar annotate`) on a node, and never before.
-
-**Why a separate file?** Your `.md` belongs to the vendor (Claude Code, Codex, Cursor, …) and to your own prose. Stuffing skill-map's bookkeeping (version, stability, supersession, tags, audit trail) inside its frontmatter would contaminate vendor input and bloat what the agent reads on every invocation. The `.sm` sidecar keeps the two layers cleanly separated: the vendor and the human own the `.md`; skill-map owns the `.sm`.
-
-**Commit them to git.** `.sm` files are source, they carry the metadata that drives `sm check`, drift detection, and supersession graphs. Treat them like any other tracked file: don't add them to `.gitignore`, don't strip them on deploy. The opt-in pre-commit hook (`sm hooks install pre-commit-bump`) keeps them in lockstep with their `.md` automatically.
-
-Full spec: [`spec/architecture.md` §Annotation system](./spec/architecture.md#annotation-system).
-
-## Live node activity (watch your assistant run)
-
-With `sm serve` open, the map can light up each node **the moment your AI runtime actually invokes it**: the skill it just loaded, the agent it delegated to, the markdown it read. Wire it once per provider:
-
-```bash
-sm activity install claude   # or: codex, antigravity
-```
-
-(or from the UI: Settings → Project, below the lens selector; both paths ask for confirmation before touching the provider's config). The install merges hook entries into the provider's **project-local** hook config and drops a tiny bridge under `.skill-map/activity/`; the provider's own hooks forward events to your local server, which matches them against the scanned map and pushes the glow to the browser over the live socket. Everything stays on your machine (loopback only, never telemetry); `sm activity uninstall <provider>` reverses exactly what install added. Toggles live in Settings → General (Live updates / Real-time node activity).
-
-What lights up depends on what each runtime's hook system exposes:
-
-| Provider | Lights up | Does not light up |
-|---|---|---|
-| `claude` (Claude Code) | Slash commands, skills (typed or model-invoked), agents including nested delegation chains, markdown file reads | Auto-loaded context (`CLAUDE.md` at session start) fires no hook |
-| `codex` (Codex CLI) | `$skill` invocations from your prompt, named agents from `.codex/agents/` (nested chains too if you raise `agents.max_depth`) | Markdown reads: Codex hooks do not fire for its `read_file` tool yet ([openai/codex#18491](https://github.com/openai/codex/issues/18491)); spawns of the generic `worker` type match no node |
-| `antigravity` (Antigravity CLI) | Everything that gets READ: markdown files, a skill's `SKILL.md` and its resources whenever the agent views them, and workflows followed in prose (the runtime reads the workflow file first) | `/skill` invocations (content is injected with no hook event); subagents (they have no on-disk definition, so there is no node to light) |
-| `agent-skills` (opencode) | Not yet: adapter planned (needs the in-process plugin install shape) | |
-| `markdown` | No runtime to hook; nothing lights | |
-
-Full contract (bridge invariants, privacy posture, per-provider signal notes): [`spec/provider-activity.md`](./spec/provider-activity.md).
-
 ## Interactive tutorial (recommended)
 
 If you use [Claude Code](https://claude.ai/code), the fastest way to evaluate skill-map is the bundled interactive tutorial. It is a single guided "book": a first-timer walks the live-UI prologue (about **10 minutes**), then picks further parts from an in-skill menu, extend skill-map with plugins, settings, and view-slots, and the CLI in depth.
@@ -128,6 +88,46 @@ run the tutorial
 ```
 
 Claude takes over from there: drops a fixture, walks you through `sm init`, opens the Web UI, edits files in front of your eyes, and shows the watcher reacting live (including how `.skillmapignore` hides files in real time). You see the full flow before pointing it at your real project, no commitment, fully reversible. When the prologue ends it offers a menu of deeper parts (plugins, settings, view-slots, the CLI); pick whichever you want, or stop there.
+
+## Live node activity (watch your assistant run)
+
+With `sm serve` open, the map can light up each node **the moment your AI runtime actually invokes it**: the skill it just loaded, the agent it delegated to, the markdown it read. Wire it once per provider:
+
+```bash
+sm activity install claude   # or: codex, antigravity
+```
+
+(or from the UI: Settings → Project, below the lens selector; both paths ask for confirmation before touching the provider's config). The install merges hook entries into the provider's **project-local** hook config and drops a tiny bridge under `.skill-map/activity/`; the provider's own hooks forward events to your local server, which matches them against the scanned map and pushes the glow to the browser over the live socket. Everything stays on your machine (loopback only, never telemetry); `sm activity uninstall <provider>` reverses exactly what install added. Toggles live in Settings → General (Live updates / Real-time node activity).
+
+What lights up depends on what each runtime's hook system exposes:
+
+| Provider | Lights up | Known gaps (and why) |
+|---|---|---|
+| `claude` (Claude Code) | Slash commands, skills (typed or model-invoked), agents including nested delegation chains, markdown file reads | Auto-loaded context (`CLAUDE.md` at session start) fires no hook, so it stays invisible |
+| `codex` (Codex CLI) | `$skill` invocations from your prompt, named agents from `.codex/agents/` (nested chains too if you raise `agents.max_depth`) | Markdown reads and skills followed by subagents stay dark: Codex hooks do not fire for its `read_file` tool yet ([openai/codex#18491](https://github.com/openai/codex/issues/18491)); spawns of the generic `worker` type match no node |
+| `antigravity` (Antigravity CLI) | Everything that gets READ: markdown files, a skill's `SKILL.md` and its resources whenever the agent views them, workflows followed in prose; the whole chain goes dark the moment the agent idles (native `Stop`) | `/skill` invocations stay dark (the runtime injects the content with no hook event, ask for the skill in prose instead); subagents have no on-disk definition, so there is no node to light |
+| `agent-skills` (opencode) | Not yet: adapter planned (needs the in-process plugin install shape) | |
+| `markdown` | No runtime to hook; nothing lights | |
+
+Full contract (bridge invariants, privacy posture, per-provider signal notes): [`spec/provider-activity.md`](./spec/provider-activity.md).
+
+## Sidecar `.sm` files (don't be alarmed when they appear)
+
+The first time you run `sm bump` or `sm sidecar annotate`, skill-map writes a sibling YAML file next to each `.md`: `demo-agent.md` → `demo-agent.sm` in the same directory. They are intentional, they are part of the design, and **they belong in your repo**.
+
+**They appear only when you opt in.** `sm scan`, `sm watch`, and the live UI **never create `.sm` files**, they only read existing ones. If you just installed skill-map and ran `sm init` / `sm` / `sm scan`, no sidecar exists yet; they show up the first time you call `sm bump` (or `sm sidecar annotate`) on a node, and never before.
+
+**Why a separate file?** Your `.md` belongs to the vendor (Claude Code, Codex, Cursor, …) and to your own prose. Stuffing skill-map's bookkeeping (version, stability, supersession, tags, audit trail) inside its frontmatter would contaminate vendor input and bloat what the agent reads on every invocation. The `.sm` sidecar keeps the two layers cleanly separated: the vendor and the human own the `.md`; skill-map owns the `.sm`.
+
+**Commit them to git.** `.sm` files are source, they carry the metadata that drives `sm check`, drift detection, and supersession graphs. Treat them like any other tracked file: don't add them to `.gitignore`, don't strip them on deploy. The opt-in pre-commit hook (`sm hooks install pre-commit-bump`) keeps them in lockstep with their `.md` automatically.
+
+Full spec: [`spec/architecture.md` §Annotation system](./spec/architecture.md#annotation-system).
+
+## Windows / WSL
+
+skill-map runs under WSL2, but keep your project on the **Linux filesystem** (for example `~/projects/...`), not on a mounted Windows drive (`/mnt/c/...`).
+
+The live map's file watcher uses the OS's native change notifications (inotify), and Windows drives mounted into WSL do not deliver those events. A one-shot `sm scan` still reads files under `/mnt/c` (slowly), but `sm serve` / `sm watch` will not refresh the map when they change, and neither watcher backend (`chokidar` or `parcel`) changes that. This cross-filesystem boundary is unsupported by design; there is no polling fallback. A symlink inside a Linux-hosted project that points at a Windows path behaves the same way: it is followed on a full scan, never live-watched.
 
 ## Specification
 

@@ -75,18 +75,6 @@ Ese último `sm` abre la Web UI en `http://127.0.0.1:4242` con el watcher corrie
 
 ¿Quieres probarlo sin instalar nada? Abre la [demo en vivo](https://skill-map.ai/demo/).
 
-## Archivos sidecar `.sm` (no te asustes cuando aparezcan)
-
-La primera vez que ejecutes `sm bump` o `sm sidecar annotate`, skill-map escribirá un archivo YAML hermano al lado de cada `.md`: `demo-agent.md` → `demo-agent.sm` en el mismo directorio. Son intencionales, son parte del diseño y **deben vivir en tu repo**.
-
-**Solo aparecen cuando los pides explícitamente.** `sm scan`, `sm watch` y la Web UI **nunca crean archivos `.sm`**, solo leen los que ya existen. Si acabas de instalar skill-map y ejecutaste `sm init` / `sm` / `sm scan`, no hay ningún sidecar todavía; aparecen la primera vez que invocas `sm bump` (o `sm sidecar annotate`) sobre un nodo, y nunca antes.
-
-**¿Por qué un archivo aparte?** Tus `.md` pertenecen al proveedor (Claude Code, Codex, Cursor, …) y a tu propia prosa. Meter la contabilidad de skill-map (versión, estabilidad, supersesión, tags, traza de auditoría) en su frontmatter contaminaría la entrada del proveedor e inflaría lo que el agente lee en cada invocación. El sidecar `.sm` mantiene las dos capas limpiamente separadas: el `.md` es del proveedor y del humano; el `.sm` es de skill-map.
-
-**Súbelos a git.** Los `.sm` son código fuente, llevan la metadata que alimenta `sm check`, la detección de drift y los grafos de supersesión. Trátalos como cualquier otro archivo bajo control de versiones: no los añadas al `.gitignore`, no los elimines al desplegar. El hook opcional de pre-commit (`sm hooks install pre-commit-bump`) los mantiene sincronizados con su `.md` automáticamente.
-
-Spec completo: [`spec/architecture.md` §Annotation system](./spec/architecture.md#annotation-system).
-
 ## Tutorial interactivo (recomendado)
 
 Si usas [Claude Code](https://claude.ai/code), la forma más rápida de evaluar skill-map es el tutorial interactivo que viene incluido. Es un único "libro" guiado: quien lo prueba por primera vez recorre el prólogo con la UI en vivo (aprox. **10 minutos**) y después elige más partes desde un menú dentro de la skill, extender skill-map con plugins, settings y view-slots, y la CLI a fondo.
@@ -100,6 +88,40 @@ ejecuta el tutorial
 ```
 
 Claude se hace cargo desde ahí: arma una fixture, te guía por `sm init`, abre la Web UI, edita archivos delante tuyo y te muestra al watcher reaccionando en vivo (incluso cómo `.skillmapignore` esconde archivos en tiempo real). Ves el flujo completo antes de apuntarlo a tu proyecto real, sin compromiso, totalmente reversible. Cuando termina el prólogo te ofrece un menú de partes más profundas (plugins, settings, view-slots, la CLI); eliges la que quieras, o lo dejas ahí.
+
+## Actividad en vivo (mira a tu asistente ejecutarse)
+
+Con `sm serve` abierto, el mapa puede iluminar cada nodo **en el momento exacto en que tu runtime de IA lo invoca**: la skill que acaba de cargar, el agente en que delegó, el markdown que leyó. Se cablea una vez por proveedor:
+
+```bash
+sm activity install claude   # o: codex, antigravity
+```
+
+(o desde la UI: Settings → Project, debajo del selector de lente; ambos caminos piden confirmación antes de tocar la configuración del proveedor). La instalación mezcla entradas de hooks en la configuración **local al proyecto** del proveedor y deja un pequeño bridge bajo `.skill-map/activity/`; los hooks del propio runtime reenvían los eventos a tu servidor local, que los resuelve contra el mapa escaneado y empuja el brillo al navegador. Todo queda en tu máquina (solo loopback, nunca telemetría); `sm activity uninstall <proveedor>` revierte exactamente lo instalado. Los toggles viven en Settings → General.
+
+Qué se ilumina depende de lo que el sistema de hooks de cada runtime expone:
+
+| Proveedor | Se ilumina | Gaps conocidos (y por qué) |
+|---|---|---|
+| `claude` (Claude Code) | Comandos slash, skills (tipeadas o invocadas por el modelo), agentes incluyendo cadenas de delegación anidadas, lecturas de archivos markdown | El contexto auto-cargado (`CLAUDE.md` al inicio de sesión) no dispara ningún hook, así que queda invisible |
+| `codex` (Codex CLI) | Invocaciones `$skill` desde tu prompt, agentes con nombre de `.codex/agents/` (cadenas anidadas también, si subes `agents.max_depth`) | Las lecturas de markdown y las skills que siguen los subagentes quedan a oscuras: los hooks de Codex aún no disparan para su herramienta `read_file` ([openai/codex#18491](https://github.com/openai/codex/issues/18491)); los spawns del tipo genérico `worker` no corresponden a ningún nodo |
+| `antigravity` (Antigravity CLI) | Todo lo que se LEE: archivos markdown, el `SKILL.md` de una skill y sus recursos cuando el agente los mira, workflows seguidos en prosa; la cadena completa se apaga en el momento en que el agente queda inactivo (`Stop` nativo) | Invocar una skill con `/slash` no ilumina (el runtime inyecta el contenido sin evento de hook, pídela en prosa en su lugar); los subagentes no tienen definición en disco, así que no hay nodo que iluminar |
+| `agent-skills` (opencode) | Todavía no: adapter planificado (necesita el formato de instalación de plugin en proceso) | |
+| `markdown` | Sin runtime que hookear; nada se ilumina | |
+
+Contrato completo (invariantes del bridge, postura de privacidad, notas de señales por proveedor): [`spec/provider-activity.md`](./spec/provider-activity.md).
+
+## Archivos sidecar `.sm` (no te asustes cuando aparezcan)
+
+La primera vez que ejecutes `sm bump` o `sm sidecar annotate`, skill-map escribirá un archivo YAML hermano al lado de cada `.md`: `demo-agent.md` → `demo-agent.sm` en el mismo directorio. Son intencionales, son parte del diseño y **deben vivir en tu repo**.
+
+**Solo aparecen cuando los pides explícitamente.** `sm scan`, `sm watch` y la Web UI **nunca crean archivos `.sm`**, solo leen los que ya existen. Si acabas de instalar skill-map y ejecutaste `sm init` / `sm` / `sm scan`, no hay ningún sidecar todavía; aparecen la primera vez que invocas `sm bump` (o `sm sidecar annotate`) sobre un nodo, y nunca antes.
+
+**¿Por qué un archivo aparte?** Tus `.md` pertenecen al proveedor (Claude Code, Codex, Cursor, …) y a tu propia prosa. Meter la contabilidad de skill-map (versión, estabilidad, supersesión, tags, traza de auditoría) en su frontmatter contaminaría la entrada del proveedor e inflaría lo que el agente lee en cada invocación. El sidecar `.sm` mantiene las dos capas limpiamente separadas: el `.md` es del proveedor y del humano; el `.sm` es de skill-map.
+
+**Súbelos a git.** Los `.sm` son código fuente, llevan la metadata que alimenta `sm check`, la detección de drift y los grafos de supersesión. Trátalos como cualquier otro archivo bajo control de versiones: no los añadas al `.gitignore`, no los elimines al desplegar. El hook opcional de pre-commit (`sm hooks install pre-commit-bump`) los mantiene sincronizados con su `.md` automáticamente.
+
+Spec completo: [`spec/architecture.md` §Annotation system](./spec/architecture.md#annotation-system).
 
 ## Especificación
 
