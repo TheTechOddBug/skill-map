@@ -1,5 +1,27 @@
 # skill-map
 
+## 0.78.0
+
+### Minor Changes
+
+- The live-activity hook is now manageable over HTTP: `spec/provider-activity.md` gains a normative install-management contract (status probe plus install/uninstall that MUST answer 412 and touch nothing without `confirm: true`), the BFF serves the three routes on a shared `core/activity` engine (CLI verbs byte-identical), and Settings → Project offers install/uninstall for the active lens, with the real-time toggle hinting when the hook is missing.
+
+  ## User-facing
+
+  **Wire the activity hook from Settings.** Install or remove the live-activity hook for your assistant right from Settings → Project, with a clear confirmation before anything touches your files. The real-time toggle now tells you when the hook is missing.
+
+- Live node activity now ends natively instead of by TTL decay: activity signals and the `node.activity` wire gain optional `ownerScope` (a terminal subagent stop releases every claim that owner holds) and `sticky` (lifecycle claims get a long safety-net window), the Claude adapter keeps a spawning parent lit via spawn custody handed to the child only while it still runs (`async_launched`), and `spec/provider-activity.md` is now published and hashed in the spec index.
+
+  ## User-facing
+
+  **Map lights now follow your agents natively.** A node switches off the moment its agent actually finishes instead of fading on a timer, and an agent that delegates work stays lit until its whole delegation chain completes.
+
+- Settings → General gains two live-channel switches persisted in a new localStorage seam (`LivePreferencesService`): one gates the whole `/ws` socket via a new `'disabled'` connection state (distinct from `'lost'`, so the banner never nags about a chosen disconnect), the other gates real-time node activity (off drops buffered frames and clears every lit claim immediately). Both persist and apply atomically through the feature owners' `setEnabled`.
+
+  ## User-facing
+
+  **Live updates on your terms.** Settings → General gains two switches: turn live updates on or off entirely, and toggle real-time node activity (the glow that follows your assistant) separately. Both take effect instantly, no reload.
+
 ## 0.77.0
 
 ### Minor Changes

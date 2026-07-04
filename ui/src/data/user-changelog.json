@@ -2,6 +2,33 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.78.0",
+      "date": "2026-07-04",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "**Wire the activity hook from Settings.** Install or remove the live-activity hook for your assistant right from Settings → Project, with a clear confirmation before anything touches your files. The real-time toggle now tells you when the hook is missing.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**Map lights now follow your agents natively.** A node switches off the moment its agent actually finishes instead of fading on a timer, and an agent that delegates work stays lit until its whole delegation chain completes.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**Live updates on your terms.** Settings → General gains two switches: turn live updates on or off entirely, and toggle real-time node activity (the glow that follows your assistant) separately. Both take effect instantly, no reload.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.77.0",
       "date": "2026-07-03",
       "kind": "user-facing",
