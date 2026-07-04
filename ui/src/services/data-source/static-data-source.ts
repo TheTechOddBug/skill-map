@@ -121,6 +121,16 @@ export interface IDemoMetaPayload {
   activeProvider?: IActiveProviderApi;
 }
 
+/**
+ * Providers shipping a live-activity adapter, mirrored for the demo's
+ * baked install-status probe (kept in sync with each provider's
+ * `activity.install` descriptor).
+ */
+const DEMO_ACTIVITY_DESCRIPTORS: Record<string, { configPath: string; events: number }> = {
+  claude: { configPath: '.claude/settings.json', events: 5 },
+  codex: { configPath: '.codex/hooks.json', events: 3 },
+};
+
 export class StaticDataSource implements IDataSourcePort {
   private metaPromise: Promise<IDemoMetaPayload> | null = null;
   private dataPromise: Promise<IScanResultApi> | null = null;
@@ -597,19 +607,19 @@ export class StaticDataSource implements IDataSourcePort {
 
   async getActivityInstallStatus(provider: string): Promise<IActivityInstallStatusApi> {
     // Baked snapshot: the demo bundle has no filesystem to probe, so
-    // report the provider's CAPABILITY honestly (claude ships the only
-    // activity adapter today) with nothing installed. The Settings
-    // button renders in its Install state but the mutation below
-    // rejects, matching every other demo write.
-    const supported = provider === 'claude';
+    // report each provider's CAPABILITY honestly (mirroring the shipped
+    // activity adapters and their install descriptors) with nothing
+    // installed. The Settings button renders in its Install state but
+    // the mutation below rejects, matching every other demo write.
+    const descriptor = DEMO_ACTIVITY_DESCRIPTORS[provider];
     return {
       provider,
-      supported,
+      supported: descriptor !== undefined,
       installed: false,
-      configPath: supported ? '.claude/settings.json' : null,
+      configPath: descriptor?.configPath ?? null,
       configWired: false,
       bridgePresent: false,
-      events: supported ? 5 : 0,
+      events: descriptor?.events ?? 0,
     };
   }
 

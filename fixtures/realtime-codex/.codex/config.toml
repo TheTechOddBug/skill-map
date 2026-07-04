@@ -1,0 +1,7 @@
+# Demo harness config. Raising agents.max_depth to 2 lets the demo
+# chain mirror the Claude fixture: main (depth 0) spawns
+# demo-orchestrator (depth 1), which spawns demo-worker (depth 2).
+# Codex defaults to 1 (no nested delegation); project-scoped config
+# loads once the project is trusted.
+[agents]
+max_depth = 2

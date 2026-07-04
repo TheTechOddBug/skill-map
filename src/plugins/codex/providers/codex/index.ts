@@ -38,6 +38,7 @@
 import type { IBuiltInManifest, IProvider } from '../../../../kernel/extensions/index.js';
 import agentSchema from './schemas/agent.schema.json' with { type: 'json' };
 import { CODEX_PLUGIN_ID } from '../../../ids.js';
+import { codexActivity } from './activity.js';
 import {
   COMMONS_READ,
   COMMONS_KINDS,
@@ -64,6 +65,13 @@ export const codexProvider: IBuiltInManifest<IProvider> = {
     // under the codex lens is the dollar, not the slash.
     invocationSigil: '$',
   },
+
+  // Live node activity (spec/provider-activity.md): install descriptor
+  // (`.codex/hooks.json`, same hooks convention as claude so the shared
+  // json-hooks engine applies) + the runtime mapper from Codex's raw
+  // hook payloads to node-attributable signals. Implementation + the
+  // per-event mapping rationale live in the sibling `activity.ts`.
+  activity: codexActivity,
 
   // Auto-detect marker: a `.codex/` directory marks a Codex CLI project.
   // `AGENTS.md` is intentionally NOT a marker: it is the open agents.md

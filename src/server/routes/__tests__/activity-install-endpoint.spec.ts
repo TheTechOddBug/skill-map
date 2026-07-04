@@ -171,6 +171,18 @@ describe('GET /api/activity/install, status probe', () => {
       assert.equal(envelope.events, 5);
     });
   });
+
+  it('codex: second provider with an adapter surfaces ITS descriptor', async () => {
+    await bootAndUse(async (handle) => {
+      const res = await getStatus(handle, 'codex');
+      assert.equal(res.status, 200);
+      const envelope = (await res.json()) as IStatusEnvelope;
+      assert.equal(envelope.supported, true);
+      assert.equal(envelope.installed, false);
+      assert.equal(envelope.configPath, '.codex/hooks.json');
+      assert.equal(envelope.events, 3);
+    });
+  });
 });
 
 describe('POST /api/activity/install, consent gate + effects', () => {
