@@ -73,6 +73,26 @@ export const SETTINGS_TEXTS = {
       },
     },
     /**
+     * Live-channel switches (browser localStorage via
+     * `LivePreferencesService`, per-browser, NOT the home settings
+     * file). `ws` gates the whole `/ws` socket; `activity` gates only
+     * the real-time node lighting and is moot while `ws` is off (the
+     * template disables it then, the hint says why).
+     */
+    live: {
+      ws: {
+        label: 'Live updates',
+        description:
+          'Keep the map in sync with sm serve over a WebSocket: scan refreshes, live events, node activity.',
+      },
+      activity: {
+        label: 'Real-time node activity',
+        description:
+          'Light up nodes on the map the moment your AI assistant invokes them.',
+        hint: 'Requires live updates.',
+      },
+    },
+    /**
      * Footnote rendered at the bottom of the General section, dimmed
      * so it reads as ambient orientation rather than primary copy.
      * Surfaces the storage locations referenced piecemeal above (home

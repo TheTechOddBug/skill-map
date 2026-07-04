@@ -5,6 +5,7 @@ import { TestBed } from '@angular/core/testing';
 import { SettingsModal, type TSettingsSection } from '../settings-modal';
 import { SettingsBufferService } from '../settings-buffer.service';
 import { ScanTriggerService } from '../../../services/scan-trigger';
+import { SKILL_MAP_MODE } from '../../../../services/data-source/runtime-mode';
 import {
   DATA_SOURCE,
   type IDataSourcePort,
@@ -86,6 +87,9 @@ function bootstrap(stub: Partial<IDataSourcePort>): ISetup {
       provideZonelessChangeDetection(),
       { provide: DATA_SOURCE, useValue: stub },
       { provide: ScanTriggerService, useValue: { run: vi.fn().mockResolvedValue(undefined) } },
+      // `<sm-settings-general>` (rendered by the chassis) injects the
+      // live-channel services; demo mode keeps them socket-free.
+      { provide: SKILL_MAP_MODE, useValue: 'demo' },
     ],
   });
   const buffer = TestBed.inject(SettingsBufferService);

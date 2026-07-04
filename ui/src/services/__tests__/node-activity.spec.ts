@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { Subject } from 'rxjs';
 
@@ -264,5 +264,54 @@ describe('isNodeActivityEvent', () => {
         data: { nodePath: SKILL, phase: 'start', owner: 42 },
       }),
     ).toBe(false);
+  });
+});
+
+describe('NodeActivityService, real-time switch (Settings toggle)', () => {
+  const ACTIVITY_ENABLED_KEY = 'sm.live.activity-enabled';
+
+  afterEach(() => {
+    localStorage.removeItem(ACTIVITY_ENABLED_KEY);
+  });
+
+  it('setEnabled(false) darkens everything immediately and discards incoming frames', async () => {
+    const { service, events$ } = bootstrap(10_000);
+
+    events$.next(makeEvent(SKILL, 'start', 'main'));
+    events$.next(makeEvent(AGENT, 'start', 'agent-1'));
+    await flushed();
+    expect(service.activePaths().size).toBe(2);
+
+    service.setEnabled(false);
+    // No frame wait: the clear publishes synchronously.
+    expect(service.activePaths().size).toBe(0);
+
+    events$.next(makeEvent(SKILL, 'start', 'main'));
+    await flushed();
+    expect(service.activePaths().size).toBe(0);
+  });
+
+  it('setEnabled(true) resumes lighting on the live subscription', async () => {
+    const { service, events$ } = bootstrap(10_000);
+
+    service.setEnabled(false);
+    events$.next(makeEvent(SKILL, 'start', 'main'));
+    await flushed();
+    expect(service.activePaths().size).toBe(0);
+
+    service.setEnabled(true);
+    events$.next(makeEvent(SKILL, 'start', 'main'));
+    await flushed();
+    expect(service.activePaths().has(SKILL)).toBe(true);
+  });
+
+  it('boots with a stored OFF: frames are inert until re-enabled', async () => {
+    localStorage.setItem(ACTIVITY_ENABLED_KEY, 'false');
+    const { service, events$ } = bootstrap(10_000);
+
+    events$.next(makeEvent(SKILL, 'start', 'main'));
+    await flushed();
+    expect(service.activePaths().size).toBe(0);
+    expect(service.enabled()).toBe(false);
   });
 });

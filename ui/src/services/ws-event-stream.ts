@@ -95,6 +95,7 @@ import {
   type IWsSidecarBumpedEvent,
 } from '../models/ws-event';
 import { SKILL_MAP_MODE } from './data-source/runtime-mode';
+import { LivePreferencesService } from './live-preferences';
 import { WS_TEXTS } from '../i18n/ws.texts';
 
 /** Backoff schedule (ms). Index = attempt number. After the last entry, we stay capped at 30s until `MAX_RECONNECT_ATTEMPTS`. */
@@ -132,8 +133,12 @@ const NORMAL_CLOSE_CODES: ReadonlySet<number> = new Set([1000]);
  *     scheduled (transient; normal `sm serve` restarts pass through here).
  *   - `'lost'`: `MAX_RECONNECT_ATTEMPTS` exhausted. Terminal until the
  *     user triggers `reconnect()`. The data stream stays alive.
+ *   - `'disabled'`: the operator switched live updates off in Settings →
+ *     General (`LivePreferencesService.wsEnabled`). No socket, no
+ *     reconnect loop, and DISTINCT from `'lost'` so the connection
+ *     banner never nags about a connection the user chose not to have.
  */
-export type TWsConnectionState = 'connecting' | 'open' | 'reconnecting' | 'lost';
+export type TWsConnectionState = 'connecting' | 'open' | 'reconnecting' | 'lost' | 'disabled';
 
 /**
  * Minimal contract the service needs from a WebSocket implementation.
@@ -197,6 +202,7 @@ export const WS_URL = new InjectionToken<string>('WS_URL', {
 export class WsEventStreamService implements OnDestroy {
   private readonly mode = inject(SKILL_MAP_MODE);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly prefs = inject(LivePreferencesService);
 
   private readonly subject = new Subject<IWsEvent>();
   private socket: IWsLike | null = null;
@@ -206,6 +212,20 @@ export class WsEventStreamService implements OnDestroy {
   private reconnectAttempt = 0;
   /** Set true by `disconnect()` (and on `OnDestroy`). Suppresses any pending or future reconnect. */
   private disposed = false;
+  /**
+   * `true` once `events$` has seen its first subscriber. Re-enabling
+   * live updates from Settings only opens a socket when someone is
+   * actually listening; before first interest the lazy connect-on-
+   * subscribe path stays authoritative.
+   */
+  private hasInterest = false;
+
+  /**
+   * Live-updates preference (Settings → General), re-exposed so the
+   * Settings toggle binds display state from the connection owner
+   * rather than reaching into the storage seam.
+   */
+  readonly enabled = this.prefs.wsEnabled;
 
   /** Socket lifecycle, readable by consumers (connection banner, re-seed on reconnect). */
   private readonly _connectionState = signal<TWsConnectionState>('connecting');
@@ -280,12 +300,21 @@ export class WsEventStreamService implements OnDestroy {
       this.events$ = new Observable<IWsEvent>((subscriber) => {
         // Side effect: connect on first interest. Re-subscribers reuse
         // the still-open socket and just attach to the subject below.
-        if (!this.socket && !this.disposed) {
+        // With live updates disabled the subscription still attaches
+        // (so a later re-enable resumes delivery without re-subscribing)
+        // but no socket opens.
+        this.hasInterest = true;
+        if (!this.socket && !this.disposed && this.prefs.wsEnabled()) {
           this.connect();
         }
         const sub = this.subject.subscribe(subscriber);
         return () => sub.unsubscribe();
       }).pipe(share({ resetOnRefCountZero: false }));
+      if (!this.prefs.wsEnabled()) {
+        // Boot with the switch off: reflect it immediately so the UI
+        // never shows a phantom 'connecting'.
+        this._connectionState.set('disabled');
+      }
     }
 
     this.scanCompleted$ = this.events$.pipe(
@@ -331,17 +360,45 @@ export class WsEventStreamService implements OnDestroy {
   }
 
   /**
+   * Flip the live-updates preference AND apply it to the socket in the
+   * same call (the Settings toggle's entry point, so the stored
+   * preference and the runtime connection never diverge):
+   *
+   *   - OFF: persist, cancel any reconnect loop, close the open socket
+   *     with a normal 1000, and flip `connectionState` to `'disabled'`.
+   *     The data subject stays alive (NOT `disconnect()`), so existing
+   *     subscribers resume delivery when re-enabled.
+   *   - ON: persist, reset the backoff, and reconnect immediately when
+   *     someone already subscribed; otherwise the lazy connect-on-
+   *     subscribe path picks it up on first interest.
+   */
+  setEnabled(enabled: boolean): void {
+    this.prefs.setWsEnabled(enabled);
+    if (this.mode !== 'live' || this.disposed) return;
+    if (!enabled) {
+      this.suspend();
+      return;
+    }
+    if (this.socket) return;
+    this.reconnectAttempt = 0;
+    this._connectionState.set('connecting');
+    if (this.hasInterest) this.connect();
+  }
+
+  /**
    * Manually re-open the socket after the reconnect loop gave up
    * (`connectionState === 'lost'`). Resets the attempt counter, flips
    * the state back to `'connecting'`, and reconnects immediately
    * (short-circuiting any pending backoff timer). Safe in any state: a
-   * no-op while disposed or while a socket is already open / connecting.
+   * no-op while disposed, while a socket is already open / connecting,
+   * or while live updates are switched off (re-enabling goes through
+   * `setEnabled(true)`).
    *
    * Because give-up never errors the data subject, reconnecting resumes
    * delivery to every existing subscriber without a re-subscribe.
    */
   reconnect(): void {
-    if (this.disposed || this.socket) return;
+    if (this.disposed || this.socket || !this.prefs.wsEnabled()) return;
     this.clearStabilityTimer();
     if (this.reconnectTimer !== null) {
       clearTimeout(this.reconnectTimer);
@@ -359,6 +416,30 @@ export class WsEventStreamService implements OnDestroy {
   // ---------------------------------------------------------------------------
   // Internals
   // ---------------------------------------------------------------------------
+
+  /**
+   * Live updates switched off: quiesce WITHOUT disposing. Pending
+   * reconnects are cancelled, the socket closes with the same normal
+   * 1000 that `disconnect()` uses (so `onclose` never schedules a
+   * retry), and the state lands on `'disabled'`. The subject stays
+   * open for a later `setEnabled(true)`.
+   */
+  private suspend(): void {
+    this.clearStabilityTimer();
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (this.socket) {
+      try {
+        this.socket.close(1000, 'live updates disabled');
+      } catch {
+        // Ignore, the socket may already be closing / closed.
+      }
+      this.socket = null;
+    }
+    this._connectionState.set('disabled');
+  }
 
   private connect(): void {
     if (this.disposed) return;
@@ -481,6 +562,12 @@ export class WsEventStreamService implements OnDestroy {
 
   private scheduleReconnect(): void {
     if (this.disposed) return;
+    if (!this.prefs.wsEnabled()) {
+      // The switch flipped off while a close was in flight: land on
+      // 'disabled' instead of spinning a reconnect the user opted out of.
+      this._connectionState.set('disabled');
+      return;
+    }
     if (this.reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
       // eslint-disable-next-line no-console -- developer log
       console.warn(WS_TEXTS.reconnectGiveUp(MAX_RECONNECT_ATTEMPTS));

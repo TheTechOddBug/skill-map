@@ -552,3 +552,109 @@ describe('WsEventStreamService, demo mode', () => {
     expect(harness.service.connectionState()).toBe('connecting');
   });
 });
+
+describe('WsEventStreamService, live-updates switch (Settings toggle)', () => {
+  const WS_ENABLED_KEY = 'sm.live.ws-enabled';
+  let harness: IHarness;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    harness?.service.disconnect();
+    localStorage.removeItem(WS_ENABLED_KEY);
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('boots with the switch OFF: no socket on subscribe, state "disabled"', () => {
+    localStorage.setItem(WS_ENABLED_KEY, 'false');
+    harness = createHarness('live');
+    const sub = harness.service.events$.subscribe();
+    expect(harness.factory).not.toHaveBeenCalled();
+    expect(harness.service.connectionState()).toBe('disabled');
+    sub.unsubscribe();
+  });
+
+  it('setEnabled(false) closes the open socket with a normal 1000 and never reconnects', () => {
+    harness = createHarness('live');
+    const sub = harness.service.events$.subscribe();
+    const ws = harness.sockets[0]!;
+    ws.simulateOpen();
+    expect(harness.service.connectionState()).toBe('open');
+
+    harness.service.setEnabled(false);
+    expect(ws.closeCalls).toEqual([{ code: 1000, reason: 'live updates disabled' }]);
+    expect(harness.service.connectionState()).toBe('disabled');
+    // The normal close must not schedule a retry, even hours later.
+    ws.simulateClose(1000, 'live updates disabled');
+    vi.advanceTimersByTime(120_000);
+    expect(harness.factory).toHaveBeenCalledTimes(1);
+    expect(harness.service.connectionState()).toBe('disabled');
+    sub.unsubscribe();
+  });
+
+  it('setEnabled(false) cancels a pending reconnect loop', () => {
+    harness = createHarness('live');
+    const sub = harness.service.events$.subscribe();
+    harness.sockets[0]!.simulateOpen();
+    harness.sockets[0]!.simulateClose(1006);
+    expect(harness.service.connectionState()).toBe('reconnecting');
+
+    harness.service.setEnabled(false);
+    expect(harness.service.connectionState()).toBe('disabled');
+    vi.advanceTimersByTime(120_000);
+    expect(harness.factory).toHaveBeenCalledTimes(1);
+    sub.unsubscribe();
+  });
+
+  it('setEnabled(true) reconnects immediately when a subscriber is attached, and frames resume', () => {
+    harness = createHarness('live');
+    const seen: IWsEvent[] = [];
+    const sub = harness.service.events$.subscribe((e) => seen.push(e));
+    harness.sockets[0]!.simulateOpen();
+    harness.service.setEnabled(false);
+    harness.sockets[0]!.simulateClose(1000, 'live updates disabled');
+
+    harness.service.setEnabled(true);
+    expect(harness.factory).toHaveBeenCalledTimes(2);
+    expect(harness.service.connectionState()).toBe('connecting');
+    const ws2 = harness.sockets[1]!;
+    ws2.simulateOpen();
+    expect(harness.service.connectionState()).toBe('open');
+    ws2.simulateMessage({
+      type: 'scan.completed',
+      timestamp: 123,
+      runId: 'r-x',
+      jobId: null,
+      data: { nodes: 2, links: 0, issues: 0, durationMs: 5 },
+    });
+    // Delivery resumes on the SAME subscription: the suspend never
+    // completed the subject.
+    expect(seen).toHaveLength(1);
+    sub.unsubscribe();
+  });
+
+  it('setEnabled(true) without prior interest stays lazy (no socket until first subscriber)', () => {
+    localStorage.setItem(WS_ENABLED_KEY, 'false');
+    harness = createHarness('live');
+    harness.service.setEnabled(true);
+    expect(harness.factory).not.toHaveBeenCalled();
+    const sub = harness.service.events$.subscribe();
+    expect(harness.factory).toHaveBeenCalledTimes(1);
+    sub.unsubscribe();
+  });
+
+  it('reconnect() is a no-op while the switch is off (banner path cannot bypass it)', () => {
+    localStorage.setItem(WS_ENABLED_KEY, 'false');
+    harness = createHarness('live');
+    const sub = harness.service.events$.subscribe();
+    harness.service.reconnect();
+    expect(harness.factory).not.toHaveBeenCalled();
+    expect(harness.service.connectionState()).toBe('disabled');
+    sub.unsubscribe();
+  });
+});

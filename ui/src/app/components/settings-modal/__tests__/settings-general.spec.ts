@@ -8,6 +8,7 @@ import {
   DataSourceError,
   type IDataSourcePort,
 } from '../../../../services/data-source/data-source.port';
+import { SKILL_MAP_MODE } from '../../../../services/data-source/runtime-mode';
 import type { IPreferencesApi, IPreferencesPatchApi } from '../../../../models/api';
 
 /**
@@ -78,6 +79,10 @@ function bootstrap(stub: Partial<IDataSourcePort>): IBootstrapResult {
     providers: [
       provideZonelessChangeDetection(),
       { provide: DATA_SOURCE, useValue: stub },
+      // The live-channel toggles inject WsEventStreamService /
+      // NodeActivityService; demo mode keeps both inert (no socket,
+      // EMPTY stream) without further stubbing.
+      { provide: SKILL_MAP_MODE, useValue: 'demo' },
     ],
   });
   const fixture = TestBed.createComponent(SettingsGeneral);
@@ -191,5 +196,42 @@ describe('SettingsGeneral', () => {
     await flushAsync();
 
     expect(proto.loadError()).toBe('boom');
+  });
+
+  it('live-channel toggles render and route through the feature owners (localStorage-backed)', async () => {
+    const WS_KEY = 'sm.live.ws-enabled';
+    const ACTIVITY_KEY = 'sm.live.activity-enabled';
+    try {
+      const { fixture } = bootstrap({
+        getPreferences: vi.fn().mockResolvedValue(prefs(true, true)),
+        setPreferences: vi.fn(),
+      });
+      const el: HTMLElement = fixture.nativeElement;
+      const wsRow = el.querySelector('[data-testid="settings-general-row-live-ws"]');
+      const activityRow = el.querySelector('[data-testid="settings-general-row-live-activity"]');
+      expect(wsRow).not.toBeNull();
+      expect(activityRow).not.toBeNull();
+
+      interface ILiveProto {
+        liveWsEnabled(): boolean;
+        liveActivityEnabled(): boolean;
+        onLiveWsToggle(next: boolean): void;
+        onLiveActivityToggle(next: boolean): void;
+      }
+      const live = fixture.componentInstance as unknown as ILiveProto;
+      expect(live.liveWsEnabled()).toBe(true);
+      expect(live.liveActivityEnabled()).toBe(true);
+
+      live.onLiveWsToggle(false);
+      live.onLiveActivityToggle(false);
+      expect(live.liveWsEnabled()).toBe(false);
+      expect(live.liveActivityEnabled()).toBe(false);
+      // Persisted through the owners into the storage seam.
+      expect(localStorage.getItem(WS_KEY)).toBe('false');
+      expect(localStorage.getItem(ACTIVITY_KEY)).toBe('false');
+    } finally {
+      localStorage.removeItem(WS_KEY);
+      localStorage.removeItem(ACTIVITY_KEY);
+    }
   });
 });

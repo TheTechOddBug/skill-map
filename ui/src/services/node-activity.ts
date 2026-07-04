@@ -28,6 +28,7 @@
 import { DestroyRef, Injectable, InjectionToken, inject, signal } from '@angular/core';
 
 import type { IWsNodeActivityData } from '../models/ws-event';
+import { LivePreferencesService } from './live-preferences';
 import { WsEventStreamService } from './ws-event-stream';
 
 /**
@@ -71,6 +72,13 @@ export class NodeActivityService {
   private readonly ttlMs = inject(NODE_ACTIVITY_TTL_MS);
   private readonly stickyTtlMs = inject(NODE_ACTIVITY_STICKY_TTL_MS);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly prefs = inject(LivePreferencesService);
+
+  /**
+   * Real-time activity preference (Settings → General), re-exposed so
+   * the Settings toggle binds display state from the feature owner.
+   */
+  readonly enabled = this.prefs.activityEnabled;
 
   /** Per-path claims by owner. A path is active while any claim lives. */
   private readonly claims = new Map<string, Map<string, IClaim>>();
@@ -93,7 +101,23 @@ export class NodeActivityService {
     });
   }
 
+  /**
+   * Flip the real-time activity preference AND apply it (the Settings
+   * toggle's entry point). Turning it OFF darkens the map immediately:
+   * buffered events drop, every claim releases, and the empty set
+   * publishes in the same call. The WS subscription stays attached
+   * (cheap) but `enqueue` discards frames while disabled.
+   */
+  setEnabled(enabled: boolean): void {
+    this.prefs.setActivityEnabled(enabled);
+    if (enabled) return;
+    this.pending = [];
+    this.claims.clear();
+    this.publish(Date.now());
+  }
+
   private enqueue(data: IWsNodeActivityData): void {
+    if (!this.prefs.activityEnabled()) return;
     this.pending.push(data);
     if (this.flushScheduled) return;
     this.flushScheduled = true;
