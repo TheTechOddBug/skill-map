@@ -28,8 +28,15 @@ export const ACTIVITY_TEXTS = {
   installedHint:
     'Run `sm serve` and invoke a skill / agent in {{provider}} to watch the map light up. Reverse with `sm activity uninstall {{provider}}`.',
 
+  installedPlugin:
+    '{{glyph}}  sm activity: in-process plugin written to {{configPath}}.\n',
+
   uninstalled:
     '{{glyph}}  sm activity: removed the bridge hooks from {{configPath}} and deleted {{bridgePath}}.\n',
+  uninstalledPlugin:
+    '{{glyph}}  sm activity: deleted the in-process plugin at {{configPath}}.\n',
+  nothingToUninstallPlugin:
+    '{{glyph}}  sm activity: no skill-map plugin at {{configPath}}; nothing to do.\n',
   nothingToUninstall:
     '{{glyph}}  sm activity: {{configPath}} carries no bridge hooks; nothing to do.\n',
 
@@ -39,8 +46,5 @@ export const ACTIVITY_TEXTS = {
   uninstallFailed:
     '{{glyph}}  sm activity: uninstall failed: {{message}}\n',
 
-  // A provider whose install shape is not implemented yet (plugin-file
-  // lands with the opencode adapter).
-  installKindUnsupported:
-    '{{glyph}}  sm activity: provider "{{provider}}" declares install kind "{{kind}}", which this version does not support yet.\n',
+
 } as const;

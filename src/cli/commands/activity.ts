@@ -98,21 +98,11 @@ export class ActivityInstallCommand extends SmCommand {
       return ExitCode.Error;
     }
     const install = provider.activity.install;
-    if (install.kind !== 'json-hooks') {
-      this.printer!.error(
-        tx(ACTIVITY_TEXTS.installKindUnsupported, {
-          glyph: errGlyph,
-          provider: sanitizeForTerminal(provider.id),
-          kind: install.kind,
-        }),
-      );
-      return ExitCode.Error;
-    }
-
     const ctx = defaultRuntimeContext();
     const events: readonly IActivityInstallEvent[] = install.events ?? [];
 
-    // Consent: the merge touches a file skill-map does not own.
+    // Consent: both shapes write into territory skill-map does not own
+    // (a vendor hooks file, or a plugin dir the runtime auto-loads).
     const consented = await this.ensureConsent(install.configPath, okGlyph, errGlyph);
     if (consented !== null) return consented;
 
@@ -120,12 +110,17 @@ export class ActivityInstallCommand extends SmCommand {
       await installActivityBridge(ctx.cwd, provider);
 
       this.printer!.data(
-        tx(ACTIVITY_TEXTS.installed, {
-          glyph: okGlyph,
-          bridgePath: ACTIVITY_BRIDGE_REL,
-          configPath: install.configPath,
-          events: events.length,
-        }),
+        install.kind === 'plugin-file'
+          ? tx(ACTIVITY_TEXTS.installedPlugin, {
+              glyph: okGlyph,
+              configPath: install.configPath,
+            })
+          : tx(ACTIVITY_TEXTS.installed, {
+              glyph: okGlyph,
+              bridgePath: ACTIVITY_BRIDGE_REL,
+              configPath: install.configPath,
+              events: events.length,
+            }),
       );
       this.printer!.info(
         ansi.dim(
@@ -224,19 +219,28 @@ export class ActivityUninstallCommand extends SmCommand {
 
     try {
       const { removed } = uninstallActivityBridge(ctx.cwd, provider);
+      const pluginFile = install.kind === 'plugin-file';
       if (!removed) {
         this.printer!.info(
-          tx(ACTIVITY_TEXTS.nothingToUninstall, { glyph: okGlyph, configPath: install.configPath }),
+          tx(
+            pluginFile ? ACTIVITY_TEXTS.nothingToUninstallPlugin : ACTIVITY_TEXTS.nothingToUninstall,
+            { glyph: okGlyph, configPath: install.configPath },
+          ),
         );
         return ExitCode.Ok;
       }
 
       this.printer!.data(
-        tx(ACTIVITY_TEXTS.uninstalled, {
-          glyph: okGlyph,
-          configPath: install.configPath,
-          bridgePath: ACTIVITY_BRIDGE_REL,
-        }),
+        pluginFile
+          ? tx(ACTIVITY_TEXTS.uninstalledPlugin, {
+              glyph: okGlyph,
+              configPath: install.configPath,
+            })
+          : tx(ACTIVITY_TEXTS.uninstalled, {
+              glyph: okGlyph,
+              configPath: install.configPath,
+              bridgePath: ACTIVITY_BRIDGE_REL,
+            }),
       );
       return ExitCode.Ok;
     } catch (err) {

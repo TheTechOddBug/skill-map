@@ -46,6 +46,7 @@ import type { IBuiltInManifest, IProvider } from '../../../../kernel/extensions/
 import agentSchema from './schemas/agent.schema.json' with { type: 'json' };
 import commandSchema from './schemas/command.schema.json' with { type: 'json' };
 import { OPENCODE_PLUGIN_ID } from '../../../ids.js';
+import { opencodeActivity } from './activity.js';
 import {
   COMMONS_READ,
   COMMONS_KINDS,
@@ -100,6 +101,12 @@ export const opencodeProvider: IBuiltInManifest<IProvider> = {
 
   // Auto-detect marker: a `.opencode/` directory marks an OpenCode project.
   detect: { markers: ['.opencode'] },
+
+  // Live node activity (spec/provider-activity.md): plugin-file install
+  // (in-process plugin at `.opencode/plugin/skill-map-activity.js`, no
+  // spawned bridge) + the runtime mapper over the plugin's wrapped hook
+  // payloads. Implementation + rationale in the sibling `activity.ts`.
+  activity: opencodeActivity,
 
   // Vendor lens: gated to the active lens. OpenCode only resolves its own
   // territory (plus the Claude-compat / open-standard skill homes it reads).

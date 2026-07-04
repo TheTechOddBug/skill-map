@@ -89,12 +89,12 @@ ejecuta el tutorial
 
 Claude se hace cargo desde ahí: arma una fixture, te guía por `sm init`, abre la Web UI, edita archivos delante tuyo y te muestra al watcher reaccionando en vivo (incluso cómo `.skillmapignore` esconde archivos en tiempo real). Ves el flujo completo antes de apuntarlo a tu proyecto real, sin compromiso, totalmente reversible. Cuando termina el prólogo te ofrece un menú de partes más profundas (plugins, settings, view-slots, la CLI); eliges la que quieras, o lo dejas ahí.
 
-## Actividad en vivo (mira a tu asistente ejecutarse)
+## Actividad en real time (mira a tu asistente ejecutarse)
 
 Con `sm serve` abierto, el mapa puede iluminar cada nodo **en el momento exacto en que tu runtime de IA lo invoca**: la skill que acaba de cargar, el agente en que delegó, el markdown que leyó. Se cablea una vez por proveedor:
 
 ```bash
-sm activity install claude   # o: codex, antigravity
+sm activity install claude   # o: codex, antigravity, opencode
 ```
 
 (o desde la UI: Settings → Project, debajo del selector de lente; ambos caminos piden confirmación antes de tocar la configuración del proveedor). La instalación mezcla entradas de hooks en la configuración **local al proyecto** del proveedor y deja un pequeño bridge bajo `.skill-map/activity/`; los hooks del propio runtime reenvían los eventos a tu servidor local, que los resuelve contra el mapa escaneado y empuja el brillo al navegador. Todo queda en tu máquina (solo loopback, nunca telemetría); `sm activity uninstall <proveedor>` revierte exactamente lo instalado. Los toggles viven en Settings → General.
@@ -106,7 +106,7 @@ Qué se ilumina depende de lo que el sistema de hooks de cada runtime expone:
 | `claude` (Claude Code) | Comandos slash, skills (tipeadas o invocadas por el modelo), agentes incluyendo cadenas de delegación anidadas, lecturas de archivos markdown | El contexto auto-cargado (`CLAUDE.md` al inicio de sesión) no dispara ningún hook, así que queda invisible |
 | `codex` (Codex CLI) | Invocaciones `$skill` desde tu prompt, agentes con nombre de `.codex/agents/` (cadenas anidadas también, si subes `agents.max_depth`) | Las lecturas de markdown y las skills que siguen los subagentes quedan a oscuras: los hooks de Codex aún no disparan para su herramienta `read_file` ([openai/codex#18491](https://github.com/openai/codex/issues/18491)); los spawns del tipo genérico `worker` no corresponden a ningún nodo |
 | `antigravity` (Antigravity CLI) | Todo lo que se LEE: archivos markdown, el `SKILL.md` de una skill y sus recursos cuando el agente los mira, workflows seguidos en prosa; la cadena completa se apaga en el momento en que el agente queda inactivo (`Stop` nativo) | Invocar una skill con `/slash` no ilumina (el runtime inyecta el contenido sin evento de hook, pídela en prosa en su lugar); los subagentes no tienen definición en disco, así que no hay nodo que iluminar |
-| `agent-skills` (opencode) | Todavía no: adapter planificado (necesita el formato de instalación de plugin en proceso) | |
+| `opencode` (OpenCode) | La superficie más rica: skills, comandos y agentes llegan NOMBRADOS (disparan incluso invocados en prosa), las lecturas de markdown iluminan por path, y la cadena completa de cada sesión se apaga en el momento en que queda inactiva (`session.idle` nativo) | Los agentes built-in sin archivo en disco (`build`, `plan`) no tienen nodo que iluminar |
 | `markdown` | Sin runtime que hookear; nada se ilumina | |
 
 Contrato completo (invariantes del bridge, postura de privacidad, notas de señales por proveedor): [`spec/provider-activity.md`](./spec/provider-activity.md).

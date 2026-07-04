@@ -137,9 +137,8 @@ function resolveProviderOr404(deps: IRouteDeps, id: string): IProvider {
 
 /**
  * Mutation gate: the provider must exist (404) AND declare an
- * implemented install kind (400). `json-hooks` is the only shape the
- * engine writes today; `plugin-file` providers surface as unsupported
- * until that shape lands.
+ * implemented install kind (400). Both spec'd shapes are implemented
+ * today, so the 400 branch only fires for a future kind.
  */
 function requireSupported(deps: IRouteDeps, id: string): IProvider {
   const provider = resolveProviderOr404(deps, id);
@@ -175,7 +174,9 @@ function buildIoFailure(template: string, err: unknown): HTTPException {
 }
 
 function isSupported(provider: IProvider): boolean {
-  return provider.activity !== undefined && provider.activity.install.kind === 'json-hooks';
+  // Both install shapes are implemented (`json-hooks` spawned bridge,
+  // `plugin-file` in-process plugin); the guard stays for future kinds.
+  return provider.activity !== undefined;
 }
 
 function buildStatusEnvelope(

@@ -209,6 +209,48 @@ describe('core/activity install engine', () => {
     assert.equal(activityInstallStatus(cwd, grouped).installed, false);
   });
 
+  it('plugin-file descriptor: install writes the plugin, uninstall deletes exactly it', async () => {
+    const pluginProvider = {
+      id: 'opencode',
+      kind: 'provider',
+      activity: {
+        install: {
+          kind: 'plugin-file',
+          configPath: '.opencode/plugin/skill-map-activity.js',
+        },
+        mapEvent: () => null,
+      },
+    } as unknown as IProvider;
+    rmSync(join(cwd, '.opencode'), { recursive: true, force: true });
+
+    assert.equal(activityInstallStatus(cwd, pluginProvider).installed, false);
+
+    await installActivityBridge(cwd, pluginProvider);
+    const pluginPath = join(cwd, '.opencode/plugin/skill-map-activity.js');
+    const source = readFileSync(pluginPath, 'utf8');
+    assert.equal(source.includes('skill-map activity plugin'), true);
+    assert.equal(source.includes("PROVIDER = 'opencode'"), true);
+    // No spawned-bridge artifacts for this shape.
+    assert.equal(existsSync(defaultProjectActivityDir(cwd)), false);
+    assert.deepEqual(activityInstallStatus(cwd, pluginProvider), {
+      configWired: true,
+      bridgePresent: true,
+      installed: true,
+    });
+
+    assert.equal(uninstallActivityBridge(cwd, pluginProvider).removed, true);
+    assert.equal(existsSync(pluginPath), false);
+    assert.equal(uninstallActivityBridge(cwd, pluginProvider).removed, false);
+
+    // A FOREIGN file at the same path is never ours: not installed,
+    // and uninstall refuses to delete it.
+    mkdirSync(join(cwd, '.opencode/plugin'), { recursive: true });
+    writeFileSync(pluginPath, 'export const UserPlugin = async () => ({});\n', 'utf8');
+    assert.equal(activityInstallStatus(cwd, pluginProvider).installed, false);
+    assert.equal(uninstallActivityBridge(cwd, pluginProvider).removed, false);
+    assert.equal(existsSync(pluginPath), true);
+  });
+
   it('double uninstall is an idempotent no-op that touches nothing', async () => {
     await installActivityBridge(cwd, provider);
     assert.equal(uninstallActivityBridge(cwd, provider).removed, true);

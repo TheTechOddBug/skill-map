@@ -184,6 +184,39 @@ describe('GET /api/activity/install, status probe', () => {
     });
   });
 
+  it('opencode: plugin-file provider installs the in-process plugin over HTTP', async () => {
+    await bootAndUse(async (handle) => {
+      const status = (await (await getStatus(handle, 'opencode')).json()) as IStatusEnvelope;
+      assert.equal(status.supported, true);
+      assert.equal(status.configPath, '.opencode/plugin/skill-map-activity.js');
+      assert.equal(status.installed, false);
+
+      const res = await post(handle, '/api/activity/install', {
+        provider: 'opencode',
+        confirm: true,
+      });
+      assert.equal(res.status, 200);
+      const envelope = (await res.json()) as IStatusEnvelope;
+      assert.equal(envelope.installed, true);
+      const source = readFileSync(
+        join(root.fixtureRoot, '.opencode/plugin/skill-map-activity.js'),
+        'utf8',
+      );
+      assert.equal(source.includes('skill-map activity plugin'), true);
+
+      const un = await post(handle, '/api/activity/uninstall', {
+        provider: 'opencode',
+        confirm: true,
+      });
+      assert.equal(un.status, 200);
+      assert.equal(((await un.json()) as IStatusEnvelope).removed, true);
+      assert.equal(
+        existsSync(join(root.fixtureRoot, '.opencode/plugin/skill-map-activity.js')),
+        false,
+      );
+    });
+  });
+
   it('antigravity: named-group provider installs into its own group over HTTP', async () => {
     await bootAndUse(async (handle) => {
       const status = (await (await getStatus(handle, 'antigravity')).json()) as IStatusEnvelope;

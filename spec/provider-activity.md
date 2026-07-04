@@ -80,7 +80,7 @@ Install shapes (`install.kind`, closed set, extensible by minor bump):
 | kind | meaning | example target |
 |---|---|---|
 | `json-hooks` | merge hook entries into a JSON settings/hooks file that spawns the bridge command | `.claude/settings.json`, `.codex/hooks.json`, `.agents/hooks.json` |
-| `plugin-file` | write an in-process plugin file that POSTs directly (no spawn) | `.opencode/plugins/skill-map-activity.js` |
+| `plugin-file` | write an in-process plugin file that POSTs directly (no spawn) | `.opencode/plugin/skill-map-activity.js` |
 
 `json-hooks` covers two document shapes, selected by the optional
 `install.group` field, and two command-path conventions, selected by the
@@ -95,6 +95,20 @@ event maps; a provider declaring `group` makes skill-map write its entries
 under its own group key (and uninstall remove exactly that group). The inner
 per-event shape (`[{ matcher?, hooks: [{ type: "command", command }] }]` for
 tool events) is identical in both shapes.
+
+`plugin-file` installs write ONE self-contained plugin file at `configPath`
+(opencode: `.opencode/plugin/skill-map-activity.js`, loaded in-process by the
+runtime). The file IS both the wiring and the bridge: it registers exactly the
+hooks the provider's `mapEvent` consumes (the in-process analog of the
+`events` list, which `plugin-file` descriptors omit), wraps each payload as
+`{ hook, directory, ... }` and POSTs it to the ingest route following the same
+discovery + invariants as the spawned bridge (§Bridge contract: serve.json
+under the plugin context's project directory, scope + loopback + token checks,
+fail-open, and NEVER throwing, an exception inside an in-process hook could
+alter the host session, the in-process analog of the exit-0 invariant).
+Status: `configWired` and `bridgePresent` both derive from that one file
+(present and carrying the skill-map header marker); uninstall deletes exactly
+it and touches nothing else.
 
 ## `serve.json` (server discovery file)
 
@@ -324,7 +338,7 @@ Live-verified against real runs (2026-06-30). These inform each provider's
 | `claude` | `PreToolUse` tool=`Skill` (`tool_input.skill`), slash form via `UserPromptExpansion.command_name` | `SubagentStart` (start) / `SubagentStop` (owner-scoped end, `ownerScope: true`) keyed by `agent_id`; `agent_id`/`agent_type` on inner tool events; deep nesting attributable. The spawning `Agent` `PreToolUse` is deliberately NOT mapped: it would claim the child node under the PARENT's owner, and that claim would outlive the child's own `SubagentStop` (TTL instead of native end) | `UserPromptExpansion.command_name` (shares the `/` namespace with skills; disambiguate by which node exists) | markdown usage: `PreToolUse` tool=`Read` (`tool_input.file_path`, relativized against the event's `cwd`) emits a PATH signal; non-`.md` reads and paths outside the scope root are early-disclaimed. Auto-loaded context (`CLAUDE.md` at session start) fires no tool event and stays invisible. Ignore `SubagentStop` orphans with empty `agent_type` |
 | `codex` | weak: `$name` tokens inside `UserPromptSubmit.prompt` (the adapter scans with the SAME shared `$`-token grammar the `dollar-skill` extractor uses, so activity and link extraction agree; sigil stripped, resolver drops unknowns) | `SubagentStart` (sticky start) / `SubagentStop` (owner-scoped end) keyed by `agent_id`; a NAMED `agent_type` resolves to its `.codex/agents/<name>.toml` node, the default generic `worker` resolves to nothing and drops. NO parent custody: nesting is capped by `agents.max_depth` (default 1, spawns main-only), and spawning is consolidate-on-completion (the parent waits), so terminal stops unwind bottom-up natively; no tool events are wired at all | none (`/` is Codex's own built-in namespace) | hook config `.codex/hooks.json` uses the same `{ hooks: { <Event>: [...] } }` convention as claude, so the `json-hooks` engine applies verbatim; payload near-identical to claude's. Markdown usage is NOT mapped: Codex has an internal `read_file` tool but hooks do not fire for it (PreToolUse covers only Bash / apply_patch / MCP; expansion is an open upstream request), so read signals wait for that surface |
 | `antigravity` | invocation itself invisible (`/skill` injects the SKILL.md with no tool event, live-verified 2026-07-04), but a skill's `references/*.md` reads DO fire and light those resources | no on-disk agent files exist (subagents are runtime-only Prompt specs), so there is nothing to light; `conversationId` (present in EVERY payload) is the owner grouping key, and the conversation `Stop` (`terminationReason` present) maps to a node-less OWNER RELEASE so the whole chain goes dark the moment the agent idles | none; workflows (`.agent/workflows/*.md`) light when the agent FOLLOWS them (it `view_file`s the workflow file) | TWO mapped signals: `PreToolUse` tool `view_file` (`toolCall.args.AbsolutePath`, relativized against `workspacePaths[*]`) emitting PATH signals (markdown reads, skill resources, followed workflows all light through it), and `Stop` emitting the owner release. Payloads carry NO `hook_event_name`; events are distinguished STRUCTURALLY (`toolCall` = tool event, `invocationNum` = invocation pulse, `terminationReason` = Stop). Hook config `.agents/hooks.json` uses the NAMED-GROUP shape (`install.group`) with the FLAT entry shape on lifecycle events (`events[].entryShape`); the runtime spawns hook commands at the config's directory (`install.commandCwd: "config-dir"`); hooks stay neutral via exit 0 + empty stdout, which the bridge invariants already guarantee |
-| `agent-skills` via opencode | `tool.execute.before` tool=`skill` (`args.name`) | `chat.message.agent` (named); own `sessionID` per subagent | dedicated `command.execute.before` hook | in-process plugin API (no spawn) |
+| `agent-skills` via opencode | `tool.execute.before` tool `skill` (`args.name`), fires even for prose invocations (live-verified 2026-07-04, v1.17.11) | `chat.message` carries the NAMED `agent` + its own `sessionID` per subagent (spawn via the `task` tool); `sessionID` is the owner key and `session.idle` maps to the node-less OWNER RELEASE (native end) | dedicated `command.execute.before` hook (`{ command, sessionID }`, prose-invoked too) | in-process plugin (`plugin-file`, `.opencode/plugin/skill-map-activity.js`; BOTH `plugin/` and `plugins/` dirs load, install targets the singular). Markdown reads map from tool `read` (`args.filePath`, relativized against the plugin context's `directory`). The plugin registers ONLY the consumed hooks and forwards `{ hook, directory, input, output? }` wrappers |
 
 ## Stability
 

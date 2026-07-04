@@ -15,7 +15,7 @@
  * caller.
  */
 
-import { existsSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join, posix } from 'node:path';
 
@@ -27,6 +27,7 @@ import {
   defaultProjectActivityDir,
 } from '../paths/db-path.js';
 import { BRIDGE_PACKAGE_JSON, renderActivityBridge } from './bridge-template.js';
+import { ACTIVITY_PLUGIN_MARKER, renderActivityPlugin } from './plugin-template.js';
 import {
   DEFAULT_HOOKS_CONTAINER,
   hasActivityHooks,
@@ -67,6 +68,13 @@ export function activityInstallStatus(cwd: string, provider: IProvider): IActivi
   if (install === undefined) {
     return { configWired: false, bridgePresent: false, installed: false };
   }
+  if (install.kind === 'plugin-file') {
+    // The plugin file IS both the wiring and the bridge: one artifact,
+    // recognised by the skill-map header marker (a foreign file at the
+    // same path is NOT ours and reads as not installed).
+    const present = pluginFileIsOurs(join(cwd, install.configPath));
+    return { configWired: present, bridgePresent: present, installed: present };
+  }
   const settings = readJsonObjectOrEmpty(join(cwd, install.configPath));
   const configWired = hasActivityHooks(settings, ACTIVITY_BRIDGE_REL, containerOf(install));
   const bridgePresent = existsSync(defaultActivityBridgePath(cwd));
@@ -83,6 +91,15 @@ export function activityInstallStatus(cwd: string, provider: IProvider): IActivi
  */
 export async function installActivityBridge(cwd: string, provider: IProvider): Promise<void> {
   const install = provider.activity!.install;
+  if (install.kind === 'plugin-file') {
+    // One self-contained artifact: the in-process plugin. (Re)written on
+    // every install so a version upgrade refreshes it; no hooks-file
+    // merge and no spawned-bridge dir are involved.
+    const pluginPath = join(cwd, install.configPath);
+    await mkdir(dirname(pluginPath), { recursive: true });
+    await writeFile(pluginPath, renderActivityPlugin(provider.id), 'utf8');
+    return;
+  }
   const events: readonly IActivityInstallEvent[] = install.events ?? [];
   refreshHookWiring(join(cwd, install.configPath), events, bridgeCommand(provider.id, install), containerOf(install));
 
@@ -105,12 +122,28 @@ export async function installActivityBridge(cwd: string, provider: IProvider): P
 export function uninstallActivityBridge(cwd: string, provider: IProvider): { removed: boolean } {
   const install = provider.activity!.install;
   const configPath = join(cwd, install.configPath);
+  if (install.kind === 'plugin-file') {
+    // Delete exactly our artifact; a foreign file at the same path
+    // (no marker) is left untouched and reads as nothing-to-remove.
+    if (!pluginFileIsOurs(configPath)) return { removed: false };
+    rmSync(configPath, { force: true });
+    return { removed: true };
+  }
   const settings = readJsonObjectOrEmpty(configPath);
   const changed = removeActivityHooks(settings, ACTIVITY_BRIDGE_REL, containerOf(install));
   if (!changed) return { removed: false };
   writeJsonAtomic(configPath, settings);
   rmSync(defaultProjectActivityDir(cwd), { recursive: true, force: true });
   return { removed: true };
+}
+
+/** The plugin file exists AND carries the skill-map header marker. */
+function pluginFileIsOurs(pluginPath: string): boolean {
+  try {
+    return readFileSync(pluginPath, 'utf8').includes(ACTIVITY_PLUGIN_MARKER);
+  } catch {
+    return false;
+  }
 }
 
 /**

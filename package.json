@@ -22,6 +22,7 @@
     "fix:realtime": "bash scripts/start.sh realtime",
     "fix:realtime-codex": "bash scripts/start.sh realtime-codex",
     "fix:realtime-antigravity": "bash scripts/start.sh realtime-antigravity",
+    "fix:realtime-opencode": "bash scripts/start.sh realtime-opencode",
     "sm": "node src/bin/sm.js",
     "sm:reset": "bash scripts/dev-reset.sh",
     "sqlite": "node src/bin/sm.js db browser",
