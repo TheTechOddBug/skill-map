@@ -218,8 +218,13 @@ export function isSidecarBumpedEvent(value: unknown): value is IWsSidecarBumpedE
  * `event.data.{nodePath, phase, owner}`.
  */
 export interface IWsNodeActivityData {
-  /** Resolved scanned node's stable id (its `path`). */
-  nodePath: string;
+  /**
+   * Resolved scanned node's stable id (its `path`). ABSENT on the
+   * node-less OWNER-RELEASE form (`phase: 'end'` + `ownerScope: true`):
+   * a whole execution context ended (e.g. an Antigravity conversation
+   * going idle) and every claim its `owner` holds must release.
+   */
+  nodePath?: string;
   /** `start` lights the node; `end` exists only for natively-terminated units. */
   phase: 'start' | 'end';
   /** Opaque executing-context grouping key (`'main'`, an agent id, ...). */
@@ -245,7 +250,15 @@ export function isNodeActivityEvent(value: unknown): value is IWsNodeActivityEve
   if (value.type !== 'node.activity') return false;
   const data = value.data as Record<string, unknown> | undefined;
   if (typeof data !== 'object' || data === null) return false;
-  if (typeof data['nodePath'] !== 'string' || data['nodePath'].length === 0) return false;
+  const nodePath = data['nodePath'];
+  if (nodePath === undefined) {
+    // Node-less OWNER-RELEASE form: only valid as an owner-scoped end
+    // with an owner to release (a whole execution context ended).
+    if (data['phase'] !== 'end' || data['ownerScope'] !== true) return false;
+    if (typeof data['owner'] !== 'string' || data['owner'].length === 0) return false;
+  } else if (typeof nodePath !== 'string' || nodePath.length === 0) {
+    return false;
+  }
   if (data['phase'] !== 'start' && data['phase'] !== 'end') return false;
   const owner = data['owner'];
   if (owner !== undefined && typeof owner !== 'string') return false;

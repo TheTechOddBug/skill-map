@@ -164,6 +164,20 @@ describe('resolveSignalsAgainstNodes', () => {
     ]);
   });
 
+  it('node-less OWNER RELEASES forward without resolution (and require an owner)', () => {
+    const resolved = resolveSignalsAgainstNodes(
+      [
+        // Antigravity Stop: release everything conversation X holds.
+        { phase: 'end', owner: 'conv-1', ownerScope: true },
+        // Without an owner the form is meaningless: dropped.
+        { phase: 'end', ownerScope: true },
+      ],
+      provider,
+      NODES,
+    );
+    assert.deepEqual(resolved, [{ phase: 'end', owner: 'conv-1', ownerScope: true }]);
+  });
+
   it('PATH signals drop when no scanned node carries that path', () => {
     const resolved = resolveSignalsAgainstNodes(
       [

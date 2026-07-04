@@ -183,6 +183,29 @@ describe('GET /api/activity/install, status probe', () => {
       assert.equal(envelope.events, 3);
     });
   });
+
+  it('antigravity: named-group provider installs into its own group over HTTP', async () => {
+    await bootAndUse(async (handle) => {
+      const status = (await (await getStatus(handle, 'antigravity')).json()) as IStatusEnvelope;
+      assert.equal(status.supported, true);
+      assert.equal(status.configPath, '.agents/hooks.json');
+      assert.equal(status.events, 2);
+
+      const res = await post(handle, '/api/activity/install', {
+        provider: 'antigravity',
+        confirm: true,
+      });
+      assert.equal(res.status, 200);
+      const envelope = (await res.json()) as IStatusEnvelope;
+      assert.equal(envelope.installed, true);
+
+      const config = JSON.parse(
+        readFileSync(join(root.fixtureRoot, '.agents/hooks.json'), 'utf8'),
+      ) as Record<string, unknown>;
+      assert.notEqual(config['skill-map-activity'], undefined);
+      assert.equal('hooks' in config, false);
+    });
+  });
 });
 
 describe('POST /api/activity/install, consent gate + effects', () => {

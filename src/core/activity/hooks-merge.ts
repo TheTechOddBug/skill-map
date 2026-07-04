@@ -48,6 +48,16 @@ export interface IMergeActivityHooksResult {
 }
 
 /**
+ * Container key the per-event entry map lives under. Claude / Codex use
+ * the vendor's fixed `hooks` key (operator entries coexist inside);
+ * Antigravity's named-group document shape puts skill-map's entries
+ * under an OWNED group key instead (`install.group`,
+ * `spec/provider-activity.md` §capability). The inner shape is
+ * identical, so every function here just parametrises the container.
+ */
+export const DEFAULT_HOOKS_CONTAINER = 'hooks';
+
+/**
  * Wire `command` into every event of `events`, in place. Returns which
  * events were appended vs already wired so the verb can report
  * precisely.
@@ -57,8 +67,9 @@ export function mergeActivityHooks(
   events: readonly IActivityInstallEvent[],
   command: string,
   marker: string,
+  containerKey: string = DEFAULT_HOOKS_CONTAINER,
 ): IMergeActivityHooksResult {
-  const hooks = ensureObject(settings, 'hooks');
+  const hooks = ensureObject(settings, containerKey);
   let changed = false;
   const alreadyWired: string[] = [];
 
@@ -68,11 +79,16 @@ export function mergeActivityHooks(
       alreadyWired.push(spec.event);
       continue;
     }
-    const entry: IHookEntry = {
-      hooks: [{ type: 'command', command }],
-    };
-    if (spec.matcher !== undefined) entry.matcher = spec.matcher;
-    entries.push(entry);
+    if (spec.entryShape === 'flat') {
+      // Bare command entry (Antigravity lifecycle events); no matcher.
+      entries.push({ type: 'command', command } as unknown as IHookEntry);
+    } else {
+      const entry: IHookEntry = {
+        hooks: [{ type: 'command', command }],
+      };
+      if (spec.matcher !== undefined) entry.matcher = spec.matcher;
+      entries.push(entry);
+    }
     changed = true;
   }
 
@@ -85,8 +101,12 @@ export function mergeActivityHooks(
  * no status verb) derives "config is wired" from this without cloning
  * or mutating the parsed document.
  */
-export function hasActivityHooks(settings: Record<string, unknown>, marker: string): boolean {
-  const hooks = readHooksRecord(settings);
+export function hasActivityHooks(
+  settings: Record<string, unknown>,
+  marker: string,
+  containerKey: string = DEFAULT_HOOKS_CONTAINER,
+): boolean {
+  const hooks = readHooksRecord(settings, containerKey);
   if (hooks === null) return false;
   for (const value of Object.values(hooks)) {
     if (!Array.isArray(value)) continue;
@@ -106,8 +126,9 @@ export function hasActivityHooks(settings: Record<string, unknown>, marker: stri
 export function removeActivityHooks(
   settings: Record<string, unknown>,
   marker: string,
+  containerKey: string = DEFAULT_HOOKS_CONTAINER,
 ): boolean {
-  const hooks = readHooksRecord(settings);
+  const hooks = readHooksRecord(settings, containerKey);
   if (hooks === null) return false;
 
   let changed = false;
@@ -116,13 +137,16 @@ export function removeActivityHooks(
   }
 
   if (changed && Object.keys(hooks).length === 0) {
-    delete settings['hooks'];
+    delete settings[containerKey];
   }
   return changed;
 }
 
-function readHooksRecord(settings: Record<string, unknown>): Record<string, unknown> | null {
-  const hooks = settings['hooks'];
+function readHooksRecord(
+  settings: Record<string, unknown>,
+  containerKey: string,
+): Record<string, unknown> | null {
+  const hooks = settings[containerKey];
   if (hooks === null || typeof hooks !== 'object' || Array.isArray(hooks)) return null;
   return hooks as Record<string, unknown>;
 }
@@ -146,15 +170,22 @@ function pruneEventEntries(
 }
 
 function entryCarriesMarker(entry: IHookEntry, marker: string): boolean {
-  return entry.hooks.some(
-    (hook) => typeof hook.command === 'string' && hook.command.includes(marker),
+  // Flat command entry (Antigravity lifecycle events): the entry IS the
+  // command object.
+  if (typeof entry['command'] === 'string') {
+    return (entry['command'] as string).includes(marker);
+  }
+  return (
+    Array.isArray(entry.hooks) &&
+    entry.hooks.some((hook) => typeof hook.command === 'string' && hook.command.includes(marker))
   );
 }
 
 function isHookEntry(value: unknown): value is IHookEntry {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
-  const hooks = (value as Record<string, unknown>)['hooks'];
-  return Array.isArray(hooks);
+  const shaped = value as Record<string, unknown>;
+  // Wrapped matcher-group entry OR flat command entry.
+  return Array.isArray(shaped['hooks']) || typeof shaped['command'] === 'string';
 }
 
 /**

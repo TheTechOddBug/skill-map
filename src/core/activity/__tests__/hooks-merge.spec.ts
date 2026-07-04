@@ -132,4 +132,45 @@ describe('removeActivityHooks', () => {
     assert.equal(hasActivityHooks({ hooks: 'not-an-object' }, MARKER), false);
     assert.equal(hasActivityHooks({ hooks: { PreToolUse: 'not-an-array' } }, MARKER), false);
   });
+
+  it('flat entries: lifecycle events merge as bare commands and remove by marker', () => {
+    const settings: Record<string, unknown> = {};
+    const events = [
+      { event: 'PreToolUse', matcher: 'view_file' },
+      { event: 'Stop', entryShape: 'flat' as const },
+    ];
+    mergeActivityHooks(settings, events, COMMAND, MARKER, 'skill-map-activity');
+
+    const group = settings['skill-map-activity'] as Record<string, unknown[]>;
+    // Tool event keeps the wrapped matcher group; Stop is a bare command.
+    assert.deepEqual(group['Stop'], [{ type: 'command', command: COMMAND }]);
+    assert.equal(JSON.stringify(group['PreToolUse']![0]).includes('"hooks"'), true);
+    assert.equal(hasActivityHooks(settings, MARKER, 'skill-map-activity'), true);
+
+    assert.equal(removeActivityHooks(settings, MARKER, 'skill-map-activity'), true);
+    assert.deepEqual(settings, {});
+  });
+
+  it('named-group container: full lifecycle under an owned group key (antigravity shape)', () => {
+    const GROUP = 'skill-map-activity';
+    const settings: Record<string, unknown> = {
+      'operator-guard': { PreToolUse: [{ matcher: '*', hooks: [{ type: 'command', command: 'lint' }] }] },
+    };
+    const original = JSON.stringify(settings['operator-guard']);
+
+    const merge = mergeActivityHooks(settings, EVENTS, COMMAND, MARKER, GROUP);
+    assert.equal(merge.changed, true);
+    // Our group appears alongside the operator's, which stays untouched.
+    assert.notEqual(settings[GROUP], undefined);
+    assert.equal(JSON.stringify(settings['operator-guard']), original);
+    assert.equal(hasActivityHooks(settings, MARKER, GROUP), true);
+    // The DEFAULT container never sees group-scoped wiring.
+    assert.equal(hasActivityHooks(settings, MARKER), false);
+
+    const removed = removeActivityHooks(settings, MARKER, GROUP);
+    assert.equal(removed, true);
+    // The emptied group key is pruned entirely; operator group survives.
+    assert.equal(GROUP in settings, false);
+    assert.equal(JSON.stringify(settings['operator-guard']), original);
+  });
 });

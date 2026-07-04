@@ -42,10 +42,17 @@ const BRIDGE_TEMPLATE = `#!/usr/bin/env node
 // the provider runtime must never notice this hook exists.
 
 const { readFileSync } = require('node:fs');
-const { join } = require('node:path');
+const { join, resolve } = require('node:path');
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', '::1', 'localhost']);
 const TIMEOUT_MS = ${BRIDGE_TIMEOUT_MS};
+
+// The bridge lives at <scopeRoot>/.skill-map/activity/bridge.js, so its
+// OWN location identifies the project. Never derive the scope from the
+// spawn cwd: runtimes disagree about it (Claude spawns hooks at the
+// project root, Antigravity at the hook config's directory,
+// live-verified 2026-07-04), and the bridge must work under all of them.
+const SCOPE_ROOT = resolve(__dirname, '..', '..');
 
 function main() {
   const provider = process.argv[2];
@@ -55,14 +62,15 @@ function main() {
   //    server (clean shutdown deletes it): silent no-op.
   let info;
   try {
-    info = JSON.parse(readFileSync(join(process.cwd(), '.skill-map', 'serve.json'), 'utf8'));
+    info = JSON.parse(readFileSync(join(SCOPE_ROOT, '.skill-map', 'serve.json'), 'utf8'));
   } catch {
     return exitSilently();
   }
 
   // 2. Scope check: a hook firing in project A must never reach
-  //    project B's server.
-  if (typeof info.scopeRoot !== 'string' || info.scopeRoot !== process.cwd()) {
+  //    project B's server. The bridge's own installed location is the
+  //    project identity; serve.json must agree.
+  if (typeof info.scopeRoot !== 'string' || resolve(info.scopeRoot) !== SCOPE_ROOT) {
     return exitSilently();
   }
 

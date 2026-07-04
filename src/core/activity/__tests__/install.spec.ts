@@ -170,6 +170,45 @@ describe('core/activity install engine', () => {
     assert.equal(activityInstallStatus(cwd, provider).installed, false);
   });
 
+  it('named-group descriptor: install/status/uninstall operate on the owned group', async () => {
+    const grouped = {
+      id: 'antigravity',
+      kind: 'provider',
+      activity: {
+        install: {
+          kind: 'json-hooks',
+          configPath: '.agents/hooks.json',
+          group: 'skill-map-activity',
+          commandCwd: 'config-dir',
+          events: [{ event: 'PreToolUse', matcher: 'view_file' }],
+        },
+        mapEvent: () => null,
+      },
+    } as unknown as IProvider;
+
+    await installActivityBridge(cwd, grouped);
+    const config = JSON.parse(
+      readFileSync(join(cwd, '.agents/hooks.json'), 'utf8'),
+    ) as Record<string, unknown>;
+    const group = config['skill-map-activity'] as Record<string, unknown[]>;
+    assert.notEqual(group, undefined);
+    assert.equal(JSON.stringify(group['PreToolUse']![0]).includes(ACTIVITY_BRIDGE_REL), true);
+    // config-dir spawn cwd: the command hops from .agents/ back to root.
+    assert.equal(
+      JSON.stringify(group['PreToolUse']![0]).includes(`node ../${ACTIVITY_BRIDGE_REL} antigravity`),
+      true,
+    );
+    assert.equal('hooks' in config, false);
+    assert.equal(activityInstallStatus(cwd, grouped).installed, true);
+
+    assert.equal(uninstallActivityBridge(cwd, grouped).removed, true);
+    const after = JSON.parse(
+      readFileSync(join(cwd, '.agents/hooks.json'), 'utf8'),
+    ) as Record<string, unknown>;
+    assert.equal('skill-map-activity' in after, false);
+    assert.equal(activityInstallStatus(cwd, grouped).installed, false);
+  });
+
   it('double uninstall is an idempotent no-op that touches nothing', async () => {
     await installActivityBridge(cwd, provider);
     assert.equal(uninstallActivityBridge(cwd, provider).removed, true);

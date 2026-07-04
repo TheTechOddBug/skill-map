@@ -98,7 +98,7 @@ Full spec: [`spec/architecture.md` §Annotation system](./spec/architecture.md#a
 With `sm serve` open, the map can light up each node **the moment your AI runtime actually invokes it**: the skill it just loaded, the agent it delegated to, the markdown it read. Wire it once per provider:
 
 ```bash
-sm activity install claude   # or: codex
+sm activity install claude   # or: codex, antigravity
 ```
 
 (or from the UI: Settings → Project, below the lens selector; both paths ask for confirmation before touching the provider's config). The install merges hook entries into the provider's **project-local** hook config and drops a tiny bridge under `.skill-map/activity/`; the provider's own hooks forward events to your local server, which matches them against the scanned map and pushes the glow to the browser over the live socket. Everything stays on your machine (loopback only, never telemetry); `sm activity uninstall <provider>` reverses exactly what install added. Toggles live in Settings → General (Live updates / Real-time node activity).
@@ -109,7 +109,8 @@ What lights up depends on what each runtime's hook system exposes:
 |---|---|---|
 | `claude` (Claude Code) | Slash commands, skills (typed or model-invoked), agents including nested delegation chains, markdown file reads | Auto-loaded context (`CLAUDE.md` at session start) fires no hook |
 | `codex` (Codex CLI) | `$skill` invocations from your prompt, named agents from `.codex/agents/` (nested chains too if you raise `agents.max_depth`) | Markdown reads: Codex hooks do not fire for its `read_file` tool yet ([openai/codex#18491](https://github.com/openai/codex/issues/18491)); spawns of the generic `worker` type match no node |
-| `antigravity`, `agent-skills` (opencode) | Not yet: adapters planned (opencode needs the in-process plugin install shape) | |
+| `antigravity` (Antigravity CLI) | Everything that gets READ: markdown files, a skill's `SKILL.md` and its resources whenever the agent views them, and workflows followed in prose (the runtime reads the workflow file first) | `/skill` invocations (content is injected with no hook event); subagents (they have no on-disk definition, so there is no node to light) |
+| `agent-skills` (opencode) | Not yet: adapter planned (needs the in-process plugin install shape) | |
 | `markdown` | No runtime to hook; nothing lights | |
 
 Full contract (bridge invariants, privacy posture, per-provider signal notes): [`spec/provider-activity.md`](./spec/provider-activity.md).

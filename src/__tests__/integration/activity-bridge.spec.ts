@@ -153,10 +153,12 @@ function publishServeInfo(handle: IServerHandle, overrides?: { scopeRoot?: strin
  * deadlock production never has (server and hook are separate
  * processes).
  */
-function runBridge(): Promise<{ status: number | null; stdout: string; stderr: string }> {
+function runBridge(
+  opts?: { cwd?: string; script?: string },
+): Promise<{ status: number | null; stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn('node', [ACTIVITY_BRIDGE_REL, 'claude'], {
-      cwd: fixtureRoot,
+    const child = spawn('node', [opts?.script ?? ACTIVITY_BRIDGE_REL, 'claude'], {
+      cwd: opts?.cwd ?? fixtureRoot,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     let stdout = '';
@@ -226,6 +228,27 @@ describe('activity bridge, end to end', () => {
       } finally {
         ws.close();
       }
+    });
+  });
+
+  it('spawn cwd independence: fired from the hook-config directory, still delivers', async () => {
+    // Antigravity spawns hook commands at the hook config's own
+    // directory, not the workspace root (live-verified 2026-07-04). The
+    // bridge derives its scope root from its installed location, so the
+    // spawn cwd must not matter; the command's script path is the
+    // config-dir-relative form install writes for such runtimes.
+    await withServer(async (handle) => {
+      publishServeInfo(handle);
+      const configDir = join(fixtureRoot, '.agents');
+      mkdirSync(configDir, { recursive: true });
+
+      const run = await runBridge({
+        cwd: configDir,
+        script: join('..', ACTIVITY_BRIDGE_REL),
+      });
+      assert.equal(run.status, 0);
+      assert.equal(run.stdout, '');
+      assert.equal(run.stderr, '');
     });
   });
 

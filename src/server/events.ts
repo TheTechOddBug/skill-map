@@ -95,8 +95,14 @@ export interface IActionAppliedEventData {
  * an opaque owner grouping key.
  */
 export interface INodeActivityEventData {
-  /** Resolved scanned node's stable id (its `path`). */
-  nodePath: string;
+  /**
+   * Resolved scanned node's stable id (its `path`). ABSENT on an
+   * OWNER-RELEASE event (`phase: 'end'` + `ownerScope: true` with no
+   * node): the end of a whole execution context (a conversation going
+   * idle) is inherently node-less; consumers release everything the
+   * owner holds.
+   */
+  nodePath?: string;
   /** `start` lights the node; `end` only exists for natively-terminated units. */
   phase: 'start' | 'end';
   /** Opaque executing-context key (`'main'`, an agent id, ...). Absent when unreported. */

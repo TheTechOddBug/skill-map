@@ -380,6 +380,12 @@ export interface IActivitySignal {
    * that `owner`, so the units the context lit along the way (the
    * skills it invoked, the markdowns it read) go dark with it instead
    * of waiting out their decay.
+   *
+   * OWNER-RELEASE form: an ownerScope end MAY omit `kind`/`name`/`path`
+   * entirely when the runtime reports a context end with no node to
+   * hang it on (Antigravity's `Stop`: conversations are not nodes).
+   * The resolver forwards it as a node-less release instead of
+   * resolving; `owner` is REQUIRED for the form to mean anything.
    */
   ownerScope?: boolean;
   /**
@@ -421,6 +427,31 @@ export interface IActivityInstall {
    * Ignored for `plugin-file` installs.
    */
   events?: readonly IActivityInstallEvent[];
+  /**
+   * For `json-hooks` with a NAMED-GROUP document shape (Antigravity's
+   * `.agents/hooks.json`): the top-level group key skill-map owns in the
+   * hook document. Claude / Codex nest the event map under the vendor's
+   * fixed `hooks` key (operator entries coexist inside, marker-filtered);
+   * Antigravity's document maps GROUP NAMES to event maps, so skill-map
+   * writes its entries under its own group and uninstall removes exactly
+   * that group. Omitted = the conventional `hooks` container. The inner
+   * per-event shape is identical either way.
+   */
+  group?: string;
+  /**
+   * Working directory the provider runtime spawns hook commands with,
+   * which decides how the bridge command's SCRIPT PATH is written into
+   * the config. `'scope-root'` (default, Claude / Codex): the runtime
+   * spawns at the project root, so the plain scope-relative bridge path
+   * resolves. `'config-dir'` (Antigravity, live-verified 2026-07-04):
+   * the runtime spawns at the hook config's OWN directory, so the
+   * installer prefixes the relative hops from `dirname(configPath)`
+   * back to the root (e.g. `node ../.skill-map/activity/bridge.js`).
+   * The bridge itself derives its scope root from its installed
+   * location, never from the spawn cwd, so this only affects command
+   * path resolution.
+   */
+  commandCwd?: 'scope-root' | 'config-dir';
 }
 
 /** One provider hook event to wire the bridge into (`json-hooks` installs). */
@@ -432,6 +463,15 @@ export interface IActivityInstallEvent {
    * regex `^(Skill|Agent)$`). Omitted = the event's match-all form.
    */
   matcher?: string;
+  /**
+   * Entry shape the runtime expects for THIS event's array. `'wrapped'`
+   * (default): the `{ matcher?, hooks: [{ type, command }] }` group
+   * every tool event uses. `'flat'`: a bare `{ type, command }` command
+   * entry, the shape Antigravity's lifecycle events (PreInvocation /
+   * PostInvocation / Stop) take (its parser rejects the wrapped form
+   * there). Matchers do not apply to flat entries.
+   */
+  entryShape?: 'wrapped' | 'flat';
 }
 
 /**

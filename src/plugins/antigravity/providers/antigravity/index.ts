@@ -62,6 +62,7 @@
 
 import type { IBuiltInManifest, IProvider } from '../../../../kernel/extensions/index.js';
 import workflowSchema from './schemas/workflow.schema.json' with { type: 'json' };
+import { antigravityActivity } from './activity.js';
 import { ANTIGRAVITY_PLUGIN_ID } from '../../../ids.js';
 import {
   COMMONS_READ,
@@ -152,6 +153,14 @@ export const antigravityProvider: IBuiltInManifest<IProvider> = {
   // `beta` (enabled by default), this marker is live: a `.agent/workflows/`
   // project auto-detects the antigravity lens.
   detect: { markers: ['.agent/workflows'] },
+
+  // Live node activity (spec/provider-activity.md): install descriptor
+  // (`.agents/hooks.json`, NAMED-GROUP document shape via
+  // `install.group`) + the runtime mapper from Antigravity's raw hook
+  // payloads to node-attributable signals (view_file reads -> PATH
+  // signals; everything on this provider lights through reads).
+  // Implementation + per-event rationale in the sibling `activity.ts`.
+  activity: antigravityActivity,
 
   // Vendor provider: Antigravity declares its own `workflow` kind
   // (`.agent/workflows/*.md`) on top of the open-standard skills it adopts.

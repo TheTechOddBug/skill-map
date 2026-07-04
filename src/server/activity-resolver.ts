@@ -94,11 +94,30 @@ export function resolveSignalsAgainstNodes(
 ): INodeActivityEventData[] {
   const out: INodeActivityEventData[] = [];
   for (const signal of signals) {
+    if (isOwnerRelease(signal)) {
+      // Node-less owner release (a whole execution context ended, e.g.
+      // Antigravity's Stop): nothing to resolve, forward as-is so the
+      // UI releases everything that owner holds.
+      out.push({ phase: 'end', owner: signal.owner!, ownerScope: true });
+      continue;
+    }
     const node = findNodeForSignal(nodes, provider, signal);
     if (!node) continue;
     out.push(buildResolvedData(signal, node.path));
   }
   return out;
+}
+
+/** The owner-release signal form: an ownerScope end with no node target. */
+function isOwnerRelease(signal: IActivitySignal): boolean {
+  return (
+    signal.phase === 'end' &&
+    signal.ownerScope === true &&
+    signal.owner !== undefined &&
+    signal.path === undefined &&
+    signal.kind === undefined &&
+    signal.name === undefined
+  );
 }
 
 /**

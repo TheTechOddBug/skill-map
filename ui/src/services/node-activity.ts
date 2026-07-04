@@ -146,19 +146,22 @@ export class NodeActivityService {
       this.refreshOwnerClaims(owner, now);
     }
 
+    // Owner-scoped end (a subagent terminated, a conversation went
+    // idle): the whole execution context goes dark, so EVERY claim that
+    // owner holds is released, the agent node itself plus the skills it
+    // invoked and the markdowns it read, instead of each waiting out
+    // its decay. Checked FIRST because the node-less owner-release form
+    // carries no nodePath at all.
+    if (data.phase === 'end' && data.ownerScope === true && data.owner !== undefined) {
+      this.releaseOwnerEverywhere(owner);
+      return;
+    }
+    if (data.nodePath === undefined) return;
     if (data.phase === 'start') {
       const ttl = data.sticky === true ? this.stickyTtlMs : this.ttlMs;
       const owners = this.claims.get(data.nodePath) ?? new Map<string, IClaim>();
       owners.set(owner, { expiresAt: now + ttl, ttlMs: ttl });
       this.claims.set(data.nodePath, owners);
-      return;
-    }
-    // Owner-scoped end (a subagent terminated): the whole execution
-    // context goes dark, so EVERY claim that owner holds is released,
-    // the agent node itself plus the skills it invoked and the
-    // markdowns it read, instead of each waiting out its decay.
-    if (data.ownerScope === true && data.owner !== undefined) {
-      this.releaseOwnerEverywhere(owner);
       return;
     }
     const owners = this.claims.get(data.nodePath);

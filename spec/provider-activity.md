@@ -63,6 +63,12 @@ Two halves:
     be a `markdown` node, a skill's `SKILL.md`, anything scanned), because the
     path already identifies one node unambiguously.
 
+  - **Owner release (node-less)**: `{ phase: "end", owner, ownerScope: true }`
+    with NO `kind`/`name`/`path`. Used when the runtime reports the end of a
+    whole execution context that is not itself a node (Antigravity's `Stop`:
+    a conversation going idle). The resolver forwards it without resolution
+    and consumers release every claim that `owner` holds.
+
   Either way the provider owns payload knowledge and does NOT resolve nodes;
   `mapEvent` is also where irrelevant runtime events are FILTERED with an early
   disclaim (a file-read of a non-markdown source file, a path outside the scope
@@ -75,6 +81,20 @@ Install shapes (`install.kind`, closed set, extensible by minor bump):
 |---|---|---|
 | `json-hooks` | merge hook entries into a JSON settings/hooks file that spawns the bridge command | `.claude/settings.json`, `.codex/hooks.json`, `.agents/hooks.json` |
 | `plugin-file` | write an in-process plugin file that POSTs directly (no spawn) | `.opencode/plugins/skill-map-activity.js` |
+
+`json-hooks` covers two document shapes, selected by the optional
+`install.group` field, and two command-path conventions, selected by the
+optional `install.commandCwd` field (`'scope-root'` default / `'config-dir'`
+for runtimes that spawn hook commands at the hook config's own directory, in
+which case install writes the bridge command with the relative hops from
+`dirname(configPath)` back to the root). Claude / Codex nest the per-event entry map under the
+vendor's fixed `hooks` key, where operator entries coexist with skill-map's
+(removal is marker-filtered: every skill-map entry's command contains the
+bridge path). Antigravity's `.agents/hooks.json` instead maps NAMED GROUPS to
+event maps; a provider declaring `group` makes skill-map write its entries
+under its own group key (and uninstall remove exactly that group). The inner
+per-event shape (`[{ matcher?, hooks: [{ type: "command", command }] }]` for
+tool events) is identical in both shapes.
 
 ## `serve.json` (server discovery file)
 
@@ -103,9 +123,15 @@ the nearest `package.json`'s module type, the installer writes a sibling
 `package.json` pinning `{"type": "commonjs"}` next to the bridge so it parses as
 CommonJS even inside an ESM host project. Normative behavior:
 
-1. Read `<cwd>/.skill-map/serve.json`. Missing or unparseable: exit silently.
-2. Verify `scopeRoot` equals its own working directory. Mismatch: exit silently
-   (a hook firing in project A must never reach project B's server).
+1. Derive its scope root from its OWN installed location (`../..` from the
+   bridge script). Never from the spawn cwd: runtimes disagree about it
+   (Claude spawns hook commands at the project root; Antigravity at the hook
+   config's own directory, live-verified 2026-07-04), and the bridge's
+   physical location already identifies the project it was installed into.
+2. Read `<scopeRoot>/.skill-map/serve.json`. Missing or unparseable: exit
+   silently. Verify the file's `scopeRoot` equals the derived root. Mismatch:
+   exit silently (a hook firing in project A must never reach project B's
+   server).
 3. Verify `host` is loopback (`127.0.0.1`, `::1`, `localhost`). Non-loopback: exit
    silently (a tampered `serve.json` must not exfiltrate events to a remote host).
 4. Forward the provider's raw event (stdin for spawned bridges) verbatim to
@@ -225,6 +251,10 @@ Broadcast over `/ws` in the common envelope of
   just of the named node. Consumers then release EVERY claim held by that
   `owner`, so the units the context lit along the way (the skills it invoked,
   the markdowns it read) go dark with it instead of waiting out their decay.
+  On the node-less OWNER-RELEASE form (a context end with no node to hang it
+  on, e.g. an Antigravity conversation going idle) the envelope carries NO
+  `nodePath` at all; `owner` + `ownerScope: true` + `phase: "end"` are then
+  all REQUIRED.
 - `sticky` (optional, only on `phase: "start"`): `true` for LIFECYCLE claims
   (an agent's own span, a parent held lit by a running child). Consumers give
   sticky claims a much longer decay window than momentary usage claims: they
@@ -293,7 +323,7 @@ Live-verified against real runs (2026-06-30). These inform each provider's
 |---|---|---|---|---|
 | `claude` | `PreToolUse` tool=`Skill` (`tool_input.skill`), slash form via `UserPromptExpansion.command_name` | `SubagentStart` (start) / `SubagentStop` (owner-scoped end, `ownerScope: true`) keyed by `agent_id`; `agent_id`/`agent_type` on inner tool events; deep nesting attributable. The spawning `Agent` `PreToolUse` is deliberately NOT mapped: it would claim the child node under the PARENT's owner, and that claim would outlive the child's own `SubagentStop` (TTL instead of native end) | `UserPromptExpansion.command_name` (shares the `/` namespace with skills; disambiguate by which node exists) | markdown usage: `PreToolUse` tool=`Read` (`tool_input.file_path`, relativized against the event's `cwd`) emits a PATH signal; non-`.md` reads and paths outside the scope root are early-disclaimed. Auto-loaded context (`CLAUDE.md` at session start) fires no tool event and stays invisible. Ignore `SubagentStop` orphans with empty `agent_type` |
 | `codex` | weak: `$name` tokens inside `UserPromptSubmit.prompt` (the adapter scans with the SAME shared `$`-token grammar the `dollar-skill` extractor uses, so activity and link extraction agree; sigil stripped, resolver drops unknowns) | `SubagentStart` (sticky start) / `SubagentStop` (owner-scoped end) keyed by `agent_id`; a NAMED `agent_type` resolves to its `.codex/agents/<name>.toml` node, the default generic `worker` resolves to nothing and drops. NO parent custody: nesting is capped by `agents.max_depth` (default 1, spawns main-only), and spawning is consolidate-on-completion (the parent waits), so terminal stops unwind bottom-up natively; no tool events are wired at all | none (`/` is Codex's own built-in namespace) | hook config `.codex/hooks.json` uses the same `{ hooks: { <Event>: [...] } }` convention as claude, so the `json-hooks` engine applies verbatim; payload near-identical to claude's. Markdown usage is NOT mapped: Codex has an internal `read_file` tool but hooks do not fire for it (PreToolUse covers only Bash / apply_patch / MCP; expansion is an open upstream request), so read signals wait for that surface |
-| `antigravity` | invisible at hook level | own `conversationId` per subagent; spawn via `invoke_subagent` tool | none | events: Pre/PostToolUse, Pre/PostInvocation, Stop only |
+| `antigravity` | invocation itself invisible (`/skill` injects the SKILL.md with no tool event, live-verified 2026-07-04), but a skill's `references/*.md` reads DO fire and light those resources | no on-disk agent files exist (subagents are runtime-only Prompt specs), so there is nothing to light; `conversationId` (present in EVERY payload) is the owner grouping key, and the conversation `Stop` (`terminationReason` present) maps to a node-less OWNER RELEASE so the whole chain goes dark the moment the agent idles | none; workflows (`.agent/workflows/*.md`) light when the agent FOLLOWS them (it `view_file`s the workflow file) | TWO mapped signals: `PreToolUse` tool `view_file` (`toolCall.args.AbsolutePath`, relativized against `workspacePaths[*]`) emitting PATH signals (markdown reads, skill resources, followed workflows all light through it), and `Stop` emitting the owner release. Payloads carry NO `hook_event_name`; events are distinguished STRUCTURALLY (`toolCall` = tool event, `invocationNum` = invocation pulse, `terminationReason` = Stop). Hook config `.agents/hooks.json` uses the NAMED-GROUP shape (`install.group`) with the FLAT entry shape on lifecycle events (`events[].entryShape`); the runtime spawns hook commands at the config's directory (`install.commandCwd: "config-dir"`); hooks stay neutral via exit 0 + empty stdout, which the bridge invariants already guarantee |
 | `agent-skills` via opencode | `tool.execute.before` tool=`skill` (`args.name`) | `chat.message.agent` (named); own `sessionID` per subagent | dedicated `command.execute.before` hook | in-process plugin API (no spawn) |
 
 ## Stability

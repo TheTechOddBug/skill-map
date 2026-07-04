@@ -17,9 +17,9 @@
 
 import { existsSync, rmSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname, join, posix } from 'node:path';
 
-import type { IActivityInstallEvent, IProvider } from '../../kernel/extensions/index.js';
+import type { IActivityInstall, IActivityInstallEvent, IProvider } from '../../kernel/extensions/index.js';
 import { readJsonObjectOrEmpty, writeJsonAtomic } from '../../kernel/util/atomic-write.js';
 import {
   ACTIVITY_BRIDGE_REL,
@@ -27,7 +27,12 @@ import {
   defaultProjectActivityDir,
 } from '../paths/db-path.js';
 import { BRIDGE_PACKAGE_JSON, renderActivityBridge } from './bridge-template.js';
-import { hasActivityHooks, mergeActivityHooks, removeActivityHooks } from './hooks-merge.js';
+import {
+  DEFAULT_HOOKS_CONTAINER,
+  hasActivityHooks,
+  mergeActivityHooks,
+  removeActivityHooks,
+} from './hooks-merge.js';
 
 /** Install-state probe result (see `activityInstallStatus`). */
 export interface IActivityInstallStatus {
@@ -63,7 +68,7 @@ export function activityInstallStatus(cwd: string, provider: IProvider): IActivi
     return { configWired: false, bridgePresent: false, installed: false };
   }
   const settings = readJsonObjectOrEmpty(join(cwd, install.configPath));
-  const configWired = hasActivityHooks(settings, ACTIVITY_BRIDGE_REL);
+  const configWired = hasActivityHooks(settings, ACTIVITY_BRIDGE_REL, containerOf(install));
   const bridgePresent = existsSync(defaultActivityBridgePath(cwd));
   return { configWired, bridgePresent, installed: configWired && bridgePresent };
 }
@@ -79,7 +84,7 @@ export function activityInstallStatus(cwd: string, provider: IProvider): IActivi
 export async function installActivityBridge(cwd: string, provider: IProvider): Promise<void> {
   const install = provider.activity!.install;
   const events: readonly IActivityInstallEvent[] = install.events ?? [];
-  refreshHookWiring(join(cwd, install.configPath), events, provider.id);
+  refreshHookWiring(join(cwd, install.configPath), events, bridgeCommand(provider.id, install), containerOf(install));
 
   const bridgePath = defaultActivityBridgePath(cwd);
   await mkdir(dirname(bridgePath), { recursive: true });
@@ -101,16 +106,29 @@ export function uninstallActivityBridge(cwd: string, provider: IProvider): { rem
   const install = provider.activity!.install;
   const configPath = join(cwd, install.configPath);
   const settings = readJsonObjectOrEmpty(configPath);
-  const changed = removeActivityHooks(settings, ACTIVITY_BRIDGE_REL);
+  const changed = removeActivityHooks(settings, ACTIVITY_BRIDGE_REL, containerOf(install));
   if (!changed) return { removed: false };
   writeJsonAtomic(configPath, settings);
   rmSync(defaultProjectActivityDir(cwd), { recursive: true, force: true });
   return { removed: true };
 }
 
-/** Command the provider's hook config spawns per event: `node <bridge> <provider>`. */
-function bridgeCommand(providerId: string): string {
-  return `node ${ACTIVITY_BRIDGE_REL} ${providerId}`;
+/**
+ * Command the provider's hook config spawns per event:
+ * `node <bridge> <provider>`. The script path is written for the
+ * runtime's hook-spawn cwd (`install.commandCwd`): scope-relative for
+ * runtimes spawning at the project root (default), prefixed with the
+ * hops from `dirname(configPath)` back to the root for runtimes
+ * spawning at the config's own directory (Antigravity). Both forms
+ * keep the `ACTIVITY_BRIDGE_REL` substring, so the ownership marker is
+ * unaffected.
+ */
+function bridgeCommand(providerId: string, install: IActivityInstall): string {
+  const script =
+    install.commandCwd === 'config-dir'
+      ? posix.join(posix.relative(posix.dirname(install.configPath), '.'), ACTIVITY_BRIDGE_REL)
+      : ACTIVITY_BRIDGE_REL;
+  return `node ${script} ${providerId}`;
 }
 
 /**
@@ -124,12 +142,22 @@ function bridgeCommand(providerId: string): string {
 function refreshHookWiring(
   configPath: string,
   events: readonly IActivityInstallEvent[],
-  providerId: string,
+  command: string,
+  containerKey: string,
 ): void {
   const settings = readJsonObjectOrEmpty(configPath);
-  const removedStale = removeActivityHooks(settings, ACTIVITY_BRIDGE_REL);
-  const merge = mergeActivityHooks(settings, events, bridgeCommand(providerId), ACTIVITY_BRIDGE_REL);
+  const removedStale = removeActivityHooks(settings, ACTIVITY_BRIDGE_REL, containerKey);
+  const merge = mergeActivityHooks(settings, events, command, ACTIVITY_BRIDGE_REL, containerKey);
   if (removedStale || merge.changed) {
     writeJsonAtomic(configPath, settings);
   }
+}
+
+/**
+ * Container key for the provider's hook document: the provider's OWNED
+ * group (named-group shape, `install.group`) or the conventional
+ * `hooks` key. See `hooks-merge.ts`.
+ */
+function containerOf(install: { group?: string }): string {
+  return install.group ?? DEFAULT_HOOKS_CONTAINER;
 }

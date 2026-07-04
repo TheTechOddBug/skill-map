@@ -206,6 +206,30 @@ describe('NodeActivityService', () => {
     expect(service.activePaths().has(ORCH)).toBe(false);
   });
 
+  it('a node-less OWNER RELEASE darkens everything that owner lit (antigravity Stop)', async () => {
+    const { service, events$ } = bootstrap(10_000);
+
+    // One conversation lights a workflow, two skills and a note; an
+    // unrelated conversation keeps one node lit.
+    events$.next(makeEvent('.agent/workflows/demo-flow.md', 'start', 'conv-1'));
+    events$.next(makeEvent(SKILL, 'start', 'conv-1'));
+    events$.next(makeEvent('notes/demo.md', 'start', 'conv-1'));
+    events$.next(makeEvent(AGENT, 'start', 'conv-2'));
+    await flushed();
+    expect(service.activePaths().size).toBe(4);
+
+    // The Stop arrives as an owner release with NO nodePath.
+    events$.next({
+      type: 'node.activity',
+      timestamp: 1_700_000_000_000,
+      data: { phase: 'end', owner: 'conv-1', ownerScope: true },
+    });
+    await flushed();
+
+    expect(service.activePaths().size).toBe(1);
+    expect(service.activePaths().has(AGENT)).toBe(true);
+  });
+
   it('owner heartbeat refreshes every claim that owner holds', async () => {
     // ttl 250ms: the skill claim alone would die at ~t=250. Heartbeats
     // (other activity from the same owner) land at ~t=130 and ~t=260,
@@ -243,6 +267,38 @@ describe('isNodeActivityEvent', () => {
   it('accepts the canonical payload, with and without owner', () => {
     expect(isNodeActivityEvent(makeEvent(SKILL, 'start', 'main'))).toBe(true);
     expect(isNodeActivityEvent(makeEvent(SKILL, 'end'))).toBe(true);
+  });
+
+  it('accepts the node-less owner-release form, and ONLY that shape without nodePath', () => {
+    expect(
+      isNodeActivityEvent({
+        type: 'node.activity',
+        timestamp: 1,
+        data: { phase: 'end', owner: 'conv-1', ownerScope: true },
+      }),
+    ).toBe(true);
+    // Missing owner, wrong phase, or missing ownerScope: rejected.
+    expect(
+      isNodeActivityEvent({
+        type: 'node.activity',
+        timestamp: 1,
+        data: { phase: 'end', ownerScope: true },
+      }),
+    ).toBe(false);
+    expect(
+      isNodeActivityEvent({
+        type: 'node.activity',
+        timestamp: 1,
+        data: { phase: 'start', owner: 'conv-1', ownerScope: true },
+      }),
+    ).toBe(false);
+    expect(
+      isNodeActivityEvent({
+        type: 'node.activity',
+        timestamp: 1,
+        data: { phase: 'end', owner: 'conv-1' },
+      }),
+    ).toBe(false);
   });
 
   it('rejects other event types and malformed payloads', () => {

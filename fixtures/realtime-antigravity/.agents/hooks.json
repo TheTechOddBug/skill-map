@@ -1,0 +1,21 @@
+{
+  "skill-map-activity": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ../.skill-map/activity/bridge.js antigravity"
+          }
+        ],
+        "matcher": "view_file"
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "node ../.skill-map/activity/bridge.js antigravity"
+      }
+    ]
+  }
+}

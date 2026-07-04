@@ -129,6 +129,7 @@ export interface IDemoMetaPayload {
 const DEMO_ACTIVITY_DESCRIPTORS: Record<string, { configPath: string; events: number }> = {
   claude: { configPath: '.claude/settings.json', events: 5 },
   codex: { configPath: '.codex/hooks.json', events: 3 },
+  antigravity: { configPath: '.agents/hooks.json', events: 2 },
 };
 
 export class StaticDataSource implements IDataSourcePort {

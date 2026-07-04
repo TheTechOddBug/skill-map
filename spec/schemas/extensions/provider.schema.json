@@ -170,9 +170,25 @@
                     "type": "string",
                     "minLength": 1,
                     "description": "Optional matcher in the provider's own grammar (e.g. a Claude tool regex `^(Skill|Agent)$`). Omitted = the event's match-all form."
+                  },
+                  "entryShape": {
+                    "type": "string",
+                    "enum": ["wrapped", "flat"],
+                    "description": "Entry shape the runtime expects for this event's array. `wrapped` (default): the `{ matcher?, hooks: [...] }` group tool events use. `flat`: a bare `{ type, command }` entry, the shape Antigravity's lifecycle events (PreInvocation / PostInvocation / Stop) take. Matchers do not apply to flat entries."
                   }
                 }
               }
+            },
+            "group": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+              "description": "For `json-hooks` with a NAMED-GROUP document shape (Antigravity's `.agents/hooks.json` maps group names to event maps): the top-level group key skill-map owns in the hook document. Install writes the event entries under this group; uninstall removes exactly it. Omitted = the conventional `hooks` container key (Claude / Codex), where operator entries coexist and removal is marker-filtered. The inner per-event shape is identical either way."
+            },
+            "commandCwd": {
+              "type": "string",
+              "enum": ["scope-root", "config-dir"],
+              "description": "Working directory the provider runtime spawns hook commands with, which decides how the bridge command's script path is written. `scope-root` (default): the runtime spawns at the project root, the plain scope-relative bridge path resolves. `config-dir` (Antigravity, live-verified): the runtime spawns at the hook config's own directory, so install prefixes the relative hops from `dirname(configPath)` back to the root. The bridge itself derives its scope root from its installed location, never the spawn cwd."
             }
           }
         }
