@@ -40,6 +40,15 @@ export const ACTIVITY_TEXTS = {
   nothingToUninstall:
     '{{glyph}}  sm activity: {{configPath}} carries no bridge hooks; nothing to do.\n',
 
+  // `sm activity status` report lines, one per provider. The partial
+  // states name the exact repair (a re-install refreshes both halves).
+  statusInstalled:
+    '{{glyph}}  {{provider}}: installed ({{configPath}})\n',
+  statusNotInstalled:
+    '{{glyph}}  {{provider}}: not installed ({{configPath}})\n',
+  statusPartialBridgeMissing:
+    '{{glyph}}  {{provider}}: partial, {{configPath}} is wired but the bridge artifact is missing; re-run `sm activity install {{provider}}`\n',
+
   // Write failures (config merge or bridge artifact).
   installFailed:
     '{{glyph}}  sm activity: install failed: {{message}}\n',

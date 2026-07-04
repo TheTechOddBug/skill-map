@@ -19,10 +19,6 @@ lecturas de markdown iluminan por path, y `session.idle` apaga todo lo
 de esa sesión al instante (fin nativo). Los agentes built-in sin archivo
 (`build`, `plan`) no tienen nodo, así que no iluminan.
 
-El comando existe en `.opencode/command/` y `.opencode/commands/`
-(cubre ambas variantes de descubrimiento del runtime; skill-map
-clasifica la plural).
-
 ## Agentes (`.opencode/agent/`)
 
 - **demo-worker**: subagente; emite marcador `🟩`, sigue las dos skills

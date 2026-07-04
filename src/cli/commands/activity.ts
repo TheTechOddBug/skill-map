@@ -39,6 +39,7 @@ import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import {
+  activityInstallStatus,
   findActivityProvider,
   installActivityBridge,
   uninstallActivityBridge,
@@ -66,20 +67,23 @@ export class ActivityInstallCommand extends SmCommand {
     category: 'Actions',
     description: 'Wire the live-activity bridge into a provider runtime’s project-local hook config.',
     details: `
-      Writes the zero-dependency bridge script to
-      \`.skill-map/activity/bridge.js\` and merges hook entries that
-      spawn it into the provider's project-local hook config (for
-      \`claude\`: \`.claude/settings.json\`). With \`sm serve\` running,
-      the map then lights up each skill / agent / command node the
-      moment the provider runtime invokes it.
+      Wires the provider's own runtime hooks to the live map, per its
+      install shape: hook-file providers (\`claude\`, \`codex\`,
+      \`antigravity\`) get the zero-dependency bridge script at
+      \`.skill-map/activity/bridge.js\` plus hook entries merged into
+      their project-local hook config; \`opencode\` gets one in-process
+      plugin file at \`.opencode/plugin/skill-map-activity.js\`. With
+      \`sm serve\` running, the map then lights up each node the moment
+      the provider runtime invokes it.
 
-      The merge is non-destructive (existing hooks are preserved) and
+      Writes are non-destructive (existing hooks are preserved) and
       exactly reversible via \`sm activity uninstall <provider>\`.
-      Modifying the provider config is consent-gated: a TTY prompt
+      Modifying the provider's territory is consent-gated: a TTY prompt
       names the target file; pass \`--yes\` for non-interactive runs.
     `,
     examples: [
       ['Wire Claude Code', '$0 activity install claude'],
+      ['Wire OpenCode (in-process plugin)', '$0 activity install opencode'],
       ['Non-interactive (CI / scripts)', '$0 activity install claude --yes'],
     ],
   });
@@ -188,13 +192,18 @@ export class ActivityUninstallCommand extends SmCommand {
     category: 'Actions',
     description: 'Remove the live-activity bridge wiring from a provider runtime’s hook config.',
     details: `
-      Exactly reverses \`sm activity install <provider>\`: removes the
-      skill-map hook entries (operator hooks stay untouched) and deletes
-      the bridge artifact when no installed provider references it
-      anymore. Idempotent: uninstalling a provider that was never
+      Exactly reverses \`sm activity install <provider>\`: hook-file
+      providers get the skill-map entries removed (operator hooks stay
+      untouched) and the bridge artifact deleted when no installed
+      provider references it anymore; \`opencode\` gets its in-process
+      plugin file deleted (a foreign file at that path is never
+      touched). Idempotent: uninstalling a provider that was never
       installed is a no-op.
     `,
-    examples: [['Unwire Claude Code', '$0 activity uninstall claude']],
+    examples: [
+      ['Unwire Claude Code', '$0 activity uninstall claude'],
+      ['Unwire OpenCode', '$0 activity uninstall opencode'],
+    ],
   });
 
   provider = Option.String({ required: true });
@@ -255,4 +264,89 @@ export class ActivityUninstallCommand extends SmCommand {
   }
 }
 
-export const ACTIVITY_COMMANDS = [ActivityInstallCommand, ActivityUninstallCommand];
+export class ActivityStatusCommand extends SmCommand {
+  static override paths = [['activity', 'status']];
+  static override usage = Command.Usage({
+    category: 'Actions',
+    description: 'Report the live-activity install state per provider.',
+    details: `
+      Read-only: for every activity-capable provider (or just the named
+      one) reports \`installed\`, \`not installed\`, or \`partial\`
+      (one half of the install present without the other; a re-install
+      repairs both). Names each provider's hook config path. Never
+      writes anything.
+    `,
+    examples: [
+      ['All providers', '$0 activity status'],
+      ['One provider', '$0 activity status claude'],
+    ],
+  });
+
+  provider = Option.String({ required: false });
+
+  protected async run(): Promise<number> {
+    const ansi = this.ansiFor('stdout');
+    const okGlyph = ansi.green('✓');
+    const errGlyph = ansi.red('✕');
+
+    let targets: IProvider[];
+    if (this.provider !== undefined) {
+      const provider = resolveActivityProvider(this.provider);
+      if (provider === null) {
+        this.printer!.error(
+          tx(ACTIVITY_TEXTS.unknownProvider, {
+            glyph: errGlyph,
+            provider: sanitizeForTerminal(this.provider),
+          }),
+        );
+        this.printer!.error(
+          ansi.dim(
+            tx(ACTIVITY_TEXTS.unknownProviderHint, {
+              providers: activityProviders()
+                .map((p) => p.id)
+                .join(', ') || '(none)',
+            }),
+          ) + '\n',
+        );
+        return ExitCode.Error;
+      }
+      targets = [provider];
+    } else {
+      targets = activityProviders();
+    }
+
+    const ctx = defaultRuntimeContext();
+    for (const provider of targets) {
+      this.printer!.data(this.statusLine(provider, ctx.cwd, okGlyph, ansi));
+    }
+    return ExitCode.Ok;
+  }
+
+  /** One report line: installed / not installed / partial (with the repair hint). */
+  private statusLine(
+    provider: IProvider,
+    cwd: string,
+    okGlyph: string,
+    ansi: { dim(s: string): string; yellow(s: string): string },
+  ): string {
+    const configPath = provider.activity!.install.configPath;
+    const status = activityInstallStatus(cwd, provider);
+    const vars = { provider: provider.id, configPath };
+    if (status.installed) {
+      return tx(ACTIVITY_TEXTS.statusInstalled, { glyph: okGlyph, ...vars });
+    }
+    if (status.configWired) {
+      return tx(ACTIVITY_TEXTS.statusPartialBridgeMissing, { glyph: ansi.yellow('!'), ...vars });
+    }
+    // `bridgePresent` without config wiring is NOT partial: the bridge
+    // artifact is shared across hook-file providers, so another
+    // provider's install legitimately leaves it behind.
+    return tx(ACTIVITY_TEXTS.statusNotInstalled, { glyph: ansi.dim('·'), ...vars });
+  }
+}
+
+export const ACTIVITY_COMMANDS = [
+  ActivityInstallCommand,
+  ActivityUninstallCommand,
+  ActivityStatusCommand,
+];
