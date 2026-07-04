@@ -90,6 +90,8 @@ export const SETTINGS_TEXTS = {
         description:
           'Light up nodes on the map the moment your AI assistant invokes them.',
         hint: 'Requires live updates.',
+        hookHint:
+          "Requires the active lens's activity hook. Install it in Settings > Project.",
       },
     },
     /**
@@ -210,6 +212,38 @@ export const SETTINGS_TEXTS = {
     activeProviderSwitchedSuffix: 'scan table(s). Run `sm scan` to repopulate.',
     activeProviderSwitchedNoDb:
       'Lens switched. Run `sm scan` to populate the map under the new lens.',
+
+    /**
+     * Live-activity hook install/uninstall (the button below the lens
+     * selector; `spec/provider-activity.md` §Install management over
+     * HTTP). The button label composes as
+     * `<installPrefix|uninstallPrefix> <lens label> <labelSuffix>`.
+     * Both operations go through the server-enforced 412 consent gate,
+     * surfaced by the confirm dialog copy below (the config path is
+     * interpolated by the component).
+     */
+    activityHook: {
+      label: 'Live-activity hook',
+      description:
+        'Wire the active provider runtime so the map lights up each node the moment it runs. Requires sm serve.',
+      installPrefix: 'Install',
+      uninstallPrefix: 'Uninstall',
+      labelSuffix: 'activity hook',
+      unsupportedHint: 'This lens has no live-activity hook yet.',
+      installConfirmHeader: 'Install the activity hook?',
+      installConfirmIntroPrefix: 'This will add hook entries to',
+      installConfirmIntroSuffix:
+        '(existing hooks are preserved) and write the bridge under .skill-map/activity/.',
+      uninstallConfirmHeader: 'Uninstall the activity hook?',
+      uninstallConfirmIntroPrefix: 'This will remove the skill-map entries from',
+      uninstallConfirmIntroSuffix:
+        '(your own hooks stay untouched) and delete .skill-map/activity/.',
+      confirmAccept: 'Proceed',
+      confirmReject: 'Cancel',
+      installedPrefix: 'Activity hook installed into',
+      uninstalledPrefix: 'Activity hook removed from',
+      nothingToUninstall: 'The activity hook was not installed; nothing to remove.',
+    },
   },
 
   /** Changelog section. */

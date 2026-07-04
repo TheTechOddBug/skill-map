@@ -38,6 +38,8 @@ import type {
   IPreferencesPatchApi,
   IProjectConfigApi,
   IActiveProviderApi,
+  IActivityInstallStatusApi,
+  IActivityUninstallEnvelopeApi,
   IActiveProviderPutEnvelopeApi,
   IProjectIgnoreApi,
   IProjectIgnorePatchApi,
@@ -351,6 +353,34 @@ export class RestDataSource implements IDataSourcePort {
     return await this.patchJson<IActiveProviderApi>(
       `${BASE}/active-provider/accept-markers`,
       null,
+      'POST',
+    );
+  }
+
+  async getActivityInstallStatus(provider: string): Promise<IActivityInstallStatusApi> {
+    return await this.getJson<IActivityInstallStatusApi>(
+      `${BASE}/activity/install?provider=${encodeURIComponent(provider)}`,
+    );
+  }
+
+  async installActivityHook(
+    provider: string,
+    opts?: { confirm?: boolean },
+  ): Promise<IActivityInstallStatusApi> {
+    return await this.patchJson<IActivityInstallStatusApi>(
+      `${BASE}/activity/install`,
+      opts?.confirm === true ? { provider, confirm: true } : { provider },
+      'POST',
+    );
+  }
+
+  async uninstallActivityHook(
+    provider: string,
+    opts?: { confirm?: boolean },
+  ): Promise<IActivityUninstallEnvelopeApi> {
+    return await this.patchJson<IActivityUninstallEnvelopeApi>(
+      `${BASE}/activity/uninstall`,
+      opts?.confirm === true ? { provider, confirm: true } : { provider },
       'POST',
     );
   }

@@ -1111,6 +1111,31 @@ export interface IActiveProviderMarkerDriftApi {
 }
 
 /**
+ * `GET /api/activity/install?provider=<id>` envelope (and the base of
+ * both mutation responses); see `spec/provider-activity.md` §Install
+ * management over HTTP. `supported` is `false` for providers without
+ * an installable activity hook (every field then degrades);
+ * `installed` requires BOTH halves (`configWired && bridgePresent`).
+ */
+export interface IActivityInstallStatusApi {
+  provider: string;
+  supported: boolean;
+  installed: boolean;
+  configPath: string | null;
+  configWired: boolean;
+  bridgePresent: boolean;
+  events: number;
+}
+
+/**
+ * `POST /api/activity/uninstall` response: the refreshed status plus
+ * whether anything was actually removed (`false` = idempotent no-op).
+ */
+export interface IActivityUninstallEnvelopeApi extends IActivityInstallStatusApi {
+  removed: boolean;
+}
+
+/**
  * Body shape for `PUT /api/active-provider`. Switching the lens
  * triggers an atomic drop of the scan_* DB zone server-side (see
  * `spec/db-schema.md` §Active-provider lens change), the response

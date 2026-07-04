@@ -100,6 +100,7 @@ import { registerProjectPreferencesRoute } from './routes/project-preferences.js
 import { registerActiveProviderRoute } from './routes/active-provider.js';
 import { registerActionsRoutes } from './routes/actions.js';
 import { registerActivityRoute } from './routes/activity.js';
+import { registerActivityInstallRoutes } from './routes/activity-install.js';
 import { registerScanRoute } from './routes/scan.js';
 import { registerUpdateStatusRoute } from './routes/update-status.js';
 import { createSpaFallback, createStaticHandler } from './static.js';
@@ -521,6 +522,12 @@ export function createApp(deps: IAppDeps): Hono {
     broadcaster: deps.broadcaster,
     activityToken: deps.activityToken,
   });
+  // Live-activity install management, `GET/POST /api/activity/install`
+  // + `POST /api/activity/uninstall` (see `spec/provider-activity.md`
+  // §Install management over HTTP). The SPA's Settings → Project
+  // install/uninstall button; mutations are consent-gated (412
+  // `confirm-required` without `confirm: true`, nothing written).
+  registerActivityInstallRoutes(app, routeDeps);
   // Per-user favorites, `PUT/DELETE /api/favorites/:pathB64`. Persists
   // to `state_node_favorites` (zone `state_`); decorated onto every
   // `/api/nodes` response via in-memory Set membership.

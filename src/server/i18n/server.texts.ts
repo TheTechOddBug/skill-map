@@ -234,6 +234,25 @@ export const SERVER_TEXTS = {
   activityEventRequired:
     '`event` is required and must be an object.',
 
+  // Install management over HTTP (GET/POST /api/activity/install +
+  // POST /api/activity/uninstall, see spec/provider-activity.md
+  // §Install management over HTTP). The 412 names the exact file the
+  // operation would modify so the SPA's consent dialog can show it.
+  activityInstallUnknownProvider:
+    'Unknown provider "{{provider}}".',
+  activityInstallUnsupported:
+    'Provider "{{provider}}" has no installable activity hook (kind: {{kind}}).',
+  activityInstallConfirmRequired:
+    'Installing modifies {{configPath}}. Retry with `confirm: true` to proceed.',
+  activityUninstallConfirmRequired:
+    'Uninstalling modifies {{configPath}}. Retry with `confirm: true` to proceed.',
+  activityInstallFailed:
+    'Activity hook install failed: {{message}}',
+  activityUninstallFailed:
+    'Activity hook uninstall failed: {{message}}',
+  activityInstallConfirmNotBoolean:
+    '`confirm` must be a boolean when present.',
+
   // 404 envelope when `:qualifiedId` does not resolve to a registered
   // action with an `invoke()`. Covers both "no such action" and "action
   // exists but ships no deterministic entry point" (a probabilistic

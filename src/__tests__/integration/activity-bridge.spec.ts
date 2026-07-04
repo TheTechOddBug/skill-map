@@ -27,7 +27,7 @@ import WebSocket from 'ws';
 import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import { persistScanResult } from '../../kernel/adapters/sqlite/scan-persistence.js';
 import type { Node, ScanResult } from '../../kernel/types.js';
-import { BRIDGE_PACKAGE_JSON, renderActivityBridge } from '../../cli/util/activity-bridge.js';
+import { BRIDGE_PACKAGE_JSON, renderActivityBridge } from '../../core/activity/bridge-template.js';
 import { buildServeInfo, writeServeInfo } from '../../cli/util/serve-info.js';
 import {
   ACTIVITY_BRIDGE_REL,

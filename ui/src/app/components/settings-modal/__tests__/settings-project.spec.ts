@@ -12,6 +12,7 @@ import {
 import { ProviderRegistryService } from '../../../../services/provider-registry';
 import type {
   IActiveProviderApi,
+  IActivityInstallStatusApi,
   IProjectPreferencesApi,
   IProviderRegistryApi,
 } from '../../../../models/api';
@@ -264,5 +265,168 @@ describe('SettingsProject pluginTrust opt-in', () => {
     // The operator cancels: no retry fires and the toggle stays off.
     expect(setProjectPreferences).toHaveBeenCalledTimes(1);
     expect(proto.pluginTrustEnabled()).toBe(false);
+  });
+});
+
+/**
+ * SettingsProject · live-activity hook button.
+ *
+ * One button below the lens selector: Install when the hook is absent,
+ * Uninstall when present, disabled + hint for lenses without an
+ * activity adapter. Both mutations first POST WITHOUT `confirm`; the
+ * server-enforced 412 `confirm-required` surfaces the consent dialog
+ * and accepting retries with `confirm: true` (the same flow the
+ * plugin-trust opt-in uses). The spec drives the imperative surface +
+ * the component-provided ConfirmationService, independent of PrimeNG's
+ * overlay portal.
+ */
+interface IActivityProto {
+  activeProviderEnvelope: WritableSignal<IActiveProviderApi | null>;
+  activityStatus: WritableSignal<IActivityInstallStatusApi | null>;
+  activityAnnouncement(): string | null;
+  activityButtonLabel(): string;
+  activityButtonDisabled(): boolean;
+  activityHint(): string | null;
+  onActivityHookToggle(): void;
+}
+
+function activityStatusOf(overrides: Partial<IActivityInstallStatusApi>): IActivityInstallStatusApi {
+  return {
+    provider: 'claude',
+    supported: true,
+    installed: false,
+    configPath: '.claude/settings.json',
+    configWired: false,
+    bridgePresent: false,
+    events: 5,
+    ...overrides,
+  };
+}
+
+function bootstrapActivity(stub: Partial<IDataSourcePort>): {
+  fixture: ReturnType<typeof TestBed.createComponent<SettingsProject>>;
+  proto: IActivityProto;
+} {
+  TestBed.resetTestingModule();
+  TestBed.configureTestingModule({
+    providers: [
+      provideZonelessChangeDetection(),
+      { provide: DATA_SOURCE, useValue: stub },
+    ],
+  });
+  const fixture = TestBed.createComponent(SettingsProject);
+  fixture.componentRef.setInput('visible', false);
+  fixture.detectChanges();
+  TestBed.inject(ProviderRegistryService).ingest(REGISTRY);
+  const proto = fixture.componentInstance as unknown as IActivityProto;
+  proto.activeProviderEnvelope.set({
+    activeProvider: 'claude',
+    detected: [],
+    source: 'config',
+    selectable: ['claude'],
+    markerDrift: null,
+  });
+  return { fixture, proto };
+}
+
+describe('SettingsProject activity hook button', () => {
+  it('labels Install / Uninstall off the status and the lens registry label', () => {
+    const { proto } = bootstrapActivity({});
+    proto.activityStatus.set(activityStatusOf({ installed: false }));
+    expect(proto.activityButtonLabel()).toBe('Install Claude activity hook');
+    expect(proto.activityButtonDisabled()).toBe(false);
+    expect(proto.activityHint()).toBe(null);
+
+    proto.activityStatus.set(activityStatusOf({ installed: true }));
+    expect(proto.activityButtonLabel()).toBe('Uninstall Claude activity hook');
+  });
+
+  it('disables with a hint for a lens without an activity hook', () => {
+    const { proto } = bootstrapActivity({});
+    proto.activityStatus.set(
+      activityStatusOf({ provider: 'codex', supported: false, configPath: null, events: 0 }),
+    );
+    expect(proto.activityButtonDisabled()).toBe(true);
+    expect(proto.activityHint()).not.toBe(null);
+  });
+
+  it('disables while the status is unknown', () => {
+    const { proto } = bootstrapActivity({});
+    proto.activityStatus.set(null);
+    expect(proto.activityButtonDisabled()).toBe(true);
+  });
+
+  it('install: 412 surfaces the consent dialog, accept retries with confirm and adopts the envelope', async () => {
+    const installActivityHook = vi
+      .fn()
+      .mockRejectedValueOnce(new DataSourceError('confirm-required', 'needs confirm'))
+      .mockResolvedValueOnce(
+        activityStatusOf({ installed: true, configWired: true, bridgePresent: true }),
+      );
+    const { fixture, proto } = bootstrapActivity({
+      installActivityHook,
+    } as Partial<IDataSourcePort>);
+    const confirmation = fixture.debugElement.injector.get(ConfirmationService);
+    const confirmSpy = vi.spyOn(confirmation, 'confirm').mockReturnValue(confirmation);
+    proto.activityStatus.set(activityStatusOf({ installed: false }));
+
+    proto.onActivityHookToggle();
+    await flush();
+
+    expect(installActivityHook).toHaveBeenNthCalledWith(1, 'claude', undefined);
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    // The dialog names the file the install would modify.
+    expect(String(confirmSpy.mock.calls[0][0].message)).toContain('.claude/settings.json');
+
+    confirmSpy.mock.calls[0][0].accept?.();
+    await flush();
+
+    expect(installActivityHook).toHaveBeenNthCalledWith(2, 'claude', { confirm: true });
+    expect(proto.activityStatus()?.installed).toBe(true);
+    expect(proto.activityButtonLabel()).toBe('Uninstall Claude activity hook');
+    expect(proto.activityAnnouncement()).toContain('.claude/settings.json');
+  });
+
+  it('install: dismissing the consent dialog fires no retry', async () => {
+    const installActivityHook = vi
+      .fn()
+      .mockRejectedValueOnce(new DataSourceError('confirm-required', 'needs confirm'));
+    const { fixture, proto } = bootstrapActivity({
+      installActivityHook,
+    } as Partial<IDataSourcePort>);
+    const confirmation = fixture.debugElement.injector.get(ConfirmationService);
+    const confirmSpy = vi.spyOn(confirmation, 'confirm').mockReturnValue(confirmation);
+    proto.activityStatus.set(activityStatusOf({ installed: false }));
+
+    proto.onActivityHookToggle();
+    await flush();
+
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(installActivityHook).toHaveBeenCalledTimes(1);
+    expect(proto.activityStatus()?.installed).toBe(false);
+  });
+
+  it('uninstall: routed when installed, confirmed retry adopts removed: true', async () => {
+    const uninstallActivityHook = vi
+      .fn()
+      .mockRejectedValueOnce(new DataSourceError('confirm-required', 'needs confirm'))
+      .mockResolvedValueOnce({ ...activityStatusOf({ installed: false }), removed: true });
+    const { fixture, proto } = bootstrapActivity({
+      uninstallActivityHook,
+    } as Partial<IDataSourcePort>);
+    const confirmation = fixture.debugElement.injector.get(ConfirmationService);
+    const confirmSpy = vi.spyOn(confirmation, 'confirm').mockReturnValue(confirmation);
+    proto.activityStatus.set(
+      activityStatusOf({ installed: true, configWired: true, bridgePresent: true }),
+    );
+
+    proto.onActivityHookToggle();
+    await flush();
+    confirmSpy.mock.calls[0][0].accept?.();
+    await flush();
+
+    expect(uninstallActivityHook).toHaveBeenNthCalledWith(2, 'claude', { confirm: true });
+    expect(proto.activityStatus()?.installed).toBe(false);
+    expect(proto.activityButtonLabel()).toBe('Install Claude activity hook');
   });
 });

@@ -45,6 +45,7 @@ import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
 import type {
   IActiveProviderApi,
+  IActivityInstallStatusApi,
   IProjectIgnoreApi,
   IProjectIgnorePatchApi,
   IProjectPreferencesApi,
@@ -208,6 +209,53 @@ export class SettingsProject {
     return this.activeProviderEnvelope()?.source ?? 'default';
   });
 
+  // ---- activity-hook state ----------------------------------------------
+  /**
+   * Install status of the ACTIVE lens's live-activity hook
+   * (`GET /api/activity/install`). `null` until the probe resolves (or
+   * when it failed); re-fetched whenever the lens envelope refreshes or
+   * a confirmed lens switch lands, so the button always describes the
+   * CURRENT lens.
+   */
+  protected readonly activityStatus = signal<IActivityInstallStatusApi | null>(null);
+  protected readonly activityError = signal<string | null>(null);
+  protected readonly activityAnnouncement = signal<string | null>(null);
+
+  /** Registry label of the active lens (falls back to the raw id). */
+  private readonly activeProviderLabel = computed<string>(() => {
+    const id = this.activeProviderValue();
+    const entry = this.providerRegistry.providers().find((p) => p.id === id);
+    return entry?.label ?? id;
+  });
+
+  /**
+   * Button label, tracking the selected lens AND the install state:
+   * "Install <lens label> activity hook" / "Uninstall <lens label>
+   * activity hook". While the status is unknown the Install form shows
+   * (the button is disabled anyway).
+   */
+  protected readonly activityButtonLabel = computed<string>(() => {
+    const t = this.texts.project.activityHook;
+    const action =
+      this.activityStatus()?.installed === true ? t.uninstallPrefix : t.installPrefix;
+    return `${action} ${this.activeProviderLabel()} ${t.labelSuffix}`;
+  });
+
+  /** Disabled while unknown, unsupported, or a mutation is in flight. */
+  protected readonly activityButtonDisabled = computed<boolean>(() => {
+    const status = this.activityStatus();
+    return status === null || !status.supported || this.pending().has('activity.hook');
+  });
+
+  /** Hint under the button; only the unsupported-lens case renders one. */
+  protected readonly activityHint = computed<string | null>(() => {
+    const status = this.activityStatus();
+    if (status !== null && !status.supported) {
+      return this.texts.project.activityHook.unsupportedHint;
+    }
+    return null;
+  });
+
   constructor() {
     effect(() => {
       if (this.visible()) {
@@ -339,6 +387,98 @@ export class SettingsProject {
   }
 
   // -----------------------------------------------------------------
+  // Activity-hook handlers
+  // -----------------------------------------------------------------
+
+  /**
+   * One button, two operations: install when the hook is absent,
+   * uninstall when present. Both first POST WITHOUT `confirm`; the BFF
+   * refuses 412 `confirm-required` (server-enforced consent, nothing
+   * written), which surfaces the consent dialog naming the exact config
+   * file; accepting retries with `confirm: true`. Success adopts the
+   * refreshed status envelope from the response.
+   */
+  protected onActivityHookToggle(): void {
+    const status = this.activityStatus();
+    if (status === null || !status.supported) return;
+    void this.runActivityMutation(status.installed ? 'uninstall' : 'install');
+  }
+
+  private async runActivityMutation(op: 'install' | 'uninstall'): Promise<void> {
+    const key = 'activity.hook';
+    if (this.pending().has(key)) return;
+    const providerId = this.activeProviderValue();
+    const next = new Set(this.pending());
+    next.add(key);
+    this.pending.set(next);
+    this.activityError.set(null);
+    this.activityAnnouncement.set(null);
+    try {
+      await this.dispatchActivity(op, providerId, false);
+    } catch (err) {
+      if (err instanceof DataSourceError && err.code === 'confirm-required') {
+        this.confirmActivityDialog(op, async () => {
+          try {
+            await this.dispatchActivity(op, providerId, true);
+          } catch (innerErr) {
+            this.activityError.set(formatErr(innerErr));
+          }
+        });
+      } else {
+        this.activityError.set(formatErr(err));
+      }
+    } finally {
+      const after = new Set(this.pending());
+      after.delete(key);
+      this.pending.set(after);
+    }
+  }
+
+  /** Fire one install/uninstall POST and adopt its response envelope. */
+  private async dispatchActivity(
+    op: 'install' | 'uninstall',
+    providerId: string,
+    confirm: boolean,
+  ): Promise<void> {
+    const opts = confirm ? { confirm: true } : undefined;
+    const t = this.texts.project.activityHook;
+    if (op === 'install') {
+      const status = await this.dataSource.installActivityHook(providerId, opts);
+      this.activityStatus.set(status);
+      this.activityAnnouncement.set(`${t.installedPrefix} ${status.configPath ?? ''}.`);
+      return;
+    }
+    const envelope = await this.dataSource.uninstallActivityHook(providerId, opts);
+    this.activityStatus.set(envelope);
+    this.activityAnnouncement.set(
+      envelope.removed
+        ? `${t.uninstalledPrefix} ${envelope.configPath ?? ''}.`
+        : t.nothingToUninstall,
+    );
+  }
+
+  private confirmActivityDialog(op: 'install' | 'uninstall', onAccept: () => Promise<void>): void {
+    const t = this.texts.project.activityHook;
+    const configPath = this.activityStatus()?.configPath ?? '';
+    const header = op === 'install' ? t.installConfirmHeader : t.uninstallConfirmHeader;
+    const intro =
+      op === 'install'
+        ? `${t.installConfirmIntroPrefix} ${configPath} ${t.installConfirmIntroSuffix}`
+        : `${t.uninstallConfirmIntroPrefix} ${configPath} ${t.uninstallConfirmIntroSuffix}`;
+    this.confirmation.confirm({
+      header,
+      message: intro,
+      acceptLabel: t.confirmAccept,
+      rejectLabel: t.confirmReject,
+      acceptButtonProps: { severity: 'primary' },
+      rejectButtonProps: { severity: 'secondary' },
+      accept: () => {
+        void onAccept();
+      },
+    });
+  }
+
+  // -----------------------------------------------------------------
   // Refresh + dispatch helpers
   // -----------------------------------------------------------------
 
@@ -371,16 +511,32 @@ export class SettingsProject {
     }
   }
 
-  /** Fetch the active-provider envelope. */
+  /** Fetch the active-provider envelope, then the hook status for it. */
   private async refreshActiveProvider(): Promise<void> {
     this.activeProviderLoadError.set(null);
     this.activeProviderSaveError.set(null);
     try {
       const envelope = await this.dataSource.getActiveProvider();
       this.activeProviderEnvelope.set(envelope);
+      await this.refreshActivityStatus(envelope.activeProvider);
     } catch (err) {
       this.activeProviderLoadError.set(formatErr(err));
       this.activeProviderEnvelope.set(null);
+    }
+  }
+
+  /** Probe the live-activity hook status for the given lens. */
+  private async refreshActivityStatus(providerId: string): Promise<void> {
+    this.activityError.set(null);
+    if (providerId.length === 0) {
+      this.activityStatus.set(null);
+      return;
+    }
+    try {
+      this.activityStatus.set(await this.dataSource.getActivityInstallStatus(providerId));
+    } catch (err) {
+      this.activityError.set(formatErr(err));
+      this.activityStatus.set(null);
     }
   }
 
@@ -413,6 +569,9 @@ export class SettingsProject {
           `${t.activeProviderSwitchedPrefix} ${dropped.tableCount} ${t.activeProviderSwitchedSuffix}`,
         );
       }
+      // The lens changed: re-probe the hook status so the button label
+      // and state describe the NEW lens.
+      await this.refreshActivityStatus(envelope.activeProvider);
     } catch (err) {
       this.activeProviderSaveError.set(formatErr(err));
     }

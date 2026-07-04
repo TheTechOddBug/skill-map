@@ -15,7 +15,11 @@
  *     non-interactive runs; a non-TTY without `--yes` refuses (exit 2).
  *   - **Non-destructive + reversible**: pre-existing operator hooks are
  *     preserved; our entries carry the bridge path as marker and
- *     `uninstall` removes exactly them (see `activity-hooks-merge.ts`).
+ *     `uninstall` removes exactly them (see `core/activity/hooks-merge.ts`).
+ *
+ * The mechanics live in the shared engine (`core/activity/install.ts`),
+ * also driven by the BFF's `/api/activity/install|uninstall` routes;
+ * this file owns only the CLI chrome (consent prompt, texts, exits).
  *   - **Project-local only**: every path is joined onto the cwd; the
  *     provider's `configPath` is scope-relative by schema. `$HOME` is
  *     never touched, per the scope invariant.
@@ -28,56 +32,24 @@
  * trusted drop-ins rides the same registry lookup later.
  */
 
-import { mkdir, writeFile } from 'node:fs/promises';
-import { rmSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-
 import { Command, Option } from 'clipanion';
 
 import type { IActivityInstallEvent, IProvider } from '../../kernel/extensions/index.js';
-import { readJsonObjectOrEmpty, writeJsonAtomic } from '../../kernel/util/atomic-write.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
+import {
+  findActivityProvider,
+  installActivityBridge,
+  uninstallActivityBridge,
+} from '../../core/activity/install.js';
 import { builtIns } from '../../plugins/built-ins.js';
 import { ACTIVITY_TEXTS } from '../i18n/activity.texts.js';
-import {
-  ACTIVITY_BRIDGE_REL,
-  defaultActivityBridgePath,
-  defaultProjectActivityDir,
-} from '../util/db-path.js';
-import { BRIDGE_PACKAGE_JSON, renderActivityBridge } from '../util/activity-bridge.js';
-import { mergeActivityHooks, removeActivityHooks } from '../util/activity-hooks-merge.js';
+import { ACTIVITY_BRIDGE_REL } from '../util/db-path.js';
 import { confirm } from '../util/confirm.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
-
-/** Command the provider's hook config spawns per event: `node <bridge> <provider>`. */
-function bridgeCommand(providerId: string): string {
-  return `node ${ACTIVITY_BRIDGE_REL} ${providerId}`;
-}
-
-/**
- * REFRESH semantics for the provider config: drop our marker-carrying
- * entries first, then re-add from the CURRENT descriptor. A plain
- * idempotency check would freeze stale entries in place (an older
- * install's event list / matchers would never pick up descriptor
- * changes); the remove+merge pair updates ours while leaving operator
- * hooks untouched either way. Persists only when something changed.
- */
-function refreshHookWiring(
-  configPath: string,
-  events: readonly IActivityInstallEvent[],
-  providerId: string,
-): void {
-  const settings = readJsonObjectOrEmpty(configPath);
-  const removedStale = removeActivityHooks(settings, ACTIVITY_BRIDGE_REL);
-  const merge = mergeActivityHooks(settings, events, bridgeCommand(providerId), ACTIVITY_BRIDGE_REL);
-  if (removedStale || merge.changed) {
-    writeJsonAtomic(configPath, settings);
-  }
-}
 
 /** Built-in Providers that declare an activity adapter. */
 function activityProviders(): IProvider[] {
@@ -85,7 +57,7 @@ function activityProviders(): IProvider[] {
 }
 
 function resolveActivityProvider(id: string): IProvider | null {
-  return activityProviders().find((p) => p.id === id) ?? null;
+  return findActivityProvider(builtIns().providers, id);
 }
 
 export class ActivityInstallCommand extends SmCommand {
@@ -138,8 +110,6 @@ export class ActivityInstallCommand extends SmCommand {
     }
 
     const ctx = defaultRuntimeContext();
-    const configPath = join(ctx.cwd, install.configPath);
-    const bridgePath = defaultActivityBridgePath(ctx.cwd);
     const events: readonly IActivityInstallEvent[] = install.events ?? [];
 
     // Consent: the merge touches a file skill-map does not own.
@@ -147,15 +117,7 @@ export class ActivityInstallCommand extends SmCommand {
     if (consented !== null) return consented;
 
     try {
-      refreshHookWiring(configPath, events, provider.id);
-
-      // The bridge artifact is (re)written on every install, so a
-      // version upgrade refreshes the script. The sibling package.json
-      // pins CommonJS so an ESM host project (`"type": "module"`)
-      // cannot break the bridge's `require`.
-      await mkdir(dirname(bridgePath), { recursive: true });
-      await writeFile(bridgePath, renderActivityBridge(), 'utf8');
-      await writeFile(join(dirname(bridgePath), 'package.json'), BRIDGE_PACKAGE_JSON, 'utf8');
+      await installActivityBridge(ctx.cwd, provider);
 
       this.printer!.data(
         tx(ACTIVITY_TEXTS.installed, {
@@ -259,24 +221,15 @@ export class ActivityUninstallCommand extends SmCommand {
     }
     const install = provider.activity.install;
     const ctx = defaultRuntimeContext();
-    const configPath = join(ctx.cwd, install.configPath);
 
     try {
-      const settings = readJsonObjectOrEmpty(configPath);
-      const changed = removeActivityHooks(settings, ACTIVITY_BRIDGE_REL);
-      if (!changed) {
+      const { removed } = uninstallActivityBridge(ctx.cwd, provider);
+      if (!removed) {
         this.printer!.info(
           tx(ACTIVITY_TEXTS.nothingToUninstall, { glyph: okGlyph, configPath: install.configPath }),
         );
         return ExitCode.Ok;
       }
-      writeJsonAtomic(configPath, settings);
-
-      // v1 ships a single provider; when multi-provider installs land,
-      // this becomes "delete only when no OTHER provider's config still
-      // references the bridge". The whole activity dir is skill-map's
-      // own artifact (bridge + its type-pinning package.json).
-      rmSync(defaultProjectActivityDir(ctx.cwd), { recursive: true, force: true });
 
       this.printer!.data(
         tx(ACTIVITY_TEXTS.uninstalled, {

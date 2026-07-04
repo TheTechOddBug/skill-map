@@ -99,12 +99,16 @@
           <div class="settings-general__row-hint">
             {{ texts.general.live.activity.hint }}
           </div>
+        } @else if (activityHookInstalled() === false) {
+          <div class="settings-general__row-hint" data-testid="settings-general-live-activity-hook-hint">
+            {{ texts.general.live.activity.hookHint }}
+          </div>
         }
       </div>
       <p-toggleswitch
         [ngModel]="liveActivityEnabled()"
         (ngModelChange)="onLiveActivityToggle($event)"
-        [disabled]="!liveWsEnabled()"
+        [disabled]="!liveWsEnabled() || activityHookInstalled() === false"
         data-testid="settings-general-toggle-live-activity"
       />
     </li>

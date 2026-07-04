@@ -1,7 +1,7 @@
 /**
  * Non-destructive merge / removal round-trip for the activity bridge's
  * `json-hooks` entries (see `spec/provider-activity.md` and
- * `activity-hooks-merge.ts`). The load-bearing assertions: operator
+ * `hooks-merge.ts`). The load-bearing assertions: operator
  * hooks survive untouched, install is idempotent, and uninstall
  * restores the original document shape exactly.
  */
@@ -10,7 +10,7 @@ import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
 import type { IActivityInstallEvent } from '../../../kernel/extensions/index.js';
-import { mergeActivityHooks, removeActivityHooks } from '../activity-hooks-merge.js';
+import { hasActivityHooks, mergeActivityHooks, removeActivityHooks } from '../hooks-merge.js';
 
 const MARKER = '.skill-map/activity/bridge.js';
 const COMMAND = `node ${MARKER} claude`;
@@ -112,5 +112,24 @@ describe('removeActivityHooks', () => {
     mergeActivityHooks(settings, EVENTS, COMMAND, MARKER);
     removeActivityHooks(settings, MARKER);
     assert.deepEqual(settings, {});
+  });
+
+  it('hasActivityHooks: read-only probe flips with wiring and never mutates', () => {
+    const settings = userSettings();
+    assert.equal(hasActivityHooks(settings, MARKER), false);
+
+    mergeActivityHooks(settings, EVENTS, COMMAND, MARKER);
+    const wired = JSON.stringify(settings);
+    assert.equal(hasActivityHooks(settings, MARKER), true);
+    assert.equal(JSON.stringify(settings), wired);
+
+    removeActivityHooks(settings, MARKER);
+    assert.equal(hasActivityHooks(settings, MARKER), false);
+  });
+
+  it('hasActivityHooks: false on empty / malformed hooks shapes', () => {
+    assert.equal(hasActivityHooks({}, MARKER), false);
+    assert.equal(hasActivityHooks({ hooks: 'not-an-object' }, MARKER), false);
+    assert.equal(hasActivityHooks({ hooks: { PreToolUse: 'not-an-array' } }, MARKER), false);
   });
 });

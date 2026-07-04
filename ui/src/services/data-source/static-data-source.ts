@@ -51,6 +51,8 @@ import type {
   IPreferencesPatchApi,
   IProjectConfigApi,
   IActiveProviderApi,
+  IActivityInstallStatusApi,
+  IActivityUninstallEnvelopeApi,
   IActiveProviderPutEnvelopeApi,
   IProjectIgnoreApi,
   IProjectIgnorePatchApi,
@@ -591,6 +593,44 @@ export class StaticDataSource implements IDataSourcePort {
     // The demo bundle never drifts, so accepting markers is a harmless
     // no-op: return the baked envelope (already `markerDrift: null`).
     return this.getActiveProvider();
+  }
+
+  async getActivityInstallStatus(provider: string): Promise<IActivityInstallStatusApi> {
+    // Baked snapshot: the demo bundle has no filesystem to probe, so
+    // report the provider's CAPABILITY honestly (claude ships the only
+    // activity adapter today) with nothing installed. The Settings
+    // button renders in its Install state but the mutation below
+    // rejects, matching every other demo write.
+    const supported = provider === 'claude';
+    return {
+      provider,
+      supported,
+      installed: false,
+      configPath: supported ? '.claude/settings.json' : null,
+      configWired: false,
+      bridgePresent: false,
+      events: supported ? 5 : 0,
+    };
+  }
+
+  async installActivityHook(
+    _provider: string,
+    _opts?: { confirm?: boolean },
+  ): Promise<IActivityInstallStatusApi> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Activity hook install is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  async uninstallActivityHook(
+    _provider: string,
+    _opts?: { confirm?: boolean },
+  ): Promise<IActivityUninstallEnvelopeApi> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Activity hook uninstall is not available in demo mode (static bundle is immutable).',
+    );
   }
 
   /**

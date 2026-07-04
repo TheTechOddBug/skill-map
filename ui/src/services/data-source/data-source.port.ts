@@ -30,6 +30,8 @@ import type {
   IPreferencesPatchApi,
   IProjectConfigApi,
   IActiveProviderApi,
+  IActivityInstallStatusApi,
+  IActivityUninstallEnvelopeApi,
   IActiveProviderPutEnvelopeApi,
   IBranchResponseApi,
   IFolderNodeLite,
@@ -412,6 +414,43 @@ export interface IDataSourcePort {
    * mode is a read-only no-op that returns the baked envelope unchanged.
    */
   acceptActiveProviderMarkers(): Promise<IActiveProviderApi>;
+
+  /**
+   * Probe the live-activity hook install state for one provider.
+   * Mirrors `GET /api/activity/install?provider=<id>`
+   * (`spec/provider-activity.md` §Install management over HTTP).
+   * Unknown provider id rejects with `code: 'not-found'`. Demo mode
+   * returns a baked "supported but not installed" envelope for
+   * `claude` and `supported: false` for everything else.
+   */
+  getActivityInstallStatus(provider: string): Promise<IActivityInstallStatusApi>;
+
+  /**
+   * Install the provider's live-activity hook (bridge + hook config
+   * wiring). Mirrors `POST /api/activity/install`. The server enforces
+   * consent: without `confirm: true` it rejects 412
+   * (`code: 'confirm-required'`) and touches nothing; the caller shows
+   * the consent dialog and retries with `{ confirm: true }`. Returns
+   * the refreshed status envelope. Demo mode rejects with
+   * `code: 'demo-readonly'`.
+   */
+  installActivityHook(
+    provider: string,
+    opts?: { confirm?: boolean },
+  ): Promise<IActivityInstallStatusApi>;
+
+  /**
+   * Uninstall the provider's live-activity hook (exact reversal of
+   * install; operator hooks untouched). Mirrors
+   * `POST /api/activity/uninstall`, consent-gated like install.
+   * Returns the refreshed status envelope plus `removed`
+   * (`false` = nothing was wired, idempotent no-op). Demo mode rejects
+   * with `code: 'demo-readonly'`.
+   */
+  uninstallActivityHook(
+    provider: string,
+    opts?: { confirm?: boolean },
+  ): Promise<IActivityUninstallEnvelopeApi>;
 
   /**
    * Phase 4 / View contribution system, lazy lookup for a single

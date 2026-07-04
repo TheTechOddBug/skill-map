@@ -26,7 +26,7 @@
  * `{{SM_VERSION}}` is stamped at install time for debuggability.
  */
 
-import { VERSION } from '../version.js';
+import { VERSION } from '../../version.js';
 
 /** Fetch abort window: a hung server must never hold the hook open. */
 const BRIDGE_TIMEOUT_MS = 1500;

@@ -169,6 +169,33 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
       selectable: [],
       markerDrift: null,
     }),
+  getActivityInstallStatus: () => Promise.resolve({
+    provider: 'markdown',
+    supported: false,
+    installed: false,
+    configPath: null,
+    configWired: false,
+    bridgePresent: false,
+    events: 0,
+  }),
+  installActivityHook: () => Promise.resolve({
+    provider: 'markdown',
+    supported: false,
+    installed: false,
+    configPath: null,
+    configWired: false,
+    bridgePresent: false,
+    events: 0,
+  }),
+  uninstallActivityHook: () => Promise.resolve({ ...{
+    provider: 'markdown',
+    supported: false,
+    installed: false,
+    configPath: null,
+    configWired: false,
+    bridgePresent: false,
+    events: 0,
+  }, removed: false }),
   setPluginEnabled: () =>
     Promise.resolve({
       schemaVersion: '1',

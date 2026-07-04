@@ -80,6 +80,24 @@ export function mergeActivityHooks(
 }
 
 /**
+ * Read-only probe: does any hook entry in `settings` carry `marker`?
+ * The install-status surface (`GET /api/activity/install`; the CLI has
+ * no status verb) derives "config is wired" from this without cloning
+ * or mutating the parsed document.
+ */
+export function hasActivityHooks(settings: Record<string, unknown>, marker: string): boolean {
+  const hooks = readHooksRecord(settings);
+  if (hooks === null) return false;
+  for (const value of Object.values(hooks)) {
+    if (!Array.isArray(value)) continue;
+    if (value.some((entry) => isHookEntry(entry) && entryCarriesMarker(entry, marker))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Remove every entry whose command carries `marker`, in place. Empty
  * event arrays (and an empty `hooks` object) left behind by the removal
  * are pruned so an install/uninstall round-trip restores the original

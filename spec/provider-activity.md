@@ -136,6 +136,67 @@ Served by the BFF, loopback-gated like every `/api/*` route, plus token-gated:
   and error messages. Nothing beyond the minimal WS payload leaves the process,
   and nothing ever leaves the machine (see §Privacy).
 
+## Install management over HTTP
+
+The same install / uninstall operations the CLI verbs expose (`sm activity
+install|uninstall <provider>`, [`cli-contract.md` §Activity](./cli-contract.md))
+are served by the BFF so the SPA can wire a provider without leaving the
+browser. All three routes are loopback-gated like every `/api/*` route; they do
+NOT take the serve.json token (that token authenticates the bridge's ingest
+path, not the operator's own UI).
+
+The server resolves the provider against its FULL registry (built-ins plus
+loaded drop-in plugins), a superset of the CLI verbs' built-ins-only set; a
+drop-in provider declaring `activity` is therefore installable from the SPA.
+
+### `GET /api/activity/install?provider=<id>`
+
+Install status probe. Response `200`:
+
+```json
+{
+  "provider": "claude",
+  "supported": true,
+  "installed": true,
+  "configPath": ".claude/settings.json",
+  "configWired": true,
+  "bridgePresent": true,
+  "events": 5
+}
+```
+
+- `supported`: the provider declares `activity` with an implemented install
+  kind (`json-hooks` today). When `false`, every other field degrades
+  (`installed: false`, `configPath: null`, `events: 0`).
+- `configWired`: the provider's hook config carries at least one skill-map
+  bridge entry (detected by the bridge-path marker, §Bridge contract).
+- `bridgePresent`: the bridge script exists on disk.
+- `installed`: `configWired && bridgePresent`. A half-installed state (bridge
+  deleted by hand, config hand-edited) reports `false`; a fresh install repairs
+  both halves.
+- `events`: how many hook events the descriptor wires.
+- Unknown provider id: `404`. Missing `provider` query param: `400`.
+
+### `POST /api/activity/install` / `POST /api/activity/uninstall`
+
+Body: `{ "provider": "<id>", "confirm": true }`.
+
+- **Consent gate (normative)**: both verbs modify the operator's project files
+  (the provider's own hook config plus `.skill-map/activity/`). Without
+  `confirm: true` the server MUST refuse with `412` (`confirm-required`) and
+  MUST NOT touch any file. The SPA surfaces the refusal as an explicit consent
+  dialog and retries with `confirm: true`. This is the HTTP analogue of the CLI
+  install prompt; note it is deliberately STRICTER than the CLI on uninstall
+  (the CLI uninstall does not prompt).
+- Semantics are identical to the CLI verbs: install refreshes the wiring
+  (remove-then-merge, so a changed descriptor propagates) and (re)writes the
+  bridge + its sibling `package.json`; uninstall removes exactly the marked
+  entries (operator hooks untouched), deletes `.skill-map/activity/`, and is
+  idempotent (`removed: false` when nothing was wired).
+- Response `200`: the refreshed status envelope (uninstall adds `removed`).
+- Unknown provider id: `404`. Provider without `activity` or with an
+  unimplemented install kind: `400`.
+
 ## WS event: `node.activity`
 
 Broadcast over `/ws` in the common envelope of
@@ -215,8 +276,10 @@ declares which applies:
   mapping. Future rich surfaces (tool log with arguments, inter-agent conversation
   view) are opt-in config gates, local-UI-only, and file CONTENTS stay excluded
   even then unless explicitly enabled.
-- Installation is explicit: `sm activity install <provider>` is operator-invoked,
-  consent-prompted, writes ONLY project-local provider config (never `$HOME`,
+- Installation is explicit: `sm activity install <provider>` is operator-invoked
+  and consent-prompted, and the SPA equivalent (§Install management over HTTP)
+  sits behind a server-enforced confirm gate on BOTH install and uninstall.
+  Either surface writes ONLY project-local provider config (never `$HOME`,
   per [`cli-contract.md` §Scope is always project-local](./cli-contract.md)), merges
   non-destructively (pre-existing hooks are preserved), and `uninstall` reverses
   exactly what `install` added.

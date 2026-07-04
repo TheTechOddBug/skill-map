@@ -1,5 +1,16 @@
 {
   "hooks": {
+    "UserPromptExpansion": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .skill-map/activity/bridge.js claude"
+          }
+        ],
+        "matcher": "*"
+      }
+    ],
     "PreToolUse": [
       {
         "hooks": [
@@ -34,17 +45,6 @@
       }
     ],
     "SubagentStop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node .skill-map/activity/bridge.js claude"
-          }
-        ],
-        "matcher": "*"
-      }
-    ],
-    "UserPromptExpansion": [
       {
         "hooks": [
           {

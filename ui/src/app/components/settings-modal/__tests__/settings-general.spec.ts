@@ -234,4 +234,91 @@ describe('SettingsGeneral', () => {
       localStorage.removeItem(ACTIVITY_KEY);
     }
   });
+
+  it('real-time toggle disables with a hint while the activity hook is not installed', async () => {
+    interface IHookProto {
+      activityHookInstalled(): boolean | null;
+    }
+    const status = {
+      provider: 'claude',
+      supported: true,
+      installed: false,
+      configPath: '.claude/settings.json',
+      configWired: false,
+      bridgePresent: false,
+      events: 5,
+    };
+    const { fixture } = bootstrap({
+      getPreferences: vi.fn().mockResolvedValue(prefs(true, true)),
+      setPreferences: vi.fn(),
+      getActiveProvider: vi.fn().mockResolvedValue({
+        activeProvider: 'claude',
+        detected: [],
+        source: 'config',
+        selectable: ['claude'],
+        markerDrift: null,
+      }),
+      getActivityInstallStatus: vi.fn().mockResolvedValue(status),
+    } as Partial<IDataSourcePort>);
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+    await flushAsync();
+    fixture.detectChanges();
+
+    const proto = fixture.componentInstance as unknown as IHookProto;
+    expect(proto.activityHookInstalled()).toBe(false);
+    const el: HTMLElement = fixture.nativeElement;
+    expect(
+      el.querySelector('[data-testid="settings-general-live-activity-hook-hint"]'),
+    ).not.toBeNull();
+  });
+
+  it('real-time toggle stays enabled when the hook is installed, and fails OPEN on a probe error', async () => {
+    interface IHookProto {
+      activityHookInstalled(): boolean | null;
+    }
+    // Installed: gate off.
+    const installed = bootstrap({
+      getPreferences: vi.fn().mockResolvedValue(prefs(true, true)),
+      setPreferences: vi.fn(),
+      getActiveProvider: vi.fn().mockResolvedValue({
+        activeProvider: 'claude',
+        detected: [],
+        source: 'config',
+        selectable: ['claude'],
+        markerDrift: null,
+      }),
+      getActivityInstallStatus: vi.fn().mockResolvedValue({
+        provider: 'claude',
+        supported: true,
+        installed: true,
+        configPath: '.claude/settings.json',
+        configWired: true,
+        bridgePresent: true,
+        events: 5,
+      }),
+    } as Partial<IDataSourcePort>);
+    installed.fixture.componentRef.setInput('visible', true);
+    installed.fixture.detectChanges();
+    await flushAsync();
+    await flushAsync();
+    expect(
+      (installed.fixture.componentInstance as unknown as IHookProto).activityHookInstalled(),
+    ).toBe(true);
+
+    // Probe failure: unknown, never locks the toggle.
+    const failing = bootstrap({
+      getPreferences: vi.fn().mockResolvedValue(prefs(true, true)),
+      setPreferences: vi.fn(),
+      getActiveProvider: vi.fn().mockRejectedValue(new Error('down')),
+    } as Partial<IDataSourcePort>);
+    failing.fixture.componentRef.setInput('visible', true);
+    failing.fixture.detectChanges();
+    await flushAsync();
+    await flushAsync();
+    expect(
+      (failing.fixture.componentInstance as unknown as IHookProto).activityHookInstalled(),
+    ).toBe(null);
+  });
 });

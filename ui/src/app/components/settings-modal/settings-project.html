@@ -68,6 +68,42 @@
     </div>
   </div>
 
+  @if (activityError(); as err) {
+    <p-message severity="error" [closable]="false" data-testid="settings-project-activity-hook-error">
+      {{ texts.project.saveErrorPrefix }} {{ err }}
+    </p-message>
+  }
+
+  @if (activityAnnouncement(); as msg) {
+    <p-message severity="info" [closable]="false" data-testid="settings-project-activity-hook-announce">
+      {{ msg }}
+    </p-message>
+  }
+
+  <div class="settings-project__row" data-testid="settings-project-activity-hook-row">
+    <div class="settings-project__row-text">
+      <div class="settings-project__row-label">{{ texts.project.activityHook.label }}</div>
+      <div class="settings-project__row-description">
+        {{ texts.project.activityHook.description }}
+      </div>
+      @if (activityHint(); as hint) {
+        <div class="settings-project__row-meta">
+          <span class="settings-project__meta-line" data-testid="settings-project-activity-hook-hint">
+            {{ hint }}
+          </span>
+        </div>
+      }
+    </div>
+    <p-button
+      [label]="activityButtonLabel()"
+      [disabled]="activityButtonDisabled()"
+      severity="secondary"
+      size="small"
+      (onClick)="onActivityHookToggle()"
+      data-testid="settings-project-activity-hook-button"
+    />
+  </div>
+
   <div class="settings-project__row" data-testid="settings-project-sidecar-writers-row">
     <div class="settings-project__row-text">
       <div class="settings-project__row-label">{{ texts.project.sidecarWritersLabel }}</div>

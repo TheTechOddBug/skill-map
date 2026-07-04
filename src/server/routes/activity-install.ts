@@ -1,0 +1,207 @@
+/**
+ * Live-activity install management (`spec/provider-activity.md`
+ * §Install management over HTTP):
+ *
+ *   - `GET  /api/activity/install?provider=<id>`, install-status probe.
+ *   - `POST /api/activity/install`, HTTP equivalent of
+ *     `sm activity install <provider>`.
+ *   - `POST /api/activity/uninstall`, HTTP equivalent of
+ *     `sm activity uninstall <provider>` (but consent-gated, see below).
+ *
+ * The SPA drives these from Settings → Project (the button below the
+ * lens selector). Both mutating verbs modify files skill-map does not
+ * own (the provider's project-local hook config) plus the bridge
+ * artifact, so they carry a SERVER-ENFORCED consent gate: without
+ * `confirm: true` in the body the route refuses `412 confirm-required`
+ * and touches NOTHING; the SPA surfaces the refusal as an explicit
+ * consent dialog naming the target file and retries. This is the HTTP
+ * analogue of the CLI's TTY prompt, deliberately applied to uninstall
+ * too (stricter than the CLI, which only prompts on install).
+ *
+ * The mechanics live in the shared engine (`core/activity/install.ts`),
+ * the same code the CLI verbs drive, so the two surfaces cannot drift.
+ * Providers resolve off `deps.providers` (built-ins + loaded drop-ins),
+ * a superset of the CLI's built-ins-only set.
+ *
+ * These routes are loopback-gated like every `/api/*` route; they do
+ * NOT take the serve.json token (that authenticates the bridge's ingest
+ * path, not the operator's own UI).
+ */
+
+import type { Hono } from 'hono';
+// eslint-disable-next-line import-x/extensions
+import { HTTPException } from 'hono/http-exception';
+
+import { formatErrorMessage } from '../../kernel/util/format-error.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
+import { tx } from '../../kernel/util/tx.js';
+import type { IProvider } from '../../kernel/extensions/index.js';
+import {
+  activityInstallStatus,
+  installActivityBridge,
+  uninstallActivityBridge,
+} from '../../core/activity/install.js';
+import { SERVER_TEXTS } from '../i18n/server.texts.js';
+import { makeBodyValidator } from '../util/parse-body.js';
+import { parseRequiredString } from '../util/parse-query.js';
+import type { IRouteDeps } from './deps.js';
+
+/** Wire shape of the status probe (and the base of both mutation responses). */
+export interface IActivityInstallStatusEnvelope {
+  provider: string;
+  /** The provider declares `activity` with an implemented install kind. */
+  supported: boolean;
+  /** `configWired && bridgePresent`. */
+  installed: boolean;
+  /** Scope-relative hook config path (`null` when unsupported). */
+  configPath: string | null;
+  configWired: boolean;
+  bridgePresent: boolean;
+  /** How many hook events the descriptor wires. */
+  events: number;
+}
+
+interface IInstallBody {
+  provider: string;
+  /** Server-enforced consent: mutations refuse 412 without `true`. */
+  confirm?: boolean;
+}
+
+const INSTALL_BODY_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['provider'],
+  properties: {
+    provider: { type: 'string', minLength: 1 },
+    confirm: { type: 'boolean' },
+  },
+} as const;
+
+const parseInstallBody = makeBodyValidator<IInstallBody>(INSTALL_BODY_SCHEMA, {
+  notJson: SERVER_TEXTS.activityBodyNotJson,
+  notObject: SERVER_TEXTS.activityBodyNotObject,
+  invalid: SERVER_TEXTS.activityBodyNotObject,
+  mapping: {
+    '/provider:required': SERVER_TEXTS.activityProviderRequired,
+    '/provider:type:string': SERVER_TEXTS.activityProviderRequired,
+    '/provider:minLength': SERVER_TEXTS.activityProviderRequired,
+    '/confirm:type:boolean': SERVER_TEXTS.activityInstallConfirmNotBoolean,
+  },
+});
+
+export function registerActivityInstallRoutes(app: Hono, deps: IRouteDeps): void {
+  app.get('/api/activity/install', (c) => {
+    const id = parseRequiredString(c.req.query('provider'), 'provider');
+    const provider = resolveProviderOr404(deps, id);
+    return c.json(buildStatusEnvelope(deps, provider));
+  });
+
+  app.post('/api/activity/install', async (c) => {
+    const body = await parseInstallBody(c.req.raw);
+    const provider = requireSupported(deps, body.provider);
+    requireConsent(body, provider, SERVER_TEXTS.activityInstallConfirmRequired);
+    try {
+      await installActivityBridge(deps.runtimeContext.cwd, provider);
+    } catch (err) {
+      throw buildIoFailure(SERVER_TEXTS.activityInstallFailed, err);
+    }
+    return c.json(buildStatusEnvelope(deps, provider));
+  });
+
+  app.post('/api/activity/uninstall', async (c) => {
+    const body = await parseInstallBody(c.req.raw);
+    const provider = requireSupported(deps, body.provider);
+    requireConsent(body, provider, SERVER_TEXTS.activityUninstallConfirmRequired);
+    let removed: boolean;
+    try {
+      removed = uninstallActivityBridge(deps.runtimeContext.cwd, provider).removed;
+    } catch (err) {
+      throw buildIoFailure(SERVER_TEXTS.activityUninstallFailed, err);
+    }
+    return c.json({ ...buildStatusEnvelope(deps, provider), removed });
+  });
+}
+
+/** Registered provider by id (activity or not); unknown id → 404. */
+function resolveProviderOr404(deps: IRouteDeps, id: string): IProvider {
+  const provider = deps.providers.find((p) => p.id === id);
+  if (provider === undefined) {
+    throw new HTTPException(404, {
+      message: tx(SERVER_TEXTS.activityInstallUnknownProvider, {
+        provider: sanitizeForTerminal(id),
+      }),
+    });
+  }
+  return provider;
+}
+
+/**
+ * Mutation gate: the provider must exist (404) AND declare an
+ * implemented install kind (400). `json-hooks` is the only shape the
+ * engine writes today; `plugin-file` providers surface as unsupported
+ * until that shape lands.
+ */
+function requireSupported(deps: IRouteDeps, id: string): IProvider {
+  const provider = resolveProviderOr404(deps, id);
+  if (!isSupported(provider)) {
+    throw new HTTPException(400, {
+      message: tx(SERVER_TEXTS.activityInstallUnsupported, {
+        provider: sanitizeForTerminal(id),
+        kind: provider.activity?.install.kind ?? 'none',
+      }),
+    });
+  }
+  return provider;
+}
+
+/** 412 `confirm-required` unless the body carries the explicit consent flag. */
+function requireConsent(
+  body: IInstallBody,
+  provider: IProvider,
+  template: string,
+): void {
+  if (body.confirm === true) return;
+  throw new HTTPException(412, {
+    message: tx(template, { configPath: provider.activity!.install.configPath }),
+  });
+}
+
+function buildIoFailure(template: string, err: unknown): HTTPException {
+  return new HTTPException(400, {
+    message: tx(template, {
+      message: sanitizeForTerminal(formatErrorMessage(err)),
+    }),
+  });
+}
+
+function isSupported(provider: IProvider): boolean {
+  return provider.activity !== undefined && provider.activity.install.kind === 'json-hooks';
+}
+
+function buildStatusEnvelope(
+  deps: IRouteDeps,
+  provider: IProvider,
+): IActivityInstallStatusEnvelope {
+  if (!isSupported(provider)) {
+    return {
+      provider: provider.id,
+      supported: false,
+      installed: false,
+      configPath: null,
+      configWired: false,
+      bridgePresent: false,
+      events: 0,
+    };
+  }
+  const install = provider.activity!.install;
+  const status = activityInstallStatus(deps.runtimeContext.cwd, provider);
+  return {
+    provider: provider.id,
+    supported: true,
+    installed: status.installed,
+    configPath: install.configPath,
+    configWired: status.configWired,
+    bridgePresent: status.bridgePresent,
+    events: install.events?.length ?? 0,
+  };
+}
