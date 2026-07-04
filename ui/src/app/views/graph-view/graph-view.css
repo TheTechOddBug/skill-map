@@ -280,6 +280,80 @@
     var(--sm-shadow-card);
 }
 
+/* Live-activity halo (spec/provider-activity.md): the rotating rainbow
+   GLOW behind an executing card. It cannot live inside <sm-node-card>,
+   the card host clips overflow and a box-shadow cannot express a
+   spatially rotating multi-hue sweep, so an `@if`-gated `.sm-gnode__halo`
+   div inside the [fNode] wrapper (graph-view.html, only in the DOM while
+   the node executes) paints it behind the card.
+
+   Mechanism: the halo div is a clipped, blurred window (rounded rect
+   hugging the card, `overflow: hidden` + `filter: blur`), and its
+   ::before is an oversized conic-gradient square spinning via
+   `transform: rotate()`. Rotating the square bodily is visually
+   identical to animating the conic's `from` angle (what the card's own
+   ring does via `--sm-exec-angle`), but it runs as a composited
+   transform animation instead of re-rasterizing a blurred gradient
+   every frame. 300% sizing keeps the square covering the window's
+   diagonal at any card height up to ~780px. `z-index: -1` tucks the
+   halo behind the card inside the wrapper's own stacking context
+   (Foblex's inline translate creates one), and `pointer-events: none`
+   keeps it from widening the node's click/drag hit area. The rotation
+   never touches the Foblex-owned wrapper `transform` (rule 3 of the
+   foblex-flow skill), it lives on our own inner pseudo.
+
+   Like every live-activity animation, motion sits behind the
+   `prefers-reduced-motion` gate: an OS-level "animation effects off"
+   setting (Windows accessibility) freezes the whole treatment by
+   design, full rainbow, nothing moves. If the effect "does not
+   animate", check `matchMedia('(prefers-reduced-motion: reduce)')`
+   in the affected browser BEFORE debugging the CSS. */
+.sm-gnode__halo {
+  position: absolute;
+  inset: -8px;
+  z-index: -1;
+  border-radius: calc(var(--sm-radius-lg) + 8px);
+  overflow: hidden;
+  filter: blur(10px);
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+.sm-gnode__halo::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 300%;
+  height: 300%;
+  transform: translate(-50%, -50%) rotate(0turn);
+  background: conic-gradient(
+    var(--sm-exec-c1),
+    var(--sm-exec-c2),
+    var(--sm-exec-c3),
+    var(--sm-exec-c4),
+    var(--sm-exec-c5),
+    var(--sm-exec-c1)
+  );
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Same duration/easing/direction as node-card's `sm-exec-spin` so
+     ring and halo rotate as one piece. */
+  .sm-gnode__halo::before {
+    animation: sm-exec-halo-spin 2.4s linear infinite;
+  }
+
+  @keyframes sm-exec-halo-spin {
+    from {
+      transform: translate(-50%, -50%) rotate(0turn);
+    }
+    to {
+      transform: translate(-50%, -50%) rotate(1turn);
+    }
+  }
+}
+
 /* Kind accent and tag styles live in `<sm-node-card>` now (the card
    owns its own `.sm-gnode--{kind}` accent bar and `.sm-gnode__icon-box`
    tinting). This file only retains the host wrapper and the
@@ -340,17 +414,39 @@
 
 /* Live-activity spine (spec/provider-activity.md): both endpoints are
    executing, so the connection lights with them and the chain reads as
-   one live path. Width up + a soft glow on the edge's OWN kind color
-   (`--ff-connection-color`, set per `.f-conn--<kind>` above); full
-   opacity is forced by the inline `[style.opacity]` binding. Declared
-   after `--highlighted` so the wider width wins by source order.
-   `filter` animates safely here, it never touches the Foblex-owned
-   `transform` (rule 3). */
+   one live path. The edge joins the executing rainbow instead of its
+   kind color: base stroke on `--sm-exec-c1` (width up + soft glow via
+   drop-shadow), and under motion the whole subtree (path + dot +
+   arrowhead + glow) sweeps the hue wheel with a `hue-rotate` appended
+   AFTER the drop-shadows (filters apply sequentially, so placing it
+   last tints the shadows too). Full opacity is forced by the inline
+   `[style.opacity]` binding. Declared after `--highlighted` so the
+   wider width wins by source order. `filter` animates safely here, it
+   never touches the Foblex-owned `transform` (rule 3). Reduced-motion
+   users keep the static violet spine, loud but still. */
 .f-conn--executing {
+  --ff-connection-color: var(--sm-exec-c1);
+  --ff-marker-color: var(--sm-exec-c1);
   --ff-connection-width: 3.5px;
-  filter:
-    drop-shadow(0 0 6px color-mix(in srgb, var(--ff-connection-color) 95%, transparent))
-    drop-shadow(0 0 14px color-mix(in srgb, var(--ff-connection-color) 55%, transparent));
+  --sm-exec-edge-glow:
+    drop-shadow(0 0 6px color-mix(in srgb, var(--sm-exec-c1) 95%, transparent))
+    drop-shadow(0 0 14px color-mix(in srgb, var(--sm-exec-c1) 55%, transparent));
+  filter: var(--sm-exec-edge-glow);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .f-conn--executing {
+    animation: sm-exec-edge-hue 4.8s linear infinite;
+  }
+
+  @keyframes sm-exec-edge-hue {
+    from {
+      filter: var(--sm-exec-edge-glow) hue-rotate(0deg);
+    }
+    to {
+      filter: var(--sm-exec-edge-glow) hue-rotate(360deg);
+    }
+  }
 }
 
 /* User-driven edge selection. Clicking an edge flips Foblex's built-in

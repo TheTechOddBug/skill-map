@@ -93,6 +93,23 @@
                 [class.f-conn--executing]="isEdgeExecuting(edge)"
                 [style.opacity]="isEdgeExecuting(edge) ? 1 : es.opacity"
               >
+                <!-- Live-activity spine: while both endpoints execute, the
+                     stroke swaps from the flat kind color to a two-stop
+                     linear gradient ALONG the line (Foblex orients the
+                     `<linearGradient>` to the connection's direction on
+                     redraw), dot side on c1, arrow side on c3, so the edge
+                     reads as energy flowing source-to-target. The colors
+                     ride the shared exec palette via `var()` (the renderer
+                     applies them as inline `stop-color` styles, resolved
+                     against :root), and the `.f-conn--executing` hue-rotate
+                     sweep cycles the whole gradient. Gated with @if so
+                     non-executing edges keep the plain themed stroke. -->
+                @if (isEdgeExecuting(edge)) {
+                  <f-connection-gradient
+                    fStartColor="var(--sm-exec-c1)"
+                    fEndColor="var(--sm-exec-c3)"
+                  />
+                }
                 <!-- Schema-designer style: a circular dot at the source and
                      an arrow at the target. The dot uses the `svg[fMarker]`
                      custom-marker directive with `markerUnits="userSpaceOnUse"`
@@ -153,6 +170,9 @@
                 (dblclick)="openNode(node)"
                 [attr.data-testid]="'graph-node-' + node.id"
               >
+                @if (isExecuting(node.id)) {
+                  <div class="sm-gnode__halo" aria-hidden="true"></div>
+                }
                 <sm-node-card
                   [node]="node.view"
                   [stats]="node.stats"
@@ -193,6 +213,9 @@
                   (dblclick)="openNode(node)"
                   [attr.data-testid]="'graph-node-' + node.id"
                 >
+                  @if (isExecuting(node.id)) {
+                    <div class="sm-gnode__halo" aria-hidden="true"></div>
+                  }
                   <sm-node-card
                     [node]="node.view"
                     [stats]="node.stats"

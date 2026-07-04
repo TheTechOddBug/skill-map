@@ -79,6 +79,17 @@
   --sm-violet-700: #6D28D9;
   --sm-violet-800: #4C1D95;
   --sm-violet-900: #2E1065;
+
+  /* Live-activity rainbow (spec/provider-activity.md). Deliberately
+     theme-independent: the five saturated stops ARE the effect (no theme
+     token can express a multi-hue sweep), shared by the node card's
+     conic ring + ribbon (node-card.css), the rotating halo behind an
+     executing card and the executing edge treatment (graph-view.css). */
+  --sm-exec-c1: #a78bfa;
+  --sm-exec-c2: #22d3ee;
+  --sm-exec-c3: #34d399;
+  --sm-exec-c4: #fbbf24;
+  --sm-exec-c5: #fb7185;
 }
 
 html,

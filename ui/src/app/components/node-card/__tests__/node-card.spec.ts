@@ -317,3 +317,36 @@ describe('NodeCard, favorite star button', () => {
     expect(events).toEqual([{ path: 'agents/architect.md', value: false }]);
   });
 });
+
+describe('NodeCard, live-activity executing state (spec/provider-activity.md)', () => {
+  /**
+   * The whole "AI is working" visual treatment (conic ring, ribbon, and
+   * the graph-side halo/edge styles) hangs off the `sm-gnode--executing`
+   * host class, so the input -> class contract is the unit-testable
+   * surface; the CSS animations themselves are visual-smoke territory.
+   */
+  function bootstrapWithExecuting(executing: boolean): HTMLElement {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({});
+    const fixture = TestBed.createComponent(NodeCard);
+    fixture.componentRef.setInput('node', makeNode());
+    fixture.componentRef.setInput('executing', executing);
+    fixture.detectChanges();
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  it('applies sm-gnode--executing on the host while the executing input is true', () => {
+    const dom = bootstrapWithExecuting(true);
+    expect(dom.classList.contains('sm-gnode--executing')).toBe(true);
+  });
+
+  it('drops the class when the executing input is false', () => {
+    const dom = bootstrapWithExecuting(false);
+    expect(dom.classList.contains('sm-gnode--executing')).toBe(false);
+  });
+
+  it('defaults to not executing when the input is never set', () => {
+    const dom = bootstrap(makeNode());
+    expect(dom.classList.contains('sm-gnode--executing')).toBe(false);
+  });
+});
