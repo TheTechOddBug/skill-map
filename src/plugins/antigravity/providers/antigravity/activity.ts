@@ -134,14 +134,20 @@ function relativizeAgainstWorkspaces(absolutePath: string, roots: unknown): stri
 }
 
 /**
- * Conversation Stop → node-less OWNER RELEASE: every claim this
- * conversation holds goes dark natively the moment the agent idles,
- * instead of waiting out the decay window. Detected structurally
- * (`terminationReason` only appears on the Stop payload); requires a
- * `conversationId` to release anything.
+ * Conversation Stop → node-less OWNER RELEASE, but ONLY when the
+ * conversation is FULLY idle. Antigravity fires Stop every time a
+ * conversation naps (live-verified 2026-07-05: an orchestrating main
+ * stops with `fullyIdle: false` while its subagents still run, then
+ * wakes on their `send_message`); releasing on those mid-run naps
+ * darkened the whole chain prematurely. `fullyIdle: false` therefore
+ * disclaims; the release fires on `fullyIdle: true` (and, defensively,
+ * when the field is absent on older runtimes, preserving the previous
+ * behavior there). Detected structurally (`terminationReason` only
+ * appears on the Stop payload); requires a `conversationId`.
  */
 function mapConversationStop(event: Record<string, unknown>): IActivitySignal[] | null {
   if (typeof event['terminationReason'] !== 'string') return null;
+  if (event['fullyIdle'] === false) return null;
   const owner = nonEmptyString(event['conversationId']);
   if (!owner) return null;
   return [{ phase: 'end', owner, ownerScope: true }];

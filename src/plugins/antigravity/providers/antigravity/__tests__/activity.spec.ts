@@ -115,6 +115,31 @@ describe('antigravityActivity.mapEvent', () => {
     ]);
   });
 
+  it('a mid-run nap Stop (fullyIdle: false) disclaims instead of darkening the chain', () => {
+    // Live-verified 2026-07-05: an orchestrating main fires Stop with
+    // fullyIdle: false every time it naps while subagents run, then
+    // wakes on their send_message. Releasing there darkened everything.
+    const signals = antigravityActivity.mapEvent({
+      ...COMMON,
+      error: '',
+      executionNum: 0,
+      fullyIdle: false,
+      terminationReason: 'NO_TOOL_CALL',
+    });
+    assert.equal(signals, null);
+  });
+
+  it('a Stop WITHOUT the fullyIdle field keeps releasing (older runtimes)', () => {
+    const signals = antigravityActivity.mapEvent({
+      ...COMMON,
+      error: '',
+      terminationReason: 'NO_TOOL_CALL',
+    });
+    assert.deepEqual(signals, [
+      { phase: 'end', owner: '10975125-a914-4b97-8f7c-871ec06e4dfc', ownerScope: true },
+    ]);
+  });
+
   it('disclaims invocation pulses, tool-less siblings, and malformed payloads', () => {
     // PreInvocation pulse.
     assert.equal(
