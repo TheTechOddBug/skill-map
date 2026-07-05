@@ -5,8 +5,9 @@ description: |
   chapters that a first-time tester walks end to end. It opens with
   a live-UI prologue (the tester runs `sm`, opens the browser, and
   watches the map update as `.md` files are edited), then a menu of
-  further parts (extend skill-map with plugins/settings/slots, the
-  CLI in depth). The skill is invoked from an empty directory and
+  further parts (watch your agent light the map up in real time,
+  extend skill-map with plugins/settings/slots, the CLI in depth).
+  The skill is invoked from an empty directory and
   lays its fixture there directly. State persists in
   `tutorial-state.json` for pause/resume. Triggers: "tutorial",
   "sm-tutorial", "tutorial me", "run the tutorial", "ejecuta el
@@ -218,9 +219,11 @@ message or hand-edit the state file.** See `references/fixtures.md`
 for the data layout and the verb surface.
 
 - **Fixture sets** (laid by `fixtures.js lay <set>` / `seed <snap>`):
-  `universal` (the two files above), `prologue` (the Part 0 demo),
-  `portfolio` (Part 1 boot + harness members), `harness` (the connect
-  chapters, now folded into Part 1), `master` (Part 3 Extend),
+  `universal` (the two files above), `prologue` (the Part 0 demo,
+  reused by the Part 4 `cli` seed), `portfolio`
+  (Part 1 boot + harness members; the `harness-connected` seed
+  fast-forwards Parts 2 + 3 onto it), `harness` (the connect
+  chapters, now folded into Part 1), `master` (Part 5 Extend),
   `cli-external` (Part 4 reference-paths). The script resolves the
   `__PROVIDER__` token,
   skips kinds the provider does not claim, and reports `nodeCount` +
@@ -247,6 +250,14 @@ chapter rows from the manifest). Then honour the part's `preflight`.
 All commands below are backstage (silent); fill `<provider>` and
 `<lang>` from `tutorial.{provider,lang}`. The fixture scripts resolve
 the `__PROVIDER__` token and skip kinds the provider does not claim.
+
+**Hook hygiene before dropping the DB**: any preflight step below that
+runs `rm -rf .skill-map` first checks the state: if the `realtime` part
+is recorded (`state.js status`), silently run
+`sm activity uninstall <provider>` BEFORE the removal (an Inviolable
+rule #1 exception, see `_core.md`), so no provider hook is left
+pointing at a deleted bridge. Re-entering `realtime` re-teaches the
+install.
 
 - **`taught-init`** (Part 0 `fundamentals` rich / `basic-fundamentals`
   basic): the prologue reveals its fixture progressively, so on entry
@@ -283,7 +294,7 @@ the `__PROVIDER__` token and skip kinds the provider does not claim.
   parts use `preflight: seed`; `portfolio-init` is Part 1's flavour,
   handling the Part 0 to Part 1 transition.)
 
-- **`backstage-init`** (Part 3 `extend`): teaches plugins on its own
+- **`backstage-init`** (Part 5 `extend`): teaches plugins on its own
   **master fixture**. On entry, silently:
   1. Clear whatever prior fixture is present (each a no-op when absent),
      then drop the DB: `fixtures.js clear prologue --provider <provider>`,
@@ -291,7 +302,7 @@ the `__PROVIDER__` token and skip kinds the provider does not claim.
   2. `sm init --no-scan` (the pre-flight `.skillmapignore` stays).
   3. `fixtures.js lay master --provider <provider> --lang <lang>`.
 
-  On a Part 3 re-entry where the master fixture is already in place the
+  On a Part 5 re-entry where the master fixture is already in place the
   clears + lay are idempotent; just `sm scan`.
 
 - **`seed: prologue-built`** (Part 4 `cli`): reads the Part 0 demo
@@ -307,8 +318,8 @@ the `__PROVIDER__` token and skip kinds the provider does not claim.
   3. `sm init` (single `.claude/` marker, no lens prompt), then `sm scan`.
      If `.skill-map/` already exists, skip the init and just `sm scan`.
 
-- **`seed`** (campaign part `daily-loop`): builds on the accumulating
-  portfolio, but the tester may have jumped here. Run `state.js status`;
+- **`seed`** (campaign parts `daily-loop` + `realtime`): builds on the
+  accumulating portfolio, but the tester may have jumped here. Run `state.js status`;
   if every predecessor up the `prereq` chain is `done`, the harness is
   already on disk, just `sm scan`. Otherwise **fast-forward, silently**:
   1. If the prologue ran first here, `fixtures.js clear prologue --provider <provider>`.
@@ -328,6 +339,14 @@ the `__PROVIDER__` token and skip kinds the provider does not claim.
      > I set the project up to where this part begins, so you can start
      > here. The earlier parts that build up to this are still in the
      > menu if you want them later.
+
+  Three extras for `realtime`: check the part header's **lens gate**
+  BEFORE `pick` (on `agent-skills` the part exits back to the menu
+  untouched, nothing seeded, nothing marked); on the basic track the
+  predecessor to mark skipped is `basic-kickoff`, not `project-kickoff`;
+  and a re-invocation mid-part after the taught agent restart is
+  RESUME, not entry, do NOT re-seed (the fixture and the DB are
+  already on disk; see the part header).
 
 Either way, then walk the part's chapters in manifest order,
 dispatching each chapter id to its `step_file` per the §Per-step cycle

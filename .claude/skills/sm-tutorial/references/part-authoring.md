@@ -1,6 +1,6 @@
-# Part 4 (c): Extend skill-map - build plugins (step library, `authoring-*` ids)
+# Part 5 (c): Extend skill-map - build plugins (step library, `authoring-*` ids)
 
-Step bodies for the plugin-authoring chapters of Part 4.
+Step bodies for the plugin-authoring chapters of Part 5.
 The SKILL.md orchestrator dispatches each `authoring-*` chapter id
 here; `settings-*` ids it dispatches to `part-settings.md`.
 

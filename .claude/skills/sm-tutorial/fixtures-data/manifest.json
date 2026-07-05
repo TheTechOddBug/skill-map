@@ -48,6 +48,13 @@
     ],
     "cli-external": [
       "link-validation"
+    ],
+    "realtime-hook": [
+      ".claude/settings.json",
+      ".codex/hooks.json",
+      ".agents/hooks.json",
+      ".opencode/plugin/skill-map-activity.js",
+      ".skill-map/activity"
     ]
   },
   "edits": {

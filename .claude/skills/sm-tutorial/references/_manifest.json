@@ -309,8 +309,36 @@
       ]
     },
     {
-      "id": "cli",
+      "id": "realtime",
       "order": 3,
+      "title": "Real time: watch your agent run",
+      "status": "active",
+      "preflight": "seed",
+      "seed": "harness-connected",
+      "prereq": "project-kickoff",
+      "pace": "per-step",
+      "track": "both",
+      "chapters": [
+        {
+          "id": "wire",
+          "title": "Wire the live-activity hook",
+          "est_min": 3
+        },
+        {
+          "id": "live",
+          "title": "Restart and watch nodes light up",
+          "est_min": 3
+        },
+        {
+          "id": "conversations",
+          "title": "Capture agent conversations (opt-in)",
+          "est_min": 3
+        }
+      ]
+    },
+    {
+      "id": "cli",
+      "order": 4,
       "title": "The CLI for you and your agent",
       "status": "active",
       "preflight": "seed",
@@ -348,7 +376,7 @@
     },
     {
       "id": "extend",
-      "order": 4,
+      "order": 5,
       "title": "Extend skill-map with plugins",
       "status": "active",
       "preflight": "backstage-init",
@@ -416,7 +444,7 @@
     },
     {
       "id": "mcp",
-      "order": 5,
+      "order": 6,
       "title": "MCP",
       "status": "planned",
       "preflight": "seed",

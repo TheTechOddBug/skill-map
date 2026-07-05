@@ -170,7 +170,7 @@ describe('sm-tutorial state.js', () => {
     run(['mark', 'fundamentals', 'init', 'done'], cwd);
     const r = run(['status'], cwd);
     const parts = r.json.parts as any[];
-    assert.deepEqual(parts.map((p) => p.id), ['fundamentals', 'project-kickoff', 'daily-loop', 'cli', 'extend']);
+    assert.deepEqual(parts.map((p) => p.id), ['fundamentals', 'project-kickoff', 'daily-loop', 'realtime', 'cli', 'extend']);
     assert.equal(parts.find((p) => p.id === 'mcp'), undefined);
     const fund = parts[0];
     assert.equal(fund.status, 'in_progress');
@@ -184,11 +184,14 @@ describe('sm-tutorial state.js', () => {
     init(cwd);
     run(['pick', 'fundamentals'], cwd);
     run(['pick', 'project-kickoff'], cwd);
+    run(['pick', 'realtime'], cwd);
     // Plant the tutorial fixtures the wipe should remove.
     mkdirSync(join(cwd, '.claude', 'agents'), { recursive: true });
     mkdirSync(join(cwd, 'notes'), { recursive: true });
     mkdirSync(join(cwd, '.skill-map'), { recursive: true });
     writeFileSync(join(cwd, '.claude', 'agents', 'demo-agent.md'), 'x');
+    // The realtime part's `sm activity install` wires the hook config.
+    writeFileSync(join(cwd, '.claude', 'settings.json'), '{"hooks":{}}');
     writeFileSync(join(cwd, 'notes', 'todo.md'), 'x');
     writeFileSync(join(cwd, 'AGENTS.md'), 'x');
     writeFileSync(join(cwd, 'export.json'), 'x');
@@ -201,6 +204,9 @@ describe('sm-tutorial state.js', () => {
     assert.ok(paths.includes('AGENTS.md'));
     assert.ok(paths.includes('notes/todo.md'));
     assert.ok(paths.includes('export.json'));
+    // The realtime-hook footprint rides the wipe (all four provider configs listed).
+    assert.ok(paths.includes('.claude/settings.json'));
+    assert.ok(paths.includes('.opencode/plugin/skill-map-activity.js'));
     assert.ok(!paths.includes('notes/keepme.md'));
     // wipe-list is read-only.
     assert.ok(existsSync(join(cwd, 'AGENTS.md')));
@@ -211,6 +217,7 @@ describe('sm-tutorial state.js', () => {
     assert.ok(!existsSync(join(cwd, 'AGENTS.md')));
     assert.ok(!existsSync(join(cwd, 'notes', 'todo.md')));
     assert.ok(!existsSync(join(cwd, '.skill-map')));
+    assert.ok(!existsSync(join(cwd, '.claude', 'settings.json')));
     // User file + its now-non-empty parent survive.
     assert.ok(existsSync(join(cwd, 'notes', 'keepme.md')));
   });

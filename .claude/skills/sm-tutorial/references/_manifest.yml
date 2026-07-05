@@ -79,7 +79,7 @@ parts:
       - id: ignore          ; title: "Silence a file via .skillmapignore"  ; est_min: 1
 
   - id: extend
-    order: 4
+    order: 5
     title: "Extend skill-map with plugins"
     # Spans three chapter libraries; dispatch by chapter-id prefix:
     #   settings-*  -> part-settings.md
@@ -108,7 +108,7 @@ parts:
       - id: authoring-5-doctor-author ; title: "Catch a manifest mistake with `sm plugins doctor`" ; est_min: 2
 
   - id: cli
-    order: 3
+    order: 4
     title: "The CLI for you and your agent"
     step_file: part-cli.md
     pace: auto-advance
@@ -170,6 +170,24 @@ parts:
       - id: stability        ; title: "Set a node's stability (and the `.sm` sidecar)" ; est_min: 3
       - id: golive           ; title: "Your website, live next to the graph" ; est_min: 3
 
+  - id: realtime
+    order: 3
+    title: "Real time: watch your agent run"
+    step_file: part-realtime.md
+    pace: per-step
+    preflight: seed            # fast-forwards to the connected portfolio, same flavour as `daily-loop`
+    seed: harness-connected    # the campaign project (the portfolio), NOT the prologue demo
+    prereq: project-kickoff    # recommended predecessor (basic track: basic-kickoff); realtime seeds, so it is always shown
+    fixture: portfolio         # reuses the wired harness the campaign built
+    track: both                # hook install + consent are lens-agnostic; the part body carries
+                               # per-provider trigger deltas and gates the pure agent-skills lens
+                               # (no runtime to hook) with an in-part note, not a menu filter
+    status: active
+    chapters:
+      - id: wire          ; title: "Wire the live-activity hook" ; est_min: 3
+      - id: live          ; title: "Restart and watch nodes light up" ; est_min: 3
+      - id: conversations ; title: "Capture agent conversations (opt-in)" ; est_min: 3
+
   # ----- the basic-track campaign (the Agent Skills open standard; vendors like Antigravity build on it) -----
   # Mirrors the rich campaign arc with skill + markdown only, connected by
   # markdown references. Same fixtures (portfolio / harness) laid under the
@@ -216,7 +234,7 @@ parts:
 
   # ----- parked: MCP returns later as its own iteration (body kept in part-mcp.md) -----
   - id: mcp
-    order: 5
+    order: 6
     title: "MCP"
     step_file: part-mcp.md
     pace: auto-advance

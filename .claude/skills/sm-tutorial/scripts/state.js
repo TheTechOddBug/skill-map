@@ -242,6 +242,11 @@ function computeWipePaths(state) {
   if (has('extend')) addFootprint('master');
   // `cli` seeds the prologue demo fixture plus its external-ref demo.
   if (has('cli')) { addFootprint('prologue'); addFootprint('cli-external'); }
+  // `realtime` seeds the connected portfolio (harness-connected), and
+  // `sm activity install` wires the provider's hook config + the bridge
+  // artifact; without this the wipe would leave a hook pointing at a
+  // deleted bridge (safe: the tutorial cwd started empty by contract).
+  if (has('realtime')) { addFootprint('portfolio'); addFootprint('realtime-hook'); }
 
   try {
     for (const entry of readdirSync(process.cwd())) {
@@ -256,7 +261,9 @@ function rmdirEmptyParents(state) {
   const pd = providerDir(state.tutorial?.provider ?? 'claude');
   // Children before parents; `rmdirSync` only removes empty dirs, so the
   // tutorial's own skill dir under `<pd>/skills/` keeps `<pd>` alive.
-  const candidates = ['notes', 'docs', 'public', `${pd}/agents`, `${pd}/skills`, `${pd}/commands`, pd];
+  // `.opencode/plugin` empties when the realtime footprint removes the
+  // activity plugin; `.opencode` itself is the vendor marker and stays.
+  const candidates = ['notes', 'docs', 'public', `${pd}/agents`, `${pd}/skills`, `${pd}/commands`, pd, '.opencode/plugin'];
   for (const rel of candidates) {
     try {
       rmdirSync(join(process.cwd(), rel));

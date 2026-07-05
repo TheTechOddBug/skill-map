@@ -20,7 +20,8 @@ Two numbering systems coexist; keep them apart:
 
 - **Internal (authoring only)**: the `order` field in `_manifest.yml`
   and the `# Part N` file headers, 0-based (Part 0 the prologue …
-  Part 3 the CLI deep-dive, Part 4 the Extend dev section; `mcp` at Part 5 is parked / hidden). Use it
+  Part 3 Real Time, Part 4 the CLI deep-dive, Part 5 the Extend dev
+  section; `mcp` at Part 6 is parked / hidden). Use it
   in author notes; NEVER say it to the tester, it is off by one from
   what they see.
 - **Tester-facing (`S.N`)**: every part is a **section** numbered by
@@ -199,6 +200,11 @@ first kind quoted, the second kind never.
      any scan. The universal `.skillmapignore` written in pre-flight
      already keeps the tutorial's own files out, so there is nothing
      to append here.
+   - `sm activity uninstall <provider>` ONCE, silently, when a
+     part-entry preflight is about to `rm -rf .skill-map` and the
+     state records the `realtime` part (otherwise its hook is left
+     pointing at a deleted bridge; see SKILL.md §Entering a part,
+     "Hook hygiene").
    Parts with `preflight: taught-init` (e.g. Part 0) do NOT run
    `sm init` in pre-flight, the tester runs it as the first taught
    step. You also DO NOT run `sm plugins create` on their behalf;
@@ -517,7 +523,8 @@ NO blank line between a title and its description; ONE blank line
 between parts; NO outer blockquote around the whole menu. Close with a
 short "¿Cuál?" / "Which one?" on its own line.
 
-**Developer aside for section 5 (Extend)**: append to its one-line
+**Developer aside for the Extend section** (the last one in the menu):
+append to its one-line
 description a short note that this section is mostly for developers
 who want to get more out of skill-map (writing plugins, tuning
 settings, moving view-slots). Mirror the tester's language.

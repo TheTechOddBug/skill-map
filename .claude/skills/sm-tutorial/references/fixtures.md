@@ -43,8 +43,8 @@ fixtures-data/
 | `prologue` | the seven Part 0 demo nodes | Part 0 (progressive, `--only`), `prologue-built` seed |
 | `portfolio` | Express skeleton, handbook, `content-editor`, `docs/STYLE` + `DEPLOY` | Part 1 (`--only` boot, chapters lay the rest), `harness-connected` seed |
 | `harness` | `check-links` skill, `publish` command | Part 1 connect chapters, `harness-connected` seed |
-| `master` | `master-agent`, `master-skill`, `notes/ideas` | Part 4 `backstage-init` |
-| `cli-external` | `link-validation/hijoA` + `hijoB` | Part 3 `reference-paths` |
+| `master` | `master-agent`, `master-skill`, `notes/ideas` | Part 5 `backstage-init` |
+| `cli-external` | `link-validation/hijoA` + `hijoB` | Part 4 `reference-paths` |
 
 ## Edits (append fragments)
 
@@ -65,8 +65,8 @@ entered out of order.
 
 | Seed | Lays | Edits | Drops |
 |---|---|---|---|
-| `prologue-built` (Part 3) | `prologue` | `todo-connectors` | `notes/private-credentials.md` |
-| `harness-connected` (Part 2) | `portfolio` + `harness` | `agents-hub`, `content-editor-style` | , |
+| `prologue-built` (Part 4 `cli`) | `prologue` | `todo-connectors` | `notes/private-credentials.md` |
+| `harness-connected` (Part 2 `daily-loop`, Part 3 `realtime`) | `portfolio` + `harness` | `agents-hub`, `content-editor-style` | , |
 
 ## Footprints (what `clear` and `wipe` remove)
 
@@ -75,7 +75,11 @@ fixture, INCLUDING files a part's later chapters add (the daily loop's
 `public/style.css` + generated pages, the renamed `new-page` command,
 `AGENTS.sm`; the portfolio's `DEPLOYMENT.md` rename). `fixtures.js clear <footprint>` (part-entry resets) and
 `state.js wipe` (start-over) both read it, so the per-fixture path list
-lives in ONE place. Add or drop a harness file there.
+lives in ONE place. Add or drop a harness file there. The
+`realtime-hook` footprint has no matching set: it covers what
+`sm activity install` writes during Part 3 (the four provider hook
+configs plus the bridge dir), so a start-over never leaves a hook
+pointing at a deleted bridge.
 
 ## Changing a fixture
 
