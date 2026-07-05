@@ -20,7 +20,25 @@ describe('opencodeActivity.mapEvent', () => {
   it('declares the plugin-file descriptor (no events list, no group)', () => {
     assert.equal(opencodeActivity.install.kind, 'plugin-file');
     assert.equal(opencodeActivity.install.configPath, '.opencode/plugin/skill-map-activity.js');
-    assert.equal(opencodeActivity.install.events, undefined);
+    assert.equal('events' in opencodeActivity.install, false);
+  });
+
+  it('pluginHooksSource registers exactly the consumed hooks, with the wiring filters', () => {
+    const source = opencodeActivity.pluginHooksSource!;
+    for (const hook of [
+      "'tool.execute.before'",
+      "'tool.execute.after'",
+      "'command.execute.before'",
+      "'chat.message'",
+    ]) {
+      assert.ok(source.includes(hook), hook);
+    }
+    // Wiring-level filters: only the spawn tool's completion and the
+    // native end signal ever leave the host process.
+    assert.ok(source.includes("input.tool === 'task'"));
+    assert.ok(source.includes("event.type === 'session.idle'"));
+    // Every registration forwards through the envelope's forward().
+    assert.ok(source.includes("await forward('tool.execute.before'"));
   });
 
   it('maps the skill tool to a NAMED skill start (prose-invoked, real capture)', () => {

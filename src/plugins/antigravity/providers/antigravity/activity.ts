@@ -47,8 +47,11 @@ import type {
   IActivitySignal,
   IProviderActivityAdapter,
 } from '../../../../kernel/extensions/index.js';
-
-const MAIN_OWNER = 'main';
+import {
+  MAIN_OWNER,
+  nonEmptyString,
+  relativizeMarkdownPath,
+} from '../../../../kernel/util/activity-adapter.js';
 
 export const antigravityActivity: IProviderActivityAdapter = {
   install: {
@@ -113,24 +116,9 @@ function mapFileView(
   event: Record<string, unknown>,
   args: Record<string, unknown>,
 ): IActivitySignal[] | null {
-  const absolutePath = nonEmptyString(args['AbsolutePath']);
-  if (!absolutePath) return null;
-  if (!absolutePath.toLowerCase().endsWith('.md')) return null;
-  const relative = relativizeAgainstWorkspaces(absolutePath, event['workspacePaths']);
+  const relative = relativizeMarkdownPath(args['AbsolutePath'], event['workspacePaths']);
   if (relative === null) return null;
   return [{ path: relative, phase: 'start', owner: ownerOf(event) }];
-}
-
-function relativizeAgainstWorkspaces(absolutePath: string, roots: unknown): string | null {
-  if (!Array.isArray(roots)) return null;
-  for (const root of roots) {
-    if (typeof root !== 'string' || root.length === 0) continue;
-    const prefix = root.endsWith('/') ? root : `${root}/`;
-    if (absolutePath.startsWith(prefix) && absolutePath.length > prefix.length) {
-      return absolutePath.slice(prefix.length);
-    }
-  }
-  return null;
 }
 
 /**
@@ -156,8 +144,4 @@ function mapConversationStop(event: Record<string, unknown>): IActivitySignal[] 
 /** `conversationId` (one per (sub)conversation) is the owner grouping key. */
 function ownerOf(event: Record<string, unknown>): string {
   return nonEmptyString(event['conversationId']) ?? MAIN_OWNER;
-}
-
-function nonEmptyString(value: unknown): string | null {
-  return typeof value === 'string' && value.length > 0 ? value : null;
 }

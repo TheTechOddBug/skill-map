@@ -50,10 +50,17 @@ Two halves:
 
 - **Declarative (manifest JSON)**: the `install` descriptor. Where the provider's
   project-local hook config lives (`configPath`, always relative to the scope root)
-  and which install shape applies (`kind`).
+  and which install shape applies (`kind`). The remaining fields are PER-KIND:
+  `events` / `group` / `commandCwd` parameterize the spawned-bridge wiring and are
+  valid ONLY on `json-hooks` descriptors (schema-enforced; a `plugin-file`
+  descriptor carries only `kind` + `configPath`).
 - **Runtime (TypeScript only, never in the manifest, mirroring `classify()` /
   `walk()`)**: `mapEvent(raw)` receives one raw provider hook payload and returns
-  zero or more activity signals, or `null` to disclaim. A signal names its unit in
+  zero or more activity signals, or `null` to disclaim. Providers with a
+  `plugin-file` install additionally supply `pluginHooksSource`, the
+  hook-registration half of the generated in-process plugin (see the
+  `plugin-file` paragraph below); like `mapEvent`, it is payload knowledge and
+  lives with the Provider, never in the manifest. A signal names its unit in
   one of two forms:
   - **By name**: `{ kind, name, phase, owner? }`. The generic BFF mapper resolves
     `(kind, name)` to a scanned `node.path` using the provider's kind identifiers
@@ -140,17 +147,23 @@ tool events) is identical in both shapes.
 
 `plugin-file` installs write ONE self-contained plugin file at `configPath`
 (opencode: `.opencode/plugin/skill-map-activity.js`, loaded in-process by the
-runtime). The file IS both the wiring and the bridge: it registers exactly the
-hooks the provider's `mapEvent` consumes (the in-process analog of the
-`events` list, which `plugin-file` descriptors omit), wraps each payload as
-`{ hook, directory, ... }` and POSTs it to the ingest route following the same
-discovery + invariants as the spawned bridge (§Bridge contract: serve.json
-under the plugin context's project directory, scope + loopback + token checks,
-fail-open, and NEVER throwing, an exception inside an in-process hook could
-alter the host session, the in-process analog of the exit-0 invariant).
-Status: `configWired` and `bridgePresent` both derive from that one file
-(present and carrying the skill-map header marker); uninstall deletes exactly
-it and touches nothing else.
+runtime). The file IS both the wiring and the bridge, and its source splits
+along the same ownership line as the rest of the capability: the install
+engine owns the ENVELOPE (the header marker, `serve.json` discovery under the
+plugin context's project directory, scope + loopback + token checks, the
+fetch timeout, and the NEVER-throw invariant, an exception inside an
+in-process hook could alter the host session, the in-process analog of the
+exit-0 invariant, §Bridge contract), while the Provider supplies the
+HOOK-REGISTRATION half via its runtime `pluginHooksSource` (the in-process
+analog of the `events` list, which `plugin-file` descriptors MUST omit): it
+registers exactly the hooks `mapEvent` consumes, applies any wiring-level
+filters (dropping high-frequency host traffic before it ever leaves the
+process), and forwards each payload as a `{ hook, directory, ... }` wrapper
+through the envelope's POST. Payload knowledge therefore stays with the
+Provider even in the generated artifact; the engine never names another
+runtime's hooks. Status: `configWired` and `bridgePresent` both derive from
+that one file (present and carrying the skill-map header marker); uninstall
+deletes exactly it and touches nothing else.
 
 ## `serve.json` (server discovery file)
 
@@ -278,8 +291,13 @@ Body: `{ "provider": "<id>", "confirm": true }`.
 - Semantics are identical to the CLI verbs: install refreshes the wiring
   (remove-then-merge, so a changed descriptor propagates) and (re)writes the
   bridge + its sibling `package.json`; uninstall removes exactly the marked
-  entries (operator hooks untouched), deletes `.skill-map/activity/`, and is
-  idempotent (`removed: false` when nothing was wired).
+  entries (operator hooks untouched) and is idempotent (`removed: false` when
+  nothing was wired). The bridge artifact under `.skill-map/activity/` is
+  SHARED across `json-hooks` providers: uninstall deletes it only when no
+  OTHER such provider's config remains wired (mirroring
+  [`cli-contract.md` §Activity](./cli-contract.md): "delete the bridge
+  artifact when no installed provider references it anymore"); a
+  `plugin-file` uninstall never touches it.
 - Response `200`: the refreshed status envelope (uninstall adds `removed`).
 - Unknown provider id: `404`. Provider without `activity` or with an
   unimplemented install kind: `400`.

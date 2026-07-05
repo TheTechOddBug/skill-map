@@ -505,37 +505,43 @@ export interface IActivitySignal {
 /**
  * Declarative install descriptor consumed by `sm activity install
  * <provider>`: where the provider's PROJECT-LOCAL hook config lives and
- * which install shape applies. Mirrors
- * `extensions/provider.schema.json#/properties/activity/properties/install`.
+ * which install shape applies. Discriminated on `kind` so each shape
+ * carries ONLY the fields that parameterize it, mirroring the schema's
+ * per-kind gate in
+ * `extensions/provider.schema.json#/properties/activity/properties/install`
+ * (a `plugin-file` descriptor with wiring knobs is invalid there too).
  */
-export interface IActivityInstall {
-  /**
-   * Install shape. `json-hooks`: merge hook entries that spawn the
-   * activity bridge command into a JSON settings/hooks file.
-   * `plugin-file`: write an in-process plugin file that POSTs to the
-   * ingest route directly (no spawn).
-   */
-  kind: 'json-hooks' | 'plugin-file';
+export type TActivityInstall = IActivityInstallJsonHooks | IActivityInstallPluginFile;
+
+/** Fields shared by every install shape. */
+export interface IActivityInstallBase {
   /**
    * Path of the provider's hook config file (`json-hooks`) or the plugin
    * file to write (`plugin-file`), relative to the scope root. No leading
    * slash, no `..` traversal; the consuming verb joins it onto the cwd.
    */
   configPath: string;
+}
+
+/**
+ * `json-hooks`: merge hook entries that spawn the activity bridge
+ * command into a JSON settings/hooks file.
+ */
+export interface IActivityInstallJsonHooks extends IActivityInstallBase {
+  kind: 'json-hooks';
   /**
-   * For `json-hooks`: the provider lifecycle events to wire the bridge
-   * into, with an optional per-event matcher in the provider runtime's
-   * own matcher grammar. Only the events `mapEvent` actually consumes
-   * belong here, every wired event spawns one bridge process at runtime,
-   * so a tight list keeps the overhead proportional to the signal.
-   * Ignored for `plugin-file` installs.
+   * The provider lifecycle events to wire the bridge into, with an
+   * optional per-event matcher in the provider runtime's own matcher
+   * grammar. Only the events `mapEvent` actually consumes belong here,
+   * every wired event spawns one bridge process at runtime, so a tight
+   * list keeps the overhead proportional to the signal.
    */
   events?: readonly IActivityInstallEvent[];
   /**
-   * For `json-hooks` with a NAMED-GROUP document shape (Antigravity's
-   * `.agents/hooks.json`): the top-level group key skill-map owns in the
-   * hook document. Claude / Codex nest the event map under the vendor's
-   * fixed `hooks` key (operator entries coexist inside, marker-filtered);
+   * NAMED-GROUP document shape (Antigravity's `.agents/hooks.json`):
+   * the top-level group key skill-map owns in the hook document.
+   * Claude / Codex nest the event map under the vendor's fixed `hooks`
+   * key (operator entries coexist inside, marker-filtered);
    * Antigravity's document maps GROUP NAMES to event maps, so skill-map
    * writes its entries under its own group and uninstall removes exactly
    * that group. Omitted = the conventional `hooks` container. The inner
@@ -556,6 +562,16 @@ export interface IActivityInstall {
    * path resolution.
    */
   commandCwd?: 'scope-root' | 'config-dir';
+}
+
+/**
+ * `plugin-file`: write an in-process plugin file that POSTs to the
+ * ingest route directly (no spawn). Carries NO wiring knobs: the
+ * hook-registration half is the adapter's `pluginHooksSource` (code,
+ * never manifest data).
+ */
+export interface IActivityInstallPluginFile extends IActivityInstallBase {
+  kind: 'plugin-file';
 }
 
 /** One provider hook event to wire the bridge into (`json-hooks` installs). */
@@ -588,7 +604,7 @@ export interface IActivityInstallEvent {
  */
 export interface IProviderActivityAdapter {
   /** Declarative install descriptor, the manifest (JSON) half. */
-  install: IActivityInstall;
+  install: TActivityInstall;
   /**
    * Runtime half (TypeScript-only, never in the manifest JSON, mirroring
    * `classify()` / `walk()`): turn ONE raw provider hook payload into
@@ -598,6 +614,22 @@ export interface IProviderActivityAdapter {
    * disclaim by the caller.
    */
   mapEvent(raw: unknown): IActivitySignal[] | null;
+  /**
+   * Second runtime half, REQUIRED when `install.kind === 'plugin-file'`
+   * (the install engine refuses to render without it) and meaningless
+   * otherwise: the hook-registration source spliced into the generated
+   * in-process plugin. The engine's template
+   * (`core/activity/plugin-template.ts`) owns the ENVELOPE (header
+   * marker, `serve.json` discovery, scope + loopback + token checks,
+   * fetch timeout, never-throw); this source is the body of the
+   * plugin's returned hooks map, one
+   * `'<hook>': async (...) => { await forward('<hook>', {...}); },`
+   * entry per hook `mapEvent` consumes, including any wiring-level
+   * filters that keep high-frequency host traffic from ever leaving
+   * the process. Payload knowledge exactly like `mapEvent`: it lives
+   * with the Provider, never in the manifest and never in core.
+   */
+  pluginHooksSource?: string;
 }
 
 export interface IProvider extends IExtensionBase {

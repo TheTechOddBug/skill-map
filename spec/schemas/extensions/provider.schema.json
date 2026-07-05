@@ -155,7 +155,7 @@
             "events": {
               "type": "array",
               "minItems": 1,
-              "description": "For `json-hooks`: the provider lifecycle events to wire the bridge into, each with an optional matcher in the provider runtime's OWN matcher grammar. Only the events the runtime `mapEvent` actually consumes belong here (every wired event spawns one bridge process at runtime). Ignored for `plugin-file` installs.",
+              "description": "For `json-hooks` only (a `plugin-file` descriptor MUST omit it, enforced below): the provider lifecycle events to wire the bridge into, each with an optional matcher in the provider runtime's OWN matcher grammar. Only the events the runtime `mapEvent` actually consumes belong here (every wired event spawns one bridge process at runtime). The in-process analog for `plugin-file` providers is the runtime `pluginHooksSource` half (TypeScript-only, never manifest data): hook registrations are code, not declarative events.",
               "items": {
                 "type": "object",
                 "required": ["event"],
@@ -190,7 +190,19 @@
               "enum": ["scope-root", "config-dir"],
               "description": "Working directory the provider runtime spawns hook commands with, which decides how the bridge command's script path is written. `scope-root` (default): the runtime spawns at the project root, the plain scope-relative bridge path resolves. `config-dir` (Antigravity, live-verified): the runtime spawns at the hook config's own directory, so install prefixes the relative hops from `dirname(configPath)` back to the root. The bridge itself derives its scope root from its installed location, never the spawn cwd."
             }
-          }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": { "kind": { "const": "plugin-file" } },
+                "required": ["kind"]
+              },
+              "then": {
+                "properties": { "events": false, "group": false, "commandCwd": false },
+                "description": "`events` / `group` / `commandCwd` parameterize the spawned-bridge wiring and are meaningless for an in-process plugin: a `plugin-file` descriptor carries only `kind` + `configPath`."
+              }
+            }
+          ]
         }
       }
     },

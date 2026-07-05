@@ -114,7 +114,13 @@ export function registerActivityInstallRoutes(app: Hono, deps: IRouteDeps): void
     requireConsent(body, provider, SERVER_TEXTS.activityUninstallConfirmRequired);
     let removed: boolean;
     try {
-      removed = uninstallActivityBridge(deps.runtimeContext.cwd, provider).removed;
+      // The full registry decides shared-bridge retention: the bridge
+      // dir stays while any OTHER hook-file provider remains wired.
+      removed = uninstallActivityBridge(
+        deps.runtimeContext.cwd,
+        provider,
+        deps.providers,
+      ).removed;
     } catch (err) {
       throw buildIoFailure(SERVER_TEXTS.activityUninstallFailed, err);
     }
@@ -203,6 +209,6 @@ function buildStatusEnvelope(
     configPath: install.configPath,
     configWired: status.configWired,
     bridgePresent: status.bridgePresent,
-    events: install.events?.length ?? 0,
+    events: install.kind === 'json-hooks' ? (install.events?.length ?? 0) : 0,
   };
 }

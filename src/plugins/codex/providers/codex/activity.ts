@@ -60,9 +60,13 @@ import type {
   IActivitySpawnRelation,
   IProviderActivityAdapter,
 } from '../../../../kernel/extensions/index.js';
+import {
+  mapSubagentBoundary,
+  nonEmptyString,
+  sessionizedOwner,
+  toolInputOf,
+} from '../../../../kernel/util/activity-adapter.js';
 import { DOLLAR_TOKEN_RE } from '../../../../kernel/util/dollar-token.js';
-
-const MAIN_OWNER = 'main';
 
 export const codexActivity: IProviderActivityAdapter = {
   install: {
@@ -110,7 +114,7 @@ export const codexActivity: IProviderActivityAdapter = {
 function mapPromptSkills(event: Record<string, unknown>): IActivitySignal[] | null {
   const prompt = nonEmptyString(event['prompt']);
   if (!prompt) return null;
-  const owner = ownerOf(event);
+  const owner = sessionizedOwner(event);
   const seen = new Set<string>();
   const signals: IActivitySignal[] = [];
   for (const match of prompt.matchAll(DOLLAR_TOKEN_RE)) {
@@ -140,7 +144,7 @@ function mapSpawnRelation(
   const toolUseId = nonEmptyString(event['tool_use_id']);
   if (!toolUseId) return null;
   const input = toolInputOf(event);
-  const owner = ownerOf(event);
+  const owner = sessionizedOwner(event);
   const spawn: IActivitySpawnRelation = { spawnId: toolUseId, phase, parentOwner: owner };
   const childName = nonEmptyString(input['agent_type']);
   if (childName) {
@@ -175,51 +179,3 @@ function spawnedChildId(response: unknown): string | null {
   }
 }
 
-function toolInputOf(event: Record<string, unknown>): Record<string, unknown> {
-  const input = event['tool_input'];
-  return input !== null && typeof input === 'object' ? (input as Record<string, unknown>) : {};
-}
-
-/**
- * Native subagent boundary, mirroring the claude adapter's semantics:
- * `agent_type` names the agent node, `agent_id` is the owner grouping
- * key, starts are sticky lifecycle claims, and the stop is OWNER-SCOPED
- * so a terminating subagent takes down everything it lit. Empty
- * `agent_type` is disclaimed defensively (claude emits such orphans;
- * Codex has not been observed to, but the guard costs nothing).
- */
-function mapSubagentBoundary(
-  event: Record<string, unknown>,
-  phase: 'start' | 'end',
-): IActivitySignal[] | null {
-  const name = nonEmptyString(event['agent_type']);
-  if (!name) return null;
-  const signal: IActivitySignal = { kind: 'agent', name, phase };
-  const id = nonEmptyString(event['agent_id']);
-  if (id) signal.owner = id;
-  if (phase === 'start') signal.sticky = true;
-  if (phase === 'end' && id) {
-    signal.ownerScope = true;
-    // The stop carries the agent's final message (live-verified
-    // 2026-07-05): the response source for the retained conversation.
-    const report = nonEmptyString(event['last_assistant_message']);
-    if (report) signal.report = report;
-  }
-  return [signal];
-}
-
-/**
- * `agent_id` when the event fired inside a subagent, else the
- * SESSIONIZED main key (`main:<session_id>`; bare `main` for payloads
- * with no session id). Opaque downstream, nothing parses it.
- */
-function ownerOf(event: Record<string, unknown>): string {
-  const agentId = nonEmptyString(event['agent_id']);
-  if (agentId) return agentId;
-  const sessionId = nonEmptyString(event['session_id']);
-  return sessionId ? `${MAIN_OWNER}:${sessionId}` : MAIN_OWNER;
-}
-
-function nonEmptyString(value: unknown): string | null {
-  return typeof value === 'string' && value.length > 0 ? value : null;
-}

@@ -103,7 +103,8 @@ export class ActivityInstallCommand extends SmCommand {
     }
     const install = provider.activity.install;
     const ctx = defaultRuntimeContext();
-    const events: readonly IActivityInstallEvent[] = install.events ?? [];
+    const events: readonly IActivityInstallEvent[] =
+      install.kind === 'json-hooks' ? (install.events ?? []) : [];
 
     // Consent: both shapes write into territory skill-map does not own
     // (a vendor hooks file, or a plugin dir the runtime auto-loads).
@@ -227,7 +228,9 @@ export class ActivityUninstallCommand extends SmCommand {
     const ctx = defaultRuntimeContext();
 
     try {
-      const { removed } = uninstallActivityBridge(ctx.cwd, provider);
+      // The full registry decides shared-bridge retention: the bridge
+      // dir stays while any OTHER hook-file provider remains wired.
+      const { removed } = uninstallActivityBridge(ctx.cwd, provider, builtIns().providers);
       const pluginFile = install.kind === 'plugin-file';
       if (!removed) {
         this.printer!.info(

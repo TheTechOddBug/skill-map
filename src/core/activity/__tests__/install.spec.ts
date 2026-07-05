@@ -29,14 +29,14 @@ import { ACTIVITY_PLUGIN_MARKER, renderActivityPlugin } from '../plugin-template
 const CONFIG_REL = '.claude/settings.json';
 
 /** Minimal provider stub carrying only what the engine reads. */
-function makeProvider(id = 'claude'): IProvider {
+function makeProvider(id = 'claude', configPath = CONFIG_REL): IProvider {
   return {
     id,
     kind: 'provider',
     activity: {
       install: {
         kind: 'json-hooks',
-        configPath: CONFIG_REL,
+        configPath,
         events: [
           { event: 'PreToolUse', matcher: '^(Skill|Agent|Read)$' },
           { event: 'SubagentStart', matcher: '*' },
@@ -46,6 +46,11 @@ function makeProvider(id = 'claude'): IProvider {
     },
   } as unknown as IProvider;
 }
+
+/** Hook-registration half a plugin-file provider would supply. */
+const STUB_HOOKS_SOURCE = `    'my.hook': async (input) => {
+      await forward('my.hook', { input });
+    },`;
 
 function readConfig(cwd: string): Record<string, unknown> {
   return JSON.parse(readFileSync(join(cwd, CONFIG_REL), 'utf8')) as Record<string, unknown>;
@@ -159,7 +164,7 @@ describe('core/activity install engine', () => {
     );
     await installActivityBridge(cwd, provider);
 
-    const result = uninstallActivityBridge(cwd, provider);
+    const result = uninstallActivityBridge(cwd, provider, [provider]);
 
     assert.equal(result.removed, true);
     const config = readConfig(cwd);
@@ -202,7 +207,7 @@ describe('core/activity install engine', () => {
     assert.equal('hooks' in config, false);
     assert.equal(activityInstallStatus(cwd, grouped).installed, true);
 
-    assert.equal(uninstallActivityBridge(cwd, grouped).removed, true);
+    assert.equal(uninstallActivityBridge(cwd, grouped, [grouped]).removed, true);
     const after = JSON.parse(
       readFileSync(join(cwd, '.agents/hooks.json'), 'utf8'),
     ) as Record<string, unknown>;
@@ -220,6 +225,7 @@ describe('core/activity install engine', () => {
           configPath: '.opencode/plugin/skill-map-activity.js',
         },
         mapEvent: () => null,
+        pluginHooksSource: STUB_HOOKS_SOURCE,
       },
     } as unknown as IProvider;
     rmSync(join(cwd, '.opencode'), { recursive: true, force: true });
@@ -231,6 +237,8 @@ describe('core/activity install engine', () => {
     const source = readFileSync(pluginPath, 'utf8');
     assert.equal(source.includes('skill-map activity plugin'), true);
     assert.equal(source.includes("PROVIDER = 'opencode'"), true);
+    // The provider's hook registrations are spliced into the envelope.
+    assert.equal(source.includes("await forward('my.hook', { input });"), true);
     // No spawned-bridge artifacts for this shape.
     assert.equal(existsSync(defaultProjectActivityDir(cwd)), false);
     assert.deepEqual(activityInstallStatus(cwd, pluginProvider), {
@@ -239,44 +247,107 @@ describe('core/activity install engine', () => {
       installed: true,
     });
 
-    assert.equal(uninstallActivityBridge(cwd, pluginProvider).removed, true);
+    assert.equal(uninstallActivityBridge(cwd, pluginProvider, [pluginProvider]).removed, true);
     assert.equal(existsSync(pluginPath), false);
-    assert.equal(uninstallActivityBridge(cwd, pluginProvider).removed, false);
+    assert.equal(uninstallActivityBridge(cwd, pluginProvider, [pluginProvider]).removed, false);
 
     // A FOREIGN file at the same path is never ours: not installed,
     // and uninstall refuses to delete it.
     mkdirSync(join(cwd, '.opencode/plugin'), { recursive: true });
     writeFileSync(pluginPath, 'export const UserPlugin = async () => ({});\n', 'utf8');
     assert.equal(activityInstallStatus(cwd, pluginProvider).installed, false);
-    assert.equal(uninstallActivityBridge(cwd, pluginProvider).removed, false);
+    assert.equal(uninstallActivityBridge(cwd, pluginProvider, [pluginProvider]).removed, false);
     assert.equal(existsSync(pluginPath), true);
+  });
+
+  it('plugin-file install without pluginHooksSource refuses instead of writing a broken plugin', async () => {
+    const sourceless = {
+      id: 'opencode',
+      kind: 'provider',
+      activity: {
+        install: {
+          kind: 'plugin-file',
+          configPath: '.opencode/plugin/skill-map-activity.js',
+        },
+        mapEvent: () => null,
+      },
+    } as unknown as IProvider;
+    rmSync(join(cwd, '.opencode'), { recursive: true, force: true });
+
+    await assert.rejects(installActivityBridge(cwd, sourceless), /pluginHooksSource/);
+    assert.equal(existsSync(join(cwd, '.opencode/plugin/skill-map-activity.js')), false);
   });
 
   it('double uninstall is an idempotent no-op that touches nothing', async () => {
     await installActivityBridge(cwd, provider);
-    assert.equal(uninstallActivityBridge(cwd, provider).removed, true);
+    assert.equal(uninstallActivityBridge(cwd, provider, [provider]).removed, true);
 
     const before = readFileSync(join(cwd, CONFIG_REL), 'utf8');
-    assert.equal(uninstallActivityBridge(cwd, provider).removed, false);
+    assert.equal(uninstallActivityBridge(cwd, provider, [provider]).removed, false);
     assert.equal(readFileSync(join(cwd, CONFIG_REL), 'utf8'), before);
+  });
+
+  it('shared bridge survives until the LAST wired json-hooks provider uninstalls', async () => {
+    const codex = makeProvider('codex', '.codex/hooks.json');
+    const registry = [provider, codex];
+    rmSync(join(cwd, '.codex'), { recursive: true, force: true });
+    await installActivityBridge(cwd, provider);
+    await installActivityBridge(cwd, codex);
+
+    // First uninstall: claude's wiring goes, but codex still spawns the
+    // shared bridge, so the dir MUST stay (deleting it would break
+    // codex's hooks with a non-zero node exit).
+    assert.equal(uninstallActivityBridge(cwd, provider, registry).removed, true);
+    assert.equal(activityInstallStatus(cwd, provider).configWired, false);
+    assert.equal(existsSync(defaultActivityBridgePath(cwd)), true);
+    assert.equal(activityInstallStatus(cwd, codex).installed, true);
+
+    // Last uninstall: nothing references the bridge anymore, dir goes.
+    assert.equal(uninstallActivityBridge(cwd, codex, registry).removed, true);
+    assert.equal(existsSync(defaultProjectActivityDir(cwd)), false);
+  });
+
+  it('a wired plugin-file provider never pins the shared bridge dir', async () => {
+    const pluginProvider = {
+      id: 'opencode',
+      kind: 'provider',
+      activity: {
+        install: { kind: 'plugin-file', configPath: '.opencode/plugin/skill-map-activity.js' },
+        mapEvent: () => null,
+        pluginHooksSource: STUB_HOOKS_SOURCE,
+      },
+    } as unknown as IProvider;
+    rmSync(join(cwd, '.opencode'), { recursive: true, force: true });
+    await installActivityBridge(cwd, provider);
+    await installActivityBridge(cwd, pluginProvider);
+
+    // The in-process plugin does not reference `.skill-map/activity/`,
+    // so the last json-hooks uninstall removes the dir even while the
+    // plugin-file provider stays installed.
+    assert.equal(
+      uninstallActivityBridge(cwd, provider, [provider, pluginProvider]).removed,
+      true,
+    );
+    assert.equal(existsSync(defaultProjectActivityDir(cwd)), false);
+    assert.equal(activityInstallStatus(cwd, pluginProvider).installed, true);
   });
 });
 
-describe('renderActivityPlugin wiring', () => {
-  it('registers exactly the consumed hooks, with the task-filtered after', () => {
-    const source = renderActivityPlugin('opencode');
-    for (const hook of [
-      "'tool.execute.before'",
-      "'tool.execute.after'",
-      "'command.execute.before'",
-      "'chat.message'",
-    ]) {
-      assert.ok(source.includes(hook), hook);
-    }
-    // Wiring-level filters: only the spawn tool's completion and the
-    // native end signal ever leave the host process.
-    assert.ok(source.includes("input.tool === 'task'"));
-    assert.ok(source.includes("event.type === 'session.idle'"));
+describe('renderActivityPlugin envelope', () => {
+  // The provider-owned half (which hooks, which filters) is asserted in
+  // each plugin-file provider's own spec against its pluginHooksSource;
+  // here only the SHARED envelope contract is load-bearing.
+  it('wraps the provider hooks with marker, provider id, and discovery invariants', () => {
+    const source = renderActivityPlugin('opencode', STUB_HOOKS_SOURCE);
     assert.ok(source.includes(ACTIVITY_PLUGIN_MARKER));
+    assert.ok(source.includes("PROVIDER = 'opencode'"));
+    // Provider hooks land inside the returned registration map.
+    assert.ok(source.includes("'my.hook': async (input) => {"));
+    // Envelope invariants: serve.json discovery, loopback set, timeout.
+    assert.ok(source.includes("join(root, '.skill-map', 'serve.json')"));
+    assert.ok(source.includes('LOOPBACK_HOSTS'));
+    assert.ok(source.includes('TIMEOUT_MS'));
+    // No unfilled placeholders survive rendering.
+    assert.equal(source.includes('{{'), false);
   });
 });

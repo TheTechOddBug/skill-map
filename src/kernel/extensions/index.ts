@@ -25,8 +25,10 @@
  */
 
 export type {
-  IActivityInstall,
+  IActivityInstallBase,
   IActivityInstallEvent,
+  IActivityInstallJsonHooks,
+  IActivityInstallPluginFile,
   IActivitySignal,
   IActivitySpawnExecution,
   IActivitySpawnRelation,
@@ -38,6 +40,7 @@ export type {
   IProviderReadConfig,
   IProviderUi,
   IRawNode,
+  TActivityInstall,
   TActivityPhase,
   TIdentifierSource,
   TProviderKindIcon,

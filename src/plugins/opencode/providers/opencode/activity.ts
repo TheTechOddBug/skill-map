@@ -52,6 +52,50 @@ import type {
   IActivitySpawnRelation,
   IProviderActivityAdapter,
 } from '../../../../kernel/extensions/index.js';
+import {
+  nonEmptyString,
+  relativizeMarkdownPath,
+} from '../../../../kernel/util/activity-adapter.js';
+
+/**
+ * Hook-registration half of the generated in-process plugin
+ * (`core/activity/plugin-template.ts` owns the shared envelope:
+ * discovery, loopback + token checks, timeout, never-throw; this source
+ * is spliced at its `{{HOOKS}}` slot). It registers exactly the hooks
+ * `mapEvent` consumes, the in-process analog of the `json-hooks` events
+ * list: `tool.execute.before` (skill / read / task tools),
+ * `tool.execute.after` FILTERED to the `task` tool (the spawn
+ * completion, carrying the child session id + final report),
+ * `command.execute.before`, `chat.message` (named agent + sessionID),
+ * and the `event` catch-all FILTERED to `session.idle` (the native
+ * owner release). Filtering by tool / event TYPE is wiring, not
+ * mapping: it is what keeps the firehose bus (catalog / registry noise,
+ * every other tool's output) from ever leaving the host process.
+ */
+const PLUGIN_HOOKS_SOURCE = `    'tool.execute.before': async (input, output) => {
+      await forward('tool.execute.before', { input, output });
+    },
+    'tool.execute.after': async (input, output) => {
+      // Wiring-level filter: only the spawn tool's completion leaves
+      // the process (it carries the child session id + final report);
+      // every other tool's output stays private to the host.
+      if (input && input.tool === 'task') {
+        await forward('tool.execute.after', { input, output });
+      }
+    },
+    'command.execute.before': async (input, output) => {
+      await forward('command.execute.before', { input, output });
+    },
+    'chat.message': async (input) => {
+      await forward('chat.message', { input });
+    },
+    event: async ({ event }) => {
+      // Wiring-level filter: only the native end signal leaves the
+      // process; the rest of the bus (catalog noise) never does.
+      if (event && event.type === 'session.idle') {
+        await forward('event', { event });
+      }
+    },`;
 
 export const opencodeActivity: IProviderActivityAdapter = {
   install: {
@@ -62,6 +106,8 @@ export const opencodeActivity: IProviderActivityAdapter = {
     kind: 'plugin-file',
     configPath: '.opencode/plugin/skill-map-activity.js',
   },
+
+  pluginHooksSource: PLUGIN_HOOKS_SOURCE,
 
   mapEvent(raw: unknown): IActivitySignal[] | null {
     if (raw === null || typeof raw !== 'object') return null;
@@ -181,14 +227,9 @@ function mapMarkdownRead(
   input: Record<string, unknown>,
   args: Record<string, unknown>,
 ): IActivitySignal[] | null {
-  const filePath = nonEmptyString(args['filePath']);
-  if (!filePath) return null;
-  if (!filePath.toLowerCase().endsWith('.md')) return null;
-  const directory = nonEmptyString(wrapper['directory']);
-  if (!directory) return null;
-  const prefix = directory.endsWith('/') ? directory : `${directory}/`;
-  if (!filePath.startsWith(prefix) || filePath.length <= prefix.length) return null;
-  return [{ path: filePath.slice(prefix.length), phase: 'start', owner: ownerOf(input) }];
+  const relative = relativizeMarkdownPath(args['filePath'], [wrapper['directory']]);
+  if (relative === null) return null;
+  return [{ path: relative, phase: 'start', owner: ownerOf(input) }];
 }
 
 function mapCommand(wrapper: Record<string, unknown>): IActivitySignal[] | null {
@@ -229,8 +270,4 @@ function mapSessionIdle(wrapper: Record<string, unknown>): IActivitySignal[] | n
 /** `sessionID` is the owner grouping key (one per (sub)session). */
 function ownerOf(input: Record<string, unknown>): string {
   return nonEmptyString(input['sessionID']) ?? 'main';
-}
-
-function nonEmptyString(value: unknown): string | null {
-  return typeof value === 'string' && value.length > 0 ? value : null;
 }

@@ -19,7 +19,11 @@ import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join, posix } from 'node:path';
 
-import type { IActivityInstall, IActivityInstallEvent, IProvider } from '../../kernel/extensions/index.js';
+import type {
+  IActivityInstallEvent,
+  IActivityInstallJsonHooks,
+  IProvider,
+} from '../../kernel/extensions/index.js';
 import { readJsonObjectOrEmpty, writeJsonAtomic } from '../../kernel/util/atomic-write.js';
 import {
   ACTIVITY_BRIDGE_REL,
@@ -92,12 +96,19 @@ export function activityInstallStatus(cwd: string, provider: IProvider): IActivi
 export async function installActivityBridge(cwd: string, provider: IProvider): Promise<void> {
   const install = provider.activity!.install;
   if (install.kind === 'plugin-file') {
-    // One self-contained artifact: the in-process plugin. (Re)written on
-    // every install so a version upgrade refreshes it; no hooks-file
+    // One self-contained artifact: the in-process plugin, the shared
+    // envelope around the provider's own hook registrations. (Re)written
+    // on every install so a version upgrade refreshes it; no hooks-file
     // merge and no spawned-bridge dir are involved.
+    const hooksSource = provider.activity!.pluginHooksSource;
+    if (hooksSource === undefined) {
+      throw new Error(
+        `provider "${provider.id}" declares a plugin-file install but no pluginHooksSource`,
+      );
+    }
     const pluginPath = join(cwd, install.configPath);
     await mkdir(dirname(pluginPath), { recursive: true });
-    await writeFile(pluginPath, renderActivityPlugin(provider.id), 'utf8');
+    await writeFile(pluginPath, renderActivityPlugin(provider.id, hooksSource), 'utf8');
     return;
   }
   const events: readonly IActivityInstallEvent[] = install.events ?? [];
@@ -111,20 +122,26 @@ export async function installActivityBridge(cwd: string, provider: IProvider): P
 
 /**
  * Exact reversal of `installActivityBridge`: remove the marked entries
- * (operator hooks untouched) and delete the whole `.skill-map/activity/`
- * dir. Idempotent: `removed: false` when nothing carried the marker, in
- * which case NOTHING is written or deleted (matching the CLI verb's
- * no-op branch; a stray bridge dir without config wiring stays put).
- * v1 ships a single provider; when multi-provider installs land, the
- * dir removal becomes "only when no OTHER provider still references
- * the bridge".
+ * (operator hooks untouched) and delete the `.skill-map/activity/` dir,
+ * but ONLY when no OTHER `json-hooks` provider still references the
+ * shared bridge (`providers` is the caller's full registry; see
+ * `cli-contract.md` §Activity: "delete the bridge artifact when no
+ * installed provider references it anymore"). Idempotent: `removed:
+ * false` when nothing carried the marker, in which case NOTHING is
+ * written or deleted (matching the CLI verb's no-op branch; a stray
+ * bridge dir without config wiring stays put).
  */
-export function uninstallActivityBridge(cwd: string, provider: IProvider): { removed: boolean } {
+export function uninstallActivityBridge(
+  cwd: string,
+  provider: IProvider,
+  providers: readonly IProvider[],
+): { removed: boolean } {
   const install = provider.activity!.install;
   const configPath = join(cwd, install.configPath);
   if (install.kind === 'plugin-file') {
     // Delete exactly our artifact; a foreign file at the same path
     // (no marker) is left untouched and reads as nothing-to-remove.
+    // The shared bridge dir is never involved in this shape.
     if (!pluginFileIsOurs(configPath)) return { removed: false };
     rmSync(configPath, { force: true });
     return { removed: true };
@@ -133,8 +150,33 @@ export function uninstallActivityBridge(cwd: string, provider: IProvider): { rem
   const changed = removeActivityHooks(settings, ACTIVITY_BRIDGE_REL, containerOf(install));
   if (!changed) return { removed: false };
   writeJsonAtomic(configPath, settings);
-  rmSync(defaultProjectActivityDir(cwd), { recursive: true, force: true });
+  if (!otherJsonHooksProviderWired(cwd, provider, providers)) {
+    rmSync(defaultProjectActivityDir(cwd), { recursive: true, force: true });
+  }
   return { removed: true };
+}
+
+/**
+ * Does any OTHER `json-hooks` provider still have its config wired to
+ * the shared bridge? `.skill-map/activity/` holds ONE bridge serving
+ * every hook-file provider, so only the LAST uninstall removes it;
+ * earlier ones leave it in place (deleting it would break the survivors'
+ * wiring: their configs spawn a script that no longer exists, and the
+ * resulting non-zero node exit violates the bridge invisibility
+ * invariants). Probed AFTER this provider's own wiring was removed, so
+ * the uninstalling provider never counts itself.
+ */
+function otherJsonHooksProviderWired(
+  cwd: string,
+  uninstalling: IProvider,
+  providers: readonly IProvider[],
+): boolean {
+  return providers.some(
+    (p) =>
+      p.id !== uninstalling.id &&
+      p.activity?.install.kind === 'json-hooks' &&
+      activityInstallStatus(cwd, p).configWired,
+  );
 }
 
 /** The plugin file exists AND carries the skill-map header marker. */
@@ -156,7 +198,7 @@ function pluginFileIsOurs(pluginPath: string): boolean {
  * keep the `ACTIVITY_BRIDGE_REL` substring, so the ownership marker is
  * unaffected.
  */
-function bridgeCommand(providerId: string, install: IActivityInstall): string {
+function bridgeCommand(providerId: string, install: IActivityInstallJsonHooks): string {
   const script =
     install.commandCwd === 'config-dir'
       ? posix.join(posix.relative(posix.dirname(install.configPath), '.'), ACTIVITY_BRIDGE_REL)

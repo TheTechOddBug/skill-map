@@ -1,34 +1,29 @@
 /**
- * The in-process activity plugin `sm activity install <provider>` writes
- * for `plugin-file` providers (opencode:
- * `.opencode/plugin/skill-map-activity.js`; see
- * `spec/provider-activity.md` §capability, plugin-file paragraph).
+ * ENVELOPE of the in-process activity plugin `sm activity install
+ * <provider>` writes for `plugin-file` providers (see
+ * `spec/provider-activity.md` §The `provider.activity` capability,
+ * plugin-file paragraph).
  *
- * It is the in-process analog of the spawned bridge, under the SAME
- * contract adapted to running inside the host runtime's process:
+ * The generated file is the in-process analog of the spawned bridge,
+ * and its source splits along the capability's ownership line:
  *
- *   - **Invisible (HARD)**: hook callbacks NEVER throw (an exception
- *     inside an in-process hook can alter or block the host session,
- *     the analog of a non-zero exit). Every failure path is a silent
- *     no-op; there is no stdout/stderr surface at all.
- *   - **Dumb**: zero mapping logic. It registers exactly the hooks the
- *     provider's `mapEvent` consumes (the in-process analog of the
- *     `json-hooks` events list), wraps each payload as
- *     `{ hook, directory, ... }` verbatim, and POSTs. All payload
- *     knowledge stays in the Provider's `mapEvent`.
- *   - **Same discovery**: `<directory>/.skill-map/serve.json` read per
- *     event (the plugin context's `directory` IS the project root),
- *     scope + loopback + token checks, 1500ms abort, fail-open.
- *
- * The registered hooks are opencode's: `tool.execute.before` (skill /
- * read / task tools), `tool.execute.after` FILTERED to the `task` tool
- * (the spawn completion, carrying the child session id + final
- * report), `command.execute.before`, `chat.message` (named agent +
- * sessionID), and the `event` catch-all FILTERED to `session.idle`
- * (the native owner release). Filtering by tool / event TYPE is
- * wiring, not mapping: it is what keeps the firehose bus (catalog /
- * registry noise, every other tool's output) from ever leaving the
- * host process.
+ *   - **This module owns the ENVELOPE**, the invariants every
+ *     plugin-file provider upholds regardless of runtime:
+ *     - **Invisible (HARD)**: hook callbacks NEVER throw (an exception
+ *       inside an in-process hook can alter or block the host session,
+ *       the analog of a non-zero exit). Every failure path is a silent
+ *       no-op; there is no stdout/stderr surface at all.
+ *     - **Same discovery as the bridge**: `<directory>/.skill-map/serve.json`
+ *       read per event (the plugin context's `directory` IS the project
+ *       root), scope + loopback + token checks, 1500ms abort, fail-open.
+ *   - **The Provider owns the HOOK REGISTRATIONS**
+ *     (`IProviderActivityAdapter.pluginHooksSource`, spliced at
+ *     `{{HOOKS}}`): which of ITS runtime's hooks to register, the
+ *     wiring-level filters that keep the host's high-frequency traffic
+ *     from ever leaving the process, and the `{ hook, directory, ... }`
+ *     wrapper each registration forwards. All payload knowledge stays
+ *     provider-side, mirroring `mapEvent`; this module never names
+ *     another runtime's hooks.
  *
  * The template is a source STRING (not a bundled asset) so the CLI can
  * write it anywhere and tests can exercise the exact bytes users get.
@@ -90,35 +85,18 @@ export const SkillMapActivity = async ({ directory }) => {
   }
 
   return {
-    'tool.execute.before': async (input, output) => {
-      await forward('tool.execute.before', { input, output });
-    },
-    'tool.execute.after': async (input, output) => {
-      // Wiring-level filter: only the spawn tool's completion leaves
-      // the process (it carries the child session id + final report);
-      // every other tool's output stays private to the host.
-      if (input && input.tool === 'task') {
-        await forward('tool.execute.after', { input, output });
-      }
-    },
-    'command.execute.before': async (input, output) => {
-      await forward('command.execute.before', { input, output });
-    },
-    'chat.message': async (input) => {
-      await forward('chat.message', { input });
-    },
-    event: async ({ event }) => {
-      // Wiring-level filter: only the native end signal leaves the
-      // process; the rest of the bus (catalog noise) never does.
-      if (event && event.type === 'session.idle') {
-        await forward('event', { event });
-      }
-    },
+{{HOOKS}}
   };
 };
 `;
 
-/** The exact plugin source `sm activity install` writes for `providerId`. */
-export function renderActivityPlugin(providerId: string): string {
-  return PLUGIN_TEMPLATE.replace('{{SM_VERSION}}', VERSION).replace('{{PROVIDER_ID}}', providerId);
+/**
+ * The exact plugin source `sm activity install` writes for `providerId`:
+ * the shared envelope with the provider's own hook registrations
+ * (`IProviderActivityAdapter.pluginHooksSource`) spliced in.
+ */
+export function renderActivityPlugin(providerId: string, hooksSource: string): string {
+  return PLUGIN_TEMPLATE.replace('{{SM_VERSION}}', VERSION)
+    .replace('{{PROVIDER_ID}}', providerId)
+    .replace('{{HOOKS}}', hooksSource);
 }

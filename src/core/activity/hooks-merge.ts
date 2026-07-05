@@ -97,9 +97,9 @@ export function mergeActivityHooks(
 
 /**
  * Read-only probe: does any hook entry in `settings` carry `marker`?
- * The install-status surface (`GET /api/activity/install`; the CLI has
- * no status verb) derives "config is wired" from this without cloning
- * or mutating the parsed document.
+ * The install-status surfaces (`GET /api/activity/install`,
+ * `sm activity status`) derive "config is wired" from this without
+ * cloning or mutating the parsed document.
  */
 export function hasActivityHooks(
   settings: Record<string, unknown>,
