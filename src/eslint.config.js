@@ -224,11 +224,28 @@ export default tseslint.config(
   //
   // `help.ts` is exempt: `HelpCommand` and `RootHelpCommand` extend
   // Clipanion's `Command` directly (not `SmCommand`) so `--help` /
-  // `-h` parsing stays narrow, no `--json` / `-g` / `--quiet`
-  // inherited, since none of them apply to the help surface. The
-  // help renderer therefore has no `printer` to route through.
-  // `stubs.ts` is covered by `StubCommand extends SmCommand` so the
-  // rule applies there normally.
+  // `-h` parsing stays narrow, no `--json` / `--quiet` inherited,
+  // since none of them apply to the help surface. The help renderer
+  // therefore has no `printer` to route through. `stubs.ts` is
+  // covered by `StubCommand extends SmCommand` so the rule applies
+  // there normally.
+  //
+  // The second selector is the regression guard for the 2026-07-05
+  // review finding M1: `printer.info` is suppressed under `-q` /
+  // `--json` (`quietInfo`), so an error block emitted via `info`
+  // immediately before returning a non-Ok `ExitCode` exits silently
+  // exactly when a machine consumer is watching, violating
+  // spec/cli-contract.md §Exit codes ("accompanied by an error
+  // message on stderr"). It matches the adjacent-sibling shape
+  // `printer.info(...); return <...ExitCode.<fatal>...>;` (including
+  // object returns like `{ exit: ExitCode.Error }`). `Ok` and
+  // `Issues` are excluded: exit 1 is "command completed, result has
+  // error-severity issues" per the spec table, the result on stdout
+  // carries the explanation, so a summary banner via `info` before a
+  // conditional `Issues`/`Ok` return is correct channel use. Heuristic,
+  // not control-flow analysis: an `info` separated from the return by
+  // another statement escapes it, but every occurrence of the bug
+  // in the M1 sweep (44 sites) had exactly this shape.
   {
     files: ['cli/commands/**/*.ts'],
     ignores: ['cli/commands/help.ts'],
@@ -240,6 +257,12 @@ export default tseslint.config(
             "MemberExpression[property.name='write'][object.type='MemberExpression'][object.property.name=/^(stdout|stderr)$/][object.object.type='MemberExpression'][object.object.property.name='context'][object.object.object.type='ThisExpression']",
           message:
             'CLI verbs must use `this.printer!.{data,info,warn,error}`, never `this.context.std{out,err}.write` directly. The printer enforces channel discipline (data → stdout; info/warn/error → stderr; info silenced under --quiet).',
+        },
+        {
+          selector:
+            "ExpressionStatement:has(CallExpression[callee.property.name='info']:matches([callee.object.name='printer'], [callee.object.property.name='printer'], [callee.object.expression.property.name='printer'])) + ReturnStatement:has(MemberExpression[object.name='ExitCode'][property.name!=/^(Ok|Issues)$/])",
+          message:
+            'Fatal-path message emitted via printer.info() right before a non-Ok ExitCode return; info is suppressed under -q/--json, so the command would exit non-zero with no explanation. Use printer.error() (spec/cli-contract.md §Exit codes).',
         },
       ],
     },
@@ -290,6 +313,47 @@ export default tseslint.config(
               ],
               message:
                 'core/ must not import from cli/. Move the shared piece down to core/ or kernel/, or invert the dependency.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // -------------------------------------------------------------------------
+  // plugins/ layering: built-ins must not pull CLI code into the runtime
+  // -------------------------------------------------------------------------
+  // The generated `plugins/built-ins.ts` registry is imported by the core
+  // runtime (`core/watcher/runtime.ts`, plugin-runtime composer) and the
+  // BFF (`server/index.ts`). A `plugins/** → cli/` import therefore drags
+  // CLI presentation code (ansi, texts, user-settings store) into both,
+  // silently defeating the `core/ must not import cli/` rule above via
+  // the plugins hop. Impure glue a built-in needs (env reads, homedir
+  // stores, TTY detection) stays in `cli/`, injected by the driver
+  // through the event payload / kernel context (see
+  // `plugins/core/hooks/update-check/index.ts` for the pattern).
+  {
+    files: ['plugins/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '../cli/*',
+                '../cli/**',
+                '../../cli/*',
+                '../../cli/**',
+                '../../../cli/*',
+                '../../../cli/**',
+                '../../../../cli/*',
+                '../../../../cli/**',
+                '../../../../../cli/*',
+                '../../../../../cli/**',
+              ],
+              message:
+                'plugins/ must not import from cli/. built-ins.ts feeds the core runtime and the BFF; inject impure glue from the driver via the event payload instead.',
             },
           ],
         },

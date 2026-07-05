@@ -430,11 +430,11 @@ export class ConfigGetCommand extends SmCommand {
     const value = resolveConfigGetValue(lookup.value, this.key, ctx.cwd);
     if (value === undefined) {
       const ansi = this.ansiFor('stderr');
-      this.printer!.info(
+      this.printer!.error(
         tx(CONFIG_TEXTS.unknownKey, { glyph: ansi.red('✕'), key: this.key }),
       );
       const suggestion = suggestConfigKey(effective, this.key, ansi);
-      if (suggestion !== null) this.printer!.info(suggestion);
+      if (suggestion !== null) this.printer!.error(suggestion);
       return ExitCode.NotFound;
     }
     if (this.json) {
@@ -483,7 +483,7 @@ export class ConfigShowCommand extends SmCommand {
       value = getAtPath(effective, this.key);
     } catch (err) {
       if (err instanceof ForbiddenSegmentError) {
-        this.printer!.info(
+        this.printer!.error(
           tx(CONFIG_TEXTS.forbiddenKeySegment, {
             glyph: errGlyphShow,
             segment: err.segment,
@@ -506,7 +506,7 @@ export class ConfigShowCommand extends SmCommand {
       }
     }
     if (value === undefined) {
-      this.printer!.info(tx(CONFIG_TEXTS.unknownKey, { glyph: errGlyphShow, key: this.key }));
+      this.printer!.error(tx(CONFIG_TEXTS.unknownKey, { glyph: errGlyphShow, key: this.key }));
       return ExitCode.NotFound;
     }
     const layer = resolveSource(this.key, value, sources);
@@ -624,7 +624,7 @@ export class ConfigSetCommand extends SmCommand {
       const known = new Set(builtIns().providers.map((p) => p.id));
       if (!known.has(value)) {
         const allowed = [...known].sort().join(', ');
-        this.printer!.info(
+        this.printer!.error(
           tx(CONFIG_TEXTS.activeProviderUnknown, {
             glyph: errGlyph,
             value,
@@ -661,7 +661,7 @@ export class ConfigSetCommand extends SmCommand {
       }
     } catch (err) {
       if (err instanceof ForbiddenSegmentError) {
-        this.printer!.info(
+        this.printer!.error(
           tx(CONFIG_TEXTS.forbiddenKeySegment, {
             glyph: errGlyph,
             segment: err.segment,
@@ -672,7 +672,7 @@ export class ConfigSetCommand extends SmCommand {
         return ExitCode.Error;
       }
       if (err instanceof ProjectLocalOnlyKeyError) {
-        this.printer!.info(
+        this.printer!.error(
           tx(CONFIG_TEXTS.projectLocalOnlyKeyRejection, {
             glyph: errGlyph,
             key: err.key,
@@ -682,7 +682,7 @@ export class ConfigSetCommand extends SmCommand {
         return ExitCode.Error;
       }
       if (err instanceof ConfigValidationError) {
-        this.printer!.info(
+        this.printer!.error(
           tx(CONFIG_TEXTS.invalidAfterSet, { glyph: errGlyph, errors: err.errors }),
         );
         return ExitCode.Error;
@@ -726,7 +726,7 @@ export class ConfigSetCommand extends SmCommand {
     const exposure = projectPathExposure({ key: this.key, value, cwd });
     if (!exposure.expandsSurface) return null;
     if (!this.yes) {
-      this.printer!.info(
+      this.printer!.error(
         tx(CONFIG_TEXTS.privacyGateRequired, {
           glyph: errGlyph,
           key: this.key,
@@ -763,7 +763,7 @@ export class ConfigSetCommand extends SmCommand {
     const exposure = projectTrustExposure({ value, cwd });
     if (!exposure.expandsSurface) return null;
     if (!this.yes) {
-      this.printer!.info(
+      this.printer!.error(
         tx(CONFIG_TEXTS.trustGateRequired, {
           glyph: errGlyph,
           hint: stderrAnsi.dim(CONFIG_TEXTS.trustGateRequiredHint),
@@ -861,7 +861,7 @@ export class ConfigResetCommand extends SmCommand {
       });
     } catch (err) {
       if (err instanceof ForbiddenSegmentError) {
-        this.printer!.info(
+        this.printer!.error(
           tx(CONFIG_TEXTS.forbiddenKeySegment, {
             glyph: ansi.red('✕'),
             segment: err.segment,
@@ -872,7 +872,7 @@ export class ConfigResetCommand extends SmCommand {
         return ExitCode.Error;
       }
       if (err instanceof ProjectLocalOnlyKeyError) {
-        this.printer!.info(
+        this.printer!.error(
           tx(CONFIG_TEXTS.projectLocalOnlyKeyRejection, {
             glyph: ansi.red('✕'),
             key: err.key,
@@ -882,7 +882,7 @@ export class ConfigResetCommand extends SmCommand {
         return ExitCode.Error;
       }
       if (err instanceof ConfigValidationError) {
-        this.printer!.info(
+        this.printer!.error(
           tx(CONFIG_TEXTS.invalidAfterSet, { glyph: ansi.red('✕'), errors: err.errors }),
         );
         return ExitCode.Error;

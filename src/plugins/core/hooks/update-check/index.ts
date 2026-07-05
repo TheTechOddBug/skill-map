@@ -17,39 +17,48 @@
  *   - The dispatcher AWAITS subscribed hooks for `boot`, so a slow
  *     hook delays the first verb paint. The dispatcher catches every
  *     hook error so the verb still runs and exits cleanly even if
- *     this hook crashes, `maybeRunUpdateCheck` is itself
- *     defensively silent, so the catch path is the secondary safety
- *     net.
+ *     this hook crashes, the injected probe is itself defensively
+ *     silent, so the catch path is the secondary safety net.
  *
- * Why the import crosses into `cli/util/`:
- *   - `maybeRunUpdateCheck` orchestrates env reads (`SM_NO_UPDATE_CHECK`,
- *     `CI`), the `~/.skill-map/settings.json` read, ANSI
- *     resolution, and TTY detection. Those must NOT live in `kernel/`
- *     or `core/` per the kernel-boundary lint rules; the CLI util
- *     layer is the only place they're allowed today. The hook therefore
- *     re-exports the call rather than re-deriving the boundary
- *     handling, and the lint config explicitly does not restrict
- *     `plugins/**` from importing CLI helpers (built-ins are
- *     bundled in the same binary). The day a non-CLI driver (BFF
- *     command, library SDK) needs the same banner, the orchestrator
- *     pattern moves to a shared module, but with no second consumer
- *     today, the indirection would be premature.
+ * Why the probe is INJECTED instead of imported:
+ *   - The probe (`maybeRunUpdateCheck`, `cli/util/update-check-banner.ts`)
+ *     orchestrates env reads (`SM_NO_UPDATE_CHECK`, `CI`), the
+ *     `~/.skill-map/settings.json` read, ANSI resolution, and TTY
+ *     detection. Those must NOT live in `kernel/` or `core/` per the
+ *     kernel-boundary lint rules; the CLI util layer is the only place
+ *     they're allowed today.
+ *   - Importing it here would pull CLI presentation code into
+ *     `plugins/built-ins.ts`, which the core runtime
+ *     (`core/watcher/runtime.ts`, plugin-runtime composer) and the BFF
+ *     (`server/index.ts`) both import, silently defeating the
+ *     `core/ must not import cli/` boundary. The lint config bans
+ *     `plugins/** → cli/` imports for the same reason.
+ *   - So the dependency is inverted: the driver that dispatches `boot`
+ *     (today `cli/entry.ts`) supplies the probe via the event payload
+ *     (`runUpdateCheck`). A driver that has no banner to show (BFF,
+ *     library SDK, tests) simply omits the field and the hook no-ops.
  *
  * Payload contract: the CLI entry dispatches `boot` with
- * `event.data: { argv, stderr, noColorFlag }`. The hook reads those
- * fields out of the payload and forwards them to `maybeRunUpdateCheck`
- * verbatim, same interface that the inline call site used previously
- * minus `dbPath` / `cwd` / `homedir` (the update-check store reads
- * `os.homedir()` directly per the documented exception).
+ * `event.data: { argv, stderr, noColorFlag, runUpdateCheck }`. The hook
+ * forwards `stderr` / `noColorFlag` into the injected `runUpdateCheck`
+ * verbatim, same interface the direct call site used previously.
  */
 
 import type { IBuiltInManifest, IHook, IHookContext } from '../../../../kernel/extensions/index.js';
-import { maybeRunUpdateCheck } from '../../../../cli/util/update-check-banner.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 interface IBootPayload {
   stderr?: NodeJS.WriteStream;
   noColorFlag?: boolean;
+  /**
+   * Driver-injected update probe. Structurally mirrors
+   * `IMaybeRunUpdateCheckOptions` from `cli/util/update-check-banner.ts`;
+   * typed inline because `plugins/**` must not import from `cli/`.
+   */
+  runUpdateCheck?: (opts: {
+    stderr: NodeJS.WriteStream;
+    noColorFlag: boolean;
+  }) => Promise<void>;
 }
 
 export const updateCheckHook: IBuiltInManifest<IHook> = {
@@ -62,15 +71,15 @@ export const updateCheckHook: IBuiltInManifest<IHook> = {
 
   async on(ctx: IHookContext): Promise<void> {
     const payload = (ctx.event.data ?? {}) as IBootPayload;
-    if (!payload.stderr) {
-      // Defensive, a misconfigured driver dispatches `boot` without
-      // the contracted fields. The hook is a no-op rather than a
-      // throw; the dispatcher would catch a throw anyway, but a
-      // silent skip is the more correct response for "this driver
-      // doesn't wire up the banner."
+    if (typeof payload.runUpdateCheck !== 'function' || !payload.stderr) {
+      // Defensive, a driver that dispatches `boot` without wiring the
+      // banner (BFF, library SDK, misconfigured test harness). The
+      // hook is a no-op rather than a throw; the dispatcher would
+      // catch a throw anyway, but a silent skip is the more correct
+      // response for "this driver doesn't wire up the banner."
       return;
     }
-    await maybeRunUpdateCheck({
+    await payload.runUpdateCheck({
       stderr: payload.stderr,
       noColorFlag: payload.noColorFlag === true,
     });

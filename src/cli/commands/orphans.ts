@@ -376,7 +376,7 @@ export class OrphansUndoRenameCommand extends SmCommand {
           { stdin: this.context.stdin, stderr: this.context.stderr },
         );
         if (!ok) {
-          this.printer!.info(ORPHANS_TEXTS.aborted);
+          this.printer!.error(ORPHANS_TEXTS.aborted);
           return ExitCode.Error;
         }
       }

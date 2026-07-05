@@ -34,6 +34,7 @@ import { decideBareNoArgs, promptEmptyFolderChoice } from './util/empty-folder-p
 import { ExitCode } from './util/exit-codes.js';
 import { formatParseError, isClipanionParseError } from './util/parse-error.js';
 import { defaultRuntimeContext } from './util/runtime-context.js';
+import { maybeRunUpdateCheck } from './util/update-check-banner.js';
 import { maybeRunFirstRunPrompt } from './telemetry/first-run-prompt.js';
 import {
   closeSentryCli,
@@ -173,6 +174,13 @@ await lifecycleDispatcher.dispatch(
     argv: routedArgs,
     stderr: process.stderr,
     noColorFlag: false,
+    // Dependency inversion: the `core/update-check` hook must not
+    // import the probe from `cli/util/` (plugins/** → cli/ is
+    // lint-banned; `built-ins.ts` feeds the core runtime and the BFF,
+    // which must stay free of CLI presentation code). The driver that
+    // owns the CLI surface injects it instead; drivers with no banner
+    // (BFF, tests) omit the field and the hook no-ops.
+    runUpdateCheck: maybeRunUpdateCheck,
   }),
 );
 

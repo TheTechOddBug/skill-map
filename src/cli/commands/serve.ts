@@ -171,7 +171,7 @@ export class ServeCommand extends SmCommand {
     //    clear hint (Clipanion gives us the raw string).
     const portResult = parsePort(this.port);
     if (!portResult.ok) {
-      this.printer!.info(
+      this.printer!.error(
         tx(SERVE_TEXTS.portInvalid, {
           glyph: errGlyph,
           value: sanitizeForTerminal(portResult.value),
@@ -187,7 +187,7 @@ export class ServeCommand extends SmCommand {
     // default may legitimately be absent (boot-with-missing-DB is the
     // documented behaviour per Decision §14.1).
     if (this.db !== undefined && !existsSync(dbPath)) {
-      this.printer!.info(
+      this.printer!.error(
         tx(SERVE_TEXTS.dbNotFound, {
           glyph: errGlyph,
           path: sanitizeForTerminal(dbPath),
@@ -204,7 +204,7 @@ export class ServeCommand extends SmCommand {
     //    - Explicit path → exit 2 if missing; auto-resolved → null
     //      (server logs the placeholder hint).
     if (this.noUi && this.uiDist !== undefined) {
-      this.printer!.info(
+      this.printer!.error(
         tx(SERVE_TEXTS.noUiConflictsUiDist, {
           glyph: errGlyph,
           path: sanitizeForTerminal(this.uiDist),
@@ -219,7 +219,7 @@ export class ServeCommand extends SmCommand {
     } else {
       const uiDistResult = resolveUiDist(runtimeCtx, this.uiDist);
       if (!uiDistResult.ok) {
-        this.printer!.info(
+        this.printer!.error(
           tx(SERVE_TEXTS.startupFailed, {
             glyph: errGlyph,
             message: sanitizeForTerminal(uiDistResult.message),
@@ -245,7 +245,7 @@ export class ServeCommand extends SmCommand {
     //     parsers use.
     const debounceResult = parseDebounce(this.watcherDebounceMs);
     if (!debounceResult.ok) {
-      this.printer!.info(
+      this.printer!.error(
         tx(SERVE_TEXTS.watcherDebounceInvalid, {
           glyph: errGlyph,
           value: sanitizeForTerminal(debounceResult.value),
@@ -261,7 +261,7 @@ export class ServeCommand extends SmCommand {
     //     positive integer → honoured for every scan the server runs.
     const maxScanResult = parseMaxIntFlag(this.maxScan);
     if (!maxScanResult.ok) {
-      this.printer!.info(
+      this.printer!.error(
         tx(SERVE_TEXTS.maxScanInvalid, {
           glyph: errGlyph,
           value: sanitizeForTerminal(maxScanResult.value),
@@ -272,7 +272,7 @@ export class ServeCommand extends SmCommand {
     }
     const maxNodesResult = parseMaxIntFlag(this.maxNodes);
     if (!maxNodesResult.ok) {
-      this.printer!.info(
+      this.printer!.error(
         tx(SERVE_TEXTS.maxNodesInvalid, {
           glyph: errGlyph,
           value: sanitizeForTerminal(maxNodesResult.value),
@@ -288,7 +288,7 @@ export class ServeCommand extends SmCommand {
     //     server runs. Any other value rejects with exit 2.
     const watchBackendResult = parseWatchBackendFlag(this.watchBackend);
     if (!watchBackendResult.ok) {
-      this.printer!.info(
+      this.printer!.error(
         tx(SERVE_TEXTS.watchBackendInvalid, {
           glyph: errGlyph,
           value: sanitizeForTerminal(watchBackendResult.value),
@@ -337,7 +337,7 @@ export class ServeCommand extends SmCommand {
 
     const validation = validateServerOptions(input);
     if (!validation.ok) {
-      this.printer!.info(formatValidationError(validation.error, stderrAnsi));
+      this.printer!.error(formatValidationError(validation.error, stderrAnsi));
       return ExitCode.Error;
     }
 
@@ -377,7 +377,7 @@ export class ServeCommand extends SmCommand {
       });
     } catch (err) {
       const message = formatErrorMessage(err);
-      this.printer!.info(
+      this.printer!.error(
         tx(SERVE_TEXTS.bindFailed, {
           glyph: errGlyph,
           host: sanitizeForTerminal(validation.options.host),

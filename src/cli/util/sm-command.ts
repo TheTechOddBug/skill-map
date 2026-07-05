@@ -154,7 +154,7 @@ export abstract class SmCommand extends Command {
   private applyVerboseLogger(): void {
     if (this.verbose <= 0) return;
     const level: TLogLevel = this.verbose >= 3 ? 'trace' : this.verbose === 2 ? 'debug' : 'info';
-    configureLogger(new Logger({ level, stream: process.stderr }));
+    configureLogger(new Logger({ level, stream: this.context.stderr }));
   }
 
   /**

@@ -1,8 +1,10 @@
 /**
  * `maybeRunUpdateCheck`, glue between the npm-registry probe and the
- * CLI banner. Designed to run AFTER `cli.run()` so the verb's own
- * output is already on the wire; the banner emits to stderr, never
- * blocks stdout, and never affects a verb's exit code.
+ * CLI banner. Runs at BOOT, before `cli.run()`, injected by
+ * `cli/entry.ts` into the `boot` event payload and invoked by the
+ * `core/update-check` hook (Phase 3 design call: the banner appears
+ * ABOVE the verb's output). The banner emits to stderr, never blocks
+ * stdout, and never affects a verb's exit code.
  *
  * This module reads `os.homedir()` (transitively through
  * `cli/util/user-settings-store.ts`). Per `spec/cli-contract.md`

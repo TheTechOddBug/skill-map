@@ -405,24 +405,25 @@ When in doubt, copy the closest analogue:
 - The **server banner** for `sm serve` (figlet logo). Lives in
   `cli/util/serve-banner.ts`; reused by `sm tutorial` via
   `renderLogoBlock`. Spec for that surface is the file itself.
-- The **update-available banner** emitted at the END of every verb
-  when a newer `@skill-map/cli` is published on npm. Lives in
+- The **update-available banner** emitted at BOOT, above the verb's
+  output, when a newer `@skill-map/cli` is published on npm. Lives in
   `cli/util/update-check-banner.ts`. Renders as a 4-line boxed block,
-  60-col wide, cyan border, bold cyan header `┌─ ⬆ Update available ─...`,
+  60-col wide, cyan border, bold cyan header `┌─ ⬇ Update available ─...`,
   body line 1 with the version transition (`current → latest`), body
   line 2 with the dim actionable hint, closing footer `└──────...`.
   Sample:
   ```
-  ┌─ ⬆ Update available ──────────────────────────
+  ┌─ ⬇ Update available ──────────────────────────
   │  0.21.0 → 0.22.0
   │  Run `npm i -g @skill-map/cli@latest` to update.
   └────────────────────────────────────────────────
   ```
   Fires at most once per 24h and is silent on every failure mode (no
   DB, network down, opt-out via `SM_NO_UPDATE_CHECK=1` / `CI` /
-  `updateCheck.enabled: false` / non-TTY stderr). Hook is wired
-  post-`cli.run()` in `cli/entry.ts`, so verb-owned renderers don't
-  have to know about it.
+  `updateCheck.enabled: false` / non-TTY stderr). `cli/entry.ts`
+  injects the probe into the `boot` event payload (`runUpdateCheck`)
+  and the `core/update-check` hook invokes it before `cli.run()`, so
+  verb-owned renderers don't have to know about it.
 - **Interactive prompts** (confirms on `db reset / restore`,
   `orphans undo-rename`). Format stays plain "Question?", they're
   read by humans during the verb's flow, not as result output. The one

@@ -127,7 +127,7 @@ export class ScanCompareCommand extends SmCommand {
       prior = await loadAndValidateDump(this.dump);
     } catch (err) {
       const message = formatErrorMessage(err);
-      this.printer!.info(tx(SCAN_TEXTS.compareErrorPrefix, { message }));
+      this.printer!.error(tx(SCAN_TEXTS.compareErrorPrefix, { message }));
       return ExitCode.Error;
     }
 
@@ -151,7 +151,7 @@ export class ScanCompareCommand extends SmCommand {
       cfg = loaded.effective;
     } catch (err) {
       const message = formatErrorMessage(err);
-      this.printer!.info(tx(SCAN_TEXTS.compareErrorPrefix, { message }));
+      this.printer!.error(tx(SCAN_TEXTS.compareErrorPrefix, { message }));
       return ExitCode.Error;
     }
     const ignoreFilter = composeScopeIgnoreFilter(ctx.cwd, cfg.ignore);
@@ -177,7 +177,7 @@ export class ScanCompareCommand extends SmCommand {
       current = await runScan(kernel, compareRunOpts);
     } catch (err) {
       const message = formatErrorMessage(err);
-      this.printer!.info(tx(SCAN_TEXTS.compareErrorPrefix, { message }));
+      this.printer!.error(tx(SCAN_TEXTS.compareErrorPrefix, { message }));
       return ExitCode.Error;
     }
 

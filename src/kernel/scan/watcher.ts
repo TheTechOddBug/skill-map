@@ -44,6 +44,7 @@ import parcelWatcher from '@parcel/watcher';
 
 import type { IIgnoreFilter } from './ignore.js';
 import { readGitignoreText, readIgnoreFileText } from './ignore.js';
+import { SKILL_MAP_DIR } from '../util/skill-map-paths.js';
 
 // -----------------------------------------------------------------------------
 // Public types
@@ -411,7 +412,7 @@ const PARCEL_DEFAULT_IGNORE_DIRS = [
   '.next',
   '.cache',
   '.tmp',
-  '.skill-map',
+  SKILL_MAP_DIR,
 ];
 
 /**

@@ -126,7 +126,7 @@ export class RefreshCommand extends SmCommand {
     const errGlyph = ansiEarly.red('✕');
     // --- argument validation ------------------------------------------------
     if (this.stale && this.nodePath !== undefined) {
-      this.printer!.info(
+      this.printer!.error(
         tx(REFRESH_TEXTS.nodeAndStaleMutex, {
           glyph: errGlyph,
           hint: ansiEarly.dim(REFRESH_TEXTS.nodeAndStaleMutexHint),
@@ -135,7 +135,7 @@ export class RefreshCommand extends SmCommand {
       return ExitCode.Error;
     }
     if (!this.stale && this.nodePath === undefined) {
-      this.printer!.info(
+      this.printer!.error(
         tx(REFRESH_TEXTS.noTargetSpecified, {
           glyph: errGlyph,
           hint: ansiEarly.dim(REFRESH_TEXTS.noTargetSpecifiedHint),
@@ -192,7 +192,7 @@ export class RefreshCommand extends SmCommand {
         this.#emitJsonError('db-missing', tx(REFRESH_TEXTS.jsonErrorDbMissing));
         return ExitCode.NotFound;
       }
-      this.printer!.info(
+      this.printer!.error(
         tx(REFRESH_TEXTS.nodeNotFound, {
           glyph: ansi.red('✕'),
           nodePath: this.nodePath ?? '<stale>',
@@ -217,7 +217,7 @@ export class RefreshCommand extends SmCommand {
         this.#emitJsonError('internal', message);
         return ExitCode.Error;
       }
-      this.printer!.info(tx(REFRESH_TEXTS.refreshFailed, { glyph: errGlyph, message }));
+      this.printer!.error(tx(REFRESH_TEXTS.refreshFailed, { glyph: errGlyph, message }));
       return ExitCode.Error;
     }
 
@@ -237,7 +237,7 @@ export class RefreshCommand extends SmCommand {
           this.#emitJsonError('internal', message);
           return ExitCode.Error;
         }
-        this.printer!.info(
+        this.printer!.error(
           tx(REFRESH_TEXTS.refreshFailed, { glyph: errGlyph, message }),
         );
         return ExitCode.Error;
@@ -352,7 +352,7 @@ export class RefreshCommand extends SmCommand {
         );
         return { ok: false, exitCode: ExitCode.NotFound };
       }
-      this.printer!.info(
+      this.printer!.error(
         tx(REFRESH_TEXTS.nodeNotFound, {
           glyph: ansi.red('✕'),
           nodePath: this.nodePath!,

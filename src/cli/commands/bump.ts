@@ -297,7 +297,7 @@ export class BumpCommand extends SmCommand {
         { defaultAnswer: 'yes' },
       );
       if (!ok) {
-        this.printer!.info(
+        this.printer!.error(
           tx(CONSENT_TEXTS.consentAborted, {
             glyph: ansi.cyan('ℹ'),
             verb: 'sm bump',

@@ -97,7 +97,7 @@ export class DbRestoreCommand extends SmCommand {
         stderr: this.context.stderr,
       });
       if (!ok) {
-        this.printer!.info(DB_TEXTS.aborted);
+        this.printer!.error(DB_TEXTS.aborted);
         return ExitCode.Error;
       }
     }

@@ -127,7 +127,7 @@ export class ScanCommand extends SmCommand {
   });
 
   // Each branch in the orchestrator maps to one validation gate
-  // (--watch alias / --changed mutex / -g mutex / dispatch).
+  // (--watch alias / --changed mutex / dispatch).
   // Splitting per branch scatters the gate from the value it gates.
    
   protected async run(): Promise<number> {
@@ -140,7 +140,7 @@ export class ScanCommand extends SmCommand {
     // `--changed` (which loads a prior to merge against) is incoherent.
     if (this.changed && this.noBuiltIns) {
       const ansi = this.ansiFor('stderr');
-      this.printer!.info(
+      this.printer!.error(
         tx(SCAN_TEXTS.changedWithoutBuiltIns, {
           glyph: ansi.red('✕'),
           hint: ansi.dim(SCAN_TEXTS.changedWithoutBuiltInsHint),
@@ -232,7 +232,7 @@ export class ScanCommand extends SmCommand {
     const n = tryParsePositiveInt(raw);
     if (n === null) {
       const ansi = this.ansiFor('stderr');
-      this.printer!.info(
+      this.printer!.error(
         tx(invalidTemplate, {
           glyph: ansi.red('✕'),
           value: raw,
@@ -253,7 +253,7 @@ export class ScanCommand extends SmCommand {
     const conflict = this.#firstWatchConflict();
     if (conflict !== null) {
       const ansi = this.ansiFor('stderr');
-      this.printer!.info(
+      this.printer!.error(
         tx(conflict.template, {
           glyph: ansi.red('✕'),
           hint: ansi.dim(conflict.hint),
@@ -317,7 +317,7 @@ export class ScanCommand extends SmCommand {
     const ansi = this.ansiFor('stderr');
     const errGlyph = ansi.red('✕');
     if (outcome.kind === 'guard-trip') {
-      this.printer!.info(
+      this.printer!.error(
         tx(SCAN_TEXTS.guardWipeRefused, {
           glyph: errGlyph,
           existing: outcome.existing,
@@ -335,10 +335,10 @@ export class ScanCommand extends SmCommand {
       // so this surface prints it verbatim instead of wrapping it in
       // another `{glyph}  sm scan: {message}` shell (which would
       // double the glyph).
-      this.printer!.info(outcome.message);
+      this.printer!.error(outcome.message);
       return ExitCode.Error;
     }
-    this.printer!.info(
+    this.printer!.error(
       tx(SCAN_TEXTS.scanFailure, { glyph: errGlyph, message: outcome.message }),
     );
     return ExitCode.Error;
@@ -497,7 +497,7 @@ export class ScanCommand extends SmCommand {
         // keeps the keys (`instancePath`, `keyword`, `message`, etc.)
         // intact for debugging while staying single-token in the
         // template.
-        this.printer!.info(
+        this.printer!.error(
           tx(SCAN_TEXTS.jsonSelfValidationFailed, {
             glyph: ansi.red('✕'),
             errors: JSON.stringify(validation.errors, null, 2),
