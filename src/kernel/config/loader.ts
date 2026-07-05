@@ -231,7 +231,30 @@ export interface IEffectiveConfig {
    * cloned repo can never auto-trust its own plugins.
    */
   pluginTrust?: IPluginTrustConfig;
+  /**
+   * **Project-local only** (per `PROJECT_LOCAL_ONLY_KEYS`, the
+   * `captureConversations` sub-key). Live-activity preferences; today
+   * only the conversation-capture consent gate
+   * (`spec/provider-activity.md` §Conversation capture). Absent on
+   * most projects (capture defaults off).
+   */
+  activity?: IActivityCaptureConfig;
   jobs: IJobsConfig;
+}
+
+/**
+ * Live-activity config block. Mirrors
+ * `project-config.schema.json#/properties/activity`.
+ */
+export interface IActivityCaptureConfig {
+  /**
+   * Consent gate for retaining inter-agent spawn conversation content
+   * in the serve process's in-memory store. Default `false`. Written
+   * by `POST /api/activity/capture` behind the server-enforced confirm
+   * gate; stripped from the committed `project` layer (consent is
+   * per-operator, not team-shared).
+   */
+  captureConversations?: boolean;
 }
 
 /**
@@ -252,6 +275,7 @@ export const PROJECT_LOCAL_ONLY_KEYS: ReadonlySet<string> = new Set<string>([
   'tutorialReminderDismissed',
   'scan.referencePaths',
   'pluginTrust.projectEnabled',
+  'activity.captureConversations',
 ]);
 
 export type TConfigLayer =

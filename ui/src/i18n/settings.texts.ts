@@ -244,6 +244,37 @@ export const SETTINGS_TEXTS = {
       uninstalledPrefix: 'Activity hook removed from',
       nothingToUninstall: 'The activity hook was not installed; nothing to remove.',
     },
+
+    /**
+     * Conversation-capture gate (`spec/provider-activity.md`
+     * §Conversation capture). Opt-in, default OFF; the server enforces
+     * a 412 consent gate, so the toggle settles consent in its own
+     * confirm dialog and every POST carries `confirm: true`. Content is
+     * in-memory only and dies with the server, hence the consent-worded
+     * copy spelling out exactly what is (and is not) retained.
+     */
+    activityCapture: {
+      label: 'Capture agent conversations',
+      description:
+        'Keep the prompt and response of each agent-to-agent spawn in ' +
+        'memory while sm serve runs, so you can read them in the ' +
+        'inspector and by clicking a spawn edge. Nothing is written to ' +
+        'disk; everything is discarded when the server stops or you turn ' +
+        'this off.',
+      enableConfirmHeader: 'Capture agent conversations?',
+      enableConfirmIntro:
+        'skill-map will keep the content of inter-agent prompts and ' +
+        'responses in memory (up to 200 recent spawns) while the server ' +
+        'runs. The content never leaves this machine, is never written ' +
+        'to disk, and is cleared the moment you turn this off or stop ' +
+        'the server.',
+      enableConfirmAccept: 'Enable capture',
+      disableConfirmHeader: 'Stop capturing conversations?',
+      disableConfirmIntro:
+        'Captured conversations are cleared from memory immediately.',
+      disableConfirmAccept: 'Turn off and clear',
+      confirmReject: 'Cancel',
+    },
   },
 
   /** Changelog section. */

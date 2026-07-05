@@ -115,6 +115,101 @@
       </sm-collapsible-section>
     }
 
+    <!--
+      Activity section (spec/provider-activity.md): per-node execution
+      stats, the recent ring, and the spawn records touching the node.
+      Hardcoded (always rendered): the counters are session-scoped and
+      a zero simply renders the quiet-node line. The detail is fetched
+      on first expand and silently refreshed on scan.completed; long
+      conversation content NEVER renders inline, each spawn row opens
+      the dialog instead.
+    -->
+    <sm-collapsible-section
+      [title]="texts.sections.activity"
+      [expanded]="expanded('activity')"
+      toggleTestid="inspector-activity-toggle"
+      (toggle)="toggleSection('activity')"
+      data-testid="inspector-card-activity"
+    >
+      @if (activityDetail()?.captureEnabled) {
+        <span
+          class="inspector__activity-capture-chip"
+          smSectionTitleExtra
+          [pTooltip]="texts.activity.captureOnChipTooltip"
+          data-testid="inspector-activity-capture-chip"
+        >{{ texts.activity.captureOnChip }}</span>
+      }
+      @if (expanded('activity')) {
+        @if (activityDetail(); as detail) {
+          <div class="inspector__activity" data-testid="inspector-activity-section">
+            @if (activityEmpty()) {
+              <p class="inspector__activity-empty" data-testid="inspector-activity-empty">
+                {{ texts.activity.empty }}
+              </p>
+            } @else {
+              @if (detail.stats.count > 0) {
+                <dl class="inspector__activity-stats" data-testid="inspector-activity-stats">
+                  <dt>{{ texts.activity.stats.count }}</dt>
+                  <dd>{{ detail.stats.count }}</dd>
+                  <dt>{{ texts.activity.stats.lastStart }}</dt>
+                  <dd>{{ formatActivityTime(detail.stats.lastStartAt) }}</dd>
+                  <dt>{{ texts.activity.stats.contexts }}</dt>
+                  <dd>{{ detail.stats.distinctOwners }}</dd>
+                </dl>
+              }
+              @if (detail.recent.length > 0) {
+                <h4 class="inspector__activity-heading">{{ texts.activity.recentHeading }}</h4>
+                <ul class="inspector__activity-recent" data-testid="inspector-activity-recent">
+                  @for (run of detail.recent; track $index) {
+                    <li class="inspector__activity-recent-row">
+                      <span class="inspector__activity-time">{{ formatActivityTime(run.at) }}</span>
+                      <code class="inspector__activity-owner">{{ run.owner }}</code>
+                    </li>
+                  }
+                </ul>
+              }
+              @if (spawnThreads().length > 0) {
+                <h4 class="inspector__activity-heading">{{ texts.activity.spawnsHeading }}</h4>
+                <!-- One row per parent-child THREAD: the N Task calls of a
+                     pair fuse into one conversation (exchange counter),
+                     opened whole in the dialog. -->
+                <ul class="inspector__activity-spawns" data-testid="inspector-activity-spawns">
+                  @for (thread of spawnThreads(); track thread.key) {
+                    <li class="inspector__activity-spawn-row" data-testid="inspector-activity-thread">
+                      <div class="inspector__activity-spawn-main">
+                        <span class="inspector__activity-spawn-pair">{{ threadPairLabel(thread) }}</span>
+                        <span class="inspector__activity-spawn-meta">
+                          {{ texts.activity.exchangeCount(thread.records.length) }} · {{ threadLastRecord(thread).status }} · {{ formatActivityTime(threadLastRecord(thread).startedAt) }}
+                        </span>
+                      </div>
+                      <p-button
+                        [label]="texts.activity.viewConversation"
+                        [ariaLabel]="texts.activity.viewConversationA11y(threadChildLabel(thread))"
+                        severity="secondary"
+                        size="small"
+                        [text]="true"
+                        (onClick)="openSpawnConversation(thread)"
+                        data-testid="inspector-activity-view-conversation"
+                      />
+                    </li>
+                  }
+                </ul>
+                @if (!detail.captureEnabled) {
+                  <p class="inspector__activity-hint" data-testid="inspector-activity-capture-off">
+                    {{ texts.activity.captureOffHint }}
+                  </p>
+                }
+              }
+            }
+          </div>
+        } @else {
+          <p class="inspector__activity-loading" data-testid="inspector-activity-loading">
+            {{ texts.activity.loading }}
+          </p>
+        }
+      }
+    </sm-collapsible-section>
+
     @if (hasConnections()) {
       <sm-collapsible-section
         [title]="texts.sections.connections"
@@ -284,6 +379,19 @@
     <sm-sidecar-consent-dialog
       [open]="consentOpen()"
       (decision)="onConsentDecision($event)"
+    />
+
+    <!--
+      Conversation viewer for the Activity section's thread list. The
+      clicked row's records already carry the content halves (when
+      capture is on), so the dialog gets the thread directly, no
+      re-fetch.
+    -->
+    <sm-conversation-dialog
+      [open]="conversationOpen()"
+      [thread]="conversationThread()"
+      [captureEnabled]="activityDetail()?.captureEnabled ?? false"
+      (closed)="onConversationClosed()"
     />
   </section>
 }

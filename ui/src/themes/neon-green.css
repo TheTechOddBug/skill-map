@@ -56,6 +56,10 @@
   --sm-edge-references-active: color-mix(in srgb, var(--sm-ngreen-accent-bright) 67%, #9bb3a4);
   --sm-edge-invokes-active: var(--sm-ngreen-accent-bright);
 
+  /* Spawn edges: magenta against the green ramp, the complementary
+     hue keeps live spawns unmistakable among the four kind greens. */
+  --sm-edge-spawn: #e072c1;
+
   --sm-link-in-bg: color-mix(in srgb, var(--sm-ngreen-accent) 14%, transparent);
   --sm-link-in-fg: var(--sm-ngreen-accent);
   --sm-link-out-bg: color-mix(in srgb, var(--sm-ngreen-muted) 14%, transparent);

@@ -32,6 +32,8 @@
  * spec's forward-compat rule.
  */
 
+import type { INodeActivityStatsApi } from './api';
+
 export interface IWsEvent<T = unknown> {
   /**
    * Canonical event type per `spec/job-events.md §Event catalog`. Today
@@ -241,6 +243,20 @@ export interface IWsNodeActivityData {
    * window; meant to end via an `ownerScope` end.
    */
   sticky?: boolean;
+  /**
+   * Only on `phase: 'start'`: CUSTODY claim (a parent held lit through
+   * a spawn, `spec/provider-activity.md` §parent custody). Lights and
+   * refreshes like any other start but is EXCLUDED from execution
+   * counting server-side and SHOULD NOT trigger "executed" affordances.
+   */
+  keepAlive?: boolean;
+  /**
+   * Only on node-attributed frames: the node's current execution stats
+   * as accumulated server-side (§Execution stats). The server is the
+   * single source of truth: clients MUST overwrite from this field
+   * (and from the summary snapshot), never accumulate counts locally.
+   */
+  stats?: INodeActivityStatsApi;
 }
 
 export type IWsNodeActivityEvent = IWsEvent<IWsNodeActivityData> & { type: 'node.activity' };
@@ -266,6 +282,76 @@ export function isNodeActivityEvent(value: unknown): value is IWsNodeActivityEve
   if (ownerScope !== undefined && typeof ownerScope !== 'boolean') return false;
   const sticky = data['sticky'];
   if (sticky !== undefined && typeof sticky !== 'boolean') return false;
+  const keepAlive = data['keepAlive'];
+  if (keepAlive !== undefined && typeof keepAlive !== 'boolean') return false;
+  const stats = data['stats'];
+  if (stats !== undefined) {
+    // Loose per the forward-compat rule: only the load-bearing `count`
+    // is validated; extra / missing metadata fields never drop a frame.
+    if (typeof stats !== 'object' || stats === null) return false;
+    if (typeof (stats as Record<string, unknown>)['count'] !== 'number') return false;
+  }
+  return true;
+}
+
+/**
+ * `agent.spawn` event payload (`spec/provider-activity.md` §WS event:
+ * `agent.spawn`). One frame per spawn relation a provider signal
+ * reported. Frames are STATELESS and self-contained: the server keeps
+ * no spawn registry, so parent fields repeat on every frame and
+ * consumers correlate by `spawnId`.
+ *
+ * The parent is EITHER a scanned agent node (`parentNodePath` present)
+ * OR a session context (`parentNodePath` ABSENT); `parentOwner` is
+ * always present and stays an opaque key consumers MUST NOT parse. The
+ * client derives its "session parent" view from the absence of
+ * `parentNodePath`, never from the owner string's shape.
+ *
+ * Conversation content (`prompt` / `response`) NEVER rides this event;
+ * it is served on demand under the capture gate (§Conversation
+ * capture).
+ */
+export interface IWsAgentSpawnData {
+  /** Opaque per-spawn correlation id (the spawning tool call's id). */
+  spawnId: string;
+  /**
+   * `start` at the spawn call; `handoff` when an async child's own
+   * owner id becomes known (`childOwner` present from then on); `end`
+   * when the spawn completed with no live child.
+   */
+  phase: 'start' | 'handoff' | 'end';
+  /** Owner key of the spawning context (opaque, never parsed). */
+  parentOwner: string;
+  /** Scanned parent agent's node path; ABSENT for session parents. */
+  parentNodePath?: string;
+  /** The child unit as the runtime named it. */
+  childKind?: string;
+  childName?: string;
+  /** Present when the child name resolved against the scanned node set. */
+  childNodePath?: string;
+  /** The child context's own owner id, present from `handoff` on. */
+  childOwner?: string;
+}
+
+export type IWsAgentSpawnEvent = IWsEvent<IWsAgentSpawnData> & { type: 'agent.spawn' };
+
+export function isAgentSpawnEvent(value: unknown): value is IWsAgentSpawnEvent {
+  if (!isWsEvent(value)) return false;
+  if (value.type !== 'agent.spawn') return false;
+  const data = value.data as Record<string, unknown> | undefined;
+  if (typeof data !== 'object' || data === null) return false;
+  if (typeof data['spawnId'] !== 'string' || data['spawnId'].length === 0) return false;
+  const phase = data['phase'];
+  if (phase !== 'start' && phase !== 'handoff' && phase !== 'end') return false;
+  if (typeof data['parentOwner'] !== 'string' || data['parentOwner'].length === 0) return false;
+  // Typed optionals: when present they must be non-empty strings. The
+  // empty string is rejected on `parentNodePath` in particular because
+  // its ABSENCE is the session-parent discriminator, an empty value
+  // would be ambiguous.
+  for (const key of ['parentNodePath', 'childKind', 'childName', 'childNodePath', 'childOwner']) {
+    const v = data[key];
+    if (v !== undefined && (typeof v !== 'string' || v.length === 0)) return false;
+  }
   return true;
 }
 

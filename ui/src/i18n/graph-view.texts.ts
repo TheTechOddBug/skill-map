@@ -88,6 +88,14 @@ export const GRAPH_VIEW_TEXTS = {
   panel: {
     resizeLabel: 'Resize panel',
   },
+  /**
+   * Ephemeral spawn edges + session anchors (live agent spawns,
+   * spec/provider-activity.md). The edge is clickable: it opens the
+   * conversation dialog for that spawn.
+   */
+  spawnEdge: {
+    aria: 'Open the conversation for this agent spawn',
+  },
   resetLayoutConfirm: {
     header: 'Re-arrange layout?',
     // Full reset (the whole graph is visible): replaces every saved position.

@@ -81,6 +81,23 @@ export const APP_TEXTS = {
   a11y: {
     viewSwitcher: 'View switcher',
   },
+  /**
+   * Topbar Real Time toggle (the bolt button, first in the actions
+   * cluster). Mirrors the Settings > General "Real-time node activity"
+   * switch and its two gates (live updates on + hook installed); the
+   * tooltip explains WHICH gate blocks and points at the Settings
+   * section that fixes it. Tooltips live on a wrapper span because
+   * they do not fire on a disabled button.
+   */
+  liveActivity: {
+    tooltipOn: 'Real-time node activity is on. Click to turn it off.',
+    tooltipOff: 'Real-time node activity is off. Click to light up nodes as your AI runs them.',
+    tooltipNoWs: 'Real-time activity needs live updates. Enable them in Settings > General.',
+    tooltipNoHook:
+      "Real-time activity needs the active lens's hook. Install it in Settings > Project.",
+    ariaOn: 'Turn off real-time node activity',
+    ariaOff: 'Turn on real-time node activity',
+  },
   viewportWarning: {
     title: "Looks like you're on a small screen",
     subtitle: 'skill-map is built for desktop',

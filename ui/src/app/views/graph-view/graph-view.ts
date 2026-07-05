@@ -41,13 +41,24 @@ import { FilterStoreService } from '../../../services/filter-store';
 import { GraphPreferencesService } from '../../../services/graph-preferences';
 import { IssuePathsService } from '../../../services/issue-paths';
 import { MapVisibilityService } from '../../../services/map-visibility';
+import { AgentSpawnService } from '../../../services/agent-spawn';
 import { NodeActivityService } from '../../../services/node-activity';
+import { NodeActivityStatsService } from '../../../services/node-activity-stats';
+import { DATA_SOURCE } from '../../../services/data-source/data-source.port';
+import type { IActivitySpawnDetailApi, INodeActivityStatsApi } from '../../../models/api';
 import { directNeighborhood } from './node-neighborhood';
 import { resolveConnectionSides } from './connection-sides';
 import { BranchCapBanner } from './branch-cap-banner/branch-cap-banner';
 import { GraphLayoutToolbar } from './graph-layout-toolbar/graph-layout-toolbar';
+import { ConversationDialog } from '../../components/conversation-dialog/conversation-dialog';
+import {
+  groupSpawnThreads,
+  threadKeyOf,
+  type ISpawnThread,
+} from '../../components/conversation-dialog/spawn-thread';
 import { KindPalette } from '../../components/kind-palette/kind-palette';
 import { LinkKindPalette } from '../../components/link-kind-palette/link-kind-palette';
+import { SessionNode } from '../../components/session-node/session-node';
 import { SeverityPalette } from '../../components/severity-palette/severity-palette';
 import { NodeCard } from '../../components/node-card/node-card';
 import { PerfHud } from '../../components/perf-hud/perf-hud';
@@ -71,6 +82,12 @@ import {
   type TNodePositions,
 } from './graph-layout';
 import { reconcileNodePositions } from './graph-view.reconcile';
+import {
+  EMPTY_SPAWN_OVERLAY,
+  edgePairKey,
+  resolveSpawnOverlay,
+  type ISpawnOverlay,
+} from './spawn-overlay';
 import { bindSelectionToUrl } from './selection-url-sync';
 import {
   readStoredNodePositions,
@@ -133,9 +150,11 @@ const EDGE_SELECTION_DEFAULT: IEdgeSelectionView = {
     FFlowModule,
     FVirtualFor,
     BranchCapBanner,
+    ConversationDialog,
     GraphLayoutToolbar,
     KindPalette,
     LinkKindPalette,
+    SessionNode,
     SeverityPalette,
     NodeCard,
     PerfHud,
@@ -177,6 +196,9 @@ export class GraphView implements OnInit {
   private readonly injector = inject(Injector);
   private readonly usageTracker = inject(UsageTrackerService);
   protected readonly nodeActivity = inject(NodeActivityService);
+  private readonly activityStats = inject(NodeActivityStatsService);
+  private readonly agentSpawns = inject(AgentSpawnService);
+  private readonly dataSource = inject(DATA_SOURCE);
 
   private readonly flow = viewChild(FFlowComponent);
   // Protected: `panTarget` (below) reads this for the middle-mouse pan's
@@ -1123,6 +1145,37 @@ export class GraphView implements OnInit {
     this.nodeDrag.onNodePointerDown(event);
   }
 
+  /**
+   * Session-anchor drag, mirroring the card pattern (skill rule 9:
+   * buffer per move, flush once at mouseup, `fDragHandle` consumes
+   * `pointerup` so `mouseup` is the reliable end signal). The flushed
+   * position lands in the EPHEMERAL override map that feeds
+   * `spawnOverlay`, never in the persisted node-position store:
+   * session anchors are page-lifetime state by contract.
+   */
+  private sessionDragBuffer: { owner: string; point: IPoint } | null = null;
+
+  onSessionPointerDown(): void {
+    document.addEventListener('mouseup', this.onSessionMouseUp, { once: true });
+  }
+
+  onSessionPositionChange(owner: string, position: IPoint): void {
+    this.sessionDragBuffer = { owner, point: { x: position.x, y: position.y } };
+  }
+
+  private readonly onSessionMouseUp = (): void => {
+    // One microtask so a final synchronous fNodePositionChange around
+    // the up event lands in the buffer before the flush reads it.
+    queueMicrotask(() => {
+      const buffered = this.sessionDragBuffer;
+      this.sessionDragBuffer = null;
+      if (!buffered) return;
+      const next = new Map(this.sessionPositionOverrides());
+      next.set(buffered.owner, buffered.point);
+      this.sessionPositionOverrides.set(next);
+    });
+  };
+
   selectNode(node: IGraphNode, event: MouseEvent): void {
     if (!this.nodeDrag.isClickWithoutDrag(event)) return;
     this.selectedNodeId.set(node.id);
@@ -1276,6 +1329,153 @@ export class GraphView implements OnInit {
   isEdgeExecuting(edge: IGraphEdge): boolean {
     const active = this.nodeActivity.activePaths();
     return active.has(edge.from) && active.has(edge.to);
+  }
+
+  /**
+   * Execution-stats lookup for the card counter pill
+   * (spec/provider-activity.md §Execution stats). One O(1) Map lookup
+   * per node; entry identities are stable inside
+   * `NodeActivityStatsService`, so under OnPush only the cards whose
+   * count actually moved re-render.
+   */
+  activityStatsFor(id: string): INodeActivityStatsApi | null {
+    return this.activityStats.stats().get(id) ?? null;
+  }
+
+  /**
+   * Ephemeral spawn overlay (spec/provider-activity.md §WS event:
+   * `agent.spawn`), LAYERED BESIDE `graph()`: dashed spawn edges plus
+   * floating session anchors, projected against the SAME visible set
+   * and effective positions the canvas renders, but through a separate
+   * computed so the synthetic `session:<owner>` ids never reach
+   * `fullLayout`, the reconciler, persisted positions, or the fit
+   * bbox. Empty (and dependency-cheap) while nothing is spawning.
+   */
+  /**
+   * User-dragged session-anchor positions, keyed by session owner.
+   * Ephemeral by contract (page lifetime, never persisted); survives a
+   * session's decay so a reappearing session lands where the user left
+   * it. Written only by the drag-end flush above.
+   */
+  private readonly sessionPositionOverrides = signal<ReadonlyMap<string, IPoint>>(new Map());
+
+  protected readonly spawnOverlay = computed<ISpawnOverlay>(() => {
+    const spawns = this.agentSpawns.spawnEdges();
+    if (spawns.length === 0) return EMPTY_SPAWN_OVERLAY;
+    const pinned = this.nodePositions();
+    const layout = this.fullLayout().positions;
+    const sessionOverrides = this.sessionPositionOverrides();
+    // RENDERED static pairs (edge-kind filters + visibility already
+    // applied by `graph()`): a spawn whose exact pair is drawn rides
+    // that static edge instead of duplicating it; a pair the user
+    // filtered out keeps the standalone dashed edge.
+    const staticPairs = new Set(this.graph().edges.map((e) => edgePairKey(e.from, e.to)));
+    return resolveSpawnOverlay({
+      spawns,
+      sessions: this.agentSpawns.sessionNodes(),
+      visiblePaths: this.mapVisiblePaths(),
+      staticPairs,
+      positionOf: (path) => pinned.get(path) ?? layout.get(path),
+      sessionPositionOf: (owner) => sessionOverrides.get(owner),
+    });
+  });
+
+  /**
+   * pairKey -> representative spawnId for static edges hosting live
+   * spawn state. Any spawn of the pair works, the click opens the
+   * whole THREAD via the two-fetch widening; emission order makes the
+   * last (most recent) spawn win.
+   */
+  protected readonly spawnActiveByPair = computed<ReadonlyMap<string, string>>(() => {
+    const map = new Map<string, string>();
+    for (const entry of this.spawnOverlay().activeOnStatic) {
+      map.set(entry.pairKey, entry.spawnId);
+    }
+    return map;
+  });
+
+  /** The spawn riding this static edge, or `null` when the edge is plain. */
+  protected spawnActiveIdFor(edge: IGraphEdge): string | null {
+    return this.spawnActiveByPair().get(edgePairKey(edge.from, edge.to)) ?? null;
+  }
+
+  /**
+   * Static-edge click: only spawn-active edges open the conversation,
+   * through the SAME path as the dashed spawn edge (supersession guard
+   * included). Plain static edges keep their selection-only behaviour.
+   */
+  protected onStaticEdgeClick(edge: IGraphEdge, event: MouseEvent): void {
+    const spawnId = this.spawnActiveIdFor(edge);
+    if (spawnId === null) return;
+    this.onSpawnEdgeClick(spawnId, event);
+  }
+
+  /**
+   * Conversation dialog state (spec §Conversation capture). A click on
+   * a spawn edge stashes the id, fetches the record on demand
+   * (`getSpawnRecord`), then widens it to the FULL parent-child thread
+   * via `getNodeActivity(childNodePath)` (the same grouping the
+   * inspector shows), and opens the dialog; scan-link edges stay
+   * non-clickable. When the widening fetch fails, or the record names
+   * no scanned child, the dialog gets a singleton thread built from
+   * the record alone. `selectedSpawnId` doubles as the supersession
+   * guard for a second click racing either fetch.
+   */
+  protected readonly selectedSpawnId = signal<string | null>(null);
+  protected readonly conversationThread = signal<ISpawnThread | null>(null);
+  protected readonly conversationCaptureEnabled = signal(false);
+  protected readonly conversationOpen = signal(false);
+
+  protected onSpawnEdgeClick(spawnId: string, event: MouseEvent): void {
+    // Keep the click from bubbling to the canvas wrap, which would
+    // clear the node selection underneath the dialog.
+    event.stopPropagation();
+    this.selectedSpawnId.set(spawnId);
+    void this.openSpawnConversation(spawnId);
+  }
+
+  private async openSpawnConversation(spawnId: string): Promise<void> {
+    try {
+      const record = await this.dataSource.getSpawnRecord(spawnId);
+      if (this.selectedSpawnId() !== spawnId) return; // superseded click
+      if (record === null) {
+        this.conversationThread.set(null);
+        this.conversationOpen.set(false);
+        return;
+      }
+      const thread = await this.buildThreadFor(record);
+      if (this.selectedSpawnId() !== spawnId) return; // superseded mid-widening
+      this.conversationThread.set(thread);
+      this.conversationCaptureEnabled.set(record.captureEnabled);
+      this.conversationOpen.set(true);
+    } catch {
+      // Transport failure on an ephemeral record: nothing to show, the
+      // edge itself already communicates the live relation.
+    }
+  }
+
+  /**
+   * Widens one spawn record to its whole conversation: the child
+   * node's activity detail carries every spawn touching it, so the
+   * thread holding this record's key is the full exchange. Best
+   * effort, any failure falls back to the singleton thread.
+   */
+  private async buildThreadFor(record: IActivitySpawnDetailApi): Promise<ISpawnThread> {
+    const singleton = groupSpawnThreads([record])[0]!;
+    if (record.childNodePath === undefined) return singleton;
+    try {
+      const detail = await this.dataSource.getNodeActivity(record.childNodePath);
+      if (detail === null) return singleton;
+      const key = threadKeyOf(record);
+      return groupSpawnThreads(detail.spawns).find((t) => t.key === key) ?? singleton;
+    } catch {
+      return singleton;
+    }
+  }
+
+  protected onConversationClosed(): void {
+    this.conversationOpen.set(false);
+    this.selectedSpawnId.set(null);
   }
 
   // Layout-popover labelers + setters + per-item icon helpers now live

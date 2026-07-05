@@ -58,6 +58,10 @@
   --sm-edge-references-active: color-mix(in srgb, var(--sm-neon-accent-bright) 67%, #94a3b8);
   --sm-edge-invokes-active: var(--sm-neon-accent-bright);
 
+  /* Spawn edges: magenta pops naturally against the blue neon ramp,
+     keeping the live-spawn relation apart from the four kind blues. */
+  --sm-edge-spawn: #e072c1;
+
   --sm-link-in-bg: color-mix(in srgb, var(--sm-neon-accent) 14%, transparent);
   --sm-link-in-fg: var(--sm-neon-accent);
   --sm-link-out-bg: color-mix(in srgb, var(--sm-neon-muted) 14%, transparent);

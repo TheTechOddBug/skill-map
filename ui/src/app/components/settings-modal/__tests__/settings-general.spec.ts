@@ -322,3 +322,48 @@ describe('SettingsGeneral', () => {
     ).toBe(null);
   });
 });
+
+describe('SettingsGeneral, shared ActivityReadinessService', () => {
+  it('mirrors the shared hook-install signal and re-probes through it on open', async () => {
+    const { ActivityReadinessService } = await import('../../../services/activity-readiness');
+    const { signal } = await import('@angular/core');
+
+    const hook = signal<boolean | null>(false);
+    const refresh = vi.fn().mockResolvedValue(undefined);
+    const readinessStub = {
+      hookInstalled: hook.asReadonly(),
+      refresh,
+    } as unknown as InstanceType<typeof ActivityReadinessService>;
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        provideZonelessChangeDetection(),
+        {
+          provide: DATA_SOURCE,
+          useValue: {
+            getPreferences: vi.fn().mockResolvedValue(prefs(true, true)),
+            setPreferences: vi.fn(),
+          } as Partial<IDataSourcePort>,
+        },
+        { provide: SKILL_MAP_MODE, useValue: 'demo' },
+        { provide: ActivityReadinessService, useValue: readinessStub },
+      ],
+    });
+    const fixture = TestBed.createComponent(SettingsGeneral);
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+
+    // The section drops its private probe: opening it re-probes THROUGH
+    // the shared service, and the gate signal is the service's own.
+    expect(refresh).toHaveBeenCalled();
+    interface IHookProto {
+      activityHookInstalled(): boolean | null;
+    }
+    const proto = fixture.componentInstance as unknown as IHookProto;
+    expect(proto.activityHookInstalled()).toBe(false);
+    hook.set(true);
+    expect(proto.activityHookInstalled()).toBe(true);
+  });
+});

@@ -38,7 +38,11 @@ import type {
   IPreferencesPatchApi,
   IProjectConfigApi,
   IActiveProviderApi,
+  IActivityCaptureStatusApi,
   IActivityInstallStatusApi,
+  IActivityNodeDetailApi,
+  IActivitySpawnDetailApi,
+  IActivitySummaryApi,
   IActivityUninstallEnvelopeApi,
   IActiveProviderPutEnvelopeApi,
   IProjectIgnoreApi,
@@ -381,6 +385,48 @@ export class RestDataSource implements IDataSourcePort {
     return await this.patchJson<IActivityUninstallEnvelopeApi>(
       `${BASE}/activity/uninstall`,
       opts?.confirm === true ? { provider, confirm: true } : { provider },
+      'POST',
+    );
+  }
+
+  async getActivitySummary(): Promise<IActivitySummaryApi> {
+    return await this.getJson<IActivitySummaryApi>(`${BASE}/activity/summary`);
+  }
+
+  async getNodeActivity(path: string): Promise<IActivityNodeDetailApi | null> {
+    const encoded = encodeNodePath(path);
+    try {
+      return await this.getJson<IActivityNodeDetailApi>(`${BASE}/activity/node/${encoded}`);
+    } catch (err) {
+      if (err instanceof DataSourceError && err.code === 'not-found') return null;
+      throw err;
+    }
+  }
+
+  async getSpawnRecord(spawnId: string): Promise<IActivitySpawnDetailApi | null> {
+    try {
+      return await this.getJson<IActivitySpawnDetailApi>(
+        `${BASE}/activity/spawns/${encodeURIComponent(spawnId)}`,
+      );
+    } catch (err) {
+      // Unknown OR already-evicted id (the store is a bounded ring):
+      // not-found is a normal value on this ephemeral surface.
+      if (err instanceof DataSourceError && err.code === 'not-found') return null;
+      throw err;
+    }
+  }
+
+  async getActivityCapture(): Promise<IActivityCaptureStatusApi> {
+    return await this.getJson<IActivityCaptureStatusApi>(`${BASE}/activity/capture`);
+  }
+
+  async setActivityCapture(body: {
+    enabled: boolean;
+    confirm?: boolean;
+  }): Promise<IActivityCaptureStatusApi> {
+    return await this.patchJson<IActivityCaptureStatusApi>(
+      `${BASE}/activity/capture`,
+      body.confirm === true ? { enabled: body.enabled, confirm: true } : { enabled: body.enabled },
       'POST',
     );
   }

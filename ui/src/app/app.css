@@ -438,6 +438,15 @@
   --p-button-text-secondary-active-background: var(--shell-topbar-hover-bg);
 }
 
+/* Real Time toggle wrapper: keeps the tooltip-bearing span from
+   distorting the flex row (the span exists only because tooltips do
+   not fire on a disabled button). The ON accent comes from the button
+   itself flipping to `severity="primary"` (token-driven, no local
+   palette), so no color rules live here. */
+.shell__live-activity-wrap {
+  display: inline-flex;
+}
+
 /* Refresh button (replaces the old "<count> nodes" pill). Click
    triggers `POST /api/scan` so the user can force a re-scan from the
    chrome. The tooltip carries the same "X nodes · Y links" counts as

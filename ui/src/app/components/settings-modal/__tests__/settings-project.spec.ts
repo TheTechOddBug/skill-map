@@ -430,3 +430,149 @@ describe('SettingsProject activity hook button', () => {
     expect(proto.activityButtonLabel()).toBe('Install Claude activity hook');
   });
 });
+
+/**
+ * Conversation-capture row (spec/provider-activity.md §Conversation
+ * capture). Consent is settled client-side: both directions run
+ * through the ConfirmationService dialog and the POST always carries
+ * `confirm: true`, so the server's 412 path never fires from this
+ * surface. The spec drives the imperative surface with the
+ * component-scoped ConfirmationService spied to accept / reject.
+ */
+describe('SettingsProject, conversation-capture toggle', () => {
+  interface ICaptureProto {
+    captureEnabled(): boolean;
+    captureError(): string | null;
+    captureStatus: WritableSignal<{ enabled: boolean } | null>;
+    onCaptureToggle(next: boolean): void;
+    isPending(key: string): boolean;
+  }
+
+  function bootstrapCapture(stub: Partial<IDataSourcePort>): {
+    proto: ICaptureProto;
+    fixture: ReturnType<typeof TestBed.createComponent<SettingsProject>>;
+    confirmation: ConfirmationService;
+  } {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        provideZonelessChangeDetection(),
+        { provide: DATA_SOURCE, useValue: stub },
+      ],
+    });
+    const fixture = TestBed.createComponent(SettingsProject);
+    fixture.componentRef.setInput('visible', false);
+    fixture.detectChanges();
+    const confirmation = fixture.debugElement.injector.get(ConfirmationService);
+    return {
+      proto: fixture.componentInstance as unknown as ICaptureProto,
+      fixture,
+      confirmation,
+    };
+  }
+
+  async function flushAsync(): Promise<void> {
+    await Promise.resolve();
+    await Promise.resolve();
+  }
+
+  it('fetches the gate state on section open and reflects it', async () => {
+    const getActivityCapture = vi.fn().mockResolvedValue({ enabled: true });
+    const { proto, fixture } = bootstrapCapture({ getActivityCapture });
+    expect(getActivityCapture).not.toHaveBeenCalled();
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+    expect(getActivityCapture).toHaveBeenCalledTimes(1);
+    expect(proto.captureEnabled()).toBe(true);
+  });
+
+  it('enabling goes through the consent dialog and POSTs with confirm: true', async () => {
+    const setActivityCapture = vi.fn().mockResolvedValue({ enabled: true });
+    const { proto, confirmation } = bootstrapCapture({
+      getActivityCapture: vi.fn().mockResolvedValue({ enabled: false }),
+      setActivityCapture,
+    });
+    proto.captureStatus.set({ enabled: false });
+    const confirmSpy = vi.spyOn(confirmation, 'confirm').mockReturnValue(confirmation);
+
+    proto.onCaptureToggle(true);
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    // Simulate the operator accepting the consent dialog.
+    confirmSpy.mock.calls[0][0].accept?.();
+    await flushAsync();
+
+    expect(setActivityCapture).toHaveBeenCalledWith({ enabled: true, confirm: true });
+    expect(proto.captureEnabled()).toBe(true);
+  });
+
+  it('a dismissed dialog writes nothing and keeps the current state', async () => {
+    const setActivityCapture = vi.fn();
+    const { proto, confirmation } = bootstrapCapture({
+      getActivityCapture: vi.fn().mockResolvedValue({ enabled: false }),
+      setActivityCapture,
+    });
+    proto.captureStatus.set({ enabled: false });
+    const confirmSpy = vi.spyOn(confirmation, 'confirm').mockReturnValue(confirmation);
+
+    proto.onCaptureToggle(true);
+    confirmSpy.mock.calls[0][0].reject?.();
+    await flushAsync();
+
+    expect(setActivityCapture).not.toHaveBeenCalled();
+    expect(proto.captureEnabled()).toBe(false);
+  });
+
+  it('disabling also confirms, POSTs confirm: true, and adopts the off state', async () => {
+    const setActivityCapture = vi.fn().mockResolvedValue({ enabled: false });
+    const { proto, confirmation } = bootstrapCapture({ setActivityCapture });
+    proto.captureStatus.set({ enabled: true });
+    const confirmSpy = vi.spyOn(confirmation, 'confirm').mockReturnValue(confirmation);
+
+    proto.onCaptureToggle(false);
+    confirmSpy.mock.calls[0][0].accept?.();
+    await flushAsync();
+
+    expect(setActivityCapture).toHaveBeenCalledWith({ enabled: false, confirm: true });
+    expect(proto.captureEnabled()).toBe(false);
+  });
+
+  it('a failed write surfaces through captureError and the state stays put', async () => {
+    const { proto, confirmation } = bootstrapCapture({
+      setActivityCapture: vi
+        .fn()
+        .mockRejectedValue(new DataSourceError('internal', 'boom')),
+    });
+    proto.captureStatus.set({ enabled: false });
+    const confirmSpy = vi.spyOn(confirmation, 'confirm').mockReturnValue(confirmation);
+
+    proto.onCaptureToggle(true);
+    confirmSpy.mock.calls[0][0].accept?.();
+    await flushAsync();
+
+    expect(proto.captureError()).toBe('boom');
+    expect(proto.captureEnabled()).toBe(false);
+  });
+
+  it('marks the row pending while the write is in flight', async () => {
+    let resolveWrite: (v: { enabled: boolean }) => void = () => undefined;
+    const setActivityCapture = vi.fn().mockReturnValue(
+      new Promise<{ enabled: boolean }>((resolve) => {
+        resolveWrite = resolve;
+      }),
+    );
+    const { proto, confirmation } = bootstrapCapture({ setActivityCapture });
+    proto.captureStatus.set({ enabled: false });
+    const confirmSpy = vi.spyOn(confirmation, 'confirm').mockReturnValue(confirmation);
+
+    proto.onCaptureToggle(true);
+    confirmSpy.mock.calls[0][0].accept?.();
+    await Promise.resolve();
+    expect(proto.isPending('activity.capture')).toBe(true);
+
+    resolveWrite({ enabled: true });
+    await flushAsync();
+    expect(proto.isPending('activity.capture')).toBe(false);
+    expect(proto.captureEnabled()).toBe(true);
+  });
+});

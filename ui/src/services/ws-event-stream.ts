@@ -86,9 +86,11 @@ import { EMPTY, Observable, Subject, share } from 'rxjs';
 import { filter } from 'rxjs/operators';
 
 import {
+  isAgentSpawnEvent,
   isNodeActivityEvent,
   isSidecarBumpedEvent,
   isWsEvent,
+  type IWsAgentSpawnEvent,
   type IWsEvent,
   type IWsNodeActivityEvent,
   type IWsScanCompletedEvent,
@@ -287,6 +289,15 @@ export class WsEventStreamService implements OnDestroy {
    */
   readonly nodeActivity$: Observable<IWsNodeActivityEvent>;
 
+  /**
+   * Pre-filtered stream of `agent.spawn` envelopes (live spawn
+   * relations, `spec/provider-activity.md` §WS event: `agent.spawn`),
+   * with full payload-shape validation via `isAgentSpawnEvent`.
+   * Consumed by the `AgentSpawnService`, which owns the edge-lifetime
+   * / session-anchor semantics.
+   */
+  readonly agentSpawn$: Observable<IWsAgentSpawnEvent>;
+
   constructor() {
     if (this.mode !== 'live') {
       // Demo mode: never open a socket. Subscribers see immediate
@@ -325,6 +336,9 @@ export class WsEventStreamService implements OnDestroy {
     );
     this.nodeActivity$ = this.events$.pipe(
       filter(isNodeActivityEvent),
+    );
+    this.agentSpawn$ = this.events$.pipe(
+      filter(isAgentSpawnEvent),
     );
 
     // Best-effort cleanup on injector teardown (mirrors `disconnect()`

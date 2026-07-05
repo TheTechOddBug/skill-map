@@ -29,8 +29,10 @@ The pipeline crosses four independently-owned pieces:
   `provider` extension manifest (install descriptor + event mapping). The kernel is
   a scan-time engine; it is not alive at runtime and never transports events.
 - **BFF** owns the runtime: the ingest route, the event->node resolution against the
-  scanned node set, and the WebSocket broadcast. Activity state is in-memory only;
-  nothing is persisted (no `scan_*` / `state_*` writes in v1).
+  scanned node set, the WebSocket broadcast, the in-memory execution-stats
+  accumulator (§Execution stats), and the consent-gated conversation store
+  (§Conversation capture). Activity state is in-memory only; nothing is persisted
+  (no `scan_*` / `state_*` writes), and everything dies with the process.
 - **Bridge** is the tiny artifact installed into the provider's own hook config. It
   has ZERO skill-map logic beyond discovery + forwarding (see §Bridge contract).
 - **UI** owns presentation: per-node lighting, the active spine, TTL decay.
@@ -68,6 +70,36 @@ Two halves:
     whole execution context that is not itself a node (Antigravity's `Stop`:
     a conversation going idle). The resolver forwards it without resolution
     and consumers release every claim that `owner` holds.
+
+  - **Relation-only (spawn)**: `{ phase, owner, spawn }` with NO `kind`/`name`/
+    `path`. Used when a spawn happens in a context that is not itself a node
+    (the main session spawning a subagent): there is no parent node to claim,
+    but the relation still matters. The resolver emits one `agent.spawn` frame
+    (§WS event: `agent.spawn`) and no `node.activity` event.
+
+  Three optional fields refine a signal's meaning:
+
+  - `keepAlive` (start-only): marks a CUSTODY claim (a parent held lit through
+    a spawn, §WS event: `node.activity`, parent custody) rather than an
+    execution of the named unit. Keep-alive starts light nodes exactly like any
+    other start but are EXCLUDED from execution counting (§Execution stats).
+  - `spawn`: a spawn-relation block `{ spawnId, phase: "start" | "handoff" |
+    "end", parentOwner, childKind?, childName?, childOwner?, prompt?,
+    response? }` riding the signal produced by the spawning tool call.
+    `spawnId` is the raw spawn tool-call id (never a synthetic owner key;
+    nothing parses owner strings). The BFF turns each block into one
+    `agent.spawn` frame, resolving `childKind`/`childName` through the same
+    identifiers contract as name signals. `prompt` / `response` are the
+    inter-agent conversation halves; they never ride the WS and are retained
+    ONLY under the capture gate (§Conversation capture).
+  - `report` (only on `phase: "end"` boundary signals): the ENDING context's
+    final message, as the runtime reported it on its stop event (Claude:
+    `last_assistant_message`). CONTENT, not metadata: it never rides the WS,
+    and the BFF hands it to the conversation store ONLY under the capture
+    gate, where it completes the response half of spawns whose completion
+    frame carries no content (async spawns), matched by the record's
+    `childOwner`. Runtimes fire stop events on pause too; overwrite
+    semantics make the terminal message win.
 
   Either way the provider owns payload knowledge and does NOT resolve nodes;
   `mapEvent` is also where irrelevant runtime events are FILTERED with an early
@@ -165,12 +197,17 @@ Served by the BFF, loopback-gated like every `/api/*` route, plus token-gated:
 
 - **Request**: `{ "provider": "<provider-id>", "event": <raw provider payload> }`
   with the serve.json token in the `x-skill-map-token` header.
-- **Responses**: `202` accepted (also when the event maps to nothing; the bridge
-  never needs the outcome), `403` on missing/mismatched token (before any body
-  processing), `400` on malformed body shape.
+- **Responses**: `202` accepted with `{ "ok": true, "resolved": <n>, "spawns":
+  <n> }` (also when the event maps to nothing; the bridge never needs the
+  outcome), `403` on missing/mismatched token (before any body processing),
+  `400` on malformed body shape.
 - The handler resolves the Provider by id, calls its `mapEvent(raw)`, resolves
-  `(kind, name)` against the scanned node set, and broadcasts one `node.activity`
-  WS event per resolved signal. The raw event is then discarded (v1).
+  `(kind, name)` against the scanned node set, feeds each resolved signal to the
+  execution-stats accumulator (§Execution stats), and broadcasts one
+  `node.activity` WS event per resolved signal (stats-enriched) plus one
+  `agent.spawn` event per spawn relation (§WS event: `agent.spawn`). Spawn
+  conversation content reaches the conversation store ONLY while the capture
+  gate is on (§Conversation capture). The raw event is then discarded.
 - **Privacy**: the raw event may contain prompts, command text, and file contents.
   The route's request body is excluded from error reporting (Sentry), access logs,
   and error messages. Nothing beyond the minimal WS payload leaves the process,
@@ -257,9 +294,12 @@ Broadcast over `/ws` in the common envelope of
 - `nodePath`: the resolved scanned node's stable id (its `path`).
 - `phase`: `"start" | "end"`. Providers with no native end signal for a unit (a
   Claude skill has none) simply never emit `end` for it; the UI owns span decay.
-- `owner`: opaque identifier of the executing context (`"main"`, an agent id, an
-  agent type, a session/conversation id, provider-dependent). Consumers treat it
-  as an opaque grouping key.
+- `owner`: opaque identifier of the executing context (a sessionized main key
+  like `main:<session_id>`, an agent id, an agent type, a session/conversation
+  id, provider-dependent; providers whose payloads carry no session id fall
+  back to the bare `"main"` literal). Consumers treat it as an opaque grouping
+  key and MUST NOT parse it; structural discriminators (like a missing
+  `parentNodePath` on `agent.spawn` frames) carry the semantics instead.
 - `ownerScope` (optional, only on `phase: "end"`): `true` when the signal marks
   the END OF THE OWNER'S WHOLE EXECUTION CONTEXT (a subagent terminating), not
   just of the named node. Consumers then release EVERY claim held by that
@@ -274,6 +314,15 @@ Broadcast over `/ws` in the common envelope of
   sticky claims a much longer decay window than momentary usage claims: they
   are meant to end via `ownerScope` ends, the long window is only a safety net
   against a crashed runtime that never sends one.
+- `keepAlive` (optional, only on `phase: "start"`): `true` for CUSTODY claims
+  (the parent-custody mechanism below). Keep-alive starts light and refresh
+  nodes like any other start but are excluded from execution counting
+  (§Execution stats), and SHOULD NOT trigger "executed" affordances.
+- `stats` (optional, only on node-attributed frames): the node's current
+  execution stats `{ count, lastStartAt, lastOwner?, distinctOwners }` as
+  accumulated server-side (§Execution stats). The server is the single source
+  of truth: clients MUST overwrite from this field (and from the summary
+  snapshot), never accumulate counts themselves.
 
 Consumers SHOULD also treat any owned signal as a HEARTBEAT: every arriving
 signal with `owner` X refreshes the decay window of every claim X already
@@ -299,6 +348,149 @@ the parent lit until the sticky window lapses. In the completed case,
 releasing the synthetic spawn key IS the end of custody: the parent's own
 lifecycle claim (its `SubagentStart`) carries it until its own terminal stop.
 
+## WS event: `agent.spawn`
+
+Broadcast over `/ws` in the same common envelope (experimental non-job family).
+One frame per spawn relation reported by a provider signal (§capability,
+`spawn` block). Frames are STATELESS and self-contained: the server keeps no
+spawn registry, so parent fields repeat on every frame and consumers correlate
+by `spawnId`.
+
+```json
+{
+  "type": "agent.spawn",
+  "timestamp": 1730000000000,
+  "data": {
+    "spawnId": "toolu_01MEQBSdHNo3B9pMjY8s7ZQK",
+    "phase": "start",
+    "parentOwner": "main:6cfe5636-2e56-4271-91a6-87fc3d4355be",
+    "childKind": "agent",
+    "childName": "demo-worker",
+    "childNodePath": ".claude/agents/demo-worker.md"
+  }
+}
+```
+
+- `spawnId`: opaque per-spawn correlation id (the spawning tool call's id).
+- `phase`: `"start"` at the spawn call; `"handoff"` when an async child's own
+  owner id becomes known (`childOwner` present from then on); `"end"` when the
+  spawn completed with no live child (sync spawns, or a completion arriving
+  after the child already stopped).
+- `parentOwner`: owner key of the spawning context. `parentNodePath`
+  (optional): the scanned parent agent's node path; ABSENT when the spawner is
+  a session (the main context). That absence is the structural discriminator
+  for session parents; consumers never parse owner strings.
+- `childKind` / `childName`: the child unit as the runtime named it.
+  `childNodePath` is present when the name resolved against the scanned node
+  set. An unresolved child is still emitted (name only) so session surfaces
+  can count it, but no edge can target a phantom node.
+- `childOwner`: the child context's own owner id, present from `"handoff"` on.
+- Conversation content (`prompt` / `response`) NEVER rides this event; it is
+  served on demand under the capture gate (§Conversation capture).
+
+Edge lifetime is UI-owned, mirroring custody: draw at `"start"`, consolidate
+at `"handoff"`, release on the explicit `"end"` frame OR on the
+`node.activity` owner-scoped end whose `owner` equals `childOwner`, with the
+sticky decay window as the crash safety net.
+
+## Execution stats
+
+The BFF accumulates per-node execution stats in memory (process lifetime,
+reset on every `sm serve` boot, never persisted). Counting semantics
+(normative):
+
+- Only node-attributed `phase: "start"` signals count. Ends, owner releases
+  and relation-only signals never mutate stats.
+- `keepAlive: true` starts NEVER count: custody is not an execution.
+- `sticky: true` starts count ONCE per `(nodePath, owner)` pair for the
+  process lifetime. Runtimes re-emit lifecycle starts on pause/resume with the
+  SAME owner id, and a resume is not a new execution; a fresh instance has a
+  fresh owner id and counts again. The dedupe memory is append-only (owners
+  are not forgotten on `ownerScope` ends, or every pause/resume cycle would
+  recount).
+- All other starts (skill invocations, command expansions, markdown reads)
+  count on every signal.
+
+Per node the accumulator keeps `count`, `lastStartAt` (unix ms), `lastOwner`,
+the distinct-owner count, and a short ring of recent executions
+(`{ at, owner }`, most recent first). All sets and rings are bounded; hitting
+a bound saturates or evicts oldest entries, it never errors.
+
+### `GET /api/activity/summary`
+
+Snapshot for client hydration (connect, reconnect, re-enable). Loopback-gated,
+no token (operator surface, like §Install management). Response `200`:
+
+```json
+{
+  "since": 1730000000000,
+  "nodes": {
+    ".claude/skills/deploy/SKILL.md": {
+      "count": 3,
+      "lastStartAt": 1730000001234,
+      "lastOwner": "main:6cfe5636-2e56-4271-91a6-87fc3d4355be",
+      "distinctOwners": 2
+    }
+  }
+}
+```
+
+Stats-only by design: the summary carries NO live claim or spawn state. Live
+lighting and spawn edges rebuild from the WS stream as events arrive; clients
+treat both this snapshot and the WS `stats` field as overwrites from the
+single server-side source of truth.
+
+### `GET /api/activity/node/<pathB64>`
+
+Per-node detail for inspector surfaces. Response `200`: `{ "stats": { ... },
+"recent": [{ "at": <ms>, "owner": "..." }], "spawns": [ ... ],
+"captureEnabled": <bool> }`, where `spawns` lists the RETAINED spawn records
+touching the node (as parent or child). Records exist only while the capture
+gate is on (§Conversation capture): with the gate off the list is always
+empty, and live spawn metadata remains available only on the `agent.spawn` WS
+stream. A scanned node with no recorded activity returns empty stats, not
+`404`; an unknown path returns `404`.
+
+## Conversation capture
+
+The inter-agent conversation halves (the spawn `prompt`, the sync-completion
+`response`) are CONTENT, not metadata; retaining them requires explicit
+operator consent:
+
+- **Gate**: off by default. The setting lives in the project-local config
+  layer (never committed, never `$HOME`). Turning it off clears the store
+  immediately.
+- **Consent flow**: `POST /api/activity/capture` with body `{ "enabled":
+  true|false, "confirm": true }`; without `confirm: true` the server MUST
+  refuse with `412` (`confirm-required`) and change nothing, the same gate
+  §Install management uses. `GET /api/activity/capture` reports
+  `{ "enabled": <bool> }`.
+- **Retention bounds**: an in-memory ring of at most 200 spawn records; each
+  content field is capped (64 KiB) and truncated with an explicit marker.
+  Nothing is persisted; the store dies with the process.
+- **Custody (normative)**: the store is reachable ONLY from the BFF
+  composition root and the activity routes. It MUST NOT be exposed through the
+  kernel, the plugin runtime, any extension context, or the plugin KV API;
+  plugins have no supported path to it. Content is excluded from error
+  reporting, access logs and error messages (same posture as the ingest body)
+  and NEVER rides the WS; it is served only on demand over the loopback-gated
+  detail endpoints.
+- **Response sources**: the response half arrives through two complementary
+  paths, capped and gated identically. A SYNC spawn's completion carries it
+  on the spawn relation itself (`response`, extracted from the completion
+  payload as a plain string or joined text content blocks). An ASYNC spawn's
+  completion carries no content, so the child's boundary-stop `report` (its
+  final message, live-verified 2026-07-05: Claude's `SubagentStop` carries
+  `last_assistant_message`) attaches to the record by matching `childOwner`.
+  Pause stops overwrite harmlessly; the terminal message wins.
+
+### `GET /api/activity/spawns/<spawnId>`
+
+One RETAINED spawn record (the edge-click surface), with its `prompt` /
+`response` halves; `captureEnabled` rides every `200` response. Records exist
+only while the gate is on, so with the gate off (or after it cleared the
+store) the route answers `404`, exactly like an unknown id.
+
 ## Transport shapes
 
 Three shapes converge on the same ingest route; the provider's `install.kind`
@@ -316,10 +508,13 @@ declares which applies:
 - Everything is local: bridge, server, and browser speak over loopback only. The
   loopback gate is load-bearing; activity data never leaves the machine and is
   NEVER sent to telemetry (Sentry / PostHog), regardless of consent toggles.
-- v1 keeps nothing: activity state is in-memory, the raw event is dropped after
-  mapping. Future rich surfaces (tool log with arguments, inter-agent conversation
-  view) are opt-in config gates, local-UI-only, and file CONTENTS stay excluded
-  even then unless explicitly enabled.
+- Ephemeral by contract: activity state (per-node execution stats, spawn
+  metadata, and, ONLY under the explicit capture gate, inter-agent conversation
+  content) is in-memory only and dies with the process; the raw event is
+  dropped after mapping. Conversation retention is opt-in and off by default
+  (§Conversation capture). Wider rich surfaces (a full tool log with arguments)
+  remain future opt-in gates, and file CONTENTS stay excluded unless explicitly
+  enabled.
 - Installation is explicit: `sm activity install <provider>` is operator-invoked
   and consent-prompted, and the SPA equivalent (§Install management over HTTP)
   sits behind a server-enforced confirm gate on BOTH install and uninstall.
@@ -335,8 +530,8 @@ Live-verified against real runs (2026-06-30). These inform each provider's
 
 | Provider | skill | agent | command | notes |
 |---|---|---|---|---|
-| `claude` | `PreToolUse` tool=`Skill` (`tool_input.skill`), slash form via `UserPromptExpansion.command_name` | `SubagentStart` (start) / `SubagentStop` (owner-scoped end, `ownerScope: true`) keyed by `agent_id`; `agent_id`/`agent_type` on inner tool events; deep nesting attributable. The spawning `Agent` `PreToolUse` is deliberately NOT mapped: it would claim the child node under the PARENT's owner, and that claim would outlive the child's own `SubagentStop` (TTL instead of native end) | `UserPromptExpansion.command_name` (shares the `/` namespace with skills; disambiguate by which node exists) | markdown usage: `PreToolUse` tool=`Read` (`tool_input.file_path`, relativized against the event's `cwd`) emits a PATH signal; non-`.md` reads and paths outside the scope root are early-disclaimed. Auto-loaded context (`CLAUDE.md` at session start) fires no tool event and stays invisible. Ignore `SubagentStop` orphans with empty `agent_type` |
-| `codex` | weak: `$name` tokens inside `UserPromptSubmit.prompt` (the adapter scans with the SAME shared `$`-token grammar the `dollar-skill` extractor uses, so activity and link extraction agree; sigil stripped, resolver drops unknowns) | `SubagentStart` (sticky start) / `SubagentStop` (owner-scoped end) keyed by `agent_id`; a NAMED `agent_type` resolves to its `.codex/agents/<name>.toml` node, the default generic `worker` resolves to nothing and drops. NO parent custody: nesting is capped by `agents.max_depth` (default 1, spawns main-only), and spawning is consolidate-on-completion (the parent waits), so terminal stops unwind bottom-up natively; no tool events are wired at all | none (`/` is Codex's own built-in namespace) | hook config `.codex/hooks.json` uses the same `{ hooks: { <Event>: [...] } }` convention as claude, so the `json-hooks` engine applies verbatim; payload near-identical to claude's. Markdown usage is NOT mapped: Codex has an internal `read_file` tool but hooks do not fire for it (PreToolUse covers only Bash / apply_patch / MCP; expansion is an open upstream request), so read signals wait for that surface |
+| `claude` | `PreToolUse` tool=`Skill` (`tool_input.skill`), slash form via `UserPromptExpansion.command_name` | `SubagentStart` (start) / `SubagentStop` (owner-scoped end, `ownerScope: true`) keyed by `agent_id`; `agent_id`/`agent_type` on inner tool events; deep nesting attributable. The spawning `Agent` `PreToolUse`/`PostToolUse` pair emits the parent-custody claims (`keepAlive: true`, excluded from execution counting) plus the `spawn` relation block (`prompt` on start, sync `response` on completion; main-context spawns use the relation-only signal form). It deliberately NEVER claims the CHILD node: that claim would outlive the child's own `SubagentStop` (TTL instead of native end) | `UserPromptExpansion.command_name` (shares the `/` namespace with skills; disambiguate by which node exists) | markdown usage: `PreToolUse` tool=`Read` (`tool_input.file_path`, relativized against the event's `cwd`) emits a PATH signal; non-`.md` reads and paths outside the scope root are early-disclaimed. Auto-loaded context (`CLAUDE.md` at session start) fires no tool event and stays invisible. Main-context owner is sessionized (`main:<session_id>`, bare `main` when the payload carries no `session_id`). Terminal `SubagentStop` carries `last_assistant_message` (the child's final report, the async response source) plus `agent_transcript_path`; sync completions carry the report as `tool_response.content` text blocks. Ignore `SubagentStop` orphans with empty `agent_type` |
+| `codex` | weak: `$name` tokens inside `UserPromptSubmit.prompt` (the adapter scans with the SAME shared `$`-token grammar the `dollar-skill` extractor uses, so activity and link extraction agree; sigil stripped, resolver drops unknowns) | `SubagentStart` (sticky start) / `SubagentStop` (owner-scoped end) keyed by `agent_id`; a NAMED `agent_type` resolves to its `.codex/agents/<name>.toml` node, the default generic `worker` resolves to nothing and drops. NO parent custody: nesting is capped by `agents.max_depth` (default 1, spawns main-only), and spawning is consolidate-on-completion (the parent waits), so terminal stops unwind bottom-up natively; no tool events are wired at all | none (`/` is Codex's own built-in namespace) | hook config `.codex/hooks.json` uses the same `{ hooks: { <Event>: [...] } }` convention as claude, so the `json-hooks` engine applies verbatim; payload near-identical to claude's, including the sessionized main owner (`main:<session_id>`). Markdown usage is NOT mapped: Codex has an internal `read_file` tool but hooks do not fire for it (PreToolUse covers only Bash / apply_patch / MCP; expansion is an open upstream request), so read signals wait for that surface |
 | `antigravity` | invocation itself invisible (`/skill` injects the SKILL.md with no tool event, live-verified 2026-07-04), but a skill's `references/*.md` reads DO fire and light those resources | no on-disk agent files exist (subagents are runtime-only Prompt specs), so there is nothing to light; `conversationId` (present in EVERY payload) is the owner grouping key, and the conversation `Stop` (`terminationReason` present) maps to a node-less OWNER RELEASE so the whole chain goes dark the moment the agent idles | none; workflows (`.agent/workflows/*.md`) light when the agent FOLLOWS them (it `view_file`s the workflow file) | TWO mapped signals: `PreToolUse` tool `view_file` (`toolCall.args.AbsolutePath`, relativized against `workspacePaths[*]`) emitting PATH signals (markdown reads, skill resources, followed workflows all light through it), and `Stop` emitting the owner release. Payloads carry NO `hook_event_name`; events are distinguished STRUCTURALLY (`toolCall` = tool event, `invocationNum` = invocation pulse, `terminationReason` = Stop). Hook config `.agents/hooks.json` uses the NAMED-GROUP shape (`install.group`) with the FLAT entry shape on lifecycle events (`events[].entryShape`); the runtime spawns hook commands at the config's directory (`install.commandCwd: "config-dir"`); hooks stay neutral via exit 0 + empty stdout, which the bridge invariants already guarantee |
 | `agent-skills` via opencode | `tool.execute.before` tool `skill` (`args.name`), fires even for prose invocations (live-verified 2026-07-04, v1.17.11) | `chat.message` carries the NAMED `agent` + its own `sessionID` per subagent (spawn via the `task` tool); `sessionID` is the owner key and `session.idle` maps to the node-less OWNER RELEASE (native end) | dedicated `command.execute.before` hook (`{ command, sessionID }`, prose-invoked too) | in-process plugin (`plugin-file`, `.opencode/plugin/skill-map-activity.js`; BOTH `plugin/` and `plugins/` dirs load, install targets the singular). Markdown reads map from tool `read` (`args.filePath`, relativized against the plugin context's `directory`). The plugin registers ONLY the consumed hooks and forwards `{ hook, directory, input, output? }` wrappers |
 
@@ -344,7 +539,9 @@ Live-verified against real runs (2026-06-30). These inform each provider's
 
 This entire surface is **experimental** across spec v0.x: the capability shape
 (`provider.activity`), `serve.json`, the ingest route, and the `node.activity`
-event may tighten before a stable tag lands. Once promoted (a minor bump), the
+event may tighten before a stable tag lands. The `agent.spawn` family, the
+execution-stats fields and endpoints, and the conversation-capture surface are
+experimental additions under the same policy. Once promoted (a minor bump), the
 usual semantics apply: adding an optional manifest field, a new install kind, or a
 new `data` field is a minor bump; removing or renaming any of them is a major
 bump. The bridge invisibility invariants (§Bridge contract item 5) are normative

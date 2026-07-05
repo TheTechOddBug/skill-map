@@ -338,6 +338,56 @@ export interface IProviderScaffold {
 export type TActivityPhase = 'start' | 'end';
 
 /**
+ * Spawn-relation block riding an activity signal (see
+ * `spec/provider-activity.md` §The `provider.activity` capability and
+ * §WS event: `agent.spawn`). Produced by the spawning tool call's
+ * events; the BFF turns each block into ONE stateless `agent.spawn`
+ * frame, resolving `childKind`/`childName` through the same
+ * identifiers contract name signals use. The Provider names the
+ * relation; it does NOT resolve nodes.
+ */
+export interface IActivitySpawnRelation {
+  /**
+   * Opaque per-spawn correlation id: the RAW spawning tool-call id,
+   * never a synthetic owner key (`spawn:<id>`), nothing downstream
+   * parses owner strings.
+   */
+  spawnId: string;
+  /**
+   * `start` at the spawn call; `handoff` when an async child's own
+   * owner id becomes known; `end` when the spawn completed with no
+   * live child (sync spawns, or a completion arriving after the child
+   * already stopped).
+   */
+  phase: 'start' | 'handoff' | 'end';
+  /**
+   * Owner key of the spawning context (an agent id, or the sessionized
+   * main key). Opaque to consumers; the structural discriminator for a
+   * session parent is the ABSENT `parentNodePath` on the resolved
+   * frame, never the owner string.
+   */
+  parentOwner: string;
+  /** Child unit kind as the runtime named it (`agent` today). */
+  childKind?: string;
+  /** Child unit name as the runtime named it (resolved downstream). */
+  childName?: string;
+  /** The child context's own owner id, known from `handoff` on. */
+  childOwner?: string;
+  /**
+   * Parent -> child conversation half, carried on `start`. NEVER rides
+   * the WS; retained only under the capture gate
+   * (`spec/provider-activity.md` §Conversation capture).
+   */
+  prompt?: string;
+  /**
+   * Child -> parent conversation half, carried on a sync `end` (the
+   * runtime returned the child's final report as a string). Same
+   * capture-gate custody as `prompt`.
+   */
+  response?: string;
+}
+
+/**
  * One node-attributable signal derived from a single raw provider hook
  * payload by `IProviderActivityAdapter.mapEvent`. The Provider names the
  * unit in ONE of two forms (see `spec/provider-activity.md`); it does
@@ -354,6 +404,12 @@ export type TActivityPhase = 'start' | 'end';
  *   `name` are ignored.
  *
  * Signals that resolve to no scanned node are dropped either way.
+ *
+ * A third, RELATION-ONLY form carries `spawn` + `owner` + `phase` with
+ * NO `kind`/`name`/`path`: a spawn happening in a context that is not
+ * itself a node (the main session spawning a subagent). There is no
+ * parent node to claim, but the relation still matters; the resolver
+ * emits one `agent.spawn` frame and no `node.activity` event.
  */
 export interface IActivitySignal {
   /** Node kind the unit belongs to (`skill`, `agent`, `command`, ...). Required unless `path` is set. */
@@ -396,6 +452,32 @@ export interface IActivitySignal {
    * safety net against a crashed runtime that never sends one.
    */
   sticky?: boolean;
+  /**
+   * Only meaningful on `phase: 'start'`: `true` for CUSTODY claims (a
+   * parent held lit through a spawn). Keep-alive starts light and
+   * refresh nodes exactly like any other start but are EXCLUDED from
+   * execution counting (`spec/provider-activity.md` §Execution stats):
+   * custody is not an execution of the named unit.
+   */
+  keepAlive?: boolean;
+  /**
+   * Spawn-relation block riding the signal produced by the spawning
+   * tool call. On a node-carrying signal the resolved node becomes the
+   * frame's `parentNodePath`; combined with NO `kind`/`name`/`path` it
+   * forms the RELATION-ONLY signal (see the interface docstring).
+   */
+  spawn?: IActivitySpawnRelation;
+  /**
+   * Only meaningful on `phase: 'end'` BOUNDARY signals: the ending
+   * context's final message, as the runtime reported it on its stop
+   * event (Claude: `last_assistant_message`). CONTENT, not metadata:
+   * it never rides the WS; the BFF hands it to the conversation store
+   * only under the capture gate, where it completes the response half
+   * of async spawns by matching the record's `childOwner`. Stop events
+   * fire on pause too; consumers overwrite, so the terminal message
+   * wins.
+   */
+  report?: string;
 }
 
 /**

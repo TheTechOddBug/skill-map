@@ -51,7 +51,11 @@ import type {
   IPreferencesPatchApi,
   IProjectConfigApi,
   IActiveProviderApi,
+  IActivityCaptureStatusApi,
   IActivityInstallStatusApi,
+  IActivityNodeDetailApi,
+  IActivitySpawnDetailApi,
+  IActivitySummaryApi,
   IActivityUninstallEnvelopeApi,
   IActiveProviderPutEnvelopeApi,
   IProjectIgnoreApi,
@@ -642,6 +646,43 @@ export class StaticDataSource implements IDataSourcePort {
     throw new DataSourceError(
       'demo-readonly',
       'Activity hook uninstall is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  /**
+   * Execution stats / spawn / capture surfaces: the demo bundle has no
+   * live BFF (and therefore no accumulator, no spawn ring, no capture
+   * store), so every read returns the honest empty / disabled shape
+   * and the one write rejects like every other demo mutation.
+   */
+  async getActivitySummary(): Promise<IActivitySummaryApi> {
+    return { since: Date.now(), nodes: {} };
+  }
+
+  async getNodeActivity(_path: string): Promise<IActivityNodeDetailApi | null> {
+    return {
+      stats: { count: 0, lastStartAt: 0, distinctOwners: 0 },
+      recent: [],
+      spawns: [],
+      captureEnabled: false,
+    };
+  }
+
+  async getSpawnRecord(_spawnId: string): Promise<IActivitySpawnDetailApi | null> {
+    return null;
+  }
+
+  async getActivityCapture(): Promise<IActivityCaptureStatusApi> {
+    return { enabled: false };
+  }
+
+  async setActivityCapture(_body: {
+    enabled: boolean;
+    confirm?: boolean;
+  }): Promise<IActivityCaptureStatusApi> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Conversation capture is not available in demo mode (static bundle is immutable).',
     );
   }
 

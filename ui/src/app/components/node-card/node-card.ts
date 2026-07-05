@@ -20,6 +20,7 @@ import {
   effectiveUserTags,
   effectiveVersion,
 } from '../../../models/node-derived';
+import type { INodeActivityStatsApi } from '../../../models/api';
 import { pathBasenameForLink } from '../../../services/path-basename';
 import { cssColorOrNull } from '../../../services/css-guard';
 import type { ISelectionView } from '../../views/graph-view/selection-state';
@@ -99,6 +100,15 @@ export class NodeCard {
    * (files view, prototypes) mount unchanged.
    */
   readonly executing = input<boolean>(false);
+
+  /**
+   * Per-node execution stats (spec/provider-activity.md §Execution
+   * stats), owned by `NodeActivityStatsService` and projected by the
+   * graph view (one O(1) Map lookup per node). The card only paints
+   * the counter pill; `null` (or a zero count) renders nothing, so
+   * non-live contexts (files view, prototypes) mount unchanged.
+   */
+  readonly activity = input<INodeActivityStatsApi | null>(null);
 
   /**
    * Per-user favorite state. Owned by the graph / list / inspector view
@@ -238,6 +248,32 @@ export class NodeCard {
   );
 
   private readonly markdown = inject(MarkdownRenderer);
+
+  /**
+   * Execution-counter pill state: the stats bundle when it carries a
+   * non-zero count, `null` otherwise (pill hidden). A zero count is
+   * indistinguishable from "no data" for the operator, so it never
+   * paints a `0` pill.
+   */
+  protected readonly activityStats = computed<INodeActivityStatsApi | null>(() => {
+    const a = this.activity();
+    return a !== null && a.count > 0 ? a : null;
+  });
+
+  protected readonly activityCountShort = computed<string | null>(() => {
+    const a = this.activityStats();
+    return a === null ? null : compactNumber(a.count);
+  });
+
+  protected readonly activityTooltip = computed<string>(() => {
+    const a = this.activityStats();
+    return a === null ? '' : this.texts.activity.tooltip(a);
+  });
+
+  protected readonly activityA11y = computed<string>(() => {
+    const a = this.activityStats();
+    return a === null ? '' : this.texts.activity.a11y(a.count);
+  });
 
   /** Pretty number formatting for bytes / tokens (e.g. 12420 → "12k"). */
   protected readonly bytesShort = computed<string | null>(() => {

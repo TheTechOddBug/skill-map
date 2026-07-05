@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { afterEach, describe, expect, it, beforeEach } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { computed, signal } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
@@ -6,10 +6,12 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 
 import { App } from '../app';
+import { ActivityReadinessService } from '../services/activity-readiness';
 import { ScanTriggerService } from '../services/scan-trigger';
 import { DATA_SOURCE, type IDataSourcePort } from '../../services/data-source/data-source.port';
+import { NodeActivityService } from '../../services/node-activity';
 import { SKILL_MAP_MODE } from '../../services/data-source/runtime-mode';
-import { WS_SOCKET_FACTORY, type TWsSocketFactory, type IWsLike } from '../../services/ws-event-stream';
+import { WsEventStreamService, WS_SOCKET_FACTORY, type TWsSocketFactory, type IWsLike } from '../../services/ws-event-stream';
 import { UpdateCheckService } from '../services/update-check';
 import { EMPTY } from 'rxjs';
 
@@ -196,6 +198,17 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     bridgePresent: false,
     events: 0,
   }, removed: false }),
+  getActivitySummary: () => Promise.resolve({ since: 0, nodes: {} }),
+  getNodeActivity: () =>
+    Promise.resolve({
+      stats: { count: 0, lastStartAt: 0, distinctOwners: 0 },
+      recent: [],
+      spawns: [],
+      captureEnabled: false,
+    }),
+  getSpawnRecord: () => Promise.resolve(null),
+  getActivityCapture: () => Promise.resolve({ enabled: false }),
+  setActivityCapture: () => Promise.resolve({ enabled: false }),
   setPluginEnabled: () =>
     Promise.resolve({
       schemaVersion: '1',
@@ -451,6 +464,100 @@ describe('App, scan spinner', () => {
     fixture.detectChanges();
     expect(btn.classList.contains('is-spinning')).toBe(false);
     expect(btn.disabled).toBe(false);
+  });
+});
+
+describe('App, Real Time toggle', () => {
+  const WS_KEY = 'sm.live.ws-enabled';
+  const ACTIVITY_KEY = 'sm.live.activity-enabled';
+
+  afterEach(() => {
+    localStorage.removeItem(WS_KEY);
+    localStorage.removeItem(ACTIVITY_KEY);
+  });
+
+  /** Readiness stub: the gate state is driven per-test, no probing. */
+  function readinessStub(hookInstalled: boolean | null): ActivityReadinessService {
+    return {
+      hookInstalled: signal(hookInstalled).asReadonly(),
+      refresh: () => Promise.resolve(),
+    } as unknown as ActivityReadinessService;
+  }
+
+  async function configureWithReadiness(hookInstalled: boolean | null): Promise<void> {
+    TestBed.resetTestingModule();
+    await TestBed.configureTestingModule({
+      imports: [App],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: DATA_SOURCE, useValue: STUB_DATA_SOURCE },
+        { provide: SKILL_MAP_MODE, useValue: 'live' },
+        { provide: WS_SOCKET_FACTORY, useValue: inertWsSocketFactory },
+        { provide: UpdateCheckService, useValue: makeUpdateCheckStub() },
+        { provide: ActivityReadinessService, useValue: readinessStub(hookInstalled) },
+      ],
+    }).compileComponents();
+  }
+
+  function toggleButton(root: HTMLElement): HTMLButtonElement {
+    return root.querySelector<HTMLButtonElement>(
+      '[data-testid="shell-live-activity-toggle"] button',
+    )!;
+  }
+
+  it('renders first in the actions cluster and toggles the shared activity preference', async () => {
+    await configureWithReadiness(true);
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const actions = root.querySelector('.shell__actions')!;
+    // FIRST control in the cluster: the wrapper span hosts the button.
+    expect(
+      actions.firstElementChild?.getAttribute('data-testid'),
+    ).toBe('shell-live-activity-tooltip-wrap');
+
+    const btn = toggleButton(root);
+    expect(btn.disabled).toBe(false);
+
+    const activity = TestBed.inject(NodeActivityService);
+    expect(activity.enabled()).toBe(true);
+    btn.click();
+    fixture.detectChanges();
+    expect(activity.enabled()).toBe(false);
+    // The preference persisted through the SAME owner Settings uses.
+    expect(localStorage.getItem(ACTIVITY_KEY)).toBe('false');
+    btn.click();
+    fixture.detectChanges();
+    expect(activity.enabled()).toBe(true);
+  });
+
+  it('disables when live updates are off (WS gate)', async () => {
+    await configureWithReadiness(true);
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    TestBed.inject(WsEventStreamService).setEnabled(false);
+    fixture.detectChanges();
+    expect(toggleButton(fixture.nativeElement as HTMLElement).disabled).toBe(true);
+  });
+
+  it('disables when the hook is known-missing, and FAILS OPEN on unknown', async () => {
+    await configureWithReadiness(false);
+    const missing = TestBed.createComponent(App);
+    await missing.whenStable();
+    missing.detectChanges();
+    expect(toggleButton(missing.nativeElement as HTMLElement).disabled).toBe(true);
+
+    await configureWithReadiness(null);
+    const unknown = TestBed.createComponent(App);
+    await unknown.whenStable();
+    unknown.detectChanges();
+    expect(toggleButton(unknown.nativeElement as HTMLElement).disabled).toBe(false);
   });
 });
 

@@ -21,6 +21,7 @@ import { assertInInjectionContext, effect, signal } from '@angular/core';
 export type TInspectorSectionId =
   | 'definition'
   | 'actions'
+  | 'activity'
   | 'annotations'
   | 'connections'
   | 'findings'

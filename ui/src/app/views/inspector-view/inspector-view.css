@@ -665,3 +665,126 @@
 :host ::ng-deep .ann-panel__chip--user {
   padding: 0.1rem 0.55rem;
 }
+
+/* Activity section (spec/provider-activity.md). Stats grid mirrors the
+   dense dt/dd vocabulary of the metadata panels; spawn rows are flex
+   rows with the "View conversation" affordance pushed right. All state
+   here is ephemeral (session-scoped), so the visuals stay quiet, no
+   severity tints. */
+.inspector__activity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.inspector__activity-loading,
+.inspector__activity-empty {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--p-text-muted-color);
+}
+
+.inspector__activity-capture-chip {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.08rem 0.45rem;
+  border-radius: var(--sm-radius-pill);
+  color: var(--sm-edge-spawn);
+  background: color-mix(in srgb, var(--sm-edge-spawn) 12%, transparent);
+}
+
+.inspector__activity-stats {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.15rem 0.75rem;
+  margin: 0;
+}
+
+.inspector__activity-stats dt {
+  font-size: 0.78rem;
+  color: var(--p-text-muted-color);
+}
+
+.inspector__activity-stats dd {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--p-text-color);
+}
+
+.inspector__activity-heading {
+  margin: 0.35rem 0 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--p-text-muted-color);
+}
+
+.inspector__activity-recent,
+.inspector__activity-spawns {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.inspector__activity-recent-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-size: 0.8rem;
+}
+
+.inspector__activity-time {
+  color: var(--p-text-muted-color);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+
+.inspector__activity-owner {
+  font-family: var(--sm-font-mono);
+  font-size: 0.72rem;
+  color: var(--p-text-color);
+  overflow-wrap: anywhere;
+}
+
+.inspector__activity-spawn-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-sm);
+  background: var(--p-content-background);
+}
+
+.inspector__activity-spawn-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.inspector__activity-spawn-pair {
+  font-size: 0.82rem;
+  color: var(--p-text-color);
+  overflow-wrap: anywhere;
+}
+
+.inspector__activity-spawn-meta {
+  font-size: 0.72rem;
+  color: var(--p-text-muted-color);
+  font-variant-numeric: tabular-nums;
+}
+
+.inspector__activity-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  font-style: italic;
+  color: var(--p-text-muted-color);
+}

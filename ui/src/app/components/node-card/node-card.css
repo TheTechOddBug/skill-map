@@ -378,6 +378,17 @@
 .sm-gnode__sub-stat--tokens { background: var(--sm-stat-tokens-bg); }
 .sm-gnode__sub-stat--bytes { background: var(--sm-stat-bytes-bg); }
 
+/* Execution counter pill (spec/provider-activity.md §Execution stats).
+   Rides the exec palette's base hue so the counter reads as kin to the
+   executing glow / spine, but at rest intensity: it is a memory of
+   runs, not a live signal. Bolt glyph tightened to the pill's mono
+   metrics. */
+.sm-gnode__sub-stat--activity {
+  background: color-mix(in srgb, var(--sm-exec-c1) 14%, transparent);
+  color: var(--sm-exec-c1);
+}
+.sm-gnode__activity-bolt { font-size: 0.6rem; }
+
 .sm-gnode__panel { display: none; border-top: 1px solid var(--sm-border); }
 :host(.sm-gnode--expanded) .sm-gnode__panel { display: block; }
 

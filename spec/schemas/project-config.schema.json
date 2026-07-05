@@ -139,6 +139,17 @@
         }
       }
     },
+    "activity": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Live-activity preferences (see provider-activity.md). Holds the conversation-capture consent gate today; extends additively as further activity preferences land.",
+      "properties": {
+        "captureConversations": {
+          "type": "boolean",
+          "description": "Privacy-sensitive, project-local only. Consent gate for retaining inter-agent spawn conversation content (the spawn prompt, the sync completion response) in the serve process's in-memory, bounded store (provider-activity.md, Conversation capture). Default false. Turning it off clears the store immediately; content never persists, never rides the WS, and dies with the process. Written by POST /api/activity/capture behind the server-enforced confirm gate; stripped with a warning if found in the committed `project` layer (consent is per-operator, not team-shared)."
+        }
+      }
+    },
     "jobs": {
       "type": "object",
       "additionalProperties": false,

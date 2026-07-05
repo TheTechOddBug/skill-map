@@ -28,8 +28,18 @@ describe('claudeActivity.mapEvent', () => {
       prompt: '/probe-command',
     });
     assert.deepEqual(signals, [
-      { kind: 'command', name: 'probe-command', phase: 'start', owner: 'main' },
-      { kind: 'skill', name: 'probe-command', phase: 'start', owner: 'main' },
+      {
+        kind: 'command',
+        name: 'probe-command',
+        phase: 'start',
+        owner: 'main:6cfe5636-2e56-4271-91a6-87fc3d4355be',
+      },
+      {
+        kind: 'skill',
+        name: 'probe-command',
+        phase: 'start',
+        owner: 'main:6cfe5636-2e56-4271-91a6-87fc3d4355be',
+      },
     ]);
   });
 
@@ -41,9 +51,26 @@ describe('claudeActivity.mapEvent', () => {
     assert.equal(signals, null);
   });
 
-  it('Skill PreToolUse from the main context maps to a skill signal owned by main', () => {
+  it('Skill PreToolUse from the main context is owned by the SESSIONIZED main key', () => {
     const signals = claudeActivity.mapEvent({
       session_id: '6cfe5636-2e56-4271-91a6-87fc3d4355be',
+      hook_event_name: 'PreToolUse',
+      tool_name: 'Skill',
+      tool_input: { skill: 'probe-skill' },
+      tool_use_id: 'toolu_015y8G9WHeDyRfLabuUTSoeL',
+    });
+    assert.deepEqual(signals, [
+      {
+        kind: 'skill',
+        name: 'probe-skill',
+        phase: 'start',
+        owner: 'main:6cfe5636-2e56-4271-91a6-87fc3d4355be',
+      },
+    ]);
+  });
+
+  it('falls back to the bare `main` owner when the payload carries no session_id', () => {
+    const signals = claudeActivity.mapEvent({
       hook_event_name: 'PreToolUse',
       tool_name: 'Skill',
       tool_input: { skill: 'probe-skill' },
@@ -70,8 +97,9 @@ describe('claudeActivity.mapEvent', () => {
     ]);
   });
 
-  it('a spawn from MAIN is disclaimed (main is not a node to keep lit)', () => {
+  it('a spawn from MAIN emits the RELATION-ONLY form (main is not a node to keep lit)', () => {
     const signals = claudeActivity.mapEvent({
+      session_id: '6cfe5636-2e56-4271-91a6-87fc3d4355be',
       hook_event_name: 'PreToolUse',
       tool_name: 'Agent',
       tool_input: {
@@ -81,13 +109,56 @@ describe('claudeActivity.mapEvent', () => {
       },
       tool_use_id: 'toolu_01Hs3r6xww87USRS7FjNrYyv',
     });
-    assert.equal(signals, null);
+    assert.deepEqual(signals, [
+      {
+        phase: 'start',
+        owner: 'main:6cfe5636-2e56-4271-91a6-87fc3d4355be',
+        spawn: {
+          spawnId: 'toolu_01Hs3r6xww87USRS7FjNrYyv',
+          phase: 'start',
+          parentOwner: 'main:6cfe5636-2e56-4271-91a6-87fc3d4355be',
+          childKind: 'agent',
+          childName: 'probe-agent',
+          prompt: 'Ejecuta la tarea de prueba del probe-agent.',
+        },
+      },
+    ]);
   });
 
-  it('a spawn from an AGENT starts parent custody (sticky claim, spawn-keyed owner)', () => {
+  it('a spawn completion from MAIN emits a RELATION-ONLY handoff/end (no custody to move)', () => {
+    const signals = claudeActivity.mapEvent({
+      session_id: '6cfe5636-2e56-4271-91a6-87fc3d4355be',
+      hook_event_name: 'PostToolUse',
+      tool_name: 'Agent',
+      tool_input: { prompt: 'run it', subagent_type: 'probe-agent' },
+      tool_response: {
+        isAsync: true,
+        status: 'async_launched',
+        agentId: 'afa6d56495644b2db',
+      },
+      tool_use_id: 'toolu_01Hs3r6xww87USRS7FjNrYyv',
+    });
+    assert.deepEqual(signals, [
+      {
+        phase: 'end',
+        owner: 'main:6cfe5636-2e56-4271-91a6-87fc3d4355be',
+        spawn: {
+          spawnId: 'toolu_01Hs3r6xww87USRS7FjNrYyv',
+          phase: 'handoff',
+          parentOwner: 'main:6cfe5636-2e56-4271-91a6-87fc3d4355be',
+          childKind: 'agent',
+          childName: 'probe-agent',
+          childOwner: 'afa6d56495644b2db',
+        },
+      },
+    ]);
+  });
+
+  it('a spawn from an AGENT starts parent custody (sticky keep-alive, spawn relation)', () => {
     // Claude PAUSES a spawning parent (non-terminal SubagentStop), so
     // the spawn itself keeps the parent lit via a synthetic owner the
-    // PostToolUse handoff later releases.
+    // PostToolUse handoff later releases. keepAlive excludes the claim
+    // from execution counting; the spawn block carries the relation.
     const signals = claudeActivity.mapEvent({
       hook_event_name: 'PreToolUse',
       agent_id: 'a4e825faeafee3619',
@@ -103,6 +174,15 @@ describe('claudeActivity.mapEvent', () => {
         phase: 'start',
         owner: 'spawn:toolu_01MEQBSdHNo3B9pMjY8s7ZQK',
         sticky: true,
+        keepAlive: true,
+        spawn: {
+          spawnId: 'toolu_01MEQBSdHNo3B9pMjY8s7ZQK',
+          phase: 'start',
+          parentOwner: 'a4e825faeafee3619',
+          childKind: 'agent',
+          childName: 'demo-worker',
+          prompt: 'continue the chain',
+        },
       },
     ]);
   });
@@ -128,6 +208,14 @@ describe('claudeActivity.mapEvent', () => {
         phase: 'end',
         owner: 'spawn:toolu_01MEQBSdHNo3B9pMjY8s7ZQK',
         ownerScope: true,
+        spawn: {
+          spawnId: 'toolu_01MEQBSdHNo3B9pMjY8s7ZQK',
+          phase: 'handoff',
+          parentOwner: 'a4e825faeafee3619',
+          childKind: 'agent',
+          childName: 'demo-worker',
+          childOwner: 'abb6b017ce54ffcdf',
+        },
       },
       {
         kind: 'agent',
@@ -135,6 +223,7 @@ describe('claudeActivity.mapEvent', () => {
         phase: 'start',
         owner: 'abb6b017ce54ffcdf',
         sticky: true,
+        keepAlive: true,
       },
     ]);
   });
@@ -163,11 +252,18 @@ describe('claudeActivity.mapEvent', () => {
         phase: 'end',
         owner: 'spawn:toolu_019tAnpkqUttxYed3ZWyecWX',
         ownerScope: true,
+        spawn: {
+          spawnId: 'toolu_019tAnpkqUttxYed3ZWyecWX',
+          phase: 'end',
+          parentOwner: 'a39dff5df12ce5900',
+          childKind: 'agent',
+          childName: 'demo-worker',
+        },
       },
     ]);
   });
 
-  it('a SYNC spawn PostToolUse (no child id) just releases the spawn custody', () => {
+  it('a SYNC spawn PostToolUse releases custody and carries the string response', () => {
     const signals = claudeActivity.mapEvent({
       hook_event_name: 'PostToolUse',
       agent_id: 'a4e825faeafee3619',
@@ -184,6 +280,14 @@ describe('claudeActivity.mapEvent', () => {
         phase: 'end',
         owner: 'spawn:toolu_01SyncSpawnExample000001',
         ownerScope: true,
+        spawn: {
+          spawnId: 'toolu_01SyncSpawnExample000001',
+          phase: 'end',
+          parentOwner: 'a4e825faeafee3619',
+          childKind: 'agent',
+          childName: 'demo-worker',
+          response: 'child final report text',
+        },
       },
     ]);
   });
@@ -197,7 +301,13 @@ describe('claudeActivity.mapEvent', () => {
       tool_input: { file_path: '/home/user/project/notes/todo.md' },
       tool_use_id: 'toolu_01ReadMarkdownExample0001',
     });
-    assert.deepEqual(signals, [{ path: 'notes/todo.md', phase: 'start', owner: 'main' }]);
+    assert.deepEqual(signals, [
+      {
+        path: 'notes/todo.md',
+        phase: 'start',
+        owner: 'main:6cfe5636-2e56-4271-91a6-87fc3d4355be',
+      },
+    ]);
   });
 
   it('a markdown Read inside a subagent is owned by that agent_id', () => {
@@ -288,6 +398,7 @@ describe('claudeActivity.mapEvent', () => {
         phase: 'end',
         owner: 'afa6d56495644b2db',
         ownerScope: true,
+        report: 'probe-agent done',
       },
     ]);
   });
@@ -303,6 +414,56 @@ describe('claudeActivity.mapEvent', () => {
       stop_hook_active: false,
     });
     assert.equal(signals, null);
+  });
+
+  it('a sync completion with content blocks joins the text as the response', () => {
+    // Current runtimes ship tool_response as { content: [{type,text}] }
+    // (live-observed 2026-07-05); older payloads were a plain string.
+    const signals = claudeActivity.mapEvent({
+      hook_event_name: 'PostToolUse',
+      agent_id: 'a4e825faeafee3619',
+      agent_type: 'demo-orchestrator',
+      tool_name: 'Agent',
+      tool_input: { prompt: 'continue', subagent_type: 'demo-worker' },
+      tool_response: {
+        status: 'completed',
+        content: [
+          { type: 'text', text: 'first block' },
+          { type: 'tool_use', id: 'ignored' },
+          { type: 'text', text: 'second block' },
+        ],
+      },
+      tool_use_id: 'toolu_01BlockResponse00000001',
+    });
+    assert.equal(signals![0]!.spawn?.response, 'first block\nsecond block');
+    assert.equal(signals![0]!.spawn?.phase, 'end');
+  });
+
+  it('a terminal SubagentStop carries the final message as the report', () => {
+    const signals = claudeActivity.mapEvent({
+      hook_event_name: 'SubagentStop',
+      agent_id: 'a5f3314eeca465a2f',
+      agent_type: 'demo-orchestrator',
+      last_assistant_message: 'final report text',
+      agent_transcript_path: '/home/user/.claude/projects/x/agent-a5f.jsonl',
+    });
+    assert.deepEqual(signals, [
+      {
+        kind: 'agent',
+        name: 'demo-orchestrator',
+        phase: 'end',
+        owner: 'a5f3314eeca465a2f',
+        ownerScope: true,
+        report: 'final report text',
+      },
+    ]);
+    // A start never carries one, and a stop without the field stays bare.
+    const bare = claudeActivity.mapEvent({
+      hook_event_name: 'SubagentStop',
+      agent_id: 'a5f3314eeca465a2f',
+      agent_type: 'demo-orchestrator',
+    });
+    assert.equal(bare![0]!.report, undefined);
   });
 
   it('session-level events and garbage are disclaimed', () => {

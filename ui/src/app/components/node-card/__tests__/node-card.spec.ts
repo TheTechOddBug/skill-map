@@ -350,3 +350,48 @@ describe('NodeCard, live-activity executing state (spec/provider-activity.md)', 
     expect(dom.classList.contains('sm-gnode--executing')).toBe(false);
   });
 });
+
+describe('NodeCard, execution counter pill (spec/provider-activity.md §Execution stats)', () => {
+  function bootstrapWithActivity(
+    activity: { count: number; lastStartAt: number; lastOwner?: string; distinctOwners: number } | null,
+  ): HTMLElement {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({});
+    const fixture = TestBed.createComponent(NodeCard);
+    fixture.componentRef.setInput('node', makeNode());
+    fixture.componentRef.setInput('activity', activity);
+    fixture.detectChanges();
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  it('renders the compact count when the node has executions', () => {
+    const dom = bootstrapWithActivity({
+      count: 3,
+      lastStartAt: 1_700_000_000_000,
+      lastOwner: 'main:abc',
+      distinctOwners: 2,
+    });
+    const pill = dom.querySelector('[data-testid="node-card-activity-count"]');
+    expect(pill).not.toBeNull();
+    expect(pill!.textContent).toContain('3');
+    // The count is a memory, not a live signal; a11y spells it out.
+    expect(pill!.getAttribute('aria-label')).toContain('3 times');
+  });
+
+  it('compacts large counts (server-accumulated value, never client math)', () => {
+    const dom = bootstrapWithActivity({
+      count: 12_420,
+      lastStartAt: 1_700_000_000_000,
+      distinctOwners: 4,
+    });
+    const pill = dom.querySelector('[data-testid="node-card-activity-count"]');
+    expect(pill!.textContent).toContain('12k');
+  });
+
+  it('hides the pill at count zero and when the input is absent', () => {
+    const zero = bootstrapWithActivity({ count: 0, lastStartAt: 0, distinctOwners: 0 });
+    expect(zero.querySelector('[data-testid="node-card-activity-count"]')).toBeNull();
+    const absent = bootstrap(makeNode());
+    expect(absent.querySelector('[data-testid="node-card-activity-count"]')).toBeNull();
+  });
+});

@@ -45,6 +45,7 @@ import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
 import type {
   IActiveProviderApi,
+  IActivityCaptureStatusApi,
   IActivityInstallStatusApi,
   IProjectIgnoreApi,
   IProjectIgnorePatchApi,
@@ -256,12 +257,27 @@ export class SettingsProject {
     return null;
   });
 
+  // ---- conversation-capture state -----------------------------------------
+  /**
+   * Capture gate envelope (`GET /api/activity/capture`), re-fetched on
+   * every section open. `null` while unknown (probe pending or failed);
+   * the toggle disables then, a write against an unknown baseline
+   * would race the server state.
+   */
+  protected readonly captureStatus = signal<IActivityCaptureStatusApi | null>(null);
+  protected readonly captureError = signal<string | null>(null);
+
+  protected readonly captureEnabled = computed<boolean>(() => {
+    return this.captureStatus()?.enabled ?? false;
+  });
+
   constructor() {
     effect(() => {
       if (this.visible()) {
         void this.refresh();
         void this.refreshIgnore();
         void this.refreshActiveProvider();
+        void this.refreshCapture();
       }
     });
 
@@ -457,6 +473,59 @@ export class SettingsProject {
     );
   }
 
+  // -----------------------------------------------------------------
+  // Conversation-capture handlers
+  // -----------------------------------------------------------------
+
+  /**
+   * Both directions go through a confirm dialog (consent-worded on
+   * enable, "clears immediately" on disable), and the POST that
+   * follows ALWAYS carries `confirm: true`: consent is settled client-
+   * side first, so the server's 412 `confirm-required` path never
+   * fires from this surface. On dismiss the toggle snaps back because
+   * the envelope is re-emitted unchanged (same revert pattern as the
+   * lens dropdown).
+   */
+  protected onCaptureToggle(next: boolean): void {
+    if (next === this.captureEnabled()) return;
+    const t = this.texts.project.activityCapture;
+    this.confirmation.confirm({
+      header: next ? t.enableConfirmHeader : t.disableConfirmHeader,
+      message: next ? t.enableConfirmIntro : t.disableConfirmIntro,
+      acceptLabel: next ? t.enableConfirmAccept : t.disableConfirmAccept,
+      rejectLabel: t.confirmReject,
+      acceptButtonProps: { severity: 'primary' },
+      rejectButtonProps: { severity: 'secondary' },
+      accept: () => {
+        void this.runCaptureWrite(next);
+      },
+      reject: () => {
+        const status = this.captureStatus();
+        if (status) this.captureStatus.set({ ...status });
+      },
+    });
+  }
+
+  private async runCaptureWrite(enabled: boolean): Promise<void> {
+    const key = 'activity.capture';
+    if (this.pending().has(key)) return;
+    const next = new Set(this.pending());
+    next.add(key);
+    this.pending.set(next);
+    this.captureError.set(null);
+    try {
+      this.captureStatus.set(
+        await this.dataSource.setActivityCapture({ enabled, confirm: true }),
+      );
+    } catch (err) {
+      this.captureError.set(formatErr(err));
+    } finally {
+      const after = new Set(this.pending());
+      after.delete(key);
+      this.pending.set(after);
+    }
+  }
+
   private confirmActivityDialog(op: 'install' | 'uninstall', onAccept: () => Promise<void>): void {
     const t = this.texts.project.activityHook;
     const configPath = this.activityStatus()?.configPath ?? '';
@@ -508,6 +577,17 @@ export class SettingsProject {
     } catch (err) {
       this.ignoreLoadError.set(formatErr(err));
       this.ignoreEnvelope.set(null);
+    }
+  }
+
+  /** Fetch the conversation-capture gate state. */
+  private async refreshCapture(): Promise<void> {
+    this.captureError.set(null);
+    try {
+      this.captureStatus.set(await this.dataSource.getActivityCapture());
+    } catch (err) {
+      this.captureError.set(formatErr(err));
+      this.captureStatus.set(null);
     }
   }
 

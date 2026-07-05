@@ -253,6 +253,26 @@ export const SERVER_TEXTS = {
   activityInstallConfirmNotBoolean:
     '`confirm` must be a boolean when present.',
 
+  // Execution stats + conversation capture (GET /api/activity/summary,
+  // GET /api/activity/node/<pathB64>, GET /api/activity/spawns/<spawnId>,
+  // GET/POST /api/activity/capture; see spec/provider-activity.md
+  // §Execution stats + §Conversation capture). The spawn id is
+  // sanitised before interpolation (URL-supplied).
+  activitySpawnUnknown:
+    'No spawn record with id "{{spawnId}}".',
+  activityCaptureEnabledRequired:
+    '`enabled` is required and must be a boolean.',
+  activityCaptureConfirmNotBoolean:
+    '`confirm` must be a boolean when present.',
+  // 412 on POST /api/activity/capture without `confirm: true`. Fixed
+  // string, direction-neutral: both enabling (starts retaining
+  // inter-agent conversation content in memory) and disabling (clears
+  // the store immediately) go through the same server-enforced gate.
+  activityCaptureConfirmRequired:
+    'Toggling conversation capture requires explicit consent. Retry with `confirm: true` to proceed.',
+  activityCapturePersistFailed:
+    'Could not persist activity.captureConversations: {{message}}',
+
   // 404 envelope when `:qualifiedId` does not resolve to a registered
   // action with an `invoke()`. Covers both "no such action" and "action
   // exists but ships no deterministic entry point" (a probabilistic

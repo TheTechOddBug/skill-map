@@ -91,7 +91,11 @@
                 [class.f-conn--highlighted]="es.highlighted"
                 [class.f-conn--dimmed]="es.dimmed"
                 [class.f-conn--executing]="isEdgeExecuting(edge)"
-                [style.opacity]="isEdgeExecuting(edge) ? 1 : es.opacity"
+                [class.f-conn--spawn-active]="spawnActiveIdFor(edge) !== null"
+                [style.opacity]="isEdgeExecuting(edge) || spawnActiveIdFor(edge) !== null ? 1 : es.opacity"
+                [attr.aria-label]="spawnActiveIdFor(edge) !== null ? texts.spawnEdge.aria : null"
+                [attr.data-testid]="spawnActiveIdFor(edge) !== null ? 'graph-spawn-active-edge-' + edge.id : null"
+                (click)="onStaticEdgeClick(edge, $event)"
               >
                 <!-- Live-activity spine: while both endpoints execute, the
                      stroke swaps from the flat kind color to a two-stop
@@ -103,8 +107,11 @@
                      applies them as inline `stop-color` styles, resolved
                      against :root), and the `.f-conn--executing` hue-rotate
                      sweep cycles the whole gradient. Gated with @if so
-                     non-executing edges keep the plain themed stroke. -->
-                @if (isEdgeExecuting(edge)) {
+                     non-executing edges keep the plain themed stroke, and
+                     a spawn-active edge skips it too: the spawn overlay
+                     treatment (magenta dash) replaces the spine gradient
+                     while the live conversation rides this edge. -->
+                @if (isEdgeExecuting(edge) && spawnActiveIdFor(edge) === null) {
                   <f-connection-gradient
                     fStartColor="var(--sm-exec-c1)"
                     fEndColor="var(--sm-exec-c3)"
@@ -135,6 +142,34 @@
                 >
                   <circle cx="4.5" cy="4.5" r="3.5" />
                 </svg>
+                <f-connection-marker-arrow [type]="markerEnd" />
+              </f-connection>
+            }
+          </ng-container>
+
+          <!-- Ephemeral spawn edges (spec/provider-activity.md §WS event:
+               agent.spawn). Separate [fConnections] block layered over the
+               scan-link edges: dashed, spawn-tinted, and CLICKABLE (opens
+               the conversation dialog), which is why fSelectionDisabled is
+               left off unlike the visual-only spine treatment. Connector
+               ids reuse the cards' own -out / -in anchors; session parents
+               anchor on the session capsule's single -out. Pairs whose
+               same-direction static edge is already rendered never reach
+               this list: they ride that edge as .f-conn--spawn-active
+               instead (no duplicated arrows). -->
+          <ng-container ngProjectAs="[fConnections]">
+            @for (edge of spawnOverlay().edges; track edge.spawnId) {
+              <f-connection
+                [fOutputId]="edge.outputId"
+                [fInputId]="edge.inputId"
+                [fType]="connectionType()"
+                [fBehavior]="connectionBehavior"
+                [fReassignDisabled]="true"
+                class="f-conn--spawn"
+                [attr.aria-label]="texts.spawnEdge.aria"
+                (click)="onSpawnEdgeClick(edge.spawnId, $event)"
+                [attr.data-testid]="'graph-spawn-edge-' + edge.spawnId"
+              >
                 <f-connection-marker-arrow [type]="markerEnd" />
               </f-connection>
             }
@@ -179,6 +214,7 @@
                   [summary]="node.summary"
                   [selection]="selectionFor(node.id)"
                   [executing]="isExecuting(node.id)"
+                  [activity]="activityStatsFor(node.id)"
                   [expanded]="isExpanded(node.id)"
                   [isFavorite]="node.view.isFavorite === true"
                   (expandedChange)="setExpanded(node.id, $event)"
@@ -222,6 +258,7 @@
                     [summary]="node.summary"
                     [selection]="selectionFor(node.id)"
                     [executing]="isExecuting(node.id)"
+                    [activity]="activityStatsFor(node.id)"
                     [expanded]="isExpanded(node.id)"
                     [isFavorite]="node.view.isFavorite === true"
                     (expandedChange)="setExpanded(node.id, $event)"
@@ -237,6 +274,36 @@
               }
             </ng-container>
           }
+
+          <!-- Virtual session anchors (spec/provider-activity.md, session
+               parents). A dedicated [fNodes] block OUTSIDE *fVirtualFor:
+               there are at most a handful of live sessions, virtualising
+               them buys nothing, and keeping them out of the node
+               pipeline guarantees their synthetic ids never leak into
+               layout / reconcile / persistence. Draggable like the cards
+               (buffer + mouseup flush, rule 9), but the dragged position
+               lands in an EPHEMERAL override map, never the persisted
+               node-position store. Selection stays disabled. -->
+          <ng-container ngProjectAs="[fNodes]">
+            @for (session of spawnOverlay().sessions; track session.id) {
+              <div
+                fNode
+                fNodeOutput
+                fDragHandle
+                [fNodeId]="session.id"
+                [fNodePosition]="session.position"
+                [fNodeSelectionDisabled]="true"
+                [fOutputId]="session.id + '-out'"
+                [fOutputConnectableSide]="outputSide()"
+                class="sm-session-host"
+                [attr.data-testid]="'graph-session-node-' + session.owner"
+                (pointerdown)="onSessionPointerDown()"
+                (fNodePositionChange)="onSessionPositionChange(session.owner, $event)"
+              >
+                <sm-session-node [ordinal]="session.ordinal" [owner]="session.owner" />
+              </div>
+            }
+          </ng-container>
         </f-canvas>
         <f-minimap />
       </f-flow>
@@ -360,5 +427,17 @@
     styleClass="graph__confirm"
     maskStyleClass="graph__confirm-mask"
     data-testid="graph-reset-layout-confirm"
+  />
+
+  <!-- Spawn-edge conversation viewer (spec §Conversation capture).
+       Opened by a click on a spawn edge; the record is fetched on
+       demand via getSpawnRecord, then widened to the full parent-child
+       thread via getNodeActivity. Mounted at the section root so it
+       survives the canvas @if branches. -->
+  <sm-conversation-dialog
+    [open]="conversationOpen()"
+    [thread]="conversationThread()"
+    [captureEnabled]="conversationCaptureEnabled()"
+    (closed)="onConversationClosed()"
   />
 </section>

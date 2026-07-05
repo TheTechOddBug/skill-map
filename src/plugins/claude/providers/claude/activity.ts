@@ -19,9 +19,13 @@
  *   carries `tool_input.subagent_type`; the native `SubagentStart` /
  *   `SubagentStop` pair carries `agent_id` + `agent_type`. Both start
  *   forms are emitted (set semantics downstream make the overlap
- *   idempotent). `SubagentStop` events with an EMPTY `agent_type` are
- *   orphan noise (observed firing out of order with unrelated ids) and
- *   are disclaimed.
+ *   idempotent). The spawn Pre/PostToolUse pair also carries the
+ *   `spawn` relation block (spawnId, parent/child, prompt on start,
+ *   sync response on end); a spawn from the MAIN context emits the
+ *   relation-only signal form (main is not a node to keep lit).
+ *   `SubagentStop` events with an EMPTY `agent_type` are orphan noise
+ *   (observed firing out of order with unrelated ids) and are
+ *   disclaimed.
  * - **Markdown usage**: `PreToolUse` with `tool_name: 'Read'` carries
  *   `tool_input.file_path`; in-scope `.md` reads become PATH signals
  *   (see `mapMarkdownRead`, filter-first: everything else is
@@ -33,11 +37,16 @@
  *
  * Attribution: tool events fired INSIDE a subagent carry `agent_id` /
  * `agent_type`; main-context events carry neither. `owner` is therefore
- * `agent_id` when present, else `'main'`.
+ * `agent_id` when present, else the SESSIONIZED main key
+ * (`main:<session_id>`), so two parallel sessions in the same project
+ * never collide under one owner. Bare `'main'` is the fallback for
+ * payloads carrying no `session_id`; either way the key stays opaque
+ * to consumers.
  */
 
 import type {
   IActivitySignal,
+  IActivitySpawnRelation,
   IProviderActivityAdapter,
 } from '../../../../kernel/extensions/index.js';
 
@@ -99,11 +108,7 @@ function mapSlashExpansion(event: Record<string, unknown>): IActivitySignal[] | 
 }
 
 function mapPreToolUse(event: Record<string, unknown>): IActivitySignal[] | null {
-  const toolInput = event['tool_input'];
-  const input =
-    toolInput !== null && typeof toolInput === 'object'
-      ? (toolInput as Record<string, unknown>)
-      : {};
+  const input = toolInputOf(event);
   if (event['tool_name'] === 'Skill') {
     const name = nonEmptyString(input['skill']);
     if (!name) return null;
@@ -123,17 +128,43 @@ function mapPreToolUse(event: Record<string, unknown>): IActivitySignal[] | null
  * child and fires a non-terminal `SubagentStop` for it (resume fires a
  * fresh `SubagentStart`); nothing marks the last stop as terminal. So
  * instead of classifying stops, the spawn keeps the PARENT lit through
- * custody: a sticky claim on the parent's own node (the event's
- * `agent_type` IS the parent) owned by the synthetic `spawn:<tool_use_id>`
- * key. `mapSpawnCustodyHandoff` (PostToolUse) swaps it for a claim the
- * child's terminal end releases. Spawns from the MAIN context have no
- * `agent_type` (main is not a node) and are disclaimed.
+ * custody: a sticky KEEP-ALIVE claim on the parent's own node (the
+ * event's `agent_type` IS the parent) owned by the synthetic
+ * `spawn:<tool_use_id>` key. `keepAlive` excludes the claim from
+ * execution counting: custody is not an execution of the parent.
+ * `mapSpawnCustodyHandoff` (PostToolUse) swaps it for a claim the
+ * child's terminal end releases.
+ *
+ * Either way the signal carries the `spawn` relation block (child name
+ * + the prompt handed to it). Spawns from the MAIN context have no
+ * `agent_type` (main is not a node to keep lit) and emit the
+ * RELATION-ONLY form instead of disclaiming: the relation still
+ * matters even without a parent node.
  */
 function mapSpawnCustodyStart(event: Record<string, unknown>): IActivitySignal[] | null {
+  const toolUseId = nonEmptyString(event['tool_use_id']);
+  if (!toolUseId) return null;
+  const owner = ownerOf(event);
+  const spawn = buildSpawnRelation(event, {
+    spawnId: toolUseId,
+    phase: 'start',
+    parentOwner: owner,
+  });
   const parentName = nonEmptyString(event['agent_type']);
-  const spawnKey = spawnOwnerKey(event);
-  if (!parentName || !spawnKey) return null;
-  return [{ kind: 'agent', name: parentName, phase: 'start', owner: spawnKey, sticky: true }];
+  if (!parentName) {
+    return [{ phase: 'start', owner, spawn }];
+  }
+  return [
+    {
+      kind: 'agent',
+      name: parentName,
+      phase: 'start',
+      owner: `spawn:${toolUseId}`,
+      sticky: true,
+      keepAlive: true,
+      spawn,
+    },
+  ];
 }
 
 /** Only the spawn's PostToolUse is consumed (custody handoff); all else disclaims. */
@@ -155,17 +186,53 @@ function mapPostToolUse(event: Record<string, unknown>): IActivitySignal[] | nul
  * orphan nothing ever releases (the cascade already passed). In that
  * case releasing the spawn key IS the custody ending; the parent keeps
  * its own lifecycle claim until its own terminal stop.
+ *
+ * The release carries the `spawn` relation block: `handoff` (with
+ * `childOwner`) while the child still runs, `end` otherwise, with the
+ * SYNC completion's report as the child's `response` (a plain string
+ * on old payloads, `content` text blocks on current ones, both
+ * live-observed). Main-context spawns emit the relation-only form (no
+ * custody to move).
  */
 function mapSpawnCustodyHandoff(event: Record<string, unknown>): IActivitySignal[] | null {
-  const parentName = nonEmptyString(event['agent_type']);
-  const spawnKey = spawnOwnerKey(event);
-  if (!parentName || !spawnKey) return null;
-  const signals: IActivitySignal[] = [
-    { kind: 'agent', name: parentName, phase: 'end', owner: spawnKey, ownerScope: true },
-  ];
+  const toolUseId = nonEmptyString(event['tool_use_id']);
+  if (!toolUseId) return null;
+  const owner = ownerOf(event);
   const childId = runningChildId(event['tool_response']);
+  const spawn = buildSpawnRelation(event, {
+    spawnId: toolUseId,
+    phase: childId ? 'handoff' : 'end',
+    parentOwner: owner,
+  });
   if (childId) {
-    signals.push({ kind: 'agent', name: parentName, phase: 'start', owner: childId, sticky: true });
+    spawn.childOwner = childId;
+  } else {
+    const response = completionResponse(event['tool_response']);
+    if (response) spawn.response = response;
+  }
+  const parentName = nonEmptyString(event['agent_type']);
+  if (!parentName) {
+    return [{ phase: 'end', owner, spawn }];
+  }
+  const signals: IActivitySignal[] = [
+    {
+      kind: 'agent',
+      name: parentName,
+      phase: 'end',
+      owner: `spawn:${toolUseId}`,
+      ownerScope: true,
+      spawn,
+    },
+  ];
+  if (childId) {
+    signals.push({
+      kind: 'agent',
+      name: parentName,
+      phase: 'start',
+      owner: childId,
+      sticky: true,
+      keepAlive: true,
+    });
   }
   return signals;
 }
@@ -178,9 +245,34 @@ function runningChildId(response: unknown): string | null {
   return nonEmptyString(shaped['agentId']);
 }
 
-function spawnOwnerKey(event: Record<string, unknown>): string | null {
-  const toolUseId = nonEmptyString(event['tool_use_id']);
-  return toolUseId ? `spawn:${toolUseId}` : null;
+/**
+ * Assemble the spawn-relation block both custody sides share: the raw
+ * tool-call id (never the synthetic owner key), the child unit as the
+ * runtime named it, and the parent->child prompt on `start` only (the
+ * sync `response` is attached by the handoff side, it lives on the
+ * completion event, not on `tool_input`).
+ */
+function buildSpawnRelation(
+  event: Record<string, unknown>,
+  init: Pick<IActivitySpawnRelation, 'spawnId' | 'phase' | 'parentOwner'>,
+): IActivitySpawnRelation {
+  const relation: IActivitySpawnRelation = { ...init, childKind: 'agent' };
+  const input = toolInputOf(event);
+  const childName = nonEmptyString(input['subagent_type']);
+  if (childName) relation.childName = childName;
+  if (init.phase === 'start') {
+    const prompt = nonEmptyString(input['prompt']);
+    if (prompt) relation.prompt = prompt;
+  }
+  return relation;
+}
+
+/** The event's `tool_input` object, `{}` when absent or non-object. */
+function toolInputOf(event: Record<string, unknown>): Record<string, unknown> {
+  const toolInput = event['tool_input'];
+  return toolInput !== null && typeof toolInput === 'object'
+    ? (toolInput as Record<string, unknown>)
+    : {};
 }
 
 /**
@@ -232,13 +324,52 @@ function mapSubagentBoundary(
   const id = nonEmptyString(event['agent_id']);
   if (id) signal.owner = id;
   if (phase === 'start') signal.sticky = true;
-  if (phase === 'end' && id) signal.ownerScope = true;
+  if (phase === 'end' && id) {
+    signal.ownerScope = true;
+    // The stop carries the agent's final message (live-verified
+    // 2026-07-05): the async response source. Pause stops carry the
+    // message so far; downstream overwrite makes the terminal one win.
+    const report = nonEmptyString(event['last_assistant_message']);
+    if (report) signal.report = report;
+  }
   return [signal];
 }
 
-/** `agent_id` when the event fired inside a subagent, else `'main'`. */
+/**
+ * Extract a sync completion's report from `tool_response`: a plain
+ * string on older payloads, `{ content: [{ type: 'text', text }] }`
+ * text blocks on current ones (both shapes live-observed). Non-text
+ * blocks are skipped; an empty result disclaims.
+ */
+function completionResponse(response: unknown): string | null {
+  if (typeof response === 'string') return response.length > 0 ? response : null;
+  if (response === null || typeof response !== 'object') return null;
+  const content = (response as Record<string, unknown>)['content'];
+  if (typeof content === 'string') return content.length > 0 ? content : null;
+  return Array.isArray(content) ? joinTextBlocks(content) : null;
+}
+
+/** Join the `text` of every text block; non-text blocks are skipped. */
+function joinTextBlocks(content: readonly unknown[]): string | null {
+  const parts: string[] = [];
+  for (const block of content) {
+    if (block === null || typeof block !== 'object') continue;
+    const text = (block as Record<string, unknown>)['text'];
+    if (typeof text === 'string' && text.length > 0) parts.push(text);
+  }
+  return parts.length > 0 ? parts.join('\n') : null;
+}
+
+/**
+ * `agent_id` when the event fired inside a subagent, else the
+ * SESSIONIZED main key (`main:<session_id>`; bare `main` for payloads
+ * with no session id). Opaque downstream, nothing parses it.
+ */
 function ownerOf(event: Record<string, unknown>): string {
-  return nonEmptyString(event['agent_id']) ?? MAIN_OWNER;
+  const agentId = nonEmptyString(event['agent_id']);
+  if (agentId) return agentId;
+  const sessionId = nonEmptyString(event['session_id']);
+  return sessionId ? `${MAIN_OWNER}:${sessionId}` : MAIN_OWNER;
 }
 
 function nonEmptyString(value: unknown): string | null {

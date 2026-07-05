@@ -261,6 +261,25 @@
   --ff-node-shadow-selected: none;
 }
 
+/* Session-anchor [fNode] wrapper (spec/provider-activity.md, session
+   parents). Same Foblex chrome reset as `.sm-gnode-host` (the capsule
+   inside paints its own dashed frame), minus the pointer cursor: the
+   anchor is drag- and selection-disabled, it only anchors edges. */
+.sm-session-host {
+  position: relative;
+  display: inline-block;
+
+  --ff-node-width: auto;
+  --ff-node-min-height: 0;
+  --ff-node-padding: 0;
+  --ff-node-background-color: transparent;
+  --ff-node-border-color: transparent;
+  --ff-node-border-color-selected: transparent;
+  --ff-node-border-radius: 0;
+  --ff-node-shadow: none;
+  --ff-node-shadow-selected: none;
+}
+
 /* Foblex-managed selection visual. Applied to the [fNode] host whenever
    the node is in Foblex's selection set, driven by:
      - `<f-selection-area />` rectangle drag (Shift + drag).
@@ -446,6 +465,73 @@
     to {
       filter: var(--sm-exec-edge-glow) hue-rotate(360deg);
     }
+  }
+}
+
+/* Ephemeral spawn edges (spec/provider-activity.md §WS event:
+   agent.spawn). Color / width / marker ride the theme tokens (rule 5);
+   the dash and its march have no token, so they go through ::ng-deep
+   scoped under the canvas wrap (the skill's canonical dasharray
+   pattern). `cursor: pointer` advertises the click affordance (the
+   edge opens the conversation dialog); the hit area is Foblex's own
+   wide selection stroke, which stays active because this is the one
+   edge family that does NOT disable selection. */
+.f-conn--spawn {
+  --ff-connection-color: var(--sm-edge-spawn);
+  --ff-connection-width: 1.75px;
+  --ff-marker-color: var(--sm-edge-spawn);
+  cursor: pointer;
+}
+
+.graph__canvas-wrap ::ng-deep .f-conn--spawn .f-connection-path {
+  stroke-dasharray: 7 5;
+}
+
+/* Marching dash: the offset slide reads as "work flowing toward the
+   child". PRM-gated like every live-activity animation, reduced-motion
+   users keep the static dashed magenta edge. Animating
+   stroke-dashoffset never touches a Foblex-owned transform (rule 3). */
+@media (prefers-reduced-motion: no-preference) {
+  .graph__canvas-wrap ::ng-deep .f-conn--spawn .f-connection-path {
+    animation: sm-spawn-dash-march 0.9s linear infinite;
+  }
+
+  @keyframes sm-spawn-dash-march {
+    to {
+      stroke-dashoffset: -12;
+    }
+  }
+}
+
+/* Spawn-over-static: the scan topology already draws this exact pair,
+   so the live spawn rides the STATIC edge instead of duplicating it
+   with a parallel dashed one. The class takes the full spawn treatment
+   over both the kind color and the executing spine: color / width /
+   marker / cursor mirror `.f-conn--spawn`, and the spine's glow + hue
+   sweep are reset (`filter` / `animation`), the marching dash below is
+   the live signal. Declared AFTER `--executing` and `--spawn` so it
+   wins by source order while several classes apply (same-class
+   specificity, later wins; the executing hue animation lives in a
+   media block, which adds no specificity either). Click affordance
+   mirrors the dashed edge: host-level `cursor: pointer` over Foblex's
+   own wide selection stroke, which static edges keep active too. */
+.f-conn--spawn-active {
+  --ff-connection-color: var(--sm-edge-spawn);
+  --ff-connection-width: 1.75px;
+  --ff-marker-color: var(--sm-edge-spawn);
+  cursor: pointer;
+  filter: none;
+  animation: none;
+}
+
+.graph__canvas-wrap ::ng-deep .f-conn--spawn-active .f-connection-path {
+  stroke-dasharray: 7 5;
+}
+
+/* PRM-gated like the dashed edge; reuses the same keyframes. */
+@media (prefers-reduced-motion: no-preference) {
+  .graph__canvas-wrap ::ng-deep .f-conn--spawn-active .f-connection-path {
+    animation: sm-spawn-dash-march 0.9s linear infinite;
   }
 }
 

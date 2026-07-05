@@ -28,6 +28,7 @@ export type {
   IActivityInstall,
   IActivityInstallEvent,
   IActivitySignal,
+  IActivitySpawnRelation,
   IProvider,
   IProviderActivityAdapter,
   IProviderDetect,

@@ -15,8 +15,11 @@ import {
 } from '../../../../services/data-source/data-source.port';
 import { SKILL_MAP_MODE } from '../../../../services/data-source/runtime-mode';
 import { MarkdownRenderer } from '../../../../services/markdown-renderer';
+import type { ISpawnThread } from '../../../components/conversation-dialog/spawn-thread';
 import type { INodeView } from '../../../../models/node';
 import type {
+  IActivitySpawnDetailApi,
+  IActivitySpawnRecordApi,
   IBranchResponseApi,
   IFolderNodeLite,
   IScanResultApi,
@@ -238,6 +241,16 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     bridgePresent: false,
     events: 0,
   }, removed: false }),
+  getActivitySummary: vi.fn().mockResolvedValue({ since: 0, nodes: {} }),
+  getNodeActivity: vi.fn().mockResolvedValue({
+    stats: { count: 0, lastStartAt: 0, distinctOwners: 0 },
+    recent: [],
+    spawns: [],
+    captureEnabled: false,
+  }),
+  getSpawnRecord: vi.fn().mockResolvedValue(null),
+  getActivityCapture: vi.fn().mockResolvedValue({ enabled: false }),
+  setActivityCapture: vi.fn().mockResolvedValue({ enabled: false }),
   lookupContribution: vi.fn().mockResolvedValue(null),
   bumpSidecar: vi.fn(),
   dispatchAction: vi.fn(),
@@ -599,5 +612,213 @@ describe('GraphView, branch rendering + cap banner', () => {
     expect(
       (fixture.nativeElement as HTMLElement).querySelector('[data-testid="branch-cap-banner"]'),
     ).toBeNull();
+  });
+});
+
+describe('GraphView, spawn-edge conversation thread', () => {
+  /** Protected-surface probe for the conversation-dialog state. */
+  interface IConvoProbe {
+    onSpawnEdgeClick(spawnId: string, event: MouseEvent): void;
+    conversationOpen(): boolean;
+    conversationThread(): ISpawnThread | null;
+    conversationCaptureEnabled(): boolean;
+  }
+
+  function makeSpawn(
+    spawnId: string,
+    startedAt: number,
+    overrides: Partial<IActivitySpawnRecordApi> = {},
+  ): IActivitySpawnRecordApi {
+    return {
+      spawnId,
+      parentOwner: 'main:6cfe5636',
+      childKind: 'agent',
+      childName: 'demo-worker',
+      childNodePath: '.claude/agents/demo-worker.md',
+      prompt: `ask ${spawnId}`,
+      response: `reply ${spawnId}`,
+      startedAt,
+      status: 'ended',
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+    // STUB_DATA_SOURCE is module-shared; pin these two mocks back to
+    // their neutral defaults so tests do not leak into each other.
+    vi.mocked(STUB_DATA_SOURCE.getSpawnRecord).mockReset().mockResolvedValue(null);
+    vi.mocked(STUB_DATA_SOURCE.getNodeActivity).mockReset().mockResolvedValue({
+      stats: { count: 0, lastStartAt: 0, distinctOwners: 0 },
+      recent: [],
+      spawns: [],
+      captureEnabled: false,
+    });
+  });
+
+  /** Lets the two chained awaits of the click handler settle. */
+  async function settle(): Promise<void> {
+    await new Promise((r) => setTimeout(r, 0));
+  }
+
+  it('widens the clicked record to the full thread via the two fetches', async () => {
+    const s1 = makeSpawn('s1', 1000);
+    const s2 = makeSpawn('s2', 2000);
+    const s3 = makeSpawn('s3', 3000, { status: 'running', response: undefined });
+    vi.mocked(STUB_DATA_SOURCE.getSpawnRecord).mockResolvedValue({ ...s2, captureEnabled: true });
+    vi.mocked(STUB_DATA_SOURCE.getNodeActivity).mockResolvedValue({
+      stats: { count: 3, lastStartAt: 3000, distinctOwners: 1 },
+      recent: [],
+      spawns: [s3, s1, s2],
+      captureEnabled: true,
+    });
+
+    const { cmp } = await bootstrap([]);
+    const probe = cmp as unknown as IConvoProbe;
+    probe.onSpawnEdgeClick('s2', new MouseEvent('click'));
+    await settle();
+
+    expect(STUB_DATA_SOURCE.getSpawnRecord).toHaveBeenCalledWith('s2');
+    expect(STUB_DATA_SOURCE.getNodeActivity).toHaveBeenCalledWith('.claude/agents/demo-worker.md');
+    expect(probe.conversationOpen()).toBe(true);
+    expect(probe.conversationCaptureEnabled()).toBe(true);
+    expect(probe.conversationThread()?.records.map((r) => r.spawnId)).toEqual(['s1', 's2', 's3']);
+  });
+
+  it('falls back to a singleton thread when the widening fetch fails', async () => {
+    const s2 = makeSpawn('s2', 2000);
+    vi.mocked(STUB_DATA_SOURCE.getSpawnRecord).mockResolvedValue({ ...s2, captureEnabled: true });
+    vi.mocked(STUB_DATA_SOURCE.getNodeActivity).mockRejectedValue(new Error('transport down'));
+
+    const { cmp } = await bootstrap([]);
+    const probe = cmp as unknown as IConvoProbe;
+    probe.onSpawnEdgeClick('s2', new MouseEvent('click'));
+    await settle();
+
+    expect(probe.conversationOpen()).toBe(true);
+    expect(probe.conversationThread()?.records.map((r) => r.spawnId)).toEqual(['s2']);
+  });
+
+  it('skips the widening fetch when the record names no scanned child', async () => {
+    const record = makeSpawn('s5', 5000, { childNodePath: undefined });
+    vi.mocked(STUB_DATA_SOURCE.getSpawnRecord).mockResolvedValue({
+      ...record,
+      captureEnabled: false,
+    });
+
+    const { cmp } = await bootstrap([]);
+    const probe = cmp as unknown as IConvoProbe;
+    probe.onSpawnEdgeClick('s5', new MouseEvent('click'));
+    await settle();
+
+    expect(STUB_DATA_SOURCE.getNodeActivity).not.toHaveBeenCalled();
+    expect(probe.conversationOpen()).toBe(true);
+    expect(probe.conversationCaptureEnabled()).toBe(false);
+    expect(probe.conversationThread()?.records.map((r) => r.spawnId)).toEqual(['s5']);
+  });
+
+  it('a superseding second click drops the stale first fetch', async () => {
+    let resolveFirst!: (value: IActivitySpawnDetailApi | null) => void;
+    vi.mocked(STUB_DATA_SOURCE.getSpawnRecord)
+      .mockImplementationOnce(
+        () =>
+          new Promise<IActivitySpawnDetailApi | null>((res) => {
+            resolveFirst = res;
+          }),
+      )
+      .mockImplementationOnce(async () => ({
+        ...makeSpawn('s9', 9000, { childNodePath: undefined, childName: 'other-agent' }),
+        captureEnabled: false,
+      }));
+
+    const { cmp } = await bootstrap([]);
+    const probe = cmp as unknown as IConvoProbe;
+    probe.onSpawnEdgeClick('s1', new MouseEvent('click'));
+    probe.onSpawnEdgeClick('s9', new MouseEvent('click'));
+    await settle();
+
+    // The stale first record lands AFTER the second click resolved.
+    resolveFirst({ ...makeSpawn('s1', 1000), captureEnabled: true });
+    await settle();
+
+    expect(probe.conversationOpen()).toBe(true);
+    expect(probe.conversationThread()?.records.map((r) => r.spawnId)).toEqual(['s9']);
+  });
+});
+
+describe('GraphView, spawn-active static edges', () => {
+  interface IStaticEdgeProbe {
+    onStaticEdgeClick(
+      edge: { id: string; from: string; to: string },
+      event: MouseEvent,
+    ): void;
+    spawnActiveIdFor(edge: { from: string; to: string }): string | null;
+    conversationOpen(): boolean;
+    conversationThread(): ISpawnThread | null;
+  }
+
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+    vi.mocked(STUB_DATA_SOURCE.getSpawnRecord).mockReset().mockResolvedValue(null);
+    vi.mocked(STUB_DATA_SOURCE.getNodeActivity).mockReset().mockResolvedValue({
+      stats: { count: 0, lastStartAt: 0, distinctOwners: 0 },
+      recent: [],
+      spawns: [],
+      captureEnabled: false,
+    });
+  });
+
+  async function settle(): Promise<void> {
+    await new Promise((r) => setTimeout(r, 0));
+  }
+
+  it('routes a spawn-active static edge click into the SAME conversation path as the dashed edge', async () => {
+    const record: IActivitySpawnRecordApi = {
+      spawnId: 's7',
+      parentOwner: 'main:6cfe5636',
+      parentNodePath: 'agents/orchestrator.md',
+      childName: 'demo-worker',
+      startedAt: 7000,
+      status: 'running',
+      prompt: 'go',
+    };
+    vi.mocked(STUB_DATA_SOURCE.getSpawnRecord).mockResolvedValue({
+      ...record,
+      captureEnabled: true,
+    });
+
+    const { cmp } = await bootstrap([]);
+    const probe = cmp as unknown as IStaticEdgeProbe;
+    // Pin the pair lookup: the overlay -> pairKey mapping is pure and
+    // covered by spawn-overlay.spec; this test owns the click routing.
+    (probe as { spawnActiveIdFor(edge: unknown): string | null }).spawnActiveIdFor = () => 's7';
+
+    probe.onStaticEdgeClick(
+      { id: 'e1', from: 'agents/orchestrator.md', to: 'agents/worker.md' },
+      new MouseEvent('click'),
+    );
+    await settle();
+
+    expect(STUB_DATA_SOURCE.getSpawnRecord).toHaveBeenCalledWith('s7');
+    expect(probe.conversationOpen()).toBe(true);
+    expect(probe.conversationThread()?.records.map((r) => r.spawnId)).toEqual(['s7']);
+  });
+
+  it('a plain static edge click does nothing (no fetch, no dialog)', async () => {
+    const { cmp } = await bootstrap([]);
+    const probe = cmp as unknown as IStaticEdgeProbe;
+
+    // Real lookup: no live spawns, so every static edge is plain.
+    expect(
+      probe.spawnActiveIdFor({ from: 'agents/orchestrator.md', to: 'agents/worker.md' }),
+    ).toBeNull();
+    probe.onStaticEdgeClick(
+      { id: 'e1', from: 'agents/orchestrator.md', to: 'agents/worker.md' },
+      new MouseEvent('click'),
+    );
+    await settle();
+
+    expect(STUB_DATA_SOURCE.getSpawnRecord).not.toHaveBeenCalled();
+    expect(probe.conversationOpen()).toBe(false);
   });
 });

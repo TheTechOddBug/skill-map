@@ -30,7 +30,11 @@ import type {
   IPreferencesPatchApi,
   IProjectConfigApi,
   IActiveProviderApi,
+  IActivityCaptureStatusApi,
   IActivityInstallStatusApi,
+  IActivityNodeDetailApi,
+  IActivitySpawnDetailApi,
+  IActivitySummaryApi,
   IActivityUninstallEnvelopeApi,
   IActiveProviderPutEnvelopeApi,
   IBranchResponseApi,
@@ -451,6 +455,50 @@ export interface IDataSourcePort {
     provider: string,
     opts?: { confirm?: boolean },
   ): Promise<IActivityUninstallEnvelopeApi>;
+
+  /**
+   * Snapshot of the BFF's per-node execution stats
+   * (`GET /api/activity/summary`, `spec/provider-activity.md`
+   * §Execution stats). Used to hydrate counters on boot / reconnect /
+   * re-enable; the WS `node.activity` `stats` field carries the deltas
+   * afterwards. Demo mode returns an empty snapshot (no live BFF).
+   */
+  getActivitySummary(): Promise<IActivitySummaryApi>;
+
+  /**
+   * Per-node activity detail for the inspector's Activity section
+   * (`GET /api/activity/node/<pathB64>`): stats + recent executions +
+   * spawn records touching the node. Returns `null` on 404 (unknown
+   * path), mirroring `getNode`. Demo mode returns the empty shape.
+   */
+  getNodeActivity(path: string): Promise<IActivityNodeDetailApi | null>;
+
+  /**
+   * One spawn record by id (`GET /api/activity/spawns/<spawnId>`), the
+   * spawn-edge click surface. Metadata always; conversation content
+   * only while the capture gate is on. Returns `null` on 404 (unknown
+   * or evicted id). Demo mode returns `null`.
+   */
+  getSpawnRecord(spawnId: string): Promise<IActivitySpawnDetailApi | null>;
+
+  /**
+   * Conversation-capture gate state (`GET /api/activity/capture`).
+   * Demo mode reports `{ enabled: false }`.
+   */
+  getActivityCapture(): Promise<IActivityCaptureStatusApi>;
+
+  /**
+   * Flip the conversation-capture gate (`POST /api/activity/capture`).
+   * The server enforces consent: without `confirm: true` it refuses
+   * with 412 `confirm-required` and changes nothing, so the UI settles
+   * consent in its own dialog first and always sends `confirm: true`.
+   * Turning the gate off clears the in-memory store immediately. Demo
+   * mode rejects with `code: 'demo-readonly'`.
+   */
+  setActivityCapture(body: {
+    enabled: boolean;
+    confirm?: boolean;
+  }): Promise<IActivityCaptureStatusApi>;
 
   /**
    * Phase 4 / View contribution system, lazy lookup for a single

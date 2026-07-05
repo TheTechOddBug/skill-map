@@ -401,7 +401,7 @@ Each Provider MAY declare an optional `activity` capability (full contract: [`pr
 
 The capability splits along the same declarative/runtime line as the rest of the Provider surface: the manifest carries the declarative `install` descriptor (`kind` + project-local `configPath`, consumed by `sm activity install`), while the runtime method `mapEvent(raw) → signals[] | null` (TypeScript-only, never in the manifest, mirroring `classify()` / `walk()`) turns one raw provider hook payload into `{ kind, name, phase, owner? }` signals. Node resolution stays OUT of the Provider: the BFF resolves `(kind, name)` against the scanned node set through the same §Provider · kind identifiers contract that link resolution uses, and drops signals that resolve to no scanned node.
 
-The kernel's role ends at the abstraction: it defines the capability shape and validates it at load time. The runtime pipeline (bridge → `POST /api/activity` → WS `node.activity` → UI) is owned by the BFF and specified in `provider-activity.md`; the kernel is a scan-time engine and never transports activity events. Activity state is ephemeral (in-memory in the BFF): nothing lands in `scan_*` or `state_*` at v1.
+The kernel's role ends at the abstraction: it defines the capability shape and validates it at load time. The runtime pipeline (bridge → `POST /api/activity` → WS `node.activity` / `agent.spawn` → UI) is owned by the BFF and specified in `provider-activity.md`; the kernel is a scan-time engine and never transports activity events. Activity state is ephemeral (in-memory in the BFF): the execution-stats accumulator, the spawn frames, and the consent-gated conversation store all die with the serve process; nothing lands in `scan_*` or `state_*`.
 
 ### Extractor · output callbacks
 

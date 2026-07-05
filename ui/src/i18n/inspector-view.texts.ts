@@ -26,12 +26,43 @@ export const INSPECTOR_VIEW_TEXTS = {
    */
   sections: {
     actions: 'Actions',
+    activity: 'Activity',
     annotations: 'Annotations',
     connections: 'Connections',
     findings: 'Findings',
     metadata: 'Metadata',
     plugins: 'Plugin contributions',
     body: 'Body',
+  },
+  /**
+   * Activity section (spec/provider-activity.md §Execution stats /
+   * §Conversation capture): per-node execution counters, the recent
+   * ring, and the spawn records touching the node. All values are
+   * ephemeral (reset when `sm serve` restarts).
+   */
+  activity: {
+    loading: 'Loading activity…',
+    empty: 'No executions recorded since the server started.',
+    /** Header chip while the conversation-capture gate is on. */
+    captureOnChip: 'capture on',
+    captureOnChipTooltip:
+      'Conversation capture is enabled: spawn prompts and responses are kept in memory while sm serve runs.',
+    stats: {
+      count: 'Executions',
+      lastStart: 'Last start',
+      contexts: 'Contexts',
+    },
+    recentHeading: 'Recent executions',
+    spawnsHeading: 'Agent spawns',
+    /** Thread-row turn counter: every Task call of the pair is one exchange. */
+    exchangeCount: (n: number): string => (n === 1 ? '1 exchange' : `${n} exchanges`),
+    viewConversation: 'View conversation',
+    viewConversationA11y: (child: string): string => `View the conversation with ${child}`,
+    /** Parent label for spawns whose spawner is the main session. */
+    spawnParentSession: 'session',
+    /** Row shape: `<parent> -> <child>`. */
+    spawnPair: (parent: string, child: string): string => `${parent} -> ${child}`,
+    captureOffHint: 'Conversation capture is off. Enable it in Settings > Project.',
   },
   body: {
     // The body section is hidden entirely when there is nothing to

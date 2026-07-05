@@ -63,6 +63,9 @@ import { formatErrorMessage } from '../kernel/util/format-error.js';
 import { log } from '../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../kernel/util/safe-text.js';
 import { tx } from '../kernel/util/tx.js';
+import { readConfigValue } from '../core/config/helper.js';
+import { ActivityConversationStore } from './activity-conversations.js';
+import { ActivityStatsService } from './activity-stats.js';
 import { createApp } from './app.js';
 import { WsBroadcaster } from './broadcaster.js';
 import { startWsHeartbeat } from './heartbeat.js';
@@ -150,6 +153,22 @@ export async function createServer(
   // as hex (64 chars); rotates on every boot. Published off-process by
   // the `sm serve` verb via `.skill-map/serve.json`.
   const activityToken = randomBytes(32).toString('hex');
+  // Live-activity state, boot-scoped and in-memory only (see
+  // `spec/provider-activity.md` §Execution stats + §Conversation
+  // capture). Both instances live HERE by custody contract: they are
+  // threaded to the activity routes as explicit extra deps and never
+  // reach `IRouteDeps`, `assembleKernel`, or `assemblePluginRuntime`.
+  // The capture gate initialises from the project-local config layer
+  // (default off); `POST /api/activity/capture` keeps store and config
+  // in sync afterwards.
+  const activityStats = new ActivityStatsService();
+  const activityConversations = new ActivityConversationStore({
+    enabled:
+      readConfigValue<boolean>('activity.captureConversations', {
+        cwd: runtimeContext.cwd,
+        default: false,
+      }) ?? false,
+  });
   const { pluginRuntime, kindRegistry, providerRegistry, providers } =
     await assemblePluginRuntime(options, runtimeContext);
   const { kernel, contributionsRegistry } = assembleKernel(pluginRuntime, options.noBuiltIns);
@@ -163,6 +182,8 @@ export async function createServer(
     options,
     specVersion,
     activityToken,
+    activityStats,
+    activityConversations,
     broadcaster,
     runtimeContext,
     kindRegistry,

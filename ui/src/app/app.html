@@ -122,6 +122,27 @@
     </nav>
 
     <div class="shell__actions">
+      <!-- Real Time toggle. Wrapper span carries the tooltip because
+           PrimeNG tooltips do not fire on a disabled button, and the
+           blocked states are exactly when the copy matters most. -->
+      <span
+        class="shell__live-activity-wrap"
+        [pTooltip]="liveActivityTooltip()"
+        tooltipPosition="bottom"
+        data-testid="shell-live-activity-tooltip-wrap"
+      >
+        <p-button
+          icon="pi pi-bolt"
+          [ariaLabel]="liveActivityAria()"
+          [severity]="liveActivitySeverity()"
+          [text]="true"
+          [rounded]="true"
+          size="small"
+          [disabled]="liveActivityBlocked()"
+          (onClick)="toggleLiveActivity()"
+          data-testid="shell-live-activity-toggle"
+        />
+      </span>
       <button
         type="button"
         class="shell__refresh"

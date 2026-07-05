@@ -9,9 +9,17 @@ import {
   signal,
 } from '@angular/core';
 import type { OnInit } from '@angular/core';
+import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
 
-import type { IIssueApi, TIssueSeverityApi } from '../../../models/api';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+
+import type {
+  IActivityNodeDetailApi,
+  IActivitySpawnRecordApi,
+  IIssueApi,
+  TIssueSeverityApi,
+} from '../../../models/api';
 
 import { INSPECTOR_VIEW_TEXTS } from '../../../i18n/inspector-view.texts';
 import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
@@ -27,6 +35,7 @@ import {
   setupHighlightedSource,
 } from '../../../services/markdown-inline-signal';
 import { ActionDispatchService } from '../../../services/action-dispatch';
+import { pathBasenameForLink } from '../../../services/path-basename';
 import { ProviderRegistryService } from '../../../services/provider-registry';
 import {
   AnnotationsPanel,
@@ -40,6 +49,11 @@ import { InspectorDebugPanel } from '../../components/inspector-debug-panel/insp
 import { InspectorAuditPanel } from '../../components/inspector-audit-panel/inspector-audit-panel';
 import { InspectorHeader } from '../../components/inspector-header/inspector-header';
 import { CollapsibleSection } from '../../components/collapsible-section/collapsible-section';
+import { ConversationDialog } from '../../components/conversation-dialog/conversation-dialog';
+import {
+  groupSpawnThreads,
+  type ISpawnThread,
+} from '../../components/conversation-dialog/spawn-thread';
 import { ViewContributionsHost } from '../../components/view-contributions-host/view-contributions-host';
 import {
   SidecarConsentDialog,
@@ -74,8 +88,10 @@ import type { INodeView } from '../../../models/node';
     InspectorAuditPanel,
     InspectorHeader,
     CollapsibleSection,
+    ConversationDialog,
     ViewContributionsHost,
     SidecarConsentDialog,
+    ButtonModule,
     TooltipModule,
   ],
   templateUrl: './inspector-view.html',
@@ -379,6 +395,122 @@ export class InspectorView implements OnInit {
         if (!cancelled && this.issuesPath === path) this.issues.set([]);
       });
   });
+
+  /**
+   * Activity section state (spec/provider-activity.md §Execution stats
+   * / §Conversation capture). Fetched LAZILY on first expand per node
+   * (the collapse state is persisted, so a user who keeps the section
+   * open gets a fetch per navigation), then silently re-fetched on
+   * every `scan.completed` while loaded, mirroring the body state
+   * machine's loud-load / silent-refresh split. `null` = not fetched
+   * yet (renders the loading line while expanded).
+   */
+  protected readonly activityDetail = signal<IActivityNodeDetailApi | null>(null);
+  /** Path the current `activityDetail` belongs to (navigation guard). */
+  private activityPath: string | undefined = undefined;
+  /** Dedupe guard: the expand effect fetches once per (path, expand). */
+  private activityFetchedFor: string | null = null;
+  private readonly activityLoaderEffect = effect(() => {
+    const path = this.node()?.path;
+    const open = this.expanded('activity');
+    if (path !== this.activityPath) {
+      // Navigation: a previous node's activity must not linger.
+      this.activityDetail.set(null);
+      this.activityFetchedFor = null;
+      this.activityPath = path;
+    }
+    if (!path || !open) return;
+    // The collapse-state signal covers EVERY section, so this effect
+    // re-runs when unrelated sections toggle; the fetched-for guard
+    // keeps those re-runs free.
+    if (this.activityFetchedFor === path) return;
+    this.activityFetchedFor = path;
+    void this.fetchActivity(path);
+  });
+
+  /**
+   * Silent same-path refresh on watcher re-scans, so counters and
+   * spawn lists stay live while the section sits open. Skipped until
+   * the section has fetched at least once for the current node.
+   */
+  private readonly activityScanRefresh = this.wsEvents.scanCompleted$
+    .pipe(takeUntilDestroyed())
+    .subscribe(() => {
+      const path = this.activityPath;
+      if (!path || this.activityFetchedFor !== path) return;
+      void this.fetchActivity(path);
+    });
+
+  private async fetchActivity(path: string): Promise<void> {
+    try {
+      const detail = await this.dataSource.getNodeActivity(path);
+      if (this.activityPath === path) this.activityDetail.set(detail);
+    } catch {
+      // Transport failure: keep whatever is shown (or the loading
+      // line); activity is a progressive enhancement, never an error
+      // banner.
+    }
+  }
+
+  /** True when the fetched detail has nothing to show (quiet node). */
+  protected readonly activityEmpty = computed<boolean>(() => {
+    const detail = this.activityDetail();
+    return detail !== null && detail.stats.count === 0 && detail.spawns.length === 0;
+  });
+
+  /** Human time for activity rows (session-scoped, date is noise). */
+  protected formatActivityTime(ms: number): string {
+    return new Date(ms).toLocaleTimeString();
+  }
+
+  /**
+   * Spawn records grouped into per-pair conversation threads: one row
+   * per parent-child pair, N Task calls fused into N turns of the same
+   * thread (most recent thread first).
+   */
+  protected readonly spawnThreads = computed<ISpawnThread[]>(() =>
+    groupSpawnThreads(this.activityDetail()?.spawns ?? []),
+  );
+
+  /** Thread-row labels: `<parent> -> <child>`, session parents named plainly. */
+  protected threadPairLabel(thread: ISpawnThread): string {
+    const t = this.texts.activity;
+    const parent =
+      thread.parentNodePath !== undefined
+        ? pathBasenameForLink(thread.parentNodePath)
+        : t.spawnParentSession;
+    return t.spawnPair(parent, this.threadChildLabel(thread));
+  }
+
+  protected threadChildLabel(thread: ISpawnThread): string {
+    if (thread.childName !== undefined) return thread.childName;
+    if (thread.childNodePath !== undefined) return pathBasenameForLink(thread.childNodePath);
+    return this.threadLastRecord(thread).childKind ?? '';
+  }
+
+  /** Records are ASC by startedAt, so the latest turn is the last one. */
+  protected threadLastRecord(thread: ISpawnThread): IActivitySpawnRecordApi {
+    return thread.records[thread.records.length - 1]!;
+  }
+
+  /**
+   * Conversation dialog state. The inspector already holds the full
+   * spawn records (content included while capture is on), so no
+   * re-fetch happens here, the clicked thread is handed to the dialog
+   * directly; the graph view's edge-click path is the one that fetches
+   * by id.
+   */
+  protected readonly conversationOpen = signal(false);
+  protected readonly conversationThread = signal<ISpawnThread | null>(null);
+
+  protected openSpawnConversation(thread: ISpawnThread): void {
+    this.conversationThread.set(thread);
+    this.conversationOpen.set(true);
+  }
+
+  protected onConversationClosed(): void {
+    this.conversationOpen.set(false);
+  }
 
   /**
    * Findings sorted for display: error first, then warn, then info last

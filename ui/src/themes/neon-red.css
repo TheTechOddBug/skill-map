@@ -57,6 +57,10 @@
   --sm-edge-references-active: color-mix(in srgb, var(--sm-nred-accent-bright) 67%, #b39aa2);
   --sm-edge-invokes-active: var(--sm-nred-accent-bright);
 
+  /* Spawn edges: shifted toward violet so the live-spawn magenta never
+     collapses into the crimson kind ramp on this red-heavy surface. */
+  --sm-edge-spawn: #c07ae8;
+
   --sm-link-in-bg: color-mix(in srgb, var(--sm-nred-accent) 14%, transparent);
   --sm-link-in-fg: var(--sm-nred-accent);
   --sm-link-out-bg: color-mix(in srgb, var(--sm-nred-muted) 14%, transparent);

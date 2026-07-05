@@ -13,7 +13,11 @@
  *   - 403 `token-mismatch`: missing token, wrong token (before body work).
  *   - 400 `bad-query`: malformed body shapes.
  *   - 202 `resolved: 0`: unknown provider, disclaimed event.
- *   - 202 `resolved: 1` + WS broadcast: real Skill payload vs primed node.
+ *   - 202 `resolved: 1` + WS broadcast: real Skill payload vs primed node
+ *     (sessionized owner, server-side stats on the frame).
+ *   - spawn relations: agent-parent custody (keepAlive `node.activity` +
+ *     `agent.spawn` frame) and main-parent relation-only spawns
+ *     (`resolved: 0, spawns: 1`, no `parentNodePath` on the frame).
  */
 
 import { strict as assert } from 'node:assert';
@@ -82,6 +86,8 @@ async function primeFixture(): Promise<void> {
     nodes: [
       makeSkillNode('.claude/skills/deploy/SKILL.md'),
       { ...makeSkillNode('notes/todo.md'), kind: 'markdown', provider: 'markdown' },
+      { ...makeSkillNode('.claude/agents/demo-orchestrator.md'), kind: 'agent' },
+      { ...makeSkillNode('.claude/agents/demo-worker.md'), kind: 'agent' },
     ],
     links: [],
     issues: [],
@@ -164,6 +170,36 @@ async function postActivity(
   });
 }
 
+/**
+ * Open a `/ws` client, run `fn`, and resolve with the first `expected`
+ * frames received (parsed envelopes, arrival order preserved).
+ */
+async function withWsFrames(
+  handle: IServerHandle,
+  expected: number,
+  fn: () => Promise<void>,
+): Promise<Record<string, unknown>[]> {
+  const ws = new WebSocket(`ws://127.0.0.1:${handle.address.port}/ws`);
+  const frames: Record<string, unknown>[] = [];
+  const received = new Promise<Record<string, unknown>[]>((resolve, reject) => {
+    ws.on('message', (frame) => {
+      frames.push(JSON.parse(String(frame)) as Record<string, unknown>);
+      if (frames.length === expected) resolve(frames);
+    });
+    ws.on('error', reject);
+  });
+  await new Promise<void>((resolve, reject) => {
+    ws.on('open', () => resolve());
+    ws.on('error', reject);
+  });
+  try {
+    await fn();
+    return await received;
+  } finally {
+    ws.close();
+  }
+}
+
 describe('POST /api/activity, token gate', () => {
   it('403 token-mismatch when the header is missing', async () => {
     await bootAndUse(async (handle) => {
@@ -209,8 +245,8 @@ describe('POST /api/activity, ingest', () => {
         handle.activityToken,
       );
       assert.equal(res.status, 202);
-      const body = (await res.json()) as { ok: boolean; resolved: number };
-      assert.deepEqual(body, { ok: true, resolved: 0 });
+      const body = (await res.json()) as { ok: boolean; resolved: number; spawns: number };
+      assert.deepEqual(body, { ok: true, resolved: 0, spawns: 0 });
     });
   });
 
@@ -272,37 +308,138 @@ describe('POST /api/activity, ingest', () => {
     });
   });
 
-  it('202 resolved: 1 and a `node.activity` WS broadcast for a real Skill payload', async () => {
+  it('202 resolved: 1 and a stats-enriched `node.activity` broadcast for a real Skill payload', async () => {
     await bootAndUse(async (handle) => {
-      const ws = new WebSocket(`ws://127.0.0.1:${handle.address.port}/ws`);
-      const received = new Promise<Record<string, unknown>>((resolve, reject) => {
-        ws.on('message', (frame) => resolve(JSON.parse(String(frame)) as Record<string, unknown>));
-        ws.on('error', reject);
-      });
-      await new Promise<void>((resolve, reject) => {
-        ws.on('open', () => resolve());
-        ws.on('error', reject);
-      });
-      try {
+      const [event] = await withWsFrames(handle, 1, async () => {
         const res = await postActivity(
           handle,
           { provider: 'claude', event: SKILL_PRETOOLUSE_PAYLOAD },
           handle.activityToken,
         );
         assert.equal(res.status, 202);
-        const body = (await res.json()) as { resolved: number };
+        const body = (await res.json()) as { resolved: number; spawns: number };
         assert.equal(body.resolved, 1);
+        assert.equal(body.spawns, 0);
+      });
 
-        const event = await received;
-        assert.equal(event['type'], 'node.activity');
-        assert.deepEqual(event['data'], {
-          nodePath: '.claude/skills/deploy/SKILL.md',
-          phase: 'start',
-          owner: 'main',
-        });
-      } finally {
-        ws.close();
-      }
+      assert.equal(event!['type'], 'node.activity');
+      const data = event!['data'] as {
+        nodePath: string;
+        phase: string;
+        owner: string;
+        stats: { count: number; lastStartAt: number; lastOwner?: string; distinctOwners: number };
+      };
+      assert.equal(data.nodePath, '.claude/skills/deploy/SKILL.md');
+      assert.equal(data.phase, 'start');
+      // Sessionized main owner (the payload carries session_id).
+      assert.equal(data.owner, 'main:6cfe5636-2e56-4271-91a6-87fc3d4355be');
+      assert.equal(data.stats.count, 1);
+      assert.equal(data.stats.lastOwner, 'main:6cfe5636-2e56-4271-91a6-87fc3d4355be');
+      assert.equal(data.stats.distinctOwners, 1);
+      assert.ok(data.stats.lastStartAt > 0);
+    });
+  });
+
+  it('a second identical Skill post counts again (stats.count: 2 on the frame)', async () => {
+    await bootAndUse(async (handle) => {
+      await postActivity(
+        handle,
+        { provider: 'claude', event: SKILL_PRETOOLUSE_PAYLOAD },
+        handle.activityToken,
+      );
+      const [event] = await withWsFrames(handle, 1, async () => {
+        await postActivity(
+          handle,
+          { provider: 'claude', event: SKILL_PRETOOLUSE_PAYLOAD },
+          handle.activityToken,
+        );
+      });
+      const data = event!['data'] as { stats: { count: number; distinctOwners: number } };
+      assert.equal(data.stats.count, 2);
+      assert.equal(data.stats.distinctOwners, 1);
+    });
+  });
+
+  it('an AGENT-parent spawn yields keepAlive custody plus an `agent.spawn` frame', async () => {
+    await bootAndUse(async (handle) => {
+      const frames = await withWsFrames(handle, 2, async () => {
+        const res = await postActivity(
+          handle,
+          {
+            provider: 'claude',
+            event: {
+              session_id: '6cfe5636-2e56-4271-91a6-87fc3d4355be',
+              hook_event_name: 'PreToolUse',
+              agent_id: 'a4e825faeafee3619',
+              agent_type: 'demo-orchestrator',
+              tool_name: 'Agent',
+              tool_input: { prompt: 'continue the chain', subagent_type: 'demo-worker' },
+              tool_use_id: 'toolu_01MEQBSdHNo3B9pMjY8s7ZQK',
+            },
+          },
+          handle.activityToken,
+        );
+        const body = (await res.json()) as { resolved: number; spawns: number };
+        assert.equal(body.resolved, 1);
+        assert.equal(body.spawns, 1);
+      });
+
+      assert.equal(frames[0]!['type'], 'node.activity');
+      // Custody claim: keepAlive, so NOT counted (no stats attached).
+      assert.deepEqual(frames[0]!['data'], {
+        nodePath: '.claude/agents/demo-orchestrator.md',
+        phase: 'start',
+        owner: 'spawn:toolu_01MEQBSdHNo3B9pMjY8s7ZQK',
+        sticky: true,
+        keepAlive: true,
+      });
+
+      assert.equal(frames[1]!['type'], 'agent.spawn');
+      // Metadata only: the prompt from tool_input must never ride the WS.
+      assert.deepEqual(frames[1]!['data'], {
+        spawnId: 'toolu_01MEQBSdHNo3B9pMjY8s7ZQK',
+        phase: 'start',
+        parentOwner: 'a4e825faeafee3619',
+        parentNodePath: '.claude/agents/demo-orchestrator.md',
+        childKind: 'agent',
+        childName: 'demo-worker',
+        childNodePath: '.claude/agents/demo-worker.md',
+      });
+    });
+  });
+
+  it('a MAIN spawn answers resolved: 0, spawns: 1 with a session-parent frame', async () => {
+    await bootAndUse(async (handle) => {
+      const frames = await withWsFrames(handle, 1, async () => {
+        const res = await postActivity(
+          handle,
+          {
+            provider: 'claude',
+            event: {
+              session_id: '6cfe5636-2e56-4271-91a6-87fc3d4355be',
+              hook_event_name: 'PreToolUse',
+              tool_name: 'Agent',
+              tool_input: { prompt: 'run the demo worker', subagent_type: 'demo-worker' },
+              tool_use_id: 'toolu_01Hs3r6xww87USRS7FjNrYyv',
+            },
+          },
+          handle.activityToken,
+        );
+        const body = (await res.json()) as { ok: boolean; resolved: number; spawns: number };
+        assert.deepEqual(body, { ok: true, resolved: 0, spawns: 1 });
+      });
+
+      assert.equal(frames[0]!['type'], 'agent.spawn');
+      // ABSENT parentNodePath is the session-parent discriminator; the
+      // owner key itself stays opaque.
+      assert.deepEqual(frames[0]!['data'], {
+        spawnId: 'toolu_01Hs3r6xww87USRS7FjNrYyv',
+        phase: 'start',
+        parentOwner: 'main:6cfe5636-2e56-4271-91a6-87fc3d4355be',
+        childKind: 'agent',
+        childName: 'demo-worker',
+        childNodePath: '.claude/agents/demo-worker.md',
+      });
     });
   });
 });

@@ -67,6 +67,12 @@ html.app-matrix body {
   --sm-edge-references-active: color-mix(in srgb, #4ade80 67%, #9ca3af);
   --sm-edge-invokes-active: #4ade80;
 
+  /* Spawn edges keep their magenta identity even inside the green
+     monochrome: a live spawn is the one relation that must NOT blend
+     into the kind ramp. Slightly desaturated toward the theme's grey
+     so it sits in the palette without neon clash. */
+  --sm-edge-spawn: color-mix(in srgb, #e072c1 72%, var(--sm-edge-neutral));
+
   --sm-link-in-bg: color-mix(in srgb, var(--sm-matrix-accent) 14%, transparent);
   --sm-link-in-fg: var(--sm-matrix-accent);
   --sm-link-out-bg: color-mix(in srgb, var(--sm-matrix-muted) 14%, transparent);

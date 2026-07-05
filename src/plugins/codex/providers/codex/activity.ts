@@ -45,7 +45,10 @@
  *   until the hook surface exists; when it lands, this maps like
  *   claude's filter-first `Read` handling.
  *
- * Attribution: `owner` is `agent_id` when present, else `'main'`.
+ * Attribution: `owner` is `agent_id` when present, else the SESSIONIZED
+ * main key (`main:<session_id>`, bare `main` for payloads with no
+ * session id), same convention as the claude adapter so parallel
+ * sessions never collide under one owner.
  */
 
 import type {
@@ -132,9 +135,16 @@ function mapSubagentBoundary(
   return [signal];
 }
 
-/** `agent_id` when the event fired inside a subagent, else `'main'`. */
+/**
+ * `agent_id` when the event fired inside a subagent, else the
+ * SESSIONIZED main key (`main:<session_id>`; bare `main` for payloads
+ * with no session id). Opaque downstream, nothing parses it.
+ */
 function ownerOf(event: Record<string, unknown>): string {
-  return nonEmptyString(event['agent_id']) ?? MAIN_OWNER;
+  const agentId = nonEmptyString(event['agent_id']);
+  if (agentId) return agentId;
+  const sessionId = nonEmptyString(event['session_id']);
+  return sessionId ? `${MAIN_OWNER}:${sessionId}` : MAIN_OWNER;
 }
 
 function nonEmptyString(value: unknown): string | null {

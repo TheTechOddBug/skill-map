@@ -220,11 +220,17 @@ describe('activity bridge, end to end', () => {
 
         const event = await received;
         assert.equal(event['type'], 'node.activity');
-        assert.deepEqual(event['data'], {
-          nodePath: '.claude/skills/deploy/SKILL.md',
-          phase: 'start',
-          owner: 'main',
-        });
+        const data = event['data'] as {
+          nodePath: string;
+          phase: string;
+          owner: string;
+          stats: { count: number };
+        };
+        assert.equal(data.nodePath, '.claude/skills/deploy/SKILL.md');
+        assert.equal(data.phase, 'start');
+        // Sessionized main owner + server-side stats (v1.1 surface).
+        assert.equal(data.owner, 'main:6cfe5636-2e56-4271-91a6-87fc3d4355be');
+        assert.equal(data.stats.count, 1);
       } finally {
         ws.close();
       }

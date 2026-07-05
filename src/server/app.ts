@@ -97,10 +97,15 @@ import { registerPluginsRoute } from './routes/plugins.js';
 import { registerPreferencesRoute } from './routes/preferences.js';
 import { registerProjectIgnoreRoute } from './routes/project-ignore.js';
 import { registerProjectPreferencesRoute } from './routes/project-preferences.js';
+import type { ActivityConversationStore } from './activity-conversations.js';
+import type { ActivityStatsService } from './activity-stats.js';
 import { registerActiveProviderRoute } from './routes/active-provider.js';
 import { registerActionsRoutes } from './routes/actions.js';
 import { registerActivityRoute } from './routes/activity.js';
+import { registerActivityCaptureRoutes } from './routes/activity-capture.js';
+import { registerActivityDetailRoutes } from './routes/activity-detail.js';
 import { registerActivityInstallRoutes } from './routes/activity-install.js';
+import { registerActivitySummaryRoute } from './routes/activity-summary.js';
 import { registerScanRoute } from './routes/scan.js';
 import { registerUpdateStatusRoute } from './routes/update-status.js';
 import { createSpaFallback, createStaticHandler } from './static.js';
@@ -321,6 +326,22 @@ export interface IAppDeps {
    */
   activityToken: string;
   /**
+   * Boot-scoped execution-stats accumulator (live node activity, see
+   * `spec/provider-activity.md` §Execution stats). Instantiated by the
+   * composition root; threaded ONLY to the activity routes (ingest,
+   * summary, node detail) as an explicit extra dep, never placed on
+   * `IRouteDeps`.
+   */
+  activityStats: ActivityStatsService;
+  /**
+   * Consent-gated conversation store (see `activity-conversations.ts`
+   * for the custody contract). Instantiated ONLY by the composition
+   * root; threaded ONLY to the activity routes (ingest, detail,
+   * capture) as an explicit extra dep, never placed on `IRouteDeps`,
+   * never reachable from the kernel / plugin runtime.
+   */
+  activityConversations: ActivityConversationStore;
+  /**
    * The `/ws` broadcaster. Step 14.4.a wires `attachBroadcasterRoute`
    * inside `createApp` against this instance; the composition root
    * (`createServer`) owns its lifecycle (instantiate → register → close
@@ -513,14 +534,18 @@ export function createApp(deps: IAppDeps): Hono {
   // Live node activity ingest, `POST /api/activity` (see
   // `spec/provider-activity.md`). Token-gated (403 `token-mismatch`)
   // BEFORE any body processing; maps the raw provider hook payload via
-  // the Provider's `activity.mapEvent` and broadcasts one
-  // `node.activity` WS event per signal that resolved to a scanned
-  // node. Always answers 202 on a well-formed request (fire-and-forget
-  // bridge contract).
+  // the Provider's `activity.mapEvent`, feeds the stats accumulator +
+  // the consent-gated conversation store, and broadcasts one
+  // stats-enriched `node.activity` WS event per resolved signal plus
+  // one metadata-only `agent.spawn` event per spawn relation. Always
+  // answers 202 on a well-formed request (fire-and-forget bridge
+  // contract).
   registerActivityRoute(app, {
     ...routeDeps,
     broadcaster: deps.broadcaster,
     activityToken: deps.activityToken,
+    stats: deps.activityStats,
+    conversations: deps.activityConversations,
   });
   // Live-activity install management, `GET/POST /api/activity/install`
   // + `POST /api/activity/uninstall` (see `spec/provider-activity.md`
@@ -528,6 +553,26 @@ export function createApp(deps: IAppDeps): Hono {
   // install/uninstall button; mutations are consent-gated (412
   // `confirm-required` without `confirm: true`, nothing written).
   registerActivityInstallRoutes(app, routeDeps);
+  // Execution-stats snapshot, `GET /api/activity/summary` (client
+  // hydration on connect / reconnect / re-enable). Stats-only; no
+  // token, loopback-gated like every /api/* route.
+  registerActivitySummaryRoute(app, { stats: deps.activityStats });
+  // Per-node + per-spawn activity detail, `GET /api/activity/node/:pathB64`
+  // and `GET /api/activity/spawns/:spawnId` (inspector Activity section
+  // + spawn-edge click). Conversation content only while the capture
+  // gate is on.
+  registerActivityDetailRoutes(app, {
+    ...routeDeps,
+    stats: deps.activityStats,
+    conversations: deps.activityConversations,
+  });
+  // Conversation-capture gate, `GET/POST /api/activity/capture`.
+  // Consent-gated mutation (412 `confirm-required`); persists to the
+  // project-local config layer and updates the store synchronously.
+  registerActivityCaptureRoutes(app, {
+    ...routeDeps,
+    conversations: deps.activityConversations,
+  });
   // Per-user favorites, `PUT/DELETE /api/favorites/:pathB64`. Persists
   // to `state_node_favorites` (zone `state_`); decorated onto every
   // `/api/nodes` response via in-memory Set membership.

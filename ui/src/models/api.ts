@@ -1136,6 +1136,97 @@ export interface IActivityUninstallEnvelopeApi extends IActivityInstallStatusApi
 }
 
 /**
+ * Per-node execution stats accumulated by the BFF while `sm serve`
+ * runs (`spec/provider-activity.md` §Execution stats). Ephemeral,
+ * process-lifetime, reset on every server boot. The server is the
+ * single source of truth: clients overwrite from the summary snapshot
+ * and the WS `stats` field, never accumulate counts themselves.
+ */
+export interface INodeActivityStatsApi {
+  count: number;
+  /** Unix ms of the most recent counted start. */
+  lastStartAt: number;
+  /** Opaque owner key of the most recent counted start. */
+  lastOwner?: string;
+  /** Distinct executing contexts seen (saturating server-side). */
+  distinctOwners: number;
+}
+
+/**
+ * `GET /api/activity/summary` response, the client hydration snapshot
+ * (connect, reconnect, re-enable). Stats-only by design: no live claim
+ * or spawn state rides it, those rebuild from the WS stream.
+ */
+export interface IActivitySummaryApi {
+  /** Unix ms the accumulator started counting (server boot). */
+  since: number;
+  nodes: Record<string, INodeActivityStatsApi>;
+}
+
+/** One entry of a node's recent-executions ring (most recent first). */
+export interface IActivityRecentExecutionApi {
+  at: number;
+  owner: string;
+}
+
+/**
+ * One spawn record (`spec/provider-activity.md` §Conversation
+ * capture). Metadata is always present; the conversation halves
+ * (`prompt` / `response`) ride ONLY while the capture gate is on. An
+ * async spawn's final report does not travel through hooks, so async
+ * conversations carry the `prompt` half only.
+ */
+export interface IActivitySpawnRecordApi {
+  spawnId: string;
+  parentOwner: string;
+  /** Absent when the spawner is a session (the main context). */
+  parentNodePath?: string;
+  childKind?: string;
+  childName?: string;
+  childNodePath?: string;
+  childOwner?: string;
+  /** Parent -> child content, capture gate only. */
+  prompt?: string;
+  /** Child -> parent content (sync spawns), capture gate only. */
+  response?: string;
+  startedAt: number;
+  endedAt?: number;
+  /** Server-owned lifecycle label (e.g. `running` / `ended`); opaque here. */
+  status: string;
+}
+
+/**
+ * `GET /api/activity/node/<pathB64>` response: per-node detail for the
+ * inspector's Activity section. A scanned node with no recorded
+ * activity returns empty stats, not 404.
+ */
+export interface IActivityNodeDetailApi {
+  stats: INodeActivityStatsApi;
+  recent: IActivityRecentExecutionApi[];
+  /** Spawn records touching the node (as parent or child). */
+  spawns: IActivitySpawnRecordApi[];
+  captureEnabled: boolean;
+}
+
+/**
+ * `GET /api/activity/spawns/<spawnId>` response (the edge-click
+ * surface): one record plus the capture gate state, which rides the
+ * response either way so the dialog can explain a metadata-only view.
+ */
+export interface IActivitySpawnDetailApi extends IActivitySpawnRecordApi {
+  captureEnabled: boolean;
+}
+
+/**
+ * `GET|POST /api/activity/capture` envelope. The POST body adds
+ * `{ enabled, confirm }`; without `confirm: true` the server refuses
+ * with 412 `confirm-required` and changes nothing.
+ */
+export interface IActivityCaptureStatusApi {
+  enabled: boolean;
+}
+
+/**
  * Body shape for `PUT /api/active-provider`. Switching the lens
  * triggers an atomic drop of the scan_* DB zone server-side (see
  * `spec/db-schema.md` §Active-provider lens change), the response

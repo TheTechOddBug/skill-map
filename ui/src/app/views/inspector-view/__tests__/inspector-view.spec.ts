@@ -38,6 +38,7 @@ beforeEach(() => {
 
 type IStubDataSource = IDataSourcePort & {
   getNode: ReturnType<typeof vi.fn>;
+  getNodeActivity: ReturnType<typeof vi.fn>;
 };
 
 type IStubLoader = {
@@ -122,6 +123,12 @@ function makeStubDataSource(): IStubDataSource {
     loadGraph: vi.fn(),
     loadConfig: vi.fn(),
     listPlugins: vi.fn(),
+    getNodeActivity: vi.fn().mockResolvedValue({
+      stats: { count: 0, lastStartAt: 0, distinctOwners: 0 },
+      recent: [],
+      spawns: [],
+      captureEnabled: false,
+    }),
     bumpSidecar: vi.fn(),
     dispatchAction: vi.fn().mockResolvedValue({
       schemaVersion: '1',
@@ -945,6 +952,70 @@ describe('InspectorView, debug panel inside the merged metadata section', () => 
     toggle.click(); // collapse again
     await flush(fixture);
     expect(fixture.nativeElement.querySelector('[data-testid="inspector-debug-panel"]')).toBeNull();
+  });
+});
+
+describe('InspectorView, activity thread rows (spawn grouping)', () => {
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+  });
+  afterEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  function makeSpawn(spawnId: string, startedAt: number, status: string): Record<string, unknown> {
+    return {
+      spawnId,
+      parentOwner: 'main:6cfe5636',
+      childKind: 'agent',
+      childName: 'demo-worker',
+      childNodePath: '.claude/agents/demo-worker.md',
+      prompt: `ask ${spawnId}`,
+      response: `reply ${spawnId}`,
+      startedAt,
+      status,
+    };
+  }
+
+  it('groups 3 spawn records of the same pair into ONE thread row with "3 exchanges"', async () => {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    dataSource.getNodeActivity.mockResolvedValue({
+      stats: { count: 3, lastStartAt: 3000, distinctOwners: 1 },
+      recent: [],
+      spawns: [makeSpawn('s2', 2000, 'ended'), makeSpawn('s1', 1000, 'ended'), makeSpawn('s3', 3000, 'running')],
+      captureEnabled: true,
+    });
+
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+
+    // Activity is collapsed by default; expand it to trigger the fetch.
+    const toggle = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-activity-toggle"]',
+    ) as HTMLButtonElement;
+    toggle.click();
+    await flush(fixture);
+    await flush(fixture);
+
+    expect(dataSource.getNodeActivity).toHaveBeenCalledWith(node.path);
+    const rows = fixture.nativeElement.querySelectorAll(
+      '[data-testid="inspector-activity-thread"]',
+    );
+    expect(rows.length).toBe(1);
+    // Child name + exchange counter + status of the LAST turn.
+    expect(rows[0]!.textContent).toContain('demo-worker');
+    expect(rows[0]!.textContent).toContain('3 exchanges');
+    expect(rows[0]!.textContent).toContain('running');
+    // One View-conversation button per thread, not per record.
+    expect(
+      fixture.nativeElement.querySelectorAll(
+        '[data-testid="inspector-activity-view-conversation"]',
+      ).length,
+    ).toBe(1);
   });
 });
 

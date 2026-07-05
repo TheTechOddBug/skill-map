@@ -33,9 +33,26 @@ describe('codexActivity.mapEvent', () => {
     ]);
   });
 
-  it('maps a $skill prompt to a skill start (sigil stripped, owner main)', () => {
+  it('maps a $skill prompt to a skill start (sigil stripped, sessionized main owner)', () => {
     const signals = codexActivity.mapEvent({
       ...COMMON,
+      hook_event_name: 'UserPromptSubmit',
+      prompt: '$demo-skill-one run the demo chain',
+    });
+    assert.deepEqual(signals, [
+      {
+        kind: 'skill',
+        name: 'demo-skill-one',
+        phase: 'start',
+        owner: 'main:0d3f7a10-51c2-4f5e-9b1a-2f6d8c4e7a90',
+      },
+    ]);
+  });
+
+  it('falls back to the bare `main` owner when the payload carries no session_id', () => {
+    const { session_id: _sessionId, ...noSession } = COMMON;
+    const signals = codexActivity.mapEvent({
+      ...noSession,
       hook_event_name: 'UserPromptSubmit',
       prompt: '$demo-skill-one run the demo chain',
     });
@@ -50,9 +67,10 @@ describe('codexActivity.mapEvent', () => {
       hook_event_name: 'UserPromptSubmit',
       prompt: 'use $deploy and $check-links, budget $100, keep $PATH, then $deploy again',
     });
+    const owner = 'main:0d3f7a10-51c2-4f5e-9b1a-2f6d8c4e7a90';
     assert.deepEqual(signals, [
-      { kind: 'skill', name: 'deploy', phase: 'start', owner: 'main' },
-      { kind: 'skill', name: 'check-links', phase: 'start', owner: 'main' },
+      { kind: 'skill', name: 'deploy', phase: 'start', owner },
+      { kind: 'skill', name: 'check-links', phase: 'start', owner },
     ]);
   });
 

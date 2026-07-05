@@ -55,6 +55,12 @@
   --sm-edge-mentions: #6fa2c0;
   --sm-edge-mentions-active: #0ea5e9;
 
+  /* Ephemeral spawn edges + session anchors (live agent spawns,
+     spec/provider-activity.md). Magenta family: deliberately outside
+     the four link-kind hues (amber / emerald / violet / sky) so a live
+     spawn never reads as a scanned relation. */
+  --sm-edge-spawn: #c0509e;
+
   /* Neutral grey used by edge mixes (matrix interpolates against this)
      and by per-component muted strokes. Centralising it here keeps the
      three themes from drifting on the same hex literal. */

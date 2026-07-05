@@ -35,6 +35,12 @@
   --sm-edge-mentions: #8ec2db;
   --sm-edge-mentions-active: #38bdf8;
 
+  /* Ephemeral spawn edges + session anchors (live agent spawns,
+     spec/provider-activity.md). Magenta family, brightened for the
+     dark surface; deliberately outside the four link-kind hues so a
+     live spawn never reads as a scanned relation. */
+  --sm-edge-spawn: #e072c1;
+
   /* Neutral grey used by edge mixes; same hex as light today (the
      mid-grey reads the same on both surfaces) but kept here so the
      three themes share one source of truth for the token. */

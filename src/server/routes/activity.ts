@@ -18,8 +18,12 @@
  *   2. AJV body validation via the shared `makeBodyValidator` factory.
  *   3. `resolveActivityEvent` maps the raw event through the Provider's
  *      `activity.mapEvent` and resolves each signal against the scanned
- *      node set; one `node.activity` WS envelope broadcasts per resolved
- *      signal.
+ *      node set. Per resolved activity payload the stats accumulator
+ *      records it and one (stats-enriched, when the start counted)
+ *      `node.activity` WS envelope broadcasts; per resolved spawn the
+ *      consent-gated conversation store records it (a no-op while the
+ *      gate is off) and one METADATA-ONLY `agent.spawn` envelope
+ *      broadcasts.
  *   4. `202` accepted ALWAYS on a well-formed request, also when nothing
  *      resolved: the bridge is fire-and-forget and never needs the
  *      outcome.
@@ -27,8 +31,13 @@
  * **Privacy invariant (normative)**: the request body may carry prompts,
  * command text, even file contents. It is never logged, never thrown
  * inside an error message, never persisted, and never forwarded beyond
- * the mapper. The broadcast payload carries only `{ nodePath, phase,
- * owner? }`, all values the UI already has from the scan surface.
+ * the mapper. The `node.activity` payload carries only the resolved
+ * shape (`nodePath`, `phase`, `owner?`, flags, server-side stats); the
+ * `agent.spawn` payload is projected through `toSpawnEventData`, whose
+ * return type has NO content fields, so the conversation halves
+ * (`prompt` / `response`) cannot ride the WS by construction. They
+ * reach ONLY the in-memory conversation store, and only while the
+ * capture gate is on.
  */
 
 import type { Hono } from 'hono';
@@ -36,8 +45,15 @@ import { timingSafeEqual } from 'node:crypto';
 
 import { ActivityTokenError } from '../app.js';
 import type { WsBroadcaster } from '../broadcaster.js';
-import { buildNodeActivityEvent } from '../events.js';
-import { resolveActivityEvent } from '../activity-resolver.js';
+import type { ActivityConversationStore } from '../activity-conversations.js';
+import type { ActivityStatsService } from '../activity-stats.js';
+import {
+  buildAgentSpawnEvent,
+  buildNodeActivityEvent,
+  type IAgentSpawnEventData,
+  type INodeActivityEventData,
+} from '../events.js';
+import { resolveActivityEvent, type IResolvedSpawn } from '../activity-resolver.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
 import { makeBodyValidator } from '../util/parse-body.js';
 import type { IRouteDeps } from './deps.js';
@@ -79,6 +95,13 @@ export interface IActivityRouteDeps extends IRouteDeps {
   broadcaster: WsBroadcaster;
   /** Per-session shared secret minted by the composition root at boot. */
   activityToken: string;
+  /** Boot-scoped execution-stats accumulator (composition-root owned). */
+  stats: ActivityStatsService;
+  /**
+   * Consent-gated conversation store. Explicit extra dep by custody
+   * contract (never on `IRouteDeps`, see `activity-conversations.ts`).
+   */
+  conversations: ActivityConversationStore;
 }
 
 export function registerActivityRoute(app: Hono, deps: IActivityRouteDeps): void {
@@ -86,18 +109,49 @@ export function registerActivityRoute(app: Hono, deps: IActivityRouteDeps): void
     assertToken(c.req.raw.headers.get(ACTIVITY_TOKEN_HEADER), deps.activityToken);
     const body = await parseBody(c.req.raw);
 
-    const resolved = await resolveActivityEvent({
+    const { activity, spawns, reports } = await resolveActivityEvent({
       providers: deps.providers,
       dbPath: deps.options.dbPath,
       providerId: body.provider,
       raw: body.event,
     });
-    for (const data of resolved) {
-      deps.broadcaster.broadcast(buildNodeActivityEvent(data));
+    for (const data of activity) {
+      const stats = deps.stats.record(data);
+      const payload: INodeActivityEventData = stats ? { ...data, stats } : data;
+      deps.broadcaster.broadcast(buildNodeActivityEvent(payload));
+    }
+    for (const spawn of spawns) {
+      deps.conversations.record(spawn);
+      deps.broadcaster.broadcast(buildAgentSpawnEvent(toSpawnEventData(spawn)));
+    }
+    // End-of-context reports (the async response source) go ONLY to
+    // the gated store; like the spawn halves they never broadcast.
+    for (const report of reports) {
+      deps.conversations.attachReport(report.owner, report.report);
     }
 
-    return c.json({ ok: true, resolved: resolved.length }, 202);
+    return c.json({ ok: true, resolved: activity.length, spawns: spawns.length }, 202);
   });
+}
+
+/**
+ * Project the internal resolved spawn onto the wire event shape by
+ * EXPLICIT field picks. `prompt` / `response` have no counterpart on
+ * `IAgentSpawnEventData`, so content cannot leak onto the WS through
+ * this seam even if `IResolvedSpawn` grows new fields.
+ */
+function toSpawnEventData(spawn: IResolvedSpawn): IAgentSpawnEventData {
+  const data: IAgentSpawnEventData = {
+    spawnId: spawn.spawnId,
+    phase: spawn.phase,
+    parentOwner: spawn.parentOwner,
+  };
+  if (spawn.parentNodePath !== undefined) data.parentNodePath = spawn.parentNodePath;
+  if (spawn.childKind !== undefined) data.childKind = spawn.childKind;
+  if (spawn.childName !== undefined) data.childName = spawn.childName;
+  if (spawn.childNodePath !== undefined) data.childNodePath = spawn.childNodePath;
+  if (spawn.childOwner !== undefined) data.childOwner = spawn.childOwner;
+  return data;
 }
 
 /**

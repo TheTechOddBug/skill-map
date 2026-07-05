@@ -43,6 +43,23 @@ export const NODE_CARD_TEXTS = {
     deprecated: 'deprecated',
   },
   /**
+   * Live execution counter (spec/provider-activity.md §Execution
+   * stats). The pill shows a compact count; the tooltip carries the
+   * long form (count, last start, distinct executing contexts). All
+   * values are server-accumulated and session-scoped (reset when
+   * `sm serve` restarts).
+   */
+  activity: {
+    tooltip: (stats: { count: number; lastStartAt: number; distinctOwners: number }): string => {
+      const times = stats.count === 1 ? 'once' : `${stats.count.toLocaleString('en-US')} times`;
+      const last = new Date(stats.lastStartAt).toLocaleTimeString();
+      const contexts = stats.distinctOwners === 1 ? '1 context' : `${stats.distinctOwners} contexts`;
+      return `Executed ${times} this session\nLast start: ${last}\n${contexts}`;
+    },
+    a11y: (count: number): string =>
+      `Executed ${count} time${count === 1 ? '' : 's'} this session`,
+  },
+  /**
    * Step 9.6.5, sidecar drift badge tooltips. The badge surfaces only
    * for nodes whose sidecar overlay reports a stale status; tooltip
    * spells out which side drifted (body, frontmatter, or both).

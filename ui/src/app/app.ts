@@ -11,8 +11,10 @@ import { SETTINGS_TEXTS } from '../i18n/settings.texts';
 import { THEME_TEXTS } from '../i18n/theme.texts';
 import { UPDATE_CHECK_TEXTS } from '../i18n/update-check.texts';
 import { CollectionLoaderService } from '../services/collection-loader';
+import { NodeActivityService } from '../services/node-activity';
 import { WsEventStreamService } from '../services/ws-event-stream';
 import { analyzeLinks } from './views/graph-view/graph-layout';
+import { ActivityReadinessService } from './services/activity-readiness';
 import { ProjectInfoService } from './services/project-info';
 import { ScanTriggerService } from './services/scan-trigger';
 import { UpdateCheckService } from './services/update-check';
@@ -44,6 +46,8 @@ export class App {
   private readonly scanTrigger = inject(ScanTriggerService);
   private readonly wsEvents = inject(WsEventStreamService);
   private readonly usageTracker = inject(UsageTrackerService);
+  private readonly nodeActivity = inject(NodeActivityService);
+  private readonly activityReadiness = inject(ActivityReadinessService);
   // `FilterUrlSyncService` and `DebugSlotsService` are eagerly
   // instantiated via `provideAppInitializer` in `app.config.ts`. They
   // self-wire on construction; the App component does not need to
@@ -96,7 +100,44 @@ export class App {
     if (!open) {
       this.settingsInitialSection.set(null);
       void this.projectInfo.reloadActiveProvider();
+      // Re-probe the hook-install gate: the Project section is where
+      // installs / lens switches happen, so the topbar bolt toggle must
+      // reflect them the moment the modal closes.
+      void this.activityReadiness.refresh();
     }
+  }
+
+  /**
+   * Topbar Real Time toggle state. `enabled` is the SAME preference
+   * signal the Settings switch binds (NodeActivityService re-exposes
+   * it), so the two surfaces mirror for free. The gates replicate the
+   * Settings switch's disable conditions: no live socket wanted, or
+   * the active lens's hook is known-missing (`null` = unknown fails
+   * OPEN, a probe hiccup never locks a local rendering preference).
+   */
+  protected readonly liveActivityOn = this.nodeActivity.enabled;
+  protected readonly liveActivityBlocked = computed(
+    () => !this.wsEvents.enabled() || this.activityReadiness.hookInstalled() === false,
+  );
+  protected readonly liveActivitySeverity = computed(() =>
+    this.liveActivityOn() && !this.liveActivityBlocked() ? 'primary' : 'secondary',
+  );
+  protected readonly liveActivityTooltip = computed(() => {
+    if (!this.wsEvents.enabled()) return APP_TEXTS.liveActivity.tooltipNoWs;
+    if (this.activityReadiness.hookInstalled() === false) {
+      return APP_TEXTS.liveActivity.tooltipNoHook;
+    }
+    return this.liveActivityOn()
+      ? APP_TEXTS.liveActivity.tooltipOn
+      : APP_TEXTS.liveActivity.tooltipOff;
+  });
+  protected readonly liveActivityAria = computed(() =>
+    this.liveActivityOn() ? APP_TEXTS.liveActivity.ariaOn : APP_TEXTS.liveActivity.ariaOff,
+  );
+
+  protected toggleLiveActivity(): void {
+    if (this.liveActivityBlocked()) return;
+    this.nodeActivity.setEnabled(!this.liveActivityOn());
   }
 
   /**

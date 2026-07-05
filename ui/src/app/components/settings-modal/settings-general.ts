@@ -36,6 +36,7 @@ import {
   DATA_SOURCE,
   DataSourceError,
 } from '../../../services/data-source/data-source.port';
+import { ActivityReadinessService } from '../../services/activity-readiness';
 import { NodeActivityService } from '../../../services/node-activity';
 import { ThemeService, type TExtraTheme } from '../../../services/theme';
 import { WsEventStreamService } from '../../../services/ws-event-stream';
@@ -121,6 +122,7 @@ export class SettingsGeneral {
   private readonly themeService = inject(ThemeService);
   private readonly wsStream = inject(WsEventStreamService);
   private readonly nodeActivity = inject(NodeActivityService);
+  private readonly activityReadiness = inject(ActivityReadinessService);
 
   /**
    * Live-channel switches. Display state comes from each feature
@@ -134,15 +136,15 @@ export class SettingsGeneral {
   protected readonly liveActivityEnabled = this.nodeActivity.enabled;
 
   /**
-   * Whether the ACTIVE lens's live-activity hook is installed
-   * (`GET /api/activity/install`, probed on every section open).
-   * Real-time lighting cannot work without the hook, so the toggle
-   * disables while this is `false`, with a hint pointing at Settings →
-   * Project. `null` = unknown (probe pending or failed): FAIL OPEN, the
+   * Whether the ACTIVE lens's live-activity hook is installed. Owned
+   * by the shared `ActivityReadinessService` (the same signal gates
+   * the topbar bolt toggle); this section re-triggers a probe on every
+   * open so a hook installed from the Project section (or the CLI)
+   * reflects here without a reload. `null` = unknown = FAIL OPEN, the
    * toggle stays usable, a transport hiccup must never lock a purely
    * local rendering preference.
    */
-  protected readonly activityHookInstalled = signal<boolean | null>(null);
+  protected readonly activityHookInstalled = this.activityReadiness.hookInstalled;
 
   /**
    * Section visibility. The chassis flips it true when the General
@@ -263,23 +265,9 @@ export class SettingsGeneral {
     } finally {
       this.loading.set(false);
     }
-    await this.refreshActivityHookInstalled();
-  }
-
-  /**
-   * Probe whether the active lens's activity hook is installed (gates
-   * the real-time toggle). Any failure resolves to `null` = unknown =
-   * fail open; an unsupported lens counts as not installed (the hook
-   * can never be there).
-   */
-  private async refreshActivityHookInstalled(): Promise<void> {
-    try {
-      const lens = await this.dataSource.getActiveProvider();
-      const status = await this.dataSource.getActivityInstallStatus(lens.activeProvider);
-      this.activityHookInstalled.set(status.supported ? status.installed : false);
-    } catch {
-      this.activityHookInstalled.set(null);
-    }
+    // Re-probe the shared hook-install state (coalesces with any probe
+    // already in flight, e.g. the boot one).
+    await this.activityReadiness.refresh();
   }
 
   private async runToggle(def: IGeneralToggleDef, nextValue: boolean): Promise<void> {

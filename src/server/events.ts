@@ -119,6 +119,96 @@ export interface INodeActivityEventData {
    * window; meant to end via an `ownerScope` end.
    */
   sticky?: boolean;
+  /**
+   * Only on `phase: 'start'`: CUSTODY claim (a parent held lit through
+   * a spawn). Lights and refreshes like any other start but is
+   * EXCLUDED from execution counting, and SHOULD NOT trigger
+   * "executed" affordances client-side.
+   */
+  keepAlive?: boolean;
+  /**
+   * The node's CURRENT execution stats as accumulated server-side
+   * (`activity-stats.ts`), attached by the ingest route to counted
+   * starts. The server is the single source of truth: clients MUST
+   * overwrite from this field (and from the `/api/activity/summary`
+   * snapshot), never accumulate counts themselves.
+   */
+  stats?: INodeActivityStats;
+}
+
+/**
+ * Per-node execution stats, the wire projection of one
+ * `ActivityStatsService` entry (see `spec/provider-activity.md`
+ * §Execution stats). Rides both the `node.activity` `stats` field and
+ * the `GET /api/activity/summary` snapshot.
+ */
+export interface INodeActivityStats {
+  /** Executions counted for this node since server boot. */
+  count: number;
+  /** Unix-ms timestamp of the last counted start. */
+  lastStartAt: number;
+  /** Owner key of the last counted start; absent when it was ownerless. */
+  lastOwner?: string;
+  /** Distinct owner keys observed on counted starts (saturating). */
+  distinctOwners: number;
+}
+
+/**
+ * Payload of the `agent.spawn` WS event (see `spec/provider-activity.md`
+ * §WS event: `agent.spawn`). One STATELESS, self-contained frame per
+ * spawn relation a provider signal reported; the server keeps no spawn
+ * registry, so parent fields repeat on every frame and consumers
+ * correlate by `spawnId`. METADATA ONLY by construction: the
+ * conversation halves (`prompt` / `response`) have no field on this
+ * shape and never ride the WS (capture-gate custody, §Conversation
+ * capture).
+ */
+export interface IAgentSpawnEventData {
+  /** Opaque per-spawn correlation id (the spawning tool call's id). */
+  spawnId: string;
+  /**
+   * `start` at the spawn call; `handoff` when the async child's owner
+   * id becomes known; `end` when the spawn completed with no live
+   * child.
+   */
+  phase: 'start' | 'handoff' | 'end';
+  /** Owner key of the spawning context (opaque, never parsed). */
+  parentOwner: string;
+  /**
+   * The scanned parent agent's node path. ABSENT when the spawner is a
+   * session (the main context): that absence is the structural
+   * discriminator for session parents.
+   */
+  parentNodePath?: string;
+  /** Child unit kind as the runtime named it. */
+  childKind?: string;
+  /** Child unit name as the runtime named it. */
+  childName?: string;
+  /**
+   * Present when `childName` resolved against the scanned node set. An
+   * unresolved child is still emitted (name only) so session surfaces
+   * can count it, but no edge can target a phantom node.
+   */
+  childNodePath?: string;
+  /** The child context's own owner id, present from `handoff` on. */
+  childOwner?: string;
+}
+
+/**
+ * Build an `agent.spawn` envelope. Unix-ms timestamp, matching the
+ * other BFF-authored events. Callers pass an already-metadata-only
+ * `IAgentSpawnEventData`; content stripping happens at the ingest
+ * route, this builder cannot re-attach what its type cannot carry.
+ */
+export function buildAgentSpawnEvent(
+  data: IAgentSpawnEventData,
+): IWsEventEnvelope<IAgentSpawnEventData> {
+  return {
+    type: 'agent.spawn',
+    timestamp: Date.now(),
+    jobId: null,
+    data,
+  };
 }
 
 /**

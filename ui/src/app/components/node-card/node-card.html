@@ -46,6 +46,17 @@
           [pTooltip]="texts.stats.bytes(st.bytesTotal!)"
         ><span class="sm-gnode__sub-key">B</span>{{ bytesShort() }}</span>
       }
+      <!-- Execution counter (spec/provider-activity.md §Execution
+           stats). Server-accumulated, session-scoped; hidden at zero
+           so quiet maps stay visually unchanged. -->
+      @if (activityCountShort() !== null) {
+        <span
+          class="sm-gnode__sub-stat sm-gnode__sub-stat--activity"
+          [pTooltip]="activityTooltip()"
+          [attr.aria-label]="activityA11y()"
+          data-testid="node-card-activity-count"
+        ><i class="pi pi-bolt sm-gnode__activity-bolt" aria-hidden="true"></i>{{ activityCountShort() }}</span>
+      }
       <button
         type="button"
         class="sm-gnode__favorite"
