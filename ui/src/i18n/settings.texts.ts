@@ -144,6 +144,25 @@ export const SETTINGS_TEXTS = {
       'your machine and is never committed.',
     pluginTrustConfirmAccept: 'Trust project plugins',
     pluginTrustConfirmReject: 'Cancel',
+    /**
+     * Project-local follow-external-symlinks opt-in
+     * (`scan.followExternalSymlinks`). Surface-expanding (it re-enables
+     * reading files the symlink target points at, outside the project
+     * root), so flipping it ON goes through the same confirm dialog as
+     * the plugin-trust key. Persists in settings.local.json.
+     */
+    followExternalSymlinksLabel: 'Follow external symlinks',
+    followExternalSymlinksDescription:
+      'Follow symbolic links whose target is outside the project. Off by ' +
+      'default; only enable it for a tree whose links you authored.',
+    followExternalSymlinksConfirmHeader: 'Follow links that leave this project?',
+    followExternalSymlinksConfirmIntro:
+      'This lets the scan read whatever a symbolic link points at, even ' +
+      'outside the project. A link at ~/.ssh, or a folder link at your ' +
+      'home directory, would be read into the graph. Only enable it for a ' +
+      'tree whose links you authored.',
+    followExternalSymlinksConfirmAccept: 'Follow external links',
+    followExternalSymlinksConfirmReject: 'Cancel',
     referencePathsLabel: 'Folders for link validation',
     referencePathsDescription:
       'If your notes link to files outside this project, list those ' +

@@ -457,6 +457,17 @@ export const SERVER_TEXTS = {
   // Server-stderr advisory after the local plugin-trust opt-in changes.
   projectPrefsTrustSet:
     'project-prefs: pluginTrust.projectEnabled = {{value}}',
+  projectPrefsFollowSymlinksNotBoolean: '`scan.followExternalSymlinks` must be a boolean.',
+  // 412, turning on external-symlink following. Expands the local
+  // disk-read surface (the scan follows links whose target escapes the
+  // project), so the route refuses without `confirm: true`.
+  projectPrefsFollowSymlinksConfirmRequired:
+    'Turning on scan.followExternalSymlinks lets the scan follow symlinks whose target is outside the project; ' +
+    'a link pointing at ~/.ssh or a folder link at ~/ would then be read into the graph. ' +
+    'Re-issue the request with `confirm: true` to proceed.',
+  // Server-stderr advisory after the external-symlink opt-in changes.
+  projectPrefsFollowSymlinksSet:
+    'project-prefs: scan.followExternalSymlinks = {{value}}',
   projectPrefsPersistFailed:
     'Could not persist `{{key}}`: {{message}}',
   // Returned for every NEW entry that does not resolve to an existing

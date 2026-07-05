@@ -28,7 +28,7 @@ import {
 
 interface IProjectPrefsEnvelopeWire {
   allowSidecarWriters: boolean;
-  scan: { referencePaths: string[] };
+  scan: { referencePaths: string[]; followExternalSymlinks: boolean };
   pluginTrust: { projectEnabled: boolean };
   tutorialReminderDismissed: boolean;
 }
@@ -94,7 +94,7 @@ describe('GET /api/project-preferences', () => {
       const env = (await res.json()) as IProjectPrefsEnvelopeWire;
       assert.deepEqual(env, {
         allowSidecarWriters: true,
-        scan: { referencePaths: [] },
+        scan: { referencePaths: [], followExternalSymlinks: false },
         pluginTrust: { projectEnabled: false },
         tutorialReminderDismissed: false,
       });
@@ -317,6 +317,67 @@ describe('PATCH /api/project-preferences (tutorialReminderDismissed)', () => {
       assert.equal(res.status, 200);
       const env = (await res.json()) as IProjectPrefsEnvelopeWire;
       assert.equal(env.tutorialReminderDismissed, true);
+    });
+  });
+});
+
+describe('PATCH /api/project-preferences (scan.followExternalSymlinks)', () => {
+  it('412 confirm-required when turning it ON without confirm', async () => {
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/project-preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ scan: { followExternalSymlinks: true } }),
+      });
+      assert.equal(res.status, 412);
+      const env = (await res.json()) as IErrorEnvelopeWire;
+      assert.equal(env.ok, false);
+      assert.match(env.error.message, /followExternalSymlinks/);
+    });
+  });
+
+  it('turns ON with confirm=true and persists to project-local', async () => {
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/project-preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ confirm: true, scan: { followExternalSymlinks: true } }),
+      });
+      assert.equal(res.status, 200);
+      const env = (await res.json()) as IProjectPrefsEnvelopeWire;
+      assert.equal(env.scan.followExternalSymlinks, true);
+      // Project-local only: lands in the gitignored settings.local.json.
+      const local = JSON.parse(
+        readFileSync(join(cwd, '.skill-map/settings.local.json'), 'utf8'),
+      );
+      assert.equal(local.scan.followExternalSymlinks, true);
+    });
+  });
+
+  it('turning it OFF needs no confirm (narrowing the surface)', async () => {
+    // Pre-condition: previous test left it ON.
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/project-preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ scan: { followExternalSymlinks: false } }),
+      });
+      assert.equal(res.status, 200);
+      const env = (await res.json()) as IProjectPrefsEnvelopeWire;
+      assert.equal(env.scan.followExternalSymlinks, false);
+    });
+  });
+
+  it('400 bad-query when followExternalSymlinks is not a boolean', async () => {
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/project-preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ scan: { followExternalSymlinks: 'nope' } }),
+      });
+      assert.equal(res.status, 400);
+      const env = (await res.json()) as IErrorEnvelopeWire;
+      assert.equal(env.error.code, 'bad-query');
     });
   });
 });

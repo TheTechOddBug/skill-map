@@ -169,13 +169,29 @@ const HTML_COMMENT_RE = /<!--[\s\S]*?-->/g;
 
 // HTML tag (open / close / self-closing): `<tag ...>`, `</tag>`, `<tag/>`.
 // The name MUST start with a letter, so `a < b` and `x <3 y` in prose are
-// left alone. Attribute values may carry `>` only inside quotes, so the
-// attribute run matches quoted strings explicitly before falling back to
-// any non-quote, non-`>` char. This blanks the tag token only (including
-// its attributes), never the content between an open and close tag, so a
-// `[x](y.md)` hiding in `<img alt="...">` is removed while markdown nested
-// inside a `<div>` block survives.
-const HTML_TAG_RE = /<\/?[a-zA-Z][a-zA-Z0-9-]*(?:\s+(?:"[^"]*"|'[^']*'|[^"'>])*)?\/?\s*>/g;
+// left alone. Attributes, when present, MUST be introduced by a single
+// whitespace separator (`\s`), so a token like `<https://example.com>`
+// (name immediately followed by `:`, no separator) is NOT a tag and the
+// autolink survives for the url counter. After that separator the
+// attribute run is one flat loop of three FIRST-CHARACTER-DISJOINT
+// alternatives: a double-quoted string, a single-quoted string, or any
+// one char that is not a quote or `>` (this branch absorbs inner
+// whitespace, `=`, and `/`). Non-overlapping alternatives are
+// load-bearing for security: the pre-audit pattern used a `\s+` prefix,
+// an inner `[^"'>]*`, AND a trailing `\s*` before `>`, three quantifiers
+// all matching whitespace, so an unterminated tag (`<div ` + a long
+// whitespace run, no `>`) drove catastrophic (~cubic) backtracking that
+// hung `sm scan` / `sm watch` on a single small file (audit H1). Here the
+// separator is a single fixed `\s` and there is no trailing `\s*`, so
+// only ONE quantifier ranges over the whitespace run and the match is
+// linear. The trailing `\/?` keeps bare self-closing `<br/>` matching
+// (no separator, so the run stays empty and `/` is consumed here).
+// Quoted strings are matched explicitly so a `>` inside an attribute
+// value does not close the tag early. This blanks the tag token only
+// (including its attributes), never the content between an open and close
+// tag, so a `[x](y.md)` hiding in `<img alt="...">` is removed while
+// markdown nested inside a `<div>` block survives.
+const HTML_TAG_RE = /<\/?[a-zA-Z][a-zA-Z0-9-]*(?:\s(?:"[^"]*"|'[^']*'|[^"'>])*)?\/?>/g;
 
 /**
  * Replace raw HTML (comments and tag tokens) with same-length whitespace,
@@ -268,10 +284,22 @@ function matchClosingFence(line: string, openFence: string): boolean {
   return fence[0] === openFence[0] && fence.length >= openFence.length;
 }
 
+// Inline code span: a backtick run, then anything (lazy), then a matching
+// run of backticks. The opener run is CAPPED at 32 (`` `{1,32} ``, not an
+// unbounded `` `+ ``) to defuse audit L1: with an unbounded opener, a body
+// carrying a long backtick run with no equal-length closer forced the lazy
+// `[\s\S]*?` to rescan the whole remainder once per opener-backtrack
+// length, giving quadratic blow-up (~66 s on a 500k-backtick file, hanging
+// `sm scan` near the 1 MiB file cap). The cap makes the opener-backtrack a
+// small constant, so the match is linear. 32 is a wide safety margin over
+// real markdown (CommonMark spans in human prose use runs of 1-3; this
+// module documents "up to 3"); a delimiter run longer than 32 is not
+// valid authored content, only a DoS payload, so declining to treat it as
+// a span (rather than hanging) is the correct outcome.
+const INLINE_SPAN_RE = /(`{1,32})([\s\S]*?)\1/g;
+
 function stripInline(input: string): string {
-  // Match one or more backticks, then anything (lazy), then a matching
-  // run of backticks. The `[^`]` ensures we don't eat across runs.
-  return input.replace(/(`+)([\s\S]*?)\1/g, (_full, ticks: string, body: string) => {
+  return input.replace(INLINE_SPAN_RE, (_full, ticks: string, body: string) => {
     return ticks.replace(/`/g, ' ') + blank(body) + ticks.replace(/`/g, ' ');
   });
 }

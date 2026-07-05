@@ -28,6 +28,21 @@
   />
 </div>
 
+<div class="settings-project__row" data-testid="settings-project-follow-external-symlinks-row">
+  <div class="settings-project__row-text">
+    <div class="settings-project__row-label">{{ texts.project.followExternalSymlinksLabel }}</div>
+    <div class="settings-project__row-description">
+      {{ texts.project.followExternalSymlinksDescription }}
+    </div>
+  </div>
+  <p-toggleswitch
+    [ngModel]="followExternalSymlinks()"
+    (ngModelChange)="onFollowExternalSymlinksToggle($event)"
+    [disabled]="loading() || isPending('scan.followExternalSymlinks') || preferences() === null"
+    data-testid="settings-project-follow-external-symlinks-toggle"
+  />
+</div>
+
 @if (loadError(); as err) {
   <p-message severity="error" [closable]="false" data-testid="settings-project-load-error">
     {{ texts.project.loadErrorPrefix }} {{ err }}

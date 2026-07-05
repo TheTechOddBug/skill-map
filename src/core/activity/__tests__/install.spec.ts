@@ -347,6 +347,9 @@ describe('renderActivityPlugin envelope', () => {
     assert.ok(source.includes("join(root, '.skill-map', 'serve.json')"));
     assert.ok(source.includes('LOOPBACK_HOSTS'));
     assert.ok(source.includes('TIMEOUT_MS'));
+    // Port sanity guard (audit L3): a tampered serve.json port must be
+    // refused before it is interpolated into the request URL.
+    assert.ok(source.includes('Number.isInteger(info.port)'));
     // No unfilled placeholders survive rendering.
     assert.equal(source.includes('{{'), false);
   });

@@ -35,10 +35,22 @@ const ANSI_ESCAPE_RE = /[][[\]()#;?]*(?:(?:(?:(?:;[-a-zA-Z\d/#&.:=?%@~_]+)*|[
 // eslint-disable-next-line no-control-regex
 const C0_CONTROL_RE = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g;
 
+// A bare carriage return (`\r` NOT immediately followed by `\n`) moves
+// the cursor to column 0 and lets hostile content overwrite text already
+// printed on the same line (a spoofing primitive, audit L2). It is
+// dropped here; a `\r\n` pair is preserved so genuine CRLF line endings
+// in disk content survive untouched. CR is kept out of `C0_CONTROL_RE`
+// precisely because the CRLF case needs the lookahead this regex adds.
+// eslint-disable-next-line no-control-regex
+const BARE_CR_RE = /\r(?!\n)/g;
+
 export function stripAnsi(text: string): string {
   return text.replace(ANSI_ESCAPE_RE, '');
 }
 
 export function sanitizeForTerminal(text: string): string {
-  return text.replace(ANSI_ESCAPE_RE, '').replace(C0_CONTROL_RE, '');
+  return text
+    .replace(ANSI_ESCAPE_RE, '')
+    .replace(C0_CONTROL_RE, '')
+    .replace(BARE_CR_RE, '');
 }

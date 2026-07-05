@@ -80,6 +80,15 @@ function main() {
     return exitSilently();
   }
 
+  // 3b. Port sanity: serve.json is disk state a tampered clone can
+  //     rewrite. The host is already pinned to loopback, so the blast
+  //     radius is another local port, but a non-integer / out-of-range
+  //     value has no legitimate reading; refuse it rather than
+  //     interpolate it into the request URL.
+  if (!Number.isInteger(info.port) || info.port < 1 || info.port > 65535) {
+    return exitSilently();
+  }
+
   // 4. Forward the raw event verbatim.
   let raw = '';
   process.stdin.setEncoding('utf8');

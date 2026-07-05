@@ -63,6 +63,7 @@ import { readJsonObjectOrEmpty, writeJsonAtomic } from '../../kernel/util/atomic
 export const PRIVACY_SENSITIVE_KEYS: ReadonlySet<string> = new Set<string>([
   'scan.referencePaths',
   'pluginTrust.projectEnabled',
+  'scan.followExternalSymlinks',
 ]);
 
 /**
@@ -341,6 +342,30 @@ export function projectTrustExposure(inputs: {
   if (inputs.value !== true) return { expandsSurface: false };
   const before =
     readConfigValue<boolean>('pluginTrust.projectEnabled', {
+      cwd: inputs.cwd,
+      default: false,
+    }) ?? false;
+  return { expandsSurface: before !== true };
+}
+
+/**
+ * Project the disk-read-surface expansion of a `scan.followExternalSymlinks`
+ * write. Returns `{ expandsSurface: true }` only when the operator is
+ * turning the local opt-in ON (`value === true`) and it is not already on;
+ * turning it OFF (or leaving it on) never expands the surface, so it is not
+ * gated. Same boolean-flip shape as `projectTrustExposure`: the "exposure"
+ * is "follow symlinks whose target escapes the scan roots", so a committed,
+ * hostile symlink can read arbitrary local files once it is on. Config-only
+ * (no path list to enumerate, the reachable targets depend on the on-disk
+ * links at scan time); the CLI / UI surface a generic confirm.
+ */
+export function projectFollowSymlinksExposure(inputs: {
+  value: unknown;
+  cwd: string;
+}): { expandsSurface: boolean } {
+  if (inputs.value !== true) return { expandsSurface: false };
+  const before =
+    readConfigValue<boolean>('scan.followExternalSymlinks', {
       cwd: inputs.cwd,
       default: false,
     }) ?? false;

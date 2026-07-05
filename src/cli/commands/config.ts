@@ -53,6 +53,7 @@ import {
   ProjectLocalOnlyKeyError,
   projectPathExposure,
   projectTrustExposure,
+  projectFollowSymlinksExposure,
   removeConfigValue,
   writeConfigValue,
 } from '../../core/config/helper.js';
@@ -65,6 +66,7 @@ import { relativeIfBelow } from '../util/path-display.js';
 import { dropScanZone } from '../util/scan-zone-drop.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { CONFIG_TEXTS } from '../i18n/config.texts.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
@@ -211,10 +213,20 @@ function* iterDotPaths(
   }
 }
 
+// Human-mode config values originate from disk (the committed `project`
+// layer of `.skill-map/settings.json`, which a cloned repo controls), so
+// they pass through `sanitizeForTerminal` before reaching the terminal:
+// a string field like `scan.roots` can carry raw ANSI / C0 escapes that
+// survive the schema's `type: string` check and would otherwise clear the
+// screen or smuggle a fake prompt (audit M2). The `--json` render path is
+// deliberately NOT sanitised: it emits a machine payload for a consumer,
+// not a terminal, and stripping bytes there would corrupt round-tripping.
 function formatValueHuman(v: unknown): string {
   if (v === null) return 'null';
-  if (Array.isArray(v) || (typeof v === 'object' && v !== null)) return JSON.stringify(v);
-  return String(v);
+  if (Array.isArray(v) || (typeof v === 'object' && v !== null)) {
+    return sanitizeForTerminal(JSON.stringify(v));
+  }
+  return sanitizeForTerminal(String(v));
 }
 
 // -----------------------------------------------------------------------------
@@ -343,6 +355,12 @@ function renderSection(
   rows: Array<{ key: string; value: unknown }>,
   ansi: IAnsi,
 ): string {
+  // Keys reach this renderer from disk too: free-form config maps
+  // (`plugins.<id>`, per-plugin settings) let a committed settings.json
+  // introduce attacker-chosen key names, so they need the same
+  // `sanitizeForTerminal` pass as values (audit M2). Sanitise BEFORE the
+  // width calc so a stripped escape can't skew column alignment.
+  rows = rows.map((r) => ({ key: sanitizeForTerminal(r.key), value: r.value }));
   rows.sort((a, b) => a.key.localeCompare(b.key));
   const keyWidth = Math.max(...rows.map((r) => r.key.length));
   const lines: string[] = [];
@@ -379,10 +397,11 @@ function isEmptyConfigValue(value: unknown): boolean {
  */
 function formatValueListHuman(value: unknown, ansi: IAnsi): string {
   if (isEmptyConfigValue(value)) return ansi.dim(CONFIG_TEXTS.listEmptyValue);
+  // Same disk-sourced-value sanitisation as `formatValueHuman` (audit M2).
   if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
-    return JSON.stringify(value);
+    return sanitizeForTerminal(JSON.stringify(value));
   }
-  return String(value);
+  return sanitizeForTerminal(String(value));
 }
 
 /**
@@ -607,6 +626,9 @@ export class ConfigSetCommand extends SmCommand {
     if (this.key === 'pluginTrust.projectEnabled') {
       const trustGate = this.#applyTrustGate(value, ctx.cwd, errGlyph, stderrAnsi);
       if (trustGate !== null) return trustGate;
+    } else if (this.key === 'scan.followExternalSymlinks') {
+      const followGate = this.#applyFollowSymlinksGate(value, ctx.cwd, errGlyph, stderrAnsi);
+      if (followGate !== null) return followGate;
     } else if (PRIVACY_SENSITIVE_KEYS.has(this.key)) {
       const pathGate = this.#applyPathGate(value, ctx.cwd, errGlyph, stderrAnsi);
       if (pathGate !== null) return pathGate;
@@ -773,6 +795,36 @@ export class ConfigSetCommand extends SmCommand {
     }
     this.printer!.info(
       tx(CONFIG_TEXTS.trustGateConfirmed, { glyph: stderrAnsi.dim('ⓘ') }),
+    );
+    return null;
+  }
+
+  /**
+   * Disk-read-surface gate for `scan.followExternalSymlinks`. Turning the
+   * local opt-in ON lets the scan dereference symlinks whose target
+   * escapes the project, so it requires `--yes`. Same boolean-flip shape
+   * as `#applyTrustGate`. Returns an exit code to bail with, or `null` to
+   * proceed (printing the receipt on a confirmed expansion).
+   */
+  #applyFollowSymlinksGate(
+    value: unknown,
+    cwd: string,
+    errGlyph: string,
+    stderrAnsi: IAnsi,
+  ): number | null {
+    const exposure = projectFollowSymlinksExposure({ value, cwd });
+    if (!exposure.expandsSurface) return null;
+    if (!this.yes) {
+      this.printer!.error(
+        tx(CONFIG_TEXTS.followSymlinksGateRequired, {
+          glyph: errGlyph,
+          hint: stderrAnsi.dim(CONFIG_TEXTS.followSymlinksGateRequiredHint),
+        }),
+      );
+      return ExitCode.Error;
+    }
+    this.printer!.info(
+      tx(CONFIG_TEXTS.followSymlinksGateConfirmed, { glyph: stderrAnsi.dim('ⓘ') }),
     );
     return null;
   }

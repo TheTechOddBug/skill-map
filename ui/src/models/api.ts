@@ -985,6 +985,15 @@ export interface IProjectPreferencesApi {
   allowSidecarWriters: boolean;
   scan: {
     referencePaths: readonly string[];
+    /**
+     * Project-local opt-in: when `true`, the scanner follows symbolic
+     * links whose target escapes the project root (a security opt-in).
+     * Default `false`. Surface-expanding (it re-enables reading
+     * out-of-tree files), so flipping it ON goes through the same
+     * `confirm-required` (412) gate as `scan.referencePaths`. Persisted
+     * in `settings.local.json` (project-local only, never committed).
+     */
+    followExternalSymlinks: boolean;
   };
   /**
    * Machine-local plugin-trust opt-in. When `projectEnabled` is `true`,
@@ -1023,6 +1032,15 @@ export interface IProjectPreferencesPatchApi {
   allowSidecarWriters?: boolean;
   scan?: {
     referencePaths?: string[];
+    /**
+     * Flip the project-local follow-external-symlinks opt-in. Setting it
+     * `true` EXPANDS the scan's disk-access surface (it re-enables
+     * following links that escape the project root), so it requires
+     * `confirm: true` in the body; the BFF rejects with 412
+     * `confirm-required` otherwise. Setting it `false` narrows the
+     * surface and needs no confirm.
+     */
+    followExternalSymlinks?: boolean;
   };
   /**
    * Flip the machine-local plugin-trust opt-in. Setting `projectEnabled`

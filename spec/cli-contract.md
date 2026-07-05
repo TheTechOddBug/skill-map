@@ -47,9 +47,11 @@ There is no opt-in global scope, no `-g/--global` flag, no
 own initiative. The scan reaches outside the project root only through
 two explicit, user-driven mechanisms (see §Scan): a positional root
 argument to `sm scan [roots...]`, or a symbolic link inside the scanned
-tree, which the walker follows to its target even when that target lies
-outside the project (cycle detection prevents a link loop from hanging
-the walk).
+tree. A symlink whose real target stays inside a scan root is always
+followed; a symlink whose target escapes every scan root is refused by
+default (the containment gate) and followed only when the project-local
+`scan.followExternalSymlinks` key is set (cycle detection prevents a link
+loop from hanging the walk in either mode).
 Plugins load from `<cwd>/.skill-map/plugins/` by default; an arbitrary
 external location MAY be loaded via the `--plugin-dir <path>` escape
 hatch on the `sm plugins …` verb family, user-explicit per invocation.
@@ -304,9 +306,9 @@ Keys are dot-paths (`jobs.minimumTtlSeconds`, `scan.tokenize`). Unknown keys →
 
 #### Privacy-sensitive config
 
-Keys whose value expands the project's surface, either disk access OUTSIDE the project root (today: `scan.referencePaths`) or the local code-execution surface (`pluginTrust.projectEnabled`, which locally trusts every plugin the project enables), are gated behind `--yes` so the user never expands the surface by accident. The analyzer:
+Keys whose value expands the project's surface, either disk access OUTSIDE the project root (`scan.referencePaths`, and `scan.followExternalSymlinks` which lets the scan dereference symlinks whose target escapes the roots) or the local code-execution surface (`pluginTrust.projectEnabled`, which locally trusts every plugin the project enables), are gated behind `--yes` so the user never expands the surface by accident. The analyzer:
 
-- `sm config set <privacy-key> <value>` (without `--yes`), when the new value would expand the surface (adding `referencePaths` paths resolving outside the project root, or setting `pluginTrust.projectEnabled` to `true`), exits with code `2` and prints the affected detail to stderr (the exposed paths, or the list of currently-untrusted plugins it would trust), suggesting `--yes` to confirm.
+- `sm config set <privacy-key> <value>` (without `--yes`), when the new value would expand the surface (adding `referencePaths` paths resolving outside the project root, setting `scan.followExternalSymlinks` to `true`, or setting `pluginTrust.projectEnabled` to `true`), exits with code `2` and prints the affected detail to stderr (the exposed paths, or the surface the toggle opens), suggesting `--yes` to confirm.
 - `sm config set <privacy-key> <value> --yes`, proceeds and prints the same list as a confirmation receipt.
 - Writes that NARROW the surface (removing paths) do not require `--yes`.
 
@@ -339,7 +341,7 @@ The privacy-sensitive keys above PLUS `allowEditSmFiles` are members of `PROJECT
 **Effective roots** (one-shot `sm scan`):
 
 - `sm scan [roots...]`: positional roots, when given, ARE the effective roots (verbatim); a positional root MAY point outside the project. When omitted: `[cwd]`.
-- A symbolic link encountered inside the scanned tree is followed to its target, even when the target resolves outside the project root; cycle detection prevents a link loop from hanging the walk. A positional root and a symlink are the only ways the scan reaches outside the project: no implicit `$HOME` walk, no opt-in global scope, and Providers cannot opt their own directory in. See §Scope is always project-local at the top of this file.
+- A symbolic link encountered inside the scanned tree is followed to its target when that target resolves INSIDE a scan root. A link whose real target ESCAPES every scan root is refused by default (the realpath-containment gate): a cloned, hostile repository must not be able to use a committed symlink (`notes.md -> ~/.ssh/id_rsa`, or a directory link `docs/x -> ~/` / `-> /`) to read arbitrary local files into the graph or drive a filesystem-traversal denial of service. The project-local-only `scan.followExternalSymlinks` key (default `false`) opts back into following escaping links wherever they point, for a tree whose links the operator authored and trusts. Cycle detection prevents a link loop from hanging the walk in either mode. A positional root and a symlink are the only ways the scan reaches outside the project: no implicit `$HOME` walk, no opt-in global scope, and Providers cannot opt their own directory in. See §Scope is always project-local at the top of this file.
 
 **Reference paths** (`scan.referencePaths[]`): walked in parallel by the scan to collect existing absolute paths into a side set. These files are NOT parsed or indexed as nodes; the kernel passes the set to analyzers via `IAnalyzerContext.referenceablePaths` so `core/reference-broken` can resolve a link against the filesystem when the in-graph lookup misses.
 

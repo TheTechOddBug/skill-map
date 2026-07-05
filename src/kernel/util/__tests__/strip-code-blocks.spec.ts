@@ -215,6 +215,59 @@ describe('stripHtml', () => {
     const out = stripHtml(input);
     strictEqual(out, input);
   });
+
+  it('preserves an autolink (name followed by `:` with no attribute separator)', () => {
+    // `<https://example.com/path.md>` has no whitespace between the name
+    // and `://...`, so it is NOT a tag; the url counter must still see it.
+    // Regression for the H1 rewrite: an over-broad tag regex would blank
+    // the autolink and silently drop the URL.
+    const input = 'See <https://example.com/path.md> for details.';
+    strictEqual(stripHtml(input), input);
+  });
+
+  it('still blanks both self-closing forms `<br/>` and `<br />`', () => {
+    strictEqual(stripHtml('a<br/>b').includes('<br'), false);
+    strictEqual(stripHtml('a<br />b').includes('<br'), false);
+  });
+});
+
+describe('strip-code-blocks ReDoS resistance (audit H1 / L1)', () => {
+  // Each input drove catastrophic backtracking in the pre-audit regexes:
+  // the HTML tag stripper was ~cubic (n=3000 unterminated tag ~= 6 s) and
+  // the inline-code span matcher ~quadratic (100k backticks ~= 3 s). The
+  // fixed patterns are linear, so these complete in single-digit
+  // milliseconds. We measure elapsed wall-clock and assert a generous
+  // ceiling: `node:test` does NOT interrupt a synchronous body, so a bare
+  // `{ timeout }` would let a reverted regex run for seconds and still
+  // "pass". The ceiling is ~100x the real linear cost and ~1/4 of the
+  // vulnerable cost, so it never flakes but fails hard on regression.
+  const CEILING_MS = 1500;
+
+  function elapsed(fn: () => void): number {
+    const t0 = performance.now();
+    fn();
+    return performance.now() - t0;
+  }
+
+  it('linear on an unterminated HTML tag with a huge whitespace run', () => {
+    const input = '<div ' + ' '.repeat(3000) + 'text';
+    let out = '';
+    const ms = elapsed(() => { out = stripCodeAndHtml(input); });
+    strictEqual(out.length, input.length);
+    if (ms > CEILING_MS) throw new Error(`stripCodeAndHtml took ${ms.toFixed(0)}ms (ReDoS regression?)`);
+  });
+
+  it('linear on a large unclosed inline backtick run', () => {
+    // Leading `x ` keeps the line from being read as a fence (fences must
+    // start the line), so the run reaches the inline-span matcher, the
+    // path the `` `{1,32} `` cap protects. A bare same-line run would be
+    // eaten by the fence stripper first and never exercise it.
+    const input = 'x ' + '`'.repeat(120000);
+    let out = '';
+    const ms = elapsed(() => { out = stripCodeBlocks(input); });
+    strictEqual(out.length, input.length);
+    if (ms > CEILING_MS) throw new Error(`stripCodeBlocks took ${ms.toFixed(0)}ms (ReDoS regression?)`);
+  });
 });
 
 describe('stripCodeAndHtml', () => {

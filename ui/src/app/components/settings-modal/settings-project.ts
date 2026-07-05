@@ -12,7 +12,7 @@
  *     toggle.
  *   - `<sm-settings-project-preferences>`: the rows backed by the one
  *     project-preferences envelope (sidecar-writer policy, plugin-trust
- *     opt-in, reference-paths list).
+ *     opt-in, follow-external-symlinks opt-in, reference-paths list).
  *   - `<sm-settings-project-ignore>`: `.skillmapignore` patterns.
  *
  * The split mirrors the plugins section's decomposition

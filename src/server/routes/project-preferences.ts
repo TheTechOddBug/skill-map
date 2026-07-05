@@ -30,6 +30,7 @@ import { HTTPException } from 'hono/http-exception';
 import {
   projectPathExposure,
   projectTrustExposure,
+  projectFollowSymlinksExposure,
   readConfigValue,
   writeConfigValue,
 } from '../../core/config/helper.js';
@@ -52,6 +53,13 @@ export interface IProjectPreferencesEnvelope {
   allowSidecarWriters: boolean;
   scan: {
     referencePaths: readonly string[];
+    /**
+     * Local, per-machine opt-in: when `true`, the scan follows a symlink
+     * whose target escapes the project root. Default `false` (contained).
+     * Project-local only (stripped from the committed layer); turning it
+     * ON is surface-expanding (412 confirm gate), like `pluginTrust`.
+     */
+    followExternalSymlinks: boolean;
   };
   /**
    * Local, per-machine plugin import-trust opt-in. When `true`, every
@@ -74,6 +82,7 @@ interface IPatchBody {
   allowSidecarWriters?: boolean;
   scan?: {
     referencePaths?: string[];
+    followExternalSymlinks?: boolean;
   };
   pluginTrust?: {
     projectEnabled?: boolean;
@@ -107,6 +116,11 @@ function buildEnvelope(deps: IRouteDeps): IProjectPreferencesEnvelope {
           cwd,
           default: [],
         }) ?? [],
+      followExternalSymlinks:
+        readConfigValue<boolean>('scan.followExternalSymlinks', {
+          cwd,
+          default: false,
+        }) ?? false,
     },
     pluginTrust: {
       projectEnabled:
@@ -148,6 +162,13 @@ async function applyPatch(deps: IRouteDeps, body: IPatchBody): Promise<void> {
   // 412 confirm gate (see `applyTrustWrite`).
   const trustChanged = applyTrustWrite(body, cwd);
 
+  // Local external-symlink opt-in: a project-local-only boolean. Turning
+  // it ON expands the disk-read surface (the scan follows escaping
+  // links), so it carries its own 412 confirm gate (see
+  // `applyFollowSymlinksWrite`). It also changes what the scan indexes,
+  // so a change restarts the watcher below.
+  const followChanged = applyFollowSymlinksWrite(body, cwd);
+
   // Project-local UI preference: the tutorial-reminder dismissal. A plain
   // boolean written to the gitignored project-local layer, no privacy or
   // confirm gate (it neither expands disk access nor trusts code).
@@ -156,17 +177,24 @@ async function applyPatch(deps: IRouteDeps, body: IPatchBody): Promise<void> {
   // Best-effort watcher restart: the runtime re-reads config every
   // batch so the next file edit picks the change up anyway, but the
   // restart guarantees the operator sees the effect (new path list,
-  // dropped / restored writer buttons) without waiting for an
-  // unrelated edit. Failures here do not roll back the on-disk write.
-  // The trust opt-in is NOT restart-applicable (handlers load at boot),
-  // so it does not trigger a restart.
-  if (policyChanged || scan.mutated) await maybeRestartWatcher(deps);
+  // dropped / restored writer buttons, external-symlink toggle) without
+  // waiting for an unrelated edit. Failures here do not roll back the
+  // on-disk write. The trust opt-in is NOT restart-applicable (handlers
+  // load at boot), so it does not trigger a restart. `.some(Boolean)`
+  // keeps this orchestrator under the cyclomatic budget as keys grow.
+  const shouldRestart = [policyChanged, scan.mutated, followChanged].some(Boolean);
+  const shouldReload = [
+    policyChanged,
+    scan.attempted,
+    trustChanged,
+    reminderChanged,
+    followChanged,
+  ].some(Boolean);
+  if (shouldRestart) await maybeRestartWatcher(deps);
   // Successful writes mutate the on-disk config; the cached view would
   // now hand out stale state. Drop it so the next consumer re-reads
   // from disk.
-  if (policyChanged || scan.attempted || trustChanged || reminderChanged) {
-    deps.configService.reload();
-  }
+  if (shouldReload) deps.configService.reload();
 }
 
 /**
@@ -203,6 +231,45 @@ function applyTrustWrite(body: IPatchBody, cwd: string): boolean {
     });
   }
   log.warn(tx(SERVER_TEXTS.projectPrefsTrustSet, { value: String(next) }));
+  return true;
+}
+
+/**
+ * Apply the `scan.followExternalSymlinks` sub-key of the patch. Turning
+ * the local opt-in ON lets the scan follow symlinks whose target escapes
+ * the project (disk-read-surface expansion), so without `confirm: true`
+ * the route returns 412 `confirm-required`. Turning it OFF (or a no-op) is
+ * not gated. Persisted to the gitignored `project-local` layer (the key is
+ * project-local only). Handled separately from `applyScanWrites` (which
+ * runs the path-existence / path-exposure gates for the list-shaped
+ * `referencePaths`); this boolean mirrors `applyTrustWrite` instead.
+ * Returns `true` when the value actually changed.
+ */
+function applyFollowSymlinksWrite(body: IPatchBody, cwd: string): boolean {
+  const next = body.scan?.followExternalSymlinks;
+  if (next === undefined) return false;
+  const before =
+    readConfigValue<boolean>('scan.followExternalSymlinks', { cwd, default: false }) ?? false;
+  if (before === next) return false;
+
+  // Confirm gate: only a turn-ON expands the surface.
+  if (projectFollowSymlinksExposure({ value: next, cwd }).expandsSurface && body.confirm !== true) {
+    throw new HTTPException(412, {
+      message: SERVER_TEXTS.projectPrefsFollowSymlinksConfirmRequired,
+    });
+  }
+
+  try {
+    writeConfigValue('scan.followExternalSymlinks', next, { target: 'project-local', cwd });
+  } catch (err) {
+    throw new HTTPException(400, {
+      message: tx(SERVER_TEXTS.projectPrefsPersistFailed, {
+        key: 'scan.followExternalSymlinks',
+        message: formatErrorMessage(err),
+      }),
+    });
+  }
+  log.warn(tx(SERVER_TEXTS.projectPrefsFollowSymlinksSet, { value: String(next) }));
   return true;
 }
 
@@ -526,6 +593,7 @@ const PATCH_BODY_SCHEMA = {
           type: 'array',
           items: { type: 'string', pattern: '^[^,]+$' },
         },
+        followExternalSymlinks: { type: 'boolean' },
       },
     },
     pluginTrust: {
@@ -556,5 +624,6 @@ const parsePatchBody = makeBodyValidator<IPatchBody>(PATCH_BODY_SCHEMA, {
     '/scan/referencePaths:type:array': tx(SERVER_TEXTS.projectPrefsListNotArray, { key: 'scan.referencePaths' }),
     '/scan/referencePaths/*:type:string': tx(SERVER_TEXTS.projectPrefsListEntryNotString, { key: 'scan.referencePaths' }),
     '/scan/referencePaths/*:pattern': SERVER_TEXTS.projectPrefsEntryHasComma,
+    '/scan/followExternalSymlinks:type:boolean': SERVER_TEXTS.projectPrefsFollowSymlinksNotBoolean,
   },
 });

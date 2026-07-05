@@ -152,6 +152,13 @@ export interface IWalkAndExtractOptions {
    */
   maxFileSizeBytes?: number;
   /**
+   * Mirror of `scan.followExternalSymlinks` (default `false`). Threaded
+   * into the Provider walk so the kernel walker refuses a symlink whose
+   * target escapes the scan roots unless the operator opted in. Absent →
+   * the safe contained default.
+   */
+  followExternalSymlinks?: boolean;
+  /**
    * Watcher-only incremental fast path. Set ONLY by `runScanInternal`
    * after it has confirmed the gate (prior exists, `enableCache`,
    * tokenizer unchanged). Root-relative POSIX paths, `changed` = files
@@ -439,6 +446,7 @@ export async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWal
     ...(opts.ignoreFilter ? { ignoreFilter: opts.ignoreFilter } : {}),
     onOversizedFile,
     ...(opts.maxFileSizeBytes !== undefined ? { maxFileSizeBytes: opts.maxFileSizeBytes } : {}),
+    ...(opts.followExternalSymlinks === true ? { followExternalSymlinks: true } : {}),
     ...(priorMtimes ? { priorMtimes } : {}),
   };
   // Assigned in both branches below (incremental fast path vs full
@@ -721,6 +729,7 @@ function buildUnchangedRawNode(
           body: re.body,
           frontmatterRaw: re.frontmatterRaw,
           frontmatter: re.frontmatter,
+          ...(re.frontmatterDeclared ? { frontmatterDeclared: true } : {}),
           ...(re.parseIssues ? { parseIssues: re.parseIssues } : {}),
         };
       }
@@ -1092,6 +1101,7 @@ async function rereadInto(raw: IRawNode): Promise<void> {
   raw.frontmatter = re.frontmatter;
   raw.frontmatterRaw = re.frontmatterRaw;
   raw.unchanged = false;
+  if (re.frontmatterDeclared) raw.frontmatterDeclared = true;
   if (re.parseIssues) raw.parseIssues = re.parseIssues;
 }
 

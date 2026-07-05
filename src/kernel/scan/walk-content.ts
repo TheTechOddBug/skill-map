@@ -6,19 +6,26 @@
  * Owns the audit-cleared defences (every Provider that uses the walker
  * inherits these, no duplication needed in `Provider.walk`):
  *
- *   - **Symlinks (audit M7)**, always followed, to directories and files
- *     alike, wherever they point. The explicit `isSymbolicLink()` branch is
- *     self-documenting and resilient to future Dirent API changes. DECISION
- *     (2026-07-02): a symlink is dereferenced even when its target escapes
- *     the scan roots. A user-authored link inside the project is an explicit
- *     opt-in, so the realpath-containment gate that used to refuse
- *     out-of-project targets was removed. The one remaining defence is
- *     **cycle detection** (`ctx.visited`): the realpath of every directory
- *     entered via a symlink is recorded; re-encountering it (a loop, or a
- *     second link to the same target) is skipped, so a symlink cycle can
- *     never hang the walk. The yielded path keeps the form seen UNDER the
- *     link (so node identity matches what the user and the watcher see), not
- *     the resolved target.
+ *   - **Symlinks (audit M7, containment M1)**, followed to directories and
+ *     files alike. The explicit `isSymbolicLink()` branch is
+ *     self-documenting and resilient to future Dirent API changes.
+ *     DECISION (2026-07-05, supersedes the 2026-07-02 "always follow"
+ *     stance): a symlink whose real target ESCAPES every scan root is
+ *     refused by default (the realpath-containment gate `isContained`),
+ *     because under the clone-and-scan threat model the link author is the
+ *     attacker, not the operator, so a committed `notes.md -> ~/.ssh/id_rsa`
+ *     (arbitrary file read into the graph) or `docs/x -> ~/` / `-> /`
+ *     (out-of-tree slurp + traversal DoS) must not be followed. A link
+ *     whose target stays inside a scan root is always followed. The
+ *     `scan.followExternalSymlinks` config key (project-local only,
+ *     default off) restores the old dereference-anywhere behaviour for a
+ *     tree whose links the operator authored and trusts. Two defences
+ *     remain regardless: **cycle detection** (`ctx.visited`, the realpath
+ *     of every directory entered via a symlink is recorded so a loop or a
+ *     second link to the same target is skipped and the walk can never
+ *     hang), and the yielded path keeps the form seen UNDER the link (so
+ *     node identity matches what the user and the watcher see), not the
+ *     resolved target.
  *   - **TOCTOU race (audit M7 / H1)**, `readdir` reports a regular file →
  *     `lstat()` re-verifies before the read. Closes the window where the
  *     entry could be swapped for a symlink between the two calls.
@@ -125,6 +132,17 @@ export interface IWalkContentOptions {
    * caller already knows exactly what changed, there is nothing to gate).
    */
   scopedPaths?: readonly string[];
+  /**
+   * Mirror of `scan.followExternalSymlinks`. When `false` (the default),
+   * a symbolic link whose real target escapes every scan root is refused
+   * and skipped, so a cloned hostile repo cannot use a committed symlink
+   * to read arbitrary local files into the graph (`notes.md -> ~/.ssh/id_rsa`)
+   * or drive a filesystem-traversal DoS (`docs/x -> /`). Links whose
+   * target stays inside a scan root are always followed. When `true`, the
+   * pre-containment behaviour is restored: escaping links are dereferenced
+   * wherever they point (cycle detection still applies). Absent → `false`.
+   */
+  followExternalSymlinks?: boolean;
 }
 
 export class UnknownParserError extends Error {
@@ -180,6 +198,8 @@ async function* walkTraversal(
     extensions,
     sizeLimit,
     visited: new Set<string>(),
+    rootReals: await resolveRootReals(roots),
+    followExternalSymlinks: options.followExternalSymlinks === true,
   };
   for (const root of roots) {
     for await (const entry of walkRoot(root, root, ctx)) {
@@ -221,6 +241,7 @@ async function traversedEntryToNode(
     body: parsed.body,
     frontmatterRaw: parsed.frontmatterRaw,
     frontmatter: parsed.frontmatter,
+    ...(parsed.frontmatterDeclared ? { frontmatterDeclared: true } : {}),
     // File mtime from the TOCTOU `lstat` (zero extra syscalls).
     // Threaded onto the persisted `Node` as `modifiedAtMs`.
     modifiedAtMs: entry.modifiedAtMs,
@@ -318,6 +339,7 @@ async function scopedPathToNode(
     body: parsed.body,
     frontmatterRaw: parsed.frontmatterRaw,
     frontmatter: parsed.frontmatter,
+    ...(parsed.frontmatterDeclared ? { frontmatterDeclared: true } : {}),
     modifiedAtMs: Math.round(s.mtimeMs),
     ...(parsed.parseIssues ? { parseIssues: parsed.parseIssues } : {}),
   };
@@ -380,6 +402,7 @@ async function readAndParse(
   body: string;
   frontmatterRaw: string;
   frontmatter: Record<string, unknown>;
+  frontmatterDeclared?: boolean;
   parseIssues?: readonly IParseIssue[];
 } | null> {
   let raw: string;
@@ -393,6 +416,7 @@ async function readAndParse(
     body: resolveEffectiveBody(parsed.body, parsed.frontmatter, bodyField),
     frontmatterRaw: parsed.frontmatterRaw,
     frontmatter: parsed.frontmatter,
+    ...(parsed.frontmatterDeclared ? { frontmatterDeclared: true } : {}),
     ...(parsed.issues && parsed.issues.length > 0 ? { parseIssues: parsed.issues } : {}),
   };
 }
@@ -469,6 +493,17 @@ interface IWalkRootCtx {
   sizeLimit: IWalkSizeLimit;
   /** Realpaths of directories already entered via a symlink (cycle / repeat guard). */
   visited: Set<string>;
+  /**
+   * Realpaths of the scan roots, resolved once at the start of the walk.
+   * Backs the symlink-containment gate: a followed link whose target
+   * realpath is not equal to or under one of these is refused unless
+   * `followExternalSymlinks` is set. Empty when every root failed to
+   * resolve (then containment can never hold, so escaping links are
+   * skipped, the safe default).
+   */
+  rootReals: readonly string[];
+  /** Mirror of `scan.followExternalSymlinks`; when true the containment gate is disabled. */
+  followExternalSymlinks: boolean;
 }
 
 /**
@@ -479,8 +514,9 @@ interface IWalkRootCtx {
  * yield, or `null` when the link is broken, repeats / cycles (already in
  * `ctx.visited`), or its target is neither a matching file nor a directory.
  * `stat` (NOT `lstat`) is used deliberately here: the caller followed the
- * link, so the target's real type is what matters. The link is dereferenced
- * wherever it points; there is no containment gate.
+ * link, so the target's real type is what matters. A link whose real
+ * target escapes every scan root is refused first (the containment gate,
+ * audit M1), unless `ctx.followExternalSymlinks` is set.
  */
 async function followSymlink(
   full: string,
@@ -493,6 +529,16 @@ async function followSymlink(
     real = await realpath(full);
   } catch {
     return null; // broken link
+  }
+  // Containment gate (audit M1): a link whose real target escapes every
+  // scan root is refused unless `scan.followExternalSymlinks` is set.
+  // Applied here, before the directory / file split, so it covers BOTH a
+  // file link disguised as `.md` (`notes.md -> ~/.ssh/id_rsa`) and a
+  // directory link that would recurse an out-of-tree subtree
+  // (`docs/x -> ~/`, or `-> /` as a traversal DoS). A link that stays
+  // inside a root is always followed.
+  if (!ctx.followExternalSymlinks && !isContained(real, ctx.rootReals)) {
+    return null;
   }
   let s;
   try {
@@ -571,6 +617,44 @@ async function* walkRoot(
 function hasMatchingExtension(name: string, extensions: readonly string[]): boolean {
   for (const ext of extensions) {
     if (name.endsWith(ext)) return true;
+  }
+  return false;
+}
+
+/**
+ * Resolve each scan root to its realpath once, for the symlink-containment
+ * gate. A root that fails to resolve (does not exist, unreadable) is
+ * dropped rather than approximated, so containment can only ever hold
+ * against a real, existing anchor, escaping links stay refused when a root
+ * is bogus. Returns absolute realpaths with no trailing separator (the
+ * form `realpath` yields), which `isContained` matches against.
+ */
+async function resolveRootReals(roots: readonly string[]): Promise<string[]> {
+  const out: string[] = [];
+  for (const root of roots) {
+    try {
+      out.push(await realpath(root));
+    } catch {
+      // Unresolvable root: skip it. `walkRoot`'s `readdir` will fail the
+      // same way, so nothing is lost, and a symlink can't be "contained"
+      // by a root that isn't really there.
+    }
+  }
+  return out;
+}
+
+/**
+ * True when `real` (a resolved symlink-target realpath) is equal to, or a
+ * descendant of, one of the scan-root realpaths. Uses a separator-aware
+ * prefix test so `/a/proj` does NOT contain `/a/project` (a sibling whose
+ * name merely shares a prefix). Handles a root that already ends in `sep`
+ * (e.g. the filesystem root `/`) without producing a doubled separator.
+ */
+function isContained(real: string, roots: readonly string[]): boolean {
+  for (const root of roots) {
+    if (real === root) return true;
+    const prefix = root.endsWith(sep) ? root : root + sep;
+    if (real.startsWith(prefix)) return true;
   }
   return false;
 }

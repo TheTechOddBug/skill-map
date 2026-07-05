@@ -68,8 +68,16 @@ describe('sanitizeForTerminal', () => {
     assert.equal(sanitizeForTerminal('a\x7fb'), 'ab');
   });
 
-  it('preserves TAB, LF, CR (renderer line discipline relies on them)', () => {
-    assert.equal(sanitizeForTerminal('a\tb\nc\rd'), 'a\tb\nc\rd');
+  it('preserves TAB and LF', () => {
+    assert.equal(sanitizeForTerminal('a\tb\nc'), 'a\tb\nc');
+  });
+
+  it('preserves a CRLF pair but drops a bare CR (column-0 overwrite spoof)', () => {
+    // `\r\n` is a genuine line ending, kept intact; a lone `\r` would
+    // reposition the cursor to overwrite already-printed text (audit L2).
+    assert.equal(sanitizeForTerminal('line1\r\nline2'), 'line1\r\nline2');
+    assert.equal(sanitizeForTerminal('safe\rHACKED'), 'safeHACKED');
+    assert.equal(sanitizeForTerminal('trailing\r'), 'trailing');
   });
 
   it('strips a screen-repaint + colour-reset attack from a hostile title', () => {

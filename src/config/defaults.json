@@ -20,7 +20,8 @@
       "debounceMs": 300,
       "backend": "chokidar"
     },
-    "referencePaths": []
+    "referencePaths": [],
+    "followExternalSymlinks": false
   },
   "plugins": {},
   "jobs": {

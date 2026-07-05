@@ -201,11 +201,12 @@ describe('walkContent', () => {
     }
   });
 
-  it('follows a .md-suffixed symlink to its target body (M7 reversal; H1 lstat still guards the race)', async () => {
-    // The realpath-containment gate + hard symlink-skip were removed
-    // (audit M7 decision 2026-07-02): a `.md`-suffixed symlink is now
-    // dereferenced and its target body IS yielded. The H1 `lstat`
-    // (not `stat`) TOCTOU re-check still guards the race where a dirent
+  it('follows an in-tree .md-suffixed symlink to its target body (H1 lstat still guards the race)', async () => {
+    // A `.md`-suffixed symlink whose target stays INSIDE the scan root is
+    // dereferenced and its target body IS yielded (the containment gate,
+    // audit M1, only refuses ESCAPING targets; this one resolves back
+    // inside `subRoot`). The H1 `lstat` (not `stat`) TOCTOU re-check
+    // still guards the race where a dirent
     // reported as a regular file becomes a symlink before the read, but
     // that race can't be forced deterministically in user space, so this
     // test asserts the observable follow behaviour instead.
@@ -455,7 +456,7 @@ describe('walkContent, incremental priorMtimes fast path', () => {
   });
 });
 
-describe('walkContent, symlinks (always followed)', () => {
+describe('walkContent, symlinks (in-tree followed, escaping contained by default)', () => {
   const mkRoot = (): string => mkdtempSync(join(tmpdir(), 'walk-symlink-'));
   const write = (abs: string, content: string): void => {
     mkdirSync(join(abs, '..'), { recursive: true });
@@ -514,34 +515,77 @@ describe('walkContent, symlinks (always followed)', () => {
     }
   });
 
-  it('follows a symlink whose target escapes the roots (no containment gate)', async () => {
+  it('by default REFUSES a file symlink whose target escapes the roots (containment, audit M1)', async () => {
+    const dir = mkRoot();
+    const outside = mkdtempSync(join(tmpdir(), 'walk-symlink-out-'));
+    try {
+      // A file link disguised with a `.md` name, pointing at an
+      // out-of-tree file: the clone-and-scan attack. Contained by default.
+      write(join(outside, 'secret.md'), '---\nname: secret\n---\nOUTSIDE');
+      write(join(dir, 'real.md'), '---\nname: real\n---\nbody');
+      if (!link(join(outside, 'secret.md'), join(dir, 'notes.md'))) return;
+      const collected = await collect(dir);
+      deepStrictEqual(collected, ['real.md'], 'the escaping file link is skipped');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('by default REFUSES a directory symlink whose target escapes the roots (containment, audit M1)', async () => {
+    const dir = mkRoot();
+    const outside = mkdtempSync(join(tmpdir(), 'walk-symlink-out-'));
+    try {
+      // A directory link would otherwise recurse the whole out-of-tree
+      // subtree (bulk read + traversal DoS). Contained by default.
+      write(join(outside, 'a/deep.md'), '---\nname: deep\n---\nOUTSIDE');
+      write(join(dir, 'real.md'), '---\nname: real\n---\nbody');
+      if (!link(outside, join(dir, 'mirror'))) return;
+      const collected = await collect(dir);
+      deepStrictEqual(collected, ['real.md'], 'the escaping directory link is skipped');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('follows an escaping symlink when followExternalSymlinks is set (opt-in)', async () => {
     const dir = mkRoot();
     const outside = mkdtempSync(join(tmpdir(), 'walk-symlink-out-'));
     try {
       write(join(outside, 'secret.md'), '---\nname: secret\n---\nOUTSIDE');
       write(join(dir, 'real.md'), '---\nname: real\n---\nbody');
-      // Absolute symlink pointing OUT of the walked root. The
-      // realpath-containment gate was removed (an in-tree symlink is an
-      // explicit opt-in), so the out-of-root target IS indexed.
-      if (!link(outside, join(dir, 'escape'))) return;
+      if (!link(join(outside, 'secret.md'), join(dir, 'notes.md'))) return;
       const collected: { path: string; body: string }[] = [];
       for await (const n of walkContent([dir], {
         extensions: ['.md'],
         parser: 'frontmatter-yaml',
+        followExternalSymlinks: true,
       })) {
         collected.push({ path: n.path, body: n.body });
       }
       ok(
-        collected.some((n) => n.path === 'escape/secret.md'),
-        'the out-of-root target is indexed under the link path',
-      );
-      ok(
-        collected.some((n) => n.body.includes('OUTSIDE')),
-        'the out-of-root content is read through the followed symlink',
+        collected.some((n) => n.path === 'notes.md' && n.body.includes('OUTSIDE')),
+        'with the opt-in, the out-of-root target is followed and its body read',
       );
     } finally {
       rmSync(dir, { recursive: true, force: true });
       rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('still follows an in-tree symlink whose target stays inside a root (default)', async () => {
+    const dir = mkRoot();
+    try {
+      // Containment only refuses ESCAPING links; a link whose realpath
+      // resolves back inside the scan root is followed as before.
+      write(join(dir, 'a/skills/one.md'), '---\nname: one\n---\nbody');
+      mkdirSync(join(dir, '.claude'), { recursive: true });
+      if (!link('../a/skills', join(dir, '.claude/skills'))) return;
+      const collected = await collect(dir);
+      ok(collected.includes('.claude/skills/one.md'), 'the in-tree symlink is still followed');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 

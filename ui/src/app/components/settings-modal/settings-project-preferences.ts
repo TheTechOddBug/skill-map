@@ -12,8 +12,13 @@
  *      the scan's disk-access surface (paths outside the project) go
  *      through a `<p-confirmdialog>` and re-issue the PATCH with
  *      `confirm: true`. Persists in `<cwd>/.skill-map/settings.local.json`.
+ *   4. `scan.followExternalSymlinks` toggle, project-local opt-in that
+ *      lets the scanner follow symbolic links whose target escapes the
+ *      project root. Turning it ON expands the scan's disk-access
+ *      surface, so the write goes through the same confirm dialog
+ *      (server-enforced 412) as the two surfaces above.
  *
- * The three stay in one child because they read and PATCH the same
+ * They stay in one child because they read and PATCH the same
  * envelope; splitting them would triple-fetch the endpoint and race
  * the writes. Lifecycle mirrors the sibling children: fetch on
  * `(visible) === true`.
@@ -107,6 +112,19 @@ export class SettingsProjectPreferences {
     return this.preferences()?.pluginTrust?.projectEnabled ?? false;
   });
 
+  /**
+   * Project-local follow-external-symlinks opt-in
+   * (`scan.followExternalSymlinks`). `false` (default) keeps the scanner
+   * inside the project root; `true` follows symbolic links whose target
+   * escapes it. Read defensively so an older envelope that predates the
+   * field renders the switch off rather than flashing. Flipping it ON
+   * expands the scan's disk-access surface, so the write goes through the
+   * same confirm dialog as the plugin-trust opt-in.
+   */
+  protected readonly followExternalSymlinks = computed<boolean>(() => {
+    return this.preferences()?.scan.followExternalSymlinks ?? false;
+  });
+
   constructor() {
     effect(() => {
       if (this.visible()) void this.refresh();
@@ -174,6 +192,27 @@ export class SettingsProjectPreferences {
       'pluginTrust.projectEnabled',
       { pluginTrust: { projectEnabled: next } },
       this.pluginTrustConfirmFlow(),
+    );
+  }
+
+  // -----------------------------------------------------------------
+  // Follow-external-symlinks opt-in handler
+  // -----------------------------------------------------------------
+
+  /**
+   * Flip the project-local `scan.followExternalSymlinks` opt-in. Turning
+   * it ON expands the scan's disk-access surface (it re-enables following
+   * links that escape the project root), so the BFF answers 412
+   * `confirm-required`; `runPatch` then surfaces the dedicated symlink
+   * confirm dialog and retries with `confirm: true` on accept. Turning it
+   * OFF narrows the surface and persists directly. On a 412 the user
+   * dismisses, the toggle snaps back because `preferences()` is unchanged.
+   */
+  protected onFollowExternalSymlinksToggle(next: boolean): void {
+    void this.runPatch(
+      'scan.followExternalSymlinks',
+      { scan: { followExternalSymlinks: next } },
+      this.followExternalSymlinksConfirmFlow(),
     );
   }
 
@@ -281,6 +320,18 @@ export class SettingsProjectPreferences {
     };
   }
 
+  /**
+   * Confirm flow for `scan.followExternalSymlinks`: a dedicated warning
+   * that following out-of-tree links can pull sensitive folders into the
+   * graph (the exposed-paths list does not apply, so it is ignored).
+   */
+  private followExternalSymlinksConfirmFlow(): IConfirmFlow {
+    return {
+      present: (_exposed, onAccept) =>
+        this.confirmFollowExternalSymlinksDialog(onAccept),
+    };
+  }
+
   private confirmDialog(paths: string[], onAccept: () => Promise<void>): void {
     this.confirmation.confirm({
       header: SETTINGS_TEXTS.project.confirmDialogHeader,
@@ -304,6 +355,20 @@ export class SettingsProjectPreferences {
       message: SETTINGS_TEXTS.project.pluginTrustConfirmIntro,
       acceptLabel: SETTINGS_TEXTS.project.pluginTrustConfirmAccept,
       rejectLabel: SETTINGS_TEXTS.project.pluginTrustConfirmReject,
+      acceptButtonProps: { severity: 'primary' },
+      rejectButtonProps: { severity: 'secondary' },
+      accept: () => {
+        void onAccept();
+      },
+    });
+  }
+
+  private confirmFollowExternalSymlinksDialog(onAccept: () => Promise<void>): void {
+    this.confirmation.confirm({
+      header: SETTINGS_TEXTS.project.followExternalSymlinksConfirmHeader,
+      message: SETTINGS_TEXTS.project.followExternalSymlinksConfirmIntro,
+      acceptLabel: SETTINGS_TEXTS.project.followExternalSymlinksConfirmAccept,
+      rejectLabel: SETTINGS_TEXTS.project.followExternalSymlinksConfirmReject,
       acceptButtonProps: { severity: 'primary' },
       rejectButtonProps: { severity: 'secondary' },
       accept: () => {

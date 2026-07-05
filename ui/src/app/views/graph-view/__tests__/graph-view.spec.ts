@@ -186,10 +186,16 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     }),
   getProjectPreferences: vi
     .fn()
-    .mockResolvedValue({ allowSidecarWriters: true, scan: { referencePaths: [] } }),
+    .mockResolvedValue({
+      allowSidecarWriters: true,
+      scan: { referencePaths: [], followExternalSymlinks: false },
+    }),
   setProjectPreferences: vi
     .fn()
-    .mockResolvedValue({ allowSidecarWriters: true, scan: { referencePaths: [] } }),
+    .mockResolvedValue({
+      allowSidecarWriters: true,
+      scan: { referencePaths: [], followExternalSymlinks: false },
+    }),
   getProjectIgnore: vi.fn().mockResolvedValue({ patterns: [] }),
   setProjectIgnore: vi.fn().mockResolvedValue({ patterns: [] }),
   getActiveProvider: vi

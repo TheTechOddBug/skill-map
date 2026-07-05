@@ -78,6 +78,25 @@ export const CONFIG_TEXTS = {
     '{{glyph}}  Local plugin trust opt-in enabled: every plugin this project enables is now trusted on this machine.\n',
 
   /**
+   * Surfaced when `sm config set scan.followExternalSymlinks true` is run
+   * without `--yes`. Turning it on lets the scan follow symlinks whose
+   * target escapes the project, expanding the local disk-read surface, so
+   * the verb refuses without confirmation.
+   */
+  followSymlinksGateRequired:
+    '{{glyph}}  sm config: setting "scan.followExternalSymlinks" to true lets the scan follow symlinks whose target is outside the project.\n' +
+    '   A link like notes.md pointing at ~/.ssh/id_rsa, or a folder link at ~/, would then be read into the graph.\n' +
+    '   {{hint}}\n',
+  followSymlinksGateRequiredHint:
+    'Rerun with --yes to confirm. Turning it off needs no flag. Only enable it on a tree whose symlinks you authored.',
+  /**
+   * Receipt printed when the follow-external-symlinks gate has been
+   * confirmed via `--yes`.
+   */
+  followSymlinksGateConfirmed:
+    '{{glyph}}  External-symlink follow enabled: the scan now dereferences symlinks whose target is outside the project.\n',
+
+  /**
    * Confirmation printed after `sm config set activeProvider <id>`
    * succeeds. The lens change atomically drops the scan_* zone (per
    * `architecture.md` §Active Provider Lens) so the persisted graph

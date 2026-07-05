@@ -1,13 +1,13 @@
 /**
- * Integration guard for the 2026-07-02 symlink decision (see
- * `kernel/scan/walk-content.ts`): the kernel walker ALWAYS follows symbolic
- * links, including a link whose target resolves OUTSIDE the scan roots (the
- * realpath-containment gate was removed; only cycle detection remains).
- *
- * `walk-content.spec.ts` pins the walker in isolation; this pins the same
- * behaviour end to end through `walkAndExtract`, so a symlinked directory
- * pointing outside the project turns into real scan nodes (the exact case a
- * user hit: `fixtures/ignore/skills -> ../../../skills`).
+ * Integration guard for the symlink-containment decision (2026-07-05, see
+ * `kernel/scan/walk-content.ts`): the kernel walker refuses a symbolic link
+ * whose target escapes the scan roots UNLESS `scan.followExternalSymlinks`
+ * is set. `walk-content.spec.ts` pins the walker in isolation; this pins the
+ * same behaviour end to end through `walkAndExtract`, and doubles as the
+ * propagation guard that the `followExternalSymlinks` option actually
+ * threads from the orchestrator options through the Provider walk into the
+ * kernel walker (a broken thread fails safe, so only this test would catch
+ * an opt-in that silently never takes effect).
  */
 
 import { describe, it, beforeEach, afterEach } from 'node:test';
@@ -65,7 +65,7 @@ function makeMarkdownProvider(): IProvider {
   };
 }
 
-async function runWalk() {
+async function runWalk(opts?: { followExternalSymlinks?: boolean }) {
   const providers = [makeMarkdownProvider()];
   return walkAndExtract({
     providers,
@@ -90,18 +90,30 @@ async function runWalk() {
     overrideScanCeiling: null,
     maxRenderNodes: 256,
     overrideMaxRenderNodes: null,
+    ...(opts?.followExternalSymlinks ? { followExternalSymlinks: true } : {}),
   });
 }
 
 describe('walkAndExtract / external symlink', () => {
-  it('follows a symlinked directory pointing OUTSIDE the scan root and indexes its files', async () => {
+  it('by default does NOT index a symlinked directory pointing OUTSIDE the scan root', async () => {
     const out = await runWalk();
+    const paths = out.nodes.map((n) => n.path).sort();
+    ok(paths.includes('inside.md'), `in-project file indexed (got ${JSON.stringify(paths)})`);
+    ok(
+      !paths.includes('linked/outside.md'),
+      `external file behind the escaping symlink is skipped (got ${JSON.stringify(paths)})`,
+    );
+    strictEqual(out.nodes.length, 1, 'only the in-project file');
+  });
+
+  it('indexes the escaping symlink target when followExternalSymlinks propagates through', async () => {
+    const out = await runWalk({ followExternalSymlinks: true });
     const paths = out.nodes.map((n) => n.path).sort();
     ok(paths.includes('inside.md'), `in-project file indexed (got ${JSON.stringify(paths)})`);
     ok(
       paths.includes('linked/outside.md'),
       `external file reached through the symlink indexed (got ${JSON.stringify(paths)})`,
     );
-    strictEqual(out.nodes.length, 2, 'exactly the in-project file plus the symlinked external file');
+    strictEqual(out.nodes.length, 2, 'the in-project file plus the opted-in symlinked external file');
   });
 });

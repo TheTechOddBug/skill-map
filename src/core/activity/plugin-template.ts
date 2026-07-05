@@ -64,6 +64,10 @@ export const SkillMapActivity = async ({ directory }) => {
       const info = JSON.parse(readFileSync(join(root, '.skill-map', 'serve.json'), 'utf8'));
       if (typeof info.scopeRoot !== 'string' || info.scopeRoot !== root) return;
       if (typeof info.host !== 'string' || !LOOPBACK_HOSTS.has(info.host.toLowerCase())) return;
+      // Port sanity: refuse a tampered serve.json port rather than
+      // interpolate a non-integer / out-of-range value into the URL
+      // (host is already pinned to loopback above).
+      if (!Number.isInteger(info.port) || info.port < 1 || info.port > 65535) return;
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
       try {

@@ -48,6 +48,7 @@ describe('SettingsProject chassis', () => {
       'settings-project-activity-capture-row',
       'settings-project-sidecar-writers-row',
       'settings-project-plugin-trust-row',
+      'settings-project-follow-external-symlinks-row',
       'settings-project-reference-paths-row',
       'settings-project-ignore-patterns-row',
     ]) {
@@ -201,13 +202,23 @@ interface ITrustProto {
   preferences: WritableSignal<IProjectPreferencesApi | null>;
   pluginTrustEnabled(): boolean;
   onProjectTrustToggle(next: boolean): void;
+  followExternalSymlinks(): boolean;
+  onFollowExternalSymlinksToggle(next: boolean): void;
 }
 
 function prefs(projectEnabled: boolean): IProjectPreferencesApi {
   return {
     allowSidecarWriters: true,
-    scan: { referencePaths: [] },
+    scan: { referencePaths: [], followExternalSymlinks: false },
     pluginTrust: { projectEnabled },
+  };
+}
+
+function prefsSymlinks(followExternalSymlinks: boolean): IProjectPreferencesApi {
+  return {
+    allowSidecarWriters: true,
+    scan: { referencePaths: [], followExternalSymlinks },
+    pluginTrust: { projectEnabled: false },
   };
 }
 
@@ -307,6 +318,94 @@ describe('SettingsProjectPreferences pluginTrust opt-in', () => {
     // The operator cancels: no retry fires and the toggle stays off.
     expect(setProjectPreferences).toHaveBeenCalledTimes(1);
     expect(proto.pluginTrustEnabled()).toBe(false);
+  });
+});
+
+/**
+ * SettingsProjectPreferences · `scan.followExternalSymlinks` opt-in.
+ *
+ * Mirrors the plugin-trust opt-in: the toggle persists through
+ * `setProjectPreferences`, but the key nests under `scan.*`. Turning it
+ * OFF narrows the scan's disk-access surface (direct write). Turning it
+ * ON expands it (it re-enables following links that escape the project
+ * root), so the BFF answers 412 `confirm-required`; the component reuses
+ * the same `<p-confirmdialog>` / `ConfirmationService` mechanism,
+ * re-issuing the patch with `confirm: true` only after the operator
+ * accepts.
+ */
+describe('SettingsProjectPreferences followExternalSymlinks opt-in', () => {
+  it('reads scan.followExternalSymlinks from the loaded preferences', () => {
+    const { proto } = bootstrapTrust({});
+    expect(proto.followExternalSymlinks()).toBe(false);
+    proto.preferences.set(prefsSymlinks(true));
+    expect(proto.followExternalSymlinks()).toBe(true);
+  });
+
+  it('turning the opt-in OFF persists directly (no confirm)', async () => {
+    const setProjectPreferences = vi.fn().mockResolvedValue(prefsSymlinks(false));
+    const { proto } = bootstrapTrust({
+      setProjectPreferences,
+    } as Partial<IDataSourcePort>);
+
+    proto.onFollowExternalSymlinksToggle(false);
+    await flush();
+
+    expect(setProjectPreferences).toHaveBeenCalledWith({
+      scan: { followExternalSymlinks: false },
+    });
+  });
+
+  it('turning the opt-in ON surfaces the confirm dialog and retries with confirm:true on accept', async () => {
+    const setProjectPreferences = vi
+      .fn()
+      .mockRejectedValueOnce(new DataSourceError('confirm-required', 'needs confirm'))
+      .mockResolvedValueOnce(prefsSymlinks(true));
+    const { fixture, proto } = bootstrapTrust({
+      setProjectPreferences,
+    } as Partial<IDataSourcePort>);
+    const confirmation = fixture.debugElement.injector.get(ConfirmationService);
+    const confirmSpy = vi
+      .spyOn(confirmation, 'confirm')
+      .mockReturnValue(confirmation);
+
+    proto.onFollowExternalSymlinksToggle(true);
+    await flush();
+
+    expect(setProjectPreferences).toHaveBeenNthCalledWith(1, {
+      scan: { followExternalSymlinks: true },
+    });
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+
+    // Simulate the operator accepting the confirm dialog.
+    confirmSpy.mock.calls[0][0].accept?.();
+    await flush();
+
+    expect(setProjectPreferences).toHaveBeenNthCalledWith(2, {
+      scan: { followExternalSymlinks: true },
+      confirm: true,
+    });
+    expect(proto.followExternalSymlinks()).toBe(true);
+  });
+
+  it('does not retry when the operator dismisses the confirm dialog', async () => {
+    const setProjectPreferences = vi
+      .fn()
+      .mockRejectedValueOnce(new DataSourceError('confirm-required', 'needs confirm'));
+    const { fixture, proto } = bootstrapTrust({
+      setProjectPreferences,
+    } as Partial<IDataSourcePort>);
+    const confirmation = fixture.debugElement.injector.get(ConfirmationService);
+    const confirmSpy = vi
+      .spyOn(confirmation, 'confirm')
+      .mockReturnValue(confirmation);
+
+    proto.onFollowExternalSymlinksToggle(true);
+    await flush();
+
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    // The operator cancels: no retry fires and the toggle stays off.
+    expect(setProjectPreferences).toHaveBeenCalledTimes(1);
+    expect(proto.followExternalSymlinks()).toBe(false);
   });
 });
 

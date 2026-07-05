@@ -504,3 +504,73 @@ describe('sm config, prototype-pollution defence (audit H2)', () => {
     });
   }
 });
+
+describe('sm config, terminal-escape sanitisation (audit M2)', () => {
+  // A committed settings.json (the `project` layer, controlled by a cloned
+  // repo) can put raw ANSI / C0 escapes inside a schema-valid string field.
+  // Human-mode output must strip them so the value can't clear the screen
+  // or smuggle a fake prompt; the `--json` payload must still carry the
+  // value (JSON encodes the escape as ``, never a live byte).
+  const ESC = String.fromCharCode(27);
+  const hostile = `${ESC}[2J${ESC}[3mHACKED${ESC}[0m`;
+
+  it('config get strips escapes from the human render but keeps the text', () => {
+    const scope = freshScope('m2-get');
+    writeSettings(scope.cwd, { server: { host: hostile } });
+    const r = sm(['config', 'get', 'server.host'], scope);
+    assert.equal(r.status, 0);
+    assert.equal(r.stdout.includes(ESC), false, 'raw ESC must not reach the terminal');
+    assert.equal(r.stdout.includes('HACKED'), true, 'the value text is still shown');
+  });
+
+  it('config list strips escapes from every rendered value', () => {
+    const scope = freshScope('m2-list');
+    writeSettings(scope.cwd, { server: { host: hostile } });
+    const r = sm(['config', 'list'], scope);
+    assert.equal(r.status, 0);
+    assert.equal(r.stdout.includes(ESC), false);
+    assert.equal(r.stdout.includes('HACKED'), true);
+  });
+
+  it('config get --json preserves the value without emitting a live escape byte', () => {
+    const scope = freshScope('m2-json');
+    writeSettings(scope.cwd, { server: { host: hostile } });
+    const r = sm(['config', 'get', 'server.host', '--json'], scope);
+    assert.equal(r.status, 0);
+    assert.equal(r.stdout.includes(ESC), false, 'JSON must not carry a raw ESC byte');
+    assert.equal(JSON.parse(r.stdout), hostile, 'JSON round-trips the exact value');
+  });
+});
+
+describe('sm config set scan.followExternalSymlinks (surface-expanding gate)', () => {
+  const localPath = (scope: IScope): string =>
+    join(scope.cwd, '.skill-map', 'settings.local.json');
+
+  it('turning it ON without --yes is refused and writes nothing', () => {
+    const scope = freshScope('follow-gate');
+    const r = sm(['config', 'set', 'scan.followExternalSymlinks', 'true'], scope);
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /scan\.followExternalSymlinks/);
+    assert.match(r.stderr, /--yes/);
+    assert.equal(existsSync(localPath(scope)), false, 'nothing persisted without confirmation');
+    assert.equal(existsSync(join(scope.cwd, '.skill-map', 'settings.json')), false);
+  });
+
+  it('turning it ON with --yes persists to the gitignored project-local layer', () => {
+    const scope = freshScope('follow-yes');
+    const r = sm(['config', 'set', 'scan.followExternalSymlinks', 'true', '--yes'], scope);
+    assert.equal(r.status, 0);
+    // Project-local key: never lands in the committed settings.json.
+    assert.equal(existsSync(join(scope.cwd, '.skill-map', 'settings.json')), false);
+    const local = JSON.parse(readFileSync(localPath(scope), 'utf8'));
+    assert.equal(local.scan.followExternalSymlinks, true);
+  });
+
+  it('turning it OFF needs no --yes (narrowing the surface is ungated)', () => {
+    const scope = freshScope('follow-off');
+    const r = sm(['config', 'set', 'scan.followExternalSymlinks', 'false'], scope);
+    assert.equal(r.status, 0);
+    const local = JSON.parse(readFileSync(localPath(scope), 'utf8'));
+    assert.equal(local.scan.followExternalSymlinks, false);
+  });
+});

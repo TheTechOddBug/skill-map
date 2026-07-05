@@ -41,6 +41,16 @@ export interface IRawNode {
   /** Parsed frontmatter, or `{}` when absent / unparseable. */
   frontmatter: Record<string, unknown>;
   /**
+   * `true` when the parser recognised a DECLARED frontmatter block, even
+   * an empty one (`---`, blank line, `---`). Disambiguates
+   * `frontmatterRaw: ''` so the orchestrator can run the per-kind AJV
+   * validation on a declared-but-empty block instead of treating it as
+   * "no frontmatter". Optional: a Provider with a custom `walk()` that
+   * never sets it falls back to the historic `frontmatterRaw.length > 0`
+   * discriminator in `node-build`.
+   */
+  frontmatterDeclared?: boolean;
+  /**
    * File modification time (`mtime`) in Unix milliseconds, captured by
    * the kernel walker from the same `lstat` that guards the read (zero
    * extra syscalls). Threaded onto the persisted `Node` as
@@ -76,7 +86,9 @@ export interface IRawNode {
    * Keeps the read + parse logic in the walker (single source) rather
    * than duplicating it in the orchestrator.
    */
-  reread?: () => Promise<Pick<IRawNode, 'body' | 'frontmatterRaw' | 'frontmatter' | 'parseIssues'>>;
+  reread?: () => Promise<
+    Pick<IRawNode, 'body' | 'frontmatterRaw' | 'frontmatter' | 'parseIssues' | 'frontmatterDeclared'>
+  >;
 }
 
 /**
@@ -955,6 +967,14 @@ export interface IResolverRules {
 export interface IProviderWalkOptions {
   ignoreFilter?: IIgnoreFilter;
   maxFileSizeBytes?: number;
+  /**
+   * Mirror of `scan.followExternalSymlinks` (default `false`). Forwarded
+   * to the kernel walker so a symlink whose target escapes the scan roots
+   * is refused unless the operator opted in. A Provider shipping its own
+   * `walk()` SHOULD forward it (or apply the same containment) so the
+   * gate holds regardless of the discovery path. Absent → contained.
+   */
+  followExternalSymlinks?: boolean;
   onOversizedFile?: (info: { path: string; bytes: number }) => void;
   /**
    * Incremental-walk hint: prior-scan file mtimes keyed by root-relative
@@ -1125,6 +1145,9 @@ function copyOptionalWalkOptions(
   if (options.ignoreFilter) walkOptions.ignoreFilter = options.ignoreFilter;
   if (options.maxFileSizeBytes !== undefined) {
     walkOptions.maxFileSizeBytes = options.maxFileSizeBytes;
+  }
+  if (options.followExternalSymlinks === true) {
+    walkOptions.followExternalSymlinks = true;
   }
   if (options.onOversizedFile) walkOptions.onOversizedFile = options.onOversizedFile;
   if (options.priorMtimes) walkOptions.priorMtimes = options.priorMtimes;

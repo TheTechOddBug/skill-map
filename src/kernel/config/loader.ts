@@ -163,6 +163,18 @@ export interface IScanConfig {
    * rules via `IAnalyzerContext.referenceablePaths`.
    */
   referencePaths: string[];
+  /**
+   * **Project-local only** (per `PROJECT_LOCAL_ONLY_KEYS`). Default
+   * `false` (contained). Governs whether the walker follows a symbolic
+   * link whose real target escapes every scan root. Off by default so a
+   * cloned hostile repo cannot use a committed symlink to read arbitrary
+   * local files into the graph or drive a filesystem-traversal DoS; a
+   * link whose target stays inside a scan root is always followed
+   * regardless. Set to `true` (in `settings.local.json` only) to trust
+   * every symlink target reachable from the tree. See
+   * `project-config.schema.json` §scan.followExternalSymlinks.
+   */
+  followExternalSymlinks: boolean;
 }
 
 /**
@@ -274,6 +286,7 @@ export const PROJECT_LOCAL_ONLY_KEYS: ReadonlySet<string> = new Set<string>([
   'allowEditSmFiles',
   'tutorialReminderDismissed',
   'scan.referencePaths',
+  'scan.followExternalSymlinks',
   'pluginTrust.projectEnabled',
   'activity.captureConversations',
 ]);
