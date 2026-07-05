@@ -202,8 +202,8 @@
   "copy.aria":         { "en": "Copy install command to clipboard", "es": "Copiar comando de instalación al portapapeles" },
 
   "audio.title":         { "en": "Audio overview",          "es": "Resumen en audio" },
-  "audio.duration":      { "en": "5 min",                   "es": "6 min" },
-  "audio.fallbackDuration": { "en": "280",                  "es": "373" },
+  "audio.duration":      { "en": "4 min",                   "es": "4 min" },
+  "audio.fallbackDuration": { "en": "250",                  "es": "258" },
   "audio.open.notebook": { "en": "Open in NotebookLM",      "es": "Abrir en NotebookLM" },
   "audio.close":         { "en": "Close audio player",      "es": "Cerrar reproductor de audio" },
   "audio.play":          { "en": "Play",                    "es": "Reproducir" },
