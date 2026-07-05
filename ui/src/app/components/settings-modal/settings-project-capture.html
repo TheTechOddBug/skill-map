@@ -1,0 +1,22 @@
+@if (captureError(); as err) {
+  <p-message severity="error" [closable]="false" data-testid="settings-project-activity-capture-error">
+    {{ texts.project.saveErrorPrefix }} {{ err }}
+  </p-message>
+}
+
+<div class="settings-project__row" data-testid="settings-project-activity-capture-row">
+  <div class="settings-project__row-text">
+    <div class="settings-project__row-label">{{ texts.project.activityCapture.label }}</div>
+    <div class="settings-project__row-description">
+      {{ texts.project.activityCapture.description }}
+    </div>
+  </div>
+  <p-toggleswitch
+    [ngModel]="captureEnabled()"
+    (ngModelChange)="onCaptureToggle($event)"
+    [disabled]="captureStatus() === null || isPending('activity.capture')"
+    data-testid="settings-project-activity-capture-toggle"
+  />
+</div>
+
+<p-confirmdialog />

@@ -80,6 +80,8 @@
             @for (edge of graph().edges; track edge.id) {
               @let es = edgeSelectionFor(edge.id);
               @let convo = convoCountFor(edge);
+              @let executing = isEdgeExecuting(edge);
+              @let spawnId = spawnActiveIdFor(edge);
               <f-connection
                 [fOutputId]="edge.from + '-out'"
                 [fInputId]="edge.to + '-in'"
@@ -91,12 +93,12 @@
                 [class]="'f-conn--' + edge.kind"
                 [class.f-conn--highlighted]="es.highlighted"
                 [class.f-conn--dimmed]="es.dimmed"
-                [class.f-conn--executing]="isEdgeExecuting(edge)"
-                [class.f-conn--spawn-active]="spawnActiveIdFor(edge) !== null"
+                [class.f-conn--executing]="executing"
+                [class.f-conn--spawn-active]="spawnId !== null"
                 [class.f-conn--convo]="convo > 0"
-                [style.opacity]="isEdgeExecuting(edge) || spawnActiveIdFor(edge) !== null ? 1 : es.opacity"
-                [attr.aria-label]="spawnActiveIdFor(edge) !== null ? texts.spawnEdge.aria : null"
-                [attr.data-testid]="spawnActiveIdFor(edge) !== null ? 'graph-spawn-active-edge-' + edge.id : null"
+                [style.opacity]="executing || spawnId !== null ? 1 : es.opacity"
+                [attr.aria-label]="spawnId !== null ? texts.spawnEdge.aria : null"
+                [attr.data-testid]="spawnId !== null ? 'graph-spawn-active-edge-' + edge.id : null"
                 (click)="onStaticEdgeClick(edge, $event)"
               >
                 <!-- Live-activity spine: while both endpoints execute, the
@@ -113,7 +115,7 @@
                      a spawn-active edge skips it too: the spawn overlay
                      treatment (magenta dash) replaces the spine gradient
                      while the live conversation rides this edge. -->
-                @if (isEdgeExecuting(edge) && spawnActiveIdFor(edge) === null) {
+                @if (executing && spawnId === null) {
                   <f-connection-gradient
                     fStartColor="var(--sm-exec-c1)"
                     fEndColor="var(--sm-exec-c3)"
@@ -231,6 +233,7 @@
                 [fOutputConnectableSide]="outputSide()"
                 (fNodePositionChange)="onNodePositionChange(node.id, $event)"
                 class="sm-gnode-host"
+                data-canvas-click-shield
                 (pointerdown)="onNodePointerDown($event)"
                 (click)="selectNode(node, $event)"
                 (dblclick)="openNode(node)"
@@ -270,11 +273,12 @@
                   [fNodeId]="node.id"
                   [fNodePosition]="node.position"
                   [fInputId]="node.id + '-in'"
-                  fInputConnectableSide="top"
+                  [fInputConnectableSide]="inputSide()"
                   [fOutputId]="node.id + '-out'"
-                  fOutputConnectableSide="bottom"
+                  [fOutputConnectableSide]="outputSide()"
                   (fNodePositionChange)="onNodePositionChange(node.id, $event)"
                   class="sm-gnode-host"
+                  data-canvas-click-shield
                   (pointerdown)="onNodePointerDown($event)"
                   (click)="selectNode(node, $event)"
                   (dblclick)="openNode(node)"
@@ -327,6 +331,7 @@
                 [fOutputId]="session.id + '-out'"
                 [fOutputConnectableSide]="outputSide()"
                 class="sm-session-host"
+                data-canvas-click-shield
                 [attr.data-testid]="'graph-session-node-' + session.owner"
                 (pointerdown)="onSessionPointerDown()"
                 (fNodePositionChange)="onSessionPositionChange(session.owner, $event)"
@@ -339,7 +344,7 @@
         <f-minimap />
       </f-flow>
 
-      <div class="graph__filter-stack">
+      <div class="graph__filter-stack" data-canvas-click-shield>
         <sm-kind-palette />
         <sm-severity-palette />
         <sm-link-kind-palette />
@@ -347,6 +352,7 @@
 
       <aside
         class="graph__panel"
+        data-canvas-click-shield
         [class.is-open]="selectedNodeId() !== null"
         [style.width.px]="clampedPanelWidth()"
         role="complementary"
@@ -372,6 +378,7 @@
 
       @if (perfHud()) {
         <sm-perf-hud
+          data-canvas-click-shield
           [visible]="visibleCount()"
           [total]="totalCount()"
           [edges]="edgeCount()"
@@ -380,6 +387,7 @@
 
       <div
         class="graph__toolbar"
+        data-canvas-click-shield
         role="toolbar"
         [attr.aria-label]="texts.a11y.toolbar"
         [style.--sm-graph-inspector-w]="reservedPanelWidth() + 'px'"

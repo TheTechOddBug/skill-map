@@ -502,6 +502,18 @@
   animation: shell-refresh-spin 1s linear infinite;
 }
 
+/* Failed manual scan: the trigger keeps the last run's error visible
+   (severity tint + tooltip carrying the message, see `refreshTooltip`)
+   until the next attempt clears the signal. Spinning wins over the
+   tint while a retry is in flight because `is-error` clears on run
+   start anyway. Hover keeps the tint so the state reads while the
+   user goes for the retry click. */
+.shell__refresh.is-error,
+.shell__refresh.is-error:hover:not(:disabled),
+.shell__refresh.is-error:focus-visible:not(:disabled) {
+  color: var(--sm-severity-error);
+}
+
 @keyframes shell-refresh-spin {
   from {
     transform: rotate(0deg);

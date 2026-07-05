@@ -152,6 +152,13 @@ export class App {
   protected readonly scanning = computed(
     () => this.scanTrigger.scanning() || this.wsEvents.scanActive(),
   );
+  /**
+   * Last manual-scan failure, `null` after a successful run (cleared on
+   * the next `run()` start by `ScanTriggerService`). Rendered on the
+   * refresh button itself: error tint + tooltip / aria-label carrying
+   * the message, so a failed refresh is never silent (the spinner used
+   * to stop with nothing but a console warning).
+   */
   protected readonly scanError = this.scanTrigger.scanError;
 
   protected triggerScan(): Promise<void> {
@@ -243,6 +250,20 @@ export class App {
   protected readonly mapInfoA11y = computed(() =>
     APP_TEXTS.badge.mapInfoA11y(this.count(), this.linkAnalysis()),
   );
+  /**
+   * Refresh-button surface strings: the map stats normally, the last
+   * scan failure while `scanError` is set. One computed pair so the
+   * tooltip and the aria-label can never disagree about which state
+   * the button is in.
+   */
+  protected readonly refreshTooltip = computed(() => {
+    const error = this.scanError();
+    return error !== null ? APP_TEXTS.scanError.tooltip(error) : this.mapInfoTooltip();
+  });
+  protected readonly refreshA11y = computed(() => {
+    const error = this.scanError();
+    return error !== null ? APP_TEXTS.scanError.a11y(error) : this.mapInfoA11y();
+  });
   /**
    * Project path surfaced under the brand mark. Prefers `/api/health`'s
    * `cwd` (the absolute project root, tilde-anonymised by the BFF) so

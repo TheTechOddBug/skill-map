@@ -17,6 +17,10 @@ import {
 } from '../models/node';
 import type { TLinkKindApi } from '../models/api';
 import { effectiveUserTags } from '../models/node-derived';
+import {
+  readStoredSearchAffectsMap,
+  writeStoredSearchAffectsMap,
+} from './filter-store.storage';
 
 /**
  * Severity tiers surfaced by the severity palette (graph view). Mirrors
@@ -38,32 +42,9 @@ export const ALL_LINK_KINDS: readonly TLinkKindApi[] = [
   'mentions',
 ];
 
-/** localStorage key for the search → map coupling preference. */
-const SEARCH_AFFECTS_MAP_KEY = 'sm.workspace.search-affects-map';
-
-/**
- * Search → map coupling preference, read once at store construction.
- * Default OFF: searching narrows ONLY the files rail, leaving the map's
- * full layout intact, so a query reshapes the tree without disturbing the
- * canvas. `'1'` opts into the coupled mode where the search also filters
- * the map (set via the rail's map-icon toggle); an absent key means the
- * operator never chose, so the default applies.
- */
-function readStoredSearchAffectsMap(): boolean {
-  if (typeof localStorage === 'undefined') return false;
-  const stored = localStorage.getItem(SEARCH_AFFECTS_MAP_KEY);
-  if (stored === null) return false;
-  return stored === '1';
-}
-
-function writeStoredSearchAffectsMap(value: boolean): void {
-  if (typeof localStorage === 'undefined') return;
-  try {
-    localStorage.setItem(SEARCH_AFFECTS_MAP_KEY, value ? '1' : '0');
-  } catch {
-    // localStorage disabled / quota exceeded; the preference just won't persist.
-  }
-}
+// Search → map coupling persistence lives in `./filter-store.storage`
+// (the shared `*.storage.ts` convention: guarded reads, quota-safe
+// writes, keys owned by the storage module).
 
 @Injectable({ providedIn: 'root' })
 export class FilterStoreService {

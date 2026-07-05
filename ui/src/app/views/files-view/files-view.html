@@ -183,6 +183,10 @@
         </ng-template>
         <ng-template pTemplate="body" let-row>
           @if (row.type === 'folder') {
+            <!-- One Set lookup per row via @let, the memoized computeds
+                 (`coveredByAncestor`, `folderStateMap`) own the tree walk. -->
+            @let folderCovered = coveredByAncestor().has(row.path);
+            @let folderState = folderCovered ? 'all' : (folderStateMap().get(row.path) ?? 'none');
             <tr
               @rowSlide
               class="files__row files__row--folder"
@@ -202,9 +206,9 @@
                   <button
                     type="button"
                     class="files__vis-check"
-                    [disabled]="isCoveredByAncestor(row.path)"
-                    [attr.data-state]="isCoveredByAncestor(row.path) ? 'all' : (folderStateMap().get(row.path) ?? 'none')"
-                    [pTooltip]="isCoveredByAncestor(row.path) ? texts.mapCoveredTooltip : texts.mapVisibilityTooltip"
+                    [disabled]="folderCovered"
+                    [attr.data-state]="folderState"
+                    [pTooltip]="folderCovered ? texts.mapCoveredTooltip : texts.mapVisibilityTooltip"
                     tooltipPosition="top"
                     [attr.aria-label]="texts.mapVisibilityAriaLabel(row.name)"
                     (click)="onToggleFolderVisibility(row, $event)"
@@ -212,8 +216,8 @@
                   >
                     <i
                       class="pi"
-                      [class.pi-check]="isCoveredByAncestor(row.path) || folderStateMap().get(row.path) === 'all'"
-                      [class.pi-minus]="!isCoveredByAncestor(row.path) && folderStateMap().get(row.path) === 'some'"
+                      [class.pi-check]="folderState === 'all'"
+                      [class.pi-minus]="folderState === 'some'"
                       aria-hidden="true"
                     ></i>
                   </button>
@@ -266,6 +270,9 @@
               <td></td>
             </tr>
           } @else {
+            <!-- Same one-lookup-per-row shape as the folder branch. -->
+            @let leafCovered = coveredByAncestor().has(row.path);
+            @let leafOnMap = visibleLeaves().has(row.path);
             <tr
               @rowSlide
               class="files__row files__row--leaf"
@@ -283,15 +290,15 @@
                   <button
                     type="button"
                     class="files__vis-check"
-                    [disabled]="isCoveredByAncestor(row.path)"
-                    [attr.data-state]="leafVisible(row.path) ? 'all' : 'none'"
-                    [pTooltip]="isCoveredByAncestor(row.path) ? texts.mapCoveredTooltip : texts.mapVisibilityTooltip"
+                    [disabled]="leafCovered"
+                    [attr.data-state]="leafOnMap ? 'all' : 'none'"
+                    [pTooltip]="leafCovered ? texts.mapCoveredTooltip : texts.mapVisibilityTooltip"
                     tooltipPosition="top"
                     [attr.aria-label]="texts.mapVisibilityAriaLabel(row.name)"
                     (click)="onToggleLeafVisibility(row, $event)"
                     [attr.data-testid]="'files-vis-leaf-' + row.path"
                   >
-                    <i class="pi" [class.pi-check]="leafVisible(row.path)" aria-hidden="true"></i>
+                    <i class="pi" [class.pi-check]="leafOnMap" aria-hidden="true"></i>
                   </button>
                   <span class="files__chevron-placeholder" aria-hidden="true"></span>
                   <i class="pi pi-file files__leaf-icon" aria-hidden="true"></i>

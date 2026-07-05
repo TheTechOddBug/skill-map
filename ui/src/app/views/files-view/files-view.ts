@@ -205,36 +205,66 @@ export class FilesView implements OnInit {
   });
 
   /**
-   * A leaf is selected when its exact path is in the selection OR an
-   * ancestor folder prefix is (a selected folder includes all its
-   * descendants on the map). Reads the selection signal so the template
-   * stays reactive.
+   * Paths (folders AND leaves) that sit under a SELECTED STRICT ANCESTOR
+   * folder. Such a row renders its checkbox checked but DISABLED: a
+   * selected folder includes its whole subtree as one prefix, so a
+   * descendant cannot be toggled on its own; to change it the user
+   * unchecks the ancestor (then, if wanted, re-selects a finer folder /
+   * leaf).
+   *
+   * Derived together with `visibleLeaves` in ONE post-order walk per
+   * tree / selection change (same memoization the folder tri-state
+   * already uses via `folderStateMap`). The previous shape was a
+   * per-call scan of the whole selection set with `startsWith`, invoked
+   * up to six times per row per CD pass, O(rows x |selection|) on every
+   * checkbox click / sort / expand over the full corpus tree.
    */
-  leafVisible(path: string): boolean {
-    const selected = this.mapVisibility.paths();
-    if (selected.has(path)) return true;
-    for (const prefix of selected) {
-      if (prefix !== '' && path.startsWith(`${prefix}/`)) return true;
-    }
-    return false;
-  }
+  readonly coveredByAncestor = computed<ReadonlySet<string>>(
+    () => this.selectionCoverage().covered,
+  );
 
   /**
-   * True when the node is on the map via a SELECTED ANCESTOR folder (a
-   * STRICT ancestor prefix is in the selection). Its checkbox is then
-   * rendered checked but DISABLED: a selected folder includes its whole
-   * subtree as one prefix, so a descendant cannot be toggled on its own.
-   * To change it the user unchecks the ancestor (then, if wanted,
-   * re-selects a finer folder / leaf). Reads the selection signal so the
-   * template stays reactive.
+   * Leaves currently on the map: their exact path is in the selection OR
+   * an ancestor folder prefix is (a selected folder includes all its
+   * descendants). Template reads `.has(row.path)` via a `@let`, so no
+   * per-row selection scan happens during render.
    */
-  isCoveredByAncestor(path: string): boolean {
+  readonly visibleLeaves = computed<ReadonlySet<string>>(
+    () => this.selectionCoverage().visible,
+  );
+
+  /**
+   * Shared walk behind `coveredByAncestor` / `visibleLeaves`. A leaf
+   * path can never prefix another path (files have no children), so
+   * "strict ancestor prefix selected" is exactly "some enclosing folder
+   * on the tree walk is selected", no `startsWith` needed.
+   */
+  private readonly selectionCoverage = computed<{
+    covered: ReadonlySet<string>;
+    visible: ReadonlySet<string>;
+  }>(() => {
     const selected = this.mapVisibility.paths();
-    for (const prefix of selected) {
-      if (prefix !== '' && prefix !== path && path.startsWith(`${prefix}/`)) return true;
-    }
-    return false;
-  }
+    const covered = new Set<string>();
+    const visible = new Set<string>();
+    const visit = (folder: ITreeFolder, underSelected: boolean): void => {
+      if (underSelected && folder.path) covered.add(folder.path);
+      // The root folder's path is '' and an empty prefix never covers
+      // (mirrors the `prefix !== ''` guard of the pre-memoized scan).
+      const childrenUnder =
+        underSelected || (folder.path !== '' && selected.has(folder.path));
+      for (const leaf of folder.leaves) {
+        if (childrenUnder) {
+          covered.add(leaf.path);
+          visible.add(leaf.path);
+        } else if (selected.has(leaf.path)) {
+          visible.add(leaf.path);
+        }
+      }
+      for (const sub of folder.subfolders.values()) visit(sub, childrenUnder);
+    };
+    visit(this.tree(), false);
+    return { covered, visible };
+  });
 
   ngOnInit(): void {
     if (this.loader.liteNodes().length === 0 && !this.loader.loading()) {

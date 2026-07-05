@@ -420,6 +420,33 @@ describe('GraphView, selection and URL sync', () => {
   });
 });
 
+describe('GraphView, canvas click deselect shield', () => {
+  /**
+   * `onCanvasClick` clears the selection UNLESS the click landed inside
+   * a surface marked `data-canvas-click-shield` (node cards, palettes,
+   * toolbar, inspector panel, perf HUD). The attribute contract
+   * replaced a hand-maintained CSS-class selector list, so the thing
+   * to pin is the mechanism itself: shielded ancestor -> keep, bare
+   * target -> clear.
+   */
+  it('keeps the selection for shielded targets and clears it on bare canvas', async () => {
+    const { fixture, cmp } = await bootstrap([makeNode('a.md', 'a')]);
+    await flushEffects(fixture);
+    cmp.selectedNodeId.set('a.md');
+
+    const shielded = document.createElement('div');
+    shielded.setAttribute('data-canvas-click-shield', '');
+    const inner = document.createElement('span');
+    shielded.appendChild(inner);
+    cmp.onCanvasClick({ target: inner } as unknown as MouseEvent);
+    expect(cmp.selectedNodeId()).toBe('a.md');
+
+    const bare = document.createElement('span');
+    cmp.onCanvasClick({ target: bare } as unknown as MouseEvent);
+    expect(cmp.selectedNodeId()).toBeNull();
+  });
+});
+
 describe('GraphView, deep-link reader', () => {
   beforeEach(() => {
     TestBed.resetTestingModule();
@@ -830,13 +857,14 @@ describe('GraphView, spawn-active static edges', () => {
 describe('GraphView, follow-the-activity camera', () => {
   const FOLLOW_KEY = 'sm.live.follow-activity';
 
-  /** Protected/private-surface probe for the follow feature. */
+  /** Protected-surface probe for the follow feature. The fingerprint /
+   *  framing internals moved to `follow-activity.controller.ts` and are
+   *  covered by `follow-activity.controller.spec.ts`; this suite keeps
+   *  the component-level wiring (toggle, gesture disable, boot gating). */
   interface IFollowProbe {
     followActivity(): boolean;
     toggleFollowActivity(): void;
     onCanvasChange(event: { position: { x: number; y: number }; scale: number }): void;
-    followTargetsFingerprint(): string;
-    runFollowActivityFit(): void;
     fitToScreen(): void;
     zoomIn(): void;
   }
@@ -976,50 +1004,10 @@ describe('GraphView, follow-the-activity camera', () => {
     expect(probe.followActivity()).toBe(false);
   });
 
-  it('fingerprints only the VISIBLE executing paths, sorted; empty while follow is off', async () => {
-    const active = signal<ReadonlySet<string>>(new Set(['b.md', 'a.md', 'hidden.md']));
-    const { fixture, probe } = await bootstrapWithActivity(
-      [makeNode('a.md', 'a'), makeNode('b.md', 'b')],
-      active,
-      signal(true),
-    );
-    await settleBoot(fixture);
-
-    // Follow off: the sentinel empty string, regardless of activity.
-    expect(probe.followTargetsFingerprint()).toBe('');
-
-    probe.toggleFollowActivity();
-    // `hidden.md` is not on the canvas, it must not anchor the bbox.
-    expect(probe.followTargetsFingerprint()).toBe('a.md|b.md');
-  });
-
-  it('re-frames on membership change and stays quiet on an empty active set', async () => {
-    const active = signal<ReadonlySet<string>>(new Set(['a.md']));
-    const { fixture, cmp, probe } = await bootstrapWithActivity(
-      [makeNode('a.md', 'a'), makeNode('b.md', 'b')],
-      active,
-      signal(true),
-    );
-    await settleBoot(fixture);
-
-    const fitSpy = vi
-      .spyOn(cmp as unknown as Record<'runFollowActivityFit', () => void>, 'runFollowActivityFit')
-      .mockImplementation(() => {});
-
-    probe.toggleFollowActivity();
-    await flushEffects(fixture);
-    expect(fitSpy).toHaveBeenCalledTimes(1);
-
-    // Activity ended: the camera stays where it is (no re-frame).
-    active.set(new Set());
-    await flushEffects(fixture);
-    expect(fitSpy).toHaveBeenCalledTimes(1);
-
-    // New execution wave: re-frame over the fresh membership.
-    active.set(new Set(['a.md', 'b.md']));
-    await flushEffects(fixture);
-    expect(fitSpy).toHaveBeenCalledTimes(2);
-  });
+  // Fingerprint semantics (visible-only membership, sort-insensitivity,
+  // empty-set sentinel) and the re-frame cadence are covered by
+  // `follow-activity.controller.spec.ts` against the extracted
+  // controller's observable surface.
 });
 
 describe('GraphView, edge conversation-count labels + historical click', () => {

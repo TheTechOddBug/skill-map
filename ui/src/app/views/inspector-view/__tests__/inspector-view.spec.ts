@@ -19,6 +19,7 @@ import { CollectionLoaderService } from '../../../../services/collection-loader'
 import { ProviderRegistryService } from '../../../../services/provider-registry';
 import type { INodeView, ISidecarOverlay } from '../../../../models/node';
 import type { INodeDetailApi, INodeApi } from '../../../../models/api';
+import type { ISpawnThread } from '../../../components/conversation-dialog/spawn-thread';
 
 /**
  * Inspector view spec, Step 14.5.a body card lifecycle, annotations,
@@ -225,6 +226,39 @@ async function flush(fixture: ComponentFixture<InspectorView>): Promise<void> {
   await Promise.resolve();
   fixture.detectChanges();
 }
+
+describe('InspectorView, conversation dialog (no-fetch openThread path)', () => {
+  it('hands the clicked thread to the shared controller without fetching', async () => {
+    const { fixture, cmp, dataSource } = bootstrap();
+    await flush(fixture);
+
+    const probe = cmp as unknown as {
+      openSpawnConversation(thread: ISpawnThread): void;
+      onConversationClosed(): void;
+      conversationOpen(): boolean;
+      conversationThread(): ISpawnThread | null;
+    };
+    const thread: ISpawnThread = {
+      key: 'main:1|agents/worker.md',
+      parentOwner: 'main:1',
+      parentNodePath: 'agents/orchestrator.md',
+      childNodePath: 'agents/worker.md',
+      records: [],
+    };
+
+    expect(probe.conversationOpen()).toBe(false);
+    probe.openSpawnConversation(thread);
+    expect(probe.conversationOpen()).toBe(true);
+    // Handed over verbatim: the inspector already holds the records,
+    // so the controller's fetch paths (openSpawn / openHistorical)
+    // must stay untouched on this surface.
+    expect(probe.conversationThread()).toBe(thread);
+    expect(dataSource.getNodeActivity).not.toHaveBeenCalled();
+
+    probe.onConversationClosed();
+    expect(probe.conversationOpen()).toBe(false);
+  });
+});
 
 describe('InspectorView, empty states', () => {
   it('renders the no-selection empty state when path is undefined', async () => {

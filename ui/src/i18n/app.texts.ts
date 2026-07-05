@@ -78,6 +78,15 @@ export const APP_TEXTS = {
     ): string =>
       `Map contains ${nodes} nodes and ${analysis.raw} links; ${analysis.drawn} drawn on the canvas`,
   },
+  /**
+   * Failed manual scan, surfaced on the topbar refresh trigger: the
+   * button tints to the error severity and its tooltip / aria-label
+   * swap to the failure message until the next attempt clears it.
+   */
+  scanError: {
+    tooltip: (message: string): string => `Scan failed: ${message}\nClick to retry.`,
+    a11y: (message: string): string => `Scan failed: ${message}. Activate to retry.`,
+  },
   a11y: {
     viewSwitcher: 'View switcher',
   },

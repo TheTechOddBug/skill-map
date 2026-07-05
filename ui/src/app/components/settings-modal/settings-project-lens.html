@@ -1,0 +1,94 @@
+@if (activeProviderLoadError(); as err) {
+  <p-message severity="error" [closable]="false" data-testid="settings-project-active-provider-load-error">
+    {{ texts.project.loadErrorPrefix }} {{ err }}
+  </p-message>
+}
+
+@if (activeProviderSaveError(); as err) {
+  <p-message severity="error" [closable]="false" data-testid="settings-project-active-provider-save-error">
+    {{ texts.project.saveErrorPrefix }} {{ err }}
+  </p-message>
+}
+
+@if (activeProviderSwitchAnnouncement(); as msg) {
+  <p-message severity="info" [closable]="false" data-testid="settings-project-active-provider-switch-announce">
+    {{ msg }}
+  </p-message>
+}
+
+<div class="settings-project__list-row" data-testid="settings-project-active-provider-row">
+  <div class="settings-project__row-text">
+    <div class="settings-project__row-label">{{ texts.project.activeProviderLabel }}</div>
+    <div class="settings-project__row-description">
+      {{ texts.project.activeProviderDescription }}
+    </div>
+    <div class="settings-project__row-meta">
+      @switch (activeProviderSource()) {
+        @case ('autodetect') {
+          <span class="settings-project__meta-line">{{ texts.project.activeProviderSourceAutodetect }}</span>
+        }
+        @case ('default') {
+          <span class="settings-project__meta-line">{{ texts.project.activeProviderSourceDefault }}</span>
+        }
+      }
+      @if (activeProviderDetectedLabel(); as detected) {
+        @if (detected.length > 0) {
+          <span class="settings-project__meta-line">
+            {{ texts.project.activeProviderDetectedPrefix }} {{ detected }}
+          </span>
+        }
+      }
+    </div>
+  </div>
+  <div class="settings-project__add-row">
+    <p-select
+      class="settings-project__provider-select"
+      [options]="providerOptions()"
+      optionLabel="label"
+      optionValue="id"
+      optionDisabled="disabled"
+      [ngModel]="activeProviderValue()"
+      (ngModelChange)="onActiveProviderChange($event)"
+      appendTo="body"
+      data-testid="settings-project-active-provider-select"
+    />
+  </div>
+</div>
+
+@if (activityError(); as err) {
+  <p-message severity="error" [closable]="false" data-testid="settings-project-activity-hook-error">
+    {{ texts.project.saveErrorPrefix }} {{ err }}
+  </p-message>
+}
+
+@if (activityAnnouncement(); as msg) {
+  <p-message severity="info" [closable]="false" data-testid="settings-project-activity-hook-announce">
+    {{ msg }}
+  </p-message>
+}
+
+<div class="settings-project__row" data-testid="settings-project-activity-hook-row">
+  <div class="settings-project__row-text">
+    <div class="settings-project__row-label">{{ texts.project.activityHook.label }}</div>
+    <div class="settings-project__row-description">
+      {{ texts.project.activityHook.description }}
+    </div>
+    @if (activityHint(); as hint) {
+      <div class="settings-project__row-meta">
+        <span class="settings-project__meta-line" data-testid="settings-project-activity-hook-hint">
+          {{ hint }}
+        </span>
+      </div>
+    }
+  </div>
+  <p-button
+    [label]="activityButtonLabel()"
+    [disabled]="activityButtonDisabled()"
+    severity="secondary"
+    size="small"
+    (onClick)="onActivityHookToggle()"
+    data-testid="settings-project-activity-hook-button"
+  />
+</div>
+
+<p-confirmdialog />

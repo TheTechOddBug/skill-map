@@ -25,7 +25,19 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { map } from 'rxjs/operators';
 
-import type { IGraphNode } from './graph-layout';
+/**
+ * Minimal structural slice of a graph node this sync reads: the node
+ * id and the path it maps to in the URL. Deliberately NOT `IGraphNode`,
+ * the caller feeds a lightweight `{ id, view.path }` projection (see
+ * `graph-view.ts`), and typing the full node here would force a cast
+ * that silently narrows 80% of the fields away. If the sync ever needs
+ * another field, widen THIS interface and the compiler walks every
+ * caller.
+ */
+export interface ISelectionSyncNode {
+  readonly id: string;
+  readonly view: { readonly path: string };
+}
 
 export interface ISelectionUrlSyncConfig {
   /** Source of the active selection's path string (computed in the
@@ -39,7 +51,7 @@ export interface ISelectionUrlSyncConfig {
   readSelectedNodeId: () => string | null;
   /** Snapshot of the rendered graph nodes, the reader uses it to
    *  resolve a URL path back to a node id. */
-  graphNodes: Signal<readonly IGraphNode[]>;
+  graphNodes: Signal<readonly ISelectionSyncNode[]>;
   /**
    * Fired ONLY by the reader when a `?path=` deep link (e.g. the
    * "open in map" navigation from the files view) resolves to a node

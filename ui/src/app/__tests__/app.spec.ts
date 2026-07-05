@@ -467,6 +467,38 @@ describe('App, scan spinner', () => {
   });
 });
 
+describe('App, scan error surface', () => {
+  it('tints the refresh button and swaps its tooltip strings while scanError is set', async () => {
+    TestBed.resetTestingModule();
+    await configure(makeUpdateCheckStub());
+
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const btn = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+      '[data-testid="shell-refresh"]',
+    )!;
+    expect(btn.classList.contains('is-error')).toBe(false);
+    expect(btn.getAttribute('aria-label')).not.toContain('Scan failed');
+
+    // Drive the shared error signal the same way ScanTriggerService's
+    // catch branch does; the button must surface it (UX: a failed
+    // manual scan is never silent).
+    TestBed.inject(ScanTriggerService).scanError.set('boom: db locked');
+    fixture.detectChanges();
+    expect(btn.classList.contains('is-error')).toBe(true);
+    expect(btn.getAttribute('aria-label')).toContain('Scan failed: boom: db locked');
+
+    // The next run() clears the signal on start; mirror that and the
+    // button drops back to the stats surface.
+    TestBed.inject(ScanTriggerService).scanError.set(null);
+    fixture.detectChanges();
+    expect(btn.classList.contains('is-error')).toBe(false);
+    expect(btn.getAttribute('aria-label')).not.toContain('Scan failed');
+  });
+});
+
 describe('App, Real Time toggle', () => {
   const WS_KEY = 'sm.live.ws-enabled';
   const ACTIVITY_KEY = 'sm.live.activity-enabled';

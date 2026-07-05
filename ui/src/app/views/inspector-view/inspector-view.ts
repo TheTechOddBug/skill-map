@@ -51,6 +51,7 @@ import { InspectorAuditPanel } from '../../components/inspector-audit-panel/insp
 import { InspectorHeader } from '../../components/inspector-header/inspector-header';
 import { CollapsibleSection } from '../../components/collapsible-section/collapsible-section';
 import { ConversationDialog } from '../../components/conversation-dialog/conversation-dialog';
+import { setupConversationDialog } from '../../components/conversation-dialog/conversation-dialog.controller';
 import {
   groupSpawnThreads,
   type ISpawnThread,
@@ -514,22 +515,24 @@ export class InspectorView implements OnInit {
   }
 
   /**
-   * Conversation dialog state. The inspector already holds the full
-   * spawn records (content included while capture is on), so no
-   * re-fetch happens here, the clicked thread is handed to the dialog
-   * directly; the graph view's edge-click path is the one that fetches
-   * by id.
+   * Conversation dialog, state machine shared with the graph view via
+   * `conversation-dialog.controller.ts`. The inspector already holds
+   * the full spawn records (content included while capture is on), so
+   * it uses the no-fetch `openThread` path, the clicked thread is
+   * handed to the dialog directly; the graph view's edge-click path is
+   * the one that fetches by id. The capture-gate binding stays on this
+   * component's own `activityDetail` (already fetched for the section).
    */
-  protected readonly conversationOpen = signal(false);
-  protected readonly conversationThread = signal<ISpawnThread | null>(null);
+  private readonly conversation = setupConversationDialog({ dataSource: this.dataSource });
+  protected readonly conversationOpen = this.conversation.open;
+  protected readonly conversationThread = this.conversation.thread;
 
   protected openSpawnConversation(thread: ISpawnThread): void {
-    this.conversationThread.set(thread);
-    this.conversationOpen.set(true);
+    this.conversation.openThread(thread);
   }
 
   protected onConversationClosed(): void {
-    this.conversationOpen.set(false);
+    this.conversation.close();
   }
 
   /**

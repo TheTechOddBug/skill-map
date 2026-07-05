@@ -15,9 +15,12 @@ import { FilesView } from '../files-view/files-view';
 import { GraphView } from '../graph-view/graph-view';
 import { RAIL_WIDTH_DEFAULT, setupRailResize } from './workspace-rail-resize';
 import { WorkspaceNodeOpenIntent } from './workspace-open-intent';
-
-const RAIL_WIDTH_KEY = 'sm.workspace.rail-width';
-const RAIL_COLLAPSED_KEY = 'sm.workspace.rail-collapsed';
+import {
+  readStoredRailCollapsed,
+  readStoredRailWidth,
+  writeStoredRailCollapsed,
+  writeStoredRailWidth,
+} from './workspace-view.storage';
 
 /**
  * Fused single-screen workspace: a resizable files rail on the left, the
@@ -81,7 +84,7 @@ export class WorkspaceView implements IMapIsolateIntent {
    * the user has never toggled it, so the corpus-size auto-default can
    * decide without overriding an explicit choice.
    */
-  private readonly storedRailPref = this.readStoredCollapsed();
+  private readonly storedRailPref = readStoredRailCollapsed();
 
   /**
    * In-rail toggle: collapses the files panel to a thin strip. A saved
@@ -129,13 +132,20 @@ export class WorkspaceView implements IMapIsolateIntent {
 
   private readonly resize = setupRailResize({
     destroyRef: this.destroyRef,
-    initialWidth: this.readStoredWidth(),
-    onCommit: (width) => this.writeStoredWidth(width),
+    initialWidth: readStoredRailWidth() ?? RAIL_WIDTH_DEFAULT,
+    onCommit: (width) => writeStoredRailWidth(width),
   });
   protected readonly clampedRailWidth = this.resize.clampedRailWidth;
   protected readonly onRailResizeStart = this.resize.onRailResizeStart;
 
   constructor() {
+    // The toggle animation timer outlives its 220ms window only when the
+    // view unmounts mid-animation; clear it so the deferred signal write
+    // never fires against a destroyed component.
+    this.destroyRef.onDestroy(() => {
+      if (this.railAnimTimer !== null) clearTimeout(this.railAnimTimer);
+    });
+
     // Auto-open the rail when the corpus has more nodes than the map can
     // render (corpusCount > maxRenderNodes, default 256): the map shows a
     // focused subset, so the folders tree must be visible to navigate it.
@@ -158,7 +168,7 @@ export class WorkspaceView implements IMapIsolateIntent {
   protected toggleRail(): void {
     this.userToggledRail = true;
     this.railCollapsed.update((v) => !v);
-    this.writeStoredCollapsed(this.railCollapsed());
+    writeStoredRailCollapsed(this.railCollapsed());
     this.railAnimating.set(true);
     if (this.railAnimTimer !== null) clearTimeout(this.railAnimTimer);
     this.railAnimTimer = setTimeout(() => this.railAnimating.set(false), 220);
@@ -184,39 +194,7 @@ export class WorkspaceView implements IMapIsolateIntent {
     this.store.reset();
   }
 
-  private readStoredWidth(): number {
-    if (typeof localStorage === 'undefined') return RAIL_WIDTH_DEFAULT;
-    const raw = Number(localStorage.getItem(RAIL_WIDTH_KEY));
-    return Number.isFinite(raw) && raw > 0 ? raw : RAIL_WIDTH_DEFAULT;
-  }
-
-  private writeStoredWidth(width: number): void {
-    if (typeof localStorage === 'undefined') return;
-    try {
-      localStorage.setItem(RAIL_WIDTH_KEY, String(width));
-    } catch {
-      // localStorage disabled / quota exceeded; width just won't persist.
-    }
-  }
-
-  /**
-   * Files rail collapse preference, persisted. `'1'` collapsed, `'0'`
-   * open, absent key → `null` (no saved choice, the caller falls back to
-   * the collapsed default plus the corpus-size auto-open).
-   */
-  private readStoredCollapsed(): boolean | null {
-    if (typeof localStorage === 'undefined') return null;
-    const raw = localStorage.getItem(RAIL_COLLAPSED_KEY);
-    if (raw === null) return null;
-    return raw === '1';
-  }
-
-  private writeStoredCollapsed(collapsed: boolean): void {
-    if (typeof localStorage === 'undefined') return;
-    try {
-      localStorage.setItem(RAIL_COLLAPSED_KEY, collapsed ? '1' : '0');
-    } catch {
-      // localStorage disabled / quota exceeded; collapse just won't persist.
-    }
-  }
+  // Rail width / collapse persistence lives in `./workspace-view.storage`
+  // (the shared `*.storage.ts` convention: guarded reads, quota-safe
+  // writes, keys owned by the storage module).
 }

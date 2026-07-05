@@ -238,3 +238,93 @@ describe('FilesView folder interactions', () => {
     expect(warns?.textContent?.trim()).toBe('3');
   });
 });
+
+/**
+ * The memoized selection-coverage walk (`selectionCoverage` behind the
+ * `coveredByAncestor` / `visibleLeaves` computeds). It replaced per-call
+ * `startsWith` scans over the whole selection set, so these tests pin
+ * the exact semantics the scans had:
+ *   - covered = a SELECTED STRICT ANCESTOR folder exists (never the
+ *     path's own selection);
+ *   - visible leaf = its exact path is selected OR an ancestor folder is;
+ *   - the root pseudo-folder ('') never covers anything.
+ * Asserted against the computeds directly (the DOM checkbox states are
+ * covered by the folder-interaction tests above).
+ */
+describe('FilesView selection-coverage computeds', () => {
+  interface ICoverageProbe {
+    coveredByAncestor(): ReadonlySet<string>;
+    visibleLeaves(): ReadonlySet<string>;
+  }
+
+  function coverageProbe(
+    fixture: ReturnType<typeof TestBed.createComponent<FilesView>>,
+  ): ICoverageProbe {
+    return fixture.componentInstance as unknown as ICoverageProbe;
+  }
+
+  it('an exact leaf selection is visible but never covered', () => {
+    const { fixture, selection } = bootstrap([
+      makeNode('docs/a.md', 'a'),
+      makeNode('root.md', 'root'),
+    ]);
+    const probe = coverageProbe(fixture);
+
+    expect(probe.coveredByAncestor().size).toBe(0);
+    expect(probe.visibleLeaves().size).toBe(0);
+
+    selection.toggleLeaf('root.md');
+    fixture.detectChanges();
+
+    expect(probe.visibleLeaves().has('root.md')).toBe(true);
+    // Its own selection never disables the checkbox.
+    expect(probe.coveredByAncestor().has('root.md')).toBe(false);
+    // The sibling under a folder is untouched.
+    expect(probe.visibleLeaves().has('docs/a.md')).toBe(false);
+  });
+
+  it('a selected folder covers its whole subtree but never itself', () => {
+    const { fixture, selection } = bootstrap([
+      makeNode('docs/a.md', 'a'),
+      makeNode('docs/sub/b.md', 'b'),
+      makeNode('root.md', 'root'),
+    ]);
+    const probe = coverageProbe(fixture);
+
+    selection.toggleFolder('docs');
+    fixture.detectChanges();
+
+    const covered = probe.coveredByAncestor();
+    // The selected folder stays toggleable (you can uncheck it).
+    expect(covered.has('docs')).toBe(false);
+    // Everything strictly below it is covered: leaves AND subfolders.
+    expect(covered.has('docs/a.md')).toBe(true);
+    expect(covered.has('docs/sub')).toBe(true);
+    expect(covered.has('docs/sub/b.md')).toBe(true);
+    // Outside the prefix: untouched.
+    expect(covered.has('root.md')).toBe(false);
+
+    const visible = probe.visibleLeaves();
+    expect(visible.has('docs/a.md')).toBe(true);
+    expect(visible.has('docs/sub/b.md')).toBe(true);
+    expect(visible.has('root.md')).toBe(false);
+  });
+
+  it('a nested folder selection covers only its own branch', () => {
+    const { fixture, selection } = bootstrap([
+      makeNode('docs/a.md', 'a'),
+      makeNode('docs/sub/b.md', 'b'),
+    ]);
+    const probe = coverageProbe(fixture);
+
+    selection.toggleFolder('docs/sub');
+    fixture.detectChanges();
+
+    expect(probe.coveredByAncestor().has('docs/sub/b.md')).toBe(true);
+    expect(probe.visibleLeaves().has('docs/sub/b.md')).toBe(true);
+    // The parent folder and the sibling leaf above the selection: free.
+    expect(probe.coveredByAncestor().has('docs')).toBe(false);
+    expect(probe.coveredByAncestor().has('docs/a.md')).toBe(false);
+    expect(probe.visibleLeaves().has('docs/a.md')).toBe(false);
+  });
+});

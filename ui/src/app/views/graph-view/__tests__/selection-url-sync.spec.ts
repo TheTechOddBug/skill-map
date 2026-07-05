@@ -4,8 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import type { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
 
-import { bindSelectionToUrl } from '../selection-url-sync';
-import type { IGraphNode } from '../graph-layout';
+import { bindSelectionToUrl, type ISelectionSyncNode } from '../selection-url-sync';
 
 function makeParamMap(path: string | null): ParamMap {
   return {
@@ -16,8 +15,8 @@ function makeParamMap(path: string | null): ParamMap {
   };
 }
 
-function makeNode(path: string): IGraphNode {
-  return { id: path, view: { path } } as unknown as IGraphNode;
+function makeNode(path: string): ISelectionSyncNode {
+  return { id: path, view: { path } };
 }
 
 /**
@@ -25,7 +24,7 @@ function makeNode(path: string): IGraphNode {
  * test pushes to, a `navigate` spy, and the writable selection signals
  * the component would own.
  */
-function setup(initialPath: string | null, nodes: readonly IGraphNode[]) {
+function setup(initialPath: string | null, nodes: readonly ISelectionSyncNode[]) {
   const queryParamMap$ = new BehaviorSubject<ParamMap>(makeParamMap(initialPath));
   const route = {
     queryParamMap: queryParamMap$.asObservable(),

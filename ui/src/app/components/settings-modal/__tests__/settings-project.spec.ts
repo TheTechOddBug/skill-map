@@ -4,6 +4,9 @@ import { TestBed } from '@angular/core/testing';
 import { ConfirmationService } from 'primeng/api';
 
 import { SettingsProject } from '../settings-project';
+import { SettingsProjectCapture } from '../settings-project-capture';
+import { SettingsProjectLens } from '../settings-project-lens';
+import { SettingsProjectPreferences } from '../settings-project-preferences';
 import {
   DATA_SOURCE,
   DataSourceError,
@@ -18,7 +21,46 @@ import type {
 } from '../../../../models/api';
 
 /**
- * SettingsProject · active-lens dropdown gating.
+ * SettingsProject chassis · after the section was split into four
+ * self-contained children, the one NEW failure mode is the chassis
+ * silently dropping a mount (the section would just lose its rows).
+ * This smoke test pins every row's testid through the full composed
+ * tree. `visible: false` keeps the children's fetch effects dormant,
+ * so the empty DATA_SOURCE stub is never called.
+ */
+describe('SettingsProject chassis', () => {
+  it('mounts the four domain children (every project row renders)', () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        provideZonelessChangeDetection(),
+        { provide: DATA_SOURCE, useValue: {} as Partial<IDataSourcePort> },
+      ],
+    });
+    const fixture = TestBed.createComponent(SettingsProject);
+    fixture.componentRef.setInput('visible', false);
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    for (const testid of [
+      'settings-project-active-provider-row',
+      'settings-project-activity-hook-row',
+      'settings-project-activity-capture-row',
+      'settings-project-sidecar-writers-row',
+      'settings-project-plugin-trust-row',
+      'settings-project-reference-paths-row',
+      'settings-project-ignore-patterns-row',
+    ]) {
+      expect(
+        root.querySelector(`[data-testid="${testid}"]`),
+        `missing row [data-testid="${testid}"]`,
+      ).not.toBeNull();
+    }
+  });
+});
+
+/**
+ * SettingsProjectLens · active-lens dropdown gating.
  *
  * `providerOptions` lists only LENS Providers (`isLens: true`) from the
  * `providerRegistry`, filtering out the non-gated `markdown` base (the
@@ -66,7 +108,7 @@ function bootstrap(): { proto: IProjectProto } {
       { provide: DATA_SOURCE, useValue: {} as Partial<IDataSourcePort> },
     ],
   });
-  const fixture = TestBed.createComponent(SettingsProject);
+  const fixture = TestBed.createComponent(SettingsProjectLens);
   fixture.componentRef.setInput('visible', false);
   fixture.detectChanges();
   TestBed.inject(ProviderRegistryService).ingest(REGISTRY);
@@ -74,7 +116,7 @@ function bootstrap(): { proto: IProjectProto } {
   return { proto };
 }
 
-describe('SettingsProject providerOptions', () => {
+describe('SettingsProjectLens providerOptions', () => {
   it('greys out nothing before the envelope loads', () => {
     const { proto } = bootstrap();
     // `activeProviderEnvelope` is still null here.
@@ -122,7 +164,7 @@ describe('SettingsProject providerOptions', () => {
         { provide: DATA_SOURCE, useValue: {} as Partial<IDataSourcePort> },
       ],
     });
-    const fixture = TestBed.createComponent(SettingsProject);
+    const fixture = TestBed.createComponent(SettingsProjectLens);
     fixture.componentRef.setInput('visible', false);
     fixture.detectChanges();
     TestBed.inject(ProviderRegistryService).ingest({
@@ -144,7 +186,7 @@ describe('SettingsProject providerOptions', () => {
 });
 
 /**
- * SettingsProject · `pluginTrust.projectEnabled` machine-local opt-in.
+ * SettingsProjectPreferences · `pluginTrust.projectEnabled` machine-local opt-in.
  *
  * The toggle persists through `setProjectPreferences`. Turning it OFF
  * narrows the local code-execution surface (direct write). Turning it ON
@@ -170,7 +212,7 @@ function prefs(projectEnabled: boolean): IProjectPreferencesApi {
 }
 
 function bootstrapTrust(stub: Partial<IDataSourcePort>): {
-  fixture: ReturnType<typeof TestBed.createComponent<SettingsProject>>;
+  fixture: ReturnType<typeof TestBed.createComponent<SettingsProjectPreferences>>;
   proto: ITrustProto;
 } {
   TestBed.resetTestingModule();
@@ -180,7 +222,7 @@ function bootstrapTrust(stub: Partial<IDataSourcePort>): {
       { provide: DATA_SOURCE, useValue: stub },
     ],
   });
-  const fixture = TestBed.createComponent(SettingsProject);
+  const fixture = TestBed.createComponent(SettingsProjectPreferences);
   fixture.componentRef.setInput('visible', false);
   fixture.detectChanges();
   const proto = fixture.componentInstance as unknown as ITrustProto;
@@ -192,7 +234,7 @@ async function flush(): Promise<void> {
   await Promise.resolve();
 }
 
-describe('SettingsProject pluginTrust opt-in', () => {
+describe('SettingsProjectPreferences pluginTrust opt-in', () => {
   it('reads pluginTrust.projectEnabled from the loaded preferences', () => {
     const { proto } = bootstrapTrust({});
     expect(proto.pluginTrustEnabled()).toBe(false);
@@ -269,7 +311,7 @@ describe('SettingsProject pluginTrust opt-in', () => {
 });
 
 /**
- * SettingsProject · live-activity hook button.
+ * SettingsProjectLens · live-activity hook button.
  *
  * One button below the lens selector: Install when the hook is absent,
  * Uninstall when present, disabled + hint for lenses without an
@@ -304,7 +346,7 @@ function activityStatusOf(overrides: Partial<IActivityInstallStatusApi>): IActiv
 }
 
 function bootstrapActivity(stub: Partial<IDataSourcePort>): {
-  fixture: ReturnType<typeof TestBed.createComponent<SettingsProject>>;
+  fixture: ReturnType<typeof TestBed.createComponent<SettingsProjectLens>>;
   proto: IActivityProto;
 } {
   TestBed.resetTestingModule();
@@ -314,7 +356,7 @@ function bootstrapActivity(stub: Partial<IDataSourcePort>): {
       { provide: DATA_SOURCE, useValue: stub },
     ],
   });
-  const fixture = TestBed.createComponent(SettingsProject);
+  const fixture = TestBed.createComponent(SettingsProjectLens);
   fixture.componentRef.setInput('visible', false);
   fixture.detectChanges();
   TestBed.inject(ProviderRegistryService).ingest(REGISTRY);
@@ -329,7 +371,7 @@ function bootstrapActivity(stub: Partial<IDataSourcePort>): {
   return { fixture, proto };
 }
 
-describe('SettingsProject activity hook button', () => {
+describe('SettingsProjectLens activity hook button', () => {
   it('labels Install / Uninstall off the status and the lens registry label', () => {
     const { proto } = bootstrapActivity({});
     proto.activityStatus.set(activityStatusOf({ installed: false }));
@@ -439,7 +481,7 @@ describe('SettingsProject activity hook button', () => {
  * surface. The spec drives the imperative surface with the
  * component-scoped ConfirmationService spied to accept / reject.
  */
-describe('SettingsProject, conversation-capture toggle', () => {
+describe('SettingsProjectCapture, conversation-capture toggle', () => {
   interface ICaptureProto {
     captureEnabled(): boolean;
     captureError(): string | null;
@@ -450,7 +492,7 @@ describe('SettingsProject, conversation-capture toggle', () => {
 
   function bootstrapCapture(stub: Partial<IDataSourcePort>): {
     proto: ICaptureProto;
-    fixture: ReturnType<typeof TestBed.createComponent<SettingsProject>>;
+    fixture: ReturnType<typeof TestBed.createComponent<SettingsProjectCapture>>;
     confirmation: ConfirmationService;
   } {
     TestBed.resetTestingModule();
@@ -460,7 +502,7 @@ describe('SettingsProject, conversation-capture toggle', () => {
         { provide: DATA_SOURCE, useValue: stub },
       ],
     });
-    const fixture = TestBed.createComponent(SettingsProject);
+    const fixture = TestBed.createComponent(SettingsProjectCapture);
     fixture.componentRef.setInput('visible', false);
     fixture.detectChanges();
     const confirmation = fixture.debugElement.injector.get(ConfirmationService);

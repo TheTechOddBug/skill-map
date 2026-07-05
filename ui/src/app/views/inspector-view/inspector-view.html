@@ -88,7 +88,12 @@
         <span class="sm-block__count" smSectionTitleExtra>({{ issues().length }})</span>
         @if (expanded('findings')) {
           <ul class="inspector__findings-list">
-            @for (issue of sortedIssues(); track $index) {
+            <!-- Content-keyed track (issues carry no id): a silent
+                 refresh that returns the same findings keeps every row's
+                 DOM, preserving the no-flicker contract of the issues
+                 effect. `$index` only breaks ties between identical
+                 findings, so it never causes a rebuild on its own. -->
+            @for (issue of sortedIssues(); track issue.analyzerId + '|' + issue.message + '|' + $index) {
               <li
                 class="inspector__finding"
                 [attr.data-severity]="issue.severity"
@@ -167,7 +172,9 @@
               @if (detail.recent.length > 0) {
                 <h4 class="inspector__activity-heading">{{ texts.activity.recentHeading }}</h4>
                 <ul class="inspector__activity-recent" data-testid="inspector-activity-recent">
-                  @for (run of detail.recent; track $index) {
+                  <!-- Same content-keyed track rationale as the findings
+                       list above: keep row DOM across silent refreshes. -->
+                  @for (run of detail.recent; track run.at + '|' + run.owner + '|' + $index) {
                     <li class="inspector__activity-recent-row">
                       <span class="inspector__activity-time">{{ formatActivityTime(run.at) }}</span>
                       <code class="inspector__activity-owner">{{ run.owner }}</code>

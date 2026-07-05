@@ -47,17 +47,13 @@ import { AgentSpawnService } from '../../../services/agent-spawn';
 import { NodeActivityService } from '../../../services/node-activity';
 import { NodeActivityStatsService } from '../../../services/node-activity-stats';
 import { DATA_SOURCE } from '../../../services/data-source/data-source.port';
-import type { IActivitySpawnDetailApi, INodeActivityStatsApi } from '../../../models/api';
+import type { INodeActivityStatsApi } from '../../../models/api';
 import { directNeighborhood } from './node-neighborhood';
 import { resolveConnectionSides } from './connection-sides';
 import { BranchCapBanner } from './branch-cap-banner/branch-cap-banner';
 import { GraphLayoutToolbar } from './graph-layout-toolbar/graph-layout-toolbar';
 import { ConversationDialog } from '../../components/conversation-dialog/conversation-dialog';
-import {
-  groupSpawnThreads,
-  threadKeyOf,
-  type ISpawnThread,
-} from '../../components/conversation-dialog/spawn-thread';
+import { setupConversationDialog } from '../../components/conversation-dialog/conversation-dialog.controller';
 import { KindPalette } from '../../components/kind-palette/kind-palette';
 import { LinkKindPalette } from '../../components/link-kind-palette/link-kind-palette';
 import { SessionNode } from '../../components/session-node/session-node';
@@ -109,6 +105,7 @@ import {
 } from './selection-state';
 import { setupNodeDrag } from './node-drag.controller';
 import { setupExpansion } from './expansion.controller';
+import { setupFollowActivity } from './follow-activity.controller';
 import { setupLayoutFit } from './layout-fit.controller';
 import {
   animateViewport,
@@ -556,10 +553,7 @@ export class GraphView implements OnInit {
     // stale URL path, undoing a freshly-closed panel before
     // `router.navigate` has cleared the `?path=` query param.
     const selectionNodes = computed(
-      () =>
-        this.loader.nodes().map(
-          (n) => ({ id: n.path, view: { path: n.path } }) as unknown as IGraphNode,
-        ),
+      () => this.loader.nodes().map((n) => ({ id: n.path, view: { path: n.path } })),
       {
         equal: (a, b) => {
           if (a.length !== b.length) return false;
@@ -696,24 +690,6 @@ export class GraphView implements OnInit {
     });
     this.destroyRef.onDestroy(() => {
       if (this.mapFitDebounce !== null) clearTimeout(this.mapFitDebounce);
-    });
-
-    // Follow-the-activity camera. Tracks the MEMBERSHIP fingerprint (so
-    // only genuine target changes re-frame, never position churn), the
-    // dagre tick (a re-layout moves the targets, re-frame over the fresh
-    // coordinates), and the boot-fit flag (signal-backed: a persisted
-    // follow=ON must start framing as soon as the boot fit settles, even
-    // if the active set never changes again). Position resolution runs
-    // untracked so a node drag does not re-trigger the tween mid-drag.
-    // No debounce: activity events already coalesce once per frame in
-    // `NodeActivityService`, and the shared supersession token retargets
-    // an in-flight tween smoothly from wherever the camera is.
-    effect(() => {
-      const fingerprint = this.followTargetsFingerprint();
-      this.layoutComputedAt();
-      const bootFitDone = this.layoutFit.hasCompletedInitialLayout();
-      if (fingerprint === '' || !bootFitDone) return;
-      untracked(() => this.runFollowActivityFit());
     });
 
     // Garbage-collect curated paths a re-scan removed. Keyed on the
@@ -1296,17 +1272,21 @@ export class GraphView implements OnInit {
   }
 
   /**
-   * Click anywhere on the canvas that is NOT a node deselects. Foblex's
-   * `<f-flow>` does not expose a "background click" event, so we listen on
-   * the wrapper and filter by target.
+   * Click anywhere on the canvas that is NOT an interactive overlay
+   * deselects. Foblex's `<f-flow>` does not expose a "background click"
+   * event, so we listen on the wrapper and filter by target.
+   *
+   * Opt-out contract: any surface that must NOT clear the selection
+   * marks itself with `data-canvas-click-shield` in the template (node
+   * cards, session anchors, palettes, toolbar, inspector panel, perf
+   * HUD). The attribute keeps this handler decoupled from child
+   * components' CSS class names, a styling refactor cannot silently
+   * break the deselect gating, and a new overlay opts out by adding
+   * the attribute instead of editing a selector list here.
    */
   onCanvasClick(event: MouseEvent): void {
     const target = event.target as HTMLElement | null;
-    if (target?.closest('.sm-gnode')) return;
-    if (target?.closest('.graph__toolbar')) return;
-    if (target?.closest('.perf-hud')) return;
-    if (target?.closest('.kind-palette')) return;
-    if (target?.closest('.graph__panel')) return;
+    if (target?.closest('[data-canvas-click-shield]')) return;
     this.selectedNodeId.set(null);
   }
 
@@ -1449,19 +1429,32 @@ export class GraphView implements OnInit {
   }
 
   // ── Follow the Activity ─────────────────────────────────────────────
-  // While the toolbar toggle is on, the camera auto-frames every
-  // executing node (plus the live session capsules) and re-frames,
-  // animated, whenever that set changes. Preference persisted in
-  // `LivePreferencesService` (`sm.live.follow-activity`); the behaviour
-  // owner is this component, the camera's home. Manual camera gestures
-  // hand control back to the operator, see `onCanvasChange` and
-  // `disableFollow`.
+  // Camera state machine extracted to `follow-activity.controller.ts`
+  // (fingerprint-gated effect, animated fit over the executing nodes +
+  // session capsules). This component stays the camera's home and only
+  // wires the config; manual gestures hand control back to the operator
+  // via `disableFollow`, see `onCanvasChange`.
+  private readonly followCtl = setupFollowActivity({
+    livePrefs: this.livePrefs,
+    nodeActivity: this.nodeActivity,
+    visiblePaths: this.mapVisiblePaths,
+    sessions: () => this.spawnOverlay().sessions,
+    layoutComputedAt: this.layoutComputedAt,
+    bootFitDone: () => this.layoutFit.hasCompletedInitialLayout(),
+    hostElement: () => this.canvasWrap()?.nativeElement ?? null,
+    // Effective position: user-pinned drag wins over the dagre output,
+    // like every other camera path.
+    positionOf: (path) => this.nodePositions().get(path) ?? this.fullLayout().positions.get(path),
+    panelWidth: () => this.reservedPanelWidth(),
+    zoomMin: ZOOM_MIN,
+    animateToTransform: (transform) => this.animateToTransform(transform),
+  });
 
   /** Follow-the-activity preference, re-exposed for the toolbar toggle. */
-  protected readonly followActivity = this.livePrefs.followActivityEnabled;
+  protected readonly followActivity = this.followCtl.followActivity;
 
   protected toggleFollowActivity(): void {
-    this.livePrefs.setFollowActivityEnabled(!this.followActivity());
+    this.followCtl.toggle();
   }
 
   /**
@@ -1470,62 +1463,7 @@ export class GraphView implements OnInit {
    * The setter no-ops when already off.
    */
   private disableFollow(): void {
-    this.livePrefs.setFollowActivityEnabled(false);
-  }
-
-  /**
-   * Membership fingerprint of the follow targets: the executing node
-   * paths that are actually on the canvas plus the live session-capsule
-   * ids. STRING-valued on purpose: the follow effect tracks this
-   * computed, and the effect only re-fires when the computed's VALUE
-   * changes, so position churn (drags, dagre writes) that re-evaluates
-   * `spawnOverlay` without changing membership never re-triggers the
-   * camera. The empty string doubles as the "follow off / nothing to
-   * follow" sentinel (decision: when the activity ends, the camera
-   * stays where it is).
-   */
-  private readonly followTargetsFingerprint = computed<string>(() => {
-    if (!this.followActivity() || !this.nodeActivity.enabled()) return '';
-    const visible = this.mapVisiblePaths();
-    const paths = [...this.nodeActivity.activePaths()].filter((p) => visible.has(p)).sort();
-    const sessions = this.spawnOverlay().sessions.map((s) => s.id).sort();
-    return [...paths, ...sessions].join('|');
-  });
-
-  /**
-   * Frame the follow targets: animated fit over the bbox of every
-   * executing node (effective positions, pinned-over-dagre like every
-   * other camera path) plus the live session capsules. A capsule's
-   * footprint is 170x44 while the fit math assumes NODE_W x NODE_H
-   * (260x120), so the bbox over-covers it by a few px, harmless under
-   * the fit's 80px viewport padding. Bails softly when nothing is
-   * resolvable yet (dagre pending, host unmounted); the next
-   * `layoutComputedAt` tick re-fires the effect.
-   */
-  private runFollowActivityFit(): void {
-    const host = this.canvasWrap()?.nativeElement;
-    if (!host) return;
-    const visible = this.mapVisiblePaths();
-    const pinned = this.nodePositions();
-    const layout = this.fullLayout().positions;
-    const points: IPoint[] = [];
-    for (const path of this.nodeActivity.activePaths()) {
-      if (!visible.has(path)) continue;
-      const pt = pinned.get(path) ?? layout.get(path);
-      if (pt) points.push({ x: pt.x, y: pt.y });
-    }
-    for (const session of this.spawnOverlay().sessions) {
-      points.push({ x: session.position.x, y: session.position.y });
-    }
-    if (points.length === 0) return;
-    const transform = computeFitTransform({
-      points,
-      wrap: { width: host.clientWidth, height: host.clientHeight },
-      panelW: this.reservedPanelWidth(),
-      zoomMin: this.zoomMin,
-    });
-    if (!transform) return;
-    this.animateToTransform(transform);
+    this.followCtl.disable();
   }
 
   /**
@@ -1568,110 +1506,38 @@ export class GraphView implements OnInit {
     // Keep the click from bubbling to the canvas wrap (mirrors the
     // spawn-edge handler): it would clear the node selection.
     event.stopPropagation();
-    // Synthetic supersession token: historical opens have no spawnId,
-    // but they share the guard signal so a spawn-edge click racing
-    // this fetch supersedes it cleanly (and vice versa).
-    const token = `history:${edgePairKey(edge.from, edge.to)}`;
-    this.selectedSpawnId.set(token);
-    void this.openHistoricalConversation(edge, token);
+    void this.conversation.openHistorical({
+      parentPath: edge.from,
+      childPath: edge.to,
+      pairKey: edgePairKey(edge.from, edge.to),
+    });
   }
 
   /**
-   * Conversation dialog state (spec §Conversation capture). A click on
-   * a spawn edge stashes the id, fetches the record on demand
-   * (`getSpawnRecord`), then widens it to the FULL parent-child thread
-   * via `getNodeActivity(childNodePath)` (the same grouping the
-   * inspector shows), and opens the dialog; scan-link edges stay
-   * non-clickable. When the widening fetch fails, or the record names
-   * no scanned child, the dialog gets a singleton thread built from
-   * the record alone. `selectedSpawnId` doubles as the supersession
-   * guard for a second click racing either fetch.
+   * Conversation dialog (spec §Conversation capture), state machine
+   * shared with the inspector via
+   * `conversation-dialog.controller.ts` (the inspector's activity rows
+   * drive the same dialog through the no-fetch `openThread` path). The
+   * graph opens it from edge clicks: a spawn edge fetches the record
+   * by id and widens it to the full parent-child thread, a labelled
+   * static edge opens the pair's historical thread; scan-link edges
+   * stay non-clickable. Supersession between racing clicks lives in
+   * the controller.
    */
-  protected readonly selectedSpawnId = signal<string | null>(null);
-  protected readonly conversationThread = signal<ISpawnThread | null>(null);
-  protected readonly conversationCaptureEnabled = signal(false);
-  protected readonly conversationOpen = signal(false);
+  private readonly conversation = setupConversationDialog({ dataSource: this.dataSource });
+  protected readonly conversationOpen = this.conversation.open;
+  protected readonly conversationThread = this.conversation.thread;
+  protected readonly conversationCaptureEnabled = this.conversation.captureEnabled;
 
   protected onSpawnEdgeClick(spawnId: string, event: MouseEvent): void {
     // Keep the click from bubbling to the canvas wrap, which would
     // clear the node selection underneath the dialog.
     event.stopPropagation();
-    this.selectedSpawnId.set(spawnId);
-    void this.openSpawnConversation(spawnId);
-  }
-
-  private async openSpawnConversation(spawnId: string): Promise<void> {
-    try {
-      const record = await this.dataSource.getSpawnRecord(spawnId);
-      if (this.selectedSpawnId() !== spawnId) return; // superseded click
-      if (record === null) {
-        this.conversationThread.set(null);
-        this.conversationOpen.set(false);
-        return;
-      }
-      const thread = await this.buildThreadFor(record);
-      if (this.selectedSpawnId() !== spawnId) return; // superseded mid-widening
-      this.conversationThread.set(thread);
-      this.conversationCaptureEnabled.set(record.captureEnabled);
-      this.conversationOpen.set(true);
-    } catch {
-      // Transport failure on an ephemeral record: nothing to show, the
-      // edge itself already communicates the live relation.
-    }
-  }
-
-  /**
-   * Historical edge conversation (no live spawn): fetch the child
-   * node's activity detail, keep only the records this parent spawned,
-   * group them into threads, and open the MOST RECENT one (the
-   * grouping sorts threads newest-first). When nothing comes back (the
-   * capture gate is off, or the server restarted and dropped its
-   * ring), the dialog opens on an EMPTY-RECORDS thread carrying the
-   * pair naming so its capture-off note explains the blank instead of
-   * the click dying silently under a labelled edge.
-   */
-  private async openHistoricalConversation(edge: IGraphEdge, token: string): Promise<void> {
-    try {
-      const detail = await this.dataSource.getNodeActivity(edge.to);
-      if (this.selectedSpawnId() !== token) return; // superseded click
-      const records = (detail?.spawns ?? []).filter((r) => r.parentNodePath === edge.from);
-      const thread: ISpawnThread = groupSpawnThreads(records)[0] ?? {
-        key: edgePairKey(edge.from, edge.to),
-        parentOwner: '',
-        parentNodePath: edge.from,
-        childNodePath: edge.to,
-        records: [],
-      };
-      this.conversationThread.set(thread);
-      this.conversationCaptureEnabled.set(detail?.captureEnabled ?? false);
-      this.conversationOpen.set(true);
-    } catch {
-      // Transport failure: nothing to show, mirroring the spawn path.
-    }
-  }
-
-  /**
-   * Widens one spawn record to its whole conversation: the child
-   * node's activity detail carries every spawn touching it, so the
-   * thread holding this record's key is the full exchange. Best
-   * effort, any failure falls back to the singleton thread.
-   */
-  private async buildThreadFor(record: IActivitySpawnDetailApi): Promise<ISpawnThread> {
-    const singleton = groupSpawnThreads([record])[0]!;
-    if (record.childNodePath === undefined) return singleton;
-    try {
-      const detail = await this.dataSource.getNodeActivity(record.childNodePath);
-      if (detail === null) return singleton;
-      const key = threadKeyOf(record);
-      return groupSpawnThreads(detail.spawns).find((t) => t.key === key) ?? singleton;
-    } catch {
-      return singleton;
-    }
+    void this.conversation.openSpawn(spawnId);
   }
 
   protected onConversationClosed(): void {
-    this.conversationOpen.set(false);
-    this.selectedSpawnId.set(null);
+    this.conversation.close();
   }
 
   // Layout-popover labelers + setters + per-item icon helpers now live

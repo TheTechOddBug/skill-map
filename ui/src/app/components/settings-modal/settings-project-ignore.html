@@ -1,0 +1,61 @@
+@if (ignoreLoadError(); as err) {
+  <p-message severity="error" [closable]="false" data-testid="settings-project-ignore-load-error">
+    {{ texts.project.loadErrorPrefix }} {{ err }}
+  </p-message>
+}
+
+@if (ignoreSaveError(); as err) {
+  <p-message severity="error" [closable]="false" data-testid="settings-project-ignore-save-error">
+    {{ texts.project.saveErrorPrefix }} {{ err }}
+  </p-message>
+}
+
+<div class="settings-project__list-row" data-testid="settings-project-ignore-patterns-row">
+  <div class="settings-project__row-text">
+    <div class="settings-project__row-label">{{ texts.project.ignorePatternsLabel }}</div>
+    <div class="settings-project__row-description">
+      {{ texts.project.ignorePatternsDescriptionPrefix }}
+      <code class="settings-project__intro-path">{{ texts.project.ignorePatternsDescriptionFile }}</code>
+      {{ texts.project.ignorePatternsDescriptionMiddle }}
+      <code class="settings-project__intro-path">{{ texts.project.ignorePatternsDescriptionGitignore }}</code>
+      {{ texts.project.ignorePatternsDescriptionSuffix }}
+    </div>
+  </div>
+  <ul class="settings-project__path-list" role="list">
+    @for (pattern of ignorePatterns(); track pattern) {
+      <li class="settings-project__path-item">
+        <span class="settings-project__path-text">{{ pattern }}</span>
+        <p-button
+          [label]="texts.project.removeIgnorePatternLabel"
+          severity="secondary"
+          size="small"
+          [outlined]="true"
+          (onClick)="onIgnorePatternRemove(pattern)"
+          [disabled]="isPending('ignore.patterns')"
+          [attr.data-testid]="'settings-project-ignore-patterns-remove'"
+        />
+      </li>
+    }
+  </ul>
+  <div class="settings-project__add-row">
+    <input
+      type="text"
+      pInputText
+      [ngModel]="newIgnorePattern()"
+      (ngModelChange)="newIgnorePattern.set($event)"
+      (keydown.enter)="onIgnorePatternAdd()"
+      [placeholder]="texts.project.ignorePatternsPlaceholder"
+      [attr.aria-label]="texts.project.ignorePatternsInputAriaLabel"
+      [disabled]="isPending('ignore.patterns')"
+      data-testid="settings-project-ignore-patterns-input"
+    />
+    <p-button
+      [label]="texts.project.addIgnorePatternLabel"
+      severity="primary"
+      size="small"
+      (onClick)="onIgnorePatternAdd()"
+      [disabled]="isPending('ignore.patterns') || newIgnorePattern().trim().length === 0"
+      data-testid="settings-project-ignore-patterns-add"
+    />
+  </div>
+</div>

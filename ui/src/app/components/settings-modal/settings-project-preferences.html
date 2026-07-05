@@ -1,0 +1,89 @@
+<div class="settings-project__row" data-testid="settings-project-sidecar-writers-row">
+  <div class="settings-project__row-text">
+    <div class="settings-project__row-label">{{ texts.project.sidecarWritersLabel }}</div>
+    <div class="settings-project__row-description">
+      {{ texts.project.sidecarWritersDescription }}
+    </div>
+  </div>
+  <p-toggleswitch
+    [ngModel]="allowSidecarWriters()"
+    (ngModelChange)="onSidecarWritersToggle($event)"
+    [disabled]="loading() || isPending('allowSidecarWriters') || preferences() === null"
+    data-testid="settings-project-sidecar-writers-toggle"
+  />
+</div>
+
+<div class="settings-project__row" data-testid="settings-project-plugin-trust-row">
+  <div class="settings-project__row-text">
+    <div class="settings-project__row-label">{{ texts.project.pluginTrustLabel }}</div>
+    <div class="settings-project__row-description">
+      {{ texts.project.pluginTrustDescription }}
+    </div>
+  </div>
+  <p-toggleswitch
+    [ngModel]="pluginTrustEnabled()"
+    (ngModelChange)="onProjectTrustToggle($event)"
+    [disabled]="loading() || isPending('pluginTrust.projectEnabled') || preferences() === null"
+    data-testid="settings-project-plugin-trust-toggle"
+  />
+</div>
+
+@if (loadError(); as err) {
+  <p-message severity="error" [closable]="false" data-testid="settings-project-load-error">
+    {{ texts.project.loadErrorPrefix }} {{ err }}
+  </p-message>
+}
+
+@if (saveError(); as err) {
+  <p-message severity="error" [closable]="false" data-testid="settings-project-save-error">
+    {{ texts.project.saveErrorPrefix }} {{ err }}
+  </p-message>
+}
+
+<div class="settings-project__list-row" data-testid="settings-project-reference-paths-row">
+  <div class="settings-project__row-text">
+    <div class="settings-project__row-label">{{ texts.project.referencePathsLabel }}</div>
+    <div class="settings-project__row-description">
+      {{ texts.project.referencePathsDescription }}
+    </div>
+  </div>
+  <ul class="settings-project__path-list" role="list">
+    @for (path of referencePaths(); track path) {
+      <li class="settings-project__path-item">
+        <span class="settings-project__path-text">{{ path }}</span>
+        <p-button
+          [label]="texts.project.removePathLabel"
+          severity="secondary"
+          size="small"
+          [outlined]="true"
+          (onClick)="onReferencePathRemove(path)"
+          [disabled]="isPending('scan.referencePaths')"
+          [attr.data-testid]="'settings-project-reference-paths-remove'"
+        />
+      </li>
+    }
+  </ul>
+  <div class="settings-project__add-row">
+    <input
+      type="text"
+      pInputText
+      [ngModel]="newReferencePath()"
+      (ngModelChange)="newReferencePath.set($event)"
+      (keydown.enter)="onReferencePathAdd()"
+      [placeholder]="texts.project.referencePathsPlaceholder"
+      [attr.aria-label]="texts.project.referencePathsInputAriaLabel"
+      [disabled]="isPending('scan.referencePaths')"
+      data-testid="settings-project-reference-paths-input"
+    />
+    <p-button
+      [label]="texts.project.addPathLabel"
+      severity="primary"
+      size="small"
+      (onClick)="onReferencePathAdd()"
+      [disabled]="isPending('scan.referencePaths') || newReferencePath().trim().length === 0"
+      data-testid="settings-project-reference-paths-add"
+    />
+  </div>
+</div>
+
+<p-confirmdialog />
