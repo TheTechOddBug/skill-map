@@ -155,6 +155,13 @@
                   <dd>{{ formatActivityTime(detail.stats.lastStartAt) }}</dd>
                   <dt>{{ texts.activity.stats.contexts }}</dt>
                   <dd>{{ detail.stats.distinctOwners }}</dd>
+                  <!-- Execution aggregates (tools + tokens, sync spawn
+                       summaries only): the row exists only for nodes
+                       whose stats carry `summarizedRuns`. -->
+                  @if (activityAggregates(); as totals) {
+                    <dt>{{ texts.activity.stats.totals }}</dt>
+                    <dd data-testid="inspector-activity-exec-totals">{{ totals }}</dd>
+                  }
                 </dl>
               }
               @if (detail.recent.length > 0) {

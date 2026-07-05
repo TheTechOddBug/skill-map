@@ -10,7 +10,10 @@
  *
  * The server is the single source of truth: `count` OVERWRITES from
  * every stats-bearing `node.activity` frame and from the summary
- * snapshot; the client NEVER increments. Hydration points:
+ * snapshot; the client NEVER increments. The per-PAIR spawn counters
+ * (`pairCounts`, feeding the edge conversation-count labels) follow
+ * the exact same rules, fed by the summary's `pairs` record and by
+ * `agent.spawn` frames carrying `pairCount`. Hydration points:
  *
  *   - boot (constructor), so counters survive a page refresh;
  *   - a WS RE-stabilization (`stableConnected`, skip-first pattern:
@@ -27,8 +30,9 @@
 
 import { DestroyRef, Injectable, effect, inject, signal } from '@angular/core';
 
-import type { INodeActivityStatsApi } from '../models/api';
-import type { IWsNodeActivityData } from '../models/ws-event';
+import { activityPairKeyOf } from '../models/api';
+import type { IActivityPairStatsApi, INodeActivityStatsApi } from '../models/api';
+import type { IWsAgentSpawnData, IWsNodeActivityData } from '../models/ws-event';
 import { DATA_SOURCE } from './data-source/data-source.port';
 import { LivePreferencesService } from './live-preferences';
 import { WsEventStreamService } from './ws-event-stream';
@@ -43,14 +47,30 @@ export class NodeActivityStatsService {
   /** Per-node stats keyed by node path. Consumers do O(1) `get()` per node. */
   readonly stats = this._stats.asReadonly();
 
+  private readonly _pairCounts = signal<ReadonlyMap<string, number>>(new Map());
+  /**
+   * Per-pair spawn counters keyed via `activityPairKeyOf` (spec
+   * §Execution stats), the source for the edge conversation-count
+   * labels. Same lifecycle as `stats`: OVERWRITE from the summary
+   * snapshot and from `agent.spawn` frames carrying `pairCount`; kept
+   * (not cleared) while Real Time is off, frames just stop applying.
+   */
+  readonly pairCounts = this._pairCounts.asReadonly();
+
   /** Rule-9 coalescing buffer: frames land here, the signal mutates once per frame. */
   private pending: Array<{ nodePath: string; stats: INodeActivityStatsApi }> = [];
+  /** Pair-counter sibling of `pending`, flushed by the same frame tick. */
+  private pendingPairs: Array<{ key: string; count: number }> = [];
   private flushScheduled = false;
 
   constructor() {
     const events = inject(WsEventStreamService);
     const sub = events.nodeActivity$.subscribe((event) => this.enqueue(event.data));
-    this.destroyRef.onDestroy(() => sub.unsubscribe());
+    const spawnSub = events.agentSpawn$.subscribe((event) => this.enqueuePair(event.data));
+    this.destroyRef.onDestroy(() => {
+      sub.unsubscribe();
+      spawnSub.unsubscribe();
+    });
 
     // Boot hydration. Skipped while the preference is off, the
     // re-enable effect below fetches when the user flips it on.
@@ -90,6 +110,7 @@ export class NodeActivityStatsService {
     try {
       const summary = await this.dataSource.getActivitySummary();
       this.adoptSnapshot(summary.nodes);
+      this.adoptPairSnapshot(summary.pairs);
     } catch {
       // Swallow (see docstring).
     }
@@ -117,12 +138,52 @@ export class NodeActivityStatsService {
     if (changed) this._stats.set(next);
   }
 
+  /**
+   * The pair snapshot mirrors `adoptSnapshot`: the summary is the full
+   * server truth, so it replaces the map wholesale. Counts are
+   * primitives, so identity bookkeeping reduces to a value diff that
+   * gates the signal write.
+   */
+  private adoptPairSnapshot(pairs: Record<string, IActivityPairStatsApi>): void {
+    const current = this._pairCounts();
+    const next = new Map<string, number>();
+    let changed = false;
+    for (const [key, entry] of Object.entries(pairs)) {
+      next.set(key, entry.count);
+      if (current.get(key) !== entry.count) changed = true;
+    }
+    if (next.size !== current.size) changed = true;
+    if (changed) this._pairCounts.set(next);
+  }
+
   private enqueue(data: IWsNodeActivityData): void {
     // Real Time off: keep the last snapshot, stop updating (frames
     // drop; the map itself is NOT cleared, unlike the live glow set).
     if (!this.prefs.activityEnabled()) return;
     if (data.nodePath === undefined || data.stats === undefined) return;
     this.pending.push({ nodePath: data.nodePath, stats: data.stats });
+    this.scheduleFlush();
+  }
+
+  /**
+   * `agent.spawn` frames carrying `pairCount` feed the pair map. Only
+   * counted pairs ride the field (resolved child, spec §Execution
+   * stats); the parent identity mirrors the server key: node path for
+   * agent parents, owner (session key) for session parents. Same
+   * Real-Time-off semantics as `enqueue`: drop the frame, KEEP the map.
+   */
+  private enqueuePair(data: IWsAgentSpawnData): void {
+    if (!this.prefs.activityEnabled()) return;
+    if (data.pairCount === undefined || data.childNodePath === undefined) return;
+    const parent = data.parentNodePath ?? data.parentOwner;
+    this.pendingPairs.push({
+      key: activityPairKeyOf(parent, data.childNodePath),
+      count: data.pairCount,
+    });
+    this.scheduleFlush();
+  }
+
+  private scheduleFlush(): void {
     if (this.flushScheduled) return;
     this.flushScheduled = true;
     scheduleFrame(() => this.flush());
@@ -132,18 +193,32 @@ export class NodeActivityStatsService {
     this.flushScheduled = false;
     const batch = this.pending;
     this.pending = [];
-    if (batch.length === 0) return;
-    const current = this._stats();
-    let next: Map<string, INodeActivityStatsApi> | null = null;
-    for (const { nodePath, stats } of batch) {
-      const prev = (next ?? current).get(nodePath);
-      // OVERWRITE semantics: the frame's stats replace the entry
-      // verbatim (never `prev.count + 1`); equal values keep identity.
-      if (prev && statsEqual(prev, stats)) continue;
-      if (!next) next = new Map(current);
-      next.set(nodePath, stats);
+    const pairBatch = this.pendingPairs;
+    this.pendingPairs = [];
+    if (batch.length > 0) {
+      const current = this._stats();
+      let next: Map<string, INodeActivityStatsApi> | null = null;
+      for (const { nodePath, stats } of batch) {
+        const prev = (next ?? current).get(nodePath);
+        // OVERWRITE semantics: the frame's stats replace the entry
+        // verbatim (never `prev.count + 1`); equal values keep identity.
+        if (prev && statsEqual(prev, stats)) continue;
+        if (!next) next = new Map(current);
+        next.set(nodePath, stats);
+      }
+      if (next) this._stats.set(next);
     }
-    if (next) this._stats.set(next);
+    if (pairBatch.length > 0) {
+      const current = this._pairCounts();
+      let next: Map<string, number> | null = null;
+      for (const { key, count } of pairBatch) {
+        // OVERWRITE semantics, mirroring the node stats above.
+        if ((next ?? current).get(key) === count) continue;
+        if (!next) next = new Map(current);
+        next.set(key, count);
+      }
+      if (next) this._pairCounts.set(next);
+    }
   }
 }
 

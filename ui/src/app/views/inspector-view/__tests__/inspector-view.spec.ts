@@ -1019,6 +1019,74 @@ describe('InspectorView, activity thread rows (spawn grouping)', () => {
   });
 });
 
+describe('InspectorView, activity execution aggregates (stats totals row)', () => {
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+  });
+  afterEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  /** Boots on a node, expands the Activity section, settles the fetch. */
+  async function bootWithStats(stats: Record<string, unknown>): Promise<HTMLElement> {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    dataSource.getNodeActivity.mockResolvedValue({
+      stats,
+      recent: [],
+      spawns: [],
+      captureEnabled: false,
+    });
+
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    const toggle = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-activity-toggle"]',
+    ) as HTMLButtonElement;
+    toggle.click();
+    await flush(fixture);
+    await flush(fixture);
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  it('renders the contextualized tools + tokens totals when stats carry summarizedRuns', async () => {
+    const dom = await bootWithStats({
+      count: 3,
+      lastStartAt: 3000,
+      distinctOwners: 1,
+      toolUses: 14,
+      tokens: 8300,
+      summarizedRuns: 2,
+    });
+    const totals = dom.querySelector('[data-testid="inspector-activity-exec-totals"]');
+    expect(totals).not.toBeNull();
+    expect(totals!.textContent).toContain('14 tools · 8.3k tokens (2 summarized runs)');
+  });
+
+  it('uses the singular run label for one summarized run', async () => {
+    const dom = await bootWithStats({
+      count: 1,
+      lastStartAt: 1000,
+      distinctOwners: 1,
+      toolUses: 1,
+      tokens: 500,
+      summarizedRuns: 1,
+    });
+    const totals = dom.querySelector('[data-testid="inspector-activity-exec-totals"]');
+    expect(totals!.textContent).toContain('1 tool · 500 tokens (1 summarized run)');
+  });
+
+  it('hides the totals row when the stats carry no aggregates (never-summarized node)', async () => {
+    const dom = await bootWithStats({ count: 3, lastStartAt: 3000, distinctOwners: 1 });
+    // The stats grid renders (count > 0) but the totals row does not.
+    expect(dom.querySelector('[data-testid="inspector-activity-stats"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-activity-exec-totals"]')).toBeNull();
+  });
+});
+
 describe('InspectorView, header version (catalog curation)', () => {
   it('renders sidecar.annotations.version as a header suffix', async () => {
     const node = makeNodeWithSidecar({

@@ -656,7 +656,7 @@ export class StaticDataSource implements IDataSourcePort {
    * and the one write rejects like every other demo mutation.
    */
   async getActivitySummary(): Promise<IActivitySummaryApi> {
-    return { since: Date.now(), nodes: {} };
+    return { since: Date.now(), nodes: {}, pairs: {} };
   }
 
   async getNodeActivity(_path: string): Promise<IActivityNodeDetailApi | null> {

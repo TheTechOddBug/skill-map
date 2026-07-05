@@ -1400,14 +1400,51 @@ export class GraphView implements OnInit {
   }
 
   /**
-   * Static-edge click: only spawn-active edges open the conversation,
-   * through the SAME path as the dashed spawn edge (supersession guard
-   * included). Plain static edges keep their selection-only behaviour.
+   * Conversation count of a static edge's directional pair (spec
+   * §Execution stats, per-pair spawn counters). One O(1) Map lookup
+   * per edge; feeds the count pill and gates the historical click.
+   */
+  protected convoCountFor(edge: IGraphEdge): number {
+    return this.convoCountForKey(edgePairKey(edge.from, edge.to));
+  }
+
+  /**
+   * Key-form sibling of `convoCountFor` for the dashed spawn edges,
+   * whose pair key is precomputed by `resolveSpawnOverlay` (session
+   * parents key by the raw owner, not the `session:<owner>` node id).
+   */
+  protected convoCountForKey(pairKey: string): number {
+    return this.activityStats.pairCounts().get(pairKey) ?? 0;
+  }
+
+  /**
+   * Static-edge click, two live paths plus a no-op:
+   *
+   *   1. A spawn-active edge (a live spawn rides it) opens through the
+   *      SAME path as the dashed spawn edge (supersession guard
+   *      included), the live spawnId wins.
+   *   2. A plain edge whose pair has counted conversations opens the
+   *      HISTORICAL thread: the child's activity detail filtered to
+   *      this parent, grouped, most recent thread first.
+   *   3. A label-less static edge stays selection-only (no fetch, no
+   *      dialog).
    */
   protected onStaticEdgeClick(edge: IGraphEdge, event: MouseEvent): void {
     const spawnId = this.spawnActiveIdFor(edge);
-    if (spawnId === null) return;
-    this.onSpawnEdgeClick(spawnId, event);
+    if (spawnId !== null) {
+      this.onSpawnEdgeClick(spawnId, event);
+      return;
+    }
+    if (this.convoCountFor(edge) === 0) return;
+    // Keep the click from bubbling to the canvas wrap (mirrors the
+    // spawn-edge handler): it would clear the node selection.
+    event.stopPropagation();
+    // Synthetic supersession token: historical opens have no spawnId,
+    // but they share the guard signal so a spawn-edge click racing
+    // this fetch supersedes it cleanly (and vice versa).
+    const token = `history:${edgePairKey(edge.from, edge.to)}`;
+    this.selectedSpawnId.set(token);
+    void this.openHistoricalConversation(edge, token);
   }
 
   /**
@@ -1451,6 +1488,36 @@ export class GraphView implements OnInit {
     } catch {
       // Transport failure on an ephemeral record: nothing to show, the
       // edge itself already communicates the live relation.
+    }
+  }
+
+  /**
+   * Historical edge conversation (no live spawn): fetch the child
+   * node's activity detail, keep only the records this parent spawned,
+   * group them into threads, and open the MOST RECENT one (the
+   * grouping sorts threads newest-first). When nothing comes back (the
+   * capture gate is off, or the server restarted and dropped its
+   * ring), the dialog opens on an EMPTY-RECORDS thread carrying the
+   * pair naming so its capture-off note explains the blank instead of
+   * the click dying silently under a labelled edge.
+   */
+  private async openHistoricalConversation(edge: IGraphEdge, token: string): Promise<void> {
+    try {
+      const detail = await this.dataSource.getNodeActivity(edge.to);
+      if (this.selectedSpawnId() !== token) return; // superseded click
+      const records = (detail?.spawns ?? []).filter((r) => r.parentNodePath === edge.from);
+      const thread: ISpawnThread = groupSpawnThreads(records)[0] ?? {
+        key: edgePairKey(edge.from, edge.to),
+        parentOwner: '',
+        parentNodePath: edge.from,
+        childNodePath: edge.to,
+        records: [],
+      };
+      this.conversationThread.set(thread);
+      this.conversationCaptureEnabled.set(detail?.captureEnabled ?? false);
+      this.conversationOpen.set(true);
+    } catch {
+      // Transport failure: nothing to show, mirroring the spawn path.
     }
   }
 

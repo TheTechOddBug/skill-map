@@ -385,6 +385,28 @@ export interface IActivitySpawnRelation {
    * capture-gate custody as `prompt`.
    */
   response?: string;
+  /**
+   * Aggregate execution summary of the completed child run, when the
+   * runtime reports one (Claude: sync completions only). METADATA
+   * (plain numbers), so unlike `prompt` / `response` it rides outside
+   * the capture gate's content rules, feeding per-node aggregates and
+   * retained records alike.
+   */
+  execution?: IActivitySpawnExecution;
+}
+
+/**
+ * Aggregate execution summary of one completed child run, as reported
+ * by the runtime's completion payload. Every field optional: providers
+ * extract defensively and omit what the payload does not carry.
+ */
+export interface IActivitySpawnExecution {
+  /** Total wall-clock of the child run, milliseconds. */
+  durationMs?: number;
+  /** Total tokens consumed by the child run. */
+  tokens?: number;
+  /** Total tool invocations the child run made. */
+  toolUses?: number;
 }
 
 /**

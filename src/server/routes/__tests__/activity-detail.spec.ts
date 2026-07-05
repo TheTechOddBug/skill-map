@@ -295,6 +295,39 @@ describe('GET /api/activity/spawns/:spawnId', () => {
     });
   });
 
+  it('a sync completion with totals lands as record execution AND node aggregates (route -> stats seam)', async () => {
+    await bootAndUse(async (handle) => {
+      await enableCapture(handle);
+      await postActivity(handle, AGENT_SPAWN_PAYLOAD);
+      await postActivity(handle, {
+        ...AGENT_SPAWN_PAYLOAD,
+        hook_event_name: 'PostToolUse',
+        tool_response: {
+          status: 'completed',
+          content: [{ type: 'text', text: 'done' }],
+          totalDurationMs: 27219,
+          totalTokens: 4132,
+          totalToolUseCount: 6,
+        },
+      });
+      const spawnRes = await fetch(url(handle, `/api/activity/spawns/${SPAWN_ID}`));
+      const spawnEnvelope = (await spawnRes.json()) as { spawn: Record<string, unknown> };
+      assert.deepEqual(spawnEnvelope.spawn['execution'], {
+        durationMs: 27219,
+        tokens: 4132,
+        toolUses: 6,
+      });
+      // The child node's aggregates fold the same summary.
+      const detail = await getNodeDetail(handle, '.claude/agents/demo-worker.md');
+      const body = (await detail.json()) as {
+        stats: { toolUses?: number; tokens?: number; summarizedRuns?: number };
+      };
+      assert.equal(body.stats.toolUses, 6);
+      assert.equal(body.stats.tokens, 4132);
+      assert.equal(body.stats.summarizedRuns, 1);
+    });
+  });
+
   it('gate OFF: a terminal stop report revives nothing', async () => {
     await bootAndUse(async (handle) => {
       await postActivity(handle, AGENT_SPAWN_PAYLOAD);

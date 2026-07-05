@@ -404,6 +404,7 @@ describe('POST /api/activity, ingest', () => {
         childKind: 'agent',
         childName: 'demo-worker',
         childNodePath: '.claude/agents/demo-worker.md',
+        pairCount: 1,
       });
     });
   });
@@ -439,6 +440,7 @@ describe('POST /api/activity, ingest', () => {
         childKind: 'agent',
         childName: 'demo-worker',
         childNodePath: '.claude/agents/demo-worker.md',
+        pairCount: 1,
       });
     });
   });

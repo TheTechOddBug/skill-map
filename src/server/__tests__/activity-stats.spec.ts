@@ -11,6 +11,7 @@ import {
   ActivityStatsService,
   DISTINCT_OWNERS_CAP,
   STICKY_DEDUPE_CAP,
+  pairKeyOf,
 } from '../activity-stats.js';
 
 const NODE = '.claude/skills/deploy/SKILL.md';
@@ -161,5 +162,87 @@ describe('ActivityStatsService reads', () => {
     const stats = new ActivityStatsService();
     assert.ok(stats.sinceMs >= before);
     assert.ok(stats.sinceMs <= Date.now());
+  });
+});
+
+describe('ActivityStatsService pair counters', () => {
+  const START = {
+    phase: 'start' as const,
+    parentOwner: 'a4e825faeafee3619',
+    parentNodePath: '.claude/agents/orchestrator.md',
+    childNodePath: '.claude/agents/worker.md',
+  };
+
+  it('counts start frames per directional pair and returns the running count', () => {
+    const stats = new ActivityStatsService();
+    assert.equal(stats.recordSpawn(START), 1);
+    assert.equal(stats.recordSpawn(START), 2);
+    // Non-start frames never mutate, but report the current count.
+    assert.equal(stats.recordSpawn({ ...START, phase: 'end' }), 2);
+    const pairs = stats.pairSnapshot();
+    const key = pairKeyOf('.claude/agents/orchestrator.md', '.claude/agents/worker.md');
+    assert.equal(pairs[key]!.count, 2);
+    assert.ok(pairs[key]!.lastStartAt > 0);
+  });
+
+  it('session parents key by parentOwner; unresolved children are untracked', () => {
+    const stats = new ActivityStatsService();
+    assert.equal(
+      stats.recordSpawn({
+        phase: 'start',
+        parentOwner: 'main:6cfe5636',
+        childNodePath: '.claude/agents/worker.md',
+      }),
+      1,
+    );
+    assert.ok(
+      stats.pairSnapshot()[pairKeyOf('main:6cfe5636', '.claude/agents/worker.md')],
+    );
+    // No childNodePath: an edge label needs both endpoints.
+    assert.equal(stats.recordSpawn({ phase: 'start', parentOwner: 'main:6cfe5636' }), null);
+    // A non-start frame of an untracked pair reports nothing.
+    assert.equal(
+      stats.recordSpawn({
+        phase: 'handoff',
+        parentOwner: 'other',
+        childNodePath: '.claude/agents/worker.md',
+      }),
+      null,
+    );
+  });
+
+  it('pairSnapshot hands out copies', () => {
+    const stats = new ActivityStatsService();
+    stats.recordSpawn(START);
+    const key = pairKeyOf('.claude/agents/orchestrator.md', '.claude/agents/worker.md');
+    const copy = stats.pairSnapshot();
+    copy[key]!.count = 999;
+    assert.equal(stats.pairSnapshot()[key]!.count, 1);
+  });
+});
+
+describe('ActivityStatsService execution aggregates', () => {
+  const NODE = '.claude/agents/worker.md';
+
+  it('sums toolUses and tokens across summarized runs and projects them', () => {
+    const stats = new ActivityStatsService();
+    stats.recordExecution(NODE, { durationMs: 1000, tokens: 400, toolUses: 3 });
+    stats.recordExecution(NODE, { tokens: 600, toolUses: 2 });
+    const detail = stats.nodeDetail(NODE);
+    assert.equal(detail.stats.toolUses, 5);
+    assert.equal(detail.stats.tokens, 1000);
+    assert.equal(detail.stats.summarizedRuns, 2);
+  });
+
+  it('a summary with nothing summable is a no-op, and quiet nodes omit the fields', () => {
+    const stats = new ActivityStatsService();
+    stats.recordExecution(NODE, { durationMs: 1000 });
+    assert.equal(stats.nodeDetail(NODE).stats.summarizedRuns, undefined);
+    // Counted-but-never-summarized nodes omit the aggregates too.
+    stats.record({ nodePath: NODE, phase: 'start', owner: 'a1' });
+    const projected = stats.nodeDetail(NODE).stats;
+    assert.equal(projected.count, 1);
+    assert.equal(projected.toolUses, undefined);
+    assert.equal(projected.tokens, undefined);
   });
 });

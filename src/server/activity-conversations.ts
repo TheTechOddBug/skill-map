@@ -24,6 +24,7 @@
  * clears it immediately.
  */
 
+import type { IActivitySpawnExecution } from '../kernel/extensions/index.js';
 import type { IResolvedSpawn } from './activity-resolver.js';
 
 /** Ring bound: at most this many spawn records are retained. */
@@ -51,6 +52,8 @@ export interface IConversationRecord {
   childOwner?: string;
   prompt?: string;
   response?: string;
+  /** Aggregate execution summary of the completed run (metadata). */
+  execution?: IActivitySpawnExecution;
   /** Unix-ms of the first frame seen for this spawnId. */
   startedAt: number;
   /** Unix-ms of the `end` frame, when one arrived. */
@@ -149,6 +152,7 @@ function mergeFrame(record: IConversationRecord, spawn: IResolvedSpawn): void {
   mergeMetadata(record, spawn);
   if (spawn.prompt !== undefined) record.prompt = capContent(spawn.prompt);
   if (spawn.response !== undefined) record.response = capContent(spawn.response);
+  if (spawn.execution !== undefined) record.execution = { ...spawn.execution };
   if (spawn.phase === 'end') {
     record.endedAt = Date.now();
     record.status = 'completed';

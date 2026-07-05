@@ -26,6 +26,10 @@ export function registerActivitySummaryRoute(
   deps: IActivitySummaryRouteDeps,
 ): void {
   app.get('/api/activity/summary', (c) => {
-    return c.json({ since: deps.stats.sinceMs, nodes: deps.stats.snapshot() });
+    return c.json({
+      since: deps.stats.sinceMs,
+      nodes: deps.stats.snapshot(),
+      pairs: deps.stats.pairSnapshot(),
+    });
   });
 }

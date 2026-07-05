@@ -96,6 +96,18 @@ export const GRAPH_VIEW_TEXTS = {
   spawnEdge: {
     aria: 'Open the conversation for this agent spawn',
   },
+  /**
+   * Edge conversation-count pill (spec/provider-activity.md §Execution
+   * stats, per-pair spawn counters). Shown on any edge whose pair has
+   * counted spawns; clicking the edge opens the threaded conversation
+   * dialog. The label doubles as tooltip and aria text.
+   */
+  convoCount: {
+    label: (n: number): string =>
+      n === 1
+        ? '1 conversation passed through this edge'
+        : `${n} conversations passed through this edge`,
+  },
   resetLayoutConfirm: {
     header: 'Re-arrange layout?',
     // Full reset (the whole graph is visible): replaces every saved position.

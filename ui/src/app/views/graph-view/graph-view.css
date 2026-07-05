@@ -535,6 +535,38 @@
   }
 }
 
+/* A static edge whose pair has counted conversations is clickable
+   (opens the historical thread dialog); advertise it like the spawn
+   edges do. Label-less static edges keep the default cursor. */
+.f-conn--convo {
+  cursor: pointer;
+}
+
+/* Edge conversation-count pill (spec/provider-activity.md §Execution
+   stats, per-pair spawn counters), projected via Foblex's own
+   `fConnectionContent` mechanism, the library positions the div along
+   the path (rule 3: never fight its transforms, so no positioning /
+   transform here, only paint). Spawn-tinted border + text over the
+   app's card surface so the pill reads as kin to the spawn edges at
+   rest intensity; `pointer-events: all` keeps the small target
+   clickable (the click bubbles into the host edge's own handler). */
+.sm-edge-convo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.15rem;
+  padding: 0.05rem 0.35rem;
+  background: var(--sm-bg-content);
+  border: 1px solid var(--sm-edge-spawn);
+  border-radius: var(--sm-radius-pill);
+  color: var(--sm-edge-spawn);
+  font-family: var(--sm-font-mono);
+  font-size: 0.62rem;
+  line-height: 1.4;
+  pointer-events: all;
+  cursor: pointer;
+}
+
 /* User-driven edge selection. Clicking an edge flips Foblex's built-in
    `.f-selected` class on the connection host.
 

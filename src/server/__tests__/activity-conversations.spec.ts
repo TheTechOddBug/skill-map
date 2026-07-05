@@ -126,6 +126,23 @@ describe('ActivityConversationStore bounds', () => {
   });
 });
 
+describe('ActivityConversationStore execution summaries', () => {
+  it('merges the execution summary onto the record at the end frame', () => {
+    const store = new ActivityConversationStore({ enabled: true });
+    store.record(startFrame('t1'));
+    store.record({
+      spawnId: 't1',
+      phase: 'end',
+      parentOwner: 'a1b2',
+      response: 'done',
+      execution: { durationMs: 5000, tokens: 900, toolUses: 2 },
+    });
+    const record = store.bySpawnId('t1')!;
+    assert.deepEqual(record.execution, { durationMs: 5000, tokens: 900, toolUses: 2 });
+    assert.equal(record.status, 'completed');
+  });
+});
+
 describe('ActivityConversationStore attachReport', () => {
   it('attaches by childOwner match with overwrite semantics (pause then terminal)', () => {
     const store = new ActivityConversationStore({ enabled: true });

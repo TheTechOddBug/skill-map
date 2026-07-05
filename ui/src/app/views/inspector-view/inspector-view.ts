@@ -22,6 +22,7 @@ import type {
 } from '../../../models/api';
 
 import { INSPECTOR_VIEW_TEXTS } from '../../../i18n/inspector-view.texts';
+import { compactNumber } from '../../../models/node-derived';
 import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { WsEventStreamService } from '../../../services/ws-event-stream';
@@ -456,6 +457,25 @@ export class InspectorView implements OnInit {
   protected readonly activityEmpty = computed<boolean>(() => {
     const detail = this.activityDetail();
     return detail !== null && detail.stats.count === 0 && detail.spawns.length === 0;
+  });
+
+  /**
+   * Optional execution aggregates line for the stats row
+   * (spec/provider-activity.md §Execution stats): tool + token sums
+   * contextualized by the contributing run count, e.g.
+   * `14 tools · 8.3k tokens (2 summarized runs)`. `null` (row hidden)
+   * for nodes that never received a spawn summary (skills, markdowns,
+   * async-only agents), whose stats simply omit the fields.
+   */
+  protected readonly activityAggregates = computed<string | null>(() => {
+    const stats = this.activityDetail()?.stats;
+    if (!stats || stats.summarizedRuns === undefined) return null;
+    const t = this.texts.activity;
+    const parts: string[] = [];
+    if (stats.toolUses !== undefined) parts.push(t.toolsCount(stats.toolUses));
+    if (stats.tokens !== undefined) parts.push(t.tokensCount(compactNumber(stats.tokens)));
+    if (parts.length === 0) return null;
+    return `${parts.join(' · ')} ${t.summarizedRuns(stats.summarizedRuns)}`;
   });
 
   /** Human time for activity rows (session-scoped, date is noise). */

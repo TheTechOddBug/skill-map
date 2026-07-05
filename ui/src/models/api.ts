@@ -1150,6 +1150,54 @@ export interface INodeActivityStatsApi {
   lastOwner?: string;
   /** Distinct executing contexts seen (saturating server-side). */
   distinctOwners: number;
+  /**
+   * OPTIONAL execution aggregates (spec §Execution stats): sums of the
+   * per-run summaries reported by spawn completions (agent nodes, sync
+   * spawns). `toolUses` / `tokens` sum across the contributing runs and
+   * `summarizedRuns` says how many runs contributed, so consumers can
+   * contextualize the sums. All three absent on nodes that never
+   * received a summary (skills, markdowns, async-only agents).
+   */
+  toolUses?: number;
+  tokens?: number;
+  summarizedRuns?: number;
+}
+
+/**
+ * Aggregate execution summary of one completed child run, as the
+ * runtime reported it on the spawn completion (spec §capability
+ * `execution` block). Sync completions only; async runs simply lack
+ * it. Every field is independently optional.
+ */
+export interface IActivityExecutionSummaryApi {
+  durationMs?: number;
+  tokens?: number;
+  toolUses?: number;
+}
+
+/**
+ * One per-pair spawn counter (`spec/provider-activity.md` §Execution
+ * stats): how many spawns crossed a directional parent-child pair.
+ * Rides the summary snapshot under `pairs` and, as a bare `pairCount`,
+ * every broadcast `agent.spawn` frame. Overwrite semantics, like every
+ * other server-side accumulator value.
+ */
+export interface IActivityPairStatsApi {
+  count: number;
+  /** Unix ms of the most recent counted spawn of the pair. */
+  lastStartAt: number;
+}
+
+/**
+ * Directional pair key of the summary's `pairs` record
+ * (`"<parent>>><childNodePath>"`, spec §`GET /api/activity/summary`).
+ * The parent identity is `parentNodePath` for agent parents and
+ * `parentOwner` (the session key) for session parents, mirroring the
+ * server accumulator. The graph view's `edgePairKey` delegates here so
+ * the wire convention has a single source.
+ */
+export function activityPairKeyOf(parent: string, child: string): string {
+  return `${parent}>>${child}`;
 }
 
 /**
@@ -1161,6 +1209,8 @@ export interface IActivitySummaryApi {
   /** Unix ms the accumulator started counting (server boot). */
   since: number;
   nodes: Record<string, INodeActivityStatsApi>;
+  /** Per-pair spawn counters, keyed via `activityPairKeyOf`. */
+  pairs: Record<string, IActivityPairStatsApi>;
 }
 
 /** One entry of a node's recent-executions ring (most recent first). */
@@ -1193,6 +1243,12 @@ export interface IActivitySpawnRecordApi {
   endedAt?: number;
   /** Server-owned lifecycle label (e.g. `running` / `ended`); opaque here. */
   status: string;
+  /**
+   * Aggregate execution summary of the child run (duration / tokens /
+   * tool uses), attached on sync completions when the runtime reported
+   * one. Absent on async runs and on records that never completed.
+   */
+  execution?: IActivityExecutionSummaryApi;
 }
 
 /**

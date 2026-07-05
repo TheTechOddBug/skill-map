@@ -27,6 +27,7 @@
  * own their single `session:<owner>-out` output.
  */
 
+import { activityPairKeyOf } from '../../../models/api';
 import type { ISessionView, ISpawnView } from '../../../services/agent-spawn';
 import { NODE_WIDTH, type IPoint } from './graph-layout';
 
@@ -49,6 +50,13 @@ export interface ISpawnOverlayEdge {
   inputId: string;
   /** True when the parent anchor is a session node. */
   fromSession: boolean;
+  /**
+   * Directional pair key matching the server accumulator (spec
+   * §Execution stats): parent node path for node parents, session
+   * OWNER for session parents (the raw owner key, never the
+   * `session:<owner>` node id). Feeds the conversation-count label.
+   */
+  pairKey: string;
 }
 
 /**
@@ -63,9 +71,13 @@ export interface ISpawnActiveOnStatic {
   spawnId: string;
 }
 
-/** Directional pair key of a rendered static edge (`from>>to`). */
+/**
+ * Directional pair key of a rendered static edge (`from>>to`).
+ * Delegates to the wire-key helper so the `>>` convention has a single
+ * source (the summary's `pairs` record uses the same keys).
+ */
 export function edgePairKey(from: string, to: string): string {
-  return `${from}>>${to}`;
+  return activityPairKeyOf(from, to);
 }
 
 export interface ISpawnOverlaySession {
@@ -152,6 +164,7 @@ export function resolveSpawnOverlay(args: IResolveSpawnOverlayArgs): ISpawnOverl
         outputId: `${spawn.parentNodePath}-out`,
         inputId: `${child}-in`,
         fromSession: false,
+        pairKey,
       });
       continue;
     }
@@ -162,6 +175,9 @@ export function resolveSpawnOverlay(args: IResolveSpawnOverlayArgs): ISpawnOverl
       outputId: `${SESSION_NODE_ID_PREFIX}${owner}-out`,
       inputId: `${child}-in`,
       fromSession: true,
+      // Session parents key by the raw OWNER (the server accumulator's
+      // identity), never the synthetic `session:<owner>` node id.
+      pairKey: edgePairKey(owner, child),
     });
     const points = childPointsBySession.get(owner) ?? [];
     points.push(childPos);

@@ -46,6 +46,7 @@
 
 import type {
   IActivitySignal,
+  IActivitySpawnExecution,
   IActivitySpawnRelation,
   IProviderActivityAdapter,
 } from '../../../../kernel/extensions/index.js';
@@ -209,6 +210,8 @@ function mapSpawnCustodyHandoff(event: Record<string, unknown>): IActivitySignal
   } else {
     const response = completionResponse(event['tool_response']);
     if (response) spawn.response = response;
+    const execution = executionSummary(event['tool_response']);
+    if (execution) spawn.execution = execution;
   }
   const parentName = nonEmptyString(event['agent_type']);
   if (!parentName) {
@@ -341,6 +344,30 @@ function mapSubagentBoundary(
  * text blocks on current ones (both shapes live-observed). Non-text
  * blocks are skipped; an empty result disclaims.
  */
+/**
+ * Aggregate execution summary of a completed sync spawn, from the
+ * live-verified completion fields (`totalDurationMs`, `totalTokens`,
+ * `totalToolUseCount`). Defensive: non-finite values are skipped, an
+ * empty summary disclaims. The vendor `toolStats` / `usage` breakdowns
+ * stay uncaptured until their inner shapes are pinned (spec note).
+ */
+function executionSummary(response: unknown): IActivitySpawnExecution | null {
+  if (response === null || typeof response !== 'object') return null;
+  const shaped = response as Record<string, unknown>;
+  const summary: IActivitySpawnExecution = {};
+  const durationMs = finiteNumber(shaped['totalDurationMs']);
+  if (durationMs !== null) summary.durationMs = durationMs;
+  const tokens = finiteNumber(shaped['totalTokens']);
+  if (tokens !== null) summary.tokens = tokens;
+  const toolUses = finiteNumber(shaped['totalToolUseCount']);
+  if (toolUses !== null) summary.toolUses = toolUses;
+  return Object.keys(summary).length > 0 ? summary : null;
+}
+
+function finiteNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
 function completionResponse(response: unknown): string | null {
   if (typeof response === 'string') return response.length > 0 ? response : null;
   if (response === null || typeof response !== 'object') return null;

@@ -157,6 +157,7 @@ interface ISummaryEnvelope {
     string,
     { count: number; lastStartAt: number; lastOwner?: string; distinctOwners: number }
   >;
+  pairs: Record<string, { count: number; lastStartAt: number }>;
 }
 
 async function getSummary(handle: IServerHandle): Promise<ISummaryEnvelope> {
@@ -172,6 +173,23 @@ describe('GET /api/activity/summary', () => {
       assert.ok(summary.since > 0);
       assert.ok(summary.since <= Date.now());
       assert.deepEqual(summary.nodes, {});
+      assert.deepEqual(summary.pairs, {});
+    });
+  });
+
+  it('a spawn populates the pairs map over the route (route -> stats seam)', async () => {
+    await bootAndUse(async (handle) => {
+      await postActivity(handle, {
+        session_id: '6cfe5636-2e56-4271-91a6-87fc3d4355be',
+        hook_event_name: 'PreToolUse',
+        tool_name: 'Agent',
+        tool_input: { prompt: 'run', subagent_type: 'demo-worker' },
+        tool_use_id: 'toolu_01PairSummary000000001',
+      });
+      const summary = await getSummary(handle);
+      const key = 'main:6cfe5636-2e56-4271-91a6-87fc3d4355be>>.claude/agents/demo-worker.md';
+      assert.equal(summary.pairs[key]?.count, 1);
+      assert.ok(summary.pairs[key]!.lastStartAt > 0);
     });
   });
 

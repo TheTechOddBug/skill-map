@@ -50,7 +50,13 @@ describe('resolveSpawnOverlay', () => {
       ),
     );
     expect(overlay.edges).toEqual([
-      { spawnId: 't1', outputId: `${PARENT}-out`, inputId: `${CHILD_A}-in`, fromSession: false },
+      {
+        spawnId: 't1',
+        outputId: `${PARENT}-out`,
+        inputId: `${CHILD_A}-in`,
+        fromSession: false,
+        pairKey: edgePairKey(PARENT, CHILD_A),
+      },
     ]);
     expect(overlay.sessions.length).toBe(0);
   });
@@ -94,9 +100,23 @@ describe('resolveSpawnOverlay', () => {
         positions,
       ),
     );
+    // Session edges key their pair by the raw OWNER (the server
+    // accumulator's identity), never the `session:<owner>` node id.
     expect(overlay.edges).toEqual([
-      { spawnId: 's1', outputId: `session:${SESSION}-out`, inputId: `${CHILD_A}-in`, fromSession: true },
-      { spawnId: 's2', outputId: `session:${SESSION}-out`, inputId: `${CHILD_B}-in`, fromSession: true },
+      {
+        spawnId: 's1',
+        outputId: `session:${SESSION}-out`,
+        inputId: `${CHILD_A}-in`,
+        fromSession: true,
+        pairKey: edgePairKey(SESSION, CHILD_A),
+      },
+      {
+        spawnId: 's2',
+        outputId: `session:${SESSION}-out`,
+        inputId: `${CHILD_B}-in`,
+        fromSession: true,
+        pairKey: edgePairKey(SESSION, CHILD_B),
+      },
     ]);
 
     expect(overlay.sessions.length).toBe(1);
@@ -223,7 +243,13 @@ describe('resolveSpawnOverlay, spawn-over-static suppression', () => {
       ),
     );
     expect(overlay.edges).toEqual([
-      { spawnId: 't4', outputId: `session:${SESSION}-out`, inputId: `${CHILD_A}-in`, fromSession: true },
+      {
+        spawnId: 't4',
+        outputId: `session:${SESSION}-out`,
+        inputId: `${CHILD_A}-in`,
+        fromSession: true,
+        pairKey: edgePairKey(SESSION, CHILD_A),
+      },
     ]);
     expect(overlay.activeOnStatic.length).toBe(0);
     expect(overlay.sessions.length).toBe(1);

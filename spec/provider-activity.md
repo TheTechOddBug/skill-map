@@ -91,7 +91,17 @@ Two halves:
     `agent.spawn` frame, resolving `childKind`/`childName` through the same
     identifiers contract as name signals. `prompt` / `response` are the
     inter-agent conversation halves; they never ride the WS and are retained
-    ONLY under the capture gate (§Conversation capture).
+    ONLY under the capture gate (§Conversation capture). A sync completion
+    MAY also carry `execution` (`{ durationMs?, tokens?, toolUses? }`), the
+    child run's aggregate execution summary as the runtime reported it
+    (Claude: `totalDurationMs` / `totalTokens` / `totalToolUseCount` on the
+    completion payload, live-verified 2026-07-05). Execution summaries are
+    METADATA (plain numbers): they feed the per-node aggregates and the
+    retained records independently of the capture gate's content rules.
+    Async completions carry no summary (the terminal stop does not either);
+    the fields simply stay absent. The vendor `toolStats` / `usage`
+    breakdowns stay uncaptured until their inner shapes are pinned against
+    a live run.
   - `report` (only on `phase: "end"` boundary signals): the ENDING context's
     final message, as the runtime reported it on its stop event (Claude:
     `last_assistant_message`). CONTENT, not metadata: it never rides the WS,
@@ -319,8 +329,9 @@ Broadcast over `/ws` in the common envelope of
   nodes like any other start but are excluded from execution counting
   (§Execution stats), and SHOULD NOT trigger "executed" affordances.
 - `stats` (optional, only on node-attributed frames): the node's current
-  execution stats `{ count, lastStartAt, lastOwner?, distinctOwners }` as
-  accumulated server-side (§Execution stats). The server is the single source
+  execution stats `{ count, lastStartAt, lastOwner?, distinctOwners,
+  toolUses?, tokens?, summarizedRuns? }` as accumulated server-side
+  (§Execution stats). The server is the single source
   of truth: clients MUST overwrite from this field (and from the summary
   snapshot), never accumulate counts themselves.
 
@@ -385,6 +396,9 @@ by `spawnId`.
   set. An unresolved child is still emitted (name only) so session surfaces
   can count it, but no edge can target a phantom node.
 - `childOwner`: the child context's own owner id, present from `"handoff"` on.
+- `pairCount` (optional): the accumulated spawn count for this parent-child
+  pair (§Execution stats), present on frames whose pair is counted. Clients
+  overwrite, never accumulate.
 - Conversation content (`prompt` / `response`) NEVER rides this event; it is
   served on demand under the capture gate (§Conversation capture).
 
@@ -416,6 +430,21 @@ the distinct-owner count, and a short ring of recent executions
 (`{ at, owner }`, most recent first). All sets and rings are bounded; hitting
 a bound saturates or evicts oldest entries, it never errors.
 
+Per-node stats gain OPTIONAL execution aggregates when spawn completions
+carry a summary (agent nodes, sync spawns): `toolUses` and `tokens` sum the
+reported totals across summarized runs, and `summarizedRuns` says how many
+runs contributed (so consumers can contextualize the sums). Nodes that never
+received a summary (skills, markdowns, async-only agents) simply omit them.
+
+The accumulator ALSO keeps per-PAIR spawn counters (metadata, independent of
+the capture gate): every `agent.spawn` relation with `phase: "start"` and a
+RESOLVED child increments the pair keyed by the parent identity
+(`parentNodePath` for agent parents, `parentOwner` for session parents) and
+`childNodePath`. Pair entries carry `{ count, lastStartAt }` and feed the edge
+conversation-count labels; the pair map is bounded like everything else. The
+current pair count rides every broadcast `agent.spawn` frame as `pairCount`
+(overwrite semantics: the client never accumulates).
+
 ### `GET /api/activity/summary`
 
 Snapshot for client hydration (connect, reconnect, re-enable). Loopback-gated,
@@ -435,10 +464,15 @@ no token (operator surface, like §Install management). Response `200`:
 }
 ```
 
+The response also carries the per-pair spawn counters under `"pairs"`, keyed
+`"<parent>>><childNodePath>"` (the same separator-free identities the
+accumulator uses), each `{ "count": <n>, "lastStartAt": <ms> }`, so edge
+labels hydrate together with the node counters.
+
 Stats-only by design: the summary carries NO live claim or spawn state. Live
 lighting and spawn edges rebuild from the WS stream as events arrive; clients
-treat both this snapshot and the WS `stats` field as overwrites from the
-single server-side source of truth.
+treat both this snapshot and the WS `stats` / `pairCount` fields as overwrites
+from the single server-side source of truth.
 
 ### `GET /api/activity/node/<pathB64>`
 

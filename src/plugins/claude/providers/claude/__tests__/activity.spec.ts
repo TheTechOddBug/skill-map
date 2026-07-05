@@ -439,6 +439,39 @@ describe('claudeActivity.mapEvent', () => {
     assert.equal(signals![0]!.spawn?.phase, 'end');
   });
 
+  it('a sync completion with totals carries the execution summary', () => {
+    const signals = claudeActivity.mapEvent({
+      hook_event_name: 'PostToolUse',
+      agent_id: 'a4e825faeafee3619',
+      agent_type: 'demo-orchestrator',
+      tool_name: 'Agent',
+      tool_input: { prompt: 'continue', subagent_type: 'demo-worker' },
+      tool_response: {
+        status: 'completed',
+        content: [{ type: 'text', text: 'done' }],
+        totalDurationMs: 27219,
+        totalTokens: 4132,
+        totalToolUseCount: 6,
+      },
+      tool_use_id: 'toolu_01ExecSummary0000000001',
+    });
+    assert.deepEqual(signals![0]!.spawn?.execution, {
+      durationMs: 27219,
+      tokens: 4132,
+      toolUses: 6,
+    });
+    // Garbage numbers are skipped; a summary with nothing usable disclaims.
+    const garbage = claudeActivity.mapEvent({
+      hook_event_name: 'PostToolUse',
+      agent_type: 'demo-orchestrator',
+      tool_name: 'Agent',
+      tool_input: { subagent_type: 'demo-worker' },
+      tool_response: { status: 'completed', totalTokens: 'many', totalDurationMs: null },
+      tool_use_id: 'toolu_01ExecSummary0000000002',
+    });
+    assert.equal(garbage![0]!.spawn?.execution, undefined);
+  });
+
   it('a terminal SubagentStop carries the final message as the report', () => {
     const signals = claudeActivity.mapEvent({
       hook_event_name: 'SubagentStop',

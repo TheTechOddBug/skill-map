@@ -191,6 +191,65 @@ describe('ConversationDialog', () => {
     expect(body().querySelector('[data-testid^="conversation-dialog-async-note-"]')).toBeNull();
   });
 
+  it('appends the execution trio (duration, tools, tokens) only to turns that carry one', async () => {
+    // Turn 0 completed sync with a summary; turn 1 has none (async /
+    // still running), so its head stays plain.
+    const thread = makeThread([
+      makeRecord({
+        spawnId: 't1',
+        startedAt: 1_700_000_000_000,
+        endedAt: 1_700_000_027_200,
+        status: 'ended',
+        prompt: 'ask',
+        response: 'reply',
+        execution: { durationMs: 27_200, toolUses: 6, tokens: 4_100 },
+      }),
+      makeRecord({
+        spawnId: 't2',
+        startedAt: 1_700_000_100_000,
+        status: 'running',
+        prompt: 'ask again',
+      }),
+    ]);
+    const { fixture } = bootstrap(thread, true);
+    await settled(fixture);
+
+    const head0 = body()
+      .querySelector('[data-testid="conversation-dialog-turn-0"]')
+      ?.querySelector('.convo__turn-meta');
+    expect(head0?.textContent).toContain('27.2s');
+    expect(head0?.textContent).toContain('6 tools');
+    expect(head0?.textContent).toContain('4.1k tokens');
+
+    const head1 = body()
+      .querySelector('[data-testid="conversation-dialog-turn-1"]')
+      ?.querySelector('.convo__turn-meta');
+    expect(head1?.textContent).toContain('running');
+    expect(head1?.textContent).not.toContain('tool');
+    expect(head1?.textContent).not.toContain('tokens');
+  });
+
+  it('uses the singular tool label for a one-tool run', async () => {
+    const thread = makeThread([
+      makeRecord({
+        status: 'ended',
+        prompt: 'ask',
+        response: 'reply',
+        execution: { durationMs: 5_000, toolUses: 1, tokens: 950 },
+      }),
+    ]);
+    const { fixture } = bootstrap(thread, true);
+    await settled(fixture);
+    const head = body()
+      .querySelector('[data-testid="conversation-dialog-turn-0"]')
+      ?.querySelector('.convo__turn-meta');
+    // 5000ms humanizes without the trailing .0; sub-1k tokens pass through.
+    expect(head?.textContent).toContain('5s');
+    expect(head?.textContent).toContain('1 tool');
+    expect(head?.textContent).not.toContain('1 tools');
+    expect(head?.textContent).toContain('950 tokens');
+  });
+
   it('emits closed on visibleChange(false)', async () => {
     const { fixture, closed } = bootstrap(makeThread([makeRecord()]), true);
     await settled(fixture);
@@ -198,5 +257,43 @@ describe('ConversationDialog', () => {
       fixture.componentInstance as unknown as { onVisibleChange(visible: boolean): void }
     ).onVisibleChange(false);
     expect(closed).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders no ordinal turn labels (bubbles alone separate the turns)', async () => {
+    const { fixture } = bootstrap(threeTurnThread(), true);
+    await settled(fixture);
+    // Turn separation is carried by the per-turn testids, not a label.
+    for (let i = 0; i < 3; i++) {
+      expect(body().querySelector(`[data-testid="conversation-dialog-turn-${i}"]`)).not.toBeNull();
+    }
+    expect(body().querySelector('.convo__turn-label')).toBeNull();
+    expect(body().textContent).not.toContain('Turn 1');
+  });
+
+  it('tolerates an empty-records thread (historical edge, gate off): header + capture-off note, no turns', async () => {
+    // Shape the graph view builds for a labelled edge whose pair kept
+    // no records: pair naming only, no owner, records: [].
+    const emptyThread: ISpawnThread = {
+      key: '.claude/agents/demo-orchestrator.md>>.claude/agents/demo-worker.md',
+      parentOwner: '',
+      parentNodePath: '.claude/agents/demo-orchestrator.md',
+      childNodePath: '.claude/agents/demo-worker.md',
+      records: [],
+    };
+    const { fixture } = bootstrap(emptyThread, false);
+    await settled(fixture);
+
+    // Header from the pair naming (basename), WITHOUT a "0 exchanges" counter.
+    expect(body().textContent).toContain('Conversation with demo-worker');
+    expect(body().textContent).not.toContain('exchange');
+    // Parent naming renders; the empty owner line does not.
+    const meta = body().querySelector('[data-testid="conversation-dialog-meta"]');
+    expect(meta?.textContent).toContain('Spawned by demo-orchestrator');
+    expect(meta?.textContent).not.toContain('Owner:');
+    // No turns, and the capture-off note explains the blank.
+    expect(body().querySelector('[data-testid^="conversation-dialog-turn-"]')).toBeNull();
+    expect(
+      body().querySelector('[data-testid="conversation-dialog-capture-off"]')?.textContent,
+    ).toContain('Settings > Project');
   });
 });

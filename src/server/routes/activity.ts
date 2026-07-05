@@ -122,7 +122,13 @@ export function registerActivityRoute(app: Hono, deps: IActivityRouteDeps): void
     }
     for (const spawn of spawns) {
       deps.conversations.record(spawn);
-      deps.broadcaster.broadcast(buildAgentSpawnEvent(toSpawnEventData(spawn)));
+      const pairCount = deps.stats.recordSpawn(spawn);
+      if (spawn.execution !== undefined && spawn.childNodePath !== undefined) {
+        deps.stats.recordExecution(spawn.childNodePath, spawn.execution);
+      }
+      const data = toSpawnEventData(spawn);
+      if (pairCount !== null) data.pairCount = pairCount;
+      deps.broadcaster.broadcast(buildAgentSpawnEvent(data));
     }
     // End-of-context reports (the async response source) go ONLY to
     // the gated store; like the spawn halves they never broadcast.

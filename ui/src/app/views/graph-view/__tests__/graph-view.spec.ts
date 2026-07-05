@@ -241,7 +241,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     bridgePresent: false,
     events: 0,
   }, removed: false }),
-  getActivitySummary: vi.fn().mockResolvedValue({ since: 0, nodes: {} }),
+  getActivitySummary: vi.fn().mockResolvedValue({ since: 0, nodes: {}, pairs: {} }),
   getNodeActivity: vi.fn().mockResolvedValue({
     stats: { count: 0, lastStartAt: 0, distinctOwners: 0 },
     recent: [],
@@ -804,11 +804,12 @@ describe('GraphView, spawn-active static edges', () => {
     expect(probe.conversationThread()?.records.map((r) => r.spawnId)).toEqual(['s7']);
   });
 
-  it('a plain static edge click does nothing (no fetch, no dialog)', async () => {
+  it('a label-less static edge click does nothing (no fetch, no dialog)', async () => {
     const { cmp } = await bootstrap([]);
     const probe = cmp as unknown as IStaticEdgeProbe;
 
-    // Real lookup: no live spawns, so every static edge is plain.
+    // Real lookups: no live spawns and no pair counters, so every
+    // static edge is plain AND label-less, and the click stays inert.
     expect(
       probe.spawnActiveIdFor({ from: 'agents/orchestrator.md', to: 'agents/worker.md' }),
     ).toBeNull();
@@ -819,6 +820,165 @@ describe('GraphView, spawn-active static edges', () => {
     await settle();
 
     expect(STUB_DATA_SOURCE.getSpawnRecord).not.toHaveBeenCalled();
+    expect(STUB_DATA_SOURCE.getNodeActivity).not.toHaveBeenCalled();
     expect(probe.conversationOpen()).toBe(false);
+  });
+});
+
+describe('GraphView, edge conversation-count labels + historical click', () => {
+  const PARENT = 'agents/orchestrator.md';
+  const CHILD = 'agents/worker.md';
+  const PAIR_KEY = `${PARENT}>>${CHILD}`;
+  const EDGE = { id: 'e1', from: PARENT, to: CHILD };
+
+  /** Protected-surface probe for the count lookups + historical path. */
+  interface IConvoCountProbe {
+    convoCountFor(edge: { from: string; to: string }): number;
+    convoCountForKey(pairKey: string): number;
+    spawnActiveIdFor(edge: { from: string; to: string }): string | null;
+    onStaticEdgeClick(edge: { id: string; from: string; to: string }, event: MouseEvent): void;
+    conversationOpen(): boolean;
+    conversationThread(): ISpawnThread | null;
+    conversationCaptureEnabled(): boolean;
+  }
+
+  function makeHistoricalRecord(
+    spawnId: string,
+    startedAt: number,
+    overrides: Partial<IActivitySpawnRecordApi> = {},
+  ): IActivitySpawnRecordApi {
+    return {
+      spawnId,
+      parentOwner: 'main:6cfe5636',
+      parentNodePath: PARENT,
+      childKind: 'agent',
+      childName: 'worker',
+      childNodePath: CHILD,
+      prompt: `ask ${spawnId}`,
+      response: `reply ${spawnId}`,
+      startedAt,
+      status: 'ended',
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+    // The REAL NodeActivityStatsService hydrates pairCounts from the
+    // summary; each test seeds the mock BEFORE bootstrap.
+    localStorage.removeItem('sm.live.activity-enabled');
+    vi.mocked(STUB_DATA_SOURCE.getActivitySummary)
+      .mockReset()
+      .mockResolvedValue({ since: 0, nodes: {}, pairs: {} });
+    vi.mocked(STUB_DATA_SOURCE.getSpawnRecord).mockReset().mockResolvedValue(null);
+    vi.mocked(STUB_DATA_SOURCE.getNodeActivity).mockReset().mockResolvedValue({
+      stats: { count: 0, lastStartAt: 0, distinctOwners: 0 },
+      recent: [],
+      spawns: [],
+      captureEnabled: false,
+    });
+  });
+
+  function seedPairs(pairs: Record<string, { count: number; lastStartAt: number }>): void {
+    vi.mocked(STUB_DATA_SOURCE.getActivitySummary).mockResolvedValue({
+      since: 0,
+      nodes: {},
+      pairs,
+    });
+  }
+
+  async function settle(): Promise<void> {
+    await new Promise((r) => setTimeout(r, 0));
+  }
+
+  it('exposes the hydrated pair count for a static edge and via the key form (dashed edges)', async () => {
+    seedPairs({ [PAIR_KEY]: { count: 3, lastStartAt: 1000 } });
+    const { cmp } = await bootstrap([]);
+    await settle();
+    const probe = cmp as unknown as IConvoCountProbe;
+
+    // Static edges (plain AND spawn-active) resolve through the edge
+    // form; the dashed spawn edges use the precomputed key form
+    // (session parents key by the raw owner).
+    expect(probe.convoCountFor(EDGE)).toBe(3);
+    expect(probe.convoCountForKey(PAIR_KEY)).toBe(3);
+    expect(probe.convoCountForKey(`main:6cfe5636>>${CHILD}`)).toBe(0);
+    expect(probe.convoCountFor({ from: CHILD, to: PARENT })).toBe(0); // directional
+  });
+
+  it('historical click opens the MOST RECENT thread of the pair, filtered to this parent', async () => {
+    seedPairs({ [PAIR_KEY]: { count: 3, lastStartAt: 3000 } });
+    // Two sessions talked over this edge (two threads); a foreign
+    // parent's record must not leak into either.
+    const oldTurn = makeHistoricalRecord('h0', 500, { parentOwner: 'main:older' });
+    const t1 = makeHistoricalRecord('h1', 1000);
+    const t2 = makeHistoricalRecord('h2', 2000);
+    const foreign = makeHistoricalRecord('x1', 3000, { parentNodePath: 'agents/other.md' });
+    vi.mocked(STUB_DATA_SOURCE.getNodeActivity).mockResolvedValue({
+      stats: { count: 3, lastStartAt: 3000, distinctOwners: 2 },
+      recent: [],
+      spawns: [oldTurn, t1, t2, foreign],
+      captureEnabled: true,
+    });
+
+    const { cmp } = await bootstrap([]);
+    await settle();
+    const probe = cmp as unknown as IConvoCountProbe;
+    probe.onStaticEdgeClick(EDGE, new MouseEvent('click'));
+    await settle();
+
+    expect(STUB_DATA_SOURCE.getNodeActivity).toHaveBeenCalledWith(CHILD);
+    expect(STUB_DATA_SOURCE.getSpawnRecord).not.toHaveBeenCalled();
+    expect(probe.conversationOpen()).toBe(true);
+    expect(probe.conversationCaptureEnabled()).toBe(true);
+    // Most recent thread (the main:6cfe5636 session) wins; its records
+    // are chronological and the foreign parent is filtered out.
+    expect(probe.conversationThread()?.records.map((r) => r.spawnId)).toEqual(['h1', 'h2']);
+  });
+
+  it('historical click with nothing retained opens the empty-records thread carrying the pair naming', async () => {
+    seedPairs({ [PAIR_KEY]: { count: 2, lastStartAt: 2000 } });
+    // Capture gate off / server restarted: detail comes back empty.
+    vi.mocked(STUB_DATA_SOURCE.getNodeActivity).mockResolvedValue({
+      stats: { count: 0, lastStartAt: 0, distinctOwners: 0 },
+      recent: [],
+      spawns: [],
+      captureEnabled: false,
+    });
+
+    const { cmp } = await bootstrap([]);
+    await settle();
+    const probe = cmp as unknown as IConvoCountProbe;
+    probe.onStaticEdgeClick(EDGE, new MouseEvent('click'));
+    await settle();
+
+    expect(probe.conversationOpen()).toBe(true);
+    expect(probe.conversationCaptureEnabled()).toBe(false);
+    const thread = probe.conversationThread();
+    expect(thread?.records).toEqual([]);
+    expect(thread?.parentNodePath).toBe(PARENT);
+    expect(thread?.childNodePath).toBe(CHILD);
+  });
+
+  it('a live spawn riding the edge still wins over the historical path', async () => {
+    seedPairs({ [PAIR_KEY]: { count: 5, lastStartAt: 5000 } });
+    vi.mocked(STUB_DATA_SOURCE.getSpawnRecord).mockResolvedValue({
+      ...makeHistoricalRecord('s7', 7000, { status: 'running', response: undefined }),
+      captureEnabled: true,
+    });
+
+    const { cmp } = await bootstrap([]);
+    await settle();
+    const probe = cmp as unknown as IConvoCountProbe;
+    // Pin the pair lookup (overlay -> pairKey mapping is covered by
+    // spawn-overlay.spec); the count is ALSO > 0, live must win.
+    (probe as { spawnActiveIdFor(edge: unknown): string | null }).spawnActiveIdFor = () => 's7';
+
+    probe.onStaticEdgeClick(EDGE, new MouseEvent('click'));
+    await settle();
+
+    expect(STUB_DATA_SOURCE.getSpawnRecord).toHaveBeenCalledWith('s7');
+    expect(probe.conversationOpen()).toBe(true);
+    expect(probe.conversationThread()?.records.map((r) => r.spawnId)).toEqual(['s7']);
   });
 });

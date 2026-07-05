@@ -79,6 +79,7 @@
           <ng-container ngProjectAs="[fConnections]">
             @for (edge of graph().edges; track edge.id) {
               @let es = edgeSelectionFor(edge.id);
+              @let convo = convoCountFor(edge);
               <f-connection
                 [fOutputId]="edge.from + '-out'"
                 [fInputId]="edge.to + '-in'"
@@ -92,6 +93,7 @@
                 [class.f-conn--dimmed]="es.dimmed"
                 [class.f-conn--executing]="isEdgeExecuting(edge)"
                 [class.f-conn--spawn-active]="spawnActiveIdFor(edge) !== null"
+                [class.f-conn--convo]="convo > 0"
                 [style.opacity]="isEdgeExecuting(edge) || spawnActiveIdFor(edge) !== null ? 1 : es.opacity"
                 [attr.aria-label]="spawnActiveIdFor(edge) !== null ? texts.spawnEdge.aria : null"
                 [attr.data-testid]="spawnActiveIdFor(edge) !== null ? 'graph-spawn-active-edge-' + edge.id : null"
@@ -143,6 +145,22 @@
                   <circle cx="4.5" cy="4.5" r="3.5" />
                 </svg>
                 <f-connection-marker-arrow [type]="markerEnd" />
+                <!-- Conversation-count pill (spec §Execution stats,
+                     per-pair spawn counters), Foblex's own connection
+                     content mechanism: the div is positioned along the
+                     path by the library, no hand-rolled SVG text. Shown
+                     on any static edge whose pair counted spawns, live
+                     (spawn-active) or historical; clicking it bubbles
+                     into the edge's own click handler. -->
+                @if (convo > 0) {
+                  <div
+                    fConnectionContent
+                    class="sm-edge-convo"
+                    [attr.title]="texts.convoCount.label(convo)"
+                    [attr.aria-label]="texts.convoCount.label(convo)"
+                    [attr.data-testid]="'graph-edge-convo-count-' + edge.id"
+                  >{{ convo }}</div>
+                }
               </f-connection>
             }
           </ng-container>
@@ -159,6 +177,7 @@
                instead (no duplicated arrows). -->
           <ng-container ngProjectAs="[fConnections]">
             @for (edge of spawnOverlay().edges; track edge.spawnId) {
+              @let convo = convoCountForKey(edge.pairKey);
               <f-connection
                 [fOutputId]="edge.outputId"
                 [fInputId]="edge.inputId"
@@ -171,6 +190,18 @@
                 [attr.data-testid]="'graph-spawn-edge-' + edge.spawnId"
               >
                 <f-connection-marker-arrow [type]="markerEnd" />
+                <!-- Same conversation-count pill as the static edges;
+                     the pair key is precomputed by the overlay (session
+                     parents key by the raw owner, spec §Execution stats). -->
+                @if (convo > 0) {
+                  <div
+                    fConnectionContent
+                    class="sm-edge-convo"
+                    [attr.title]="texts.convoCount.label(convo)"
+                    [attr.aria-label]="texts.convoCount.label(convo)"
+                    [attr.data-testid]="'graph-spawn-edge-convo-count-' + edge.spawnId"
+                  >{{ convo }}</div>
+                }
               </f-connection>
             }
           </ng-container>

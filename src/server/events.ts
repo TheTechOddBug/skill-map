@@ -151,6 +151,14 @@ export interface INodeActivityStats {
   lastOwner?: string;
   /** Distinct owner keys observed on counted starts (saturating). */
   distinctOwners: number;
+  /**
+   * Execution aggregates from spawn completion summaries (agent nodes,
+   * sync spawns; spec §Execution stats). Absent on nodes that never
+   * received a summary. Sums across `summarizedRuns` runs.
+   */
+  toolUses?: number;
+  tokens?: number;
+  summarizedRuns?: number;
 }
 
 /**
@@ -192,6 +200,12 @@ export interface IAgentSpawnEventData {
   childNodePath?: string;
   /** The child context's own owner id, present from `handoff` on. */
   childOwner?: string;
+  /**
+   * Accumulated spawn count for this parent-child pair (spec
+   * §Execution stats, pair counters), present on frames whose pair is
+   * tracked. Overwrite semantics: clients never accumulate.
+   */
+  pairCount?: number;
 }
 
 /**

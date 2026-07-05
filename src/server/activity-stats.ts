@@ -23,6 +23,9 @@ import type { INodeActivityEventData, INodeActivityStats } from './events.js';
 /** Distinct-owner set cap per node; the count saturates here. */
 export const DISTINCT_OWNERS_CAP = 256;
 
+/** Cap on tracked spawn pairs; new pairs past it are silently dropped. */
+export const PAIR_CAP = 2048;
+
 /**
  * Global cap on the sticky `(nodePath, owner)` dedupe memory, evicting
  * oldest-first past it. Deliberately generous: one entry per agent
@@ -52,6 +55,25 @@ interface INodeStatsState {
   lastOwner: string | undefined;
   owners: Set<string>;
   recent: IActivityRecentEntry[];
+  /** Execution-summary sums (spec §Execution stats, node aggregates). */
+  toolUses: number;
+  tokens: number;
+  summarizedRuns: number;
+}
+
+/** Per-pair spawn counter (spec §Execution stats, pair counters). */
+export interface IActivityPairStats {
+  count: number;
+  lastStartAt: number;
+}
+
+/**
+ * Directional pair key: parent identity (`parentNodePath` for agent
+ * parents, `parentOwner` for session parents) plus the resolved child
+ * node path. Mirrors the UI's edge-pair convention.
+ */
+export function pairKeyOf(parent: string, childNodePath: string): string {
+  return `${parent}>>${childNodePath}`;
 }
 
 export class ActivityStatsService {
@@ -59,6 +81,9 @@ export class ActivityStatsService {
   readonly sinceMs = Date.now();
 
   private readonly nodes = new Map<string, INodeStatsState>();
+
+  /** Spawn counters per directional pair, see `pairKeyOf`. */
+  private readonly pairs = new Map<string, IActivityPairStats>();
 
   /**
    * Sticky dedupe memory, APPEND-ONLY by design: runtimes re-emit
@@ -85,11 +110,51 @@ export class ActivityStatsService {
     return this.count(data.nodePath, data.owner);
   }
 
+  /**
+   * Count one spawn relation for its parent-child pair. Metadata only
+   * (independent of the capture gate): counts `phase: 'start'` frames
+   * whose child RESOLVED (an edge label needs both endpoints). Returns
+   * the pair's current count for wire enrichment (`pairCount`), also
+   * for non-start frames of an already-counted pair, or `null` when
+   * the pair is untracked.
+   */
+  recordSpawn(spawn: {
+    phase: 'start' | 'handoff' | 'end';
+    parentOwner: string;
+    parentNodePath?: string;
+    childNodePath?: string;
+  }): number | null {
+    if (spawn.childNodePath === undefined) return null;
+    const key = pairKeyOf(spawn.parentNodePath ?? spawn.parentOwner, spawn.childNodePath);
+    if (spawn.phase !== 'start') return this.pairs.get(key)?.count ?? null;
+    return this.countPair(key);
+  }
+
+  /** Increment one pair, honoring the cap for previously-unseen pairs. */
+  private countPair(key: string): number | null {
+    const existing = this.pairs.get(key);
+    if (!existing && this.pairs.size >= PAIR_CAP) return null;
+    const state = existing ?? { count: 0, lastStartAt: 0 };
+    this.pairs.set(key, state);
+    state.count += 1;
+    state.lastStartAt = Date.now();
+    return state.count;
+  }
+
   /** Summary projection: every tracked node's stats, all copies. */
   snapshot(): Record<string, INodeActivityStats> {
     const out: Record<string, INodeActivityStats> = {};
     for (const [path, state] of this.nodes) {
       out[path] = projectStats(state);
+    }
+    return out;
+  }
+
+  /** Summary projection of the pair counters, all copies. */
+  pairSnapshot(): Record<string, IActivityPairStats> {
+    const out: Record<string, IActivityPairStats> = {};
+    for (const [key, state] of this.pairs) {
+      out[key] = { ...state };
     }
     return out;
   }
@@ -119,15 +184,42 @@ export class ActivityStatsService {
     return true;
   }
 
-  private count(nodePath: string, owner: string | undefined): INodeActivityStats {
-    const state = this.nodes.get(nodePath) ?? {
+  /**
+   * Fold one spawn-completion execution summary into the child node's
+   * aggregates (metadata, gate-independent). No-op when the summary
+   * carries nothing summable.
+   */
+  recordExecution(
+    nodePath: string,
+    execution: { durationMs?: number; tokens?: number; toolUses?: number },
+  ): void {
+    if (execution.toolUses === undefined && execution.tokens === undefined) return;
+    const state = this.stateFor(nodePath);
+    state.toolUses += execution.toolUses ?? 0;
+    state.tokens += execution.tokens ?? 0;
+    state.summarizedRuns += 1;
+  }
+
+  /** Get-or-create one node's mutable state. */
+  private stateFor(nodePath: string): INodeStatsState {
+    const existing = this.nodes.get(nodePath);
+    if (existing) return existing;
+    const fresh: INodeStatsState = {
       count: 0,
       lastStartAt: 0,
       lastOwner: undefined,
       owners: new Set<string>(),
       recent: [],
+      toolUses: 0,
+      tokens: 0,
+      summarizedRuns: 0,
     };
-    this.nodes.set(nodePath, state);
+    this.nodes.set(nodePath, fresh);
+    return fresh;
+  }
+
+  private count(nodePath: string, owner: string | undefined): INodeActivityStats {
+    const state = this.stateFor(nodePath);
     state.count += 1;
     state.lastStartAt = Date.now();
     state.lastOwner = owner;
@@ -149,5 +241,10 @@ function projectStats(state: INodeStatsState): INodeActivityStats {
     distinctOwners: state.owners.size,
   };
   if (state.lastOwner !== undefined) stats.lastOwner = state.lastOwner;
+  if (state.summarizedRuns > 0) {
+    stats.toolUses = state.toolUses;
+    stats.tokens = state.tokens;
+    stats.summarizedRuns = state.summarizedRuns;
+  }
   return stats;
 }

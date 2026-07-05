@@ -420,6 +420,33 @@ describe('resolveActivityEvent (DB-free short circuits)', () => {
     assert.equal('report' in resolved.activity[0]!, false);
   });
 
+  it('a spawn execution summary passes through to the resolved spawn (copied, not shared)', () => {
+    const execution = { durationMs: 27219, tokens: 4132, toolUses: 6 };
+    const resolved = resolveSignalsAgainstNodes(
+      [
+        {
+          kind: 'agent',
+          name: 'code-reviewer',
+          phase: 'end',
+          owner: 'spawn:t1',
+          ownerScope: true,
+          spawn: {
+            spawnId: 't1',
+            phase: 'end',
+            parentOwner: 'a1',
+            childKind: 'agent',
+            childName: 'worker',
+            execution,
+          },
+        },
+      ],
+      makeProvider(),
+      NODES,
+    );
+    assert.deepEqual(resolved.spawns[0]!.execution, execution);
+    assert.notEqual(resolved.spawns[0]!.execution, execution); // a copy, never the same ref
+  });
+
   it('a throwing mapEvent is a disclaim, never an error', async () => {
     const resolved = await resolveActivityEvent({
       providers: [

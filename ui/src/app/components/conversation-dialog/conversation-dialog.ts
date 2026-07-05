@@ -36,6 +36,8 @@ import type { SafeHtml } from '@angular/platform-browser';
 import { DialogModule } from 'primeng/dialog';
 
 import { CONVERSATION_DIALOG_TEXTS } from '../../../i18n/conversation-dialog.texts';
+import type { IActivitySpawnRecordApi } from '../../../models/api';
+import { compactNumber } from '../../../models/node-derived';
 import { MarkdownRenderer } from '../../../services/markdown-renderer';
 import { pathBasenameForLink } from '../../../services/path-basename';
 import type { ISpawnThread } from './spawn-thread';
@@ -63,12 +65,17 @@ import type { ISpawnThread } from './spawn-thread';
       @if (thread(); as t) {
         <div class="convo__meta" data-testid="conversation-dialog-meta">
           <span class="convo__meta-line">{{ parentLine() }}</span>
-          <span class="convo__meta-line convo__meta-line--dim">
-            {{ texts.ownerPrefix }} <code>{{ t.parentOwner }}</code>
-            @if (childOwner(); as owner) {
-              · {{ texts.childOwnerPrefix }} <code>{{ owner }}</code>
-            }
-          </span>
+          <!-- An empty-records thread (historical edge click with the
+               capture gate off) carries pair naming but no owner; the
+               owner line only renders when there is one to show. -->
+          @if (t.parentOwner) {
+            <span class="convo__meta-line convo__meta-line--dim">
+              {{ texts.ownerPrefix }} <code>{{ t.parentOwner }}</code>
+              @if (childOwner(); as owner) {
+                · {{ texts.childOwnerPrefix }} <code>{{ owner }}</code>
+              }
+            </span>
+          }
         </div>
 
         @if (!captureEnabled()) {
@@ -80,10 +87,14 @@ import type { ISpawnThread } from './spawn-thread';
         <div class="convo__thread">
           @for (r of t.records; track r.spawnId; let i = $index) {
             <div class="convo__turn" [attr.data-testid]="'conversation-dialog-turn-' + i">
+              <!-- No ordinal label: the bubbles already separate turns
+                   visually, so the head is just the status + times. -->
+              <!-- The optional execution trio (duration · tools · tokens)
+                   rides the same right-aligned meta line; sync-only, a
+                   turn without a summary keeps the plain head. -->
               <div class="convo__turn-head">
-                <span class="convo__turn-label">{{ texts.turnLabel(i + 1) }}</span>
                 <span class="convo__turn-meta">
-                  {{ r.status }} · {{ formatTime(r.startedAt) }}@if (r.endedAt !== undefined) {&nbsp;- {{ formatTime(r.endedAt) }}}
+                  {{ r.status }} · {{ formatTime(r.startedAt) }}@if (r.endedAt !== undefined) {&nbsp;- {{ formatTime(r.endedAt) }}}@if (turnExecutionSummary(r); as summary) {&nbsp;· {{ summary }}}
                 </span>
               </div>
               @if (r.prompt) {
@@ -129,10 +140,8 @@ import type { ISpawnThread } from './spawn-thread';
         font-size: 0.72rem; }
       .convo__thread { display: flex; flex-direction: column; gap: 0.9rem; }
       .convo__turn { display: flex; flex-direction: column; gap: 0.35rem; }
-      .convo__turn-head { display: flex; justify-content: space-between;
+      .convo__turn-head { display: flex; justify-content: flex-end;
         align-items: baseline; gap: 0.5rem; }
-      .convo__turn-label { font-size: 0.8rem; text-transform: uppercase;
-        letter-spacing: 0.04em; color: var(--p-text-muted-color); }
       .convo__turn-meta { font-size: 0.72rem;
         color: var(--p-text-muted-color); }
       .convo__bubble { max-width: 88%; padding: 0.6rem 0.75rem;
@@ -198,6 +207,10 @@ export class ConversationDialog {
       (t.childNodePath !== undefined ? pathBasenameForLink(t.childNodePath) : undefined) ??
       last?.childKind ??
       this.texts.unknownChild;
+    // Empty-records thread (historical edge click, nothing retained):
+    // the pair naming alone is the header, a "0 exchanges" counter
+    // would shout the absence the capture-off note already explains.
+    if (t.records.length === 0) return this.texts.header(child);
     return `${this.texts.header(child)} · ${this.texts.exchangeCount(t.records.length)}`;
   });
 
@@ -226,6 +239,24 @@ export class ConversationDialog {
 
   protected formatTime(ms: number): string {
     return new Date(ms).toLocaleTimeString();
+  }
+
+  /**
+   * Joined execution-summary segments for one turn head: duration
+   * (humanized seconds), tool uses, tokens (compacted). Empty string
+   * when the record carries no `execution` block (async runs, records
+   * that never completed), which skips the whole segment in the head.
+   */
+  protected turnExecutionSummary(r: IActivitySpawnRecordApi): string {
+    const exec = r.execution;
+    if (!exec) return '';
+    const parts: string[] = [];
+    if (exec.durationMs !== undefined) parts.push(this.texts.executionDuration(exec.durationMs));
+    if (exec.toolUses !== undefined) parts.push(this.texts.executionTools(exec.toolUses));
+    if (exec.tokens !== undefined) {
+      parts.push(this.texts.executionTokens(compactNumber(exec.tokens)));
+    }
+    return parts.join(' · ');
   }
 
   private async renderInto(

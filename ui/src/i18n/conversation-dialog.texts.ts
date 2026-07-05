@@ -15,11 +15,18 @@ export const CONVERSATION_DIALOG_TEXTS = {
   childOwnerPrefix: 'Child owner:',
   /** Header turn counter: every Task call of the pair is one exchange. */
   exchangeCount: (n: number): string => (n === 1 ? '1 exchange' : `${n} exchanges`),
-  /** Per-turn heading inside the thread (1-based). */
-  turnLabel: (n: number): string => `Turn ${n}`,
   /** a11y labels for the chat bubbles (parent asks, child answers). */
   promptLabel: 'Prompt',
   responseLabel: 'Response',
+  /**
+   * Per-turn execution summary segments, appended to the turn head when
+   * the record carries an `execution` block (sync completions only).
+   * The component joins the present segments with " · ".
+   */
+  executionDuration: (ms: number): string => `${(ms / 1000).toFixed(1).replace(/\.0$/, '')}s`,
+  executionTools: (n: number): string => (n === 1 ? '1 tool' : `${n} tools`),
+  /** Takes the already-compacted count (`compactNumber`), e.g. `4.1k`. */
+  executionTokens: (compact: string): string => `${compact} tokens`,
   /**
    * Shown under a turn whose response is still missing: the child is
    * running, or its terminal stop never arrived (crashed runtime).

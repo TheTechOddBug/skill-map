@@ -198,7 +198,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     bridgePresent: false,
     events: 0,
   }, removed: false }),
-  getActivitySummary: () => Promise.resolve({ since: 0, nodes: {} }),
+  getActivitySummary: () => Promise.resolve({ since: 0, nodes: {}, pairs: {} }),
   getNodeActivity: () =>
     Promise.resolve({
       stats: { count: 0, lastStartAt: 0, distinctOwners: 0 },

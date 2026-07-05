@@ -126,6 +126,36 @@ describe('isAgentSpawnEvent', () => {
     expect(isAgentSpawnEvent({ type: 'agent.spawn', timestamp: 1 })).toBe(false);
     expect(isAgentSpawnEvent(null)).toBe(false);
   });
+
+  it('accepts a numeric pairCount and its absence, rejects a mistyped one', () => {
+    expect(
+      isAgentSpawnEvent(
+        spawnEvent({
+          spawnId: 'toolu_05',
+          phase: 'start',
+          parentOwner: 'orch-1',
+          parentNodePath: PARENT,
+          childNodePath: CHILD,
+          pairCount: 3,
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      isAgentSpawnEvent(
+        spawnEvent({ spawnId: 'toolu_05', phase: 'start', parentOwner: 'orch-1' }),
+      ),
+    ).toBe(true);
+    expect(
+      isAgentSpawnEvent(
+        spawnEvent({
+          spawnId: 'toolu_05',
+          phase: 'start',
+          parentOwner: 'orch-1',
+          pairCount: 'many',
+        }),
+      ),
+    ).toBe(false);
+  });
 });
 
 describe('isNodeActivityEvent, v1.1 fields (keepAlive + stats)', () => {

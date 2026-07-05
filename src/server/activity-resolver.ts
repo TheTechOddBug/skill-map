@@ -37,6 +37,7 @@
 import { tryWithSqlite } from '../core/sqlite/with-sqlite.js';
 import type {
   IActivitySignal,
+  IActivitySpawnExecution,
   IActivitySpawnRelation,
   IProvider,
 } from '../kernel/extensions/index.js';
@@ -67,6 +68,8 @@ export interface IResolvedSpawn {
   /** Conversation halves, capture-gate custody only. Never broadcast. */
   prompt?: string;
   response?: string;
+  /** Aggregate execution summary (metadata, gate-independent). */
+  execution?: IActivitySpawnExecution;
 }
 
 /**
@@ -253,14 +256,20 @@ function buildResolvedSpawn(
     parentOwner: relation.parentOwner,
   };
   if (parentNodePath !== undefined) out.parentNodePath = parentNodePath;
+  copyRelationExtras(relation, out);
+  const childNodePath = resolveChildPath(relation, provider, nodes);
+  if (childNodePath !== undefined) out.childNodePath = childNodePath;
+  return out;
+}
+
+/** Optional relation passthrough (child identity, halves, summary). */
+function copyRelationExtras(relation: IActivitySpawnRelation, out: IResolvedSpawn): void {
   if (relation.childKind !== undefined) out.childKind = relation.childKind;
   if (relation.childName !== undefined) out.childName = relation.childName;
   if (relation.childOwner !== undefined) out.childOwner = relation.childOwner;
   if (relation.prompt !== undefined) out.prompt = relation.prompt;
   if (relation.response !== undefined) out.response = relation.response;
-  const childNodePath = resolveChildPath(relation, provider, nodes);
-  if (childNodePath !== undefined) out.childNodePath = childNodePath;
-  return out;
+  if (relation.execution !== undefined) out.execution = { ...relation.execution };
 }
 
 /** The child's scanned node path, when `(childKind, childName)` resolves. */

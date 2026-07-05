@@ -331,6 +331,13 @@ export interface IWsAgentSpawnData {
   childNodePath?: string;
   /** The child context's own owner id, present from `handoff` on. */
   childOwner?: string;
+  /**
+   * Accumulated spawn count for this parent-child pair
+   * (`spec/provider-activity.md` §Execution stats), present on frames
+   * whose pair is counted. OVERWRITE semantics: the server is the
+   * single source of truth and the client never accumulates.
+   */
+  pairCount?: number;
 }
 
 export type IWsAgentSpawnEvent = IWsEvent<IWsAgentSpawnData> & { type: 'agent.spawn' };
@@ -352,6 +359,8 @@ export function isAgentSpawnEvent(value: unknown): value is IWsAgentSpawnEvent {
     const v = data[key];
     if (v !== undefined && (typeof v !== 'string' || v.length === 0)) return false;
   }
+  const pairCount = data['pairCount'];
+  if (pairCount !== undefined && typeof pairCount !== 'number') return false;
   return true;
 }
 

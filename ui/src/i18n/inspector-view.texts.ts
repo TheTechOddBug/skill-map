@@ -51,7 +51,19 @@ export const INSPECTOR_VIEW_TEXTS = {
       count: 'Executions',
       lastStart: 'Last start',
       contexts: 'Contexts',
+      /** Row label for the optional execution aggregates line. */
+      totals: 'Totals',
     },
+    /**
+     * Execution aggregates (spec §Execution stats): sums reported by
+     * sync spawn completions, contextualized by how many runs
+     * contributed, e.g. `14 tools · 8.3k tokens (2 summarized runs)`.
+     */
+    toolsCount: (n: number): string => (n === 1 ? '1 tool' : `${n} tools`),
+    /** Takes the already-compacted count (`compactNumber`), e.g. `8.3k`. */
+    tokensCount: (compact: string): string => `${compact} tokens`,
+    summarizedRuns: (n: number): string =>
+      n === 1 ? '(1 summarized run)' : `(${n} summarized runs)`,
     recentHeading: 'Recent executions',
     spawnsHeading: 'Agent spawns',
     /** Thread-row turn counter: every Task call of the pair is one exchange. */
