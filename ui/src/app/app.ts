@@ -101,8 +101,8 @@ export class App {
       this.settingsInitialSection.set(null);
       void this.projectInfo.reloadActiveProvider();
       // Re-probe the hook-install gate: the Project section is where
-      // installs / lens switches happen, so the topbar bolt toggle must
-      // reflect them the moment the modal closes.
+      // installs / lens switches happen, so the topbar Real Time toggle
+      // must reflect them the moment the modal closes.
       void this.activityReadiness.refresh();
     }
   }

@@ -37,4 +37,12 @@ export const CONVERSATION_DIALOG_TEXTS = {
   /** Shown when the thread carries metadata only (gate off). */
   captureOffNote:
     'Conversation capture is off, so only metadata is available. Enable it in Settings > Project.',
+  /**
+   * Shown when the thread has NO records while the capture gate is on
+   * (historical edge click after a server restart, or the pair has not
+   * spawned since capture was enabled): the blank is expected and new
+   * exchanges will land here.
+   */
+  emptyThreadNote:
+    'No exchanges retained yet. New conversations of this pair will show up here while the server runs.',
 } as const;

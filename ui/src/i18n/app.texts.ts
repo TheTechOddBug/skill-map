@@ -82,8 +82,8 @@ export const APP_TEXTS = {
     viewSwitcher: 'View switcher',
   },
   /**
-   * Topbar Real Time toggle (the bolt button, first in the actions
-   * cluster). Mirrors the Settings > General "Real-time node activity"
+   * Topbar Real Time toggle (the wave-pulse button, first in the
+   * actions cluster). Mirrors the Settings > General "Real-time node activity"
    * switch and its two gates (live updates on + hook installed); the
    * tooltip explains WHICH gate blocks and points at the Settings
    * section that fixes it. Tooltips live on a wrapper span because

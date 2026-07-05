@@ -138,7 +138,7 @@ export class SettingsGeneral {
   /**
    * Whether the ACTIVE lens's live-activity hook is installed. Owned
    * by the shared `ActivityReadinessService` (the same signal gates
-   * the topbar bolt toggle); this section re-triggers a probe on every
+   * the topbar Real Time toggle); this section re-triggers a probe on every
    * open so a hook installed from the Project section (or the CLI)
    * reflects here without a reload. `null` = unknown = FAIL OPEN, the
    * toggle stays usable, a transport hiccup must never lock a purely

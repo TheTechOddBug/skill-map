@@ -82,6 +82,14 @@ import type { ISpawnThread } from './spawn-thread';
           <p class="convo__note" data-testid="conversation-dialog-capture-off">
             {{ texts.captureOffNote }}
           </p>
+        } @else if (t.records.length === 0) {
+          <!-- Capture is ON but nothing is retained for this pair yet
+               (server restart dropped the ring, or the pair has not
+               spawned since the gate flipped): name the blank instead
+               of an empty dialog body. -->
+          <p class="convo__note" data-testid="conversation-dialog-empty-thread">
+            {{ texts.emptyThreadNote }}
+          </p>
         }
 
         <div class="convo__thread">
@@ -91,10 +99,12 @@ import type { ISpawnThread } from './spawn-thread';
                    visually, so the head is just the status + times. -->
               <!-- The optional execution trio (duration · tools · tokens)
                    rides the same right-aligned meta line; sync-only, a
-                   turn without a summary keeps the plain head. -->
+                   turn without a summary keeps the plain head. Every
+                   timestamp is gated on a finite number: a record that
+                   arrives without one must not render "Invalid Date". -->
               <div class="convo__turn-head">
                 <span class="convo__turn-meta">
-                  {{ r.status }} · {{ formatTime(r.startedAt) }}@if (r.endedAt !== undefined) {&nbsp;- {{ formatTime(r.endedAt) }}}@if (turnExecutionSummary(r); as summary) {&nbsp;· {{ summary }}}
+                  {{ r.status }}@if (hasTime(r.startedAt)) {&nbsp;· {{ formatTime(r.startedAt) }}}@if (hasTime(r.endedAt)) {&nbsp;- {{ formatTime(r.endedAt) }}}@if (turnExecutionSummary(r); as summary) {&nbsp;· {{ summary }}}
                 </span>
               </div>
               @if (r.prompt) {
@@ -237,8 +247,17 @@ export class ConversationDialog {
     return this.messageHtml().get(`${spawnId}:${slot}`) ?? null;
   }
 
-  protected formatTime(ms: number): string {
-    return new Date(ms).toLocaleTimeString();
+  /**
+   * A timestamp renders only when it is a real finite epoch: records
+   * can arrive without one (metadata-only shapes, defensive against a
+   * lax server), and `new Date(undefined)` prints "Invalid Date".
+   */
+  protected hasTime(ms: number | undefined): boolean {
+    return typeof ms === 'number' && Number.isFinite(ms);
+  }
+
+  protected formatTime(ms: number | undefined): string {
+    return this.hasTime(ms) ? new Date(ms as number).toLocaleTimeString() : '';
   }
 
   /**

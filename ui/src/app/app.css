@@ -447,6 +447,15 @@
   display: inline-flex;
 }
 
+/* Blocked (disabled) state must read as OFF at a glance: PrimeNG's
+   default disabled opacity barely dims a text button against the
+   topbar, so it looked enabled. Grayscale + a harder opacity drop
+   reads as "apagado" on every theme without minting new tokens. */
+.shell__live-activity-wrap .p-button:disabled {
+  opacity: 0.35;
+  filter: grayscale(1);
+}
+
 /* Refresh button (replaces the old "<count> nodes" pill). Click
    triggers `POST /api/scan` so the user can force a re-scan from the
    chrome. The tooltip carries the same "X nodes · Y links" counts as

@@ -4,9 +4,9 @@ The live map's second act: so far the map showed what the files ARE;
 this part makes it show what the agent DOES. With the provider's own
 hooks wired, every node lights up the moment the runtime actually
 invokes it (a skill it loads, an agent it delegates to, a markdown it
-reads). Three chapters: wire the hook (with its consent prompt),
-restart the agent session and watch the portfolio glow, and opt in to
-conversation capture. `pace: per-step` and `preflight: seed` with the
+reads). Three chapters: wire the hook from Settings (with its consent
+dialog), restart the agent session and watch the portfolio glow, and
+opt in to conversation capture. `pace: per-step` and `preflight: seed` with the
 `harness-connected` snapshot, the same entry recipe as `daily-loop`
 (see SKILL.md §Entering a part): entered out of order it fast-forwards
 to the connected portfolio, the campaign project, so what lights up is
@@ -51,55 +51,55 @@ the payoff vary):
 
 ## Chapter `wire` - Wire the live-activity hook (~3 min)
 
+The whole chapter runs from the UI; no `sm activity` commands are
+shown (the verb family exists, but this part teaches the Settings
+path).
+
 > So far the map showed you what your files are. Now it'll show you
 > what your agent does: with a small hook wired into <provider>'s own
 > config, each node lights up the moment the runtime actually touches
-> it.
->
-> Wiring is one verb. It edits a config file that belongs to
-> <provider> (not to skill-map), so it asks for your permission first,
-> naming the exact file, answer `y`. In your second terminal:
+> it. First, in your second terminal, start the server and leave it
+> running (if an `sm` from an earlier part is still open, Ctrl+C it
+> first):
 
 ```bash
-sm activity status
-sm activity install <provider>
-sm activity status <provider>
+sm
 ```
 
-Expected: the first `status` prints one line per activity-capable
-provider (all four: claude, codex, antigravity, opencode), each as
-`· <id>: not installed (<config path>)`. The install shows the consent
-prompt naming the exact file from the deltas table ("Wire the
-live-activity bridge into <config path>? This adds skill-map hook
-entries (existing hooks are preserved)"); on `y` it reports the bridge
-written to `.skill-map/activity/bridge.js` and wired into the config
-(on opencode the variant is a single in-process plugin written to
-`.opencode/plugin/skill-map-activity.js`, no separate bridge line),
-plus a dim hint about `sm serve`. The final `status <provider>` now
-says `installed`. If the tester declined the prompt (or ran it in a
-non-TTY), nothing was written: have them re-run and answer `y`. A
-`--yes` flag exists for scripts; do not teach it here, the prompt IS
-the lesson.
+> Open the URL it prints in your browser. Top right, the sliders icon
+> opens **Settings**; go to the **Project** tab. The selector at the
+> top shows the active lens, the runtime skill-map is reading your
+> project through (it should say <provider>), and right below it
+> there's the **Live-activity hook** row. Its button reads
+> **Install <provider> activity hook**: click it.
+>
+> Before touching anything it asks for your permission: the dialog
+> names the exact file it will edit (a config that belongs to
+> <provider>, not to skill-map) and tells you your existing hooks are
+> preserved. Read it and hit **Proceed**.
+>
+> The button flips to **Uninstall <provider> activity hook**: that's
+> how you know it's wired, and also how you undo it later (same row,
+> same kind of confirmation). Tell me OK when you see it.
+
+Expected: the dialog names the config file from the deltas table for
+the active lens; after Proceed the row's hint reads "Activity hook
+installed into <config path>" and the button flips to Uninstall. The
+row targets the ACTIVE lens, which the part preflight aligned with
+`tutorial.provider`; if the selector shows a different lens, sort that
+out first (switch it back) before installing. If the tester cancelled
+the dialog, nothing was written: have them click Install again and
+Proceed.
 
 Mark `wire`: done. Then close the message with the restart bridge
 below, this is the one chapter boundary that crosses an agent session:
 
 > Wired. Now the one-time trick: <provider> only reads its hook config
 > when a session **starts**, so the hook can't fire in this
-> conversation. First, in your second terminal, start the server and
-> leave it running (if an `sm` from an earlier part is still open,
-> Ctrl+C it first):
-
-```bash
-sm
-```
-
-> Open the URL it prints in your browser and keep the map visible.
->
-> Then close this session and start me again exactly the way you
-> started this one, from this same folder. In the fresh session just
-> say **"resume the tutorial"** and I'll pick up right where we left
-> off.
+> conversation. Leave the server and the browser exactly as they are,
+> close this session, and start me again the way you started this one,
+> from this same folder. In the fresh session just say
+> **"resume the tutorial"** and I'll pick up right where we left off.
 
 ## Chapter `live` - Restart and watch nodes light up (~3 min)
 
@@ -108,8 +108,9 @@ This chapter begins on the RESUMED session (see the part header). If
 restarted, walk them through the restart bridge again first; the hook
 cannot fire in the session that wired it.
 
-> Quick look at the top bar of the UI before anything else: the bolt
-> icon is the **Real Time** toggle. It's on by default, and now that
+> Quick look at the top bar of the UI before anything else: the pulse
+> icon (the little heartbeat line) is the **Real Time** toggle. It's
+> on by default, and now that
 > the server is running and the hook is wired it's active (when it's
 > blocked, its tooltip tells you why). Next to the zoom controls
 > there's also a camera icon, **Follow the Activity**: turn it on if
@@ -126,7 +127,14 @@ On the OK, silently `Read` three harness files one after the other,
 pausing a beat between them so the glow reads as a sequence:
 `AGENTS.md` (the handbook), `docs/STYLE.md`, and the `check-links`
 skill's `SKILL.md` (under `<provider_dir>/skills/check-links/`). Your
-OWN tool calls fire the provider's hooks; that is the demo.
+OWN tool calls fire the provider's hooks; that is the demo. Do NOT
+recap which files you touched (`_core.md` §Silence: the reads are
+backstage, and the map already showed them); your next message is
+ONLY this:
+
+> Watch the map: three nodes should have lit up with their kind's
+> color the moment I read them. That's the hook at work. What did
+> you see?
 
 On **codex** (reads do not fire there):
 
@@ -137,18 +145,22 @@ On **codex** (reads do not fire there):
 $check-links do a quick pass over the handbook links
 ```
 
-Run the skill briefly and answer in one short line, then continue.
+Run the skill briefly and answer in one short line; then, with no
+recap of what you just did, ask the same watch-the-map question as
+above (singular: the `check-links` node).
 
-Expected (ask the tester to confirm what they saw): the touched nodes
+Expected (from the tester's reply): the touched nodes
 glow with their kind's accent color. On claude / codex the glow decays
 by itself after a few seconds; on antigravity / opencode the lit chain
 goes dark the moment the runtime goes idle instead. If nothing lit up:
 (1) confirm the agent session was actually restarted after `wire` (the
 hook loads at session start), (2) confirm `sm` is running FROM this
 folder (the bridge finds the server through `.skill-map/serve.json`; a
-server started in another directory receives nothing), (3) re-run
-`sm activity status <provider>`, a `partial` state means re-install,
-and (4) check the topbar bolt is on.
+server started in another directory receives nothing), (3) re-open
+Settings > Project and confirm the Live-activity hook row offers
+Uninstall (that means installed; if it offers Install, install it
+again), and (4) check the topbar Real Time toggle (the pulse icon) is
+on.
 
 Mark `live`: done.
 
@@ -169,16 +181,38 @@ Mark `live`: done.
 >
 > Accept it and tell me OK.
 
-Then the payoff, per the deltas table. On **claude / codex**: on the
-OK, silently spawn the harness agent with a one-line prompt (claude:
-the `content-editor` subagent via your agent-spawning tool; codex:
-`spawn_agent` with `content-editor`), something like "Reply with one
-short greeting.". When it returns:
+Then the payoff, per the deltas table. On **claude / codex**, first
+set the scene (the spawn visuals are EPHEMERAL, they live exactly as
+long as the run, so the tester must be watching BEFORE you spawn):
 
-> Look at the map: a dashed arrow appeared from the session capsule
-> (that dashed pill is this conversation) to `content-editor`, with a
-> counter on it. Click the arrow: that's the exchange that just
-> happened, my prompt on one side, the agent's reply on the other.
+> Now the demo. When you say OK I'll delegate a small task to
+> `content-editor`, and while it runs the map will show two things
+> that only exist while something executes: a dashed capsule named
+> "Session 1" (that's us: this conversation isn't a file on disk, so
+> the map draws a temporary anchor for whatever the session spawns)
+> and a dashed arrow from that capsule to `content-editor`. Both fade
+> when the run ends, they're live traces, not part of your project.
+> Eyes on the map, and say OK.
+
+On the OK, silently spawn the harness agent (claude: the
+`content-editor` subagent via your agent-spawning tool; codex:
+`spawn_agent` with `content-editor`) with a prompt that takes a few
+seconds, e.g. "Read docs/STYLE.md and reply with one improvement
+suggestion, in one line.", so the capsule and the arrow stay visible
+long enough to be seen. When it returns, with no recap of the spawn
+itself:
+
+> Did you catch the capsule and the arrow? They're gone now, and
+> that's by design: they live exactly as long as the run. The
+> conversation itself was kept, though, that's the permission you
+> just granted. Click the `content-editor` node: in the inspector's
+> **Activity** section you'll find **Agent spawns** with a
+> "session -> content-editor" row; hit **View conversation** and
+> there it is, my prompt on one side, the agent's reply on the other.
+
+If the tester says they missed the live visuals, offer to re-run the
+spawn once (same thread, the exchange counter goes up by one) while
+they watch.
 
 (If a codex tester asks why the dialog shows no duration / token
 totals: the codex runtime does not report execution totals, so they
@@ -226,11 +260,11 @@ On **opencode**:
 
 Then close the part (all providers):
 
-> That's the whole feature. Everything you wired is reversible:
-> `sm activity uninstall <provider>` removes exactly what the install
-> added, and the capture switch clears itself the moment you flip it
-> off. Leave it wired if you like the live map, it only ever talks to
-> your own local server.
+> That's the whole feature. Everything you wired is reversible: the
+> same Live-activity hook row in Settings uninstalls it (one click,
+> same confirmation), and the capture switch clears itself the moment
+> you flip it off. Leave it wired if you like the live map, it only
+> ever talks to your own local server.
 
 Mark `conversations`: done. The part closes per `_core.md` §Closing a
 part.

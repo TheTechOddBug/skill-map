@@ -4,8 +4,8 @@
  * then `GET /api/activity/install?provider=<lens>`).
  *
  * Real-time node lighting cannot work without the hook, so the two
- * surfaces that flip the preference (the topbar bolt toggle and the
- * Settings > General switch) both gate on this one signal instead of
+ * surfaces that flip the preference (the topbar Real Time toggle and
+ * the Settings > General switch) both gate on this one signal instead of
  * running their own probes. Refresh points:
  *
  *   - boot (constructor), so the topbar toggle renders its true state

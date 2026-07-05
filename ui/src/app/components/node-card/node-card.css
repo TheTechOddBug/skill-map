@@ -387,7 +387,7 @@
   background: color-mix(in srgb, var(--sm-exec-c1) 14%, transparent);
   color: var(--sm-exec-c1);
 }
-.sm-gnode__activity-bolt { font-size: 0.6rem; }
+.sm-gnode__activity-pulse { font-size: 0.6rem; }
 
 .sm-gnode__panel { display: none; border-top: 1px solid var(--sm-border); }
 :host(.sm-gnode--expanded) .sm-gnode__panel { display: block; }

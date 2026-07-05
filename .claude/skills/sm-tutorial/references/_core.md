@@ -93,7 +93,13 @@ primero que el directorio esté listo", "Let me run `sm version`",
 archivos". Pre-flight checks, file reads, `ls`, `Write` of
 fixtures, state-file updates: all silent. The tester only hears
 from you when (a) they need to do something, (b) a step landed and
-you want a confirm, or (c) something failed.
+you want a confirm, or (c) something failed. The prohibition covers
+the recap AFTER the work as much as the announcement before it:
+never open the next message with "Listo, ya toqué / preparé / edité
+X" or any inventory of what you just did backstage; start straight
+at what the tester must do or look at. When a chapter's demo IS the
+backstage action (the realtime part's reads), the chapter provides
+the exact follow-up line; add nothing above it.
 
 ### Glossing technical terms
 
