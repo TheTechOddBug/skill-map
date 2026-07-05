@@ -31,6 +31,7 @@ import {
   FZoomDirective,
   provideFLayout,
 } from '@foblex/flow';
+import type { FCanvasChangeEvent } from '@foblex/flow';
 import { DagreLayoutEngine } from '@foblex/flow-dagre-layout';
 
 import { GRAPH_VIEW_TEXTS } from '../../../i18n/graph-view.texts';
@@ -40,6 +41,7 @@ import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
 import { GraphPreferencesService } from '../../../services/graph-preferences';
 import { IssuePathsService } from '../../../services/issue-paths';
+import { LivePreferencesService } from '../../../services/live-preferences';
 import { MapVisibilityService } from '../../../services/map-visibility';
 import { AgentSpawnService } from '../../../services/agent-spawn';
 import { NodeActivityService } from '../../../services/node-activity';
@@ -198,6 +200,7 @@ export class GraphView implements OnInit {
   protected readonly nodeActivity = inject(NodeActivityService);
   private readonly activityStats = inject(NodeActivityStatsService);
   private readonly agentSpawns = inject(AgentSpawnService);
+  private readonly livePrefs = inject(LivePreferencesService);
   private readonly dataSource = inject(DATA_SOURCE);
 
   private readonly flow = viewChild(FFlowComponent);
@@ -695,6 +698,24 @@ export class GraphView implements OnInit {
       if (this.mapFitDebounce !== null) clearTimeout(this.mapFitDebounce);
     });
 
+    // Follow-the-activity camera. Tracks the MEMBERSHIP fingerprint (so
+    // only genuine target changes re-frame, never position churn), the
+    // dagre tick (a re-layout moves the targets, re-frame over the fresh
+    // coordinates), and the boot-fit flag (signal-backed: a persisted
+    // follow=ON must start framing as soon as the boot fit settles, even
+    // if the active set never changes again). Position resolution runs
+    // untracked so a node drag does not re-trigger the tween mid-drag.
+    // No debounce: activity events already coalesce once per frame in
+    // `NodeActivityService`, and the shared supersession token retargets
+    // an in-flight tween smoothly from wherever the camera is.
+    effect(() => {
+      const fingerprint = this.followTargetsFingerprint();
+      this.layoutComputedAt();
+      const bootFitDone = this.layoutFit.hasCompletedInitialLayout();
+      if (fingerprint === '' || !bootFitDone) return;
+      untracked(() => this.runFollowActivityFit());
+    });
+
     // Garbage-collect curated paths a re-scan removed. Keyed on the
     // whole-corpus LITE node set, NOT the rendered branch: curation is
     // corpus-wide and must survive a branch switch (a curated path that
@@ -806,7 +827,24 @@ export class GraphView implements OnInit {
     // template hook in case we need a render-complete callback later.
   }
 
-  protected readonly onCanvasChange = this.viewportStore.onCanvasChange;
+  /**
+   * Canvas change handler: mirrors the event into the viewport store
+   * (reconciliation + persistence) and doubles as the manual-gesture
+   * hook that switches Follow the Activity off. Foblex only fires
+   * `fCanvasChange` for USER gestures (wheel / pinch / canvas drag /
+   * the zoom buttons' `setZoom`) plus the middle-mouse pan's explicit
+   * `emitCanvasChangeEvent()` flush, never for programmatic
+   * `[position]` / `[scale]` writes, so the follow tween itself cannot
+   * trip this and the event IS the "operator took the camera" signal
+   * (log-viewer follow semantics). Gated on the boot fit: the initial
+   * imperative `fitToScreenClamped` (Foblex `fitToScreen` + `setZoom`
+   * clamp) emits too, and must not kill a persisted follow preference
+   * at startup.
+   */
+  protected onCanvasChange(event: FCanvasChangeEvent): void {
+    this.viewportStore.onCanvasChange(event);
+    if (this.layoutFit.hasCompletedInitialLayout()) this.disableFollow();
+  }
 
   /**
    * Run a fit that respects `zoomMin` / `zoomMax`. Foblex's `FitToFlow`
@@ -911,7 +949,17 @@ export class GraphView implements OnInit {
   private runAnimatedFit(): void {
     const transform = this.computeVisibleFitTransform();
     if (!transform) return;
+    this.animateToTransform(transform);
+  }
 
+  /**
+   * Glide the viewport toward `transform` with the shared supersession
+   * token. Single tween entry point for every animated camera move
+   * (auto-fit, deep-link center, follow-the-activity), so back-to-back
+   * moves from different features cancel each other cleanly instead of
+   * fighting over the viewport signals.
+   */
+  private animateToTransform(transform: IViewportTransform): void {
     const token = ++this.autoFitAnimToken;
     animateViewport(
       {
@@ -974,6 +1022,9 @@ export class GraphView implements OnInit {
    * no resolvable position, or the host isn't mounted.
    */
   private centerOnNode(nodeId: string): void {
+    // A deep-link center is an explicit "look at THIS node" intent, the
+    // camera is the operator's again: follow-the-activity yields.
+    this.disableFollow();
     // Only pan to a node that is actually on the map. When it is curated /
     // filtered out of the visible set there is nothing on screen to center
     // on (its full-layout position points at empty space), so leave the
@@ -990,19 +1041,7 @@ export class GraphView implements OnInit {
       panelW: this.reservedPanelWidth(),
       scale: this.viewportScale(),
     });
-
-    const token = ++this.autoFitAnimToken;
-    animateViewport(
-      {
-        readPosition: () => this.viewportPosition(),
-        readScale: () => this.viewportScale(),
-        writePosition: (p) => this.viewportPosition.set(p),
-        writeScale: (s) => this.viewportScale.set(s),
-        isStaleToken: () => token !== this.autoFitAnimToken,
-      },
-      transform,
-      AUTO_FIT_ANIM_MS,
-    );
+    this.animateToTransform(transform);
   }
 
   /**
@@ -1023,6 +1062,9 @@ export class GraphView implements OnInit {
    * `MapVisibilityService.isolate`); the service owns that bookkeeping.
    */
   isolateNeighborhood(path: string): void {
+    // Isolating curates + re-frames the neighborhood; follow would fight
+    // that framing on the next activity tick, so it yields first.
+    this.disableFollow();
     const outcome = this.mapVisibility.isolate(path, directNeighborhood(this.fullAdjacency(), path));
     // A toggle-back (re-isolating the same node while the map still shows its
     // neighborhood) restores the prior visibility; leave selection alone so it
@@ -1036,14 +1078,17 @@ export class GraphView implements OnInit {
   }
 
   zoomIn(): void {
+    this.disableFollow();
     this.zoom()?.setZoom(this.getViewportCenter(), ZOOM_BUTTON_STEP, EFZoomDirection.ZOOM_IN, true);
   }
 
   zoomOut(): void {
+    this.disableFollow();
     this.zoom()?.setZoom(this.getViewportCenter(), ZOOM_BUTTON_STEP, EFZoomDirection.ZOOM_OUT, true);
   }
 
   fitToScreen(): void {
+    this.disableFollow();
     this.runAnimatedFit();
   }
 
@@ -1077,6 +1122,10 @@ export class GraphView implements OnInit {
   }
 
   private applyResetLayout(visiblePaths: Set<string>, full: boolean): void {
+    // Re-arranging is an explicit framing intent; follow yields. Placed
+    // here (not in `resetLayout`) so cancelling the confirm dialog
+    // leaves the follow state untouched.
+    this.disableFollow();
     // Reset also collapses every expanded card: the intent is "give me a
     // clean canvas", and leaving cards open re-introduces the size
     // variation that made the user reach for reset in the first place.
@@ -1397,6 +1446,86 @@ export class GraphView implements OnInit {
   /** The spawn riding this static edge, or `null` when the edge is plain. */
   protected spawnActiveIdFor(edge: IGraphEdge): string | null {
     return this.spawnActiveByPair().get(edgePairKey(edge.from, edge.to)) ?? null;
+  }
+
+  // ── Follow the Activity ─────────────────────────────────────────────
+  // While the toolbar toggle is on, the camera auto-frames every
+  // executing node (plus the live session capsules) and re-frames,
+  // animated, whenever that set changes. Preference persisted in
+  // `LivePreferencesService` (`sm.live.follow-activity`); the behaviour
+  // owner is this component, the camera's home. Manual camera gestures
+  // hand control back to the operator, see `onCanvasChange` and
+  // `disableFollow`.
+
+  /** Follow-the-activity preference, re-exposed for the toolbar toggle. */
+  protected readonly followActivity = this.livePrefs.followActivityEnabled;
+
+  protected toggleFollowActivity(): void {
+    this.livePrefs.setFollowActivityEnabled(!this.followActivity());
+  }
+
+  /**
+   * Manual camera intents (pan / zoom / fit / re-arrange / isolate /
+   * deep-link center) switch follow off, log-viewer follow semantics.
+   * The setter no-ops when already off.
+   */
+  private disableFollow(): void {
+    this.livePrefs.setFollowActivityEnabled(false);
+  }
+
+  /**
+   * Membership fingerprint of the follow targets: the executing node
+   * paths that are actually on the canvas plus the live session-capsule
+   * ids. STRING-valued on purpose: the follow effect tracks this
+   * computed, and the effect only re-fires when the computed's VALUE
+   * changes, so position churn (drags, dagre writes) that re-evaluates
+   * `spawnOverlay` without changing membership never re-triggers the
+   * camera. The empty string doubles as the "follow off / nothing to
+   * follow" sentinel (decision: when the activity ends, the camera
+   * stays where it is).
+   */
+  private readonly followTargetsFingerprint = computed<string>(() => {
+    if (!this.followActivity() || !this.nodeActivity.enabled()) return '';
+    const visible = this.mapVisiblePaths();
+    const paths = [...this.nodeActivity.activePaths()].filter((p) => visible.has(p)).sort();
+    const sessions = this.spawnOverlay().sessions.map((s) => s.id).sort();
+    return [...paths, ...sessions].join('|');
+  });
+
+  /**
+   * Frame the follow targets: animated fit over the bbox of every
+   * executing node (effective positions, pinned-over-dagre like every
+   * other camera path) plus the live session capsules. A capsule's
+   * footprint is 170x44 while the fit math assumes NODE_W x NODE_H
+   * (260x120), so the bbox over-covers it by a few px, harmless under
+   * the fit's 80px viewport padding. Bails softly when nothing is
+   * resolvable yet (dagre pending, host unmounted); the next
+   * `layoutComputedAt` tick re-fires the effect.
+   */
+  private runFollowActivityFit(): void {
+    const host = this.canvasWrap()?.nativeElement;
+    if (!host) return;
+    const visible = this.mapVisiblePaths();
+    const pinned = this.nodePositions();
+    const layout = this.fullLayout().positions;
+    const points: IPoint[] = [];
+    for (const path of this.nodeActivity.activePaths()) {
+      if (!visible.has(path)) continue;
+      const pt = pinned.get(path) ?? layout.get(path);
+      if (pt) points.push({ x: pt.x, y: pt.y });
+    }
+    for (const session of this.spawnOverlay().sessions) {
+      points.push({ x: session.position.x, y: session.position.y });
+    }
+    if (points.length === 0) return;
+    const transform = computeFitTransform({
+      points,
+      wrap: { width: host.clientWidth, height: host.clientHeight },
+      panelW: this.reservedPanelWidth(),
+      zoomMin: this.zoomMin,
+    });
+    if (!transform) return;
+    this.animateToTransform(transform);
   }
 
   /**

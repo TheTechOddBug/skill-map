@@ -420,6 +420,33 @@
           (onClick)="fitToScreen()"
           data-testid="graph-fit-to-screen"
         />
+        @if (nodeActivity.enabled()) {
+          <!-- Follow the Activity: camera control, so it lives in the
+               zoom / fit cluster. Only offered while Real Time is on
+               (without activity frames there is nothing to follow).
+               Active state mirrors the topbar bolt: primary severity
+               while following, secondary otherwise. -->
+          <p-button
+            icon="pi pi-video"
+            [ariaLabel]="
+              followActivity()
+                ? texts.toolbar.followActivity.ariaOn
+                : texts.toolbar.followActivity.ariaOff
+            "
+            [pTooltip]="
+              followActivity()
+                ? texts.toolbar.followActivity.tooltipOn
+                : texts.toolbar.followActivity.tooltipOff
+            "
+            [severity]="followActivity() ? 'primary' : 'secondary'"
+            [text]="true"
+            [rounded]="true"
+            size="small"
+            [attr.aria-pressed]="followActivity()"
+            (onClick)="toggleFollowActivity()"
+            data-testid="graph-follow-activity"
+          />
+        }
         <span class="graph__toolbar-sep" aria-hidden="true"></span>
         <sm-graph-layout-toolbar />
         <span class="graph__toolbar-sep" aria-hidden="true"></span>

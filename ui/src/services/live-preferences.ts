@@ -11,6 +11,10 @@
  *     glow driven by `node.activity` frames, `spec/provider-activity.md`)
  *     lights up the map. OFF keeps the socket (and every other live
  *     feature) untouched; only the activity lighting goes inert.
+ *   - `followActivityEnabled`, whether the graph camera auto-frames the
+ *     executing nodes ("Follow the Activity", the map-toolbar toggle).
+ *     Default OFF: a camera that moves on its own at boot is intrusive;
+ *     the operator opts in and the choice then persists.
  *
  * This service is the STORAGE seam only: it owns the keys, the
  * defaults, and the signals. The behaviour lives with each feature
@@ -18,7 +22,11 @@
  * socket) and `NodeActivityService.setEnabled()` (clears the lit set),
  * both of which persist through the setters here. UI code flips the
  * switches through those owners, never through this service directly,
- * so the preference and the runtime state can never diverge.
+ * so the preference and the runtime state can never diverge. The
+ * follow-activity switch is the one exception: its behaviour owner is
+ * `GraphView` (the camera lives there) and it has no runtime state
+ * beyond the preference itself, so the component reads and writes the
+ * setter here directly, nothing can diverge.
  *
  * Follows the `GraphPreferencesService` pattern: one localStorage key
  * per preference (an unrelated migration cannot corrupt the rest),
@@ -29,16 +37,20 @@ import { Injectable, signal } from '@angular/core';
 
 const WS_ENABLED_KEY = 'sm.live.ws-enabled';
 const ACTIVITY_ENABLED_KEY = 'sm.live.activity-enabled';
+const FOLLOW_ACTIVITY_KEY = 'sm.live.follow-activity';
 
 @Injectable({ providedIn: 'root' })
 export class LivePreferencesService {
   private readonly _wsEnabled = signal(readStoredBool(WS_ENABLED_KEY, true));
   private readonly _activityEnabled = signal(readStoredBool(ACTIVITY_ENABLED_KEY, true));
+  private readonly _followActivity = signal(readStoredBool(FOLLOW_ACTIVITY_KEY, false));
 
   /** Live `/ws` channel wanted at all. Default ON. */
   readonly wsEnabled = this._wsEnabled.asReadonly();
   /** Real-time node activity lighting wanted. Default ON. */
   readonly activityEnabled = this._activityEnabled.asReadonly();
+  /** Camera auto-frames the executing nodes. Default OFF. */
+  readonly followActivityEnabled = this._followActivity.asReadonly();
 
   setWsEnabled(value: boolean): void {
     if (this._wsEnabled() === value) return;
@@ -50,6 +62,12 @@ export class LivePreferencesService {
     if (this._activityEnabled() === value) return;
     this._activityEnabled.set(value);
     writeStoredBool(ACTIVITY_ENABLED_KEY, value);
+  }
+
+  setFollowActivityEnabled(value: boolean): void {
+    if (this._followActivity() === value) return;
+    this._followActivity.set(value);
+    writeStoredBool(FOLLOW_ACTIVITY_KEY, value);
   }
 }
 

@@ -14,6 +14,18 @@ export const GRAPH_VIEW_TEXTS = {
     zoomIn: 'Zoom in',
     zoomOut: 'Zoom out',
     fitToScreen: 'Fit to screen',
+    /**
+     * "Follow the Activity" camera toggle (spec/provider-activity.md
+     * lighting, camera side). Only rendered while Real Time is on; a
+     * manual pan / zoom switches it back off (log-viewer follow
+     * semantics), hence the on/off tooltip pair.
+     */
+    followActivity: {
+      tooltipOn: 'Stop following the activity',
+      tooltipOff: 'Follow the activity: auto-frame the executing nodes',
+      ariaOn: 'Stop following the activity',
+      ariaOff: 'Follow the activity',
+    },
     resetLayoutLabel: 'Re-arrange layout',
     resetLayoutTooltip: 'Re-arrange the visible nodes',
     showAllLabel: 'Show all',

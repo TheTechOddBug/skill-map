@@ -5,10 +5,12 @@ import { LivePreferencesService } from '../live-preferences';
 
 const WS_KEY = 'sm.live.ws-enabled';
 const ACTIVITY_KEY = 'sm.live.activity-enabled';
+const FOLLOW_KEY = 'sm.live.follow-activity';
 
 function clearStored(): void {
   localStorage.removeItem(WS_KEY);
   localStorage.removeItem(ACTIVITY_KEY);
+  localStorage.removeItem(FOLLOW_KEY);
 }
 
 function bootstrap(): LivePreferencesService {
@@ -53,5 +55,24 @@ describe('LivePreferencesService', () => {
     localStorage.setItem(WS_KEY, 'banana');
     const service = bootstrap();
     expect(service.wsEnabled()).toBe(true);
+  });
+
+  it('defaults follow-the-activity to OFF when nothing is stored', () => {
+    const service = bootstrap();
+    expect(service.followActivityEnabled()).toBe(false);
+  });
+
+  it('reads a stored follow-the-activity ON at construction and persists setter writes', () => {
+    localStorage.setItem(FOLLOW_KEY, 'true');
+    const service = bootstrap();
+    expect(service.followActivityEnabled()).toBe(true);
+
+    service.setFollowActivityEnabled(false);
+    expect(localStorage.getItem(FOLLOW_KEY)).toBe('false');
+    expect(service.followActivityEnabled()).toBe(false);
+
+    service.setFollowActivityEnabled(true);
+    expect(localStorage.getItem(FOLLOW_KEY)).toBe('true');
+    expect(service.followActivityEnabled()).toBe(true);
   });
 });

@@ -8,7 +8,9 @@ import { DagreLayoutEngine } from '@foblex/flow-dagre-layout';
 import { GraphView } from '../graph-view';
 import { CollectionLoaderService } from '../../../../services/collection-loader';
 import { KindRegistryService } from '../../../../services/kind-registry';
+import { LivePreferencesService } from '../../../../services/live-preferences';
 import { MapVisibilityService } from '../../../../services/map-visibility';
+import { NodeActivityService } from '../../../../services/node-activity';
 import {
   DATA_SOURCE,
   type IDataSourcePort,
@@ -822,6 +824,201 @@ describe('GraphView, spawn-active static edges', () => {
     expect(STUB_DATA_SOURCE.getSpawnRecord).not.toHaveBeenCalled();
     expect(STUB_DATA_SOURCE.getNodeActivity).not.toHaveBeenCalled();
     expect(probe.conversationOpen()).toBe(false);
+  });
+});
+
+describe('GraphView, follow-the-activity camera', () => {
+  const FOLLOW_KEY = 'sm.live.follow-activity';
+
+  /** Protected/private-surface probe for the follow feature. */
+  interface IFollowProbe {
+    followActivity(): boolean;
+    toggleFollowActivity(): void;
+    onCanvasChange(event: { position: { x: number; y: number }; scale: number }): void;
+    followTargetsFingerprint(): string;
+    runFollowActivityFit(): void;
+    fitToScreen(): void;
+    zoomIn(): void;
+  }
+
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+    localStorage.removeItem(FOLLOW_KEY);
+    localStorage.removeItem('sm.map.visible-paths');
+    localStorage.removeItem('sm.graph.viewport');
+  });
+
+  /**
+   * Local bootstrap: same harness as the shared `bootstrap()` plus a
+   * stubbed `NodeActivityService` whose `activePaths` / `enabled`
+   * signals the test drives directly (the real service only moves on
+   * WS frames, which demo mode never opens).
+   */
+  async function bootstrapWithActivity(
+    initialNodes: INodeView[],
+    active: ReturnType<typeof signal<ReadonlySet<string>>>,
+    activityEnabled: ReturnType<typeof signal<boolean>>,
+  ): Promise<{ fixture: ComponentFixture<GraphView>; cmp: GraphView; probe: IFollowProbe }> {
+    const loader = makeStubLoader(initialNodes);
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([{ path: '', component: BlankPage }]),
+        { provide: CollectionLoaderService, useValue: loader },
+        { provide: DATA_SOURCE, useValue: STUB_DATA_SOURCE },
+        { provide: MarkdownRenderer, useClass: FakeMarkdownRenderer },
+        { provide: SKILL_MAP_MODE, useValue: 'demo' },
+        {
+          provide: NodeActivityService,
+          useValue: {
+            enabled: activityEnabled.asReadonly(),
+            activePaths: active.asReadonly(),
+            setEnabled: vi.fn(),
+          } as unknown as NodeActivityService,
+        },
+      ],
+    });
+    TestBed.overrideComponent(GraphView, {
+      add: {
+        providers: [
+          {
+            provide: DagreLayoutEngine,
+            useValue: { calculate: vi.fn().mockResolvedValue({ nodes: [] }) },
+          },
+        ],
+      },
+    });
+    TestBed.inject(KindRegistryService).ingest({
+      agent: { primaryProviderId: 'claude', providers: { claude: { label: 'Agents', color: '#3b82f6' } } },
+    });
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/');
+    const fixture = TestBed.createComponent(GraphView);
+    return {
+      fixture,
+      cmp: fixture.componentInstance,
+      probe: fixture.componentInstance as unknown as IFollowProbe,
+    };
+  }
+
+  /** Flush effects + the boot-fit `queueMicrotask` + the follow effect re-run. */
+  async function settleBoot(fixture: ComponentFixture<GraphView>): Promise<void> {
+    await flushEffects(fixture);
+    await new Promise((r) => setTimeout(r, 0));
+    await flushEffects(fixture);
+  }
+
+  it('toggle flips the persisted preference through LivePreferencesService', async () => {
+    const active = signal<ReadonlySet<string>>(new Set());
+    const { fixture, probe } = await bootstrapWithActivity(
+      [makeNode('a.md', 'a')],
+      active,
+      signal(true),
+    );
+    await settleBoot(fixture);
+
+    expect(probe.followActivity()).toBe(false);
+    probe.toggleFollowActivity();
+    expect(probe.followActivity()).toBe(true);
+    expect(TestBed.inject(LivePreferencesService).followActivityEnabled()).toBe(true);
+    expect(localStorage.getItem(FOLLOW_KEY)).toBe('true');
+
+    probe.toggleFollowActivity();
+    expect(probe.followActivity()).toBe(false);
+    expect(localStorage.getItem(FOLLOW_KEY)).toBe('false');
+  });
+
+  it('a manual canvas gesture switches follow off once the boot fit settled', async () => {
+    const active = signal<ReadonlySet<string>>(new Set());
+    const { fixture, probe } = await bootstrapWithActivity(
+      [makeNode('a.md', 'a')],
+      active,
+      signal(true),
+    );
+    await settleBoot(fixture);
+
+    probe.toggleFollowActivity();
+    expect(probe.followActivity()).toBe(true);
+
+    // Foblex only emits fCanvasChange for user gestures; simulate one.
+    probe.onCanvasChange({ position: { x: 5, y: 5 }, scale: 1 });
+    expect(probe.followActivity()).toBe(false);
+  });
+
+  it('canvas events during boot do NOT kill a persisted follow preference', async () => {
+    localStorage.setItem(FOLLOW_KEY, 'true');
+    const active = signal<ReadonlySet<string>>(new Set());
+    // Empty node set: `visibleNodes` stays empty, the boot fit never
+    // completes, so the boot-time imperative fit's own emission must
+    // leave the preference alone.
+    const { fixture, probe } = await bootstrapWithActivity([], active, signal(true));
+    await settleBoot(fixture);
+
+    expect(probe.followActivity()).toBe(true);
+    probe.onCanvasChange({ position: { x: 5, y: 5 }, scale: 1 });
+    expect(probe.followActivity()).toBe(true);
+  });
+
+  it('explicit camera intents (fit / zoom buttons) switch follow off', async () => {
+    const active = signal<ReadonlySet<string>>(new Set());
+    const { fixture, probe } = await bootstrapWithActivity(
+      [makeNode('a.md', 'a')],
+      active,
+      signal(true),
+    );
+    await settleBoot(fixture);
+
+    probe.toggleFollowActivity();
+    probe.fitToScreen();
+    expect(probe.followActivity()).toBe(false);
+
+    probe.toggleFollowActivity();
+    probe.zoomIn();
+    expect(probe.followActivity()).toBe(false);
+  });
+
+  it('fingerprints only the VISIBLE executing paths, sorted; empty while follow is off', async () => {
+    const active = signal<ReadonlySet<string>>(new Set(['b.md', 'a.md', 'hidden.md']));
+    const { fixture, probe } = await bootstrapWithActivity(
+      [makeNode('a.md', 'a'), makeNode('b.md', 'b')],
+      active,
+      signal(true),
+    );
+    await settleBoot(fixture);
+
+    // Follow off: the sentinel empty string, regardless of activity.
+    expect(probe.followTargetsFingerprint()).toBe('');
+
+    probe.toggleFollowActivity();
+    // `hidden.md` is not on the canvas, it must not anchor the bbox.
+    expect(probe.followTargetsFingerprint()).toBe('a.md|b.md');
+  });
+
+  it('re-frames on membership change and stays quiet on an empty active set', async () => {
+    const active = signal<ReadonlySet<string>>(new Set(['a.md']));
+    const { fixture, cmp, probe } = await bootstrapWithActivity(
+      [makeNode('a.md', 'a'), makeNode('b.md', 'b')],
+      active,
+      signal(true),
+    );
+    await settleBoot(fixture);
+
+    const fitSpy = vi
+      .spyOn(cmp as unknown as Record<'runFollowActivityFit', () => void>, 'runFollowActivityFit')
+      .mockImplementation(() => {});
+
+    probe.toggleFollowActivity();
+    await flushEffects(fixture);
+    expect(fitSpy).toHaveBeenCalledTimes(1);
+
+    // Activity ended: the camera stays where it is (no re-frame).
+    active.set(new Set());
+    await flushEffects(fixture);
+    expect(fitSpy).toHaveBeenCalledTimes(1);
+
+    // New execution wave: re-frame over the fresh membership.
+    active.set(new Set(['a.md', 'b.md']));
+    await flushEffects(fixture);
+    expect(fitSpy).toHaveBeenCalledTimes(2);
   });
 });
 
