@@ -2,6 +2,40 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.81.0",
+      "date": "2026-07-05",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "On Antigravity, the map no longer goes dark while the main conversation waits for its subagents; everything stays lit until the whole conversation actually finishes.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Codex sessions now get the same live map extras as Claude: spawn arrows between agents, per-edge conversation counters, and opt-in agent-to-agent conversation viewing. Execution totals stay empty on Codex, its runtime does not report them.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "OpenCode sessions now draw spawn arrows with per-edge conversation counters and opt-in conversation viewing, with the child's full reply captured natively; the demo fixture mirrors the Claude one (3-turn conversation, unlinked scout, report skill).",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "The interactive tutorial has a new part: install the live-activity hook, restart your agent, and watch your tutorial project's nodes glow on the map as it runs. On Claude and Codex it ends with a spawn arrow you can click to read the agent-to-agent conversation.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.80.0",
       "date": "2026-07-05",
       "kind": "user-facing",
