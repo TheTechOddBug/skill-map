@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.81.1",
+      "date": "2026-07-05",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "The Real Time toggle now uses a heartbeat icon and looks clearly off when blocked. The tutorial installs the hook from Settings, shows why the dashed session capsule exists, and reopens agent conversations from the node inspector. No more \"Invalid Date\" in empty conversations.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.81.0",
       "date": "2026-07-05",
       "kind": "user-facing",

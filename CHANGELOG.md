@@ -6,6 +6,14 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>0.81.1</b> · 2026-07-05</summary>
+
+### CLI Patch
+- Real Time polish: the topbar toggle and the node-card execution counter swap the bolt for a wave-pulse icon (the bolt collided with the skill glyph) and the blocked toggle now reads clearly disabled. The conversation dialog no longer prints "Invalid Date" on timestamp-less records and names an empty retained thread. The realtime tutorial installs the hook from Settings > Project (no CLI verbs), explains the ephemeral session capsule, and reopens conversations from the inspector.
+
+</details>
+
+<details>
 <summary><b>0.81.0</b> · 2026-07-05</summary>
 
 ### CLI Minor
