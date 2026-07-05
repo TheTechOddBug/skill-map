@@ -2,6 +2,20 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.82.0",
+      "date": "2026-07-05",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "Turning live activity off for one agent no longer breaks it for other agents wired in the same project: the shared bridge now stays in place until the last agent unwires.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.81.1",
       "date": "2026-07-05",
       "kind": "user-facing",
