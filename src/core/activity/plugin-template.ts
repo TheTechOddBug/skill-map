@@ -21,11 +21,14 @@
  *     scope + loopback + token checks, 1500ms abort, fail-open.
  *
  * The registered hooks are opencode's: `tool.execute.before` (skill /
- * read / task tools), `command.execute.before`, `chat.message` (named
- * agent + sessionID), and the `event` catch-all FILTERED to
- * `session.idle` (the native owner release). Filtering by event TYPE is
+ * read / task tools), `tool.execute.after` FILTERED to the `task` tool
+ * (the spawn completion, carrying the child session id + final
+ * report), `command.execute.before`, `chat.message` (named agent +
+ * sessionID), and the `event` catch-all FILTERED to `session.idle`
+ * (the native owner release). Filtering by tool / event TYPE is
  * wiring, not mapping: it is what keeps the firehose bus (catalog /
- * registry noise) from ever leaving the host process.
+ * registry noise, every other tool's output) from ever leaving the
+ * host process.
  *
  * The template is a source STRING (not a bundled asset) so the CLI can
  * write it anywhere and tests can exercise the exact bytes users get.
@@ -89,6 +92,14 @@ export const SkillMapActivity = async ({ directory }) => {
   return {
     'tool.execute.before': async (input, output) => {
       await forward('tool.execute.before', { input, output });
+    },
+    'tool.execute.after': async (input, output) => {
+      // Wiring-level filter: only the spawn tool's completion leaves
+      // the process (it carries the child session id + final report);
+      // every other tool's output stays private to the host.
+      if (input && input.tool === 'task') {
+        await forward('tool.execute.after', { input, output });
+      }
     },
     'command.execute.before': async (input, output) => {
       await forward('command.execute.before', { input, output });

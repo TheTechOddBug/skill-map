@@ -129,6 +129,90 @@ describe('opencodeActivity.mapEvent', () => {
     assert.deepEqual(signals, [{ phase: 'end', owner: SESSION, ownerScope: true }]);
   });
 
+  it('a task before maps to the relation-only spawn start (real 2026-07-05 payload)', () => {
+    const signals = opencodeActivity.mapEvent({
+      hook: 'tool.execute.before',
+      directory: DIR,
+      input: {
+        tool: 'task',
+        sessionID: SESSION,
+        callID: 'call_00_SRzXlDZ3mj60RYlBdxoC7497',
+      },
+      output: {
+        args: {
+          description: 'Worker primera corrida',
+          subagent_type: 'demo-worker',
+          prompt: 'Ejecuta tu proceso demo completo.',
+        },
+      },
+    });
+    assert.deepEqual(signals, [
+      {
+        phase: 'start',
+        owner: SESSION,
+        spawn: {
+          spawnId: 'call_00_SRzXlDZ3mj60RYlBdxoC7497',
+          phase: 'start',
+          parentOwner: SESSION,
+          childKind: 'agent',
+          childName: 'demo-worker',
+          prompt: 'Ejecuta tu proceso demo completo.',
+        },
+      },
+    ]);
+  });
+
+  it('a task after maps to the spawn end with child owner and unwrapped report', () => {
+    const signals = opencodeActivity.mapEvent({
+      hook: 'tool.execute.after',
+      directory: DIR,
+      input: {
+        tool: 'task',
+        sessionID: SESSION,
+        callID: 'call_00_SRzXlDZ3mj60RYlBdxoC7497',
+        args: { description: 'Worker primera corrida', subagent_type: 'demo-worker', prompt: 'x' },
+      },
+      output: {
+        title: 'Worker primera corrida',
+        metadata: { parentSessionId: SESSION, sessionId: 'ses_child01', truncated: false },
+        output:
+          '<task id="ses_child01" state="completed">\n<task_result>\nreporte final del worker\n</task_result>\n</task>',
+      },
+    });
+    assert.deepEqual(signals, [
+      {
+        phase: 'start',
+        owner: SESSION,
+        spawn: {
+          spawnId: 'call_00_SRzXlDZ3mj60RYlBdxoC7497',
+          phase: 'end',
+          parentOwner: SESSION,
+          childKind: 'agent',
+          childName: 'demo-worker',
+          childOwner: 'ses_child01',
+          response: 'reporte final del worker',
+        },
+      },
+    ]);
+    // Unrecognised output shape passes through verbatim; non-task afters disclaim.
+    const fallback = opencodeActivity.mapEvent({
+      hook: 'tool.execute.after',
+      directory: DIR,
+      input: { tool: 'task', sessionID: SESSION, callID: 'call_01' },
+      output: { output: 'plain result text' },
+    });
+    assert.equal(fallback![0]!.spawn?.response, 'plain result text');
+    assert.equal(
+      opencodeActivity.mapEvent({
+        hook: 'tool.execute.after',
+        directory: DIR,
+        input: { tool: 'read', sessionID: SESSION, callID: 'call_02' },
+        output: {},
+      }),
+      null,
+    );
+  });
+
   it('re-checks the bus event type (a smuggled event maps to nothing)', () => {
     assert.equal(
       opencodeActivity.mapEvent({

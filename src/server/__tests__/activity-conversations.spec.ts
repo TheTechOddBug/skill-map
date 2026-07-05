@@ -143,6 +143,36 @@ describe('ActivityConversationStore execution summaries', () => {
   });
 });
 
+describe('ActivityConversationStore opencode-shaped sequence', () => {
+  it('start then direct end (childOwner + response together, no handoff) completes the record', () => {
+    // OpenCode's task pair skips the handoff: the completion carries
+    // the child owner and the final report in ONE frame.
+    const store = new ActivityConversationStore({ enabled: true });
+    store.record({
+      spawnId: 'call_00',
+      phase: 'start',
+      parentOwner: 'ses_parent',
+      childKind: 'agent',
+      childName: 'demo-worker',
+      childNodePath: '.opencode/agent/demo-worker.md',
+      prompt: 'proceso demo completo',
+    });
+    store.record({
+      spawnId: 'call_00',
+      phase: 'end',
+      parentOwner: 'ses_parent',
+      childOwner: 'ses_child',
+      response: 'reporte final del worker',
+    });
+    const record = store.bySpawnId('call_00')!;
+    assert.equal(record.childOwner, 'ses_child');
+    assert.equal(record.prompt, 'proceso demo completo');
+    assert.equal(record.response, 'reporte final del worker');
+    assert.equal(record.status, 'completed');
+    assert.ok(record.endedAt !== undefined);
+  });
+});
+
 describe('ActivityConversationStore attachReport', () => {
   it('attaches by childOwner match with overwrite semantics (pause then terminal)', () => {
     const store = new ActivityConversationStore({ enabled: true });

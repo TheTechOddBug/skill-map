@@ -32,12 +32,24 @@
  *   (its ONLY forwarded bus event, filtered at the wiring level), which
  *   maps to the node-less OWNER RELEASE for that `sessionID`: the whole
  *   session's chain goes dark the moment it idles.
+ * - **Spawn relations**: the `task` tool pair (live-verified
+ *   2026-07-05). The before carries `input.callID` (the spawnId) plus
+ *   `args.subagent_type` / `args.prompt`; the after arrives when the
+ *   child CONSOLIDATED (the parent blocks, no naps) carrying
+ *   `output.metadata.sessionId` (the child's own owner) and the child's
+ *   full final report inside `output.output`'s `<task_result>` wrapper.
+ *   The task event never names the PARENT agent (only its sessionID),
+ *   so every spawn emits the RELATION-ONLY form and anchors on a
+ *   session capsule client-side, one per spawning session. Per-message
+ *   token usage exists on the bus (`message.updated`) but aggregating
+ *   it would forward a high-frequency family; deferred.
  *
  * `owner` is the `sessionID` throughout (one per (sub)session).
  */
 
 import type {
   IActivitySignal,
+  IActivitySpawnRelation,
   IProviderActivityAdapter,
 } from '../../../../kernel/extensions/index.js';
 
@@ -57,6 +69,8 @@ export const opencodeActivity: IProviderActivityAdapter = {
     switch (wrapper['hook']) {
       case 'tool.execute.before':
         return mapToolCall(wrapper);
+      case 'tool.execute.after':
+        return mapTaskCompletion(wrapper);
       case 'command.execute.before':
         return mapCommand(wrapper);
       case 'chat.message':
@@ -86,7 +100,75 @@ function mapToolCall(wrapper: Record<string, unknown>): IActivitySignal[] | null
   if (input['tool'] === 'read') {
     return mapMarkdownRead(wrapper, input, args);
   }
+  if (input['tool'] === 'task') {
+    return mapTaskSpawn(input, args);
+  }
   return null;
+}
+
+/**
+ * `task` before -> spawn relation start. The task event carries only
+ * the parent's sessionID (never its agent NAME), so the signal is the
+ * RELATION-ONLY form: no parent node to claim, the frame anchors on a
+ * session capsule client-side.
+ */
+function mapTaskSpawn(
+  input: Record<string, unknown>,
+  args: Record<string, unknown>,
+): IActivitySignal[] | null {
+  const spawnId = nonEmptyString(input['callID']);
+  if (!spawnId) return null;
+  const owner = ownerOf(input);
+  const spawn: IActivitySpawnRelation = { spawnId, phase: 'start', parentOwner: owner };
+  const childName = nonEmptyString(args['subagent_type']);
+  if (childName) {
+    spawn.childKind = 'agent';
+    spawn.childName = childName;
+  }
+  const prompt = nonEmptyString(args['prompt']);
+  if (prompt) spawn.prompt = prompt;
+  return [{ phase: 'start', owner, spawn }];
+}
+
+/**
+ * `task` after -> spawn relation end. Arrives when the child already
+ * consolidated (the parent blocks inside the tool, live-verified: the
+ * child's `session.idle` lands right before this), carrying the
+ * child's own sessionID and its full final report.
+ */
+function mapTaskCompletion(wrapper: Record<string, unknown>): IActivitySignal[] | null {
+  const input = readRecord(wrapper, 'input');
+  if (input['tool'] !== 'task') return null;
+  const spawnId = nonEmptyString(input['callID']);
+  if (!spawnId) return null;
+  const owner = ownerOf(input);
+  const args = readRecord(input, 'args');
+  const output = readRecord(wrapper, 'output');
+  const spawn: IActivitySpawnRelation = { spawnId, phase: 'end', parentOwner: owner };
+  const childName = nonEmptyString(args['subagent_type']);
+  if (childName) {
+    spawn.childKind = 'agent';
+    spawn.childName = childName;
+  }
+  const childOwner = nonEmptyString(readRecord(output, 'metadata')['sessionId']);
+  if (childOwner) spawn.childOwner = childOwner;
+  const response = taskResultOf(output['output']);
+  if (response) spawn.response = response;
+  return [{ phase: 'start', owner, spawn }];
+}
+
+/**
+ * The child's final report, unwrapped from the `<task_result>` envelope
+ * (`<task id="..." state="..."><task_result>...</task_result></task>`,
+ * live-observed). An unrecognised shape passes through verbatim rather
+ * than losing content.
+ */
+function taskResultOf(output: unknown): string | null {
+  const raw = nonEmptyString(output);
+  if (!raw) return null;
+  const match = raw.match(/<task_result>\n?([\s\S]*?)\n?<\/task_result>/);
+  const text = (match ? match[1]! : raw).trim();
+  return text.length > 0 ? text : null;
 }
 
 /**

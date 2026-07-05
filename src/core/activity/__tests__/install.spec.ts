@@ -24,6 +24,7 @@ import {
   installActivityBridge,
   uninstallActivityBridge,
 } from '../install.js';
+import { ACTIVITY_PLUGIN_MARKER, renderActivityPlugin } from '../plugin-template.js';
 
 const CONFIG_REL = '.claude/settings.json';
 
@@ -258,5 +259,24 @@ describe('core/activity install engine', () => {
     const before = readFileSync(join(cwd, CONFIG_REL), 'utf8');
     assert.equal(uninstallActivityBridge(cwd, provider).removed, false);
     assert.equal(readFileSync(join(cwd, CONFIG_REL), 'utf8'), before);
+  });
+});
+
+describe('renderActivityPlugin wiring', () => {
+  it('registers exactly the consumed hooks, with the task-filtered after', () => {
+    const source = renderActivityPlugin('opencode');
+    for (const hook of [
+      "'tool.execute.before'",
+      "'tool.execute.after'",
+      "'command.execute.before'",
+      "'chat.message'",
+    ]) {
+      assert.ok(source.includes(hook), hook);
+    }
+    // Wiring-level filters: only the spawn tool's completion and the
+    // native end signal ever leave the host process.
+    assert.ok(source.includes("input.tool === 'task'"));
+    assert.ok(source.includes("event.type === 'session.idle'"));
+    assert.ok(source.includes(ACTIVITY_PLUGIN_MARKER));
   });
 });
