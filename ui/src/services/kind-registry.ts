@@ -37,17 +37,13 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 
 import type { IKindRegistryEntryApi, IKindRegistryProviderUiApi } from '../models/api';
 import { deriveTints } from './kind-tints';
+import { KIND_NAME_PATTERN } from './css-guard';
 
-/**
- * Defensive pattern mirroring `spec/schemas/node.schema.json#/properties/kind`.
- * Kind names land inside CSS custom-property identifiers and `<style>` text
- * content, so values that would break the declaration context (semicolons,
- * braces, whitespace, quotes) MUST be filtered. The kernel is the
- * authoritative gate; this UI-side guard is defence in depth in case a
- * stale BFF, a test fixture, or a future malformed envelope slips a bad
- * entry through.
- */
-const KIND_NAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/;
+// `KIND_NAME_PATTERN` (the CSS-identifier guard for kind names, mirroring
+// `spec/schemas/node.schema.json#/properties/kind`) is the single source of
+// truth in `./css-guard`, shared with the two `var(--sm-kind-<kind>)`
+// compositions in `node-card` / `inspector-view`. Applied below to the
+// `<style>`-injection path.
 
 /**
  * Strict 6-digit hex color guard for values that flow into the `<style>`

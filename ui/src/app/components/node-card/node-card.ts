@@ -22,7 +22,7 @@ import {
 } from '../../../models/node-derived';
 import type { INodeActivityStatsApi } from '../../../models/api';
 import { pathBasenameForLink } from '../../../services/path-basename';
-import { cssColorOrNull } from '../../../services/css-guard';
+import { cssColorOrNull, cssKindNameOrFallback } from '../../../services/css-guard';
 import type { ISelectionView } from '../../views/graph-view/selection-state';
 import { KindIcon } from '../kind-icon/kind-icon';
 import { ViewContributionsHost } from '../view-contributions-host/view-contributions-host';
@@ -233,18 +233,21 @@ export class NodeCard {
    * its own colour, icon glyph included, with no CSS change per kind.
    *
    * Kind names are constrained to `[a-zA-Z][a-zA-Z0-9_-]{0,63}` by the
-   * kernel (`spec/schemas/node.schema.json#/properties/kind`) and again by
-   * the registry's CSS-var guard, so the interpolation is safe inside a
-   * `var()` name (same pattern as `inspector-view.html`).
+   * kernel (`spec/schemas/node.schema.json#/properties/kind`), but since
+   * 14.5.d kinds are plugin-declared open strings, so the interpolation
+   * runs the value through `cssKindNameOrFallback` (the shared UI-side
+   * guard) before it lands inside the `var()` name: a valid kind is kept
+   * verbatim, anything off-pattern degrades to the neutral `markdown`
+   * palette. Same defence-in-depth posture as `inspector-view`'s accent.
    */
   protected readonly kindAccentVar = computed<string>(
-    () => `var(--sm-kind-${this.node().kind}, var(--sm-kind-markdown))`,
+    () => `var(--sm-kind-${cssKindNameOrFallback(this.node().kind)}, var(--sm-kind-markdown))`,
   );
   protected readonly kindBgVar = computed<string>(
-    () => `var(--sm-kind-${this.node().kind}-bg, var(--sm-kind-markdown-bg))`,
+    () => `var(--sm-kind-${cssKindNameOrFallback(this.node().kind)}-bg, var(--sm-kind-markdown-bg))`,
   );
   protected readonly kindFgVar = computed<string>(
-    () => `var(--sm-kind-${this.node().kind}-fg, var(--sm-kind-markdown-fg))`,
+    () => `var(--sm-kind-${cssKindNameOrFallback(this.node().kind)}-fg, var(--sm-kind-markdown-fg))`,
   );
 
   private readonly markdown = inject(MarkdownRenderer);

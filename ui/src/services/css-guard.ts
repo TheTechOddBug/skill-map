@@ -33,3 +33,29 @@ export function cssColorOrNull(v: unknown): string | null {
   if (HEX_COLOR.test(s) || NAMED_COLOR.test(s)) return s;
   return null;
 }
+
+/**
+ * Canonical kind-name pattern, mirroring
+ * `spec/schemas/node.schema.json#/properties/kind`. Kind names land inside
+ * CSS custom-property IDENTIFIERS (the `<kind>` in `var(--sm-kind-<kind>)`)
+ * and `<style>` text content, so a value carrying the characters an
+ * injection needs (`;`, `{`, `}`, `(`, `)`, `:`, whitespace, quotes) would
+ * break the declaration context. Since Step 14.5.d kinds are plugin-declared
+ * OPEN strings, so the kernel schema is the only authoritative gate; this is
+ * the single source of truth for the UI-side defence-in-depth guard, shared
+ * by `kind-registry.ts` (`<style>` injection) and the two `var()`
+ * compositions in `node-card` / `inspector-view`.
+ */
+export const KIND_NAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/;
+
+/**
+ * Resolve a CSS-safe kind name for use inside a `var(--sm-kind-<name>, ...)`
+ * composition. An off-pattern value degrades to `fallback` (`markdown`, the
+ * neutral base palette), so the composed expression is always well-formed
+ * and a malformed kind can never break out of the `var()` name. Same
+ * graceful-fallback posture as `cssColorOrNull` / `httpUrlOrNull`; a valid
+ * kind is returned verbatim, so registered kinds keep their own palette.
+ */
+export function cssKindNameOrFallback(kind: unknown, fallback = 'markdown'): string {
+  return typeof kind === 'string' && KIND_NAME_PATTERN.test(kind) ? kind : fallback;
+}

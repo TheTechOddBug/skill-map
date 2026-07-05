@@ -36,6 +36,7 @@ import {
   setupHighlightedSource,
 } from '../../../services/markdown-inline-signal';
 import { ActionDispatchService } from '../../../services/action-dispatch';
+import { cssKindNameOrFallback } from '../../../services/css-guard';
 import { pathBasenameForLink } from '../../../services/path-basename';
 import { ProviderRegistryService } from '../../../services/provider-registry';
 import {
@@ -139,6 +140,18 @@ export class InspectorView implements OnInit {
     if (!path) return null;
     return this.loader.nodes().find((n) => n.path === path) ?? null;
   });
+
+  /**
+   * Kind-driven accent bound onto `--accent` (the hero + every `.sm-block`
+   * section rail inherit one hue per node). The kind flows into a
+   * `var(--sm-kind-<kind>)` name, and since 14.5.d kinds are plugin-declared
+   * open strings, so it runs through `cssKindNameOrFallback` (the shared
+   * UI-side guard) before interpolation, matching `node-card`. Off-pattern
+   * kinds (or no selection) degrade to the neutral `markdown` palette.
+   */
+  protected readonly accentVar = computed<string>(
+    () => `var(--sm-kind-${cssKindNameOrFallback(this.node()?.kind)}, var(--sm-kind-markdown))`,
+  );
 
   /** O(1) path lookup, rebuilt only when the loaded nodes change. */
   protected readonly pathSet = computed<ReadonlySet<string>>(() => {
