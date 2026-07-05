@@ -26,6 +26,22 @@ Once `v1.0` lands this policy relaxes and the normal pull-request flow described
 - **Bug reports + feature requests**: [GitHub Issues](https://github.com/crystian/skill-map/issues/new/choose). Pick the matching template. These are open and welcome at any time, including pre-1.0.
 - **Pull requests**: **paused until `v1.0`** for external contributors (see Project status above). The flow below (changesets, bump policy, merge pipeline) documents how internal PRs work and how external PRs will work once the project opens up.
 
+## Reporting a bug: minimal reproduction
+
+skill-map's whole job is scanning Markdown, so almost every bug is really about the `.md` files it read: how they are parsed, linked, or rendered. A report without those files is one we cannot reproduce. The single most useful thing you can attach is the **smallest set of `.md` files that still triggers the bug**, and nothing else.
+
+Why minimal, not "my whole project": a 300-file tree buries the one file that matters, drags in private content you did not mean to share, and makes the maintainer guess which lens and which references are in play. Two or three focused files reproduce it in seconds and often drop straight into `fixtures/` as a regression test.
+
+How to reduce a real project down to the minimum:
+
+1. **Reproduce it in place first.** Note the exact command (`sm scan`, `sm scan ./some-root`, whatever it was) and what you saw versus what you expected.
+2. **Copy the scanned tree out** to a throwaway folder: the `.skill-map/` directory plus the `.md` files it walks. Confirm the bug still reproduces from the copy.
+3. **Delete in big chunks.** Remove whole folders and files, re-run the command, and if it still reproduces keep them deleted. Keep halving what is left until every remaining file is load-bearing.
+4. **Shrink each survivor.** Strip frontmatter keys, links, and sections that are not needed. A file that still triggers the bug at 10 lines beats the original at 200.
+5. **Re-run one last time** on the reduced tree to confirm it still fails, then capture `sm scan --json` on that tree.
+
+Most reports land at one to three short files. Paste the file tree plus each file's contents into the bug report, or drag a `.zip` of the reduced tree into the form. Include the exact command and the `--json` output so we see the same thing you do.
+
 ## Code standards
 
 - TypeScript strict mode, Node ESM, Node ≥ 24.0.

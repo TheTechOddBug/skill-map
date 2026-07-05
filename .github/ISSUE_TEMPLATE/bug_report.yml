@@ -7,6 +7,8 @@ body:
     attributes:
       value: |
         Bug reports are welcome even though external pull requests are paused until v1.0. A clear report helps us fix it fast.
+
+        skill-map scans Markdown, so the fastest fix comes from the **smallest set of `.md` files that still reproduces the bug**. See how to reduce a real project down to that minimum: [Reporting a bug: minimal reproduction](https://github.com/crystian/skill-map/blob/main/CONTRIBUTING.md#reporting-a-bug-minimal-reproduction).
   - type: textarea
     id: what
     attributes:
@@ -23,6 +25,26 @@ body:
         1. Run `sm scan`
         2. Open the UI
         3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: minimal-repro
+    attributes:
+      label: Minimal reproduction (the .md files)
+      description: |
+        Share the smallest set of `.md` files that still triggers the bug, and nothing else. Paste the file tree plus each file's contents below, or drag a `.zip` of that minimal tree into this box.
+
+        To get there: start from your real project, delete files and folders and re-run the command until it stops reproducing (keep only what is still needed), then strip each remaining file down to the least content that still fails. Most reports land at 1 to 3 short files. Full procedure in the [contributing guide](https://github.com/crystian/skill-map/blob/main/CONTRIBUTING.md#reporting-a-bug-minimal-reproduction).
+      placeholder: |
+        skills/
+        └─ broken/
+           └─ SKILL.md
+
+        --- skills/broken/SKILL.md ---
+        ---
+        name: broken
+        ---
+        See [missing](./does-not-exist.md)
     validations:
       required: true
   - type: input
@@ -44,7 +66,7 @@ body:
     id: logs
     attributes:
       label: Logs or output
-      description: Relevant CLI output. The output of `sm scan --json` or the error text helps. Rendered as code, no backticks needed.
+      description: Relevant CLI output, ideally `sm scan --json` run on the minimal reproduction above, or the error text. Rendered as code, no backticks needed.
       render: shell
     validations:
       required: false
@@ -54,4 +76,6 @@ body:
       label: Before submitting
       options:
         - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: I reduced the reproduction to the fewest `.md` files that still trigger the bug.
           required: true
