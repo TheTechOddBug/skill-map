@@ -23,11 +23,13 @@ const COMMON = {
 };
 
 describe('codexActivity.mapEvent', () => {
-  it('declares the tight install descriptor (3 events, no tool matchers)', () => {
+  it('declares the tight install descriptor (spawn tool matcher-scoped)', () => {
     assert.equal(codexActivity.install.kind, 'json-hooks');
     assert.equal(codexActivity.install.configPath, '.codex/hooks.json');
     assert.deepEqual(codexActivity.install.events, [
       { event: 'UserPromptSubmit' },
+      { event: 'PreToolUse', matcher: '^spawn_agent$' },
+      { event: 'PostToolUse', matcher: '^spawn_agent$' },
       { event: 'SubagentStart' },
       { event: 'SubagentStop' },
     ]);
@@ -112,6 +114,7 @@ describe('codexActivity.mapEvent', () => {
         phase: 'end',
         owner: 'agt_7f3c1b',
         ownerScope: true,
+        report: 'done',
       },
     ]);
   });
@@ -126,7 +129,7 @@ describe('codexActivity.mapEvent', () => {
     assert.equal(signals, null);
   });
 
-  it('disclaims tool events and everything else (no tool surface is wired)', () => {
+  it('disclaims non-spawn tool events and everything else', () => {
     for (const name of ['PreToolUse', 'PostToolUse', 'SessionStart', 'Stop', 'PreCompact']) {
       const signals = codexActivity.mapEvent({
         ...COMMON,
@@ -138,5 +141,107 @@ describe('codexActivity.mapEvent', () => {
     }
     assert.equal(codexActivity.mapEvent(null), null);
     assert.equal(codexActivity.mapEvent('not-an-object'), null);
+  });
+
+  it('a MAIN spawn_agent start emits the relation-only form with prompt (real 2026-07-05 payload)', () => {
+    const signals = codexActivity.mapEvent({
+      ...COMMON,
+      hook_event_name: 'PreToolUse',
+      tool_name: 'spawn_agent',
+      tool_input: {
+        agent_type: 'demo-orchestrator',
+        message: 'Ejecuta la cadena demo completa.',
+        fork_context: false,
+      },
+      tool_use_id: 'call_SpawnDemo000000000001',
+    });
+    assert.deepEqual(signals, [
+      {
+        phase: 'start',
+        owner: 'main:0d3f7a10-51c2-4f5e-9b1a-2f6d8c4e7a90',
+        spawn: {
+          spawnId: 'call_SpawnDemo000000000001',
+          phase: 'start',
+          parentOwner: 'main:0d3f7a10-51c2-4f5e-9b1a-2f6d8c4e7a90',
+          childKind: 'agent',
+          childName: 'demo-orchestrator',
+          prompt: 'Ejecuta la cadena demo completa.',
+        },
+      },
+    ]);
+  });
+
+  it('an AGENT-context spawn rides a keep-alive heartbeat on the parent (no custody)', () => {
+    const signals = codexActivity.mapEvent({
+      ...COMMON,
+      hook_event_name: 'PreToolUse',
+      agent_id: '019f324c-58fe-7400-8d49-8e47959e34ef',
+      agent_type: 'demo-orchestrator',
+      tool_name: 'spawn_agent',
+      tool_input: { agent_type: 'demo-worker', message: 'Ejecuta tu proceso demo.' },
+      tool_use_id: 'call_SpawnDemo000000000002',
+    });
+    assert.deepEqual(signals, [
+      {
+        kind: 'agent',
+        name: 'demo-orchestrator',
+        phase: 'start',
+        owner: '019f324c-58fe-7400-8d49-8e47959e34ef',
+        keepAlive: true,
+        spawn: {
+          spawnId: 'call_SpawnDemo000000000002',
+          phase: 'start',
+          parentOwner: '019f324c-58fe-7400-8d49-8e47959e34ef',
+          childKind: 'agent',
+          childName: 'demo-worker',
+          prompt: 'Ejecuta tu proceso demo.',
+        },
+      },
+    ]);
+  });
+
+  it('the spawn PostToolUse handoff parses the child id from the JSON-string response', () => {
+    const signals = codexActivity.mapEvent({
+      ...COMMON,
+      hook_event_name: 'PostToolUse',
+      tool_name: 'spawn_agent',
+      tool_input: { agent_type: 'demo-orchestrator', message: 'run' },
+      tool_response: '{"agent_id":"019f324c-58fe-7400-8d49-8e47959e34ef","nickname":"Hubble"}',
+      tool_use_id: 'call_SpawnDemo000000000001',
+    });
+    assert.equal(signals![0]!.spawn?.phase, 'handoff');
+    assert.equal(signals![0]!.spawn?.childOwner, '019f324c-58fe-7400-8d49-8e47959e34ef');
+    // Unparseable response: handoff still emits, just without the id.
+    const fallback = codexActivity.mapEvent({
+      ...COMMON,
+      hook_event_name: 'PostToolUse',
+      tool_name: 'spawn_agent',
+      tool_input: { agent_type: 'demo-orchestrator' },
+      tool_response: 'not json at all',
+      tool_use_id: 'call_SpawnDemo000000000003',
+    });
+    assert.equal(fallback![0]!.spawn?.childOwner, undefined);
+  });
+
+  it('a terminal SubagentStop carries the final message as the report', () => {
+    const signals = codexActivity.mapEvent({
+      ...COMMON,
+      hook_event_name: 'SubagentStop',
+      agent_id: '019f324e-2837-7823-b869-c24df08889b6',
+      agent_type: 'demo-worker',
+      agent_transcript_path: '/home/user/.codex/agents/agent-019f.jsonl',
+      last_assistant_message: 'reporte final del worker',
+      stop_hook_active: false,
+    });
+    assert.deepEqual(signals, [
+      {
+        kind: 'agent',
+        name: 'demo-worker',
+        phase: 'end',
+        owner: '019f324e-2837-7823-b869-c24df08889b6',
+        ownerScope: true,
+        report: 'reporte final del worker',
+      },
+    ]);
   });
 });

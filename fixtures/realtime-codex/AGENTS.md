@@ -19,6 +19,13 @@ worker no disparan hooks (Codex aún no intercepta `read_file`). El
 anidamiento nivel 1→2 lo habilita `agents.max_depth = 2` en
 `.codex/config.toml` (requiere confiar el proyecto).
 
+Los spawns dibujan edges efímeras y conversaciones igual que en Claude: el
+par `spawn_agent` Pre/PostToolUse lleva la ida (message) y el id del hijo,
+y la vuelta llega con el `last_assistant_message` del stop. Con la captura
+habilitada (Settings > Project) el hilo se abre desde la edge o el
+inspector. Codex no reporta totales de ejecución (tokens/tools/duración),
+así que esos campos quedan vacíos a propósito.
+
 ## Agentes (`.codex/agents/`)
 
 - **demo-orchestrator**: nivel 1; emite marcador `🔷`, spawnea

@@ -27,17 +27,21 @@
  *   its `.codex/agents/<name>.toml` node (identifiers:
  *   `frontmatter.name`, `filename-basename`); the default generic
  *   `worker` type matches no scanned node and drops at the resolver.
- * - **No parent custody**: Codex nesting is capped by
- *   `agents.max_depth` (default 1: spawns are main-only, and main is
- *   not a graph node). Even with a raised depth, spawning is
- *   documented as consolidate-on-completion (the parent waits for its
- *   children), so a parent's terminal `SubagentStop` arrives after its
- *   children's and the owner-scoped ends unwind bottom-up natively,
- *   no Claude-style pause/resume custody needed. The spawn-tool
- *   Pre/PostToolUse surface is therefore disclaimed and the descriptor
- *   does not even wire tool events (fewer bridge spawns: Codex fires
- *   PreToolUse for every Bash / apply_patch / MCP call, none of which
- *   is node-attributable).
+ * - **Spawn relations, no custody**: the `spawn_agent` Pre/PostToolUse
+ *   pair (the ONLY tool events the descriptor wires, matcher-scoped so
+ *   the bridge never runs on Bash / apply_patch / MCP traffic) carries
+ *   the spawn relation: `tool_input.agent_type` + `message` (the
+ *   prompt) on the start, and the child's `agent_id` inside the
+ *   JSON-string `tool_response` on the handoff (live-verified
+ *   2026-07-05). Claude-style pause/resume custody is UNNECESSARY:
+ *   a Codex parent never pauses (it blocks inside the wait tool), so
+ *   terminal `SubagentStop`s unwind bottom-up natively; the signal
+ *   carrying an agent-context spawn is a plain keep-alive heartbeat on
+ *   the parent, only there so the resolver can stamp `parentNodePath`
+ *   on the frame. The wait / close tool responses repeat the child's
+ *   final report and stay disclaimed: the stop's
+ *   `last_assistant_message` (the generic report path) is the
+ *   response source.
  * - **No markdown-read signals**: Codex HAS an internal `read_file`
  *   tool but its hooks do not fire for it (PreToolUse covers only
  *   Bash / apply_patch / MCP; expanding it to `read_file` is an open
@@ -53,6 +57,7 @@
 
 import type {
   IActivitySignal,
+  IActivitySpawnRelation,
   IProviderActivityAdapter,
 } from '../../../../kernel/extensions/index.js';
 import { DOLLAR_TOKEN_RE } from '../../../../kernel/util/dollar-token.js';
@@ -64,13 +69,13 @@ export const codexActivity: IProviderActivityAdapter = {
     kind: 'json-hooks',
     configPath: '.codex/hooks.json',
     // Only the events mapEvent consumes; every wired event spawns one
-    // bridge process. No tool events at all (see the module docstring:
-    // nothing a Codex tool call reports is node-attributable), so the
-    // bridge never runs on the high-frequency Bash / apply_patch / MCP
-    // traffic. Matchers are omitted: none of these events is
-    // tool-scoped, so there is nothing to match against.
+    // bridge process. The single tool surface is the spawn tool,
+    // matcher-scoped so the bridge never runs on the high-frequency
+    // Bash / apply_patch / MCP traffic.
     events: [
       { event: 'UserPromptSubmit' },
+      { event: 'PreToolUse', matcher: '^spawn_agent$' },
+      { event: 'PostToolUse', matcher: '^spawn_agent$' },
       { event: 'SubagentStart' },
       { event: 'SubagentStop' },
     ],
@@ -82,6 +87,10 @@ export const codexActivity: IProviderActivityAdapter = {
     switch (event['hook_event_name']) {
       case 'UserPromptSubmit':
         return mapPromptSkills(event);
+      case 'PreToolUse':
+        return mapSpawnRelation(event, 'start');
+      case 'PostToolUse':
+        return mapSpawnRelation(event, 'handoff');
       case 'SubagentStart':
         return mapSubagentBoundary(event, 'start');
       case 'SubagentStop':
@@ -114,6 +123,64 @@ function mapPromptSkills(event: Record<string, unknown>): IActivitySignal[] | nu
 }
 
 /**
+ * `spawn_agent` Pre/PostToolUse -> spawn relation. The start carries
+ * the child name + the prompt (`tool_input.agent_type` / `message`);
+ * the handoff carries the child's own id, parsed from the JSON-string
+ * `tool_response` (`{"agent_id":"...","nickname":"..."}`,
+ * live-verified 2026-07-05). An agent-context spawn rides a keep-alive
+ * heartbeat claim on the PARENT node (only so the resolver stamps
+ * `parentNodePath`; Codex parents never pause, custody is unnecessary);
+ * a main-context spawn emits the relation-only form.
+ */
+function mapSpawnRelation(
+  event: Record<string, unknown>,
+  phase: 'start' | 'handoff',
+): IActivitySignal[] | null {
+  if (event['tool_name'] !== 'spawn_agent') return null;
+  const toolUseId = nonEmptyString(event['tool_use_id']);
+  if (!toolUseId) return null;
+  const input = toolInputOf(event);
+  const owner = ownerOf(event);
+  const spawn: IActivitySpawnRelation = { spawnId: toolUseId, phase, parentOwner: owner };
+  const childName = nonEmptyString(input['agent_type']);
+  if (childName) {
+    spawn.childKind = 'agent';
+    spawn.childName = childName;
+  }
+  if (phase === 'start') {
+    const prompt = nonEmptyString(input['message']);
+    if (prompt) spawn.prompt = prompt;
+  } else {
+    const childId = spawnedChildId(event['tool_response']);
+    if (childId) spawn.childOwner = childId;
+  }
+  const parentName = nonEmptyString(event['agent_type']);
+  if (!parentName) {
+    return [{ phase: 'start', owner, spawn }];
+  }
+  return [
+    { kind: 'agent', name: parentName, phase: 'start', owner, keepAlive: true, spawn },
+  ];
+}
+
+/** The spawned child's id, from the JSON-string spawn response. */
+function spawnedChildId(response: unknown): string | null {
+  if (typeof response !== 'string' || response.length === 0) return null;
+  try {
+    const parsed = JSON.parse(response) as unknown;
+    if (parsed === null || typeof parsed !== 'object') return null;
+    return nonEmptyString((parsed as Record<string, unknown>)['agent_id']);
+  } catch {
+    return null;
+  }
+}
+
+function toolInputOf(event: Record<string, unknown>): Record<string, unknown> {
+  const input = event['tool_input'];
+  return input !== null && typeof input === 'object' ? (input as Record<string, unknown>) : {};
+}
+
+/**
  * Native subagent boundary, mirroring the claude adapter's semantics:
  * `agent_type` names the agent node, `agent_id` is the owner grouping
  * key, starts are sticky lifecycle claims, and the stop is OWNER-SCOPED
@@ -131,7 +198,13 @@ function mapSubagentBoundary(
   const id = nonEmptyString(event['agent_id']);
   if (id) signal.owner = id;
   if (phase === 'start') signal.sticky = true;
-  if (phase === 'end' && id) signal.ownerScope = true;
+  if (phase === 'end' && id) {
+    signal.ownerScope = true;
+    // The stop carries the agent's final message (live-verified
+    // 2026-07-05): the response source for the retained conversation.
+    const report = nonEmptyString(event['last_assistant_message']);
+    if (report) signal.report = report;
+  }
   return [signal];
 }
 
