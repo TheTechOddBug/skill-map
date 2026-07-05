@@ -35,6 +35,7 @@ import type { IActivityPairStatsApi, INodeActivityStatsApi } from '../models/api
 import type { IWsAgentSpawnData, IWsNodeActivityData } from '../models/ws-event';
 import { DATA_SOURCE } from './data-source/data-source.port';
 import { LivePreferencesService } from './live-preferences';
+import { scheduleFrame } from './schedule-frame';
 import { WsEventStreamService } from './ws-event-stream';
 
 @Injectable({ providedIn: 'root' })
@@ -229,17 +230,4 @@ function statsEqual(a: INodeActivityStatsApi, b: INodeActivityStatsApi): boolean
     a.lastOwner === b.lastOwner &&
     a.distinctOwners === b.distinctOwners
   );
-}
-
-/**
- * One flush per animation frame; falls back to a macrotask outside a
- * rendering context (unit tests, SSR-ish environments). Mirrors the
- * `NodeActivityService` helper.
- */
-function scheduleFrame(fn: () => void): void {
-  if (typeof requestAnimationFrame === 'function') {
-    requestAnimationFrame(() => fn());
-    return;
-  }
-  setTimeout(fn, 16);
 }

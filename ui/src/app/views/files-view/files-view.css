@@ -432,6 +432,32 @@
   background: color-mix(in srgb, var(--sm-bg-hover) 30%, transparent);
 }
 
+/* Row enter/leave slide, applied by `animate.enter` / `animate.leave`
+   in the template. Angular strips the class when the animation ends
+   (and, on leave, defers the DOM removal until then), so the classes
+   only exist mid-flight. */
+.files__row--enter {
+  animation: files-row-slide-in 200ms ease-out;
+}
+
+.files__row--leave {
+  animation: files-row-slide-out 160ms ease-in forwards;
+}
+
+@keyframes files-row-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+}
+
+@keyframes files-row-slide-out {
+  to {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+}
+
 /* Numeric columns: right-aligned mono, same as files-view. */
 .files__col-num {
   text-align: right;

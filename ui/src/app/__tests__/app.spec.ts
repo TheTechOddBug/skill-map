@@ -1,6 +1,6 @@
-import { afterEach, describe, expect, it, beforeEach } from 'vitest';
+import { afterEach, describe, expect, it, beforeEach, vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
-import { computed, signal } from '@angular/core';
+import { computed, signal, type WritableSignal } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
@@ -284,31 +284,37 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
   events: () => EMPTY,
 };
 
+interface IUpdateStatusStub {
+  current: string;
+  latest: string | null;
+  isOutdated: boolean;
+  checkedAt: number | null;
+  shownAt: number | null;
+}
+
 /**
  * Construct an `UpdateCheckService`-shaped stub without going through
  * Angular DI. The service now injects `DATA_SOURCE` via a field
  * initializer, so `new UpdateCheckService()` outside an injection
- * context throws NG0203. Tests don't need the data-source plumbing
- * (they drive `status` directly), so we cast a minimal signal bag to
- * the service type and feed it into the App via the `useValue`
- * provider, the consumer reads `isOutdated()` / `latest()` /
- * `current()` / `status.set()` only.
+ * context throws NG0203. Tests don't need the data-source plumbing,
+ * so we cast a minimal signal bag to the service type and feed it into
+ * the App via the `useValue` provider. The service's own `status` is
+ * read-only (`asReadonly()`), so the writable backing signal is handed
+ * back alongside the stub for the tests to drive.
  */
-function makeUpdateCheckStub(): UpdateCheckService {
-  const status = signal<{
-    current: string;
-    latest: string | null;
-    isOutdated: boolean;
-    checkedAt: number | null;
-    shownAt: number | null;
-  } | null>(null);
-  return {
+function makeUpdateCheckStub(): {
+  service: UpdateCheckService;
+  status: WritableSignal<IUpdateStatusStub | null>;
+} {
+  const status = signal<IUpdateStatusStub | null>(null);
+  const service = {
     status,
     isOutdated: computed(() => status()?.isOutdated === true),
     latest: computed(() => status()?.latest ?? null),
     current: computed(() => status()?.current ?? null),
     load: async () => undefined,
   } as unknown as UpdateCheckService;
+  return { service, status };
 }
 
 /**
@@ -319,14 +325,17 @@ function makeUpdateCheckStub(): UpdateCheckService {
  * so it would be a no-op anyway. Driving `status` directly keeps the
  * computed `isOutdated` / `latest` derivations exercised end-to-end.
  */
-async function configure(updateStub: UpdateCheckService): Promise<void> {
+async function configure(
+  updateStub: UpdateCheckService,
+  dataSource: IDataSourcePort = STUB_DATA_SOURCE,
+): Promise<void> {
   await TestBed.configureTestingModule({
     imports: [App],
     providers: [
       provideHttpClient(),
       provideHttpClientTesting(),
       provideRouter([]),
-      { provide: DATA_SOURCE, useValue: STUB_DATA_SOURCE },
+      { provide: DATA_SOURCE, useValue: dataSource },
       // The shell mounts <sm-demo-banner>, which reads SKILL_MAP_MODE on
       // construction; provide it explicitly (the token has no default).
       { provide: SKILL_MAP_MODE, useValue: 'live' },
@@ -342,8 +351,7 @@ describe('App', () => {
   beforeEach(async () => {
     // Default stub: no update available, keeps the existing assertions
     // (heading, app construction) passing without touching the chip.
-    const stub = makeUpdateCheckStub();
-    await configure(stub);
+    await configure(makeUpdateCheckStub().service);
   });
 
   it('should create the app', () => {
@@ -372,7 +380,7 @@ describe('App, update chip', () => {
       checkedAt: 1700000000000,
       shownAt: null,
     });
-    await configure(stub);
+    await configure(stub.service);
 
     const fixture = TestBed.createComponent(App);
     // The chip is also gated on `!isDevMode()` so a developer running
@@ -403,7 +411,7 @@ describe('App, update chip', () => {
       checkedAt: 1700000000000,
       shownAt: null,
     });
-    await configure(stub);
+    await configure(stub.service);
 
     const fixture = TestBed.createComponent(App);
     // `isDevMode()` is true under the test harness, no override needed.
@@ -424,7 +432,7 @@ describe('App, update chip', () => {
       checkedAt: 1700000000000,
       shownAt: null,
     });
-    await configure(stub);
+    await configure(stub.service);
 
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
@@ -438,7 +446,22 @@ describe('App, update chip', () => {
 describe('App, scan spinner', () => {
   it('marks the refresh button spinning + disabled while a scan is in flight', async () => {
     TestBed.resetTestingModule();
-    await configure(makeUpdateCheckStub());
+    // Gate the stub's `runScan` on a promise the test resolves, so the
+    // real `ScanTriggerService.run()` drives `scanning` through its
+    // actual lifecycle (`scanning` is read-only outside the service:
+    // set on entry, cleared in the `finally`). The topbar `scanning()`
+    // ORs it with the watcher's WS `scanActive`; this proves the
+    // `is-spinning` class binding is reactive, the CSS animation hangs
+    // off that class.
+    let finishScan!: () => void;
+    const scanGate = new Promise<void>((resolve) => { finishScan = resolve; });
+    await configure(makeUpdateCheckStub().service, {
+      ...STUB_DATA_SOURCE,
+      runScan: async () => {
+        await scanGate;
+        return STUB_DATA_SOURCE.runScan();
+      },
+    });
 
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
@@ -451,16 +474,13 @@ describe('App, scan spinner', () => {
     expect(btn.classList.contains('is-spinning')).toBe(false);
     expect(btn.disabled).toBe(false);
 
-    // Drive the shared scan-in-flight signal (the manual-trigger owner;
-    // the topbar `scanning()` ORs this with the watcher's WS `scanActive`).
-    // Proves the `is-spinning` class binding is reactive, the CSS animation
-    // hangs off that class.
-    TestBed.inject(ScanTriggerService).scanning.set(true);
+    const runDone = TestBed.inject(ScanTriggerService).run();
     fixture.detectChanges();
     expect(btn.classList.contains('is-spinning')).toBe(true);
     expect(btn.disabled).toBe(true);
 
-    TestBed.inject(ScanTriggerService).scanning.set(false);
+    finishScan();
+    await runDone;
     fixture.detectChanges();
     expect(btn.classList.contains('is-spinning')).toBe(false);
     expect(btn.disabled).toBe(false);
@@ -470,7 +490,17 @@ describe('App, scan spinner', () => {
 describe('App, scan error surface', () => {
   it('tints the refresh button and swaps its tooltip strings while scanError is set', async () => {
     TestBed.resetTestingModule();
-    await configure(makeUpdateCheckStub());
+    // First run() rejects so the service's own catch branch persists
+    // the message (`scanError` is read-only outside the service); the
+    // second run() succeeds and must clear it on entry. The button must
+    // surface the failure (UX: a failed manual scan is never silent).
+    let failScan = true;
+    await configure(makeUpdateCheckStub().service, {
+      ...STUB_DATA_SOURCE,
+      runScan: () => failScan
+        ? Promise.reject(new Error('boom: db locked'))
+        : STUB_DATA_SOURCE.runScan(),
+    });
 
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
@@ -482,17 +512,16 @@ describe('App, scan error surface', () => {
     expect(btn.classList.contains('is-error')).toBe(false);
     expect(btn.getAttribute('aria-label')).not.toContain('Scan failed');
 
-    // Drive the shared error signal the same way ScanTriggerService's
-    // catch branch does; the button must surface it (UX: a failed
-    // manual scan is never silent).
-    TestBed.inject(ScanTriggerService).scanError.set('boom: db locked');
+    const scanTrigger = TestBed.inject(ScanTriggerService);
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await scanTrigger.run();
     fixture.detectChanges();
     expect(btn.classList.contains('is-error')).toBe(true);
     expect(btn.getAttribute('aria-label')).toContain('Scan failed: boom: db locked');
 
-    // The next run() clears the signal on start; mirror that and the
-    // button drops back to the stats surface.
-    TestBed.inject(ScanTriggerService).scanError.set(null);
+    failScan = false;
+    await scanTrigger.run();
+    warnSpy.mockRestore();
     fixture.detectChanges();
     expect(btn.classList.contains('is-error')).toBe(false);
     expect(btn.getAttribute('aria-label')).not.toContain('Scan failed');
@@ -527,7 +556,7 @@ describe('App, Real Time toggle', () => {
         { provide: DATA_SOURCE, useValue: STUB_DATA_SOURCE },
         { provide: SKILL_MAP_MODE, useValue: 'live' },
         { provide: WS_SOCKET_FACTORY, useValue: inertWsSocketFactory },
-        { provide: UpdateCheckService, useValue: makeUpdateCheckStub() },
+        { provide: UpdateCheckService, useValue: makeUpdateCheckStub().service },
         { provide: ActivityReadinessService, useValue: readinessStub(hookInstalled) },
       ],
     }).compileComponents();
@@ -596,7 +625,7 @@ describe('App, Real Time toggle', () => {
 describe('App, beta chip', () => {
   it('shows the beta chip', async () => {
     TestBed.resetTestingModule();
-    await configure(makeUpdateCheckStub());
+    await configure(makeUpdateCheckStub().service);
 
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();

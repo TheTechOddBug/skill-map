@@ -32,8 +32,10 @@ import { DATA_SOURCE, type IDataSourcePort } from '../../services/data-source/da
 export class UpdateCheckService {
   private readonly dataSource: IDataSourcePort = inject(DATA_SOURCE);
 
+  private readonly statusState = signal<IUpdateStatusResponseApi | null>(null);
+
   /** Latest known status, or `null` until the first fetch resolves. */
-  readonly status = signal<IUpdateStatusResponseApi | null>(null);
+  readonly status = this.statusState.asReadonly();
   /** Convenience: derived signal, true when a newer version is available. */
   readonly isOutdated = computed(() => this.status()?.isOutdated === true);
   /** Convenience: derived signal, the new latest version string (or `null`). */
@@ -55,7 +57,7 @@ export class UpdateCheckService {
   async load(): Promise<void> {
     try {
       const payload = await this.dataSource.getUpdateStatus();
-      this.status.set(payload);
+      this.statusState.set(payload);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.warn(UPDATE_CHECK_TEXTS.fetchFailed(msg));

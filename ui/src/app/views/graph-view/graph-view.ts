@@ -94,7 +94,7 @@ import {
   writeStoredNodePositions,
   writeStoredPanelWidth,
 } from './graph-view.storage';
-import { PANEL_WIDTH_DEFAULT, setupPanelResize } from './panel-resize.controller';
+import { setupEdgeResize } from '../../core/edge-resize.controller';
 import { setupTagSelection } from './tag-selection.controller';
 import { setupViewportStore, ZOOM_MIN, ZOOM_MAX } from './viewport-store';
 import { isAnyPrimengOverlayOpen } from './graph-view.utils';
@@ -116,6 +116,12 @@ import {
 } from './viewport-animation';
 
 const ZOOM_BUTTON_STEP = 0.2;
+
+/** Inspector panel width the view opens at when nothing is persisted. */
+const PANEL_WIDTH_DEFAULT = 500;
+const PANEL_WIDTH_MIN = 400;
+/** Minimum graph area to keep visible at any viewport width. */
+const PANEL_VIEWPORT_RESERVE = 80;
 
 /** Tween duration (ms) for the auto-fit on WS-scan topology change. A
  *  hair longer than the tag-selection tween (320 ms) so the "scan
@@ -292,14 +298,19 @@ export class GraphView implements OnInit {
   // writer, and the GC effect that drops stale ids.
   private readonly expansion = setupExpansion({ nodes: this.loader.nodes });
 
-  // Inspector panel width, owned by `setupPanelResize`. Drag handle
-  // bindings come straight off the returned handle.
-  private readonly panelResize = setupPanelResize({
+  // Inspector panel width, owned by the shared edge-resize factory.
+  // The panel hugs the RIGHT edge (handle on its left), so dragging
+  // left grows it; the clamp reserves graph width on the other side.
+  private readonly panelResize = setupEdgeResize({
     destroyRef: this.destroyRef,
+    edge: 'right',
+    defaultWidth: PANEL_WIDTH_DEFAULT,
+    minWidth: PANEL_WIDTH_MIN,
+    viewportReserve: PANEL_VIEWPORT_RESERVE,
     initialWidth: readStoredPanelWidth() ?? PANEL_WIDTH_DEFAULT,
     onCommit: (width) => writeStoredPanelWidth(width),
   });
-  protected readonly clampedPanelWidth = this.panelResize.clampedPanelWidth;
+  protected readonly clampedPanelWidth = this.panelResize.clampedWidth;
 
   readonly loading = this.loader.loading;
   readonly error = this.loader.error;
@@ -1262,7 +1273,7 @@ export class GraphView implements OnInit {
   }
 
   protected onPanelResizeStart(event: MouseEvent): void {
-    this.panelResize.onPanelResizeStart(event);
+    this.panelResize.onResizeStart(event);
   }
 
   openNode(node: IGraphNode): void {

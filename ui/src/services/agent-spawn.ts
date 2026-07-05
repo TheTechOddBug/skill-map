@@ -44,6 +44,7 @@ import { DestroyRef, Injectable, InjectionToken, effect, inject, signal } from '
 
 import type { IWsAgentSpawnData, IWsNodeActivityData } from '../models/ws-event';
 import { LivePreferencesService } from './live-preferences';
+import { scheduleFrame } from './schedule-frame';
 import { WsEventStreamService } from './ws-event-stream';
 
 /**
@@ -310,17 +311,4 @@ function sessionListsEqual(a: readonly ISessionView[], b: readonly ISessionView[
     if (a[i]!.owner !== b[i]!.owner || a[i]!.ordinal !== b[i]!.ordinal) return false;
   }
   return true;
-}
-
-/**
- * One flush per animation frame; falls back to a macrotask outside a
- * rendering context (unit tests, SSR-ish environments). Mirrors the
- * `NodeActivityService` helper.
- */
-function scheduleFrame(fn: () => void): void {
-  if (typeof requestAnimationFrame === 'function') {
-    requestAnimationFrame(() => fn());
-    return;
-  }
-  setTimeout(fn, 16);
 }

@@ -9,11 +9,11 @@ import { WORKSPACE_VIEW_TEXTS } from '../../../i18n/workspace-view.texts';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
 import { MapVisibilityService } from '../../../services/map-visibility';
+import { setupEdgeResize } from '../../core/edge-resize.controller';
 import { MAP_ISOLATE_INTENT, type IMapIsolateIntent } from '../../slots/map-isolate-intent';
 import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
 import { FilesView } from '../files-view/files-view';
 import { GraphView } from '../graph-view/graph-view';
-import { RAIL_WIDTH_DEFAULT, setupRailResize } from './workspace-rail-resize';
 import { WorkspaceNodeOpenIntent } from './workspace-open-intent';
 import {
   readStoredRailCollapsed,
@@ -21,6 +21,11 @@ import {
   writeStoredRailCollapsed,
   writeStoredRailWidth,
 } from './workspace-view.storage';
+
+const RAIL_WIDTH_DEFAULT = 440;
+const RAIL_WIDTH_MIN = 280;
+/** Minimum map area to keep visible at any viewport width. */
+const RAIL_VIEWPORT_RESERVE = 480;
 
 /**
  * Fused single-screen workspace: a resizable files rail on the left, the
@@ -130,13 +135,19 @@ export class WorkspaceView implements IMapIsolateIntent {
     this.graphView()?.isolateNeighborhood(path);
   }
 
-  private readonly resize = setupRailResize({
+  // Rail sits on the LEFT edge (handle on its right), so dragging
+  // right grows it; the clamp reserves map width on the other side.
+  private readonly resize = setupEdgeResize({
     destroyRef: this.destroyRef,
+    edge: 'left',
+    defaultWidth: RAIL_WIDTH_DEFAULT,
+    minWidth: RAIL_WIDTH_MIN,
+    viewportReserve: RAIL_VIEWPORT_RESERVE,
     initialWidth: readStoredRailWidth() ?? RAIL_WIDTH_DEFAULT,
     onCommit: (width) => writeStoredRailWidth(width),
   });
-  protected readonly clampedRailWidth = this.resize.clampedRailWidth;
-  protected readonly onRailResizeStart = this.resize.onRailResizeStart;
+  protected readonly clampedRailWidth = this.resize.clampedWidth;
+  protected readonly onRailResizeStart = this.resize.onResizeStart;
 
   constructor() {
     // The toggle animation timer outlives its 220ms window only when the

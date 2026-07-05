@@ -29,6 +29,7 @@ import { DestroyRef, Injectable, InjectionToken, inject, signal } from '@angular
 
 import type { IWsNodeActivityData } from '../models/ws-event';
 import { LivePreferencesService } from './live-preferences';
+import { scheduleFrame } from './schedule-frame';
 import { WsEventStreamService } from './ws-event-stream';
 
 /**
@@ -216,18 +217,6 @@ export class NodeActivityService {
       this.sweepTimer = setTimeout(() => this.publish(Date.now()), earliest - now + 1);
     }
   }
-}
-
-/**
- * One flush per animation frame; falls back to a macrotask outside a
- * rendering context (unit tests, SSR-ish environments).
- */
-function scheduleFrame(fn: () => void): void {
-  if (typeof requestAnimationFrame === 'function') {
-    requestAnimationFrame(() => fn());
-    return;
-  }
-  setTimeout(fn, 16);
 }
 
 function setsEqual(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {

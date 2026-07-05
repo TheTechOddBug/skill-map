@@ -52,9 +52,18 @@ export class ThemeService {
   private readonly doc = inject(DOCUMENT);
   private readonly destroyRef = inject(DestroyRef);
 
-  readonly mode = signal<TThemeMode>(this.readInitialMode());
-  readonly extraTheme = signal<TExtraThemeId>(this.readInitialExtra());
+  private readonly modeState = signal<TThemeMode>(this.readInitialMode());
+  private readonly extraThemeState = signal<TExtraThemeId>(this.readInitialExtra());
   private readonly systemPrefersDark = signal<boolean>(this.readSystemPref());
+
+  /**
+   * Read-only views: every write goes through `toggle()` / `set()` /
+   * `setExtraTheme()`, which own the invariants (registry validation,
+   * clear-extra-before-mode-change). Exposing the raw writable signals
+   * would open a second, unguarded write path.
+   */
+  readonly mode = this.modeState.asReadonly();
+  readonly extraTheme = this.extraThemeState.asReadonly();
 
   /**
    * Resolved tri-state (`light` | `dark`). Independent of `extraTheme`,
@@ -113,19 +122,19 @@ export class ThemeService {
    * cycle (`auto` → `light` → `dark` → `auto`).
    */
   toggle(): void {
-    if (this.extraTheme() !== null) this.extraTheme.set(null);
-    this.mode.update((m) => (m === 'auto' ? 'light' : m === 'light' ? 'dark' : 'auto'));
+    if (this.extraTheme() !== null) this.extraThemeState.set(null);
+    this.modeState.update((m) => (m === 'auto' ? 'light' : m === 'light' ? 'dark' : 'auto'));
   }
 
   set(mode: TThemeMode): void {
-    this.mode.set(mode);
+    this.modeState.set(mode);
   }
 
   setExtraTheme(theme: TExtraThemeId): void {
     // Validate against the registry so callers passing an arbitrary
     // string get a graceful no-op instead of an invalid class on
     // `<html>`. `null` clears the slot.
-    this.extraTheme.set(findExtraTheme(theme)?.id ?? null);
+    this.extraThemeState.set(findExtraTheme(theme)?.id ?? null);
   }
 
   private readInitialMode(): TThemeMode {

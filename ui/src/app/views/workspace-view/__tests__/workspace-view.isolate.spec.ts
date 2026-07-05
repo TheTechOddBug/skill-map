@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { Component, Injectable, signal } from '@angular/core';
-import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { Router, provideRouter } from '@angular/router';
 import { EMPTY } from 'rxjs';
 import { DagreLayoutEngine } from '@foblex/flow-dagre-layout';
@@ -147,7 +146,6 @@ async function bootstrap(nodes: INodeView[], links: ILinkApi[], corpusSize = nod
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [
-      provideNoopAnimations(),
       provideRouter([{ path: '', component: BlankPage }]),
       { provide: CollectionLoaderService, useValue: makeLoaderStub(nodes, links, corpusSize) },
       { provide: DATA_SOURCE, useValue: STUB_DATA_SOURCE },

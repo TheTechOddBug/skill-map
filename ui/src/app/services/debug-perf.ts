@@ -25,7 +25,8 @@ const QUERY_KEY = 'debug-fps';
 
 @Injectable({ providedIn: 'root' })
 export class DebugPerfService {
-  readonly visible = signal(this.resolveInitial());
+  private readonly visibleState = signal(this.resolveInitial());
+  readonly visible = this.visibleState.asReadonly();
 
   private resolveInitial(): boolean {
     const params = new URLSearchParams(window.location.search);

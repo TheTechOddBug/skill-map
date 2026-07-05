@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
-import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { DomSanitizer, type SafeHtml } from '@angular/platform-browser';
 
 import { ConversationDialog } from '../conversation-dialog';
@@ -55,7 +54,6 @@ function bootstrap(thread: ISpawnThread | null, captureEnabled: boolean): IHarne
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(),
-      provideNoopAnimations(),
       {
         provide: MarkdownRenderer,
         useFactory: (): MarkdownRenderer => new FakeMarkdownRenderer(TestBed.inject(DomSanitizer)),

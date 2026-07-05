@@ -29,10 +29,11 @@ const HTML_CLASS = 'is-debug-slots';
 
 @Injectable({ providedIn: 'root' })
 export class DebugSlotsService {
-  readonly visible = signal(false);
+  private readonly visibleState = signal(false);
+  readonly visible = this.visibleState.asReadonly();
 
   constructor() {
-    this.visible.set(this.resolveInitial());
+    this.visibleState.set(this.resolveInitial());
     effect(() => {
       const on = this.visible();
       const root = document.documentElement;
@@ -42,7 +43,7 @@ export class DebugSlotsService {
 
   toggle(): void {
     const next = !this.visible();
-    this.visible.set(next);
+    this.visibleState.set(next);
     try { localStorage.setItem(STORAGE_KEY, next ? '1' : '0'); } catch { /* ignore */ }
   }
 

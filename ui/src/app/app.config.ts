@@ -7,7 +7,6 @@ import {
 } from '@angular/core';
 import { TitleStrategy, provideRouter, withComponentInputBinding } from '@angular/router';
 import { provideHttpClient, withFetch } from '@angular/common/http';
-import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { PrimeNG, providePrimeNG } from 'primeng/config';
 
 import { routes } from './app.routes';
@@ -61,10 +60,6 @@ export const appConfig: ApplicationConfig = {
     provideRouter(routes, withComponentInputBinding()),
     { provide: TitleStrategy, useClass: SmTitleStrategy },
     provideHttpClient(withFetch()),
-    // Lazy animation engine (off the initial chunk, so it does not count
-    // against the initial-bundle budget). Powers the files-tree row enter
-    // slide (`@rowSlide :enter` in `files-view`).
-    provideAnimationsAsync(),
     // PrimeNG is provided WITHOUT the Aura preset so the theme tokens
     // (~54 KB) are not pulled into the eager initial chunk. The
     // initializer below dynamic-imports Aura and feeds it through

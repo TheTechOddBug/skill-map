@@ -45,19 +45,24 @@ export class ScanTriggerService {
   private readonly dataSource = inject(DATA_SOURCE);
   private readonly loader = inject(CollectionLoaderService);
 
+  private readonly scanningState = signal(false);
+  private readonly scanErrorState = signal<string | null>(null);
+
   /**
    * In-flight flag. `true` while `run()` is awaiting `runScan()` /
    * `loader.load()`. Topbar uses it for the spinner + disabled state;
    * the settings modal can read it to keep its "Apply" button busy.
+   * Read-only: `run()` owns every transition (the idempotency guard
+   * relies on no consumer flipping it externally).
    */
-  readonly scanning = signal(false);
+  readonly scanning = this.scanningState.asReadonly();
 
   /**
    * Last error message, or `null` after a successful run. Cleared on
    * the next `run()` start. Renderers should treat a populated value
    * as advisory, the underlying state may still be partial.
    */
-  readonly scanError = signal<string | null>(null);
+  readonly scanError = this.scanErrorState.asReadonly();
 
   /**
    * Fire-and-forget scan trigger. Idempotent while `scanning()` is
@@ -67,8 +72,8 @@ export class ScanTriggerService {
    */
   async run(): Promise<void> {
     if (this.scanning()) return;
-    this.scanning.set(true);
-    this.scanError.set(null);
+    this.scanningState.set(true);
+    this.scanErrorState.set(null);
     try {
       await this.dataSource.runScan();
       // The route's broadcaster also emits `scan.completed` over WS,
@@ -80,10 +85,10 @@ export class ScanTriggerService {
       const message = err instanceof DataSourceError ? err.message
         : err instanceof Error ? err.message
         : String(err);
-      this.scanError.set(message);
+      this.scanErrorState.set(message);
       console.warn(SCAN_TRIGGER_TEXTS.scanFailed(message));
     } finally {
-      this.scanning.set(false);
+      this.scanningState.set(false);
     }
   }
 }

@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideNoopAnimations } from '@angular/platform-browser/animations';
 
 import { FilesView } from '../files-view';
 import { CollectionLoaderService } from '../../../../services/collection-loader';
@@ -123,7 +122,6 @@ function bootstrap(
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(),
-      provideNoopAnimations(),
       { provide: CollectionLoaderService, useValue: loader },
       { provide: MAP_ISOLATE_INTENT, useValue: { isolate } },
       { provide: NODE_OPEN_INTENT, useValue: { open } },

@@ -347,17 +347,21 @@
               [attr.data-testid]="'settings-extensions-' + plugin.id"
             >
               @for (ext of plugin.extensions; track ext.id) {
+                <!-- One qualified-id computation per row; the bindings
+                     below re-evaluate on every CD pass of this nested
+                     list, so they must not each re-derive it. -->
+                @let qualifiedId = qualifiedExt(plugin.id, ext.id);
                 <li
                   class="settings-plugins__subrow"
                   [class.is-clickable]="extensionToggleInteractive(ext)"
-                  [class.is-dirty]="isDirty(qualifiedExt(plugin.id, ext.id))"
+                  [class.is-dirty]="isDirty(qualifiedId)"
                   [attr.data-testid]="'settings-extrow-' + plugin.id + '-' + ext.id"
                 >
                   <div
                     class="settings-plugins__subrow-main"
                     role="button"
                     tabindex="0"
-                    [attr.aria-label]="texts.a11y.extensionRow(qualifiedExt(plugin.id, ext.id))"
+                    [attr.aria-label]="texts.a11y.extensionRow(qualifiedId)"
                     (click)="onSubrowClick(plugin.id, ext, $event)"
                     (keydown.enter)="onSubrowClick(plugin.id, ext, $event)"
                     (keydown.space)="$event.preventDefault(); onSubrowClick(plugin.id, ext, $event)"
@@ -366,7 +370,7 @@
                       <div class="settings-plugins__subrow-headline">
                         <span
                           class="settings-plugins__dirty-dot"
-                          [class.settings-plugins__dirty-dot--visible]="isDirty(qualifiedExt(plugin.id, ext.id))"
+                          [class.settings-plugins__dirty-dot--visible]="isDirty(qualifiedId)"
                           aria-hidden="true"
                           [attr.data-testid]="'settings-extrow-dirty-' + plugin.id + '-' + ext.id"
                         ></span>
@@ -403,10 +407,10 @@
                     </div>
                     <div class="settings-plugins__subrow-controls">
                       <p-toggleswitch
-                        [ngModel]="pendingEnabled(qualifiedExt(plugin.id, ext.id))"
+                        [ngModel]="pendingEnabled(qualifiedId)"
                         (ngModelChange)="onExtensionToggle(plugin.id, ext, $event)"
                         [disabled]="!!ext.locked"
-                        [ariaLabel]="texts.a11y.extensionToggle(qualifiedExt(plugin.id, ext.id), !pendingEnabled(qualifiedExt(plugin.id, ext.id)))"
+                        [ariaLabel]="texts.a11y.extensionToggle(qualifiedId, !pendingEnabled(qualifiedId))"
                         [attr.data-testid]="'settings-ext-toggle-' + plugin.id + '-' + ext.id"
                       />
                     </div>
