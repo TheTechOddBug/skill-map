@@ -1,8 +1,9 @@
 /**
  * Step 6.7, Frontmatter strict mode. Asserts that:
  *
- *   1. Files without a `---` fence never produce a frontmatter-invalid
- *      issue, even if every frontmatter schema requires fields.
+ *   1. Files without a `---` fence run the per-kind AJV pass against the
+ *      empty frontmatter: kinds with required fields flag the absent
+ *      block; all-optional kinds stay silent.
  *   2. Files with a fence but missing required base fields produce a
  *      `frontmatter-invalid` issue with severity `warn` by default.
  *   3. `runScan({ strict: true })` promotes the same issue to `error`.
@@ -74,8 +75,11 @@ after(() => {
 // -----------------------------------------------------------------------------
 
 describe('frontmatter validation (kernel-level)', () => {
-  it('files without a fence never trigger frontmatter-invalid', async () => {
+  it('a required-fields kind without ANY fence → frontmatter-invalid (absent block)', async () => {
     const scope = freshScope('no-fence');
+    // A partial block (`name` only) already warned about the missing
+    // `description`; a fully ABSENT block was silent. Same defect,
+    // same signal now: the per-kind AJV pass runs against `{}`.
     writeNode(scope.cwd, '.claude/agents/raw.md', 'plain markdown body, no frontmatter\n');
     const kernel = await createKernel();
     const result = await runScan(kernel, {
@@ -83,7 +87,57 @@ describe('frontmatter validation (kernel-level)', () => {
       extensions: builtIns(),
     });
     const fmIssues = result.issues.filter((i) => i.analyzerId === 'frontmatter-invalid');
-    assert.equal(fmIssues.length, 0);
+    assert.equal(fmIssues.length, 1, `expected the absent block to flag; got: ${JSON.stringify(result.issues)}`);
+    assert.equal(fmIssues[0]!.severity, 'warn');
+    assert.match(fmIssues[0]!.message, /required property/);
+  });
+
+  it('an all-optional kind without a fence stays silent (markdown, command)', async () => {
+    const scope = freshScope('no-fence-lax');
+    writeNode(scope.cwd, 'notes/plain.md', 'plain markdown body, no frontmatter\n');
+    writeNode(scope.cwd, '.claude/commands/bare.md', 'command body without frontmatter\n');
+    const kernel = await createKernel();
+    const result = await runScan(kernel, {
+      roots: [scope.cwd],
+      extensions: builtIns(),
+    });
+    const fmIssues = result.issues.filter((i) => i.analyzerId === 'frontmatter-invalid');
+    assert.equal(fmIssues.length, 0, `expected silence; got: ${JSON.stringify(fmIssues)}`);
+  });
+
+  it('prose before the fence on a required-fields kind now surfaces via the absent-block pass', async () => {
+    const scope = freshScope('mid-file-fence');
+    // The fence is pushed off byte 0, so the parser sees body-only and
+    // the metadata silently parsed as prose. The required fields give
+    // the author a signal without a risky mid-file-fence heuristic.
+    writeNode(
+      scope.cwd,
+      '.claude/agents/pushed.md',
+      'some prose first\n---\nname: pushed\ndescription: lost metadata.\n---\nbody\n',
+    );
+    const kernel = await createKernel();
+    const result = await runScan(kernel, {
+      roots: [scope.cwd],
+      extensions: builtIns(),
+    });
+    const fmIssues = result.issues.filter((i) => i.analyzerId === 'frontmatter-invalid');
+    assert.equal(fmIssues.length, 1);
+  });
+
+  it('a malformed-fence heuristic wins over the absent-block pass (one issue per defect)', async () => {
+    const scope = freshScope('malformed-wins');
+    // Indented fence + YAML key: `frontmatter-malformed` names the exact
+    // accident; the AJV absent-block pass must NOT double-flag.
+    writeNode(scope.cwd, '.claude/agents/indent.md', '  ---\n  name: x\n  ---\nbody\n');
+    const kernel = await createKernel();
+    const result = await runScan(kernel, {
+      roots: [scope.cwd],
+      extensions: builtIns(),
+    });
+    const malformed = result.issues.filter((i) => i.analyzerId === 'frontmatter-malformed');
+    const fmIssues = result.issues.filter((i) => i.analyzerId === 'frontmatter-invalid');
+    assert.equal(malformed.length, 1);
+    assert.equal(fmIssues.length, 0, 'malformed verdict must suppress the absent-block pass');
   });
 
   it('files with a fence but missing required fields → warn issue by default', async () => {
@@ -153,19 +207,23 @@ describe('frontmatter validation (kernel-level)', () => {
     assert.equal(fmIssues.length, 0, `expected clean; got: ${JSON.stringify(fmIssues)}`);
   });
 
-  it('back-to-back `---` lines (no line between) stay body-only, no frontmatter-invalid', async () => {
+  it('back-to-back `---` lines (no line between) are NOT a declared block; the absent-block pass owns the verdict', async () => {
     const scope = freshScope('back-to-back');
     // The parser regex needs at least one line between the fences, so
     // this is NOT a declared block: both `---` lines are body content
-    // (thematic breaks). Deliberate scope pin.
+    // (thematic breaks) and no `frontmatter-malformed` heuristic fires.
+    // On a required-fields kind the ABSENT-block AJV pass then flags the
+    // missing fields, exactly like any other frontmatter-less agent.
     writeNode(scope.cwd, '.claude/agents/hr2.md', '---\n---\nbody\n');
     const kernel = await createKernel();
     const result = await runScan(kernel, {
       roots: [scope.cwd],
       extensions: builtIns(),
     });
+    const malformed = result.issues.filter((i) => i.analyzerId === 'frontmatter-malformed');
     const fmIssues = result.issues.filter((i) => i.analyzerId === 'frontmatter-invalid');
-    assert.equal(fmIssues.length, 0);
+    assert.equal(malformed.length, 0, 'not recognised as a fence, no malformed heuristic');
+    assert.equal(fmIssues.length, 1, 'absent-block pass flags the required fields');
   });
 
   // --- parse error suppresses the misleading AJV pass -----------------------

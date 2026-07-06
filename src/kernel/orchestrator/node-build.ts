@@ -333,8 +333,20 @@ function pushIssue(list: Issue[], issue: Issue | null): void {
  *      EMPTY block (`---`, blank line, `---`) validates exactly like a
  *      whitespace-only one instead of being conflated with "no
  *      frontmatter at all".
- *   3. No block: the malformed-fence heuristics (indent / BOM / leading
- *      blank line / missing close).
+ *   3. No block, but one of the malformed-fence heuristics fires
+ *      (indent / BOM / leading blank line / missing close): that verdict
+ *      wins, it names the exact authoring accident rather than its
+ *      downstream symptom.
+ *   4. No block at all: the per-kind AJV pass still runs, against the
+ *      empty frontmatter. A kind whose schema REQUIRES fields (claude /
+ *      codex agents, the open-standard skill) flags the absent block as
+ *      `frontmatter-invalid`, closing the asymmetry where a PARTIAL
+ *      block warned about a missing `description` but a fully absent
+ *      one said nothing. Every all-optional kind (plain markdown,
+ *      claude command / skill) validates `{}` clean and stays silent.
+ *      This also covers a fence pushed off byte 0 by preceding prose:
+ *      the parser sees no fence, so the required fields surface instead
+ *      of the metadata silently parsing as body.
  */
 function detectFrontmatterIssue(opts: {
   raw: IRawNode;
@@ -347,27 +359,26 @@ function detectFrontmatterIssue(opts: {
     (pi) => pi.code === 'frontmatter-parse-error',
   );
   if (parseFailed) return null;
-  if (opts.raw.frontmatterDeclared === true || opts.raw.frontmatterRaw.length > 0) {
-    return validateFrontmatter(
-      opts.providerFrontmatter,
-      opts.provider,
-      opts.kind,
-      opts.raw.frontmatter,
-      opts.raw.path,
-      opts.strict,
-    );
+  if (opts.raw.frontmatterDeclared !== true && opts.raw.frontmatterRaw.length === 0) {
+    const malformed = detectMalformedFrontmatter(opts.raw.body, opts.raw.path, opts.strict);
+    if (malformed) return malformed;
   }
-  return detectMalformedFrontmatter(opts.raw.body, opts.raw.path, opts.strict);
+  return validateFrontmatter(
+    opts.providerFrontmatter,
+    opts.provider,
+    opts.kind,
+    opts.raw.frontmatter,
+    opts.raw.path,
+    opts.strict,
+  );
 }
 
 /**
  * Build a brand-new `Node` row from raw provider output and validate
  * its frontmatter. Used by the "no cache hit" branch of
- * `walkAndExtract`. Two frontmatter issue paths:
- *   - With a frontmatter fence: AJV-validate against the Provider's
- *     per-kind schema.
- *   - Without a fence but a body that opens with malformed `---`:
- *     emit `frontmatter-malformed`.
+ * `walkAndExtract`. The frontmatter diagnostic lanes live in
+ * `detectFrontmatterIssue` (parse-error short-circuit, per-kind AJV for
+ * declared AND absent blocks, malformed-fence heuristics).
  *
  * Severity defaults to `warn`; `strict` promotes everything to `error`.
  */
