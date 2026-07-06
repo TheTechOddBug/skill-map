@@ -387,7 +387,12 @@
   background: color-mix(in srgb, var(--sm-exec-c1) 14%, transparent);
   color: var(--sm-exec-c1);
 }
-.sm-gnode__activity-pulse { font-size: 0.6rem; }
+/* Same text-stroke fattening as the topbar Real Time toggle: the
+   thin pi-wave-pulse glyph reads too light at this size otherwise. */
+.sm-gnode__activity-pulse {
+  font-size: 0.6rem;
+  -webkit-text-stroke-width: 0.03em;
+}
 
 .sm-gnode__panel { display: none; border-top: 1px solid var(--sm-border); }
 :host(.sm-gnode--expanded) .sm-gnode__panel { display: block; }

@@ -1,17 +1,22 @@
 import { describe, expect, it, vi } from 'vitest';
-import { provideZonelessChangeDetection, type WritableSignal } from '@angular/core';
+import { provideZonelessChangeDetection, signal, type WritableSignal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ConfirmationService } from 'primeng/api';
 
 import { SettingsProject } from '../settings-project';
 import { SettingsProjectCapture } from '../settings-project-capture';
+import { SettingsProjectHook } from '../settings-project-hook';
 import { SettingsProjectLens } from '../settings-project-lens';
+import { SettingsProjectLive } from '../settings-project-live';
 import { SettingsProjectPreferences } from '../settings-project-preferences';
+import { SettingsProjectRealtime } from '../settings-project-realtime';
+import { ActivityReadinessService } from '../../../services/activity-readiness';
 import {
   DATA_SOURCE,
   DataSourceError,
   type IDataSourcePort,
 } from '../../../../services/data-source/data-source.port';
+import { SKILL_MAP_MODE } from '../../../../services/data-source/runtime-mode';
 import { ProviderRegistryService } from '../../../../services/provider-registry';
 import type {
   IActiveProviderApi,
@@ -29,12 +34,15 @@ import type {
  * so the empty DATA_SOURCE stub is never called.
  */
 describe('SettingsProject chassis', () => {
-  it('mounts the four domain children (every project row renders)', () => {
+  it('mounts the five domain children (every project row renders)', () => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [
         provideZonelessChangeDetection(),
         { provide: DATA_SOURCE, useValue: {} as Partial<IDataSourcePort> },
+        // The live child injects WsEventStreamService; demo mode keeps
+        // it inert (no socket) without further stubbing.
+        { provide: SKILL_MAP_MODE, useValue: 'demo' },
       ],
     });
     const fixture = TestBed.createComponent(SettingsProject);
@@ -45,6 +53,8 @@ describe('SettingsProject chassis', () => {
     for (const testid of [
       'settings-project-active-provider-row',
       'settings-project-activity-hook-row',
+      'settings-project-live-updates-row',
+      'settings-project-live-activity-row',
       'settings-project-activity-capture-row',
       'settings-project-sidecar-writers-row',
       'settings-project-plugin-trust-row',
@@ -187,6 +197,49 @@ describe('SettingsProjectLens providerOptions', () => {
 });
 
 /**
+ * SettingsProjectLens · active-provider select rollback. The dropdown
+ * binds a `linkedSignal` view of the envelope value; dismissing the
+ * lens-switch confirm resets it to the committed value so the control
+ * rolls back (the committed computed alone cannot notify an unchanged
+ * value through the one-way binding).
+ */
+describe('SettingsProjectLens active-provider select rollback', () => {
+  interface ILensSelectProto {
+    activeProviderEnvelope: WritableSignal<IActiveProviderApi | null>;
+    activeProviderView(): string;
+    onActiveProviderChange(next: string): void;
+  }
+
+  it('dismissing the lens-switch confirm rolls the dropdown back', () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        provideZonelessChangeDetection(),
+        { provide: DATA_SOURCE, useValue: {} as Partial<IDataSourcePort> },
+      ],
+    });
+    const fixture = TestBed.createComponent(SettingsProjectLens);
+    fixture.componentRef.setInput('visible', false);
+    fixture.detectChanges();
+    TestBed.inject(ProviderRegistryService).ingest(REGISTRY);
+    const proto = fixture.componentInstance as unknown as ILensSelectProto;
+    const confirmation = fixture.debugElement.injector.get(ConfirmationService);
+    const confirmSpy = vi.spyOn(confirmation, 'confirm').mockReturnValue(confirmation);
+
+    proto.activeProviderEnvelope.set(envelope(['claude', 'codex', 'agent-skills']));
+    expect(proto.activeProviderView()).toBe('agent-skills');
+
+    proto.onActiveProviderChange('claude');
+    // Optimistic while the destructive-switch dialog is up.
+    expect(proto.activeProviderView()).toBe('claude');
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+
+    confirmSpy.mock.calls[0][0].reject?.();
+    expect(proto.activeProviderView()).toBe('agent-skills');
+  });
+});
+
+/**
  * SettingsProjectPreferences · `pluginTrust.projectEnabled` machine-local opt-in.
  *
  * The toggle persists through `setProjectPreferences`. Turning it OFF
@@ -201,8 +254,10 @@ describe('SettingsProjectLens providerOptions', () => {
 interface ITrustProto {
   preferences: WritableSignal<IProjectPreferencesApi | null>;
   pluginTrustEnabled(): boolean;
+  pluginTrustEnabledView(): boolean;
   onProjectTrustToggle(next: boolean): void;
   followExternalSymlinks(): boolean;
+  followExternalSymlinksView(): boolean;
   onFollowExternalSymlinksToggle(next: boolean): void;
 }
 
@@ -315,9 +370,18 @@ describe('SettingsProjectPreferences pluginTrust opt-in', () => {
     await flush();
 
     expect(confirmSpy).toHaveBeenCalledTimes(1);
-    // The operator cancels: no retry fires and the toggle stays off.
+    // While the dialog is up the switch optimistically shows ON.
+    expect(proto.pluginTrustEnabledView()).toBe(true);
+
+    // The operator cancels: no retry fires, the committed value stays
+    // off AND the switch view rolls back (regression: the control used
+    // to stay flipped because the committed computed never changed).
+    confirmSpy.mock.calls[0][0].reject?.();
+    await flush();
+
     expect(setProjectPreferences).toHaveBeenCalledTimes(1);
     expect(proto.pluginTrustEnabled()).toBe(false);
+    expect(proto.pluginTrustEnabledView()).toBe(false);
   });
 });
 
@@ -403,26 +467,36 @@ describe('SettingsProjectPreferences followExternalSymlinks opt-in', () => {
     await flush();
 
     expect(confirmSpy).toHaveBeenCalledTimes(1);
-    // The operator cancels: no retry fires and the toggle stays off.
+    // While the dialog is up the switch optimistically shows ON.
+    expect(proto.followExternalSymlinksView()).toBe(true);
+
+    // The operator cancels: no retry fires, the committed value stays
+    // off AND the switch view rolls back (regression: the control used
+    // to stay flipped because the committed computed never changed).
+    confirmSpy.mock.calls[0][0].reject?.();
+    await flush();
+
     expect(setProjectPreferences).toHaveBeenCalledTimes(1);
     expect(proto.followExternalSymlinks()).toBe(false);
+    expect(proto.followExternalSymlinksView()).toBe(false);
   });
 });
 
 /**
- * SettingsProjectLens · live-activity hook button.
+ * SettingsProjectHook · live-activity hook button (extracted from the
+ * lens child so the section rows order freely).
  *
- * One button below the lens selector: Install when the hook is absent,
- * Uninstall when present, disabled + hint for lenses without an
- * activity adapter. Both mutations first POST WITHOUT `confirm`; the
- * server-enforced 412 `confirm-required` surfaces the consent dialog
- * and accepting retries with `confirm: true` (the same flow the
- * plugin-trust opt-in uses). The spec drives the imperative surface +
- * the component-provided ConfirmationService, independent of PrimeNG's
- * overlay portal.
+ * One button: Install when the hook is absent, Uninstall when present,
+ * disabled + hint for lenses without an activity adapter. Both
+ * mutations first POST WITHOUT `confirm`; the server-enforced 412
+ * `confirm-required` surfaces the consent dialog and accepting retries
+ * with `confirm: true` (the same flow the plugin-trust opt-in uses).
+ * The active lens arrives through the `lensId` input (fed by the
+ * chassis from the lens child). The spec drives the imperative surface
+ * + the component-provided ConfirmationService, independent of
+ * PrimeNG's overlay portal.
  */
 interface IActivityProto {
-  activeProviderEnvelope: WritableSignal<IActiveProviderApi | null>;
   activityStatus: WritableSignal<IActivityInstallStatusApi | null>;
   activityAnnouncement(): string | null;
   activityButtonLabel(): string;
@@ -445,7 +519,7 @@ function activityStatusOf(overrides: Partial<IActivityInstallStatusApi>): IActiv
 }
 
 function bootstrapActivity(stub: Partial<IDataSourcePort>): {
-  fixture: ReturnType<typeof TestBed.createComponent<SettingsProjectLens>>;
+  fixture: ReturnType<typeof TestBed.createComponent<SettingsProjectHook>>;
   proto: IActivityProto;
 } {
   TestBed.resetTestingModule();
@@ -453,33 +527,36 @@ function bootstrapActivity(stub: Partial<IDataSourcePort>): {
     providers: [
       provideZonelessChangeDetection(),
       { provide: DATA_SOURCE, useValue: stub },
+      // Severs the readiness probe's WS chain; the hook child only
+      // fires refresh() after a mutation, irrelevant to these specs.
+      {
+        provide: ActivityReadinessService,
+        useValue: {
+          hookInstalled: signal<boolean | null>(null).asReadonly(),
+          refresh: vi.fn().mockResolvedValue(undefined),
+        } as unknown as ActivityReadinessService,
+      },
     ],
   });
-  const fixture = TestBed.createComponent(SettingsProjectLens);
+  const fixture = TestBed.createComponent(SettingsProjectHook);
   fixture.componentRef.setInput('visible', false);
+  fixture.componentRef.setInput('lensId', 'claude');
   fixture.detectChanges();
   TestBed.inject(ProviderRegistryService).ingest(REGISTRY);
   const proto = fixture.componentInstance as unknown as IActivityProto;
-  proto.activeProviderEnvelope.set({
-    activeProvider: 'claude',
-    detected: [],
-    source: 'config',
-    selectable: ['claude'],
-    markerDrift: null,
-  });
   return { fixture, proto };
 }
 
-describe('SettingsProjectLens activity hook button', () => {
+describe('SettingsProjectHook activity hook button', () => {
   it('labels Install / Uninstall off the status and the lens registry label', () => {
     const { proto } = bootstrapActivity({});
     proto.activityStatus.set(activityStatusOf({ installed: false }));
-    expect(proto.activityButtonLabel()).toBe('Install Claude activity hook');
+    expect(proto.activityButtonLabel()).toBe('Install Claude hook');
     expect(proto.activityButtonDisabled()).toBe(false);
     expect(proto.activityHint()).toBe(null);
 
     proto.activityStatus.set(activityStatusOf({ installed: true }));
-    expect(proto.activityButtonLabel()).toBe('Uninstall Claude activity hook');
+    expect(proto.activityButtonLabel()).toBe('Uninstall Claude hook');
   });
 
   it('disables with a hint for a lens without an activity hook', () => {
@@ -516,16 +593,21 @@ describe('SettingsProjectLens activity hook button', () => {
 
     expect(installActivityHook).toHaveBeenNthCalledWith(1, 'claude', undefined);
     expect(confirmSpy).toHaveBeenCalledTimes(1);
-    // The dialog names the file the install would modify.
-    expect(String(confirmSpy.mock.calls[0][0].message)).toContain('.claude/settings.json');
+    // The dialog names the harness FILE the install would modify
+    // (basename only; the full path read as noise, e.g. opencode's
+    // .opencode/plugin/skill-map-activity.js).
+    expect(String(confirmSpy.mock.calls[0][0].message)).toContain('settings.json');
+    expect(String(confirmSpy.mock.calls[0][0].message)).not.toContain('.claude/');
 
     confirmSpy.mock.calls[0][0].accept?.();
     await flush();
 
     expect(installActivityHook).toHaveBeenNthCalledWith(2, 'claude', { confirm: true });
     expect(proto.activityStatus()?.installed).toBe(true);
-    expect(proto.activityButtonLabel()).toBe('Uninstall Claude activity hook');
-    expect(proto.activityAnnouncement()).toContain('.claude/settings.json');
+    expect(proto.activityButtonLabel()).toBe('Uninstall Claude hook');
+    // The announcement is outcome-only (the touched path was already
+    // named by the consent dialog) and names the CLI it wired.
+    expect(proto.activityAnnouncement()).toBe('Claude real-time hook installed.');
   });
 
   it('install: dismissing the consent dialog fires no retry', async () => {
@@ -568,7 +650,7 @@ describe('SettingsProjectLens activity hook button', () => {
 
     expect(uninstallActivityHook).toHaveBeenNthCalledWith(2, 'claude', { confirm: true });
     expect(proto.activityStatus()?.installed).toBe(false);
-    expect(proto.activityButtonLabel()).toBe('Install Claude activity hook');
+    expect(proto.activityButtonLabel()).toBe('Install Claude hook');
   });
 });
 
@@ -583,6 +665,7 @@ describe('SettingsProjectLens activity hook button', () => {
 describe('SettingsProjectCapture, conversation-capture toggle', () => {
   interface ICaptureProto {
     captureEnabled(): boolean;
+    captureEnabledView(): boolean;
     captureError(): string | null;
     captureStatus: WritableSignal<{ enabled: boolean } | null>;
     onCaptureToggle(next: boolean): void;
@@ -657,11 +740,17 @@ describe('SettingsProjectCapture, conversation-capture toggle', () => {
     const confirmSpy = vi.spyOn(confirmation, 'confirm').mockReturnValue(confirmation);
 
     proto.onCaptureToggle(true);
+    // Optimistic ON while the dialog is up.
+    expect(proto.captureEnabledView()).toBe(true);
     confirmSpy.mock.calls[0][0].reject?.();
     await flushAsync();
 
     expect(setActivityCapture).not.toHaveBeenCalled();
     expect(proto.captureEnabled()).toBe(false);
+    // The switch view rolls back too (regression: it used to stay
+    // flipped, the committed computed never changed so it never
+    // notified the one-way binding).
+    expect(proto.captureEnabledView()).toBe(false);
   });
 
   it('disabling also confirms, POSTs confirm: true, and adopts the off state', async () => {
@@ -693,6 +782,8 @@ describe('SettingsProjectCapture, conversation-capture toggle', () => {
 
     expect(proto.captureError()).toBe('boom');
     expect(proto.captureEnabled()).toBe(false);
+    // A failed write also rolls the switch view back.
+    expect(proto.captureEnabledView()).toBe(false);
   });
 
   it('marks the row pending while the write is in flight', async () => {
@@ -715,5 +806,129 @@ describe('SettingsProjectCapture, conversation-capture toggle', () => {
     await flushAsync();
     expect(proto.isPending('activity.capture')).toBe(false);
     expect(proto.captureEnabled()).toBe(true);
+  });
+});
+
+/**
+ * SettingsProjectLive / SettingsProjectRealtime · live-channel rows
+ * (moved here from the General section when `ui.liveUpdates` /
+ * `ui.realtimeActivity` became project-local config; split into two
+ * children so the hook installer can sit between them). Display state
+ * comes from the feature owners (`WsEventStreamService` /
+ * `NodeActivityService`); writes route through their `setEnabled`,
+ * which persists via the project-preferences PATCH. The real-time
+ * toggle is gated by live updates AND by the active lens's hook
+ * install state (shared `ActivityReadinessService`; `null` = unknown
+ * FAILS OPEN).
+ */
+function liveProviders(opts?: { hookInstalled?: boolean | null }): {
+  setProjectPreferences: ReturnType<typeof vi.fn>;
+  readinessRefresh: ReturnType<typeof vi.fn>;
+} {
+  TestBed.resetTestingModule();
+  const setProjectPreferences = vi.fn().mockResolvedValue({});
+  const readinessRefresh = vi.fn().mockResolvedValue(undefined);
+  // NOT `??`: an explicit `null` (hook state unknown) must survive.
+  const hookInstalled = opts?.hookInstalled === undefined ? true : opts.hookInstalled;
+  TestBed.configureTestingModule({
+    providers: [
+      provideZonelessChangeDetection(),
+      {
+        provide: DATA_SOURCE,
+        useValue: {
+          getProjectPreferences: () => Promise.resolve({}),
+          setProjectPreferences,
+        } as unknown as Partial<IDataSourcePort>,
+      },
+      // Demo mode keeps the WS owner inert (no socket) in TestBed.
+      { provide: SKILL_MAP_MODE, useValue: 'demo' },
+      {
+        provide: ActivityReadinessService,
+        useValue: {
+          hookInstalled: signal(hookInstalled).asReadonly(),
+          refresh: readinessRefresh,
+        } as unknown as ActivityReadinessService,
+      },
+    ],
+  });
+  return { setProjectPreferences, readinessRefresh };
+}
+
+describe('SettingsProjectLive, live-updates row', () => {
+  it('renders the row and routes the write through the WS owner (server-backed)', () => {
+    const { setProjectPreferences } = liveProviders();
+    const fixture = TestBed.createComponent(SettingsProjectLive);
+    fixture.componentRef.setInput('visible', false);
+    fixture.detectChanges();
+    interface ILiveProto {
+      liveWsEnabled(): boolean;
+      onLiveWsToggle(next: boolean): void;
+    }
+    const proto = fixture.componentInstance as unknown as ILiveProto;
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('[data-testid="settings-project-live-updates-row"]')).not.toBeNull();
+
+    expect(proto.liveWsEnabled()).toBe(true);
+    proto.onLiveWsToggle(false);
+    expect(proto.liveWsEnabled()).toBe(false);
+    // Persisted through the owner into the storage seam: a
+    // project-preferences PATCH (settings.local.json).
+    expect(setProjectPreferences).toHaveBeenCalledWith({ ui: { liveUpdates: false } });
+  });
+});
+
+describe('SettingsProjectRealtime, real-time-activity row', () => {
+  interface IRealtimeProto {
+    liveActivityEnabled(): boolean;
+    activityHookInstalled(): boolean | null;
+    onLiveActivityToggle(next: boolean): void;
+  }
+
+  function createRealtime(): {
+    fixture: ReturnType<typeof TestBed.createComponent<SettingsProjectRealtime>>;
+    proto: IRealtimeProto;
+  } {
+    const fixture = TestBed.createComponent(SettingsProjectRealtime);
+    fixture.componentRef.setInput('visible', false);
+    fixture.detectChanges();
+    return { fixture, proto: fixture.componentInstance as unknown as IRealtimeProto };
+  }
+
+  it('routes the write through the activity owner (server-backed)', () => {
+    const { setProjectPreferences } = liveProviders();
+    const { proto } = createRealtime();
+    expect(proto.liveActivityEnabled()).toBe(true);
+    proto.onLiveActivityToggle(false);
+    expect(proto.liveActivityEnabled()).toBe(false);
+    expect(setProjectPreferences).toHaveBeenCalledWith({ ui: { realtimeActivity: false } });
+  });
+
+  it('disables with a hint while the activity hook is not installed', () => {
+    liveProviders({ hookInstalled: false });
+    const { fixture, proto } = createRealtime();
+    expect(proto.activityHookInstalled()).toBe(false);
+    const el: HTMLElement = fixture.nativeElement;
+    expect(
+      el.querySelector('[data-testid="settings-project-live-activity-hook-hint"]'),
+    ).not.toBeNull();
+  });
+
+  it('fails OPEN while the hook state is unknown (no hint, toggle usable)', () => {
+    liveProviders({ hookInstalled: null });
+    const { fixture, proto } = createRealtime();
+    expect(proto.activityHookInstalled()).toBe(null);
+    const el: HTMLElement = fixture.nativeElement;
+    expect(
+      el.querySelector('[data-testid="settings-project-live-activity-hook-hint"]'),
+    ).toBeNull();
+  });
+
+  it('re-probes the shared hook-install state on section open', () => {
+    const { readinessRefresh } = liveProviders();
+    const { fixture } = createRealtime();
+    expect(readinessRefresh).not.toHaveBeenCalled();
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    expect(readinessRefresh).toHaveBeenCalled();
   });
 });

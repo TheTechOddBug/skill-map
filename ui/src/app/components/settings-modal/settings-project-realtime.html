@@ -1,0 +1,27 @@
+<div class="settings-project__row" data-testid="settings-project-live-activity-row">
+  <div class="settings-project__row-text">
+    <div class="settings-project__row-label">
+      {{ texts.project.live.activity.label }}
+    </div>
+    <div class="settings-project__row-description">
+      {{ texts.project.live.activity.description }}
+    </div>
+    @if (!liveWsEnabled()) {
+      <div class="settings-project__row-meta">
+        <span class="settings-project__meta-line">{{ texts.project.live.activity.hint }}</span>
+      </div>
+    } @else if (activityHookInstalled() === false) {
+      <div class="settings-project__row-meta">
+        <span class="settings-project__meta-line" data-testid="settings-project-live-activity-hook-hint">
+          {{ texts.project.live.activity.hookHint }}
+        </span>
+      </div>
+    }
+  </div>
+  <p-toggleswitch
+    [ngModel]="liveActivityEnabled()"
+    (ngModelChange)="onLiveActivityToggle($event)"
+    [disabled]="!liveWsEnabled() || activityHookInstalled() === false"
+    data-testid="settings-project-live-activity-toggle"
+  />
+</div>

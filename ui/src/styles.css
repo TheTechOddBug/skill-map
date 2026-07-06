@@ -260,3 +260,13 @@ a {
 .sm-node-link--known:hover {
   text-decoration: underline;
 }
+
+/* Settings-dialog select overlays. The panel is appended to <body>
+   (appendTo="body", so it escapes the dialog's clipping), which also
+   puts it OUTSIDE the dialog-scoped rule in settings-modal.css that
+   brings every control down to 0.8rem; without this the option list
+   renders at the 1rem default, visibly larger than the closed trigger.
+   Applied via `panelStyleClass` on the p-select. */
+.sm-settings-select-overlay .p-select-option {
+  font-size: 0.8rem;
+}

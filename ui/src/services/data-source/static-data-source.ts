@@ -558,6 +558,7 @@ export class StaticDataSource implements IDataSourcePort {
       scan: { referencePaths: [], followExternalSymlinks: false },
       pluginTrust: { projectEnabled: false },
       tutorialReminderDismissed: false,
+      ui: { liveUpdates: true, realtimeActivity: true },
     };
   }
 

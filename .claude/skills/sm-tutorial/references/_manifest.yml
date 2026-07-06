@@ -184,7 +184,7 @@ parts:
                                # (no runtime to hook) with an in-part note, not a menu filter
     status: active
     chapters:
-      - id: wire          ; title: "Wire the live-activity hook" ; est_min: 3
+      - id: wire          ; title: "Wire the real-time hook" ; est_min: 3
       - id: live          ; title: "Restart and watch nodes light up" ; est_min: 3
       - id: conversations ; title: "Capture agent conversations (opt-in)" ; est_min: 3
 

@@ -196,7 +196,7 @@ Settings UI. Tell the tester:
 > same as `model`.
 >
 > Open **Settings** (the sliders icon, top right) and the **Project** tab. Find
-> **Active provider** and switch it from the open standard to **Google's
+> **Active lens** and switch it from the open standard to **Google's
 > Antigravity**, then confirm. skill-map clears the old lens's scan, so the Map
 > goes quiet; click the **refresh** button (the sync icon in the topbar) to
 > re-scan under the new lens.
@@ -206,7 +206,7 @@ Settings UI. Tell the tester:
 > stays clean (it is not one of Antigravity's verbs). Same files, different lens:
 > the lens decides what is reserved.
 >
-> Now switch **Active provider** back to the open standard, confirm, and click
+> Now switch **Active lens** back to the open standard, confirm, and click
 > refresh once more. The warning on `goal` clears, you are back on the neutral
 > standard that reserves nothing.
 >

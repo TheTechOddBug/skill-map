@@ -1,33 +1,3 @@
-<div class="settings-project__row" data-testid="settings-project-sidecar-writers-row">
-  <div class="settings-project__row-text">
-    <div class="settings-project__row-label">{{ texts.project.sidecarWritersLabel }}</div>
-    <div class="settings-project__row-description">
-      {{ texts.project.sidecarWritersDescription }}
-    </div>
-  </div>
-  <p-toggleswitch
-    [ngModel]="allowSidecarWriters()"
-    (ngModelChange)="onSidecarWritersToggle($event)"
-    [disabled]="loading() || isPending('allowSidecarWriters') || preferences() === null"
-    data-testid="settings-project-sidecar-writers-toggle"
-  />
-</div>
-
-<div class="settings-project__row" data-testid="settings-project-plugin-trust-row">
-  <div class="settings-project__row-text">
-    <div class="settings-project__row-label">{{ texts.project.pluginTrustLabel }}</div>
-    <div class="settings-project__row-description">
-      {{ texts.project.pluginTrustDescription }}
-    </div>
-  </div>
-  <p-toggleswitch
-    [ngModel]="pluginTrustEnabled()"
-    (ngModelChange)="onProjectTrustToggle($event)"
-    [disabled]="loading() || isPending('pluginTrust.projectEnabled') || preferences() === null"
-    data-testid="settings-project-plugin-trust-toggle"
-  />
-</div>
-
 <div class="settings-project__row" data-testid="settings-project-follow-external-symlinks-row">
   <div class="settings-project__row-text">
     <div class="settings-project__row-label">{{ texts.project.followExternalSymlinksLabel }}</div>
@@ -36,7 +6,7 @@
     </div>
   </div>
   <p-toggleswitch
-    [ngModel]="followExternalSymlinks()"
+    [ngModel]="followExternalSymlinksView()"
     (ngModelChange)="onFollowExternalSymlinksToggle($event)"
     [disabled]="loading() || isPending('scan.followExternalSymlinks') || preferences() === null"
     data-testid="settings-project-follow-external-symlinks-toggle"
@@ -82,6 +52,7 @@
     <input
       type="text"
       pInputText
+      pSize="small"
       [ngModel]="newReferencePath()"
       (ngModelChange)="newReferencePath.set($event)"
       (keydown.enter)="onReferencePathAdd()"
@@ -99,6 +70,52 @@
       data-testid="settings-project-reference-paths-add"
     />
   </div>
+</div>
+
+<div class="settings-project__row" data-testid="settings-project-plugin-trust-row">
+  <div class="settings-project__row-text">
+    <div class="settings-project__row-label">{{ texts.project.pluginTrustLabel }}</div>
+    <div class="settings-project__row-description">
+      {{ texts.project.pluginTrustDescription }}
+    </div>
+  </div>
+  <p-toggleswitch
+    [ngModel]="pluginTrustEnabledView()"
+    (ngModelChange)="onProjectTrustToggle($event)"
+    [disabled]="loading() || isPending('pluginTrust.projectEnabled') || preferences() === null"
+    data-testid="settings-project-plugin-trust-toggle"
+  />
+</div>
+
+<!-- The self-contained ignore-patterns child mounts HERE (not in the
+     chassis) purely for row order: the section wants it between the
+     plugin-trust toggle above and the sidecar-writers policy that
+     closes the section, and those neighbours live in THIS component
+     (splitting them out would double-fetch the shared preferences
+     envelope). -->
+<sm-settings-project-ignore [visible]="visible()" />
+
+<div class="settings-project__row" data-testid="settings-project-sidecar-writers-row">
+  <div class="settings-project__row-text">
+    <div class="settings-project__row-label">
+      {{ texts.project.sidecarWritersLabel }}
+      <span
+        class="settings-project__shared-badge"
+        [title]="texts.project.sharedBadgeTooltip"
+        [attr.aria-label]="texts.project.sharedBadgeTooltip"
+        >{{ texts.project.sharedBadge }}</span
+      >
+    </div>
+    <div class="settings-project__row-description">
+      {{ texts.project.sidecarWritersDescription }}
+    </div>
+  </div>
+  <p-toggleswitch
+    [ngModel]="allowSidecarWritersView()"
+    (ngModelChange)="onSidecarWritersToggle($event)"
+    [disabled]="loading() || isPending('allowSidecarWriters') || preferences() === null"
+    data-testid="settings-project-sidecar-writers-toggle"
+  />
 </div>
 
 <p-confirmdialog />

@@ -22,7 +22,7 @@ export const GRAPH_VIEW_TEXTS = {
      */
     followActivity: {
       tooltipOn: 'Stop following the activity',
-      tooltipOff: 'Follow the activity: auto-frame the executing nodes',
+      tooltipOff: 'Follow the activity',
       ariaOn: 'Stop following the activity',
       ariaOff: 'Follow the activity',
     },

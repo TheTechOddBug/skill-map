@@ -73,45 +73,6 @@
       </p-selectbutton>
     </li>
 
-    <li class="settings-general__row" data-testid="settings-general-row-live-ws">
-      <div class="settings-general__row-text">
-        <div class="settings-general__row-label">{{ texts.general.live.ws.label }}</div>
-        <div class="settings-general__row-description">
-          {{ texts.general.live.ws.description }}
-        </div>
-      </div>
-      <p-toggleswitch
-        [ngModel]="liveWsEnabled()"
-        (ngModelChange)="onLiveWsToggle($event)"
-        data-testid="settings-general-toggle-live-ws"
-      />
-    </li>
-
-    <li class="settings-general__row" data-testid="settings-general-row-live-activity">
-      <div class="settings-general__row-text">
-        <div class="settings-general__row-label">
-          {{ texts.general.live.activity.label }}
-        </div>
-        <div class="settings-general__row-description">
-          {{ texts.general.live.activity.description }}
-        </div>
-        @if (!liveWsEnabled()) {
-          <div class="settings-general__row-hint">
-            {{ texts.general.live.activity.hint }}
-          </div>
-        } @else if (activityHookInstalled() === false) {
-          <div class="settings-general__row-hint" data-testid="settings-general-live-activity-hook-hint">
-            {{ texts.general.live.activity.hookHint }}
-          </div>
-        }
-      </div>
-      <p-toggleswitch
-        [ngModel]="liveActivityEnabled()"
-        (ngModelChange)="onLiveActivityToggle($event)"
-        [disabled]="!liveWsEnabled() || activityHookInstalled() === false"
-        data-testid="settings-general-toggle-live-activity"
-      />
-    </li>
   </ul>
 
   <p class="settings-general__storage-hint" data-testid="settings-general-storage-hint">

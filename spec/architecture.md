@@ -737,7 +737,7 @@ One locality class constrains which layers a given key MAY live in. Enforced in 
   - `pluginTrust.projectEnabled`, the local opt-in that trusts every plugin the project enables (the import-trust escape hatch).
   - `activity.captureConversations`, the consent gate for retaining inter-agent conversation content in the serve process (`provider-activity.md` §Conversation capture).
   - `tutorialReminderDismissed`, the web UI's tutorial-reminder dismissal.
-  - `ui.liveUpdates` and `ui.realtimeActivity`, per-developer web-UI rendering choices (live map sync, real-time activity), written by Settings > General through `PATCH /api/project-preferences`.
+  - `ui.liveUpdates` and `ui.realtimeActivity`, per-developer web-UI rendering choices (live map sync, real-time activity), written by Settings > Project through `PATCH /api/project-preferences`.
 
   The consent-shaped entries describe surfaces only the local operator may opt into: `allowEditSmFiles`, `scan.referencePaths`, and `scan.followExternalSymlinks` govern disk access, `pluginTrust.projectEnabled` the code-execution surface, `activity.captureConversations` the retention of conversation content. Sharing any of them via the repo would silently expand every collaborator's surface in a way only the original author consented to. `pluginTrust.projectEnabled` in particular MUST stay local: honouring a committed `true` would let a cloned repo auto-execute its own plugins, the exact supply-chain attack the import-trust gate prevents. The remaining entries (`tutorialReminderDismissed`, `ui.liveUpdates`, `ui.realtimeActivity`) carry no security weight; they are inherently per-developer preferences, and a committed value would override every other collaborator's choice on each pull.
 

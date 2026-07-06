@@ -205,6 +205,21 @@
     "tutorialReminderDismissed": {
       "type": "boolean",
       "description": "**Project-local only** (per `core/config/helper:PROJECT_LOCAL_ONLY_KEYS`). UI preference: when `true`, the web UI hides the topbar reminder that nudges first-time users to run `sm tutorial`. Default `false` (the reminder shows). Set to `true` by the reminder's dismiss button, persisted to `<cwd>/.skill-map/settings.local.json` (gitignored, per-checkout), so it never shows again on this checkout; reset with `sm config reset tutorialReminderDismissed`. Stripped with a warning if found in the committed `project` layer (the dismissal is per-developer, not a team-shared decision)."
+    },
+    "ui": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Web-UI preferences persisted per checkout. Every key is **project-local only** (per `core/config/helper:PROJECT_LOCAL_ONLY_KEYS`): per-developer rendering choices, stripped with a warning from the committed `project` layer. Written by the Settings > Project toggles through `PATCH /api/project-preferences`; no confirm gate (nothing here expands disk access or trusts code). Both keys previously lived in the browser's localStorage; moving them here makes the choice follow the checkout instead of the browser profile.",
+      "properties": {
+        "liveUpdates": {
+          "type": "boolean",
+          "description": "Whether the web UI keeps the map in sync with `sm serve` (scan refreshes, live events, node activity). Default `true`. When `false` the SPA opens no live channel at all and the map works through plain HTTP reads (manual refresh)."
+        },
+        "realtimeActivity": {
+          "type": "boolean",
+          "description": "Whether real-time node activity (the executing glow driven by provider activity frames, see provider-activity.md) lights up the map. Default `true`. Subordinate to `liveUpdates`: with live updates off no activity frames arrive at all; with live updates on, turning this off silences just the activity lighting."
+        }
+      }
     }
   }
 }

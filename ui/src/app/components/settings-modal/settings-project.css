@@ -17,6 +17,7 @@
 }
 
 .settings-project__intro {
+  font-style: italic;
   margin: 0 0 1.25rem 0;
   font-size: 0.85rem;
   color: var(--sm-text-muted);
@@ -36,4 +37,11 @@
   border-radius: var(--sm-radius-md);
   background: var(--p-content-background);
   border: 1px solid var(--p-content-border-color);
+}
+
+/* Inline occurrence of the team-shared badge inside the intro legend
+   (the row-level rules live in settings-project-rows.css, a different
+   component scope). */
+.settings-project__shared-badge {
+  font-size: 0.8rem;
 }

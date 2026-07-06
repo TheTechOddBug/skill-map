@@ -189,7 +189,14 @@
 :host ::ng-deep .settings-modal__dialog .p-multiselect,
 :host ::ng-deep .settings-modal__dialog .p-multiselect-label,
 :host ::ng-deep .settings-modal__dialog .p-autocomplete,
-:host ::ng-deep .settings-modal__dialog .p-password input {
+:host ::ng-deep .settings-modal__dialog .p-password input,
+:host ::ng-deep .settings-modal__dialog .p-message,
+:host ::ng-deep .settings-modal__dialog .p-message-text,
+/* Autocomplete in MULTIPLE mode (plugin string-list settings): the
+ * free-text input inside the chip row is NOT a .p-inputtext and the
+ * theme hardcodes it to 1rem, so size="small" never reaches it. */
+:host ::ng-deep .settings-modal__dialog .p-autocomplete-input-chip input,
+:host ::ng-deep .settings-modal__dialog .p-autocomplete .p-chip {
   font-size: 0.8rem;
 }
 

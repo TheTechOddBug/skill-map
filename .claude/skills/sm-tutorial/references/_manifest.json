@@ -321,7 +321,7 @@
       "chapters": [
         {
           "id": "wire",
-          "title": "Wire the live-activity hook",
+          "title": "Wire the real-time hook",
           "est_min": 3
         },
         {

@@ -1,10 +1,18 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { Subject } from 'rxjs';
 
 import { isNodeActivityEvent, type IWsNodeActivityEvent } from '../../models/ws-event';
+import { DATA_SOURCE, type IDataSourcePort } from '../data-source/data-source.port';
+import { LivePreferencesService } from '../live-preferences';
 import { NODE_ACTIVITY_TTL_MS, NodeActivityService } from '../node-activity';
 import { WsEventStreamService } from '../ws-event-stream';
+
+/** Minimal port stub for `LivePreferencesService`'s server-backed pair. */
+const PREFS_STUB = {
+  getProjectPreferences: () => Promise.resolve({}),
+  setProjectPreferences: () => Promise.resolve({}),
+} as unknown as IDataSourcePort;
 
 const SKILL = '.claude/skills/deploy/SKILL.md';
 const AGENT = '.claude/agents/reviewer.md';
@@ -31,6 +39,7 @@ function bootstrap(ttlMs = 40): IHarness {
     providers: [
       { provide: WsEventStreamService, useValue: ws },
       { provide: NODE_ACTIVITY_TTL_MS, useValue: ttlMs },
+      { provide: DATA_SOURCE, useValue: PREFS_STUB },
     ],
   });
   return { service: TestBed.inject(NodeActivityService), events$ };
@@ -324,12 +333,6 @@ describe('isNodeActivityEvent', () => {
 });
 
 describe('NodeActivityService, real-time switch (Settings toggle)', () => {
-  const ACTIVITY_ENABLED_KEY = 'sm.live.activity-enabled';
-
-  afterEach(() => {
-    localStorage.removeItem(ACTIVITY_ENABLED_KEY);
-  });
-
   it('setEnabled(false) darkens everything immediately and discards incoming frames', async () => {
     const { service, events$ } = bootstrap(10_000);
 
@@ -361,9 +364,28 @@ describe('NodeActivityService, real-time switch (Settings toggle)', () => {
     expect(service.activePaths().has(SKILL)).toBe(true);
   });
 
-  it('boots with a stored OFF: frames are inert until re-enabled', async () => {
-    localStorage.setItem(ACTIVITY_ENABLED_KEY, 'false');
-    const { service, events$ } = bootstrap(10_000);
+  it('boots with a persisted OFF: frames are inert until re-enabled', async () => {
+    // The preference now arrives from the project-preferences envelope
+    // (settings.local.json); the app initializer awaits `load()` before
+    // any component constructs, mirrored here.
+    const events$ = new Subject<IWsNodeActivityEvent>();
+    const ws = { nodeActivity$: events$ } as unknown as WsEventStreamService;
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: WsEventStreamService, useValue: ws },
+        { provide: NODE_ACTIVITY_TTL_MS, useValue: 10_000 },
+        {
+          provide: DATA_SOURCE,
+          useValue: {
+            getProjectPreferences: () =>
+              Promise.resolve({ ui: { liveUpdates: true, realtimeActivity: false } }),
+            setProjectPreferences: () => Promise.resolve({}),
+          } as unknown as IDataSourcePort,
+        },
+      ],
+    });
+    await TestBed.inject(LivePreferencesService).load();
+    const service = TestBed.inject(NodeActivityService);
 
     events$.next(makeEvent(SKILL, 'start', 'main'));
     await flushed();

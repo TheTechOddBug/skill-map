@@ -1057,7 +1057,6 @@ describe('GraphView, edge conversation-count labels + historical click', () => {
     TestBed.resetTestingModule();
     // The REAL NodeActivityStatsService hydrates pairCounts from the
     // summary; each test seeds the mock BEFORE bootstrap.
-    localStorage.removeItem('sm.live.activity-enabled');
     vi.mocked(STUB_DATA_SOURCE.getActivitySummary)
       .mockReset()
       .mockResolvedValue({ since: 0, nodes: {}, pairs: {} });

@@ -28,7 +28,7 @@ export const APP_TEXTS = {
    * top and inside the map.
    */
   lensChipTooltip: (lens: string): string => `Active lens: ${lens}. The map reflects how ${lens} interprets your files.`,
-  lensChipA11y: (lens: string): string => `Active provider lens: ${lens}.`,
+  lensChipA11y: (lens: string): string => `Active lens: ${lens}.`,
   nav: {
     searchLabel: 'Search nodes by name or tag',
     searchTooltip: 'Search',
@@ -92,16 +92,16 @@ export const APP_TEXTS = {
   },
   /**
    * Topbar Real Time toggle (the wave-pulse button, first in the
-   * actions cluster). Mirrors the Settings > General "Real-time node activity"
+   * actions cluster). Mirrors the Settings > Project "Real-time node activity"
    * switch and its two gates (live updates on + hook installed); the
    * tooltip explains WHICH gate blocks and points at the Settings
    * section that fixes it. Tooltips live on a wrapper span because
    * they do not fire on a disabled button.
    */
   liveActivity: {
-    tooltipOn: 'Real-time node activity is on. Click to turn it off.',
-    tooltipOff: 'Real-time node activity is off. Click to light up nodes as your AI runs them.',
-    tooltipNoWs: 'Real-time activity needs live updates. Enable them in Settings > General.',
+    tooltipOn: 'Turn off real-time activity',
+    tooltipOff: 'Turn on real-time activity',
+    tooltipNoWs: 'Real-time activity needs live updates. Enable them in Settings > Project.',
     tooltipNoHook:
       "Real-time activity needs the active lens's hook. Install it in Settings > Project.",
     ariaOn: 'Turn off real-time node activity',

@@ -75,6 +75,17 @@ export interface IProjectPreferencesEnvelope {
    * reminder nudging first-time users to run `sm tutorial`. Default `false`.
    */
   tutorialReminderDismissed: boolean;
+  /**
+   * Project-local web-UI preferences (Settings > Project), persisted per
+   * checkout in `settings.local.json`. `liveUpdates`: keep the map in
+   * sync with `sm serve` (default `true`). `realtimeActivity`: light up
+   * executing nodes (default `true`, subordinate to `liveUpdates`).
+   * No confirm gate, neither expands disk access nor trusts code.
+   */
+  ui: {
+    liveUpdates: boolean;
+    realtimeActivity: boolean;
+  };
 }
 
 interface IPatchBody {
@@ -88,6 +99,10 @@ interface IPatchBody {
     projectEnabled?: boolean;
   };
   tutorialReminderDismissed?: boolean;
+  ui?: {
+    liveUpdates?: boolean;
+    realtimeActivity?: boolean;
+  };
 }
 
 export function registerProjectPreferencesRoute(app: Hono, deps: IRouteDeps): void {
@@ -134,6 +149,18 @@ function buildEnvelope(deps: IRouteDeps): IProjectPreferencesEnvelope {
         cwd,
         default: false,
       }) ?? false,
+    ui: {
+      liveUpdates:
+        readConfigValue<boolean>('ui.liveUpdates', {
+          cwd,
+          default: true,
+        }) ?? true,
+      realtimeActivity:
+        readConfigValue<boolean>('ui.realtimeActivity', {
+          cwd,
+          default: true,
+        }) ?? true,
+    },
   };
 }
 
@@ -174,6 +201,11 @@ async function applyPatch(deps: IRouteDeps, body: IPatchBody): Promise<void> {
   // confirm gate (it neither expands disk access nor trusts code).
   const reminderChanged = applyTutorialReminderWrite(body, cwd);
 
+  // Project-local web-UI preferences (Settings > Project): plain booleans
+  // written to the gitignored project-local layer, no privacy or confirm
+  // gate. They only steer the SPA's live channel, so no watcher restart.
+  const uiChanged = applyUiWrites(body, cwd);
+
   // Best-effort watcher restart: the runtime re-reads config every
   // batch so the next file edit picks the change up anyway, but the
   // restart guarantees the operator sees the effect (new path list,
@@ -189,6 +221,7 @@ async function applyPatch(deps: IRouteDeps, body: IPatchBody): Promise<void> {
     trustChanged,
     reminderChanged,
     followChanged,
+    uiChanged,
   ].some(Boolean);
   if (shouldRestart) await maybeRestartWatcher(deps);
   // Successful writes mutate the on-disk config; the cached view would
@@ -298,6 +331,40 @@ function applyTutorialReminderWrite(body: IPatchBody, cwd: string): boolean {
     });
   }
   return true;
+}
+
+/**
+ * Apply the `ui.*` sub-keys of the patch: project-local web-UI
+ * preferences (`ui.liveUpdates`, `ui.realtimeActivity`). No privacy or
+ * confirm gate, they only steer the SPA's live channel. Persisted to
+ * the gitignored `project-local` layer (the keys are project-local
+ * only). Returns `true` when at least one value actually changed, so
+ * the caller reloads the config cache.
+ */
+function applyUiWrites(body: IPatchBody, cwd: string): boolean {
+  if (!body.ui) return false;
+  let changed = false;
+  const entries = [
+    { key: 'ui.liveUpdates', next: body.ui.liveUpdates },
+    { key: 'ui.realtimeActivity', next: body.ui.realtimeActivity },
+  ] as const;
+  for (const { key, next } of entries) {
+    if (next === undefined) continue;
+    const before = readConfigValue<boolean>(key, { cwd, default: true }) ?? true;
+    if (before === next) continue;
+    try {
+      writeConfigValue(key, next, { target: 'project-local', cwd });
+    } catch (err) {
+      throw new HTTPException(400, {
+        message: tx(SERVER_TEXTS.projectPrefsPersistFailed, {
+          key,
+          message: formatErrorMessage(err),
+        }),
+      });
+    }
+    changed = true;
+  }
+  return changed;
 }
 
 /**
@@ -579,11 +646,21 @@ const PATCH_BODY_SCHEMA = {
     { required: ['scan'] },
     { required: ['pluginTrust'] },
     { required: ['tutorialReminderDismissed'] },
+    { required: ['ui'] },
   ],
   properties: {
     confirm: { type: 'boolean' },
     allowSidecarWriters: { type: 'boolean' },
     tutorialReminderDismissed: { type: 'boolean' },
+    ui: {
+      type: 'object',
+      additionalProperties: false,
+      minProperties: 1,
+      properties: {
+        liveUpdates: { type: 'boolean' },
+        realtimeActivity: { type: 'boolean' },
+      },
+    },
     scan: {
       type: 'object',
       additionalProperties: false,
@@ -625,5 +702,9 @@ const parsePatchBody = makeBodyValidator<IPatchBody>(PATCH_BODY_SCHEMA, {
     '/scan/referencePaths/*:type:string': tx(SERVER_TEXTS.projectPrefsListEntryNotString, { key: 'scan.referencePaths' }),
     '/scan/referencePaths/*:pattern': SERVER_TEXTS.projectPrefsEntryHasComma,
     '/scan/followExternalSymlinks:type:boolean': SERVER_TEXTS.projectPrefsFollowSymlinksNotBoolean,
+    '/ui:minProperties': SERVER_TEXTS.projectPrefsBodyEmpty,
+    '/ui:type:object': SERVER_TEXTS.projectPrefsUiNotObject,
+    '/ui/liveUpdates:type:boolean': SERVER_TEXTS.projectPrefsLiveUpdatesNotBoolean,
+    '/ui/realtimeActivity:type:boolean': SERVER_TEXTS.projectPrefsRealtimeActivityNotBoolean,
   },
 });

@@ -49,7 +49,7 @@ the payoff vary):
 | antigravity | `.agents/hooks.json` | file reads only; the lit chain goes dark on idle | you (the agent) read the harness files | consent + explanation only |
 | opencode | `.opencode/plugin/skill-map-activity.js` | named skills / commands / agents plus reads; dark on idle | you (the agent) read the harness files | consent + explanation only |
 
-## Chapter `wire` - Wire the live-activity hook (~3 min)
+## Chapter `wire` - Wire the real-time hook (~3 min)
 
 The whole chapter runs from the UI; no `sm activity` commands are
 shown (the verb family exists, but this part teaches the Settings
@@ -69,22 +69,23 @@ sm
 > Open the URL it prints in your browser. Top right, the sliders icon
 > opens **Settings**; go to the **Project** tab. The selector at the
 > top shows the active lens, the runtime skill-map is reading your
-> project through (it should say <provider>), and right below it
-> there's the **Live-activity hook** row. Its button reads
-> **Install <provider> activity hook**: click it.
+> project through (it should say <provider>), and a couple of rows
+> below there's the **Real-time hook** row. Its button reads
+> **Install <provider> hook**: click it.
 >
 > Before touching anything it asks for your permission: the dialog
-> names the exact file it will edit (a config that belongs to
-> <provider>, not to skill-map) and tells you your existing hooks are
-> preserved. Read it and hit **Proceed**.
+> names the file it will write (a config that belongs to <provider>,
+> not to skill-map) and promises nothing else is touched. Read it and
+> hit **Proceed**.
 >
-> The button flips to **Uninstall <provider> activity hook**: that's
+> The button flips to **Uninstall <provider> hook**: that's
 > how you know it's wired, and also how you undo it later (same row,
 > same kind of confirmation). Tell me OK when you see it.
 
 Expected: the dialog names the config file from the deltas table for
-the active lens; after Proceed the row's hint reads "Activity hook
-installed into <config path>" and the button flips to Uninstall. The
+the active lens (file name only, without the directory); after Proceed
+the row shows "<provider> real-time hook installed." and the button
+flips to Uninstall. The
 row targets the ACTIVE lens, which the part preflight aligned with
 `tutorial.provider`; if the selector shows a different lens, sort that
 out first (switch it back) before installing. If the tester cancelled
@@ -157,7 +158,7 @@ goes dark the moment the runtime goes idle instead. If nothing lit up:
 hook loads at session start), (2) confirm `sm` is running FROM this
 folder (the bridge finds the server through `.skill-map/serve.json`; a
 server started in another directory receives nothing), (3) re-open
-Settings > Project and confirm the Live-activity hook row offers
+Settings > Project and confirm the Real-time hook row offers
 Uninstall (that means installed; if it offers Install, install it
 again), and (4) check the topbar Real Time toggle (the pulse icon) is
 on.
@@ -261,7 +262,7 @@ On **opencode**:
 Then close the part (all providers):
 
 > That's the whole feature. Everything you wired is reversible: the
-> same Live-activity hook row in Settings uninstalls it (one click,
+> same Real-time hook row in Settings uninstalls it (one click,
 > same confirmation), and the capture switch clears itself the moment
 > you flip it off. Leave it wired if you like the live map, it only
 > ever talks to your own local server.

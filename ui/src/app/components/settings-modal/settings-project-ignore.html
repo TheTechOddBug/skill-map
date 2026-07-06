@@ -12,7 +12,15 @@
 
 <div class="settings-project__list-row" data-testid="settings-project-ignore-patterns-row">
   <div class="settings-project__row-text">
-    <div class="settings-project__row-label">{{ texts.project.ignorePatternsLabel }}</div>
+    <div class="settings-project__row-label">
+      {{ texts.project.ignorePatternsLabel }}
+      <span
+        class="settings-project__shared-badge"
+        [title]="texts.project.sharedBadgeTooltip"
+        [attr.aria-label]="texts.project.sharedBadgeTooltip"
+        >{{ texts.project.sharedBadge }}</span
+      >
+    </div>
     <div class="settings-project__row-description">
       {{ texts.project.ignorePatternsDescriptionPrefix }}
       <code class="settings-project__intro-path">{{ texts.project.ignorePatternsDescriptionFile }}</code>
@@ -41,6 +49,7 @@
     <input
       type="text"
       pInputText
+      pSize="small"
       [ngModel]="newIgnorePattern()"
       (ngModelChange)="newIgnorePattern.set($event)"
       (keydown.enter)="onIgnorePatternAdd()"

@@ -13,6 +13,7 @@
 }
 
 .settings-changelog__intro {
+  font-style: italic;
   margin: 0 0 1.25rem 0;
   font-size: 0.85rem;
   color: var(--sm-text-muted);

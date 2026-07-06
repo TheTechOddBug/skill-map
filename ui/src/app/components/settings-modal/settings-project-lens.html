@@ -18,7 +18,15 @@
 
 <div class="settings-project__list-row" data-testid="settings-project-active-provider-row">
   <div class="settings-project__row-text">
-    <div class="settings-project__row-label">{{ texts.project.activeProviderLabel }}</div>
+    <div class="settings-project__row-label">
+      {{ texts.project.activeProviderLabel }}
+      <span
+        class="settings-project__shared-badge"
+        [title]="texts.project.sharedBadgeTooltip"
+        [attr.aria-label]="texts.project.sharedBadgeTooltip"
+        >{{ texts.project.sharedBadge }}</span
+      >
+    </div>
     <div class="settings-project__row-description">
       {{ texts.project.activeProviderDescription }}
     </div>
@@ -41,54 +49,24 @@
     </div>
   </div>
   <div class="settings-project__add-row">
+    <!-- panelStyleClass: the overlay is appended to <body>, OUTSIDE the
+         dialog scope that shrinks every control to 0.8rem
+         (settings-modal.css), so without this class the option list
+         renders at the 1rem default, visibly larger than the closed
+         trigger. The matching global rule lives in ui/src/styles.css. -->
     <p-select
       class="settings-project__provider-select"
+      panelStyleClass="sm-settings-select-overlay"
       [options]="providerOptions()"
       optionLabel="label"
       optionValue="id"
       optionDisabled="disabled"
-      [ngModel]="activeProviderValue()"
+      [ngModel]="activeProviderView()"
       (ngModelChange)="onActiveProviderChange($event)"
       appendTo="body"
       data-testid="settings-project-active-provider-select"
     />
   </div>
-</div>
-
-@if (activityError(); as err) {
-  <p-message severity="error" [closable]="false" data-testid="settings-project-activity-hook-error">
-    {{ texts.project.saveErrorPrefix }} {{ err }}
-  </p-message>
-}
-
-@if (activityAnnouncement(); as msg) {
-  <p-message severity="info" [closable]="false" data-testid="settings-project-activity-hook-announce">
-    {{ msg }}
-  </p-message>
-}
-
-<div class="settings-project__row" data-testid="settings-project-activity-hook-row">
-  <div class="settings-project__row-text">
-    <div class="settings-project__row-label">{{ texts.project.activityHook.label }}</div>
-    <div class="settings-project__row-description">
-      {{ texts.project.activityHook.description }}
-    </div>
-    @if (activityHint(); as hint) {
-      <div class="settings-project__row-meta">
-        <span class="settings-project__meta-line" data-testid="settings-project-activity-hook-hint">
-          {{ hint }}
-        </span>
-      </div>
-    }
-  </div>
-  <p-button
-    [label]="activityButtonLabel()"
-    [disabled]="activityButtonDisabled()"
-    severity="secondary"
-    size="small"
-    (onClick)="onActivityHookToggle()"
-    data-testid="settings-project-activity-hook-button"
-  />
 </div>
 
 <p-confirmdialog />

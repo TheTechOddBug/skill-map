@@ -36,10 +36,7 @@ import {
   DATA_SOURCE,
   DataSourceError,
 } from '../../../services/data-source/data-source.port';
-import { ActivityReadinessService } from '../../services/activity-readiness';
-import { NodeActivityService } from '../../../services/node-activity';
 import { ThemeService, type TExtraTheme } from '../../../services/theme';
-import { WsEventStreamService } from '../../../services/ws-event-stream';
 import { EXTRA_THEMES } from '../../../themes/registry';
 
 /**
@@ -120,31 +117,6 @@ function fromExtraThemeWire(value: TExtraThemeWire): TExtraTheme {
 export class SettingsGeneral {
   private readonly dataSource = inject(DATA_SOURCE);
   private readonly themeService = inject(ThemeService);
-  private readonly wsStream = inject(WsEventStreamService);
-  private readonly nodeActivity = inject(NodeActivityService);
-  private readonly activityReadiness = inject(ActivityReadinessService);
-
-  /**
-   * Live-channel switches. Display state comes from each feature
-   * owner's re-exposed preference signal; writes go through the
-   * owner's `setEnabled` so the stored preference and the runtime
-   * behaviour (socket teardown / lit-set clear) apply atomically.
-   * Persisted in browser localStorage, NOT in the home settings file,
-   * hence outside the `GENERAL_TOGGLES` BFF envelope machinery.
-   */
-  protected readonly liveWsEnabled = this.wsStream.enabled;
-  protected readonly liveActivityEnabled = this.nodeActivity.enabled;
-
-  /**
-   * Whether the ACTIVE lens's live-activity hook is installed. Owned
-   * by the shared `ActivityReadinessService` (the same signal gates
-   * the topbar Real Time toggle); this section re-triggers a probe on every
-   * open so a hook installed from the Project section (or the CLI)
-   * reflects here without a reload. `null` = unknown = FAIL OPEN, the
-   * toggle stays usable, a transport hiccup must never lock a purely
-   * local rendering preference.
-   */
-  protected readonly activityHookInstalled = this.activityReadiness.hookInstalled;
 
   /**
    * Section visibility. The chassis flips it true when the General
@@ -243,14 +215,6 @@ export class SettingsGeneral {
     this.themeService.setExtraTheme(fromExtraThemeWire(next ?? EXTRA_THEME_NONE));
   }
 
-  protected onLiveWsToggle(next: boolean): void {
-    this.wsStream.setEnabled(next);
-  }
-
-  protected onLiveActivityToggle(next: boolean): void {
-    this.nodeActivity.setEnabled(next);
-  }
-
   /** Fetch (or re-fetch) the envelope. Errors surface in `loadError`. */
   private async refresh(): Promise<void> {
     this.loading.set(true);
@@ -265,9 +229,6 @@ export class SettingsGeneral {
     } finally {
       this.loading.set(false);
     }
-    // Re-probe the shared hook-install state (coalesces with any probe
-    // already in flight, e.g. the boot one).
-    await this.activityReadiness.refresh();
   }
 
   private async runToggle(def: IGeneralToggleDef, nextValue: boolean): Promise<void> {

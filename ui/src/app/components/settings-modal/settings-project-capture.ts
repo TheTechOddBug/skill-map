@@ -7,8 +7,11 @@
  * ConfirmationService dialog (consent-worded on enable, "clears
  * immediately" on disable) and the POST that follows ALWAYS carries
  * `confirm: true`, so the server's 412 `confirm-required` path never
- * fires from this surface. On dismiss the toggle snaps back because
- * the envelope is re-emitted unchanged.
+ * fires from this surface. The switch binds a `linkedSignal` view of
+ * the envelope: on dismiss (or a failed write) it is reset to the
+ * committed value, which rolls the control back (re-emitting an
+ * unchanged envelope would not, computeds do not notify on equal
+ * values).
  *
  * Lifecycle mirrors the sibling children: fetch on `(visible) === true`.
  */
@@ -20,6 +23,7 @@ import {
   effect,
   inject,
   input,
+  linkedSignal,
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -64,6 +68,13 @@ export class SettingsProjectCapture {
     return this.captureStatus()?.enabled ?? false;
   });
 
+  /**
+   * View state the switch binds to: tracks the committed value, set
+   * optimistically on toggle, explicitly reset on dismiss / failed
+   * write so the control rolls back (see class doc).
+   */
+  protected readonly captureEnabledView = linkedSignal(() => this.captureEnabled());
+
   constructor() {
     effect(() => {
       if (this.visible()) void this.refreshCapture();
@@ -76,6 +87,7 @@ export class SettingsProjectCapture {
 
   protected onCaptureToggle(next: boolean): void {
     if (next === this.captureEnabled()) return;
+    this.captureEnabledView.set(next);
     const t = this.texts.project.activityCapture;
     this.confirmation.confirm({
       header: next ? t.enableConfirmHeader : t.disableConfirmHeader,
@@ -88,8 +100,7 @@ export class SettingsProjectCapture {
         void this.runCaptureWrite(next);
       },
       reject: () => {
-        const status = this.captureStatus();
-        if (status) this.captureStatus.set({ ...status });
+        this.captureEnabledView.set(this.captureEnabled());
       },
     });
   }
@@ -107,6 +118,7 @@ export class SettingsProjectCapture {
       );
     } catch (err) {
       this.captureError.set(formatErr(err));
+      this.captureEnabledView.set(this.captureEnabled());
     } finally {
       const after = new Set(this.pending());
       after.delete(key);

@@ -15,6 +15,7 @@ import { DATA_SOURCE } from '../services/data-source/data-source.port';
 import { SKILL_MAP_MODE, readSkillMapModeFromMeta } from '../services/data-source/runtime-mode';
 import { CollectionLoaderService } from '../services/collection-loader';
 import { FilterUrlSyncService } from '../services/filter-url-sync';
+import { LivePreferencesService } from '../services/live-preferences';
 import { DebugSlotsService } from './services/debug-slots';
 import { ProjectInfoService } from './services/project-info';
 import { SmTitleStrategy } from './services/title-strategy';
@@ -163,6 +164,13 @@ export const appConfig: ApplicationConfig = {
         // telemetry stays OFF; the app must still boot.
       }
     }),
+    // Live-channel preferences (`ui.liveUpdates` / `ui.realtimeActivity`,
+    // project-local `settings.local.json`). AWAITED, unlike the cold-start
+    // probes below: the socket owner decides at first subscription whether
+    // to open the live channel, so a persisted OFF must be settled before
+    // any component renders (otherwise the socket flash-opens on the
+    // default). One local GET; a failure keeps the ON defaults.
+    provideAppInitializer(() => inject(LivePreferencesService).load()),
     // Cold-start data probes, fire in parallel as the SPA boots. The
     // `inject()` calls happen synchronously inside the injection
     // context the factory establishes; `kickoffColdStart` does the

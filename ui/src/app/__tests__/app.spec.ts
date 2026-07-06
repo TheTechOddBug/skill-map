@@ -535,13 +535,6 @@ describe('App, scan error surface', () => {
 });
 
 describe('App, Real Time toggle', () => {
-  const WS_KEY = 'sm.live.ws-enabled';
-  const ACTIVITY_KEY = 'sm.live.activity-enabled';
-
-  afterEach(() => {
-    localStorage.removeItem(WS_KEY);
-    localStorage.removeItem(ACTIVITY_KEY);
-  });
 
   /** Readiness stub: the gate state is driven per-test, no probing. */
   function readinessStub(hookInstalled: boolean | null): ActivityReadinessService {
@@ -591,15 +584,19 @@ describe('App, Real Time toggle', () => {
     expect(btn.disabled).toBe(false);
 
     const activity = TestBed.inject(NodeActivityService);
+    const persistSpy = vi.spyOn(STUB_DATA_SOURCE, 'setProjectPreferences');
     expect(activity.enabled()).toBe(true);
     btn.click();
     fixture.detectChanges();
     expect(activity.enabled()).toBe(false);
-    // The preference persisted through the SAME owner Settings uses.
-    expect(localStorage.getItem(ACTIVITY_KEY)).toBe('false');
+    // The preference persisted through the SAME owner Settings uses,
+    // now a project-preferences PATCH (settings.local.json) instead of
+    // the retired localStorage key.
+    expect(persistSpy).toHaveBeenCalledWith({ ui: { realtimeActivity: false } });
     btn.click();
     fixture.detectChanges();
     expect(activity.enabled()).toBe(true);
+    persistSpy.mockRestore();
   });
 
   it('disables when live updates are off (WS gate)', async () => {

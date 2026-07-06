@@ -14,7 +14,6 @@ const SKILL = '.claude/skills/deploy/SKILL.md';
 const AGENT = '.claude/agents/reviewer.md';
 const CHILD = '.claude/agents/demo-worker.md';
 const PAIR_KEY = `${AGENT}>>${CHILD}`;
-const ACTIVITY_ENABLED_KEY = 'sm.live.activity-enabled';
 
 function stats(count: number, lastStartAt = 1_700_000_000_000, distinctOwners = 1): INodeActivityStatsApi {
   return { count, lastStartAt, distinctOwners };
@@ -75,7 +74,15 @@ function bootstrap(
   TestBed.configureTestingModule({
     providers: [
       { provide: WsEventStreamService, useValue: ws },
-      { provide: DATA_SOURCE, useValue: { getActivitySummary } as Partial<IDataSourcePort> },
+      {
+        provide: DATA_SOURCE,
+        useValue: {
+          getActivitySummary,
+          // LivePreferencesService's server-backed pair rides the same port.
+          getProjectPreferences: () => Promise.resolve({}),
+          setProjectPreferences: () => Promise.resolve({}),
+        } as unknown as Partial<IDataSourcePort>,
+      },
     ],
   });
   const prefs = TestBed.inject(LivePreferencesService);
@@ -100,10 +107,6 @@ async function settled(): Promise<void> {
 }
 
 describe('NodeActivityStatsService', () => {
-  afterEach(() => {
-    localStorage.removeItem(ACTIVITY_ENABLED_KEY);
-  });
-
   it('hydrates from the summary on boot', async () => {
     const { service } = bootstrap({ [SKILL]: stats(3) });
     await settled();
@@ -219,10 +222,6 @@ describe('NodeActivityStatsService', () => {
 });
 
 describe('NodeActivityStatsService, pair counters (edge conversation counts)', () => {
-  afterEach(() => {
-    localStorage.removeItem(ACTIVITY_ENABLED_KEY);
-  });
-
   it('hydrates pairs from the summary snapshot on boot', async () => {
     const { service } = bootstrap(
       {},

@@ -12,7 +12,7 @@
     </div>
   </div>
   <p-toggleswitch
-    [ngModel]="captureEnabled()"
+    [ngModel]="captureEnabledView()"
     (ngModelChange)="onCaptureToggle($event)"
     [disabled]="captureStatus() === null || isPending('activity.capture')"
     data-testid="settings-project-activity-capture-toggle"

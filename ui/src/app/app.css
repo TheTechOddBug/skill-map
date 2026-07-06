@@ -441,17 +441,46 @@
 /* Real Time toggle wrapper: keeps the tooltip-bearing span from
    distorting the flex row (the span exists only because tooltips do
    not fire on a disabled button). The ON accent comes from the button
-   itself flipping to `severity="primary"` (token-driven, no local
-   palette), so no color rules live here. */
+   flipping to `severity="primary"` (token-driven, no local palette).
+   All state styling below lives on this App-owned wrapper, never on
+   `.p-button` internals: PrimeNG renders the button with
+   encapsulation None, so emulated-scoped descendant rules from this
+   file can never match them (no `_ngcontent` attribute). */
 .shell__live-activity-wrap {
+  position: relative;
   display: inline-flex;
+
+  /* pi-wave-pulse is a thin-stroke glyph and read too light next to
+     the other topbar icons. text-stroke fattens it; the property is
+     inherited, so setting it here reaches the PrimeNG-internal icon
+     span without `::ng-deep`. Stroke color defaults to currentColor,
+     so it tracks the ON/OFF/hover icon color by itself. */
+  -webkit-text-stroke-width: 0.03em;
 }
 
-/* Blocked (disabled) state must read as OFF at a glance: PrimeNG's
-   default disabled opacity barely dims a text button against the
-   topbar, so it looked enabled. Grayscale + a harder opacity drop
-   reads as "apagado" on every theme without minting new tokens. */
-.shell__live-activity-wrap .p-button:disabled {
+/* OFF state: diagonal "prohibited" slash over the icon (mic-off
+   pattern). The icon sits centered in the button, so centering on the
+   wrapper lines up. Same token the OFF icon resolves to, so the slash
+   always matches its gray. */
+.shell__live-activity-wrap--off::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1;
+  width: 1.25rem;
+  height: 0.125rem;
+  border-radius: 0.0625rem;
+  background: var(--p-button-text-secondary-color);
+  transform: translate(-50%, -50%) rotate(-45deg);
+  pointer-events: none;
+}
+
+/* Blocked state must read as OFF at a glance: PrimeNG's default
+   disabled opacity barely dims a text button against the topbar, so
+   it looked enabled. Grayscale + a harder opacity drop reads as
+   "apagado" on every theme without minting new tokens. */
+.shell__live-activity-wrap--blocked {
   opacity: 0.35;
   filter: grayscale(1);
 }

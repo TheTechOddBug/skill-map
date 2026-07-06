@@ -430,6 +430,10 @@ export const SERVER_TEXTS = {
   projectPrefsConfirmNotBoolean: '`confirm` must be a boolean.',
   projectPrefsSidecarWritersNotBoolean: '`allowSidecarWriters` must be a boolean.',
   projectPrefsReminderNotBoolean: '`tutorialReminderDismissed` must be a boolean.',
+  projectPrefsUiNotObject:
+    '`ui` must be an object (e.g. `{"ui": {"liveUpdates": false}}`).',
+  projectPrefsLiveUpdatesNotBoolean: '`ui.liveUpdates` must be a boolean.',
+  projectPrefsRealtimeActivityNotBoolean: '`ui.realtimeActivity` must be a boolean.',
   projectPrefsTrustNotObject:
     '`pluginTrust` must be an object (e.g. `{"pluginTrust": {"projectEnabled": true}}`).',
   projectPrefsTrustEnabledNotBoolean: '`pluginTrust.projectEnabled` must be a boolean.',

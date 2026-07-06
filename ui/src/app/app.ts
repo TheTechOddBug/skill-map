@@ -119,8 +119,17 @@ export class App {
   protected readonly liveActivityBlocked = computed(
     () => !this.wsEvents.enabled() || this.activityReadiness.hookInstalled() === false,
   );
+  /**
+   * ON: plain accent icon (primary severity, text button). OFF: gray
+   * icon with a diagonal "prohibited" slash drawn over it by CSS on
+   * the wrapper (mic-off pattern). A filled ON button was tried first
+   * and read as too visually invasive; severity alone was too subtle.
+   */
+  protected readonly liveActivityActive = computed(
+    () => this.liveActivityOn() && !this.liveActivityBlocked(),
+  );
   protected readonly liveActivitySeverity = computed(() =>
-    this.liveActivityOn() && !this.liveActivityBlocked() ? 'primary' : 'secondary',
+    this.liveActivityActive() ? 'primary' : 'secondary',
   );
   protected readonly liveActivityTooltip = computed(() => {
     if (!this.wsEvents.enabled()) return APP_TEXTS.liveActivity.tooltipNoWs;

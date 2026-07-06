@@ -251,6 +251,13 @@ export interface IEffectiveConfig {
    * most projects (capture defaults off).
    */
   activity?: IActivityCaptureConfig;
+  /**
+   * **Project-local only** (per `PROJECT_LOCAL_ONLY_KEYS`, both
+   * sub-keys). Web-UI preferences persisted per checkout; absent on
+   * most projects (both default `true`). Written by the Settings >
+   * Project toggles through `PATCH /api/project-preferences`.
+   */
+  ui?: IUiPreferencesConfig;
   jobs: IJobsConfig;
 }
 
@@ -267,6 +274,25 @@ export interface IActivityCaptureConfig {
    * per-operator, not team-shared).
    */
   captureConversations?: boolean;
+}
+
+/**
+ * Web-UI preferences block. Mirrors
+ * `project-config.schema.json#/properties/ui`. Both keys are
+ * per-developer rendering choices (previously browser localStorage),
+ * so they live in `settings.local.json` only.
+ */
+export interface IUiPreferencesConfig {
+  /**
+   * Whether the web UI keeps the map in sync with `sm serve` (scan
+   * refreshes, live events, node activity). Default `true`.
+   */
+  liveUpdates?: boolean;
+  /**
+   * Whether real-time node activity lights up the map. Default `true`.
+   * Subordinate to `liveUpdates` (no live channel, no frames).
+   */
+  realtimeActivity?: boolean;
 }
 
 /**
@@ -289,6 +315,8 @@ export const PROJECT_LOCAL_ONLY_KEYS: ReadonlySet<string> = new Set<string>([
   'scan.followExternalSymlinks',
   'pluginTrust.projectEnabled',
   'activity.captureConversations',
+  'ui.liveUpdates',
+  'ui.realtimeActivity',
 ]);
 
 export type TConfigLayer =

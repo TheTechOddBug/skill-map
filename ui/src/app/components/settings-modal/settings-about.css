@@ -31,6 +31,7 @@
   margin: 0;
 }
 .settings-about__intro {
+  font-style: italic;
   margin: 0;
   color: var(--p-text-muted-color);
   font-size: 0.875rem;

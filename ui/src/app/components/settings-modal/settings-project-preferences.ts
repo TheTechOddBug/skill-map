@@ -31,6 +31,7 @@ import {
   effect,
   inject,
   input,
+  linkedSignal,
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -50,6 +51,7 @@ import {
   DATA_SOURCE,
   DataSourceError,
 } from '../../../services/data-source/data-source.port';
+import { SettingsProjectIgnore } from './settings-project-ignore';
 import { formatErr } from './settings-project.utils';
 
 @Component({
@@ -60,6 +62,7 @@ import { formatErr } from './settings-project.utils';
     ConfirmDialogModule,
     InputTextModule,
     MessageModule,
+    SettingsProjectIgnore,
     ToggleSwitchModule,
   ],
   providers: [ConfirmationService],
@@ -125,6 +128,27 @@ export class SettingsProjectPreferences {
     return this.preferences()?.scan.followExternalSymlinks ?? false;
   });
 
+  /**
+   * View state the switches bind to, one per toggle. A plain computed
+   * cannot roll a cancelled flip back: the p-toggleswitch flips its
+   * internal state on click, and when the user dismisses the confirm
+   * dialog (or the PATCH fails) the committed value never changed, so
+   * the computed does not notify and the one-way `[ngModel]` binding
+   * never rewrites the control. These `linkedSignal`s track the
+   * committed value, get set optimistically by the toggle handlers,
+   * and are explicitly reset to the committed value when the write
+   * does not persist, which IS a value change the binding propagates.
+   */
+  protected readonly allowSidecarWritersView = linkedSignal(() =>
+    this.allowSidecarWriters(),
+  );
+  protected readonly pluginTrustEnabledView = linkedSignal(() =>
+    this.pluginTrustEnabled(),
+  );
+  protected readonly followExternalSymlinksView = linkedSignal(() =>
+    this.followExternalSymlinks(),
+  );
+
   constructor() {
     effect(() => {
       if (this.visible()) void this.refresh();
@@ -172,7 +196,12 @@ export class SettingsProjectPreferences {
   // -----------------------------------------------------------------
 
   protected onSidecarWritersToggle(next: boolean): void {
-    void this.runPatch('allowSidecarWriters', { allowSidecarWriters: next });
+    this.allowSidecarWritersView.set(next);
+    void this.runPatch('allowSidecarWriters', { allowSidecarWriters: next }).then(
+      (ok) => {
+        if (!ok) this.allowSidecarWritersView.set(this.allowSidecarWriters());
+      },
+    );
   }
 
   // -----------------------------------------------------------------
@@ -184,15 +213,19 @@ export class SettingsProjectPreferences {
    * it ON expands the local code-execution surface, so the BFF answers
    * 412 `confirm-required`; `runPatch` then surfaces the dedicated trust
    * confirm dialog and retries with `confirm: true` on accept. Turning it
-   * OFF narrows the surface and persists directly. On a 412 the user
-   * dismisses, the toggle snaps back because `preferences()` is unchanged.
+   * OFF narrows the surface and persists directly. When the write does
+   * not persist (dialog dismissed, PATCH failed) the view signal is
+   * reset to the committed value so the switch rolls back.
    */
   protected onProjectTrustToggle(next: boolean): void {
+    this.pluginTrustEnabledView.set(next);
     void this.runPatch(
       'pluginTrust.projectEnabled',
       { pluginTrust: { projectEnabled: next } },
       this.pluginTrustConfirmFlow(),
-    );
+    ).then((ok) => {
+      if (!ok) this.pluginTrustEnabledView.set(this.pluginTrustEnabled());
+    });
   }
 
   // -----------------------------------------------------------------
@@ -205,15 +238,19 @@ export class SettingsProjectPreferences {
    * links that escape the project root), so the BFF answers 412
    * `confirm-required`; `runPatch` then surfaces the dedicated symlink
    * confirm dialog and retries with `confirm: true` on accept. Turning it
-   * OFF narrows the surface and persists directly. On a 412 the user
-   * dismisses, the toggle snaps back because `preferences()` is unchanged.
+   * OFF narrows the surface and persists directly. When the write does
+   * not persist (dialog dismissed, PATCH failed) the view signal is
+   * reset to the committed value so the switch rolls back.
    */
   protected onFollowExternalSymlinksToggle(next: boolean): void {
+    this.followExternalSymlinksView.set(next);
     void this.runPatch(
       'scan.followExternalSymlinks',
       { scan: { followExternalSymlinks: next } },
       this.followExternalSymlinksConfirmFlow(),
-    );
+    ).then((ok) => {
+      if (!ok) this.followExternalSymlinksView.set(this.followExternalSymlinks());
+    });
   }
 
   // -----------------------------------------------------------------
@@ -241,17 +278,20 @@ export class SettingsProjectPreferences {
    * supplied a `confirm` flow, surface that flow's confirm dialog and on
    * user accept retry with `confirm: true`. On any other error (or a 412
    * with no confirm flow, which only narrowing callers hit, never in
-   * practice) surface in `saveError`. Returns `true` only when the PATCH
-   * (or the confirmed retry) actually persisted; `false` on validation
-   * errors or on a 412 the user did not yet accept (callers like
-   * `onReferencePathAdd` use this to keep the input value editable
-   * instead of clearing it).
+   * practice) surface in `saveError`. The returned promise settles only
+   * after the whole flow settles, INCLUDING the confirm dialog: `true`
+   * when the PATCH (or the confirmed retry) actually persisted, `false`
+   * on validation errors, a dismissed dialog, or a failed retry. Callers
+   * rely on that to roll their view state back (toggles) or keep an
+   * input editable (`onReferencePathAdd`). The key stays in `pending`
+   * while the dialog is open, so the control is disabled until the
+   * user decides.
    *
    * The confirm dialog is parameterised per surface-expanding key: the
    * mechanism (try -> catch 412 -> dialog -> retry with `confirm: true`)
-   * is shared, the dialog copy and the post-confirm side effect are not
-   * (reference-paths enumerates the exposed paths and clears its input;
-   * plugin-trust shows its own machine-local warning).
+   * is shared, the dialog copy is not (reference-paths enumerates the
+   * exposed paths; plugin-trust and follow-external-symlinks show their
+   * own warnings).
    */
   private async runPatch(
     key: string,
@@ -275,17 +315,24 @@ export class SettingsProjectPreferences {
         confirm
       ) {
         const exposed = (err as DataSourceError & { paths?: string[] }).paths ?? [];
-        confirm.present(exposed, async () => {
-          try {
-            const envelope = await this.dataSource.setProjectPreferences({
-              ...patch,
-              confirm: true,
-            });
-            this.preferences.set(envelope);
-            confirm.onConfirmed?.();
-          } catch (innerErr) {
-            this.saveError.set(formatErr(innerErr));
-          }
+        success = await new Promise<boolean>((resolve) => {
+          confirm.present(
+            exposed,
+            async () => {
+              try {
+                const envelope = await this.dataSource.setProjectPreferences({
+                  ...patch,
+                  confirm: true,
+                });
+                this.preferences.set(envelope);
+                resolve(true);
+              } catch (innerErr) {
+                this.saveError.set(formatErr(innerErr));
+                resolve(false);
+              }
+            },
+            () => resolve(false),
+          );
         });
       } else {
         this.saveError.set(formatErr(err));
@@ -300,12 +347,13 @@ export class SettingsProjectPreferences {
 
   /**
    * Confirm flow for `scan.referencePaths`: enumerate the exposed paths
-   * in the dialog and clear the new-path input after a confirmed retry.
+   * in the dialog. The input box is cleared by `onReferencePathAdd`
+   * when `runPatch` reports the persist.
    */
   private referencePathsConfirmFlow(): IConfirmFlow {
     return {
-      present: (exposed, onAccept) => this.confirmDialog(exposed, onAccept),
-      onConfirmed: () => this.newReferencePath.set(''),
+      present: (exposed, onAccept, onReject) =>
+        this.confirmDialog(exposed, onAccept, onReject),
     };
   }
 
@@ -316,7 +364,8 @@ export class SettingsProjectPreferences {
    */
   private pluginTrustConfirmFlow(): IConfirmFlow {
     return {
-      present: (_exposed, onAccept) => this.confirmProjectTrustDialog(onAccept),
+      present: (_exposed, onAccept, onReject) =>
+        this.confirmProjectTrustDialog(onAccept, onReject),
     };
   }
 
@@ -327,12 +376,16 @@ export class SettingsProjectPreferences {
    */
   private followExternalSymlinksConfirmFlow(): IConfirmFlow {
     return {
-      present: (_exposed, onAccept) =>
-        this.confirmFollowExternalSymlinksDialog(onAccept),
+      present: (_exposed, onAccept, onReject) =>
+        this.confirmFollowExternalSymlinksDialog(onAccept, onReject),
     };
   }
 
-  private confirmDialog(paths: string[], onAccept: () => Promise<void>): void {
+  private confirmDialog(
+    paths: string[],
+    onAccept: () => Promise<void>,
+    onReject: () => void,
+  ): void {
     this.confirmation.confirm({
       header: SETTINGS_TEXTS.project.confirmDialogHeader,
       message:
@@ -346,10 +399,16 @@ export class SettingsProjectPreferences {
       accept: () => {
         void onAccept();
       },
+      reject: () => {
+        onReject();
+      },
     });
   }
 
-  private confirmProjectTrustDialog(onAccept: () => Promise<void>): void {
+  private confirmProjectTrustDialog(
+    onAccept: () => Promise<void>,
+    onReject: () => void,
+  ): void {
     this.confirmation.confirm({
       header: SETTINGS_TEXTS.project.pluginTrustConfirmHeader,
       message: SETTINGS_TEXTS.project.pluginTrustConfirmIntro,
@@ -360,10 +419,16 @@ export class SettingsProjectPreferences {
       accept: () => {
         void onAccept();
       },
+      reject: () => {
+        onReject();
+      },
     });
   }
 
-  private confirmFollowExternalSymlinksDialog(onAccept: () => Promise<void>): void {
+  private confirmFollowExternalSymlinksDialog(
+    onAccept: () => Promise<void>,
+    onReject: () => void,
+  ): void {
     this.confirmation.confirm({
       header: SETTINGS_TEXTS.project.followExternalSymlinksConfirmHeader,
       message: SETTINGS_TEXTS.project.followExternalSymlinksConfirmIntro,
@@ -374,6 +439,9 @@ export class SettingsProjectPreferences {
       accept: () => {
         void onAccept();
       },
+      reject: () => {
+        onReject();
+      },
     });
   }
 }
@@ -381,12 +449,15 @@ export class SettingsProjectPreferences {
 /**
  * Per-key confirm flow injected into `runPatch`. The 412 handling
  * mechanism is shared; this carries the surface-specific dialog
- * presentation and an optional post-confirm side effect.
+ * presentation.
  */
 interface IConfirmFlow {
   /** Open the confirm dialog. `exposed` is the path list the 412 carried
-   *  (empty for non-path surfaces); call `onAccept` on confirm. */
-  present(exposed: string[], onAccept: () => Promise<void>): void;
-  /** Ran after a confirmed retry persists (e.g. clear the input box). */
-  onConfirmed?: () => void;
+   *  (empty for non-path surfaces); call `onAccept` on confirm and
+   *  `onReject` on dismiss so `runPatch` can settle its promise. */
+  present(
+    exposed: string[],
+    onAccept: () => Promise<void>,
+    onReject: () => void,
+  ): void;
 }

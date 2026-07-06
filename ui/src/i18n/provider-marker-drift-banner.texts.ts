@@ -13,7 +13,7 @@ export const PROVIDER_MARKER_DRIFT_BANNER_TEXTS = {
   /** Switch-lens button label. */
   switchLens: 'Switch lens',
   /** Switch-lens button aria-label. */
-  switchLensAria: 'Open settings to switch the active provider lens',
+  switchLensAria: 'Open settings to switch the active lens',
   /** Dismiss (accept-markers) button aria-label. */
   dismissAria: 'Dismiss the provider markers notice',
 } as const;

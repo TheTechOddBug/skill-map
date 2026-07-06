@@ -1,9 +1,8 @@
 /**
  * `LivePreferencesService`, user-tunable switches for the live server
- * channel, persisted in `localStorage` (per-browser, not synced), shown
- * in Settings → General:
+ * channel, shown in Settings → Project:
  *
- *   - `wsEnabled`, whether the SPA opens the `/ws` WebSocket at all.
+ *   - `wsEnabled`, whether the SPA opens the live `/ws` channel at all.
  *     OFF means no live updates of any kind: no scan refreshes, no
  *     event log frames, no node activity. The map still works through
  *     plain HTTP reads (manual refresh).
@@ -16,7 +15,19 @@
  *     Default OFF: a camera that moves on its own at boot is intrusive;
  *     the operator opts in and the choice then persists.
  *
- * This service is the STORAGE seam only: it owns the keys, the
+ * Persistence is split by nature. `wsEnabled` / `activityEnabled` are
+ * project-scoped preferences: they live in the checkout's gitignored
+ * `.skill-map/settings.local.json` (`ui.liveUpdates` /
+ * `ui.realtimeActivity`), read at boot through
+ * `GET /api/project-preferences` (see `load()`, wired as an app
+ * initializer so the values are settled BEFORE any consumer opens the
+ * socket) and written through `PATCH /api/project-preferences`
+ * (write-behind: the signal flips immediately, the PATCH follows; a
+ * failed write only logs, matching the old swallow-quota-errors
+ * posture). `followActivityEnabled` stays in `localStorage`: it is a
+ * per-browser camera habit, not project state.
+ *
+ * This service is the STORAGE seam only: it owns the persistence, the
  * defaults, and the signals. The behaviour lives with each feature
  * owner, `WsEventStreamService.setEnabled()` (closes / reopens the
  * socket) and `NodeActivityService.setEnabled()` (clears the lit set),
@@ -27,22 +38,33 @@
  * `GraphView` (the camera lives there) and it has no runtime state
  * beyond the preference itself, so the component reads and writes the
  * setter here directly, nothing can diverge.
- *
- * Follows the `GraphPreferencesService` pattern: one localStorage key
- * per preference (an unrelated migration cannot corrupt the rest),
- * reads defend against malformed values, writes swallow quota errors.
  */
 
-import { Injectable, signal } from '@angular/core';
+import { Injectable, Injector, inject, signal } from '@angular/core';
 
-const WS_ENABLED_KEY = 'sm.live.ws-enabled';
-const ACTIVITY_ENABLED_KEY = 'sm.live.activity-enabled';
+import { DATA_SOURCE, type IDataSourcePort } from './data-source/data-source.port';
+
 const FOLLOW_ACTIVITY_KEY = 'sm.live.follow-activity';
 
 @Injectable({ providedIn: 'root' })
 export class LivePreferencesService {
-  private readonly _wsEnabled = signal(readStoredBool(WS_ENABLED_KEY, true));
-  private readonly _activityEnabled = signal(readStoredBool(ACTIVITY_ENABLED_KEY, true));
+  /**
+   * DATA_SOURCE is resolved LAZILY (first `load()` / `persist()` call),
+   * never at construction: the live `DATA_SOURCE` factory builds
+   * `RestDataSource(WsEventStreamService)`, and the WS service injects
+   * THIS service, so an eager `inject(DATA_SOURCE)` here closes an
+   * NG0200 circular-DI loop at boot. By the time `load()` runs (app
+   * initializer) or a setter persists (user action), the token is
+   * fully constructed.
+   */
+  private readonly injector = inject(Injector);
+
+  private get dataSource(): IDataSourcePort {
+    return this.injector.get(DATA_SOURCE);
+  }
+
+  private readonly _wsEnabled = signal(true);
+  private readonly _activityEnabled = signal(true);
   private readonly _followActivity = signal(readStoredBool(FOLLOW_ACTIVITY_KEY, false));
 
   /** Live `/ws` channel wanted at all. Default ON. */
@@ -52,22 +74,51 @@ export class LivePreferencesService {
   /** Camera auto-frames the executing nodes. Default OFF. */
   readonly followActivityEnabled = this._followActivity.asReadonly();
 
+  /**
+   * Fetch the persisted `ui.*` preferences and settle the signals.
+   * Registered as an app initializer (`app.config.ts`), so it completes
+   * BEFORE any component subscribes to the event stream; without that
+   * ordering a `liveUpdates: false` checkout would flash-open the
+   * socket. A failed fetch keeps the ON defaults, the map stays live.
+   */
+  async load(): Promise<void> {
+    try {
+      const prefs = await this.dataSource.getProjectPreferences();
+      this._wsEnabled.set(prefs.ui?.liveUpdates ?? true);
+      this._activityEnabled.set(prefs.ui?.realtimeActivity ?? true);
+    } catch {
+      // Offline BFF or older envelope: keep the ON defaults.
+    }
+  }
+
   setWsEnabled(value: boolean): void {
     if (this._wsEnabled() === value) return;
     this._wsEnabled.set(value);
-    writeStoredBool(WS_ENABLED_KEY, value);
+    this.persist({ ui: { liveUpdates: value } });
   }
 
   setActivityEnabled(value: boolean): void {
     if (this._activityEnabled() === value) return;
     this._activityEnabled.set(value);
-    writeStoredBool(ACTIVITY_ENABLED_KEY, value);
+    this.persist({ ui: { realtimeActivity: value } });
   }
 
   setFollowActivityEnabled(value: boolean): void {
     if (this._followActivity() === value) return;
     this._followActivity.set(value);
     writeStoredBool(FOLLOW_ACTIVITY_KEY, value);
+  }
+
+  /**
+   * Write-behind persist for the server-backed pair. The signal already
+   * flipped (the runtime owners applied the behaviour); a failed PATCH
+   * is logged and swallowed, the same posture the localStorage era took
+   * with quota errors. Next boot re-reads whatever the server holds.
+   */
+  private persist(patch: { ui: { liveUpdates?: boolean; realtimeActivity?: boolean } }): void {
+    void this.dataSource.setProjectPreferences(patch).catch((err: unknown) => {
+      console.warn('live-preferences: persisting the toggle failed', err);
+    });
   }
 }
 

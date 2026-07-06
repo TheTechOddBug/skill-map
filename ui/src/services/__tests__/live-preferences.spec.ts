@@ -1,7 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 
 import { LivePreferencesService } from '../live-preferences';
+import { DATA_SOURCE, type IDataSourcePort } from '../data-source/data-source.port';
+import type { IProjectPreferencesApi } from '../../models/api';
 
 const WS_KEY = 'sm.live.ws-enabled';
 const ACTIVITY_KEY = 'sm.live.activity-enabled';
@@ -13,9 +15,21 @@ function clearStored(): void {
   localStorage.removeItem(FOLLOW_KEY);
 }
 
-function bootstrap(): LivePreferencesService {
+function prefsEnvelope(ui?: IProjectPreferencesApi['ui']): IProjectPreferencesApi {
+  return {
+    allowSidecarWriters: true,
+    scan: { referencePaths: [], followExternalSymlinks: false },
+    pluginTrust: { projectEnabled: false },
+    tutorialReminderDismissed: false,
+    ...(ui ? { ui } : {}),
+  };
+}
+
+function bootstrap(stub: Partial<IDataSourcePort> = {}): LivePreferencesService {
   TestBed.resetTestingModule();
-  TestBed.configureTestingModule({ providers: [LivePreferencesService] });
+  TestBed.configureTestingModule({
+    providers: [LivePreferencesService, { provide: DATA_SOURCE, useValue: stub }],
+  });
   return TestBed.inject(LivePreferencesService);
 }
 
@@ -23,38 +37,79 @@ describe('LivePreferencesService', () => {
   beforeEach(clearStored);
   afterEach(clearStored);
 
-  it('defaults both switches to ON when nothing is stored', () => {
-    const service = bootstrap();
+  it('defaults both live switches to ON before and after an empty load', async () => {
+    const service = bootstrap({
+      getProjectPreferences: vi.fn().mockResolvedValue(prefsEnvelope()),
+    });
+    expect(service.wsEnabled()).toBe(true);
+    expect(service.activityEnabled()).toBe(true);
+    await service.load();
     expect(service.wsEnabled()).toBe(true);
     expect(service.activityEnabled()).toBe(true);
   });
 
-  it('reads a stored OFF at construction', () => {
+  it('load() adopts the persisted ui.* preferences from the server', async () => {
+    const service = bootstrap({
+      getProjectPreferences: vi
+        .fn()
+        .mockResolvedValue(prefsEnvelope({ liveUpdates: false, realtimeActivity: false })),
+    });
+    await service.load();
+    expect(service.wsEnabled()).toBe(false);
+    expect(service.activityEnabled()).toBe(false);
+  });
+
+  it('load() keeps the ON defaults when the fetch fails', async () => {
+    const service = bootstrap({
+      getProjectPreferences: vi.fn().mockRejectedValue(new Error('offline')),
+    });
+    await service.load();
+    expect(service.wsEnabled()).toBe(true);
+    expect(service.activityEnabled()).toBe(true);
+  });
+
+  it('load() ignores stale pre-move localStorage values (server is the only source)', async () => {
     localStorage.setItem(WS_KEY, 'false');
     localStorage.setItem(ACTIVITY_KEY, 'false');
-    const service = bootstrap();
-    expect(service.wsEnabled()).toBe(false);
-    expect(service.activityEnabled()).toBe(false);
+    const service = bootstrap({
+      getProjectPreferences: vi.fn().mockResolvedValue(prefsEnvelope()),
+    });
+    await service.load();
+    expect(service.wsEnabled()).toBe(true);
+    expect(service.activityEnabled()).toBe(true);
   });
 
-  it('persists setter writes so the next session reads them back', () => {
-    const service = bootstrap();
+  it('setter writes PATCH the project preferences (write-behind)', async () => {
+    const setProjectPreferences = vi.fn().mockResolvedValue(prefsEnvelope());
+    const service = bootstrap({ setProjectPreferences });
+
     service.setWsEnabled(false);
-    service.setActivityEnabled(false);
-    expect(localStorage.getItem(WS_KEY)).toBe('false');
-    expect(localStorage.getItem(ACTIVITY_KEY)).toBe('false');
     expect(service.wsEnabled()).toBe(false);
-    expect(service.activityEnabled()).toBe(false);
+    expect(setProjectPreferences).toHaveBeenCalledWith({ ui: { liveUpdates: false } });
 
-    service.setWsEnabled(true);
-    expect(localStorage.getItem(WS_KEY)).toBe('true');
-    expect(service.wsEnabled()).toBe(true);
+    service.setActivityEnabled(false);
+    expect(service.activityEnabled()).toBe(false);
+    expect(setProjectPreferences).toHaveBeenCalledWith({
+      ui: { realtimeActivity: false },
+    });
+
+    // No-op writes (same value) do not PATCH again.
+    setProjectPreferences.mockClear();
+    service.setWsEnabled(false);
+    expect(setProjectPreferences).not.toHaveBeenCalled();
   });
 
-  it('falls back to the default on a malformed stored value', () => {
-    localStorage.setItem(WS_KEY, 'banana');
-    const service = bootstrap();
-    expect(service.wsEnabled()).toBe(true);
+  it('a failed PATCH keeps the flipped signal (write-behind, logged only)', async () => {
+    const setProjectPreferences = vi.fn().mockRejectedValue(new Error('boom'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const service = bootstrap({ setProjectPreferences });
+
+    service.setWsEnabled(false);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(service.wsEnabled()).toBe(false);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it('defaults follow-the-activity to OFF when nothing is stored', () => {

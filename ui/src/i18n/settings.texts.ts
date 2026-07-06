@@ -73,28 +73,6 @@ export const SETTINGS_TEXTS = {
       },
     },
     /**
-     * Live-channel switches (browser localStorage via
-     * `LivePreferencesService`, per-browser, NOT the home settings
-     * file). `ws` gates the whole `/ws` socket; `activity` gates only
-     * the real-time node lighting and is moot while `ws` is off (the
-     * template disables it then, the hint says why).
-     */
-    live: {
-      ws: {
-        label: 'Live updates',
-        description:
-          'Keep the map in sync with sm serve over a WebSocket: scan refreshes, live events, node activity.',
-      },
-      activity: {
-        label: 'Real-time node activity',
-        description:
-          'Light up nodes on the map the moment your AI assistant invokes them.',
-        hint: 'Requires live updates.',
-        hookHint:
-          "Requires the active lens's activity hook. Install it in Settings > Project.",
-      },
-    },
-    /**
      * Footnote rendered at the bottom of the General section, dimmed
      * so it reads as ambient orientation rather than primary copy.
      * Surfaces the storage locations referenced piecemeal above (home
@@ -114,9 +92,46 @@ export const SETTINGS_TEXTS = {
    */
   project: {
     heading: 'Project',
-    introPrefix: 'These settings apply only to this project and are saved in',
-    introPath: '.skill-map/settings.local.json',
-    introSuffix: '.',
+    /**
+     * Intro doubles as the legend for the shared-badge convention,
+     * three lines: scope, the badge legend (rows persisting in
+     * repo-tracked files travel to the whole team), and the local
+     * default (`settings.local.json`, gitignored).
+     */
+    introLine1: 'These settings apply only to this project.',
+    introSharedPrefix: 'Rows marked',
+    introSharedMiddle: 'are shared with your team through the repository in',
+    introSharedPath: 'settings.json',
+    introSharedSuffix: '.',
+    introLocalPrefix: 'The rest are your preferences, saved in',
+    introLocalPath: 'settings.local.json',
+    introLocalSuffix: ' (git ignored).',
+    /** Badge appended to the label of every team-shared row. */
+    sharedBadge: '🌐',
+    sharedBadgeTooltip: 'Shared with your team through the repository.',
+    /**
+     * Live-channel switches (`ui.liveUpdates` / `ui.realtimeActivity`
+     * in `settings.local.json`, persisted per checkout through the
+     * project-preferences route via `LivePreferencesService`). `ws`
+     * gates the whole live channel; `activity` gates only the
+     * real-time node lighting and is moot while `ws` is off (the
+     * template disables it then, the hint says why).
+     */
+    live: {
+      ws: {
+        label: 'Live updates',
+        description:
+          'Keep the map in sync with sm serve: scan refreshes, live events, node activity.',
+      },
+      activity: {
+        label: 'Real-time node activity',
+        description:
+          'Light up nodes on the map the moment your AI assistant invokes them.',
+        hint: 'Requires live updates.',
+        hookHint:
+          "Requires the active lens's real-time hook. Install it in this section.",
+      },
+    },
     loadErrorPrefix: 'Could not load project settings:',
     saveErrorPrefix: 'Could not save project settings:',
     sidecarWritersLabel: 'Allow sidecar writers',
@@ -131,18 +146,16 @@ export const SETTINGS_TEXTS = {
      * the reference-paths key. Persists in settings.local.json, never
      * committed.
      */
-    pluginTrustLabel: 'Trust plugins this project enables (this machine only)',
+    pluginTrustLabel: 'Trust plugins this project enables',
     pluginTrustDescription:
       'Run any plugin under .skill-map/plugins/ that the project enables, ' +
-      'without trusting each one by hand. This applies only to your ' +
-      'machine and is never committed. Turn it off to require per-plugin ' +
-      'trust again.',
+      'without trusting each one by hand. Turn it off to require ' +
+      'per-plugin trust again.',
     pluginTrustConfirmHeader: 'Trust every plugin this project enables?',
     pluginTrustConfirmIntro:
       'This lets any plugin the project enables run its code on this ' +
-      'machine, including ones you have not reviewed. It applies only to ' +
-      'your machine and is never committed.',
-    pluginTrustConfirmAccept: 'Trust project plugins',
+      'machine, including ones you have not reviewed.',
+    pluginTrustConfirmAccept: 'Enable',
     pluginTrustConfirmReject: 'Cancel',
     /**
      * Project-local follow-external-symlinks opt-in
@@ -153,15 +166,12 @@ export const SETTINGS_TEXTS = {
      */
     followExternalSymlinksLabel: 'Follow external symlinks',
     followExternalSymlinksDescription:
-      'Follow symbolic links whose target is outside the project. Off by ' +
-      'default; only enable it for a tree whose links you authored.',
+      'Follow symbolic links whose target is outside the project.',
     followExternalSymlinksConfirmHeader: 'Follow links that leave this project?',
     followExternalSymlinksConfirmIntro:
-      'This lets the scan read whatever a symbolic link points at, even ' +
-      'outside the project. A link at ~/.ssh, or a folder link at your ' +
-      'home directory, would be read into the graph. Only enable it for a ' +
-      'tree whose links you authored.',
-    followExternalSymlinksConfirmAccept: 'Follow external links',
+      '⚠️ Security risk: external links can expose files outside the ' +
+      'project (e.g. ~/.ssh). Enable only for trees whose links you created.',
+    followExternalSymlinksConfirmAccept: 'Enable',
     followExternalSymlinksConfirmReject: 'Cancel',
     referencePathsLabel: 'Folders for link validation',
     referencePathsDescription:
@@ -210,9 +220,9 @@ export const SETTINGS_TEXTS = {
      * gates the change with a confirm dialog and announces what
      * needs to be re-scanned.
      */
-    activeProviderLabel: 'Active provider',
+    activeProviderLabel: 'Active lens',
     activeProviderDescription:
-      'Selects which provider sees this project. The map reflects ' +
+      "Which provider's lens sees this project. The map reflects " +
       'how the chosen provider interprets your files.',
     activeProviderSourceAutodetect:
       'Auto-detected from your files (no value saved yet).',
@@ -220,17 +230,14 @@ export const SETTINGS_TEXTS = {
       'No provider marker detected. Showing the universal Markdown view (nothing saved).',
     activeProviderDetectedPrefix: 'Detected:',
     activeProviderDisabledSuffix: '(disabled)',
-    activeProviderConfirmHeader: 'Switch the active provider?',
+    activeProviderConfirmHeader: 'Switch the active lens?',
     activeProviderConfirmIntro:
       'Switching will clear the persisted scan (nodes, links, ' +
-      'issues). Jobs and history are kept. You will need to run ' +
-      '`sm scan` after the switch.',
-    activeProviderConfirmAccept: 'Switch and clear scan',
+      'issues). Jobs and history are kept.',
+    activeProviderConfirmAccept: 'Switch',
     activeProviderConfirmReject: 'Cancel',
-    activeProviderSwitchedPrefix: 'Lens switched. Cleared',
-    activeProviderSwitchedSuffix: 'scan table(s). Run `sm scan` to repopulate.',
-    activeProviderSwitchedNoDb:
-      'Lens switched. Run `sm scan` to populate the map under the new lens.',
+    /** Post-switch announcement; `lens` is the registry label of the NEW lens. */
+    activeProviderSwitched: (lens: string): string => `Lens switched to "${lens}".`,
 
     /**
      * Live-activity hook install/uninstall (the button below the lens
@@ -242,26 +249,25 @@ export const SETTINGS_TEXTS = {
      * interpolated by the component).
      */
     activityHook: {
-      label: 'Live-activity hook',
+      label: 'Real-time hook',
       description:
-        'Wire the active provider runtime so the map lights up each node the moment it runs. Requires sm serve.',
+        'Wire the active provider runtime so the map lights up each node the moment it runs.',
       installPrefix: 'Install',
       uninstallPrefix: 'Uninstall',
-      labelSuffix: 'activity hook',
-      unsupportedHint: 'This lens has no live-activity hook yet.',
-      installConfirmHeader: 'Install the activity hook?',
-      installConfirmIntroPrefix: 'This will add hook entries to',
-      installConfirmIntroSuffix:
-        '(existing hooks are preserved) and write the bridge under .skill-map/activity/.',
-      uninstallConfirmHeader: 'Uninstall the activity hook?',
-      uninstallConfirmIntroPrefix: 'This will remove the skill-map entries from',
-      uninstallConfirmIntroSuffix:
-        '(your own hooks stay untouched) and delete .skill-map/activity/.',
+      labelSuffix: 'hook',
+      unsupportedHint: 'This lens has no real-time hook yet.',
+      installConfirmHeader: 'Install the real-time hook?',
+      installConfirmIntroPrefix: 'skill-map will write',
+      installConfirmIntroSuffix: 'in this project. Nothing else is touched.',
+      uninstallConfirmHeader: 'Uninstall the real-time hook?',
+      uninstallConfirmIntroPrefix: 'skill-map will remove its wiring from',
+      uninstallConfirmIntroSuffix: 'in this project. Nothing else is touched.',
       confirmAccept: 'Proceed',
       confirmReject: 'Cancel',
-      installedPrefix: 'Activity hook installed into',
-      uninstalledPrefix: 'Activity hook removed from',
-      nothingToUninstall: 'The activity hook was not installed; nothing to remove.',
+      /** Post-mutation announcements; `lens` is the registry label of the CLI. */
+      installed: (lens: string): string => `${lens} real-time hook installed.`,
+      uninstalled: (lens: string): string => `${lens} real-time hook uninstalled.`,
+      nothingToUninstall: 'The real-time hook was not installed; nothing to remove.',
     },
 
     /**
@@ -275,23 +281,18 @@ export const SETTINGS_TEXTS = {
     activityCapture: {
       label: 'Capture agent conversations',
       description:
-        'Keep the prompt and response of each agent-to-agent spawn in ' +
-        'memory while sm serve runs, so you can read them in the ' +
-        'inspector and by clicking a spawn edge. Nothing is written to ' +
-        'disk; everything is discarded when the server stops or you turn ' +
-        'this off.',
+        'Capture what your agents say to each other (possibly sensitive) ' +
+        'and hold it in memory only, viewable from the map.',
       enableConfirmHeader: 'Capture agent conversations?',
       enableConfirmIntro:
-        'skill-map will keep the content of inter-agent prompts and ' +
-        'responses in memory (up to 200 recent spawns) while the server ' +
-        'runs. The content never leaves this machine, is never written ' +
-        'to disk, and is cleared the moment you turn this off or stop ' +
-        'the server.',
-      enableConfirmAccept: 'Enable capture',
+        'This keeps possibly sensitive prompts and responses in memory ' +
+        'while the server runs. Never written to disk; cleared the ' +
+        'moment you turn it off.',
+      enableConfirmAccept: 'Enable',
       disableConfirmHeader: 'Stop capturing conversations?',
       disableConfirmIntro:
         'Captured conversations are cleared from memory immediately.',
-      disableConfirmAccept: 'Turn off and clear',
+      disableConfirmAccept: 'Disable',
       confirmReject: 'Cancel',
     },
   },

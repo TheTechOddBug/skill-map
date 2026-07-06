@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { Subject } from 'rxjs';
 
@@ -8,13 +8,19 @@ import type {
   IWsNodeActivityEvent,
 } from '../../models/ws-event';
 import { AGENT_SPAWN_TTL_MS, AgentSpawnService } from '../agent-spawn';
+import { DATA_SOURCE, type IDataSourcePort } from '../data-source/data-source.port';
 import { LivePreferencesService } from '../live-preferences';
 import { WsEventStreamService } from '../ws-event-stream';
 
 const PARENT = '.claude/agents/demo-orchestrator.md';
 const CHILD = '.claude/agents/demo-worker.md';
 const SESSION_OWNER = 'main:6cfe5636-2e56-4271-91a6-87fc3d4355be';
-const ACTIVITY_ENABLED_KEY = 'sm.live.activity-enabled';
+
+/** Minimal port stub for `LivePreferencesService`'s server-backed pair. */
+const PREFS_STUB = {
+  getProjectPreferences: () => Promise.resolve({}),
+  setProjectPreferences: () => Promise.resolve({}),
+} as unknown as IDataSourcePort;
 
 function spawnEvent(data: IWsAgentSpawnData): IWsAgentSpawnEvent {
   return { type: 'agent.spawn', timestamp: 1_700_000_000_000, data };
@@ -52,6 +58,7 @@ function bootstrap(ttlMs = 10_000): IHarness {
     providers: [
       { provide: WsEventStreamService, useValue: ws },
       { provide: AGENT_SPAWN_TTL_MS, useValue: ttlMs },
+      { provide: DATA_SOURCE, useValue: PREFS_STUB },
     ],
   });
   return {
@@ -68,10 +75,6 @@ function flushed(): Promise<void> {
 }
 
 describe('AgentSpawnService', () => {
-  afterEach(() => {
-    localStorage.removeItem(ACTIVITY_ENABLED_KEY);
-  });
-
   it('a start frame with a node parent publishes one spawn edge', async () => {
     const { service, spawns$ } = bootstrap();
     spawns$.next(

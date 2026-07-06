@@ -7,12 +7,24 @@
     {{ texts.project.heading }}
   </h2>
   <p class="settings-project__intro">
-    {{ texts.project.introPrefix }}
-    <code class="settings-project__intro-path">{{ texts.project.introPath }}</code>{{ texts.project.introSuffix }}
+    {{ texts.project.introLine1 }}<br />
+    {{ texts.project.introSharedPrefix }}
+    <span class="settings-project__shared-badge" aria-hidden="true">{{ texts.project.sharedBadge }}</span>
+    {{ texts.project.introSharedMiddle }}
+    <code class="settings-project__intro-path">{{ texts.project.introSharedPath }}</code>{{ texts.project.introSharedSuffix }}<br />
+    {{ texts.project.introLocalPrefix }}
+    <code class="settings-project__intro-path">{{ texts.project.introLocalPath }}</code>{{ texts.project.introLocalSuffix }}
   </p>
 
-  <sm-settings-project-lens [visible]="visible()" />
+  <!-- Row order is the section's UX contract: Active lens, Live
+       updates, the hook installer, then the real-time toggle that
+       depends on both of the rows above it. The hook child receives
+       the lens child's resolved lens (template reference) because its
+       install status is keyed to the ACTIVE lens. -->
+  <sm-settings-project-lens #lensChild [visible]="visible()" />
+  <sm-settings-project-live [visible]="visible()" />
+  <sm-settings-project-hook [visible]="visible()" [lensId]="lensChild.activeLensId()" />
+  <sm-settings-project-realtime [visible]="visible()" />
   <sm-settings-project-capture [visible]="visible()" />
   <sm-settings-project-preferences [visible]="visible()" />
-  <sm-settings-project-ignore [visible]="visible()" />
 </section>

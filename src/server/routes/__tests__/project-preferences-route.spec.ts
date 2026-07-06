@@ -31,6 +31,7 @@ interface IProjectPrefsEnvelopeWire {
   scan: { referencePaths: string[]; followExternalSymlinks: boolean };
   pluginTrust: { projectEnabled: boolean };
   tutorialReminderDismissed: boolean;
+  ui: { liveUpdates: boolean; realtimeActivity: boolean };
 }
 
 interface IErrorEnvelopeWire {
@@ -97,6 +98,7 @@ describe('GET /api/project-preferences', () => {
         scan: { referencePaths: [], followExternalSymlinks: false },
         pluginTrust: { projectEnabled: false },
         tutorialReminderDismissed: false,
+        ui: { liveUpdates: true, realtimeActivity: true },
       });
     });
   });
@@ -374,6 +376,78 @@ describe('PATCH /api/project-preferences (scan.followExternalSymlinks)', () => {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ scan: { followExternalSymlinks: 'nope' } }),
+      });
+      assert.equal(res.status, 400);
+      const env = (await res.json()) as IErrorEnvelopeWire;
+      assert.equal(env.error.code, 'bad-query');
+    });
+  });
+});
+
+describe('PATCH /api/project-preferences (ui.* live-channel preferences)', () => {
+  it('persists ui.liveUpdates to settings.local.json (project-local), no confirm needed', async () => {
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/project-preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ui: { liveUpdates: false } }),
+      });
+      assert.equal(res.status, 200);
+      const env = (await res.json()) as IProjectPrefsEnvelopeWire;
+      assert.equal(env.ui.liveUpdates, false);
+      // The sibling key is untouched by a partial patch.
+      assert.equal(env.ui.realtimeActivity, true);
+
+      const local = JSON.parse(
+        readFileSync(join(cwd, '.skill-map/settings.local.json'), 'utf8'),
+      );
+      assert.equal(local.ui.liveUpdates, false);
+    });
+  });
+
+  it('persists ui.realtimeActivity and GET reflects both keys', async () => {
+    await boot(async (handle) => {
+      // Two partial patches, one per key: the second must not clobber
+      // the first (both accumulate in settings.local.json), and a plain
+      // GET reflects the persisted state of both. Self-contained: does
+      // not rely on what the previous test wrote to the shared cwd.
+      const bodies = [{ ui: { liveUpdates: false } }, { ui: { realtimeActivity: false } }];
+      for (const body of bodies) {
+        const patch = await fetch(url(handle, '/api/project-preferences'), {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        assert.equal(patch.status, 200);
+      }
+
+      const res = await fetch(url(handle, '/api/project-preferences'));
+      const env = (await res.json()) as IProjectPrefsEnvelopeWire;
+      assert.equal(env.ui.liveUpdates, false);
+      assert.equal(env.ui.realtimeActivity, false);
+    });
+  });
+
+  it('400 bad-query when a ui sub-key is not a boolean', async () => {
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/project-preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ui: { liveUpdates: 'nope' } }),
+      });
+      assert.equal(res.status, 400);
+      const env = (await res.json()) as IErrorEnvelopeWire;
+      assert.equal(env.error.code, 'bad-query');
+      assert.match(env.error.message, /ui\.liveUpdates/);
+    });
+  });
+
+  it('400 bad-query when the ui block has an unknown sub-key', async () => {
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/project-preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ui: { theme: 'dark' } }),
       });
       assert.equal(res.status, 400);
       const env = (await res.json()) as IErrorEnvelopeWire;

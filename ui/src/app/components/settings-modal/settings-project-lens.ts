@@ -1,17 +1,17 @@
 /**
- * `<sm-settings-project-lens>`, active-provider lens row + live-activity
- * hook row of the Settings > Project section.
+ * `<sm-settings-project-lens>`, active-provider lens row of the
+ * Settings > Project section.
  *
- * The two rows live in ONE child on purpose: the hook status is keyed
- * to the ACTIVE lens (`GET /api/activity/install?provider=<lens>`), so
- * every lens envelope refresh and every confirmed lens switch must
- * re-probe the hook, and splitting them would force that dependency
- * through the chassis.
+ * The live-activity hook row (whose status is keyed to the ACTIVE
+ * lens) lives in the sibling `<sm-settings-project-hook>`; the chassis
+ * feeds it this child's resolved lens through the public
+ * `activeLensId` computed, so a section open or a confirmed lens
+ * switch re-probes the hook without the two rows sharing a component
+ * (they are ordered independently in the section).
  *
  * Lifecycle mirrors the sibling children: fetch on `(visible) === true`,
  * render, dispatch via the data-source port. Owns its own
- * `ConfirmationService` + `<p-confirmdialog>` (lens-switch warning and
- * hook install / uninstall consent).
+ * `ConfirmationService` + `<p-confirmdialog>` (lens-switch warning).
  */
 
 import {
@@ -21,28 +21,25 @@ import {
   effect,
   inject,
   input,
+  linkedSignal,
   signal,
   viewChild,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ButtonModule } from 'primeng/button';
 import { ConfirmationService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { MessageModule } from 'primeng/message';
 import { Select, SelectModule } from 'primeng/select';
 
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
-import type {
-  IActiveProviderApi,
-  IActivityInstallStatusApi,
-} from '../../../models/api';
-import { DATA_SOURCE, DataSourceError } from '../../../services/data-source/data-source.port';
+import type { IActiveProviderApi } from '../../../models/api';
+import { DATA_SOURCE } from '../../../services/data-source/data-source.port';
 import { ProviderRegistryService } from '../../../services/provider-registry';
 import { formatErr } from './settings-project.utils';
 
 @Component({
   selector: 'sm-settings-project-lens',
-  imports: [FormsModule, ButtonModule, ConfirmDialogModule, MessageModule, SelectModule],
+  imports: [FormsModule, ConfirmDialogModule, MessageModule, SelectModule],
   providers: [ConfirmationService],
   templateUrl: './settings-project-lens.html',
   styleUrl: './settings-project-rows.css',
@@ -113,6 +110,28 @@ export class SettingsProjectLens {
     return this.activeProviderEnvelope()?.activeProvider ?? '';
   });
 
+  /**
+   * PUBLIC projection of the resolved lens for the chassis, which
+   * feeds it to `<sm-settings-project-hook>` (the hook status is keyed
+   * to the active lens). `null` until the envelope loads so the hook
+   * child can tell "not loaded yet" from "none" (`''`).
+   */
+  readonly activeLensId = computed<string | null>(() => {
+    const env = this.activeProviderEnvelope();
+    return env === null ? null : env.activeProvider;
+  });
+
+  /**
+   * View state the `<p-select>` binds to: tracks the committed value,
+   * set optimistically on change, explicitly reset when the switch does
+   * not land (dialog dismissed, POST failed) so the dropdown rolls
+   * back. Re-emitting an unchanged envelope cannot do that: the value
+   * computed stays equal, so it never notifies the binding.
+   */
+  protected readonly activeProviderView = linkedSignal(() =>
+    this.activeProviderValue(),
+  );
+
   /** Comma-separated list of detected provider ids. Empty when none. */
   protected readonly activeProviderDetectedLabel = computed<string>(() => {
     return (this.activeProviderEnvelope()?.detected ?? []).join(', ');
@@ -121,55 +140,6 @@ export class SettingsProjectLens {
   /** Which source the persisted value came from. */
   protected readonly activeProviderSource = computed<IActiveProviderApi['source']>(() => {
     return this.activeProviderEnvelope()?.source ?? 'default';
-  });
-
-  // ---- activity-hook state ----------------------------------------------
-  /**
-   * Install status of the ACTIVE lens's live-activity hook
-   * (`GET /api/activity/install`). `null` until the probe resolves (or
-   * when it failed); re-fetched whenever the lens envelope refreshes or
-   * a confirmed lens switch lands, so the button always describes the
-   * CURRENT lens.
-   */
-  protected readonly activityStatus = signal<IActivityInstallStatusApi | null>(null);
-  protected readonly activityError = signal<string | null>(null);
-  protected readonly activityAnnouncement = signal<string | null>(null);
-  /** Pending keys ('activity.hook' only in this child). */
-  protected readonly pending = signal<Set<string>>(new Set());
-
-  /** Registry label of the active lens (falls back to the raw id). */
-  private readonly activeProviderLabel = computed<string>(() => {
-    const id = this.activeProviderValue();
-    const entry = this.providerRegistry.providers().find((p) => p.id === id);
-    return entry?.label ?? id;
-  });
-
-  /**
-   * Button label, tracking the selected lens AND the install state:
-   * "Install <lens label> activity hook" / "Uninstall <lens label>
-   * activity hook". While the status is unknown the Install form shows
-   * (the button is disabled anyway).
-   */
-  protected readonly activityButtonLabel = computed<string>(() => {
-    const t = this.texts.project.activityHook;
-    const action =
-      this.activityStatus()?.installed === true ? t.uninstallPrefix : t.installPrefix;
-    return `${action} ${this.activeProviderLabel()} ${t.labelSuffix}`;
-  });
-
-  /** Disabled while unknown, unsupported, or a mutation is in flight. */
-  protected readonly activityButtonDisabled = computed<boolean>(() => {
-    const status = this.activityStatus();
-    return status === null || !status.supported || this.pending().has('activity.hook');
-  });
-
-  /** Hint under the button; only the unsupported-lens case renders one. */
-  protected readonly activityHint = computed<string | null>(() => {
-    const status = this.activityStatus();
-    if (status !== null && !status.supported) {
-      return this.texts.project.activityHook.unsupportedHint;
-    }
-    return null;
   });
 
   constructor() {
@@ -194,105 +164,14 @@ export class SettingsProjectLens {
    * Triggered by the `<p-select>`'s change. Opens the confirm dialog
    * because switching the lens is destructive of the scan_* DB zone
    * (see spec/architecture.md §Active Provider Lens). On accept, calls
-   * the data-source; on reject, reverts the dropdown to the previous
-   * value by re-emitting the envelope.
+   * the data-source; on reject, resets the view signal to the
+   * committed value so the dropdown rolls back.
    */
   protected onActiveProviderChange(newValue: string): void {
     if (newValue === this.activeProviderValue()) return;
+    this.activeProviderView.set(newValue);
     this.confirmActiveProviderSwitch(newValue, async () => {
       await this.runActiveProviderSwitch(newValue);
-    });
-  }
-
-  // -----------------------------------------------------------------
-  // Activity-hook handlers
-  // -----------------------------------------------------------------
-
-  /**
-   * One button, two operations: install when the hook is absent,
-   * uninstall when present. Both first POST WITHOUT `confirm`; the BFF
-   * refuses 412 `confirm-required` (server-enforced consent, nothing
-   * written), which surfaces the consent dialog naming the exact config
-   * file; accepting retries with `confirm: true`. Success adopts the
-   * refreshed status envelope from the response.
-   */
-  protected onActivityHookToggle(): void {
-    const status = this.activityStatus();
-    if (status === null || !status.supported) return;
-    void this.runActivityMutation(status.installed ? 'uninstall' : 'install');
-  }
-
-  private async runActivityMutation(op: 'install' | 'uninstall'): Promise<void> {
-    const key = 'activity.hook';
-    if (this.pending().has(key)) return;
-    const providerId = this.activeProviderValue();
-    const next = new Set(this.pending());
-    next.add(key);
-    this.pending.set(next);
-    this.activityError.set(null);
-    this.activityAnnouncement.set(null);
-    try {
-      await this.dispatchActivity(op, providerId, false);
-    } catch (err) {
-      if (err instanceof DataSourceError && err.code === 'confirm-required') {
-        this.confirmActivityDialog(op, async () => {
-          try {
-            await this.dispatchActivity(op, providerId, true);
-          } catch (innerErr) {
-            this.activityError.set(formatErr(innerErr));
-          }
-        });
-      } else {
-        this.activityError.set(formatErr(err));
-      }
-    } finally {
-      const after = new Set(this.pending());
-      after.delete(key);
-      this.pending.set(after);
-    }
-  }
-
-  /** Fire one install/uninstall POST and adopt its response envelope. */
-  private async dispatchActivity(
-    op: 'install' | 'uninstall',
-    providerId: string,
-    confirm: boolean,
-  ): Promise<void> {
-    const opts = confirm ? { confirm: true } : undefined;
-    const t = this.texts.project.activityHook;
-    if (op === 'install') {
-      const status = await this.dataSource.installActivityHook(providerId, opts);
-      this.activityStatus.set(status);
-      this.activityAnnouncement.set(`${t.installedPrefix} ${status.configPath ?? ''}.`);
-      return;
-    }
-    const envelope = await this.dataSource.uninstallActivityHook(providerId, opts);
-    this.activityStatus.set(envelope);
-    this.activityAnnouncement.set(
-      envelope.removed
-        ? `${t.uninstalledPrefix} ${envelope.configPath ?? ''}.`
-        : t.nothingToUninstall,
-    );
-  }
-
-  private confirmActivityDialog(op: 'install' | 'uninstall', onAccept: () => Promise<void>): void {
-    const t = this.texts.project.activityHook;
-    const configPath = this.activityStatus()?.configPath ?? '';
-    const header = op === 'install' ? t.installConfirmHeader : t.uninstallConfirmHeader;
-    const intro =
-      op === 'install'
-        ? `${t.installConfirmIntroPrefix} ${configPath} ${t.installConfirmIntroSuffix}`
-        : `${t.uninstallConfirmIntroPrefix} ${configPath} ${t.uninstallConfirmIntroSuffix}`;
-    this.confirmation.confirm({
-      header,
-      message: intro,
-      acceptLabel: t.confirmAccept,
-      rejectLabel: t.confirmReject,
-      acceptButtonProps: { severity: 'primary' },
-      rejectButtonProps: { severity: 'secondary' },
-      accept: () => {
-        void onAccept();
-      },
     });
   }
 
@@ -300,40 +179,24 @@ export class SettingsProjectLens {
   // Refresh + dispatch helpers
   // -----------------------------------------------------------------
 
-  /** Fetch the active-provider envelope, then the hook status for it. */
+  /** Fetch the active-provider envelope. */
   private async refreshActiveProvider(): Promise<void> {
     this.activeProviderLoadError.set(null);
     this.activeProviderSaveError.set(null);
     try {
       const envelope = await this.dataSource.getActiveProvider();
       this.activeProviderEnvelope.set(envelope);
-      await this.refreshActivityStatus(envelope.activeProvider);
     } catch (err) {
       this.activeProviderLoadError.set(formatErr(err));
       this.activeProviderEnvelope.set(null);
     }
   }
 
-  /** Probe the live-activity hook status for the given lens. */
-  private async refreshActivityStatus(providerId: string): Promise<void> {
-    this.activityError.set(null);
-    if (providerId.length === 0) {
-      this.activityStatus.set(null);
-      return;
-    }
-    try {
-      this.activityStatus.set(await this.dataSource.getActivityInstallStatus(providerId));
-    } catch (err) {
-      this.activityError.set(formatErr(err));
-      this.activityStatus.set(null);
-    }
-  }
-
   /**
-   * Persist the lens switch, then update local state with the
-   * server's announcement of what was cleared. Errors land in
-   * `activeProviderSaveError` and the dropdown reverts to the prior
-   * envelope value (the user sees their action did not take effect).
+   * Persist the lens switch, then announce the NEW lens by its
+   * registry label. Errors land in `activeProviderSaveError` and the
+   * dropdown reverts to the prior envelope value (the user sees their
+   * action did not take effect).
    */
   private async runActiveProviderSwitch(newValue: string): Promise<void> {
     this.activeProviderSaveError.set(null);
@@ -347,22 +210,15 @@ export class SettingsProjectLens {
         selectable: envelope.selectable,
         markerDrift: envelope.markerDrift,
       });
-      const dropped = envelope.switch.dropped;
-      if (dropped === null) {
-        this.activeProviderSwitchAnnouncement.set(
-          this.texts.project.activeProviderSwitchedNoDb,
-        );
-      } else {
-        const t = this.texts.project;
-        this.activeProviderSwitchAnnouncement.set(
-          `${t.activeProviderSwitchedPrefix} ${dropped.tableCount} ${t.activeProviderSwitchedSuffix}`,
-        );
-      }
-      // The lens changed: re-probe the hook status so the button label
-      // and state describe the NEW lens.
-      await this.refreshActivityStatus(envelope.activeProvider);
+      const entry = this.providerRegistry
+        .providers()
+        .find((p) => p.id === envelope.activeProvider);
+      this.activeProviderSwitchAnnouncement.set(
+        this.texts.project.activeProviderSwitched(entry?.label ?? envelope.activeProvider),
+      );
     } catch (err) {
       this.activeProviderSaveError.set(formatErr(err));
+      this.activeProviderView.set(this.activeProviderValue());
     }
   }
 
@@ -378,11 +234,7 @@ export class SettingsProjectLens {
         void onAccept();
       },
       reject: () => {
-        // Revert the dropdown to the previous envelope value by
-        // re-emitting it; the (change) handler short-circuits on
-        // unchanged values, so this puts the UI back in sync.
-        const env = this.activeProviderEnvelope();
-        if (env) this.activeProviderEnvelope.set({ ...env });
+        this.activeProviderView.set(this.activeProviderValue());
       },
     });
   }

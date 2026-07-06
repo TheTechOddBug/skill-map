@@ -1,19 +1,31 @@
 /**
  * `<sm-settings-project>`, Project section of the Settings modal.
  *
- * Thin chassis: heading + intro plus four self-contained children, each
+ * Thin chassis: heading + intro plus five self-contained children, each
  * owning its own state machine, fetch lifecycle (keyed on `visible`),
  * error surfaces, and confirm dialogs:
  *
- *   - `<sm-settings-project-lens>`: active-provider lens select + the
- *     live-activity hook install button (coupled: the hook status is
- *     keyed to the active lens).
+ *   - `<sm-settings-project-lens>`: active-provider lens select.
+ *   - `<sm-settings-project-live>`: live-updates toggle
+ *     (`ui.liveUpdates` in `settings.local.json`).
+ *   - `<sm-settings-project-hook>`: live-activity hook install button.
+ *     The hook status is keyed to the ACTIVE lens, so the chassis
+ *     threads the lens child's `activeLensId` into it (the one
+ *     cross-child dependency in the section).
+ *   - `<sm-settings-project-realtime>`: real-time-activity toggle
+ *     (`ui.realtimeActivity`), gated by live updates AND the hook the
+ *     row above installs; a separate child from the live-updates row
+ *     precisely so the hook installer can sit between them.
  *   - `<sm-settings-project-capture>`: conversation-capture consent
  *     toggle.
  *   - `<sm-settings-project-preferences>`: the rows backed by the one
- *     project-preferences envelope (sidecar-writer policy, plugin-trust
- *     opt-in, follow-external-symlinks opt-in, reference-paths list).
- *   - `<sm-settings-project-ignore>`: `.skillmapignore` patterns.
+ *     project-preferences envelope (follow-external-symlinks opt-in,
+ *     reference-paths list, plugin-trust opt-in, sidecar-writer
+ *     policy), mounted LAST so the two trust-flavoured toggles close
+ *     the section. It also hosts the mount point of the self-contained
+ *     `<sm-settings-project-ignore>` (`.skillmapignore` patterns)
+ *     between its reference-paths and plugin-trust rows, row order
+ *     only, the envelope machinery does not touch it.
  *
  * The split mirrors the plugins section's decomposition
  * (`settings-plugin-section.ts` and friends): five independent state
@@ -27,17 +39,21 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
 import { SettingsProjectCapture } from './settings-project-capture';
-import { SettingsProjectIgnore } from './settings-project-ignore';
+import { SettingsProjectHook } from './settings-project-hook';
 import { SettingsProjectLens } from './settings-project-lens';
+import { SettingsProjectLive } from './settings-project-live';
 import { SettingsProjectPreferences } from './settings-project-preferences';
+import { SettingsProjectRealtime } from './settings-project-realtime';
 
 @Component({
   selector: 'sm-settings-project',
   imports: [
     SettingsProjectCapture,
-    SettingsProjectIgnore,
+    SettingsProjectHook,
     SettingsProjectLens,
+    SettingsProjectLive,
     SettingsProjectPreferences,
+    SettingsProjectRealtime,
   ],
   templateUrl: './settings-project.html',
   styleUrl: './settings-project.css',

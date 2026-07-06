@@ -1016,6 +1016,17 @@ export interface IProjectPreferencesApi {
    * current BFF always emits a concrete boolean.
    */
   tutorialReminderDismissed?: boolean;
+  /**
+   * Project-local web-UI preferences (Settings > General), persisted per
+   * checkout in `settings.local.json`. `liveUpdates`: keep the map in sync
+   * with `sm serve` (default `true`). `realtimeActivity`: light up
+   * executing nodes (default `true`, subordinate to `liveUpdates`).
+   * Optional only to tolerate an older BFF envelope that predates it.
+   */
+  ui?: {
+    liveUpdates: boolean;
+    realtimeActivity: boolean;
+  };
 }
 
 /**
@@ -1054,6 +1065,11 @@ export interface IProjectPreferencesPatchApi {
   };
   /** Dismiss (or restore) the topbar tutorial reminder (project-local). */
   tutorialReminderDismissed?: boolean;
+  /** Flip the project-local web-UI live-channel preferences. No confirm gate. */
+  ui?: {
+    liveUpdates?: boolean;
+    realtimeActivity?: boolean;
+  };
 }
 
 /**

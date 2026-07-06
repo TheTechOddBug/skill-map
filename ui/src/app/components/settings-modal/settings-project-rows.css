@@ -144,3 +144,14 @@
 .settings-project__provider-select .p-select {
   width: 100%;
 }
+
+/* Team-shared badge: appended to the label of rows whose setting
+   persists in a repo-tracked file (settings.json, .skillmapignore)
+   and therefore travels to every teammate. Unmarked rows stay in the
+   gitignored settings.local.json. `cursor: help` signals the native
+   title tooltip carrying the legend. */
+.settings-project__shared-badge {
+  margin-left: 0.3rem;
+  font-size: 0.8rem;
+  cursor: help;
+}

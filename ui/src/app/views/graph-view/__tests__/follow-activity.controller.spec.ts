@@ -11,6 +11,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 
+import {
+  DATA_SOURCE,
+  type IDataSourcePort,
+} from '../../../../services/data-source/data-source.port';
 import { LivePreferencesService } from '../../../../services/live-preferences';
 import type { NodeActivityService } from '../../../../services/node-activity';
 import {
@@ -25,6 +29,19 @@ const FOLLOW_KEY = 'sm.live.follow-activity';
 describe('follow-activity.controller', () => {
   beforeEach(() => {
     TestBed.resetTestingModule();
+    // LivePreferencesService's server-backed pair injects the port; the
+    // follow-activity preference itself still lives in localStorage.
+    TestBed.configureTestingModule({
+      providers: [
+        {
+          provide: DATA_SOURCE,
+          useValue: {
+            getProjectPreferences: () => Promise.resolve({}),
+            setProjectPreferences: () => Promise.resolve({}),
+          } as unknown as IDataSourcePort,
+        },
+      ],
+    });
     localStorage.removeItem(FOLLOW_KEY);
   });
   afterEach(() => {

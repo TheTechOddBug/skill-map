@@ -7,8 +7,16 @@ import {
   WS_URL,
   type IWsLike,
 } from '../ws-event-stream';
+import { DATA_SOURCE, type IDataSourcePort } from '../data-source/data-source.port';
 import { SKILL_MAP_MODE } from '../data-source/runtime-mode';
+import { LivePreferencesService } from '../live-preferences';
 import type { IWsEvent } from '../../models/ws-event';
+
+/** Minimal port stub for `LivePreferencesService`'s server-backed pair. */
+const PREFS_STUB = {
+  getProjectPreferences: () => Promise.resolve({}),
+  setProjectPreferences: () => Promise.resolve({}),
+} as unknown as IDataSourcePort;
 
 /**
  * Fake WebSocket, the service treats it as an `IWsLike`. The harness
@@ -64,7 +72,10 @@ interface IHarness {
   sockets: FakeWebSocket[];
 }
 
-function createHarness(mode: 'live' | 'demo' = 'live'): IHarness {
+function createHarness(
+  mode: 'live' | 'demo' = 'live',
+  opts?: { wsEnabled?: boolean },
+): IHarness {
   TestBed.resetTestingModule();
   const sockets: FakeWebSocket[] = [];
   const factory = vi.fn((url: string) => {
@@ -81,9 +92,16 @@ function createHarness(mode: 'live' | 'demo' = 'live'): IHarness {
       { provide: SKILL_MAP_MODE, useValue: mode },
       { provide: WS_SOCKET_FACTORY, useValue: factory },
       { provide: WS_URL, useValue: 'ws://test/ws' },
+      { provide: DATA_SOURCE, useValue: PREFS_STUB },
       WsEventStreamService,
     ],
   });
+  // A persisted OFF now arrives through the project-preferences load
+  // that the app initializer awaits before anything subscribes; the
+  // harness settles the preference BEFORE the service constructs.
+  if (opts?.wsEnabled === false) {
+    TestBed.inject(LivePreferencesService).setWsEnabled(false);
+  }
   const service = TestBed.inject(WsEventStreamService);
   return { service, factory, sockets };
 }
@@ -554,7 +572,6 @@ describe('WsEventStreamService, demo mode', () => {
 });
 
 describe('WsEventStreamService, live-updates switch (Settings toggle)', () => {
-  const WS_ENABLED_KEY = 'sm.live.ws-enabled';
   let harness: IHarness;
 
   beforeEach(() => {
@@ -565,14 +582,12 @@ describe('WsEventStreamService, live-updates switch (Settings toggle)', () => {
 
   afterEach(() => {
     harness?.service.disconnect();
-    localStorage.removeItem(WS_ENABLED_KEY);
     vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
   it('boots with the switch OFF: no socket on subscribe, state "disabled"', () => {
-    localStorage.setItem(WS_ENABLED_KEY, 'false');
-    harness = createHarness('live');
+    harness = createHarness('live', { wsEnabled: false });
     const sub = harness.service.events$.subscribe();
     expect(harness.factory).not.toHaveBeenCalled();
     expect(harness.service.connectionState()).toBe('disabled');
@@ -639,8 +654,7 @@ describe('WsEventStreamService, live-updates switch (Settings toggle)', () => {
   });
 
   it('setEnabled(true) without prior interest stays lazy (no socket until first subscriber)', () => {
-    localStorage.setItem(WS_ENABLED_KEY, 'false');
-    harness = createHarness('live');
+    harness = createHarness('live', { wsEnabled: false });
     harness.service.setEnabled(true);
     expect(harness.factory).not.toHaveBeenCalled();
     const sub = harness.service.events$.subscribe();
@@ -649,8 +663,7 @@ describe('WsEventStreamService, live-updates switch (Settings toggle)', () => {
   });
 
   it('reconnect() is a no-op while the switch is off (banner path cannot bypass it)', () => {
-    localStorage.setItem(WS_ENABLED_KEY, 'false');
-    harness = createHarness('live');
+    harness = createHarness('live', { wsEnabled: false });
     const sub = harness.service.events$.subscribe();
     harness.service.reconnect();
     expect(harness.factory).not.toHaveBeenCalled();
