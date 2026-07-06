@@ -27,7 +27,7 @@ import type { ISidecarOverlay, Issue, SidecarStatus } from '../../../../kernel/t
 import type { IViewContribution } from '../../../../kernel/types/view-catalog.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { formatFinding } from '../../../../kernel/util/finding-format.js';
-import { ANNOTATION_STALE_TEXTS } from './text.js';
+import { ANNOTATION_STALE_TEXTS } from './annotation-stale.texts.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'annotation-stale';

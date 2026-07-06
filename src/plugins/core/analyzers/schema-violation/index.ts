@@ -27,7 +27,7 @@ import type { Issue, Link, Node } from '../../../../kernel/types.js';
 import { loadSchemaValidators, type ISchemaValidators } from '../../../../kernel/adapters/schema-validators.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { formatFinding } from '../../../../kernel/util/finding-format.js';
-import { SCHEMA_VIOLATION_TEXTS } from './text.js';
+import { SCHEMA_VIOLATION_TEXTS } from './schema-violation.texts.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'schema-violation';

@@ -41,7 +41,7 @@ import type { Issue, LinkKind } from '../../../../kernel/types.js';
 import type { IViewContribution } from '../../../../kernel/types/view-catalog.js';
 import { isSelfLoop } from '../../../../kernel/util/link-lines.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
-import { LINK_COUNTER_TEXTS } from './text.js';
+import { LINK_COUNTER_TEXTS } from './link-counter.texts.js';
 
 const ID = 'link-counter';
 

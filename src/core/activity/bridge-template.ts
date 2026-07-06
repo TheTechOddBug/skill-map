@@ -26,6 +26,8 @@
  * `{{SM_VERSION}}` is stamped at install time for debuggability.
  */
 
+import { SKILL_MAP_DIR } from '../../kernel/util/skill-map-paths.js';
+import { SERVE_INFO_FILENAME } from '../paths/db-path.js';
 import { VERSION } from '../../version.js';
 
 /** Fetch abort window: a hung server must never hold the hook open. */
@@ -62,7 +64,7 @@ function main() {
   //    server (clean shutdown deletes it): silent no-op.
   let info;
   try {
-    info = JSON.parse(readFileSync(join(SCOPE_ROOT, '.skill-map', 'serve.json'), 'utf8'));
+    info = JSON.parse(readFileSync(join(SCOPE_ROOT, '${SKILL_MAP_DIR}', '${SERVE_INFO_FILENAME}'), 'utf8'));
   } catch {
     return exitSilently();
   }

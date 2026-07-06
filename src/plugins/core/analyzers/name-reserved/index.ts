@@ -28,7 +28,7 @@ import { tx } from '../../../../kernel/util/tx.js';
 import { linkLines } from '../../../../kernel/util/link-lines.js';
 import { formatFinding } from '../../../../kernel/util/finding-format.js';
 import { RESERVED_PENALTY } from '../../../../kernel/orchestrator/confidence-constants.js';
-import { NAME_RESERVED_TEXTS } from './text.js';
+import { NAME_RESERVED_TEXTS } from './name-reserved.texts.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'name-reserved';

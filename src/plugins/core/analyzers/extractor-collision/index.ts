@@ -27,7 +27,7 @@ import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../
 import type { Issue, Signal } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { formatFinding } from '../../../../kernel/util/finding-format.js';
-import { EXTRACTOR_COLLISION_TEXTS } from './text.js';
+import { EXTRACTOR_COLLISION_TEXTS } from './extractor-collision.texts.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'extractor-collision';

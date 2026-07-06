@@ -19,18 +19,18 @@
 import { describe, it } from 'node:test';
 import { strict as assert } from 'node:assert';
 
-import { ANNOTATION_FIELD_UNKNOWN_TEXTS } from '../annotation-field-unknown/text.js';
-import { ANNOTATION_ORPHAN_TEXTS } from '../annotation-orphan/text.js';
-import { ANNOTATION_STALE_TEXTS } from '../annotation-stale/text.js';
-import { EXTRACTOR_COLLISION_TEXTS } from '../extractor-collision/text.js';
-import { LINK_KIND_CONFLICT_TEXTS } from '../link-kind-conflict/text.js';
-import { LINK_SELF_LOOP_TEXTS } from '../link-self-loop/text.js';
-import { NAME_COLLISION_TEXTS } from '../name-collision/text.js';
-import { NAME_RESERVED_TEXTS } from '../name-reserved/text.js';
-import { NODE_STABILITY_TEXTS } from '../node-stability/text.js';
-import { REFERENCE_BROKEN_TEXTS } from '../reference-broken/text.js';
-import { REFERENCE_REDUNDANT_TEXTS } from '../reference-redundant/text.js';
-import { SCHEMA_VIOLATION_TEXTS } from '../schema-violation/text.js';
+import { ANNOTATION_FIELD_UNKNOWN_TEXTS } from '../annotation-field-unknown/annotation-field-unknown.texts.js';
+import { ANNOTATION_ORPHAN_TEXTS } from '../annotation-orphan/annotation-orphan.texts.js';
+import { ANNOTATION_STALE_TEXTS } from '../annotation-stale/annotation-stale.texts.js';
+import { EXTRACTOR_COLLISION_TEXTS } from '../extractor-collision/extractor-collision.texts.js';
+import { LINK_KIND_CONFLICT_TEXTS } from '../link-kind-conflict/link-kind-conflict.texts.js';
+import { LINK_SELF_LOOP_TEXTS } from '../link-self-loop/link-self-loop.texts.js';
+import { NAME_COLLISION_TEXTS } from '../name-collision/name-collision.texts.js';
+import { NAME_RESERVED_TEXTS } from '../name-reserved/name-reserved.texts.js';
+import { NODE_STABILITY_TEXTS } from '../node-stability/node-stability.texts.js';
+import { REFERENCE_BROKEN_TEXTS } from '../reference-broken/reference-broken.texts.js';
+import { REFERENCE_REDUNDANT_TEXTS } from '../reference-redundant/reference-redundant.texts.js';
+import { SCHEMA_VIOLATION_TEXTS } from '../schema-violation/schema-violation.texts.js';
 
 /** Every `formatFinding({ body })` diagnosis template, as `[analyzer.field, template]`. */
 const BODY_TEMPLATES: ReadonlyArray<readonly [string, string]> = [

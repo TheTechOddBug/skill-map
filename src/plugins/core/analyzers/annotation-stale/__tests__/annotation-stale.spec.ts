@@ -18,7 +18,7 @@ import { describe, it } from 'node:test';
 import { deepStrictEqual, strictEqual } from 'node:assert';
 
 import { annotationStaleAnalyzer } from '../index.js';
-import { ANNOTATION_STALE_TEXTS } from '../text.js';
+import { ANNOTATION_STALE_TEXTS } from '../annotation-stale.texts.js';
 import type { IAnalyzerContext } from '../../../../../kernel/extensions/index.js';
 import type { ISidecarOverlay, Node, SidecarStatus } from '../../../../../kernel/types.js';
 

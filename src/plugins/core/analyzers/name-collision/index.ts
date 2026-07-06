@@ -34,7 +34,7 @@ import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../
 import type { Issue } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { formatFinding } from '../../../../kernel/util/finding-format.js';
-import { NAME_COLLISION_TEXTS } from './text.js';
+import { NAME_COLLISION_TEXTS } from './name-collision.texts.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'name-collision';

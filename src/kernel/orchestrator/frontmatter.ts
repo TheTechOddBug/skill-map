@@ -59,9 +59,8 @@ export function validateFrontmatter(
  * lose every metadata field:
  *
  *   - `paste-with-indent`: terminal heredoc auto-indented every line,
- *     so the open fence is `<spaces>---`. The most common variant
- *    .
- *   - `byte-order-mark`: a UTF-8 BOM (﻿) precedes the fence. Some
+ *     so the open fence is `<spaces>---`. The most common variant.
+ *   - `byte-order-mark`: a UTF-8 BOM (U+FEFF) precedes the fence. Some
  *     editors (notably old VS Code on Windows) inject this; the YAML
  *     parser handles BOM, but the Provider regex doesn't anchor past it.
  *   - `leading-blank-line`: one or more blank lines precede the open
@@ -111,6 +110,14 @@ export type TMalformedHint =
   | 'missing-close'
   | 'early-close';
 
+/**
+ * Bound the BOM heuristic's key-line probe so its lazy `[\s\S]*?` scan
+ * cannot go quadratic on a huge, colon-free, BOM-prefixed body (the
+ * same cost-bounding posture as `EARLY_CLOSE_SCAN_LINES` below). Any
+ * genuine frontmatter block opens a YAML key well inside this window.
+ */
+const BOM_SCAN_CHARS = 4096;
+
 function classifyMalformedFrontmatter(body: string): TMalformedHint | null {
   // (a) BOM at the very first byte. Check before everything else
   // because a BOM offsets the column-0 anchor of the Provider's regex.
@@ -120,8 +127,12 @@ function classifyMalformedFrontmatter(body: string): TMalformedHint | null {
   // are tolerated so the COMBINED accident (BOM + blank line before the
   // fence) classifies here first; once the author strips the BOM, the
   // leading-blank / indent heuristics below take over on the next scan.
-  if (body.startsWith('﻿')) {
-    if (/^﻿(?:[ \t]*\r?\n)*[ \t]*---\r?\n[\s\S]*?[A-Za-z0-9_-]+\s*:/.test(body)) {
+  if (body.startsWith('\uFEFF')) {
+    if (
+      /^\uFEFF(?:[ \t]*\r?\n)*[ \t]*---\r?\n[\s\S]*?[A-Za-z0-9_-]+\s*:/.test(
+        body.slice(0, BOM_SCAN_CHARS),
+      )
+    ) {
       return 'byte-order-mark';
     }
   }

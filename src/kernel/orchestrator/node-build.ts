@@ -290,25 +290,6 @@ function relativePathFromRoots(
   return absolutePath;
 }
 
-// `pickMetadata` / `pickString` / `pickStability` are retained for
-// potential future re-use by extractors that need to project legacy
-// `metadata.*` fields out of frontmatter. They are not consumed
-// anywhere in source today; preserved alongside `buildNode` because
-// that is the historical neighbourhood.
-function pickMetadata(fm: Record<string, unknown>): Record<string, unknown> | null {
-  const m = fm['metadata'];
-  return m && typeof m === 'object' && !Array.isArray(m) ? (m as Record<string, unknown>) : null;
-}
-
-function pickString(value: unknown): string | null {
-  return typeof value === 'string' && value.length > 0 ? value : null;
-}
-
-function pickStability(value: unknown): 'experimental' | 'stable' | 'deprecated' | null {
-  if (value === 'experimental' || value === 'stable' || value === 'deprecated') return value;
-  return null;
-}
-
 /**
  * Append `issue` to `list` when a detector actually produced one. The
  * frontmatter / body-syntax detectors (`detectFrontmatterIssue`,
@@ -481,7 +462,7 @@ export function buildFreshNodeAndValidateFrontmatter(opts: {
  *   2. Sort the survivors by `enrichedAt` ASC so iteration order is
  *      "oldest first". This makes the spread merge below
  *      last-write-wins per field, the freshest Extractor's value
- *      pisar the older one for any conflicting key.
+ *      stomps the older one for any conflicting key.
  *   3. Spread-merge each row's `value` over `node.frontmatter`. The
  *      author's keys are the base; enrichment keys overlay them.
  *

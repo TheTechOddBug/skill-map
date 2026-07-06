@@ -3,11 +3,11 @@
 #   - https://skill-map.ai/spec/v0/sidecar.schema.json (root shape)
 #   - https://skill-map.ai/spec/v0/annotations.schema.json (annotations block)
 # Hashes are sha256 over the kernel's canonical forms (body bytes; canonical YAML
-# of the frontmatter via `js-yaml` dump with sortKeys+noCompatMode). Regenerate
+# of the frontmatter via `js-yaml` dump with sortKeys+CORE_SCHEMA). Regenerate
 # when agent-example.md changes (the fixture is meant to be drift-free).
 
 identity:
-  # Scope-root-relative — when this fixture is treated as its own
+  # Scope-root-relative: when this fixture is treated as its own
   # mini-scope (the typical reading), the .md sits in the same
   # directory as this .sm, so `for.path` is just the filename.
   path: agent-example.md
@@ -42,7 +42,7 @@ audit:
   lastBumpedBy: cli
 
 # Plugin-namespaced block (default location for plugin annotation contributions).
-# This is illustrative — no `example-plugin` exists. Plugins may write here without
+# This is illustrative, no `example-plugin` exists. Plugins may write here without
 # coordination; the schema permits unknown root keys via additionalProperties: true.
 example-plugin:
   reviewedBy: agent-example

@@ -15,7 +15,7 @@ import { describe, it } from 'node:test';
 import { deepStrictEqual, strictEqual } from 'node:assert';
 
 import { nodeSetStabilityAction } from '../index.js';
-import { NODE_SET_STABILITY_TEXTS } from '../text.js';
+import { NODE_SET_STABILITY_TEXTS } from '../node-set-stability.texts.js';
 import type { IActionProjectionContext } from '../../../../../kernel/extensions/index.js';
 import type { ISidecarOverlay, Node } from '../../../../../kernel/types.js';
 

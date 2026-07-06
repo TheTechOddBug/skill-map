@@ -20,7 +20,7 @@ import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../
 import type { Issue } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { formatFinding } from '../../../../kernel/util/finding-format.js';
-import { ANNOTATION_ORPHAN_TEXTS } from './text.js';
+import { ANNOTATION_ORPHAN_TEXTS } from './annotation-orphan.texts.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'annotation-orphan';

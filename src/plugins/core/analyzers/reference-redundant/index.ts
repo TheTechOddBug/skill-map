@@ -57,7 +57,7 @@ import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../
 import type { Issue, Link } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { formatFinding } from '../../../../kernel/util/finding-format.js';
-import { REFERENCE_REDUNDANT_TEXTS as TEXTS } from './text.js';
+import { REFERENCE_REDUNDANT_TEXTS as TEXTS } from './reference-redundant.texts.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'reference-redundant';

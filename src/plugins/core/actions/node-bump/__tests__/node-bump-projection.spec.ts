@@ -15,7 +15,7 @@ import { describe, it } from 'node:test';
 import { deepStrictEqual, strictEqual } from 'node:assert';
 
 import { nodeBumpAction } from '../index.js';
-import { BUMP_TEXTS } from '../text.js';
+import { BUMP_TEXTS } from '../node-bump.texts.js';
 import type { IActionProjectionContext } from '../../../../../kernel/extensions/index.js';
 import type { ISidecarOverlay, Node, SidecarStatus } from '../../../../../kernel/types.js';
 

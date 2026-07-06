@@ -15,7 +15,7 @@ import { describe, it } from 'node:test';
 import { deepStrictEqual, strictEqual } from 'node:assert';
 
 import { annotationFieldUnknownAnalyzer } from '../index.js';
-import { ANNOTATION_FIELD_UNKNOWN_TEXTS } from '../text.js';
+import { ANNOTATION_FIELD_UNKNOWN_TEXTS } from '../annotation-field-unknown.texts.js';
 import type { IAnalyzerContext } from '../../../../../kernel/extensions/index.js';
 import type { Node } from '../../../../../kernel/types.js';
 

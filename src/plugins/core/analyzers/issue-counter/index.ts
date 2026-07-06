@@ -42,7 +42,7 @@ import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../
 import type { Issue } from '../../../../kernel/types.js';
 import type { IViewContribution } from '../../../../kernel/types/view-catalog.js';
 import { tx } from '../../../../kernel/util/tx.js';
-import { ISSUE_COUNTER_TEXTS as TEXTS } from './text.js';
+import { ISSUE_COUNTER_TEXTS as TEXTS } from './issue-counter.texts.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'issue-counter';

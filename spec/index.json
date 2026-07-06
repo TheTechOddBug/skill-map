@@ -184,7 +184,7 @@
     "files": {
       "CHANGELOG.md": "7feb8d5be47e73a09a5ed8291d9f856bd42ec136f85a589d051fa5a5ed6abeb0",
       "README.md": "a790cd010b46d47883d1f37e3893cea9d7aa69ec4750c0202e6a0c99991e7980",
-      "architecture.md": "362912cc64f5ccc19271618af101e2dc6b751a8e3b02ef7b86c08b4106cf58a0",
+      "architecture.md": "ce588aafbb44de5a6ea77d57719f63c163b2eec546c9c9ad877c03887af33956",
       "cli-contract.md": "0467164a313a839b21a40f67610493c8a004a012d8e4382be331bfa332372941",
       "conformance/README.md": "dcbef7249f161acf597552a05dcadc813cd0ced430dcd3f813fcf5e1c876335d",
       "conformance/cases/backtick-path-extraction.json": "4620e7f8bc161fc57cb44001e9d99879c7e22b4865a0c27a20dc28969cd936d9",
@@ -219,7 +219,7 @@
       "conformance/fixtures/sidecar-end-to-end/.claude/agents/stale.md": "e35f860dc23e2adb14fe10cc1f2f99a696284896e967569c8864b1191ed6626f",
       "conformance/fixtures/sidecar-end-to-end/.claude/agents/stale.sm": "cb04f7f3103b4218b09fd4da92f7ea429588b04c1dac6a9547ce362263b11224",
       "conformance/fixtures/sidecar-example/agent-example.md": "741131403e8c9580d0b7a8c2446cb4502d01f80053b7a2092663de92431aaa82",
-      "conformance/fixtures/sidecar-example/agent-example.sm": "fba04f4d81c6c3308316dca9bb5cdd72471052df577ed939c1c1915deeb5dd0f",
+      "conformance/fixtures/sidecar-example/agent-example.sm": "d4e3ed9d03acafabacc9315f7973418bf12f0cdfe407a9b6fd1e21587aea752c",
       "conformance/fixtures/signal-ir-collision/.claude/agents/api.md": "7bdd260d82c2bf1ffc3324820e1b806684674981f9234f7c9f4f6aa61dd1cec5",
       "conformance/fixtures/signal-ir-collision/.claude/agents/architect.md": "14df915d4f11a7f41fd2e84600e77f21a596490b60da1b81ebd1ad555452f862",
       "conformance/fixtures/signal-ir-single-signal/source.md": "1eda417b4c6eed372b66870e385c8d8cd631372b77cab7e996bb711e22218f89",

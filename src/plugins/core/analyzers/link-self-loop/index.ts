@@ -43,7 +43,7 @@ import type { Issue, Link } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { isSelfLoop, linkLines } from '../../../../kernel/util/link-lines.js';
 import { formatFinding } from '../../../../kernel/util/finding-format.js';
-import { LINK_SELF_LOOP_TEXTS } from './text.js';
+import { LINK_SELF_LOOP_TEXTS } from './link-self-loop.texts.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'link-self-loop';

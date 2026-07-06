@@ -21,7 +21,7 @@ import { describe, it } from 'node:test';
 import { deepStrictEqual, ok, strictEqual } from 'node:assert';
 
 import { referenceBrokenAnalyzer } from '../index.js';
-import { REFERENCE_BROKEN_TEXTS } from '../text.js';
+import { REFERENCE_BROKEN_TEXTS } from '../reference-broken.texts.js';
 import { BROKEN_PENALTY } from '../../../../../kernel/orchestrator/confidence-constants.js';
 import type { IAnalyzerContext } from '../../../../../kernel/extensions/index.js';
 import type { Link, Node, TConfidenceOp } from '../../../../../kernel/types.js';

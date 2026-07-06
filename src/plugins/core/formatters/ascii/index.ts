@@ -26,7 +26,7 @@
 import type { IBuiltInManifest, IFormatter, IFormatterContext } from '../../../../kernel/extensions/index.js';
 import { sanitizeForTerminal } from '../../../../kernel/util/safe-text.js';
 import { tx } from '../../../../kernel/util/tx.js';
-import { ASCII_FORMATTER_TEXTS } from './text.js';
+import { ASCII_FORMATTER_TEXTS } from './ascii.texts.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'ascii';

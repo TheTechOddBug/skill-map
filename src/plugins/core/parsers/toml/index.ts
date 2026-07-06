@@ -4,8 +4,6 @@
  * authored entities are pure TOML manifests (no markdown body):
  *
  *   - OpenAI Codex sub-agents (`.codex/agents/*.toml`).
- *   - Gemini CLI custom commands (entire `.toml` file IS the command
- *     definition with `prompt` + `description` keys).
  *   - Future provider configs (`config.toml`-style manifests) declared
  *     by a Provider's `read: { extensions: ['.toml'], parser: 'toml' }`.
  *
@@ -38,6 +36,7 @@ import type {
   IParsedFile,
   IParseIssue,
 } from '../../../../kernel/scan/parsers/types.js';
+import { sanitiseParseErrorMessage } from '../../../../kernel/scan/parsers/sanitise-parse-error.js';
 import { stripPrototypePollution } from '../../../../kernel/util/strip-prototype-pollution.js';
 
 export const tomlParser: IFileParser = {
@@ -72,9 +71,3 @@ export const tomlParser: IFileParser = {
     return out;
   },
 };
-
-function sanitiseParseErrorMessage(err: unknown): string {
-  const raw = err instanceof Error ? err.message : String(err);
-  // eslint-disable-next-line no-control-regex
-  return raw.replace(/[\x00-\x1f]+/g, ' ').replace(/\s+/g, ' ').trim();
-}

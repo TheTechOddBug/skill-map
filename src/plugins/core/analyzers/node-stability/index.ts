@@ -38,7 +38,7 @@ import type { IViewContribution } from '../../../../kernel/types/view-catalog.js
 import { tx } from '../../../../kernel/util/tx.js';
 import { formatFinding } from '../../../../kernel/util/finding-format.js';
 import { readEffectiveStability } from '../../stability.js';
-import { NODE_STABILITY_TEXTS } from './text.js';
+import { NODE_STABILITY_TEXTS } from './node-stability.texts.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'node-stability';

@@ -46,7 +46,7 @@ import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../
 import type { Confidence, Issue, Link, LinkKind } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { formatFinding } from '../../../../kernel/util/finding-format.js';
-import { LINK_KIND_CONFLICT_TEXTS } from './text.js';
+import { LINK_KIND_CONFLICT_TEXTS } from './link-kind-conflict.texts.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'link-kind-conflict';

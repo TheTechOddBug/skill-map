@@ -51,7 +51,7 @@ import { sidecarPathFor } from '../../../../kernel/sidecar/parse.js';
 import type { ISidecarOverlay, SidecarStatus } from '../../../../kernel/types.js';
 import type { IViewContribution } from '../../../../kernel/types/view-catalog.js';
 import { CORE_PLUGIN_ID as PLUGIN_ID } from '../../../ids.js';
-import { BUMP_TEXTS } from './text.js';
+import { BUMP_TEXTS } from './node-bump.texts.js';
 
 /**
  * Input parameters accepted by `node-bump`.

@@ -40,7 +40,7 @@ import { tx } from '../../../../kernel/util/tx.js';
 import { linkLines } from '../../../../kernel/util/link-lines.js';
 import { formatFinding } from '../../../../kernel/util/finding-format.js';
 import { BROKEN_PENALTY } from '../../../../kernel/orchestrator/confidence-constants.js';
-import { REFERENCE_BROKEN_TEXTS } from './text.js';
+import { REFERENCE_BROKEN_TEXTS } from './reference-broken.texts.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'reference-broken';

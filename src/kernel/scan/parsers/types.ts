@@ -7,9 +7,11 @@
  * Parsers are kernel-internal. The set is closed by design, user
  * plugins cannot register their own. Built-ins ship as `frontmatter-yaml`
  * (markdown with `--- … ---` YAML frontmatter, prototype-pollution-safe,
- * `js-yaml` JSON_SCHEMA-pinned) and `plain` (entire body, empty
- * frontmatter, used by Providers walking files that carry no frontmatter
- * convention, e.g. Roo / Windsurf rules).
+ * `js-yaml` JSON_SCHEMA-pinned), `toml` (entire file parsed as TOML
+ * into `frontmatter`, empty body, used by Providers whose entities are
+ * pure TOML manifests, e.g. OpenAI Codex sub-agents), and `plain`
+ * (entire body, empty frontmatter, used by Providers walking files
+ * that carry no frontmatter convention, e.g. Roo / Windsurf rules).
  *
  * `path` is supplied for diagnostics only (parsers MAY include it in
  * thrown errors); it MUST NOT influence the parsed output.
@@ -33,10 +35,10 @@ export interface IFileParser {
  */
 export interface IParseIssue {
   /**
-   * Stable tag describing the failure class. The only emitter today
-   * is `frontmatter-yaml` reporting a YAML parse error
-   * (`'frontmatter-parse-error'`); the set may grow as new parsers
-   * land.
+   * Stable tag describing the failure class. Emitters today are
+   * `frontmatter-yaml` (YAML parse error) and `toml` (TOML parse
+   * error), both reporting `'frontmatter-parse-error'`; the set may
+   * grow as new parsers land.
    */
   code: string;
   /**

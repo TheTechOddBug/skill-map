@@ -9,16 +9,17 @@
  *   - **Prototype pollution (audit L2/L3 + M2)**, the parsed object is
  *     run through `stripPrototypePollution` so `__proto__`,
  *     `constructor`, and `prototype` keys are removed at EVERY depth,
- *     not just at the root. js-yaml v4 stores `__proto__:` as an own
+ *     not just at the root. js-yaml stores `__proto__:` as an own
  *     data property at any nesting level (rather than mutating
  *     `Object.prototype`), but the value still flows into downstream
  *     `Object.assign`-style merges where the `__proto__` setter fires.
  *     Deep stripping at parse time keeps the returned object safe to
  *     spread, copy, and persist regardless of nesting.
  *   - **`!!js/function` & friends (audit L3)**, `yaml.load` runs with
- *     `schema: JSON_SCHEMA` explicitly. js-yaml v4's default schema is
- *     already safe (no `!!js/function` tag), but the explicit selection
- *     documents intent and protects against an upstream default flip.
+ *     `schema: JSON_SCHEMA` explicitly. js-yaml 5's default schema
+ *     (`CORE_SCHEMA`) is already safe (no `!!js/function` tag), but the
+ *     explicit selection documents intent and protects against an
+ *     upstream default flip.
  *     Frontmatter values that are valid JSON (string, number, bool,
  *     null, sequence, mapping) round-trip unchanged; YAML-only
  *     conveniences like unquoted timestamps degrade to strings, but the
@@ -33,12 +34,12 @@
  *     `Issue` so authors see the typo instead of silently losing
  *     their metadata.
  *
- * Lives under `src/built-in-plugins/parsers/` even though the parser
+ * Lives under `src/plugins/core/parsers/` even though the parser
  * registry stays kernel-internal (no `kind: 'parser'` is exposed to
- * plugin authors). The relocation aligns the file layout with the
- * other built-ins (Provider / Extractor / Rule / Formatter / Action /
- * Hook), every shipped extension-shaped artifact lives under
- * `built-in-plugins/`. The registry in `kernel/scan/parsers/index.ts`
+ * plugin authors). The location aligns the file layout with the
+ * other built-ins (Provider / Extractor / Analyzer / Formatter /
+ * Action / Hook), every shipped extension-shaped artifact lives under
+ * `src/plugins/`. The registry in `kernel/scan/parsers/index.ts`
  * imports from here and stays the single resolution surface.
  */
 
@@ -49,8 +50,9 @@ import type {
   IParsedFile,
   IParseIssue,
 } from '../../../../kernel/scan/parsers/types.js';
+import { sanitiseParseErrorMessage } from '../../../../kernel/scan/parsers/sanitise-parse-error.js';
 import { stripPrototypePollution } from '../../../../kernel/util/strip-prototype-pollution.js';
-import { FRONTMATTER_YAML_TEXTS } from './text.js';
+import { FRONTMATTER_YAML_TEXTS } from './frontmatter-yaml.texts.js';
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
 
@@ -126,6 +128,13 @@ function buildParseErrorMessage(err: unknown): string {
  * fields, so the parser returns `{}` silently and the per-kind AJV
  * validation supplies the meaningful diagnostic (missing required
  * fields, when the kind declares any).
+ *
+ * The `reason` comparison pins js-yaml 5.1.0's exact wording, safe
+ * only under the repo's exact-pin dependency policy: re-verify the
+ * string on ANY js-yaml bump. The declared-but-empty-block case in
+ * `__tests__/frontmatter-yaml.spec.ts` goes red if the wording drifts
+ * (the empty block would surface a spurious parse error), so a silent
+ * break is not possible.
  */
 function isEmptyDocumentError(err: unknown): boolean {
   return (
@@ -150,16 +159,3 @@ function isUnquotedColonError(err: unknown): boolean {
   return /^[ \t]*[^:\n]+:\s+[^'"\s][^\n]*:(\s|$)/.test(line);
 }
 
-/**
- * Distil a `yaml.load` throw into a single-line, control-character-free
- * message. `js-yaml`'s `YAMLException.message` already excludes the
- * source position prefix; we strip CR/LF/tab and collapse runs of
- * whitespace so a multi-line "reason\n  in ..." string can never break
- * a single-line log render or smuggle ANSI escapes through a downstream
- * consumer.
- */
-function sanitiseParseErrorMessage(err: unknown): string {
-  const raw = err instanceof Error ? err.message : String(err);
-  // eslint-disable-next-line no-control-regex
-  return raw.replace(/[\x00-\x1f\x7f]+/g, ' ').replace(/\s+/g, ' ').trim();
-}

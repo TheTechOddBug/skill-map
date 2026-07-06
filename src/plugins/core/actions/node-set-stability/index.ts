@@ -50,7 +50,7 @@ import type { IViewContribution } from '../../../../kernel/types/view-catalog.js
 import { sidecarPathFor } from '../../../../kernel/sidecar/parse.js';
 import { CORE_PLUGIN_ID as PLUGIN_ID } from '../../../ids.js';
 import { type TStability, STABILITY_VALUES, readEffectiveStability } from '../../stability.js';
-import { NODE_SET_STABILITY_TEXTS } from './text.js';
+import { NODE_SET_STABILITY_TEXTS } from './node-set-stability.texts.js';
 
 export type { TStability };
 

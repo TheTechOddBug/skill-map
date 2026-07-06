@@ -31,6 +31,8 @@
  * as the ownership marker install/uninstall/status recognise.
  */
 
+import { SKILL_MAP_DIR } from '../../kernel/util/skill-map-paths.js';
+import { SERVE_INFO_FILENAME } from '../paths/db-path.js';
 import { VERSION } from '../../version.js';
 
 /** Fetch abort window: a hung server must never hold the host's hook open. */
@@ -61,7 +63,7 @@ export const SkillMapActivity = async ({ directory }) => {
   async function forward(hook, payload) {
     try {
       if (root === null) return;
-      const info = JSON.parse(readFileSync(join(root, '.skill-map', 'serve.json'), 'utf8'));
+      const info = JSON.parse(readFileSync(join(root, '${SKILL_MAP_DIR}', '${SERVE_INFO_FILENAME}'), 'utf8'));
       if (typeof info.scopeRoot !== 'string' || info.scopeRoot !== root) return;
       if (typeof info.host !== 'string' || !LOOPBACK_HOSTS.has(info.host.toLowerCase())) return;
       // Port sanity: refuse a tampered serve.json port rather than
