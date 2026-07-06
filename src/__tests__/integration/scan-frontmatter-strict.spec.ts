@@ -106,6 +106,126 @@ describe('frontmatter validation (kernel-level)', () => {
     assert.match(fmIssues[0]!.message, /description/);
   });
 
+  // --- declared-but-empty fence (frontmatterDeclared flag) ------------------
+
+  it('declared EMPTY fence (`---`, blank line, `---`) on a required-fields kind → frontmatter-invalid', async () => {
+    const scope = freshScope('empty-fence');
+    // The fence parses (frontmatterRaw is the empty string), so the
+    // author DECLARED a frontmatter block; required name + description
+    // are missing. Historically this fell through as "no frontmatter"
+    // and skipped validation, asymmetric with the whitespace-only case.
+    writeNode(scope.cwd, '.claude/agents/empty.md', '---\n\n---\nbody\n');
+    const kernel = await createKernel();
+    const result = await runScan(kernel, {
+      roots: [scope.cwd],
+      extensions: builtIns(),
+    });
+    const fmIssues = result.issues.filter((i) => i.analyzerId === 'frontmatter-invalid');
+    assert.equal(fmIssues.length, 1, `expected frontmatter-invalid; got: ${JSON.stringify(result.issues)}`);
+    assert.equal(fmIssues[0]!.severity, 'warn');
+    assert.deepEqual(fmIssues[0]!.nodeIds, ['.claude/agents/empty.md']);
+  });
+
+  it('declared WHITESPACE-ONLY fence behaves identically to the empty one (symmetry pin)', async () => {
+    const scope = freshScope('ws-fence');
+    writeNode(scope.cwd, '.claude/agents/ws.md', '---\n   \n---\nbody\n');
+    const kernel = await createKernel();
+    const result = await runScan(kernel, {
+      roots: [scope.cwd],
+      extensions: builtIns(),
+    });
+    const fmIssues = result.issues.filter((i) => i.analyzerId === 'frontmatter-invalid');
+    assert.equal(fmIssues.length, 1);
+    assert.equal(fmIssues[0]!.severity, 'warn');
+  });
+
+  it('declared empty fence on a kind with NO required fields → no issue', async () => {
+    const scope = freshScope('empty-fence-lax');
+    // The claude command schema leaves name / description optional, so
+    // an empty declared block validates clean.
+    writeNode(scope.cwd, '.claude/commands/empty.md', '---\n\n---\nbody\n');
+    const kernel = await createKernel();
+    const result = await runScan(kernel, {
+      roots: [scope.cwd],
+      extensions: builtIns(),
+    });
+    const fmIssues = result.issues.filter((i) => i.analyzerId === 'frontmatter-invalid');
+    assert.equal(fmIssues.length, 0, `expected clean; got: ${JSON.stringify(fmIssues)}`);
+  });
+
+  it('back-to-back `---` lines (no line between) stay body-only, no frontmatter-invalid', async () => {
+    const scope = freshScope('back-to-back');
+    // The parser regex needs at least one line between the fences, so
+    // this is NOT a declared block: both `---` lines are body content
+    // (thematic breaks). Deliberate scope pin.
+    writeNode(scope.cwd, '.claude/agents/hr2.md', '---\n---\nbody\n');
+    const kernel = await createKernel();
+    const result = await runScan(kernel, {
+      roots: [scope.cwd],
+      extensions: builtIns(),
+    });
+    const fmIssues = result.issues.filter((i) => i.analyzerId === 'frontmatter-invalid');
+    assert.equal(fmIssues.length, 0);
+  });
+
+  // --- parse error suppresses the misleading AJV pass -----------------------
+
+  it('unquoted colon in a value → ONE parse-error issue with quoting hint, NO frontmatter-invalid', async () => {
+    const scope = freshScope('colon-value');
+    // `name` and `description` ARE present in the source; the whole
+    // block fails to parse because of the unquoted `: ` in the value.
+    // Reporting "missing required property" on top of the parse error
+    // would point the author away from the real defect.
+    writeNode(
+      scope.cwd,
+      '.claude/agents/colon.md',
+      '---\nname: colon-agent\ndescription: use this agent when: the user asks for X\n---\nbody\n',
+    );
+    const kernel = await createKernel();
+    const result = await runScan(kernel, {
+      roots: [scope.cwd],
+      extensions: builtIns(),
+    });
+    const parseErrors = result.issues.filter((i) => i.analyzerId === 'frontmatter-parse-error');
+    const fmInvalid = result.issues.filter((i) => i.analyzerId === 'frontmatter-invalid');
+    assert.equal(parseErrors.length, 1, `expected one parse-error; got: ${JSON.stringify(result.issues)}`);
+    assert.equal(fmInvalid.length, 0, 'frontmatter-invalid must be suppressed after a parse error');
+    assert.match(parseErrors[0]!.message, /wrap the value in quotes/);
+  });
+
+  it('a parse error also suppresses frontmatter-malformed (fence was found; content broke)', async () => {
+    const scope = freshScope('parse-error-no-malformed');
+    writeNode(
+      scope.cwd,
+      '.claude/agents/tab.md',
+      '---\nname: foo\n\tbad: tab\n---\nbody\n',
+    );
+    const kernel = await createKernel();
+    const result = await runScan(kernel, {
+      roots: [scope.cwd],
+      extensions: builtIns(),
+    });
+    const malformed = result.issues.filter((i) => i.analyzerId === 'frontmatter-malformed');
+    const fmInvalid = result.issues.filter((i) => i.analyzerId === 'frontmatter-invalid');
+    assert.equal(malformed.length, 0);
+    assert.equal(fmInvalid.length, 0);
+    assert.ok(result.issues.some((i) => i.analyzerId === 'frontmatter-parse-error'));
+  });
+
+  it('strict promotes the declared-empty-fence issue to error', async () => {
+    const scope = freshScope('empty-fence-strict');
+    writeNode(scope.cwd, '.claude/agents/empty.md', '---\n\n---\nbody\n');
+    const kernel = await createKernel();
+    const result = await runScan(kernel, {
+      roots: [scope.cwd],
+      extensions: builtIns(),
+      strict: true,
+    });
+    const fmIssues = result.issues.filter((i) => i.analyzerId === 'frontmatter-invalid');
+    assert.equal(fmIssues.length, 1);
+    assert.equal(fmIssues[0]!.severity, 'error');
+  });
+
   it('strict: true promotes warn → error', async () => {
     const scope = freshScope('strict-error');
     writeNode(

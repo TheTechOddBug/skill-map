@@ -307,14 +307,57 @@ function pickStability(value: unknown): 'experimental' | 'stable' | 'deprecated'
 
 /**
  * Append `issue` to `list` when a detector actually produced one. The
- * frontmatter / body-syntax detectors (`validateFrontmatter`,
- * `detectMalformedFrontmatter`, `detectUnclosedBacktick`) all return
- * `Issue | null`; routing them through this helper keeps the nullable-push
- * branch out of `buildFreshNodeAndValidateFrontmatter`, so adding a new
- * body-syntax check never re-trips its cyclomatic-complexity budget.
+ * frontmatter / body-syntax detectors (`detectFrontmatterIssue`,
+ * `detectUnclosedBacktick`) all return `Issue | null`; routing them
+ * through this helper keeps the nullable-push branch out of
+ * `buildFreshNodeAndValidateFrontmatter`, so adding a new body-syntax
+ * check never re-trips its cyclomatic-complexity budget.
  */
 function pushIssue(list: Issue[], issue: Issue | null): void {
   if (issue) list.push(issue);
+}
+
+/**
+ * Route the node's frontmatter into exactly ONE diagnostic lane:
+ *
+ *   1. A parse error already surfaced (parser `IParseIssue`): no further
+ *      issue. A declared block that FAILED to parse is unknown, not
+ *      incomplete; validating the `{}` fallback would report fields that
+ *      ARE present in the source as "missing required property",
+ *      pointing the author away from the real defect, and the
+ *      malformed-fence heuristics are equally moot (a fence was found;
+ *      its content is what broke).
+ *   2. A declared block (parser flag, or non-empty raw as the fallback
+ *      for custom-walk Providers that never set the flag): per-kind AJV
+ *      validation. The flag beats the length check so a declared but
+ *      EMPTY block (`---`, blank line, `---`) validates exactly like a
+ *      whitespace-only one instead of being conflated with "no
+ *      frontmatter at all".
+ *   3. No block: the malformed-fence heuristics (indent / BOM / leading
+ *      blank line / missing close).
+ */
+function detectFrontmatterIssue(opts: {
+  raw: IRawNode;
+  kind: string;
+  provider: IProvider;
+  providerFrontmatter: IProviderFrontmatterValidator;
+  strict: boolean;
+}): Issue | null {
+  const parseFailed = (opts.raw.parseIssues ?? []).some(
+    (pi) => pi.code === 'frontmatter-parse-error',
+  );
+  if (parseFailed) return null;
+  if (opts.raw.frontmatterDeclared === true || opts.raw.frontmatterRaw.length > 0) {
+    return validateFrontmatter(
+      opts.providerFrontmatter,
+      opts.provider,
+      opts.kind,
+      opts.raw.frontmatter,
+      opts.raw.path,
+      opts.strict,
+    );
+  }
+  return detectMalformedFrontmatter(opts.raw.body, opts.raw.path, opts.strict);
 }
 
 /**
@@ -357,34 +400,15 @@ export function buildFreshNodeAndValidateFrontmatter(opts: {
   // Audit L1: parser-emitted diagnostics (e.g. malformed YAML) surface
   // here as warn-level kernel issues. Strict mode lifts them to error
   // alongside the existing schema-validation / malformed-fence paths.
-  if (opts.raw.parseIssues && opts.raw.parseIssues.length > 0) {
-    for (const pi of opts.raw.parseIssues) {
-      frontmatterIssues.push({
-        analyzerId: pi.code,
-        severity: opts.strict ? 'error' : 'warn',
-        nodeIds: [opts.raw.path],
-        message: pi.message,
-      });
-    }
+  for (const pi of opts.raw.parseIssues ?? []) {
+    frontmatterIssues.push({
+      analyzerId: pi.code,
+      severity: opts.strict ? 'error' : 'warn',
+      nodeIds: [opts.raw.path],
+      message: pi.message,
+    });
   }
-  if (opts.raw.frontmatterRaw.length > 0) {
-    pushIssue(
-      frontmatterIssues,
-      validateFrontmatter(
-        opts.providerFrontmatter,
-        opts.provider,
-        opts.kind,
-        opts.raw.frontmatter,
-        opts.raw.path,
-        opts.strict,
-      ),
-    );
-  } else {
-    pushIssue(
-      frontmatterIssues,
-      detectMalformedFrontmatter(opts.raw.body, opts.raw.path, opts.strict),
-    );
-  }
+  pushIssue(frontmatterIssues, detectFrontmatterIssue(opts));
 
   // Body-syntax: an unclosed backtick (fenced block / inline span)
   // corrupts the code-strip policy. Kernel-stamped here (body is live)

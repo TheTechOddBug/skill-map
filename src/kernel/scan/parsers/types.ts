@@ -55,6 +55,20 @@ export interface IParsedFile {
   /** Body text (everything after the closing fence, or the entire raw when no fence). */
   body: string;
   /**
+   * `true` when the input DECLARED a frontmatter block, even an empty
+   * one. Disambiguates `frontmatterRaw: ''`, which otherwise conflates
+   * "no fence at all" with "fence declared, zero content" (`---`, blank
+   * line, `---`). The orchestrator branches on this to decide whether
+   * the per-kind AJV validation runs: a declared-but-empty block on a
+   * kind with required fields is a real defect (`frontmatter-invalid`),
+   * not a legitimate frontmatter-less file. Absent / `false` means the
+   * parser recognised no metadata block (`plain`, or `frontmatter-yaml`
+   * when the fence regex did not match); the orchestrator then falls
+   * back to `frontmatterRaw.length > 0` so custom-walk Providers that
+   * never set the flag keep their historic behaviour.
+   */
+  frontmatterDeclared?: boolean;
+  /**
    * Optional diagnostics describing structural failures the parser
    * recovered from (e.g. malformed YAML). Empty / undefined on the
    * happy path; the orchestrator maps non-empty entries to warn-level

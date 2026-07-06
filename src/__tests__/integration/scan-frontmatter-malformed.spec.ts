@@ -361,6 +361,92 @@ describe('frontmatter-malformed', () => {
     assert.equal(malformed, undefined);
   });
 
+  // --- variant: leading blank line(s) before the open fence -----------------
+
+  it('blank line before a column-0 fence + YAML keys → leading-blank-line hint', async () => {
+    const fixture = freshFixture('leading-blank');
+    writeNode(
+      fixture,
+      '.claude/agents/blank.md',
+      // The fence itself is well-formed, but a leading newline pushes it
+      // off byte 0 so the Provider regex cannot anchor.
+      '\n---\nname: blank\ndescription: pasted with a leading newline.\n---\nbody\n',
+    );
+    const result = await scan(fixture);
+    const issue = result.issues.find((i) => i.analyzerId === 'frontmatter-malformed');
+    assert.ok(issue, `expected leading-blank-line issue; got: ${JSON.stringify(result.issues)}`);
+    assert.equal(issue.severity, 'warn');
+    assert.deepEqual(issue.data, { hint: 'leading-blank-line' });
+    assert.match(issue.message, /very first line/);
+    assert.match(issue.message, /Delete the blank lines/);
+  });
+
+  it('several blank lines, including whitespace-only ones, are still flagged', async () => {
+    const fixture = freshFixture('leading-blank-multi');
+    writeNode(
+      fixture,
+      '.claude/agents/multi.md',
+      '\n  \n\t\n---\nname: multi\ndescription: several blank lines.\n---\nbody\n',
+    );
+    const result = await scan(fixture);
+    const issue = result.issues.find((i) => i.analyzerId === 'frontmatter-malformed');
+    assert.ok(issue);
+    assert.deepEqual(issue.data, { hint: 'leading-blank-line' });
+  });
+
+  it('blank line + INDENTED fence → leading-blank-line (paste-with-indent cannot see past the newline)', async () => {
+    const fixture = freshFixture('leading-blank-indent');
+    writeNode(
+      fixture,
+      '.claude/agents/blank-indent.md',
+      '\n  ---\n  name: blank-indent\n  ---\n  body\n',
+    );
+    const result = await scan(fixture);
+    const issue = result.issues.find((i) => i.analyzerId === 'frontmatter-malformed');
+    assert.ok(issue, `expected leading-blank-line issue; got: ${JSON.stringify(result.issues)}`);
+    assert.deepEqual(issue.data, { hint: 'leading-blank-line' });
+  });
+
+  it('CRLF leading blank line is tolerated', async () => {
+    const fixture = freshFixture('leading-blank-crlf');
+    writeNode(
+      fixture,
+      '.claude/agents/crlf.md',
+      '\r\n---\r\nname: crlf\r\ndescription: CRLF endings.\r\n---\r\nbody\r\n',
+    );
+    const result = await scan(fixture);
+    const issue = result.issues.find((i) => i.analyzerId === 'frontmatter-malformed');
+    assert.ok(issue);
+    assert.deepEqual(issue.data, { hint: 'leading-blank-line' });
+  });
+
+  it('--strict promotes leading-blank-line to error', async () => {
+    const fixture = freshFixture('leading-blank-strict');
+    writeNode(
+      fixture,
+      '.claude/agents/strict-blank.md',
+      '\n---\nname: strict-blank\n---\n',
+    );
+    const result = await scan(fixture, true);
+    const issue = result.issues.find((i) => i.analyzerId === 'frontmatter-malformed');
+    assert.ok(issue);
+    assert.equal(issue.severity, 'error');
+  });
+
+  it('false-positive guard: blank line + `---` + prose (no `key:`) is left alone', async () => {
+    const fixture = freshFixture('leading-blank-hr');
+    writeNode(
+      fixture,
+      '.claude/agents/hr-blank.md',
+      // A horizontal rule after a blank opening line is legitimate
+      // markdown, not misplaced frontmatter.
+      '\n---\nJust a horizontal rule after a blank line, then prose.\n',
+    );
+    const result = await scan(fixture);
+    const malformed = result.issues.find((i) => i.analyzerId === 'frontmatter-malformed');
+    assert.equal(malformed, undefined);
+  });
+
   it('classification precedence: indented opening wins over missing-close (paste-with-indent overrides)', async () => {
     const fixture = freshFixture('precedence');
     writeNode(

@@ -22,6 +22,12 @@ export const ORCHESTRATOR_TEXTS = {
     'was scanned as body-only. Re-save the file as UTF-8 without BOM. The metadata block ' +
     'was silently lost.',
 
+  frontmatterMalformedLeadingBlankLine:
+    'Frontmatter fence in {{path}} is preceded by one or more blank lines; YAML frontmatter ' +
+    'MUST open with `---` on the very first line of the file. The file was scanned as ' +
+    'body-only; the metadata block was silently lost. Delete the blank lines above the ' +
+    'opening `---`.',
+
   frontmatterMalformedMissingClose:
     'Frontmatter in {{path}} opens with `---` but never closes (no matching `---` line ' +
     'at column 0 was found). The file was scanned as body-only and every metadata field was ' +

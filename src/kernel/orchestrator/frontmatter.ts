@@ -53,7 +53,7 @@ export function validateFrontmatter(
  * frontmatter but the Provider's regex couldn't recognise the fence.
  * The Provider regex requires `^---\r?\n[\s\S]*?\r?\n---\r?\n?`,
  * column-0 open fence, column-0 close fence, CRLF or LF line endings.
- * Three real-world variants that fall through silently and silently
+ * Four real-world variants that fall through silently and silently
  * lose every metadata field:
  *
  *   - `paste-with-indent`: terminal heredoc auto-indented every line,
@@ -62,6 +62,10 @@ export function validateFrontmatter(
  *   - `byte-order-mark`: a UTF-8 BOM (﻿) precedes the fence. Some
  *     editors (notably old VS Code on Windows) inject this; the YAML
  *     parser handles BOM, but the Provider regex doesn't anchor past it.
+ *   - `leading-blank-line`: one or more blank lines precede the open
+ *     fence, so it is no longer at byte 0. Same careless-paste family
+ *     as `paste-with-indent` (and it also covers a blank-then-indented
+ *     fence, which that check cannot reach past the leading newline).
  *   - `missing-close`: the open fence is on column 0 but the closing
  *     fence is missing or indented. Whole "frontmatter" parses as body.
  *
@@ -92,7 +96,11 @@ export function detectMalformedFrontmatter(body: string, path: string, strict: b
   };
 }
 
-export type TMalformedHint = 'paste-with-indent' | 'byte-order-mark' | 'missing-close';
+export type TMalformedHint =
+  | 'paste-with-indent'
+  | 'byte-order-mark'
+  | 'leading-blank-line'
+  | 'missing-close';
 
 function classifyMalformedFrontmatter(body: string): TMalformedHint | null {
   // (a) BOM at the very first byte. Check before everything else
@@ -112,7 +120,18 @@ function classifyMalformedFrontmatter(body: string): TMalformedHint | null {
     return 'paste-with-indent';
   }
 
-  // (c) Column-0 opening fence followed by a YAML-looking key-value
+  // (c) One or more blank (whitespace-only) lines before the opening
+  // fence, so the fence is not at byte 0 and the Provider regex cannot
+  // anchor. Tolerates an indent on the fence itself (blank-then-indent
+  // is the same paste accident; check (b) cannot see it because its
+  // `^[ \t]+` anchor stops at the leading newline). Same false-positive
+  // guard as the other variants: a YAML-looking `key: value` line MUST
+  // follow the fence, otherwise it reads as a horizontal rule.
+  if (/^(?:[ \t]*\r?\n)+[ \t]*---\r?\n[ \t]*[A-Za-z0-9_-]+\s*:/.test(body)) {
+    return 'leading-blank-line';
+  }
+
+  // (d) Column-0 opening fence followed by a YAML-looking key-value
   // line, but no matching closing fence. The Provider regex needs both
   // fences; a missing close means the entire intended frontmatter
   // (plus the body) parses as body.
@@ -143,6 +162,8 @@ function malformedMessage(hint: TMalformedHint, path: string): string {
       return tx(ORCHESTRATOR_TEXTS.frontmatterMalformedPasteWithIndent, { path });
     case 'byte-order-mark':
       return tx(ORCHESTRATOR_TEXTS.frontmatterMalformedByteOrderMark, { path });
+    case 'leading-blank-line':
+      return tx(ORCHESTRATOR_TEXTS.frontmatterMalformedLeadingBlankLine, { path });
     case 'missing-close':
       return tx(ORCHESTRATOR_TEXTS.frontmatterMalformedMissingClose, { path });
   }
