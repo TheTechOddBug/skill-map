@@ -26,7 +26,11 @@ import {
 } from '../sidecar/index.js';
 import type { Issue, Node, TripleSplit } from '../types.js';
 import { stripPrototypePollution } from '../util/strip-prototype-pollution.js';
-import { detectMalformedFrontmatter, validateFrontmatter } from './frontmatter.js';
+import {
+  detectEarlyCloseFrontmatter,
+  detectMalformedFrontmatter,
+  validateFrontmatter,
+} from './frontmatter.js';
 import { detectUnclosedBacktick } from './body-syntax.js';
 
 export interface IBuildNodeArgs {
@@ -328,7 +332,11 @@ function pushIssue(list: Issue[], issue: Issue | null): void {
  *      malformed-fence heuristics are equally moot (a fence was found;
  *      its content is what broke).
  *   2. A declared block (parser flag, or non-empty raw as the fallback
- *      for custom-walk Providers that never set the flag): per-kind AJV
+ *      for custom-walk Providers that never set the flag): the
+ *      early-close detector runs first (a stray `---` inside the block
+ *      truncated it; its verdict names the cause and the leaked keys,
+ *      where the AJV pass would misleadingly report fields present
+ *      below the stray close as "missing"), then the per-kind AJV
  *      validation. The flag beats the length check so a declared but
  *      EMPTY block (`---`, blank line, `---`) validates exactly like a
  *      whitespace-only one instead of being conflated with "no
@@ -359,16 +367,37 @@ function detectFrontmatterIssue(opts: {
     (pi) => pi.code === 'frontmatter-parse-error',
   );
   if (parseFailed) return null;
-  if (opts.raw.frontmatterDeclared !== true && opts.raw.frontmatterRaw.length === 0) {
-    const malformed = detectMalformedFrontmatter(opts.raw.body, opts.raw.path, opts.strict);
-    if (malformed) return malformed;
-  }
+  const shape = detectFrontmatterShapeIssue(opts);
+  if (shape) return shape;
   return validateFrontmatter(
     opts.providerFrontmatter,
     opts.provider,
     opts.kind,
     opts.raw.frontmatter,
     opts.raw.path,
+    opts.strict,
+  );
+}
+
+/**
+ * The fence-shape half of `detectFrontmatterIssue`'s routing: the
+ * malformed-fence heuristics when no block was declared, the
+ * early-close detector when one was. `null` hands the verdict to the
+ * per-kind AJV pass. Split for the lint complexity cap.
+ */
+function detectFrontmatterShapeIssue(opts: {
+  raw: IRawNode;
+  kind: string;
+  provider: IProvider;
+  strict: boolean;
+}): Issue | null {
+  if (opts.raw.frontmatterDeclared !== true && opts.raw.frontmatterRaw.length === 0) {
+    return detectMalformedFrontmatter(opts.raw.body, opts.raw.path, opts.strict);
+  }
+  return detectEarlyCloseFrontmatter(
+    opts.raw.body,
+    opts.raw.path,
+    opts.provider.kinds?.[opts.kind]?.schemaJson,
     opts.strict,
   );
 }

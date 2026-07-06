@@ -33,6 +33,11 @@ export const ORCHESTRATOR_TEXTS = {
     'at column 0 was found). The file was scanned as body-only and every metadata field was ' +
     'silently lost. Add a closing `---` line below the metadata block.',
 
+  frontmatterMalformedEarlyClose:
+    'Frontmatter in {{path}} appears to close early: a `---` line inside the metadata block ' +
+    'ended it prematurely, and the fields below it ({{keys}}) parsed as body text. Remove the ' +
+    'stray `---` or move those fields above it.',
+
   bodyBacktickUnclosedFence:
     'Body of {{path}} has an unclosed fenced code block opened at body line {{line}} (no ' +
     'matching closing ``` or ~~~). The code-strip policy then reads the rest of the file as ' +

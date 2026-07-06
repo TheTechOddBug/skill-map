@@ -6,6 +6,8 @@
  * arrive intact?").
  */
 
+import { load as yamlLoad, JSON_SCHEMA } from 'js-yaml';
+
 import { ORCHESTRATOR_TEXTS } from '../i18n/orchestrator.texts.js';
 import type { IProvider } from '../extensions/index.js';
 import type { IProviderFrontmatterValidator } from '../adapters/schema-validators.js';
@@ -69,6 +71,12 @@ export function validateFrontmatter(
  *   - `missing-close`: the open fence is on column 0 but the closing
  *     fence is missing or indented. Whole "frontmatter" parses as body.
  *
+ * A fifth hint, `early-close`, belongs to the same `frontmatter-malformed`
+ * family but fires on the INVERSE precondition (the fence WAS recognised;
+ * a stray `---` inside the block truncated it), so it lives in its own
+ * detector, `detectEarlyCloseFrontmatter`, invoked from the declared-block
+ * lane of `node-build`'s `detectFrontmatterIssue`.
+ *
  * Each variant emits a `frontmatter-malformed` warn with a `data.hint`
  * tag so downstream tooling can disambiguate. `--strict` promotes to
  * `error` consistent with the strict-fence policy.
@@ -100,16 +108,20 @@ export type TMalformedHint =
   | 'paste-with-indent'
   | 'byte-order-mark'
   | 'leading-blank-line'
-  | 'missing-close';
+  | 'missing-close'
+  | 'early-close';
 
 function classifyMalformedFrontmatter(body: string): TMalformedHint | null {
   // (a) BOM at the very first byte. Check before everything else
   // because a BOM offsets the column-0 anchor of the Provider's regex.
-  // Pattern after BOM is the standard column-0 fence + YAML key-value
-  // line, so we still require that shape to avoid false positives on
-  // any BOM-prefixed prose.
+  // Pattern after BOM is the standard fence + YAML key-value line, so
+  // we still require that shape to avoid false positives on any
+  // BOM-prefixed prose. Blank lines (and fence indent) after the BOM
+  // are tolerated so the COMBINED accident (BOM + blank line before the
+  // fence) classifies here first; once the author strips the BOM, the
+  // leading-blank / indent heuristics below take over on the next scan.
   if (body.startsWith('﻿')) {
-    if (/^﻿---\r?\n[\s\S]*?[A-Za-z0-9_-]+\s*:/.test(body)) {
+    if (/^﻿(?:[ \t]*\r?\n)*[ \t]*---\r?\n[\s\S]*?[A-Za-z0-9_-]+\s*:/.test(body)) {
       return 'byte-order-mark';
     }
   }
@@ -166,5 +178,121 @@ function malformedMessage(hint: TMalformedHint, path: string): string {
       return tx(ORCHESTRATOR_TEXTS.frontmatterMalformedLeadingBlankLine, { path });
     case 'missing-close':
       return tx(ORCHESTRATOR_TEXTS.frontmatterMalformedMissingClose, { path });
+    case 'early-close':
+      // Unreachable through `classifyMalformedFrontmatter` (the hint is
+      // emitted by `detectEarlyCloseFrontmatter`, which formats its own
+      // message with the leaked keys); kept for switch exhaustiveness.
+      return tx(ORCHESTRATOR_TEXTS.frontmatterMalformedEarlyClose, { path, keys: '' });
   }
+}
+
+/**
+ * Early-close detection: a column-0 `---` line INSIDE the intended
+ * metadata block ends the frontmatter prematurely (the parser's close
+ * is lazy: first column-0 `---` wins), so everything below it silently
+ * parses as body. Runs only when a fence WAS declared and parsed; the
+ * signature it looks for at the very START of the body:
+ *
+ *   1. The first body line is `key: value`-shaped (leaked metadata).
+ *   2. A column-0 `---` line follows within the first
+ *      `EARLY_CLOSE_SCAN_LINES` lines (the close the author meant).
+ *   3. The leaked segment parses as a YAML mapping.
+ *   4. At least one leaked top-level key is a property declared in the
+ *      kind's frontmatter schema. This is the load-bearing
+ *      false-positive gate: prose like `Note: caveats` followed by a
+ *      horizontal rule (a legitimate setext-heading / HR shape) parses
+ *      as YAML too, but `Note` is not a schema property, while a leaked
+ *      `tools:` / `description:` / `model:` is.
+ *
+ * When it fires, the AJV pass on the truncated frontmatter is
+ * suppressed by the caller (`detectFrontmatterIssue`): a "missing
+ * required property description" whose `description` sits three lines
+ * below the stray `---` points the author away from the real defect.
+ */
+export function detectEarlyCloseFrontmatter(
+  body: string,
+  path: string,
+  schemaJson: unknown,
+  strict: boolean,
+): Issue | null {
+  const keys = leakedSchemaKeys(body, schemaJson);
+  if (keys === null) return null;
+  return {
+    analyzerId: 'frontmatter-malformed',
+    severity: strict ? 'error' : 'warn',
+    nodeIds: [path],
+    message: tx(ORCHESTRATOR_TEXTS.frontmatterMalformedEarlyClose, {
+      path,
+      keys: keys.join(', '),
+    }),
+    data: { hint: 'early-close', leakedKeys: keys },
+  };
+}
+
+/** Bound the early-close scan so a huge body costs nothing. */
+const EARLY_CLOSE_SCAN_LINES = 40;
+
+const YAML_KEY_LINE_RE = /^[A-Za-z0-9_-]+\s*:/;
+
+/**
+ * The leaked segment's schema-declared keys, or `null` when the body
+ * start does not match the early-close signature. Split from
+ * `detectEarlyCloseFrontmatter` for the lint complexity cap.
+ */
+function leakedSchemaKeys(body: string, schemaJson: unknown): string[] | null {
+  const lines = body.split('\n', EARLY_CLOSE_SCAN_LINES + 1);
+  if (!lines[0] || !YAML_KEY_LINE_RE.test(lines[0])) return null;
+  const closeIdx = lines.findIndex(
+    (line, i) => i > 0 && i <= EARLY_CLOSE_SCAN_LINES && /^---\r?$/.test(line),
+  );
+  if (closeIdx < 0) return null;
+  const doc = parseLeakedSegment(lines.slice(0, closeIdx).join('\n'));
+  if (!doc) return null;
+  const properties = schemaProperties(schemaJson);
+  const leaked = Object.keys(doc).filter((k) => properties.has(k));
+  return leaked.length > 0 ? leaked : null;
+}
+
+/** The segment as a YAML mapping, or `null` when it is not one. */
+function parseLeakedSegment(segment: string): Record<string, unknown> | null {
+  try {
+    const doc = yamlLoad(segment, { schema: JSON_SCHEMA });
+    if (doc && typeof doc === 'object' && !Array.isArray(doc)) {
+      return doc as Record<string, unknown>;
+    }
+  } catch {
+    // Not valid YAML: whatever leaked is not a recognisable metadata
+    // block, stay silent.
+  }
+  return null;
+}
+
+/**
+ * Property names the kind's frontmatter schema declares: the top-level
+ * `properties`, any INLINE `allOf` branch's `properties`, plus the
+ * universal base pair `name` / `description`. Every per-kind schema
+ * composes `spec/schemas/frontmatter/base.schema.json` through an
+ * `allOf` `$ref`, and that base declares exactly those two keys;
+ * resolving the `$ref` here would drag the AJV registry into a
+ * heuristic that only needs the key names, so the pair is folded in as
+ * a documented constant instead.
+ */
+function schemaProperties(schemaJson: unknown): ReadonlySet<string> {
+  const out = new Set<string>(['name', 'description']);
+  if (!schemaJson || typeof schemaJson !== 'object') return out;
+  const schema = schemaJson as Record<string, unknown>;
+  collectInlineProperties(schema, out);
+  const allOf = schema['allOf'];
+  if (Array.isArray(allOf)) {
+    for (const branch of allOf) collectInlineProperties(branch, out);
+  }
+  return out;
+}
+
+/** Fold one schema object's own `properties` keys into `out`. */
+function collectInlineProperties(schema: unknown, out: Set<string>): void {
+  if (!schema || typeof schema !== 'object') return;
+  const props = (schema as Record<string, unknown>)['properties'];
+  if (!props || typeof props !== 'object') return;
+  for (const key of Object.keys(props)) out.add(key);
 }

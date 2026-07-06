@@ -447,6 +447,97 @@ describe('frontmatter-malformed', () => {
     assert.equal(malformed, undefined);
   });
 
+  // --- variant: early close (stray `---` inside the block) ------------------
+
+  it('stray `---` inside the block → early-close hint with the leaked keys, NO frontmatter-invalid', async () => {
+    const fixture = freshFixture('early-close');
+    // `description` and `tools` sit BELOW the stray separator: the AJV
+    // pass would misleadingly report them as missing.
+    writeNode(
+      fixture,
+      '.claude/agents/early.md',
+      '---\nname: early\n---\ndescription: sits below the stray close.\ntools: Bash\n---\nbody\n',
+    );
+    const result = await scan(fixture);
+    const issue = result.issues.find((i) => i.analyzerId === 'frontmatter-malformed');
+    assert.ok(issue, `expected early-close issue; got: ${JSON.stringify(result.issues)}`);
+    assert.equal(issue.severity, 'warn');
+    assert.equal((issue.data as { hint: string }).hint, 'early-close');
+    assert.deepEqual((issue.data as { leakedKeys: string[] }).leakedKeys, ['description', 'tools']);
+    assert.match(issue.message, /close early|prematurely/);
+    const invalid = result.issues.find((i) => i.analyzerId === 'frontmatter-invalid');
+    assert.equal(invalid, undefined, 'early-close must suppress the misleading AJV pass');
+  });
+
+  it('early close fires even when the truncated block is complete (the fully-silent case)', async () => {
+    const fixture = freshFixture('early-close-complete');
+    // `name` + `description` survive above the stray `---`, so the AJV
+    // pass would stay green and `model`/`tools` would vanish silently.
+    writeNode(
+      fixture,
+      '.claude/agents/complete.md',
+      '---\nname: complete\ndescription: all required fields are above.\n---\nmodel: sonnet\ntools: Bash\n---\nbody\n',
+    );
+    const result = await scan(fixture);
+    const issue = result.issues.find((i) => i.analyzerId === 'frontmatter-malformed');
+    assert.ok(issue, `expected early-close issue; got: ${JSON.stringify(result.issues)}`);
+    assert.equal((issue.data as { hint: string }).hint, 'early-close');
+  });
+
+  it('--strict promotes early-close to error', async () => {
+    const fixture = freshFixture('early-close-strict');
+    writeNode(
+      fixture,
+      '.claude/agents/strict-early.md',
+      '---\nname: x\n---\ndescription: below.\n---\nbody\n',
+    );
+    const result = await scan(fixture, true);
+    const issue = result.issues.find((i) => i.analyzerId === 'frontmatter-malformed');
+    assert.ok(issue);
+    assert.equal(issue.severity, 'error');
+  });
+
+  it('false-positive guard: prose with a colon followed by a horizontal rule is left alone', async () => {
+    const fixture = freshFixture('early-close-prose');
+    // `Note:` parses as YAML too, but it is not a schema property, so
+    // the setext-heading / HR shape survives untouched.
+    writeNode(
+      fixture,
+      '.claude/agents/prose.md',
+      '---\nname: prose\ndescription: complete frontmatter.\n---\nNote: caveats ahead\n---\nActual body prose.\n',
+    );
+    const result = await scan(fixture);
+    const malformed = result.issues.find((i) => i.analyzerId === 'frontmatter-malformed');
+    assert.equal(malformed, undefined);
+  });
+
+  it('false-positive guard: a leaked-looking line with no `---` after it is left alone', async () => {
+    const fixture = freshFixture('early-close-no-hr');
+    writeNode(
+      fixture,
+      '.claude/agents/no-hr.md',
+      '---\nname: ok\ndescription: complete.\n---\ntools: this line is prose that mentions a key\nmore prose\n',
+    );
+    const result = await scan(fixture);
+    const malformed = result.issues.find((i) => i.analyzerId === 'frontmatter-malformed');
+    assert.equal(malformed, undefined);
+  });
+
+  // --- variant: BOM combined with leading blank lines ------------------------
+
+  it('BOM + blank line before the fence → byte-order-mark hint (combined accident)', async () => {
+    const fixture = freshFixture('bom-blank');
+    writeNode(
+      fixture,
+      '.claude/agents/bom-blank.md',
+      '﻿\n---\nname: bom-blank\ndescription: BOM then a blank line.\n---\nbody\n',
+    );
+    const result = await scan(fixture);
+    const issue = result.issues.find((i) => i.analyzerId === 'frontmatter-malformed');
+    assert.ok(issue, `expected byte-order-mark issue; got: ${JSON.stringify(result.issues)}`);
+    assert.deepEqual(issue.data, { hint: 'byte-order-mark' });
+  });
+
   it('classification precedence: indented opening wins over missing-close (paste-with-indent overrides)', async () => {
     const fixture = freshFixture('precedence');
     writeNode(
