@@ -1,5 +1,63 @@
 # skill-map
 
+## 0.83.0
+
+### Minor Changes
+
+- New built-in analyzer `core/name-mismatch` flags nodes whose declared `frontmatter.name` diverges from their filename/dirname handle: warn for open-standard skills (the spec requires name == dirname), info where the vendor documents the override as legal. `core/name-collision` gains a warn tier for a declared name colliding with another node's file-derived handle; declared-vs-declared stays error and plain markdown stays out of the collision index.
+
+  ## User-facing
+
+  Scans now flag naming drift: a skill whose folder name differs from its name field gets a warning, and an agent or command whose name shadows another file's name is flagged too, so references stop pointing at the wrong file silently.
+
+- Scans now validate an ABSENT frontmatter block against the kind's schema: a claude/codex agent or open-standard skill with no frontmatter at all (or with its fence pushed off the first byte by preceding prose) gets the same `frontmatter-invalid` warning a partial block already got, while all-optional kinds (plain markdown, claude command/skill) validate the empty block clean and stay silent. Malformed-fence heuristics keep precedence, one issue per defect.
+
+  ## User-facing
+
+  **Missing frontmatter is now flagged.** An agent or skill file with no frontmatter at all gets the same warning as one with incomplete frontmatter, including when stray text before the `---` fence made the metadata parse as body. Files that need no metadata stay quiet.
+
+- Frontmatter diagnostics close three silent-loss gaps: a blank line before the opening `---` fence now warns via `frontmatter-malformed`, a declared-but-empty block now runs per-kind validation, and an unquoted `:` in a value gets an actionable quoting hint; a parse error no longer also reports present-but-unparseable fields as missing.
+
+  ## User-facing
+
+  Frontmatter mistakes now get clearer feedback: a blank line before the opening ---, an empty frontmatter block, or an unquoted colon in a value are flagged with hints that say how to fix them, instead of losing your metadata silently.
+
+- Frontmatter diagnostics now detect a metadata block closed early by a stray `---` line inside it: a new `frontmatter-malformed` hint `early-close` names the leaked fields (gated on at least one being a schema-declared property) and suppresses the misleading missing-required report for fields sitting below the stray close; the combined BOM + blank-line accident before the fence now classifies as `byte-order-mark` instead of falling through every heuristic.
+
+  ## User-facing
+
+  A stray `---` line inside your frontmatter is now flagged with the fields that were silently falling out of the block, and a byte-order mark plus a blank line before the frontmatter is called out too, instead of the metadata quietly disappearing.
+
+- Move the web UI's "Live updates" and "Real-time node activity" preferences from browser localStorage to the project-local config: new `ui.liveUpdates` / `ui.realtimeActivity` keys in `project-config.schema.json` (project-local only, stripped from the committed layer), read and written through `GET/PATCH /api/project-preferences` and persisted in `.skill-map/settings.local.json`. The SPA loads them before opening the live socket; the former localStorage keys are simply no longer read.
+
+  ## User-facing
+
+  The Live updates and Real-time node activity switches now live in Settings > Project and stick to the project instead of the browser: flip them once and every browser profile on this checkout sees the same choice.
+
+- Hardened the scan pipeline per a cli-hacker audit: rewrote the HTML-tag stripper and capped the inline-code opener in `strip-code-blocks` to linear time (they could hang `sm scan`/`sm watch`), routed disk-sourced `sm config get`/`list` output through `sanitizeForTerminal` (now also dropping a bare CR), validated the activity `serve.json` port, and made the walker skip symlinks whose target escapes the scan roots by default, with a new `scan.followExternalSymlinks` opt-in gated by `--yes`.
+
+  ## User-facing
+
+  **Scans stay inside your project.** Symlinks pointing outside it are no longer followed (security fix); re-enable via the Follow external symlinks setting (Settings → Project) or `sm config set scan.followExternalSymlinks true --yes`. Config values are sanitized before printing.
+
+### Patch Changes
+
+- Added regression specs pinning two audit fixes: fatal-path errors keep landing on stderr under `--json` / `-q` (stdout stays clean for the JSON contract), and the `-v` verbose logger writes to the Clipanion context stderr instead of `process.stderr`. Test-only, no runtime change.
+
+- Fatal command failures now emit their error text via `printer.error()` (stderr) instead of `printer.info()`, so `--json` / `--quiet` runs no longer exit non-zero with no explanation (44 sites across 9 commands); the `core/update-check` hook receives the update probe injected through the `boot` event payload instead of importing it from `cli/`, and two new lint guards block regressions on both fronts.
+
+  ## User-facing
+
+  **Failed commands now always say why.** When an `sm` command fails, the error message is printed even with `--json` or `--quiet`; previously some failure paths exited with a non-zero code and no explanation.
+
+- The minimal-claude conformance fixture moves its skill from the flat `.claude/skills/hello.md` (which classified as `markdown`) to the directory layout `.claude/skills/hello/SKILL.md`, so the basic-scan case exercises one node per kind as intended; alongside, raw control bytes embedded in the frontmatter-yaml and toml parsers and in safe-text were replaced with escape text, with identical compiled patterns and no behavior change.
+
+- Internal cleanup from a cli-ruler compliance pass: built-in plugin string catalogs renamed from `text.ts` to `<extension-id>.texts.ts` so the em-dash lint gate covers them, the frontmatter-yaml and toml parsers share one parse-error sanitiser (the TOML side now also strips DEL bytes), dead legacy metadata projectors dropped from node-build, the activity templates interpolate the shared `.skill-map` path constants, and the BOM heuristic's key-line probe is bounded to 4 KB.
+
+- Closes the remaining cli-ruler audit findings: the REST contract table in cli-contract.md now documents the implemented preferences, project-preferences, project-ignore, favorites, and update-status endpoints, and architecture.md enumerates all eight PROJECT_LOCAL_ONLY_KEYS members. On the src side, published package metadata and the Claude provider schema descriptions drop their em dashes, and a stale $HOME docstring now points at the closed caller list.
+
+- Resolved the app-ruler UI audit findings: migrated the files-tree row animation from the deprecated @angular/animations DSL to the native animate.enter/animate.leave CSS API (dropping the @angular/animations dependency), hardened UI service signals to read-only exposure, and consolidated the duplicated frame-scheduling and panel-resize helpers into shared modules.
+
 ## 0.82.0
 
 ### Minor Changes

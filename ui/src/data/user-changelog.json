@@ -2,6 +2,56 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.83.0",
+      "date": "2026-07-06",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "**Failed commands now always say why.** When an `sm` command fails, the error message is printed even with `--json` or `--quiet`; previously some failure paths exited with a non-zero code and no explanation.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Scans now flag naming drift: a skill whose folder name differs from its name field gets a warning, and an agent or command whose name shadows another file's name is flagged too, so references stop pointing at the wrong file silently.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Missing frontmatter is now flagged.** An agent or skill file with no frontmatter at all gets the same warning as one with incomplete frontmatter, including when stray text before the `---` fence made the metadata parse as body. Files that need no metadata stay quiet.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Frontmatter mistakes now get clearer feedback: a blank line before the opening ---, an empty frontmatter block, or an unquoted colon in a value are flagged with hints that say how to fix them, instead of losing your metadata silently.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "A stray `---` line inside your frontmatter is now flagged with the fields that were silently falling out of the block, and a byte-order mark plus a blank line before the frontmatter is called out too, instead of the metadata quietly disappearing.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "The Live updates and Real-time node activity switches now live in Settings > Project and stick to the project instead of the browser: flip them once and every browser profile on this checkout sees the same choice.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**Scans stay inside your project.** Symlinks pointing outside it are no longer followed (security fix); re-enable via the Follow external symlinks setting (Settings → Project) or `sm config set scan.followExternalSymlinks true --yes`. Config values are sanitized before printing.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.82.0",
       "date": "2026-07-05",
       "kind": "user-facing",
