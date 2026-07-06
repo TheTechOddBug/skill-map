@@ -16,9 +16,12 @@ import {
 import { SKILL_MAP_MODE } from '../../../../services/data-source/runtime-mode';
 import { MarkdownRenderer } from '../../../../services/markdown-renderer';
 import { CollectionLoaderService } from '../../../../services/collection-loader';
+import { LivePreferencesService } from '../../../../services/live-preferences';
+import { NodeActivityStatsService } from '../../../../services/node-activity-stats';
 import { ProviderRegistryService } from '../../../../services/provider-registry';
 import type { INodeView, ISidecarOverlay } from '../../../../models/node';
-import type { INodeDetailApi, INodeApi } from '../../../../models/api';
+import { activityPairKeyOf } from '../../../../models/api';
+import type { INodeDetailApi, INodeApi, INodeActivityStatsApi } from '../../../../models/api';
 import type { ISpawnThread } from '../../../components/conversation-dialog/spawn-thread';
 
 /**
@@ -176,6 +179,17 @@ interface IBootstrapOpts {
   rendererMode?: 'pass' | 'throw';
   /** Drives the body card's reactive `scan.completed` refresh. */
   scanCompleted$?: Subject<void>;
+  /** Seeds the per-node stats mirror that gates the Activity section. */
+  activityStats?: ReadonlyMap<string, INodeActivityStatsApi>;
+  /** Seeds the per-pair spawn counters (Activity gate, spawn side). */
+  activityPairs?: ReadonlyMap<string, number>;
+  /** Real-time activity preference (default ON, like the app). */
+  activityEnabled?: boolean;
+}
+
+/** Stats entry seed for the Activity visibility gate. */
+function makeActivityStats(overrides: Partial<INodeActivityStatsApi> = {}): INodeActivityStatsApi {
+  return { count: 1, lastStartAt: 1000, distinctOwners: 1, ...overrides };
 }
 
 function bootstrap(opts: IBootstrapOpts = {}): {
@@ -213,6 +227,24 @@ function bootstrap(opts: IBootstrapOpts = {}): {
         provide: MarkdownRenderer,
         useFactory: (): MarkdownRenderer =>
           new FakeMarkdownRenderer(TestBed.inject(DomSanitizer), opts.rendererMode ?? 'pass'),
+      },
+      // The Activity section's visibility gate reads the per-node stats
+      // mirror; the real service subscribes to WS streams the stub above
+      // does not expose, so tests seed plain signal maps instead.
+      {
+        provide: NodeActivityStatsService,
+        useValue: {
+          stats: signal<ReadonlyMap<string, INodeActivityStatsApi>>(
+            opts.activityStats ?? new Map(),
+          ),
+          pairCounts: signal<ReadonlyMap<string, number>>(opts.activityPairs ?? new Map()),
+        } as unknown as NodeActivityStatsService,
+      },
+      {
+        provide: LivePreferencesService,
+        useValue: {
+          activityEnabled: signal(opts.activityEnabled ?? true),
+        } as unknown as LivePreferencesService,
       },
     ],
   });
@@ -989,6 +1021,87 @@ describe('InspectorView, debug panel inside the merged metadata section', () => 
   });
 });
 
+describe('InspectorView, activity section visibility gate', () => {
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+  });
+  afterEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  it('hides the section entirely for a node with no recorded activity', async () => {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="inspector-card-activity"]'),
+    ).toBeNull();
+  });
+
+  it('does not fetch the detail for a hidden section even with a persisted-open state', async () => {
+    localStorage.setItem('skill-map.ui.inspector.sections', JSON.stringify({ activity: true }));
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    expect(dataSource.getNodeActivity).not.toHaveBeenCalled();
+  });
+
+  it('shows the section when the stats mirror carries the node', async () => {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    const { fixture } = bootstrap({
+      loader,
+      dataSource,
+      activityStats: new Map([[node.path, makeActivityStats()]]),
+    });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="inspector-card-activity"]'),
+    ).not.toBeNull();
+  });
+
+  it('shows the section when a spawn pair touches the node as child', async () => {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    const { fixture } = bootstrap({
+      loader,
+      dataSource,
+      activityPairs: new Map([[activityPairKeyOf('main:6cfe5636', node.path), 2]]),
+    });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="inspector-card-activity"]'),
+    ).not.toBeNull();
+  });
+
+  it('keeps the section available while real-time activity is OFF (mirror unknowable)', async () => {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    const { fixture } = bootstrap({ loader, dataSource, activityEnabled: false });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="inspector-card-activity"]'),
+    ).not.toBeNull();
+  });
+});
+
 describe('InspectorView, activity thread rows (spawn grouping)', () => {
   beforeEach(() => {
     TestBed.resetTestingModule();
@@ -1023,7 +1136,11 @@ describe('InspectorView, activity thread rows (spawn grouping)', () => {
       captureEnabled: true,
     });
 
-    const { fixture } = bootstrap({ loader, dataSource });
+    const { fixture } = bootstrap({
+      loader,
+      dataSource,
+      activityStats: new Map([[node.path, makeActivityStats({ count: 3, lastStartAt: 3000 })]]),
+    });
     fixture.componentRef.setInput('path', node.path);
     await flush(fixture);
 
@@ -1074,7 +1191,11 @@ describe('InspectorView, activity execution aggregates (stats totals row)', () =
       captureEnabled: false,
     });
 
-    const { fixture } = bootstrap({ loader, dataSource });
+    const { fixture } = bootstrap({
+      loader,
+      dataSource,
+      activityStats: new Map([[node.path, makeActivityStats()]]),
+    });
     fixture.componentRef.setInput('path', node.path);
     await flush(fixture);
     const toggle = fixture.nativeElement.querySelector(

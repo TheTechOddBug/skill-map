@@ -22,9 +22,12 @@ import type {
 } from '../../../models/api';
 
 import { INSPECTOR_VIEW_TEXTS } from '../../../i18n/inspector-view.texts';
+import { activityPairKeyTouches } from '../../../models/api';
 import { compactNumber } from '../../../models/node-derived';
 import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
 import { CollectionLoaderService } from '../../../services/collection-loader';
+import { LivePreferencesService } from '../../../services/live-preferences';
+import { NodeActivityStatsService } from '../../../services/node-activity-stats';
 import { WsEventStreamService } from '../../../services/ws-event-stream';
 import {
   DATA_SOURCE,
@@ -109,6 +112,8 @@ export class InspectorView implements OnInit {
   private readonly wsEvents = inject(WsEventStreamService);
   private readonly actionDispatch = inject(ActionDispatchService);
   private readonly providerRegistry = inject(ProviderRegistryService);
+  private readonly activityStats = inject(NodeActivityStatsService);
+  private readonly livePrefs = inject(LivePreferencesService);
 
   protected readonly texts = INSPECTOR_VIEW_TEXTS;
   /** Reused to format the sub-stat tooltips identically to the card. */
@@ -412,6 +417,29 @@ export class InspectorView implements OnInit {
   });
 
   /**
+   * Whether the "Activity" section renders at all, matching how the
+   * other inspector sections (`hasConnections`, `hasAnnotations`, ...)
+   * hide when empty: a quiet node shows no Activity section instead of
+   * the "no recorded runs" placeholder. Visibility derives from the
+   * same per-node mirror the node-card pill and the edge labels read
+   * (`NodeActivityStatsService`, summary snapshot + WS overwrites): a
+   * stats entry for the node, or a spawn pair touching it as parent or
+   * child. With real-time activity OFF the mirror may be un-hydrated
+   * (the boot fetch is skipped), so emptiness is unknowable and the
+   * section stays available like it always was.
+   */
+  protected readonly hasActivity = computed<boolean>(() => {
+    const path = this.node()?.path;
+    if (path === undefined) return false;
+    if (!this.livePrefs.activityEnabled()) return true;
+    if (this.activityStats.stats().has(path)) return true;
+    for (const key of this.activityStats.pairCounts().keys()) {
+      if (activityPairKeyTouches(key, path)) return true;
+    }
+    return false;
+  });
+
+  /**
    * Activity section state (spec/provider-activity.md §Execution stats
    * / §Conversation capture). Fetched LAZILY on first expand per node
    * (the collapse state is persisted, so a user who keeps the section
@@ -434,7 +462,11 @@ export class InspectorView implements OnInit {
       this.activityFetchedFor = null;
       this.activityPath = path;
     }
-    if (!path || !open) return;
+    // The visibility gate also cuts the fetch: a hidden section (quiet
+    // node) with a persisted-open collapse state must not spend a GET.
+    // Reading the computed here makes the effect re-run when activity
+    // first arrives for the node, so the section loads as it appears.
+    if (!path || !open || !this.hasActivity()) return;
     // The collapse-state signal covers EVERY section, so this effect
     // re-runs when unrelated sections toggle; the fetched-for guard
     // keeps those re-runs free.

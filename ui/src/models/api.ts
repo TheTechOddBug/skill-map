@@ -1235,6 +1235,15 @@ export function activityPairKeyOf(parent: string, child: string): string {
 }
 
 /**
+ * True when a pair key names `nodePath` on either side (parent or
+ * child). Both identities are separator-free (spec §`GET
+ * /api/activity/summary`), so a plain prefix/suffix match is exact.
+ */
+export function activityPairKeyTouches(key: string, nodePath: string): boolean {
+  return key.startsWith(`${nodePath}>>`) || key.endsWith(`>>${nodePath}`);
+}
+
+/**
  * `GET /api/activity/summary` response, the client hydration snapshot
  * (connect, reconnect, re-enable). Stats-only by design: no live claim
  * or spawn state rides it, those rebuild from the WS stream.

@@ -131,7 +131,7 @@ The live map's file watcher uses the OS's native change notifications (inotify),
 
 ## Specification
 
-The spec is the source of truth and lives in [`spec/`](./spec/), separated from the reference implementation since day zero, so third parties can build alternative implementations using only `spec/`.
+The spec is the source of truth and lives in [`spec/`](./spec/README.md), separated from the reference implementation since day zero, so third parties can build alternative implementations using only `spec/`.
 
 - Canonical URL: **[skill-map.ai](https://skill-map.ai)** (schemas at `https://skill-map.ai/spec/v0/<path>.schema.json`).
 - npm package: [`@skill-map/spec`](https://www.npmjs.com/package/@skill-map/spec).

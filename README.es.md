@@ -125,7 +125,7 @@ Spec completo: [`spec/architecture.md` §Annotation system](./spec/architecture.
 
 ## Especificación
 
-El spec es la fuente de verdad y vive en [`spec/`](./spec/), separado de la implementación de referencia desde day zero, para que terceros puedan construir implementaciones alternativas consumiendo solo `spec/`.
+El spec es la fuente de verdad y vive en [`spec/`](./spec/README.md), separado de la implementación de referencia desde day zero, para que terceros puedan construir implementaciones alternativas consumiendo solo `spec/`.
 
 - URL canónica: **[skill-map.ai](https://skill-map.ai)** (schemas en `https://skill-map.ai/spec/v0/<path>.schema.json`).
 - Paquete npm: [`@skill-map/spec`](https://www.npmjs.com/package/@skill-map/spec).
