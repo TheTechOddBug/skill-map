@@ -184,8 +184,8 @@
     "files": {
       "CHANGELOG.md": "7feb8d5be47e73a09a5ed8291d9f856bd42ec136f85a589d051fa5a5ed6abeb0",
       "README.md": "a790cd010b46d47883d1f37e3893cea9d7aa69ec4750c0202e6a0c99991e7980",
-      "architecture.md": "ce588aafbb44de5a6ea77d57719f63c163b2eec546c9c9ad877c03887af33956",
-      "cli-contract.md": "0467164a313a839b21a40f67610493c8a004a012d8e4382be331bfa332372941",
+      "architecture.md": "82542aa7348edc9ee93d92ceaff0ca9a3225dfc3acbfeb6823de1d99b5b2e027",
+      "cli-contract.md": "6f7ae07b914f1a24505d80b48a4de2d717ba27c975182fe04ab05e698cc3d67c",
       "conformance/README.md": "dcbef7249f161acf597552a05dcadc813cd0ced430dcd3f813fcf5e1c876335d",
       "conformance/cases/backtick-path-extraction.json": "4620e7f8bc161fc57cb44001e9d99879c7e22b4865a0c27a20dc28969cd936d9",
       "conformance/cases/extractor-collision-detection.json": "179a02c61892f0d26492de0c4e2c327fa6b4986d1265a8f119e871df6afe4658",

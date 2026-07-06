@@ -1,7 +1,7 @@
 {
   "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
   "id": "basic-scan",
-  "description": "Scanning the minimal-claude fixture detects exactly four nodes, one per kind (agent, command, skill, markdown), with no issues. spec 0.18.0 relocated the markdown kind from this Provider to the built-in `core/markdown` Provider — `notes/architecture.md` is disclaimed by claude and picked up by core/markdown's universal fallback classify, so the total count is preserved. Step 9.5 dropped the hook kind (Anthropic does not define `.claude/hooks/*.md` as a node type).",
+  "description": "Scanning the minimal-claude fixture detects exactly four nodes, one per kind (agent, command, skill, markdown), with no issues. spec 0.18.0 relocated the markdown kind from this Provider to the built-in `core/markdown` Provider: `notes/architecture.md` is disclaimed by claude and picked up by core/markdown's universal fallback classify, so the total count is preserved. Step 9.5 dropped the hook kind (Anthropic does not define `.claude/hooks/*.md` as a node type).",
   "fixture": "minimal-claude",
   "invoke": {
     "verb": "scan",

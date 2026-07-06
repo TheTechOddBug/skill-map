@@ -730,12 +730,16 @@ One locality class constrains which layers a given key MAY live in. Enforced in 
 
 - **`PROJECT_LOCAL_ONLY_KEYS`**, keys describing per-user-per-project preferences. Valid in layers 1, 3, 4. **Stripped (with a warning) from layer 2 (`project`)** because the value is inherently per-user and must not be shared via the committed repo. Writes target `project-local` (`<cwd>/.skill-map/settings.local.json`); `sm config set` rejects writes to `project` for these keys with a directed error.
 
-  Members:
+  Members (keep in lock-step with `PROJECT_LOCAL_ONLY_KEYS` in the reference impl, `kernel/config/loader.ts`):
   - `allowEditSmFiles`, per-project consent to create / modify `.sm` sidecars.
   - `scan.referencePaths`, additional link-validation paths.
+  - `scan.followExternalSymlinks`, opt-in to follow symlinks whose real target escapes every scan root (the realpath-containment gate's escape hatch).
   - `pluginTrust.projectEnabled`, the local opt-in that trusts every plugin the project enables (the import-trust escape hatch).
+  - `activity.captureConversations`, the consent gate for retaining inter-agent conversation content in the serve process (`provider-activity.md` §Conversation capture).
+  - `tutorialReminderDismissed`, the web UI's tutorial-reminder dismissal.
+  - `ui.liveUpdates` and `ui.realtimeActivity`, per-developer web-UI rendering choices (live map sync, real-time activity), written by Settings > General through `PATCH /api/project-preferences`.
 
-  The first two describe disk access the local operator opted into, the third the local code-execution surface; sharing any of them via the repo would silently expand every collaborator's surface (scan paths, or auto-running the repo's plugins) in a way only the original author consented to. `pluginTrust.projectEnabled` in particular MUST stay local: honouring a committed `true` would let a cloned repo auto-execute its own plugins, the exact supply-chain attack the import-trust gate prevents.
+  The consent-shaped entries describe surfaces only the local operator may opt into: `allowEditSmFiles`, `scan.referencePaths`, and `scan.followExternalSymlinks` govern disk access, `pluginTrust.projectEnabled` the code-execution surface, `activity.captureConversations` the retention of conversation content. Sharing any of them via the repo would silently expand every collaborator's surface in a way only the original author consented to. `pluginTrust.projectEnabled` in particular MUST stay local: honouring a committed `true` would let a cloned repo auto-execute its own plugins, the exact supply-chain attack the import-trust gate prevents. The remaining entries (`tutorialReminderDismissed`, `ui.liveUpdates`, `ui.realtimeActivity`) carry no security weight; they are inherently per-developer preferences, and a committed value would override every other collaborator's choice on each pull.
 
 Adding a new entry is a behaviour change for older installs that wrote the key into a committed file: the value gets stripped at read time. The changeset adding the entry MUST document the migration.
 

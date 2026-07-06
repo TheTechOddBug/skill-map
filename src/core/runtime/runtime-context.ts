@@ -6,11 +6,13 @@
  * `defaultRuntimeContext()` and passes the value through.
  *
  * `homedir` is intentionally NOT part of this context. Scope is always
- * project-local (`<cwd>/.skill-map/`); the only legitimate `$HOME`
- * read in the entire CLI / kernel is the boot-time update-check cache
- * (`cli/util/update-check-banner.ts`), which calls `os.homedir()`
- * directly. See `spec/cli-contract.md` §Scope is always project-local
- * for the full rule + documented exception.
+ * project-local (`<cwd>/.skill-map/`); the closed list of legitimate
+ * `os.homedir()` callers lives in `AGENTS.md` §Project invariants
+ * (today: `cli/util/user-settings-store.ts` plus the user-authored
+ * `~/` expansion in `core/config/helper.ts` /
+ * `core/runtime/reference-paths-walker.ts`). See
+ * `spec/cli-contract.md` §Scope is always project-local for the full
+ * rule + documented exception.
  *
  * Why a helper instead of inlining `{ cwd: process.cwd() }` in every
  * caller: 8+ command sites consume it; centralising keeps the intent

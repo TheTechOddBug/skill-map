@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.ai/providers/claude/v1/frontmatter/agent.schema.json",
   "title": "FrontmatterAgent",
-  "description": "Frontmatter shape for nodes classified as `agent` by the Claude Provider. Mirrors Anthropic's documented agent frontmatter verbatim (https://code.claude.com/docs/en/sub-agents.md): `name` and `description` come from the spec base; this schema adds the 14 vendor-specific fields. skill-map AGGREGATES the vendor spec, it does not curate it — keys are reproduced exactly as Anthropic publishes them (mix of camelCase and snake_case). `additionalProperties: true` so future Anthropic additions flow through unchanged until this schema catches up.",
+  "description": "Frontmatter shape for nodes classified as `agent` by the Claude Provider. Mirrors Anthropic's documented agent frontmatter verbatim (https://code.claude.com/docs/en/sub-agents.md): `name` and `description` come from the spec base; this schema adds the 14 vendor-specific fields. skill-map AGGREGATES the vendor spec, it does not curate it: keys are reproduced exactly as Anthropic publishes them (mix of camelCase and snake_case). `additionalProperties: true` so future Anthropic additions flow through unchanged until this schema catches up.",
   "allOf": [
     { "$ref": "https://skill-map.ai/spec/v0/frontmatter/base.schema.json" }
   ],
@@ -12,12 +12,12 @@
   "properties": {
     "tools": {
       "type": "array",
-      "description": "Allowlist of tools this agent is permitted to invoke. Argument-scoped patterns supported (e.g. `Bash(git add *)`). Free-form strings — token vocabulary is platform-specific.",
+      "description": "Allowlist of tools this agent is permitted to invoke. Argument-scoped patterns supported (e.g. `Bash(git add *)`). Free-form strings; token vocabulary is platform-specific.",
       "items": { "type": "string" }
     },
     "disallowedTools": {
       "type": "array",
-      "description": "Denylist of tools this agent MUST NOT invoke. Free-form strings — token vocabulary is platform-specific.",
+      "description": "Denylist of tools this agent MUST NOT invoke. Free-form strings; token vocabulary is platform-specific.",
       "items": { "type": "string" }
     },
     "model": {
@@ -46,7 +46,7 @@
     },
     "hooks": {
       "type": "object",
-      "description": "Lifecycle hooks (`PreToolUse`, `PostToolUse`, `Stop`, etc.) declared inline on the agent. Shape is platform-defined; preserved as an opaque object. Note: Anthropic's `hooks` is NOT a separate node kind — it lives here, as a sub-object of agent frontmatter, or in `settings.json` (see https://code.claude.com/docs/en/hooks.md)."
+      "description": "Lifecycle hooks (`PreToolUse`, `PostToolUse`, `Stop`, etc.) declared inline on the agent. Shape is platform-defined; preserved as an opaque object. Note: Anthropic's `hooks` is NOT a separate node kind; it lives here, as a sub-object of agent frontmatter, or in `settings.json` (see https://code.claude.com/docs/en/hooks.md)."
     },
     "memory": {
       "type": "string",
@@ -74,7 +74,7 @@
     },
     "initialPrompt": {
       "type": "string",
-      "description": "Auto-submitted first turn — Anthropic dispatches this as if the user had typed it on agent activation."
+      "description": "Auto-submitted first turn; Anthropic dispatches this as if the user had typed it on agent activation."
     }
   }
 }
