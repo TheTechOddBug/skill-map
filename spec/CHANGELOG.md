@@ -1,5 +1,27 @@
 # Spec changelog
 
+## 0.75.0
+
+### Minor Changes
+
+- Move the web UI's "Live updates" and "Real-time node activity" preferences from browser localStorage to the project-local config: new `ui.liveUpdates` / `ui.realtimeActivity` keys in `project-config.schema.json` (project-local only, stripped from the committed layer), read and written through `GET/PATCH /api/project-preferences` and persisted in `.skill-map/settings.local.json`. The SPA loads them before opening the live socket; the former localStorage keys are simply no longer read.
+
+  ## User-facing
+
+  The Live updates and Real-time node activity switches now live in Settings > Project and stick to the project instead of the browser: flip them once and every browser profile on this checkout sees the same choice.
+
+- architecture.md gains §Kernel check · frontmatter diagnostics, the normative backing for the kernel-stamped vocabulary (`frontmatter-parse-error`, `frontmatter-malformed` with its five-hint set including `early-close`, and `frontmatter-invalid` covering absent blocks) and the one-lane-per-node routing; the sidecar identity contract's canonical YAML recipe now names js-yaml 5's `schema: CORE_SCHEMA`, the byte-identical successor of the retired `noCompatMode: true`.
+
+- architecture.md §Provider · kind identifiers now specifies the per-kind `identifierMismatch` knob and the `core/name-mismatch` contract: a node whose normalised `frontmatter.name` diverges from its filename/dirname handle is flagged with the kind's declared severity (warn for the open-standard skill kind, info for documented-legal overrides). It also defines the two-tier `core/name-collision` verdict: error for two declared names, warn for declared-vs-file-derived shadowing.
+
+- cli-contract.md now specifies that `sm scan`/`sm watch` contain the scan to the project by default: a symlink whose real target escapes the scan roots is skipped rather than followed, defeating a committed hostile symlink that reads arbitrary local files. A new project-local-only `scan.followExternalSymlinks` boolean (default false) in project-config.schema.json opts back in.
+
+### Patch Changes
+
+- Closes the remaining cli-ruler audit findings: the REST contract table in cli-contract.md now documents the implemented preferences, project-preferences, project-ignore, favorites, and update-status endpoints, and architecture.md enumerates all eight PROJECT_LOCAL_ONLY_KEYS members. On the src side, published package metadata and the Claude provider schema descriptions drop their em dashes, and a stale $HOME docstring now points at the closed caller list.
+
+- architecture.md corrected two stale statements saying the `core/update-check` hook subscribes to `shutdown`; it subscribes to `boot` (the lifecycle-event table's `boot` row already said so), and the update banner renders above the verb's output.
+
 ## 0.74.0
 
 ### Minor Changes
