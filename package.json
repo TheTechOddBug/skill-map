@@ -21,7 +21,7 @@
     "fix:ignore": "bash scripts/start.sh ignore",
     "fix:realtime": "bash scripts/start.sh realtime",
     "fix:realtime-codex": "bash scripts/start.sh realtime-codex",
-    "fix:realtime-antigravity": "bash scripts/start.sh realtime-antigravity",
+    "fix:realtime-agy": "bash scripts/start.sh realtime-agy",
     "fix:realtime-opencode": "bash scripts/start.sh realtime-opencode",
     "sm": "node src/bin/sm.js",
     "sm:reset": "bash scripts/dev-reset.sh",
