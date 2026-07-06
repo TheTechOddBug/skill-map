@@ -151,6 +151,20 @@ export interface IProviderKind {
    * matrix about WHICH kinds count as resolution for a given link.kind.
    */
   identifiers?: TIdentifierSource[];
+  /**
+   * Severity of the `core/name-mismatch` issue emitted when a node's
+   * NORMALISED `frontmatter.name` diverges from a declared path-derived
+   * identifier (`filename-basename` / `dirname`), giving the node two
+   * live names in the resolution index. Absent = no diagnostic. Same
+   * TS-only lane as `identifiers`: external `kind.json` files declare
+   * neither. `'warn'` when the kind's standard REQUIRES agreement (the
+   * open-standard skill kind mandates name == parent dirname); `'info'`
+   * when the runtime documents the divergence as a legal override yet
+   * the dual identity is still worth surfacing. Normative wording:
+   * `spec/architecture.md` §Provider · kind identifiers · Identifier
+   * agreement.
+   */
+  identifierMismatch?: 'warn' | 'info';
 }
 
 /**

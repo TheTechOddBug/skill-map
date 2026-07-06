@@ -14,4 +14,12 @@ export const NAME_COLLISION_TEXTS = {
    * competing node paths.
    */
   message: 'Name collision; {{count}} nodes declare the same name: {{paths}}',
+  /**
+   * Warn-tier body for a MIXED bucket: a declared `frontmatter.name`
+   * collides with another node's filename / dirname handle. Resolution
+   * picks a deterministic winner, but the shadowing is authored.
+   */
+  messageShadow:
+    'Name shadowing; a declared name matches the file-derived handle of another node ' +
+    '({{count}} claimants): {{paths}}',
 } as const;

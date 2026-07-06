@@ -305,13 +305,13 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed.analyzers.length >= 5, 'every core rule should survive');
     });
 
-    it('(b) disable core/name-collision → only that rule skips; other 14 core analyzers stay', () => {
+    it('(b) disable core/name-collision → only that rule skips; other 15 core analyzers stay', () => {
       const runtime = emptyPluginRuntime();
       runtime.resolveEnabled = (id: string) => id !== 'core/name-collision';
       const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: runtime });
       assert.ok(composed);
       const analyzerIds = composed.analyzers.map((r) => r.id).sort();
-      // 15 built-in analyzers ship now (the former projector analyzers
+      // 16 built-in analyzers ship now (the former projector analyzers
       // `core/supersede` + `core/tags` were deleted; the inspector
       // buttons that remain self-project from their own actions, e.g.
       // `core/node-set-stability`. Tag editing moved inline into the
@@ -321,11 +321,13 @@ describe('plugin-runtime, branch coverage', () => {
       // kernel now seeds the 1.0 confidence baseline directly and the
       // `core/name-reserved` / `core/reference-broken` detectors apply
       // their penalty deltas on top; `core/job-file-orphan` was removed,
-      // to be reintroduced under a probabilistic evaluation model). This
-      // custom resolver enables every id except `core/name-collision`, so
-      // 14 compose, listed below in alphabetical order (`issue-counter` is
-      // the lone aggregate-phase analyzer; `name-reserved` +
-      // `reference-broken` are the score-phase ones).
+      // to be reintroduced under a probabilistic evaluation model;
+      // `core/name-mismatch` joined for the declared-vs-path-handle
+      // divergence). This custom resolver enables every id except
+      // `core/name-collision`, so 15 compose, listed below in
+      // alphabetical order (`issue-counter` is the lone aggregate-phase
+      // analyzer; `name-reserved` + `reference-broken` are the
+      // score-phase ones).
       assert.deepEqual(analyzerIds, [
         'annotation-field-unknown',
         'annotation-orphan',
@@ -336,6 +338,7 @@ describe('plugin-runtime, branch coverage', () => {
         'link-counter',
         'link-kind-conflict',
         'link-self-loop',
+        'name-mismatch',
         'name-reserved',
         'node-stability',
         'reference-broken',
@@ -360,7 +363,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 6, 'claude + antigravity (beta) + codex (beta) + opencode (beta) + agent-skills (stable, locked) + core-markdown load by default');
       assert.equal(composed.extractors.length, 11, '11 of 12 extractors loaded; core/mcp-tools is experimental so it ships disabled by default (the codex grammar extractors and the code-region siblings backtick-mention + backtick-slash + backtick-dollar are stable and load)');
-      assert.equal(composed.analyzers.length, 14, '14 of 15 analyzers loaded; core/annotation-stale is experimental so it ships disabled by default (the former projector analyzers core/supersede + core/tags were deleted; the remaining inspector buttons self-project from their actions and tag editing moved inline; core/score-resolution was deleted, the kernel now seeds the 1.0 baseline directly; core/job-file-orphan was removed, to return under a probabilistic evaluation model)');
+      assert.equal(composed.analyzers.length, 15, '15 of 16 analyzers loaded; core/annotation-stale is experimental so it ships disabled by default (the former projector analyzers core/supersede + core/tags were deleted; the remaining inspector buttons self-project from their actions and tag editing moved inline; core/score-resolution was deleted, the kernel now seeds the 1.0 baseline directly; core/job-file-orphan was removed, to return under a probabilistic evaluation model; core/name-mismatch joined for declared-vs-path-handle divergences)');
       // Actions load into the pipeline as dispatch targets; those with a
       // `project()` also self-project an inspector button (e.g.
       // `core/node-set-stability`). `core/node-set-tags` is stable and
@@ -491,7 +494,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 0);
       assert.equal(composed.extractors.length, 11, 'extractors untouched (11: core/mcp-tools ships disabled, experimental; the codex grammar extractors and the three code-region trigger siblings load)');
-      assert.equal(composed.analyzers.length, 14, 'analyzers untouched (14: core/annotation-stale is experimental so it ships disabled; the projector analyzers core/supersede + core/tags were deleted; core/score-resolution was deleted, the kernel seeds the 1.0 baseline directly; core/job-file-orphan was removed)');
+      assert.equal(composed.analyzers.length, 15, 'analyzers untouched (15: core/annotation-stale is experimental so it ships disabled; the projector analyzers core/supersede + core/tags were deleted; core/score-resolution was deleted, the kernel seeds the 1.0 baseline directly; core/job-file-orphan was removed; core/name-mismatch joined)');
     });
 
     it('(b) killSwitches.extractors empties only the extractors bucket', () => {
@@ -503,7 +506,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 6, 'providers untouched (6: claude + antigravity (beta) + codex (beta) + opencode (beta) + agent-skills (stable, locked) + core-markdown load)');
       assert.equal(composed.extractors.length, 0);
-      assert.equal(composed.analyzers.length, 14);
+      assert.equal(composed.analyzers.length, 15);
     });
 
     it('(c) killSwitches.analyzers empties only the rules bucket', () => {

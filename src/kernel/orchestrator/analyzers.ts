@@ -14,7 +14,7 @@ import {
   makeEvent,
   type IHookDispatcher,
 } from '../extensions/hook-dispatcher.js';
-import type { IAnalyzer } from '../extensions/index.js';
+import type { IAnalyzer, INameClaim, INameMismatch } from '../extensions/index.js';
 import { loadSchemaValidators } from '../adapters/schema-validators.js';
 import type {
   IContributionErrorRecord,
@@ -63,8 +63,9 @@ export async function runAnalyzers(
   hookDispatcher: IHookDispatcher,
   reservedNodePaths: ReadonlySet<string> | undefined,
   brokenLinks: ReadonlySet<Link> | undefined,
-  nameCollisions: ReadonlyMap<string, readonly { readonly path: string; readonly kind: string }[]> | undefined,
+  nameCollisions: ReadonlyMap<string, readonly INameClaim[]> | undefined,
   signals: readonly Signal[] | undefined,
+  nameMismatches: readonly INameMismatch[] | undefined,
   // Pre-analyzer issues (e.g. orchestrator-side
   // `frontmatter-parse-error` / `frontmatter-invalid`) seeded into the
   // accumulator so the aggregate phase (`core/issue-counter`) counts
@@ -227,6 +228,7 @@ export async function runAnalyzers(
       ...(reservedNodePaths ? { reservedNodePaths } : {}),
       ...(brokenLinks ? { brokenLinks } : {}),
       ...(nameCollisions && nameCollisions.size > 0 ? { nameCollisions } : {}),
+      ...(nameMismatches && nameMismatches.length > 0 ? { nameMismatches } : {}),
       ...(signals && signals.length > 0 ? { signals } : {}),
       ...(adjustConfidence ? { adjustConfidence } : {}),
       emitContribution,

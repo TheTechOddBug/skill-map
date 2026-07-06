@@ -238,6 +238,7 @@ Mirrors the interactive timeline on `skill-map.ai` (driven by `web/modules/roadm
 ● Annotations · co-located .sm sidecars · drift detection · git-author · write-consent
 ● MCP virtual nodes + observable link analysis · core/link-counts chips · edge opacity
 ● Reserved-name catalog + analyzer
+● Naming diagnostics · core/name-mismatch (per-kind identifierMismatch knob: warn for open-standard skills, info for documented overrides) · name-collision two tiers (error declared-vs-declared, warn declared-vs-file-derived shadowing)
 ● Extensible inspector · plugin action buttons · per-plugin sections · parametrized actions
 ● Fused workspace · files rail + graph + inspector · map curation · isolate-chain
 ● Hardening · loopback-only serve · node caps · opt-in off-by-default telemetry

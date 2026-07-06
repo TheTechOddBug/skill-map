@@ -1,5 +1,5 @@
 ---
-name: reviewer-agent
+name: reviewer
 description: A minimal agent that reviews supplied text for tone, clarity, and grammar.
 model: sonnet
 tools:

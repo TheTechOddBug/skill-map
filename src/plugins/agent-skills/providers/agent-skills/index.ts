@@ -62,6 +62,14 @@ export const COMMONS_KINDS: Record<string, IProviderKind> = {
     // `.agents/skills/` and `/SKILL.md` is the canonical handle,
     // `frontmatter.name` overrides when present.
     identifiers: ['frontmatter.name', 'dirname'],
+    // The Agent Skills specification REQUIRES `name` to equal the parent
+    // directory name, a cross-field rule the frontmatter schema cannot
+    // express (see skill.schema.json), so a divergence is a standard
+    // violation: `warn`. COMMONS_KINDS is ONE shared object spread into
+    // every open-standard adopter (codex, antigravity), so this knob is
+    // deliberately shared cross-vendor policy; a vendor needing a
+    // different severity must clone the kind, not mutate it here.
+    identifierMismatch: 'warn',
   },
 };
 

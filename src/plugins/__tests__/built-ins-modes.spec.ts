@@ -167,7 +167,8 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // `claude/backtick-mention` (extractor that recovers bare `@handle` mentions from code spans / fences, resolution-gated by the `prune-unresolved-code-triggers` post-walk transform) brings it to 37.
     // `core/backtick-slash` (its `/command` sibling, same code-region domain and resolution gate, lens-gated claude / antigravity / opencode like the prose slash) brings it to 38.
     // `codex/backtick-dollar` (the `$skill` sibling completing the per-provider code-region trigger family, codex-only like the prose dollar) brings it to 39.
-    assert.equal(rows.length, 39);
+    // `core/name-mismatch` (analyzer that flags a declared `frontmatter.name` diverging from the node's path-derived handle, severity from the per-kind `identifierMismatch` knob) brings it to 40.
+    assert.equal(rows.length, 40);
   });
 
   // Convention guard: every built-in EXTRACTOR description ends with a

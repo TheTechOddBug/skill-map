@@ -43,6 +43,7 @@ import { linkCounterAnalyzer as _linkCounterAnalyzer } from './core/analyzers/li
 import { linkKindConflictAnalyzer as _linkKindConflictAnalyzer } from './core/analyzers/link-kind-conflict/index.js';
 import { linkSelfLoopAnalyzer as _linkSelfLoopAnalyzer } from './core/analyzers/link-self-loop/index.js';
 import { nameCollisionAnalyzer as _nameCollisionAnalyzer } from './core/analyzers/name-collision/index.js';
+import { nameMismatchAnalyzer as _nameMismatchAnalyzer } from './core/analyzers/name-mismatch/index.js';
 import { nameReservedAnalyzer as _nameReservedAnalyzer } from './core/analyzers/name-reserved/index.js';
 import { nodeStabilityAnalyzer as _nodeStabilityAnalyzer } from './core/analyzers/node-stability/index.js';
 import { referenceBrokenAnalyzer as _referenceBrokenAnalyzer } from './core/analyzers/reference-broken/index.js';
@@ -83,6 +84,7 @@ const linkCounterAnalyzer = { ..._linkCounterAnalyzer, pluginId: 'core', version
 const linkKindConflictAnalyzer = { ..._linkKindConflictAnalyzer, pluginId: 'core', version: VERSION };
 const linkSelfLoopAnalyzer = { ..._linkSelfLoopAnalyzer, pluginId: 'core', version: VERSION };
 const nameCollisionAnalyzer = { ..._nameCollisionAnalyzer, pluginId: 'core', version: VERSION };
+const nameMismatchAnalyzer = { ..._nameMismatchAnalyzer, pluginId: 'core', version: VERSION };
 const nameReservedAnalyzer = { ..._nameReservedAnalyzer, pluginId: 'core', version: VERSION };
 const nodeStabilityAnalyzer = { ..._nodeStabilityAnalyzer, pluginId: 'core', version: VERSION };
 const referenceBrokenAnalyzer = { ..._referenceBrokenAnalyzer, pluginId: 'core', version: VERSION };
@@ -175,6 +177,7 @@ export const builtInPlugins: IBuiltInPlugin[] = [
       linkKindConflictAnalyzer,
       linkSelfLoopAnalyzer,
       nameCollisionAnalyzer,
+      nameMismatchAnalyzer,
       nameReservedAnalyzer,
       nodeStabilityAnalyzer,
       referenceBrokenAnalyzer,

@@ -47,7 +47,13 @@ export type {
 } from './provider.js';
 export { resolveProviderWalk, collectReadExtensions } from './provider.js';
 export type { IExtractor, IExtractorContext, IExtractorCallbacks, IEmittedNode } from './extractor.js';
-export type { IAnalyzer, IAnalyzerContext, IAnalyzerOrphanSidecar } from './analyzer.js';
+export type {
+  IAnalyzer,
+  IAnalyzerContext,
+  IAnalyzerOrphanSidecar,
+  INameClaim,
+  INameMismatch,
+} from './analyzer.js';
 export type {
   IAction,
   IActionPrecondition,

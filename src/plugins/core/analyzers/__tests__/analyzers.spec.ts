@@ -1,7 +1,8 @@
 import { describe, it } from 'node:test';
-import { strictEqual, ok } from 'node:assert';
+import { deepStrictEqual, strictEqual, ok } from 'node:assert';
 
 import { nameCollisionAnalyzer } from '../name-collision/index.js';
+import { nameMismatchAnalyzer } from '../name-mismatch/index.js';
 import { linkKindConflictAnalyzer } from '../link-kind-conflict/index.js';
 import type { Confidence, Issue, Link, LinkKind, Node } from '../../../../kernel/types.js';
 
@@ -21,7 +22,7 @@ describe('name-collision rule', () => {
   // `ctx.nameCollisions` verdict. The kind-eligibility / normalization /
   // dedup logic lives in `collectNameCollisions` (covered in
   // node-identifiers.spec.ts), so these tests only assert the projection.
-  type Claims = ReadonlyMap<string, readonly { path: string; kind: string }[]>;
+  type Claims = ReadonlyMap<string, readonly { path: string; kind: string; source: string }[]>;
   function runNameCollision(nameCollisions: Claims | undefined): Issue[] {
     const result = nameCollisionAnalyzer.evaluate({
       nodes: [],
@@ -38,13 +39,13 @@ describe('name-collision rule', () => {
     strictEqual(runNameCollision(new Map()).length, 0);
   });
 
-  it('flags one error per name claimed by two or more nodes', () => {
+  it('flags one error per name claimed by two or more declared names', () => {
     const collisions: Claims = new Map([
       [
         'deploy',
         [
-          { path: '.claude/commands/deploy.md', kind: 'command' },
-          { path: '.claude/commands/deploy-v2.md', kind: 'command' },
+          { path: '.claude/commands/deploy.md', kind: 'command', source: 'frontmatter.name' },
+          { path: '.claude/commands/deploy-v2.md', kind: 'command', source: 'frontmatter.name' },
         ],
       ],
     ]);
@@ -61,9 +62,15 @@ describe('name-collision rule', () => {
     strictEqual(issue.nodeIds.length, 2);
     ok(issue.nodeIds.includes('.claude/commands/deploy.md'));
     ok(issue.nodeIds.includes('.claude/commands/deploy-v2.md'));
-    const data = issue.data as { name: string; claims: { path: string; kind: string }[] };
+    const data = issue.data as {
+      name: string;
+      claims: { path: string; kind: string; source: string }[];
+    };
     strictEqual(data.name, 'deploy');
     strictEqual(data.claims.length, 2);
+    // The source travels in the payload so downstream tooling can tell
+    // declared claims from path-derived ones.
+    strictEqual(data.claims[0]!.source, 'frontmatter.name');
   });
 
   it('works across kinds (a command and an agent claiming one name)', () => {
@@ -71,14 +78,117 @@ describe('name-collision rule', () => {
       [
         'reviewer',
         [
-          { path: '.claude/agents/reviewer.md', kind: 'agent' },
-          { path: '.claude/commands/reviewer.md', kind: 'command' },
+          { path: '.claude/agents/reviewer.md', kind: 'agent', source: 'frontmatter.name' },
+          { path: '.claude/commands/reviewer.md', kind: 'command', source: 'frontmatter.name' },
         ],
       ],
     ]);
     const issues = runNameCollision(collisions);
     strictEqual(issues.length, 1);
     ok(issues[0]!.message.startsWith('`reviewer`:'));
+  });
+
+  it('mixed bucket (declared name vs another node filename) → warn tier', () => {
+    const collisions: Claims = new Map([
+      [
+        'architect',
+        [
+          { path: '.claude/agents/architect.md', kind: 'agent', source: 'filename-basename' },
+          { path: '.claude/agents/reviewer.md', kind: 'agent', source: 'frontmatter.name' },
+        ],
+      ],
+    ]);
+    const issues = runNameCollision(collisions);
+    strictEqual(issues.length, 1);
+    strictEqual(issues[0]!.severity, 'warn');
+    ok(issues[0]!.message.includes('shadowing'));
+  });
+
+  it('two declared claims plus one path-derived claim → still error', () => {
+    const collisions: Claims = new Map([
+      [
+        'deploy',
+        [
+          { path: 'a/deploy.md', kind: 'command', source: 'frontmatter.name' },
+          { path: 'b/deploy.md', kind: 'command', source: 'frontmatter.name' },
+          { path: 'c/other.md', kind: 'agent', source: 'filename-basename' },
+        ],
+      ],
+    ]);
+    const issues = runNameCollision(collisions);
+    strictEqual(issues.length, 1);
+    strictEqual(issues[0]!.severity, 'error');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// name-mismatch
+// ---------------------------------------------------------------------------
+
+describe('name-mismatch rule', () => {
+  // Pure projector of `ctx.nameMismatches`; the knob / normalization /
+  // derivation logic lives in `collectNameMismatches` (covered in
+  // node-identifiers.spec.ts).
+  type Mismatches = readonly {
+    path: string;
+    kind: string;
+    severity: 'warn' | 'info';
+    declaredName: string;
+    derivedName: string;
+    derivedSource: string;
+  }[];
+  function runNameMismatch(nameMismatches: Mismatches | undefined): Issue[] {
+    const result = nameMismatchAnalyzer.evaluate({
+      nodes: [],
+      links: [],
+      settings: {},
+      emitContribution: noopEmitContribution,
+      ...(nameMismatches ? { nameMismatches } : {}),
+    } as unknown as Parameters<typeof nameMismatchAnalyzer.evaluate>[0]);
+    return Array.isArray(result) ? result : [];
+  }
+
+  it('emits nothing when the verdict is absent or empty', () => {
+    strictEqual(runNameMismatch(undefined).length, 0);
+    strictEqual(runNameMismatch([]).length, 0);
+  });
+
+  it('projects one issue per entry, severity copied from the verdict', () => {
+    const issues = runNameMismatch([
+      {
+        path: '.agents/skills/deploy/SKILL.md',
+        kind: 'skill',
+        severity: 'warn',
+        declaredName: 'deploy-tool',
+        derivedName: 'deploy',
+        derivedSource: 'dirname',
+      },
+      {
+        path: '.claude/agents/reviewer.md',
+        kind: 'agent',
+        severity: 'info',
+        declaredName: 'architect',
+        derivedName: 'reviewer',
+        derivedSource: 'filename-basename',
+      },
+    ]);
+    strictEqual(issues.length, 2);
+    const [warn, info] = issues;
+    strictEqual(warn!.severity, 'warn');
+    strictEqual(warn!.analyzerId, 'name-mismatch');
+    deepStrictEqual(warn!.nodeIds, ['.agents/skills/deploy/SKILL.md']);
+    // Subject is the declared name; the body names the diverging handle
+    // and its human-readable source.
+    ok(warn!.message.startsWith('`deploy-tool`:'));
+    ok(warn!.message.includes('"deploy"'));
+    ok(warn!.message.includes('parent directory name'));
+    strictEqual(info!.severity, 'info');
+    ok(info!.message.includes('filename stem'));
+    deepStrictEqual(info!.data, {
+      declaredName: 'architect',
+      derivedName: 'reviewer',
+      derivedSource: 'filename-basename',
+    });
   });
 });
 

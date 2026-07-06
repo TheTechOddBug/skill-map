@@ -1,5 +1,5 @@
 ---
-name: stale-agent
+name: stale
 description: A node with a deliberately stale sidecar — body hash in .sm does not match the live body, so the kernel must emit annotation-stale.
 ---
 

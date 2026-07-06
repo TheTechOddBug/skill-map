@@ -122,7 +122,11 @@ import {
   type IEnrichmentRecord,
   type IExtractorRunRecord,
 } from './extractors.js';
-import { collectNameCollisions, deriveNodeIdentifiers } from './node-identifiers.js';
+import {
+  collectNameCollisions,
+  collectNameMismatches,
+  deriveNodeIdentifiers,
+} from './node-identifiers.js';
 import {
   applyPostWalkTransforms,
   type IPostWalkTransformCtx,
@@ -646,6 +650,10 @@ async function runScanInternal(
   // Names claimed by 2+ name-resolvable nodes, computed once from the same
   // kind registry the resolver uses and threaded to `core/name-collision`.
   const nameCollisions = collectNameCollisions(walked.nodes, postWalkCtx.kindRegistry);
+  // Declared-vs-path identifier divergences (per-kind `identifierMismatch`
+  // knob), threaded to `core/name-mismatch`. Severity resolves here; the
+  // projector has no kind registry.
+  const nameMismatches = collectNameMismatches(walked.nodes, postWalkCtx.kindRegistry);
 
   // External pseudo-links (target is http(s)://) drive `externalRefsCount`
   // and are then dropped: never persisted, never seen by analyzers, never in
@@ -679,6 +687,7 @@ async function runScanInternal(
     brokenLinks,
     nameCollisions,
     walked.signals,
+    nameMismatches,
     // Seed the accumulator with orchestrator-emitted frontmatter
     // issues so the aggregate phase (`core/issue-counter`) counts
     // them on the per-node chip. The seeds are echoed back on

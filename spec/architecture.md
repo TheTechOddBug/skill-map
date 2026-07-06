@@ -350,6 +350,23 @@ Sources MAY appear together; the resolver visits each declared source per node, 
 
 Implementations MUST treat an absent `identifiers` field exactly like `[]`: the kind contributes nothing to the name index and is reachable only via the path-match rule of §Provider · resolution rules.
 
+#### Identifier agreement (`identifierMismatch`)
+
+Each `kinds` entry MAY also declare an optional `identifierMismatch: 'warn' | 'info'`. It rides the same TS-only lane as `identifiers` itself (an external plugin's `kind.json` declares neither; both are built-in manifest surface today). When declared, the kernel compares, per node of the kind, the NORMALISED `frontmatter.name` against every declared path-derived source (`filename-basename`, `dirname`) that yields a value, and the built-in `core/name-mismatch` analyzer emits one issue per divergent pair with the declared severity. The comparison runs both sides through the §Extractor · trigger normalization pipeline, so `Deploy` vs `deploy` and `my_skill` vs `my-skill` do NOT mismatch: they collapse to one entry in the name index (the bucket-collapse rule above), so there is no dual identity to flag. Exact-case or pattern violations remain the per-kind frontmatter schema's territory (`frontmatter-invalid`, e.g. the agent-skills `name` pattern). Virtual nodes (`virtual: true`) never derive path sources (an `mcp://<server>` path has no meaningful basename), so they never mismatch.
+
+The severity encodes the kind's contract with its runtime: the shared open-standard `skill` kind declares `'warn'` because the Agent Skills specification REQUIRES `name` to equal the parent directory name (a cross-field rule no frontmatter schema can express); Anthropic's own kinds declare `'info'` because their runtimes document the divergence as legal (for skills the dirname is canonical and `frontmatter.name` an override; agents and commands fall back to the filename), yet the node still answers to BOTH names in the resolution index, which is worth surfacing. Absent = no diagnostic; single-source kinds (`mcp`, plain `markdown`, filename-only kinds) cannot meaningfully mismatch.
+
+`--strict` does NOT promote `name-mismatch`, or any analyzer-emitted issue: strict promotion is scoped to the kernel-stamped frontmatter and body-syntax findings. Exit codes are unaffected by `warn` / `info` analyzer issues.
+
+#### Name collisions: two tiers
+
+The cross-kind name index backs the built-in `core/name-collision` analyzer with a two-tier verdict:
+
+- **`error`**, two or more distinct nodes claim the same normalised name via `frontmatter.name`. The resolver cannot know which declared name the author meant; one must be renamed. (The historic behaviour, unchanged.)
+- **`warn`**, a MIXED bucket: at least one node claims the name via `frontmatter.name` and a DIFFERENT node claims it via a path-derived source (its filename stem or parent dirname). The declared name shadows, or is shadowed by, another node's implicit handle. Resolution still picks a winner deterministically (§Provider · resolution rules priority order), but the ambiguity is authored and usually unintentional.
+
+Participation in the collision index is gated on the kind declaring `'frontmatter.name'` among its `identifiers`: plain `core/markdown` (basename-only) and filename-only kinds contribute no claims, deliberately. Two `readme.md` in different folders are not a collision, and a markdown file whose basename matches an agent's declared name stays silent: the mention-resolution priority order already disambiguates, and flagging every common-basename twin would drown the signal. Buckets whose every claim is path-derived (two commands both named `deploy.md` under different subfolders) are equally silent for the same reason. A single node claiming one name through two sources is never a collision (its claims collapse per the bucket-collapse rule above).
+
 ### Provider · resolution rules
 
 Each Provider MAY declare an optional `resolution: Record<linkKind, targetKind[]>` map listing, for each `link.kind` an Extractor in this Provider's plugin emits, the target `node.kind` values that count as a valid resolution. Absent = no link.kind resolves under this Provider via the name path (path-match always fires). Each array is **priority-ordered**: when a trigger's name-index bucket holds candidates of several allowed kinds, the resolver walks the array in declared order and picks the first kind that has a candidate (with `mentions: ['agent', 'skill', 'markdown']`, a `@deploy` naming both an agent and a markdown file resolves to the agent, deterministically, never to whichever kind the walk order enqueued first).

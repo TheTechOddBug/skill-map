@@ -21,7 +21,8 @@ Every extension is independently toggle-able by its qualified id `<plugin>/<ext-
 | Extractor | `core` | `at-directive` | Detects `@agent-name` mentions. |
 | Extractor | `core` | `markdown-link` | Detects `[text](path)` markdown links and emits one `references` link per resolved file path. |
 | Extractor | `core` | `external-url-counter` | Counts external URLs per node; result lands on `node.externalRefsCount` (never persisted as a graph link). |
-| Rule | `core` | `name-collision` | Two or more name-resolvable nodes declare the same normalized `name`? Emits an `error` Issue per colliding name. |
+| Rule | `core` | `name-collision` | Two or more nodes claim the same normalized name? `error` when two or more declare it via `frontmatter.name`; `warn` when a declared name collides with another node's filename / dirname handle (mixed bucket). One Issue per colliding name. |
+| Rule | `core` | `name-mismatch` | A node's declared `frontmatter.name` diverges from its path-derived handle (filename stem / parent dirname)? Severity from the kind's `identifierMismatch` knob: `warn` for open-standard skills (the spec requires name == dirname), `info` where the vendor documents the override as legal. |
 | Rule | `core` | `reference-broken` | Invocation links pointing at a target that doesn't exist? Emits an `error` Issue. |
 | Rule | `core` | `link-kind-conflict` | Two Extractors emit a link for the same `(source, target)` pair with different `kind` values? Emits a `warn` Issue per pair. |
 | Rule | `core` | `schema-violation` | Post-scan AJV revalidation of every persisted node / link / issue against the spec schemas. (Pre-0.8.0 this was an `Audit` kind; absorbed into Rule when Audit was removed.) |

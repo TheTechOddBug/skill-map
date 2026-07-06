@@ -178,6 +178,9 @@ export const claudeProvider: IBuiltInManifest<IProvider> = {
       // `name:` field, the file at `.claude/agents/<id>.md` resolves
       // `@<id>` even when frontmatter is partial.
       identifiers: ['frontmatter.name', 'filename-basename'],
+      // Declared name != file stem is legal (the name wins at runtime)
+      // but the agent answers to both handles here: surfaced as `info`.
+      identifierMismatch: 'info',
     },
     command: {
       schema: './schemas/command.schema.json',
@@ -196,6 +199,8 @@ export const claudeProvider: IBuiltInManifest<IProvider> = {
       // `frontmatter.name` first, filename basename fallback for
       // `.claude/commands/<name>.md`.
       identifiers: ['frontmatter.name', 'filename-basename'],
+      // Same legal-but-dual-identity posture as `agent`: `info`.
+      identifierMismatch: 'info',
     },
     skill: {
       schema: './schemas/skill.schema.json',
@@ -212,6 +217,10 @@ export const claudeProvider: IBuiltInManifest<IProvider> = {
       // optional override; when absent, the dirname between
       // `.claude/skills/` and `/SKILL.md` is the invocation handle.
       identifiers: ['frontmatter.name', 'dirname'],
+      // The override is documented-legal for Anthropic skills (unlike
+      // the open-standard kind, which REQUIRES name == dirname and
+      // declares 'warn'): `info`.
+      identifierMismatch: 'info',
     },
     /**
      * Phase 5 of the active-lens migration: MCP servers surface as

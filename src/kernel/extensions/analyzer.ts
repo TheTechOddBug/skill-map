@@ -11,6 +11,7 @@
 
 import type { IExtensionBase } from './base.js';
 import type { IExtensionPrecondition } from './extractor.js';
+import type { TIdentifierSource } from './provider.js';
 import type { Issue, Link, Node, Signal, TConfidenceOp, TExecutionMode } from '../types.js';
 import type { IRegisteredAnnotationKey } from '../types/annotation-catalog.js';
 import type { IRegisteredViewContribution, IViewContribution, SlotPayload } from '../types/view-catalog.js';
@@ -26,6 +27,39 @@ export interface IAnalyzerOrphanSidecar {
   relativePath: string;
   /** Absolute path of the missing `.md` the sidecar was anchored to. */
   expectedMdPath: string;
+}
+
+/**
+ * One node's claim on a normalised name in the collision index, tagged
+ * with the identifier source that produced it. `source` decides the
+ * `core/name-collision` tier: `error` when two or more distinct paths
+ * claim via `'frontmatter.name'`, `warn` for a mixed bucket (a declared
+ * name colliding with another node's filename / dirname handle). Shared
+ * shape between the orchestrator precompute (`collectNameCollisions`)
+ * and the analyzer context.
+ */
+export interface INameClaim {
+  readonly path: string;
+  readonly kind: string;
+  readonly source: TIdentifierSource;
+}
+
+/**
+ * One node whose declared `frontmatter.name` diverges from a declared
+ * path-derived identifier, computed by `collectNameMismatches` and
+ * projected by `core/name-mismatch`. `severity` is resolved at
+ * precompute time from the kind's `identifierMismatch` knob because the
+ * projector has no access to the kind registry. Both name fields carry
+ * the RAW (pre-normalization) values so the issue message shows what
+ * the author actually wrote.
+ */
+export interface INameMismatch {
+  readonly path: string;
+  readonly kind: string;
+  readonly severity: 'warn' | 'info';
+  readonly declaredName: string;
+  readonly derivedName: string;
+  readonly derivedSource: Exclude<TIdentifierSource, 'frontmatter.name'>;
 }
 
 export interface IAnalyzerContext {
@@ -132,18 +166,31 @@ export interface IAnalyzerContext {
   brokenLinks?: ReadonlySet<Link>;
   /**
    * Names claimed by two or more distinct nodes, keyed by the normalised
-   * name. A node contributes only when its kind declares `frontmatter.name`
-   * as a resolution identifier (so plain `core/markdown` nodes, addressed
-   * by path, never collide) and it carries a non-empty `name`. Names that
-   * normalise to the same value (e.g. `Deploy` / `deploy`) collide, mirroring
-   * how the resolver keys on the normalised identifier. Computed once per
-   * scan by the orchestrator from the same kind registry the resolver uses,
-   * so analyzers project it without re-deriving (the `brokenLinks` /
-   * `reservedNodePaths` precompute-and-project pattern). The single consumer
-   * is `core/name-collision`, which emits one `error` per entry. Absent for
-   * legacy callers that never wired the field through.
+   * name. Only kinds that declare `frontmatter.name` among their
+   * `identifiers` participate (plain `core/markdown` and filename-only
+   * kinds never contribute claims), and every bucket holds at least one
+   * `frontmatter.name`-sourced claim (path-only buckets are dropped at
+   * collection). Names that normalise to the same value (e.g. `Deploy` /
+   * `deploy`) collide, mirroring how the resolver keys on the normalised
+   * identifier. Computed once per scan by the orchestrator from the same
+   * kind registry the resolver uses, so analyzers project it without
+   * re-deriving (the `brokenLinks` / `reservedNodePaths`
+   * precompute-and-project pattern). The single consumer is
+   * `core/name-collision`, which emits `error` when two or more claims
+   * are declared names and `warn` for mixed buckets. Absent for legacy
+   * callers that never wired the field through.
    */
-  nameCollisions?: ReadonlyMap<string, readonly { readonly path: string; readonly kind: string }[]>;
+  nameCollisions?: ReadonlyMap<string, readonly INameClaim[]>;
+  /**
+   * Nodes whose declared `frontmatter.name` diverges from a declared
+   * path-derived identifier (filename stem / parent dirname), giving the
+   * node two live names in the resolution index. Computed once per scan
+   * by the orchestrator (`collectNameMismatches`) from the per-kind
+   * `identifierMismatch` knob; severity travels in each entry. The
+   * single consumer is `core/name-mismatch`. Absent for legacy callers
+   * that never wired the field through.
+   */
+  nameMismatches?: readonly INameMismatch[];
   /**
    * Absolute path of the scan's project root (cwd of the invocation).
    * Threaded into the analyzer pass so an analyzer that needs to

@@ -21,8 +21,13 @@
  * positives, and covers every name-resolvable kind (agent, command,
  * skill, mcp-tool) instead of a hardcoded `{command, skill, agent}` set.
  *
- * Severity is `error`: the rule can't pick which claimant is "right";
- * the user has to rename one.
+ * Two severity tiers (spec §Provider · kind identifiers · Name
+ * collisions): `error` when two or more distinct nodes DECLARE the same
+ * name via `frontmatter.name` (the rule can't pick which claimant is
+ * "right"; the user has to rename one), `warn` when a declared name
+ * collides with another node's path-derived handle (filename stem /
+ * dirname), authored shadowing that resolution disambiguates
+ * deterministically but the author almost never intended.
  */
 
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
@@ -42,27 +47,35 @@ export const nameCollisionAnalyzer: IBuiltInManifest<IAnalyzer> = {
   description: 'Flags two or more nodes that declare the same resolvable `name`.',
 
   // Pure projector of `ctx.nameCollisions` (computed once by the
-  // orchestrator from the kind registry). One `error` per colliding name.
+  // orchestrator from the kind registry). Two tiers per colliding name
+  // (spec §Provider · kind identifiers · Name collisions): `error` when
+  // two or more distinct nodes DECLARE the name via `frontmatter.name`
+  // (the historic verdict, the user must rename one), `warn` for a mixed
+  // bucket where a declared name collides with another node's filename /
+  // dirname handle (resolution still picks a deterministic winner, but
+  // the shadowing is authored and usually unintentional).
   evaluate(ctx: IAnalyzerContext): Issue[] {
     const collisions = ctx.nameCollisions;
     if (!collisions || collisions.size === 0) return [];
     const issues: Issue[] = [];
     for (const [name, claims] of collisions) {
       const paths = claims.map((c) => c.path);
+      const declaredCount = claims.filter((c) => c.source === 'frontmatter.name').length;
+      const isError = declaredCount >= 2;
       issues.push({
         analyzerId: ID,
-        severity: 'error',
+        severity: isError ? 'error' : 'warn',
         nodeIds: paths,
         message: formatFinding({
           subject: name,
-          body: tx(NAME_COLLISION_TEXTS.message, {
+          body: tx(isError ? NAME_COLLISION_TEXTS.message : NAME_COLLISION_TEXTS.messageShadow, {
             count: paths.length,
             paths: paths.join(', '),
           }),
         }),
         data: {
           name,
-          claims: claims.map((c) => ({ path: c.path, kind: c.kind })),
+          claims: claims.map((c) => ({ path: c.path, kind: c.kind, source: c.source })),
         },
       });
     }
