@@ -1,11 +1,11 @@
 ---
-name: hello-skill
+name: hello
 description: A minimal skill that greets the user by name.
 metadata:
   version: 1.0.0
   stability: stable
   author: conformance
-  tags: [example, greeting]
+  tags: example, greeting
 ---
 
 # Hello skill

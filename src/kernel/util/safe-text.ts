@@ -41,7 +41,6 @@ const C0_CONTROL_RE = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g;
 // dropped here; a `\r\n` pair is preserved so genuine CRLF line endings
 // in disk content survive untouched. CR is kept out of `C0_CONTROL_RE`
 // precisely because the CRLF case needs the lookahead this regex adds.
-// eslint-disable-next-line no-control-regex
 const BARE_CR_RE = /\r(?!\n)/g;
 
 export function stripAnsi(text: string): string {
