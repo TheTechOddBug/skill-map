@@ -189,6 +189,13 @@ export class WorkspaceView implements IMapIsolateIntent {
     this.store.setSearchText(value);
   }
 
+  /** Clear just the text search (the in-input clear button); leaves the
+   *  other facet filters and the map selection untouched, unlike the
+   *  full `resetView`. */
+  protected clearSearch(): void {
+    this.store.setSearchText('');
+  }
+
   protected onToggleSearchMap(): void {
     this.store.toggleSearchAffectsMap();
   }

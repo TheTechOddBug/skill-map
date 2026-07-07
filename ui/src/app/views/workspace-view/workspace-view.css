@@ -47,10 +47,45 @@
   flex: 1;
   min-width: 0;
   display: block;
+  /* Anchor for the absolutely-positioned in-input clear button. */
+  position: relative;
 }
 
 .workspace__search input {
   width: 100%;
+}
+
+/* Reserve room on the right so the query text never slides under the
+   clear button. Matches the button's inset + width. */
+.workspace__search-input {
+  padding-right: 1.9rem;
+}
+
+/* Small clear "x" sitting over the input's right padding, shown only
+   while the field has text. Mirrors the muted-to-hover treatment of the
+   rail buttons but sized down to read as an in-field affordance. */
+.workspace__search-clear {
+  position: absolute;
+  top: 50%;
+  right: 0.35rem;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.3rem;
+  height: 1.3rem;
+  padding: 0;
+  border: none;
+  border-radius: var(--sm-radius-sm);
+  background: transparent;
+  color: var(--p-text-muted-color);
+  cursor: pointer;
+  font-size: 0.7rem;
+}
+
+.workspace__search-clear:hover {
+  background: var(--p-content-hover-background);
+  color: var(--p-text-color);
 }
 
 .workspace__rail-btn {

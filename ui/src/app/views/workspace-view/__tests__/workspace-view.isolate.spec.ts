@@ -316,3 +316,32 @@ describe('WorkspaceView rail reset control', () => {
     localStorage.removeItem('sm.workspace.rail-collapsed');
   });
 });
+
+describe('WorkspaceView search clear button', () => {
+  const clearEl = (fixture: ComponentFixture<WorkspaceView>): HTMLButtonElement | null =>
+    (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+      '[data-testid="workspace-search-clear"]',
+    );
+
+  it('shows the clear button only while the search has text, and clears just the query', async () => {
+    localStorage.setItem('sm.workspace.rail-collapsed', '0');
+    const { fixture } = await bootstrap([makeNode('a.md', 'a')], []);
+    const store = TestBed.inject(FilterStoreService);
+
+    // Empty query: no clear affordance.
+    expect(clearEl(fixture)).toBeNull();
+
+    store.setSearchText('foo');
+    fixture.detectChanges();
+    expect(store.searchText()).toBe('foo');
+    const btn = clearEl(fixture);
+    expect(btn).not.toBeNull();
+
+    // Clicking it empties the query and the button disappears again.
+    btn!.click();
+    fixture.detectChanges();
+    expect(store.searchText()).toBe('');
+    expect(clearEl(fixture)).toBeNull();
+    localStorage.removeItem('sm.workspace.rail-collapsed');
+  });
+});

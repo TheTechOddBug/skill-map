@@ -17,12 +17,28 @@
             pInputText
             pSize="small"
             type="text"
+            class="workspace__search-input"
             [placeholder]="texts.rail.searchPlaceholder"
             [attr.aria-label]="texts.rail.searchAriaLabel"
             [ngModel]="searchText()"
             (ngModelChange)="onSearchChange($event)"
             data-testid="workspace-search"
           />
+          <!-- In-input clear: appears only while the field has text, sits
+               over the input's right padding. Clears just the query. -->
+          @if (searchText().length > 0) {
+            <button
+              type="button"
+              class="workspace__search-clear"
+              [pTooltip]="texts.rail.searchClear"
+              tooltipPosition="bottom"
+              [attr.aria-label]="texts.rail.searchClear"
+              (click)="clearSearch()"
+              data-testid="workspace-search-clear"
+            >
+              <i class="pi pi-times" aria-hidden="true"></i>
+            </button>
+          }
         </p-iconfield>
         <!-- Search → map coupling. ON (default): the query narrows both
              the files rail and the map. OFF: the map keeps its layout
