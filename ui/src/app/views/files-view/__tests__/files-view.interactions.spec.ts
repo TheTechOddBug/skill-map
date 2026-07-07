@@ -5,10 +5,11 @@ import { TestBed } from '@angular/core/testing';
 import { FilesView } from '../files-view';
 import { CollectionLoaderService } from '../../../../services/collection-loader';
 import { MapVisibilityService } from '../../../../services/map-visibility';
+import { NodeActivityStatsService } from '../../../../services/node-activity-stats';
 import { MAP_ISOLATE_INTENT } from '../../../slots/map-isolate-intent';
 import { NODE_OPEN_INTENT } from '../../../slots/node-open-intent';
 import type { INodeView } from '../../../../models/node';
-import type { IFolderNodeLite, IScanResultApi } from '../../../../models/api';
+import type { IFolderNodeLite, INodeActivityStatsApi, IScanResultApi } from '../../../../models/api';
 
 /**
  * FilesView leaf-row interactions (DOM-level).
@@ -102,9 +103,15 @@ function makeLoaderStub(
   };
 }
 
+/** Minimal stats entry for the Activity-column stub; only `count` matters here. */
+function statsOf(count: number): INodeActivityStatsApi {
+  return { count, lastStartAt: 0, distinctOwners: 1 };
+}
+
 function bootstrap(
   nodes: INodeView[] = [makeNode(LEAF_PATH, 'readme')],
   counts: Record<string, { errorCount?: number; warnCount?: number }> = {},
+  activity: Record<string, number> = {},
 ): {
   fixture: ReturnType<typeof TestBed.createComponent<FilesView>>;
   isolate: ReturnType<typeof vi.fn>;
@@ -125,6 +132,18 @@ function bootstrap(
       { provide: CollectionLoaderService, useValue: loader },
       { provide: MAP_ISOLATE_INTENT, useValue: { isolate } },
       { provide: NODE_OPEN_INTENT, useValue: { open } },
+      // The Activity column reads the per-node stats mirror; the real
+      // service subscribes to WS streams unavailable here, so tests seed
+      // plain signal maps instead (same pattern as inspector-view.spec).
+      {
+        provide: NodeActivityStatsService,
+        useValue: {
+          stats: signal<ReadonlyMap<string, INodeActivityStatsApi>>(
+            new Map(Object.entries(activity).map(([path, count]) => [path, statsOf(count)])),
+          ),
+          pairCounts: signal<ReadonlyMap<string, number>>(new Map()),
+        } as unknown as NodeActivityStatsService,
+      },
     ],
   });
   const selection = TestBed.inject(MapVisibilityService);
@@ -218,6 +237,27 @@ describe('FilesView folder interactions', () => {
     expect(childLeaf.getAttribute('data-state')).toBe('all');
     // The selected parent itself stays enabled (you can uncheck it).
     expect(parent.disabled).toBe(false);
+  });
+
+  it('renders the session execution count in the Activity cell and its column header', () => {
+    const { fixture } = bootstrap(
+      [makeNode(LEAF_PATH, 'readme'), makeNode('quiet.md', 'quiet')],
+      {},
+      { [LEAF_PATH]: 4 },
+    );
+
+    // The header exists at its testid regardless of sort state.
+    expect(query(fixture, 'files-col-activity')).toBeTruthy();
+
+    const active = (fixture.nativeElement as HTMLElement).querySelector(
+      `[data-testid="files-leaf-${LEAF_PATH}"] .files__cell-activity`,
+    );
+    const quiet = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="files-leaf-quiet.md"] .files__cell-activity',
+    );
+    expect(active?.textContent?.trim()).toBe('4');
+    // Never-invoked nodes show the missing glyph, not a zero.
+    expect(quiet?.textContent?.trim()).toBe('·');
   });
 
   it('renders rolled-up error / warn badges on the folder row', () => {

@@ -23,6 +23,7 @@ describe('files-view.sort: defaults', () => {
 
   it('defaultDirFor: tree -> asc, data columns -> desc', () => {
     expect(defaultDirFor('tree')).toBe('asc');
+    expect(defaultDirFor('activity')).toBe('desc');
     expect(defaultDirFor('linksIn')).toBe('desc');
     expect(defaultDirFor('linksOut')).toBe('desc');
     expect(defaultDirFor('tokens')).toBe('desc');
@@ -79,6 +80,7 @@ describe('nextSort: header-click transitions', () => {
 
   it('activating a fresh data column opens at its default direction (desc)', () => {
     expect(nextSort(DEFAULT_SORT, 'tokens')).toEqual({ column: 'tokens', dir: 'desc' });
+    expect(nextSort(DEFAULT_SORT, 'activity')).toEqual({ column: 'activity', dir: 'desc' });
     expect(nextSort({ column: 'tokens', dir: 'asc' }, 'linksIn')).toEqual({
       column: 'linksIn',
       dir: 'desc',
@@ -100,6 +102,7 @@ describe('nextSort: header-click transitions', () => {
 describe('isFilesSort', () => {
   it('accepts valid shapes', () => {
     expect(isFilesSort({ column: 'linksIn', dir: 'desc' })).toBe(true);
+    expect(isFilesSort({ column: 'activity', dir: 'desc' })).toBe(true);
     expect(isFilesSort({ column: 'tree', dir: 'asc' })).toBe(true);
   });
 

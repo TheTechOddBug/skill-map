@@ -9,6 +9,7 @@ import { FILES_VIEW_TEXTS } from '../../../i18n/files-view.texts';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
 import { MapVisibilityService, type TFolderVisibility } from '../../../services/map-visibility';
+import { NodeActivityStatsService } from '../../../services/node-activity-stats';
 import { MAP_ISOLATE_INTENT } from '../../slots/map-isolate-intent';
 import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
 import type { INodeView } from '../../../models/node';
@@ -51,6 +52,7 @@ export class FilesView implements OnInit {
   private readonly nodeOpenIntent = inject(NODE_OPEN_INTENT);
   private readonly mapVisibility = inject(MapVisibilityService);
   private readonly mapIsolate = inject(MAP_ISOLATE_INTENT);
+  private readonly activityStats = inject(NodeActivityStatsService);
   protected readonly texts = FILES_VIEW_TEXTS;
 
   readonly loading = this.loader.loading;
@@ -143,6 +145,17 @@ export class FilesView implements OnInit {
     computeAggregates(this.tree(), this.issueMaps()),
   );
 
+  /**
+   * Per-path session execution counts projected from the stats mirror
+   * (`NodeActivityStatsService`), so the pure row engine consumes a
+   * plain `path -> count` map instead of the API stats shape.
+   */
+  private readonly activityCounts = computed<ReadonlyMap<string, number>>(() => {
+    const counts = new Map<string, number>();
+    for (const [path, stats] of this.activityStats.stats()) counts.set(path, stats.count);
+    return counts;
+  });
+
   readonly rows = computed<TFolderViewRow[]>(() =>
     buildRows({
       tree: this.tree(),
@@ -150,6 +163,7 @@ export class FilesView implements OnInit {
       expanded: this.expanded(),
       aggregates: this.aggregates(),
       maps: this.issueMaps(),
+      activityCounts: this.activityCounts(),
       sort: this.sort(),
     }),
   );

@@ -15,7 +15,7 @@
 const SORT_STORAGE_KEY = 'sm.files.sort';
 
 /** The structural `tree` column plus the sortable data columns. */
-export const SORT_COLUMNS = ['tree', 'linksIn', 'linksOut', 'tokens', 'issues', 'modified'] as const;
+export const SORT_COLUMNS = ['tree', 'activity', 'issues', 'tokens', 'linksIn', 'linksOut', 'modified'] as const;
 export type TSortColumn = (typeof SORT_COLUMNS)[number];
 
 export const SORT_DIRS = ['asc', 'desc'] as const;

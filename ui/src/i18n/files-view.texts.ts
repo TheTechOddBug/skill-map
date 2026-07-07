@@ -24,15 +24,19 @@ export const FILES_VIEW_TEXTS = {
   columns: {
     tree: 'Folder / Node',
     kind: 'Kind',
+    /** Session-scoped agent-execution count (most/least invoked nodes). */
+    activity: 'Activity',
+    issues: 'Issues',
+    tokens: 'Tokens',
     /** Incoming references (count of edges that target this node). */
     linksIn: 'in',
     /** Outgoing references (count of edges this node emits). */
     linksOut: 'out',
-    tokens: 'Tokens',
-    issues: 'Issues',
     /** File modification date (sortable, ISO short date in the cell). */
     modified: 'Modified',
   },
+  activityHeaderTooltip:
+    'Agent executions this session: how many times agents ran this node. Resets when the server restarts.',
   linksInHeaderTooltip: 'Incoming references: how many other nodes link to this one.',
   linksOutHeaderTooltip: 'Outgoing references: how many nodes this one links to.',
   modifiedHeaderTooltip: 'Last modified on disk (file mtime). Hover a cell for the exact time.',
@@ -42,6 +46,9 @@ export const FILES_VIEW_TEXTS = {
   sortTreeAriaLabel: 'Show folder tree',
   /** Tooltip on the Tokens cell, full integer with thousands separator. */
   tokensTooltip: (tokens: number): string => `${tokens.toLocaleString()} tokens`,
+  /** Tooltip on the Activity cell, full integer with thousands separator. */
+  activityTooltip: (count: number): string =>
+    `${count.toLocaleString()} ${count === 1 ? 'execution' : 'executions'} this session`,
   /**
    * Counts shown next to a folder. `nodes` is the total leaf count in
    * the subtree (recursive). `errors` / `warns` are summed across all

@@ -79,11 +79,18 @@ function projectLite(lite: IFolderNodeLite): INodeView {
 
 const NO_ISSUES: IIssueMaps = { errorCounts: new Map(), warnCounts: new Map() };
 
+/** No agent activity this session (the default for most row tests). */
+const NO_ACTIVITY: ReadonlyMap<string, number> = new Map();
+
 function maps(errors: Record<string, number> = {}, warns: Record<string, number> = {}): IIssueMaps {
   return {
     errorCounts: new Map(Object.entries(errors)),
     warnCounts: new Map(Object.entries(warns)),
   };
+}
+
+function activityOf(counts: Record<string, number>): ReadonlyMap<string, number> {
+  return new Map(Object.entries(counts));
 }
 
 function tree(nodes: readonly INodeView[], m: IIssueMaps = NO_ISSUES): {
@@ -106,7 +113,12 @@ function allFolderPaths(t: ReturnType<typeof buildTree>): Set<string> {
   return out;
 }
 
-function rowsFor(nodes: readonly INodeView[], sort: IFilesSort, m: IIssueMaps = NO_ISSUES): TFolderViewRow[] {
+function rowsFor(
+  nodes: readonly INodeView[],
+  sort: IFilesSort,
+  m: IIssueMaps = NO_ISSUES,
+  activityCounts: ReadonlyMap<string, number> = NO_ACTIVITY,
+): TFolderViewRow[] {
   const { tree: t, aggregates } = tree(nodes, m);
   return buildRows({
     tree: t,
@@ -114,6 +126,7 @@ function rowsFor(nodes: readonly INodeView[], sort: IFilesSort, m: IIssueMaps = 
     expanded: allFolderPaths(t),
     aggregates,
     maps: m,
+    activityCounts,
     sort,
   });
 }
@@ -157,11 +170,11 @@ describe('buildRows: tree mode (default)', () => {
     const { tree: t, aggregates } = tree(nodes);
     const sort: IFilesSort = { column: 'tree', dir: 'asc' };
     // Default: nothing expanded -> only the top-level folder row, no leaves.
-    const collapsed = buildRows({ tree: t, leaves: nodes, expanded: new Set(), aggregates, maps: NO_ISSUES, sort });
+    const collapsed = buildRows({ tree: t, leaves: nodes, expanded: new Set(), aggregates, maps: NO_ISSUES, activityCounts: NO_ACTIVITY, sort });
     expect(collapsed.map((r) => `${r.type}:${r.name}`)).toEqual(['folder:src']);
     expect((collapsed[0] as IFolderRow).expanded).toBe(false);
     // Expanding 'src' reveals its leaves.
-    const opened = buildRows({ tree: t, leaves: nodes, expanded: new Set(['src']), aggregates, maps: NO_ISSUES, sort });
+    const opened = buildRows({ tree: t, leaves: nodes, expanded: new Set(['src']), aggregates, maps: NO_ISSUES, activityCounts: NO_ACTIVITY, sort });
     expect(opened.map((r) => `${r.type}:${r.name}`)).toEqual(['folder:src', 'leaf:a', 'leaf:b']);
     expect((opened[0] as IFolderRow).expanded).toBe(true);
   });
@@ -325,7 +338,7 @@ describe('lite folders row -> leaf data columns', () => {
         modifiedAtMs: 1_749_823_967_000,
       }),
     );
-    const leaf = makeLeafRow(view, 0, NO_ISSUES);
+    const leaf = makeLeafRow(view, 0, NO_ISSUES, NO_ACTIVITY);
     expect(leaf.linksIn).toBe('7');
     expect(leaf.linksOut).toBe('3');
     expect(leaf.tokens).toBe('1.3k');
@@ -346,7 +359,7 @@ describe('lite folders row -> leaf data columns', () => {
     const view = projectLite(
       liteRow('virtual.md', { linksInCount: 0, linksOutCount: 0 }),
     );
-    const leaf = makeLeafRow(view, 0, NO_ISSUES);
+    const leaf = makeLeafRow(view, 0, NO_ISSUES, NO_ACTIVITY);
     expect(leaf.linksIn).toBe('0');
     expect(leaf.linksOut).toBe('0');
     expect(leaf.tokens).toBe(FILES_VIEW_TEXTS.missing);
@@ -354,6 +367,44 @@ describe('lite folders row -> leaf data columns', () => {
     expect(leaf.modifiedAtFull).toBe('');
     expect(leaf.tokensRaw).toBeUndefined();
     expect(leaf.modifiedAtRaw).toBeUndefined();
+  });
+});
+
+describe('Activity column (session execution counts)', () => {
+  const nodes = [
+    makeNode('a.md', { name: 'a' }),
+    makeNode('b.md', { name: 'b' }),
+    makeNode('c.md', { name: 'c' }),
+  ];
+
+  it('sorts by activity desc and asc', () => {
+    const activity = activityOf({ 'a.md': 3, 'b.md': 12, 'c.md': 1 });
+    expect(
+      leaves(rowsFor(nodes, { column: 'activity', dir: 'desc' }, NO_ISSUES, activity)).map((l) => l.name),
+    ).toEqual(['b', 'a', 'c']);
+    expect(
+      leaves(rowsFor(nodes, { column: 'activity', dir: 'asc' }, NO_ISSUES, activity)).map((l) => l.name),
+    ).toEqual(['c', 'a', 'b']);
+  });
+
+  it('sinks never-invoked nodes (no map entry) to the bottom both ways', () => {
+    const activity = activityOf({ 'a.md': 5, 'c.md': 2 }); // b.md never invoked
+    expect(
+      leaves(rowsFor(nodes, { column: 'activity', dir: 'desc' }, NO_ISSUES, activity)).map((l) => l.name),
+    ).toEqual(['a', 'c', 'b']);
+    expect(
+      leaves(rowsFor(nodes, { column: 'activity', dir: 'asc' }, NO_ISSUES, activity)).map((l) => l.name),
+    ).toEqual(['c', 'a', 'b']);
+  });
+
+  it('renders a compact count on the leaf and the missing glyph when absent', () => {
+    const view = projectLite(liteRow('docs/hot.md'));
+    const withCount = makeLeafRow(view, 0, NO_ISSUES, activityOf({ 'docs/hot.md': 1_280 }));
+    expect(withCount.activity).toBe('1.3k');
+    expect(withCount.activityRaw).toBe(1_280);
+    const without = makeLeafRow(view, 0, NO_ISSUES, NO_ACTIVITY);
+    expect(without.activity).toBe(FILES_VIEW_TEXTS.missing);
+    expect(without.activityRaw).toBeUndefined();
   });
 });
 

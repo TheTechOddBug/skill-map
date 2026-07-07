@@ -44,6 +44,8 @@ export interface IFolderLeaf {
    */
   readonly prefix: string;
   readonly depth: number;
+  /** Session-scoped agent-execution count (`·` when the node has none). */
+  readonly activity: string;
   readonly linksIn: string;
   readonly linksOut: string;
   readonly tokens: string;
@@ -55,6 +57,7 @@ export interface IFolderLeaf {
   readonly modifiedAtFull: string;
   /** Raw counts for the comparators; `undefined` mirrors a missing
    *  count (`·`) and always sorts to the bottom. */
+  readonly activityRaw: number | undefined;
   readonly linksInRaw: number | undefined;
   readonly linksOutRaw: number | undefined;
   readonly tokensRaw: number | undefined;
@@ -110,6 +113,9 @@ export interface IBuildRowsInput {
   readonly expanded: ReadonlySet<string>;
   readonly aggregates: ReadonlyMap<string, IAggregate>;
   readonly maps: IIssueMaps;
+  /** Session-scoped agent-execution counts keyed by node path
+   *  (`NodeActivityStatsService`); absent path = no activity yet. */
+  readonly activityCounts: ReadonlyMap<string, number>;
   readonly sort: IFilesSort;
 }
 
@@ -176,23 +182,27 @@ export function makeLeafRow(
   node: INodeView,
   depth: number,
   maps: IIssueMaps,
+  activityCounts: ReadonlyMap<string, number>,
   prefix = '',
 ): IFolderLeaf {
   const stability = rowStability(node);
   const isStale = effectiveIsStale(node);
   const modifiedRaw = node.modifiedAtMs;
+  const activityRaw = activityCounts.get(node.path);
   return {
     type: 'leaf',
     path: node.path,
     name: leafName(node),
     prefix,
     depth,
+    activity: activityRaw !== undefined ? compactNumber(activityRaw) : FILES_VIEW_TEXTS.missing,
     linksIn: node.linksInCount !== undefined ? String(node.linksInCount) : FILES_VIEW_TEXTS.missing,
     linksOut:
       node.linksOutCount !== undefined ? String(node.linksOutCount) : FILES_VIEW_TEXTS.missing,
     tokens: node.tokensTotal !== undefined ? compactNumber(node.tokensTotal) : FILES_VIEW_TEXTS.missing,
     modifiedAt: modifiedRaw !== undefined ? formatModifiedAt(modifiedRaw) : FILES_VIEW_TEXTS.missing,
     modifiedAtFull: modifiedRaw !== undefined ? formatModifiedAtFull(modifiedRaw) : '',
+    activityRaw,
     linksInRaw: node.linksInCount,
     linksOutRaw: node.linksOutCount,
     tokensRaw: node.tokensTotal,
@@ -218,6 +228,7 @@ export function buildTreeRows(
   expanded: ReadonlySet<string>,
   aggregates: ReadonlyMap<string, IAggregate>,
   maps: IIssueMaps,
+  activityCounts: ReadonlyMap<string, number>,
 ): TFolderViewRow[] {
   const rows: TFolderViewRow[] = [];
 
@@ -232,7 +243,7 @@ export function buildTreeRows(
     const chainName = chain.join('/');
 
     if (terminal.subfolders.size === 0 && terminal.leaves.length === 1) {
-      rows.push(makeLeafRow(terminal.leaves[0], depth, maps, `${chainName}/`));
+      rows.push(makeLeafRow(terminal.leaves[0], depth, maps, activityCounts, `${chainName}/`));
       return;
     }
 
@@ -252,13 +263,13 @@ export function buildTreeRows(
     const subs = Array.from(terminal.subfolders.values()).sort(byName);
     for (const sub of subs) emitFolder(sub, depth + 1);
     const leaves = [...terminal.leaves].sort(byNodePath);
-    for (const leaf of leaves) rows.push(makeLeafRow(leaf, depth + 1, maps));
+    for (const leaf of leaves) rows.push(makeLeafRow(leaf, depth + 1, maps, activityCounts));
   };
 
   const rootSubs = Array.from(tree.subfolders.values()).sort(byName);
   for (const sub of rootSubs) emitFolder(sub, 0);
   const rootLeaves = [...tree.leaves].sort(byNodePath);
-  for (const leaf of rootLeaves) rows.push(makeLeafRow(leaf, 0, maps));
+  for (const leaf of rootLeaves) rows.push(makeLeafRow(leaf, 0, maps, activityCounts));
 
   return rows;
 }
@@ -268,8 +279,11 @@ export function buildFlatRows(
   leaves: readonly INodeView[],
   sort: IFilesSort,
   maps: IIssueMaps,
+  activityCounts: ReadonlyMap<string, number>,
 ): IFolderLeaf[] {
-  const rows = leaves.map((node) => makeLeafRow(node, 0, maps, dirPrefix(node.path)));
+  const rows = leaves.map((node) =>
+    makeLeafRow(node, 0, maps, activityCounts, dirPrefix(node.path)),
+  );
   if (sort.column === 'tree') return rows; // defensive; flat path is never called with 'tree'
   rows.sort(leafComparator(sort.column, sort.dir));
   return rows;
@@ -277,9 +291,9 @@ export function buildFlatRows(
 
 export function buildRows(input: IBuildRowsInput): TFolderViewRow[] {
   if (input.sort.column === 'tree') {
-    return buildTreeRows(input.tree, input.expanded, input.aggregates, input.maps);
+    return buildTreeRows(input.tree, input.expanded, input.aggregates, input.maps, input.activityCounts);
   }
-  return buildFlatRows(input.leaves, input.sort, input.maps);
+  return buildFlatRows(input.leaves, input.sort, input.maps, input.activityCounts);
 }
 
 /**
@@ -316,6 +330,8 @@ export function leafComparator(
 
 function sortValue(leaf: IFolderLeaf, column: Exclude<TSortColumn, 'tree'>): number | undefined {
   switch (column) {
+    case 'activity':
+      return leaf.activityRaw;
     case 'linksIn':
       return leaf.linksInRaw;
     case 'linksOut':
