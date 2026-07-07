@@ -432,27 +432,31 @@
   background: color-mix(in srgb, var(--sm-bg-hover) 30%, transparent);
 }
 
-/* Row enter/leave slide, applied by `animate.enter` / `animate.leave`
-   in the template. Angular strips the class when the animation ends
-   (and, on leave, defers the DOM removal until then), so the classes
-   only exist mid-flight. */
-.files__row--enter {
-  animation: files-row-slide-in 200ms ease-out;
-}
+/* Row ENTER slide, applied by `animate.enter` in the template. Angular
+   strips the class when the animation ends, so it only exists
+   mid-flight. PRM-gated (`no-preference`) like every decorative
+   animation in the app (graph-view convention).
 
-.files__row--leave {
-  animation: files-row-slide-out 160ms ease-in forwards;
+   There is deliberately NO leave animation on rows. `animate.leave`
+   classes are poison on trackBy-reused rows: when a re-render lands
+   mid-flight (live activity frames recompute the rows every WS flush),
+   Angular re-uses the leaving element for the entering view but leaves
+   the class residue behind, and a leave rule that hides the row (an
+   `opacity: 0` fill or end-state) then pins a LIVE row invisible
+   permanently. Symptom: sort clicks under churn progressively blank
+   the listing while the rows stay in the DOM (tooltips keep firing,
+   console clean). The enter keyframe is safe by construction: only a
+   `from` frame, no fill, so a stranded enter class cannot hide
+   anything. Regression guard: `e2e/smoke/files-reduced-motion.spec.ts`
+   plus the live-churn repro documented there. */
+@media (prefers-reduced-motion: no-preference) {
+  .files__row--enter {
+    animation: files-row-slide-in 200ms ease-out;
+  }
 }
 
 @keyframes files-row-slide-in {
   from {
-    opacity: 0;
-    transform: translateY(-12px);
-  }
-}
-
-@keyframes files-row-slide-out {
-  to {
     opacity: 0;
     transform: translateY(-12px);
   }

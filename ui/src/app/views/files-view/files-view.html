@@ -209,7 +209,6 @@
             @let folderState = folderCovered ? 'all' : (folderStateMap().get(row.path) ?? 'none');
             <tr
               animate.enter="files__row--enter"
-              animate.leave="files__row--leave"
               class="files__row files__row--folder"
               [attr.aria-expanded]="row.expanded"
               [attr.aria-level]="row.depth + 1"
@@ -297,7 +296,6 @@
             @let leafOnMap = visibleLeaves().has(row.path);
             <tr
               animate.enter="files__row--enter"
-              animate.leave="files__row--leave"
               class="files__row files__row--leaf"
               tabindex="0"
               [attr.aria-label]="texts.leafAriaLabel(row.name)"
