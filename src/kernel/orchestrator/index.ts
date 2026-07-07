@@ -132,6 +132,7 @@ import {
   type IPostWalkTransformCtx,
 } from './post-walk-transforms.js';
 import { collectBrokenLinks } from './lift-resolved-link-confidence.js';
+import { makeLinkTargetProbe } from './link-target-probe.js';
 import { resolveSignals } from './resolver.js';
 import { normalizeTrigger } from '../trigger-normalize.js';
 import {
@@ -381,8 +382,11 @@ export interface RunScanOptions {
    * Absolute path of the scan's cwd / project root. Threaded onto
    * `IAnalyzerContext.cwd` so rules that need to resolve a relative
    * `link.target` to an absolute filesystem path can do so without
-   * heuristics. Absent for callers that don't track a cwd
-   * concept (out-of-band tests, embedders).
+   * heuristics, and used by the orchestrator to anchor the link-target
+   * existence probe (`link-target-probe.ts`, the on-disk clause of the
+   * genuinely-broken definition). Absent for callers that don't track
+   * a cwd concept (out-of-band tests, embedders); the probe then stays
+   * off and broken verdicts degrade to the two in-graph clauses.
    */
   cwd?: string;
   /**
@@ -646,7 +650,18 @@ async function runScanInternal(
   // lift uses and threaded to analyzers so `core/reference-broken`
   // projects it instead of re-deriving a narrower (frontmatter-name-only)
   // index that disagreed with the lift on filename / dirname identifiers.
-  const brokenLinks = collectBrokenLinks(walked.internalLinks, walked.nodes, postWalkCtx);
+  // The existence probe (third clause of the definition, see
+  // `link-target-probe.ts`) is built fresh per pass so watcher batches
+  // never reuse a stale memoized verdict; without `options.cwd` (bare
+  // callers with no filesystem anchor) the verdict degrades to the two
+  // in-graph clauses.
+  const targetProbe = options.cwd ? makeLinkTargetProbe(options.cwd, options.roots) : undefined;
+  const brokenLinks = collectBrokenLinks(
+    walked.internalLinks,
+    walked.nodes,
+    postWalkCtx,
+    targetProbe,
+  );
   // Names claimed by 2+ name-resolvable nodes, computed once from the same
   // kind registry the resolver uses and threaded to `core/name-collision`.
   const nameCollisions = collectNameCollisions(walked.nodes, postWalkCtx.kindRegistry);

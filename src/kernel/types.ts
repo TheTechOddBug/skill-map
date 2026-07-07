@@ -132,7 +132,7 @@ export type Confidence = number;
  * `orchestrator/confidence-score.ts` for the algebra):
  *   - `set`   hard override (resolved → 1.0, reserved → 0.1)
  *   - `delta` additive, may be negative (third-party heuristics)
- *   - `ceil`  upper cap, lowers only (broken → 0.5)
+ *   - `ceil`  upper cap, lowers only (broken → 0.25)
  *   - `floor` lower bound, raises only
  */
 export type TConfidenceOp =

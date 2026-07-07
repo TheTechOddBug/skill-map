@@ -172,6 +172,11 @@ export class ScanCompareCommand extends SmCommand {
         ignoreFilter,
         strict: effectiveStrict,
         emitter: createCliProgressEmitter(this.context.stderr),
+        // Same wiring as the normal `sm scan` path: without the cwd
+        // anchor the link-target existence probe stays off and the
+        // fresh in-memory scan would report spurious drift on links
+        // targeting existing-but-unindexed files.
+        cwd: ctx.cwd,
       };
       if (composedExtensions) compareRunOpts.extensions = composedExtensions;
       current = await runScan(kernel, compareRunOpts);

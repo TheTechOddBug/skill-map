@@ -10,7 +10,7 @@
  *      link starts at full confidence, discarding the per-extractor emit.
  *      The score-phase detectors then subtract their `delta` penalties on
  *      top (`core/name-reserved` -0.9 for a reserved target → 0.1,
- *      `core/reference-broken` -0.5 for a broken one → 0.5), folded and
+ *      `core/reference-broken` -0.75 for a broken one → 0.25), folded and
  *      clamped to `[0,1]`. A link no detector touches stays at 1.0.
  *
  *   2. **Resolved target.** For a link that resolves to a real node,
@@ -47,6 +47,7 @@
 import { deriveNodeIdentifiers } from './node-identifiers.js';
 import type { Link, Node } from '../types.js';
 import type { IPostWalkTransformCtx } from './post-walk-transforms.js';
+import type { TLinkTargetProbe } from './link-target-probe.js';
 
 
 /**
@@ -66,7 +67,7 @@ interface INameIndexEntry {
  *      link starts at full confidence, the per-extractor emit floor is
  *      discarded). The `score`-phase detectors then apply their `delta`
  *      penalties on top (`core/name-reserved` -0.9, `core/reference-broken`
- *      -0.5), folded and clamped to `[0,1]`.
+ *      -0.75), folded and clamped to `[0,1]`.
  *   2. Record `link.resolvedTarget` for every link that resolves to a real
  *      node, so the detectors and downstream consumers navigate by node
  *      identity (the lift no longer assigns the confidence VALUES, only
@@ -106,17 +107,25 @@ export function liftResolvedLinkConfidence(
  * skips already-confident links. Membership is by object identity; the
  * orchestrator threads the SAME link objects on to the analyzer phase,
  * so `ctx.brokenLinks.has(link)` is exact.
+ *
+ * `targetExists` is the on-disk existence probe (see
+ * `link-target-probe.ts`), the third clause of the genuinely-broken
+ * definition: a path-style link whose target exists on disk under a
+ * scan root is NOT broken even when the file is not an indexed node.
+ * Optional so bare callers without a filesystem anchor (no
+ * `RunScanOptions.cwd`) degrade to the two in-graph clauses.
  */
 export function collectBrokenLinks(
   links: readonly Link[],
   nodes: readonly Node[],
   ctx: IPostWalkTransformCtx,
+  targetExists?: TLinkTargetProbe,
 ): Set<Link> {
   const broken = new Set<Link>();
   if (links.length === 0) return broken;
   const indexes = buildIndexes(nodes, ctx);
   for (const link of links) {
-    if (isGenuinelyBroken(link, indexes)) broken.add(link);
+    if (isGenuinelyBroken(link, indexes, targetExists)) broken.add(link);
   }
   return broken;
 }
@@ -138,7 +147,7 @@ function applyResolution(link: Link, indexes: IIndexes, ctx: IPostWalkTransformC
   // kernel sets the 1.0 baseline (above), and each detector reads this
   // `resolvedTarget` plus `ctx.reservedNodePaths` / `ctx.brokenLinks` and
   // applies its own `delta` via the public `adjustConfidence` API
-  // (`core/name-reserved` -0.9 for reserved, `core/reference-broken` -0.5
+  // (`core/name-reserved` -0.9 for reserved, `core/reference-broken` -0.75
   // for broken).
   link.resolvedTarget = resolution;
 }
@@ -174,21 +183,42 @@ function resolve(link: Link, indexes: IIndexes, ctx: IPostWalkTransformCtx): str
 
 /**
  * A link is genuinely broken when its target resolves to nothing: no
- * node path matches `link.target` AND the stripped trigger handle
- * matches no entry in the cross-kind name index. This is the same
- * kind-agnostic "the name exists nowhere" notion `core/reference-broken`
- * uses, deliberately broader than the strict kind/lens rule in
- * `resolve`: a link that matches a name but fails the kind matrix
- * (not-broken + not-bumped) is NOT broken and keeps its emit value.
- * Only called on the `resolution === 'none'` path, so `byPath` is
- * already known to miss; the name check is what discriminates broken
- * from not-broken-not-bumped.
+ * node path matches `link.target`, the stripped trigger handle
+ * matches no entry in the cross-kind name index, AND (for a path-style
+ * link) the target names no on-disk entry under any scan root
+ * (`spec/architecture.md` §Provider · resolution rules, rule 3). This
+ * is the same kind-agnostic "the name exists nowhere" notion
+ * `core/reference-broken` uses, deliberately broader than the strict
+ * kind/lens rule in `resolve`: a link that matches a name but fails
+ * the kind matrix (not-broken + not-bumped) is NOT broken and keeps
+ * its emit value. Only called on the `resolution === 'none'` path, so
+ * `byPath` is already known to miss; the name check is what
+ * discriminates broken from not-broken-not-bumped, and the existence
+ * probe (cheapest last: one lazy `lstat`, memoized) is what clears
+ * references to real-but-unindexed files.
  */
-function isGenuinelyBroken(link: Link, indexes: IIndexes): boolean {
+function isGenuinelyBroken(
+  link: Link,
+  indexes: IIndexes,
+  targetExists?: TLinkTargetProbe,
+): boolean {
   if (indexes.byPath.has(link.target)) return false;
   const stripped = stripTriggerSigil(link.trigger?.normalizedTrigger);
   if (stripped !== null && indexes.byName.has(stripped)) return false;
+  if (targetExists && isPathStyleTarget(link) && targetExists(link.target)) return false;
   return true;
+}
+
+/**
+ * A trigger-style link (`/deploy`, `@reviewer`, `$skill`) has no
+ * filesystem target, so the existence probe never fires on it; the
+ * sigil class mirrors `stripTriggerSigil`. Everything else (markdown
+ * links, backtick paths, at-directive file forms) carries a
+ * root-relative path in `link.target` and gets the probe.
+ */
+function isPathStyleTarget(link: Link): boolean {
+  const sigil = link.trigger?.normalizedTrigger?.charAt(0);
+  return sigil !== '/' && sigil !== '@' && sigil !== '$';
 }
 
 function resolveByName(

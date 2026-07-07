@@ -7,7 +7,7 @@
  * The lift seeds the kernel's confidence baseline (`link.confidence =
  * 1.0` for EVERY link, no gate) and records the resolution outcome on
  * `link.resolvedTarget`. The penalty values that used to ride along
- * (reserved → 0.1, broken → 0.5) are applied downstream by the built-in
+ * (reserved → 0.1, broken → 0.25) are applied downstream by the built-in
  * `core/name-reserved` / `core/reference-broken` score-phase analyzers,
  * which read this `resolvedTarget` plus `ctx.reservedNodePaths` /
  * `ctx.brokenLinks`. A clean-resolved or untouched link keeps the 1.0
@@ -710,5 +710,79 @@ describe('collectBrokenLinks', () => {
     const broken = collectBrokenLinks([good, bad], nodes, makeCtx());
     strictEqual(broken.has(good), false);
     strictEqual(broken.has(bad), true);
+  });
+
+  // ---- on-disk existence probe (third clause of the definition) ----
+
+  function pathLink(target: string, source = 'a.md'): Link {
+    return {
+      source,
+      target,
+      kind: 'references',
+      confidence: 0.9,
+      sources: ['markdown-link'],
+      trigger: { originalTrigger: `./${target}`, normalizedTrigger: target },
+    };
+  }
+
+  it('does NOT mark a path-style link whose target the probe finds on disk', () => {
+    // The reported false positive: `[schema](./report.schema.json)`
+    // points at a real file that is never indexed as a node.
+    const nodes = [mockNode({ path: 'a.md', kind: 'markdown', provider: 'core' })];
+    const link = pathLink('report.schema.json');
+    const broken = collectBrokenLinks([link], nodes, makeCtx(), () => true);
+    strictEqual(broken.has(link), false);
+  });
+
+  it('keeps a path-style link broken when the probe misses too', () => {
+    const nodes = [mockNode({ path: 'a.md', kind: 'markdown', provider: 'core' })];
+    const link = pathLink('missing.json');
+    const broken = collectBrokenLinks([link], nodes, makeCtx(), () => false);
+    strictEqual(broken.has(link), true);
+  });
+
+  it('never consults the probe for trigger-style links (/, @, $ sigils)', () => {
+    const nodes = [
+      mockNode({ path: '.claude/agents/src.md', kind: 'agent', frontmatter: { name: 'src' } }),
+    ];
+    const links = [
+      mockMention('@ghost', 'ghost', '.claude/agents/src.md'),
+      mockSlash('/ghost', '/ghost', '.claude/agents/src.md'),
+      mockSlash('$ghost', '$ghost', '.claude/agents/src.md'),
+    ];
+    const consulted: string[] = [];
+    const broken = collectBrokenLinks(links, nodes, makeCtx(), (target) => {
+      consulted.push(target);
+      return true; // would clear the verdict if it ever fired
+    });
+    deepStrictEqual(consulted, []);
+    for (const link of links) strictEqual(broken.has(link), true);
+  });
+
+  it('does not consult the probe for links already resolved in-graph', () => {
+    const nodes = [
+      mockNode({ path: 'a.md', kind: 'markdown', provider: 'core' }),
+      mockNode({ path: 'real.md', kind: 'markdown', provider: 'core' }),
+    ];
+    const consulted: string[] = [];
+    const broken = collectBrokenLinks([pathLink('real.md')], nodes, makeCtx(), (target) => {
+      consulted.push(target);
+      return false;
+    });
+    deepStrictEqual(consulted, []);
+    strictEqual(broken.size, 0);
+  });
+
+  it('treats a trigger-less link as path-style for the probe (annotation refs)', () => {
+    const nodes = [mockNode({ path: 'a.md', kind: 'markdown', provider: 'core' })];
+    const link: Link = {
+      source: 'a.md',
+      target: 'assets/logo.png',
+      kind: 'references',
+      confidence: 1.0,
+      sources: ['annotations'],
+    };
+    const broken = collectBrokenLinks([link], nodes, makeCtx(), () => true);
+    strictEqual(broken.has(link), false);
   });
 });

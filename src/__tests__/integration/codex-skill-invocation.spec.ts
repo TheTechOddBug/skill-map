@@ -80,11 +80,11 @@ describe('Codex skill-invocation grammar ($skill / @file / no reserved skills)',
     ok(checkLinks && checkLinks.linksInCount >= 1, 'the check-links skill has an incoming invoke');
 
     // 1b. A `$skill` that resolves to nothing is genuinely broken: the broken
-    // confidence (0.5) plus a `reference-broken` issue on the source. Confirms
+    // confidence (0.25) plus a `reference-broken` issue on the source. Confirms
     // the `$` sigil participates in broken-ref detection (stripTriggerSigil).
     const broken = fromDeployer.find((l) => l.kind === 'invokes' && l.target === '$missing-skill');
     ok(broken, '`$missing-skill` forms an invokes link');
-    ok(broken && broken.confidence === 0.5, 'an unresolved `$skill` carries the broken-reference confidence (0.5)');
+    ok(broken && broken.confidence === 0.25, 'an unresolved `$skill` carries the broken-reference confidence (0.25)');
     ok(
       result.issues.some(
         (i) => i.analyzerId === 'reference-broken' && (i.nodeIds ?? []).includes(DEPLOYER),

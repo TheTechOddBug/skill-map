@@ -5,7 +5,7 @@
  *     after the `referenceablePaths` escape hatch) gets a
  *     `ctx.adjustConfidence(link, { kind: 'delta', value: -BROKEN_PENALTY })`.
  *     The kernel seeds a 1.0 baseline on every link, so the penalty folds
- *     to `1.0 - 0.5 = 0.5`. Detection and scoring travel together: a link
+ *     to `1.0 - 0.75 = 0.25`. Detection and scoring travel together: a link
  *     suppressed by the escape hatch gets neither an issue nor an op.
  *     There is NO confidence gate: the delta fires regardless of the
  *     link's confidence; only the score-phase `adjustConfidence` presence
@@ -121,7 +121,7 @@ describe('broken-ref analyzer, issue emission', () => {
     // Per-node chip emission moved out, the aggregate severity chip
     // (`core/issue-counter`) handles the visual surface now.
     strictEqual(contributions.length, 0);
-    // Score side: the broken edge gets the penalty delta (folds to 0.5
+    // Score side: the broken edge gets the penalty delta (folds to 0.25
     // on the kernel's 1.0 baseline).
     strictEqual(ops.length, 1);
     strictEqual(ops[0]!.link, link);
@@ -175,7 +175,7 @@ describe('broken-ref analyzer, issue emission', () => {
     // There is NO confidence gate: a full-confidence broken link (e.g. an
     // annotation-derived link, or the kernel's 1.0 baseline) surfaces the
     // structural error AND gets the penalty delta, which folds 1.0 down to
-    // the broken floor (0.5).
+    // the broken floor (0.25).
     const a = fakeNode('a.md');
     const fullLink: Link = {
       source: 'a.md',

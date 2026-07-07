@@ -111,7 +111,7 @@ describe('scan end-to-end', () => {
     // Asserts: `/deploy` from architect.md (resolves to the deploy command
     // node) keeps the kernel's 1.0 baseline (no penalty), while `/unknown`
     // (no target) and `@backend-lead` (no target) are genuinely broken and
-    // fold to the broken floor (1.0 - BROKEN_PENALTY = 0.5).
+    // fold to the broken floor (1.0 - BROKEN_PENALTY = 0.25).
     const kernel = createKernel();
     for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
     const result = await runScan(kernel, {
@@ -127,10 +127,58 @@ describe('scan end-to-end', () => {
     strictEqual(deployInvoke!.confidence, 1.0, '/deploy resolves to the deploy command: keeps the kernel 1.0 baseline (no penalty)');
     const unknownInvoke = findLink('invokes', '/unknown');
     ok(unknownInvoke, 'expected /unknown invokes link from architect');
-    strictEqual(unknownInvoke!.confidence, 0.5, '/unknown is genuinely broken: kernel 1.0 baseline minus BROKEN_PENALTY → 0.5');
+    strictEqual(unknownInvoke!.confidence, 0.25, '/unknown is genuinely broken: kernel 1.0 baseline minus BROKEN_PENALTY → 0.25');
     const backendMention = findLink('mentions', '@backend-lead');
     ok(backendMention, 'expected @backend-lead mentions link from architect');
-    strictEqual(backendMention!.confidence, 0.5, '@backend-lead is genuinely broken: kernel 1.0 baseline minus BROKEN_PENALTY → 0.5');
+    strictEqual(backendMention!.confidence, 0.25, '@backend-lead is genuinely broken: kernel 1.0 baseline minus BROKEN_PENALTY → 0.25');
+  });
+
+  it('does not flag a link whose target exists on disk but is not an indexed node', async () => {
+    // The existence probe (third clause of the genuinely-broken
+    // definition): `[schema](./report.schema.json)` points at a real
+    // file the scan never indexes, so it must neither flag
+    // `reference-broken` nor take the broken penalty. The sibling link to
+    // `./missing.json` exists nowhere and keeps both. Requires the
+    // `cwd` anchor: without it the probe stays off (the shared-fixture
+    // tests above run without `cwd` and pin that degraded behaviour).
+    const probeFixture = mkdtempSync(join(tmpdir(), 'skill-map-e2e-probe-'));
+    try {
+      writeFileSync(
+        join(probeFixture, 'guide.md'),
+        [
+          '---',
+          'name: guide',
+          'description: Fixture for the existence probe',
+          '---',
+          '',
+          'Shape in [the schema](./report.schema.json).',
+          'History in [the old dump](./missing.json).',
+        ].join('\n'),
+      );
+      writeFileSync(join(probeFixture, 'report.schema.json'), '{}');
+
+      const kernel = createKernel();
+      for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
+      const result = await runScan(kernel, {
+        roots: [probeFixture],
+        extensions: builtIns(),
+        cwd: probeFixture,
+      });
+
+      strictEqual(result.stats.nodesCount, 1, 'the .json files are never indexed as nodes');
+      const schemaRef = result.links.find((l) => l.target === 'report.schema.json');
+      ok(schemaRef, 'expected the references link to the existing schema file');
+      strictEqual(schemaRef!.confidence, 1.0, 'existing on disk: keeps the 1.0 baseline');
+      const missingRef = result.links.find((l) => l.target === 'missing.json');
+      ok(missingRef, 'expected the references link to the missing file');
+      strictEqual(missingRef!.confidence, 0.25, 'exists nowhere: folds to the broken floor');
+
+      const brokenIssues = result.issues.filter((i) => i.analyzerId === 'reference-broken');
+      strictEqual(brokenIssues.length, 1, 'only the missing target flags');
+      strictEqual((brokenIssues[0]!.data as { target?: string }).target, 'missing.json');
+    } finally {
+      rmSync(probeFixture, { recursive: true, force: true });
+    }
   });
 
   it('produces zero-filled result with --no-built-ins parity (empty extensions)', async () => {
@@ -304,7 +352,7 @@ describe('scan end-to-end', () => {
       //    the broken floor, plus flagged by reference-broken.
       const missing = find('.claude/skills/demo/references/missing.md', 'points');
       strictEqual(missing.length, 1, 'unresolved backtick path persists');
-      strictEqual(missing[0]!.confidence, 0.5, 'genuinely-broken backtick path: kernel 1.0 baseline minus BROKEN_PENALTY → 0.5');
+      strictEqual(missing[0]!.confidence, 0.25, 'genuinely-broken backtick path: kernel 1.0 baseline minus BROKEN_PENALTY → 0.25');
       const broken = result.issues.filter(
         (i) => i.analyzerId === 'reference-broken' && i.nodeIds.includes(src),
       );

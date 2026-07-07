@@ -5,7 +5,7 @@
  * Single source of truth so the detectors cannot drift.
  *
  *   - `RESERVED_PENALTY` (0.9) by `core/name-reserved` → 1.0 - 0.9 = 0.1.
- *   - `BROKEN_PENALTY`   (0.5) by `core/reference-broken` → 1.0 - 0.5 = 0.5.
+ *   - `BROKEN_PENALTY`   (0.75) by `core/reference-broken` → 1.0 - 0.75 = 0.25.
  */
 
 /**
@@ -19,9 +19,11 @@ export const RESERVED_PENALTY = 0.9;
 
 /**
  * Penalty subtracted from a genuinely-broken link (target resolves to
- * nothing: no node path, no name-index entry). Lands at 0.5 from the 1.0
- * base, ABOVE a reserved target on purpose: a reserved target resolves to
- * a real-but-runtime-ignored file (subtler), whereas a broken target
- * merely points at nothing. Visibly demoted, while staying above reserved.
+ * nothing: no node path, no name-index entry, no on-disk file under any
+ * scan root). Lands at 0.25 from the 1.0 base, ABOVE a reserved target
+ * on purpose: a reserved target resolves to a real-but-runtime-ignored
+ * file (subtler), whereas a broken target merely points at nothing.
+ * Harsh, the existence probe removed the real-file false positives that
+ * justified the softer historical 0.5, while staying above reserved.
  */
-export const BROKEN_PENALTY = 0.5;
+export const BROKEN_PENALTY = 0.75;

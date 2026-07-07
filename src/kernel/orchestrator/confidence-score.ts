@@ -9,7 +9,7 @@
  * two built-in score-phase detectors, each co-locating its penalty op
  * with the finding it reports: `core/name-reserved`
  * (reserved → `delta -0.9` → 0.1), `core/reference-broken`
- * (broken → `delta -0.5` → 0.5). A clean-resolved or untouched link folds
+ * (broken → `delta -0.75` → 0.25). A clean-resolved or untouched link folds
  * to `clamp(base)` and keeps the 1.0 baseline.
  *
  * The fold is deterministic and order-independent across the four

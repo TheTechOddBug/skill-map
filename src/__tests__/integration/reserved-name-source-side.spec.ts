@@ -37,7 +37,7 @@ import {
 // Final folded confidences: every link starts at the kernel's 1.0
 // baseline and a built-in score-phase detector subtracts its penalty.
 const RESERVED_CONFIDENCE = 1.0 - RESERVED_PENALTY; // 0.1
-const BROKEN_CONFIDENCE = 1.0 - BROKEN_PENALTY; // 0.5
+const BROKEN_CONFIDENCE = 1.0 - BROKEN_PENALTY; // 0.25
 
 let fixture: string;
 
@@ -168,7 +168,7 @@ describe('core/name-reserved (source side, end-to-end through runScan)', () => {
     // Negative guard: a separate fixture invokes `/no-such-command`,
     // which has no on-disk target and is not in `reservedNames`.
     // `core/reference-broken` subtracts BROKEN_PENALTY, folding the
-    // genuinely-broken link to the broken floor (0.5, not the reserved
+    // genuinely-broken link to the broken floor (0.25, not the reserved
     // 0.1); the reserved-name analyzer must NOT synthesise a source-side
     // issue on this confidence value. Without the resolved-target check
     // the rule would over-fire on every broken slash trigger.
@@ -222,7 +222,7 @@ describe('core/name-reserved (source side, end-to-end through runScan)', () => {
       assert.equal(
         slashLink.confidence,
         BROKEN_CONFIDENCE,
-        '/no-such-command is genuinely broken: kernel 1.0 baseline minus BROKEN_PENALTY → 0.5',
+        '/no-such-command is genuinely broken: kernel 1.0 baseline minus BROKEN_PENALTY → 0.25',
       );
 
       const reservedNameIssues = result.issues.filter((i) => i.analyzerId === 'name-reserved');

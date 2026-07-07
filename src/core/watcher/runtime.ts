@@ -733,6 +733,11 @@ export function createWatcherRuntime(
         // choice (e.g. selecting `markdown` while `.claude/` is still on disk
         // would re-detect `claude` and silently overwrite the chosen lens).
         activeProvider: resolveWatcherLens(cwd, composed),
+        // Always threaded (not only when referencePaths is configured):
+        // the orchestrator's link-target existence probe anchors relative
+        // roots on `cwd`; leaving it unset would silently disable the
+        // probe on every watcher batch and diverge from CLI `sm scan`.
+        cwd,
       };
       // Reference-paths escape hatch: mirror what `scan-runner.ts`
       // (the CLI path) does, walk the configured side-roots and pass
@@ -745,7 +750,6 @@ export function createWatcherRuntime(
         const walk = walkReferencePaths(cfg.scan.referencePaths, cwd);
         if (walk.paths.size > 0) {
           runOptions.referenceablePaths = walk.paths;
-          runOptions.cwd = cwd;
         }
       }
       if (composed) runOptions.extensions = composed;

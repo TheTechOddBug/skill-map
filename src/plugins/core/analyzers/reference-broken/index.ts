@@ -1,18 +1,21 @@
 /**
  * `reference-broken` rule. Emits one `error` issue per link the
  * orchestrator judged genuinely broken (`IAnalyzerContext.brokenLinks`):
- * the target matches no node `path` AND the stripped trigger matches no
- * entry in the cross-kind name index. That verdict is computed once by
- * the post-walk lift (`collectBrokenLinks`) from the same
- * `deriveNodeIdentifiers`-backed index that drives the confidence
- * downgrade, so the rule and the lift agree by construction: a `@foo`
- * that resolves only via the file's basename / dirname identifier (not
- * its `frontmatter.name`) is NOT broken. The rule used to re-derive a
- * narrower frontmatter-name-only index, which flagged such links as
- * broken even though the lift resolved them with full confidence; the
- * two now share one source of truth, per `spec/architecture.md`
- * §Provider · resolution rules ("a name-only resolution is enough to
- * clear the broken flag").
+ * the target matches no node `path`, the stripped trigger matches no
+ * entry in the cross-kind name index, AND (for path-style links) the
+ * target names no on-disk entry under any scan root (the existence
+ * probe, `kernel/orchestrator/link-target-probe.ts`: a reference to a
+ * real-but-unindexed file such as a `.json` schema is not broken). That
+ * verdict is computed once by the post-walk lift (`collectBrokenLinks`)
+ * from the same `deriveNodeIdentifiers`-backed index that drives the
+ * confidence downgrade, so the rule and the lift agree by construction:
+ * a `@foo` that resolves only via the file's basename / dirname
+ * identifier (not its `frontmatter.name`) is NOT broken. The rule used
+ * to re-derive a narrower frontmatter-name-only index, which flagged
+ * such links as broken even though the lift resolved them with full
+ * confidence; the two now share one source of truth, per
+ * `spec/architecture.md` §Provider · resolution rules ("a name-only
+ * resolution is enough to clear the broken flag").
  *
  * **`scan.referencePaths` extension** (Step 9.7+): when the operator
  * has opted into a reference-paths side index, the rule consults it
@@ -75,7 +78,7 @@ export const referenceBrokenAnalyzer: IBuiltInManifest<IAnalyzer> = {
     for (const link of ctx.links) {
       if (!broken.has(link)) continue;
       if (refIndex && resolvesViaReferencePaths(link, refIndex)) continue;
-      // Score side: penalize a genuinely-broken edge (delta -0.5 → 0.5).
+      // Score side: penalize a genuinely-broken edge (delta -0.75 → 0.25).
       // The penalty follows the issue (both skip the reference-paths-
       // resolved links above), so detection and scoring stay one decision.
       penalizeBrokenConfidence(adjust, link);
@@ -100,7 +103,7 @@ function buildReferenceIndex(
 
 /**
  * Score side: subtract the broken penalty from the kernel's 1.0 baseline
- * (delta -0.5 → 0.5). A fixed delta that composes with any other scorer;
+ * (delta -0.75 → 0.25). A fixed delta that composes with any other scorer;
  * only gated on the score-phase `adjust` being present (the error issue
  * fires regardless). Split out of `evaluate` to keep its branch count
  * under the lint complexity cap.
