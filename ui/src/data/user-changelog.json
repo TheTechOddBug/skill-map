@@ -2,6 +2,34 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.84.0",
+      "date": "2026-07-07",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "`sm init` now keeps the `.skill-map/backups/` folder out of git, so your local database backups never get committed to the shared repo.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Links to files that really exist on disk (JSON, images, docs) no longer show as broken references. Only links pointing at genuinely missing files flag now, and they stand out more: their arrows render much fainter on the map.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Skill-map no longer skips the files your `.gitignore` skips by default, so notes you keep out of git now show up on the map. A new team-shared toggle at the end of Settings > Project (\"Use .gitignore\") turns the old behavior back on for the whole project.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.83.0",
       "date": "2026-07-06",
       "kind": "user-facing",
