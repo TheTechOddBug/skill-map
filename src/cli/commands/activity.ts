@@ -26,10 +26,12 @@
  *   - Idempotent both ways: re-install and double-uninstall no-op with
  *     exit 0.
  *
- * Providers are resolved off the BUILT-IN registry: v1 ships the
- * `claude` adapter, and drop-in providers with runtime methods load
- * through the plugin runtime only at scan time. Extending the verb to
- * trusted drop-ins rides the same registry lookup later.
+ * Providers are resolved off the FULL composed registry (built-ins plus
+ * trusted, enabled drop-in plugins, via `composeActiveProviders`), so a
+ * drop-in Provider that declares an `activity` adapter is installable /
+ * status-reportable exactly like a built-in. The import-trust gate still
+ * applies: an untrusted project-local plugin is never imported, so it
+ * never reaches the verb.
  */
 
 import { Command, Option } from 'clipanion';
@@ -44,7 +46,7 @@ import {
   installActivityBridge,
   uninstallActivityBridge,
 } from '../../core/activity/install.js';
-import { builtIns } from '../../plugins/built-ins.js';
+import { composeScanExtensions, loadPluginRuntime } from '../../core/runtime/plugin-runtime.js';
 import { ACTIVITY_TEXTS } from '../i18n/activity.texts.js';
 import { ACTIVITY_BRIDGE_REL } from '../util/db-path.js';
 import { confirm } from '../util/confirm.js';
@@ -52,13 +54,29 @@ import { ExitCode } from '../util/exit-codes.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
 
-/** Built-in Providers that declare an activity adapter. */
-function activityProviders(): IProvider[] {
-  return builtIns().providers.filter((p) => p.activity !== undefined);
+/**
+ * Every active Provider for this project: built-ins PLUS trusted + enabled
+ * drop-in plugins, composed exactly as the scan pipeline does
+ * (`loadPluginRuntime` applies the import-trust gate + enable resolver, so
+ * an untrusted repo plugin is never imported). Used so `sm activity` sees
+ * a drop-in Provider's `activity` adapter, not only the built-in set. A
+ * project-local plugin therefore reaches the verb only when the operator
+ * has trusted it (`sm plugins trust <id>` / `pluginTrust.projectEnabled`),
+ * the same boundary the scan honours.
+ */
+async function composeActiveProviders(): Promise<IProvider[]> {
+  const pluginRuntime = await loadPluginRuntime();
+  const composed = composeScanExtensions({
+    noBuiltIns: false,
+    pluginRuntime,
+    resolveEnabled: pluginRuntime.resolveEnabled,
+  });
+  return composed?.providers ?? [];
 }
 
-function resolveActivityProvider(id: string): IProvider | null {
-  return findActivityProvider(builtIns().providers, id);
+/** The subset of `providers` that declare an activity adapter. */
+function activityProviders(providers: readonly IProvider[]): IProvider[] {
+  return providers.filter((p) => p.activity !== undefined);
 }
 
 export class ActivityInstallCommand extends SmCommand {
@@ -96,9 +114,10 @@ export class ActivityInstallCommand extends SmCommand {
     const okGlyph = ansi.green('✓');
     const errGlyph = ansi.red('✕');
 
-    const provider = resolveActivityProvider(this.provider);
+    const providers = await composeActiveProviders();
+    const provider = findActivityProvider(providers, this.provider);
     if (provider === null || provider.activity === undefined) {
-      this.printUnknownProvider(errGlyph, ansi.dim.bind(ansi));
+      this.printUnknownProvider(errGlyph, ansi.dim.bind(ansi), providers);
       return ExitCode.Error;
     }
     const install = provider.activity.install;
@@ -171,8 +190,12 @@ export class ActivityInstallCommand extends SmCommand {
     return ExitCode.Ok;
   }
 
-  private printUnknownProvider(errGlyph: string, dim: (s: string) => string): void {
-    const available = activityProviders()
+  private printUnknownProvider(
+    errGlyph: string,
+    dim: (s: string) => string,
+    providers: readonly IProvider[],
+  ): void {
+    const available = activityProviders(providers)
       .map((p) => p.id)
       .join(', ');
     this.printer!.error(
@@ -214,7 +237,8 @@ export class ActivityUninstallCommand extends SmCommand {
     const okGlyph = ansi.green('✓');
     const errGlyph = ansi.red('✕');
 
-    const provider = resolveActivityProvider(this.provider);
+    const providers = await composeActiveProviders();
+    const provider = findActivityProvider(providers, this.provider);
     if (provider === null || provider.activity === undefined) {
       this.printer!.error(
         tx(ACTIVITY_TEXTS.unknownProvider, {
@@ -230,7 +254,7 @@ export class ActivityUninstallCommand extends SmCommand {
     try {
       // The full registry decides shared-bridge retention: the bridge
       // dir stays while any OTHER hook-file provider remains wired.
-      const { removed } = uninstallActivityBridge(ctx.cwd, provider, builtIns().providers);
+      const { removed } = uninstallActivityBridge(ctx.cwd, provider, providers);
       const pluginFile = install.kind === 'plugin-file';
       if (!removed) {
         this.printer!.info(
@@ -292,9 +316,10 @@ export class ActivityStatusCommand extends SmCommand {
     const okGlyph = ansi.green('✓');
     const errGlyph = ansi.red('✕');
 
+    const providers = await composeActiveProviders();
     let targets: IProvider[];
     if (this.provider !== undefined) {
-      const provider = resolveActivityProvider(this.provider);
+      const provider = findActivityProvider(providers, this.provider);
       if (provider === null) {
         this.printer!.error(
           tx(ACTIVITY_TEXTS.unknownProvider, {
@@ -305,7 +330,7 @@ export class ActivityStatusCommand extends SmCommand {
         this.printer!.error(
           ansi.dim(
             tx(ACTIVITY_TEXTS.unknownProviderHint, {
-              providers: activityProviders()
+              providers: activityProviders(providers)
                 .map((p) => p.id)
                 .join(', ') || '(none)',
             }),
@@ -315,7 +340,7 @@ export class ActivityStatusCommand extends SmCommand {
       }
       targets = [provider];
     } else {
-      targets = activityProviders();
+      targets = activityProviders(providers);
     }
 
     const ctx = defaultRuntimeContext();

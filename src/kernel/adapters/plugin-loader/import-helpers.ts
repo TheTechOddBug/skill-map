@@ -81,6 +81,39 @@ export function stripFunctionsAndPluginId(input: unknown): unknown {
   return out;
 }
 
+/**
+ * Runtime-only fields of a Provider's `activity` capability. Both are
+ * documented in `provider.schema.json#/properties/activity` and
+ * `spec/provider-activity.md` as TypeScript-only, "MUST NOT appear in the
+ * manifest": `mapEvent` is the raw-payload mapper, `pluginHooksSource` the
+ * in-process hook-registration source spliced into the generated plugin
+ * file. Built-ins carry both on the runtime object and never hit the
+ * loader's AJV pass; an EXTERNAL provider ships the same object literal,
+ * so the loader must drop these from the validatable view (the top-level
+ * function strip is shallow and cannot reach a nested method or a string).
+ * The instance is rebuilt from the untouched export, so both survive at
+ * runtime for `sm activity install` / the ingest mapper.
+ */
+const ACTIVITY_RUNTIME_KEYS = new Set(['pluginHooksSource', 'mapEvent']);
+
+/**
+ * Reduce a provider manifest view's `activity` block to its declarative
+ * half (`install`) by dropping the runtime-only keys above. No-op when the
+ * export declares no `activity` object. Applied AFTER
+ * `stripFunctionsAndPluginId`, before the provider AJV pass.
+ */
+export function stripActivityRuntimeFields(view: unknown): unknown {
+  if (!isRecord(view)) return view;
+  const activity = view['activity'];
+  if (!isRecord(activity)) return view;
+  const cleanedActivity: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(activity)) {
+    if (ACTIVITY_RUNTIME_KEYS.has(k)) continue;
+    cleanedActivity[k] = v;
+  }
+  return { ...view, activity: cleanedActivity };
+}
+
 // `stripKindsRuntimeFields` was retired with the structure-as-truth
 // refactor: the Provider `kinds` map is sourced from the
 // `<plugin>/kinds/<kindName>/` folder layout (see `discoverProviderKinds`

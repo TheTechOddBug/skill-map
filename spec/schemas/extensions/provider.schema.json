@@ -225,6 +225,25 @@
         }
       }
     },
+    "resolution": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string", "minLength": 1 }
+      },
+      "propertyNames": {
+        "enum": ["invokes", "references", "mentions", "points"]
+      },
+      "description": "Strict resolution matrix consumed by the post-walk confidence-lift transform: maps a `link.kind` (emitted by an Extractor in this Provider's plugin, e.g. `invokes`, `mentions`) to the set of target `node.kind` values that count as a valid resolution. A link whose normalised trigger matches a node's identifier (see the kinds' `identifiers`) is lifted to confidence `1.0` only when that node's kind appears in `resolution[link.kind]`; otherwise it keeps its extractor-emitted confidence (the name exists but does not resolve AS THIS link.kind). Keys are restricted to the closed link-kind set; values are kind names this Provider declares under `kinds/`. Absent means no name-based confidence bump applies (path matches are unaffected). Distinct from `resolverRules` (Signal IR candidate ranking); `resolution` runs against the merged Link graph."
+    },
+    "reservedNames": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string", "minLength": 1 }
+      },
+      "description": "Per-kind catalog of names the provider runtime reserves for its own built-in commands / verbs, so a user node named after one is flagged. Maps a kind name (a key of the Provider's `kinds/` catalog) to the reserved names for that kind. Two consumers share it: the `core/name-reserved` analyzer emits a `warn` when a node's normalised identifiers intersect the reserved list for its provider + kind (the runtime silently shadows the user file), and the post-walk confidence-lift transform floors any link resolving to a reserved node. Lookup normalises both sides via the trigger normalization pipeline, so `Init-Project` in the manifest matches a user `init project`. Scope each entry to the kind the runtime actually consumes (a name reserved for commands may legitimately appear as a skill). Absent means no reserved names."
+    },
     "read": {
       "description": "Declarative file-discovery config consumed by the kernel walker. Either a SINGLE rule (the common case) or an ARRAY of rules (a Provider that reads several file families, each with its own parser). For each rule the kernel walks every root, includes files whose extension matches the rule's `extensions`, parses each with the rule's `parser`, and yields raw nodes the orchestrator consumes; an array runs one walk pass per rule. When absent, the kernel applies the default `{ extensions: ['.md'], parser: 'frontmatter-yaml' }` so the most common Provider shape needs no configuration. When a Provider also declares the runtime `walk()` method (TypeScript-only, never appears in this manifest), `walk()` wins and `read` is ignored: the runtime field is the escape hatch for Providers with non-standard discovery requirements. The multi-rule array is the declarative path for a mixed-format Provider, so an escape-hatch `walk()` is not needed: the OpenAI Codex provider reads `.toml` sub-agents (parser `toml`, `bodyField: 'developer_instructions'`) AND `.md` open-standard skills (parser `frontmatter-yaml`) as two rules. Rules SHOULD declare disjoint `extensions`; if two rules (or a rule and another Provider) match the same path, the orchestrator's first-wins claim dedups it. Built-in parsers ship with the kernel (`frontmatter-yaml`, `plain`, `toml`); the set is closed by design and user plugins cannot register their own.",
       "oneOf": [

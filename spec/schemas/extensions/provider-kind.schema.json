@@ -7,6 +7,20 @@
   "required": ["ui"],
   "additionalProperties": false,
   "properties": {
+    "identifiers": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "enum": ["frontmatter.name", "filename-basename", "dirname"]
+      },
+      "description": "Priority-ordered identifier sources the post-walk resolver consults to derive this kind's canonical name(s); order is meaningful (the resolver visits sources in declaration order, and the resulting name index is presence-based so multiple matches collapse). Each entry contributes one normalised name to the resolution index, so a node of this kind becomes name-resolvable (an `invokes` / reference link naming it can resolve to it). Absent means the kind is not name-resolvable. Sources: `frontmatter.name` reads `frontmatter.name` (required-name kinds like agent / command / skill declare this first); `filename-basename` is `basename(path)` without extension (the filename IS the handle when `name:` is absent); `dirname` is the parent directory name (skills resolve to the folder between the skills root and `SKILL.md`)."
+    },
+    "identifierMismatch": {
+      "type": "string",
+      "enum": ["warn", "info"],
+      "description": "Severity of the `core/name-mismatch` issue emitted when a node's normalised `frontmatter.name` diverges from a declared path-derived identifier (`filename-basename` / `dirname`), giving the node two live names in the resolution index. Absent means no diagnostic. Use `warn` when the kind's standard REQUIRES agreement (e.g. the open-standard skill kind mandates name == parent dirname); `info` when the runtime documents the divergence as a legal override yet the dual identity is still worth surfacing."
+    },
     "ui": {
       "type": "object",
       "required": ["label", "color"],

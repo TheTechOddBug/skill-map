@@ -64,6 +64,7 @@ import {
 import {
   extractDefault,
   importWithTimeout,
+  stripActivityRuntimeFields,
   stripFunctionsAndPluginId,
 } from './import-helpers.js';
 import {
@@ -74,6 +75,7 @@ import {
   validateAnnotationContributions,
   validateHookTriggers,
 } from './validation.js';
+import type { IDiscoveredProviderKind } from './validation.js';
 import { loadStorageSchemas } from './storage-schemas.js';
 
 /**
@@ -527,8 +529,15 @@ export class PluginLoader implements PluginLoaderPort {
 
     // Strip runtime methods + the injected `pluginId` so AJV's strict
     // `unevaluatedProperties: false` doesn't reject the export. The
-    // structure-as-truth fields are gone already (rejected above).
-    const manifestView = stripFunctionsAndPluginId(exported);
+    // structure-as-truth fields are gone already (rejected above). For a
+    // provider, also drop the `activity` capability's runtime-only fields
+    // (`pluginHooksSource` / `mapEvent`): the top-level function strip is
+    // shallow, so a nested method or a runtime string inside `activity`
+    // survives and would trip the schema's `additionalProperties: false`.
+    const manifestView =
+      kind === 'provider'
+        ? stripActivityRuntimeFields(stripFunctionsAndPluginId(exported))
+        : stripFunctionsAndPluginId(exported);
 
     if (kind === 'hook') {
       const hookFailure = validateHookTriggers(pluginPath, pluginId, manifest, relEntry, exported, manifestView);
@@ -604,7 +613,7 @@ export class PluginLoader implements PluginLoaderPort {
     // loader discovers it and pre-populates the runtime descriptor so
     // the orchestrator / UI consume one shape regardless of how the
     // Provider's TypeScript source declared its `kinds` field.
-    let discoveredKinds: Record<string, { schema: string; schemaJson: unknown; ui: unknown }> | undefined;
+    let discoveredKinds: Record<string, IDiscoveredProviderKind> | undefined;
     if (kind === 'provider') {
       const kindsResult = discoverProviderKinds(
         pluginPath,

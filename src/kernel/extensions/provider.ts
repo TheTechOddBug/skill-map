@@ -155,9 +155,12 @@ export interface IProviderKind {
    * Severity of the `core/name-mismatch` issue emitted when a node's
    * NORMALISED `frontmatter.name` diverges from a declared path-derived
    * identifier (`filename-basename` / `dirname`), giving the node two
-   * live names in the resolution index. Absent = no diagnostic. Same
-   * TS-only lane as `identifiers`: external `kind.json` files declare
-   * neither. `'warn'` when the kind's standard REQUIRES agreement (the
+   * live names in the resolution index. Absent = no diagnostic. External
+   * `kind.json` files declare `identifiers` / `identifierMismatch`
+   * directly (both are optional keys on `provider-kind.schema.json`), so
+   * a drop-in Provider reaches the same name-resolution lane a built-in
+   * gets from this TypeScript field. `'warn'` when the kind's standard
+   * REQUIRES agreement (the
    * open-standard skill kind mandates name == parent dirname); `'info'`
    * when the runtime documents the divergence as a legal override yet
    * the dual identity is still worth surfacing. Normative wording:

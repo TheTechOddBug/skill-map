@@ -480,9 +480,22 @@ export async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWal
   // Providers only, matching the markdown-lens shape. Filtering at the
   // provider-iteration level (not per file) is the cheap path: a
   // gated-off vendor Provider does NOT walk its territory at all.
-  const activeProviders = opts.providers.filter((provider) =>
+  const participating = opts.providers.filter((provider) =>
     providerParticipates(provider, opts.activeProvider),
   );
+  // Claim order: gated LENS providers first, the ungated universal
+  // base(s) (`core/markdown`) last, so the active lens always claims its
+  // own territory before the fallback (first-claim-wins via
+  // `claimedPaths`). Built-in providers are already authored in this
+  // order, but an EXTERNAL lens plugin is appended after `core/markdown`
+  // in the registry (built-ins, then user plugins), so without this
+  // partition the universal base would claim every `.md` first and the
+  // external lens would never classify. Stable: relative order within
+  // each group is preserved.
+  const activeProviders = [
+    ...participating.filter((provider) => provider.gatedByActiveLens),
+    ...participating.filter((provider) => !provider.gatedByActiveLens),
+  ];
 
   const advance = async (raw: IRawNode, provider: IProvider): Promise<void> => {
     const advanced = await processRawNode(raw, provider, wctx, accum, claimedPaths, index + 1);

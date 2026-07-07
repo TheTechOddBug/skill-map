@@ -15,7 +15,7 @@
  */
 
 import { describe, it, beforeEach, afterEach } from 'node:test';
-import { strictEqual, deepStrictEqual } from 'node:assert';
+import { strictEqual, deepStrictEqual, ok } from 'node:assert';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -125,8 +125,7 @@ interface IWalkInvocation {
   recorders: IRecorders;
 }
 
-async function runWalk(opts: IWalkInvocation): Promise<void> {
-  const providers = buildRegistry(opts.recorders);
+async function runWalkProviders(providers: IProvider[], activeProvider: string | null): Promise<void> {
   await walkAndExtract({
     providers,
     extractors: [],
@@ -145,7 +144,7 @@ async function runWalk(opts: IWalkInvocation): Promise<void> {
     priorExtractorRuns: undefined,
     providerFrontmatter: buildProviderFrontmatterValidator(providers),
     pluginStores: undefined,
-    activeProvider: opts.activeProvider,
+    activeProvider,
     // High enough that the ceiling never fires for this fixture, the
     // test exercises lens-gating, not the walk ceiling.
     scanCeiling: 100000,
@@ -153,6 +152,10 @@ async function runWalk(opts: IWalkInvocation): Promise<void> {
     maxRenderNodes: 256,
     overrideMaxRenderNodes: null,
   });
+}
+
+async function runWalk(opts: IWalkInvocation): Promise<void> {
+  await runWalkProviders(buildRegistry(opts.recorders), opts.activeProvider);
 }
 
 function emptyRecorders(): IRecorders {
@@ -241,5 +244,44 @@ describe('walkAndExtract / active-lens classification gate', () => {
       true,
       'core/markdown (universal) MUST always run',
     );
+  });
+
+  it('external claim order: a gated lens registered AFTER the universal markdown still claims its territory', async () => {
+    // Regression for the drop-in lens claim-order gap. External providers
+    // are appended to the registry AFTER the built-in universal
+    // `core/markdown`, so the registry order here is [markdown, lens] on
+    // purpose. `walkAndExtract` must partition gated lenses BEFORE the
+    // ungated universal base so the lens claims its own `.claude/`
+    // territory first; otherwise markdown claims every `.md` and the lens
+    // never classifies (the failure mode that shipped 9 nodes as plain
+    // markdown before the fix).
+    const lensCalls: string[] = [];
+    const markdownCalls: string[] = [];
+    const lens = recordingProvider({
+      id: 'drop-in-lens',
+      gatedByActiveLens: true,
+      calls: lensCalls,
+      kindFor: (p) => (p.startsWith('.claude/') ? 'stub' : null),
+    });
+    const markdown = recordingProvider({
+      id: 'markdown',
+      gatedByActiveLens: false,
+      calls: markdownCalls,
+      kindFor: () => 'stub',
+    });
+    // Universal base registered FIRST, gated lens LAST (built-ins, then
+    // external plugins).
+    await runWalkProviders([markdown, lens], 'drop-in-lens');
+
+    ok(
+      lensCalls.includes('.claude/agents/foo.md'),
+      'the gated lens MUST classify (and claim) its own territory despite being registered after markdown',
+    );
+    ok(
+      !markdownCalls.includes('.claude/agents/foo.md'),
+      'core/markdown MUST NOT claim the lens territory (the lens claimed it first)',
+    );
+    // markdown still claims the genuinely-unowned file.
+    ok(markdownCalls.includes('notes/random.md'), 'markdown still claims un-owned files');
   });
 });

@@ -9,7 +9,7 @@
  */
 
 import { describe, it, before, after } from 'node:test';
-import { strictEqual, ok, match } from 'node:assert';
+import { strictEqual, ok, match, deepStrictEqual } from 'node:assert';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -65,6 +65,29 @@ function writePlugin(
     writeFileSync(target, contents);
   }
   return pluginDir;
+}
+
+/**
+ * Lay down a structure-as-truth provider kind on disk:
+ * `<plugin>/kinds/<name>/{schema.json, kind.json}`. `schema.json` is a
+ * minimal frontmatter schema extending the base via `allOf` + `$ref`;
+ * `kind.json` is the caller-supplied metadata (AJV-checked against
+ * `provider-kind.schema.json` at load).
+ */
+function writeProviderKind(pluginDir: string, name: string, kindJson: unknown): void {
+  const kindDir = join(pluginDir, 'kinds', name);
+  mkdirSync(kindDir, { recursive: true });
+  writeFileSync(
+    join(kindDir, 'schema.json'),
+    JSON.stringify({
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      $id: `urn:test:${name}`,
+      allOf: [{ $ref: 'https://skill-map.ai/spec/v0/frontmatter/base.schema.json' }],
+      type: 'object',
+      additionalProperties: true,
+    }),
+  );
+  writeFileSync(join(kindDir, 'kind.json'), JSON.stringify(kindJson));
 }
 
 function loaderFor(rootDir: string): PluginLoader {
@@ -353,6 +376,97 @@ describe('PluginLoader', () => {
       const r = await loaderFor(root).discoverAndLoadAll();
       strictEqual(r[0]?.status, 'invalid-manifest');
       match(r[0]!.reason!, /declares `kinds`/);
+    });
+
+    it('projects `identifiers` + `identifierMismatch` from an external `kind.json` onto the runtime descriptor', async () => {
+      // An external Provider reaches the same name-resolution lane a
+      // built-in gets from `IProviderKind.identifiers`: the loader
+      // projects the optional keys from `kinds/<name>/kind.json` onto
+      // `instance.kinds[<name>]`.
+      const root = makePluginsDir('provider-kind-identifiers');
+      const pluginDir = writePlugin(
+        root,
+        'ext-provider',
+        { version: '1.0.0', description: 'test', specCompat: '>=0.0.0', catalogCompat: '*' },
+        {
+          'provider/ext-provider.mjs':
+            `export default { version: '1.0.0', description: 'external provider', presentation: { label: 'Ext', color: '#0891b2' }, classify() { return 'agent'; } };`,
+        },
+      );
+      writeProviderKind(pluginDir, 'agent', {
+        ui: { label: 'Agents', color: '#3b82f6' },
+        identifiers: ['frontmatter.name', 'filename-basename'],
+        identifierMismatch: 'warn',
+      });
+      const r = await loaderFor(root).discoverAndLoadAll();
+      strictEqual(r[0]?.status, 'enabled');
+      const ext = r[0]?.extensions?.[0] as { instance?: Record<string, unknown> };
+      const kinds = ext.instance?.['kinds'] as Record<string, Record<string, unknown>>;
+      deepStrictEqual(kinds['agent']?.['identifiers'], ['frontmatter.name', 'filename-basename']);
+      strictEqual(kinds['agent']?.['identifierMismatch'], 'warn');
+    });
+
+    it('loads an external provider declaring `activity`, `resolution`, and `reservedNames`', async () => {
+      // Parity gaps for external providers: `activity` carries runtime-only
+      // fields (`pluginHooksSource` string + nested `mapEvent`) the shallow
+      // function-strip cannot reach, and `resolution` / `reservedNames` are
+      // declarative fields the provider schema must accept. All three are
+      // built-in surface that no external provider had exercised before.
+      const root = makePluginsDir('provider-full-surface');
+      const pluginDir = writePlugin(
+        root,
+        'rich-provider',
+        { version: '1.0.0', description: 'test', specCompat: '>=0.0.0', catalogCompat: '*' },
+        {
+          'provider/rich-provider.mjs':
+            `export default {
+               version: '1.0.0',
+               description: 'external provider with the full runtime surface',
+               presentation: { label: 'Rich', color: '#0891b2' },
+               resolution: { invokes: ['command'] },
+               reservedNames: { command: ['help', 'init'] },
+               activity: {
+                 install: { kind: 'plugin-file', configPath: '.rich/plugin/activity.js' },
+                 pluginHooksSource: "  'tool.execute.before': async () => {},",
+                 mapEvent() { return null; },
+               },
+               classify() { return 'command'; },
+             };`,
+        },
+      );
+      writeProviderKind(pluginDir, 'command', {
+        ui: { label: 'Commands', color: '#f59e0b' },
+        identifiers: ['filename-basename'],
+      });
+      const r = await loaderFor(root).discoverAndLoadAll();
+      strictEqual(r[0]?.status, 'enabled', r[0]?.reason ?? '(no reason)');
+      const ext = r[0]?.extensions?.[0] as { instance?: Record<string, unknown> };
+      const activity = ext.instance?.['activity'] as Record<string, unknown>;
+      // The runtime instance keeps the runtime-only fields (only the AJV
+      // view is reduced), so `sm activity install` / the ingest mapper work.
+      strictEqual(typeof activity?.['pluginHooksSource'], 'string');
+      strictEqual(typeof activity?.['mapEvent'], 'function');
+      deepStrictEqual(ext.instance?.['resolution'], { invokes: ['command'] });
+    });
+
+    it('rejects an external `kind.json` whose `identifiers` carries an unknown source', async () => {
+      const root = makePluginsDir('provider-kind-bad-identifier');
+      const pluginDir = writePlugin(
+        root,
+        'ext-provider-bad',
+        { version: '1.0.0', description: 'test', specCompat: '>=0.0.0', catalogCompat: '*' },
+        {
+          'provider/ext-provider-bad.mjs':
+            `export default { version: '1.0.0', description: 'external provider', presentation: { label: 'Ext', color: '#0891b2' }, classify() { return 'agent'; } };`,
+        },
+      );
+      writeProviderKind(pluginDir, 'agent', {
+        ui: { label: 'Agents', color: '#3b82f6' },
+        identifiers: ['not-a-source'],
+      });
+      const r = await loaderFor(root).discoverAndLoadAll();
+      strictEqual(r[0]?.status, 'invalid-manifest');
+      match(r[0]!.reason!, /provider-kind\.schema\.json/);
     });
 
     it('rejects a formatter that declares `formatId` (derived from the folder)', async () => {

@@ -7,7 +7,7 @@
 
 import { describe, it, before, after } from 'node:test';
 import { ok, strictEqual } from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import type { BaseContext } from 'clipanion';
@@ -147,4 +147,76 @@ describe('sm activity status', () => {
     strictEqual(await cmd.execute(), 2);
     ok(cap.stderr().includes('claude'), 'hint lists available providers');
   });
+
+  it('reports a TRUSTED drop-in provider that declares an activity adapter', async () => {
+    // Gap: `sm activity` used to resolve providers off the built-in
+    // registry only, so a drop-in provider's activity adapter was
+    // invisible. The command now composes the full runtime (built-ins +
+    // trusted drop-ins), so a project-local plugin the operator has
+    // trusted is status-reportable like a built-in.
+    const fixture = freshFixture('dropin-trusted');
+    writeExternalActivityPlugin(fixture, 'demo-live', true);
+    process.chdir(fixture);
+
+    const cap = captureContext();
+    const cmd = makeCmd();
+    cmd.context = cap.context;
+    strictEqual(await cmd.execute(), 0);
+
+    const out = cap.stdout();
+    ok(out.includes('demo-live: not installed'), 'the trusted drop-in provider is listed');
+    ok(out.includes('claude: not installed'), 'built-ins still listed alongside it');
+  });
+
+  it('does NOT report an UNTRUSTED drop-in provider (import gate closed)', async () => {
+    // The import-trust boundary still applies: without the local trust
+    // opt-in the plugin code is never imported, so its activity adapter
+    // never reaches the verb.
+    const fixture = freshFixture('dropin-untrusted');
+    writeExternalActivityPlugin(fixture, 'demo-live', false);
+    process.chdir(fixture);
+
+    const cap = captureContext();
+    const cmd = makeCmd();
+    cmd.context = cap.context;
+    strictEqual(await cmd.execute(), 0);
+
+    ok(!cap.stdout().includes('demo-live'), 'an untrusted drop-in provider is NOT listed');
+  });
 });
+
+/**
+ * Lay down a minimal drop-in provider that declares a `plugin-file`
+ * activity adapter under `<fixture>/.skill-map/plugins/<id>/`, optionally
+ * granting the local import-trust opt-in so `loadPluginRuntime` imports it.
+ */
+function writeExternalActivityPlugin(fixture: string, id: string, trusted: boolean): void {
+  const pluginDir = join(fixture, '.skill-map', 'plugins', id);
+  mkdirSync(join(pluginDir, 'providers', id), { recursive: true });
+  writeFileSync(
+    join(pluginDir, 'plugin.json'),
+    JSON.stringify({ version: '0.1.0', specCompat: '*', catalogCompat: '*', description: 'drop-in activity provider' }),
+  );
+  writeFileSync(
+    join(pluginDir, 'providers', id, 'index.js'),
+    `export default {
+       version: '0.1.0',
+       description: 'drop-in provider with an activity adapter',
+       presentation: { label: 'Demo Live', color: '#0891b2' },
+       gatedByActiveLens: true,
+       activity: {
+         install: { kind: 'plugin-file', configPath: '.demo-live/plugin/activity.js' },
+         pluginHooksSource: "  'tool.execute.before': async () => {},",
+         mapEvent() { return null; },
+       },
+       classify() { return null; },
+     };\n`,
+  );
+  if (trusted) {
+    mkdirSync(join(fixture, '.skill-map'), { recursive: true });
+    writeFileSync(
+      join(fixture, '.skill-map', 'settings.local.json'),
+      JSON.stringify({ pluginTrust: { projectEnabled: true } }),
+    );
+  }
+}

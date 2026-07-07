@@ -28,6 +28,23 @@ import { describe, fail, isRecord } from './id-utils.js';
 
 type TAjv = InstanceType<typeof Ajv2020>;
 
+/**
+ * Runtime descriptor the loader projects from one `kinds/<name>/`
+ * folder pair. `ui` + `identifiers` + `identifierMismatch` come from
+ * `kind.json` (AJV-validated against `provider-kind.schema.json`);
+ * `schema` / `schemaJson` from the sibling `schema.json`. Structure-as-
+ * truth replacement for the old inline `kinds` map on the manifest;
+ * external Providers reach the same name-resolution lane built-ins get
+ * from their TypeScript `IProviderKind.identifiers`.
+ */
+export interface IDiscoveredProviderKind {
+  schema: string;
+  schemaJson: unknown;
+  ui: unknown;
+  identifiers?: unknown;
+  identifierMismatch?: unknown;
+}
+
 export const KNOWN_KINDS = new Set<ExtensionKind>([
   'provider',
   'extractor',
@@ -276,7 +293,7 @@ export function discoverProviderKinds(
   relEntry: string,
   validatorForKind: (data: unknown) => { ok: boolean; errors: string },
 ):
-  | { ok: true; kinds: Record<string, { schema: string; schemaJson: unknown; ui: unknown }> }
+  | { ok: true; kinds: Record<string, IDiscoveredProviderKind> }
   | { ok: false; failure: IDiscoveredPlugin } {
   const kindsRoot = join(pluginPath, 'kinds');
   let entries: string[];
@@ -285,7 +302,7 @@ export function discoverProviderKinds(
   } catch {
     return { ok: true, kinds: {} };
   }
-  const out: Record<string, { schema: string; schemaJson: unknown; ui: unknown }> = {};
+  const out: Record<string, IDiscoveredProviderKind> = {};
   for (const entry of entries.sort()) {
     if (entry.startsWith('.')) continue;
     const kindDir = join(kindsRoot, entry);
@@ -316,7 +333,7 @@ interface ILoadOneKindOptions {
 }
 
 function loadOneProviderKind(opts: ILoadOneKindOptions):
-  | { ok: true; kind: { schema: string; schemaJson: unknown; ui: unknown } }
+  | { ok: true; kind: IDiscoveredProviderKind }
   | { ok: false; failure: IDiscoveredPlugin } {
   const schemaJson = readJsonFile(join(opts.kindDir, 'schema.json'));
   if ('error' in schemaJson) {
@@ -341,10 +358,33 @@ function loadOneProviderKind(opts: ILoadOneKindOptions):
       },
     };
   }
-  const ui = isRecord(kindJson.value) ? (kindJson.value as Record<string, unknown>)['ui'] : undefined;
   return {
     ok: true,
-    kind: { schema: `./kinds/${opts.entry}/schema.json`, schemaJson: schemaJson.value, ui },
+    kind: projectProviderKind(opts.entry, kindJson.value, schemaJson.value),
+  };
+}
+
+/**
+ * Build the runtime kind descriptor from a validated `kind.json` value.
+ * `ui` is required (AJV-guaranteed); `identifiers` / `identifierMismatch`
+ * are optional and already enum-validated, so they are projected verbatim
+ * (and only when present) so an external kind reaches the same
+ * name-resolution lane a built-in gets from `IProviderKind.identifiers`.
+ */
+function projectProviderKind(
+  entry: string,
+  kindValue: unknown,
+  schemaJson: unknown,
+): IDiscoveredProviderKind {
+  const record = isRecord(kindValue) ? (kindValue as Record<string, unknown>) : undefined;
+  const identifiers = record?.['identifiers'];
+  const identifierMismatch = record?.['identifierMismatch'];
+  return {
+    schema: `./kinds/${entry}/schema.json`,
+    schemaJson,
+    ui: record?.['ui'],
+    ...(identifiers !== undefined ? { identifiers } : {}),
+    ...(identifierMismatch !== undefined ? { identifierMismatch } : {}),
   };
 }
 
