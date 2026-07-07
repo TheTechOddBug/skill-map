@@ -817,20 +817,33 @@ export class GraphView implements OnInit {
   /**
    * Canvas change handler: mirrors the event into the viewport store
    * (reconciliation + persistence) and doubles as the manual-gesture
-   * hook that switches Follow the Activity off. Foblex only fires
-   * `fCanvasChange` for USER gestures (wheel / pinch / canvas drag /
-   * the zoom buttons' `setZoom`) plus the middle-mouse pan's explicit
+   * hook for Follow the Activity. Foblex only fires `fCanvasChange`
+   * for USER gestures (wheel / pinch / canvas drag / the zoom buttons'
+   * `setZoom`) plus the middle-mouse pan's explicit
    * `emitCanvasChangeEvent()` flush, never for programmatic
    * `[position]` / `[scale]` writes, so the follow tween itself cannot
-   * trip this and the event IS the "operator took the camera" signal
-   * (log-viewer follow semantics). Gated on the boot fit: the initial
-   * imperative `fitToScreenClamped` (Foblex `fitToScreen` + `setZoom`
-   * clamp) emits too, and must not kill a persisted follow preference
-   * at startup.
+   * trip this and the event IS the "operator touched the camera"
+   * signal. Gated on the boot fit: the initial imperative
+   * `fitToScreenClamped` (Foblex `fitToScreen` + `setZoom` clamp)
+   * emits too, and must not kill a persisted follow preference at
+   * startup.
+   *
+   * Follow drops ONLY when the gesture interrupts a camera move in
+   * flight: the operator grabbed the wheel while the camera was
+   * driving itself, so the tween is cancelled on the spot (its rAF
+   * loop would keep writing over the user's hand for the rest of its
+   * 420ms) and the preference switches off. A gesture while the
+   * camera RESTS keeps follow armed, panning around between
+   * executions is free and the next membership change re-frames.
+   * Explicit camera intents (fit / zoom buttons / re-arrange /
+   * isolate / deep-link center) still disable at their call sites.
    */
   protected onCanvasChange(event: FCanvasChangeEvent): void {
     this.viewportStore.onCanvasChange(event);
-    if (this.layoutFit.hasCompletedInitialLayout()) this.disableFollow();
+    if (!this.layoutFit.hasCompletedInitialLayout()) return;
+    if (!this.cameraTweenInFlight()) return;
+    this.autoFitAnimToken++;
+    this.disableFollow();
   }
 
   /**
@@ -878,6 +891,21 @@ export class GraphView implements OnInit {
    *  call so a back-to-back WS scan refresh cancels the in-flight tween
    *  cleanly (mirrors the tag-selection pattern). */
   private autoFitAnimToken = 0;
+
+  /**
+   * Wall-clock start of the last animated camera tween. A tween runs
+   * exactly `AUTO_FIT_ANIM_MS` from here (a superseding call restarts
+   * the window together with the tween), so "started less than a
+   * duration ago" IS the in-flight state, no completion callback
+   * needed. `-Infinity` so the pre-first-tween window never reads as
+   * moving (`performance.now()` starts near 0 at page load).
+   */
+  private cameraTweenStartedAt = Number.NEGATIVE_INFINITY;
+
+  /** True while an animated camera move (fit / center / follow) is in flight. */
+  private cameraTweenInFlight(): boolean {
+    return performance.now() - this.cameraTweenStartedAt < AUTO_FIT_ANIM_MS;
+  }
 
   /**
    * Set to `true` when `setupLayoutFit` fires its animated callback on
@@ -948,6 +976,7 @@ export class GraphView implements OnInit {
    */
   private animateToTransform(transform: IViewportTransform): void {
     const token = ++this.autoFitAnimToken;
+    this.cameraTweenStartedAt = performance.now();
     animateViewport(
       {
         readPosition: () => this.viewportPosition(),
@@ -1443,8 +1472,9 @@ export class GraphView implements OnInit {
   // Camera state machine extracted to `follow-activity.controller.ts`
   // (fingerprint-gated effect, animated fit over the executing nodes +
   // session capsules). This component stays the camera's home and only
-  // wires the config; manual gestures hand control back to the operator
-  // via `disableFollow`, see `onCanvasChange`.
+  // wires the config; a gesture that interrupts an in-flight camera
+  // move hands control back to the operator via `disableFollow`, see
+  // `onCanvasChange`.
   private readonly followCtl = setupFollowActivity({
     livePrefs: this.livePrefs,
     nodeActivity: this.nodeActivity,
@@ -1469,9 +1499,10 @@ export class GraphView implements OnInit {
   }
 
   /**
-   * Manual camera intents (pan / zoom / fit / re-arrange / isolate /
-   * deep-link center) switch follow off, log-viewer follow semantics.
-   * The setter no-ops when already off.
+   * Explicit camera intents (fit / zoom buttons / re-arrange / isolate
+   * / deep-link center) switch follow off, plus the gesture-interrupt
+   * path in `onCanvasChange` (a free-form gesture only counts while a
+   * camera move is in flight). The setter no-ops when already off.
    */
   private disableFollow(): void {
     this.followCtl.disable();

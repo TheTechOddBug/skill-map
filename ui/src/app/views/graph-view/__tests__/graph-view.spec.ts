@@ -961,7 +961,7 @@ describe('GraphView, follow-the-activity camera', () => {
     expect(localStorage.getItem(FOLLOW_KEY)).toBe('false');
   });
 
-  it('a manual canvas gesture switches follow off once the boot fit settled', async () => {
+  it('a canvas gesture while the camera RESTS keeps follow armed', async () => {
     const active = signal<ReadonlySet<string>>(new Set());
     const { fixture, probe } = await bootstrapWithActivity(
       [makeNode('a.md', 'a')],
@@ -973,7 +973,31 @@ describe('GraphView, follow-the-activity camera', () => {
     probe.toggleFollowActivity();
     expect(probe.followActivity()).toBe(true);
 
-    // Foblex only emits fCanvasChange for user gestures; simulate one.
+    // Foblex only emits fCanvasChange for user gestures; simulate one
+    // with no camera tween in flight: looking around between
+    // executions must not disarm the follow preference.
+    probe.onCanvasChange({ position: { x: 5, y: 5 }, scale: 1 });
+    expect(probe.followActivity()).toBe(true);
+  });
+
+  it('a canvas gesture that interrupts an in-flight camera move switches follow off', async () => {
+    const active = signal<ReadonlySet<string>>(new Set());
+    const { fixture, cmp, probe } = await bootstrapWithActivity(
+      [makeNode('a.md', 'a')],
+      active,
+      signal(true),
+    );
+    await settleBoot(fixture);
+
+    probe.toggleFollowActivity();
+    expect(probe.followActivity()).toBe(true);
+
+    // Drive the shared tween entry point directly (the follow effect
+    // reaches it through dagre positions, unavailable under jsdom) so
+    // the camera counts as moving, then interrupt it with a gesture.
+    (cmp as unknown as {
+      animateToTransform(t: { position: { x: number; y: number }; scale: number }): void;
+    }).animateToTransform({ position: { x: 100, y: 100 }, scale: 1 });
     probe.onCanvasChange({ position: { x: 5, y: 5 }, scale: 1 });
     expect(probe.followActivity()).toBe(false);
   });

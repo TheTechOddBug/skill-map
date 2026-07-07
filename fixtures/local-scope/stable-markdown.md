@@ -16,6 +16,7 @@ Related: [otro](.agents/skills/full-skill-agents/SKILL.md).
 
 /stale-skill
 
+apuntando a un json: [json](json.json).
 
 `
 

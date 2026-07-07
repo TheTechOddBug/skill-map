@@ -127,6 +127,7 @@
            blocked states are exactly when the copy matters most. -->
       <span
         class="shell__live-activity-wrap"
+        [class.shell__live-activity-wrap--on]="liveActivityActive()"
         [class.shell__live-activity-wrap--off]="!liveActivityActive()"
         [class.shell__live-activity-wrap--blocked]="liveActivityBlocked()"
         [pTooltip]="liveActivityTooltip()"

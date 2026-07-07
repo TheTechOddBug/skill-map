@@ -432,28 +432,37 @@
           <!-- Follow the Activity: camera control, so it lives in the
                zoom / fit cluster. Only offered while Real Time is on
                (without activity frames there is nothing to follow).
-               Active state mirrors the topbar Real Time toggle: primary
-               severity while following, secondary otherwise. -->
-          <p-button
-            icon="pi pi-video"
-            [ariaLabel]="
-              followActivity()
-                ? texts.toolbar.followActivity.ariaOn
-                : texts.toolbar.followActivity.ariaOff
-            "
-            [pTooltip]="
-              followActivity()
-                ? texts.toolbar.followActivity.tooltipOn
-                : texts.toolbar.followActivity.tooltipOff
-            "
-            [severity]="followActivity() ? 'primary' : 'secondary'"
-            [text]="true"
-            [rounded]="true"
-            size="small"
-            [attr.aria-pressed]="followActivity()"
-            (onClick)="toggleFollowActivity()"
-            data-testid="graph-follow-activity"
-          />
+               Active state: primary severity on the icon plus a tinted
+               pill on the App-owned wrapper (PrimeNG internals are
+               unreachable from scoped CSS). The hue flip alone is not
+               enough: the monochrome extra themes retint primary and
+               secondary to the same accent, so the pill carries the
+               state there. -->
+          <span
+            class="graph__toolbar-toggle"
+            [class.graph__toolbar-toggle--on]="followActivity()"
+          >
+            <p-button
+              icon="pi pi-video"
+              [ariaLabel]="
+                followActivity()
+                  ? texts.toolbar.followActivity.ariaOn
+                  : texts.toolbar.followActivity.ariaOff
+              "
+              [pTooltip]="
+                followActivity()
+                  ? texts.toolbar.followActivity.tooltipOn
+                  : texts.toolbar.followActivity.tooltipOff
+              "
+              [severity]="followActivity() ? 'primary' : 'secondary'"
+              [text]="true"
+              [rounded]="true"
+              size="small"
+              [attr.aria-pressed]="followActivity()"
+              (onClick)="toggleFollowActivity()"
+              data-testid="graph-follow-activity"
+            />
+          </span>
         }
         <span class="graph__toolbar-sep" aria-hidden="true"></span>
         <sm-graph-layout-toolbar />

@@ -458,6 +458,20 @@
   -webkit-text-stroke-width: 0.03em;
 }
 
+/* ON state: tinted pill behind the button plus the topbar's own
+   active-text stop on the icon. Hue alone cannot carry the state: the
+   topbar chrome is violet in the base themes and monochrome in the
+   extra themes, so `severity="primary"` (a violet / accent icon) sits
+   next to near-identical siblings. The `--shell-topbar-active-*` pair
+   exists exactly for this and every theme re-keys it, so the pill
+   reads on all of them. The icon rebind targets the PRIMARY text
+   token because the ON button flips to `severity="primary"`. */
+.shell__live-activity-wrap--on {
+  --p-button-text-primary-color: var(--shell-topbar-active-text);
+  background: var(--shell-topbar-active-bg);
+  border-radius: var(--sm-radius-pill);
+}
+
 /* OFF state: diagonal "prohibited" slash over the icon (mic-off
    pattern). The icon sits centered in the button, so centering on the
    wrapper lines up. Same token the OFF icon resolves to, so the slash

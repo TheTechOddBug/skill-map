@@ -230,6 +230,22 @@
   flex-shrink: 0;
 }
 
+/* Toggle-button wrapper: paints the ACTIVE pill behind a text
+   p-button (its internals are unreachable from scoped CSS, so the
+   state styling lives on this wrapper, same technique as the topbar's
+   `.shell__live-activity-wrap`). Same 18% primary tint as the layout
+   popovers' `.is-active` rows, so "active" reads identically across
+   the toolbar family and survives the monochrome extra themes, where
+   the primary/secondary icon hues converge. */
+.graph__toolbar-toggle {
+  display: inline-flex;
+}
+
+.graph__toolbar-toggle--on {
+  background: color-mix(in srgb, var(--p-primary-color) 18%, transparent);
+  border-radius: var(--sm-radius-pill);
+}
+
 
 /* Foblex-side host for each graph node. The visible card lives in
    `<sm-node-card>` (own component, own stylesheet); this host carries

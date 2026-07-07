@@ -24,9 +24,11 @@
  *     (inside `animateToTransform`) retargets an in-flight tween
  *     smoothly from wherever the camera is.
  *
- * Manual camera gestures (pan / zoom / fit / re-arrange / isolate /
- * deep-link center) hand control back to the operator via `disable()`,
- * log-viewer follow semantics.
+ * Explicit camera intents (fit / zoom buttons / re-arrange / isolate /
+ * deep-link center) hand control back to the operator via `disable()`.
+ * Free-form gestures (wheel / pinch / canvas drag) disable only when
+ * they interrupt a camera move in flight; panning while the camera
+ * rests keeps follow armed (see `GraphView.onCanvasChange`).
  */
 
 import { computed, effect, untracked, type Signal } from '@angular/core';
