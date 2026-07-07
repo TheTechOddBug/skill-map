@@ -28,7 +28,7 @@ import {
 
 interface IProjectPrefsEnvelopeWire {
   allowSidecarWriters: boolean;
-  scan: { referencePaths: string[]; followExternalSymlinks: boolean };
+  scan: { referencePaths: string[]; followExternalSymlinks: boolean; respectGitignore: boolean };
   pluginTrust: { projectEnabled: boolean };
   tutorialReminderDismissed: boolean;
   ui: { liveUpdates: boolean; realtimeActivity: boolean };
@@ -95,7 +95,7 @@ describe('GET /api/project-preferences', () => {
       const env = (await res.json()) as IProjectPrefsEnvelopeWire;
       assert.deepEqual(env, {
         allowSidecarWriters: true,
-        scan: { referencePaths: [], followExternalSymlinks: false },
+        scan: { referencePaths: [], followExternalSymlinks: false, respectGitignore: false },
         pluginTrust: { projectEnabled: false },
         tutorialReminderDismissed: false,
         ui: { liveUpdates: true, realtimeActivity: true },
@@ -274,6 +274,51 @@ describe('PATCH /api/project-preferences (allowSidecarWriters policy)', () => {
       assert.equal(res.status, 200);
       const env = (await res.json()) as IProjectPrefsEnvelopeWire;
       assert.equal(env.allowSidecarWriters, false);
+    });
+  });
+});
+
+describe('PATCH /api/project-preferences (scan.respectGitignore policy)', () => {
+  it('400 bad-query when scan.respectGitignore is not a boolean', async () => {
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/project-preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ scan: { respectGitignore: 'nope' } }),
+      });
+      assert.equal(res.status, 400);
+      const env = (await res.json()) as IErrorEnvelopeWire;
+      assert.equal(env.error.code, 'bad-query');
+      assert.match(env.error.message, /respectGitignore/);
+    });
+  });
+
+  it('writes the committed policy to settings.json (NOT settings.local.json), no confirm needed', async () => {
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/project-preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ scan: { respectGitignore: true } }),
+      });
+      assert.equal(res.status, 200);
+      const env = (await res.json()) as IProjectPrefsEnvelopeWire;
+      assert.equal(env.scan.respectGitignore, true);
+
+      // Team-shared policy: lands in the committed `settings.json`, not
+      // the per-machine `settings.local.json` (unlike the other scan.* keys).
+      const committed = JSON.parse(
+        readFileSync(join(cwd, '.skill-map/settings.json'), 'utf8'),
+      );
+      assert.equal(committed.scan.respectGitignore, true);
+    });
+  });
+
+  it('GET reflects the persisted policy', async () => {
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/project-preferences'));
+      assert.equal(res.status, 200);
+      const env = (await res.json()) as IProjectPrefsEnvelopeWire;
+      assert.equal(env.scan.respectGitignore, true);
     });
   });
 });

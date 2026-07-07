@@ -516,14 +516,17 @@ function loadScanInputs(
 }
 
 /**
- * Compose the scan-time ignore filter from `config.ignore` + `.gitignore`
- * + `.skillmapignore` (layered by `composeScopeIgnoreFilter`).
+ * Compose the scan-time ignore filter from `config.ignore` +
+ * `.skillmapignore` (plus `.gitignore` when `scan.respectGitignore` is
+ * enabled), layered by `composeScopeIgnoreFilter`.
  */
 function buildScanIgnoreFilter(
   cfg: ReturnType<typeof loadConfig>['effective'],
   cwd: string,
 ): ReturnType<typeof buildIgnoreFilter> {
-  return composeScopeIgnoreFilter(cwd, cfg.ignore);
+  return composeScopeIgnoreFilter(cwd, cfg.ignore, {
+    respectGitignore: cfg.scan.respectGitignore,
+  });
 }
 
 /**

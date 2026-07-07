@@ -442,6 +442,12 @@ export const SERVER_TEXTS = {
   // the team-shared change land without opening settings.json.
   projectPrefsSidecarWritersSet:
     'project-prefs: allowSidecarWriters = {{value}}',
+  projectPrefsRespectGitignoreNotBoolean: '`scan.respectGitignore` must be a boolean.',
+  // Server-stderr advisory after `PATCH /api/project-preferences`
+  // toggles the committed `.gitignore` policy. Lets the operator see the
+  // team-shared change land without opening settings.json.
+  projectPrefsRespectGitignoreSet:
+    'project-prefs: scan.respectGitignore = {{value}}',
   projectPrefsScanNotObject:
     '`scan` must be an object (e.g. `{"scan": {"referencePaths": ["~/Documents"]}}`).',
   projectPrefsListNotArray:

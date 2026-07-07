@@ -107,7 +107,7 @@ export const SETTINGS_TEXTS = {
     introLocalPath: 'settings.local.json',
     introLocalSuffix: ' (git ignored).',
     /** Badge appended to the label of every team-shared row. */
-    sharedBadge: '🌐',
+    sharedBadge: '👥',
     sharedBadgeTooltip: 'Shared with your team through the repository.',
     /**
      * Live-channel switches (`ui.liveUpdates` / `ui.realtimeActivity`
@@ -139,6 +139,17 @@ export const SETTINGS_TEXTS = {
       'Let actions write `.sm` files (version, tags, stability) next to ' +
       'your notes. Turn this off on a shared project to keep them out of ' +
       'the repo: the setting is committed, so it applies to the whole team.',
+    /**
+     * Committed (team-shared) `.gitignore` opt-in (`scan.respectGitignore`).
+     * Default off, so a fresh project indexes files git ignores unless
+     * another ignore layer excludes them. Not surface-expanding (it never
+     * reads outside the project root), so no confirm dialog. Committed to
+     * settings.json, so the team-shared badge applies.
+     */
+    respectGitignoreLabel: 'Use .gitignore',
+    respectGitignoreDescription:
+      'Also skip whatever your .gitignore skips. Committed, so it applies ' +
+      'to the whole team.',
     /**
      * Machine-local plugin-trust opt-in (`pluginTrust.projectEnabled`).
      * Surface-expanding (it locally trusts every plugin the project

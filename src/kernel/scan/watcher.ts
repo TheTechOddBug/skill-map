@@ -118,6 +118,15 @@ export interface ICreateFsWatcherOptions {
    * meta-watcher, which targets specific config files by path instead.
    */
   watchedExtensions?: readonly string[] | undefined;
+  /**
+   * Whether the project root `.gitignore` lines feed the PARCEL backend's
+   * coarse native prune (`buildParcelIgnore`). Default `false`, mirroring
+   * `scan.respectGitignore`: when off, parcel keeps watching git-ignored
+   * dirs so nothing the operator asked to index is silently pruned at the
+   * OS level. Chokidar ignores this option entirely, its authoritative
+   * filter is the live `ignoreFilter` getter. Only meaningful on parcel.
+   */
+  respectGitignore?: boolean | undefined;
   /** Called once per debounced batch. Awaited; concurrent batches are serialised. */
   onBatch: (batch: IWatchBatch) => void | Promise<void>;
   /**
@@ -350,7 +359,7 @@ export function createParcelWatcher(opts: ICreateFsWatcherOptions): IFsWatcher {
   const getFilter = normalizeIgnoreFilter(opts.ignoreFilter);
   const watchedExts = opts.watchedExtensions ?? [];
   const hasExtGate = watchedExts.length > 0;
-  const parcelIgnore = buildParcelIgnore(opts.cwd);
+  const parcelIgnore = buildParcelIgnore(opts.cwd, opts.respectGitignore === true);
 
   const batcher = createDebouncedBatcher({
     debounceMs: opts.debounceMs,
@@ -418,27 +427,41 @@ const PARCEL_DEFAULT_IGNORE_DIRS = [
 /**
  * Build the coarse static `ignore` list for `parcel.subscribe`: the
  * bundled-default directories (depth-agnostic globs) plus the raw,
- * non-negated lines of the project `.gitignore` / `.skillmapignore`. This
- * is a best-effort native prune for performance (parcel's glob match is
- * not gitignore-exact); the authoritative correctness gate is the
- * per-event `accept` filter, which uses the real `IIgnoreFilter`. Negated
- * (`!`) and comment lines are dropped here; `accept` honours them.
+ * non-negated lines of the project `.skillmapignore` (and `.gitignore`
+ * only when `respectGitignore` is on). This is a best-effort native
+ * prune for performance (parcel's glob match is not gitignore-exact);
+ * the authoritative correctness gate is the per-event `accept` filter,
+ * which uses the real `IIgnoreFilter`. Negated (`!`) and comment lines
+ * are dropped here; `accept` honours them.
+ *
+ * `respectGitignore` defaults `false` (mirrors `scan.respectGitignore`):
+ * with it off, the `.gitignore` lines are excluded so parcel keeps
+ * watching git-ignored dirs, matching the flag-off scan behaviour.
  */
-export function buildParcelIgnore(cwd: string): string[] {
+export function buildParcelIgnore(cwd: string, respectGitignore = false): string[] {
   const out = new Set<string>();
   for (const dir of PARCEL_DEFAULT_IGNORE_DIRS) {
     out.add(dir);
     out.add(`**/${dir}`);
   }
-  for (const text of [readGitignoreText(cwd), readIgnoreFileText(cwd)]) {
-    if (text === undefined) continue;
-    for (const raw of text.split('\n')) {
-      const line = raw.trim();
-      if (line === '' || line.startsWith('#') || line.startsWith('!')) continue;
-      out.add(line.replace(/\/+$/, ''));
-    }
-  }
+  if (respectGitignore) addParcelIgnoreLines(out, readGitignoreText(cwd));
+  addParcelIgnoreLines(out, readIgnoreFileText(cwd));
   return [...out];
+}
+
+/**
+ * Fold the non-negated, non-comment lines of an ignore-file's raw text
+ * into the parcel prune set (trailing slashes trimmed so a `dir/` entry
+ * matches parcel's path form). No-op when the file is absent. Split out
+ * of `buildParcelIgnore` to keep its branch count under the lint cap.
+ */
+function addParcelIgnoreLines(out: Set<string>, text: string | undefined): void {
+  if (text === undefined) return;
+  for (const raw of text.split('\n')) {
+    const line = raw.trim();
+    if (line === '' || line.startsWith('#') || line.startsWith('!')) continue;
+    out.add(line.replace(/\/+$/, ''));
+  }
 }
 
 // -----------------------------------------------------------------------------

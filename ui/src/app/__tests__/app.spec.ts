@@ -143,12 +143,12 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
   getProjectPreferences: () =>
     Promise.resolve({
       allowSidecarWriters: true,
-      scan: { referencePaths: [], followExternalSymlinks: false },
+      scan: { referencePaths: [], followExternalSymlinks: false, respectGitignore: false },
     }),
   setProjectPreferences: () =>
     Promise.resolve({
       allowSidecarWriters: true,
-      scan: { referencePaths: [], followExternalSymlinks: false },
+      scan: { referencePaths: [], followExternalSymlinks: false, respectGitignore: false },
     }),
   getProjectIgnore: () => Promise.resolve({ patterns: [] }),
   setProjectIgnore: () => Promise.resolve({ patterns: [] }),

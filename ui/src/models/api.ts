@@ -994,6 +994,15 @@ export interface IProjectPreferencesApi {
      * in `settings.local.json` (project-local only, never committed).
      */
     followExternalSymlinks: boolean;
+    /**
+     * Committed (team-shared) policy: when `true`, the project root
+     * `.gitignore` participates in the scan's ignore stack. Default
+     * `false` (a fresh project does not read `.gitignore`). Written to
+     * the committed `settings.json` like `allowSidecarWriters`; not
+     * surface-expanding, so no confirm gate. The BFF always emits a
+     * concrete boolean.
+     */
+    respectGitignore: boolean;
   };
   /**
    * Machine-local plugin-trust opt-in. When `projectEnabled` is `true`,
@@ -1052,6 +1061,8 @@ export interface IProjectPreferencesPatchApi {
      * surface and needs no confirm.
      */
     followExternalSymlinks?: boolean;
+    /** Flip the committed `.gitignore` opt-in (team-shared). No confirm gate. */
+    respectGitignore?: boolean;
   };
   /**
    * Flip the machine-local plugin-trust opt-in. Setting `projectEnabled`

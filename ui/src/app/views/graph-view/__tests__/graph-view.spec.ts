@@ -188,13 +188,13 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     .fn()
     .mockResolvedValue({
       allowSidecarWriters: true,
-      scan: { referencePaths: [], followExternalSymlinks: false },
+      scan: { referencePaths: [], followExternalSymlinks: false, respectGitignore: false },
     }),
   setProjectPreferences: vi
     .fn()
     .mockResolvedValue({
       allowSidecarWriters: true,
-      scan: { referencePaths: [], followExternalSymlinks: false },
+      scan: { referencePaths: [], followExternalSymlinks: false, respectGitignore: false },
     }),
   getProjectIgnore: vi.fn().mockResolvedValue({ patterns: [] }),
   setProjectIgnore: vi.fn().mockResolvedValue({ patterns: [] }),

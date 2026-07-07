@@ -60,6 +60,14 @@ export interface IProjectPreferencesEnvelope {
      * ON is surface-expanding (412 confirm gate), like `pluginTrust`.
      */
     followExternalSymlinks: boolean;
+    /**
+     * Committed (team-shared) policy: when `true`, the project root
+     * `.gitignore` joins the scan's ignore stack. Default `false` (a
+     * fresh project does not read `.gitignore`). Written to the committed
+     * `project` layer like `allowSidecarWriters`; not privacy-gated (it
+     * never reads outside the project root).
+     */
+    respectGitignore: boolean;
   };
   /**
    * Local, per-machine plugin import-trust opt-in. When `true`, every
@@ -94,6 +102,7 @@ interface IPatchBody {
   scan?: {
     referencePaths?: string[];
     followExternalSymlinks?: boolean;
+    respectGitignore?: boolean;
   };
   pluginTrust?: {
     projectEnabled?: boolean;
@@ -125,18 +134,7 @@ function buildEnvelope(deps: IRouteDeps): IProjectPreferencesEnvelope {
         cwd,
         default: true,
       }) ?? true,
-    scan: {
-      referencePaths:
-        readConfigValue<string[]>('scan.referencePaths', {
-          cwd,
-          default: [],
-        }) ?? [],
-      followExternalSymlinks:
-        readConfigValue<boolean>('scan.followExternalSymlinks', {
-          cwd,
-          default: false,
-        }) ?? false,
-    },
+    scan: buildScanEnvelope(cwd),
     pluginTrust: {
       projectEnabled:
         readConfigValue<boolean>('pluginTrust.projectEnabled', {
@@ -164,6 +162,18 @@ function buildEnvelope(deps: IRouteDeps): IProjectPreferencesEnvelope {
   };
 }
 
+/** Build the `scan` sub-envelope (split out to keep `buildEnvelope` under the lint cap). */
+function buildScanEnvelope(cwd: string): IProjectPreferencesEnvelope['scan'] {
+  return {
+    referencePaths:
+      readConfigValue<string[]>('scan.referencePaths', { cwd, default: [] }) ?? [],
+    followExternalSymlinks:
+      readConfigValue<boolean>('scan.followExternalSymlinks', { cwd, default: false }) ?? false,
+    respectGitignore:
+      readConfigValue<boolean>('scan.respectGitignore', { cwd, default: false }) ?? false,
+  };
+}
+
 interface IPlannedWrite {
   key: 'scan.referencePaths';
   value: unknown;
@@ -178,6 +188,14 @@ async function applyPatch(deps: IRouteDeps, body: IPatchBody): Promise<void> {
   const policyChanged =
     typeof body.allowSidecarWriters === 'boolean' &&
     writeSidecarWritersPolicy(body.allowSidecarWriters, cwd);
+
+  // Committed `scan.respectGitignore` policy: a team-shared boolean
+  // written to the `project` layer (NOT project-local, unlike the other
+  // `scan.*` keys). No gate, it never reads outside the project root. It
+  // changes what the scan indexes, so a change restarts the watcher.
+  const respectGitignoreChanged =
+    typeof body.scan?.respectGitignore === 'boolean' &&
+    writeRespectGitignorePolicy(body.scan.respectGitignore, cwd);
 
   // scan.* writes carry their own existence + privacy gates (see
   // `applyScanWrites`); `attempted` drives the cache reload, `mutated`
@@ -214,9 +232,15 @@ async function applyPatch(deps: IRouteDeps, body: IPatchBody): Promise<void> {
   // on-disk write. The trust opt-in is NOT restart-applicable (handlers
   // load at boot), so it does not trigger a restart. `.some(Boolean)`
   // keeps this orchestrator under the cyclomatic budget as keys grow.
-  const shouldRestart = [policyChanged, scan.mutated, followChanged].some(Boolean);
+  const shouldRestart = [
+    policyChanged,
+    respectGitignoreChanged,
+    scan.mutated,
+    followChanged,
+  ].some(Boolean);
   const shouldReload = [
     policyChanged,
+    respectGitignoreChanged,
     scan.attempted,
     trustChanged,
     reminderChanged,
@@ -450,6 +474,35 @@ function writeSidecarWritersPolicy(value: boolean, cwd: string): boolean {
   return true;
 }
 
+/**
+ * Persist the committed `scan.respectGitignore` policy to the team-shared
+ * `project` layer (NOT project-local: the whole point is that the ignore
+ * policy travels with the repo). Mirrors `writeSidecarWritersPolicy`: no
+ * privacy / confirm gate (it never reads outside the project root).
+ * Returns `true` when the value actually changed, so the caller can
+ * restart the watcher (the flag changes what the scan indexes). Throws
+ * `HTTPException(400)` on persist failure.
+ */
+function writeRespectGitignorePolicy(value: boolean, cwd: string): boolean {
+  const before =
+    readConfigValue<boolean>('scan.respectGitignore', { cwd, default: false }) ?? false;
+  if (before === value) return false;
+  try {
+    writeConfigValue('scan.respectGitignore', value, { target: 'project', cwd });
+  } catch (err) {
+    throw new HTTPException(400, {
+      message: tx(SERVER_TEXTS.projectPrefsPersistFailed, {
+        key: 'scan.respectGitignore',
+        message: formatErrorMessage(err),
+      }),
+    });
+  }
+  log.warn(
+    tx(SERVER_TEXTS.projectPrefsRespectGitignoreSet, { value: String(value) }),
+  );
+  return true;
+}
+
 function collectWrites(body: IPatchBody): IPlannedWrite[] {
   if (!body.scan) return [];
   const out: IPlannedWrite[] = [];
@@ -671,6 +724,7 @@ const PATCH_BODY_SCHEMA = {
           items: { type: 'string', pattern: '^[^,]+$' },
         },
         followExternalSymlinks: { type: 'boolean' },
+        respectGitignore: { type: 'boolean' },
       },
     },
     pluginTrust: {
@@ -702,6 +756,7 @@ const parsePatchBody = makeBodyValidator<IPatchBody>(PATCH_BODY_SCHEMA, {
     '/scan/referencePaths/*:type:string': tx(SERVER_TEXTS.projectPrefsListEntryNotString, { key: 'scan.referencePaths' }),
     '/scan/referencePaths/*:pattern': SERVER_TEXTS.projectPrefsEntryHasComma,
     '/scan/followExternalSymlinks:type:boolean': SERVER_TEXTS.projectPrefsFollowSymlinksNotBoolean,
+    '/scan/respectGitignore:type:boolean': SERVER_TEXTS.projectPrefsRespectGitignoreNotBoolean,
     '/ui:minProperties': SERVER_TEXTS.projectPrefsBodyEmpty,
     '/ui:type:object': SERVER_TEXTS.projectPrefsUiNotObject,
     '/ui/liveUpdates:type:boolean': SERVER_TEXTS.projectPrefsLiveUpdatesNotBoolean,

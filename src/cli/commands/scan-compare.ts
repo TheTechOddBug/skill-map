@@ -154,7 +154,9 @@ export class ScanCompareCommand extends SmCommand {
       this.printer!.error(tx(SCAN_TEXTS.compareErrorPrefix, { message }));
       return ExitCode.Error;
     }
-    const ignoreFilter = composeScopeIgnoreFilter(ctx.cwd, cfg.ignore);
+    const ignoreFilter = composeScopeIgnoreFilter(ctx.cwd, cfg.ignore, {
+      respectGitignore: cfg.scan.respectGitignore,
+    });
     const effectiveStrict = this.strict || cfg.scan.strict === true;
 
     const composedExtensions = composeScanExtensions({

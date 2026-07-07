@@ -61,6 +61,7 @@ describe('SettingsProject chassis', () => {
       'settings-project-follow-external-symlinks-row',
       'settings-project-reference-paths-row',
       'settings-project-ignore-patterns-row',
+      'settings-project-respect-gitignore-row',
     ]) {
       expect(
         root.querySelector(`[data-testid="${testid}"]`),
@@ -259,12 +260,15 @@ interface ITrustProto {
   followExternalSymlinks(): boolean;
   followExternalSymlinksView(): boolean;
   onFollowExternalSymlinksToggle(next: boolean): void;
+  respectGitignore(): boolean;
+  respectGitignoreView(): boolean;
+  onRespectGitignoreToggle(next: boolean): void;
 }
 
 function prefs(projectEnabled: boolean): IProjectPreferencesApi {
   return {
     allowSidecarWriters: true,
-    scan: { referencePaths: [], followExternalSymlinks: false },
+    scan: { referencePaths: [], followExternalSymlinks: false, respectGitignore: false },
     pluginTrust: { projectEnabled },
   };
 }
@@ -272,7 +276,15 @@ function prefs(projectEnabled: boolean): IProjectPreferencesApi {
 function prefsSymlinks(followExternalSymlinks: boolean): IProjectPreferencesApi {
   return {
     allowSidecarWriters: true,
-    scan: { referencePaths: [], followExternalSymlinks },
+    scan: { referencePaths: [], followExternalSymlinks, respectGitignore: false },
+    pluginTrust: { projectEnabled: false },
+  };
+}
+
+function prefsGitignore(respectGitignore: boolean): IProjectPreferencesApi {
+  return {
+    allowSidecarWriters: true,
+    scan: { referencePaths: [], followExternalSymlinks: false, respectGitignore },
     pluginTrust: { projectEnabled: false },
   };
 }
@@ -479,6 +491,57 @@ describe('SettingsProjectPreferences followExternalSymlinks opt-in', () => {
     expect(setProjectPreferences).toHaveBeenCalledTimes(1);
     expect(proto.followExternalSymlinks()).toBe(false);
     expect(proto.followExternalSymlinksView()).toBe(false);
+  });
+});
+
+/**
+ * SettingsProjectPreferences · `scan.respectGitignore` committed opt-in.
+ *
+ * Unlike the two keys above it is a COMMITTED, ungated toggle (it never
+ * reads outside the project root), so a flip in either direction persists
+ * directly through `setProjectPreferences` with no confirm dialog. The
+ * view signal still rolls back when the PATCH itself rejects.
+ */
+describe('SettingsProjectPreferences respectGitignore opt-in', () => {
+  it('reads scan.respectGitignore from the loaded preferences (default off)', () => {
+    const { proto } = bootstrapTrust({});
+    expect(proto.respectGitignore()).toBe(false);
+    proto.preferences.set(prefsGitignore(true));
+    expect(proto.respectGitignore()).toBe(true);
+  });
+
+  it('turning it ON persists directly with no confirm', async () => {
+    const setProjectPreferences = vi.fn().mockResolvedValue(prefsGitignore(true));
+    const { proto } = bootstrapTrust({
+      setProjectPreferences,
+    } as Partial<IDataSourcePort>);
+
+    proto.onRespectGitignoreToggle(true);
+    await flush();
+
+    expect(setProjectPreferences).toHaveBeenCalledTimes(1);
+    expect(setProjectPreferences).toHaveBeenCalledWith({
+      scan: { respectGitignore: true },
+    });
+  });
+
+  it('rolls the switch view back when the PATCH rejects', async () => {
+    const setProjectPreferences = vi
+      .fn()
+      .mockRejectedValueOnce(new DataSourceError('boom', 'persist failed'));
+    const { proto } = bootstrapTrust({
+      setProjectPreferences,
+    } as Partial<IDataSourcePort>);
+
+    proto.onRespectGitignoreToggle(true);
+    // Optimistic flip while the write is in flight.
+    expect(proto.respectGitignoreView()).toBe(true);
+    await flush();
+
+    // The write failed, so the committed value never changed and the
+    // switch view rolls back to off.
+    expect(proto.respectGitignore()).toBe(false);
+    expect(proto.respectGitignoreView()).toBe(false);
   });
 });
 

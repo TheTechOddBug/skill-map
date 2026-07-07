@@ -32,7 +32,7 @@
     },
     "ignore": {
       "type": "array",
-      "description": "Glob patterns to exclude, in addition to `.gitignore` and `.skillmapignore`.",
+      "description": "Glob patterns to exclude, in addition to `.skillmapignore` (and `.gitignore`, only when `scan.respectGitignore` is enabled).",
       "items": { "type": "string" }
     },
     "server": {
@@ -98,7 +98,12 @@
         },
         "followExternalSymlinks": {
           "type": "boolean",
-          "description": "Whether the walker dereferences a symbolic link whose real target lands OUTSIDE the scan roots. Default `false` (contained). While the walker always follows a symlink whose target stays inside a scan root, an escaping link (a file link like `notes.md -> ~/.ssh/id_rsa`, or a directory link like `docs/mirror -> ~/`) is by default refused and skipped, so a cloned, hostile repository cannot use a committed symlink to read arbitrary local files into `skill-map.db` or drive a filesystem-traversal denial of service. Set to `true` to restore following escaping links wherever they point (cycle detection still prevents loops); doing so is an explicit statement that you trust every symlink target reachable from your project tree, so use it only on a tree whose links you authored. This is a per-machine trust decision, so it is **project-local only** (stripped with a warning from the committed `project` layer, like `scan.referencePaths` and `pluginTrust.projectEnabled`) and, because turning it on expands the disk-read surface, **privacy-sensitive**: `sm config set scan.followExternalSymlinks true` and the Settings UI toggle both require explicit confirmation (`--yes` on the CLI, a confirm dialog in the UI); turning it off needs no confirmation. It never opens `$HOME`: it only governs whether an already-authored on-disk link is followed."
+          "description": "Whether the walker dereferences a symbolic link whose real target lands OUTSIDE the scan roots. Default `false` (contained). While the walker always follows a symlink whose target stays inside a scan root, an escaping link (a file link like `notes.md -> ~/.ssh/id_rsa`, or a directory link like `docs/mirror -> ~/`) is by default refused and skipped, so a cloned, hostile repository cannot use a committed symlink to read arbitrary local files into `skill-map.db` or drive a filesystem-traversal denial of service. Set to `true` to restore following escaping links wherever they point (cycle detection still prevents loops); doing so is an explicit statement that you trust every symlink target reachable from your project tree, so use it only on a tree whose links you authored. This is a per-machine trust decision, so it is **project-local only** (stripped with a warning from the committed `project` layer, like `scan.referencePaths` and `pluginTrust.projectEnabled`) and, because turning it on expands the disk-read surface, **privacy-sensitive**: `sm config set scan.followExternalSymlinks true` and the Settings UI toggle both require explicit confirmation (`--yes` on the CLI, a confirm dialog in the UI); turning it off needs no confirmation. It never opens `$HOME`: it only governs whether an already-authored on-disk link is followed.",
+          "$comment": "Project-local only; privacy-sensitive."
+        },
+        "respectGitignore": {
+          "type": "boolean",
+          "description": "Whether the project root `.gitignore` participates in the scan's ignore stack. Default `false`: out of the box skill-map does NOT read `.gitignore`, so a file git ignores (build output, vendored docs) is still indexed unless the bundled defaults, `config.ignore`, or `.skillmapignore` exclude it. Set to `true` to fold `.gitignore` in as a layer between the bundled defaults and `config.ignore` (full order: bundled defaults -> `.gitignore` -> `config.ignore` -> `.skillmapignore`), so the map skips whatever git already skips; a later `.skillmapignore` layer can still `!`-re-include a git-ignored path. Only the root `.gitignore` is read (not nested git-style files). This is a **committed team-shared policy** (persisted in `settings.json`, travels with the repo like `allowSidecarWriters`), NOT project-local and NOT privacy-sensitive: it never reads outside the project root, so `sm config set scan.respectGitignore true` and the Settings UI toggle need no confirmation. The one-shot scan and the live watcher honour it identically; flipping it in `settings.json` while `sm serve` runs is picked up by the meta-watcher (and a UI toggle restarts the watcher)."
         }
       }
     },

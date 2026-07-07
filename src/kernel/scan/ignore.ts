@@ -95,25 +95,40 @@ export function buildIgnoreFilter(opts: IBuildIgnoreFilterOptions = {}): IIgnore
   };
 }
 
+/** Options for `composeScopeIgnoreFilter` (disk-read composer). */
+export interface IComposeScopeIgnoreFilterOptions {
+  /**
+   * Whether the project root `.gitignore` is folded in as a layer.
+   * Default `false` (mirrors the `scan.respectGitignore` config
+   * default): the file is not even read when off, so a git-ignored
+   * path is still scanned unless another layer excludes it.
+   */
+  respectGitignore?: boolean | undefined;
+}
+
 /**
- * Read a scope's `.gitignore` + `.skillmapignore` from disk and build the
- * layered filter (defaults → `.gitignore` → `config.ignore` →
- * `.skillmapignore`). The one-shot composer the CLI scan paths share so
- * they don't each re-duplicate the read + layer wiring. The watcher
- * composes from STABLE async reads instead (atomic-save race), see
- * `readGitignoreTextStable` / `readIgnoreFileTextStable`.
+ * Read a scope's `.skillmapignore` (and, when `respectGitignore` is on,
+ * `.gitignore`) from disk and build the layered filter (defaults →
+ * `.gitignore` → `config.ignore` → `.skillmapignore`). The one-shot
+ * composer the CLI scan paths share so they don't each re-duplicate the
+ * read + layer wiring. The watcher composes from STABLE async reads
+ * instead (atomic-save race), see `readGitignoreTextStable` /
+ * `readIgnoreFileTextStable`.
  */
 export function composeScopeIgnoreFilter(
   scopeRoot: string,
   configIgnore?: readonly string[],
+  opts: IComposeScopeIgnoreFilterOptions = {},
 ): IIgnoreFilter {
-  const opts: IBuildIgnoreFilterOptions = {};
-  if (configIgnore && configIgnore.length > 0) opts.configIgnore = [...configIgnore];
-  const gitignoreText = readGitignoreText(scopeRoot);
-  if (gitignoreText !== undefined) opts.gitignoreText = gitignoreText;
+  const filterOpts: IBuildIgnoreFilterOptions = {};
+  if (configIgnore && configIgnore.length > 0) filterOpts.configIgnore = [...configIgnore];
+  if (opts.respectGitignore === true) {
+    const gitignoreText = readGitignoreText(scopeRoot);
+    if (gitignoreText !== undefined) filterOpts.gitignoreText = gitignoreText;
+  }
   const ignoreFileText = readIgnoreFileText(scopeRoot);
-  if (ignoreFileText !== undefined) opts.ignoreFileText = ignoreFileText;
-  return buildIgnoreFilter(opts);
+  if (ignoreFileText !== undefined) filterOpts.ignoreFileText = ignoreFileText;
+  return buildIgnoreFilter(filterOpts);
 }
 
 /**

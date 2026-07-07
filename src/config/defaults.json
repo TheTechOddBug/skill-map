@@ -21,7 +21,8 @@
       "backend": "chokidar"
     },
     "referencePaths": [],
-    "followExternalSymlinks": false
+    "followExternalSymlinks": false,
+    "respectGitignore": false
   },
   "plugins": {},
   "jobs": {

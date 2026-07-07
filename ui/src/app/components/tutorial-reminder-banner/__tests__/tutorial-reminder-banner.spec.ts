@@ -13,7 +13,7 @@ function makeDataSource(dismissed: boolean) {
   const port: Partial<IDataSourcePort> = {
     getProjectPreferences: vi.fn().mockResolvedValue({
       allowSidecarWriters: true,
-      scan: { referencePaths: [], followExternalSymlinks: false },
+      scan: { referencePaths: [], followExternalSymlinks: false, respectGitignore: false },
       pluginTrust: { projectEnabled: false },
       tutorialReminderDismissed: dismissed,
     }),

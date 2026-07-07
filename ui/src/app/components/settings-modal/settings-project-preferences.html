@@ -87,12 +87,34 @@
   />
 </div>
 
+<div class="settings-project__row" data-testid="settings-project-respect-gitignore-row">
+  <div class="settings-project__row-text">
+    <div class="settings-project__row-label">
+      {{ texts.project.respectGitignoreLabel }}
+      <span
+        class="settings-project__shared-badge"
+        [title]="texts.project.sharedBadgeTooltip"
+        [attr.aria-label]="texts.project.sharedBadgeTooltip"
+        >{{ texts.project.sharedBadge }}</span
+      >
+    </div>
+    <div class="settings-project__row-description">
+      {{ texts.project.respectGitignoreDescription }}
+    </div>
+  </div>
+  <p-toggleswitch
+    [ngModel]="respectGitignoreView()"
+    (ngModelChange)="onRespectGitignoreToggle($event)"
+    [disabled]="loading() || isPending('scan.respectGitignore') || preferences() === null"
+    data-testid="settings-project-respect-gitignore-toggle"
+  />
+</div>
+
 <!-- The self-contained ignore-patterns child mounts HERE (not in the
      chassis) purely for row order: the section wants it between the
-     plugin-trust toggle above and the sidecar-writers policy that
-     closes the section, and those neighbours live in THIS component
-     (splitting them out would double-fetch the shared preferences
-     envelope). -->
+     .gitignore toggle above and the sidecar-writers policy that closes
+     the section, and those neighbours live in THIS component (splitting
+     them out would double-fetch the shared preferences envelope). -->
 <sm-settings-project-ignore [visible]="visible()" />
 
 <div class="settings-project__row" data-testid="settings-project-sidecar-writers-row">

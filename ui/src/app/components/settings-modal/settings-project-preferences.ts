@@ -129,6 +129,18 @@ export class SettingsProjectPreferences {
   });
 
   /**
+   * Committed `.gitignore` opt-in (`scan.respectGitignore`), team-shared.
+   * `false` (default) keeps `.gitignore` out of the ignore stack, so a
+   * git-ignored note is still indexed; `true` folds it in. Read
+   * defensively so an older envelope that predates the field renders the
+   * switch off rather than flashing. Not surface-expanding, so no confirm
+   * dialog (unlike the two keys above).
+   */
+  protected readonly respectGitignore = computed<boolean>(() => {
+    return this.preferences()?.scan.respectGitignore ?? false;
+  });
+
+  /**
    * View state the switches bind to, one per toggle. A plain computed
    * cannot roll a cancelled flip back: the p-toggleswitch flips its
    * internal state on click, and when the user dismisses the confirm
@@ -147,6 +159,9 @@ export class SettingsProjectPreferences {
   );
   protected readonly followExternalSymlinksView = linkedSignal(() =>
     this.followExternalSymlinks(),
+  );
+  protected readonly respectGitignoreView = linkedSignal(() =>
+    this.respectGitignore(),
   );
 
   constructor() {
@@ -200,6 +215,19 @@ export class SettingsProjectPreferences {
     void this.runPatch('allowSidecarWriters', { allowSidecarWriters: next }).then(
       (ok) => {
         if (!ok) this.allowSidecarWritersView.set(this.allowSidecarWriters());
+      },
+    );
+  }
+
+  // -----------------------------------------------------------------
+  // .gitignore opt-in handler (committed, ungated)
+  // -----------------------------------------------------------------
+
+  protected onRespectGitignoreToggle(next: boolean): void {
+    this.respectGitignoreView.set(next);
+    void this.runPatch('scan.respectGitignore', { scan: { respectGitignore: next } }).then(
+      (ok) => {
+        if (!ok) this.respectGitignoreView.set(this.respectGitignore());
       },
     );
   }

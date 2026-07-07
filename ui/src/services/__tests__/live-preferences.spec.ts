@@ -18,7 +18,7 @@ function clearStored(): void {
 function prefsEnvelope(ui?: IProjectPreferencesApi['ui']): IProjectPreferencesApi {
   return {
     allowSidecarWriters: true,
-    scan: { referencePaths: [], followExternalSymlinks: false },
+    scan: { referencePaths: [], followExternalSymlinks: false, respectGitignore: false },
     pluginTrust: { projectEnabled: false },
     tutorialReminderDismissed: false,
     ...(ui ? { ui } : {}),

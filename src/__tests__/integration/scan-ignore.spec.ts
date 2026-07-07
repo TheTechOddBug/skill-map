@@ -18,6 +18,7 @@ import { createKernel, runScan } from '../../kernel/index.js';
 import { builtIns } from '../../plugins/built-ins.js';
 import {
   buildIgnoreFilter,
+  composeScopeIgnoreFilter,
   readGitignoreText,
   readIgnoreFileText,
 } from '../../kernel/scan/ignore.js';
@@ -180,6 +181,34 @@ describe('readGitignoreText', () => {
   });
 });
 
+describe('composeScopeIgnoreFilter, .gitignore opt-in (scan.respectGitignore)', () => {
+  it('does NOT read .gitignore by default (flag off): a git-ignored path is not excluded', () => {
+    const dir = freshScope('compose-default-off');
+    writeFileSync(join(dir, '.gitignore'), 'generated/\n');
+    const filter = composeScopeIgnoreFilter(dir);
+    // .gitignore is not folded in, so its path is NOT excluded...
+    assert.equal(filter.ignores('generated/leaked.md'), false);
+    // ...while the bundled defaults still apply.
+    assert.equal(filter.ignores('node_modules/foo'), true);
+  });
+
+  it('reads .gitignore when respectGitignore is true', () => {
+    const dir = freshScope('compose-on');
+    writeFileSync(join(dir, '.gitignore'), 'generated/\n');
+    const filter = composeScopeIgnoreFilter(dir, undefined, { respectGitignore: true });
+    assert.equal(filter.ignores('generated/leaked.md'), true);
+  });
+
+  it('with the flag on, .skillmapignore can !-re-include a git-ignored file', () => {
+    const dir = freshScope('compose-on-negate');
+    writeFileSync(join(dir, '.gitignore'), 'generated/*.md\n');
+    writeFileSync(join(dir, '.skillmapignore'), '!generated/keep.md\n');
+    const filter = composeScopeIgnoreFilter(dir, undefined, { respectGitignore: true });
+    assert.equal(filter.ignores('generated/drop.md'), true);
+    assert.equal(filter.ignores('generated/keep.md'), false);
+  });
+});
+
 // -----------------------------------------------------------------------------
 // End-to-end through runScan
 // -----------------------------------------------------------------------------
@@ -253,6 +282,44 @@ describe('scan integration, filter applied at the walker', () => {
       roots: [dir],
       extensions: builtIns(),
       ignoreFilter: filter,
+    });
+
+    const paths = result.nodes.map((n) => n.path).sort();
+    assert.deepEqual(paths, ['.claude/agents/keep.md']);
+  });
+
+  it('scan.respectGitignore off (default): a git-ignored .md IS indexed', async () => {
+    // Both files live under `.claude/` so the Claude Provider claims
+    // them; the `.gitignore` basename pattern matches `secret.md` at any
+    // depth. With the flag off, `composeScopeIgnoreFilter` never reads
+    // `.gitignore`, so the git-ignored note still reaches the graph.
+    const dir = freshScope('e2e-gitignore-off');
+    writeMd(dir, '.claude/agents/keep.md', 'agent');
+    writeMd(dir, '.claude/agents/secret.md', 'agent');
+    writeFileSync(join(dir, '.gitignore'), 'secret.md\n');
+
+    const kernel = await createKernel();
+    const result = await runScan(kernel, {
+      roots: [dir],
+      extensions: builtIns(),
+      ignoreFilter: composeScopeIgnoreFilter(dir, undefined),
+    });
+
+    const paths = result.nodes.map((n) => n.path).sort();
+    assert.deepEqual(paths, ['.claude/agents/keep.md', '.claude/agents/secret.md']);
+  });
+
+  it('scan.respectGitignore on: the same git-ignored .md is excluded', async () => {
+    const dir = freshScope('e2e-gitignore-on');
+    writeMd(dir, '.claude/agents/keep.md', 'agent');
+    writeMd(dir, '.claude/agents/secret.md', 'agent');
+    writeFileSync(join(dir, '.gitignore'), 'secret.md\n');
+
+    const kernel = await createKernel();
+    const result = await runScan(kernel, {
+      roots: [dir],
+      extensions: builtIns(),
+      ignoreFilter: composeScopeIgnoreFilter(dir, undefined, { respectGitignore: true }),
     });
 
     const paths = result.nodes.map((n) => n.path).sort();

@@ -213,25 +213,35 @@ describe('createParcelWatcher', () => {
 });
 
 describe('buildParcelIgnore', () => {
-  it('combines default dirs with raw gitignore lines, skipping comments and negations', () => {
+  it('folds .gitignore lines in only when respectGitignore is true', () => {
     const dir = mkdtempSync(join(tmpdir(), 'parcel-ignore-'));
     try {
       writeFileSync(
         join(dir, '.gitignore'),
         ['mybigdir/', '# a comment', '!keep-me', '*.log', '', 'vendor'].join('\n'),
       );
-      const ignore = buildParcelIgnore(dir);
-      // Bundled defaults present, bare + depth-agnostic glob.
+      writeFileSync(join(dir, '.skillmapignore'), ['scratch/', '*.bak'].join('\n'));
+
+      // Default (flag off): `.gitignore` lines are NOT pruned natively, so
+      // parcel keeps watching git-ignored dirs (the authoritative `accept`
+      // filter still applies the flag-aware ignore filter per event). The
+      // `.skillmapignore` lines and bundled defaults are always present.
+      const off = buildParcelIgnore(dir);
       assert.ok(
-        ignore.includes('node_modules') && ignore.includes('**/node_modules'),
+        off.includes('node_modules') && off.includes('**/node_modules'),
         'default dirs present (bare + ** glob)',
       );
-      // Raw gitignore lines folded in, trailing slash stripped.
-      assert.ok(ignore.includes('mybigdir'), 'gitignore dir line included (slash stripped)');
-      assert.ok(ignore.includes('*.log') && ignore.includes('vendor'), 'gitignore patterns included');
-      // Comments and negations dropped.
-      assert.ok(!ignore.some((p) => p.startsWith('#')), 'comment lines dropped');
-      assert.ok(!ignore.some((p) => p.startsWith('!')), 'negation lines dropped');
+      assert.ok(off.includes('scratch') && off.includes('*.bak'), '.skillmapignore lines included');
+      assert.ok(!off.includes('mybigdir') && !off.includes('vendor'), '.gitignore lines omitted when off');
+
+      // Flag on: `.gitignore` lines fold in, trailing slash stripped,
+      // comments and negations dropped.
+      const on = buildParcelIgnore(dir, true);
+      assert.ok(on.includes('mybigdir'), 'gitignore dir line included (slash stripped)');
+      assert.ok(on.includes('*.log') && on.includes('vendor'), 'gitignore patterns included');
+      assert.ok(on.includes('scratch') && on.includes('*.bak'), '.skillmapignore lines still included');
+      assert.ok(!on.some((p) => p.startsWith('#')), 'comment lines dropped');
+      assert.ok(!on.some((p) => p.startsWith('!')), 'negation lines dropped');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

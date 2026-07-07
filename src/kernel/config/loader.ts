@@ -175,6 +175,18 @@ export interface IScanConfig {
    * `project-config.schema.json` §scan.followExternalSymlinks.
    */
   followExternalSymlinks: boolean;
+  /**
+   * **Committed team-shared policy** (persisted in `settings.json`,
+   * NOT in `PROJECT_LOCAL_ONLY_KEYS`; travels with the repo like
+   * `allowSidecarWriters`). Default `false`: the project root
+   * `.gitignore` does NOT participate in the ignore stack, so a
+   * git-ignored file is still indexed unless the bundled defaults,
+   * `config.ignore`, or `.skillmapignore` exclude it. `true` folds
+   * `.gitignore` in as a layer between the bundled defaults and
+   * `config.ignore`. Not privacy-sensitive (it never reads outside the
+   * project root). See `project-config.schema.json` §scan.respectGitignore.
+   */
+  respectGitignore: boolean;
 }
 
 /**

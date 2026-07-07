@@ -563,7 +563,14 @@ export function createWatcherRuntime(
   ): IIgnoreFilter => {
     const filterOpts: Parameters<typeof buildIgnoreFilter>[0] = {};
     if (cfgIn.ignore.length > 0) filterOpts.configIgnore = cfgIn.ignore;
-    if (gitignoreText !== undefined) filterOpts.gitignoreText = gitignoreText;
+    // The `.gitignore` layer participates only when the committed
+    // `scan.respectGitignore` key is on (default off). Gating here
+    // covers both the initial build and the meta-file rebuild, so a
+    // `settings.json` flip while `sm serve` runs is honoured on the
+    // next meta batch without a watcher restart.
+    if (gitignoreText !== undefined && cfgIn.scan.respectGitignore === true) {
+      filterOpts.gitignoreText = gitignoreText;
+    }
     if (ignoreFileText !== undefined) filterOpts.ignoreFileText = ignoreFileText;
     return buildIgnoreFilter(filterOpts);
   };
@@ -868,6 +875,14 @@ export function createWatcherRuntime(
         // `.skill-map/settings.json` edit, and chokidar's `ignored`
         // predicate must read the current value on every event.
         ignoreFilter: (): IIgnoreFilter => ignoreFilter,
+        // Only the parcel backend consumes this: its native prune list
+        // (built once per subscription) must skip the `.gitignore` lines
+        // when the flag is off, else it would stop watching git-ignored
+        // dirs the operator asked to index. Chokidar ignores it (its
+        // authoritative filter is the live getter above). Static per
+        // subscription, so a live flip only fully applies to parcel
+        // after a watcher restart (the BFF PATCH path restarts anyway).
+        respectGitignore: cfg.scan.respectGitignore,
         onBatch: async ({ events: batchEvents }) => {
           if (!handleBatch) return;
           // Thread chokidar's exact changed-path list into the scoped
