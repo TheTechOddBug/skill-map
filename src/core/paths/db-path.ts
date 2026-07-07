@@ -56,12 +56,18 @@ const DEFAULT_DB_REL = `${SKILL_MAP_DIR}/${DB_FILENAME}`;
 /**
  * Entries `sm init` appends to the project `.gitignore`. Centralised
  * here (instead of the verb file) so the literals live alongside their
- * filename constants and the verb consumes them as a frozen list.
+ * filename constants and the verb consumes them as a frozen list. Every
+ * entry is a per-machine runtime artifact that must never travel via the
+ * shared repo: the local settings, the DB, the serve discovery file, and
+ * the DB backups directory (pre-migrate snapshots + `sm db backup`
+ * output, `.skill-map/backups/`, trailing slash so only the directory
+ * matches).
  */
 export const GITIGNORE_ENTRIES: readonly string[] = [
   `${SKILL_MAP_DIR}/${LOCAL_SETTINGS_FILENAME}`,
   `${SKILL_MAP_DIR}/${DB_FILENAME}`,
   `${SKILL_MAP_DIR}/${SERVE_INFO_FILENAME}`,
+  `${SKILL_MAP_DIR}/${BACKUPS_DIRNAME}/`,
 ];
 
 /**

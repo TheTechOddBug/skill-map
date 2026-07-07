@@ -564,6 +564,8 @@ Note: plugins are user-placed code. Protection guards against accidents (a plugi
 - Auto-backup before migrations: `.skill-map/backups/skill-map-pre-migrate-v<N>.db`.
 - `sm db restore <path>` swaps the current DB with the supplied file. Interactive confirmation required unless `--force`.
 
+The `.skill-map/backups/` directory is a per-machine runtime artifact and MUST NOT travel via the shared repo: `sm init` adds it to the project `.gitignore` (alongside `settings.local.json`, `skill-map.db`, and `serve.json`), so pre-migrate snapshots and `sm db backup` output stay local.
+
 Backups include `state_*` + `config_*` only; `scan_*` is regenerated after restore via `sm scan`.
 
 ---

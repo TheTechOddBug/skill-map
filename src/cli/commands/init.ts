@@ -7,10 +7,11 @@
  *   - Copies the bundled `.skillmapignore` template into the scope root.
  *   - Provisions `<cwd>/.skill-map/skill-map.db` (kernel migrations
  *     run automatically via `SqliteStorageAdapter.init()`).
- *   - Appends `.skill-map/settings.local.json` and
- *     `.skill-map/skill-map.db` to the project's `.gitignore`
- *     (creating the file when missing), so the DB stays untracked
- *     unless the team removes the entry by hand.
+ *   - Appends the per-machine runtime artifacts to the project's
+ *     `.gitignore` (creating the file when missing), so they stay
+ *     untracked unless the team removes an entry by hand. The list is
+ *     `GITIGNORE_ENTRIES`: `settings.local.json`, `skill-map.db`,
+ *     `serve.json`, and the `backups/` directory.
  *   - Runs a first scan unless `--no-scan` is passed.
  *
  * Per `spec/cli-contract.md` §Scope is always project-local, scope is

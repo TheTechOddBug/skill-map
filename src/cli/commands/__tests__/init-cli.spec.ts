@@ -198,7 +198,7 @@ describe('sm init --dry-run (H3, spec §Dry-run)', () => {
     assert.match(r.stderr, /would write.+settings\.json/);
     assert.match(r.stderr, /would write.+settings\.local\.json/);
     assert.match(r.stderr, /would write.+\.skillmapignore/);
-    assert.match(r.stderr, /would update.+\.gitignore.+\(add 3 entries/);
+    assert.match(r.stderr, /would update.+\.gitignore.+\(add 4 entries/);
     assert.match(r.stderr, /would provision DB/);
     assert.match(r.stderr, /would run first scan/);
 
@@ -247,11 +247,11 @@ describe('sm init --dry-run (H3, spec §Dry-run)', () => {
     );
     const r = sm(['init', '--dry-run'], scope);
     assert.equal(r.status, 0);
-    // The DB entry is already present, so only the settings.local and
-    // serve.json entries would be added.
+    // The DB entry is already present, so only the settings.local,
+    // serve.json, and backups/ entries would be added.
     assert.match(
       r.stderr,
-      /would update.+\.gitignore.+\(add 2 entries: \.skill-map\/settings\.local\.json, \.skill-map\/serve\.json\)/,
+      /would update.+\.gitignore.+\(add 3 entries: \.skill-map\/settings\.local\.json, \.skill-map\/serve\.json, \.skill-map\/backups\/\)/,
     );
   });
 });
