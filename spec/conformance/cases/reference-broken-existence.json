@@ -1,0 +1,25 @@
+{
+  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "id": "reference-broken-existence",
+  "description": "Broken-reference existence probe, end-to-end. A markdown link targeting a sibling `.json` that exists on disk but is not an indexed node MUST NOT flag `reference-broken` and keeps the 1.0 baseline (the on-disk existence clause of the genuinely-broken definition, architecture.md §Provider · resolution rules, rule 3). A link in the same body targeting a file that exists neither in the graph nor on disk MUST emit exactly one `reference-broken` error and fold to confidence 0.25 (`BROKEN_PENALTY = 0.75`); that error-severity issue is also why the scan exits 1.",
+  "fixture": "reference-broken-existence",
+  "invoke": {
+    "verb": "scan",
+    "flags": ["--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 1 },
+    { "type": "json-path", "path": "$.schemaVersion", "equals": 1 },
+    { "type": "json-path", "path": "$.stats.nodesCount", "equals": 1 },
+    { "type": "json-path", "path": "$.stats.linksCount", "equals": 2 },
+    { "type": "json-path", "path": "$.links[0].source", "equals": "source.md" },
+    { "type": "json-path", "path": "$.links[0].target", "equals": "report.schema.json" },
+    { "type": "json-path", "path": "$.links[0].kind", "equals": "references" },
+    { "type": "json-path", "path": "$.links[0].confidence", "equals": 1.0 },
+    { "type": "json-path", "path": "$.links[1].target", "equals": "missing.json" },
+    { "type": "json-path", "path": "$.links[1].confidence", "equals": 0.25 },
+    { "type": "json-path", "path": "$.stats.issuesCount", "equals": 1 },
+    { "type": "json-path", "path": "$.issues[0].analyzerId", "equals": "reference-broken" },
+    { "type": "json-path", "path": "$.issues[0].severity", "equals": "error" }
+  ]
+}

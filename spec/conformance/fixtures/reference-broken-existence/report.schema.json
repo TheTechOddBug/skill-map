@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FixtureReport",
+  "description": "Exists on disk so the existence probe clears the link that targets it. Never parsed, never indexed as a node.",
+  "type": "object"
+}
