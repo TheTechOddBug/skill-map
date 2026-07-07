@@ -56,6 +56,22 @@
         >
           <i class="pi pi-map" aria-hidden="true"></i>
         </button>
+        <!-- Files follows selection. ON: selecting a node on the map reveals
+             it in the tree (highlight + auto-expand + scroll). OFF (default):
+             the rail ignores the map selection. -->
+        <button
+          type="button"
+          class="workspace__rail-btn workspace__files-follow-toggle"
+          [class.is-active]="filesFollow()"
+          [pTooltip]="filesFollow() ? texts.rail.followOn : texts.rail.followOff"
+          tooltipPosition="bottom"
+          [attr.aria-label]="filesFollow() ? texts.rail.followOn : texts.rail.followOff"
+          [attr.aria-pressed]="filesFollow()"
+          (click)="onToggleFilesFollow()"
+          data-testid="workspace-files-follow-toggle"
+        >
+          <i class="pi pi-directions" aria-hidden="true"></i>
+        </button>
         <!-- Reset: clears the map folder selection (show all) AND every
              facet filter, returning the workspace to its default overview.
              Disabled when there is nothing active to reset. -->

@@ -112,9 +112,10 @@
   cursor: default;
 }
 
-/* Search → map coupling toggle: lit when the query also filters the
-   canvas (legacy mode), muted in the default files-only mode. */
-.workspace__search-map-toggle.is-active {
+/* Behavior toggles (search → map coupling, files-follows-selection): lit
+   when active, muted at rest. Shared lit-state for every rail toggle that
+   carries `is-active`; the reset / collapse buttons never set it. */
+.workspace__rail-btn.is-active {
   color: var(--p-primary-color);
   background: var(--p-highlight-background);
 }

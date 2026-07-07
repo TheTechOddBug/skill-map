@@ -119,6 +119,28 @@ export interface IBuildRowsInput {
   readonly sort: IFilesSort;
 }
 
+/**
+ * Ancestor folder paths that enclose a leaf, in root -> leaf order:
+ * `a/b/c.md` -> `['a', 'a/b']`; a root-level file -> `[]`. The folder
+ * paths mirror `buildTree`'s `/`-joined prefixes, so feeding these into
+ * the `expanded` set opens every level that gates the leaf's row. With
+ * single-child chain compaction a folder row's key is a full prefix, so
+ * including every prefix always covers the actual terminal; the extra
+ * prefixes that are never rendered as a row stay inert in the set.
+ */
+export function leafAncestorFolderPaths(leafPath: string): string[] {
+  const segments = leafPath.split('/');
+  segments.pop(); // drop the file name
+  const out: string[] = [];
+  const acc: string[] = [];
+  for (const seg of segments) {
+    if (!seg) continue;
+    acc.push(seg);
+    out.push(acc.join('/'));
+  }
+  return out;
+}
+
 /** Build the folder tree from a flat node list (each node keyed by its path). */
 export function buildTree(nodes: readonly INodeView[]): ITreeFolder {
   const root: ITreeFolder = { path: '', name: '', subfolders: new Map(), leaves: [] };

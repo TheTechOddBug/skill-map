@@ -166,6 +166,15 @@
   background: var(--sm-bg-hover);
 }
 
+/* Leaf revealed by the map selection (when "files follows selection" is on):
+   tinted row with a left accent, matching the rail toggle's lit state. Placed
+   after the hover rule so a selected row stays highlighted while hovered. */
+.files__row--leaf.is-selected,
+.files__row--leaf.is-selected:hover {
+  background: var(--p-highlight-background);
+  box-shadow: inset 3px 0 0 0 var(--p-primary-color);
+}
+
 /* Table wrapper: a single column that fills the rail height so the
    datatable owns the vertical scroll. */
 .files__split {

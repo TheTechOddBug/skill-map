@@ -297,6 +297,7 @@
             <tr
               animate.enter="files__row--enter"
               class="files__row files__row--leaf"
+              [class.is-selected]="row.path === highlightedPath()"
               tabindex="0"
               [attr.aria-label]="texts.leafAriaLabel(row.name)"
               [style.--folder-depth]="row.depth"

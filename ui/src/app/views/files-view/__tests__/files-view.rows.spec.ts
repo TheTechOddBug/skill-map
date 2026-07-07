@@ -6,6 +6,7 @@ import {
   computeAggregates,
   issueMapsFromLite,
   issueWeight,
+  leafAncestorFolderPaths,
   leafComparator,
   makeLeafRow,
   type IFolderLeaf,
@@ -432,6 +433,30 @@ describe('folder severity badges (recursive roll-up)', () => {
     const folder = folders(rows).find((f) => f.path === 'docs');
     expect(folder?.errors).toBe(0);
     expect(folder?.warns).toBe(0);
+  });
+});
+
+describe('leafAncestorFolderPaths', () => {
+  it('returns the enclosing folder prefixes in root -> leaf order', () => {
+    expect(leafAncestorFolderPaths('a/b/c.md')).toEqual(['a', 'a/b']);
+  });
+
+  it('returns an empty list for a root-level file', () => {
+    expect(leafAncestorFolderPaths('root.md')).toEqual([]);
+  });
+
+  it('matches the `/`-joined folder paths that buildTree emits', () => {
+    const t = buildTree([makeNode('src/api/a.md', { name: 'a' })]);
+    const folderPaths = new Set<string>();
+    const visit = (folder: ReturnType<typeof buildTree>): void => {
+      if (folder.path) folderPaths.add(folder.path);
+      for (const sub of folder.subfolders.values()) visit(sub);
+    };
+    visit(t);
+    // Every ancestor the reveal effect would expand is a real tree folder.
+    for (const p of leafAncestorFolderPaths('src/api/a.md')) {
+      expect(folderPaths.has(p)).toBe(true);
+    }
   });
 });
 

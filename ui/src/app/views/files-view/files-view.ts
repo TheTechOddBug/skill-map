@@ -1,4 +1,19 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, effect, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  Injector,
+  OnInit,
+  afterNextRender,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+} from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { map } from 'rxjs/operators';
 import { TableModule } from 'primeng/table';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { MessageModule } from 'primeng/message';
@@ -8,6 +23,7 @@ import { TooltipModule } from 'primeng/tooltip';
 import { FILES_VIEW_TEXTS } from '../../../i18n/files-view.texts';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
+import { FilesFollowSelectionService } from '../../../services/files-follow-selection';
 import { MapVisibilityService, type TFolderVisibility } from '../../../services/map-visibility';
 import { NodeActivityStatsService } from '../../../services/node-activity-stats';
 import { MAP_ISOLATE_INTENT } from '../../slots/map-isolate-intent';
@@ -19,6 +35,7 @@ import {
   buildTree,
   computeAggregates,
   issueMapsFromLite,
+  leafAncestorFolderPaths,
   type IFolderLeaf,
   type IFolderRow,
   type IIssueMaps,
@@ -53,11 +70,36 @@ export class FilesView implements OnInit {
   private readonly mapVisibility = inject(MapVisibilityService);
   private readonly mapIsolate = inject(MAP_ISOLATE_INTENT);
   private readonly activityStats = inject(NodeActivityStatsService);
+  private readonly followSelection = inject(FilesFollowSelectionService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly injector = inject(Injector);
+  private readonly host = inject(ElementRef) as ElementRef<HTMLElement>;
   protected readonly texts = FILES_VIEW_TEXTS;
 
   readonly loading = this.loader.loading;
   readonly error = this.loader.error;
   readonly filtersActive = this.filters.isActive;
+
+  /**
+   * The inspected node's path from the shared `?path` query param. The map
+   * writes it on node click (and the rail's own row clicks write it too),
+   * so it is the single selection bus between the two panels. `null` when
+   * nothing is selected.
+   */
+  private readonly urlPath = toSignal(
+    this.route.queryParamMap.pipe(map((m) => m.get('path'))),
+    { initialValue: this.route.snapshot.queryParamMap.get('path') },
+  );
+
+  /**
+   * Path to highlight and reveal in the tree, but only while the "files
+   * follows selection" preference is on. When off (the default) this is
+   * `null`, so the row highlight clears and the reveal effect is inert: the
+   * rail ignores the map selection exactly as it did before the feature.
+   */
+  readonly highlightedPath = computed(() =>
+    this.followSelection.enabled() ? (this.urlPath() ?? null) : null,
+  );
 
   /**
    * Show the rail spinner ONLY while the corpus itself is loading and not
@@ -104,6 +146,16 @@ export class FilesView implements OnInit {
     });
     effect(() => {
       writeStoredSort(this.sort());
+    });
+    // Reveal the inspected node in the tree when "files follows selection"
+    // is on. Only `highlightedPath` is tracked; the reveal work runs inside
+    // `untracked` so setting `expanded` here does not re-fire this effect (a
+    // self-write loop) and `afterNextRender` is not scheduled from a live
+    // reactive context (NG0602).
+    effect(() => {
+      const path = this.highlightedPath();
+      if (!path) return;
+      untracked(() => this.revealLeaf(path));
     });
   }
 
@@ -359,4 +411,52 @@ export class FilesView implements OnInit {
   resetFilters(): void {
     this.filters.reset();
   }
+
+  /**
+   * Reveal a leaf in the tree: expand its ancestor folders (tree mode only)
+   * so the row renders, then scroll it into view once that render lands.
+   * Called from `untracked`, so the reads of `isFlat` / `expanded` here do
+   * not subscribe the reveal effect and `afterNextRender` is legal.
+   */
+  private revealLeaf(path: string): void {
+    if (!this.isFlat()) {
+      const ancestors = leafAncestorFolderPaths(path);
+      if (ancestors.length > 0) {
+        const next = new Set(this.expanded());
+        let changed = false;
+        for (const ancestor of ancestors) {
+          if (!next.has(ancestor)) {
+            next.add(ancestor);
+            changed = true;
+          }
+        }
+        if (changed) this.expanded.set(next);
+      }
+    }
+    // Scroll after the (possibly expansion-triggered) render, so the target
+    // row exists in the DOM. The files table is not virtualised, so an
+    // expanded row is always present to scroll to.
+    afterNextRender(() => this.scrollToLeaf(path), { injector: this.injector });
+  }
+
+  /** Scroll the selected leaf's row into the rail viewport. Smooth unless
+   *  the OS asks to reduce motion. */
+  private scrollToLeaf(path: string): void {
+    const selector = `[data-testid="files-leaf-${escapeAttrValue(path)}"]`;
+    const row = this.host.nativeElement.querySelector(selector);
+    row?.scrollIntoView({ block: 'nearest', behavior: this.revealBehavior() });
+  }
+
+  private revealBehavior(): ScrollBehavior {
+    const mq = this.host.nativeElement.ownerDocument.defaultView?.matchMedia?.(
+      '(prefers-reduced-motion: reduce)',
+    );
+    return mq?.matches ? 'auto' : 'smooth';
+  }
+}
+
+/** Escape a value for use inside a `[data-testid="…"]` attribute selector.
+ *  Node paths can carry characters that would break the quoted string. */
+function escapeAttrValue(value: string): string {
+  return value.replace(/["\\]/g, '\\$&');
 }

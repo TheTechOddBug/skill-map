@@ -11,6 +11,8 @@ import { FilesView } from '../files-view';
 // Reuse the bootstrap machinery from the interactions spec by
 // duplicating the minimal parts (specs cannot import each other).
 import { provideZonelessChangeDetection, signal } from '@angular/core';
+import { ActivatedRoute, convertToParamMap } from '@angular/router';
+import { of } from 'rxjs';
 import { CollectionLoaderService } from '../../../../services/collection-loader';
 import { NodeActivityStatsService } from '../../../../services/node-activity-stats';
 import { MAP_ISOLATE_INTENT } from '../../../slots/map-isolate-intent';
@@ -67,6 +69,13 @@ function boot(activity: Record<string, number>) {
       { provide: CollectionLoaderService, useValue: loader },
       { provide: MAP_ISOLATE_INTENT, useValue: { isolate: () => undefined } },
       { provide: NODE_OPEN_INTENT, useValue: { open: () => undefined } },
+      {
+        provide: ActivatedRoute,
+        useValue: {
+          queryParamMap: of(convertToParamMap({})),
+          snapshot: { queryParamMap: convertToParamMap({}) },
+        },
+      },
       {
         provide: NodeActivityStatsService,
         useValue: {

@@ -7,6 +7,7 @@ import { TooltipModule } from 'primeng/tooltip';
 
 import { WORKSPACE_VIEW_TEXTS } from '../../../i18n/workspace-view.texts';
 import { CollectionLoaderService } from '../../../services/collection-loader';
+import { FilesFollowSelectionService } from '../../../services/files-follow-selection';
 import { FilterStoreService } from '../../../services/filter-store';
 import { MapVisibilityService } from '../../../services/map-visibility';
 import { setupEdgeResize } from '../../core/edge-resize.controller';
@@ -71,6 +72,7 @@ export class WorkspaceView implements IMapIsolateIntent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly loader = inject(CollectionLoaderService);
   private readonly mapVisibility = inject(MapVisibilityService);
+  private readonly followSelection = inject(FilesFollowSelectionService);
 
   protected readonly texts = WORKSPACE_VIEW_TEXTS;
 
@@ -125,6 +127,14 @@ export class WorkspaceView implements IMapIsolateIntent {
    * filter-everything behavior.
    */
   protected readonly searchAffectsMap = this.store.searchAffectsMap;
+
+  /**
+   * "Files follows selection" preference (persisted by its own service).
+   * Drives the toggle button next to the search → map toggle: OFF (default)
+   * leaves the rail untouched when a node is selected on the map; ON reveals
+   * the selected node in the tree (highlight + auto-expand + scroll).
+   */
+  protected readonly filesFollow = this.followSelection.enabled;
 
   /** The mounted map, reached so the rail's isolate gesture (routed
    *  here via `MAP_ISOLATE_INTENT`) forwards to it. */
@@ -198,6 +208,10 @@ export class WorkspaceView implements IMapIsolateIntent {
 
   protected onToggleSearchMap(): void {
     this.store.toggleSearchAffectsMap();
+  }
+
+  protected onToggleFilesFollow(): void {
+    this.followSelection.toggle();
   }
 
   /**

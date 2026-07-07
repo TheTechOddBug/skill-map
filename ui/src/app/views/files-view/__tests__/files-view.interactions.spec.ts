@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { ActivatedRoute, convertToParamMap } from '@angular/router';
+import { of } from 'rxjs';
 
 import { FilesView } from '../files-view';
 import { CollectionLoaderService } from '../../../../services/collection-loader';
@@ -132,6 +134,16 @@ function bootstrap(
       { provide: CollectionLoaderService, useValue: loader },
       { provide: MAP_ISOLATE_INTENT, useValue: { isolate } },
       { provide: NODE_OPEN_INTENT, useValue: { open } },
+      // FilesView reads `?path` to highlight/reveal the selected node; the
+      // rail's follow preference is off by default (localStorage cleared),
+      // so a minimal query-param-less route stub is enough here.
+      {
+        provide: ActivatedRoute,
+        useValue: {
+          queryParamMap: of(convertToParamMap({})),
+          snapshot: { queryParamMap: convertToParamMap({}) },
+        },
+      },
       // The Activity column reads the per-node stats mirror; the real
       // service subscribes to WS streams unavailable here, so tests seed
       // plain signal maps instead (same pattern as inspector-view.spec).
