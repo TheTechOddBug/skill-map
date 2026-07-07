@@ -1016,6 +1016,31 @@ describe('GraphView, follow-the-activity camera', () => {
     expect(probe.followActivity()).toBe(true);
   });
 
+  it('an animated camera move persists the destination viewport for reload', async () => {
+    const active = signal<ReadonlySet<string>>(new Set());
+    const { fixture, cmp } = await bootstrapWithActivity(
+      [makeNode('a.md', 'a')],
+      active,
+      signal(true),
+    );
+    await settleBoot(fixture);
+
+    // Nothing persisted from boot (beforeEach cleared the key; the boot
+    // fit is suppressed only when a saved viewport exists, and there is
+    // none here, so the boot writes come from the fit itself). Drive the
+    // shared tween entry point like a toolbox tool would (fit / reset /
+    // show-all / isolate all funnel through it), then assert the target
+    // landed in localStorage so an F5 restores it instead of the
+    // pre-click position.
+    (cmp as unknown as {
+      animateToTransform(t: { position: { x: number; y: number }; scale: number }): void;
+    }).animateToTransform({ position: { x: 100, y: 240 }, scale: 1.5 });
+
+    const raw = localStorage.getItem('sm.graph.viewport');
+    expect(raw).not.toBeNull();
+    expect(JSON.parse(raw!)).toEqual({ x: 100, y: 240, scale: 1.5 });
+  });
+
   it('explicit camera intents (fit / zoom buttons) switch follow off', async () => {
     const active = signal<ReadonlySet<string>>(new Set());
     const { fixture, probe } = await bootstrapWithActivity(

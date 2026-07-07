@@ -93,6 +93,7 @@ import {
   readStoredViewport,
   writeStoredNodePositions,
   writeStoredPanelWidth,
+  writeStoredViewport,
 } from './graph-view.storage';
 import { setupEdgeResize } from '../../core/edge-resize.controller';
 import { setupTagSelection } from './tag-selection.controller';
@@ -873,15 +874,26 @@ export class GraphView implements OnInit {
         // ignores the zoom bounds and magnifies a lone node far past
         // natural size, so a one-node project would otherwise open
         // gigantic. Zoom-out (many nodes) is bounded by `zoomMin`.
-        if (scale <= TAG_FIT_MAX_ZOOM && scale >= this.zoomMin) return;
-        const clamped = Math.max(this.zoomMin, Math.min(scale, TAG_FIT_MAX_ZOOM));
-        const step = Math.abs(scale - clamped);
-        const direction = scale > clamped ? EFZoomDirection.ZOOM_OUT : EFZoomDirection.ZOOM_IN;
-        // `FZoomDirective.setZoom` clamps via `SetZoom._clamp` (the same
-        // path wheel + button zoom go through), so it lands exactly at
-        // `zoomMin` / `zoomMax`. Non-animated to keep the snap atomic
-        // inside this render cycle.
-        zoom?.setZoom(this.getViewportCenter(), step, direction, false);
+        if (scale > TAG_FIT_MAX_ZOOM || scale < this.zoomMin) {
+          const clamped = Math.max(this.zoomMin, Math.min(scale, TAG_FIT_MAX_ZOOM));
+          const step = Math.abs(scale - clamped);
+          const direction = scale > clamped ? EFZoomDirection.ZOOM_OUT : EFZoomDirection.ZOOM_IN;
+          // `FZoomDirective.setZoom` clamps via `SetZoom._clamp` (the same
+          // path wheel + button zoom go through), so it lands exactly at
+          // `zoomMin` / `zoomMax`. Non-animated to keep the snap atomic
+          // inside this render cycle.
+          zoom?.setZoom(this.getViewportCenter(), step, direction, false);
+        }
+        // Persist the settled fit. Foblex's `fitToScreen` (FitToFlow)
+        // never emits `fCanvasChange`, so a layout-algorithm / direction
+        // change would otherwise be lost on F5 like the animated fits
+        // were. Read the transform AFTER the optional clamp so the saved
+        // scale matches what is painted; the clamp's `setZoom` also emits
+        // and would write the same value, so this is idempotent there.
+        if (this.layoutFit.hasCompletedInitialLayout()) {
+          const t = canvas.transform;
+          writeStoredViewport({ x: t.position.x, y: t.position.y, scale: t.scale });
+        }
       },
       { injector: this.injector },
     );
@@ -988,6 +1000,20 @@ export class GraphView implements OnInit {
       transform,
       AUTO_FIT_ANIM_MS,
     );
+    // Persist the destination so a reload restores where the camera was
+    // parked. Foblex only emits `fCanvasChange` (the other writer of
+    // `sm.graph.viewport`) for real gestures and button zoom, never for
+    // the programmatic signal writes `animateViewport` makes, so without
+    // this every fit / re-arrange / show-all / isolate / deep-link
+    // center / follow move was lost on F5. Write the TARGET (already the
+    // clamped final transform) directly rather than through
+    // `emitCanvasChangeEvent()`, which would trip the tween-interrupt
+    // branch in `onCanvasChange` and wrongly disable follow. The boot
+    // gate mirrors `viewport-store`: don't clobber the restored viewport
+    // before the first layout settles.
+    if (this.layoutFit.hasCompletedInitialLayout()) {
+      writeStoredViewport({ x: transform.position.x, y: transform.position.y, scale: transform.scale });
+    }
   }
 
   /**
