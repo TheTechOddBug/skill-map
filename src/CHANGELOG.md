@@ -1,5 +1,47 @@
 # skill-map
 
+## 0.85.0
+
+### Minor Changes
+
+- Lowers the default scan corpus ceiling `scan.maxScan` from 50000 to 5000 files. Projects above the limit now truncate by default (extra files are left out of the map, not scanned or reference-validated), and `sm scan` prints a reworded advisory pointing at `.skillmapignore` to filter noisy folders (e.g. node_modules/, dist/, build/) or `--max-scan <N>` to raise the limit. Fully overridable per project via `scan.maxScan` in settings.json or per invocation via `--max-scan`.
+
+  ## User-facing
+
+  skill-map now scans up to 5000 files by default (was 50000). Larger projects get a terminal notice suggesting you filter noisy folders with .skillmapignore, or raise the limit with --max-scan. You can set any value under scan.maxScan in .skill-map/settings.json.
+
+### Patch Changes
+
+- `POST /api/activity` now emits one diagnostic log line per ingested event so an operator debugging a Provider's live-activity wiring (`sm serve --log-level info`) sees whether a hook fired and where it ended up, instead of the silent 202 short-circuits. The line names the provider, a sanitized hook-type discriminator, and the outcome (resolved with counts / no-signals / no-nodes / unresolved at INFO; no-provider and token mismatch at WARN). The event body is never logged.
+
+  ## User-facing
+
+  Run `sm serve --log-level info` to see one line per live-activity event: which provider and hook fired, and whether it resolved, mapped nothing, or was dropped (e.g. an untrusted provider). Hard drops and token mismatches show even at the default level.
+
+- Switching the active-provider lens from the marker-drift notice now dismisses it. `PATCH /api/active-provider` refreshes the `activeProviderMarkers` snapshot to the detected set as part of the switch (mirroring the CLI's `sm config set activeProvider`), so the drift banner clears on a lens change instead of lingering. Previously only the explicit Dismiss (`POST /api/active-provider/accept-markers`) reconciled the snapshot, so switching lens left the notice up.
+
+  ## User-facing
+
+  The "new provider markers detected" banner now goes away after you switch lens from it, not only when you press its dismiss button.
+
+- The workspace files panel gains an opt-in rail toggle that makes it follow the map selection. With the toggle on, selecting a node on the map highlights the matching file in the files list, expands its folders, and scrolls it into view. The toggle sits next to the search controls, ships off by default, and its state is remembered per browser.
+
+  ## User-facing
+
+  The files panel has a new toggle: turn it on and selecting a node on the map highlights that file in the list and scrolls to it. Off by default.
+
+- `sm scan` now prints an info advisory when the scanned corpus has more nodes than the map render cap (`scan.maxNodes`, default 256): the full corpus is still scanned and reference-validated, only the graph view paginates. The in-map render-cap banner is now corpus-aware, so it also fires when the whole project exceeds the cap while the selected branch fits, keeping the signal visible when you drill into a small sub-folder.
+
+  ## User-facing
+
+  When your project has more files than the map can show at once (256 by default), sm scan now tells you in the terminal, and the map banner appears even while you are viewing a small folder. Nothing is lost, the map just draws part of the project at a time.
+
+- Fixes `GET /api/plugins` reporting `status: 'enabled'` for an untrusted drop-in plugin that ships config-enabled (e.g. a `beta` provider). Its code never loads without a local trust grant, so the row now reads `status: 'disabled'` with the untrusted reason (per spec/architecture.md) instead of misleadingly showing as active. Plugin-level, so it covers every kind (provider, extractor, analyzer, action, formatter, hook).
+
+  ## User-facing
+
+  An untrusted drop-in plugin no longer shows as enabled in the plugins list. Until you trust it (Settings, or sm plugins trust), it reads disabled with a hint to trust it, since its code does not run without your trust grant.
+
 ## 0.84.0
 
 ### Minor Changes
