@@ -24,9 +24,11 @@ import { strict as assert } from 'node:assert';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { after, before, beforeEach, describe, it } from 'node:test';
+import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
 import WebSocket from 'ws';
 
+import { configureLogger, resetLogger } from '../../../kernel/util/logger.js';
+import type { LoggerPort } from '../../../kernel/ports/logger.js';
 import { SqliteStorageAdapter } from '../../../kernel/adapters/sqlite/index.js';
 import { persistScanResult } from '../../../kernel/adapters/sqlite/scan-persistence.js';
 import type { Node, ScanResult } from '../../../kernel/types.js';
@@ -443,5 +445,81 @@ describe('POST /api/activity, ingest', () => {
         pairCount: 1,
       });
     });
+  });
+});
+
+interface ICapturedLog {
+  level: 'info' | 'warn';
+  message: string;
+}
+
+/** Logger that records only the two levels the ingest log uses. */
+function captureLogger(buffer: ICapturedLog[]): LoggerPort {
+  return {
+    trace() {},
+    debug() {},
+    info(message) {
+      buffer.push({ level: 'info', message });
+    },
+    warn(message) {
+      buffer.push({ level: 'warn', message });
+    },
+    error() {},
+  };
+}
+
+describe('POST /api/activity, ingest observability log', () => {
+  let logs: ICapturedLog[];
+
+  beforeEach(() => {
+    logs = [];
+    configureLogger(captureLogger(logs));
+  });
+  afterEach(() => {
+    resetLogger();
+  });
+
+  it('logs INFO with the hook label + counts when an event resolves', async () => {
+    await bootAndUse(async (handle) => {
+      await postActivity(
+        handle,
+        { provider: 'claude', event: SKILL_PRETOOLUSE_PAYLOAD },
+        handle.activityToken,
+      );
+    });
+    const line = logs.find((l) => l.level === 'info' && l.message.includes('activity: claude'));
+    assert.ok(line, `expected an info activity log, got ${JSON.stringify(logs)}`);
+    // The safe hook-type discriminator (`hook_event_name`) rides the line.
+    assert.match(line.message, /PreToolUse/);
+    assert.match(line.message, /1 activity/);
+  });
+
+  it('logs WARN when the provider is not loaded (untrusted / unknown)', async () => {
+    await bootAndUse(async (handle) => {
+      await postActivity(
+        handle,
+        { provider: 'not-a-provider', event: SKILL_PRETOOLUSE_PAYLOAD },
+        handle.activityToken,
+      );
+    });
+    const line = logs.find((l) => l.level === 'warn' && l.message.includes('activity: not-a-provider'));
+    assert.ok(line, `expected a warn activity log, got ${JSON.stringify(logs)}`);
+    assert.match(line.message, /provider not loaded/);
+  });
+
+  it('logs INFO "0 signals" when the provider disclaims the event', async () => {
+    await bootAndUse(async (handle) => {
+      await postActivity(
+        handle,
+        {
+          provider: 'claude',
+          event: { hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'ls' } },
+        },
+        handle.activityToken,
+      );
+    });
+    const line = logs.find((l) => l.level === 'info' && l.message.includes('activity: claude'));
+    assert.ok(line, `expected an info activity log, got ${JSON.stringify(logs)}`);
+    assert.match(line.message, /0 signals/);
   });
 });

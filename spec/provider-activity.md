@@ -231,10 +231,25 @@ Served by the BFF, loopback-gated like every `/api/*` route, plus token-gated:
   `agent.spawn` event per spawn relation (§WS event: `agent.spawn`). Spawn
   conversation content reaches the conversation store ONLY while the capture
   gate is on (§Conversation capture). The raw event is then discarded.
+- **Observability log**: each ingest emits ONE diagnostic line through the
+  server logger so an operator debugging a Provider's wiring (`sm serve
+  --log-level info`) can tell whether a hook fired and where it ended up,
+  instead of the otherwise-silent `202` short-circuits. The line names the
+  Provider id, a sanitized hook-type discriminator (see the Privacy bullet),
+  and the coarse outcome: `resolved` (with the activity / spawn counts),
+  `no-signals` (`mapEvent` disclaimed), `no-nodes` (nothing scanned yet), or
+  `unresolved` (signals produced, none matched a node), all at INFO; the hard
+  drop `no-provider` (no registered Provider with that id and an `activity`
+  adapter, i.e. untrusted / disabled / unknown) and a token mismatch log at
+  WARN so they surface at the default level. No further body field is logged.
 - **Privacy**: the raw event may contain prompts, command text, and file contents.
   The route's request body is excluded from error reporting (Sentry), access logs,
-  and error messages. Nothing beyond the minimal WS payload leaves the process,
-  and nothing ever leaves the machine (see §Privacy).
+  and error messages. The only body-derived value the observability log may emit
+  is a single sanitized, length-capped hook-type discriminator (a fixed vendor
+  event name such as `PreToolUse` / `command.execute.before`, read from a
+  closed key allow-list: `hook_event_name`, `hook`, `type`), never any content
+  field. Nothing beyond the minimal WS payload leaves the process, and nothing
+  ever leaves the machine (see §Privacy).
 
 ## Install management over HTTP
 

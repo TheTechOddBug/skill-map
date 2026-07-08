@@ -53,10 +53,16 @@ import {
   type IAgentSpawnEventData,
   type INodeActivityEventData,
 } from '../events.js';
-import { resolveActivityEvent, type IResolvedSpawn } from '../activity-resolver.js';
+import {
+  resolveActivityEvent,
+  type IActivityResolution,
+  type IResolvedSpawn,
+} from '../activity-resolver.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
 import { makeBodyValidator } from '../util/parse-body.js';
 import type { IRouteDeps } from './deps.js';
+import { log } from '../../kernel/util/logger.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 
 /** Header the bridge sends the serve.json token in. */
 export const ACTIVITY_TOKEN_HEADER = 'x-skill-map-token';
@@ -106,15 +112,17 @@ export interface IActivityRouteDeps extends IRouteDeps {
 
 export function registerActivityRoute(app: Hono, deps: IActivityRouteDeps): void {
   app.post('/api/activity', async (c) => {
-    assertToken(c.req.raw.headers.get(ACTIVITY_TOKEN_HEADER), deps.activityToken);
+    assertTokenLogged(c.req.raw.headers.get(ACTIVITY_TOKEN_HEADER), deps.activityToken);
     const body = await parseBody(c.req.raw);
 
-    const { activity, spawns, reports } = await resolveActivityEvent({
+    const resolution = await resolveActivityEvent({
       providers: deps.providers,
       dbPath: deps.options.dbPath,
       providerId: body.provider,
       raw: body.event,
     });
+    logActivityIngest(body.provider, body.event, resolution);
+    const { activity, spawns, reports } = resolution;
     for (const data of activity) {
       const stats = deps.stats.record(data);
       const payload: INodeActivityEventData = stats ? { ...data, stats } : data;
@@ -158,6 +166,79 @@ function toSpawnEventData(spawn: IResolvedSpawn): IAgentSpawnEventData {
   if (spawn.childNodePath !== undefined) data.childNodePath = spawn.childNodePath;
   if (spawn.childOwner !== undefined) data.childOwner = spawn.childOwner;
   return data;
+}
+
+/**
+ * Emit ONE observability line per ingested activity event so an operator
+ * debugging a Provider's live-activity wiring (`sm serve --log-level
+ * info`) can see whether a hook fired and where it ended up, instead of
+ * the four silent 202 short-circuits. Hard drops (`no-provider`: the
+ * untrusted / disabled / unknown case) log at WARN so they surface at the
+ * default level; the soft outcomes log at INFO.
+ *
+ * Privacy (spec/provider-activity.md): only the Provider id, a sanitized
+ * hook-type discriminator, and signal / payload COUNTS are logged, never
+ * any field of the event body beyond that single discriminator.
+ */
+function logActivityIngest(
+  providerId: string,
+  rawEvent: unknown,
+  r: IActivityResolution,
+): void {
+  const hook = extractHookLabel(rawEvent);
+  const tag = hook ? `${providerId} ${hook}` : providerId;
+  switch (r.outcome) {
+    case 'resolved':
+      log.info(`activity: ${tag} -> ${r.activity.length} activity, ${r.spawns.length} spawn(s)`);
+      return;
+    case 'no-signals':
+      log.info(`activity: ${tag} -> 0 signals (provider mapped nothing)`);
+      return;
+    case 'no-nodes':
+      log.info(`activity: ${tag} -> dropped (no scanned nodes yet; run a scan)`);
+      return;
+    case 'unresolved':
+      log.info(`activity: ${tag} -> dropped (${r.signalCount} signal(s), none matched a node)`);
+      return;
+    case 'no-provider':
+      log.warn(`activity: ${tag} -> dropped: provider not loaded (untrusted / disabled) or has no activity adapter`);
+  }
+}
+
+/**
+ * Assert the ingest token, logging a WARN on mismatch (an otherwise
+ * silent 403 that blinds an operator to a mis-wired bridge) before
+ * rethrowing. No token or body content is logged.
+ */
+function assertTokenLogged(presented: string | null, expected: string): void {
+  try {
+    assertToken(presented, expected);
+  } catch (err) {
+    log.warn('activity: ingest rejected (token mismatch)');
+    throw err;
+  }
+}
+
+/**
+ * Known top-level hook-type discriminator keys across Providers
+ * (`hook_event_name`: claude / codex; `hook`: opencode). A fixed vendor
+ * event name, NOT user content, so it is safe to log, but the payload is
+ * external so the value is sanitized and length-capped defensively.
+ */
+const HOOK_LABEL_KEYS = ['hook_event_name', 'hook', 'type'] as const;
+const HOOK_LABEL_MAX = 40;
+
+function extractHookLabel(rawEvent: unknown): string | null {
+  if (typeof rawEvent !== 'object' || rawEvent === null) return null;
+  const rec = rawEvent as Record<string, unknown>;
+  for (const key of HOOK_LABEL_KEYS) {
+    const value = rec[key];
+    if (typeof value === 'string' && value.length > 0) {
+      const clean = sanitizeForTerminal(value).slice(0, HOOK_LABEL_MAX);
+      if (clean.length > 0) return clean;
+    }
+  }
+  return null;
 }
 
 /**

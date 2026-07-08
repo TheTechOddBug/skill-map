@@ -91,6 +91,39 @@ export interface IResolvedActivity {
 }
 
 /**
+ * Coarse ingest outcome, drives the `POST /api/activity` observability
+ * log so an operator debugging a Provider's live-activity wiring can see
+ * WHY an event produced nothing (all four short-circuits are otherwise
+ * silent 202s). Carries no payload content, only the discriminator and
+ * the signal count.
+ *
+ *   - `no-provider`  : no registered Provider with that id AND an
+ *                      `activity` adapter (untrusted / disabled / unknown).
+ *   - `no-signals`   : the Provider's `mapEvent` disclaimed (0 signals).
+ *   - `no-nodes`     : no scanned nodes persisted yet (run a scan first).
+ *   - `unresolved`   : signals were produced but none matched a node.
+ *   - `resolved`     : at least one activity / spawn / report was emitted.
+ */
+export type TActivityOutcome =
+  | 'no-provider'
+  | 'no-signals'
+  | 'no-nodes'
+  | 'unresolved'
+  | 'resolved';
+
+/**
+ * `resolveActivityEvent`'s result: the resolved payloads plus a coarse
+ * `outcome` + `signalCount` diagnostic for the ingest log. Extends
+ * `IResolvedActivity` so the route can keep destructuring the payload
+ * halves unchanged.
+ */
+export interface IActivityResolution extends IResolvedActivity {
+  outcome: TActivityOutcome;
+  /** Signals returned by `mapEvent` (pre node-resolution); 0 for early exits. */
+  signalCount: number;
+}
+
+/**
  * Map + resolve one raw provider event into broadcastable payloads.
  * Returns the empty pair for every non-happy path (unknown provider,
  * provider without `activity`, disclaiming / throwing `mapEvent`,
@@ -102,17 +135,28 @@ export async function resolveActivityEvent(opts: {
   dbPath: string;
   providerId: string;
   raw: unknown;
-}): Promise<IResolvedActivity> {
+}): Promise<IActivityResolution> {
   const provider = opts.providers.find((p) => p.id === opts.providerId && p.activity !== undefined);
-  if (!provider) return emptyResolution();
+  if (!provider) return withOutcome(emptyResolution(), 'no-provider', 0);
 
   const signals = mapEventSafely(provider, opts.raw);
-  if (signals.length === 0) return emptyResolution();
+  if (signals.length === 0) return withOutcome(emptyResolution(), 'no-signals', 0);
 
   const nodes = await loadPersistedNodes(opts.dbPath);
-  if (nodes.length === 0) return emptyResolution();
+  if (nodes.length === 0) return withOutcome(emptyResolution(), 'no-nodes', signals.length);
 
-  return resolveSignalsAgainstNodes(signals, provider, nodes);
+  const resolved = resolveSignalsAgainstNodes(signals, provider, nodes);
+  const produced = resolved.activity.length + resolved.spawns.length + resolved.reports.length;
+  return withOutcome(resolved, produced > 0 ? 'resolved' : 'unresolved', signals.length);
+}
+
+/** Tag a resolved payload with the ingest-log diagnostic. */
+function withOutcome(
+  resolved: IResolvedActivity,
+  outcome: TActivityOutcome,
+  signalCount: number,
+): IActivityResolution {
+  return { ...resolved, outcome, signalCount };
 }
 
 /** Fresh empty result per call site; the arrays are mutable by design. */
