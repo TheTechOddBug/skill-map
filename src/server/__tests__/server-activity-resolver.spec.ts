@@ -372,7 +372,7 @@ describe('resolveActivityEvent (DB-free short circuits)', () => {
       providerId: 'codex',
       raw: {},
     });
-    assert.deepEqual(resolved, { activity: [], spawns: [], reports: [] });
+    assert.deepEqual(resolved, { activity: [], spawns: [], reports: [], outcome: 'no-provider', signalCount: 0 });
   });
 
   it('provider without an activity capability yields the empty pair', async () => {
@@ -382,7 +382,7 @@ describe('resolveActivityEvent (DB-free short circuits)', () => {
       providerId: 'claude',
       raw: {},
     });
-    assert.deepEqual(resolved, { activity: [], spawns: [], reports: [] });
+    assert.deepEqual(resolved, { activity: [], spawns: [], reports: [], outcome: 'no-provider', signalCount: 0 });
   });
 
   it('an end signal report rides the reports channel, never the wire payload', () => {
@@ -458,6 +458,6 @@ describe('resolveActivityEvent (DB-free short circuits)', () => {
       providerId: 'claude',
       raw: { anything: true },
     });
-    assert.deepEqual(resolved, { activity: [], spawns: [], reports: [] });
+    assert.deepEqual(resolved, { activity: [], spawns: [], reports: [], outcome: 'no-signals', signalCount: 0 });
   });
 });
