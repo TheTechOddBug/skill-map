@@ -367,7 +367,7 @@ export class WatchCommand extends SmCommand {
   maxScan = Option.String('--max-scan', {
     required: false,
     description:
-      'Per-batch override of scan.maxScan (default 50000), the WALK-INTAKE ceiling. The scan walks, parses, analyzes, and reference-validates the full corpus up to this number. Bidirectional: raises OR lowers the ceiling. When a batch hits it, additional files are dropped in stable order and the UI surfaces the persistent truncation banner. Validation: integer >= 1.',
+      'Per-batch override of scan.maxScan (default 5000), the WALK-INTAKE ceiling. The scan walks, parses, analyzes, and reference-validates the full corpus up to this number. Bidirectional: raises OR lowers the ceiling. When a batch hits it, additional files are dropped in stable order and the UI surfaces the persistent truncation banner. Validation: integer >= 1.',
   });
   maxNodes = Option.String('--max-nodes', {
     required: false,

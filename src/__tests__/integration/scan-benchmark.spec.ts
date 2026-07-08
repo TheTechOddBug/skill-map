@@ -102,7 +102,7 @@ describe('scan benchmark (500 MDs)', () => {
       roots: [tempDir],
       extensions: builtIns(),
       // Benchmark scans 500 fixture files end-to-end; the default walk
-      // ceiling (50000) already admits them, but pin it explicitly so
+      // ceiling (5000) already admits them, but pin it explicitly so
       // the intent survives future default changes.
       scanCeiling: 1000,
     });

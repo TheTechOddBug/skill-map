@@ -115,7 +115,7 @@ export class ScanCommand extends SmCommand {
   });
   maxScan = Option.String('--max-scan', {
     required: false,
-    description: 'Per-invocation override of `scan.maxScan` (default 50000). The WALK-INTAKE ceiling: the scan walks, parses, analyzes, and reference-validates the full corpus up to this number. Bidirectional: raises OR lowers the ceiling. When the walker hits it, additional files are dropped in stable order and the scan is marked truncated in scan_meta (the UI raises a persistent banner pointing at the .skillmapignore editor in Settings → Project). Validation: integer >= 1.',
+    description: 'Per-invocation override of `scan.maxScan` (default 5000). The WALK-INTAKE ceiling: the scan walks, parses, analyzes, and reference-validates the full corpus up to this number. Bidirectional: raises OR lowers the ceiling. When the walker hits it, additional files are dropped in stable order and the scan is marked truncated in scan_meta (the UI raises a persistent banner pointing at the .skillmapignore editor in Settings → Project). Validation: integer >= 1.',
   });
   maxNodes = Option.String('--max-nodes', {
     required: false,
@@ -403,6 +403,7 @@ export class ScanCommand extends SmCommand {
     }
     this.maybePrintCapNotice(result, ansi);
     this.maybePrintSkippedFilesNotice(result, ansi);
+    this.maybePrintRenderCapNotice(result, ansi);
     return exitCode;
   }
 
@@ -456,6 +457,37 @@ export class ScanCommand extends SmCommand {
         limit: String(ceiling),
         source,
         hint: ansi.dim(SCAN_TEXTS.scanCappedNoticeHint),
+      }),
+    );
+  }
+
+  /**
+   * Surface the §Map render cap advisory when the scanned corpus has
+   * more nodes than the effective render cap (`--max-nodes` override,
+   * else `scan.maxNodes`, carried on `ScanResult.maxRenderNodes`). Unlike
+   * the scan-ceiling notice this is benign: nothing was dropped, the full
+   * corpus is persisted and reference-validated, only the graph view
+   * paginates. Routed through `printer.info` (cyan glyph) so it reads as
+   * a heads-up, not a problem, and is silenced under `--json`. Stays
+   * silent on synthetic fixtures (no `maxRenderNodes`) and whenever the
+   * corpus fits under the cap.
+   */
+  private maybePrintRenderCapNotice(
+    result: import('../../kernel/index.js').ScanResult,
+    ansi: IAnsi,
+  ): void {
+    const cap = result.maxRenderNodes;
+    if (cap === undefined) return;
+    const nodes = result.stats.nodesCount;
+    if (nodes <= cap) return;
+    const source = this.maxNodes !== undefined ? '--max-nodes' : 'scan.maxNodes';
+    this.printer!.info(
+      tx(SCAN_TEXTS.scanRenderCapNotice, {
+        glyph: ansi.cyan('ℹ'),
+        nodes: String(nodes),
+        cap: String(cap),
+        source,
+        hint: ansi.dim(SCAN_TEXTS.scanRenderCapNoticeHint),
       }),
     );
   }

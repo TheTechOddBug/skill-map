@@ -104,7 +104,7 @@ export interface IServerOptions {
   watcherDebounceMs?: number | undefined;
 
   /**
-   * Per-invocation override of `scan.maxScan` (default 50000). Mirror
+   * Per-invocation override of `scan.maxScan` (default 5000). Mirror
    * of the `--max-scan <N>` flag on `sm serve` (and the bare `sm`
    * invocation, see `cli/entry.ts`). This is the WALK-INTAKE ceiling.
    * When set, every scan the server runs (boot watcher initial pass,

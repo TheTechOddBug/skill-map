@@ -58,7 +58,7 @@ export const WATCH_TEXTS = {
     '{{glyph}}  sm watch: --max-scan must be an integer >= 1 (got {{raw}}).\n' +
     '   {{hint}}\n',
   maxScanInvalidHint:
-    'Pass a positive integer, e.g. --max-scan 50000.',
+    'Pass a positive integer, e.g. --max-scan 5000.',
 
   /**
    * §3.1b two-line block. Validation rejection for `--max-nodes`.

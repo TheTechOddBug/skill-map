@@ -1,7 +1,7 @@
 /**
  * Regression: persisting a large scan must not exceed SQLite's bound
  * variable cap (`SQLITE_MAX_VARIABLE_NUMBER`). Before the scan cap was
- * split into `scan.maxScan` (corpus ceiling, default 50000) and
+ * split into `scan.maxScan` (corpus ceiling, default 5000) and
  * `scan.maxNodes` (render cap, default 256), the walk never produced
  * more than 256 nodes, so the replace-all `INSERT ... VALUES (...)`
  * always fit in one statement. With the corpus ceiling lifted, a single

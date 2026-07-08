@@ -720,6 +720,15 @@ function projectStatus(
   if (plugin.status !== 'enabled' && plugin.status !== 'disabled') {
     return plugin.status;
   }
+  // An untrusted drop-in is never loaded, regardless of the orthogonal
+  // config-enable axis, so it must NOT re-project to 'enabled' from the
+  // live resolver. A beta plugin (ships config-enabled) would otherwise
+  // read 'enabled' in the list while its code never ran, hiding the
+  // missing trust grant. Per spec/architecture.md §Plugin enable vs import
+  // trust an untrusted plugin is `status: 'disabled'`; trust is the gate,
+  // enable is a separate axis. The untrusted-ness still surfaces via the
+  // absent `trusted` flag + the untrusted `reason`.
+  if (plugin.untrusted === true) return 'disabled';
   return resolveEnabled(plugin.id) ? 'enabled' : 'disabled';
 }
 

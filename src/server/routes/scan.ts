@@ -372,11 +372,11 @@ function emptyScanResult(): ScanResult {
     roots: ['.'],
     providers: [],
     // Surface the design defaults so the SPA reads the same field shape
-    // on cold boot as on populated DBs. 50000 mirrors `scan.maxScan`
+    // on cold boot as on populated DBs. 5000 mirrors `scan.maxScan`
     // (the walk ceiling) and 256 mirrors `scan.maxNodes` (the render
     // cap), both from `src/config/defaults.json`. A real scan
     // overwrites these with the live values on next run.
-    scanCeiling: 50000,
+    scanCeiling: 5000,
     scanTruncated: false,
     maxRenderNodes: 256,
     nodes: [],

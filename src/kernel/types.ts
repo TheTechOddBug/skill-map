@@ -702,7 +702,7 @@ export interface ScanResult {
   /**
    * Effective walk ceiling for this scan (`--max-scan <N>` override on
    * `sm scan` / `sm watch` / `sm serve`, else `scan.maxScan` from
-   * settings, default 50000). The scan walks, parses, analyzes, and
+   * settings, default 5000). The scan walks, parses, analyzes, and
    * reference-validates the full corpus up to this number, so references
    * resolve across the whole project regardless of how many nodes the
    * map renders. Mirrors `scan_meta.scan_ceiling`. Absent on synthetic

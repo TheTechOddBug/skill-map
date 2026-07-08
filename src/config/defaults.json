@@ -14,7 +14,7 @@
     "tokenize": true,
     "strict": false,
     "maxFileSizeBytes": 1048576,
-    "maxScan": 50000,
+    "maxScan": 5000,
     "maxNodes": 256,
     "watch": {
       "debounceMs": 300,

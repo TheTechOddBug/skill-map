@@ -10,7 +10,8 @@
  */
 export const BRANCH_CAP_BANNER_TEXTS = {
   /**
-   * Body copy. Renders as:
+   * Branch-scoped body copy, shown when the SELECTED branch itself has
+   * more nodes than the render cap. Renders as:
    *   "This folder has {total} nodes; showing {rendered} on the map.
    *    Pick a sub-folder to narrow it."
    * The counts ride as parameters so the SPA swaps them without touching
@@ -18,4 +19,13 @@ export const BRANCH_CAP_BANNER_TEXTS = {
    */
   body: (total: number, rendered: number): string =>
     `This folder has ${total} ${total === 1 ? 'node' : 'nodes'}; showing ${rendered} on the map. Pick a sub-folder to narrow it.`,
+  /**
+   * Corpus-scoped body copy, shown when the current branch FITS under the
+   * cap but the whole project exceeds it (so the signal survives drilling
+   * into a small sub-folder). Renders as:
+   *   "This project has {total} nodes; the map renders up to {cap} at a
+   *    time. Narrow by folder or raise the render cap."
+   */
+  corpusBody: (total: number, cap: number): string =>
+    `This project has ${total} ${total === 1 ? 'node' : 'nodes'}; the map renders up to ${cap} at a time. Narrow by folder or raise the render cap.`,
 } as const;

@@ -45,6 +45,7 @@ interface IStubLoader {
   scanMeta: ReturnType<typeof signal<IScanResultApi | null>>;
   liteNodes: ReturnType<typeof signal<IFolderNodeLite[]>>;
   liteNodeViews: ReturnType<typeof signal<INodeView[]>>;
+  corpusCount: ReturnType<typeof signal<number>>;
   branch: ReturnType<typeof signal<IBranchResponseApi | null>>;
   loading: ReturnType<typeof signal<boolean>>;
   error: ReturnType<typeof signal<string | null>>;
@@ -129,6 +130,7 @@ function makeStubLoader(initialNodes: INodeView[] = []): IStubLoader {
     liteNodeViews: signal<INodeView[]>(
       initialNodes.map((n) => ({ path: n.path, kind: n.kind, frontmatter: { name: '', description: '' } }) as INodeView),
     ),
+    corpusCount: signal<number>(initialNodes.length),
     branch: signal<IBranchResponseApi | null>(branch),
     loading: signal(false),
     error: signal<string | null>(null),

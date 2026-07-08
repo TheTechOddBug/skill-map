@@ -196,3 +196,48 @@ describe('POST /api/active-provider/accept-markers', () => {
     }
   });
 });
+
+describe('PATCH /api/active-provider (switch lens)', () => {
+  it('refreshes the markers snapshot so the drift clears when the lens changes', async () => {
+    const cwd = makeCwd({
+      // Snapshot taken when only `.claude` existed; `.codex` appeared later.
+      settings: { activeProvider: 'claude', activeProviderMarkers: ['claude'] },
+      markerDirs: ['.claude', '.codex'],
+    });
+    try {
+      await boot(cwd, async (handle) => {
+        // Precondition: GET reports drift (added codex).
+        const before = (await (
+          await fetch(url(handle, '/api/active-provider'))
+        ).json()) as IActiveProviderWire;
+        assert.ok(before.markerDrift !== null, 'precondition: drift present');
+
+        // Switch the lens to the newly-detected provider.
+        const res = await fetch(url(handle, '/api/active-provider'), {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ activeProvider: 'codex' }),
+        });
+        assert.equal(res.status, 200);
+        const body = (await res.json()) as IActiveProviderWire;
+        assert.equal(body.activeProvider, 'codex');
+        assert.equal(body.markerDrift, null, 'switching the lens clears the drift');
+
+        // The refreshed snapshot landed on disk (claude + codex), mirroring
+        // the CLI's `sm config set activeProvider`.
+        const snapshot = readMarkersSnapshot(cwd) as string[];
+        assert.ok(Array.isArray(snapshot));
+        assert.ok(snapshot.includes('claude'));
+        assert.ok(snapshot.includes('codex'));
+
+        // A follow-up GET stays null (the drift does not reappear).
+        const afterGet = (await (
+          await fetch(url(handle, '/api/active-provider'))
+        ).json()) as IActiveProviderWire;
+        assert.equal(afterGet.markerDrift, null);
+      });
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+});

@@ -300,7 +300,7 @@ function collectKnownOrphanPaths(issues: readonly ScanResult['issues'][number][]
 /**
  * SQLite caps the number of bound `?` variables per statement
  * (`SQLITE_MAX_VARIABLE_NUMBER`, 32766 since SQLite 3.32). A scan now
- * carries up to `scan.maxScan` nodes (default 50000), and a single
+ * carries up to `scan.maxScan` nodes (default 5000), and a single
  * multi-row INSERT binds `rows * columns` variables, so one statement
  * would blow the cap well before the ceiling. Chunk every batch write
  * so `rows-per-statement * columns` stays comfortably under the limit.
@@ -372,7 +372,7 @@ async function upsertEnrichmentLayer(
 
   // Step 1, drop enrichments whose node disappeared. Compute the dead
   // set in JS and delete it in chunks: a `NOT IN` against the full live
-  // list would bind up to `scan.maxScan` variables (default 50000) and
+  // list would bind up to `scan.maxScan` variables (default 5000) and
   // blow the SQLite cap. node_enrichments is usually empty / small (the
   // probabilistic layer), so the distinct read is cheap.
   const existingEnrichmentPaths = await trx
@@ -681,7 +681,7 @@ function projectOversizedColumns(
 
 /**
  * Project the scan-ceiling / render-cap envelope onto its `scan_meta`
- * columns. Fallback to the design defaults (corpus ceiling 50000, render
+ * columns. Fallback to the design defaults (corpus ceiling 5000, render
  * cap 256, not truncated) on synthetic fixtures that bypass the walker;
  * the walker always sets `scanCeiling` / `scanTruncated` / `maxRenderNodes`
  * for real scans (see `walkAndExtract`).
@@ -690,7 +690,7 @@ function projectNodeLimitColumns(
   result: ScanResult,
 ): Pick<Insertable<IScanMetaTable>, 'scanCeiling' | 'scanTruncated' | 'maxRenderNodes'> {
   return {
-    scanCeiling: result.scanCeiling ?? 50000,
+    scanCeiling: result.scanCeiling ?? 5000,
     scanTruncated: result.scanTruncated ? 1 : 0,
     maxRenderNodes: result.maxRenderNodes ?? 256,
   };

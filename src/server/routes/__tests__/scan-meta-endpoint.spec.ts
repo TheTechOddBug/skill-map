@@ -160,7 +160,7 @@ describe('GET /api/scan?meta=1', () => {
       assert.equal(body.stats.issuesCount, 2);
       assert.equal(body.stats.linksCount, 0);
       // Scan-meta scalars round-trip (defaults applied at persist time).
-      assert.equal(body.scanCeiling, 50000);
+      assert.equal(body.scanCeiling, 5000);
       assert.equal(body.maxRenderNodes, 256);
       assert.equal(body.scanTruncated, false);
       assert.deepEqual(body.providers, ['claude']);

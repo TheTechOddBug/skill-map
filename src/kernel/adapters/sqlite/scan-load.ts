@@ -141,10 +141,10 @@ export async function loadScanResult(
     roots: ['.'],
     providers: [],
     // Synthetic envelope, default to the design knobs (corpus ceiling
-    // 50000, render cap 256, not truncated) so the SPA reads the same
+    // 5000, render cap 256, not truncated) so the SPA reads the same
     // shape across cold-boot and never-scanned scopes. A real scan
     // overwrites scan_meta with the live values on next run.
-    scanCeiling: 50000,
+    scanCeiling: 5000,
     scanTruncated: false,
     maxRenderNodes: 256,
     oversizedFiles: [],
@@ -216,7 +216,7 @@ function buildScanResultFromMeta(
  * issue tables, so the BFF `GET /api/scan?meta=1` boot fetch stays cheap
  * on a 50K-node corpus. The SPA pairs it with `/api/folders` (tree) and
  * `/api/branch` (map). Falls back to the synthetic envelope (design
- * defaults: ceiling 50000, render cap 256, not truncated) when no
+ * defaults: ceiling 5000, render cap 256, not truncated) when no
  * `scan_meta` row exists, mirroring `loadScanResult`.
  */
 export async function loadScanMeta(
@@ -240,7 +240,7 @@ export async function loadScanMeta(
     scannedAt: Date.now(),
     roots: ['.'],
     providers: [],
-    scanCeiling: 50000,
+    scanCeiling: 5000,
     scanTruncated: false,
     maxRenderNodes: 256,
     oversizedFiles: [],

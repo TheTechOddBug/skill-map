@@ -108,7 +108,7 @@ export const SERVE_TEXTS = {
   maxScanInvalid:
     '{{glyph}}  sm serve: --max-scan must be an integer >= 1 (got {{value}}).\n' +
     '   {{hint}}\n',
-  maxScanInvalidHint: 'Pass a positive integer, e.g. --max-scan 50000.',
+  maxScanInvalidHint: 'Pass a positive integer, e.g. --max-scan 5000.',
 
   /**
    * §3.1b error block for an invalid `--max-nodes <N>`. Same shape as

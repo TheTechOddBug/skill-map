@@ -4,14 +4,17 @@
  *
  *   GET   /api/active-provider                 → current envelope (resolved + detected + drift)
  *   POST  /api/active-provider/accept-markers  → reconcile the markers snapshot (SPA "Dismiss")
- *   PATCH /api/active-provider                 → switch the lens; atomically drop scan_*
+ *   PATCH /api/active-provider                 → switch the lens; refresh the markers snapshot; atomically drop scan_*
  *
  * The persisted setting lives at `.skill-map/settings.json` under the
  * `activeProvider` key (project layer, committed). When the operator
  * switches it, the scan_* zone is cleared atomically so the persisted
  * graph cannot reflect the previous lens (see
  * `spec/architecture.md` §Active Provider Lens). `state_*` and
- * `config_*` zones survive untouched.
+ * `config_*` zones survive untouched. The switch also refreshes the
+ * `activeProviderMarkers` snapshot to the detected set (mirroring the
+ * CLI's `sm config set activeProvider`, snapshot write #3), so any
+ * pending marker-drift notice clears the moment the lens changes.
  *
  * GET response shape:
  *
@@ -211,6 +214,25 @@ function applyLensSwitch(deps: IRouteDeps, newValue: string): ILensSwitchResult 
   } catch (err) {
     throw new HTTPException(400, {
       message: tx(SERVER_TEXTS.activeProviderPersistFailed, {
+        message: formatErrorMessage(err),
+      }),
+    });
+  }
+  // Mirror the CLI's `sm config set activeProvider` (spec architecture.md
+  // §Active Provider Lens, snapshot write #3): a manual lens switch is an
+  // explicit provider decision, so refresh the `activeProviderMarkers`
+  // snapshot to the detected set. Without this the marker-drift notice
+  // (and `sm scan`'s warn) lingers after the switch, because
+  // `computeMarkerDrift` keeps diffing the stale pre-switch snapshot, so
+  // the drift banner never dismisses when the operator picks "Switch
+  // lens". `detected` is filesystem-derived (independent of the lens just
+  // written); this mirrors POST /accept-markers.
+  const detected = resolveActiveProvider(cwd, deps.providers).detected;
+  try {
+    reconcileMarkersSnapshot(cwd, detected);
+  } catch (err) {
+    throw new HTTPException(400, {
+      message: tx(SERVER_TEXTS.activeProviderMarkersPersistFailed, {
         message: formatErrorMessage(err),
       }),
     });

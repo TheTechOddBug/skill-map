@@ -6,14 +6,24 @@ import { BranchCapBanner } from '../branch-cap-banner';
 import { CollectionLoaderService } from '../../../../../services/collection-loader';
 import type { IBranchResponseApi } from '../../../../../models/api';
 
+interface IFakeLoaderInput {
+  branch?: IBranchResponseApi | null;
+  corpusCount?: number;
+  maxRenderNodes?: number | undefined;
+}
+
 /**
  * Fake `CollectionLoaderService` exposing only the surface the banner
- * reads (`branch()`).
+ * reads: `branch()`, `corpusCount()`, and `scanMeta()` (for the cap).
  */
-function fakeLoader(initial: IBranchResponseApi | null): {
-  branch: ReturnType<typeof signal<IBranchResponseApi | null>>;
-} {
-  return { branch: signal<IBranchResponseApi | null>(initial) };
+function fakeLoader(input: IFakeLoaderInput) {
+  return {
+    branch: signal<IBranchResponseApi | null>(input.branch ?? null),
+    corpusCount: signal<number>(input.corpusCount ?? 0),
+    scanMeta: signal<{ maxRenderNodes?: number } | null>(
+      input.maxRenderNodes !== undefined ? { maxRenderNodes: input.maxRenderNodes } : null,
+    ),
+  };
 }
 
 function branch(over: Partial<IBranchResponseApi['branch']>): IBranchResponseApi {
@@ -34,9 +44,9 @@ function branch(over: Partial<IBranchResponseApi['branch']>): IBranchResponseApi
   };
 }
 
-function makeFixture(b: IBranchResponseApi | null) {
+function makeFixture(input: IFakeLoaderInput) {
   TestBed.resetTestingModule();
-  const loader = fakeLoader(b);
+  const loader = fakeLoader(input);
   TestBed.configureTestingModule({
     imports: [BranchCapBanner],
     providers: [{ provide: CollectionLoaderService, useValue: loader }],
@@ -46,26 +56,73 @@ function makeFixture(b: IBranchResponseApi | null) {
   return { fixture, loader };
 }
 
+function bannerBody(fixture: ReturnType<typeof makeFixture>['fixture']): HTMLElement | null {
+  const root = fixture.nativeElement as HTMLElement;
+  return root.querySelector<HTMLElement>('[data-testid="branch-cap-banner-body"]');
+}
+
 describe('BranchCapBanner', () => {
-  it('hides when the branch is not truncated', () => {
-    const { fixture } = makeFixture(branch({ total: 10, rendered: 10, truncated: false }));
+  it('hides when neither the branch nor the corpus overflows the cap', () => {
+    const { fixture } = makeFixture({
+      branch: branch({ total: 10, rendered: 10, truncated: false }),
+      corpusCount: 10,
+      maxRenderNodes: 256,
+    });
     const root = fixture.nativeElement as HTMLElement;
     expect(root.querySelector('[data-testid="branch-cap-banner"]')).toBeNull();
   });
 
-  it('renders with total + rendered counts when the branch is truncated', () => {
-    const { fixture } = makeFixture(branch({ total: 900, rendered: 256, truncated: true }));
-    const root = fixture.nativeElement as HTMLElement;
-    const banner = root.querySelector<HTMLElement>('[data-testid="branch-cap-banner"]');
-    expect(banner).not.toBeNull();
-    const body = root.querySelector<HTMLElement>('[data-testid="branch-cap-banner-body"]');
+  it('renders the branch-scoped copy when the selected branch is truncated', () => {
+    const { fixture } = makeFixture({
+      branch: branch({ total: 900, rendered: 256, truncated: true }),
+      corpusCount: 900,
+      maxRenderNodes: 256,
+    });
+    const body = bannerBody(fixture);
+    expect(body).not.toBeNull();
     expect(body?.textContent).toContain('900');
     expect(body?.textContent).toContain('256');
     expect(body?.textContent).toContain('sub-folder');
   });
 
-  it('hides when there is no branch yet', () => {
-    const { fixture } = makeFixture(null);
+  it('renders the corpus-scoped copy when the branch fits but the corpus overflows', () => {
+    const { fixture } = makeFixture({
+      branch: branch({ total: 40, rendered: 40, truncated: false }),
+      corpusCount: 300,
+      maxRenderNodes: 256,
+    });
+    const body = bannerBody(fixture);
+    expect(body).not.toBeNull();
+    expect(body?.textContent).toContain('This project');
+    expect(body?.textContent).toContain('300');
+    expect(body?.textContent).toContain('256');
+  });
+
+  it('prefers the branch-scoped copy when both the branch and corpus overflow', () => {
+    const { fixture } = makeFixture({
+      branch: branch({ total: 900, rendered: 256, truncated: true }),
+      corpusCount: 900,
+      maxRenderNodes: 256,
+    });
+    const body = bannerBody(fixture);
+    expect(body?.textContent).toContain('This folder');
+    expect(body?.textContent).not.toContain('This project');
+  });
+
+  it('falls back to the default cap (256) when scanMeta has no maxRenderNodes', () => {
+    const { fixture } = makeFixture({
+      branch: branch({ total: 40, rendered: 40, truncated: false }),
+      corpusCount: 300,
+      maxRenderNodes: undefined,
+    });
+    const body = bannerBody(fixture);
+    expect(body).not.toBeNull();
+    expect(body?.textContent).toContain('300');
+    expect(body?.textContent).toContain('256');
+  });
+
+  it('hides when there is no branch and the corpus is empty', () => {
+    const { fixture } = makeFixture({ branch: null, corpusCount: 0 });
     const root = fixture.nativeElement as HTMLElement;
     expect(root.querySelector('[data-testid="branch-cap-banner"]')).toBeNull();
   });

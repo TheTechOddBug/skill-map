@@ -209,9 +209,13 @@ describe('GET /api/plugins, trusted projection', () => {
       assert.equal(mock.trusted, undefined);
       // Untrusted carries its own boot notice, not startsAsDisabled.
       assert.equal(mock.startsAsDisabled, undefined);
-      // The enable axis still reads enabled (it IS enabled in config); the
-      // untrusted-ness shows as the absent `trusted` flag + no imported
-      // extensions (the code never ran).
+      // An untrusted plugin is never loaded regardless of the config-enable
+      // axis, so its status reads 'disabled' (spec/architecture.md §Plugin
+      // enable vs import trust), NOT the config-enable value. The
+      // untrusted-ness surfaces as `status: 'disabled'` + the absent
+      // `trusted` flag + the untrusted `reason` + no imported extensions
+      // (the code never ran).
+      assert.equal(mock.status, 'disabled');
       assert.equal(mock.extensions, undefined);
     });
   });

@@ -413,10 +413,10 @@ export interface RunScanOptions {
   activeProvider?: string | null;
   /**
    * Walk-intake ceiling (mirror of `scan.maxScan` in settings, default
-   * 50000). Threaded through to `walkAndExtract` so the ceiling can fire
+   * 5000). Threaded through to `walkAndExtract` so the ceiling can fire
    * (dropping extra files in stable order) and so `ScanResult.scanCeiling`
    * / `ScanResult.scanTruncated` are populated. Absent → the orchestrator
-   * falls back to 50000 (the design default), keeping out-of-band callers
+   * falls back to 5000 (the design default), keeping out-of-band callers
    * and synthetic fixtures safe.
    */
   scanCeiling?: number;
@@ -583,7 +583,7 @@ async function runScanInternal(
     providerFrontmatter: setup.providerFrontmatter,
     pluginStores: options.pluginStores,
     activeProvider: activeProviderId,
-    scanCeiling: options.scanCeiling ?? 50000,
+    scanCeiling: options.scanCeiling ?? 5000,
     overrideScanCeiling: options.overrideScanCeiling ?? null,
     maxRenderNodes: options.maxRenderNodes ?? 256,
     overrideMaxRenderNodes: options.overrideMaxRenderNodes ?? null,

@@ -140,7 +140,7 @@ export class ServeCommand extends SmCommand {
   watcherDebounceMs = Option.String('--watcher-debounce-ms', { required: false, hidden: true });
   maxScan = Option.String('--max-scan', {
     required: false,
-    description: 'Per-invocation override of scan.maxScan (default 50000), the WALK-INTAKE ceiling. The scan walks, parses, analyzes, and reference-validates the full corpus up to this number. Bidirectional: raises OR lowers the ceiling. Applies to every scan the server runs (initial watcher pass, debounced batches, POST /api/scan, GET /api/scan?fresh=1). Same flag is honoured on the bare `sm` invocation, which routes to `sm serve`.',
+    description: 'Per-invocation override of scan.maxScan (default 5000), the WALK-INTAKE ceiling. The scan walks, parses, analyzes, and reference-validates the full corpus up to this number. Bidirectional: raises OR lowers the ceiling. Applies to every scan the server runs (initial watcher pass, debounced batches, POST /api/scan, GET /api/scan?fresh=1). Same flag is honoured on the bare `sm` invocation, which routes to `sm serve`.',
   });
   maxNodes = Option.String('--max-nodes', {
     required: false,

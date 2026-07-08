@@ -113,7 +113,7 @@ export interface IWalkAndExtractOptions {
    * Walk-intake ceiling: the maximum number of nodes the walker
    * classifies into `accum.nodes` before dropping extra files in stable
    * provider-walker order. Comes from `scan.maxScan` in settings
-   * (default 50000). The walker walks, parses, analyzes, and
+   * (default 5000). The walker walks, parses, analyzes, and
    * reference-validates the full corpus up to this number, so references
    * resolve across the whole project regardless of how many nodes the
    * map renders. Reported back as `IWalkAndExtractResult.scanCeiling` so
@@ -460,7 +460,7 @@ export async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWal
   // setting; otherwise the configured ceiling applies. Bidirectional:
   // an override below the setting cuts deeper, an override above it
   // relaxes the ceiling. Counted against `accum.nodes.length` (=
-  // classified nodes) so the user-facing "50000 files" number lines up
+  // classified nodes) so the user-facing "5000 files" number lines up
   // with the mental model. When the ceiling is reached, both loops break
   // out. NOTE: the render cap (`maxRenderNodes`) is intentionally NOT
   // consulted here, it never bounds the walk.

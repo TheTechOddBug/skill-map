@@ -95,10 +95,24 @@ export const SCAN_TEXTS = {
    * (preferred) or raising the ceiling with `--max-scan <N>`.
    */
   scanCappedNotice:
-    '{{glyph}}  Scan truncated at {{limit}} files ({{source}}); extra files were dropped.\n' +
+    '{{glyph}}  {{limit}} files reached ({{source}}), the recommended maximum; extra files were left out of the map.\n' +
     '     {{hint}}\n',
   scanCappedNoticeHint:
-    'Edit .skillmapignore to exclude noisy paths (preferred), or re-run with --max-scan <N> to raise the ceiling. Files past the ceiling are not parsed, analyzed, or reference-validated.',
+    'Having this many files is not recommended. Filter noisy folders with .skillmapignore (e.g. node_modules/, dist/, build/), or raise the limit with --max-scan <N>. Files past the limit are not scanned, analyzed, or reference-validated.',
+  /**
+   * Advisory (INFO, stderr) printed when the scanned corpus has more
+   * nodes than the effective map render cap (`--max-nodes` or
+   * `scan.maxNodes`). Benign: nothing is dropped, the full corpus is
+   * still scanned and reference-validated, only the graph view paginates.
+   * `{{glyph}}` is the cyan info glyph, `{{nodes}}` the corpus node count,
+   * `{{cap}}` the effective render cap, `{{source}}` either `--max-nodes`
+   * or `scan.maxNodes`, `{{hint}}` the dim lever line.
+   */
+  scanRenderCapNotice:
+    '{{glyph}}  {{nodes}} nodes exceed the map render cap ({{cap}}, {{source}}); the map projects {{cap}} at a time.\n' +
+    '     {{hint}}\n',
+  scanRenderCapNoticeHint:
+    'Nothing is dropped: the full corpus is scanned and reference-validated, only the graph view is capped. Raise it with --max-nodes <N>, or narrow by folder in the UI.',
   /**
    * File-size skip notice, printed (WARN, stderr) when the walker
    * skipped one or more files for exceeding `scan.maxFileSizeBytes`.
@@ -125,7 +139,7 @@ export const SCAN_TEXTS = {
     '{{glyph}}  --max-scan must be an integer >= 1 (got `{{value}}`).\n' +
     '   {{hint}}\n',
   maxScanInvalidHint:
-    'Pass a positive integer, e.g. --max-scan 50000.',
+    'Pass a positive integer, e.g. --max-scan 5000.',
   /**
    * Validation message for an invalid `--max-nodes` value. Surfaced as a
    * §3.1b two-line block.

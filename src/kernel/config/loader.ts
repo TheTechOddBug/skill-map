@@ -127,7 +127,7 @@ export interface IScanConfig {
   /**
    * Scan corpus ceiling. Hard cap on the number of files the scan
    * accepts after `.skillmapignore` filtering, before extractors run.
-   * Default 50000. The scan walks, parses, analyzes, and
+   * Default 5000. The scan walks, parses, analyzes, and
    * reference-validates every file up to this ceiling; that full
    * corpus is what link resolution checks against, so references
    * resolve across the whole project regardless of how many nodes the
