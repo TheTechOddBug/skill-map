@@ -31,7 +31,11 @@ import {
   defaultProjectActivityDir,
 } from '../paths/db-path.js';
 import { BRIDGE_PACKAGE_JSON, renderActivityBridge } from './bridge-template.js';
-import { ACTIVITY_PLUGIN_MARKER, renderActivityPlugin } from './plugin-template.js';
+import {
+  ACTIVITY_PLUGIN_MARKER,
+  ACTIVITY_PLUGIN_PACKAGE_JSON,
+  renderActivityPlugin,
+} from './plugin-template.js';
 import {
   DEFAULT_HOOKS_CONTAINER,
   hasActivityHooks,
@@ -107,8 +111,18 @@ export async function installActivityBridge(cwd: string, provider: IProvider): P
       );
     }
     const pluginPath = join(cwd, install.configPath);
-    await mkdir(dirname(pluginPath), { recursive: true });
+    const pluginDir = dirname(pluginPath);
+    await mkdir(pluginDir, { recursive: true });
     await writeFile(pluginPath, renderActivityPlugin(provider.id, hooksSource), 'utf8');
+    // Pin the plugin dir to ESM so the vendor's loader parses our
+    // `export`-based plugin correctly regardless of the host project's
+    // module type (see `ACTIVITY_PLUGIN_PACKAGE_JSON`). Written only when
+    // absent: the dir is the vendor's territory (shared with its own
+    // plugins), so a vendor-authored `package.json` is left untouched.
+    const pkgPath = join(pluginDir, 'package.json');
+    if (!existsSync(pkgPath)) {
+      await writeFile(pkgPath, ACTIVITY_PLUGIN_PACKAGE_JSON, 'utf8');
+    }
     return;
   }
   const events: readonly IActivityInstallEvent[] = install.events ?? [];
@@ -144,6 +158,7 @@ export function uninstallActivityBridge(
     // The shared bridge dir is never involved in this shape.
     if (!pluginFileIsOurs(configPath)) return { removed: false };
     rmSync(configPath, { force: true });
+    removeOurPluginPackageJson(dirname(configPath));
     return { removed: true };
   }
   const settings = readJsonObjectOrEmpty(configPath);
@@ -177,6 +192,24 @@ function otherJsonHooksProviderWired(
       p.activity?.install.kind === 'json-hooks' &&
       activityInstallStatus(cwd, p).configWired,
   );
+}
+
+/**
+ * Remove the ESM-pinning `package.json` we wrote next to a plugin-file
+ * install, IFF its content is EXACTLY ours. The plugin dir is the
+ * vendor's territory, so a vendor-authored `package.json` (any other
+ * content) is left in place. Best-effort: a missing / unreadable file is
+ * a no-op, mirroring the install side, which writes it only when absent.
+ */
+function removeOurPluginPackageJson(pluginDir: string): void {
+  const pkgPath = join(pluginDir, 'package.json');
+  try {
+    if (readFileSync(pkgPath, 'utf8') === ACTIVITY_PLUGIN_PACKAGE_JSON) {
+      rmSync(pkgPath, { force: true });
+    }
+  } catch {
+    // Absent / unreadable: nothing of ours to remove.
+  }
 }
 
 /** The plugin file exists AND carries the skill-map header marker. */

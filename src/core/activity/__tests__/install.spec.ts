@@ -241,6 +241,10 @@ describe('core/activity install engine', () => {
     assert.equal(source.includes("await forward('my.hook', { input });"), true);
     // No spawned-bridge artifacts for this shape.
     assert.equal(existsSync(defaultProjectActivityDir(cwd)), false);
+    // ESM-pinning sibling package.json so the vendor loads the `export`
+    // plugin cleanly regardless of the host project's module type.
+    const pkgPath = join(cwd, '.opencode/plugin/package.json');
+    assert.equal(readFileSync(pkgPath, 'utf8'), '{\n  "type": "module"\n}\n');
     assert.deepEqual(activityInstallStatus(cwd, pluginProvider), {
       configWired: true,
       bridgePresent: true,
@@ -249,6 +253,8 @@ describe('core/activity install engine', () => {
 
     assert.equal(uninstallActivityBridge(cwd, pluginProvider, [pluginProvider]).removed, true);
     assert.equal(existsSync(pluginPath), false);
+    // Our package.json is removed too (exact reversal).
+    assert.equal(existsSync(pkgPath), false);
     assert.equal(uninstallActivityBridge(cwd, pluginProvider, [pluginProvider]).removed, false);
 
     // A FOREIGN file at the same path is never ours: not installed,
@@ -258,6 +264,32 @@ describe('core/activity install engine', () => {
     assert.equal(activityInstallStatus(cwd, pluginProvider).installed, false);
     assert.equal(uninstallActivityBridge(cwd, pluginProvider, [pluginProvider]).removed, false);
     assert.equal(existsSync(pluginPath), true);
+  });
+
+  it('plugin-file: a vendor-authored package.json is never clobbered on install nor removed on uninstall', async () => {
+    const pluginProvider = {
+      id: 'opencode',
+      kind: 'provider',
+      activity: {
+        install: { kind: 'plugin-file', configPath: '.opencode/plugin/skill-map-activity.js' },
+        mapEvent: () => null,
+        pluginHooksSource: STUB_HOOKS_SOURCE,
+      },
+    } as unknown as IProvider;
+    const pluginDir = join(cwd, '.opencode/plugin');
+    const pkgPath = join(pluginDir, 'package.json');
+    rmSync(join(cwd, '.opencode'), { recursive: true, force: true });
+
+    // A pre-existing (vendor-owned) package.json in the shared plugin dir.
+    mkdirSync(pluginDir, { recursive: true });
+    const vendorPkg = '{ "type": "commonjs", "name": "vendor" }\n';
+    writeFileSync(pkgPath, vendorPkg, 'utf8');
+
+    await installActivityBridge(cwd, pluginProvider);
+    assert.equal(readFileSync(pkgPath, 'utf8'), vendorPkg, 'install must not clobber a vendor package.json');
+
+    assert.equal(uninstallActivityBridge(cwd, pluginProvider, [pluginProvider]).removed, true);
+    assert.equal(readFileSync(pkgPath, 'utf8'), vendorPkg, 'uninstall must not remove a vendor package.json');
   });
 
   it('plugin-file install without pluginHooksSource refuses instead of writing a broken plugin', async () => {

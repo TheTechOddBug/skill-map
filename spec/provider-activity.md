@@ -162,8 +162,16 @@ process), and forwards each payload as a `{ hook, directory, ... }` wrapper
 through the envelope's POST. Payload knowledge therefore stays with the
 Provider even in the generated artifact; the engine never names another
 runtime's hooks. Status: `configWired` and `bridgePresent` both derive from
-that one file (present and carrying the skill-map header marker); uninstall
-deletes exactly it and touches nothing else.
+that one file (present and carrying the skill-map header marker). Because
+the generated plugin is an ES module (`export const …`), the engine also
+writes an ESM-pinning sibling `package.json` (`{ "type": "module" }`) next
+to it so the runtime loads it cleanly whatever the host project's module
+type is (the ESM counterpart of the spawned bridge's CommonJS-pinning
+`package.json`), but ONLY when the plugin dir has no `package.json`: that
+dir is the vendor's territory, shared with its own plugins, so a
+vendor-authored one is never clobbered. Uninstall deletes the plugin file
+plus that sibling `package.json` when its content is exactly ours, leaving
+any vendor file untouched.
 
 ## `serve.json` (server discovery file)
 

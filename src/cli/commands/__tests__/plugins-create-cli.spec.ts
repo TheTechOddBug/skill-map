@@ -114,6 +114,21 @@ describe('sm plugins create, scaffolder shape', () => {
     ]);
   });
 
+  it('emits a package.json with "type": "module" so Node loads ESM extensions cleanly', () => {
+    const scope = freshScope('pkg');
+    assert.equal(sm(['init', '--no-scan'], scope).status, 0);
+    assert.equal(sm(['plugins', 'create', 'extractor', 'demo-highlight'], scope).status, 0);
+
+    const pkg = JSON.parse(
+      readFileSync(
+        join(scope.cwd, '.skill-map', 'plugins', 'demo-highlight', 'package.json'),
+        'utf8',
+      ),
+    );
+    assert.equal(pkg.type, 'module', 'package.json must declare ESM');
+    assert.equal(pkg.private, true, 'plugin package is never published');
+  });
+
   it('emits an extractor stub that declares ui + per-extension settings', () => {
     const scope = freshScope('stub');
     assert.equal(sm(['init', '--no-scan'], scope).status, 0);
@@ -262,5 +277,56 @@ describe('sm plugins create, input validation and overwrite', () => {
     assert.equal(sm(['plugins', 'create', 'extractor', 'demo-dup'], scope).status, 0);
     const r = sm(['plugins', 'create', 'extractor', 'demo-dup', '--force'], scope);
     assert.equal(r.status, 0, `--force should overwrite: ${r.stderr}`);
+  });
+});
+
+describe('sm plugins upgrade, package.json backfill', () => {
+  /** Scaffold a plugin, returning its dir so tests can mutate its package.json. */
+  function scaffold(scope: IScope, id: string): string {
+    assert.equal(sm(['init', '--no-scan'], scope).status, 0);
+    assert.equal(sm(['plugins', 'create', 'extractor', id], scope).status, 0);
+    return join(scope.cwd, '.skill-map', 'plugins', id);
+  }
+
+  function readPkg(pluginDir: string): Record<string, unknown> {
+    return JSON.parse(readFileSync(join(pluginDir, 'package.json'), 'utf8'));
+  }
+
+  it('recreates a missing package.json (a plugin scaffolded before the fix)', () => {
+    const scope = freshScope('upgrade-missing');
+    const dir = scaffold(scope, 'demo-old');
+    rmSync(join(dir, 'package.json'));
+    const r = sm(['plugins', 'upgrade', 'demo-old'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.equal(readPkg(dir)['type'], 'module');
+  });
+
+  it('adds "type": "module" to a package.json missing it, preserving other fields', () => {
+    const scope = freshScope('upgrade-add-type');
+    const dir = scaffold(scope, 'demo-notype');
+    writeFileSync(
+      join(dir, 'package.json'),
+      JSON.stringify({ name: 'demo-notype', sideEffects: false }),
+    );
+    assert.equal(sm(['plugins', 'upgrade', 'demo-notype'], scope).status, 0);
+    const pkg = readPkg(dir);
+    assert.equal(pkg['type'], 'module');
+    assert.equal(pkg['name'], 'demo-notype', 'existing fields survive');
+    assert.equal(pkg['sideEffects'], false, 'existing fields survive');
+  });
+
+  it('never clobbers a package.json that declares a non-module type', () => {
+    const scope = freshScope('upgrade-foreign');
+    const dir = scaffold(scope, 'demo-cjs');
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ type: 'commonjs' }));
+    assert.equal(sm(['plugins', 'upgrade', 'demo-cjs'], scope).status, 0);
+    assert.equal(readPkg(dir)['type'], 'commonjs', 'author choice preserved');
+  });
+
+  it('exits non-zero when the named plugin does not exist', () => {
+    const scope = freshScope('upgrade-missing-id');
+    scaffold(scope, 'demo-present');
+    const r = sm(['plugins', 'upgrade', 'not-a-plugin'], scope);
+    assert.notEqual(r.status, 0);
   });
 });

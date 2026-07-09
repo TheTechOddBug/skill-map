@@ -50,7 +50,7 @@ THE DETERMINISTIC FLOW   ( the scan: fast · reproducible · offline )
 sm plugins create extractor my-plugin
 ```
 
-Writes a loader-clean plugin under `.skill-map/plugins/my-plugin/`: a `plugin.json` plus a working stub for the chosen kind. The first positional is the kind, the second the plugin id. (Details in [§Scaffolder](./plugin-author-guide.md#scaffolder).)
+Writes a loader-clean plugin under `.skill-map/plugins/my-plugin/`: a `plugin.json`, a `package.json` (`{ "type": "module" }`, so Node loads the ESM stub without a warning), a `README.md`, and a working stub for the chosen kind. The first positional is the kind, the second the plugin id. (Details in [§Manifest](./plugin-author-guide.md#manifest).)
 
 ## 2. Fill the stub
 
@@ -79,11 +79,13 @@ The method name and `ctx` shape differ per kind; each has an example in [§The s
 ## 3. Load and run
 
 ```bash
-sm plugins list     # confirm it loaded (status should be green)
-sm scan             # run it over your project
+sm plugins trust my-plugin   # one-time local grant: project-local plugins are
+                             # discovered but NOT executed until you trust them
+sm plugins list              # confirm it loaded (status should be green)
+sm scan                      # run it over your project
 ```
 
-A non-green status? [§Diagnostics](./plugin-author-guide.md#diagnostics) lists every status and how to fix it.
+Trust is a security boundary separate from enable: a fresh project-local plugin is discovered but reads `disabled` (untrusted) until you grant it, so its code never runs on a clone you have not vetted (see [§Import trust](./plugin-author-guide.md#discovery)). A non-green status after trusting? [§Diagnostics](./plugin-author-guide.md#diagnostics) lists every status and how to fix it.
 
 ## Then go deeper
 

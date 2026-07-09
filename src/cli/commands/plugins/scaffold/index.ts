@@ -44,6 +44,22 @@ export function pluginManifest(specVersion: string): Record<string, unknown> {
 }
 
 /**
+ * The `package.json` every drop-in plugin ships so Node treats its ESM
+ * `.js` extension files (`export default …`) as ES modules regardless of
+ * the host project's module type. Without it, `import()`-ing an extension
+ * emits Node's `MODULE_TYPELESS_PACKAGE_JSON` warning and reparses on
+ * every load (perf overhead). `private` keeps it off npm, a plugin is
+ * loaded from disk, never published. Kept intentionally minimal (no
+ * `name` / `version`): the plugin's identity lives in `plugin.json`.
+ */
+export function pluginPackageJson(): Record<string, unknown> {
+  return {
+    private: true,
+    type: 'module',
+  };
+}
+
+/**
  * Assemble every file a freshly scaffolded plugin needs for `kind`:
  * the plugin manifest, the extension stub(s), and the README. Paths are
  * relative to the plugin root.
@@ -62,6 +78,10 @@ export function generateScaffold(
     {
       relPath: 'plugin.json',
       contents: JSON.stringify(pluginManifest(specVersion), null, 2) + '\n',
+    },
+    {
+      relPath: 'package.json',
+      contents: JSON.stringify(pluginPackageJson(), null, 2) + '\n',
     },
     ...extFiles,
     { relPath: 'README.md', contents: scaffolderReadme(pluginId, kind, main.relPath) },

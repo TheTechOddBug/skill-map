@@ -106,3 +106,17 @@ export function renderActivityPlugin(providerId: string, hooksSource: string): s
     .replace('{{PROVIDER_ID}}', providerId)
     .replace('{{HOOKS}}', hooksSource);
 }
+
+/**
+ * Sibling `package.json` written next to the installed plugin file. The
+ * rendered plugin is an ES module (`export const SkillMapActivity`), so
+ * this pins `"type": "module"` for the plugin dir, otherwise Node (via
+ * the vendor's plugin loader) treats a bare `.js` as CommonJS whenever
+ * the host project's `package.json` is absent or `"type": "commonjs"`,
+ * emitting `MODULE_TYPELESS_PACKAGE_JSON` (or throwing on `export`). The
+ * CommonJS analogue for the spawned bridge is `BRIDGE_PACKAGE_JSON`. The
+ * installer writes this only when the plugin dir has no `package.json`
+ * (the dir is the vendor's territory, shared with its other plugins), so
+ * a vendor-authored one is never clobbered.
+ */
+export const ACTIVITY_PLUGIN_PACKAGE_JSON = '{\n  "type": "module"\n}\n';
