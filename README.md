@@ -43,7 +43,7 @@ No official tool (Anthropic, Cursor, GitHub, skills.sh) covers this. `skill-map`
 
 1. **Deterministic scanner** walks files, parses frontmatter, detects references, and emits structured graph data (nodes, links, issues).
 2. **Optional LLM layer** consumes that data and adds semantic intelligence: validates ambiguous references, clusters equivalent triggers, compares nodes, answers questions.
-3. **`sm` CLI** is the primary surface, every operation reachable from the command line. Bare `sm` opens the Web UI directly.
+3. **`sm` CLI** is the primary surface, every operation reachable from the command line. Bare `sm` opens the Web UI directly, and in a project that is not set up yet it offers to initialize it first.
 4. **Web UI**, bundled with the CLI, launched in one command. The graph updates live as you edit any `.md` file. A standalone [demo](https://skill-map.ai/demo/) runs in-browser without installing anything.
 5. **Plugin system** (drop-in, kernel + extensions) lets third parties add Providers, Extractors, Analyzers, Actions, Formatters, or Hooks without touching the kernel.
 
@@ -72,6 +72,8 @@ sm
 ```
 
 That last `sm` opens the Web UI on `http://127.0.0.1:4242` with the watcher running. Edit any `.md` file in the project and the graph updates live in your browser.
+
+You can also skip `sm init` and just run `sm`: in a folder that is not set up yet it offers to initialize and scan for you, then opens the UI.
 
 Want to try it without installing? Open the [live demo](https://skill-map.ai/demo/).
 

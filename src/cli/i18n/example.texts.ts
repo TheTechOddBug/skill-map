@@ -17,7 +17,8 @@ export const EXAMPLE_TEXTS = {
   // Success, written to stdout after the example project is created in
   // the cwd. The project ships unscanned (no `.skill-map/`), so the
   // next-steps block points the user at `sm scan` (provisions the
-  // project and builds the graph) then `sm serve` (opens the map).
+  // project and builds the graph) then `sm` (the bare alias of
+  // `sm serve`, opens the map).
   written:
     '  {{glyph}}  Example project created in {{cwd}}\n' +
     '\n' +
@@ -27,7 +28,7 @@ export const EXAMPLE_TEXTS = {
     '  docs they reference. Next:\n' +
     '\n' +
     '      {{scanGlyph}} sm scan    build the graph from these files\n' +
-    '      {{serveGlyph}} sm serve   open the interactive map in the browser\n',
+    '      {{serveGlyph}} sm         open the interactive map in the browser\n',
   writtenScanGlyph: '1)',
   writtenServeGlyph: '2)',
 

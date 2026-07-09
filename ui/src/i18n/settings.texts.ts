@@ -121,7 +121,7 @@ export const SETTINGS_TEXTS = {
       ws: {
         label: 'Live updates',
         description:
-          'Keep the map in sync with sm serve: scan refreshes, live events, node activity.',
+          'Keep the map in sync with sm: scan refreshes, live events, node activity.',
       },
       activity: {
         label: 'Real-time node activity',
@@ -163,11 +163,30 @@ export const SETTINGS_TEXTS = {
       'without trusting each one by hand. Turn it off to require ' +
       'per-plugin trust again.',
     pluginTrustConfirmHeader: 'Trust every plugin this project enables?',
+    /**
+     * The `\n` splits the restart note onto its own line; the confirm
+     * dialog preserves it via the `.sm-consent-dialog` style (styleClass on
+     * `<p-confirmdialog>`, `white-space: pre-line`). `⚠️` is the inline
+     * warning glyph, same convention as `followExternalSymlinksConfirmIntro`
+     * (the message is plain text, so a font-icon would need a custom
+     * template).
+     */
     pluginTrustConfirmIntro:
       'This lets any plugin the project enables run its code on this ' +
-      'machine, including ones you have not reviewed.',
+      'machine, including ones you have not reviewed.\n' +
+      '⚠️ Restart `sm` afterwards for the change to take effect.',
     pluginTrustConfirmAccept: 'Enable',
     pluginTrustConfirmReject: 'Cancel',
+    /**
+     * Warning banner shown under the plugin-trust row once the toggle
+     * diverges from the value the section loaded with. Plugins are
+     * resolved at `sm serve` boot, so a mid-session trust change (either
+     * direction) takes effect only on the next restart. Direction-neutral
+     * on purpose: turning it ON needs a restart to LOAD the newly trusted
+     * plugins, turning it OFF needs one to UNLOAD the ones already running.
+     */
+    pluginTrustRestartHint:
+      'Restart `sm` for this trust change to take effect.',
     /**
      * Project-local follow-external-symlinks opt-in
      * (`scan.followExternalSymlinks`). Surface-expanding (it re-enables
@@ -411,7 +430,7 @@ export const SETTINGS_TEXTS = {
    */
   startsAsDisabledRowHint:
     'This plugin started disabled and is not loaded in memory. ' +
-    'Restart `sm serve` for the change to take effect.',
+    'Restart `sm` for the change to take effect.',
 
   /**
    * Footer-level companion to `startsAsDisabledRowHint`, rendered in
@@ -422,7 +441,7 @@ export const SETTINGS_TEXTS = {
    * scanning the list for the per-row hint.
    */
   startsAsDisabledFooterHint:
-    'Some plugins were disabled when the server started. Consider restarting `sm serve` so they take effect.',
+    'Some plugins were disabled when the server started. Consider restarting `sm` so they take effect.',
 
   /** Global footer actions for the buffered modal. The footer lives in
    *  the chassis (`<sm-settings-modal>`); one Apply commits every

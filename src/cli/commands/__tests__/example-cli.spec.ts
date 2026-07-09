@@ -103,10 +103,13 @@ describe('sm example, happy path', () => {
     assert.ok(existsSync(join(scope.cwd, 'docs', 'STYLE.md')), 'docs must be written');
     assert.ok(existsSync(join(scope.cwd, 'package.json')), 'package.json must be written');
 
-    // Success message orients the user toward the next two commands.
+    // Success message orients the user toward the next two commands:
+    // `sm scan`, then a bare `sm` (the serve alias, "serve" dropped from
+    // the copy so the step reads `sm    open the interactive map...`).
     assert.match(r.stdout, /Example project created/);
     assert.match(r.stdout, /sm scan/);
-    assert.match(r.stdout, /sm serve/);
+    assert.match(r.stdout, /open the interactive map/);
+    assert.doesNotMatch(r.stdout, /sm serve/);
   });
 
   it('ships unscanned: never writes .skill-map/', () => {

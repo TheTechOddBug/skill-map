@@ -34,6 +34,15 @@ export const ENTRY_TEXTS = {
     'Run `sm tutorial` for a guided walkthrough, or `sm example` to drop a project to explore.',
 
   /**
+   * Confirm question for a bare `sm` in a NON-empty cwd with no project on
+   * an interactive terminal. Header uses a yellow `?` glyph to match the
+   * empty-folder menu; `confirm()` appends the ` [Y/n] ` suffix (default
+   * yes). On accept the entry runs `sm init` then opens the UI (`sm serve`).
+   */
+  bareOfferInit:
+    '{{glyph}}  No skill-map project in {{cwd}}. Set it up and open the map now?',
+
+  /**
    * Getting-started menu shown on bare `sm` in an empty folder on an
    * interactive terminal. Header uses a yellow `?` glyph; two numbered
    * options dispatch to `sm tutorial` / `sm example`; the input line

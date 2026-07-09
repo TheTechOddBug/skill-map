@@ -46,7 +46,7 @@ export const INSPECTOR_VIEW_TEXTS = {
     /** Header chip while the conversation-capture gate is on. */
     captureOnChip: 'capture on',
     captureOnChipTooltip:
-      'Conversation capture is enabled: spawn prompts and responses are kept in memory while sm serve runs.',
+      'Conversation capture is enabled: spawn prompts and responses are kept in memory while sm runs.',
     stats: {
       count: 'Executions',
       lastStart: 'Last start',

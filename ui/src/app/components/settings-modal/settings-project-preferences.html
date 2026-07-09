@@ -87,6 +87,16 @@
   />
 </div>
 
+@if (pluginTrustRestartPending()) {
+  <p-message
+    severity="warn"
+    [closable]="false"
+    data-testid="settings-project-plugin-trust-restart"
+  >
+    {{ texts.project.pluginTrustRestartHint }}
+  </p-message>
+}
+
 <div class="settings-project__row" data-testid="settings-project-respect-gitignore-row">
   <div class="settings-project__row-text">
     <div class="settings-project__row-label">
@@ -140,4 +150,4 @@
   />
 </div>
 
-<p-confirmdialog />
+<p-confirmdialog styleClass="sm-consent-dialog" />

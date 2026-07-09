@@ -16,6 +16,7 @@ import { createInterface } from 'node:readline';
 import { tx } from '../../kernel/util/tx.js';
 import { ENTRY_TEXTS } from '../i18n/entry.texts.js';
 import { type IAnsi } from './ansi.js';
+import { ExitCode } from './exit-codes.js';
 
 /** The two getting-started verbs the menu dispatches to. */
 export type TEmptyFolderChoice = 'tutorial' | 'example';
@@ -31,36 +32,74 @@ export interface IBareNoArgsState {
 }
 
 /**
- * What bare `sm` (no args) resolves to: either route to a verb's argv,
- * or fall through to the no-project hint (the caller prints it and
- * exits 2).
+ * What bare `sm` (no args) resolves to:
+ *   - `route`          -> dispatch a verb's argv (serve / tutorial / example).
+ *   - `init-then-serve`-> the operator accepted the init offer; the caller runs
+ *     `sm init` and, on success, continues into `sm serve`.
+ *   - `hint`           -> fall through to the no-project hint (the caller prints
+ *     it and exits 2).
  */
-export type TBareNoArgsResult = { kind: 'route'; argv: string[] } | { kind: 'hint' };
+export type TBareNoArgsResult =
+  | { kind: 'route'; argv: string[] }
+  | { kind: 'init-then-serve' }
+  | { kind: 'hint' };
+
+/**
+ * The interactive prompts a bare `sm` (no args) may show, injected so the
+ * decision stays pure and unit-testable without a TTY. Each fires in exactly
+ * one, mutually-exclusive state, so a non-TTY caller touches neither.
+ */
+export interface IBareNoArgsPrompts {
+  /** Empty-cwd getting-started menu; resolves the chosen verb, or `null`
+   *  when no valid pick landed within the bounded re-ask. */
+  menu: () => Promise<TEmptyFolderChoice | null>;
+  /** Non-empty-cwd "initialize a project here now?" confirm; `true` on accept. */
+  confirmInit: () => Promise<boolean>;
+}
 
 /**
  * Pure routing decision for a bare `sm` (no args), separated from the
  * I/O (FS probes, stdout, `process.exit`) so every branch is unit-
- * testable with an injected `prompt`. Per spec/cli-contract.md §Binary:
+ * testable with injected `prompts`. Per spec/cli-contract.md §Binary:
  *
  *   - project DB present  -> serve it.
  *   - no DB, empty cwd, interactive terminal -> run the menu; route to
  *     the chosen verb, or fall through to the hint when the operator
  *     gives no valid pick.
- *   - otherwise (non-empty cwd, or non-interactive stdin) -> hint.
+ *   - no DB, non-empty cwd, interactive terminal -> offer to init; on
+ *     accept return `init-then-serve`, on decline fall through to the hint.
+ *   - otherwise (non-interactive stdin) -> hint.
  *
- * `prompt` is only invoked in the empty + interactive case, so a
- * non-TTY caller never blocks on stdin.
+ * A prompt is only invoked in its own interactive branch, so a non-TTY
+ * caller never blocks on stdin.
  */
 export async function decideBareNoArgs(
   state: IBareNoArgsState,
-  prompt: () => Promise<TEmptyFolderChoice | null>,
+  prompts: IBareNoArgsPrompts,
 ): Promise<TBareNoArgsResult> {
   if (state.hasDb) return { kind: 'route', argv: ['serve'] };
-  if (state.isTty && state.isEmptyDir) {
-    const choice = await prompt();
-    if (choice !== null) return { kind: 'route', argv: [choice] };
+  if (state.isTty) {
+    if (state.isEmptyDir) {
+      const choice = await prompts.menu();
+      if (choice !== null) return { kind: 'route', argv: [choice] };
+    } else if (await prompts.confirmInit()) {
+      return { kind: 'init-then-serve' };
+    }
   }
   return { kind: 'hint' };
+}
+
+/**
+ * Whether a chained `sm init` exit code should still continue into
+ * `sm serve` (the `init-then-serve` bare-`sm` flow). `Ok` (clean) and
+ * `Issues` both continue: `Issues` (1) means init provisioned the project
+ * and scanned it, the first scan merely found content issues, and the map
+ * is exactly where the operator wants to see them. Only a HARD failure (a
+ * config / scan / guard error, exit `2`+) skips the server, since the
+ * project may be half-set-up.
+ */
+export function shouldServeAfterInit(initExit: number): boolean {
+  return initExit === ExitCode.Ok || initExit === ExitCode.Issues;
 }
 
 /**

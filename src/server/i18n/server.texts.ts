@@ -505,7 +505,7 @@ export const SERVER_TEXTS = {
   // write itself succeeded; the operator sees this advisory and
   // restarts the server to pick up the new root list manually.
   projectPrefsWatcherRestartFailed:
-    'project-prefs: watcher restart after scan-config write failed ({{message}}). Restart `sm serve` to pick up the new roots.',
+    'project-prefs: watcher restart after scan-config write failed ({{message}}). Restart `sm` to pick up the new roots.',
 
   // ---- project-ignore route (routes/project-ignore.ts) -------------------
   //
@@ -543,7 +543,7 @@ export const SERVER_TEXTS = {
   projectIgnorePatternRemoved:
     'project-ignore: - {{pattern}}',
   projectIgnoreWatcherRestartFailed:
-    'project-ignore: watcher restart after `.skillmapignore` write failed ({{message}}). Restart `sm serve` to pick up the new filter.',
+    'project-ignore: watcher restart after `.skillmapignore` write failed ({{message}}). Restart `sm` to pick up the new filter.',
 
   // A connected client's outbound buffer exceeded the backpressure
   // threshold. The broadcaster closes the client with code 1009 and

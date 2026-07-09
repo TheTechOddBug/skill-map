@@ -256,6 +256,7 @@ interface ITrustProto {
   preferences: WritableSignal<IProjectPreferencesApi | null>;
   pluginTrustEnabled(): boolean;
   pluginTrustEnabledView(): boolean;
+  pluginTrustRestartPending(): boolean;
   onProjectTrustToggle(next: boolean): void;
   followExternalSymlinks(): boolean;
   followExternalSymlinksView(): boolean;
@@ -394,6 +395,87 @@ describe('SettingsProjectPreferences pluginTrust opt-in', () => {
     expect(setProjectPreferences).toHaveBeenCalledTimes(1);
     expect(proto.pluginTrustEnabled()).toBe(false);
     expect(proto.pluginTrustEnabledView()).toBe(false);
+  });
+
+  it('flags no restart while the committed value matches the loaded baseline', async () => {
+    const getProjectPreferences = vi.fn().mockResolvedValue(prefs(true));
+    const { fixture, proto } = bootstrapTrust({
+      getProjectPreferences,
+    } as Partial<IDataSourcePort>);
+
+    // Drive the initial fetch: the server booted with trust already ON, so
+    // the baseline matches the committed value and no restart is pending.
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flush();
+
+    expect(proto.pluginTrustEnabled()).toBe(true);
+    expect(proto.pluginTrustRestartPending()).toBe(false);
+  });
+
+  it('flags a restart once the committed value diverges from the loaded baseline', async () => {
+    const getProjectPreferences = vi.fn().mockResolvedValue(prefs(false));
+    const setProjectPreferences = vi
+      .fn()
+      .mockRejectedValueOnce(new DataSourceError('confirm-required', 'needs confirm'))
+      .mockResolvedValueOnce(prefs(true));
+    const { fixture, proto } = bootstrapTrust({
+      getProjectPreferences,
+      setProjectPreferences,
+    } as Partial<IDataSourcePort>);
+
+    // Load the baseline (trust OFF at boot), nothing pending yet.
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flush();
+    expect(proto.pluginTrustRestartPending()).toBe(false);
+
+    // Flip it ON and accept the confirm dialog.
+    const confirmation = fixture.debugElement.injector.get(ConfirmationService);
+    const confirmSpy = vi
+      .spyOn(confirmation, 'confirm')
+      .mockReturnValue(confirmation);
+    proto.onProjectTrustToggle(true);
+    await flush();
+    confirmSpy.mock.calls[0][0].accept?.();
+    await flush();
+
+    // Committed value now differs from the baseline: restart pending.
+    expect(proto.pluginTrustEnabled()).toBe(true);
+    expect(proto.pluginTrustRestartPending()).toBe(true);
+  });
+
+  it('clears the restart flag when the toggle returns to the baseline', async () => {
+    const getProjectPreferences = vi.fn().mockResolvedValue(prefs(false));
+    const setProjectPreferences = vi
+      .fn()
+      .mockRejectedValueOnce(new DataSourceError('confirm-required', 'needs confirm'))
+      .mockResolvedValueOnce(prefs(true)) // ON, after confirm
+      .mockResolvedValueOnce(prefs(false)); // OFF, direct narrowing write
+    const { fixture, proto } = bootstrapTrust({
+      getProjectPreferences,
+      setProjectPreferences,
+    } as Partial<IDataSourcePort>);
+
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flush();
+
+    const confirmation = fixture.debugElement.injector.get(ConfirmationService);
+    const confirmSpy = vi
+      .spyOn(confirmation, 'confirm')
+      .mockReturnValue(confirmation);
+    proto.onProjectTrustToggle(true);
+    await flush();
+    confirmSpy.mock.calls[0][0].accept?.();
+    await flush();
+    expect(proto.pluginTrustRestartPending()).toBe(true);
+
+    // Revert to the baseline value: the pending restart flag drops.
+    proto.onProjectTrustToggle(false);
+    await flush();
+    expect(proto.pluginTrustEnabled()).toBe(false);
+    expect(proto.pluginTrustRestartPending()).toBe(false);
   });
 });
 

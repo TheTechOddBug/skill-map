@@ -28,9 +28,14 @@ import {
   LOGGER_ENV_VAR,
 } from './util/logger.js';
 import { ansiFor } from './util/ansi.js';
+import { confirm } from './util/confirm.js';
 import { defaultProjectDbPath } from './util/db-path.js';
 import { isDirEmpty } from './util/empty-cwd.js';
-import { decideBareNoArgs, promptEmptyFolderChoice } from './util/empty-folder-prompt.js';
+import {
+  decideBareNoArgs,
+  promptEmptyFolderChoice,
+  shouldServeAfterInit,
+} from './util/empty-folder-prompt.js';
 import { ExitCode } from './util/exit-codes.js';
 import { formatParseError, isClipanionParseError } from './util/parse-error.js';
 import { defaultRuntimeContext } from './util/runtime-context.js';
@@ -326,24 +331,49 @@ async function resolveBareInvocation(rawArgs: string[]): Promise<string[] | null
 async function resolveNoArgsBare(): Promise<string[]> {
   const ctx = defaultRuntimeContext();
   const stdin = process.stdin as NodeJS.ReadStream;
-  // The decision (serve / menu / hint) is pure and unit-tested in
-  // `util/empty-folder-prompt.spec.ts`; this seam only wires the live
-  // FS / terminal state and the real readline prompt. The prompt closure
-  // is invoked solely in the empty + interactive case, so a non-TTY
-  // caller (pipe, CI) never blocks on stdin.
+  const stderr = process.stderr as NodeJS.WriteStream;
+  // The decision (serve / menu / init-offer / hint) is pure and unit-tested
+  // in `util/empty-folder-prompt.spec.ts`; this seam only wires the live
+  // FS / terminal state and the real readline prompts. Each prompt closure
+  // is invoked solely in its own interactive branch, so a non-TTY caller
+  // (pipe, CI) never blocks on stdin.
   const result = await decideBareNoArgs(
     {
       hasDb: existsSync(defaultProjectDbPath(ctx)),
       isTty: stdin.isTTY === true,
       isEmptyDir: isDirEmpty(ctx.cwd),
     },
-    () => {
-      const stderr = process.stderr as NodeJS.WriteStream;
-      const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: false });
-      return promptEmptyFolderChoice(stdin, stderr, ansi);
+    {
+      menu: () => {
+        const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: false });
+        return promptEmptyFolderChoice(stdin, stderr, ansi);
+      },
+      confirmInit: () => {
+        const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: false });
+        return confirm(
+          tx(ENTRY_TEXTS.bareOfferInit, { glyph: ansi.yellow('?'), cwd: ctx.cwd }),
+          { stdin, stderr },
+          { defaultAnswer: 'yes' },
+        );
+      },
     },
   );
   if (result.kind === 'route') return result.argv;
+  if (result.kind === 'init-then-serve') {
+    // The operator accepted the offer: run `sm init` here, then continue
+    // into the Web UI server (the main flow serves the returned argv through
+    // its full telemetry / boot-hook wrapper). A first scan that only found
+    // content issues (`Issues`, exit 1) still boots the server, the map is
+    // where the operator wants to see those issues; only a HARD init failure
+    // (config / scan / guard error) bails with init's own code.
+    const initExit = await cli.run(['init'], {
+      stdin,
+      stdout: process.stdout,
+      stderr,
+    });
+    if (!shouldServeAfterInit(initExit)) process.exit(initExit);
+    return ['serve'];
+  }
   return resolveBareDefault();
 }
 

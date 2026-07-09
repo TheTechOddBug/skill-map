@@ -166,9 +166,15 @@ describe('bare `sm` (no args), getting-started in an empty folder', () => {
     assert.doesNotMatch(r.stderr, /How would you like to start/, r.stderr);
   });
 
-  it('non-empty folder (no DB) keeps the bootstrap hint (sm init)', () => {
+  it('non-empty folder (non-TTY stdin) keeps the bootstrap hint (sm init), no init offer', () => {
+    // spawnSync's stdin is a pipe, not a TTY, so the interactive "set it up
+    // and open the map?" init offer must NOT render; the entry falls through
+    // to the non-empty bootstrap hint. The interactive accept/decline path is
+    // covered by the pure unit test in `util/empty-folder-prompt.spec.ts`
+    // (spawnSync cannot present a TTY).
     const r = smIn(nonEmptyStart, []);
     assert.equal(r.status, 2);
     assert.match(r.stderr, /sm init/, r.stderr);
+    assert.doesNotMatch(r.stderr, /Set it up and open the map/, r.stderr);
   });
 });

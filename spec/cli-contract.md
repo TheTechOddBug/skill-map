@@ -11,7 +11,8 @@ Normative description of the `sm` CLI surface: verbs, flags, exit codes, machine
 - Help invocation: `sm --help` and `sm -h` MUST print top-level help and exit with code 0.
 - Bare invocation: `sm` with no arguments starts the Web UI server (equivalent to `sm serve`) when a `.skill-map/` project is initialized in the cwd. With no project in the cwd:
   - When the cwd is empty AND stdin is an interactive terminal, it MUST present a getting-started menu with two choices, run the guided tutorial (equivalent to `sm tutorial`) or drop a ready-to-explore example project (equivalent to `sm example`), and dispatch the chosen verb. The menu reads from stdin and renders to stderr; an empty answer selects the first option (tutorial).
-  - Otherwise (a non-empty cwd, a non-interactive stdin, or no valid choice within the prompt's bounded re-ask), it MUST print a one-line hint to stderr and exit `2`. The hint points at `sm tutorial` / `sm example` when the cwd is empty, or at `sm init` / `sm --help` when it is not.
+  - When the cwd is NOT empty AND stdin is an interactive terminal, it MUST offer to bootstrap a project here: a yes/no confirm (default yes) that, when accepted, runs `sm init` and continues into the Web UI server (equivalent to `sm serve`). The confirm reads from stdin and renders to stderr. A first scan that only reports content issues (`init` exit `1`) still continues into the server; only a hard `init` failure (a config, scan, or guard error, exit `2`+) skips the server and exits with `init`'s code. Declining falls through to the hint below (exit `2`).
+  - Otherwise (a non-interactive stdin, the operator declines the init offer, or no valid choice within the empty-folder prompt's bounded re-ask), it MUST print a one-line hint to stderr and exit `2`. The hint points at `sm tutorial` / `sm example` when the cwd is empty, or at `sm init` / `sm --help` when it is not.
 
 ---
 

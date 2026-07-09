@@ -116,6 +116,27 @@ export class SettingsProjectPreferences {
   });
 
   /**
+   * Committed plugin-trust value the section loaded with, captured once on
+   * the first successful fetch. Plugins are resolved at `sm serve` boot, so
+   * the only mutator of this flag mid-session is this very toggle, which
+   * needs a restart to apply. Comparing the live committed value against
+   * this baseline tells us whether a restart is still pending.
+   */
+  private readonly pluginTrustBaseline = signal<boolean | null>(null);
+
+  /**
+   * `true` once the committed plugin-trust value diverges from the baseline
+   * the section opened with, i.e. the operator flipped the toggle this
+   * session and `sm serve` has not been restarted yet. Drives the warn
+   * banner under the row. Direction-neutral: ON needs a restart to load the
+   * newly trusted plugins, OFF to unload the ones still running.
+   */
+  protected readonly pluginTrustRestartPending = computed<boolean>(() => {
+    const baseline = this.pluginTrustBaseline();
+    return baseline !== null && this.pluginTrustEnabled() !== baseline;
+  });
+
+  /**
    * Project-local follow-external-symlinks opt-in
    * (`scan.followExternalSymlinks`). `false` (default) keeps the scanner
    * inside the project root; `true` follows symbolic links whose target
@@ -293,6 +314,11 @@ export class SettingsProjectPreferences {
     try {
       const envelope = await this.dataSource.getProjectPreferences();
       this.preferences.set(envelope);
+      // Snapshot the boot-time trust value once, so a later flip can be
+      // detected as a restart-pending change (see pluginTrustRestartPending).
+      if (this.pluginTrustBaseline() === null) {
+        this.pluginTrustBaseline.set(envelope.pluginTrust?.projectEnabled ?? false);
+      }
     } catch (err) {
       this.loadError.set(formatErr(err));
       this.preferences.set(null);

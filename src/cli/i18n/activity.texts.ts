@@ -26,7 +26,7 @@ export const ACTIVITY_TEXTS = {
   installed:
     '{{glyph}}  sm activity: bridge written to {{bridgePath}} and wired into {{configPath}} ({{events}} events).\n',
   installedHint:
-    'Run `sm serve` and invoke a skill / agent in {{provider}} to watch the map light up. Reverse with `sm activity uninstall {{provider}}`.',
+    'Run `sm` and invoke a skill / agent in {{provider}} to watch the map light up. Reverse with `sm activity uninstall {{provider}}`.',
 
   installedPlugin:
     '{{glyph}}  sm activity: in-process plugin written to {{configPath}}.\n',

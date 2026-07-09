@@ -187,12 +187,14 @@ a {
   -webkit-backdrop-filter: blur(10px);
 }
 
-/* The .sm sidecar consent dialog renders multi-paragraph copy with `\n\n`
-   between paragraphs. PrimeNG's default flattens whitespace; this rule
-   preserves the newlines and gives the message a bit more breathing
-   room so the explanation reads like prose rather than a wall of text.
-   Both class spellings cover PrimeNG version drift (`p-confirm-dialog-…`
-   vs `p-confirmdialog-…`). */
+/* The Project-section consent confirmdialogs (plugin-trust, reference-paths,
+   follow-external-symlinks) render copy with `\n` line breaks between the
+   body and a warning note. PrimeNG's default flattens whitespace; this rule
+   preserves the newlines and gives the message a bit more breathing room so
+   the explanation reads like prose rather than a wall of text. Applied via
+   `styleClass="sm-consent-dialog"` on the shared `<p-confirmdialog>`. Both
+   class spellings cover PrimeNG version drift (`p-confirm-dialog-…` vs
+   `p-confirmdialog-…`). */
 .sm-consent-dialog .p-confirm-dialog-message,
 .sm-consent-dialog .p-confirmdialog-message {
   white-space: pre-line;
