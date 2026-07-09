@@ -4,15 +4,12 @@
  * (`GET/PATCH /api/project/preferences`):
  *
  *   1. `allowSidecarWriters` toggle, team-shared sidecar-writer policy.
- *   2. `pluginTrust.projectEnabled` toggle, machine-local plugin-trust
- *      opt-in. Turning it ON expands the local code-execution surface,
- *      so the write goes through a confirm dialog (server-enforced 412).
- *   3. `scan.referencePaths`, privacy-sensitive list of folders the
+ *   2. `scan.referencePaths`, privacy-sensitive list of folders the
  *      scan walks ONLY to validate broken links. Writes that EXPAND
  *      the scan's disk-access surface (paths outside the project) go
  *      through a `<p-confirmdialog>` and re-issue the PATCH with
  *      `confirm: true`. Persists in `<cwd>/.skill-map/settings.local.json`.
- *   4. `scan.followExternalSymlinks` toggle, project-local opt-in that
+ *   3. `scan.followExternalSymlinks` toggle, project-local opt-in that
  *      lets the scanner follow symbolic links whose target escapes the
  *      project root. Turning it ON expands the scan's disk-access
  *      surface, so the write goes through the same confirm dialog
@@ -104,39 +101,6 @@ export class SettingsProjectPreferences {
   });
 
   /**
-   * Machine-local plugin-trust opt-in (`pluginTrust.projectEnabled`).
-   * `false` (default) requires per-plugin trust; `true` locally trusts
-   * every plugin the project enables. Read defensively so an older
-   * envelope that predates the field renders the switch off rather than
-   * flashing. Flipping it ON expands the local code-execution surface, so
-   * the write goes through the same confirm dialog as reference-paths.
-   */
-  protected readonly pluginTrustEnabled = computed<boolean>(() => {
-    return this.preferences()?.pluginTrust?.projectEnabled ?? false;
-  });
-
-  /**
-   * Committed plugin-trust value the section loaded with, captured once on
-   * the first successful fetch. Plugins are resolved at `sm serve` boot, so
-   * the only mutator of this flag mid-session is this very toggle, which
-   * needs a restart to apply. Comparing the live committed value against
-   * this baseline tells us whether a restart is still pending.
-   */
-  private readonly pluginTrustBaseline = signal<boolean | null>(null);
-
-  /**
-   * `true` once the committed plugin-trust value diverges from the baseline
-   * the section opened with, i.e. the operator flipped the toggle this
-   * session and `sm serve` has not been restarted yet. Drives the warn
-   * banner under the row. Direction-neutral: ON needs a restart to load the
-   * newly trusted plugins, OFF to unload the ones still running.
-   */
-  protected readonly pluginTrustRestartPending = computed<boolean>(() => {
-    const baseline = this.pluginTrustBaseline();
-    return baseline !== null && this.pluginTrustEnabled() !== baseline;
-  });
-
-  /**
    * Project-local follow-external-symlinks opt-in
    * (`scan.followExternalSymlinks`). `false` (default) keeps the scanner
    * inside the project root; `true` follows symbolic links whose target
@@ -174,9 +138,6 @@ export class SettingsProjectPreferences {
    */
   protected readonly allowSidecarWritersView = linkedSignal(() =>
     this.allowSidecarWriters(),
-  );
-  protected readonly pluginTrustEnabledView = linkedSignal(() =>
-    this.pluginTrustEnabled(),
   );
   protected readonly followExternalSymlinksView = linkedSignal(() =>
     this.followExternalSymlinks(),
@@ -254,30 +215,6 @@ export class SettingsProjectPreferences {
   }
 
   // -----------------------------------------------------------------
-  // Plugin-trust opt-in handler
-  // -----------------------------------------------------------------
-
-  /**
-   * Flip the machine-local `pluginTrust.projectEnabled` opt-in. Turning
-   * it ON expands the local code-execution surface, so the BFF answers
-   * 412 `confirm-required`; `runPatch` then surfaces the dedicated trust
-   * confirm dialog and retries with `confirm: true` on accept. Turning it
-   * OFF narrows the surface and persists directly. When the write does
-   * not persist (dialog dismissed, PATCH failed) the view signal is
-   * reset to the committed value so the switch rolls back.
-   */
-  protected onProjectTrustToggle(next: boolean): void {
-    this.pluginTrustEnabledView.set(next);
-    void this.runPatch(
-      'pluginTrust.projectEnabled',
-      { pluginTrust: { projectEnabled: next } },
-      this.pluginTrustConfirmFlow(),
-    ).then((ok) => {
-      if (!ok) this.pluginTrustEnabledView.set(this.pluginTrustEnabled());
-    });
-  }
-
-  // -----------------------------------------------------------------
   // Follow-external-symlinks opt-in handler
   // -----------------------------------------------------------------
 
@@ -314,11 +251,6 @@ export class SettingsProjectPreferences {
     try {
       const envelope = await this.dataSource.getProjectPreferences();
       this.preferences.set(envelope);
-      // Snapshot the boot-time trust value once, so a later flip can be
-      // detected as a restart-pending change (see pluginTrustRestartPending).
-      if (this.pluginTrustBaseline() === null) {
-        this.pluginTrustBaseline.set(envelope.pluginTrust?.projectEnabled ?? false);
-      }
     } catch (err) {
       this.loadError.set(formatErr(err));
       this.preferences.set(null);
@@ -344,8 +276,7 @@ export class SettingsProjectPreferences {
    * The confirm dialog is parameterised per surface-expanding key: the
    * mechanism (try -> catch 412 -> dialog -> retry with `confirm: true`)
    * is shared, the dialog copy is not (reference-paths enumerates the
-   * exposed paths; plugin-trust and follow-external-symlinks show their
-   * own warnings).
+   * exposed paths; follow-external-symlinks shows its own warning).
    */
   private async runPatch(
     key: string,
@@ -412,18 +343,6 @@ export class SettingsProjectPreferences {
   }
 
   /**
-   * Confirm flow for `pluginTrust.projectEnabled`: a dedicated
-   * machine-local trust warning (the exposed-paths list does not apply to
-   * a code-execution surface, so it is ignored).
-   */
-  private pluginTrustConfirmFlow(): IConfirmFlow {
-    return {
-      present: (_exposed, onAccept, onReject) =>
-        this.confirmProjectTrustDialog(onAccept, onReject),
-    };
-  }
-
-  /**
    * Confirm flow for `scan.followExternalSymlinks`: a dedicated warning
    * that following out-of-tree links can pull sensitive folders into the
    * graph (the exposed-paths list does not apply, so it is ignored).
@@ -448,26 +367,6 @@ export class SettingsProjectPreferences {
         paths.map((p) => `• ${p}`).join('\n'),
       acceptLabel: SETTINGS_TEXTS.project.confirmDialogAccept,
       rejectLabel: SETTINGS_TEXTS.project.confirmDialogReject,
-      acceptButtonProps: { severity: 'primary' },
-      rejectButtonProps: { severity: 'secondary' },
-      accept: () => {
-        void onAccept();
-      },
-      reject: () => {
-        onReject();
-      },
-    });
-  }
-
-  private confirmProjectTrustDialog(
-    onAccept: () => Promise<void>,
-    onReject: () => void,
-  ): void {
-    this.confirmation.confirm({
-      header: SETTINGS_TEXTS.project.pluginTrustConfirmHeader,
-      message: SETTINGS_TEXTS.project.pluginTrustConfirmIntro,
-      acceptLabel: SETTINGS_TEXTS.project.pluginTrustConfirmAccept,
-      rejectLabel: SETTINGS_TEXTS.project.pluginTrustConfirmReject,
       acceptButtonProps: { severity: 'primary' },
       rejectButtonProps: { severity: 'secondary' },
       accept: () => {

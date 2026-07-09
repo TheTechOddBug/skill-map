@@ -125,6 +125,12 @@
       </p-message>
     }
 
+    @if (anyPluginNeedsRestart()) {
+      <p-message severity="warn" [closable]="false" data-testid="settings-plugins-restart">
+        {{ texts.pluginsRestartHint }}
+      </p-message>
+    }
+
     @if (filteredPlugins().length === 0) {
       @if (searchActive()) {
         <p

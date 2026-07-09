@@ -18,13 +18,6 @@
   margin-bottom: 1rem;
 }
 
-/* Restart-pending warning under the plugin-trust toggle: the trust row
- * above already carries `margin-bottom: 1rem`, so pull the banner up to
- * hug that row instead of floating as a detached section-level message. */
-:host p-message[data-testid='settings-project-plugin-trust-restart'] {
-  margin-top: -0.5rem;
-}
-
 .settings-project__row {
   display: flex;
   align-items: center;

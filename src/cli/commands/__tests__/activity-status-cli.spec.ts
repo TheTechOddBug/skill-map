@@ -14,7 +14,8 @@ import type { BaseContext } from 'clipanion';
 
 import { builtIns } from '../../../plugins/built-ins.js';
 import { installActivityBridge } from '../../../core/activity/install.js';
-import { defaultProjectActivityDir } from '../../util/db-path.js';
+import { withSqlite } from '../../../core/sqlite/with-sqlite.js';
+import { defaultProjectActivityDir, defaultProjectDbPath } from '../../util/db-path.js';
 import { ActivityStatusCommand } from '../activity.js';
 
 let tmpRoot: string;
@@ -155,7 +156,7 @@ describe('sm activity status', () => {
     // trusted drop-ins), so a project-local plugin the operator has
     // trusted is status-reportable like a built-in.
     const fixture = freshFixture('dropin-trusted');
-    writeExternalActivityPlugin(fixture, 'demo-live', true);
+    await writeExternalActivityPlugin(fixture, 'demo-live', true);
     process.chdir(fixture);
 
     const cap = captureContext();
@@ -169,11 +170,11 @@ describe('sm activity status', () => {
   });
 
   it('does NOT report an UNTRUSTED drop-in provider (import gate closed)', async () => {
-    // The import-trust boundary still applies: without the local trust
-    // opt-in the plugin code is never imported, so its activity adapter
-    // never reaches the verb.
+    // The import-trust boundary still applies: without a DB trust grant
+    // the plugin code is never imported, so its activity adapter never
+    // reaches the verb.
     const fixture = freshFixture('dropin-untrusted');
-    writeExternalActivityPlugin(fixture, 'demo-live', false);
+    await writeExternalActivityPlugin(fixture, 'demo-live', false);
     process.chdir(fixture);
 
     const cap = captureContext();
@@ -188,9 +189,13 @@ describe('sm activity status', () => {
 /**
  * Lay down a minimal drop-in provider that declares a `plugin-file`
  * activity adapter under `<fixture>/.skill-map/plugins/<id>/`, optionally
- * granting the local import-trust opt-in so `loadPluginRuntime` imports it.
+ * writing a `config_plugins` DB trust row so `loadPluginRuntime` imports it.
  */
-function writeExternalActivityPlugin(fixture: string, id: string, trusted: boolean): void {
+async function writeExternalActivityPlugin(
+  fixture: string,
+  id: string,
+  trusted: boolean,
+): Promise<void> {
   const pluginDir = join(fixture, '.skill-map', 'plugins', id);
   mkdirSync(join(pluginDir, 'providers', id), { recursive: true });
   writeFileSync(
@@ -214,9 +219,9 @@ function writeExternalActivityPlugin(fixture: string, id: string, trusted: boole
   );
   if (trusted) {
     mkdirSync(join(fixture, '.skill-map'), { recursive: true });
-    writeFileSync(
-      join(fixture, '.skill-map', 'settings.local.json'),
-      JSON.stringify({ pluginTrust: { projectEnabled: true } }),
-    );
+    const dbPath = defaultProjectDbPath({ cwd: fixture });
+    await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
+      await adapter.trust.set(id, true);
+    });
   }
 }

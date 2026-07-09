@@ -57,7 +57,6 @@ describe('SettingsProject chassis', () => {
       'settings-project-live-activity-row',
       'settings-project-activity-capture-row',
       'settings-project-sidecar-writers-row',
-      'settings-project-plugin-trust-row',
       'settings-project-follow-external-symlinks-row',
       'settings-project-reference-paths-row',
       'settings-project-ignore-patterns-row',
@@ -241,23 +240,20 @@ describe('SettingsProjectLens active-provider select rollback', () => {
 });
 
 /**
- * SettingsProjectPreferences · `pluginTrust.projectEnabled` machine-local opt-in.
+ * SettingsProjectPreferences · the surface-expanding toggles harness.
  *
- * The toggle persists through `setProjectPreferences`. Turning it OFF
- * narrows the local code-execution surface (direct write). Turning it ON
- * expands it, so the BFF answers 412 `confirm-required`; the component
- * reuses the same `<p-confirmdialog>` / `ConfirmationService` mechanism as
- * `scan.referencePaths`, re-issuing the patch with `confirm: true` only
- * after the operator accepts. The spec drives the component's imperative
- * surface + the component-provided `ConfirmationService` so it stays
- * independent of the network fetch and PrimeNG's overlay portal.
+ * The `scan.followExternalSymlinks` toggle persists through
+ * `setProjectPreferences`. Turning it OFF narrows the surface (direct
+ * write). Turning it ON expands it, so the BFF answers 412
+ * `confirm-required`; the component reuses the same `<p-confirmdialog>` /
+ * `ConfirmationService` mechanism as `scan.referencePaths`, re-issuing the
+ * patch with `confirm: true` only after the operator accepts. The spec
+ * drives the component's imperative surface + the component-provided
+ * `ConfirmationService` so it stays independent of the network fetch and
+ * PrimeNG's overlay portal.
  */
 interface ITrustProto {
   preferences: WritableSignal<IProjectPreferencesApi | null>;
-  pluginTrustEnabled(): boolean;
-  pluginTrustEnabledView(): boolean;
-  pluginTrustRestartPending(): boolean;
-  onProjectTrustToggle(next: boolean): void;
   followExternalSymlinks(): boolean;
   followExternalSymlinksView(): boolean;
   onFollowExternalSymlinksToggle(next: boolean): void;
@@ -266,19 +262,10 @@ interface ITrustProto {
   onRespectGitignoreToggle(next: boolean): void;
 }
 
-function prefs(projectEnabled: boolean): IProjectPreferencesApi {
-  return {
-    allowSidecarWriters: true,
-    scan: { referencePaths: [], followExternalSymlinks: false, respectGitignore: false },
-    pluginTrust: { projectEnabled },
-  };
-}
-
 function prefsSymlinks(followExternalSymlinks: boolean): IProjectPreferencesApi {
   return {
     allowSidecarWriters: true,
     scan: { referencePaths: [], followExternalSymlinks, respectGitignore: false },
-    pluginTrust: { projectEnabled: false },
   };
 }
 
@@ -286,7 +273,6 @@ function prefsGitignore(respectGitignore: boolean): IProjectPreferencesApi {
   return {
     allowSidecarWriters: true,
     scan: { referencePaths: [], followExternalSymlinks: false, respectGitignore },
-    pluginTrust: { projectEnabled: false },
   };
 }
 
@@ -313,177 +299,11 @@ async function flush(): Promise<void> {
   await Promise.resolve();
 }
 
-describe('SettingsProjectPreferences pluginTrust opt-in', () => {
-  it('reads pluginTrust.projectEnabled from the loaded preferences', () => {
-    const { proto } = bootstrapTrust({});
-    expect(proto.pluginTrustEnabled()).toBe(false);
-    proto.preferences.set(prefs(true));
-    expect(proto.pluginTrustEnabled()).toBe(true);
-  });
-
-  it('turning the opt-in OFF persists directly (no confirm)', async () => {
-    const setProjectPreferences = vi.fn().mockResolvedValue(prefs(false));
-    const { proto } = bootstrapTrust({
-      setProjectPreferences,
-    } as Partial<IDataSourcePort>);
-
-    proto.onProjectTrustToggle(false);
-    await flush();
-
-    expect(setProjectPreferences).toHaveBeenCalledWith({
-      pluginTrust: { projectEnabled: false },
-    });
-  });
-
-  it('turning the opt-in ON surfaces the confirm dialog and retries with confirm:true on accept', async () => {
-    const setProjectPreferences = vi
-      .fn()
-      .mockRejectedValueOnce(new DataSourceError('confirm-required', 'needs confirm'))
-      .mockResolvedValueOnce(prefs(true));
-    const { fixture, proto } = bootstrapTrust({
-      setProjectPreferences,
-    } as Partial<IDataSourcePort>);
-    const confirmation = fixture.debugElement.injector.get(ConfirmationService);
-    const confirmSpy = vi
-      .spyOn(confirmation, 'confirm')
-      .mockReturnValue(confirmation);
-
-    proto.onProjectTrustToggle(true);
-    await flush();
-
-    expect(setProjectPreferences).toHaveBeenNthCalledWith(1, {
-      pluginTrust: { projectEnabled: true },
-    });
-    expect(confirmSpy).toHaveBeenCalledTimes(1);
-
-    // Simulate the operator accepting the confirm dialog.
-    confirmSpy.mock.calls[0][0].accept?.();
-    await flush();
-
-    expect(setProjectPreferences).toHaveBeenNthCalledWith(2, {
-      pluginTrust: { projectEnabled: true },
-      confirm: true,
-    });
-    expect(proto.pluginTrustEnabled()).toBe(true);
-  });
-
-  it('does not retry when the operator dismisses the confirm dialog', async () => {
-    const setProjectPreferences = vi
-      .fn()
-      .mockRejectedValueOnce(new DataSourceError('confirm-required', 'needs confirm'));
-    const { fixture, proto } = bootstrapTrust({
-      setProjectPreferences,
-    } as Partial<IDataSourcePort>);
-    const confirmation = fixture.debugElement.injector.get(ConfirmationService);
-    const confirmSpy = vi
-      .spyOn(confirmation, 'confirm')
-      .mockReturnValue(confirmation);
-
-    proto.onProjectTrustToggle(true);
-    await flush();
-
-    expect(confirmSpy).toHaveBeenCalledTimes(1);
-    // While the dialog is up the switch optimistically shows ON.
-    expect(proto.pluginTrustEnabledView()).toBe(true);
-
-    // The operator cancels: no retry fires, the committed value stays
-    // off AND the switch view rolls back (regression: the control used
-    // to stay flipped because the committed computed never changed).
-    confirmSpy.mock.calls[0][0].reject?.();
-    await flush();
-
-    expect(setProjectPreferences).toHaveBeenCalledTimes(1);
-    expect(proto.pluginTrustEnabled()).toBe(false);
-    expect(proto.pluginTrustEnabledView()).toBe(false);
-  });
-
-  it('flags no restart while the committed value matches the loaded baseline', async () => {
-    const getProjectPreferences = vi.fn().mockResolvedValue(prefs(true));
-    const { fixture, proto } = bootstrapTrust({
-      getProjectPreferences,
-    } as Partial<IDataSourcePort>);
-
-    // Drive the initial fetch: the server booted with trust already ON, so
-    // the baseline matches the committed value and no restart is pending.
-    fixture.componentRef.setInput('visible', true);
-    fixture.detectChanges();
-    await flush();
-
-    expect(proto.pluginTrustEnabled()).toBe(true);
-    expect(proto.pluginTrustRestartPending()).toBe(false);
-  });
-
-  it('flags a restart once the committed value diverges from the loaded baseline', async () => {
-    const getProjectPreferences = vi.fn().mockResolvedValue(prefs(false));
-    const setProjectPreferences = vi
-      .fn()
-      .mockRejectedValueOnce(new DataSourceError('confirm-required', 'needs confirm'))
-      .mockResolvedValueOnce(prefs(true));
-    const { fixture, proto } = bootstrapTrust({
-      getProjectPreferences,
-      setProjectPreferences,
-    } as Partial<IDataSourcePort>);
-
-    // Load the baseline (trust OFF at boot), nothing pending yet.
-    fixture.componentRef.setInput('visible', true);
-    fixture.detectChanges();
-    await flush();
-    expect(proto.pluginTrustRestartPending()).toBe(false);
-
-    // Flip it ON and accept the confirm dialog.
-    const confirmation = fixture.debugElement.injector.get(ConfirmationService);
-    const confirmSpy = vi
-      .spyOn(confirmation, 'confirm')
-      .mockReturnValue(confirmation);
-    proto.onProjectTrustToggle(true);
-    await flush();
-    confirmSpy.mock.calls[0][0].accept?.();
-    await flush();
-
-    // Committed value now differs from the baseline: restart pending.
-    expect(proto.pluginTrustEnabled()).toBe(true);
-    expect(proto.pluginTrustRestartPending()).toBe(true);
-  });
-
-  it('clears the restart flag when the toggle returns to the baseline', async () => {
-    const getProjectPreferences = vi.fn().mockResolvedValue(prefs(false));
-    const setProjectPreferences = vi
-      .fn()
-      .mockRejectedValueOnce(new DataSourceError('confirm-required', 'needs confirm'))
-      .mockResolvedValueOnce(prefs(true)) // ON, after confirm
-      .mockResolvedValueOnce(prefs(false)); // OFF, direct narrowing write
-    const { fixture, proto } = bootstrapTrust({
-      getProjectPreferences,
-      setProjectPreferences,
-    } as Partial<IDataSourcePort>);
-
-    fixture.componentRef.setInput('visible', true);
-    fixture.detectChanges();
-    await flush();
-
-    const confirmation = fixture.debugElement.injector.get(ConfirmationService);
-    const confirmSpy = vi
-      .spyOn(confirmation, 'confirm')
-      .mockReturnValue(confirmation);
-    proto.onProjectTrustToggle(true);
-    await flush();
-    confirmSpy.mock.calls[0][0].accept?.();
-    await flush();
-    expect(proto.pluginTrustRestartPending()).toBe(true);
-
-    // Revert to the baseline value: the pending restart flag drops.
-    proto.onProjectTrustToggle(false);
-    await flush();
-    expect(proto.pluginTrustEnabled()).toBe(false);
-    expect(proto.pluginTrustRestartPending()).toBe(false);
-  });
-});
-
 /**
  * SettingsProjectPreferences · `scan.followExternalSymlinks` opt-in.
  *
- * Mirrors the plugin-trust opt-in: the toggle persists through
- * `setProjectPreferences`, but the key nests under `scan.*`. Turning it
+ * A surface-expanding toggle: it persists through
+ * `setProjectPreferences`, with the key nested under `scan.*`. Turning it
  * OFF narrows the scan's disk-access surface (direct write). Turning it
  * ON expands it (it re-enables following links that escape the project
  * root), so the BFF answers 412 `confirm-required`; the component reuses
@@ -635,7 +455,7 @@ describe('SettingsProjectPreferences respectGitignore opt-in', () => {
  * disabled + hint for lenses without an activity adapter. Both
  * mutations first POST WITHOUT `confirm`; the server-enforced 412
  * `confirm-required` surfaces the consent dialog and accepting retries
- * with `confirm: true` (the same flow the plugin-trust opt-in uses).
+ * with `confirm: true` (the same flow the reference-paths write uses).
  * The active lens arrives through the `lensId` input (fed by the
  * chassis from the lens child). The spec drives the imperative surface
  * + the component-provided ConfirmationService, independent of

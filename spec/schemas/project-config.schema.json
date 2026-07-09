@@ -98,7 +98,7 @@
         },
         "followExternalSymlinks": {
           "type": "boolean",
-          "description": "Whether the walker dereferences a symbolic link whose real target lands OUTSIDE the scan roots. Default `false` (contained). While the walker always follows a symlink whose target stays inside a scan root, an escaping link (a file link like `notes.md -> ~/.ssh/id_rsa`, or a directory link like `docs/mirror -> ~/`) is by default refused and skipped, so a cloned, hostile repository cannot use a committed symlink to read arbitrary local files into `skill-map.db` or drive a filesystem-traversal denial of service. Set to `true` to restore following escaping links wherever they point (cycle detection still prevents loops); doing so is an explicit statement that you trust every symlink target reachable from your project tree, so use it only on a tree whose links you authored. This is a per-machine trust decision, so it is **project-local only** (stripped with a warning from the committed `project` layer, like `scan.referencePaths` and `pluginTrust.projectEnabled`) and, because turning it on expands the disk-read surface, **privacy-sensitive**: `sm config set scan.followExternalSymlinks true` and the Settings UI toggle both require explicit confirmation (`--yes` on the CLI, a confirm dialog in the UI); turning it off needs no confirmation. It never opens `$HOME`: it only governs whether an already-authored on-disk link is followed.",
+          "description": "Whether the walker dereferences a symbolic link whose real target lands OUTSIDE the scan roots. Default `false` (contained). While the walker always follows a symlink whose target stays inside a scan root, an escaping link (a file link like `notes.md -> ~/.ssh/id_rsa`, or a directory link like `docs/mirror -> ~/`) is by default refused and skipped, so a cloned, hostile repository cannot use a committed symlink to read arbitrary local files into `skill-map.db` or drive a filesystem-traversal denial of service. Set to `true` to restore following escaping links wherever they point (cycle detection still prevents loops); doing so is an explicit statement that you trust every symlink target reachable from your project tree, so use it only on a tree whose links you authored. This is a per-machine trust decision, so it is **project-local only** (stripped with a warning from the committed `project` layer, like `scan.referencePaths`) and, because turning it on expands the disk-read surface, **privacy-sensitive**: `sm config set scan.followExternalSymlinks true` and the Settings UI toggle both require explicit confirmation (`--yes` on the CLI, a confirm dialog in the UI); turning it off needs no confirmation. It never opens `$HOME`: it only governs whether an already-authored on-disk link is followed.",
           "$comment": "Project-local only; privacy-sensitive."
         },
         "respectGitignore": {
@@ -124,7 +124,7 @@
               "properties": {
                 "enabled": {
                   "type": "boolean",
-                  "description": "Per-extension operational on/off, resolved over the plugin-level `enabled` and the extension's installed default (`false` for `experimental` / `deprecated`, `true` otherwise). Shareable: lands in `settings.json` (team baseline) or `settings.local.json` (per-checkout override) via the normal config layering. This is the OPERATIONAL axis only; it does NOT grant import trust for a project-local plugin (see the top-level `pluginTrust`)."
+                  "description": "Per-extension operational on/off, resolved over the plugin-level `enabled` and the extension's installed default (`false` for `experimental` / `deprecated`, `true` otherwise). Shareable: lands in `settings.json` (team baseline) or `settings.local.json` (per-checkout override) via the normal config layering. This is the OPERATIONAL axis only; it does NOT grant import trust for a project-local plugin (that is the separate per-plugin trust axis, the `config_plugins` DB store written by `sm plugins trust`)."
                 },
                 "settings": {
                   "type": "object",
@@ -134,17 +134,6 @@
               }
             }
           }
-        }
-      }
-    },
-    "pluginTrust": {
-      "type": "object",
-      "additionalProperties": false,
-      "description": "Local, per-machine plugin import-trust preferences. NOT part of the shareable enable/disable axis. Project-local ONLY: the config loader strips `pluginTrust` from the committed `project` layer (it is honoured only from `settings.local.json`), so a cloned repo can never auto-grant import trust to its own project-local plugins. Setting `projectEnabled: true` expands the local execution surface and is gated behind a confirm (CLI `--yes`, UI confirm dialog), like `scan.referencePaths`.",
-      "properties": {
-        "projectEnabled": {
-          "type": "boolean",
-          "description": "When true, every plugin this project ENABLES is treated as locally trusted, so its code may be imported without an explicit per-plugin trust grant in the `config_plugins` (DB) trust store. Default false. The operator's local opt-in for teams that vet plugins in code review. Project-local only (stripped from the committed `project` layer)."
         }
       }
     },

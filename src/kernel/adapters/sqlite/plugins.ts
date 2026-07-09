@@ -52,8 +52,8 @@ export async function setPluginTrusted(
 
 /**
  * Fetch the trust grant for one plugin id. Returns `undefined` when no
- * row exists (the plugin is untrusted unless the local opt-in
- * `pluginTrust.projectEnabled` is set).
+ * row exists (the plugin is untrusted; trust is granted only by a
+ * `config_plugins` row via `sm plugins trust`).
  */
 export async function getPluginTrusted(
   db: TDbOrTx,

@@ -150,6 +150,7 @@ interface ITrustProto {
   onUntrustPlugin(plugin: IPluginItemApi): void;
   plugins(): readonly IPluginItemApi[];
   dirtyIds(): ReadonlySet<string>;
+  anyPluginNeedsRestart(): boolean;
 }
 
 interface IBootstrapResult {
@@ -430,12 +431,16 @@ describe('SettingsPlugins, startsAsDisabled per-row hint', () => {
 
     const hint = cmp as unknown as {
       showStartsAsDisabledHint(p: IPluginItemApi): boolean;
+      anyPluginNeedsRestart(): boolean;
     };
 
     expect(hint.showStartsAsDisabledHint(items[0])).toBe(false);
+    expect(hint.anyPluginNeedsRestart()).toBe(false);
 
     toggleBundleAggregate(cmp, items[0], true);
     expect(hint.showStartsAsDisabledHint(items[0])).toBe(true);
+    // The section-level restart banner also lights up on a startsAsDisabled re-enable.
+    expect(hint.anyPluginNeedsRestart()).toBe(true);
 
     expect(hint.showStartsAsDisabledHint(items[1])).toBe(false);
   });
@@ -790,6 +795,38 @@ describe('SettingsPlugins, plugin-level trust', () => {
     await flushAsync();
 
     expect(setPluginTrusted).toHaveBeenCalledWith('demo-highlight', false);
+  });
+
+  it('anyPluginNeedsRestart is true for a trusted-but-not-loaded drop-in', async () => {
+    // A mid-session Trust flip: the plugin reads trusted but its code was
+    // never imported (no extensions[]), so it needs a restart to load, and
+    // the section-level restart banner shows.
+    const { cmp, fixture } = bootstrap({
+      listPlugins: vi
+        .fn()
+        .mockResolvedValue(pluginsEnvelope([projectPlugin('demo-highlight', { trusted: true })])),
+    } as Partial<IDataSourcePort>);
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+    expect((cmp as unknown as ITrustProto).anyPluginNeedsRestart()).toBe(true);
+  });
+
+  it('anyPluginNeedsRestart is false once a trusted drop-in has loaded extensions', async () => {
+    const { cmp, fixture } = bootstrap({
+      listPlugins: vi.fn().mockResolvedValue(
+        pluginsEnvelope([
+          projectPlugin('demo-highlight', {
+            trusted: true,
+            extensions: [{ id: 'highlight', enabled: true }],
+          }),
+        ]),
+      ),
+    } as Partial<IDataSourcePort>);
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+    expect((cmp as unknown as ITrustProto).anyPluginNeedsRestart()).toBe(false);
   });
 
   it('trusting a plugin preserves pending enable edits on other rows', async () => {

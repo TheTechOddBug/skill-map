@@ -151,43 +151,6 @@ export const SETTINGS_TEXTS = {
       'Also skip whatever your .gitignore skips. Committed, so it applies ' +
       'to the whole team.',
     /**
-     * Machine-local plugin-trust opt-in (`pluginTrust.projectEnabled`).
-     * Surface-expanding (it locally trusts every plugin the project
-     * enables), so flipping it ON goes through the same confirm dialog as
-     * the reference-paths key. Persists in settings.local.json, never
-     * committed.
-     */
-    pluginTrustLabel: 'Trust plugins this project enables',
-    pluginTrustDescription:
-      'Run any plugin under .skill-map/plugins/ that the project enables, ' +
-      'without trusting each one by hand. Turn it off to require ' +
-      'per-plugin trust again.',
-    pluginTrustConfirmHeader: 'Trust every plugin this project enables?',
-    /**
-     * The `\n` splits the restart note onto its own line; the confirm
-     * dialog preserves it via the `.sm-consent-dialog` style (styleClass on
-     * `<p-confirmdialog>`, `white-space: pre-line`). `⚠️` is the inline
-     * warning glyph, same convention as `followExternalSymlinksConfirmIntro`
-     * (the message is plain text, so a font-icon would need a custom
-     * template).
-     */
-    pluginTrustConfirmIntro:
-      'This lets any plugin the project enables run its code on this ' +
-      'machine, including ones you have not reviewed.\n' +
-      '⚠️ Restart `sm` afterwards for the change to take effect.',
-    pluginTrustConfirmAccept: 'Enable',
-    pluginTrustConfirmReject: 'Cancel',
-    /**
-     * Warning banner shown under the plugin-trust row once the toggle
-     * diverges from the value the section loaded with. Plugins are
-     * resolved at `sm serve` boot, so a mid-session trust change (either
-     * direction) takes effect only on the next restart. Direction-neutral
-     * on purpose: turning it ON needs a restart to LOAD the newly trusted
-     * plugins, turning it OFF needs one to UNLOAD the ones already running.
-     */
-    pluginTrustRestartHint:
-      'Restart `sm` for this trust change to take effect.',
-    /**
      * Project-local follow-external-symlinks opt-in
      * (`scan.followExternalSymlinks`). Surface-expanding (it re-enables
      * reading files the symlink target points at, outside the project
@@ -442,6 +405,17 @@ export const SETTINGS_TEXTS = {
    */
   startsAsDisabledFooterHint:
     'Some plugins were disabled when the server started. Consider restarting `sm` so they take effect.',
+
+  /**
+   * Section-level warning banner shown above the plugin list when any
+   * drop-in plugin is in a state that only takes effect on the next
+   * `sm` restart: trusted mid-session but not loaded yet, untrusted
+   * mid-session but still running, or a `startsAsDisabled` plugin being
+   * re-enabled. Consolidates the per-row hints so a Trust flip (applied
+   * immediately, not through the buffered Apply) is clearly visible.
+   */
+  pluginsRestartHint:
+    'Some project plugins changed state. Restart `sm` for the changes to take effect.',
 
   /** Global footer actions for the buffered modal. The footer lives in
    *  the chassis (`<sm-settings-modal>`); one Apply commits every

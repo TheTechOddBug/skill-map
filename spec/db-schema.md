@@ -439,10 +439,7 @@ Records the operator's LOCAL import-trust grants for project-local drop-in plugi
 | `trusted` | INTEGER | NOT NULL DEFAULT 0, CHECK (`trusted` IN (0,1)) |
 | `updated_at` | INTEGER | NOT NULL |
 
-**Effective trust resolution.** A project-local plugin's code is imported iff it is **enabled** (config layers) AND it is **trusted** locally. A plugin is trusted iff either:
-
-1. A `config_plugins` row with `trusted = 1` exists for its `plugin_id`, written by `sm plugins trust` (cleared by `sm plugins untrust`). Keyed by the **bare plugin id** (trust is per-plugin; a qualified `<plugin>/<ext>` collapses to its plugin), OR
-2. the local opt-in `pluginTrust.projectEnabled` (project-local-only config, honoured only from `settings.local.json`) is set, which trusts every plugin the project enables.
+**Effective trust resolution.** A project-local plugin's code is imported iff it is **enabled** (config layers) AND it is **trusted** locally. A plugin is trusted iff a `config_plugins` row with `trusted = 1` exists for its `plugin_id`, written by `sm plugins trust <id>` (cleared by `sm plugins untrust`), or by `sm plugins trust --all` which writes a row for every discovered drop-in at once. Keyed by the **bare plugin id** (trust is per-plugin; a qualified `<plugin>/<ext>` collapses to its plugin).
 
 The store is structurally LOCAL: the DB never travels in a commit and is not a config layer, so a cloned repo's committed `settings.json` can never grant import trust to its own plugins (the supply-chain guard). Built-ins and `--plugin-dir` are not trust-gated. See [`architecture.md` §Locality](./architecture.md) (plugin enable vs import trust).
 

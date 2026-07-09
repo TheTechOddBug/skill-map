@@ -49,20 +49,19 @@ import { readJsonObjectOrEmpty, writeJsonAtomic } from '../../kernel/util/atomic
  *   - disk access OUTSIDE the project root, `scan.referencePaths`
  *     (string[] of directories walked for link validation only). The
  *     "exposure" is the list of out-of-project paths the change adds.
- *   - the LOCAL code-execution surface, `pluginTrust.projectEnabled`
- *     (boolean), which locally trusts every plugin the project enables.
- *     The "exposure" is "turning blanket plugin trust on".
+ *   - following symlinks whose target escapes the scan roots,
+ *     `scan.followExternalSymlinks` (boolean). The "exposure" is
+ *     "re-enabling out-of-tree link dereference".
  *
  * The CLI wrapper (`sm config set`) and the BFF (`PATCH
  * /api/project-preferences`) consult this set + the "expanding the
  * surface?" predicate (`projectPathExposure` for the path key,
- * `projectTrustExposure` for the trust key) to decide whether `--yes` /
- * `confirm: true` is required. Writes that NARROW the surface (removing
- * paths, turning trust off) are not gated.
+ * `projectFollowSymlinksExposure` for the symlink key) to decide whether
+ * `--yes` / `confirm: true` is required. Writes that NARROW the surface
+ * (removing paths, turning the toggle off) are not gated.
  */
 export const PRIVACY_SENSITIVE_KEYS: ReadonlySet<string> = new Set<string>([
   'scan.referencePaths',
-  'pluginTrust.projectEnabled',
   'scan.followExternalSymlinks',
 ]);
 
@@ -323,37 +322,11 @@ export function projectPathExposure(inputs: IPathExposureInputs): IPathExposureR
 }
 
 /**
- * Project the code-execution-surface expansion of a `pluginTrust.projectEnabled`
- * write. Returns `{ expandsSurface: true }` only when the operator is
- * turning the local opt-in ON (`value === true`) and it is not already
- * on; turning it OFF (or leaving it on) never expands the surface, so it
- * is not gated.
- *
- * Unlike `projectPathExposure` there is no path list to enumerate, the
- * "exposure" is the blanket "trust every plugin the project enables".
- * The CLI / UI surface a generic confirm; computing the exact list of
- * currently-untrusted-but-enabled plugins needs the plugin runtime + DB
- * trust map (not available here), so the helper stays config-only.
- */
-export function projectTrustExposure(inputs: {
-  value: unknown;
-  cwd: string;
-}): { expandsSurface: boolean } {
-  if (inputs.value !== true) return { expandsSurface: false };
-  const before =
-    readConfigValue<boolean>('pluginTrust.projectEnabled', {
-      cwd: inputs.cwd,
-      default: false,
-    }) ?? false;
-  return { expandsSurface: before !== true };
-}
-
-/**
  * Project the disk-read-surface expansion of a `scan.followExternalSymlinks`
  * write. Returns `{ expandsSurface: true }` only when the operator is
  * turning the local opt-in ON (`value === true`) and it is not already on;
  * turning it OFF (or leaving it on) never expands the surface, so it is not
- * gated. Same boolean-flip shape as `projectTrustExposure`: the "exposure"
+ * gated. A boolean-flip write (like the path key's list add): the "exposure"
  * is "follow symlinks whose target escapes the scan roots", so a committed,
  * hostile symlink can read arbitrary local files once it is on. Config-only
  * (no path list to enumerate, the reachable targets depend on the on-disk

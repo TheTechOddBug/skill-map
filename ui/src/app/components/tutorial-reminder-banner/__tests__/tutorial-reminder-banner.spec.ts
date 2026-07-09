@@ -14,7 +14,6 @@ function makeDataSource(dismissed: boolean) {
     getProjectPreferences: vi.fn().mockResolvedValue({
       allowSidecarWriters: true,
       scan: { referencePaths: [], followExternalSymlinks: false, respectGitignore: false },
-      pluginTrust: { projectEnabled: false },
       tutorialReminderDismissed: dismissed,
     }),
     setProjectPreferences: setSpy,

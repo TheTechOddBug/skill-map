@@ -52,7 +52,6 @@ import {
   PROJECT_LOCAL_ONLY_KEYS,
   ProjectLocalOnlyKeyError,
   projectPathExposure,
-  projectTrustExposure,
   projectFollowSymlinksExposure,
   removeConfigValue,
   writeConfigValue,
@@ -602,7 +601,7 @@ export class ConfigSetCommand extends SmCommand {
   key = Option.String({ required: true });
   value = Option.String({ required: true });
   yes = Option.Boolean('--yes', false, {
-    description: 'Confirm a surface-expanding write: disk access outside the project (scan.referencePaths) or blanket local plugin trust (pluginTrust.projectEnabled).',
+    description: 'Confirm a surface-expanding write: disk access outside the project (scan.referencePaths) or following out-of-tree symlinks (scan.followExternalSymlinks).',
   });
 
   // CLI orchestrator: each branch is one validation gate (forbidden
@@ -621,12 +620,9 @@ export class ConfigSetCommand extends SmCommand {
 
     // Privacy gate: writes that EXPAND the project surface require
     // `--yes`. Writes that NARROW it pass through without confirmation.
-    // `pluginTrust.projectEnabled` expands the LOCAL code-execution
-    // surface (its own gate); `scan.referencePaths` expands disk access.
-    if (this.key === 'pluginTrust.projectEnabled') {
-      const trustGate = this.#applyTrustGate(value, ctx.cwd, errGlyph, stderrAnsi);
-      if (trustGate !== null) return trustGate;
-    } else if (this.key === 'scan.followExternalSymlinks') {
+    // `scan.followExternalSymlinks` re-enables out-of-tree link
+    // dereference; `scan.referencePaths` expands disk access.
+    if (this.key === 'scan.followExternalSymlinks') {
       const followGate = this.#applyFollowSymlinksGate(value, ctx.cwd, errGlyph, stderrAnsi);
       if (followGate !== null) return followGate;
     } else if (PRIVACY_SENSITIVE_KEYS.has(this.key)) {
@@ -771,40 +767,11 @@ export class ConfigSetCommand extends SmCommand {
   }
 
   /**
-   * Code-execution-surface gate for `pluginTrust.projectEnabled`.
-   * Turning the local opt-in ON trusts every plugin the project enables,
-   * so it requires `--yes`. Returns an exit code to bail with, or `null`
-   * to proceed (on a confirmed expansion it prints the receipt).
-   */
-  #applyTrustGate(
-    value: unknown,
-    cwd: string,
-    errGlyph: string,
-    stderrAnsi: IAnsi,
-  ): number | null {
-    const exposure = projectTrustExposure({ value, cwd });
-    if (!exposure.expandsSurface) return null;
-    if (!this.yes) {
-      this.printer!.error(
-        tx(CONFIG_TEXTS.trustGateRequired, {
-          glyph: errGlyph,
-          hint: stderrAnsi.dim(CONFIG_TEXTS.trustGateRequiredHint),
-        }),
-      );
-      return ExitCode.Error;
-    }
-    this.printer!.info(
-      tx(CONFIG_TEXTS.trustGateConfirmed, { glyph: stderrAnsi.dim('ⓘ') }),
-    );
-    return null;
-  }
-
-  /**
    * Disk-read-surface gate for `scan.followExternalSymlinks`. Turning the
    * local opt-in ON lets the scan dereference symlinks whose target
-   * escapes the project, so it requires `--yes`. Same boolean-flip shape
-   * as `#applyTrustGate`. Returns an exit code to bail with, or `null` to
-   * proceed (printing the receipt on a confirmed expansion).
+   * escapes the project, so it requires `--yes`. A boolean-flip gate.
+   * Returns an exit code to bail with, or `null` to proceed (printing the
+   * receipt on a confirmed expansion).
    */
   #applyFollowSymlinksGate(
     value: unknown,

@@ -426,7 +426,7 @@ export const SERVER_TEXTS = {
   projectPrefsBodyNotJson: 'Request body must be valid JSON.',
   projectPrefsBodyNotObject: 'Request body must be a JSON object.',
   projectPrefsBodyEmpty:
-    'Request body must contain `allowSidecarWriters`, a `scan` block with `referencePaths`, and/or a `pluginTrust` block with `projectEnabled`.',
+    'Request body must contain `allowSidecarWriters`, a `scan` block with `referencePaths`, `tutorialReminderDismissed`, and/or a `ui` block.',
   projectPrefsConfirmNotBoolean: '`confirm` must be a boolean.',
   projectPrefsSidecarWritersNotBoolean: '`allowSidecarWriters` must be a boolean.',
   projectPrefsReminderNotBoolean: '`tutorialReminderDismissed` must be a boolean.',
@@ -434,9 +434,6 @@ export const SERVER_TEXTS = {
     '`ui` must be an object (e.g. `{"ui": {"liveUpdates": false}}`).',
   projectPrefsLiveUpdatesNotBoolean: '`ui.liveUpdates` must be a boolean.',
   projectPrefsRealtimeActivityNotBoolean: '`ui.realtimeActivity` must be a boolean.',
-  projectPrefsTrustNotObject:
-    '`pluginTrust` must be an object (e.g. `{"pluginTrust": {"projectEnabled": true}}`).',
-  projectPrefsTrustEnabledNotBoolean: '`pluginTrust.projectEnabled` must be a boolean.',
   // Server-stderr advisory after `PATCH /api/project-preferences`
   // toggles the committed sidecar-writer policy. Lets the operator see
   // the team-shared change land without opening settings.json.
@@ -457,16 +454,6 @@ export const SERVER_TEXTS = {
   projectPrefsConfirmRequired:
     'This change opens disk access outside the project: {{paths}}. ' +
     'Re-issue the request with `confirm: true` to proceed.',
-  // 412, turning on the local plugin-trust opt-in. Expands the LOCAL
-  // code-execution surface (every plugin the project enables becomes
-  // trusted), so the route refuses without `confirm: true`.
-  projectPrefsTrustConfirmRequired:
-    'Turning on pluginTrust.projectEnabled trusts every plugin this project enables; ' +
-    'their code may then import and run on this machine. ' +
-    'Re-issue the request with `confirm: true` to proceed.',
-  // Server-stderr advisory after the local plugin-trust opt-in changes.
-  projectPrefsTrustSet:
-    'project-prefs: pluginTrust.projectEnabled = {{value}}',
   projectPrefsFollowSymlinksNotBoolean: '`scan.followExternalSymlinks` must be a boolean.',
   // 412, turning on external-symlink following. Expands the local
   // disk-read surface (the scan follows links whose target escapes the

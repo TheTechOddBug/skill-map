@@ -11,8 +11,6 @@
  *     built-ins are rejected 403.
  *   - `startsAsDisabled` is stamped only when a plugin was config-disabled
  *     at boot, NOT when it is merely untrusted.
- *   - `pluginTrust.projectEnabled` rides the project-preferences route
- *     with the 412 `confirm-required` gate (turning it on).
  *
  * Each test boots a real `createServer()` against a file-path project DB
  * (never `:memory:`), `dbPath` pointing at the SAME default project DB the
@@ -363,72 +361,6 @@ describe('PATCH /api/plugins/:id/trust', () => {
       const body = (await res.json()) as { ok: boolean; error: { code: string } };
       assert.equal(body.error.code, 'db-missing');
     });
-  });
-});
-
-describe('pluginTrust.projectEnabled, project-preferences confirm gate', () => {
-  it('returns 412 confirm-required when turning the opt-in ON without confirm', async () => {
-    const scope = freshScope('pref-trust-412');
-    await primeDb(scope.dbPath);
-
-    await bootAndUse(scope, {}, async (handle) => {
-      const res = await fetch(url(handle, '/api/project-preferences'), {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ pluginTrust: { projectEnabled: true } }),
-      });
-      assert.equal(res.status, 412);
-      const body = (await res.json()) as { ok: boolean; error: { code: string } };
-      assert.equal(body.ok, false);
-      assert.equal(body.error.code, 'confirm-required');
-    });
-    // Nothing persisted to the local layer on the refused write.
-    assert.deepEqual(readSettingsFile(scope, 'settings.local'), {});
-  });
-
-  it('persists to settings.local.json with confirm: true and reads back', async () => {
-    const scope = freshScope('pref-trust-confirm');
-    await primeDb(scope.dbPath);
-
-    await bootAndUse(scope, {}, async (handle) => {
-      const res = await fetch(url(handle, '/api/project-preferences'), {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ pluginTrust: { projectEnabled: true }, confirm: true }),
-      });
-      assert.equal(res.status, 200);
-      const body = (await res.json()) as { pluginTrust: { projectEnabled: boolean } };
-      assert.equal(body.pluginTrust.projectEnabled, true);
-    });
-    // The opt-in landed in the gitignored local file, never the committed one.
-    const local = readSettingsFile(scope, 'settings.local') as {
-      pluginTrust?: { projectEnabled?: boolean };
-    };
-    assert.equal(local.pluginTrust?.projectEnabled, true);
-    assert.deepEqual(readSettingsFile(scope, 'settings'), {});
-  });
-
-  it('turning the opt-in OFF needs no confirm', async () => {
-    const scope = freshScope('pref-trust-off');
-    await primeDb(scope.dbPath);
-    // Start with it on (in the local layer).
-    writeFileSync(
-      join(scope.cwd, '.skill-map', 'settings.local.json'),
-      JSON.stringify({ pluginTrust: { projectEnabled: true } }),
-    );
-
-    await bootAndUse(scope, {}, async (handle) => {
-      const res = await fetch(url(handle, '/api/project-preferences'), {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ pluginTrust: { projectEnabled: false } }),
-      });
-      assert.equal(res.status, 200);
-    });
-    const local = readSettingsFile(scope, 'settings.local') as {
-      pluginTrust?: { projectEnabled?: boolean };
-    };
-    assert.equal(local.pluginTrust?.projectEnabled, false);
   });
 });
 

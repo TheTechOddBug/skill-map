@@ -175,12 +175,11 @@ export interface IPluginListItem {
   startsAsDisabled?: boolean;
   /**
    * Stamped `true` on a drop-in plugin that carries a LOCAL import-trust
-   * grant, either a `config_plugins` trust row (written by
-   * `sm plugins trust` / `PATCH /api/plugins/:id/trust`) or the local
-   * opt-in `pluginTrust.projectEnabled`. Omitted when false, so an
-   * untrusted project-local plugin reads `trusted` absent. Built-ins
-   * always omit it (they are never trust-gated). The SPA renders the
-   * per-plugin Trust control off this flag.
+   * grant: a `config_plugins` trust row (written by `sm plugins trust`
+   * / `sm plugins trust --all` / `PATCH /api/plugins/:id/trust`). Omitted
+   * when false, so an untrusted project-local plugin reads `trusted`
+   * absent. Built-ins always omit it (they are never trust-gated). The
+   * SPA renders the per-plugin Trust control off this flag.
    */
   trusted?: boolean;
   /**
@@ -223,12 +222,10 @@ interface IBulkPatchBody {
   changes: readonly IBulkChange[];
 }
 
-/** Trust state for the read projection: the DB trust map + the opt-in. */
+/** Trust state for the read projection: the DB trust map. */
 interface ITrustState {
   /** `config_plugins` trust rows keyed by bare plugin id. */
   trustMap: Map<string, boolean>;
-  /** `pluginTrust.projectEnabled` local opt-in (trusts every enabled plugin). */
-  trustProjectEnabled: boolean;
 }
 
 const SINGLE_PATCH_BODY_SCHEMA = {
@@ -510,9 +507,8 @@ function listItems(
 
 /**
  * Read the LOCAL trust state for the read projection: the `config_plugins`
- * trust map (DB) plus the `pluginTrust.projectEnabled` opt-in (config).
- * A missing DB degrades to an empty map (every drop-in untrusted unless
- * the opt-in is on). Built-ins are never trust-gated and ignore both.
+ * trust map (DB). A missing DB degrades to an empty map (every drop-in
+ * untrusted). Built-ins are never trust-gated and ignore it.
  */
 async function loadTrustState(deps: IRouteDeps): Promise<ITrustState> {
   const trustMap =
@@ -520,9 +516,7 @@ async function loadTrustState(deps: IRouteDeps): Promise<ITrustState> {
       { databasePath: deps.options.dbPath, autoBackup: false },
       (adapter) => adapter.trust.loadTrustMap(),
     )) ?? new Map<string, boolean>();
-  const trustProjectEnabled =
-    deps.configService.effective().pluginTrust?.projectEnabled ?? false;
-  return { trustMap, trustProjectEnabled };
+  return { trustMap };
 }
 
 function buildBuiltInItems(
@@ -614,8 +608,7 @@ function buildDiscoveredItem(
  * `buildDiscoveredItem` to keep it within the complexity budget.
  *
  * `trusted`: a drop-in is trusted when it carries a `config_plugins` trust
- * row OR the local `pluginTrust.projectEnabled` opt-in is on (omitted when
- * false).
+ * row (omitted when false).
  *
  * `startsAsDisabled`: snapshots the BOOT-time loader verdict, stamped only
  * when the plugin was config-disabled at boot (`status: 'disabled'` for a
@@ -630,7 +623,7 @@ function discoveredFlags(
   pluginLocked: boolean,
   trust: ITrustState,
 ): Partial<Pick<IPluginListItem, 'locked' | 'trusted' | 'startsAsDisabled'>> {
-  const trusted = trust.trustMap.get(plugin.id) === true || trust.trustProjectEnabled;
+  const trusted = trust.trustMap.get(plugin.id) === true;
   return {
     ...(pluginLocked ? { locked: true } : {}),
     ...(trusted ? { trusted: true } : {}),

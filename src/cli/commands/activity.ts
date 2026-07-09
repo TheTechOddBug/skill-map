@@ -61,8 +61,8 @@ import { SmCommand } from '../util/sm-command.js';
  * an untrusted repo plugin is never imported). Used so `sm activity` sees
  * a drop-in Provider's `activity` adapter, not only the built-in set. A
  * project-local plugin therefore reaches the verb only when the operator
- * has trusted it (`sm plugins trust <id>` / `pluginTrust.projectEnabled`),
- * the same boundary the scan honours.
+ * has trusted it (`sm plugins trust <id>`), the same boundary the scan
+ * honours.
  */
 async function composeActiveProviders(): Promise<IProvider[]> {
   const pluginRuntime = await loadPluginRuntime();

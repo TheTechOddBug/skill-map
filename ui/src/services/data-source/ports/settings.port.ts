@@ -55,9 +55,9 @@ export interface ISettingsPort {
    * as `DataSourceError` with code `confirm-required` and a `paths`
    * field listing what the change would expose). Two surface-
    * expanding sub-keys ride this route: `scan.referencePaths` (disk
-   * access outside the project) and `pluginTrust.projectEnabled`
-   * (local code-execution trust for every enabled plugin). Demo mode
-   * rejects every write with `code: 'demo-readonly'`.
+   * access outside the project) and `scan.followExternalSymlinks`
+   * (following out-of-tree symlinks). Demo mode rejects every write
+   * with `code: 'demo-readonly'`.
    */
   setProjectPreferences(patch: IProjectPreferencesPatchApi): Promise<IProjectPreferencesApi>;
 

@@ -9,19 +9,18 @@
  *
  *   - **Trusted** (security, LOCAL, per-machine). Does THIS machine's
  *     operator consent to importing the plugin's code? Lives in the DB
- *     (`config_plugins` trust store, written by `sm plugins trust`),
- *     plus a local opt-in escape hatch (`pluginTrust.projectEnabled`).
- *     `makeTrustResolver` owns this question.
+ *     (`config_plugins` trust store, written by `sm plugins trust <id>`
+ *     or `sm plugins trust --all`). `makeTrustResolver` owns this question.
  *
  * A project-local plugin's code is imported iff it is **enabled** (config)
- * AND (it is **trusted** (DB) OR the local opt-in `pluginTrust.projectEnabled`
- * is set). Per-extension enable is applied AFTER import, at registration.
+ * AND it is **trusted** (DB). Per-extension enable is applied AFTER import,
+ * at registration.
  *
  * The two axes are deliberately split: a committed `settings.json` can
  * mark a plugin enabled (team-shared "this is part of the project") but
  * can NEVER grant import trust, since the DB never travels in a commit.
- * A fresh clone has no DB trust row and no local opt-in, so its
- * project-local plugins are discovered but never executed.
+ * A fresh clone has no DB trust row, so its project-local plugins are
+ * discovered but never executed.
  */
 
 import type { TExtensionStability } from '../extensions/base.js';
@@ -147,13 +146,13 @@ export function makeEnabledResolver(
  * Build the loader's import-trust gate (security boundary): may a
  * project-local disk plugin's code be imported AT ALL?
  *
- * A plugin is trusted when EITHER the per-machine `config_plugins` trust
- * store carries a `trusted = true` row for its bare id (written by
- * `sm plugins trust`), OR the local opt-in `pluginTrust.projectEnabled`
- * is set (which trusts every plugin the project enables). Both signals
- * are LOCAL: the DB never travels in a commit and the opt-in is stripped
- * from the committed config layer, so a cloned repo's `settings.json`
- * can never auto-execute its own plugins on the victim's first scan.
+ * A plugin is trusted when the per-machine `config_plugins` trust store
+ * carries a `trusted = true` row for its bare id (written by
+ * `sm plugins trust <id>`, or `sm plugins trust --all` for every
+ * discovered drop-in at once). The store is LOCAL: the DB never travels
+ * in a commit and is not a config layer, so a cloned repo's committed
+ * `settings.json` can never auto-execute its own plugins on the victim's
+ * first scan.
  *
  * `trustMap` is keyed by BARE plugin id (trust is per-plugin); the loader
  * calls `resolveImportTrust(pluginId)` with a bare id, so shapes match.
@@ -163,10 +162,6 @@ export function makeEnabledResolver(
  */
 export function makeTrustResolver(
   trustMap: Map<string, boolean>,
-  trustProjectEnabled: boolean,
 ): (pluginId: string) => boolean {
-  return (pluginId) =>
-    isPluginLocked(pluginId) ||
-    trustMap.get(pluginId) === true ||
-    trustProjectEnabled;
+  return (pluginId) => isPluginLocked(pluginId) || trustMap.get(pluginId) === true;
 }

@@ -762,8 +762,9 @@ export interface IPluginItemApi {
   /**
    * Local import-trust grant (security axis, per-plugin). Stamped `true`
    * on a drop-in (`source: 'project'`) plugin the operator has trusted on
-   * THIS machine (a `config_plugins` DB trust row, or the
-   * `pluginTrust.projectEnabled` opt-in). OMITTED when false, so an
+   * THIS machine (a `config_plugins` DB trust row, written by
+   * `sm plugins trust <id>` / `sm plugins trust --all` or the Trust
+   * button). OMITTED when false, so an
    * untrusted project-local plugin reads `trusted` absent. Built-ins are
    * never trust-gated and never carry it. A plugin runs only when it is
    * both enabled (config) AND trusted (this flag); an untrusted plugin is
@@ -1005,20 +1006,6 @@ export interface IProjectPreferencesApi {
     respectGitignore: boolean;
   };
   /**
-   * Machine-local plugin-trust opt-in. When `projectEnabled` is `true`,
-   * every plugin the project enables is trusted to run on THIS machine
-   * without a per-plugin trust grant (the team-vets-in-review escape
-   * hatch). Surface-expanding (it locally trusts currently-untrusted
-   * enabled plugins), so flipping it ON goes through the same
-   * `confirm-required` (412) gate as `scan.referencePaths`. Persisted in
-   * `settings.local.json` (project-local only, never committed). The BFF
-   * always emits the sub-object with a concrete boolean; the field is
-   * optional here only to tolerate an older envelope that predates it.
-   */
-  pluginTrust?: {
-    projectEnabled: boolean;
-  };
-  /**
    * Project-local UI preference: when `true`, the web UI hides the topbar
    * reminder nudging first-time users to run `sm tutorial`. Default `false`.
    * Optional only to tolerate an older BFF envelope that predates it; the
@@ -1063,16 +1050,6 @@ export interface IProjectPreferencesPatchApi {
     followExternalSymlinks?: boolean;
     /** Flip the committed `.gitignore` opt-in (team-shared). No confirm gate. */
     respectGitignore?: boolean;
-  };
-  /**
-   * Flip the machine-local plugin-trust opt-in. Setting `projectEnabled`
-   * to `true` EXPANDS the local code-execution surface (it trusts every
-   * plugin the project enables), so it requires `confirm: true` in the
-   * body; the BFF rejects with 412 `confirm-required` otherwise. Setting
-   * it `false` narrows the surface and needs no confirm.
-   */
-  pluginTrust?: {
-    projectEnabled?: boolean;
   };
   /** Dismiss (or restore) the topbar tutorial reminder (project-local). */
   tutorialReminderDismissed?: boolean;

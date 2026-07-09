@@ -29,7 +29,6 @@ import {
 interface IProjectPrefsEnvelopeWire {
   allowSidecarWriters: boolean;
   scan: { referencePaths: string[]; followExternalSymlinks: boolean; respectGitignore: boolean };
-  pluginTrust: { projectEnabled: boolean };
   tutorialReminderDismissed: boolean;
   ui: { liveUpdates: boolean; realtimeActivity: boolean };
 }
@@ -96,7 +95,6 @@ describe('GET /api/project-preferences', () => {
       assert.deepEqual(env, {
         allowSidecarWriters: true,
         scan: { referencePaths: [], followExternalSymlinks: false, respectGitignore: false },
-        pluginTrust: { projectEnabled: false },
         tutorialReminderDismissed: false,
         ui: { liveUpdates: true, realtimeActivity: true },
       });
@@ -120,6 +118,22 @@ describe('PATCH /api/project-preferences', () => {
       const env = (await res.json()) as IErrorEnvelopeWire;
       assert.equal(env.ok, false);
       assert.match(env.error.message, /opens disk access outside the project/);
+    });
+  });
+
+  it('400 bad-query for the removed pluginTrust key (no longer in the contract)', async () => {
+    // The blanket `pluginTrust.projectEnabled` opt-in was removed; the body
+    // schema is `additionalProperties: false`, so the stale key is rejected
+    // rather than silently honoured.
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/project-preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ pluginTrust: { projectEnabled: true } }),
+      });
+      assert.equal(res.status, 400);
+      const env = (await res.json()) as IErrorEnvelopeWire;
+      assert.equal(env.ok, false);
     });
   });
 

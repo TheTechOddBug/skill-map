@@ -1,10 +1,9 @@
 /**
  * Coverage for `kernel/config/plugin-resolver`, the two-axis model:
  *
- *   - `makeTrustResolver(trustMap, trustProjectEnabled)`, the import-trust
- *     gate (security). `trustMap` is keyed by BARE plugin id; a
- *     `trusted = true` row OR the `pluginTrust.projectEnabled` opt-in OR a
- *     locked host id grants trust. An empty map + no opt-in trusts nothing
+ *   - `makeTrustResolver(trustMap)`, the import-trust gate (security).
+ *     `trustMap` is keyed by BARE plugin id; a `trusted = true` row OR a
+ *     locked host id grants trust. An empty map trusts nothing
  *     (fail-closed, a fresh clone).
  *   - `resolvePluginEnabled(id, cfg, installedDefault)`, the operational
  *     enable axis (config-only). Bare ids read the plugin-level toggle;
@@ -23,9 +22,8 @@ import type { IEffectiveConfig } from '../loader.js';
 
 function trust(
   entries: Array<[string, boolean]>,
-  projectEnabled = false,
 ): (pluginId: string) => boolean {
-  return makeTrustResolver(new Map(entries), projectEnabled);
+  return makeTrustResolver(new Map(entries));
 }
 
 function cfg(plugins: IEffectiveConfig['plugins']): Pick<IEffectiveConfig, 'plugins'> {
@@ -33,7 +31,7 @@ function cfg(plugins: IEffectiveConfig['plugins']): Pick<IEffectiveConfig, 'plug
 }
 
 describe('makeTrustResolver', () => {
-  it('trusts nothing when the map is empty and the opt-in is off (fresh clone)', () => {
+  it('trusts nothing when the map is empty (fresh clone)', () => {
     const resolve = trust([]);
     assert.equal(resolve('evil'), false);
     assert.equal(resolve('anything'), false);
@@ -54,12 +52,6 @@ describe('makeTrustResolver', () => {
     // qualified key in the map never lines up (it should never be stored).
     const resolve = trust([['my-plugin/analyzer', true]]);
     assert.equal(resolve('my-plugin'), false);
-  });
-
-  it('the pluginTrust.projectEnabled opt-in trusts every plugin', () => {
-    const resolve = trust([], true);
-    assert.equal(resolve('a'), true);
-    assert.equal(resolve('b'), true);
   });
 
   it('always trusts a locked host id (defense-in-depth arm)', () => {

@@ -182,6 +182,25 @@ export class SettingsPlugins {
     this.plugins().some((plugin) => plugin.source === 'project'),
   );
 
+  /**
+   * `true` when at least one drop-in plugin is in a state whose effect only
+   * lands on the next `sm` restart: trusted-but-not-yet-loaded or
+   * untrusted-but-still-running (a mid-session Trust flip), or a
+   * `startsAsDisabled` plugin being re-enabled in the buffer. Drives the
+   * section-level restart banner. Per-row hints carry the plugin-specific
+   * detail; this consolidates the "you'll need to restart" signal so a
+   * Trust flip (an immediate PATCH, not part of the buffered Apply, so the
+   * footer never shows it) is not only a subtle per-row line.
+   */
+  protected readonly anyPluginNeedsRestart = computed<boolean>(() =>
+    this.plugins().some(
+      (plugin) =>
+        this.needsRestartToLoad(plugin) ||
+        this.needsRestartToUnload(plugin) ||
+        this.showStartsAsDisabledHint(plugin),
+    ),
+  );
+
   constructor() {
     effect(() => {
       if (this.visible()) void this.pluginState.refresh();

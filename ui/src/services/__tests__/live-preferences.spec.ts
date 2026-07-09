@@ -19,7 +19,6 @@ function prefsEnvelope(ui?: IProjectPreferencesApi['ui']): IProjectPreferencesAp
   return {
     allowSidecarWriters: true,
     scan: { referencePaths: [], followExternalSymlinks: false, respectGitignore: false },
-    pluginTrust: { projectEnabled: false },
     tutorialReminderDismissed: false,
     ...(ui ? { ui } : {}),
   };

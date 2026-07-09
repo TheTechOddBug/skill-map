@@ -29,7 +29,6 @@ import { HTTPException } from 'hono/http-exception';
 
 import {
   projectPathExposure,
-  projectTrustExposure,
   projectFollowSymlinksExposure,
   readConfigValue,
   writeConfigValue,
@@ -57,7 +56,7 @@ export interface IProjectPreferencesEnvelope {
      * Local, per-machine opt-in: when `true`, the scan follows a symlink
      * whose target escapes the project root. Default `false` (contained).
      * Project-local only (stripped from the committed layer); turning it
-     * ON is surface-expanding (412 confirm gate), like `pluginTrust`.
+     * ON is surface-expanding (412 confirm gate), like `scan.referencePaths`.
      */
     followExternalSymlinks: boolean;
     /**
@@ -68,15 +67,6 @@ export interface IProjectPreferencesEnvelope {
      * never reads outside the project root).
      */
     respectGitignore: boolean;
-  };
-  /**
-   * Local, per-machine plugin import-trust opt-in. When `true`, every
-   * plugin the project enables is treated as locally trusted. Default
-   * `false`. Project-local only (stripped from the committed layer);
-   * turning it ON is surface-expanding (412 confirm gate).
-   */
-  pluginTrust: {
-    projectEnabled: boolean;
   };
   /**
    * Project-local UI preference: when `true`, the web UI hides the topbar
@@ -103,9 +93,6 @@ interface IPatchBody {
     referencePaths?: string[];
     followExternalSymlinks?: boolean;
     respectGitignore?: boolean;
-  };
-  pluginTrust?: {
-    projectEnabled?: boolean;
   };
   tutorialReminderDismissed?: boolean;
   ui?: {
@@ -135,13 +122,6 @@ function buildEnvelope(deps: IRouteDeps): IProjectPreferencesEnvelope {
         default: true,
       }) ?? true,
     scan: buildScanEnvelope(cwd),
-    pluginTrust: {
-      projectEnabled:
-        readConfigValue<boolean>('pluginTrust.projectEnabled', {
-          cwd,
-          default: false,
-        }) ?? false,
-    },
     tutorialReminderDismissed:
       readConfigValue<boolean>('tutorialReminderDismissed', {
         cwd,
@@ -202,11 +182,6 @@ async function applyPatch(deps: IRouteDeps, body: IPatchBody): Promise<void> {
   // (an actual add / remove) drives the watcher restart.
   const scan = applyScanWrites(body, cwd);
 
-  // Local plugin-trust opt-in: a project-local-only boolean. Turning it
-  // ON expands the local code-execution surface, so it carries its own
-  // 412 confirm gate (see `applyTrustWrite`).
-  const trustChanged = applyTrustWrite(body, cwd);
-
   // Local external-symlink opt-in: a project-local-only boolean. Turning
   // it ON expands the disk-read surface (the scan follows escaping
   // links), so it carries its own 412 confirm gate (see
@@ -229,9 +204,8 @@ async function applyPatch(deps: IRouteDeps, body: IPatchBody): Promise<void> {
   // restart guarantees the operator sees the effect (new path list,
   // dropped / restored writer buttons, external-symlink toggle) without
   // waiting for an unrelated edit. Failures here do not roll back the
-  // on-disk write. The trust opt-in is NOT restart-applicable (handlers
-  // load at boot), so it does not trigger a restart. `.some(Boolean)`
-  // keeps this orchestrator under the cyclomatic budget as keys grow.
+  // on-disk write. `.some(Boolean)` keeps this orchestrator under the
+  // cyclomatic budget as keys grow.
   const shouldRestart = [
     policyChanged,
     respectGitignoreChanged,
@@ -242,7 +216,6 @@ async function applyPatch(deps: IRouteDeps, body: IPatchBody): Promise<void> {
     policyChanged,
     respectGitignoreChanged,
     scan.attempted,
-    trustChanged,
     reminderChanged,
     followChanged,
     uiChanged,
@@ -255,43 +228,6 @@ async function applyPatch(deps: IRouteDeps, body: IPatchBody): Promise<void> {
 }
 
 /**
- * Apply the `pluginTrust.projectEnabled` sub-key of the patch. Turning
- * the local opt-in ON expands the code-execution surface (every plugin
- * the project enables becomes trusted), so without `confirm: true` the
- * route returns 412 `confirm-required`. Turning it OFF (or a no-op) is
- * not gated. Persisted to the gitignored `project-local` layer (the key
- * is project-local only). Returns `true` when the value actually
- * changed, so the caller reloads the config cache.
- */
-function applyTrustWrite(body: IPatchBody, cwd: string): boolean {
-  const next = body.pluginTrust?.projectEnabled;
-  if (next === undefined) return false;
-  const before =
-    readConfigValue<boolean>('pluginTrust.projectEnabled', { cwd, default: false }) ?? false;
-  if (before === next) return false;
-
-  // Confirm gate: only a turn-ON expands the surface.
-  if (projectTrustExposure({ value: next, cwd }).expandsSurface && body.confirm !== true) {
-    throw new HTTPException(412, {
-      message: SERVER_TEXTS.projectPrefsTrustConfirmRequired,
-    });
-  }
-
-  try {
-    writeConfigValue('pluginTrust.projectEnabled', next, { target: 'project-local', cwd });
-  } catch (err) {
-    throw new HTTPException(400, {
-      message: tx(SERVER_TEXTS.projectPrefsPersistFailed, {
-        key: 'pluginTrust.projectEnabled',
-        message: formatErrorMessage(err),
-      }),
-    });
-  }
-  log.warn(tx(SERVER_TEXTS.projectPrefsTrustSet, { value: String(next) }));
-  return true;
-}
-
-/**
  * Apply the `scan.followExternalSymlinks` sub-key of the patch. Turning
  * the local opt-in ON lets the scan follow symlinks whose target escapes
  * the project (disk-read-surface expansion), so without `confirm: true`
@@ -299,7 +235,7 @@ function applyTrustWrite(body: IPatchBody, cwd: string): boolean {
  * not gated. Persisted to the gitignored `project-local` layer (the key is
  * project-local only). Handled separately from `applyScanWrites` (which
  * runs the path-existence / path-exposure gates for the list-shaped
- * `referencePaths`); this boolean mirrors `applyTrustWrite` instead.
+ * `referencePaths`); this is the boolean-flip counterpart.
  * Returns `true` when the value actually changed.
  */
 function applyFollowSymlinksWrite(body: IPatchBody, cwd: string): boolean {
@@ -697,7 +633,6 @@ const PATCH_BODY_SCHEMA = {
   anyOf: [
     { required: ['allowSidecarWriters'] },
     { required: ['scan'] },
-    { required: ['pluginTrust'] },
     { required: ['tutorialReminderDismissed'] },
     { required: ['ui'] },
   ],
@@ -727,14 +662,6 @@ const PATCH_BODY_SCHEMA = {
         respectGitignore: { type: 'boolean' },
       },
     },
-    pluginTrust: {
-      type: 'object',
-      additionalProperties: false,
-      minProperties: 1,
-      properties: {
-        projectEnabled: { type: 'boolean' },
-      },
-    },
   },
 } as const;
 
@@ -746,9 +673,6 @@ const parsePatchBody = makeBodyValidator<IPatchBody>(PATCH_BODY_SCHEMA, {
     ':anyOf': SERVER_TEXTS.projectPrefsBodyEmpty,
     '/scan:minProperties': SERVER_TEXTS.projectPrefsBodyEmpty,
     '/scan:type:object': SERVER_TEXTS.projectPrefsScanNotObject,
-    '/pluginTrust:minProperties': SERVER_TEXTS.projectPrefsBodyEmpty,
-    '/pluginTrust:type:object': SERVER_TEXTS.projectPrefsTrustNotObject,
-    '/pluginTrust/projectEnabled:type:boolean': SERVER_TEXTS.projectPrefsTrustEnabledNotBoolean,
     '/confirm:type:boolean': SERVER_TEXTS.projectPrefsConfirmNotBoolean,
     '/allowSidecarWriters:type:boolean': SERVER_TEXTS.projectPrefsSidecarWritersNotBoolean,
     '/tutorialReminderDismissed:type:boolean': SERVER_TEXTS.projectPrefsReminderNotBoolean,

@@ -92,23 +92,20 @@ export function isPluginExtensionEnabled(
 
 /**
  * Layered resolver inputs read once from config + DB: the (config-only)
- * enabled resolver AND the orthogonal import-trust inputs (the DB trust
- * map keyed by bare plugin id + the local `pluginTrust.projectEnabled`
- * opt-in) that back the import-trust gate. Bundled so `loadPluginRuntime`
- * builds everything from a single DB read.
+ * enabled resolver AND the orthogonal import-trust input (the DB trust
+ * map keyed by bare plugin id) that backs the import-trust gate. Bundled
+ * so `loadPluginRuntime` builds everything from a single DB read.
  */
 export interface IResolverInputs {
   resolveEnabled: EnabledResolver;
   /** `config_plugins` trust rows keyed by BARE plugin id (the LOCAL security signal). */
   trustMap: Map<string, boolean>;
-  /** `pluginTrust.projectEnabled` local opt-in: trust every enabled plugin. */
-  trustProjectEnabled: boolean;
 }
 
 /**
  * Read config + the DB trust map once and return the config-only enabled
- * resolver plus the import-trust inputs (`trustMap`,
- * `trustProjectEnabled`) the gate consumes (`makeTrustResolver`).
+ * resolver plus the import-trust input (`trustMap`) the gate consumes
+ * (`makeTrustResolver`).
  */
 export async function buildResolverInputs(
   ctx: IRuntimeContext,
@@ -126,7 +123,6 @@ export async function buildResolverInputs(
   return {
     resolveEnabled: makeEnabledResolver(cfg),
     trustMap,
-    trustProjectEnabled: cfg.pluginTrust?.projectEnabled ?? false,
   };
 }
 

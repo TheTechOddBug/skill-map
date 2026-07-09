@@ -13,9 +13,9 @@
  *     (or `--plugin-dir <path>` override).
  *   - Layer the enabled-resolver from the config layers (settings.json /
  *     settings.local.json). Disabled plugins are surfaced but not run.
- *     The orthogonal import-trust gate (DB `config_plugins` trust store +
- *     the `pluginTrust.projectEnabled` opt-in) decides whether a
- *     project-local plugin's code is imported at all.
+ *     The orthogonal import-trust gate (the DB `config_plugins` trust
+ *     store) decides whether a project-local plugin's code is imported
+ *     at all.
  *   - Bucket loaded extensions by kind into the same `IBuiltIns` shape
  *     the orchestrator already consumes. Caller merges with built-ins.
  *   - Convert failure modes into stderr-ready diagnostic strings. The
@@ -195,19 +195,16 @@ export async function loadPluginRuntime(
 
   let resolveEnabled: ((id: string) => boolean) | undefined;
   let trustMap: Map<string, boolean> | undefined;
-  let trustProjectEnabled: boolean | undefined;
   try {
     const inputs = await buildResolverInputs(ctx);
     resolveEnabled = inputs.resolveEnabled;
     trustMap = inputs.trustMap;
-    trustProjectEnabled = inputs.trustProjectEnabled;
   } catch {
     // Config / DB read failure here is non-fatal, fall through with
     // the loader's default ("every plugin enabled"). The actual scan
     // pipeline still runs; the user gets `sm plugins doctor` as the
-    // dedicated diagnostic surface. `trustMap` / `trustProjectEnabled`
-    // stay undefined, so the trust gate below trusts nothing (fails
-    // closed, the safe default).
+    // dedicated diagnostic surface. `trustMap` stays undefined, so the
+    // trust gate below trusts nothing (fails closed, the safe default).
   }
 
   const loaderOpts: IPluginLoaderOptions = {
@@ -220,14 +217,10 @@ export async function loadPluginRuntime(
   // discovery is gated: an explicit `--plugin-dir` is the operator
   // pointing the loader at code on purpose, while project discovery is
   // the clone-and-scan path where a hostile repo's `.skill-map/plugins/`
-  // must NOT auto-execute. `trustMap` defaults to empty + `trustProjectEnabled`
-  // to false when the config/DB read failed above, so the gate fails
-  // closed rather than open.
+  // must NOT auto-execute. `trustMap` defaults to empty when the
+  // config/DB read failed above, so the gate fails closed rather than open.
   if (!opts.pluginDir) {
-    loaderOpts.resolveImportTrust = makeTrustResolver(
-      trustMap ?? new Map(),
-      trustProjectEnabled ?? false,
-    );
+    loaderOpts.resolveImportTrust = makeTrustResolver(trustMap ?? new Map());
   }
   const loader = createPluginLoader(loaderOpts);
   const discovered = await loader.discoverAndLoadAll();

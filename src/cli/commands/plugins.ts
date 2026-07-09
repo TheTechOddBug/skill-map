@@ -19,7 +19,7 @@
  * runs only when it is BOTH enabled and trusted.
  *
  *   enabled = plugins.<plugin>.extensions.<ext>.enabled > plugins.<plugin>.enabled > installed default (true)
- *   trusted = config_plugins.trusted (bare id) OR pluginTrust.projectEnabled
+ *   trusted = config_plugins.trusted (bare id), written by `sm plugins trust [--all]`
  *
  * **Toggle model**: every extension is independently toggle-able by its
  * qualified id `<plugin>/<ext>` (e.g. `claude/at-directive`). The

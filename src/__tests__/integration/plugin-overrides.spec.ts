@@ -5,8 +5,8 @@
  *   1. Trust-store helper round-trips (set/get/list/delete/loadTrustMap).
  *   2. resolvePluginEnabled precedence (per-extension > plugin-level >
  *      installed default), config-only, with the qualified-id walk.
- *   3. makeTrustResolver (bare-id trust map + `pluginTrust.projectEnabled`
- *      opt-in + locked arm + fail-closed empty map).
+ *   3. makeTrustResolver (bare-id trust map + locked arm + fail-closed
+ *      empty map).
  *   4. PluginLoader honours BOTH gates in order: enabled-but-untrusted =>
  *      not loaded (`untrusted: true`); trust granted => loaded; an
  *      explicit config-disable reads `disabledByConfig`, never re-reads as
@@ -187,31 +187,25 @@ describe('resolvePluginEnabled, config-only precedence', () => {
 // -----------------------------------------------------------------------------
 
 describe('makeTrustResolver', () => {
-  it('trusts nothing with an empty map + no opt-in (fresh clone, fail-closed)', () => {
-    const trust = makeTrustResolver(new Map(), false);
+  it('trusts nothing with an empty map (fresh clone, fail-closed)', () => {
+    const trust = makeTrustResolver(new Map());
     assert.equal(trust('evil'), false);
     assert.equal(trust('anything'), false);
   });
 
   it('trusts a plugin whose bare id carries a trusted = true row', () => {
-    const trust = makeTrustResolver(new Map([['my-plugin', true]]), false);
+    const trust = makeTrustResolver(new Map([['my-plugin', true]]));
     assert.equal(trust('my-plugin'), true);
     assert.equal(trust('other'), false);
   });
 
   it('a trusted = false row does not grant trust', () => {
-    const trust = makeTrustResolver(new Map([['my-plugin', false]]), false);
+    const trust = makeTrustResolver(new Map([['my-plugin', false]]));
     assert.equal(trust('my-plugin'), false);
   });
 
-  it('the pluginTrust.projectEnabled opt-in trusts every plugin', () => {
-    const trust = makeTrustResolver(new Map(), true);
-    assert.equal(trust('a'), true);
-    assert.equal(trust('b'), true);
-  });
-
   it('always trusts a locked host id (defense-in-depth arm)', () => {
-    assert.equal(makeTrustResolver(new Map(), false)('core/markdown'), true);
+    assert.equal(makeTrustResolver(new Map())('core/markdown'), true);
   });
 });
 

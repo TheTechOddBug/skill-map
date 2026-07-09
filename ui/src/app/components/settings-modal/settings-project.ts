@@ -20,11 +20,11 @@
  *     toggle.
  *   - `<sm-settings-project-preferences>`: the rows backed by the one
  *     project-preferences envelope (follow-external-symlinks opt-in,
- *     reference-paths list, plugin-trust opt-in, sidecar-writer
- *     policy), mounted LAST so the two trust-flavoured toggles close
+ *     reference-paths list, sidecar-writer
+ *     policy), mounted LAST so the surface-expanding toggles close
  *     the section. It also hosts the mount point of the self-contained
  *     `<sm-settings-project-ignore>` (`.skillmapignore` patterns)
- *     between its reference-paths and plugin-trust rows, row order
+ *     between its reference-paths and gitignore rows, row order
  *     only, the envelope machinery does not touch it.
  *
  * The split mirrors the plugins section's decomposition
