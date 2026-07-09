@@ -254,7 +254,7 @@ Decisions from working sessions 2026-04-19 / 20 / 21 plus pre-session carry-over
 - **Diff / history** of graph across commits.
 - **Sync with live systems**, detecting what is enabled vs on disk.
 - **Query language**, arbitrary queries over the graph.
-- **MCP server as the primary interface**, excessive infra for a local tool.
+- **MCP server as the primary interface**, excessive infra for a local tool. (Narrowly REOPENED 2026-07-09 in a non-primary form: an opt-in, experimental, **read-only** MCP server exposed as a secondary surface on `sm serve` at `/mcp`, [`spec/mcp-server.md`](../spec/mcp-server.md). The rejection still stands for MCP as the PRIMARY interface; a read-only query surface alongside the Web UI, off by default, is a narrower goal that reuses the existing server + broadcaster.)
 - **Hook-based activation**, this is manual inspection, not automatic.
 - **Python**, Node ESM preferred for unification with future web server.
 - **`br` / beads task tracking**, experimental project, no formal tracking.

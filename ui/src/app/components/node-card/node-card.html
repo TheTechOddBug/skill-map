@@ -4,7 +4,7 @@
 @let moreTags = moreTagsCount();
 
 <div class="sm-gnode__main">
-    <div class="sm-gnode__icon-box" aria-hidden="true">
+    <div class="sm-gnode__icon-box" [pTooltip]="kindLabel()" aria-hidden="true">
       <sm-kind-icon [kind]="n.kind" [provider]="n.provider" [size]="18" />
     </div>
 

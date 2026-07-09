@@ -129,6 +129,37 @@
         }
       }
     },
+    "mcpConfig": {
+      "type": "object",
+      "required": ["sources"],
+      "additionalProperties": false,
+      "description": "MCP config-discovery capability (see architecture.md §Provider · MCP config discovery). Declares the config file(s) this Provider's runtime reads for MCP server declarations and their dialect. The kernel reads + parses each source once per scan (shared parser, the single owner of every MCP grammar) and materialises one virtual `mcp://<server>` node per declared server, canonical over the consumer-side `core/mcp-tools` emission. Optional: absent means the Provider surfaces MCP only from the consumer side (`tools:` references).",
+      "properties": {
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Config files to read for declared MCP servers.",
+          "items": {
+            "type": "object",
+            "required": ["path", "dialect"],
+            "additionalProperties": false,
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^\\.?[A-Za-z0-9][A-Za-z0-9._/-]*$",
+                "description": "Config file path relative to the scope root (e.g. `.mcp.json`, `.codex/config.toml`). No leading slash and no `..` traversal (the pattern forbids both). Project-local; a home-scoped source is not expressible here."
+              },
+              "dialect": {
+                "type": "string",
+                "enum": ["json-mcp-servers", "toml-mcp-servers"],
+                "description": "Config grammar: `json-mcp-servers` (a JSON file with an `mcpServers` map, e.g. Claude `.mcp.json`, Cursor `.cursor/mcp.json`) or `toml-mcp-servers` (a TOML file with `[mcp_servers.*]` tables, e.g. Codex `.codex/config.toml`). Both are read into the same normalised descriptor."
+              }
+            }
+          }
+        }
+      }
+    },
     "activity": {
       "type": "object",
       "required": ["install"],

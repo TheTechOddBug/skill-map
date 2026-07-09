@@ -177,9 +177,53 @@
                     <!-- Same content-keyed track rationale as the findings
                          list above: keep row DOM across silent refreshes. -->
                     @for (run of detail.recent; track run.at + '|' + run.owner + '|' + $index) {
-                      <li class="inspector__activity-recent-row">
+                      <li class="inspector__activity-recent-row" data-testid="inspector-activity-recent-row">
                         <span class="inspector__activity-time">{{ formatActivityTime(run.at) }}</span>
-                        <code class="inspector__activity-owner">{{ run.owner }}</code>
+                        <!-- Short owner (full sessionized id in the title). -->
+                        <code class="inspector__activity-owner" [attr.title]="run.owner">{{ shortOwner(run.owner) }}</code>
+                        @if (run.caller ?? run.target; as counterpart) {
+                          <!-- Invocation (either direction reads identically):
+                               owner · <type icon> <counterpart node link> [· tool].
+                               The tool segment is present only for `kind: 'mcp'`
+                               (a read has no tool). The link navigates via the
+                               same node-open intent the connections list uses. -->
+                          <span class="inspector__activity-invocation">
+                            <span class="inspector__activity-invocation-sep" aria-hidden="true">·</span>
+                            @if (run.kind; as kind) {
+                              <i
+                                class="pi inspector__activity-type-icon"
+                                [class.pi-wrench]="kind === 'mcp'"
+                                [class.pi-file]="kind === 'read'"
+                                role="img"
+                                [attr.aria-label]="texts.activity.recentKind[kind]"
+                                [pTooltip]="texts.activity.recentKind[kind]"
+                                [attr.data-testid]="'inspector-activity-recent-icon-' + kind"
+                              ></i>
+                            }
+                            <button
+                              type="button"
+                              class="inspector__activity-node-link"
+                              [attr.title]="counterpart"
+                              (click)="openPath(counterpart)"
+                              data-testid="inspector-activity-recent-node"
+                            >{{ nodeLabel(counterpart) }}</button>
+                            @if (run.detail; as tool) {
+                              <span class="inspector__activity-invocation-sep" aria-hidden="true">·</span>
+                              <code
+                                class="inspector__activity-invocation-tool"
+                                [attr.title]="tool"
+                                data-testid="inspector-activity-recent-tool"
+                              >{{ tool }}</code>
+                            }
+                          </span>
+                        } @else if (run.detail; as tool) {
+                          <!-- Plain execution with a tool detail (no direction). -->
+                          <code
+                            class="inspector__activity-detail"
+                            [attr.title]="tool"
+                            data-testid="inspector-activity-recent-detail"
+                          >{{ tool }}</code>
+                        }
                       </li>
                     }
                   </ul>

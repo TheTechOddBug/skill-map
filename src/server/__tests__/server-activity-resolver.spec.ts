@@ -189,9 +189,11 @@ describe('resolveSignalsAgainstNodes', () => {
       provider,
       NODES,
     );
+    // A PATH signal is a resource access, so the resolver tags it `access: 'read'`
+    // (non-mcp path); even a skill's own SKILL.md read is a read, not an execution.
     assert.deepEqual(resolved.activity, [
-      { nodePath: 'notes/deploy.md', phase: 'start', owner: 'main' },
-      { nodePath: '.claude/skills/deploy/SKILL.md', phase: 'start' },
+      { access: 'read', nodePath: 'notes/deploy.md', phase: 'start', owner: 'main' },
+      { access: 'read', nodePath: '.claude/skills/deploy/SKILL.md', phase: 'start' },
     ]);
   });
 

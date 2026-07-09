@@ -5,7 +5,11 @@ import { Subject } from 'rxjs';
 import { isNodeActivityEvent, type IWsNodeActivityEvent } from '../../models/ws-event';
 import { DATA_SOURCE, type IDataSourcePort } from '../data-source/data-source.port';
 import { LivePreferencesService } from '../live-preferences';
-import { NODE_ACTIVITY_TTL_MS, NodeActivityService } from '../node-activity';
+import {
+  NODE_ACTIVITY_INVOCATION_TTL_MS,
+  NODE_ACTIVITY_TTL_MS,
+  NodeActivityService,
+} from '../node-activity';
 import { WsEventStreamService } from '../ws-event-stream';
 
 /** Minimal port stub for `LivePreferencesService`'s server-backed pair. */
@@ -32,13 +36,14 @@ interface IHarness {
   events$: Subject<IWsNodeActivityEvent>;
 }
 
-function bootstrap(ttlMs = 40): IHarness {
+function bootstrap(ttlMs = 40, invocationTtlMs = 60_000): IHarness {
   const events$ = new Subject<IWsNodeActivityEvent>();
   const ws = { nodeActivity$: events$ } as unknown as WsEventStreamService;
   TestBed.configureTestingModule({
     providers: [
       { provide: WsEventStreamService, useValue: ws },
       { provide: NODE_ACTIVITY_TTL_MS, useValue: ttlMs },
+      { provide: NODE_ACTIVITY_INVOCATION_TTL_MS, useValue: invocationTtlMs },
       { provide: DATA_SOURCE, useValue: PREFS_STUB },
     ],
   });
@@ -391,5 +396,183 @@ describe('NodeActivityService, real-time switch (Settings toggle)', () => {
     await flushed();
     expect(service.activePaths().size).toBe(0);
     expect(service.enabled()).toBe(false);
+  });
+});
+
+describe('NodeActivityService.activeInvocations (tool-invocation edges)', () => {
+  const MCP = 'mcp://notion';
+  const MCP_OTHER = 'mcp://github';
+
+  function startWithDetail(nodePath: string, owner: string, detail: string): IWsNodeActivityEvent {
+    const ev = makeEvent(nodePath, 'start', owner);
+    ev.data.detail = detail;
+    return ev;
+  }
+
+  function only<T>(list: readonly T[]): T {
+    expect(list).toHaveLength(1);
+    return list[0]!;
+  }
+
+  it('correlates the caller to the lit non-mcp node under the same owner', async () => {
+    const { service, events$ } = bootstrap(10_000);
+
+    // The agent lights itself, then invokes an MCP tool under its owner.
+    events$.next(makeEvent(AGENT, 'start', 'agent-1'));
+    events$.next(startWithDetail(MCP, 'agent-1', 'notion-create-pages'));
+    await flushed();
+
+    const inv = only(service.activeInvocations());
+    expect(inv).toEqual({ target: MCP, caller: AGENT, detail: 'notion-create-pages' });
+  });
+
+  it('picks the MOST RECENTLY started candidate (a skill lit after the agent)', async () => {
+    const { service, events$ } = bootstrap(10_000);
+
+    events$.next(makeEvent(AGENT, 'start', 'agent-1'));
+    events$.next(makeEvent(SKILL, 'start', 'agent-1'));
+    events$.next(startWithDetail(MCP, 'agent-1', 'notion-create-pages'));
+    await flushed();
+
+    expect(only(service.activeInvocations()).caller).toBe(SKILL);
+  });
+
+  it('excludes the target itself and any other mcp node from the caller set', async () => {
+    const { service, events$ } = bootstrap(10_000);
+
+    // Only mcp nodes are lit under the owner besides the target: no
+    // real caller exists, so caller is null.
+    events$.next(startWithDetail(MCP_OTHER, 'main:abc', 'github-search'));
+    events$.next(startWithDetail(MCP, 'main:abc', 'notion-create-pages'));
+    await flushed();
+
+    const forNotion = service.activeInvocations().find((i) => i.target === MCP);
+    expect(forNotion?.caller).toBeNull();
+  });
+
+  it('yields a null caller for a bare main-session call with nothing else lit', async () => {
+    const { service, events$ } = bootstrap(10_000);
+
+    events$.next(startWithDetail(MCP, 'main:abc', 'notion-create-pages'));
+    await flushed();
+
+    expect(only(service.activeInvocations()).caller).toBeNull();
+  });
+
+  it('does not correlate a node lit under a DIFFERENT owner', async () => {
+    const { service, events$ } = bootstrap(10_000);
+
+    events$.next(makeEvent(AGENT, 'start', 'other-owner'));
+    events$.next(startWithDetail(MCP, 'main:abc', 'notion-create-pages'));
+    await flushed();
+
+    expect(only(service.activeInvocations()).caller).toBeNull();
+  });
+
+  it('a start without a detail records no invocation', async () => {
+    const { service, events$ } = bootstrap(10_000);
+
+    events$.next(makeEvent(SKILL, 'start', 'main'));
+    await flushed();
+
+    expect(service.activeInvocations()).toHaveLength(0);
+  });
+
+  it('correlates the caller via the fallback after its live claim decayed', async () => {
+    // Momentary glow 40ms so the skill's own claim decays before the
+    // tool call; generous invocation TTL.
+    const { service, events$ } = bootstrap(40, 10_000);
+
+    // A skill lights under the owner, then a >TTL gap with NO owner
+    // events (a slow tool running): the skill's momentary claim decays
+    // and is pruned before the invocation lands.
+    events$.next(makeEvent(SKILL, 'start', 'agent-1'));
+    await flushed();
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(service.activePaths().has(SKILL)).toBe(false);
+
+    events$.next(startWithDetail(MCP, 'agent-1', 'notion-create-pages'));
+    await flushed();
+
+    // No live claim survives, so the caller resolves via lastUnitByOwner.
+    expect(only(service.activeInvocations()).caller).toBe(SKILL);
+  });
+
+  it('keeps the edge after a native end darkens the target (edge is TTL-owned, not glow-owned)', async () => {
+    const { service, events$ } = bootstrap(10_000, 10_000);
+
+    events$.next(makeEvent(AGENT, 'start', 'agent-1'));
+    events$.next(startWithDetail(MCP, 'agent-1', 'notion-create-pages'));
+    await flushed();
+    expect(service.activeInvocations()).toHaveLength(1);
+
+    events$.next(makeEvent(MCP, 'end', 'agent-1'));
+    await flushed();
+
+    // The mcp node's glow is gone but the edge lives on its own TTL.
+    expect(service.activePaths().has(MCP)).toBe(false);
+    expect(service.activeInvocations()).toHaveLength(1);
+  });
+
+  it('the edge outlives the target glow decay (slow tool)', async () => {
+    // Momentary glow 40ms, generous invocation TTL: the mcp node stops
+    // glowing at 40ms but the slow tool's edge must persist.
+    const { service, events$ } = bootstrap(40, 10_000);
+
+    // Sticky agent stays lit; the mcp start is momentary.
+    const agentStart = makeEvent(AGENT, 'start', 'agent-1');
+    agentStart.data.sticky = true;
+    events$.next(agentStart);
+    events$.next(startWithDetail(MCP, 'agent-1', 'notion-create-pages'));
+    await flushed();
+    expect(service.activePaths().has(MCP)).toBe(true);
+    expect(service.activeInvocations()).toHaveLength(1);
+
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(service.activePaths().has(MCP)).toBe(false);
+    const inv = only(service.activeInvocations());
+    expect(inv.caller).toBe(AGENT);
+    expect(inv.detail).toBe('notion-create-pages');
+  });
+
+  it('the edge expires at its OWN TTL, not the glow', async () => {
+    // Generous glow (node stays lit), short invocation TTL.
+    const { service, events$ } = bootstrap(10_000, 60);
+
+    events$.next(makeEvent(AGENT, 'start', 'agent-1'));
+    events$.next(startWithDetail(MCP, 'agent-1', 'notion-create-pages'));
+    await flushed();
+    expect(service.activeInvocations()).toHaveLength(1);
+
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    // The edge cleared on its own schedule while the node still glows.
+    expect(service.activeInvocations()).toHaveLength(0);
+    expect(service.activePaths().has(MCP)).toBe(true);
+  });
+
+  it('an owner-scope release clears that owner invocation edge', async () => {
+    const { service, events$ } = bootstrap(10_000, 10_000);
+
+    events$.next(makeEvent(AGENT, 'start', 'agent-1'));
+    events$.next(startWithDetail(MCP, 'agent-1', 'notion-create-pages'));
+    await flushed();
+    expect(service.activeInvocations()).toHaveLength(1);
+
+    const stop = makeEvent(AGENT, 'end', 'agent-1');
+    stop.data.ownerScope = true;
+    events$.next(stop);
+    await flushed();
+    expect(service.activeInvocations()).toHaveLength(0);
+  });
+
+  it('setEnabled(false) clears the invocations immediately', async () => {
+    const { service, events$ } = bootstrap(10_000, 10_000);
+
+    events$.next(startWithDetail(MCP, 'main:abc', 'x-tool'));
+    await flushed();
+    expect(service.activeInvocations()).toHaveLength(1);
+
+    service.setEnabled(false);
+    expect(service.activeInvocations()).toHaveLength(0);
   });
 });

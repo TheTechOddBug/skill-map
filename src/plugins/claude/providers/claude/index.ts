@@ -128,6 +128,12 @@ export const claudeProvider: IBuiltInManifest<IProvider> = {
   // below READS.
   scaffold: { skillDir: '.claude/skills' },
 
+  // Config-side MCP discovery: Claude Code reads project MCP servers from
+  // `.mcp.json` (`{ mcpServers: { ... } }`). The kernel materialises each as a
+  // virtual `mcp://<server>` node, canonical over the consumer-side
+  // `core/mcp-tools` emission from `tools:` references.
+  mcpConfig: { sources: [{ path: '.mcp.json', dialect: 'json-mcp-servers' }] },
+
   // Vendor provider: Claude Code only reads its own `.claude/` territory
   // and ignores `.codex/` / Antigravity layouts at runtime. Gating the
   // classifier behind the active lens prevents the walker from inventing

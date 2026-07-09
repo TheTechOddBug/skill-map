@@ -257,6 +257,14 @@ export interface IWsNodeActivityData {
    * (and from the summary snapshot), never accumulate counts locally.
    */
   stats?: INodeActivityStatsApi;
+  /**
+   * Which tool this frame represents when the node is a tool-shaped unit
+   * (e.g. the invoked MCP tool name on an `mcp://<server>` node,
+   * `spec/provider-activity.md` §WS event: node.activity). Carried on
+   * `phase: 'start'` frames; the UI paints it as a transient label on
+   * the executing node. Absent when the frame has no tool identity.
+   */
+  detail?: string;
 }
 
 export type IWsNodeActivityEvent = IWsEvent<IWsNodeActivityData> & { type: 'node.activity' };
@@ -284,6 +292,8 @@ export function isNodeActivityEvent(value: unknown): value is IWsNodeActivityEve
   if (sticky !== undefined && typeof sticky !== 'boolean') return false;
   const keepAlive = data['keepAlive'];
   if (keepAlive !== undefined && typeof keepAlive !== 'boolean') return false;
+  const detail = data['detail'];
+  if (detail !== undefined && typeof detail !== 'string') return false;
   const stats = data['stats'];
   if (stats !== undefined) {
     // Loose per the forward-compat rule: only the load-bearing `count`

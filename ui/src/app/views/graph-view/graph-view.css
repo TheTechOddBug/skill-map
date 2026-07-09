@@ -583,6 +583,54 @@
   cursor: pointer;
 }
 
+/* Transient tool-invocation edge (spec/provider-activity.md §WS event:
+   node.activity, the `detail` field): caller -> mcp target. Rides the
+   exec palette (`--sm-exec-c1`) so it reads as kin to the executing
+   glow and stays visually distinct from the magenta agent-spawn edge.
+   Visual-only (no click / conversation), so no cursor affordance. */
+.f-conn--invocation {
+  --ff-connection-color: var(--sm-exec-c1);
+  --ff-connection-width: 1.5px;
+  --ff-marker-color: var(--sm-exec-c1);
+}
+
+.graph__canvas-wrap ::ng-deep .f-conn--invocation .f-connection-path {
+  stroke-dasharray: 5 4;
+}
+
+/* Marching dash, PRM-gated like every live-activity animation (reuses
+   the spawn edge's keyframes); reduced-motion users keep the static
+   dashed edge. Animating stroke-dashoffset never touches a Foblex-owned
+   transform (rule 3). */
+@media (prefers-reduced-motion: no-preference) {
+  .graph__canvas-wrap ::ng-deep .f-conn--invocation .f-connection-path {
+    animation: sm-spawn-dash-march 0.9s linear infinite;
+  }
+}
+
+/* Tool label on the invocation edge, Foblex's own fConnectionContent
+   (positioned along the path by the library, rule 3: paint only, no
+   transforms here). Exec-tinted chip over the card surface, ellipsised
+   so a long tool name never balloons the label (full value in title).
+   `pointer-events: none` keeps the visual-only edge non-interactive. */
+.sm-edge-invocation-label {
+  display: inline-flex;
+  align-items: center;
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0.05rem 0.4rem;
+  background: var(--sm-bg-content);
+  border: 1px solid var(--sm-exec-c1);
+  border-radius: var(--sm-radius-pill);
+  color: var(--sm-exec-c1);
+  font-family: var(--sm-font-mono);
+  font-size: 0.6rem;
+  line-height: 1.4;
+  pointer-events: none;
+}
+
 /* User-driven edge selection. Clicking an edge flips Foblex's built-in
    `.f-selected` class on the connection host.
 

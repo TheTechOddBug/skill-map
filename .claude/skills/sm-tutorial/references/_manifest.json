@@ -441,24 +441,6 @@
           "est_min": 2
         }
       ]
-    },
-    {
-      "id": "mcp",
-      "order": 6,
-      "title": "MCP",
-      "status": "planned",
-      "preflight": "seed",
-      "seed": "harness-connected",
-      "prereq": "project-kickoff",
-      "pace": "auto-advance",
-      "track": "rich",
-      "chapters": [
-        {
-          "id": "mcp-node",
-          "title": "\"content-editor declares an MCP tool",
-          "est_min": 3
-        }
-      ]
     }
   ],
   "findings_file": "./findings.md"

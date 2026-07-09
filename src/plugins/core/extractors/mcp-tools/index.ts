@@ -41,11 +41,9 @@ import type {
   IExtractorContext,
 } from '../../../../kernel/extensions/index.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
+import { MCP_NODE_KIND, mcpNodePath, parseMcpToolName } from '../../../../kernel/util/mcp.js';
 
 const ID = 'mcp-tools';
-
-/** Claude convention. Captures `<server>`; the tool name segment is unused. */
-const MCP_PATTERN = /^mcp__([a-z0-9][a-z0-9_-]*)__[a-z0-9_-]+$/i;
 
 export const mcpToolsExtractor: IBuiltInManifest<IExtractor> = {
   id: ID,
@@ -65,10 +63,10 @@ export const mcpToolsExtractor: IBuiltInManifest<IExtractor> = {
     const serverHits = collectMcpServers(raw);
     if (serverHits.size === 0) return;
     for (const [server, indices] of serverHits) {
-      const mcpPath = `mcp://${server}`;
+      const mcpPath = mcpNodePath(server);
       ctx.emitNode({
         path: mcpPath,
-        kind: 'mcp',
+        kind: MCP_NODE_KIND,
         virtual: true,
         provider: ctx.node.provider,
         derivedFrom: [ctx.node.path],
@@ -107,9 +105,9 @@ function collectMcpServers(tools: readonly unknown[]): Map<string, number[]> {
   for (let i = 0; i < tools.length; i += 1) {
     const t = tools[i];
     if (typeof t !== 'string' || t.length === 0) continue;
-    const match = MCP_PATTERN.exec(t);
-    if (!match) continue;
-    const server = match[1]!.toLowerCase();
+    const parsed = parseMcpToolName(t);
+    if (!parsed) continue;
+    const server = parsed.server;
     const indices = out.get(server) ?? [];
     indices.push(i);
     out.set(server, indices);

@@ -109,6 +109,15 @@ export const GRAPH_VIEW_TEXTS = {
     aria: 'Open the conversation for this agent spawn',
   },
   /**
+   * Transient tool-invocation edge (spec/provider-activity.md §WS event:
+   * node.activity, the `detail` field): caller -> mcp target, the
+   * invoked tool as the label. Visual-only (not clickable), so the aria
+   * text just names the running tool.
+   */
+  invocationEdge: {
+    aria: (tool: string): string => `Running tool ${tool}`,
+  },
+  /**
    * Edge conversation-count pill (spec/provider-activity.md §Execution
    * stats, per-pair spawn counters). Shown on any edge whose pair has
    * counted spawns; clicking the edge opens the threaded conversation

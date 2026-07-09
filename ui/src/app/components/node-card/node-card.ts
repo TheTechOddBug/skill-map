@@ -23,6 +23,7 @@ import {
 import type { INodeActivityStatsApi } from '../../../models/api';
 import { pathBasenameForLink } from '../../../services/path-basename';
 import { cssColorOrNull, cssKindNameOrFallback } from '../../../services/css-guard';
+import { KindRegistryService } from '../../../services/kind-registry';
 import type { ISelectionView } from '../../views/graph-view/selection-state';
 import { KindIcon } from '../kind-icon/kind-icon';
 import { ViewContributionsHost } from '../view-contributions-host/view-contributions-host';
@@ -130,6 +131,18 @@ export class NodeCard {
   readonly tagClick = output<string>();
 
   protected readonly texts = NODE_CARD_TEXTS;
+
+  private readonly kindRegistry = inject(KindRegistryService);
+
+  /**
+   * Human-readable kind name for the icon-box hover tooltip. Reuses the
+   * runtime registry label (the same string the kind palette shows), so
+   * the map icon and the filter toolbar name a kind identically. Falls
+   * back to the raw kind id when the registry has not ingested yet.
+   */
+  protected readonly kindLabel = computed<string>(() =>
+    this.kindRegistry.labelOf(this.node().kind),
+  );
 
   /**
    * Expand state as a two-way model so the parent (graph-view) can own

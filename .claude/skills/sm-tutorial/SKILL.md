@@ -359,8 +359,8 @@ All three are specified in `_core.md`:
 - **Routing + menu**: §Routing + menu. The session always starts at
   the **numbered start menu** (Part 0 is option 1, the recommended
   first pick); the menu (the ToC from `_manifest.yml`, numbered,
-  completed parts ticked, `planned` parts hidden (so `mcp` stays out of
-  the menu), `prereq` gating only seedless parts, none today since
+  completed parts ticked, `planned` parts hidden, `prereq` gating only
+  seedless parts, none today since
   `cli` now self-seeds) is the entry point on the first
   invocation and after every part closes / on resume. Render it with
   the format in `_core.md` §Menu format.

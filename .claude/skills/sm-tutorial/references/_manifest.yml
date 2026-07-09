@@ -232,18 +232,4 @@ parts:
       - id: stability   ; title: "Set a node's stability (and the `.sm` sidecar)" ; est_min: 3
       - id: golive      ; title: "Your website, live next to the graph" ; est_min: 3
 
-  # ----- parked: MCP returns later as its own iteration (body kept in part-mcp.md) -----
-  - id: mcp
-    order: 6
-    title: "MCP"
-    step_file: part-mcp.md
-    pace: auto-advance
-    preflight: seed
-    seed: harness-connected
-    prereq: project-kickoff
-    track: rich               # MCP tool declaration sits on an agent/command body
-    status: planned           # temporarily disabled, hidden from the menu. Body exists; re-enable when MCP returns.
-    chapters:
-      - id: mcp-node ; title: "content-editor declares an MCP tool; the mcp:// node appears" ; est_min: 3
-
 findings_file: "./findings.md"

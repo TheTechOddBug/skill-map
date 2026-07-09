@@ -53,6 +53,24 @@
         }
       }
     },
+    "mcp": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Model Context Protocol surface (see mcp-server.md). Holds the opt-in read-only server toggle today; extends additively as further MCP preferences land. The consumer / observer side (mapping the MCP servers a project USES) is not configured here; that is the per-extension enable of the `core/mcp-*` extractors under `plugins`.",
+      "properties": {
+        "server": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "skill-map's own read-only MCP server, exposed over Streamable HTTP at `/mcp` on the running `sm serve`. Experimental, off by default.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Whether `sm serve` mounts the read-only MCP server at `/mcp`. Default `false` (opt-in). Resolved through the normal config layering; the `--mcp` / `--no-mcp` flags on `sm serve` override it. Because the endpoint mounts at serve boot, flipping this while a server runs takes effect only on the next `sm serve` restart. The server is strictly read-only: it exposes query tools and graph resources, it never executes skills or agents. Stability: experimental."
+            }
+          }
+        }
+      }
+    },
     "scan": {
       "type": "object",
       "additionalProperties": false,

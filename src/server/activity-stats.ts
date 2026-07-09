@@ -36,10 +36,25 @@ export const STICKY_DEDUPE_CAP = 1024;
 /** Per-node recent-executions ring size (most recent first). */
 const RECENT_RING_SIZE = 20;
 
+/** Cap on the owner -> last-unit correlation memory (bounded, oldest-first eviction). */
+const LAST_UNIT_OWNER_CAP = 256;
+
 /** One recent-execution entry; `owner` absent on ownerless starts. */
 export interface IActivityRecentEntry {
   at: number;
   owner?: string;
+  /** Finer-grained label for the frame (the invoked MCP tool, etc.); absent when unreported. */
+  detail?: string;
+  /**
+   * On an MCP node's entry: the invoker node path (who called the tool). On the
+   * INVOKER's own mirrored entry this is absent and `target` is set instead, so
+   * the two ends of one invocation carry the same `detail` from both sides.
+   */
+  caller?: string;
+  /** On the INVOKER's mirrored entry: the accessed resource (mcp / read) node path. Absent on the resource's own entry. */
+  target?: string;
+  /** Access type of an invocation/read entry: `'mcp'` (tool call) or `'read'` (file). Absent on a plain execution. */
+  kind?: 'mcp' | 'read';
 }
 
 /** Per-node detail projection for the inspector endpoint. */
@@ -96,6 +111,14 @@ export class ActivityStatsService {
   private readonly stickySeen = new Set<string>();
 
   /**
+   * Owner -> most-recent NON-mcp unit lit under it. Drives caller attribution
+   * for tool invocations: when an `mcp://` node records a detail-bearing start,
+   * the unit last lit under the same owner is the invoker. Bounded (oldest-first
+   * eviction); in-memory, dies with the process.
+   */
+  private readonly lastUnitByOwner = new Map<string, string>();
+
+  /**
    * Apply one resolved `node.activity` payload. Returns a COPY of the
    * node's stats when the start counted, `null` when the payload never
    * mutates state (no node, an end, a keep-alive custody claim, or a
@@ -107,7 +130,7 @@ export class ActivityStatsService {
     if (data.sticky === true && data.owner !== undefined) {
       if (!this.claimStickyOnce(data.nodePath, data.owner)) return null;
     }
-    return this.count(data.nodePath, data.owner);
+    return this.count(data.nodePath, data.owner, data.detail, data.access);
   }
 
   /**
@@ -218,7 +241,12 @@ export class ActivityStatsService {
     return fresh;
   }
 
-  private count(nodePath: string, owner: string | undefined): INodeActivityStats {
+  private count(
+    nodePath: string,
+    owner: string | undefined,
+    detail: string | undefined,
+    access: 'mcp' | 'read' | undefined,
+  ): INodeActivityStats {
     const state = this.stateFor(nodePath);
     state.count += 1;
     state.lastStartAt = Date.now();
@@ -226,12 +254,85 @@ export class ActivityStatsService {
     if (owner !== undefined && state.owners.size < DISTINCT_OWNERS_CAP) {
       state.owners.add(owner);
     }
-    const entry: IActivityRecentEntry = { at: state.lastStartAt };
-    if (owner !== undefined) entry.owner = owner;
-    state.recent.unshift(entry);
-    if (state.recent.length > RECENT_RING_SIZE) state.recent.pop();
+    const caller = this.correlateCaller(nodePath, owner, access);
+    this.pushRecent(
+      state,
+      buildRecentEntry({ at: state.lastStartAt, owner, detail, caller, kind: access }),
+    );
+    this.trackAccess(nodePath, owner, detail, access, caller, state.lastStartAt);
     return projectStats(state);
   }
+
+  /**
+   * The unit that triggered a RESOURCE access (an mcp tool call or a file read):
+   * the last unit lit under the same owner. Only resource accesses (`access`
+   * set) have a caller; a unit's own execution has none.
+   */
+  private correlateCaller(
+    nodePath: string,
+    owner: string | undefined,
+    access: 'mcp' | 'read' | undefined,
+  ): string | undefined {
+    if (access === undefined || owner === undefined) return undefined;
+    const candidate = this.lastUnitByOwner.get(owner);
+    return candidate !== undefined && candidate !== nodePath ? candidate : undefined;
+  }
+
+  /**
+   * Post-record bookkeeping: remember a UNIT execution (no `access`) as a future
+   * caller, and mirror a resource access onto the caller's own recent ring
+   * (outgoing: it accessed `nodePath`), so both ends carry the same type + tool.
+   */
+  private trackAccess(
+    nodePath: string,
+    owner: string | undefined,
+    detail: string | undefined,
+    access: 'mcp' | 'read' | undefined,
+    caller: string | undefined,
+    at: number,
+  ): void {
+    if (owner !== undefined && access === undefined) {
+      this.rememberUnit(owner, nodePath);
+    }
+    if (caller !== undefined) {
+      this.pushRecent(
+        this.stateFor(caller),
+        buildRecentEntry({ at, owner, detail, target: nodePath, kind: access }),
+      );
+    }
+  }
+
+  private pushRecent(state: INodeStatsState, entry: IActivityRecentEntry): void {
+    state.recent.unshift(entry);
+    if (state.recent.length > RECENT_RING_SIZE) state.recent.pop();
+  }
+
+  private rememberUnit(owner: string, nodePath: string): void {
+    this.lastUnitByOwner.delete(owner);
+    this.lastUnitByOwner.set(owner, nodePath);
+    if (this.lastUnitByOwner.size > LAST_UNIT_OWNER_CAP) {
+      const oldest = this.lastUnitByOwner.keys().next().value;
+      if (oldest !== undefined) this.lastUnitByOwner.delete(oldest);
+    }
+  }
+}
+
+/** Build a recent-ring entry, dropping every undefined optional (exactOptionalPropertyTypes). */
+function buildRecentEntry(p: {
+  at: number;
+  owner?: string | undefined;
+  detail?: string | undefined;
+  caller?: string | undefined;
+  target?: string | undefined;
+  kind?: 'mcp' | 'read' | undefined;
+}): IActivityRecentEntry {
+  const entry: IActivityRecentEntry = { at: p.at };
+  if (p.owner !== undefined) entry.owner = p.owner;
+  if (p.detail !== undefined) entry.detail = p.detail;
+  if (p.caller !== undefined) entry.caller = p.caller;
+  if (p.target !== undefined) entry.target = p.target;
+  if (p.kind !== undefined) entry.kind = p.kind;
+  return entry;
 }
 
 function projectStats(state: INodeStatsState): INodeActivityStats {

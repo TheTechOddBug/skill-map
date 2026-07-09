@@ -749,7 +749,94 @@
   font-family: var(--sm-font-mono);
   font-size: 0.72rem;
   color: var(--p-text-color);
-  overflow-wrap: anywhere;
+  /* Short owner now (see shortenOwner), so it no longer needs to wrap
+     and can hold its width, leaving room for the tool detail. */
+  flex: none;
+}
+
+/* Which tool the recent execution was (spec/provider-activity.md §WS
+   event: node.activity, `detail`). Muted secondary text pushed to the
+   row's trailing edge; ellipsised (full value in the title) so a long
+   tool name never squishes the time / owner. */
+.inspector__activity-detail {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--sm-font-mono);
+  font-size: 0.72rem;
+  color: var(--p-text-muted-color);
+}
+
+/* MCP invocation segment (spec/provider-activity.md §WS event:
+   node.activity, caller / target). Both directions read identically:
+   `· <counterpart node link> · <tool>`. Pushed to the trailing edge;
+   the link + tool ellipsise and the middot separators stay `flex:none`
+   so a long label never squishes the time + owner (same lesson as the
+   owner fix). */
+.inspector__activity-invocation {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  margin-left: auto;
+  min-width: 0;
+  font-size: 0.72rem;
+}
+
+.inspector__activity-invocation-sep {
+  flex: none;
+  color: var(--p-text-muted-color);
+}
+
+/* Invocation-kind glyph (spec/provider-activity.md §WS event:
+   node.activity, kind): a wrench for an MCP tool call, a document for a
+   file read. Muted + compact, never grows so it cannot squish the row. */
+.inspector__activity-type-icon {
+  flex: none;
+  font-size: 0.68rem;
+  color: var(--p-text-muted-color);
+}
+
+/* Clickable counterpart node, navigates via the same node-open intent
+   the connections list uses. Reads as a link (exec-palette accent) but
+   ellipsises to protect the row. */
+.inspector__activity-node-link {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  appearance: none;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: var(--sm-font-mono);
+  font-size: 0.72rem;
+  color: var(--sm-exec-c1);
+  cursor: pointer;
+  text-align: left;
+}
+
+.inspector__activity-node-link:hover {
+  text-decoration: underline;
+}
+
+.inspector__activity-node-link:focus-visible {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: 1px;
+  border-radius: var(--sm-radius-sm);
+}
+
+.inspector__activity-invocation-tool {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--sm-font-mono);
+  color: var(--p-text-muted-color);
 }
 
 .inspector__activity-spawn-row {

@@ -163,7 +163,7 @@ describe('sm-tutorial state.js', () => {
     assert.deepEqual(r.json.site_identity, { name: 'Acme', tagline });
   });
 
-  it('status returns active parts ordered, joins titles, hides planned (mcp)', () => {
+  it('status returns active parts ordered, joins titles', () => {
     const cwd = freshCwd();
     init(cwd);
     run(['pick', 'fundamentals'], cwd);
@@ -171,7 +171,6 @@ describe('sm-tutorial state.js', () => {
     const r = run(['status'], cwd);
     const parts = r.json.parts as any[];
     assert.deepEqual(parts.map((p) => p.id), ['fundamentals', 'project-kickoff', 'daily-loop', 'realtime', 'cli', 'extend']);
-    assert.equal(parts.find((p) => p.id === 'mcp'), undefined);
     const fund = parts[0];
     assert.equal(fund.status, 'in_progress');
     assert.equal(fund.chapters[0].status, 'done');

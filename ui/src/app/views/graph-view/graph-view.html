@@ -208,6 +208,40 @@
             }
           </ng-container>
 
+          <!-- Transient tool-invocation edges (spec/provider-activity.md
+               §WS event: node.activity, the `detail` field): caller ->
+               mcp target, the invoked tool as the label. Separate
+               [fConnections] block layered over the scan-link + spawn
+               edges. Visual-only (no click / conversation), so selection
+               is disabled; the label is Foblex's own fConnectionContent,
+               positioned along the path by the library (rule 3: no
+               hand-rolled transforms). Connector ids reuse the cards'
+               own -out / -in anchors. -->
+          <ng-container ngProjectAs="[fConnections]">
+            @for (edge of invocationEdges(); track edge.key) {
+              <f-connection
+                [fOutputId]="edge.outputId"
+                [fInputId]="edge.inputId"
+                [fType]="connectionType()"
+                [fBehavior]="connectionBehavior"
+                [fReassignDisabled]="true"
+                [fSelectionDisabled]="true"
+                class="f-conn--invocation"
+                [attr.aria-label]="texts.invocationEdge.aria(edge.label)"
+                [attr.data-testid]="'graph-invocation-edge-' + edge.key"
+              >
+                <f-connection-marker-arrow [type]="markerEnd" />
+                <div
+                  fConnectionContent
+                  align="along"
+                  class="sm-edge-invocation-label"
+                  [attr.title]="edge.label"
+                  [attr.data-testid]="'graph-invocation-edge-label-' + edge.key"
+                >{{ edge.label }}</div>
+              </f-connection>
+            }
+          </ng-container>
+
           <!--
             Both branches duplicate the full <div fNode> markup on purpose:
             Foblex resolves fNodeInput / fNodeOutput / connectors via content

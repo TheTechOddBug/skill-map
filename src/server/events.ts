@@ -127,6 +127,21 @@ export interface INodeActivityEventData {
    */
   keepAlive?: boolean;
   /**
+   * Optional finer-grained label for this frame: the invoked MCP tool
+   * (`notion-create-pages`), etc. Metadata; the UI renders it as the transient
+   * glow label and appends it to the node's recent history in the inspector.
+   * Absent when the mapper reported none.
+   */
+  detail?: string;
+  /**
+   * Access classification for a RESOURCE frame: `'mcp'` when the node is an
+   * `mcp://` server (a tool invocation), `'read'` when it is a file a unit read.
+   * Absent for a UNIT's own execution (a skill / agent / command start). Set by
+   * the resolver from the signal shape (path signal = resource access, name
+   * signal = unit execution); drives caller attribution + the typed recent log.
+   */
+  access?: 'mcp' | 'read';
+  /**
    * The node's CURRENT execution stats as accumulated server-side
    * (`activity-stats.ts`), attached by the ingest route to counted
    * starts. The server is the single source of truth: clients MUST

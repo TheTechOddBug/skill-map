@@ -272,6 +272,20 @@ function isOwnerRelease(signal: IActivitySignal): boolean {
 function buildResolvedData(signal: IActivitySignal, nodePath: string): INodeActivityEventData {
   const resolved: INodeActivityEventData = { nodePath, phase: signal.phase };
   if (signal.owner !== undefined) resolved.owner = signal.owner;
+  applyPhaseFlags(resolved, signal);
+  if (signal.detail !== undefined) resolved.detail = signal.detail;
+  // A PATH signal is a resource access (the runtime touched a file or an mcp
+  // tool); a NAME signal is a unit's own execution. This split, not the node
+  // kind, drives caller attribution (a unit reading another unit's file is
+  // still a read, not an execution of it).
+  if (signal.path !== undefined) {
+    resolved.access = signal.path.startsWith('mcp://') ? 'mcp' : 'read';
+  }
+  return resolved;
+}
+
+/** Normalise the phase-specific flags onto the resolved event (start vs owned end). */
+function applyPhaseFlags(resolved: INodeActivityEventData, signal: IActivitySignal): void {
   if (signal.phase === 'end' && signal.ownerScope === true && signal.owner !== undefined) {
     resolved.ownerScope = true;
   }
@@ -279,7 +293,6 @@ function buildResolvedData(signal: IActivitySignal, nodePath: string): INodeActi
     if (signal.sticky === true) resolved.sticky = true;
     if (signal.keepAlive === true) resolved.keepAlive = true;
   }
-  return resolved;
 }
 
 /**

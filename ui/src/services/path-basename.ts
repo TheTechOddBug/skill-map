@@ -28,3 +28,17 @@ export function pathBasenameForLink(path: string): string {
   }
   return last.replace(/\.md$/, '');
 }
+
+/**
+ * Path → compact NODE label for the activity history's directional
+ * rows (invoker / target). An `mcp://<server>` path shows just
+ * `<server>` (the tool node's readable name); every other path uses
+ * `pathBasenameForLink` (skill folder, agent filename, ...). Pure.
+ */
+export function activityNodeLabel(path: string): string {
+  if (path.startsWith('mcp://')) {
+    const server = path.slice('mcp://'.length).split('/')[0] ?? '';
+    return server.length > 0 ? server : path;
+  }
+  return pathBasenameForLink(path);
+}

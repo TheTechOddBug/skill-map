@@ -420,6 +420,20 @@ The capability splits along the same declarative/runtime line as the rest of the
 
 The kernel's role ends at the abstraction: it defines the capability shape and validates it at load time. The runtime pipeline (bridge → `POST /api/activity` → WS `node.activity` / `agent.spawn` → UI) is owned by the BFF and specified in `provider-activity.md`; the kernel is a scan-time engine and never transports activity events. Activity state is ephemeral (in-memory in the BFF): the execution-stats accumulator, the spawn frames, and the consent-gated conversation store all die with the serve process; nothing lands in `scan_*` or `state_*`.
 
+### Provider · MCP config discovery
+
+A Provider MAY declare an optional `mcpConfig` capability: the integration point for reading the vendor's **MCP server declarations** off its own config files, so the map materialises the MCP servers a project has SET UP, not only the ones a skill / agent frontmatter happens to reference. Like `activity` and `scaffold`, it is a capability sub-object on the Provider manifest, NOT a new extension kind. The split is deliberate and answers "provider owns its filesystem territory, kernel owns the parsing": **the Provider declares WHERE its config lives and in which dialect; the kernel (core) owns the parsing and the node emission**, so a new Provider onboards MCP discovery by naming a file and a dialect, never by reimplementing a parser.
+
+The capability is declarative: `{ sources: Array<{ path: string, dialect: 'json-mcp-servers' | 'toml-mcp-servers' }> }`, where `path` is a config file (Claude `.claude/settings.json`, Cursor `.cursor/mcp.json`, project Codex `.codex/config.toml`) and `dialect` names one of the closed, kernel-known MCP config grammars. The kernel reads each declared file once per scan and parses it with the shared MCP core util (`kernel/util/mcp`, the single owner of every MCP grammar and of the `mcp://<server>` path scheme, mirroring how `kernel/util/at-token` centralises the cross-vendor `@`-token grammar). For each declared server it emits one virtual `mcp://<server>` node, `virtual: true`, `derivedFrom: [<config path>]`, with the server's metadata (transport, `command` / `args` or `url`, declared tools) synthesized onto the node's **open `frontmatter`** object. No `node.schema.json` change is required: virtual nodes synthesize their frontmatter at emit time, exactly as the consumer-side `core/mcp-tools` already does with `{ name }`; `frontmatter` is `additionalProperties: true` and is the right home for the richer descriptor.
+
+The consumer-side and config-side emit the **same** `mcp://<server>` path, so the orchestrator's first-wins dedup collapses them into one node (§Provider · resolution rules). The config-side declaration is canonical (richer metadata, provenance to a real file); the consumer-side `core/mcp-tools` emission stays the fallback for a server referenced but never declared. This makes three states distinguishable:
+
+- **declared + used**: a solid `mcp://` node carrying a `derivedFrom` config path AND incoming `references` edges;
+- **declared + unused**: an orphan `mcp://` node (a server set up but no skill / agent uses it), which `core/orphan` surfaces like any other unreferenced node;
+- **used + undeclared**: no config-side node, so the consumer-side reference resolves to a virtual target with no `derivedFrom` config source; `core/reference-broken` does NOT fire (the target still resolves, per the virtual-target rule), the missing declaration shows as the absence of a config provenance. The live-invocation path (`provider-activity.md`) can surface the same "used but undeclared" server deterministically at runtime.
+
+A home-scoped config (the Codex user config `~/.codex/config.toml`) is the one source that reads outside the project: a Provider that declares it extends the documented closed list of `os.homedir()` callers per [`AGENTS.md`](../AGENTS.md), the read is per-invocation and never merged into the config layers. Every other source is project-local. Stability: experimental (the capability shape and the closed dialect set may change as more vendors onboard).
+
 ### Extractor · output callbacks
 
 The `Extractor` runtime contract is `extract(ctx) → void`. The extractor emits its work through three callbacks the kernel binds onto `ctx`:
@@ -1029,6 +1043,7 @@ The **isolation honest-note** (accidents, not hostile code) is the same posture 
 ## See also
 
 - [`cli-contract.md`](./cli-contract.md), verb surface of the CLI driving adapter.
+- [`mcp-server.md`](./mcp-server.md), optional read-only Model Context Protocol server exposed by the Server adapter (`/mcp`).
 - [`db-schema.md`](./db-schema.md), table catalog backing `StoragePort`.
 - [`job-lifecycle.md`](./job-lifecycle.md), state machine for jobs, atomic claim, TTL/reap.
 - [`job-events.md`](./job-events.md), event stream emitted through `ProgressEmitterPort`.

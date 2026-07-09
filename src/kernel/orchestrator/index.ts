@@ -111,6 +111,7 @@ import { tx } from '../util/tx.js';
 import { detectProvidersFromFilesystem } from '../scan/detect-providers.js';
 import { runActionProjections } from './action-projections.js';
 import { runAnalyzers } from './analyzers.js';
+import { applyConfigSideMcpNodes } from './mcp-config-nodes.js';
 import {
   indexPriorSnapshot,
   type IPriorIndex,
@@ -619,6 +620,17 @@ async function runScanInternal(
   const activeProvider = activeProviderId
     ? exts.providers.find((p) => p.id === activeProviderId) ?? null
     : null;
+
+  // Config-side MCP discovery (spec/architecture.md §Provider · MCP config
+  // discovery): materialise the active Provider's declared MCP servers as
+  // virtual `mcp://` nodes, canonical over the consumer-side `core/mcp-tools`
+  // emission. A post-walk step over the produced node set, no walk-loop
+  // surgery; best-effort (no cwd / no capability / unreadable config = no-op).
+  applyConfigSideMcpNodes(walked.nodes, activeProvider, {
+    ...(options.cwd ? { cwd: options.cwd } : {}),
+    roots: options.roots,
+  });
+
   // extractorOrder uses SHORT ids (e.g. 'at-directive') to match the
   // `link.sources` convention every extractor follows: emitLink and
   // emitSignal both record the contributor's short id, and the cache's

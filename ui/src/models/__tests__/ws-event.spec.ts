@@ -181,6 +181,32 @@ describe('isNodeActivityEvent, v1.1 fields (keepAlive + stats)', () => {
     ).toBe(true);
   });
 
+  it('accepts a detail-bearing start and rejects a mistyped detail', () => {
+    expect(
+      isNodeActivityEvent({
+        type: 'node.activity',
+        timestamp: 1,
+        data: { nodePath: CHILD, phase: 'start', owner: 'main:abc', detail: 'notion-create-pages' },
+      }),
+    ).toBe(true);
+    // Absence is fine (the field is optional).
+    expect(
+      isNodeActivityEvent({
+        type: 'node.activity',
+        timestamp: 1,
+        data: { nodePath: CHILD, phase: 'start', owner: 'main:abc' },
+      }),
+    ).toBe(true);
+    // Wrong type drops the frame.
+    expect(
+      isNodeActivityEvent({
+        type: 'node.activity',
+        timestamp: 1,
+        data: { nodePath: CHILD, phase: 'start', detail: 42 },
+      }),
+    ).toBe(false);
+  });
+
   it('rejects mistyped keepAlive and stats without a numeric count', () => {
     expect(
       isNodeActivityEvent({

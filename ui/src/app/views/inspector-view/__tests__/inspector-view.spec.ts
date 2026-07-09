@@ -8,6 +8,7 @@ import { DomSanitizer, type SafeHtml } from '@angular/platform-browser';
 import { EMPTY, Subject } from 'rxjs';
 
 import { InspectorView } from '../inspector-view';
+import { NODE_OPEN_INTENT } from '../../../slots/node-open-intent';
 import { WsEventStreamService } from '../../../../services/ws-event-stream';
 import {
   DATA_SOURCE,
@@ -1239,6 +1240,184 @@ describe('InspectorView, activity execution aggregates (stats totals row)', () =
     // The stats grid renders (count > 0) but the totals row does not.
     expect(dom.querySelector('[data-testid="inspector-activity-stats"]')).not.toBeNull();
     expect(dom.querySelector('[data-testid="inspector-activity-exec-totals"]')).toBeNull();
+  });
+});
+
+describe('InspectorView, activity recent tool detail', () => {
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+  });
+  afterEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  it('renders the per-run tool detail when present and skips it when absent', async () => {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    dataSource.getNodeActivity.mockResolvedValue({
+      stats: { count: 2, lastStartAt: 3000, distinctOwners: 1 },
+      recent: [
+        { at: 3000, owner: 'main:abc', detail: 'notion-create-pages' },
+        { at: 2000, owner: 'main:abc' },
+      ],
+      spawns: [],
+      captureEnabled: false,
+    });
+
+    const { fixture } = bootstrap({
+      loader,
+      dataSource,
+      activityStats: new Map([[node.path, makeActivityStats({ count: 2, lastStartAt: 3000 })]]),
+    });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    const toggle = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-activity-toggle"]',
+    ) as HTMLButtonElement;
+    toggle.click();
+    await flush(fixture);
+    await flush(fixture);
+
+    const rows = fixture.nativeElement.querySelectorAll(
+      '[data-testid="inspector-activity-recent-row"]',
+    );
+    expect(rows.length).toBe(2);
+    // Only the frame that carried a detail paints the tool label.
+    const details = fixture.nativeElement.querySelectorAll(
+      '[data-testid="inspector-activity-recent-detail"]',
+    );
+    expect(details.length).toBe(1);
+    expect(details[0]!.textContent).toContain('notion-create-pages');
+  });
+});
+
+describe('InspectorView, activity recent directional invocations', () => {
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+  });
+  afterEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  /** Boots on a node, expands the Activity section with the given recent ring. */
+  async function bootWithRecent(
+    recent: readonly Record<string, unknown>[],
+  ): Promise<ComponentFixture<InspectorView>> {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    dataSource.getNodeActivity.mockResolvedValue({
+      stats: { count: recent.length, lastStartAt: 3000, distinctOwners: 1 },
+      recent,
+      spawns: [],
+      captureEnabled: false,
+    });
+
+    const { fixture } = bootstrap({
+      loader,
+      dataSource,
+      activityStats: new Map([[node.path, makeActivityStats({ count: recent.length })]]),
+    });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    const toggle = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-activity-toggle"]',
+    ) as HTMLButtonElement;
+    toggle.click();
+    await flush(fixture);
+    await flush(fixture);
+    return fixture;
+  }
+
+  it('renders an MCP INCOMING row (caller): type icon, node link, tool, and navigates', async () => {
+    const fixture = await bootWithRecent([
+      {
+        at: 3000,
+        owner: 'main:abc',
+        kind: 'mcp',
+        detail: 'notion-create-pages',
+        caller: '.claude/skills/deploy/SKILL.md',
+      },
+    ]);
+    const dom: HTMLElement = fixture.nativeElement;
+    // MCP type icon (wrench), not the read icon.
+    expect(dom.querySelector('[data-testid="inspector-activity-recent-icon-mcp"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-activity-recent-icon-read"]')).toBeNull();
+    const link = dom.querySelector(
+      '[data-testid="inspector-activity-recent-node"]',
+    ) as HTMLButtonElement | null;
+    expect(link).not.toBeNull();
+    // Counterpart (the caller) shown as its readable node label, raw path in title.
+    expect(link!.textContent).toContain('deploy');
+    expect(link!.getAttribute('title')).toBe('.claude/skills/deploy/SKILL.md');
+    // An mcp row carries the trailing tool segment.
+    const tool = dom.querySelector('[data-testid="inspector-activity-recent-tool"]');
+    expect(tool).not.toBeNull();
+    expect(tool!.textContent).toContain('notion-create-pages');
+    expect(dom.querySelector('[data-testid="inspector-activity-recent-detail"]')).toBeNull();
+
+    // Clicking the link navigates via the shared node-open intent.
+    const openSpy = vi.spyOn(TestBed.inject(NODE_OPEN_INTENT), 'open');
+    link!.click();
+    expect(openSpy).toHaveBeenCalledWith('.claude/skills/deploy/SKILL.md');
+  });
+
+  it('renders an MCP OUTGOING row (target) with the mcp server name and navigates', async () => {
+    const fixture = await bootWithRecent([
+      { at: 3000, owner: 'main:abc', kind: 'mcp', detail: 'notion-create-pages', target: 'mcp://notion' },
+    ]);
+    const dom: HTMLElement = fixture.nativeElement;
+    expect(dom.querySelector('[data-testid="inspector-activity-recent-icon-mcp"]')).not.toBeNull();
+    const link = dom.querySelector(
+      '[data-testid="inspector-activity-recent-node"]',
+    ) as HTMLButtonElement | null;
+    expect(link).not.toBeNull();
+    // Counterpart (the target) shown as the mcp server name, not `mcp://notion`.
+    expect(link!.textContent).toContain('notion');
+    expect(link!.textContent).not.toContain('mcp://');
+    expect(link!.getAttribute('title')).toBe('mcp://notion');
+    expect(dom.querySelector('[data-testid="inspector-activity-recent-tool"]')).not.toBeNull();
+
+    const openSpy = vi.spyOn(TestBed.inject(NODE_OPEN_INTENT), 'open');
+    link!.click();
+    expect(openSpy).toHaveBeenCalledWith('mcp://notion');
+  });
+
+  it('renders a READ row (kind read, no detail): type icon + node link, NO tool segment', async () => {
+    const fixture = await bootWithRecent([
+      { at: 3000, owner: 'main:abc', kind: 'read', target: 'docs/architecture.md' },
+    ]);
+    const dom: HTMLElement = fixture.nativeElement;
+    // Read type icon (document), not the mcp icon.
+    expect(dom.querySelector('[data-testid="inspector-activity-recent-icon-read"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-activity-recent-icon-mcp"]')).toBeNull();
+    const link = dom.querySelector(
+      '[data-testid="inspector-activity-recent-node"]',
+    ) as HTMLButtonElement | null;
+    expect(link).not.toBeNull();
+    expect(link!.textContent).toContain('architecture');
+    expect(link!.getAttribute('title')).toBe('docs/architecture.md');
+    // A read has no tool, so NO trailing tool segment (and no plain chip).
+    expect(dom.querySelector('[data-testid="inspector-activity-recent-tool"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-activity-recent-detail"]')).toBeNull();
+
+    const openSpy = vi.spyOn(TestBed.inject(NODE_OPEN_INTENT), 'open');
+    link!.click();
+    expect(openSpy).toHaveBeenCalledWith('docs/architecture.md');
+  });
+
+  it('renders a PLAIN row (neither caller nor target) with the short owner and no node link', async () => {
+    const fixture = await bootWithRecent([{ at: 3000, owner: 'main:abc', detail: 'read-tool' }]);
+    const dom: HTMLElement = fixture.nativeElement;
+    // Plain detail chip, no node link.
+    expect(dom.querySelector('[data-testid="inspector-activity-recent-detail"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-activity-recent-node"]')).toBeNull();
+    // The short owner still renders on the row.
+    const row = dom.querySelector('[data-testid="inspector-activity-recent-row"]');
+    expect(row!.textContent).toContain('main:abc');
   });
 });
 

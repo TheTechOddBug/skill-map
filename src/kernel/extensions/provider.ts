@@ -30,6 +30,7 @@ import type { IIgnoreFilter } from '../scan/ignore.js';
 import type { IParseIssue } from '../scan/parsers/types.js';
 import { walkContent } from '../scan/walk-content.js';
 import type { LinkKind } from '../types.js';
+import type { McpConfigDialect } from '../util/mcp-config.js';
 
 export interface IRawNode {
   /** Path relative to the scan root that produced this node. */
@@ -358,6 +359,32 @@ export interface IProviderScaffold {
 }
 
 /**
+ * Optional MCP config-discovery capability (see `spec/architecture.md`
+ * §Provider · MCP config discovery). Declares WHERE this Provider's MCP server
+ * config lives and in which dialect; the kernel reads + parses each source once
+ * per scan (shared `kernel/util/mcp-config`) and materialises one virtual
+ * `mcp://<server>` node per declared server. The Provider owns the filesystem
+ * territory; the parsing stays in core so a new vendor onboards by naming a file
+ * + dialect. Mirrors
+ * `spec/schemas/extensions/provider.schema.json#/properties/mcpConfig`.
+ */
+export interface IProviderMcpConfig {
+  /** One or more config files to read for declared MCP servers. */
+  readonly sources: readonly IProviderMcpConfigSource[];
+}
+
+export interface IProviderMcpConfigSource {
+  /**
+   * Config file path, relative to the scope root (e.g. `.mcp.json`,
+   * `.codex/config.toml`). Project-local; a home-scoped source would extend the
+   * documented `os.homedir()` allowlist and is not supported here yet.
+   */
+  readonly path: string;
+  /** Which config grammar the file uses. */
+  readonly dialect: McpConfigDialect;
+}
+
+/**
  * Phase of one live-activity signal. `start` lights the resolved node;
  * `end` is emitted only for units whose provider runtime has a native
  * terminal event (a Claude subagent's matching `SubagentStop`). Units
@@ -467,6 +494,15 @@ export interface IActivitySignal {
   kind?: string;
   /** Raw unit name as the runtime reported it (normalised by the resolver). Required unless `path` is set. */
   name?: string;
+  /**
+   * Optional finer-grained label for WHAT this signal represents beneath the
+   * node itself, e.g. the specific MCP tool invoked (`notion-create-pages`) on
+   * an `mcp://<server>` node. Metadata only: it rides `node.activity` to the UI
+   * (glow label + the per-node recent history) and is stored in the recent
+   * ring; it is NEVER used for resolution. Absent when the runtime reports no
+   * finer detail.
+   */
+  detail?: string;
   /**
    * Scope-relative node path (forward-slash). When present, resolution
    * is a direct `node.path` match and `kind` / `name` are ignored.
@@ -707,6 +743,16 @@ export interface IProvider extends IExtensionBase {
    * route drops events tagged with its id.
    */
   activity?: IProviderActivityAdapter;
+
+  /**
+   * Optional MCP config-discovery capability (see `IProviderMcpConfig` and
+   * `spec/architecture.md` §Provider · MCP config discovery). When present, the
+   * kernel reads the declared config file(s) each scan and materialises the
+   * declared MCP servers as virtual `mcp://<server>` nodes (config-side
+   * canonical over the consumer-side `core/mcp-tools` emission). Absent means
+   * this Provider surfaces MCP usage only from the consumer side.
+   */
+  mcpConfig?: IProviderMcpConfig;
 
   /**
    * Catalog of node kinds this Provider emits. Populated by the loader

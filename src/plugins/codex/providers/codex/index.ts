@@ -92,6 +92,11 @@ export const codexProvider: IBuiltInManifest<IProvider> = {
   // disambiguate from the `agent-skills` lens that shares `.agents/skills/`.
   scaffold: { skillDir: '.agents/skills', marker: '.codex' },
 
+  // Config-side MCP discovery: Codex reads project MCP servers from the
+  // per-project `.codex/config.toml` (`[mcp_servers.<name>]` tables). The
+  // kernel materialises each as a virtual `mcp://<server>` node.
+  mcpConfig: { sources: [{ path: '.codex/config.toml', dialect: 'toml-mcp-servers' }] },
+
   // Vendor provider: Codex CLI only reads its own territory (its `.codex/`
   // agents plus the open `.agents/skills/` skills it adopted). Gating the
   // classifier behind the active lens keeps the walker from claiming Codex

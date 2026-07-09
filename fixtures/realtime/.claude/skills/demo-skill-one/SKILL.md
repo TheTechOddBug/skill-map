@@ -1,6 +1,7 @@
 ---
 name: demo-skill-one
 description: Skill de ejemplo número uno; emite un marcador de ejecución para verificar la cadena de invocación agente→skill. Usar cuando demo-worker la invoca, cuando el usuario pide probar la skill demo uno, o vía /demo-skill-one.
+tools: [Read, mcp__images__search, mcp__notion__search]
 ---
 
 # Demo Skill One

@@ -81,6 +81,33 @@ describe('claudeActivity.mapEvent', () => {
     ]);
   });
 
+  it('an MCP tool PreToolUse yields a PATH signal to the mcp:// node (same id as the static edge)', () => {
+    const signals = claudeActivity.mapEvent({
+      session_id: '6cfe5636-2e56-4271-91a6-87fc3d4355be',
+      hook_event_name: 'PreToolUse',
+      tool_name: 'mcp__images__search',
+      tool_input: { query: 'art' },
+      tool_use_id: 'toolu_x',
+    });
+    assert.deepEqual(signals, [
+      {
+        path: 'mcp://images',
+        phase: 'start',
+        owner: 'main:6cfe5636-2e56-4271-91a6-87fc3d4355be',
+        detail: 'search',
+      },
+    ]);
+  });
+
+  it('a non-MCP, non-attributable tool (Bash) is disclaimed', () => {
+    const signals = claudeActivity.mapEvent({
+      hook_event_name: 'PreToolUse',
+      tool_name: 'Bash',
+      tool_input: { command: 'ls' },
+    });
+    assert.equal(signals, null);
+  });
+
   it('Skill PreToolUse fired INSIDE a subagent is owned by that agent_id', () => {
     // Depth-4 nesting run: the deepest subagent (probe-l4) invoked the
     // skill; the event arrives stamped with its agent identity.

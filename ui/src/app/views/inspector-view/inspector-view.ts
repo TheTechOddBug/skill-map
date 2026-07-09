@@ -23,6 +23,7 @@ import type {
 
 import { INSPECTOR_VIEW_TEXTS } from '../../../i18n/inspector-view.texts';
 import { activityPairKeyTouches } from '../../../models/api';
+import { shortenOwner } from '../../../models/activity-owner';
 import { compactNumber } from '../../../models/node-derived';
 import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
 import { CollectionLoaderService } from '../../../services/collection-loader';
@@ -40,7 +41,7 @@ import {
 } from '../../../services/markdown-inline-signal';
 import { ActionDispatchService } from '../../../services/action-dispatch';
 import { cssKindNameOrFallback } from '../../../services/css-guard';
-import { pathBasenameForLink } from '../../../services/path-basename';
+import { activityNodeLabel, pathBasenameForLink } from '../../../services/path-basename';
 import { ProviderRegistryService } from '../../../services/provider-registry';
 import {
   AnnotationsPanel,
@@ -527,6 +528,24 @@ export class InspectorView implements OnInit {
   /** Human time for activity rows (session-scoped, date is noise). */
   protected formatActivityTime(ms: number): string {
     return new Date(ms).toLocaleTimeString();
+  }
+
+  /**
+   * Compact owner label for activity rows: the full sessionized id
+   * (`main:6cfe5636-...`) is too long and squishes the tool detail, so
+   * the row shows the short form (`main:6cfe5636`) with the full value
+   * in the title tooltip. See `shortenOwner`.
+   */
+  protected shortOwner(owner: string): string {
+    return shortenOwner(owner);
+  }
+
+  /**
+   * Compact node label for a directional invocation row's caller /
+   * target path (`mcp://<server>` -> `<server>`, else the basename).
+   */
+  protected nodeLabel(path: string): string {
+    return activityNodeLabel(path);
   }
 
   /**

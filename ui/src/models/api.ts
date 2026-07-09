@@ -1248,6 +1248,30 @@ export interface IActivitySummaryApi {
 export interface IActivityRecentExecutionApi {
   at: number;
   owner: string;
+  /**
+   * Which tool this frame represents when the node is a tool-shaped unit
+   * (e.g. the invoked MCP tool name on an `mcp://<server>` node). Absent
+   * for units whose activity carries no tool identity. Shared by both
+   * ends of an MCP invocation (the caller row and the target row).
+   */
+  detail?: string;
+  /**
+   * INCOMING invocation: the invoker node path, present on the invoked
+   * node's own entry ("invoked by X"). Mutually exclusive with `target`.
+   */
+  caller?: string;
+  /**
+   * OUTGOING invocation: the invoked node path, present on the invoker's
+   * mirrored entry ("invoked ... on Y"). Mutually exclusive with `caller`.
+   */
+  target?: string;
+  /**
+   * Invocation kind for the directional entries (those carrying
+   * `caller` / `target`): `'mcp'` is a tool call (has `detail`, the
+   * tool), `'read'` is a file read (has NO `detail`). Absent on a plain
+   * execution of the node itself (no `caller` / `target`).
+   */
+  kind?: 'mcp' | 'read';
 }
 
 /**

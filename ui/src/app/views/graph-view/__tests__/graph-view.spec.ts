@@ -10,7 +10,7 @@ import { CollectionLoaderService } from '../../../../services/collection-loader'
 import { KindRegistryService } from '../../../../services/kind-registry';
 import { LivePreferencesService } from '../../../../services/live-preferences';
 import { MapVisibilityService } from '../../../../services/map-visibility';
-import { NodeActivityService } from '../../../../services/node-activity';
+import { NodeActivityService, type INodeInvocation } from '../../../../services/node-activity';
 import {
   DATA_SOURCE,
   type IDataSourcePort,
@@ -908,6 +908,7 @@ describe('GraphView, follow-the-activity camera', () => {
           useValue: {
             enabled: activityEnabled.asReadonly(),
             activePaths: active.asReadonly(),
+            activeInvocations: signal<readonly INodeInvocation[]>([]).asReadonly(),
             setEnabled: vi.fn(),
           } as unknown as NodeActivityService,
         },

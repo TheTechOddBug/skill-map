@@ -25,6 +25,77 @@ describe('ActivityStatsService.record', () => {
     assert.equal(second?.distinctOwners, 1);
   });
 
+  it('stacks the per-frame detail (invoked tool) into the recent history, most-recent first', () => {
+    const stats = new ActivityStatsService();
+    stats.record({ nodePath: NODE, phase: 'start', owner: 'main:s1', detail: 'notion-search' });
+    stats.record({ nodePath: NODE, phase: 'start', owner: 'main:s1', detail: 'notion-create-pages' });
+    const detail = stats.nodeDetail(NODE);
+    assert.equal(detail.recent.length, 2);
+    assert.equal(detail.recent[0]?.detail, 'notion-create-pages');
+    assert.equal(detail.recent[1]?.detail, 'notion-search');
+  });
+
+  it('attributes the caller on an mcp invocation and mirrors it (typed) onto the invoker recent', () => {
+    const stats = new ActivityStatsService();
+    const skill = '.claude/skills/demo/SKILL.md';
+    const mcp = 'mcp://notion';
+    stats.record({ nodePath: skill, phase: 'start', owner: 'main:s1' });
+    stats.record({
+      nodePath: mcp,
+      phase: 'start',
+      owner: 'main:s1',
+      detail: 'notion-create-pages',
+      access: 'mcp',
+    });
+    const mcpDetail = stats.nodeDetail(mcp);
+    assert.equal(mcpDetail.recent[0]?.caller, skill);
+    assert.equal(mcpDetail.recent[0]?.detail, 'notion-create-pages');
+    assert.equal(mcpDetail.recent[0]?.kind, 'mcp');
+    assert.equal(mcpDetail.recent[0]?.target, undefined);
+    const mirrored = stats.nodeDetail(skill).recent.find((e) => e.target !== undefined);
+    assert.equal(mirrored?.target, mcp);
+    assert.equal(mirrored?.detail, 'notion-create-pages');
+    assert.equal(mirrored?.kind, 'mcp');
+    assert.equal(mirrored?.caller, undefined);
+  });
+
+  it('mirrors a file READ onto the reader, typed read, no tool detail', () => {
+    const stats = new ActivityStatsService();
+    const skill = '.claude/skills/demo/SKILL.md';
+    const file = 'docs/notes.md';
+    stats.record({ nodePath: skill, phase: 'start', owner: 'main:s1' });
+    stats.record({ nodePath: file, phase: 'start', owner: 'main:s1', access: 'read' });
+    const fileDetail = stats.nodeDetail(file);
+    assert.equal(fileDetail.recent[0]?.caller, skill);
+    assert.equal(fileDetail.recent[0]?.kind, 'read');
+    assert.equal(fileDetail.recent[0]?.detail, undefined);
+    const mirrored = stats.nodeDetail(skill).recent.find((e) => e.target === file);
+    assert.equal(mirrored?.target, file);
+    assert.equal(mirrored?.kind, 'read');
+    assert.equal(mirrored?.detail, undefined);
+  });
+
+  it('leaves a unit execution untyped (no access, no mirror, no caller)', () => {
+    const stats = new ActivityStatsService();
+    stats.record({ nodePath: '.claude/skills/demo/SKILL.md', phase: 'start', owner: 'main:s1' });
+    const d = stats.nodeDetail('.claude/skills/demo/SKILL.md');
+    assert.equal(d.recent[0]?.kind, undefined);
+    assert.equal(d.recent[0]?.caller, undefined);
+    assert.equal(d.recent[0]?.target, undefined);
+  });
+
+  it('attributes no caller for a bare access with nothing lit under the owner', () => {
+    const stats = new ActivityStatsService();
+    stats.record({
+      nodePath: 'mcp://notion',
+      phase: 'start',
+      owner: 'main:bare',
+      detail: 'notion-search',
+      access: 'mcp',
+    });
+    assert.equal(stats.nodeDetail('mcp://notion').recent[0]?.caller, undefined);
+  });
+
   it('dedupes sticky starts per (nodePath, owner) pair', () => {
     const stats = new ActivityStatsService();
     const first = stats.record({ nodePath: NODE, phase: 'start', owner: 'a1', sticky: true });

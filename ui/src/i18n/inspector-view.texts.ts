@@ -65,6 +65,16 @@ export const INSPECTOR_VIEW_TEXTS = {
     summarizedRuns: (n: number): string =>
       n === 1 ? '(1 summarized run)' : `(${n} summarized runs)`,
     recentHeading: 'Recent executions',
+    /**
+     * Type-icon label for the directional recent rows
+     * (spec/provider-activity.md §WS event: node.activity, kind): an MCP
+     * tool call vs a file read. Doubles as the icon tooltip and its
+     * screen-reader label.
+     */
+    recentKind: {
+      mcp: 'MCP tool call',
+      read: 'File read',
+    },
     spawnsHeading: 'Agent spawns',
     /** Thread-row turn counter: every Task call of the pair is one exchange. */
     exchangeCount: (n: number): string => (n === 1 ? '1 exchange' : `${n} exchanges`),

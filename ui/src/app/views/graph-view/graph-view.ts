@@ -86,6 +86,11 @@ import {
   resolveSpawnOverlay,
   type ISpawnOverlay,
 } from './spawn-overlay';
+import {
+  EMPTY_INVOCATION_EDGES,
+  resolveInvocationOverlay,
+  type IInvocationOverlayEdge,
+} from './invocation-overlay';
 import { bindSelectionToUrl } from './selection-url-sync';
 import {
   readStoredNodePositions,
@@ -1414,6 +1419,26 @@ export class GraphView implements OnInit {
   isExecuting(id: string): boolean {
     return this.nodeActivity.activePaths().has(id);
   }
+
+  /**
+   * Transient tool-invocation edges (spec/provider-activity.md §WS
+   * event: node.activity, the `detail` field): caller -> mcp target,
+   * the invoked tool as the label. Projected from the correlated
+   * `NodeActivityService.activeInvocations`, filtered to the pairs whose
+   * BOTH endpoints are visible + positioned. Cheap and empty while
+   * nothing is invoking.
+   */
+  protected readonly invocationEdges = computed<readonly IInvocationOverlayEdge[]>(() => {
+    const invocations = this.nodeActivity.activeInvocations();
+    if (invocations.length === 0) return EMPTY_INVOCATION_EDGES;
+    const pinned = this.nodePositions();
+    const layout = this.fullLayout().positions;
+    return resolveInvocationOverlay({
+      invocations,
+      visiblePaths: this.mapVisiblePaths(),
+      positionOf: (path) => pinned.get(path) ?? layout.get(path),
+    });
+  });
 
   /**
    * Active-spine edge: both endpoints are executing (the agent that is

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { pathBasenameForLink } from '../path-basename';
+import { activityNodeLabel, pathBasenameForLink } from '../path-basename';
 
 describe('pathBasenameForLink', () => {
   it('returns the filename without extension for plain .md paths', () => {
@@ -26,5 +26,21 @@ describe('pathBasenameForLink', () => {
     // to "the parent name"; the function falls through to the
     // `.md`-stripping branch.
     expect(pathBasenameForLink('SKILL.md')).toBe('SKILL');
+  });
+});
+
+describe('activityNodeLabel', () => {
+  it('shows the server name for an mcp node path', () => {
+    expect(activityNodeLabel('mcp://notion')).toBe('notion');
+    expect(activityNodeLabel('mcp://github-server/tool')).toBe('github-server');
+  });
+
+  it('falls back to the basename label for a non-mcp path', () => {
+    expect(activityNodeLabel('.claude/skills/deploy/SKILL.md')).toBe('deploy');
+    expect(activityNodeLabel('.claude/agents/reviewer.md')).toBe('reviewer');
+  });
+
+  it('returns the raw value for a degenerate `mcp://` with no server', () => {
+    expect(activityNodeLabel('mcp://')).toBe('mcp://');
   });
 });
