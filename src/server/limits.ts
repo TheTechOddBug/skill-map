@@ -52,3 +52,15 @@ export const BFF_MAX_BULK_CONTRIBUTIONS = 200;
  * still being a meaningful ceiling. Tuning is unsupported pre-v1.
  */
 export const MAX_WS_CLIENTS = 64;
+
+/**
+ * Hard cap on concurrently-tracked MCP sessions (`/mcp`, stateful
+ * Streamable HTTP). Each session holds an in-memory transport + a fresh
+ * `McpServer`, so an unbounded map is the same CWE-770 exhaustion risk
+ * the `/ws` cap closes. At the cap the session manager evicts the OLDEST
+ * session (closing its SSE stream) before admitting the newcomer, so a
+ * flood of `initialize` requests cannot grow the map without bound. A
+ * single host (Claude Code, Cursor) opens one session; 32 is far above
+ * any legitimate local use. Tuning is unsupported pre-v1.
+ */
+export const MAX_MCP_SESSIONS = 32;

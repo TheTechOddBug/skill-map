@@ -135,6 +135,18 @@ export interface IServerOptions {
    * config.
    */
   watchBackend?: 'chokidar' | 'parcel' | undefined;
+
+  /**
+   * Whether `sm serve` mounts the read-only MCP server at `/mcp` (see
+   * `spec/mcp-server.md`). Already RESOLVED at the composition root:
+   * the CLI verb applies precedence (`--mcp` / `--no-mcp` flag >
+   * `mcp.server.enabled` config > default `false`) and threads the final
+   * boolean here. When `false`, `createApp` mounts no `/mcp` route and
+   * `createServer` builds no MCP server, so the surface is entirely
+   * absent (a `/mcp` request falls through to the SPA `*` handler).
+   * Experimental, off by default.
+   */
+  mcpServer: boolean;
 }
 
 export interface IServerOptionsInput {
@@ -152,6 +164,7 @@ export interface IServerOptionsInput {
   maxScan?: number | undefined;
   maxNodes?: number | undefined;
   watchBackend?: 'chokidar' | 'parcel' | undefined;
+  mcpServer?: boolean | undefined;
 }
 
 export type TServerOptionsErrorCode =
@@ -229,6 +242,7 @@ export function validateServerOptions(input: IServerOptionsInput): TServerOption
     open: filled.open,
     devCors: filled.devCors,
     noWatcher: filled.noWatcher,
+    mcpServer: filled.mcpServer,
   };
   if (input.watcherDebounceMs !== undefined) {
     options.watcherDebounceMs = input.watcherDebounceMs;
@@ -255,6 +269,7 @@ interface IFilledInput {
   open: boolean;
   devCors: boolean;
   noWatcher: boolean;
+  mcpServer: boolean;
 }
 
 /**
@@ -275,6 +290,7 @@ function applyDefaults(input: IServerOptionsInput): IFilledInput {
     open: input.open ?? true,
     devCors: input.devCors ?? false,
     noWatcher: input.noWatcher ?? false,
+    mcpServer: input.mcpServer ?? false,
   };
 }
 

@@ -174,6 +174,7 @@ function defaultOptions(overrides: Partial<IServerOptions> = {}): IServerOptions
     open: false,
     devCors: false,
     noWatcher: true, // dedicated watcher tests live in `server-ws-integration.test.ts`
+    mcpServer: false,
     ...overrides,
   };
 }

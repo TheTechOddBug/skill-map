@@ -74,7 +74,9 @@ import { SERVER_TEXTS } from './i18n/server.texts.js';
 import { buildKindRegistry } from './kind-registry.js';
 import { buildProviderRegistry } from './provider-registry.js';
 import { buildContributionsRegistry } from './contributions-registry.js';
+import { createMcpIntegration, type IMcpIntegration } from './mcp/index.js';
 import type { IServerOptions } from './options.js';
+import { VERSION } from '../version.js';
 import {
   createWatcherService,
   type IWatcherServiceHandle,
@@ -178,6 +180,15 @@ export async function createServer(
   // boots; routes guard on null (matches the `--no-watcher` path).
   const watcherHolder: IWatcherServiceHolder = { current: null };
 
+  // Read-only MCP server (see `spec/mcp-server.md`), built ONLY when
+  // enabled at boot (`options.mcpServer`, resolved by the `sm serve`
+  // verb as flag > `mcp.server.enabled` config > default off). The
+  // composition root owns its lifecycle: `buildMcpIntegration` registers
+  // the realtime sink on `broadcaster`, and `close()` disposes both the
+  // sink and every live session. When off, no `/mcp` route is mounted
+  // (the manager is null) and the broadcaster is unaffected.
+  const mcpIntegration = buildMcpIntegration(options, runtimeContext, broadcaster, activityStats);
+
   const app = createApp({
     options,
     specVersion,
@@ -193,6 +204,7 @@ export async function createServer(
     pluginRuntime,
     watcherHolder,
     kernel,
+    mcpManager: mcpIntegration ? mcpIntegration.manager : null,
   });
 
   // `noServer: true` is mandatory, node-server's `setupWebSocket` throws
@@ -258,12 +270,46 @@ export async function createServer(
         // already logged inside stop()
       }
     }
+    // MCP teardown BEFORE the broadcaster shuts down: unregister the
+    // realtime sink and drain every live MCP session (closing its SSE
+    // stream) so no notification races the broadcaster's client drain.
+    if (mcpIntegration) {
+      try {
+        await mcpIntegration.dispose();
+      } catch {
+        // best-effort; the process is exiting regardless
+      }
+    }
     broadcaster.shutdown();
     await closeServer(server);
     wss.close();
   };
 
   return { address, close, broadcaster, activityToken };
+}
+
+/**
+ * Build the read-only MCP integration when `options.mcpServer` is set,
+ * else `null`. Extracted from `createServer` so the gate + the
+ * dependency threading live in one place and the composition root's
+ * cyclomatic budget stays flat. `createMcpIntegration` registers the
+ * realtime broadcaster sink as a side effect; the returned handle's
+ * `dispose()` unregisters it and closes every live session.
+ */
+function buildMcpIntegration(
+  options: IServerOptions,
+  runtimeContext: IRuntimeContext,
+  broadcaster: WsBroadcaster,
+  activityStats: ActivityStatsService,
+): IMcpIntegration | null {
+  if (!options.mcpServer) return null;
+  return createMcpIntegration({
+    dbPath: options.dbPath,
+    cwd: runtimeContext.cwd,
+    implVersion: VERSION,
+    activityStats,
+    broadcaster,
+  });
 }
 
 /**

@@ -122,6 +122,7 @@ function defaultOptions(): IServerOptions {
     open: false,
     devCors: false,
     noWatcher: true,
+    mcpServer: false,
   };
 }
 

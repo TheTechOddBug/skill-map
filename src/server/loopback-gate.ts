@@ -29,7 +29,7 @@
  *      BFF off-loopback (`--host 0.0.0.0`) which `options.ts` rejects
  *      in combination with `--dev-cors`. The standing assumption is
  *      "localhost resolves to loopback on every operator's machine".
- *   2. **Origin header hostname** (only on `/api/*` and `/ws`): must be
+ *   2. **Origin header hostname** (only on `/api/*`, `/ws`, and `/mcp`): must be
  *      absent, `null` (sandboxed / file:// / cross-document navigation),
  *      or a loopback hostname. Same port-agnostic posture; this also
  *      means `--dev-cors` does NOT need a special widening (a Vite UI
@@ -121,6 +121,12 @@ function hostnameOf(host: string): string {
 
 function originGuarded(path: string): boolean {
   if (path === '/ws') return true;
+  // `/mcp` is the read-only MCP JSON-RPC surface (see
+  // `spec/mcp-server.md` §Security posture). Same Origin discipline as
+  // `/api/*` and `/ws`: a present Origin must be loopback; a missing /
+  // empty / `null` Origin is accepted, because non-browser MCP clients
+  // (the common case) send none.
+  if (path === '/mcp') return true;
   if (path.startsWith('/api/')) return true;
   return false;
 }

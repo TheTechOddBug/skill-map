@@ -81,6 +81,7 @@ function options(): IServerOptions {
     open: false,
     devCors: false,
     noWatcher: true,
+    mcpServer: false,
   };
 }
 

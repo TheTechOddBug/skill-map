@@ -53,6 +53,7 @@ import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { ConflictError, DbMissingError } from '../app.js';
 import type { WsBroadcaster } from '../broadcaster.js';
+import { emptyScanResult } from '../empty-scan.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
 import { ScanBusyError, withScanMutex } from '../scan-mutex.js';
 import { noopWritable } from '../util/noop-writable.js';
@@ -360,36 +361,7 @@ const bffVersionCheckPrinter: IPrinter = {
   error: (text) => log.warn(sanitizeForTerminal(text.trimEnd())),
 };
 
-/**
- * Empty `ScanResult` returned when the DB file is absent. Mirrors the
- * shape `loadScanResult` produces against an empty migrated DB so the
- * SPA never sees a structurally different payload.
- */
-function emptyScanResult(): ScanResult {
-  return {
-    schemaVersion: 1,
-    scannedAt: Date.now(),
-    roots: ['.'],
-    providers: [],
-    // Surface the design defaults so the SPA reads the same field shape
-    // on cold boot as on populated DBs. 5000 mirrors `scan.maxScan`
-    // (the walk ceiling) and 256 mirrors `scan.maxNodes` (the render
-    // cap), both from `src/config/defaults.json`. A real scan
-    // overwrites these with the live values on next run.
-    scanCeiling: 5000,
-    scanTruncated: false,
-    maxRenderNodes: 256,
-    nodes: [],
-    links: [],
-    issues: [],
-    stats: {
-      filesWalked: 0,
-      filesSkipped: 0,
-      nodesCount: 0,
-      linksCount: 0,
-      issuesCount: 0,
-      durationMs: 0,
-    },
-  };
-}
+// `emptyScanResult()` (DB-absent shape) lives in `../empty-scan.js` so
+// the REST scan route and the MCP `skillmap://graph` resource share one
+// definition.
 

@@ -225,6 +225,14 @@ export interface IEffectiveConfig {
   tutorialReminderDismissed: boolean;
   tokenizer: string;
   server: IServerBindConfig;
+  /**
+   * Model Context Protocol surface (see `spec/mcp-server.md`). Optional
+   * and absent on most projects (the server defaults off). Mirrors
+   * `project-config.schema.json#/properties/mcp`; the only key today is
+   * the opt-in read-only server toggle. Read at `sm serve` boot only,
+   * never per request; the `--mcp` / `--no-mcp` flags override it.
+   */
+  mcp?: IMcpConfig;
   roots: string[];
   ignore: string[];
   scan: IScanConfig;
@@ -245,6 +253,25 @@ export interface IEffectiveConfig {
    */
   ui?: IUiPreferencesConfig;
   jobs: IJobsConfig;
+}
+
+/**
+ * MCP surface config block. Mirrors
+ * `project-config.schema.json#/properties/mcp`. Team-shared (committed
+ * `project` layer is allowed); the server mounts at serve boot only.
+ */
+export interface IMcpConfig {
+  server?: IMcpServerConfig;
+}
+
+/** skill-map's own read-only MCP server toggle (`mcp.server`). */
+export interface IMcpServerConfig {
+  /**
+   * Whether `sm serve` mounts the read-only MCP server at `/mcp`.
+   * Default `false` (opt-in, experimental). Overridden by the
+   * `--mcp` / `--no-mcp` flags. See `spec/mcp-server.md` §Enablement.
+   */
+  enabled?: boolean;
 }
 
 /**

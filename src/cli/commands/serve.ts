@@ -131,6 +131,15 @@ export class ServeCommand extends SmCommand {
   noWatcher = Option.Boolean('--no-watcher', false, {
     description: 'Disable the chokidar-fed scan-and-broadcast loop. Use only for CI / read-only deployments.',
   });
+  // No default: `undefined` when neither `--mcp` nor `--no-mcp` was
+  // passed, so the verb can apply the precedence flag > `mcp.server.enabled`
+  // config > default off. Clipanion auto-derives `--no-mcp` as the
+  // negation (same convention as `--no-open`), so declaring only `--mcp`
+  // registers both.
+  mcp = Option.Boolean('--mcp', {
+    description:
+      'Mount the read-only MCP server at /mcp (Model Context Protocol, experimental). Overrides mcp.server.enabled; --no-mcp forces it off. Off by default.',
+  });
   yes = Option.Boolean('--yes', false, {
     description: 'Skip the interactive prompt and rebuild the local cache when the on-disk DB has drifted (version skew or an inline schema change). Non-TTY invocations rebuild without asking regardless of this flag.',
   });
@@ -325,6 +334,11 @@ export class ServeCommand extends SmCommand {
       open: this.open,
       devCors: this.devCors,
       noWatcher: this.noWatcher,
+      // MCP server precedence: flag (`--mcp` / `--no-mcp`) > the resolved
+      // `mcp.server.enabled` config key > default off. `this.mcp` is
+      // `undefined` when neither flag was passed. See `spec/mcp-server.md`
+      // §Enablement.
+      mcpServer: this.mcp ?? projectCfg?.mcp?.server?.enabled ?? false,
     };
     const boundPort = portResult.port ?? projectCfg?.server.port;
     const boundHost = this.host ?? projectCfg?.server.host;

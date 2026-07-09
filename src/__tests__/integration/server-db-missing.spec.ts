@@ -86,6 +86,7 @@ describe('sm serve, DB resilience', () => {
       open: false,
       devCors: false,
       noWatcher: true,
+      mcpServer: false,
     };
 
     const handle = await createServer(opts);

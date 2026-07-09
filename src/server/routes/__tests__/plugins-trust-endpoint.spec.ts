@@ -136,6 +136,7 @@ function options(scope: IScope, over: Partial<IServerOptions> = {}): IServerOpti
     open: false,
     devCors: false,
     noWatcher: true,
+    mcpServer: false,
     ...over,
   };
 }

@@ -50,6 +50,7 @@ function defaultOptions(overrides: Partial<IServerOptions> = {}): IServerOptions
     // doesn't subscribe to the test runner's cwd. Tests that exercise
     // the watcher live in `server-ws-integration.test.ts`.
     noWatcher: true,
+    mcpServer: false,
     ...overrides,
   };
 }

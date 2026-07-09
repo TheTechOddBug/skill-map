@@ -195,6 +195,7 @@ function defaultOptions(overrides: Partial<IServerOptions> = {}): IServerOptions
     open: false,
     devCors: false,
     noWatcher: true,
+    mcpServer: false,
     ...overrides,
   };
 }

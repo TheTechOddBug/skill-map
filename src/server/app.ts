@@ -109,6 +109,8 @@ import { registerActivitySummaryRoute } from './routes/activity-summary.js';
 import { registerScanRoute } from './routes/scan.js';
 import { registerUpdateStatusRoute } from './routes/update-status.js';
 import { createSpaFallback, createStaticHandler } from './static.js';
+import type { McpSessionManager } from './mcp/index.js';
+import { registerMcpRoute } from './mcp/index.js';
 import { attachBroadcasterRoute } from './ws.js';
 
 /**
@@ -414,6 +416,17 @@ export interface IAppDeps {
    * an explicit deps thread-through.
    */
   kernel: Kernel;
+  /**
+   * Read-only MCP session manager (see `spec/mcp-server.md`), present
+   * ONLY when the MCP server is enabled (`options.mcpServer`). Built and
+   * owned by the composition root (`createMcpIntegration` in
+   * `createServer`), which also registers its realtime broadcaster sink
+   * and disposes it on shutdown; `createApp` only wires the top-level
+   * `POST/GET/DELETE /mcp` routes into it. `null` when the MCP server is
+   * off, in which case no `/mcp` route is mounted and a `/mcp` request
+   * falls through to the SPA `*` handler.
+   */
+  mcpManager: McpSessionManager | null;
 }
 
 /**
@@ -632,6 +645,17 @@ export function createApp(deps: IAppDeps): Hono {
       message: tx(SERVER_TEXTS.unknownApiEndpoint, { path: sanitizeForTerminal(c.req.path) }),
     });
   });
+
+  // Read-only MCP server, top-level `POST/GET/DELETE /mcp` (a sibling of
+  // `/ws`, OUTSIDE `/api/*`). Mounted ONLY when the MCP server is enabled
+  // and registered BEFORE the static handler + SPA fallback so a literal
+  // `/mcp` path on disk cannot shadow it. When disabled, `deps.mcpManager`
+  // is null and `/mcp` falls through to the SPA `*` handler. The manager
+  // (and its broadcaster sink) are built + disposed by the composition
+  // root; this only wires the routes. See `spec/mcp-server.md`.
+  if (deps.mcpManager) {
+    registerMcpRoute(app, deps.mcpManager);
+  }
 
   // 3. /ws, WebSocket upgrade route. Must be declared BEFORE the
   //    static handler so a literal `/ws` path on disk in `uiDist`
