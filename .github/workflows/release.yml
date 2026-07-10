@@ -2,9 +2,18 @@ name: release
 
 on:
   push:
-    branches: [main]
+    # `main` cuts stable releases to the `latest` npm tag. `release/rc` is the
+    # dedicated prerelease channel: while it is in changesets pre mode it
+    # publishes `-rc.N` builds under the `rc` tag, so `latest` (and every bare
+    # `npm i @skill-map/cli`) stays on the last stable. Runbook + invariants:
+    # CONTRIBUTING.md "Release candidates (prereleases)".
+    branches: [main, release/rc]
     paths:
       - '.changeset/*.md'
+      # Entering / exiting pre mode (`changeset pre enter|exit`) only touches
+      # pre.json; include it so the prerelease pass triggers on the enter/exit
+      # commit even when no changeset .md changed in the same push.
+      - '.changeset/pre.json'
       - '*/package.json'
       - 'package.json'
 
@@ -46,6 +55,31 @@ jobs:
 
       - name: Install deps
         run: pnpm install --frozen-lockfile
+
+      - name: Guard release channel / pre-mode invariant
+        # Two hard invariants that keep the `latest` npm tag clean, checked
+        # before any build or publish so a misconfigured branch fails fast:
+        #   - `main` must NEVER carry .changeset/pre.json. If it did, the
+        #     changesets action would flip main into pre mode and publish every
+        #     release as an `-rc.N` under the `rc` tag, halting stable releases
+        #     to `latest`.
+        #   - `release/rc` must ALWAYS carry .changeset/pre.json. Without it the
+        #     action would version + publish a STABLE build to `latest` from the
+        #     prerelease branch, shipping an unvetted release to every
+        #     `npm i @skill-map/cli` user.
+        # Runbook: CONTRIBUTING.md "Release candidates (prereleases)".
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          if [ "$REF" = "refs/heads/main" ] && [ -f .changeset/pre.json ]; then
+            echo "::error::.changeset/pre.json is present on main. Run 'pnpm changeset pre exit' and remove it before releasing from main (see CONTRIBUTING.md)."
+            exit 1
+          fi
+          if [ "$REF" = "refs/heads/release/rc" ] && [ ! -f .changeset/pre.json ]; then
+            echo "::error::release/rc has no .changeset/pre.json. Run 'pnpm changeset pre enter rc' before pushing, or you would publish a stable release to the 'latest' tag from a prerelease branch (see CONTRIBUTING.md)."
+            exit 1
+          fi
+          echo "Release channel invariant OK for ${REF}."
 
       - name: Detect release pass
         id: pass
