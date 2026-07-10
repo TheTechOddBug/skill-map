@@ -1,0 +1,9 @@
+annotations:
+  tags:
+    - harness
+    - deploy
+    - ci
+identity:
+  bodyHash: f350599017630b2b78dc25d0ceb4695b6b44b004dcb0e1c52553b11fea66276a
+  frontmatterHash: b5972fcc974557e60f2fe827cfb9effb6c218ef319c3491998639df593b58408
+  path: .agents/skills/publish/SKILL.md

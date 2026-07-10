@@ -234,6 +234,60 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
     ok(typeof orphans[0]!.data?.['expectedMdPath'] === 'string');
   });
 
+  it('.toml node with co-located <file>.toml.sm → NOT an orphan (append-form anchor)', async () => {
+    // Codex `.toml` sub-agents anchor their sidecar via the append form
+    // (`sidecarPathFor`: `X.toml` -> `X.toml.sm`), not the `.md` swap. The
+    // orphan sweep must invert BOTH forms; before the fix it hardcoded
+    // `<stem>.md` and falsely stranded every non-`.md` node's sidecar.
+    const fixture = freshFixture('toml-sidecar');
+    const tomlPath = '.codex/agents/content-editor.toml';
+    writeFile(
+      fixture,
+      tomlPath,
+      [
+        'name = "content-editor"',
+        'description = "writes pages"',
+        'developer_instructions = "Do the thing."',
+      ].join('\n'),
+    );
+    writeFile(
+      fixture,
+      `${tomlPath}.sm`,
+      [
+        'identity:',
+        `  path: ${tomlPath}`,
+        `  bodyHash: ${'a'.repeat(64)}`,
+        `  frontmatterHash: ${'b'.repeat(64)}`,
+        'annotations:',
+        '  stability: deprecated',
+      ].join('\n'),
+    );
+
+    const result = await fullScan(fixture);
+    const orphans = result.issues.filter((i) => i.analyzerId === 'annotation-orphan');
+    strictEqual(orphans.length, 0, 'a .toml.sm whose .toml sibling exists is not orphan');
+  });
+
+  it('orphan <file>.toml.sm with no .toml sibling → annotation-orphan issue', async () => {
+    const fixture = freshFixture('orphan-toml');
+    // Append-form sidecar whose `.toml` node is gone: still a genuine orphan.
+    writeFile(
+      fixture,
+      '.codex/agents/ghost.toml.sm',
+      [
+        'identity:',
+        '  path: .codex/agents/ghost.toml',
+        `  bodyHash: ${'a'.repeat(64)}`,
+        `  frontmatterHash: ${'b'.repeat(64)}`,
+      ].join('\n'),
+    );
+
+    const result = await fullScan(fixture);
+    const orphans = result.issues.filter((i) => i.analyzerId === 'annotation-orphan');
+    strictEqual(orphans.length, 1);
+    strictEqual(orphans[0]!.data?.['sidecarPath'], '.codex/agents/ghost.toml.sm');
+  });
+
   it('malformed YAML in .sm → invalid-sidecar error, scan still completes', async () => {
     const fixture = freshFixture('malformed');
     writeFile(fixture, NODE_PATH, BASE_MD);

@@ -1,0 +1,10 @@
+annotations:
+  stability: stable
+  tags:
+    - harness
+    - content
+    - frontend
+identity:
+  bodyHash: 08939cfcd160461e779b6f068795b9f900f3726c39ba4a194de1d96fb990d4ea
+  frontmatterHash: 8acc8fd80b9434b0352bb539c4d265724c6d86773e41e21a39f16c4fd0aa898a
+  path: .codex/agents/content-editor.toml

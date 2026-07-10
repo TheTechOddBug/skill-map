@@ -1,0 +1,9 @@
+annotations:
+  tags:
+    - harness
+    - notion
+    - publish
+identity:
+  bodyHash: 4fb85b115ff3184eabe9f7da627c448682d7294f308955ed993fe7dbc63bf63a
+  frontmatterHash: cfaac22277eaa0b9c56d534c7dfa1c758372ef3ae6bfa016512762b3307b3f28
+  path: .agents/skills/notion-publish/SKILL.md

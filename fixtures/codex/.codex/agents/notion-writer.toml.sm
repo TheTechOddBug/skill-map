@@ -1,0 +1,9 @@
+annotations:
+  stability: deprecated
+  tags:
+    - notion
+    - legacy
+identity:
+  bodyHash: 51f4fde917a4f41c89dd69a2faddd2147a8653ff0d6ef37ca5878f867a8d3817
+  frontmatterHash: b76d1d4b5ba4c58f9e5f93243bc54a8c8a5f70accd1b51070c612a04222f7fe9
+  path: .codex/agents/notion-writer.toml

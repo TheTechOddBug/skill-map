@@ -1,0 +1,7 @@
+# Notion MCP (Streamable HTTP). The notion-publish skill creates a page
+# live via mcp__notion__notion-create-pages, lighting the mcp://notion node
+# on the map. Discovered config-side by the toml-mcp-servers dialect (which
+# materialises the mcp://notion node); requires the operator's own Notion
+# auth to actually run, the node materialises regardless.
+[mcp_servers.notion]
+url = "https://mcp.notion.com/mcp"

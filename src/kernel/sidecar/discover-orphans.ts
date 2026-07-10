@@ -1,18 +1,20 @@
 /**
  * Orphan sidecar discovery (Step 9.6.2).
  *
- * Walks the scan roots, finds every `*.sm` file, and returns the
- * paths whose accompanying `*.md` does NOT exist on disk. The
+ * Walks the scan roots, finds every `*.sm` file, and returns the paths
+ * whose anchoring node does NOT exist on disk. The anchor is whichever
+ * node `sidecarPathFor` (parse.ts) maps to the sidecar: a `.md` node
+ * swaps its extension (`X.md` -> `X.sm`), any other node appends
+ * (`X.toml` -> `X.toml.sm`, e.g. Codex `.toml` sub-agents). The
  * `annotation-orphan` built-in rule consumes the result and emits one
  * warning per stranded sidecar.
  *
  * Implementation is intentionally a fresh walk (rather than piggy-
- * backing on the Provider walk), the Provider only yields `.md`
- * files; orphans are exactly the `.sm` files that have no corresponding
- * `.md` to anchor them, so we need an `.sm`-driven sweep.
+ * backing on the Provider walk): orphans are exactly the `.sm` files
+ * whose node no longer exists, so we need an `.sm`-driven sweep.
  */
 
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { readdirSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
 export interface IOrphanSidecar {
@@ -20,13 +22,20 @@ export interface IOrphanSidecar {
   sidecarPath: string;
   /** Relative path (POSIX-separated) from the root that contained it. */
   relativePath: string;
-  /** Absolute path of the `.md` file the sidecar was expected to accompany. */
+  /**
+   * Absolute path of the node the sidecar was expected to accompany. For a
+   * genuine orphan the anchoring node is gone, so this reports the swap-form
+   * (`<stem>.md`) candidate for the message; the unambiguous `sidecarPath`
+   * above is what identifies the stranded file.
+   */
   expectedMdPath: string;
 }
 
 /**
  * Find orphaned `.sm` files across the supplied roots. A `.sm` is an
- * orphan when its sibling `<basename>.md` does not exist.
+ * orphan when neither of its anchor candidates exists: the append-form
+ * node (the `.sm`-stripped stem, e.g. `X.toml`) nor the swap-form node
+ * (`<stem>.md`). See `sidecarPathFor` for the forward mapping.
  *
  * Walks the filesystem directly. Symbolic links are skipped (mirrors
  * the Claude Provider's walk policy, audit M7). Errors reading a
@@ -71,9 +80,16 @@ function walk(
     }
     if (!entry.isFile()) continue;
     if (!entry.name.endsWith('.sm')) continue;
-    const expectedMd = `${full.slice(0, -'.sm'.length)}.md`;
-    if (existsSync(expectedMd) && safeIsFile(expectedMd)) continue;
-    out.push({ sidecarPath: full, relativePath: rel, expectedMdPath: expectedMd });
+    // A `.sm` anchors to whichever node `sidecarPathFor` (parse.ts) maps to
+    // it, and that map has TWO branches: a `.md` node swaps its extension
+    // (`X.md` -> `X.sm`), every other node appends (`X.toml` -> `X.toml.sm`,
+    // the shape Codex `.toml` sub-agents carry). Invert BOTH: the `.sm`-
+    // stripped stem is the append-form anchor, and `<stem>.md` is the swap-
+    // form anchor. Present either way -> not orphan. Checking only `<stem>.md`
+    // (the old behaviour) falsely stranded every non-`.md` node's sidecar.
+    const stem = full.slice(0, -'.sm'.length);
+    if (safeIsFile(stem) || safeIsFile(`${stem}.md`)) continue;
+    out.push({ sidecarPath: full, relativePath: rel, expectedMdPath: `${stem}.md` });
   }
 }
 

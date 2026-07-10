@@ -1,16 +1,12 @@
----
-name: Project handbook
-description: How the Codex sub-agents collaborate to ship this project.
----
+# Portfolio handbook
 
-# Project handbook
+A small static portfolio site, served by Express (`server.js`). The Codex
+harness maintains it: an agent writes the pages, a skill checks the links,
+a skill publishes them, to the live site and, mirrored, to Notion pages via
+the Notion MCP. The conventions live in the style guide; the deploy steps in
+the deploy runbook. The pages still to build are tracked in
+[the backlog](./docs/BACKLOG.md).
 
-This project is driven by four Codex sub-agents that hand off to each
-other in sequence: an architect designs, a builder implements, a reviewer
-signs off, and a releaser ships. Each agent's prompt links to the doc it
-owns and mentions the next agent in the chain.
-
-Two shared skills live under `.agents/skills/` (the open standard Codex
-reads skills from): the builder invokes `/run-tests` before handoff, and
-the releaser invokes `/changelog-entry` when cutting a release. Each
-skill links the doc it leans on and mentions the agent that runs it.
+- When a page needs writing or fixing, brief the content-editor agent.
+- When the site is ready to go out, run $publish (it also mirrors the pages to Notion).
+- To sync a single page to Notion by hand, brief notion-writer (deprecated, prefer $publish).
