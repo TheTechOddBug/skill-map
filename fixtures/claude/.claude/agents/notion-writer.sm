@@ -1,0 +1,9 @@
+annotations:
+  stability: deprecated
+  tags:
+    - notion
+    - legacy
+identity:
+  bodyHash: 42f9ad076bbf6068597828d60d6aa69c447adb72152f4dcfef6f7593dcca0849
+  frontmatterHash: fd89357c300abb4cc8a66c192d10a0452237b1378fd6ad02be718c14076fb60e
+  path: .claude/agents/notion-writer.md

@@ -1,6 +1,6 @@
 # Default `.skill-mapignore` shipped by `sm init`. Anything matching is
 # skipped during `sm scan`. Same syntax as `.gitignore` (kaelzhang/ignore).
-# Edit freely after `sm init` — the file is owned by the user from then on.
+# Edit freely after `sm init`; the file is owned by the user from then on.
 
 # Version-control + dependency dirs
 .git/
@@ -26,5 +26,5 @@ Thumbs.db
 # Logs
 *.log
 
-# Fixture-specific: private notes are never mapped
-notes/private-*.md
+# Portfolio: generated HTML lives here (not part of the harness graph)
+public/
