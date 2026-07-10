@@ -28,8 +28,8 @@
  *   `frontmatter.name`, `filename-basename`); the default generic
  *   `worker` type matches no scanned node and drops at the resolver.
  * - **Spawn relations, no custody**: the `spawn_agent` Pre/PostToolUse
- *   pair (the ONLY tool events the descriptor wires, matcher-scoped so
- *   the bridge never runs on Bash / apply_patch / MCP traffic) carries
+ *   pair (matcher-scoped alongside the MCP tools below, so the bridge
+ *   never runs on the high-frequency Bash / apply_patch traffic) carries
  *   the spawn relation: `tool_input.agent_type` + `message` (the
  *   prompt) on the start, and the child's `agent_id` inside the
  *   JSON-string `tool_response` on the handoff (live-verified
@@ -42,12 +42,20 @@
  *   final report and stay disclaimed: the stop's
  *   `last_assistant_message` (the generic report path) is the
  *   response source.
+ * - **MCP usage**: a `PreToolUse` for an `mcp__<server>__<tool>` call
+ *   (the matcher is widened to `^(spawn_agent|mcp__.+)$`) emits a PATH
+ *   signal to the `mcp://<server>` node via the shared `mapMcpInvocation`.
+ *   Codex reports the SAME `mcp__<server>__<tool>` identifier claude does
+ *   (it force-prefixes the hook name, `codex-rs/.../tools/handlers/mcp.rs`),
+ *   so a live call lights the very node `core/mcp-tools` and `mcpConfig`
+ *   already drew. Deterministic, no inference; no end signal (UI decay
+ *   owns the span, like a skill), so only PreToolUse is widened.
  * - **No markdown-read signals**: Codex HAS an internal `read_file`
- *   tool but its hooks do not fire for it (PreToolUse covers only
- *   Bash / apply_patch / MCP; expanding it to `read_file` is an open
- *   upstream request, openai/codex#18491). Deliberately disclaimed
- *   until the hook surface exists; when it lands, this maps like
- *   claude's filter-first `Read` handling.
+ *   tool but its hooks do not fire for it (PreToolUse covers Bash /
+ *   apply_patch / MCP; expanding it to `read_file` is an open upstream
+ *   request, openai/codex#18491). Deliberately disclaimed until the hook
+ *   surface exists; when it lands, this maps like claude's filter-first
+ *   `Read` handling.
  *
  * Attribution: `owner` is `agent_id` when present, else the SESSIONIZED
  * main key (`main:<session_id>`, bare `main` for payloads with no
@@ -61,6 +69,7 @@ import type {
   IProviderActivityAdapter,
 } from '../../../../kernel/extensions/index.js';
 import {
+  mapMcpInvocation,
   mapSubagentBoundary,
   nonEmptyString,
   sessionizedOwner,
@@ -78,7 +87,7 @@ export const codexActivity: IProviderActivityAdapter = {
     // Bash / apply_patch / MCP traffic.
     events: [
       { event: 'UserPromptSubmit' },
-      { event: 'PreToolUse', matcher: '^spawn_agent$' },
+      { event: 'PreToolUse', matcher: '^(spawn_agent|mcp__.+)$' },
       { event: 'PostToolUse', matcher: '^spawn_agent$' },
       { event: 'SubagentStart' },
       { event: 'SubagentStop' },
@@ -92,7 +101,7 @@ export const codexActivity: IProviderActivityAdapter = {
       case 'UserPromptSubmit':
         return mapPromptSkills(event);
       case 'PreToolUse':
-        return mapSpawnRelation(event, 'start');
+        return mapPreToolUse(event);
       case 'PostToolUse':
         return mapSpawnRelation(event, 'handoff');
       case 'SubagentStart':
@@ -124,6 +133,19 @@ function mapPromptSkills(event: Record<string, unknown>): IActivitySignal[] | nu
     signals.push({ kind: 'skill', name, phase: 'start', owner });
   }
   return signals.length > 0 ? signals : null;
+}
+
+/**
+ * `PreToolUse` fans out by tool: `spawn_agent` carries a spawn relation,
+ * while an `mcp__<server>__<tool>` call lights the `mcp://<server>` node
+ * (shared with claude via `mapMcpInvocation`; Codex reports the SAME
+ * `mcp__` identifier to the hook, `codex-rs/.../tools/handlers/mcp.rs`
+ * forces the prefix). Every other tool the widened matcher lets through
+ * falls through to a disclaim.
+ */
+function mapPreToolUse(event: Record<string, unknown>): IActivitySignal[] | null {
+  if (event['tool_name'] === 'spawn_agent') return mapSpawnRelation(event, 'start');
+  return mapMcpInvocation(event);
 }
 
 /**

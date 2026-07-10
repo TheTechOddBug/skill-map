@@ -51,10 +51,12 @@ export const mcpToolsExtractor: IBuiltInManifest<IExtractor> = {
   kind: 'extractor',
   description:
     'Turns `tools: [mcp__<server>__<tool>]` entries in a node\'s frontmatter into an MCP node per unique server and an arrow from the source to each one. Example: `tools: [mcp__github__create_pr]` adds an `mcp://github` node and an arrow to it.',
-  // Claude-convention pattern only; per-vendor flavours and the
-  // config-side MCP declaration (Phase 5b) are still pending, so the
-  // extractor ships flagged as experimental in list / show / Settings.
-  stability: 'experimental',
+  // Reads the universal `mcp__<server>__<tool>` frontmatter identifier
+  // (the same string every vendor uses). Promoted to beta now that
+  // config-side discovery (the `mcpConfig` capability) and live
+  // invocation (claude + codex) have landed, so it ships ENABLED by
+  // default, MCP declarations show on the map out of the box.
+  stability: 'beta',
   scope: 'frontmatter',
 
   extract(ctx: IExtractorContext): void {

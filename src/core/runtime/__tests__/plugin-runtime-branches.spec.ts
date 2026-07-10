@@ -362,7 +362,7 @@ describe('plugin-runtime, branch coverage', () => {
       });
       assert.ok(composed);
       assert.equal(composed.providers.length, 6, 'claude + antigravity (beta) + codex (beta) + opencode (beta) + agent-skills (stable, locked) + core-markdown load by default');
-      assert.equal(composed.extractors.length, 11, '11 of 12 extractors loaded; core/mcp-tools is experimental so it ships disabled by default (the codex grammar extractors and the code-region siblings backtick-mention + backtick-slash + backtick-dollar are stable and load)');
+      assert.equal(composed.extractors.length, 12, 'all 12 extractors load by default; core/mcp-tools was promoted experimental → beta so it now ships enabled (the codex grammar extractors and the code-region siblings backtick-mention + backtick-slash + backtick-dollar load too)');
       assert.equal(composed.analyzers.length, 15, '15 of 16 analyzers loaded; core/annotation-stale is experimental so it ships disabled by default (the former projector analyzers core/supersede + core/tags were deleted; the remaining inspector buttons self-project from their actions and tag editing moved inline; core/score-resolution was deleted, the kernel now seeds the 1.0 baseline directly; core/job-file-orphan was removed, to return under a probabilistic evaluation model; core/name-mismatch joined for declared-vs-path-handle divergences)');
       // Actions load into the pipeline as dispatch targets; those with a
       // `project()` also self-project an inspector button (e.g.
@@ -417,31 +417,37 @@ describe('plugin-runtime, branch coverage', () => {
       );
     });
 
-    it('(f) experimental extension ships disabled by default; an explicit enable override turns it on', () => {
-      // `core/mcp-tools` is the only experimental built-in. With the
-      // default resolver (no overrides) it must NOT compose; an explicit
-      // enable override for its qualified id beats the installed default
-      // and brings it back, just like any other extension.
+    it('(f) a beta extractor ships enabled; an experimental extension stays disabled unless overridden', () => {
+      // `core/mcp-tools` was promoted experimental → beta, so it now ships
+      // ENABLED by default and composes without any override.
+      // `core/annotation-stale` is still experimental, so with the default
+      // resolver it must NOT compose; an explicit enable override for its
+      // qualified id beats the installed default and brings it back, just
+      // like any other extension.
       const off = composeScanExtensions({
         noBuiltIns: false,
         pluginRuntime: emptyPluginRuntime(),
       });
       assert.ok(off);
-      assert.equal(
+      assert.ok(
         off.extractors.some((e) => e.id === 'mcp-tools'),
+        'beta core/mcp-tools ships enabled and composes by default',
+      );
+      assert.equal(
+        off.analyzers.some((a) => a.id === 'annotation-stale'),
         false,
-        'experimental core/mcp-tools is excluded from the default pipeline',
+        'experimental core/annotation-stale is excluded from the default pipeline',
       );
 
       const runtime = emptyPluginRuntime();
       // An explicit override is a 2-arg-aware enable: it ignores the
       // installed default and returns true for the opted-in id only.
-      runtime.resolveEnabled = (id: string) => id === 'core/mcp-tools';
+      runtime.resolveEnabled = (id: string) => id === 'core/annotation-stale';
       const on = composeScanExtensions({ noBuiltIns: false, pluginRuntime: runtime });
       assert.ok(on);
       assert.ok(
-        on.extractors.some((e) => e.id === 'mcp-tools'),
-        'an explicit enable override restores the experimental extractor',
+        on.analyzers.some((a) => a.id === 'annotation-stale'),
+        'an explicit enable override restores the experimental analyzer',
       );
     });
 
@@ -493,7 +499,7 @@ describe('plugin-runtime, branch coverage', () => {
       });
       assert.ok(composed);
       assert.equal(composed.providers.length, 0);
-      assert.equal(composed.extractors.length, 11, 'extractors untouched (11: core/mcp-tools ships disabled, experimental; the codex grammar extractors and the three code-region trigger siblings load)');
+      assert.equal(composed.extractors.length, 12, 'extractors untouched (12: core/mcp-tools is now beta so it ships enabled; the codex grammar extractors and the three code-region trigger siblings load)');
       assert.equal(composed.analyzers.length, 15, 'analyzers untouched (15: core/annotation-stale is experimental so it ships disabled; the projector analyzers core/supersede + core/tags were deleted; core/score-resolution was deleted, the kernel seeds the 1.0 baseline directly; core/job-file-orphan was removed; core/name-mismatch joined)');
     });
 
@@ -517,7 +523,7 @@ describe('plugin-runtime, branch coverage', () => {
       });
       assert.ok(composed);
       assert.equal(composed.providers.length, 6, 'providers untouched (6: claude + antigravity (beta) + codex (beta) + opencode (beta) + agent-skills (stable, locked) + core-markdown load)');
-      assert.equal(composed.extractors.length, 11);
+      assert.equal(composed.extractors.length, 12, 'extractors untouched (12: core/mcp-tools is now beta, enabled by default)');
       assert.equal(composed.analyzers.length, 0);
     });
 

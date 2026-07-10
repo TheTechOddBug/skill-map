@@ -8,7 +8,7 @@
  *   payloads) and `relativizeMarkdownPath` (the filter-first `.md` +
  *   in-scope check behind every PATH signal).
  * - **The Claude-flavored hook convention**: `sessionizedOwner`,
- *   `toolInputOf`, `mapSubagentBoundary`. Claude Code's hook payload
+ *   `toolInputOf`, `mapSubagentBoundary`, `mapMcpInvocation`. Claude Code's hook payload
  *   shape (`hook_event_name`, `session_id`, `agent_id` / `agent_type`,
  *   `tool_input`, `last_assistant_message`) is the de-facto convention
  *   other vendors copy (Codex documents its hooks as the same shape).
@@ -23,6 +23,7 @@
  */
 
 import type { IActivitySignal } from '../extensions/index.js';
+import { mcpNodePath, parseMcpToolName } from './mcp.js';
 
 /** Fallback owner key for payloads that carry no context id at all. */
 export const MAIN_OWNER = 'main';
@@ -85,6 +86,29 @@ export function mapSubagentBoundary(
     if (report) signal.report = report;
   }
   return [signal];
+}
+
+/**
+ * Model-invoked MCP tool of a Claude-flavored runtime. Both Claude and
+ * Codex report the invoked tool to their `PreToolUse` hook as
+ * `mcp__<server>__<tool>` (Codex forces the `mcp__` prefix on the hook
+ * name, `codex-rs/.../tools/handlers/mcp.rs`), the SAME identifier
+ * `core/mcp-tools` parses from `tools:` frontmatter and `mcpConfig`
+ * materialises config-side, so a live call lights the very `mcp://<server>`
+ * node the static map already drew, via a PATH signal. Deterministic: the
+ * runtime reports the exact tool name, no inference. The tool half rides
+ * `detail` so the UI can paint the invoked tool as a transient label. A
+ * non-MCP `tool_name` (or an absent one) falls through to `null`, so the
+ * caller can chain it after its own tool dispatch.
+ */
+export function mapMcpInvocation(event: Record<string, unknown>): IActivitySignal[] | null {
+  const toolName = nonEmptyString(event['tool_name']);
+  if (!toolName) return null;
+  const mcp = parseMcpToolName(toolName);
+  if (!mcp) return null;
+  return [
+    { path: mcpNodePath(mcp.server), phase: 'start', owner: sessionizedOwner(event), detail: mcp.tool },
+  ];
 }
 
 /**

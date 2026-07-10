@@ -158,20 +158,20 @@ describe('CLI binary', () => {
   });
 
   it('`sm plugins list <id>` tags non-stable extensions with their lifecycle stage', () => {
-    // `core/mcp-tools` ships `stability: 'experimental'`; the detail row
-    // renders it as `core/mcp-tools (experimental)`. Stable extensions
-    // (missing == stable per spec) render untagged. The tag lives in the
-    // per-plugin detail (`list <id>`), the index carries no names.
+    // `core/mcp-tools` ships `stability: 'beta'`; the detail row renders
+    // it as `core/mcp-tools (beta)`. Stable extensions (missing == stable
+    // per spec) render untagged. The tag lives in the per-plugin detail
+    // (`list <id>`), the index carries no names.
     const r = sm(['plugins', 'list', 'core'], EMPTY_DIR);
     assert.equal(r.status, 0);
-    assert.match(r.stdout, /mcp-tools \(experimental\)/);
+    assert.match(r.stdout, /mcp-tools \(beta\)/);
     assert.match(r.stdout, /link-counter(?!\s*\()/);
   });
 
   it('`sm plugins show core/mcp-tools` surfaces the Stability field', () => {
     const r = sm(['plugins', 'show', 'core/mcp-tools'], EMPTY_DIR);
     assert.equal(r.status, 0);
-    assert.match(r.stdout, /^\s+Stability\s+experimental$/m);
+    assert.match(r.stdout, /^\s+Stability\s+beta$/m);
   });
 
   it('`sm help <namespace>` matches `sm <namespace> --help`', () => {

@@ -5,3 +5,18 @@
 # loads once the project is trusted.
 [agents]
 max_depth = 2
+
+# Read-only MCP server for the live-invocation demo. deepwiki is public
+# (Streamable HTTP, no auth). Discovered config-side by the toml-mcp-servers
+# dialect (materialises the mcp://deepwiki node), and lit live when
+# $demo-skill-mcp calls mcp__deepwiki__ask_question: Codex reports that
+# tool to the PreToolUse hook as mcp__deepwiki__ask_question.
+[mcp_servers.deepwiki]
+url = "https://mcp.deepwiki.com/mcp"
+
+# Notion MCP (Streamable HTTP). $demo-skill-notion creates a page live via
+# mcp__notion__notion-create-pages, lighting the mcp://notion node. Requires
+# the operator's own Notion auth to actually run; the node materialises
+# config-side regardless.
+[mcp_servers.notion]
+url = "https://mcp.notion.com/mcp"

@@ -1,13 +1,14 @@
 {
   "hooks": {
-    "UserPromptSubmit": [
+    "UserPromptExpansion": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "node .skill-map/activity/bridge.js codex"
+            "command": "node .skill-map/activity/bridge.js claude"
           }
-        ]
+        ],
+        "matcher": "*"
       }
     ],
     "PreToolUse": [
@@ -15,10 +16,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .skill-map/activity/bridge.js codex"
+            "command": "node .skill-map/activity/bridge.js claude"
           }
         ],
-        "matcher": "^(spawn_agent|mcp__.+)$"
+        "matcher": "^(Skill|Agent|Read|mcp__.+)$"
       }
     ],
     "PostToolUse": [
@@ -26,10 +27,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .skill-map/activity/bridge.js codex"
+            "command": "node .skill-map/activity/bridge.js claude"
           }
         ],
-        "matcher": "^spawn_agent$"
+        "matcher": "^Agent$"
       }
     ],
     "SubagentStart": [
@@ -37,9 +38,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .skill-map/activity/bridge.js codex"
+            "command": "node .skill-map/activity/bridge.js claude"
           }
-        ]
+        ],
+        "matcher": "*"
       }
     ],
     "SubagentStop": [
@@ -47,9 +49,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .skill-map/activity/bridge.js codex"
+            "command": "node .skill-map/activity/bridge.js claude"
           }
-        ]
+        ],
+        "matcher": "*"
       }
     ]
   }

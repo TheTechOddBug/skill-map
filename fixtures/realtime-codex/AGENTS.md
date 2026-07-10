@@ -10,7 +10,12 @@ demo-orchestrator              (agente nivel 1, spawnea sub-agentes)
    │             └─> sigue demo-skill-one   (encadenada: skill→skill)
    └─> sigue demo-skill-report (formatea el reporte final)
 
+demo-notion-writer             (agente -> skill -> MCP)
+   └─> sigue demo-skill-notion ──> mcp://notion   (se prende al llamar el tool)
+
 $demo-skill-one / $demo-skill-two / $demo-skill-report   (con $ en el prompt)
+$demo-skill-mcp    ──> mcp://deepwiki   (invocacion MCP en vivo, deepwiki es publico)
+$demo-skill-notion ──> mcp://notion     (requiere tu propia auth de Notion)
 ```
 
 Notas Codex: las skills se iluminan en el mapa solo cuando el USUARIO las
@@ -34,6 +39,11 @@ así que esos campos quedan vacíos a propósito.
 - **demo-worker**: nivel 2; emite marcador `🟩`, sigue las instrucciones
   de las dos skills demo (lee sus SKILL.md y `references/valor.md`) y
   devuelve sus marcadores.
+- **demo-notion-writer**: agente que demuestra la cadena agente -> skill ->
+  MCP; emite marcador `🟦`, sigue `demo-skill-notion` (que crea una pagina
+  llamando al tool `mcp__notion__notion-create-pages`) y devuelve el link.
+  Al llamar el tool se prende `mcp://notion` en vivo. Requiere tu auth de
+  Notion configurada en tu cliente MCP.
 
 ## Skills (`.agents/skills/`)
 
@@ -44,6 +54,12 @@ así que esos campos quedan vacíos a propósito.
   runtime solo ilumina si la invocás con `$` en el prompt).
 - **demo-skill-report**: formatea el reporte final de la cadena; la sigue
   el orquestador (marcador `📋`).
+- **demo-skill-mcp**: llama al tool `mcp__deepwiki__ask_question`; el hook
+  `PreToolUse` prende `mcp://deepwiki` en vivo. deepwiki es publico (sin
+  auth).
+- **demo-skill-notion**: crea una pagina en Notion via
+  `mcp__notion__notion-create-pages`; prende `mcp://notion` en vivo.
+  Requiere tu propia auth de Notion.
 
 ## Cómo probar
 
@@ -54,3 +70,8 @@ así que esos campos quedan vacíos a propósito.
 - Una skill suelta: `$demo-skill-one` o `$demo-skill-two` en el prompt.
 - Skill→skill en el mapa: `$demo-skill-two $demo-skill-one` en un mismo
   prompt ilumina ambas (los dos tokens disparan señales).
+- MCP en vivo (directo): `$demo-skill-mcp` llama deepwiki y prende
+  `mcp://deepwiki`.
+- Cadena agente → skill → MCP: pedir que lance el sub-agente
+  `demo-notion-writer` (seguirá `demo-skill-notion`, que crea la pagina en
+  Notion via MCP y prende `mcp://notion`). Necesitás tu auth de Notion.

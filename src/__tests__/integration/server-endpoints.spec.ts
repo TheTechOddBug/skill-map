@@ -775,10 +775,10 @@ describe('/api/plugins', () => {
   });
 
   it('carries stability on per-extension entries only when declared', async () => {
-    // `core/mcp-tools` declares `stability: 'experimental'` in its
-    // manifest; a stable extension like `core/reference-broken` omits
-    // the field (missing == `stable` per `extensions/base.schema.json`),
-    // so the wire must omit it too.
+    // `core/mcp-tools` declares `stability: 'beta'` in its manifest; a
+    // stable extension like `core/reference-broken` omits the field
+    // (missing == `stable` per `extensions/base.schema.json`), so the wire
+    // must omit it too.
     await bootAndUse(defaultOptions(), async (handle) => {
       const env = (await (await fetch(url(handle, '/api/plugins'))).json()) as IListEnvelope<{
         id: string;
@@ -786,7 +786,7 @@ describe('/api/plugins', () => {
       }>;
       const core = env.items.find((p) => p.id === 'core');
       const mcpTools = (core?.extensions ?? []).find((e) => e.id === 'mcp-tools');
-      assert.equal(mcpTools?.stability, 'experimental');
+      assert.equal(mcpTools?.stability, 'beta');
       const referenceBroken = (core?.extensions ?? []).find((e) => e.id === 'reference-broken');
       assert.ok(referenceBroken, 'expected core/reference-broken');
       assert.equal(referenceBroken.stability, undefined);

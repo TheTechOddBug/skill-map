@@ -23,15 +23,33 @@ const COMMON = {
 };
 
 describe('codexActivity.mapEvent', () => {
-  it('declares the tight install descriptor (spawn tool matcher-scoped)', () => {
+  it('declares the tight install descriptor (spawn + MCP tools matcher-scoped)', () => {
     assert.equal(codexActivity.install.kind, 'json-hooks');
     assert.equal(codexActivity.install.configPath, '.codex/hooks.json');
     assert.deepEqual(codexActivity.install.events, [
       { event: 'UserPromptSubmit' },
-      { event: 'PreToolUse', matcher: '^spawn_agent$' },
+      { event: 'PreToolUse', matcher: '^(spawn_agent|mcp__.+)$' },
       { event: 'PostToolUse', matcher: '^spawn_agent$' },
       { event: 'SubagentStart' },
       { event: 'SubagentStop' },
+    ]);
+  });
+
+  it('maps an MCP tool call (mcp__server__tool) to a PATH signal on the mcp:// node', () => {
+    const signals = codexActivity.mapEvent({
+      ...COMMON,
+      hook_event_name: 'PreToolUse',
+      tool_name: 'mcp__deepwiki__ask_question',
+      tool_input: { repoName: 'modelcontextprotocol/servers', question: 'What is this?' },
+      tool_use_id: 'call_Mcp0000000000000001',
+    });
+    assert.deepEqual(signals, [
+      {
+        path: 'mcp://deepwiki',
+        phase: 'start',
+        owner: 'main:0d3f7a10-51c2-4f5e-9b1a-2f6d8c4e7a90',
+        detail: 'ask_question',
+      },
     ]);
   });
 

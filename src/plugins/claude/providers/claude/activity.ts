@@ -51,13 +51,13 @@ import type {
   IProviderActivityAdapter,
 } from '../../../../kernel/extensions/index.js';
 import {
+  mapMcpInvocation,
   mapSubagentBoundary,
   nonEmptyString,
   relativizeMarkdownPath,
   sessionizedOwner,
   toolInputOf,
 } from '../../../../kernel/util/activity-adapter.js';
-import { mcpNodePath, parseMcpToolName } from '../../../../kernel/util/mcp.js';
 
 export const claudeActivity: IProviderActivityAdapter = {
   install: {
@@ -128,23 +128,6 @@ function mapPreToolUse(event: Record<string, unknown>): IActivitySignal[] | null
     return mapSpawnCustodyStart(event);
   }
   return mapMcpInvocation(event);
-}
-
-/**
- * Model-invoked MCP tool. Claude names an MCP tool `mcp__<server>__<tool>`
- * (the same identifier `core/mcp-tools` parses from `tools:` frontmatter), so a
- * `PreToolUse` for one lights the very `mcp://<server>` node the static map
- * already drew, via a PATH signal. Deterministic: the runtime reports the exact
- * tool name, no inference. Non-MCP tools fall through to null.
- */
-function mapMcpInvocation(event: Record<string, unknown>): IActivitySignal[] | null {
-  const toolName = nonEmptyString(event['tool_name']);
-  if (!toolName) return null;
-  const mcp = parseMcpToolName(toolName);
-  if (!mcp) return null;
-  return [
-    { path: mcpNodePath(mcp.server), phase: 'start', owner: sessionizedOwner(event), detail: mcp.tool },
-  ];
 }
 
 /**
