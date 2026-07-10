@@ -2,6 +2,33 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.87.0",
+      "date": "2026-07-10",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "When your Codex session calls an MCP tool, skill-map now lights up that MCP node on the map live, the same as Claude Code.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "The map's glow around a running node is now subtler, and the camera buttons (zoom, fit, re-arrange) no longer switch off Follow the Activity: they move the view now and follow re-centers on the next step. Only the Follow toggle turns it off.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "MCP tools declared in your skills or agents now show on the map by default: skill-map draws the `mcp://<server>` node and an arrow to it without you enabling anything.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.86.0",
       "date": "2026-07-10",
       "kind": "user-facing",
