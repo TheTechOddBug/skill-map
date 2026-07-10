@@ -1,5 +1,21 @@
 # Spec changelog
 
+## 0.79.0
+
+### Minor Changes
+
+- Codex now lights the map live when the model calls an MCP tool. The `codex` activity adapter maps a `PreToolUse` for an `mcp__<server>__<tool>` call to a PATH signal on the `mcp://<server>` node (matcher widened to `^(spawn_agent|mcp__.+)$`), reusing the shared `mapMcpInvocation` (Codex reports the same `mcp__` hook tool name as Claude). The `realtime-codex` fixture gains a deepwiki MCP server and a `demo-skill-mcp`.
+
+  ## User-facing
+
+  When your Codex session calls an MCP tool, skill-map now lights up that MCP node on the map live, the same as Claude Code.
+
+- Promotes the `core/mcp-tools` extractor from `experimental` to `beta`, so it now ships ENABLED by default. A project whose skills or agents declare `tools: [mcp__<server>__<tool>]` in frontmatter gets the `mcp://<server>` nodes and reference edges on the map out of the box, no manual enable needed. Justified now that config-side discovery and live invocation (claude + codex) have landed.
+
+  ## User-facing
+
+  MCP tools declared in your skills or agents now show on the map by default: skill-map draws the `mcp://<server>` node and an arrow to it without you enabling anything.
+
 ## 0.78.0
 
 ### Minor Changes

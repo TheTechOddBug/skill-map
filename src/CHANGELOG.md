@@ -1,5 +1,29 @@
 # skill-map
 
+## 0.87.0
+
+### Minor Changes
+
+- Codex now lights the map live when the model calls an MCP tool. The `codex` activity adapter maps a `PreToolUse` for an `mcp__<server>__<tool>` call to a PATH signal on the `mcp://<server>` node (matcher widened to `^(spawn_agent|mcp__.+)$`), reusing the shared `mapMcpInvocation` (Codex reports the same `mcp__` hook tool name as Claude). The `realtime-codex` fixture gains a deepwiki MCP server and a `demo-skill-mcp`.
+
+  ## User-facing
+
+  When your Codex session calls an MCP tool, skill-map now lights up that MCP node on the map live, the same as Claude Code.
+
+- Promotes the `core/mcp-tools` extractor from `experimental` to `beta`, so it now ships ENABLED by default. A project whose skills or agents declare `tools: [mcp__<server>__<tool>]` in frontmatter gets the `mcp://<server>` nodes and reference edges on the map out of the box, no manual enable needed. Justified now that config-side discovery and live invocation (claude + codex) have landed.
+
+  ## User-facing
+
+  MCP tools declared in your skills or agents now show on the map by default: skill-map draws the `mcp://<server>` node and an arrow to it without you enabling anything.
+
+### Patch Changes
+
+- The graph-view live-activity execution halo is smaller and dimmer (tighter inset, less blur, roughly half the opacity), and the bottom-toolbar camera / layout buttons (zoom, fit-to-screen, re-arrange) no longer turn off Follow the Activity: they reposition the camera now and follow re-grabs it on the next activity change. Only the follow toggle, isolate-neighborhood, and the files-view deep-link center still disarm follow.
+
+  ## User-facing
+
+  The map's glow around a running node is now subtler, and the camera buttons (zoom, fit, re-arrange) no longer switch off Follow the Activity: they move the view now and follow re-centers on the next step. Only the Follow toggle turns it off.
+
 ## 0.86.0
 
 ### Minor Changes
