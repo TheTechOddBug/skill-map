@@ -2,6 +2,67 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.86.0",
+      "date": "2026-07-10",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "`sm activity install` now drops a small package.json next to a plugin-file provider's hook so your tool loads it without a module-type warning. It won't overwrite a package.json already in that folder.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Run `sm` in a folder that already has files but no project and it now offers to set skill-map up for you; accept and it initializes, scans, and opens the map.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "The inspector's Activity panel now updates live while your assistant runs: recent executions, counters, and spawn threads refresh as they happen, not only on the next scan.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "The map now shows the MCP servers your project configures and lights them live when an agent calls a tool. The inspector logs each MCP tool call and file read with who ran it. `sm serve` gains an opt-in read-only MCP server at `/mcp` (spec only so far).",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "New drop-in plugins now ship a package.json so Node loads them without a module-type warning. Run `sm plugins upgrade` to add it to plugins you created earlier. The plugin docs now cover the trust step and how a provider wires live activity.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Turning on \"Trust plugins this project enables\" in Settings now reminds you to restart so the change takes effect, and hints across the app and CLI now show the bare `sm` command instead of `sm serve`.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "`sm serve --mcp`, `mcp.server.enabled`, or a Settings > Project toggle now exposes an opt-in, read-only Model Context Protocol server at `/mcp`, so an MCP host like Claude Code can query your project graph as tools and read it as resources, with live updates as the map changes.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "The \"Trust plugins this project enables\" setting is gone. Trust plugins one by one (the Trust button, or `sm plugins trust <id>`), or run `sm plugins trust --all` to trust them all. Settings now shows a clear \"restart to apply\" notice after a plugin trust or enable change.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.85.0",
       "date": "2026-07-08",
       "kind": "user-facing",

@@ -1,5 +1,47 @@
 # Spec changelog
 
+## 0.78.0
+
+### Minor Changes
+
+- Bare `sm` (no arguments) in a folder that has files but no `.skill-map/` project now offers to bootstrap it: on an interactive terminal it shows a yes/no confirm (default yes) that runs `sm init` and, on success, continues into the Web UI server (`sm serve`). Declining, a non-interactive stdin, or an empty folder keep the previous behavior (the getting-started menu or the one-line hint plus exit 2).
+
+  ## User-facing
+
+  Run `sm` in a folder that already has files but no project and it now offers to set skill-map up for you; accept and it initializes, scans, and opens the map.
+
+- MCP support lands in three parts. A declarative `mcpConfig` Provider capability and a shared kernel MCP parser materialise `mcp://<server>` nodes from a project's config files, canonical over the consumer-side `core/mcp-tools` emission. Live MCP tool calls light the same node: `node.activity` gains `detail`/`access` and the recent ring records typed `mcp`/`read` entries with `caller`/`target`. A read-only MCP server (`spec/mcp-server.md`) is specified on `sm serve` at `/mcp` (off by default).
+
+  ## User-facing
+
+  The map now shows the MCP servers your project configures and lights them live when an agent calls a tool. The inspector logs each MCP tool call and file read with who ran it. `sm serve` gains an opt-in read-only MCP server at `/mcp` (spec only so far).
+
+- Implements the read-only MCP server for `sm serve`: an opt-in Streamable HTTP endpoint at `/mcp` (stateful sessions) exposing four query tools (query_graph, get_node, list_issues, get_branch) and skillmap:// resources for graph, issues, activity, and per-node views, with live `notifications/resources/updated` off the scan broadcaster. Enabled via `--mcp` / `--no-mcp` or the project-local `mcp.server.enabled` (off by default, toggleable from Settings > Project), behind the loopback-Origin gate.
+
+  ## User-facing
+
+  `sm serve --mcp`, `mcp.server.enabled`, or a Settings > Project toggle now exposes an opt-in, read-only Model Context Protocol server at `/mcp`, so an MCP host like Claude Code can query your project graph as tools and read it as resources, with live updates as the map changes.
+
+- The blanket `pluginTrust.projectEnabled` opt-in (the config key plus its Settings toggle that trusted every plugin the project enables) is removed. Plugin import trust is now per-plugin only: `sm plugins trust <id>` / the Settings Trust button, or `sm plugins trust --all` to trust every discovered drop-in at once. A single config toggle can no longer widen the local code-execution surface. Settings > Plugins also gains a consolidated restart notice when a drop-in changes trust or enable state.
+
+  ## User-facing
+
+  The "Trust plugins this project enables" setting is gone. Trust plugins one by one (the Trust button, or `sm plugins trust <id>`), or run `sm plugins trust --all` to trust them all. Settings now shows a clear "restart to apply" notice after a plugin trust or enable change.
+
+### Patch Changes
+
+- `sm activity install` for `plugin-file` providers (opencode-style) now writes an ESM-pinning `package.json` (`{ "type": "module" }`) next to the generated in-process plugin so the vendor runtime loads its `export`-based `.js` without a `MODULE_TYPELESS_PACKAGE_JSON` warning (or a hard parse error under a CommonJS host). Written only when the plugin dir has no `package.json` (never clobbering the vendor's shared dir); uninstall removes it only when it is exactly ours.
+
+  ## User-facing
+
+  `sm activity install` now drops a small package.json next to a plugin-file provider's hook so your tool loads it without a module-type warning. It won't overwrite a package.json already in that folder.
+
+- `sm plugins create` now emits a root `package.json` (`{ "private": true, "type": "module" }`) so Node loads a plugin's ESM `.js` extensions without the `MODULE_TYPELESS_PACKAGE_JSON` warning, and `sm plugins upgrade [<id>]` backfills it on older plugins (adding a missing `type` without clobbering a non-module one). The plugin author guide documents the module-type requirement and the Provider `activity` capability, and the quickstart adds the `sm plugins trust` step.
+
+  ## User-facing
+
+  New drop-in plugins now ship a package.json so Node loads them without a module-type warning. Run `sm plugins upgrade` to add it to plugins you created earlier. The plugin docs now cover the trust step and how a provider wires live activity.
+
 ## 0.77.0
 
 ### Minor Changes
