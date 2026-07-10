@@ -340,6 +340,15 @@
   font-weight: 400;
 }
 
+/* Fixed convention filename (`/SKILL.md`, ...) trailing a folder-named
+   node's bold folder name. Dimmed and lighter, matching the leading
+   prefix, so the folder still reads as the row's subject while the real
+   file on disk stays visible. */
+.files__name-suffix {
+  color: var(--p-text-muted-color);
+  font-weight: 400;
+}
+
 /* FLAT (sorted) mode: file name first at FULL width, the directory
    path trailing dimmed and truncating with an ellipsis when space runs
    out (the full path lives in the row tooltip). The name never shrinks
@@ -375,6 +384,15 @@
   white-space: nowrap;
   color: var(--p-text-muted-color);
   font-size: var(--files-fs-xs);
+}
+
+/* A folder-named node's fixed filename (`SKILL.md`) shown as a plain leaf
+   under its own folder row: dimmed and lighter so the folder row above
+   stays the bold subject. Declared after `.files__name--leaf` /
+   `.files__leaf-name` so it wins on equal specificity. */
+.files__name--muted {
+  color: var(--p-text-muted-color);
+  font-weight: 400;
 }
 
 /* The full-path tooltip for flat-mode file rows is styled globally in

@@ -21,6 +21,7 @@ import type { IFolderNodeLite } from '../../../../models/api';
 
 interface INodeOpts {
   name?: string;
+  kind?: string;
   linksIn?: number;
   linksOut?: number;
   tokens?: number;
@@ -31,7 +32,7 @@ interface INodeOpts {
 function makeNode(path: string, opts: INodeOpts = {}): INodeView {
   return {
     path,
-    kind: 'agent',
+    kind: opts.kind ?? 'agent',
     frontmatter: { name: opts.name, description: '', metadata: { version: '1.0.0' } },
     linksInCount: opts.linksIn,
     linksOutCount: opts.linksOut,
@@ -148,9 +149,9 @@ describe('buildRows: tree mode (default)', () => {
     const rows = rowsFor(nodes, { column: 'tree', dir: 'asc' });
     expect(rows.map((r) => `${r.type}:${r.name}`)).toEqual([
       'folder:src',
-      'leaf:a',
-      'leaf:b',
-      'leaf:z',
+      'leaf:a.md',
+      'leaf:b.md',
+      'leaf:z.md',
     ]);
     expect(rows.every((r) => r.type === 'folder' || r.depth >= 0)).toBe(true);
   });
@@ -161,9 +162,76 @@ describe('buildRows: tree mode (default)', () => {
     expect(rows).toHaveLength(1);
     const [row] = rows;
     expect(row.type).toBe('leaf');
-    expect(row.name).toBe('intro');
+    // Ordinary folded leaf shows its real filename (with extension), the
+    // chain riding in the dimmed prefix and no fixed-filename suffix.
+    expect(row.name).toBe('intro.md');
     expect((row as IFolderLeaf).prefix).toBe('docs/guides/');
+    expect((row as IFolderLeaf).suffix).toBe('');
+    expect((row as IFolderLeaf).nameMuted).toBe(false);
     expect(row.depth).toBe(0);
+  });
+
+  it('renders a folded skill leaf as bold folder + dimmed /SKILL.md, folder never repeated', () => {
+    const nodes = [
+      makeNode('.claude/skills/notion-publish/SKILL.md', { kind: 'skill', name: 'notion-publish' }),
+    ];
+    const rows = rowsFor(nodes, { column: 'tree', dir: 'asc' });
+    expect(rows).toHaveLength(1);
+    const [row] = rows;
+    expect(row.type).toBe('leaf');
+    // Bold name = the skill folder; the fixed file rides as a dimmed tail;
+    // only the folders ABOVE the skill folder stay in the prefix.
+    expect(row.name).toBe('notion-publish');
+    expect((row as IFolderLeaf).suffix).toBe('/SKILL.md');
+    expect((row as IFolderLeaf).prefix).toBe('.claude/skills/');
+    expect((row as IFolderLeaf).nameMuted).toBe(false); // folder IS the bold name
+  });
+
+  it('folds an open-standard SKILL.md even under a FOREIGN lens (kind is markdown, not skill)', () => {
+    // `.agents/skills/<name>/SKILL.md` scanned with the Claude lens active
+    // lands as kind 'markdown'; the entry file must still fold to the folder.
+    const nodes = [makeNode('.agents/skills/full-skill-agents/SKILL.md', { kind: 'markdown' })];
+    const rows = rowsFor(nodes, { column: 'tree', dir: 'asc' });
+    const [row] = rows;
+    expect(row.name).toBe('full-skill-agents');
+    expect((row as IFolderLeaf).suffix).toBe('/SKILL.md');
+    expect((row as IFolderLeaf).prefix).toBe('.agents/skills/');
+    expect((row as IFolderLeaf).nameMuted).toBe(false);
+  });
+
+  it('dims a folded-away skill leaf but keeps ordinary siblings bold when the folder is a row', () => {
+    const nodes = [
+      makeNode('.claude/skills/notion-publish/SKILL.md', { kind: 'skill', name: 'notion-publish' }),
+      makeNode('.claude/skills/notion-publish/reference.md', { name: 'reference' }), // ordinary sibling
+    ];
+    const rows = rowsFor(nodes, { column: 'tree', dir: 'asc' });
+    // notion-publish has 2 leaves -> its own folder row (not compacted), so
+    // the leaves keep their real filenames (identity lives in the folder row).
+    expect(folders(rows).map((f) => f.name)).toEqual(['.claude/skills/notion-publish']);
+    const leafRows = leaves(rows);
+    expect([...leafRows.map((l) => l.name)].sort()).toEqual(['SKILL.md', 'reference.md'].sort());
+    expect(leafRows.every((l) => l.suffix === '')).toBe(true);
+    // SKILL.md is dimmed (fixed convention filename); the ordinary sibling stays bold.
+    const skillLeaf = leafRows.find((l) => l.path.endsWith('SKILL.md'));
+    const refLeaf = leafRows.find((l) => l.path.endsWith('reference.md'));
+    expect(skillLeaf?.nameMuted).toBe(true);
+    expect(refLeaf?.nameMuted).toBe(false);
+  });
+
+  it('dims the SKILL.md leaf when the skill folder becomes a row via SUBFOLDERS (reported case)', () => {
+    const nodes = [
+      makeNode('.claude/skills/notion-publish/SKILL.md', { kind: 'skill', name: 'notion-publish' }),
+      makeNode('.claude/skills/notion-publish/references/guide.md', { name: 'guide' }),
+    ];
+    const rows = rowsFor(nodes, { column: 'tree', dir: 'asc' });
+    // The subfolder makes notion-publish a folder row; SKILL.md (its only
+    // direct leaf) must NOT stay bold, the folder above carries the name.
+    const skillLeaf = leaves(rows).find((l) => l.path.endsWith('SKILL.md'));
+    expect(skillLeaf?.name).toBe('SKILL.md');
+    expect(skillLeaf?.suffix).toBe('');
+    expect(skillLeaf?.nameMuted).toBe(true);
+    const guideLeaf = leaves(rows).find((l) => l.path.endsWith('guide.md'));
+    expect(guideLeaf?.nameMuted).toBe(false);
   });
 
   it('collapses every folder by default (empty expanded set), revealing children only when expanded', () => {
@@ -176,7 +244,7 @@ describe('buildRows: tree mode (default)', () => {
     expect((collapsed[0] as IFolderRow).expanded).toBe(false);
     // Expanding 'src' reveals its leaves.
     const opened = buildRows({ tree: t, leaves: nodes, expanded: new Set(['src']), aggregates, maps: NO_ISSUES, activityCounts: NO_ACTIVITY, sort });
-    expect(opened.map((r) => `${r.type}:${r.name}`)).toEqual(['folder:src', 'leaf:a', 'leaf:b']);
+    expect(opened.map((r) => `${r.type}:${r.name}`)).toEqual(['folder:src', 'leaf:a.md', 'leaf:b.md']);
     expect((opened[0] as IFolderRow).expanded).toBe(true);
   });
 });
@@ -195,28 +263,28 @@ describe('buildRows: flat mode', () => {
   });
 
   it('sorts tokens desc and asc', () => {
-    expect(leaves(rowsFor(nodes, { column: 'tokens', dir: 'desc' })).map((l) => l.name)).toEqual([
-      'b',
-      'c',
-      'a',
+    expect(leaves(rowsFor(nodes, { column: 'tokens', dir: 'desc' })).map((l) => l.path)).toEqual([
+      'b.md',
+      'c.md',
+      'a.md',
     ]);
-    expect(leaves(rowsFor(nodes, { column: 'tokens', dir: 'asc' })).map((l) => l.name)).toEqual([
-      'a',
-      'c',
-      'b',
+    expect(leaves(rowsFor(nodes, { column: 'tokens', dir: 'asc' })).map((l) => l.path)).toEqual([
+      'a.md',
+      'c.md',
+      'b.md',
     ]);
   });
 
   it('sorts linksIn and linksOut', () => {
-    expect(leaves(rowsFor(nodes, { column: 'linksIn', dir: 'desc' })).map((l) => l.name)).toEqual([
-      'c',
-      'a',
-      'b',
+    expect(leaves(rowsFor(nodes, { column: 'linksIn', dir: 'desc' })).map((l) => l.path)).toEqual([
+      'c.md',
+      'a.md',
+      'b.md',
     ]);
-    expect(leaves(rowsFor(nodes, { column: 'linksOut', dir: 'desc' })).map((l) => l.name)).toEqual([
-      'b',
-      'c',
-      'a',
+    expect(leaves(rowsFor(nodes, { column: 'linksOut', dir: 'desc' })).map((l) => l.path)).toEqual([
+      'b.md',
+      'c.md',
+      'a.md',
     ]);
   });
 
@@ -236,6 +304,32 @@ describe('buildRows: flat mode', () => {
     });
     expect((rows[0] as IFolderLeaf).prefix).toBe('');
   });
+
+  it('splits a skill leaf into bold folder + dimmed /SKILL.md with the parent dir trailing', () => {
+    const rows = rowsFor(
+      [makeNode('.claude/skills/notion-publish/SKILL.md', { kind: 'skill', name: 'notion-publish' })],
+      { column: 'tokens', dir: 'desc' },
+    );
+    const [row] = rows;
+    expect(row.type).toBe('leaf');
+    expect(row.name).toBe('notion-publish');
+    expect((row as IFolderLeaf).suffix).toBe('/SKILL.md');
+    expect((row as IFolderLeaf).nameMuted).toBe(false); // folder IS the bold name
+    // FLAT dir trails after the name, minus the folder (now the bold name).
+    expect((row as IFolderLeaf).prefix).toBe('.claude/skills');
+  });
+
+  it('splits an open-standard SKILL.md in FLAT mode even under a foreign lens (kind markdown)', () => {
+    const rows = rowsFor(
+      [makeNode('.agents/skills/full-skill-agents/SKILL.md', { kind: 'markdown' })],
+      { column: 'tokens', dir: 'desc' },
+    );
+    const [row] = rows;
+    expect(row.name).toBe('full-skill-agents');
+    expect((row as IFolderLeaf).suffix).toBe('/SKILL.md');
+    expect((row as IFolderLeaf).prefix).toBe('.agents/skills');
+    expect((row as IFolderLeaf).nameMuted).toBe(false);
+  });
 });
 
 describe('missing-value ordering', () => {
@@ -246,18 +340,18 @@ describe('missing-value ordering', () => {
   ];
 
   it('sinks missing values to the bottom under DESC', () => {
-    expect(leaves(rowsFor(nodes, { column: 'tokens', dir: 'desc' })).map((l) => l.name)).toEqual([
-      'h100',
-      'h0',
-      'miss',
+    expect(leaves(rowsFor(nodes, { column: 'tokens', dir: 'desc' })).map((l) => l.path)).toEqual([
+      'has-100.md',
+      'has-0.md',
+      'missing.md',
     ]);
   });
 
   it('sinks missing values to the bottom under ASC too (a defined 0 is not "missing")', () => {
-    expect(leaves(rowsFor(nodes, { column: 'tokens', dir: 'asc' })).map((l) => l.name)).toEqual([
-      'h0',
-      'h100',
-      'miss',
+    expect(leaves(rowsFor(nodes, { column: 'tokens', dir: 'asc' })).map((l) => l.path)).toEqual([
+      'has-0.md',
+      'has-100.md',
+      'missing.md',
     ]);
   });
 });
@@ -283,8 +377,8 @@ describe('issueWeight', () => {
       makeNode('err.md', { name: 'err' }),
     ];
     const m = maps({ 'err.md': 2 }, { 'warn.md': 3 });
-    expect(leaves(rowsFor(nodes, { column: 'issues', dir: 'desc' }, m)).map((l) => l.name)).toEqual(
-      ['err', 'warn', 'stale', 'clean'],
+    expect(leaves(rowsFor(nodes, { column: 'issues', dir: 'desc' }, m)).map((l) => l.path)).toEqual(
+      ['err.md', 'warn.md', 'stale.md', 'clean.md'],
     );
   });
 
@@ -295,11 +389,11 @@ describe('issueWeight', () => {
       makeNode('mid.md', { name: 'mid', modified: 5_000 }),
       makeNode('none.md', { name: 'none' }), // no mtime → always last
     ];
-    expect(leaves(rowsFor(nodes, { column: 'modified', dir: 'desc' })).map((l) => l.name)).toEqual(
-      ['new', 'mid', 'old', 'none'],
+    expect(leaves(rowsFor(nodes, { column: 'modified', dir: 'desc' })).map((l) => l.path)).toEqual(
+      ['new.md', 'mid.md', 'old.md', 'none.md'],
     );
-    expect(leaves(rowsFor(nodes, { column: 'modified', dir: 'asc' })).map((l) => l.name)).toEqual(
-      ['old', 'mid', 'new', 'none'],
+    expect(leaves(rowsFor(nodes, { column: 'modified', dir: 'asc' })).map((l) => l.path)).toEqual(
+      ['old.md', 'mid.md', 'new.md', 'none.md'],
     );
   });
 
@@ -381,21 +475,21 @@ describe('Activity column (session execution counts)', () => {
   it('sorts by activity desc and asc', () => {
     const activity = activityOf({ 'a.md': 3, 'b.md': 12, 'c.md': 1 });
     expect(
-      leaves(rowsFor(nodes, { column: 'activity', dir: 'desc' }, NO_ISSUES, activity)).map((l) => l.name),
-    ).toEqual(['b', 'a', 'c']);
+      leaves(rowsFor(nodes, { column: 'activity', dir: 'desc' }, NO_ISSUES, activity)).map((l) => l.path),
+    ).toEqual(['b.md', 'a.md', 'c.md']);
     expect(
-      leaves(rowsFor(nodes, { column: 'activity', dir: 'asc' }, NO_ISSUES, activity)).map((l) => l.name),
-    ).toEqual(['c', 'a', 'b']);
+      leaves(rowsFor(nodes, { column: 'activity', dir: 'asc' }, NO_ISSUES, activity)).map((l) => l.path),
+    ).toEqual(['c.md', 'a.md', 'b.md']);
   });
 
   it('sinks never-invoked nodes (no map entry) to the bottom both ways', () => {
     const activity = activityOf({ 'a.md': 5, 'c.md': 2 }); // b.md never invoked
     expect(
-      leaves(rowsFor(nodes, { column: 'activity', dir: 'desc' }, NO_ISSUES, activity)).map((l) => l.name),
-    ).toEqual(['a', 'c', 'b']);
+      leaves(rowsFor(nodes, { column: 'activity', dir: 'desc' }, NO_ISSUES, activity)).map((l) => l.path),
+    ).toEqual(['a.md', 'c.md', 'b.md']);
     expect(
-      leaves(rowsFor(nodes, { column: 'activity', dir: 'asc' }, NO_ISSUES, activity)).map((l) => l.name),
-    ).toEqual(['c', 'a', 'b']);
+      leaves(rowsFor(nodes, { column: 'activity', dir: 'asc' }, NO_ISSUES, activity)).map((l) => l.path),
+    ).toEqual(['c.md', 'a.md', 'b.md']);
   });
 
   it('renders a compact count on the leaf and the missing glyph when absent', () => {

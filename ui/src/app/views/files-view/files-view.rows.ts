@@ -22,7 +22,6 @@ import {
   formatModifiedAt,
   formatModifiedAtFull,
 } from '../../../models/node-derived';
-import { pathBasenameForLink } from '../../../services/path-basename';
 import { STABILITY_SEVERITY, type TTagSeverity } from '../../components/severity-map';
 import { FILES_VIEW_TEXTS } from '../../../i18n/files-view.texts';
 import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
@@ -43,6 +42,23 @@ export interface IFolderLeaf {
    * without folder rows. Empty for ordinary tree leaves and root files.
    */
   readonly prefix: string;
+  /**
+   * Dimmed fixed-filename tail shown AFTER the bold name, for
+   * folder-named nodes (skills) whose display name is their containing
+   * folder: the file on disk (`/SKILL.md`, `/reference.md`) rides here so
+   * the real filename stays visible without repeating the folder. Empty
+   * for ordinary files, whose bold name already IS the filename.
+   */
+  readonly suffix: string;
+  /**
+   * Render `name` dimmed instead of bold. Set for a folder-named node
+   * (skill) shown as a plain leaf UNDER its own folder row: the folder
+   * already carries the bold identity above, so the fixed filename
+   * (`SKILL.md`) recedes rather than competing as a second bold name.
+   * False for ordinary leaves and for the folded skill row (whose bold
+   * name is the folder itself).
+   */
+  readonly nameMuted: boolean;
   readonly depth: number;
   /** Session-scoped agent-execution count (`·` when the node has none). */
   readonly activity: string;
@@ -206,6 +222,7 @@ export function makeLeafRow(
   maps: IIssueMaps,
   activityCounts: ReadonlyMap<string, number>,
   prefix = '',
+  display: ILeafDisplay = plainLeafParts(node),
 ): IFolderLeaf {
   const stability = rowStability(node);
   const isStale = effectiveIsStale(node);
@@ -214,8 +231,10 @@ export function makeLeafRow(
   return {
     type: 'leaf',
     path: node.path,
-    name: leafName(node),
+    name: display.name,
     prefix,
+    suffix: display.suffix,
+    nameMuted: display.nameMuted ?? false,
     depth,
     activity: activityRaw !== undefined ? compactNumber(activityRaw) : FILES_VIEW_TEXTS.missing,
     linksIn: node.linksInCount !== undefined ? String(node.linksInCount) : FILES_VIEW_TEXTS.missing,
@@ -243,7 +262,13 @@ export function makeLeafRow(
  * folders"): while a folder holds exactly one subfolder and no files,
  * fold the child's name into the chain. When the chain bottoms out at a
  * folder with a single file and no subfolders, the file folds in too,
- * so a branch leading to a lone file is one line.
+ * so a branch leading to a lone file is one line. An ordinary folded
+ * leaf is labeled by its real filename (`literalBasename`), the chain
+ * riding in the dimmed `prefix`. A folder-named node (skill) instead
+ * takes its folded folder as the bold name, with the file on disk
+ * (`/SKILL.md`) as a dimmed suffix, so the row reads
+ * `.claude/skills/`**`notion-publish`**`/SKILL.md` without repeating the
+ * folder segment.
  */
 export function buildTreeRows(
   tree: ITreeFolder,
@@ -265,7 +290,16 @@ export function buildTreeRows(
     const chainName = chain.join('/');
 
     if (terminal.subfolders.size === 0 && terminal.leaves.length === 1) {
-      rows.push(makeLeafRow(terminal.leaves[0], depth, maps, activityCounts, `${chainName}/`));
+      const file = terminal.leaves[0];
+      // A folder-named node (skill) shows its folded folder as the bold
+      // name, so only the folders ABOVE it stay in the dimmed prefix; an
+      // ordinary file keeps the whole chain as its prefix.
+      let prefix = `${chainName}/`;
+      if (isFolderNamedNode(file)) {
+        const above = chain.slice(0, -1);
+        prefix = above.length > 0 ? `${above.join('/')}/` : '';
+      }
+      rows.push(makeLeafRow(file, depth, maps, activityCounts, prefix, leafDisplayParts(file)));
       return;
     }
 
@@ -296,7 +330,10 @@ export function buildTreeRows(
   return rows;
 }
 
-/** FLAT rows: every leaf at depth 0, directory path in `prefix`, sorted. */
+/** FLAT rows: every leaf at depth 0, directory path in `prefix`, sorted.
+ *  No folder rows carry the identity here, so a folder-named node (skill)
+ *  gets the same bold-folder + dimmed-`/SKILL.md` split as a folded tree
+ *  leaf, with its parent dir trailing in the dimmed `prefix`. */
 export function buildFlatRows(
   leaves: readonly INodeView[],
   sort: IFilesSort,
@@ -304,7 +341,7 @@ export function buildFlatRows(
   activityCounts: ReadonlyMap<string, number>,
 ): IFolderLeaf[] {
   const rows = leaves.map((node) =>
-    makeLeafRow(node, 0, maps, activityCounts, dirPrefix(node.path)),
+    makeLeafRow(node, 0, maps, activityCounts, flatLeafPrefix(node), leafDisplayParts(node)),
   );
   if (sort.column === 'tree') return rows; // defensive; flat path is never called with 'tree'
   rows.sort(leafComparator(sort.column, sort.dir));
@@ -377,10 +414,89 @@ function dirPrefix(path: string): string {
   return idx === -1 ? '' : path.slice(0, idx);
 }
 
-export function leafName(n: INodeView): string {
-  const fromFm = n.frontmatter.name?.trim();
-  if (fromFm) return fromFm;
-  return pathBasenameForLink(n.path) || FILES_VIEW_TEXTS.missing;
+/**
+ * Last path segment verbatim (`a/b/SKILL.md` -> `SKILL.md`), the display
+ * name for every files-view leaf. The files view labels rows by their
+ * real filename (with extension), not a folder-derived friendly name:
+ * the folder path always rides in the row's dimmed prefix, so the bold
+ * segment is the actual file on disk.
+ */
+function literalBasename(path: string): string {
+  const idx = path.lastIndexOf('/');
+  return idx === -1 ? path : path.slice(idx + 1);
+}
+
+/**
+ * A folder-named node's display identity is its containing folder, not
+ * its filename: the file inside is a fixed convention entry file. True
+ * when either signal holds:
+ *   - the provider classified it `kind: 'skill'` (native lens): covers any
+ *     fixed filename, including a provider whose entry file is not
+ *     `SKILL.md` (e.g. opencode), with nothing hardcoded; OR
+ *   - the file is the open Agent Skills standard entry `<name>/SKILL.md`.
+ *     A skill scanned under a FOREIGN lens lands as `kind: 'markdown'`
+ *     (`.agents/skills/<name>/SKILL.md` under the Claude lens), so keying
+ *     on `kind` alone would miss it and paint a bold, repetitive
+ *     `SKILL.md`; the basename recovers the folder-named treatment.
+ */
+function isFolderNamedNode(node: INodeView): boolean {
+  if (node.kind === 'skill') return true;
+  const segments = node.path.split('/').filter((s) => s.length > 0);
+  return segments.length >= 2 && segments[segments.length - 1] === 'SKILL.md';
+}
+
+/**
+ * How a leaf's name cell is painted: the `name` text, an optional dimmed
+ * `suffix` after it, and whether `name` itself is dimmed. Skills are the
+ * only nodes that deviate from "bold real filename, no suffix".
+ */
+interface ILeafDisplay {
+  readonly name: string;
+  readonly suffix: string;
+  readonly nameMuted?: boolean;
+}
+
+/**
+ * FOLDED display (folder NOT shown as its own row: a folded tree leaf, or
+ * any flat leaf). A folder-named node (skill) takes the folder as the
+ * bold name and rides its file on disk as `/SKILL.md`; every other node
+ * keeps its real filename as the bold name and no tail.
+ */
+function leafDisplayParts(node: INodeView): ILeafDisplay {
+  if (!isFolderNamedNode(node)) {
+    return { name: literalBasename(node.path) || FILES_VIEW_TEXTS.missing, suffix: '' };
+  }
+  const segments = node.path.split('/').filter((s) => s.length > 0);
+  const file = segments[segments.length - 1] ?? node.path;
+  const folder = segments[segments.length - 2] ?? file;
+  return { name: folder, suffix: `/${file}` };
+}
+
+/**
+ * PLAIN display (folder IS shown as its own row above, or the file is at
+ * the root): the name is the real filename. A folder-named node (skill)
+ * dims it, because the bold identity already lives in the folder row and
+ * the fixed `SKILL.md` filename would otherwise read as a second bold
+ * name; ordinary files stay bold.
+ */
+function plainLeafParts(node: INodeView): ILeafDisplay {
+  return {
+    name: literalBasename(node.path) || FILES_VIEW_TEXTS.missing,
+    suffix: '',
+    nameMuted: isFolderNamedNode(node),
+  };
+}
+
+/**
+ * FLAT-mode dimmed dir shown after the name. A folder-named node (skill)
+ * drops its own folder (now the bold name) from the dir so it is not
+ * repeated; every other node shows its full directory.
+ */
+function flatLeafPrefix(node: INodeView): string {
+  const dir = dirPrefix(node.path);
+  if (!isFolderNamedNode(node)) return dir;
+  const idx = dir.lastIndexOf('/');
+  return idx === -1 ? '' : dir.slice(0, idx);
 }
 
 function rowStability(n: INodeView): TStability {

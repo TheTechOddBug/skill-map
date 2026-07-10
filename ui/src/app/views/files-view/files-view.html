@@ -326,11 +326,11 @@
                   <i class="pi pi-file files__leaf-icon" aria-hidden="true"></i>
                   @if (isFlat()) {
                     <span class="files__name-wrap" [pTooltip]="row.path" tooltipPosition="top" tooltipStyleClass="files__path-tooltip">
-                      <span class="files__leaf-name">{{ row.name }}</span>
+                      <span class="files__leaf-name" [class.files__name--muted]="row.nameMuted">{{ row.name }}@if (row.suffix) {<span class="files__name-suffix">{{ row.suffix }}</span>}</span>
                       @if (row.prefix) {<span class="files__path-suffix">{{ row.prefix }}</span>}
                     </span>
                   } @else {
-                    <span class="files__name files__name--leaf">@if (row.prefix) {<span class="files__name-prefix">{{ row.prefix }}</span>}{{ row.name }}</span>
+                    <span class="files__name files__name--leaf" [class.files__name--muted]="row.nameMuted">@if (row.prefix) {<span class="files__name-prefix">{{ row.prefix }}</span>}{{ row.name }}@if (row.suffix) {<span class="files__name-suffix">{{ row.suffix }}</span>}</span>
                   }
                   <button
                     type="button"
