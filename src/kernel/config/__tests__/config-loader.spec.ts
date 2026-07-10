@@ -287,6 +287,29 @@ describe('config loader, project-local-only locality', () => {
     strictEqual(sources.get('tutorialReminderDismissed'), 'project-local');
   });
 
+  it('strips mcp.server.enabled from the project layer + warns', () => {
+    const { cwd } = freshScope('plonly-mcp-server');
+    writeSettings(cwd, 'settings', { mcp: { server: { enabled: true } } });
+    const { effective, sources, warnings } = loadConfig({ cwd });
+    // Stripped: exposing a local read-only server is a per-operator
+    // decision, it must not travel to teammates through the committed layer.
+    strictEqual(effective.mcp?.server?.enabled, undefined);
+    ok(sources.get('mcp.server.enabled') !== 'project');
+    ok(
+      warnings.some(
+        (w) => /mcp\.server\.enabled/.test(w) && /project-local only/.test(w),
+      ),
+    );
+  });
+
+  it('preserves mcp.server.enabled in the project-local layer', () => {
+    const { cwd } = freshScope('plonly-mcp-server-local');
+    writeSettings(cwd, 'settings.local', { mcp: { server: { enabled: true } } });
+    const { effective, sources } = loadConfig({ cwd });
+    strictEqual(effective.mcp?.server?.enabled, true);
+    strictEqual(sources.get('mcp.server.enabled'), 'project-local');
+  });
+
   it('strict mode throws on a stripped project-layer entry', () => {
     const { cwd } = freshScope('plonly-strict');
     writeSettings(cwd, 'settings', { allowEditSmFiles: true });

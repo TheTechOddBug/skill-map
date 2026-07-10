@@ -65,7 +65,8 @@
           "properties": {
             "enabled": {
               "type": "boolean",
-              "description": "Whether `sm serve` mounts the read-only MCP server at `/mcp`. Default `false` (opt-in). Resolved through the normal config layering; the `--mcp` / `--no-mcp` flags on `sm serve` override it. Because the endpoint mounts at serve boot, flipping this while a server runs takes effect only on the next `sm serve` restart. The server is strictly read-only: it exposes query tools and graph resources, it never executes skills or agents. Stability: experimental."
+              "description": "Whether `sm serve` mounts the read-only MCP server at `/mcp`. Default `false` (opt-in). Resolved through the normal config layering; the `--mcp` / `--no-mcp` flags on `sm serve` override it. Because the endpoint mounts at serve boot, flipping this while a server runs takes effect only on the next `sm serve` restart. The server is strictly read-only: it exposes query tools and graph resources, it never executes skills or agents. **Project-local only** (per `core/config/helper:PROJECT_LOCAL_ONLY_KEYS`), stripped with a warning from the committed `project` layer: exposing a local server is a per-operator decision that must not travel via the shared repo, so the Settings > Project toggle and `PATCH /api/project-preferences` write it to `settings.local.json`. Stability: experimental.",
+              "$comment": "Project-local only; a per-operator server-enable, never committed."
             }
           }
         }

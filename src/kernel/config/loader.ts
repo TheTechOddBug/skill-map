@@ -257,8 +257,10 @@ export interface IEffectiveConfig {
 
 /**
  * MCP surface config block. Mirrors
- * `project-config.schema.json#/properties/mcp`. Team-shared (committed
- * `project` layer is allowed); the server mounts at serve boot only.
+ * `project-config.schema.json#/properties/mcp`. **Project-local only**
+ * (per `PROJECT_LOCAL_ONLY_KEYS`): exposing a local server is a
+ * per-operator decision, so `mcp.server.enabled` is stripped from the
+ * committed `project` layer. The server mounts at serve boot only.
  */
 export interface IMcpConfig {
   server?: IMcpServerConfig;
@@ -269,7 +271,9 @@ export interface IMcpServerConfig {
   /**
    * Whether `sm serve` mounts the read-only MCP server at `/mcp`.
    * Default `false` (opt-in, experimental). Overridden by the
-   * `--mcp` / `--no-mcp` flags. See `spec/mcp-server.md` §Enablement.
+   * `--mcp` / `--no-mcp` flags. **Project-local only** (per
+   * `PROJECT_LOCAL_ONLY_KEYS`), stripped from the committed `project`
+   * layer. See `spec/mcp-server.md` §Enablement.
    */
   enabled?: boolean;
 }
@@ -329,6 +333,7 @@ export const PROJECT_LOCAL_ONLY_KEYS: ReadonlySet<string> = new Set<string>([
   'activity.captureConversations',
   'ui.liveUpdates',
   'ui.realtimeActivity',
+  'mcp.server.enabled',
 ]);
 
 export type TConfigLayer =

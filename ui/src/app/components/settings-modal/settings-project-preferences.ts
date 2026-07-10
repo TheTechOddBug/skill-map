@@ -126,6 +126,18 @@ export class SettingsProjectPreferences {
   });
 
   /**
+   * Project-local read-only MCP server opt-in (`mcp.server.enabled`).
+   * `false` (default) keeps `sm serve` from mounting the experimental
+   * `/mcp` endpoint; `true` mounts it. Read defensively so an older
+   * envelope that predates the field renders the switch off. Not
+   * surface-expanding (the server is read-only), so no confirm dialog,
+   * but the mount is boot-time, so a flip shows a restart hint.
+   */
+  protected readonly mcpServerEnabled = computed<boolean>(() => {
+    return this.preferences()?.mcpServerEnabled ?? false;
+  });
+
+  /**
    * View state the switches bind to, one per toggle. A plain computed
    * cannot roll a cancelled flip back: the p-toggleswitch flips its
    * internal state on click, and when the user dismisses the confirm
@@ -145,6 +157,20 @@ export class SettingsProjectPreferences {
   protected readonly respectGitignoreView = linkedSignal(() =>
     this.respectGitignore(),
   );
+  protected readonly mcpServerEnabledView = linkedSignal(() =>
+    this.mcpServerEnabled(),
+  );
+
+  /**
+   * Sticky "restart `sm serve`" hint for the MCP server toggle. The write
+   * persists immediately, but the `/mcp` mount is resolved at serve boot,
+   * so the running server does not pick up the change until it restarts.
+   * Set once the operator flips the toggle in this session; it never
+   * clears in-session (a restart means a fresh SPA load, which resets it),
+   * mirroring the per-row restart hint the Plugins section shows for a
+   * boot-time trust change.
+   */
+  protected readonly mcpServerRestartPending = signal(false);
 
   constructor() {
     effect(() => {
@@ -212,6 +238,26 @@ export class SettingsProjectPreferences {
         if (!ok) this.respectGitignoreView.set(this.respectGitignore());
       },
     );
+  }
+
+  // -----------------------------------------------------------------
+  // Read-only MCP server opt-in handler (project-local, boot-time)
+  // -----------------------------------------------------------------
+
+  /**
+   * Flip the project-local `mcp.server.enabled` opt-in. Not surface-
+   * expanding (the server is strictly read-only), so it persists directly
+   * with no confirm dialog. On a successful persist the restart hint sticks
+   * on: the `/mcp` mount is boot-time, so the running `sm serve` reflects
+   * the change only after a restart. On a failed write the view signal rolls
+   * back to the committed value and the hint is left untouched.
+   */
+  protected onMcpServerToggle(next: boolean): void {
+    this.mcpServerEnabledView.set(next);
+    void this.runPatch('mcpServerEnabled', { mcpServerEnabled: next }).then((ok) => {
+      if (ok) this.mcpServerRestartPending.set(true);
+      else this.mcpServerEnabledView.set(this.mcpServerEnabled());
+    });
   }
 
   // -----------------------------------------------------------------

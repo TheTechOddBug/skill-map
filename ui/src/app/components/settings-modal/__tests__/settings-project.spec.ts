@@ -61,6 +61,7 @@ describe('SettingsProject chassis', () => {
       'settings-project-reference-paths-row',
       'settings-project-ignore-patterns-row',
       'settings-project-respect-gitignore-row',
+      'settings-project-mcp-server-row',
     ]) {
       expect(
         root.querySelector(`[data-testid="${testid}"]`),
@@ -260,6 +261,10 @@ interface ITrustProto {
   respectGitignore(): boolean;
   respectGitignoreView(): boolean;
   onRespectGitignoreToggle(next: boolean): void;
+  mcpServerEnabled(): boolean;
+  mcpServerEnabledView(): boolean;
+  mcpServerRestartPending(): boolean;
+  onMcpServerToggle(next: boolean): void;
 }
 
 function prefsSymlinks(followExternalSymlinks: boolean): IProjectPreferencesApi {
@@ -273,6 +278,14 @@ function prefsGitignore(respectGitignore: boolean): IProjectPreferencesApi {
   return {
     allowSidecarWriters: true,
     scan: { referencePaths: [], followExternalSymlinks: false, respectGitignore },
+  };
+}
+
+function prefsMcp(mcpServerEnabled: boolean): IProjectPreferencesApi {
+  return {
+    allowSidecarWriters: true,
+    scan: { referencePaths: [], followExternalSymlinks: false, respectGitignore: false },
+    mcpServerEnabled,
   };
 }
 
@@ -444,6 +457,71 @@ describe('SettingsProjectPreferences respectGitignore opt-in', () => {
     // switch view rolls back to off.
     expect(proto.respectGitignore()).toBe(false);
     expect(proto.respectGitignoreView()).toBe(false);
+  });
+});
+
+/**
+ * SettingsProjectPreferences · `mcpServerEnabled` opt-in.
+ *
+ * Project-local, ungated (the MCP server is strictly read-only, so it never
+ * expands the scan's disk-access surface): a flip persists directly through
+ * `setProjectPreferences` with the top-level `mcpServerEnabled` key, no
+ * confirm dialog. Because the `/mcp` mount is resolved at serve boot, a
+ * successful flip sets a sticky restart hint; a failed write rolls the
+ * switch view back and leaves the hint untouched.
+ */
+describe('SettingsProjectPreferences mcpServerEnabled opt-in', () => {
+  it('reads mcpServerEnabled from the loaded preferences (default off)', () => {
+    const { proto } = bootstrapTrust({});
+    expect(proto.mcpServerEnabled()).toBe(false);
+    proto.preferences.set(prefsMcp(true));
+    expect(proto.mcpServerEnabled()).toBe(true);
+  });
+
+  it('turning it ON persists directly with the top-level key and no confirm', async () => {
+    const setProjectPreferences = vi.fn().mockResolvedValue(prefsMcp(true));
+    const { proto } = bootstrapTrust({
+      setProjectPreferences,
+    } as Partial<IDataSourcePort>);
+
+    proto.onMcpServerToggle(true);
+    await flush();
+
+    expect(setProjectPreferences).toHaveBeenCalledTimes(1);
+    expect(setProjectPreferences).toHaveBeenCalledWith({ mcpServerEnabled: true });
+  });
+
+  it('raises the sticky restart hint after a successful flip', async () => {
+    const setProjectPreferences = vi.fn().mockResolvedValue(prefsMcp(true));
+    const { proto } = bootstrapTrust({
+      setProjectPreferences,
+    } as Partial<IDataSourcePort>);
+
+    expect(proto.mcpServerRestartPending()).toBe(false);
+    proto.onMcpServerToggle(true);
+    await flush();
+
+    expect(proto.mcpServerRestartPending()).toBe(true);
+  });
+
+  it('rolls the switch view back and leaves the hint down when the PATCH rejects', async () => {
+    const setProjectPreferences = vi
+      .fn()
+      .mockRejectedValueOnce(new DataSourceError('boom', 'persist failed'));
+    const { proto } = bootstrapTrust({
+      setProjectPreferences,
+    } as Partial<IDataSourcePort>);
+
+    proto.onMcpServerToggle(true);
+    // Optimistic flip while the write is in flight.
+    expect(proto.mcpServerEnabledView()).toBe(true);
+    await flush();
+
+    // The write failed: committed value never changed, view rolls back,
+    // and the restart hint never rose.
+    expect(proto.mcpServerEnabled()).toBe(false);
+    expect(proto.mcpServerEnabledView()).toBe(false);
+    expect(proto.mcpServerRestartPending()).toBe(false);
   });
 });
 

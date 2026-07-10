@@ -434,6 +434,10 @@ export const SERVER_TEXTS = {
     '`ui` must be an object (e.g. `{"ui": {"liveUpdates": false}}`).',
   projectPrefsLiveUpdatesNotBoolean: '`ui.liveUpdates` must be a boolean.',
   projectPrefsRealtimeActivityNotBoolean: '`ui.realtimeActivity` must be a boolean.',
+  projectPrefsMcpServerNotBoolean: '`mcpServerEnabled` must be a boolean.',
+  // Server-stderr advisory after `PATCH /api/project-preferences` toggles the
+  // opt-in read-only MCP server. Boot-time, so the note flags the serve restart.
+  projectPrefsMcpServerSet: 'project-prefs: mcp.server.enabled = {{value}} (restart sm serve to apply)',
   // Server-stderr advisory after `PATCH /api/project-preferences`
   // toggles the committed sidecar-writer policy. Lets the operator see
   // the team-shared change land without opening settings.json.

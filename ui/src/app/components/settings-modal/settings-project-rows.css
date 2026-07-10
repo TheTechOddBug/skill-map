@@ -155,3 +155,34 @@
   font-size: 0.8rem;
   cursor: help;
 }
+
+/* Experimental badge: a warn-toned pill next to a row label whose
+   feature is not yet stable (today the read-only MCP server). Same
+   warn palette as the Plugins panel's `experimental` stability chip.
+   `cursor: help` signals the native title tooltip. */
+.settings-project__experimental-badge {
+  margin-left: 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.05rem 0.35rem;
+  border-radius: var(--sm-radius-md);
+  color: var(--p-warn-color);
+  border: 1px solid var(--p-warn-color);
+  cursor: help;
+}
+
+/* Per-row "restart sm serve" hint: shown under a boot-time toggle whose
+   change has persisted but the running server has not picked up yet
+   (today the MCP server mount). Warn-toned + italic, matching the
+   chassis footer restart hint and the Plugins per-row hint. */
+.settings-project__row-restart-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.15rem;
+  font-size: 0.75rem;
+  font-style: italic;
+  color: var(--p-warn-color);
+}

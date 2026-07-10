@@ -180,6 +180,10 @@ interface IBootstrapOpts {
   rendererMode?: 'pass' | 'throw';
   /** Drives the body card's reactive `scan.completed` refresh. */
   scanCompleted$?: Subject<void>;
+  /** Drives the Activity section's live `node.activity` re-fetch. */
+  nodeActivity$?: Subject<void>;
+  /** Drives the Activity section's live `agent.spawn` re-fetch. */
+  agentSpawn$?: Subject<void>;
   /** Seeds the per-node stats mirror that gates the Activity section. */
   activityStats?: ReadonlyMap<string, INodeActivityStatsApi>;
   /** Seeds the per-pair spawn counters (Activity gate, spawn side). */
@@ -199,10 +203,14 @@ function bootstrap(opts: IBootstrapOpts = {}): {
   loader: IStubLoader;
   dataSource: IStubDataSource;
   scanCompleted$: Subject<void>;
+  nodeActivity$: Subject<void>;
+  agentSpawn$: Subject<void>;
 } {
   const loader = opts.loader ?? makeStubLoader();
   const dataSource = opts.dataSource ?? makeStubDataSource();
   const scanCompleted$ = opts.scanCompleted$ ?? new Subject<void>();
+  const nodeActivity$ = opts.nodeActivity$ ?? new Subject<void>();
+  const agentSpawn$ = opts.agentSpawn$ ?? new Subject<void>();
 
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
@@ -222,6 +230,10 @@ function bootstrap(opts: IBootstrapOpts = {}): {
           scanCompleted$: scanCompleted$.asObservable(),
           events$: EMPTY,
           sidecarBumped$: EMPTY,
+          // The Activity section's live re-fetch merges these two streams;
+          // Subjects let tests drive `node.activity` and `agent.spawn` frames.
+          nodeActivity$: nodeActivity$.asObservable(),
+          agentSpawn$: agentSpawn$.asObservable(),
         } as unknown as WsEventStreamService,
       },
       {
@@ -250,7 +262,15 @@ function bootstrap(opts: IBootstrapOpts = {}): {
     ],
   });
   const fixture = TestBed.createComponent(InspectorView);
-  return { fixture, cmp: fixture.componentInstance, loader, dataSource, scanCompleted$ };
+  return {
+    fixture,
+    cmp: fixture.componentInstance,
+    loader,
+    dataSource,
+    scanCompleted$,
+    nodeActivity$,
+    agentSpawn$,
+  };
 }
 
 async function flush(fixture: ComponentFixture<InspectorView>): Promise<void> {
@@ -1418,6 +1438,168 @@ describe('InspectorView, activity recent directional invocations', () => {
     // The short owner still renders on the row.
     const row = dom.querySelector('[data-testid="inspector-activity-recent-row"]');
     expect(row!.textContent).toContain('main:abc');
+  });
+});
+
+describe('InspectorView, activity live refresh (node.activity re-fetch)', () => {
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  it('re-fetches the activity detail on a node.activity frame while the section is open', async () => {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    dataSource.getNodeActivity.mockResolvedValue({
+      stats: { count: 1, lastStartAt: 1000, distinctOwners: 1 },
+      recent: [],
+      spawns: [],
+      captureEnabled: true,
+    });
+
+    const { fixture, nodeActivity$ } = bootstrap({
+      loader,
+      dataSource,
+      activityStats: new Map([[node.path, makeActivityStats()]]),
+    });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+
+    // Expand the Activity section: the first (loud) fetch.
+    const toggle = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-activity-toggle"]',
+    ) as HTMLButtonElement;
+    toggle.click();
+    await flush(fixture);
+    await flush(fixture);
+    expect(dataSource.getNodeActivity).toHaveBeenCalledWith(node.path);
+    const before = dataSource.getNodeActivity.mock.calls.length;
+
+    // A live execution frame lands: after the debounce window the section
+    // silently re-fetches the SAME node's detail (no navigation, no scan).
+    vi.useFakeTimers();
+    try {
+      nodeActivity$.next();
+      vi.advanceTimersByTime(400);
+    } finally {
+      vi.useRealTimers();
+    }
+    await flush(fixture);
+
+    expect(dataSource.getNodeActivity.mock.calls.length).toBeGreaterThan(before);
+  });
+
+  it('coalesces a burst of node.activity frames into ONE re-fetch (debounced)', async () => {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    dataSource.getNodeActivity.mockResolvedValue({
+      stats: { count: 1, lastStartAt: 1000, distinctOwners: 1 },
+      recent: [],
+      spawns: [],
+      captureEnabled: true,
+    });
+
+    const { fixture, nodeActivity$ } = bootstrap({
+      loader,
+      dataSource,
+      activityStats: new Map([[node.path, makeActivityStats()]]),
+    });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    const toggle = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-activity-toggle"]',
+    ) as HTMLButtonElement;
+    toggle.click();
+    await flush(fixture);
+    await flush(fixture);
+    const before = dataSource.getNodeActivity.mock.calls.length;
+
+    // Five frames inside one debounce window collapse to a single trailing
+    // re-fetch, not five GETs.
+    vi.useFakeTimers();
+    try {
+      for (let i = 0; i < 5; i++) {
+        nodeActivity$.next();
+        vi.advanceTimersByTime(100);
+      }
+      vi.advanceTimersByTime(400);
+    } finally {
+      vi.useRealTimers();
+    }
+    await flush(fixture);
+
+    expect(dataSource.getNodeActivity.mock.calls.length).toBe(before + 1);
+  });
+
+  it('re-fetches the activity detail on an agent.spawn frame while the section is open', async () => {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    dataSource.getNodeActivity.mockResolvedValue({
+      stats: { count: 1, lastStartAt: 1000, distinctOwners: 1 },
+      recent: [],
+      spawns: [],
+      captureEnabled: true,
+    });
+
+    const { fixture, agentSpawn$ } = bootstrap({
+      loader,
+      dataSource,
+      activityStats: new Map([[node.path, makeActivityStats()]]),
+    });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    const toggle = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-activity-toggle"]',
+    ) as HTMLButtonElement;
+    toggle.click();
+    await flush(fixture);
+    await flush(fixture);
+    const before = dataSource.getNodeActivity.mock.calls.length;
+
+    // A spawn thread starts: the section's spawn rows must refresh live too.
+    vi.useFakeTimers();
+    try {
+      agentSpawn$.next();
+      vi.advanceTimersByTime(400);
+    } finally {
+      vi.useRealTimers();
+    }
+    await flush(fixture);
+
+    expect(dataSource.getNodeActivity.mock.calls.length).toBeGreaterThan(before);
+  });
+
+  it('ignores node.activity frames when the section was never opened (no fetch)', async () => {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+
+    const { fixture, nodeActivity$ } = bootstrap({
+      loader,
+      dataSource,
+      activityStats: new Map([[node.path, makeActivityStats()]]),
+    });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    // Section is collapsed by default: never fetched, so the guard holds.
+    expect(dataSource.getNodeActivity).not.toHaveBeenCalled();
+
+    vi.useFakeTimers();
+    try {
+      nodeActivity$.next();
+      vi.advanceTimersByTime(400);
+    } finally {
+      vi.useRealTimers();
+    }
+    await flush(fixture);
+
+    expect(dataSource.getNodeActivity).not.toHaveBeenCalled();
   });
 });
 

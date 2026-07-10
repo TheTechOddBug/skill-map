@@ -84,6 +84,14 @@ export interface IProjectPreferencesEnvelope {
     liveUpdates: boolean;
     realtimeActivity: boolean;
   };
+  /**
+   * Whether `sm serve` exposes the opt-in read-only MCP server at `/mcp`
+   * (config key `mcp.server.enabled`, default `false`). The endpoint mounts at
+   * serve BOOT, so a change here persists but only takes effect after an
+   * `sm serve` restart, the UI surfaces that as a per-toggle hint. Written to
+   * the project-local layer (a per-operator decision to expose a local server).
+   */
+  mcpServerEnabled: boolean;
 }
 
 interface IPatchBody {
@@ -99,6 +107,7 @@ interface IPatchBody {
     liveUpdates?: boolean;
     realtimeActivity?: boolean;
   };
+  mcpServerEnabled?: boolean;
 }
 
 export function registerProjectPreferencesRoute(app: Hono, deps: IRouteDeps): void {
@@ -139,6 +148,11 @@ function buildEnvelope(deps: IRouteDeps): IProjectPreferencesEnvelope {
           default: true,
         }) ?? true,
     },
+    mcpServerEnabled:
+      readConfigValue<boolean>('mcp.server.enabled', {
+        cwd,
+        default: false,
+      }) ?? false,
   };
 }
 
@@ -199,6 +213,13 @@ async function applyPatch(deps: IRouteDeps, body: IPatchBody): Promise<void> {
   // gate. They only steer the SPA's live channel, so no watcher restart.
   const uiChanged = applyUiWrites(body, cwd);
 
+  // Project-local MCP-server enable. Boot-time: the `/mcp` mount happens in
+  // `createApp` at serve boot, so persisting it here has NO live effect and a
+  // watcher restart would not remount the route. It only needs a cache reload
+  // so the GET reflects the new value; the UI tells the operator to restart
+  // `sm serve`.
+  const mcpChanged = applyMcpServerWrite(body, cwd);
+
   // Best-effort watcher restart: the runtime re-reads config every
   // batch so the next file edit picks the change up anyway, but the
   // restart guarantees the operator sees the effect (new path list,
@@ -219,6 +240,7 @@ async function applyPatch(deps: IRouteDeps, body: IPatchBody): Promise<void> {
     reminderChanged,
     followChanged,
     uiChanged,
+    mcpChanged,
   ].some(Boolean);
   if (shouldRestart) await maybeRestartWatcher(deps);
   // Successful writes mutate the on-disk config; the cached view would
@@ -325,6 +347,33 @@ function applyUiWrites(body: IPatchBody, cwd: string): boolean {
     changed = true;
   }
   return changed;
+}
+
+/**
+ * Apply the `mcpServerEnabled` key of the patch (config key
+ * `mcp.server.enabled`): the opt-in read-only MCP server. Boot-time, so
+ * persisting it here has no live effect, the `/mcp` mount needs an `sm serve`
+ * restart. Written to the gitignored project-local layer (a per-operator
+ * decision to expose a local server), no privacy / confirm gate. Returns `true`
+ * when the value actually changed, so the caller reloads the config cache.
+ */
+function applyMcpServerWrite(body: IPatchBody, cwd: string): boolean {
+  const next = body.mcpServerEnabled;
+  if (next === undefined) return false;
+  const before = readConfigValue<boolean>('mcp.server.enabled', { cwd, default: false }) ?? false;
+  if (before === next) return false;
+  try {
+    writeConfigValue('mcp.server.enabled', next, { target: 'project-local', cwd });
+  } catch (err) {
+    throw new HTTPException(400, {
+      message: tx(SERVER_TEXTS.projectPrefsPersistFailed, {
+        key: 'mcp.server.enabled',
+        message: formatErrorMessage(err),
+      }),
+    });
+  }
+  log.warn(tx(SERVER_TEXTS.projectPrefsMcpServerSet, { value: String(next) }));
+  return true;
 }
 
 /**
@@ -635,11 +684,13 @@ const PATCH_BODY_SCHEMA = {
     { required: ['scan'] },
     { required: ['tutorialReminderDismissed'] },
     { required: ['ui'] },
+    { required: ['mcpServerEnabled'] },
   ],
   properties: {
     confirm: { type: 'boolean' },
     allowSidecarWriters: { type: 'boolean' },
     tutorialReminderDismissed: { type: 'boolean' },
+    mcpServerEnabled: { type: 'boolean' },
     ui: {
       type: 'object',
       additionalProperties: false,
@@ -685,5 +736,6 @@ const parsePatchBody = makeBodyValidator<IPatchBody>(PATCH_BODY_SCHEMA, {
     '/ui:type:object': SERVER_TEXTS.projectPrefsUiNotObject,
     '/ui/liveUpdates:type:boolean': SERVER_TEXTS.projectPrefsLiveUpdatesNotBoolean,
     '/ui/realtimeActivity:type:boolean': SERVER_TEXTS.projectPrefsRealtimeActivityNotBoolean,
+    '/mcpServerEnabled:type:boolean': SERVER_TEXTS.projectPrefsMcpServerNotBoolean,
   },
 });

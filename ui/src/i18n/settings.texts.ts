@@ -166,6 +166,21 @@ export const SETTINGS_TEXTS = {
       'project (e.g. ~/.ssh). Enable only for trees whose links you created.',
     followExternalSymlinksConfirmAccept: 'Enable',
     followExternalSymlinksConfirmReject: 'Cancel',
+    /**
+     * Project-local read-only MCP server opt-in (`mcp.server.enabled`).
+     * When on, `sm serve` mounts an experimental read-only MCP endpoint at
+     * `/mcp` so an MCP-capable assistant can query the map (never execute
+     * anything). Persists in settings.local.json. The mount is boot-time, so
+     * flipping it here shows a restart hint until `sm serve` is restarted.
+     */
+    mcpServerLabel: 'MCP server',
+    mcpServerExperimentalTooltip:
+      'Experimental: the endpoint and its shape may change.',
+    mcpServerDescription:
+      'Let an MCP-capable assistant query this map over sm serve at /mcp. ' +
+      'Read-only: it answers questions about the graph, it never runs skills ' +
+      'or agents.',
+    mcpServerRestartHint: 'Restart sm to apply.',
     referencePathsLabel: 'Folders for link validation',
     referencePathsDescription:
       'If your notes link to files outside this project, list those ' +

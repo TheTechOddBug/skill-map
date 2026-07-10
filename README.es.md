@@ -111,6 +111,22 @@ Qué se ilumina depende de lo que el sistema de hooks de cada runtime expone:
 
 Contrato completo (invariantes del bridge, postura de privacidad, notas de señales por proveedor): [`spec/provider-activity.md`](./spec/provider-activity.md).
 
+## Consulta el mapa desde Claude Code (MCP)
+
+`sm serve` puede exponer tu mapa como un servidor [MCP](https://modelcontextprotocol.io) de solo lectura en `/mcp`, para que Claude Code (o cualquier host MCP) consulte el grafo como tools y lo lea como resources, con actualizaciones en vivo a medida que el mapa cambia. Está **apagado por defecto** y es estrictamente de solo lectura: responde preguntas sobre el mapa, nunca ejecuta tus skills ni agentes.
+
+Actívalo con `sm serve --mcp` (o el toggle en Ajustes → Proyecto) y luego apunta Claude Code a él en el `.mcp.json` de tu proyecto:
+
+```json
+{
+  "mcpServers": {
+    "skillmap": { "type": "http", "url": "http://127.0.0.1:4242/mcp" }
+  }
+}
+```
+
+El puerto es el que `sm serve` imprime al arrancar (por defecto `4242`, también en `.skill-map/serve.json`). Contrato completo: [`spec/mcp-server.md`](./spec/mcp-server.md).
+
 ## Archivos sidecar `.sm` (no te asustes cuando aparezcan)
 
 La primera vez que ejecutes `sm bump` o `sm sidecar annotate`, skill-map escribirá un archivo YAML hermano al lado de cada `.md`: `demo-agent.md` → `demo-agent.sm` en el mismo directorio. Son intencionales, son parte del diseño y **deben vivir en tu repo**.

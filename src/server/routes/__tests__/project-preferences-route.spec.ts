@@ -31,6 +31,7 @@ interface IProjectPrefsEnvelopeWire {
   scan: { referencePaths: string[]; followExternalSymlinks: boolean; respectGitignore: boolean };
   tutorialReminderDismissed: boolean;
   ui: { liveUpdates: boolean; realtimeActivity: boolean };
+  mcpServerEnabled: boolean;
 }
 
 interface IErrorEnvelopeWire {
@@ -98,6 +99,7 @@ describe('GET /api/project-preferences', () => {
         scan: { referencePaths: [], followExternalSymlinks: false, respectGitignore: false },
         tutorialReminderDismissed: false,
         ui: { liveUpdates: true, realtimeActivity: true },
+        mcpServerEnabled: false,
       });
     });
   });
@@ -334,6 +336,43 @@ describe('PATCH /api/project-preferences (scan.respectGitignore policy)', () => 
       assert.equal(res.status, 200);
       const env = (await res.json()) as IProjectPrefsEnvelopeWire;
       assert.equal(env.scan.respectGitignore, true);
+    });
+  });
+});
+
+describe('PATCH /api/project-preferences (mcpServerEnabled)', () => {
+  it('400 bad-query when mcpServerEnabled is not a boolean', async () => {
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/project-preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ mcpServerEnabled: 'nope' }),
+      });
+      assert.equal(res.status, 400);
+    });
+  });
+
+  it('writes the enable to the project-local settings.local.json (per-operator), no confirm', async () => {
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/project-preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ mcpServerEnabled: true }),
+      });
+      assert.equal(res.status, 200);
+      const env = (await res.json()) as IProjectPrefsEnvelopeWire;
+      assert.equal(env.mcpServerEnabled, true);
+      const local = JSON.parse(readFileSync(join(cwd, '.skill-map/settings.local.json'), 'utf8'));
+      assert.equal(local.mcp.server.enabled, true);
+    });
+  });
+
+  it('GET reflects the persisted enable', async () => {
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/project-preferences'));
+      assert.equal(res.status, 200);
+      const env = (await res.json()) as IProjectPrefsEnvelopeWire;
+      assert.equal(env.mcpServerEnabled, true);
     });
   });
 });

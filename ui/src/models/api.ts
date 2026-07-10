@@ -1023,6 +1023,15 @@ export interface IProjectPreferencesApi {
     liveUpdates: boolean;
     realtimeActivity: boolean;
   };
+  /**
+   * Project-local opt-in for the read-only MCP server (`mcp.server.enabled`).
+   * When `true`, `sm serve` mounts the experimental read-only MCP endpoint at
+   * `/mcp`. Default `false`. The mount happens at serve boot, so a change
+   * only takes effect on the next `sm serve` restart. Optional only to
+   * tolerate an older BFF envelope that predates it; the current BFF always
+   * emits a concrete boolean.
+   */
+  mcpServerEnabled?: boolean;
 }
 
 /**
@@ -1058,6 +1067,12 @@ export interface IProjectPreferencesPatchApi {
     liveUpdates?: boolean;
     realtimeActivity?: boolean;
   };
+  /**
+   * Flip the project-local read-only MCP server opt-in (`mcp.server.enabled`).
+   * No confirm gate. Boot-time: the change persists immediately but the `/mcp`
+   * mount only reflects it on the next `sm serve` restart.
+   */
+  mcpServerEnabled?: boolean;
 }
 
 /**

@@ -11,6 +11,7 @@ import {
 import type { OnInit } from '@angular/core';
 import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
+import { debounceTime, merge } from 'rxjs';
 
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
@@ -82,6 +83,16 @@ import {
   type IInspectorDerivationsHandle,
 } from './inspector-derivations';
 import type { INodeView } from '../../../models/node';
+
+/**
+ * Debounce for the Activity section's live re-fetch. Live `node.activity`
+ * and `agent.spawn` frames can arrive in rapid bursts (an agent lighting
+ * a chain, an MCP tool called in a loop); coalescing them into one GET
+ * shortly after the burst settles keeps the panel fresh without a request
+ * per frame. The server is the source of truth, so a single trailing
+ * re-fetch always reflects the final state.
+ */
+const ACTIVITY_LIVE_REFRESH_DEBOUNCE_MS = 400;
 
 @Component({
   selector: 'sm-inspector-view',
@@ -483,6 +494,30 @@ export class InspectorView implements OnInit {
    */
   private readonly activityScanRefresh = this.wsEvents.scanCompleted$
     .pipe(takeUntilDestroyed())
+    .subscribe(() => {
+      const path = this.activityPath;
+      if (!path || this.activityFetchedFor !== path) return;
+      void this.fetchActivity(path);
+    });
+
+  /**
+   * Live same-path refresh on execution frames, so the recent-history
+   * rows and counters update the moment the assistant runs, not only on
+   * the next watcher re-scan. Merges the two live streams the Activity
+   * section reflects: `node.activity` (a unit executing, an MCP tool
+   * invoked) and `agent.spawn` (a new spawn thread). Any frame can touch
+   * this node's detail, directly (it lit up) or as the correlated caller
+   * of an invocation elsewhere, so rather than duplicate the server's
+   * owner-to-caller correlation client-side, we re-fetch the authoritative
+   * detail (debounced) whenever activity flows while the section sits
+   * open. Gated by the same fetched-for guard as the scan refresh, so a
+   * closed or never-loaded section spends nothing.
+   */
+  private readonly activityLiveRefresh = merge(
+    this.wsEvents.nodeActivity$,
+    this.wsEvents.agentSpawn$,
+  )
+    .pipe(debounceTime(ACTIVITY_LIVE_REFRESH_DEBOUNCE_MS), takeUntilDestroyed())
     .subscribe(() => {
       const path = this.activityPath;
       if (!path || this.activityFetchedFor !== path) return;

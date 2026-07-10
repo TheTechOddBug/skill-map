@@ -13,6 +13,35 @@
   />
 </div>
 
+<div class="settings-project__row" data-testid="settings-project-mcp-server-row">
+  <div class="settings-project__row-text">
+    <div class="settings-project__row-label">
+      {{ texts.project.mcpServerLabel }}
+      <span
+        class="settings-project__experimental-badge"
+        [title]="texts.project.mcpServerExperimentalTooltip"
+        [attr.aria-label]="texts.project.mcpServerExperimentalTooltip"
+        >{{ texts.stability.experimental }}</span
+      >
+    </div>
+    <div class="settings-project__row-description">
+      {{ texts.project.mcpServerDescription }}
+    </div>
+    @if (mcpServerRestartPending()) {
+      <div class="settings-project__row-restart-hint" data-testid="settings-project-mcp-server-restart-hint">
+        <i class="pi pi-refresh" aria-hidden="true"></i>
+        {{ texts.project.mcpServerRestartHint }}
+      </div>
+    }
+  </div>
+  <p-toggleswitch
+    [ngModel]="mcpServerEnabledView()"
+    (ngModelChange)="onMcpServerToggle($event)"
+    [disabled]="loading() || isPending('mcpServerEnabled') || preferences() === null"
+    data-testid="settings-project-mcp-server-toggle"
+  />
+</div>
+
 @if (loadError(); as err) {
   <p-message severity="error" [closable]="false" data-testid="settings-project-load-error">
     {{ texts.project.loadErrorPrefix }} {{ err }}
