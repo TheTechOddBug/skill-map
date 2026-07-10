@@ -197,6 +197,29 @@ describe('resolveSignalsAgainstNodes', () => {
     ]);
   });
 
+  it('a mcp:// PATH signal resolves to the mcp node tagged access: "mcp" (with detail)', () => {
+    // The claude + codex activity adapters emit an `mcp__<server>__<tool>`
+    // invocation as a PATH signal to the `mcp://<server>` node, carrying the
+    // tool half on `detail`. The resolver matches it by exact path (like any
+    // PATH signal) but tags it `access: 'mcp'` instead of `'read'`, an
+    // execution-shaped access, not a file read, driven by the `mcp://` prefix.
+    const nodes = [...NODES, makeNode({ path: 'mcp://deepwiki', kind: 'mcp' })];
+    const resolved = resolveSignalsAgainstNodes(
+      [{ path: 'mcp://deepwiki', phase: 'start', owner: 'main:s1', detail: 'ask_question' }],
+      provider,
+      nodes,
+    );
+    assert.deepEqual(resolved.activity, [
+      {
+        access: 'mcp',
+        nodePath: 'mcp://deepwiki',
+        phase: 'start',
+        owner: 'main:s1',
+        detail: 'ask_question',
+      },
+    ]);
+  });
+
   it('node-less OWNER RELEASES forward without resolution (and require an owner)', () => {
     const resolved = resolveSignalsAgainstNodes(
       [
