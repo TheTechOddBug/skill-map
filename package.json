@@ -12,7 +12,7 @@
   "scripts": {
     "start": "bash scripts/start.sh",
     "fix:local": "pnpm start",
-    "fix:demo": "bash scripts/start.sh demo-scope",
+    "fix:demo": "bash scripts/start.sh demo",
     "fix:ai": "bash scripts/start.sh ai-engineering",
     "fix:skills": "bash scripts/start.sh skills",
     "fix:codex": "bash scripts/start.sh codex",

@@ -4,7 +4,7 @@
  * sidecar schema.
  *
  * Why this exists: the demo bundle (`web/demo/`) is generated from
- * `fixtures/demo-scope/` via `sm scan`. When the sidecar root shape
+ * `fixtures/demo/` via `sm scan`. When the sidecar root shape
  * changed (the `for:` → `identity:` rename in the 0.18.x sidecar
  * spec), the demo fixtures kept the old shape; AJV silently rejected
  * them, the `annotations` extractor saw `sidecar.annotations === null`,

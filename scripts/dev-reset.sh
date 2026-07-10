@@ -33,7 +33,7 @@
 # Usage:
 #   bash scripts/dev-reset.sh                       # default: fixture, full rebuild
 #   bash scripts/dev-reset.sh --target=repo         # reset .skill-map/ at repo root
-#   bash scripts/dev-reset.sh --target=demo         # reset fixtures/demo-scope/.skill-map/
+#   bash scripts/dev-reset.sh --target=demo         # reset fixtures/demo/.skill-map/
 #   bash scripts/dev-reset.sh --no-ui               # skip UI rebuild
 #   bash scripts/dev-reset.sh --no-cli              # skip CLI rebuild
 #   bash scripts/dev-reset.sh --no-cli --no-ui      # DB-only reset (fastest)
@@ -78,7 +78,7 @@ case "$TARGET" in
     BFF_HINT="node src/bin/sm.js serve              # foreground BFF + UI bundle on :4242"
     ;;
   demo)
-    SCOPE_DIR="fixtures/demo-scope"
+    SCOPE_DIR="fixtures/demo"
     BFF_HINT="pnpm demo:build                    # rebuild web/demo/ from the refreshed fixture"
     ;;
 esac

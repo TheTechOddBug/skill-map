@@ -5,7 +5,7 @@
 # Usage: start.sh [fixture-dir]   (default: local-scope)
 #   The root `fix:*` shortcuts wire each fixture:
 #     pnpm fix:local   -> pnpm start          (this script, local-scope)
-#     pnpm fix:demo    -> start.sh demo-scope
+#     pnpm fix:demo    -> start.sh demo
 #   The fixture is threaded to the BFF pane via SM_FIXTURE; `bff:scan`
 #   and `bff:dev` resolve `fixtures/${SM_FIXTURE:-local-scope}`. The UI
 #   pane runs `ui:dev` (Angular HMR), which proxies the API to the BFF

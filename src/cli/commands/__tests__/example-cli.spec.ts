@@ -4,7 +4,7 @@
  *
  * The spawned binary (`src/bin/sm.js`) loads the BUILT `dist/cli.js`, so
  * the verb resolves the example payload from `dist/cli/example/`
- * (populated by tsup `onSuccess` from `fixtures/demo-scope/`). Run
+ * (populated by tsup `onSuccess` from `fixtures/demo/`). Run
  * `pnpm --filter @skill-map/cli build` before this spec, as with the
  * tutorial spec.
  *
@@ -33,9 +33,9 @@ import { after, before, describe, it } from 'node:test';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BIN = resolve(HERE, '..', '..', '..', 'bin', 'sm.js');
 
-// Repo root → fixtures/demo-scope/ is the source-of-truth payload the
+// Repo root → fixtures/demo/ is the source-of-truth payload the
 // verb materializes. From src/cli/commands/__tests__/ that's four levels up.
-const EXAMPLE_SOURCE = resolve(HERE, '..', '..', '..', '..', 'fixtures', 'demo-scope');
+const EXAMPLE_SOURCE = resolve(HERE, '..', '..', '..', '..', 'fixtures', 'demo');
 
 let root: string;
 let counter = 0;

@@ -110,8 +110,8 @@ describe('Dockerfile, demo deploy assets', () => {
     }
   });
 
-  it('copies fixtures/demo-scope/ before invoking build-demo-dataset.js', () => {
-    // build-demo-dataset.js spawns `sm scan` over fixtures/demo-scope/ and
+  it('copies fixtures/demo/ before invoking build-demo-dataset.js', () => {
+    // build-demo-dataset.js spawns `sm scan` over fixtures/demo/ and
     // throws `demo fixture missing` if the directory is absent. Prior to
     // the fixtures relocation this was implicit (the fixture lived under
     // ui/ which was copied wholesale); now it needs an explicit COPY.
@@ -121,8 +121,8 @@ describe('Dockerfile, demo deploy assets', () => {
     const head = text.slice(0, dataset);
     assert.match(
       head,
-      /COPY\s+fixtures\/demo-scope\/?\s+\.\/fixtures\/demo-scope\/?/,
-      'Dockerfile must `COPY fixtures/demo-scope/ ./fixtures/demo-scope/` before running build-demo-dataset.js',
+      /COPY\s+fixtures\/demo\/?\s+\.\/fixtures\/demo\/?/,
+      'Dockerfile must `COPY fixtures/demo/ ./fixtures/demo/` before running build-demo-dataset.js',
     );
   });
 });

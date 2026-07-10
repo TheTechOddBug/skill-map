@@ -4,7 +4,7 @@
  *
  * Pipeline:
  *
- *   1. Spawn `sm scan --json` over `fixtures/demo-scope/`. Prefer the
+ *   1. Spawn `sm scan --json` over `fixtures/demo/`. Prefer the
  *      built CLI bundle (`src/dist/cli.js`) for speed; fall back to the
  *      tsx-driven source entry if the bundle is absent.
  *   2. Parse the resulting `ScanResult` (1:1 with `scan-result.schema.json`).
@@ -34,7 +34,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 const REPO_ROOT = resolve(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
-const FIXTURE_DIR = join(REPO_ROOT, 'fixtures', 'demo-scope');
+const FIXTURE_DIR = join(REPO_ROOT, 'fixtures', 'demo');
 const DB_PATH = join(FIXTURE_DIR, '.skill-map', 'skill-map.db');
 const OUT_DIR = join(REPO_ROOT, 'web', 'demo');
 const DATA_PATH = join(OUT_DIR, 'data.json');
@@ -154,7 +154,7 @@ async function renderAsciiGraph() {
     // still ships a graph asset; the smoke test of the demo bundle
     // doesn't need it to be populated.
     process.stderr.write(`[build-demo-dataset] sm graph failed (${err.message}); using placeholder ASCII\n`);
-    return '(no graph available; run `sm scan && sm graph` against fixtures/demo-scope/ to populate)\n';
+    return '(no graph available; run `sm scan && sm graph` against fixtures/demo/ to populate)\n';
   }
 }
 

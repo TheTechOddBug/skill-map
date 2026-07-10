@@ -47,12 +47,12 @@ RUN node web/scripts/patch-demo-mode.js ui/dist/ui/browser/index.html
 # (`<base>/data.json` + `<base>/data.meta.json`). Without these the SPA
 # falls through Caddy's SPA fallback to index.html and trips a
 # JSON.parse on `<!DOCTYPE...`. The dataset script spawns `sm scan`
-# over `fixtures/demo-scope/`; with no built CLI in this stage it
+# over `fixtures/demo/`; with no built CLI in this stage it
 # falls back to its tsx-driven source-entry path, so we need spec/ +
 # src/ + the fixture + web/scripts/ in scope.
 COPY spec/ ./spec/
 COPY src/ ./src/
-COPY fixtures/demo-scope/ ./fixtures/demo-scope/
+COPY fixtures/demo/ ./fixtures/demo/
 COPY web/scripts/build-demo-dataset.js ./web/scripts/build-demo-dataset.js
 RUN node web/scripts/build-demo-dataset.js
 

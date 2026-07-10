@@ -114,7 +114,7 @@ function copySkillFolder(slug: string): void {
 }
 
 /**
- * Copy the example payload from `fixtures/demo-scope/` (repo root) into
+ * Copy the example payload from `fixtures/demo/` (repo root) into
  * `dist/cli/example/` so the published tarball ships the project the
  * `sm example` verb materialises into a user's cwd. This is the SAME
  * fixture the web demo scans, one canonical harness feeds both.
@@ -131,7 +131,7 @@ function copySkillFolder(slug: string): void {
  * pathological case where neither path resolves.
  */
 function copyExamplePayload(): void {
-  const source = '../fixtures/demo-scope';
+  const source = '../fixtures/demo';
   if (!existsSync(source)) {
     process.stderr.write(
       `tsup: skipping example payload copy: ${source} not found ` +

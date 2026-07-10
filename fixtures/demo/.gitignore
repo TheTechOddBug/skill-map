@@ -1,3 +1,4 @@
 .skill-map/settings.local.json
 .skill-map/skill-map.db
+.skill-map/serve.json
 .skill-map/backups/

@@ -10,7 +10,7 @@
  * that mentions a content-editor agent and invokes a publish command, a
  * `check-links` skill the command calls, and the deploy / style docs they
  * reference. It is the SAME harness the public demo renders, both consume
- * the single canonical fixture at `fixtures/demo-scope/`.
+ * the single canonical fixture at `fixtures/demo/`.
  *
  * Per spec § `sm example`:
  *
@@ -29,7 +29,7 @@
  *     `--force`, on a stray positional, or on I/O failure (including a
  *     missing bundled payload).
  *
- * Payload source-of-truth: `fixtures/demo-scope/` at the repo root (the
+ * Payload source-of-truth: `fixtures/demo/` at the repo root (the
  * same fixture the web demo scans). The build pipeline
  * (`tsup.config.ts → onSuccess`) copies it into `dist/cli/example/`
  * (minus its scan state) so the published package ships it. The runtime
@@ -55,7 +55,7 @@ import { SmCommand } from '../util/sm-command.js';
 import { VERSION } from '../version.js';
 
 /** Repo-relative path to the source-of-truth example payload. */
-const EXAMPLE_SOURCE_DIR = 'fixtures/demo-scope';
+const EXAMPLE_SOURCE_DIR = 'fixtures/demo';
 
 export class ExampleCommand extends SmCommand {
   static override paths = [['example']];
@@ -182,7 +182,7 @@ let cachedSourceDir: string | undefined;
  * Resolve the example payload directory on disk. Walks a small list of
  * candidate locations relative to this module so the lookup works in
  * both the dev layout (`src/cli/commands/example.ts` → repo-root
- * `fixtures/demo-scope/`) and the bundled layout (single-file
+ * `fixtures/demo/`) and the bundled layout (single-file
  * `dist/cli.js` → sibling `dist/cli/example/`, populated by tsup
  * `onSuccess`). Throws if no candidate exists; the caller surfaces this
  * as `sourceMissing` (exit 2). Result is cached so repeat invocations in
@@ -192,7 +192,7 @@ function resolveExampleSourceDir(): string {
   if (cachedSourceDir !== undefined) return cachedSourceDir;
   const here = dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    // dev: src/cli/commands/ → repo-root fixtures/demo-scope/
+    // dev: src/cli/commands/ → repo-root fixtures/demo/
     resolve(here, '../../..', EXAMPLE_SOURCE_DIR),
     // bundled: dist/cli.js → dist/cli/example (sibling)
     resolve(here, 'cli/example'),
@@ -213,7 +213,7 @@ function resolveExampleSourceDir(): string {
 
 /**
  * `cpSync` filter: copy every payload entry EXCEPT the source fixture's
- * own `.skill-map/` scan state. The dev source (`fixtures/demo-scope/`)
+ * own `.skill-map/` scan state. The dev source (`fixtures/demo/`)
  * carries a populated `.skill-map/`; the bundled copy is already stripped
  * at build time, so this keeps both layouts producing an unscanned
  * project. `src` is an absolute path under `sourceRoot`.

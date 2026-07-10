@@ -8,7 +8,7 @@ name: deploy-web
 #   - Dockerfile          deploy recipe
 #   - Caddyfile           server config
 #
-# In-flight changes to web/, ui/, spec/, fixtures/demo-scope/, etc. do
+# In-flight changes to web/, ui/, spec/, fixtures/demo/, etc. do
 # NOT trigger a deploy on merge. They ride along the next "chore: version
 # packages" PR that consumes the changesets and bumps web/spec/package.json.
 # That keeps each deploy aligned with a released version, and avoids the
