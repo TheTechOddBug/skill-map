@@ -186,4 +186,26 @@ describe('follow-activity.controller', () => {
     TestBed.tick();
     expect(h.animateToTransform).toHaveBeenCalledTimes(1);
   });
+
+  it('framing tracks armed + at-least-one-live-target (the reset-layout gate)', () => {
+    const h = makeHarness();
+    h.visiblePaths.set(new Set(['a.md']));
+
+    // Follow off: never framing, whatever the activity.
+    h.active.set(new Set(['a.md']));
+    TestBed.tick();
+    expect(h.handle.framing()).toBe(false);
+
+    // Armed with a visible live target: framing (reset-layout defers its
+    // own fit and lets follow win).
+    h.handle.toggle();
+    TestBed.tick();
+    expect(h.handle.framing()).toBe(true);
+
+    // Activity ends: armed but nothing to frame, so not framing (reset
+    // may fit-all as usual).
+    h.active.set(new Set());
+    TestBed.tick();
+    expect(h.handle.framing()).toBe(false);
+  });
 });

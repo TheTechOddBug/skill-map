@@ -841,8 +841,9 @@ export class GraphView implements OnInit {
    * 420ms) and the preference switches off. A gesture while the
    * camera RESTS keeps follow armed, panning around between
    * executions is free and the next membership change re-frames.
-   * Explicit camera intents (fit / zoom buttons / re-arrange /
-   * isolate / deep-link center) still disable at their call sites.
+   * The toolbar's camera / layout buttons (zoom / fit / re-arrange)
+   * keep follow armed; only isolate and the deep-link center still
+   * disable at their call sites.
    */
   protected onCanvasChange(event: FCanvasChangeEvent): void {
     this.viewportStore.onCanvasChange(event);
@@ -1124,18 +1125,19 @@ export class GraphView implements OnInit {
     this.nodeDrag.onNodePositionChange(id, position);
   }
 
+  // Zoom / fit keep follow armed (every toolbar button does now): they
+  // reposition the camera now, and follow re-grabs it on the next
+  // activity change. Neither changes layout or membership, so the follow
+  // effect does not re-fire and there is nothing to race with.
   zoomIn(): void {
-    this.disableFollow();
     this.zoom()?.setZoom(this.getViewportCenter(), ZOOM_BUTTON_STEP, EFZoomDirection.ZOOM_IN, true);
   }
 
   zoomOut(): void {
-    this.disableFollow();
     this.zoom()?.setZoom(this.getViewportCenter(), ZOOM_BUTTON_STEP, EFZoomDirection.ZOOM_OUT, true);
   }
 
   fitToScreen(): void {
-    this.disableFollow();
     this.runAnimatedFit();
   }
 
@@ -1169,10 +1171,12 @@ export class GraphView implements OnInit {
   }
 
   private applyResetLayout(visiblePaths: Set<string>, full: boolean): void {
-    // Re-arranging is an explicit framing intent; follow yields. Placed
-    // here (not in `resetLayout`) so cancelling the confirm dialog
-    // leaves the follow state untouched.
-    this.disableFollow();
+    // Reset keeps follow armed, like every toolbar button. When follow is
+    // framing a live target, the re-layout tick re-fires its camera
+    // effect, so the fit-all below (`runAnimatedFit`) would only fight
+    // it: skip the fit and let follow frame the active set. With follow
+    // off / idle, fit the fresh layout as before.
+    const framing = this.followCtl.framing();
     // Reset also collapses every expanded card: the intent is "give me a
     // clean canvas", and leaving cards open re-introduces the size
     // variation that made the user reach for reset in the first place.
@@ -1183,11 +1187,13 @@ export class GraphView implements OnInit {
       // current full-graph auto-layout, reseeds every node, and persists.
       // That's the original delete → re-arrange → save loop.
       this.nodePositions.set(new Map());
-      this.runAnimatedFit();
+      if (!framing) this.runAnimatedFit();
       return;
     }
     void this.relayoutVisibleSubset(visiblePaths)
-      .then(() => this.runAnimatedFit())
+      .then(() => {
+        if (!framing) this.runAnimatedFit();
+      })
       .catch(() => {
         // Layout failure (e.g. dagre CJS interop missing in tests) must
         // not crash the view; the previous positions stay.
@@ -1550,10 +1556,11 @@ export class GraphView implements OnInit {
   }
 
   /**
-   * Explicit camera intents (fit / zoom buttons / re-arrange / isolate
-   * / deep-link center) switch follow off, plus the gesture-interrupt
-   * path in `onCanvasChange` (a free-form gesture only counts while a
-   * camera move is in flight). The setter no-ops when already off.
+   * The two "look at THIS instead" intents switch follow off: isolate
+   * neighborhood and the files-view deep-link center, plus the
+   * gesture-interrupt path in `onCanvasChange` (a free-form gesture only
+   * counts while a camera move is in flight). Toolbar camera / layout
+   * buttons no longer disable. The setter no-ops when already off.
    */
   private disableFollow(): void {
     this.followCtl.disable();

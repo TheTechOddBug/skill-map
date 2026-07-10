@@ -345,12 +345,12 @@
    in the affected browser BEFORE debugging the CSS. */
 .sm-gnode__halo {
   position: absolute;
-  inset: -8px;
+  inset: -6px;
   z-index: -1;
-  border-radius: calc(var(--sm-radius-lg) + 8px);
+  border-radius: calc(var(--sm-radius-lg) + 6px);
   overflow: hidden;
-  filter: blur(10px);
-  opacity: 0.65;
+  filter: blur(7px);
+  opacity: 0.325;
   pointer-events: none;
 }
 

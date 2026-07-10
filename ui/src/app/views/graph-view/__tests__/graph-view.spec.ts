@@ -1044,7 +1044,7 @@ describe('GraphView, follow-the-activity camera', () => {
     expect(JSON.parse(raw!)).toEqual({ x: 100, y: 240, scale: 1.5 });
   });
 
-  it('explicit camera intents (fit / zoom buttons) switch follow off', async () => {
+  it('toolbar camera buttons (fit / zoom) keep follow armed', async () => {
     const active = signal<ReadonlySet<string>>(new Set());
     const { fixture, probe } = await bootstrapWithActivity(
       [makeNode('a.md', 'a')],
@@ -1054,12 +1054,14 @@ describe('GraphView, follow-the-activity camera', () => {
     await settleBoot(fixture);
 
     probe.toggleFollowActivity();
+    expect(probe.followActivity()).toBe(true);
+    // Neither fit-to-screen nor zoom hand control back anymore: the
+    // camera repositions now and follow re-grabs it on the next activity
+    // change (the operator only turns follow off via its own toggle).
     probe.fitToScreen();
-    expect(probe.followActivity()).toBe(false);
-
-    probe.toggleFollowActivity();
+    expect(probe.followActivity()).toBe(true);
     probe.zoomIn();
-    expect(probe.followActivity()).toBe(false);
+    expect(probe.followActivity()).toBe(true);
   });
 
   // Fingerprint semantics (visible-only membership, sort-insensitivity,

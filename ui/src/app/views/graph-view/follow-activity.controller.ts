@@ -24,11 +24,14 @@
  *     (inside `animateToTransform`) retargets an in-flight tween
  *     smoothly from wherever the camera is.
  *
- * Explicit camera intents (fit / zoom buttons / re-arrange / isolate /
- * deep-link center) hand control back to the operator via `disable()`.
- * Free-form gestures (wheel / pinch / canvas drag) disable only when
- * they interrupt a camera move in flight; panning while the camera
- * rests keeps follow armed (see `GraphView.onCanvasChange`).
+ * The toolbar's camera / layout buttons (zoom, fit, re-arrange) keep
+ * follow armed: they reposition the camera now, and follow re-grabs it
+ * on the next activity change. Only two "look at THIS instead" intents
+ * hand control back via `disable()`: isolate-neighborhood and the
+ * files-view deep-link center. Free-form gestures (wheel / pinch /
+ * canvas drag) disable only when they interrupt a camera move in
+ * flight; panning while the camera rests keeps follow armed (see
+ * `GraphView.onCanvasChange`).
  */
 
 import { computed, effect, untracked, type Signal } from '@angular/core';
@@ -72,6 +75,14 @@ export interface IFollowActivityConfig {
 export interface IFollowActivityHandle {
   /** Follow preference, re-exposed for the toolbar toggle. */
   readonly followActivity: Signal<boolean>;
+  /**
+   * True while follow is armed with at least one live target on the
+   * canvas, i.e. the camera effect WILL frame the active set on the next
+   * membership / layout tick. Callers that run their own fit (reset
+   * layout) read this to step aside and let follow win instead of racing
+   * it.
+   */
+  readonly framing: Signal<boolean>;
   /** Toolbar toggle handler. */
   toggle(): void;
   /** Manual camera intents switch follow off (no-ops when already off). */
@@ -100,6 +111,14 @@ export function setupFollowActivity(config: IFollowActivityConfig): IFollowActiv
     const sessions = config.sessions().map((s) => s.id).sort();
     return [...paths, ...sessions].join('|');
   });
+
+  /**
+   * Follow is actively framing when the fingerprint is non-empty (armed
+   * plus at least one live target on canvas). Mirrors the empty-string
+   * sentinel of the effect above so a reset-layout caller can defer its
+   * own fit and let follow win, no race.
+   */
+  const framing = computed<boolean>(() => followTargetsFingerprint() !== '');
 
   /**
    * Frame the follow targets: animated fit over the bbox of every
@@ -144,6 +163,7 @@ export function setupFollowActivity(config: IFollowActivityConfig): IFollowActiv
 
   return {
     followActivity,
+    framing,
     toggle(): void {
       livePrefs.setFollowActivityEnabled(!followActivity());
     },
