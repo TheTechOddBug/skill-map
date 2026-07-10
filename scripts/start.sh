@@ -2,12 +2,12 @@
 # Open Windows Terminal with two split panes (BFF left, UI right) for a
 # fixture dev scope.
 #
-# Usage: start.sh [fixture-dir]   (default: local-scope)
+# Usage: start.sh [fixture-dir]   (default: claude)
 #   The root `fix:*` shortcuts wire each fixture:
-#     pnpm fix:local   -> pnpm start          (this script, local-scope)
+#     pnpm fix:claude  -> pnpm start          (this script, claude)
 #     pnpm fix:demo    -> start.sh demo
 #   The fixture is threaded to the BFF pane via SM_FIXTURE; `bff:scan`
-#   and `bff:dev` resolve `fixtures/${SM_FIXTURE:-local-scope}`. The UI
+#   and `bff:dev` resolve `fixtures/${SM_FIXTURE:-claude}`. The UI
 #   pane runs `ui:dev` (Angular HMR), which proxies the API to the BFF
 #   and is fixture-agnostic.
 #
@@ -24,9 +24,9 @@ if ! command -v wt.exe >/dev/null 2>&1; then
   exit 1
 fi
 
-# Fixture scope to bring up (default local-scope). Validated up front so
+# Fixture scope to bring up (default claude). Validated up front so
 # a typo'd `fix:*` fails before any pane opens.
-FIXTURE="${1:-local-scope}"
+FIXTURE="${1:-claude}"
 if [ ! -d "fixtures/$FIXTURE" ]; then
   echo "Error: fixture 'fixtures/$FIXTURE' does not exist." >&2
   echo "Available: $(ls -d fixtures/*/ 2>/dev/null | xargs -n1 basename | tr '\n' ' ')" >&2

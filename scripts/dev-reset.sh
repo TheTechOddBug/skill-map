@@ -3,7 +3,7 @@
 #
 # Three modes — default is `--target=fixture` because that's what
 # `pnpm start` (BFF + UI panes) actually mounts via
-# `bff:dev --cwd fixtures/local-scope`. Use `--target=repo` to re-scan
+# `bff:dev --cwd fixtures/claude`. Use `--target=repo` to re-scan
 # the skill-map repo itself, or `--target=demo` to refresh the demo
 # fixture that `pnpm demo:build` consumes (also unblocks the e2e
 # `prevalidate` chain when its DB falls behind a kernel migration).
@@ -70,7 +70,7 @@ done
 
 case "$TARGET" in
   fixture)
-    SCOPE_DIR="fixtures/local-scope"
+    SCOPE_DIR="fixtures/claude"
     BFF_HINT="pnpm start                         # WT split panes (BFF cwd=$SCOPE_DIR + UI dev)"
     ;;
   repo)

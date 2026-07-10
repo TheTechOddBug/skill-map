@@ -1,5 +1,5 @@
 ignore
-local-scope.old
+claude.old
 ai-engineering
 # Anchored to the top-level `fix:skills` scratch fixture only. Unanchored
 # `skills` also matched every fixture's `.agents/skills/` directory, which

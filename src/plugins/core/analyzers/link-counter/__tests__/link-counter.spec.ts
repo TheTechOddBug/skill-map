@@ -169,7 +169,7 @@ describe('core/link-counter analyzer, resolved-target counting', () => {
   });
 
   it('honours a `resolvedTarget` the lift derived from the node dirname', () => {
-    // Mirrors the local-scope bug: `stale-skill/SKILL.md` has no
+    // Mirrors the claude bug: `stale-skill/SKILL.md` has no
     // `frontmatter.name` (parse error in description), so the lift
     // resolves the sibling's `/stale-skill` invocation via that node's
     // `dirname` identifier and stamps `resolvedTarget`. The chip honours

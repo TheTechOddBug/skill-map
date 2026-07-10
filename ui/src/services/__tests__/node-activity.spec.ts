@@ -175,7 +175,7 @@ describe('NodeActivityService', () => {
   });
 
   it('parent custody, completed handoff: the spawn release alone unwinds cleanly', async () => {
-    // Mirrors the REAL event order captured live (fixtures/realtime,
+    // Mirrors the REAL event order captured live (fixtures/claude,
     // 2026-07-04): no pause stops, and the spawn's completion arrives
     // AFTER the child's terminal stop with status 'completed', so the
     // adapter releases the spawn key WITHOUT handing custody to the

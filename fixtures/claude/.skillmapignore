@@ -25,3 +25,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Fixture-specific: private notes are never mapped
+notes/private-*.md

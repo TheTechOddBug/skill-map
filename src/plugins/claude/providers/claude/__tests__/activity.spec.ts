@@ -256,7 +256,7 @@ describe('claudeActivity.mapEvent', () => {
   });
 
   it('a COMPLETED spawn PostToolUse never hands custody to the (dead) child', () => {
-    // Real payload (fixtures/realtime run, 2026-07-04): the runtime fired
+    // Real payload (fixtures/claude run, 2026-07-04): the runtime fired
     // this PostToolUse ~66ms AFTER the child's terminal SubagentStop, so
     // a child-owned claim here would be an orphan nothing releases. Only
     // `status: 'async_launched'` (child still running) hands custody.

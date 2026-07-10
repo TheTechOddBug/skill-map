@@ -20,7 +20,7 @@
  *   pnpm --filter @skill-map/cli dev:serve --cwd fixtures/foo             # serve a fixture scope
  *   pnpm --filter @skill-map/cli dev:serve --strict                       # any extra flags pass through
  *
- * From the repo root, the `bff:dev` shortcut wires the local-scope fixture
+ * From the repo root, the `bff:dev` shortcut wires the claude fixture
  * preset: `pnpm bff:dev` ≡ the second invocation above with the fixture path.
  *
  * `--cwd <path>` is the modal switch: without it, the watcher serves
@@ -61,7 +61,7 @@ await freePort(port);
 
 // pnpm's strict hoist keeps `tsx` in `src/node_modules/` only, so a bare
 // `--import tsx` cannot resolve when the spawn cwd is a fixture (e.g.
-// `pnpm bff:dev` runs with `cwd=fixtures/local-scope`). Pass the loader
+// `pnpm bff:dev` runs with `cwd=fixtures/claude`). Pass the loader
 // with an absolute `file://` URL so resolution is independent of cwd.
 const TSX_LOADER = `file://${resolve(SRC, 'node_modules/tsx/dist/loader.mjs')}`;
 
