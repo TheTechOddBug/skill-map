@@ -116,6 +116,30 @@ describe('kernel/util/mcp-config', () => {
     });
   });
 
+  describe('opencode (mcp key + remote/local/enabled)', () => {
+    it('parses a remote server from the `mcp` key (opencode.json)', () => {
+      const content = JSON.stringify({
+        $schema: 'https://opencode.ai/config.json',
+        mcp: { notion: { type: 'remote', url: 'https://mcp.notion.com/mcp', enabled: true } },
+      });
+      assert.deepEqual(parseMcpServerConfig(content, 'json-mcp-servers'), [
+        { server: 'notion', transport: 'http', url: 'https://mcp.notion.com/mcp' },
+      ]);
+    });
+
+    it('maps type "local" to stdio', () => {
+      const content = JSON.stringify({ mcp: { fs: { type: 'local' } } });
+      assert.equal(parseMcpServerConfig(content, 'json-mcp-servers')[0]!.transport, 'stdio');
+    });
+
+    it('skips a server disabled with enabled:false', () => {
+      const content = JSON.stringify({
+        mcp: { notion: { type: 'remote', url: 'https://x/mcp', enabled: false } },
+      });
+      assert.deepEqual(parseMcpServerConfig(content, 'json-mcp-servers'), []);
+    });
+  });
+
   describe('tolerance', () => {
     it('returns [] for malformed JSON', () => {
       assert.deepEqual(parseMcpServerConfig('{ not json', 'json-mcp-servers'), []);

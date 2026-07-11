@@ -1,6 +1,7 @@
 {
   "activeProvider": "opencode",
   "activeProviderMarkers": [
+    "claude",
     "opencode"
   ]
 }

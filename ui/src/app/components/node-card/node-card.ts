@@ -293,6 +293,11 @@ export class NodeCard {
 
   /** Pretty number formatting for bytes / tokens (e.g. 12420 → "12k"). */
   protected readonly bytesShort = computed<string | null>(() => {
+    // A byte size is a FILE metric. Virtual / derived nodes (e.g. `mcp://…`)
+    // have no backing file (`modifiedAtMs` absent), so their byte size is a
+    // hard 0 that reads as meaningless "B 0"; hide the pill there, the way the
+    // tokens pill already hides on a null count.
+    if (this.node().modifiedAtMs === undefined) return null;
     const v = this.stats().bytesTotal;
     return v === undefined ? null : compactNumber(v);
   });

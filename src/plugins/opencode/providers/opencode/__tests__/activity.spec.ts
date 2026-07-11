@@ -1,7 +1,8 @@
 /**
  * OpenCode live-activity adapter (`activity.ts`): wrapped plugin
  * payload → activity signals. Shapes are REAL captures from the
- * 2026-07-04 live probe (`fixtures/realtime-opencode/`, opencode
+ * 2026-07-04 live probe (the opencode activity fixture now consolidated
+ * into `fixtures/opencode/`, opencode
  * v1.17.11): `tool.execute.before` splits `{tool, sessionID, callID}`
  * (input) from `{args}` (output); `command.execute.before` carries
  * `{command, sessionID, arguments}`; `chat.message` carries the NAMED
@@ -98,6 +99,33 @@ describe('opencodeActivity.mapEvent', () => {
         directory: DIR,
         input: { tool: 'task', sessionID: SESSION },
         output: { args: { description: 'Ejecutar cadena demo', subagent_type: 'demo-worker' } },
+      }),
+      null,
+    );
+  });
+
+  it('maps an MCP tool call to a PATH signal on mcp://<server> (real capture)', () => {
+    // Live-verified 2026-07-11: OpenCode names MCP tools `<server>_<tool>`
+    // (a Notion call arrives as `notion_notion-create-pages`); the server is
+    // the prefix before the first `_`, the tool suffix rides as `detail`.
+    const signals = opencodeActivity.mapEvent({
+      hook: 'tool.execute.before',
+      directory: DIR,
+      input: { tool: 'notion_notion-create-pages', sessionID: SESSION, callID: 'toolu_01' },
+      output: { args: { pages: [{ properties: { title: 'x' } }] } },
+    });
+    assert.deepEqual(signals, [
+      { path: 'mcp://notion', phase: 'start', owner: SESSION, detail: 'notion-create-pages' },
+    ]);
+  });
+
+  it('a non-underscore built-in tool disclaims (no `<server>_<tool>` shape)', () => {
+    assert.equal(
+      opencodeActivity.mapEvent({
+        hook: 'tool.execute.before',
+        directory: DIR,
+        input: { tool: 'bash', sessionID: SESSION },
+        output: { args: { command: 'ls' } },
       }),
       null,
     );

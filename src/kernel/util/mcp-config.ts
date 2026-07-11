@@ -20,10 +20,13 @@ import { stripPrototypePollution } from './strip-prototype-pollution.js';
 import { type IMcpServerDescriptor, type McpTransport, mcpServerId } from './mcp.js';
 
 /**
- * The closed set of MCP config grammars the kernel knows. Both wrap a
- * `{ <serverName>: <serverConfig> }` map; they differ only in file format and
- * the conventional top-level key (`mcpServers` in JSON, `mcp_servers` in TOML),
- * so the reader tolerates either key regardless of dialect.
+ * The closed set of MCP config grammars the kernel knows. Each wraps a
+ * `{ <serverName>: <serverConfig> }` map; they differ only in file format, so
+ * the reader tolerates any conventional top-level key regardless of dialect
+ * (`mcpServers` for Claude, `mcp_servers` for Codex TOML, `mcp` for OpenCode's
+ * `opencode.json`). The per-server value shape is likewise unified: an OpenCode
+ * `{ type: "remote" | "local", url, enabled }` entry reads through the same
+ * `type` / `url` path a Claude `{ type: "http", url }` entry does.
  */
 export type McpConfigDialect = 'json-mcp-servers' | 'toml-mcp-servers';
 
@@ -58,7 +61,9 @@ function parseRoot(content: string, dialect: McpConfigDialect): Record<string, u
 }
 
 function pickServerMap(root: Record<string, unknown>): Record<string, unknown> | null {
-  const candidate = root['mcpServers'] ?? root['mcp_servers'];
+  // `mcp` is OpenCode's key in `opencode.json` (a full config file whose other
+  // top-level keys, `models` / `agent` / ..., are ignored here).
+  const candidate = root['mcpServers'] ?? root['mcp_servers'] ?? root['mcp'];
   if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return null;
   return candidate as Record<string, unknown>;
 }
@@ -70,7 +75,10 @@ function normaliseServer(name: string, raw: unknown): IMcpServerDescriptor | nul
   const server = mcpServerId(name);
   if (!server) return null;
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { server };
-  return buildDescriptor(server, raw as Record<string, unknown>);
+  const r = raw as Record<string, unknown>;
+  // OpenCode's `enabled: false` disables a server, so it materialises no node.
+  if (r['enabled'] === false) return null;
+  return buildDescriptor(server, r);
 }
 
 function buildDescriptor(server: string, r: Record<string, unknown>): IMcpServerDescriptor {
@@ -97,6 +105,12 @@ function extractTools(r: Record<string, unknown>): string[] | undefined {
   );
 }
 
+// Per-server `type` spellings each vendor uses, grouped by transport. OpenCode
+// names them `local` / `remote`; Claude / Codex use `stdio` / `http` (+ the
+// remote-http flavours). Kept as Sets so `resolveTransport` stays flat.
+const STDIO_TYPES = new Set(['stdio', 'local']);
+const HTTP_TYPES = new Set(['http', 'streamable-http', 'sse', 'remote']);
+
 /**
  * Resolve the transport: an explicit `type` wins (MCP's remote flavours all map
  * to `http`), else a `url` implies `http` and a `command` implies `stdio`. When
@@ -109,8 +123,8 @@ function resolveTransport(
 ): McpTransport | undefined {
   if (typeof type === 'string') {
     const t = type.toLowerCase();
-    if (t === 'stdio') return 'stdio';
-    if (t === 'http' || t === 'streamable-http' || t === 'sse') return 'http';
+    if (STDIO_TYPES.has(t)) return 'stdio';
+    if (HTTP_TYPES.has(t)) return 'http';
   }
   if (url) return 'http';
   if (command) return 'stdio';

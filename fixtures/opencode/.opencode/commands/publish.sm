@@ -1,0 +1,9 @@
+annotations:
+  tags:
+    - harness
+    - deploy
+    - ci
+identity:
+  bodyHash: 2c539539e6c0e17c8ca2b3beb8c0664ce445eb39a67c20b95392029135e2a164
+  frontmatterHash: 97cf8473ee110d40117c3fd9c588c94c1282ca35422ed65af4e9ead66e0d4ba4
+  path: .opencode/commands/publish.md

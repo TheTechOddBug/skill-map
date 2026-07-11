@@ -6,7 +6,8 @@
  * node-attributable signals.
  *
  * Characterised against real runs (probe log 2026-07-04, opencode
- * v1.17.11 in `fixtures/realtime-opencode/`) cross-checked with the
+ * v1.17.11, the opencode activity fixture now consolidated into
+ * `fixtures/opencode/`) cross-checked with the
  * official plugin docs (https://opencode.ai/docs/plugins/). OpenCode is
  * the RICHEST signal surface of the four adapters: everything arrives
  * NAMED, plus a native end.
@@ -28,6 +29,10 @@
  *   'read'`, `output.args.filePath` absolute; filter-first (`.md` only,
  *   inside the plugin context's `directory`), relativized to a PATH
  *   signal.
+ * - **MCP tool call**: `tool.execute.before` whose `input.tool` is a
+ *   `<server>_<tool>` name (OpenCode's MCP naming, no explicit marker) →
+ *   PATH signal on `mcp://<server>` (the prefix before the first `_`); the
+ *   resolver drops the non-`mcp://` misses. See `mapMcpToolCall`.
  * - **Native end**: the plugin forwards the bus event `session.idle`
  *   (its ONLY forwarded bus event, filtered at the wiring level), which
  *   maps to the node-less OWNER RELEASE for that `sessionID`: the whole
@@ -56,6 +61,7 @@ import {
   nonEmptyString,
   relativizeMarkdownPath,
 } from '../../../../kernel/util/activity-adapter.js';
+import { mcpNodePath } from '../../../../kernel/util/mcp.js';
 
 /**
  * Hook-registration half of the generated in-process plugin
@@ -149,7 +155,36 @@ function mapToolCall(wrapper: Record<string, unknown>): IActivitySignal[] | null
   if (input['tool'] === 'task') {
     return mapTaskSpawn(input, args);
   }
-  return null;
+  return mapMcpToolCall(input);
+}
+
+/**
+ * MCP tool call → PATH signal on the `mcp://<server>` node. OpenCode exposes
+ * every MCP server's tools under a `<server>_<tool>` name in `input.tool` (no
+ * separate server field, live-verified 2026-07-11: a Notion call arrives as
+ * `input.tool === 'notion_notion-create-pages'`), so the server is the prefix
+ * before the FIRST `_`. Unlike Claude / Codex (`mcp__<server>__<tool>`, shared
+ * `mapMcpInvocation`) and Antigravity (`call_mcp_tool` wrapper + `ServerName`
+ * arg), OpenCode gives no explicit MCP marker, so this fires for ANY
+ * underscore-bearing tool and leans on the resolver's node-match to drop the
+ * misses: `notion_…` lights the scanned `mcp://notion` node, while a built-in
+ * like `read_mcp_resource` resolves to a non-existent `mcp://read` and is
+ * dropped. The lit node is the SAME one `core/mcp-tools` + `mcpConfig`
+ * (opencode.json) draw. The tool suffix rides as `detail`.
+ */
+function mapMcpToolCall(input: Record<string, unknown>): IActivitySignal[] | null {
+  const tool = nonEmptyString(input['tool']);
+  if (!tool) return null;
+  const sep = tool.indexOf('_');
+  if (sep <= 0 || sep === tool.length - 1) return null;
+  return [
+    {
+      path: mcpNodePath(tool.slice(0, sep)),
+      phase: 'start',
+      owner: ownerOf(input),
+      detail: tool.slice(sep + 1),
+    },
+  ];
 }
 
 /**

@@ -108,6 +108,14 @@ export const opencodeProvider: IBuiltInManifest<IProvider> = {
   // payloads. Implementation + rationale in the sibling `activity.ts`.
   activity: opencodeActivity,
 
+  // Config-side MCP discovery: OpenCode reads project MCP servers from a
+  // project-root `opencode.json` (`mcp` block, https://opencode.ai/docs/mcp-servers).
+  // Unlike Antigravity (whose MCP config is home-global, off-limits to the
+  // project-local scanner), OpenCode's lives in-project and is committable, so
+  // the kernel materialises each `mcp://<server>` node config-side, the same
+  // node `core/mcp-tools` draws from a skill's `tools:` frontmatter.
+  mcpConfig: { sources: [{ path: 'opencode.json', dialect: 'json-mcp-servers' }] },
+
   // Vendor lens: gated to the active lens. OpenCode only resolves its own
   // territory (plus the Claude-compat / open-standard skill homes it reads).
   // Gating keeps the walker from claiming OpenCode territory under another

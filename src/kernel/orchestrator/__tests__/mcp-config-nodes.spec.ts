@@ -116,6 +116,31 @@ describe('applyConfigSideMcpNodes', () => {
     assert.equal(nodes[0]!.frontmatter?.['transport'], 'http');
   });
 
+  it('reads OpenCode\'s `mcp` key from opencode.json (remote → http, enabled:false skipped)', () => {
+    const cwd = freshCwd();
+    writeFileSync(
+      join(cwd, 'opencode.json'),
+      JSON.stringify({
+        $schema: 'https://opencode.ai/config.json',
+        mcp: {
+          notion: { type: 'remote', url: 'https://mcp.notion.com/mcp', enabled: true },
+          off: { type: 'remote', url: 'https://x/mcp', enabled: false },
+        },
+      }),
+    );
+    const nodes: Node[] = [];
+    applyConfigSideMcpNodes(
+      nodes,
+      provider('opencode', [{ path: 'opencode.json', dialect: 'json-mcp-servers' }]),
+      { cwd, roots: [cwd] },
+    );
+    assert.equal(nodes.length, 1, 'the disabled server materialises no node');
+    assert.equal(nodes[0]!.path, 'mcp://notion');
+    assert.equal(nodes[0]!.frontmatter?.['transport'], 'http');
+    assert.equal(nodes[0]!.frontmatter?.['url'], 'https://mcp.notion.com/mcp');
+    assert.deepEqual(nodes[0]!.derivedFrom, ['opencode.json']);
+  });
+
   it('is a no-op without a cwd', () => {
     const nodes: Node[] = [];
     applyConfigSideMcpNodes(nodes, provider('claude', [{ path: '.mcp.json', dialect: 'json-mcp-servers' }]), {

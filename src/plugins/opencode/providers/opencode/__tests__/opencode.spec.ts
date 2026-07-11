@@ -33,6 +33,14 @@ describe('opencode provider, manifest shape', () => {
     strictEqual(opencodeProvider.presentation.invocationSigil, '/');
   });
 
+  it('declares config-side MCP discovery over the project-local opencode.json', () => {
+    // OpenCode's MCP config is project-local (committable), so the provider
+    // reads it config-side (unlike Antigravity, whose config is home-global).
+    deepStrictEqual(opencodeProvider.mcpConfig?.sources, [
+      { path: 'opencode.json', dialect: 'json-mcp-servers' },
+    ]);
+  });
+
   it('emits its own agent + command kinds and the inherited skill kind', () => {
     ok(opencodeProvider.kinds['agent'], 'expected the opencode agent kind');
     ok(opencodeProvider.kinds['command'], 'expected the opencode command kind');

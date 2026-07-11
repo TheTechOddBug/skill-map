@@ -19,7 +19,6 @@
     "fix:agy": "bash scripts/start.sh antigravity  --log-level info",
     "fix:opencode": "bash scripts/start.sh opencode",
     "fix:ignore": "bash scripts/start.sh ignore",
-    "fix:realtime-opencode": "bash scripts/start.sh realtime-opencode",
     "sm": "node src/bin/sm.js",
     "sm:reset": "bash scripts/dev-reset.sh",
     "sqlite": "node src/bin/sm.js db browser",

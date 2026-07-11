@@ -1,15 +1,17 @@
----
-name: Project handbook
-description: How the OpenCode agents collaborate to ship this project.
----
+# Portfolio handbook
 
-# Project handbook
+A small static portfolio site, served by Express (`server.js`). The OpenCode
+harness maintains it: an agent writes the pages, a skill checks the links, a
+command publishes them, to the live site and, mirrored, to Notion pages via the
+Notion MCP. The conventions live in the style guide; the deploy steps in the
+deploy runbook. The pages still to build are tracked in [the backlog](./docs/BACKLOG.md).
 
-This project is driven by three OpenCode agents that hand off in sequence: a
-builder implements, a reviewer signs off, and a deployer ships. Each agent's
-prompt lives under `.opencode/agent/` and links the doc it owns.
+- When a page needs writing or fixing, hand it to the content-editor agent.
+- When the site is ready to go out, run /publish (it also mirrors the pages to Notion).
+- To sync a single page to Notion by hand, run the notion-writer subagent (deprecated, prefer /publish).
 
-The day-to-day loop is: run /test and /lint while building, then /deploy once
-the reviewer approves. Those slash commands live under `.opencode/commands/`.
-
-Architecture decisions are recorded in [the architecture doc](docs/architecture.md).
+OpenCode is omnivorous about skills: the link checker lives under
+`.claude/skills/` (authored for Claude Code) yet OpenCode reads it too, while
+notion-publish is a native `.opencode/skills/` skill. Custom commands under
+`.opencode/commands/` are slash-invocable; skills load through OpenCode's
+native skill tool, not the slash.

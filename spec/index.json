@@ -184,7 +184,7 @@
     "files": {
       "CHANGELOG.md": "4ed5a876ef13f1ce1d256d783bd8822dd0a01004e4b2d5dd06d496fb0a318759",
       "README.md": "a790cd010b46d47883d1f37e3893cea9d7aa69ec4750c0202e6a0c99991e7980",
-      "architecture.md": "ca98d4f7132fbe71e7ef72be8bc1e988fedd181911839422ab304e085383ee97",
+      "architecture.md": "93816032cf1ba94359c7a623ee1bc840404e3cbfe293d908b33134adf20a1038",
       "cli-contract.md": "d97fc659ac8e40a97a63ca6a0b373487bc25992f52ebcaa1a37466640174c2b8",
       "conformance/README.md": "dcbef7249f161acf597552a05dcadc813cd0ced430dcd3f813fcf5e1c876335d",
       "conformance/cases/backtick-path-extraction.json": "4620e7f8bc161fc57cb44001e9d99879c7e22b4865a0c27a20dc28969cd936d9",
@@ -245,7 +245,7 @@
       "plugin-kv-api.md": "5e095581020043af73ff028e272f56d42ca9eb6e506dd777d45703f9db796a5b",
       "plugin-quickstart.md": "413a9ca31242fef073ebbc1c0d302280e679212273cb80aa50797ce4a0861aca",
       "prompt-preamble.md": "5d0f836688aa23eafc32104c3174132340b268361f6060326eec84da17c6ad6d",
-      "provider-activity.md": "9b153d0b6282df582d89d28f93c6ee8ed2ace32a1c78ec8d81e5becaea9e7f56",
+      "provider-activity.md": "13e431350e50a52bcb1da1df94b0ef53cb5f1871e7be77ce9eccb90e5b428ed7",
       "schemas/annotations.schema.json": "09fcebc86e3b793bf9f03a35b38e5ca2a08d79ac3504f6f03895ac2ae1c2aded",
       "schemas/api/rest-envelope.schema.json": "994bee11c3809210416489a97d9a2d1ba418f80366b4130adf0568e7afa9fd03",
       "schemas/bump-report.schema.json": "c763e1f89f2665c479d6a4985c1d324c65e5278331ebab82220287a07e4c4429",

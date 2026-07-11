@@ -1,0 +1,10 @@
+annotations:
+  stability: stable
+  tags:
+    - harness
+    - content
+    - frontend
+identity:
+  bodyHash: c04dbefdea81619d846f0933475282edfad2d15b38cd8797f84da6fedda32ce3
+  frontmatterHash: b4870183604b514a28957da9252f1daae15003b1ea1048af5575c26572158b89
+  path: .opencode/agent/content-editor.md
