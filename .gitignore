@@ -98,6 +98,16 @@ fixtures/claude/.claude/settings.json
 !.claude/skills/sm-tutorial/fixtures-data/**/.codex/
 !.claude/skills/sm-tutorial/fixtures-data/**/.codex/**
 
+# Dev-fixture lock files. The `fixtures/*/` portfolios declare a narrative
+# `express` dependency (pinned exact in package.json), but skill-map only
+# SCANS them, no pipeline (web demo, tutorial, CI) ever installs them, so a
+# lock file is an incidental artifact of a local `npm`/`pnpm install`. Keep
+# the fixtures as pure source (package.json only, like fixtures/demo),
+# package-manager-agnostic. Conformance fixtures live elsewhere and are
+# unaffected.
+fixtures/*/package-lock.json
+fixtures/*/pnpm-lock.yaml
+
 # Claude Code / sandbox dotfile mounts. The sandbox virtualises certain
 # host dotfiles as /dev/null character devices in the repo root so the
 # tool's process cannot read user-level config (shell rc, git identity,
