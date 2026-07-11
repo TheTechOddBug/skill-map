@@ -32,7 +32,7 @@
     "contentHash": {
       "type": ["string", "null"],
       "pattern": "^[a-f0-9]{64}$",
-      "description": "Duplicate-prevention hash used at submit time: sha256(actionId + actionVersion + bodyHash + frontmatterHash + promptTemplateHash). May be null for in-process actions that don't memoize."
+      "description": "Duplicate-prevention hash used at submit time: sha256 over the NUL-joined (0x00) tuple (actionId, actionVersion, node.path, bodyHash, frontmatterHash, promptTemplateHash). May be null for in-process actions that don't memoize."
     },
     "status": {
       "type": "string",

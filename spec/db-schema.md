@@ -335,7 +335,7 @@ No indexes (PK covers lookup by hash; the table is keyed-by-hash exclusively).
 
 **GC contract**: `sm job prune` MUST delete every row whose `content_hash` is no longer referenced by any `state_jobs` row, in the same transaction that prunes the job rows. Implementations MUST NOT delete `state_job_contents` rows on `sm job cancel` (a cancelled job's content is recoverable via `sm job submit --force` of the same content_hash and dedup is desirable).
 
-`content_hash` is the same hash `state_jobs.content_hash` carries, computed at submit time as `sha256(actionId + actionVersion + bodyHash + frontmatterHash + promptTemplateHash)`. Two jobs with identical `content_hash` MUST render to identical content (the formula is deterministic over all rendering inputs); the table relies on this to dedup.
+`content_hash` is the same hash `state_jobs.content_hash` carries, computed at submit time as `sha256` over the NUL-joined (`0x00`) tuple `(actionId, actionVersion, node.path, bodyHash, frontmatterHash, promptTemplateHash)`. Two jobs with identical `content_hash` MUST render to identical content (the formula covers every rendering input, including `node.path`, which the render embeds via the `<user-content id>` attribute); the table relies on this to dedup.
 
 FK enforcement: SQLite foreign keys are off by default and the kernel does not currently turn them on (per `dialect.ts`). The `state_jobs.content_hash → state_job_contents.content_hash` relationship is enforced procedurally by the storage adapter (insert content row before job row in the same transaction; never delete content while jobs reference it). A future foreign-key push may upgrade this to a true FK without breaking the contract.
 

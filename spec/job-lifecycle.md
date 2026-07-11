@@ -51,7 +51,7 @@ Any other transition attempt MUST be rejected and MUST NOT mutate state. Impleme
 
 1. Resolve the action (`actionId`, `actionVersion`, `promptTemplateHash`).
 2. Resolve the target node (`bodyHash`, `frontmatterHash`). Fail with exit 5 if the node does not exist.
-3. Compute `contentHash = sha256(actionId + actionVersion + bodyHash + frontmatterHash + promptTemplateHash)`.
+3. Compute `contentHash`: `sha256` over the NUL-joined (`0x00`) tuple `(actionId, actionVersion, node.path, bodyHash, frontmatterHash, promptTemplateHash)`. The delimiter prevents concatenation-ambiguity collisions. `node.path` is a hash input because the rendered content embeds it (the `<user-content id="<node.path>">` attribute per [`prompt-preamble.md`](./prompt-preamble.md)); omitting it would let two nodes with identical body and frontmatter but different paths share one content row while rendering different text, breaking the "same hash, same content" invariant.
 4. **Duplicate check**: query `state_jobs` for any row with `(actionId, actionVersion, nodeId, contentHash)` AND `status IN ('queued', 'running')`. If found, refuse with exit 3 and print the existing job id (unless `--force`).
 5. Compute `ttlSeconds` per §TTL resolution below. Frozen on `state_jobs.ttlSeconds` for the life of this job.
 6. Resolve `priority` (integer, default `0`). Precedence (lowest → highest): action manifest `defaultPriority` → user config `jobs.perActionPriority.<actionId>` → flag `--priority <n>`. Higher runs first; ties broken by `createdAt ASC`. Negative values are permitted and run after the default bucket. Frozen on `state_jobs.priority` at submit time, immutable for the life of the job.
@@ -184,7 +184,7 @@ The deduplication key `(actionId, actionVersion, nodeId, contentHash)` prevents 
 
 Post-completion, the check is NOT performed: resubmitting a completed job is always allowed (the previous result is kept in history).
 
-`--force` bypasses the check for legitimate reruns (e.g., re-testing an action after debugging).
+`--force` bypasses the pre-check for legitimate reruns (e.g., re-testing an action after debugging). It does NOT permit two concurrent `queued`/`running` jobs for the same `(action_id, node_id, content_hash)`: the unique partial index `ix_state_jobs_action_node_hash` (WHERE `status IN ('queued','running')`) is the hard invariant, so `--force` is only effective once the prior job has reached a terminal state. Attempting `--force` while a matching job is still active fails on the index constraint; it does not silently create a second live job.
 
 ---
 
