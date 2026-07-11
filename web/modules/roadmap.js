@@ -4,7 +4,7 @@
 // Seven segments (Phase 0 / A / B / C / D / E / F) on a horizontal strip.
 // Each segment shows internal progress and opens a detail panel
 // with a brief plus a sub-list (highlights for 0, steps for
-// A/B/D/E, sketches for C/F). Phase data is colocated EN/ES inline
+// A/B/C/D/E, sketches for F). Phase data is colocated EN/ES inline
 // because it's content, not UI chrome; the framework strings
 // (status labels, section headers, hint) live in i18n.json.
 // ============================================================
@@ -94,24 +94,26 @@
     },
     {
       id: 'C',
-      status: 'planned',
-      release: { en: 'target: next', es: 'objetivo: próximo' },
+      status: 'done',
+      release: { en: 'skill-map@0.87', es: 'skill-map@0.87' },
       title: { en: 'Real-time exploration', es: 'Exploración en tiempo real' },
       sub: { en: 'Watch what happens, as it happens.', es: 'Observa lo que pasa, mientras pasa.' },
       brief: {
-        en: 'skill-map stops being just a static map and starts observing execution. This is the next milestone after the Beta, before the LLM layer: immutable snapshots of every run for later audit, and a live view of which skill ran, what triggered it, and which nodes it touched. The LLM-dependent half (streaming an agent conversation turn-by-turn) stays with the LLM layer.',
-        es: 'skill-map deja de ser solo un mapa estático y empieza a observar la ejecución. Este es el próximo hito después del Beta, antes de la capa de LLM: snapshots inmutables de cada run para auditar después, y una vista en vivo de qué skill se ejecutó, qué la disparó y qué nodos tocó. La parte que depende del LLM (streaming de la conversación de un agente turno a turno) queda con la capa de LLM.',
+        en: 'skill-map stops being just a static map and starts observing execution. Landed after the Beta and before the LLM layer: the map and node spines glow as each invocation fires across all four runtimes (Claude, Codex, Antigravity, OpenCode), MCP servers are discovered from config and light up live when their tools are called, ephemeral per-node counters and spawn edges trace each session, and consent-gated live conversations stream threaded agent dialogs. The persistent execution snapshot (an immutable audit of every run) is deferred and rides the same pipe later.',
+        es: 'skill-map deja de ser solo un mapa estático y empieza a observar la ejecución. Aterrizó después del Beta y antes de la capa de LLM: el mapa y las espinas de los nodos se encienden con cada invocación en los cuatro runtimes (Claude, Codex, Antigravity, OpenCode), los servidores MCP se descubren desde la config y se prenden en vivo cuando se llaman sus tools, contadores efímeros por nodo y aristas de spawn trazan cada sesión, y las conversaciones en vivo (con consentimiento) muestran los diálogos de los agentes en hilos. El snapshot persistente de ejecución (auditoría inmutable de cada run) queda diferido y montará sobre el mismo pipe más adelante.',
       },
-      list: 'sketches',
+      list: 'steps',
       items: [
-        { en: 'Event stream · live WebSocket from the kernel to the UI',         es: 'Stream de eventos · WebSocket en vivo desde el kernel a la UI' },
-        { en: 'Execution snapshot · immutable audit of every run',               es: 'Snapshot de lo ejecutado · auditoría inmutable de cada run' },
-        { en: 'Real-time exploration · watch agents and skills as they run',     es: 'Exploración en tiempo real · ver agentes y skills mientras se ejecutan' },
+        { id: 'live',  status: 'done',    title: { en: 'Live node activity',      es: 'Actividad de nodos en vivo' },      body: { en: 'Map + spine glow per invocation across four runtimes (claude / codex / antigravity / opencode)',        es: 'Glow del mapa + espina por invocación en cuatro runtimes (claude / codex / antigravity / opencode)' } },
+        { id: 'mcp',   status: 'done',    title: { en: 'MCP client',              es: 'Cliente MCP' },                     body: { en: 'Config-side discovery (mcpConfig) + live tool-invocation glow · four runtimes · read-only /mcp server (opt-in)', es: 'Descubrimiento desde config (mcpConfig) + glow de invocación de tools en vivo · cuatro runtimes · servidor /mcp de sólo lectura (opt-in)' } },
+        { id: 'stats', status: 'done',    title: { en: 'Execution stats + spawns', es: 'Stats de ejecución + spawns' },     body: { en: 'Ephemeral per-node counters · spawn edges · session capsules · camera follow',                          es: 'Contadores efímeros por nodo · aristas de spawn · cápsulas de sesión · cámara que sigue' } },
+        { id: 'conv',  status: 'done',    title: { en: 'Live conversations',      es: 'Conversaciones en vivo' },          body: { en: 'Consent-gated threaded agent dialogs (opt-in, ephemeral)',                                              es: 'Diálogos de agentes en hilos con consentimiento (opt-in, efímeros)' } },
+        { id: 'snap',  status: 'planned', title: { en: 'Execution snapshot',      es: 'Snapshot de ejecución' },           body: { en: 'Persistent immutable audit of every run (deferred, rides the same pipe later)',                         es: 'Auditoría inmutable persistente de cada run (diferido, monta sobre el mismo pipe más adelante)' } },
       ],
     },
     {
       id: 'D',
-      status: 'planned',
+      status: 'current',
       release: { en: 'target: v0.8.0', es: 'objetivo: v0.8.0' },
       title: { en: 'LLM as an optional layer', es: 'El LLM como capa opcional' },
       sub: { en: 'Summaries and semantic verbs, opt-in.', es: 'Resúmenes y verbos semánticos, opt-in.' },
