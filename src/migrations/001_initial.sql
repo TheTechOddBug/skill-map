@@ -43,6 +43,16 @@ CREATE TABLE scan_nodes (
   -- backing file). Drives the UI "last modified" sortable column; never
   -- participates in `body_hash` / `frontmatter_hash`.
   modified_at_ms INTEGER,
+  -- Virtual / derived node identity (`Node.virtual` + `Node.derivedFrom`).
+  --   - `virtual` — 1 for a synthetic node with no backing file (e.g.
+  --     `mcp://<server>` materialised by `core/mcp-tools` from a skill's
+  --     `tools:` frontmatter). 0 for a file-backed node.
+  --   - `derived_from_json` — JSON array of the source node paths a virtual
+  --     node was derived from. Drives cache-hit carry-forward + invalidation
+  --     across incremental scans (a DB-loaded prior must know a node is
+  --     virtual and which sources feed it). NULL for non-virtual nodes.
+  virtual INTEGER NOT NULL DEFAULT 0,
+  derived_from_json TEXT,
   -- Sidecar denormalisation (Step 9.6.2 — Decision #3, option (a)):
   --   - `sidecar_present` — 1 when a co-located `.sm` file accompanies
   --     this node, 0 otherwise.

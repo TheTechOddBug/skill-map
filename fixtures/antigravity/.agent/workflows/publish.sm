@@ -1,0 +1,9 @@
+annotations:
+  tags:
+    - harness
+    - deploy
+    - ci
+identity:
+  bodyHash: 7a5760c475c50e6f30863ac66f268724e58c6831235bac14a6444fc3cc2b4788
+  frontmatterHash: 08b946cd5a3f0a4807375768967b520e988fd35397a4b853aee9f4b919b34442
+  path: .agent/workflows/publish.md

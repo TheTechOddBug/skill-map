@@ -93,6 +93,8 @@ One row per detected node, matching [`schemas/node.schema.json`](./schemas/node.
 | `external_refs_count` | INTEGER | NOT NULL DEFAULT 0 | |
 | `scanned_at` | INTEGER | NOT NULL | Unix ms. |
 | `modified_at_ms` | INTEGER | NULL | File `mtime` in Unix ms, captured at scan time from `lstat`. NULL for virtual / derived nodes (no backing file). Drives the UI "last modified" sortable column; never hashed. |
+| `virtual` | INTEGER | NOT NULL DEFAULT 0 | 1 for a synthetic node with no backing file (e.g. `mcp://<server>` materialised by `core/mcp-tools` from a skill's `tools:` frontmatter), 0 for a file-backed node. Round-tripped so a DB-loaded prior recognises virtual nodes. |
+| `derived_from_json` | TEXT | NULL | JSON array of the source node paths a virtual node was derived from. Drives cache-hit carry-forward + invalidation across incremental scans (a cached rescan skips the source's extractor, so the virtual node is re-injected from the prior while at least one source survives as a cache hit). NULL for non-virtual nodes. |
 
 Indexes: `ix_scan_nodes_kind`, `ix_scan_nodes_provider`, `ix_scan_nodes_body_hash` (rename heuristic).
 

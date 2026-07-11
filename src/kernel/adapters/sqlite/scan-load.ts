@@ -566,6 +566,18 @@ export function rowToNode(row: Selectable<IScanNodesTable>): Node {
   // File mtime: NULL for virtual / derived nodes (and legacy pre-column
   // rows) leaves `node.modifiedAtMs` absent.
   if (row.modifiedAtMs !== null) node.modifiedAtMs = row.modifiedAtMs;
+  // Virtual / derived node identity, round-tripped so a DB-loaded prior
+  // recognises synthetic nodes (`mcp://…`) and can carry them forward on a
+  // cached scan. `virtual` is set only when true, and `derivedFrom` stays
+  // absent for non-virtual nodes, matching the extractor emit shape. Guard on
+  // `typeof === 'string'`, NOT `!== null`: a lite/partial projection that
+  // omits the column yields `undefined`, and `JSON.parse(undefined)` would
+  // throw "'undefined' is not valid JSON".
+  if (row.virtual === 1) node.virtual = true;
+  if (typeof row.derivedFromJson === 'string') {
+    const parsed = JSON.parse(row.derivedFromJson) as string[];
+    if (Array.isArray(parsed) && parsed.length > 0) node.derivedFrom = parsed;
+  }
   return node;
 }
 

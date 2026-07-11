@@ -498,6 +498,23 @@ function nodeToRow(node: Node, scannedAt: number): Insertable<IScanNodesTable> {
     // File mtime (Unix ms) from the walker; NULL for virtual / derived
     // nodes that carry no backing file. Round-tripped by `rowToNode`.
     modifiedAtMs: node.modifiedAtMs ?? null,
+    ...projectVirtualColumns(node),
+  };
+}
+
+/**
+ * Virtual / derived node identity. Round-tripped by `rowToNode` so a
+ * DB-loaded prior can recognise synthetic nodes (e.g. `mcp://<server>` from a
+ * skill's `tools:` frontmatter) and carry them forward across a cached scan
+ * whose only source is a cache hit.
+ */
+function projectVirtualColumns(
+  node: Node,
+): Pick<Insertable<IScanNodesTable>, 'virtual' | 'derivedFromJson'> {
+  return {
+    virtual: node.virtual === true ? 1 : 0,
+    derivedFromJson:
+      node.derivedFrom && node.derivedFrom.length > 0 ? JSON.stringify(node.derivedFrom) : null,
   };
 }
 

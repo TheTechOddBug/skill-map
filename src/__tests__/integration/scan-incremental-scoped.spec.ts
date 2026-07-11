@@ -102,6 +102,23 @@ async function scopedScan(
   return runScan(kernel, opts);
 }
 
+/**
+ * Cached FULL walk: prior snapshot + `enableCache` but NO scoped-change set,
+ * so the orchestrator traverses every root yet reuses cache-hit nodes. This
+ * is the mode a `sm serve` boot / debounced rescan runs (distinct from the
+ * chokidar-scoped incremental fast path `scopedScan` drives).
+ */
+async function cachedFullScan(fixture: string, prior: ScanResult): Promise<ScanResult> {
+  const kernel = createKernel();
+  for (const m of listBuiltIns()) kernel.registry.register(m);
+  return runScan(kernel, {
+    roots: [fixture],
+    extensions: builtIns(),
+    priorSnapshot: prior,
+    enableCache: true,
+  });
+}
+
 const linkKey = (l: { source: string; target: string; kind: string }): string =>
   `${l.source}|${l.kind}|${l.target}`;
 
@@ -273,6 +290,128 @@ describe('chokidar-scoped incremental scan', () => {
       rollbackScoped!.bodyHash,
       rollbackPrior!.bodyHash,
       'rollback reused verbatim (same bodyHash, not re-read)',
+    );
+  });
+
+  it('carries a virtual mcp node forward when its source is a cache hit', async () => {
+    const fixture = freshFixture('mcp-virtual');
+    // A skill whose `tools:` frontmatter references an MCP server with NO
+    // config-side declaration (no `.mcp.json`): the `mcp://notion` node is
+    // materialised purely by `core/mcp-tools`, a virtual, frontmatter-derived
+    // node. This is the antigravity shape (that provider has no `mcpConfig`).
+    writeFixtureFile(
+      fixture,
+      '.claude/skills/notion-publish/SKILL.md',
+      [
+        '---',
+        'name: notion-publish',
+        'description: Mirror pages to Notion.',
+        'tools: [mcp__notion__notion-create-pages]',
+        '---',
+        'Create a page with `mcp__notion__notion-create-pages`.',
+      ].join('\n'),
+    );
+    // An unrelated sibling so the incremental pass has a changed file to
+    // process while the skill (the mcp node's source) stays a cache hit.
+    writeFixtureFile(
+      fixture,
+      '.claude/commands/deploy.md',
+      ['---', 'name: deploy', 'description: Deploy', '---', 'Deploy body.'].join('\n'),
+    );
+
+    const prior = await fullScan(fixture);
+    const mcpPrior = prior.nodes.find((n) => n.path === 'mcp://notion');
+    ok(mcpPrior?.virtual === true, 'full scan materialises the virtual mcp node');
+
+    // Change ONLY the unrelated command; the skill stays a cache hit, so
+    // `core/mcp-tools` never re-runs for it and never re-emits the node.
+    writeFixtureFile(
+      fixture,
+      '.claude/commands/deploy.md',
+      ['---', 'name: deploy', 'description: Deploy v2', '---', 'Deploy body v2.'].join('\n'),
+    );
+    const scoped = await scopedScan(fixture, prior, ['.claude/commands/deploy.md']);
+
+    ok(
+      scoped.nodes.find((n) => n.path === 'mcp://notion'),
+      'the virtual mcp node survives the incremental scan (carried forward from prior)',
+    );
+    ok(
+      scoped.links.some(
+        (l) =>
+          l.source === '.claude/skills/notion-publish/SKILL.md' && l.target === 'mcp://notion',
+      ),
+      'the skill -> mcp://notion reference still resolves after the incremental scan',
+    );
+  });
+
+  it('drops a virtual mcp node once its only source stops declaring the tool', async () => {
+    const fixture = freshFixture('mcp-drop');
+    writeFixtureFile(
+      fixture,
+      '.claude/skills/notion-publish/SKILL.md',
+      [
+        '---',
+        'name: notion-publish',
+        'description: Mirror pages to Notion.',
+        'tools: [mcp__notion__notion-create-pages]',
+        '---',
+        'Body.',
+      ].join('\n'),
+    );
+    const prior = await fullScan(fixture);
+    ok(prior.nodes.find((n) => n.path === 'mcp://notion'), 'prior has the virtual mcp node');
+
+    // Rewrite the skill WITHOUT the `tools:` frontmatter and report it
+    // changed: the source is re-extracted, no longer emits the node, and no
+    // unchanged source keeps it, so the carry-forward must NOT resurrect it.
+    writeFixtureFile(
+      fixture,
+      '.claude/skills/notion-publish/SKILL.md',
+      ['---', 'name: notion-publish', 'description: Mirror pages to Notion.', '---', 'Body.'].join(
+        '\n',
+      ),
+    );
+    const scoped = await scopedScan(fixture, prior, ['.claude/skills/notion-publish/SKILL.md']);
+
+    ok(
+      !scoped.nodes.find((n) => n.path === 'mcp://notion'),
+      'the mcp node is dropped once its source no longer declares the tool',
+    );
+  });
+
+  it('carries a virtual mcp node forward through a cached FULL walk (serve-boot mode)', async () => {
+    const fixture = freshFixture('mcp-full-cache');
+    writeFixtureFile(
+      fixture,
+      '.claude/skills/notion-publish/SKILL.md',
+      [
+        '---',
+        'name: notion-publish',
+        'description: Mirror pages to Notion.',
+        'tools: [mcp__notion__notion-create-pages]',
+        '---',
+        'Body.',
+      ].join('\n'),
+    );
+    const prior = await fullScan(fixture);
+    ok(prior.nodes.find((n) => n.path === 'mcp://notion'), 'prior has the virtual mcp node');
+
+    // Re-scan with the cache on and the prior snapshot but NO scoped-change
+    // set: the cached FULL walk a `sm serve` boot runs. Nothing changed, so
+    // the skill is a cache hit and `core/mcp-tools` never re-runs, yet the
+    // node must survive (regression: it used to vanish on the second scan).
+    const cached = await cachedFullScan(fixture, prior);
+    ok(
+      cached.nodes.find((n) => n.path === 'mcp://notion'),
+      'the virtual mcp node survives a cached full walk',
+    );
+    ok(
+      cached.links.some(
+        (l) =>
+          l.source === '.claude/skills/notion-publish/SKILL.md' && l.target === 'mcp://notion',
+      ),
+      'the skill -> mcp://notion reference still resolves after the cached full walk',
     );
   });
 });

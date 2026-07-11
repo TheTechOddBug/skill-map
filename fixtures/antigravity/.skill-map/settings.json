@@ -1,7 +1,6 @@
 {
   "activeProvider": "antigravity",
   "activeProviderMarkers": [
-    "antigravity",
-    "agent-skills"
+    "antigravity"
   ]
 }

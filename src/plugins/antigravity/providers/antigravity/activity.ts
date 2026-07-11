@@ -4,8 +4,8 @@
  * payload (piped to the hook command's stdin, forwarded verbatim by the
  * activity bridge) into node-attributable signals.
  *
- * Characterised against real runs (probe log, 2026-07-04, workspace
- * `fixtures/realtime-antigravity/`) cross-checked with the official
+ * Characterised against real runs (probe log, 2026-07-04, the antigravity
+ * activity fixture now consolidated into `fixtures/antigravity/`) cross-checked with the official
  * hooks surface (antigravity.google/docs/hooks; events PreToolUse /
  * PostToolUse / PreInvocation / PostInvocation / Stop). Antigravity's
  * signal surface is read-shaped:
@@ -13,17 +13,23 @@
  * - **Payloads carry NO `hook_event_name`** (unlike Claude / Codex).
  *   Events are distinguished STRUCTURALLY: a `toolCall` object means a
  *   tool event, `invocationNum` an invocation pulse, `terminationReason`
- *   the Stop. The descriptor only wires `PreToolUse` matcher
- *   `view_file`, so in practice every bridge-forwarded payload is a
- *   file-view tool event; the shape guard keeps hand-wired extras
- *   harmless.
- * - **The ONE mapped signal is `view_file`**
- *   (`toolCall.args.AbsolutePath`, absolute): in-scope `.md` views
- *   become PATH signals, which is how EVERYTHING lights on this
- *   provider. Skills' `references/*.md` reads light those resources, a
- *   workflow FOLLOWED in prose lights its `.agent/workflows/*.md` node
- *   (the runtime `view_file`s the workflow file first, live-verified),
- *   and plain markdown reads light markdown nodes.
+ *   the Stop. The descriptor wires `PreToolUse` for two tool names,
+ *   `view_file` and `call_mcp_tool` (matcher `^(view_file|call_mcp_tool)$`),
+ *   so every bridge-forwarded tool payload is one of those; the shape guard
+ *   keeps hand-wired extras harmless.
+ * - **`view_file`** (`toolCall.args.AbsolutePath`, absolute): in-scope
+ *   `.md` views become PATH signals, which is how the on-disk graph
+ *   lights on this provider. Skills' `references/*.md` reads light those
+ *   resources, a workflow FOLLOWED in prose lights its
+ *   `.agent/workflows/*.md` node (the runtime `view_file`s the workflow
+ *   file first, live-verified), and plain markdown reads light markdown
+ *   nodes.
+ * - **`call_mcp_tool`** (`toolCall.args.ServerName` / `.ToolName`): the
+ *   generic wrapper Antigravity funnels every MCP invocation through
+ *   (live-verified 2026-07-11). A PATH signal on the `mcp://<ServerName>`
+ *   node lights it the moment the tool fires, the ONLY way an Antigravity
+ *   `mcp://` node lights (no project-local MCP config to discover
+ *   config-side). See `mapMcpToolCall`.
  * - **Skill invocation itself is invisible**: `/skill` injects the
  *   SKILL.md into context with no tool event (live-verified: only
  *   invocation pulses + a `NO_TOOL_CALL` Stop). Nothing to map.
@@ -52,6 +58,7 @@ import {
   nonEmptyString,
   relativizeMarkdownPath,
 } from '../../../../kernel/util/activity-adapter.js';
+import { mcpNodePath } from '../../../../kernel/util/mcp.js';
 
 export const antigravityActivity: IProviderActivityAdapter = {
   install: {
@@ -69,7 +76,7 @@ export const antigravityActivity: IProviderActivityAdapter = {
     // idles instead of waiting out the decay). Stop takes the FLAT
     // entry shape (agy's lifecycle events reject the matcher group).
     events: [
-      { event: 'PreToolUse', matcher: 'view_file' },
+      { event: 'PreToolUse', matcher: '^(view_file|call_mcp_tool)$' },
       { event: 'Stop', entryShape: 'flat' },
     ],
   },
@@ -79,7 +86,9 @@ export const antigravityActivity: IProviderActivityAdapter = {
     const event = raw as Record<string, unknown>;
     const toolCall = readToolCall(event);
     if (toolCall !== null) {
-      return toolCall.name === 'view_file' ? mapFileView(event, toolCall.args) : null;
+      if (toolCall.name === 'view_file') return mapFileView(event, toolCall.args);
+      if (toolCall.name === 'call_mcp_tool') return mapMcpToolCall(event, toolCall.args);
+      return null;
     }
     return mapConversationStop(event);
   },
@@ -119,6 +128,34 @@ function mapFileView(
   const relative = relativizeMarkdownPath(args['AbsolutePath'], event['workspacePaths']);
   if (relative === null) return null;
   return [{ path: relative, phase: 'start', owner: ownerOf(event) }];
+}
+
+/**
+ * `call_mcp_tool` → PATH signal on the `mcp://<server>` node. Antigravity
+ * funnels EVERY MCP invocation through one generic wrapper tool
+ * (`toolCall.name === 'call_mcp_tool'`), carrying the real server + tool in
+ * `toolCall.args.ServerName` / `.ToolName` (live-verified 2026-07-11: a
+ * `notion-create-pages` call arrives as
+ * `{name:'call_mcp_tool', args:{ServerName:'notion', ToolName:'notion-create-pages', Arguments:{…}}}`).
+ * So, unlike Claude / Codex (which embed the server in a `mcp__<server>__<tool>`
+ * tool name and share `mapMcpInvocation`), the server is read from `args`, not
+ * parsed from the name. The lit node is the SAME `mcp://<server>` that
+ * `core/mcp-tools` draws from a skill's `tools:` frontmatter, so a live call
+ * lights the static node deterministically. No config-side counterpart exists
+ * (Antigravity's MCP config is home-global, off-limits to the project-local
+ * scanner), so this live path is the only way an Antigravity `mcp://` node
+ * ever lights. The tool name rides as `detail`.
+ */
+function mapMcpToolCall(
+  event: Record<string, unknown>,
+  args: Record<string, unknown>,
+): IActivitySignal[] | null {
+  const server = nonEmptyString(args['ServerName']);
+  if (!server) return null;
+  const signal: IActivitySignal = { path: mcpNodePath(server), phase: 'start', owner: ownerOf(event) };
+  const tool = nonEmptyString(args['ToolName']);
+  if (tool) signal.detail = tool;
+  return [signal];
 }
 
 /**

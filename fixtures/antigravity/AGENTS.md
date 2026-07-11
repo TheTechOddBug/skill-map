@@ -1,19 +1,18 @@
----
-name: Project handbook
-description: Standing rules for agents working in this Antigravity project.
----
+# Portfolio handbook
 
-# Project handbook
+A small static portfolio site, served by Express (`server.js`). The
+Antigravity harness maintains it: a skill writes the pages, a skill checks
+the links, a workflow publishes them, to the live site and, mirrored, to
+Notion pages via the Notion MCP. The conventions live in the style guide;
+the deploy steps in the deploy runbook. The pages still to build are tracked
+in [the backlog](./docs/BACKLOG.md).
 
-This project is driven by Antigravity workflows (`.agent/workflows/`) and
-shared Agent Skills (`.agents/skills/`). Workflows are slash-invocable
-recipes; skills are reusable capabilities. Both are invoked by `/<name>`.
+- When a page needs writing or fixing, invoke /content-editor.
+- When the site is ready to go out, invoke /publish (it also mirrors the pages to Notion).
+- To sync a single page to Notion by hand, invoke /notion-writer (deprecated, prefer /publish).
 
-To ship, invoke /deploy. To promote a staging build, invoke /go-live
-(workflows are always invoked by their file name). Always invoke
-/run-tests before either.
-
-This file is plain Markdown (the open AGENTS.md rules standard), so it is
-classified by the universal `core/markdown` fallback, not by a vendor
-provider. Under the antigravity lens its `/deploy` and `/go-live` tokens
-still resolve, because the slash extractor runs on every node body.
+Workflows (`.agent/workflows/`) and skills (`.agents/skills/`) are both
+invoked by `/<name>`. This file is plain Markdown (the open AGENTS.md rules
+standard), classified by the universal `core/markdown` fallback, yet under
+the antigravity lens its `/`-invocations still resolve, because the slash
+extractor runs on every node body.

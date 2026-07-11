@@ -529,6 +529,13 @@ export async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWal
     capReached = full.capReached;
   }
 
+  // VIRTUAL carry-forward: re-inject prior virtual nodes (e.g. `mcp://…`)
+  // whose sources are cache hits. Both reuse modes above skip `extract()`
+  // on a cache-hit node, so `core/mcp-tools` never re-emits the node it
+  // derived and it would vanish across a cached rescan. No-op on a full
+  // (uncached) scan and when there is no prior snapshot. See the helper.
+  carryForwardVirtualNodes(accum, opts.prior?.nodes);
+
   // Spec § 9.6.2, orphan sidecar sweep. Walks the same roots
   // looking for `*.sm` whose sibling `*.md` is missing. The list
   // flows through to the rule pass; `annotation-orphan` emits one
@@ -691,11 +698,54 @@ async function injectUnchangedPriorNodes(
 }
 
 /**
+ * Carry forward prior virtual nodes (`virtual === true`, e.g. `mcp://<server>`
+ * emitted by `core/mcp-tools` from a skill's `tools:` frontmatter) that a
+ * cached scan did not reproduce. Runs on the SHARED path so it covers both
+ * reuse modes: the chokidar-scoped incremental fast path AND the cached full
+ * walk (the mode a `sm serve` boot / debounced rescan uses).
+ *
+ * A virtual node is re-materialised only when a source that emits it is
+ * re-extracted (a cache MISS). When every one of its `derivedFrom` sources is
+ * a cache HIT, no extractor re-runs, so the node would silently vanish even
+ * though its source still references it (config-side MCP nodes escape this,
+ * `materialiseMcpConfigNodes` re-runs every scan; frontmatter-derived ones
+ * have no such fallback). Re-inject each such node when a fresh emission did
+ * NOT already re-add it (dedup by path) AND at least one source survived as a
+ * CACHE HIT (`accum.cachedPaths`): that source still derives the node but its
+ * extractor did not re-run. A re-extracted (cache-miss) source either
+ * re-emitted the node (caught by the dedup guard) or legitimately dropped the
+ * reference; a removed source is absent from `livePaths` entirely. No-op when
+ * caching is off (`cachedPaths` empty → nothing to rescue) or no prior exists.
+ */
+function carryForwardVirtualNodes(
+  accum: IWalkAccumulators,
+  priorNodes: readonly Node[] | undefined,
+): number {
+  if (!priorNodes || priorNodes.length === 0) return 0;
+  const livePaths = new Set(accum.nodes.map((n) => n.path));
+  let carried = 0;
+  for (const priorNode of priorNodes) {
+    if (priorNode.virtual !== true) continue;
+    if (livePaths.has(priorNode.path)) continue; // a fresh emission already re-added it
+    const sources = priorNode.derivedFrom ?? [];
+    const keptByCachedSource = sources.some(
+      (s) => livePaths.has(s) && accum.cachedPaths.has(s),
+    );
+    if (!keptByCachedSource) continue;
+    accum.nodes.push(priorNode);
+    livePaths.add(priorNode.path);
+    carried += 1;
+  }
+  return carried;
+}
+
+/**
  * Decide whether a prior node should be injected as an `unchanged` record
  * on the watcher's incremental pass. Skips nodes already handled by the
  * changed pass (changed / removed / claimed) and virtual / derived nodes
- * (e.g. `mcp://…`) which carry no backing file and are re-materialised by
- * the extractors that emit them. Extracted so the inject loop body stays
+ * (e.g. `mcp://…`), which carry no backing file: a re-extracted source
+ * re-emits them, and `carryForwardVirtualNodes` (above) rescues the ones
+ * whose sources are all cache hits. Extracted so the inject loop body stays
  * linear and `injectUnchangedPriorNodes` clears the complexity cap.
  */
 function shouldInjectPriorNode(

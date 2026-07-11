@@ -1,0 +1,10 @@
+annotations:
+  stability: stable
+  tags:
+    - harness
+    - content
+    - frontend
+identity:
+  bodyHash: 84a0a8f4f6439718f0ada678187dd1ea8eb263c09fbe738afb23a523a919363b
+  frontmatterHash: 91b0201d848c054cd0599cd80b64a552d7e2229d58a58addeed8fa6963a77e43
+  path: .agents/skills/content-editor/SKILL.md

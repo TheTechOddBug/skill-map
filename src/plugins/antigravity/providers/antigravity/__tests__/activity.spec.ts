@@ -1,7 +1,8 @@
 /**
  * Antigravity live-activity adapter (`activity.ts`): raw hook payload →
  * activity signals. Payload shapes are REAL captures from the
- * 2026-07-04 live probe (`fixtures/realtime-antigravity/`, agy with
+ * 2026-07-04 live probe (the antigravity activity fixture now consolidated
+ * into `fixtures/antigravity/`, agy with
  * gemini-3.5-flash-low): no `hook_event_name` field anywhere, tool
  * events carry `toolCall.{name,args}`, every payload carries
  * `conversationId` + `workspacePaths`.
@@ -23,15 +24,50 @@ const COMMON = {
 };
 
 describe('antigravityActivity.mapEvent', () => {
-  it('declares the named-group descriptor (one view_file event)', () => {
+  it('declares the named-group descriptor (view_file + call_mcp_tool)', () => {
     assert.equal(antigravityActivity.install.kind, 'json-hooks');
     assert.equal(antigravityActivity.install.configPath, '.agents/hooks.json');
     assert.equal(antigravityActivity.install.group, 'skill-map-activity');
     assert.equal(antigravityActivity.install.commandCwd, 'config-dir');
     assert.deepEqual(antigravityActivity.install.events, [
-      { event: 'PreToolUse', matcher: 'view_file' },
+      { event: 'PreToolUse', matcher: '^(view_file|call_mcp_tool)$' },
       { event: 'Stop', entryShape: 'flat' },
     ]);
+  });
+
+  it('maps a call_mcp_tool invocation to a PATH signal on the mcp://<server> node (real capture)', () => {
+    // Live-verified 2026-07-11: Antigravity funnels every MCP call through the
+    // generic `call_mcp_tool` wrapper, with the real server + tool in `args`.
+    const signals = antigravityActivity.mapEvent({
+      ...COMMON,
+      stepIdx: 5,
+      toolCall: {
+        name: 'call_mcp_tool',
+        args: {
+          ServerName: 'notion',
+          ToolName: 'notion-create-pages',
+          Arguments: { pages: [{ properties: { title: 'Test' } }] },
+        },
+      },
+    });
+    assert.deepEqual(signals, [
+      {
+        path: 'mcp://notion',
+        phase: 'start',
+        owner: '10975125-a914-4b97-8f7c-871ec06e4dfc',
+        detail: 'notion-create-pages',
+      },
+    ]);
+  });
+
+  it('a call_mcp_tool without a ServerName disclaims (no node to light)', () => {
+    assert.equal(
+      antigravityActivity.mapEvent({
+        ...COMMON,
+        toolCall: { name: 'call_mcp_tool', args: { ToolName: 'notion-create-pages' } },
+      }),
+      null,
+    );
   });
 
   it('maps an in-scope markdown view_file to a PATH signal owned by the conversation', () => {

@@ -8,7 +8,7 @@
             "command": "node ../.skill-map/activity/bridge.js antigravity"
           }
         ],
-        "matcher": "view_file"
+        "matcher": "^(view_file|call_mcp_tool)$"
       }
     ],
     "Stop": [

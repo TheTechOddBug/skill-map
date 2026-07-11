@@ -138,6 +138,16 @@ export interface IScanNodesTable {
    * bridge as `bytesTotal` / `scannedAt`).
    */
   modifiedAtMs: number | null;
+  /**
+   * Virtual / derived node identity. `virtual` is a SQLite INTEGER (0 / 1)
+   * bridging to `Node.virtual`: 1 for a synthetic node with no backing file
+   * (e.g. `mcp://<server>` materialised by `core/mcp-tools`). `derivedFromJson`
+   * is the JSON-encoded source-path array (`Node.derivedFrom`), NULL for
+   * non-virtual nodes. Round-tripped by `nodeToRow` / `rowToNode` so a
+   * DB-loaded prior can carry a virtual node forward across a cached scan.
+   */
+  virtual: Generated<number>;
+  derivedFromJson: string | null;
 }
 
 export interface IScanLinksTable {
