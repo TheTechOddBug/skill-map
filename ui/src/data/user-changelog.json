@@ -2,6 +2,59 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.88.0",
+      "date": "2026-07-11",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "Under the Antigravity lens, calling an MCP tool (like Notion) now lights its node on the map in real time, the same as Claude and Codex. Re-run the activity installer so the hook catches MCP calls.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Annotating a Codex sub-agent (a `.toml` file) no longer raises a false \"orphan sidecar\" warning when you scan. Its annotations attach as expected, and prune leaves it alone.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "The Files list now shows each file's real name (like `intro.md`). For a skill, it shows the skill's folder name in bold and de-emphasizes the `SKILL.md` file inside, so labels are clearer and never read redundantly.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "MCP nodes on the map no longer show a meaningless \"0 B\" size.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Under the OpenCode lens, MCP servers declared in your project's `opencode.json` now appear on the map as `mcp://` nodes, even when no skill references them.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Under the OpenCode lens, calling an MCP tool (like Notion) now lights its node on the map in real time, completing live MCP invocation for all four supported runtimes.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "An MCP node drawn from a skill's tool list (with no separate MCP config file, as under the Antigravity lens) no longer disappears from the map after the live watcher's first rescan.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.87.0",
       "date": "2026-07-10",
       "kind": "user-facing",
