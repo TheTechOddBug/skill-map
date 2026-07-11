@@ -16,7 +16,7 @@
 
 Del caos multiagente a agentes y skills predecibles, el mapa que le faltaba a tu harness de IA generativa basado en Markdown (Claude Code, Codex, Antigravity, Copilot y otros). Detecta colisiones, huérfanos, duplicados semánticos y skills obesas sobre un mismo grafo, con análisis determinístico y semántico (LLM) opcional.
 
-![Interfaz de skill-map](https://skill-map.ai/img/screenshot-1.jpg)
+![skill-map encendiéndose en vivo mientras editas tus .md](https://github.com/user-attachments/assets/3d4f7b22-0787-4fb1-9369-f5649607e18e)
 
 ## El problema que resuelve
 

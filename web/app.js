@@ -20,6 +20,6 @@ import './modules/roadmap.js';
 import './modules/copy-code.js';
 import './modules/audio-player.js';
 import './modules/peco.js';
-import './modules/lightbox.js';
+import './modules/hero-video.js';
 import './modules/drawer-footer.js';
 import './modules/cookie-consent.js';

@@ -1194,37 +1194,11 @@ svg    { display: block; max-width: 100%; }
   .shots figure { transition: none; }
   .shots figure:hover { transform: none; }
 }
-.shots figure img {
+.shots figure video {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
-  user-select: none;
-  -webkit-user-drag: none;
-  pointer-events: none;
-}
-
-/* The image is wrapped in a button so click/Enter/Space open the lightbox.
-   Use position: absolute fill rather than width/height: 100%; the parent
-   figure has aspect-ratio: 16/9 and a child with `height: 100%` can resolve
-   to 0 in some browsers when the parent's height is implicitly derived from
-   aspect-ratio. Filling via inset: 0 sidesteps that quirk and guarantees a
-   hit-testable area. */
-.shots__zoom {
-  position: absolute;
-  inset: 0;
-  display: block;
-  padding: 0;
-  margin: 0;
-  border: none;
-  background: transparent;
-  cursor: zoom-in;
-  border-radius: inherit;
-  overflow: hidden;
-}
-.shots__zoom:focus-visible {
-  outline: 2px solid var(--violet-400);
-  outline-offset: 4px;
 }
 
 /* Placeholder visual: dashed inset frame with a centered label. The
@@ -2900,16 +2874,14 @@ svg    { display: block; max-width: 100%; }
   }
 }
 
-/* Touch targets ≥36px (ideally 44) on mobile for the player + lightbox +
-   peco nav controls. WCAG 2.5.5 recommends 44×44; we hit the bar on the
-   primary actions (play/pause, lightbox close) and bring the rest closer. */
+/* Touch targets ≥36px (ideally 44) on mobile for the player + peco nav
+   controls. WCAG 2.5.5 recommends 44×44; we hit the bar on the primary
+   actions (play/pause) and bring the rest closer. */
 @media (max-width: 768px) {
   .audio-player__icon-btn { width: 36px; height: 36px; }
   .audio-player__icon-btn svg { width: 16px; height: 16px; }
   .audio-player__playpause { width: 44px; height: 44px; }
   .audio-player__playpause svg { width: 18px; height: 18px; }
-  .lightbox__close { width: 44px; height: 44px; top: 16px; right: 16px; }
-  .lightbox__close svg { width: 20px; height: 20px; }
   .peco__nav-btn { padding: 10px 14px; min-height: 36px; }
 }
 
@@ -2928,94 +2900,6 @@ svg    { display: block; max-width: 100%; }
   white-space: nowrap;
   border: 0;
 }
-
-/* ============================================================
-   LIGHTBOX: native <dialog> for full-size screenshot view
-   ============================================================
-   Opens via showModal() from app.js when the user clicks the
-   shots__zoom button. Native <dialog> gives:
-   - Focus trap inside the dialog
-   - Escape closes
-   - ::backdrop styled overlay
-   - Top-layer stacking (above everything)
-   We close on backdrop-click via a JS handler (target === dialog). */
-/* IMPORTANT: scope to `[open]`; without it, `display: flex` would override
-   the UA's default `display: none` for closed <dialog>, leaving an invisible
-   fullscreen overlay that swallows every click below it (including the
-   shots__zoom button). With `[open]`, the rules apply only while the dialog
-   is shown via showModal(). */
-.lightbox[open] {
-  /* Fullscreen transparent stage; the image inside is centered via flex.
-     The image fills the full viewport width on phones (`max-width: 100%`
-     against the 100vw dialog) and is capped at 1600px on big desktops by
-     the rule on `.lightbox__img` below. */
-  position: fixed;
-  inset: 0;
-  margin: 0;
-  width: 100vw;
-  height: 100vh;
-  max-width: 100vw;
-  max-height: 100vh;
-  border: none;
-  padding: 0;
-  background: transparent;
-  overflow: visible;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255, 255, 255, .9);
-}
-.lightbox::backdrop {
-  background: rgba(6, 8, 12, .85);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-}
-.lightbox__img {
-  display: block;
-  width: auto;
-  height: auto;
-  /* Phones: fill the full viewport width (max-width: 100% of the 100vw
-     dialog). Big desktops: cap at 1600px so the image doesn't stretch
-     edge-to-edge on 4K monitors. Aspect ratio is preserved by the browser
-     because we only constrain one explicit dimension at a time. */
-  max-width: min(100%, 1600px);
-  max-height: 100%;
-  border-radius: var(--r-lg);
-  box-shadow: 0 30px 80px rgba(0, 0, 0, .6);
-  user-select: none;
-  -webkit-user-drag: none;
-  /* Block the browser's native gestures (page-zoom, scroll) on the image
-     so our touch handlers can implement local pinch-zoom and pan without
-     fighting the UA. transform-origin: center keeps the zoom focal point
-     in the visual center; we adjust position via translate() instead.
-     will-change hints the compositor to promote this to its own layer. */
-  touch-action: none;
-  transform-origin: center center;
-  will-change: transform;
-}
-.lightbox__close {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: rgba(0, 0, 0, .55);
-  color: rgba(255, 255, 255, .9);
-  border-radius: 50%;
-  cursor: pointer;
-  transition: background var(--dur-fast) var(--ease-out);
-  z-index: 1;
-}
-.lightbox__close:hover { background: rgba(0, 0, 0, .8); }
-.lightbox__close:focus-visible {
-  outline: 2px solid var(--violet-400);
-  outline-offset: 2px;
-}
-.lightbox__close svg { width: 18px; height: 18px; }
 
 /* ============================================================
    COOKIE CONSENT MODAL

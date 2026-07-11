@@ -54,10 +54,7 @@
 
   "shots.title.1":   { "en": "Your whole agent harness,", "es": "Todo tu harness de agentes," },
   "shots.title.2":   { "en": "on a single screen!",         "es": "¡en una única pantalla!" },
-  "shots.alt.1":     { "en": "skill-map main screen", "es": "skill-map pantalla principal" },
-  "shots.zoom.aria":  { "en": "View screenshot full size", "es": "Ver captura en tamaño completo" },
-  "shots.zoom.title": { "en": "Screenshot full size",      "es": "Captura en tamaño completo" },
-  "shots.zoom.close": { "en": "Close",                     "es": "Cerrar" },
+  "shots.video.label": { "en": "skill-map lighting up live as you edit .md files", "es": "skill-map encendiéndose en vivo mientras editas tus .md" },
 
   "pe.eyebrow":      { "en": "Ecosystem", "es": "Ecosistema" },
   "pe.title.1":      { "en": "Plugins: Six kinds.",   "es": "Plugins: Seis tipos." },

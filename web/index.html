@@ -325,9 +325,12 @@
 
       <div class="shots__grid">
         <figure class="shots__main">
-          <button type="button" class="shots__zoom" data-lightbox-open data-i18n-aria-label="shots.zoom.aria">
-            <img src="/img/screenshot-1.jpg" alt="skill-map main screen" data-i18n-alt="shots.alt.1" loading="lazy">
-          </button>
+          <video class="shots__video" muted loop playsinline preload="metadata"
+                 poster="/img/demo-realtime-poster.jpg"
+                 aria-label="skill-map lighting up live as you edit .md files"
+                 data-i18n-aria-label="shots.video.label" data-hero-video>
+            <source src="/img/demo-realtime.mp4" type="video/mp4">
+          </video>
         </figure>
       </div>
     </section>
@@ -1087,20 +1090,6 @@ export default {
     </aside>
 
   </div>
-
-  <!-- Screenshot lightbox. Hidden until JS calls showModal() on the trigger
-       button inside #shots. Native <dialog> gives us focus trap, Escape-to-
-       close, and ::backdrop for free. -->
-  <dialog class="lightbox" data-lightbox aria-labelledby="lightbox-title">
-    <h2 id="lightbox-title" class="visually-hidden" data-i18n="shots.zoom.title">Screenshot full size</h2>
-    <button type="button" class="lightbox__close" data-lightbox-close data-i18n-aria-label="shots.zoom.close">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-        <line x1="6" y1="6"  x2="18" y2="18"/>
-        <line x1="6" y1="18" x2="18" y2="6"/>
-      </svg>
-    </button>
-    <img class="lightbox__img" src="" alt="">
-  </dialog>
 
   <!-- Cookie consent modal. Shown via showModal() from app.js when there's
        no `cookieConsent` entry in localStorage. Accept loads Google
