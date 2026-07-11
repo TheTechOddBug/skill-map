@@ -15,9 +15,9 @@
  *   - Caps the output at `MAX_FILES` (50_000) to bound memory + time
  *     when an operator points the setting at a huge tree by mistake.
  *     The cap is an absolute hard stop across all roots combined.
- *   - Missing / non-directory roots are silently skipped (parity with
- *     `findOrphanJobFiles`, a misconfigured path is a no-op, not a
- *     throw, because the scan must keep working).
+ *   - Missing / non-directory roots are silently skipped: a
+ *     misconfigured path is a no-op, not a throw, because the scan must
+ *     keep working.
  *
  * Lives under `core/runtime/` so both CLI and BFF can share one
  * implementation. Receives `cwd` as a parameter; reads no

@@ -1,107 +1,81 @@
 /**
- * Storage helpers for `state_jobs` retention GC. Powers `sm job prune`.
+ * Storage helper for `state_jobs` retention GC. Powers `sm job prune`.
  *
- * Two operations, both DB-only, the storage layer never touches the
- * filesystem (kept portable across runner backends; the FS walk that
- * pairs with `selectReferencedJobFilePaths` lives in
- * `kernel/jobs/orphan-files.ts`):
+ * DB-only model: job content lives in `state_job_contents` keyed by
+ * `content_hash`, there is no `.skill-map/jobs/*.md` on-disk artifact and
+ * this helper never touches the filesystem (kept portable across runner
+ * backends and future adapters).
  *
- *   1. **Retention GC**, delete `state_jobs` rows whose `status` is
- *      terminal (`completed` or `failed`) and whose `finishedAt` is
- *      older than the supplied cutoff. The matching MD job files in
- *      `.skill-map/jobs/` are deleted by the CLI command using the
- *      `filePath` returned by this helper.
+ * Retention GC (`pruneTerminalJobs`) does two things in ONE transaction,
+ * per `spec/job-lifecycle.md` §Retention and GC:
  *
- *   2. **Referenced job-file paths**, return every `state_jobs.filePath`
- *      that points at a real MD file, normalized through `resolve()`.
- *      The CLI's `sm job prune --orphan-files` flow combines this set
- *      with a directory walk (`findOrphanJobFiles`) to compute the
- *      MD files on disk that no row references.
+ *   1. Delete `state_jobs` rows whose `status` is terminal (`completed`
+ *      or `failed`) and whose `finishedAt` is older than the supplied
+ *      cutoff.
+ *   2. Collect orphaned `state_job_contents` rows, every content row
+ *      whose `content_hash` is referenced by zero surviving `state_jobs`
+ *      rows. Ordering is fixed: prune the terminal jobs first, THEN sweep
+ *      the now-unreferenced content.
  *
- * Per `spec/job-lifecycle.md` §Retention and GC, this MUST NOT run
- * implicitly during normal verb execution. The helpers themselves are
- * pure side-effects on the DB; the policy decision lives in the CLI.
+ * Per `spec/job-lifecycle.md`, this MUST NOT run implicitly during normal
+ * verb execution. The helper itself is a pure side-effect on the DB; the
+ * policy decision lives in the CLI (`sm job prune`).
  *
  * Per `spec/db-schema.md`, `state_executions` is append-only through
- * `v1.0`. These helpers do NOT touch that table, pruning a job row
- * leaves the matching execution row in place so post-mortem queries
- * still work after a job's audit trail in `state_jobs` is gone.
+ * `v1.0`. This helper does NOT touch that table, pruning a job row leaves
+ * the matching execution row (and its inline `report_json`) in place so
+ * post-mortem queries still work after a job's audit trail in `state_jobs`
+ * is gone.
  */
 
-import { resolve } from 'node:path';
+import type { Kysely } from 'kysely';
 
-import type { Kysely, Transaction } from 'kysely';
-
-import type { IDatabase, TJobStatus } from './schema.js';
+import type { IDatabase } from './schema.js';
 import type { IPruneResult } from '../../types/storage.js';
 
 export type { IPruneResult } from '../../types/storage.js';
 
-type TDbOrTx = Kysely<IDatabase> | Transaction<IDatabase>;
-
 /**
- * Delete `state_jobs` rows in terminal `status` whose `finishedAt` is
- * older than `cutoffMs` (Unix ms). Returns the row count plus every
- * non-null `filePath` so the caller can unlink the on-disk MD files.
+ * Delete terminal `state_jobs` rows past the cutoff and GC orphaned
+ * `state_job_contents` rows, both inside one transaction.
+ *
+ * Deletes `state_jobs` rows in terminal `status` whose `finishedAt` is
+ * older than `cutoffMs` (Unix ms), then deletes every
+ * `state_job_contents` row whose `content_hash` no longer appears in any
+ * `state_jobs` row. Returns the deleted job count plus the collected
+ * content-row count.
  *
  * `cutoffMs` is computed by the caller from the configured retention:
  * `Date.now() - retentionSeconds * 1000`.
- *
- * Order:
- *   1. SELECT the file_paths of rows that match (small projection).
- *   2. DELETE the same rows.
- * Two queries instead of `DELETE ... RETURNING` because Kysely's
- * SQLite dialect has historically had spotty support for RETURNING
- * across versions; the two-step variant is portable and the table
- * is small enough that the extra round-trip is negligible.
  */
 export async function pruneTerminalJobs(
-  db: TDbOrTx,
+  db: Kysely<IDatabase>,
   status: 'completed' | 'failed',
   cutoffMs: number,
 ): Promise<IPruneResult> {
-  const rows = await db
-    .selectFrom('state_jobs')
-    .select(['id', 'filePath'])
-    .where('status', '=', status as TJobStatus)
-    .where('finishedAt', 'is not', null)
-    .where('finishedAt', '<', cutoffMs)
-    .execute();
+  return db.transaction().execute(async (trx) => {
+    const jobDelete = await trx
+      .deleteFrom('state_jobs')
+      .where('status', '=', status)
+      .where('finishedAt', 'is not', null)
+      .where('finishedAt', '<', cutoffMs)
+      .executeTakeFirst();
+    const deletedCount = Number(jobDelete.numDeletedRows ?? 0n);
 
-  if (rows.length === 0) {
-    return { deletedCount: 0, filePaths: [] };
-  }
+    // Orphan content sweep: drop every content blob no surviving job
+    // references. `state_jobs.content_hash` is NOT NULL, so the subquery
+    // never yields NULL and `NOT IN (empty)` correctly returns every row
+    // when the job table is empty.
+    const contentDelete = await trx
+      .deleteFrom('state_job_contents')
+      .where(
+        'contentHash',
+        'not in',
+        trx.selectFrom('state_jobs').select('contentHash'),
+      )
+      .executeTakeFirst();
+    const prunedContents = Number(contentDelete.numDeletedRows ?? 0n);
 
-  const ids = rows.map((r) => r.id);
-  await db
-    .deleteFrom('state_jobs')
-    .where('id', 'in', ids)
-    .execute();
-
-  const filePaths = rows
-    .map((r) => r.filePath)
-    .filter((p): p is string => p !== null);
-  return { deletedCount: rows.length, filePaths };
-}
-
-/**
- * Read every `state_jobs.filePath` currently set, normalized through
- * `resolve()`. The CLI pairs this set with `findOrphanJobFiles` (in
- * `kernel/jobs/orphan-files.ts`) to compute the MD files on disk that
- * no row references, the storage layer stays FS-free so a future
- * Postgres / in-memory adapter inherits no `node:fs` dependency.
- */
-export async function selectReferencedJobFilePaths(
-  db: TDbOrTx,
-): Promise<Set<string>> {
-  const rows = await db
-    .selectFrom('state_jobs')
-    .select(['filePath'])
-    .where('filePath', 'is not', null)
-    .execute();
-  const out = new Set<string>();
-  for (const row of rows) {
-    if (row.filePath !== null) out.add(resolve(row.filePath));
-  }
-  return out;
+    return { deletedCount, prunedContents };
+  });
 }

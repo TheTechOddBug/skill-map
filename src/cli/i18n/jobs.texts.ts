@@ -12,15 +12,13 @@ export const JOBS_TEXTS = {
   pruneTagDryRun: 'sm job prune (dry-run)',
   pruneTagApply: 'sm job prune',
   pruneRetentionRow:
-    '  {{label}} policy {{policy}}, {{rows}} row(s) {{rowsVerb}}, {{files}} file(s) {{filesVerb}}\n',
-  pruneOrphanFilesRow: '  orphan-files: {{count}} file(s) {{verb}}\n',
+    '  {{label}} policy {{policy}}, {{rows}} row(s) {{rowsVerb}}\n',
+  pruneContentsRow: '  content rows: {{count}} {{verb}}\n',
 
   pruneRowsVerbDryRun: 'would be deleted',
   pruneRowsVerbApply: 'deleted',
-  pruneFilesVerbDryRun: 'would be unlinked',
-  pruneFilesVerbApply: 'unlinked',
-  pruneOrphanFilesVerbDryRun: 'would be removed',
-  pruneOrphanFilesVerbApply: 'removed',
+  pruneContentsVerbDryRun: 'would be collected',
+  pruneContentsVerbApply: 'collected',
 
   pruneLabelCompleted: 'completed:',
   pruneLabelFailed: 'failed:   ',

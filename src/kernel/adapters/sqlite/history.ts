@@ -84,14 +84,16 @@ function executionToRow(exec: ExecutionRecord): Insertable<IStateExecutionsTable
 
 function projectExecutionOptionalAudit(
   exec: ExecutionRecord,
-): Pick<Insertable<IStateExecutionsTable>, 'contentHash' | 'failureReason' | 'exitCode' | 'runner' | 'durationMs' | 'reportPath' | 'jobId'> {
+): Pick<Insertable<IStateExecutionsTable>, 'contentHash' | 'failureReason' | 'exitCode' | 'runner' | 'durationMs' | 'reportJson' | 'jobId'> {
   return {
     contentHash: exec.contentHash ?? null,
     failureReason: exec.failureReason ?? null,
     exitCode: exec.exitCode ?? null,
     runner: exec.runner ?? null,
     durationMs: exec.durationMs ?? null,
-    reportPath: exec.reportPath ?? null,
+    // Domain `ExecutionRecord.reportPath` (per execution-record.schema.json)
+    // bridges to the `report_json` column under the DB-only job model.
+    reportJson: exec.reportPath ?? null,
     jobId: exec.jobId ?? null,
   };
 }
@@ -168,7 +170,7 @@ function rowToExecution(row: {
   durationMs: number | null;
   tokensIn: number | null;
   tokensOut: number | null;
-  reportPath: string | null;
+  reportJson: string | null;
   jobId: string | null;
 }): ExecutionRecord {
   return {
@@ -187,7 +189,10 @@ function rowToExecution(row: {
     durationMs: row.durationMs,
     tokensIn: row.tokensIn,
     tokensOut: row.tokensOut,
-    reportPath: row.reportPath,
+    // The `report_json` column maps back onto the legacy domain field
+    // `ExecutionRecord.reportPath` (schema rename to `report` is a later
+    // Step 10 sub-step; the field name is preserved for now).
+    reportPath: row.reportJson,
     jobId: row.jobId,
   };
 }

@@ -1,32 +1,27 @@
 /**
- * Step 7.3, `sm job prune` storage helpers + CLI command.
+ * `sm job prune`, retention GC storage helper + CLI command, DB-only model.
  *
  * Covers:
  *   1. `pruneTerminalJobs`, only deletes terminal jobs older than the
- *      cutoff; preserves running/queued; returns the right file paths.
- *   2. `selectReferencedJobFilePaths` + `findOrphanJobFiles`, DB
- *      returns the referenced set; the FS helper finds MD files in
- *      `.skill-map/jobs/` not referenced; tolerates missing dirs.
- *   3. `JobPruneCommand`, end-to-end with seeded DB + jobs dir:
- *      • empty DB → exit 0, zero counts.
- *      • retention policy applied, terminal jobs and files removed.
- *      • `--dry-run`, DB and FS untouched.
- *      • `--orphan-files`, orphans removed; referenced files preserved.
+ *      cutoff; preserves running/queued; collects orphaned
+ *      `state_job_contents` rows in the same transaction; preserves
+ *      content still referenced by a live job.
+ *   2. `JobPruneCommand`, end-to-end with a seeded DB:
+ *      • empty DB, exit 0, zero counts.
+ *      • retention policy applied, terminal jobs deleted and their now
+ *        orphaned content collected.
+ *      • `--dry-run`, DB untouched.
  *      • `--json` output shape.
  */
 
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
-import { strictEqual, ok, deepStrictEqual } from 'node:assert';
+import { join } from 'node:path';
+import { strictEqual, ok } from 'node:assert';
 import { after, before, describe, it } from 'node:test';
 
 import { SqliteStorageAdapter } from '../../adapters/sqlite/index.js';
-import {
-  pruneTerminalJobs,
-  selectReferencedJobFilePaths,
-} from '../../adapters/sqlite/jobs.js';
-import { findOrphanJobFiles } from '../orphan-files.js';
+import { pruneTerminalJobs } from '../../adapters/sqlite/jobs.js';
 import { JobPruneCommand } from '../../../cli/commands/jobs.js';
 
 let tempRoot: string;
@@ -62,16 +57,15 @@ function captureContext(): ICapturedContext {
 
 function freshScope(label: string): string {
   counter += 1;
-  const dir = join(tempRoot, `${label}-${counter}`);
-  mkdirSync(join(dir, '.skill-map', 'jobs'), { recursive: true });
-  return dir;
+  // The scope dir itself is created by `initDb` (the adapter mkdirs
+  // `<scope>/.skill-map/` on init); this only computes a unique path.
+  return join(tempRoot, `${label}-${counter}`);
 }
 
 interface ISeedJobOpts {
   id: string;
   status: 'queued' | 'running' | 'completed' | 'failed';
   finishedAt?: number | null;
-  filePath?: string | null;
   nodeId?: string;
   contentHash?: string;
 }
@@ -88,11 +82,26 @@ async function seedJob(adapter: SqliteStorageAdapter, opts: ISeedJobOpts): Promi
       nonce: `nonce-${opts.id}`,
       status: opts.status,
       ttlSeconds: 3600,
-      filePath: opts.filePath ?? null,
       createdAt: Date.now(),
       finishedAt: opts.finishedAt ?? null,
     })
     .execute();
+}
+
+async function seedContent(adapter: SqliteStorageAdapter, contentHash: string): Promise<void> {
+  await adapter.db
+    .insertInto('state_job_contents')
+    .values({ contentHash, content: `# ${contentHash}`, createdAt: Date.now() })
+    .execute();
+}
+
+async function contentHashes(adapter: SqliteStorageAdapter): Promise<string[]> {
+  const rows = await adapter.db
+    .selectFrom('state_job_contents')
+    .select('contentHash')
+    .orderBy('contentHash')
+    .execute();
+  return rows.map((r) => r.contentHash);
 }
 
 async function initDb(scope: string): Promise<SqliteStorageAdapter> {
@@ -121,7 +130,7 @@ describe('pruneTerminalJobs', () => {
     try {
       const result = await pruneTerminalJobs(adapter.db, 'completed', Date.now());
       strictEqual(result.deletedCount, 0);
-      strictEqual(result.filePaths.length, 0);
+      strictEqual(result.prunedContents, 0);
     } finally {
       await adapter.close();
     }
@@ -132,25 +141,21 @@ describe('pruneTerminalJobs', () => {
     const adapter = await initDb(scope);
     try {
       const now = Date.now();
-      // Old completed → should prune.
-      await seedJob(adapter, { id: 'old', status: 'completed', finishedAt: now - 60_000, filePath: '/tmp/old.md' });
-      // Recent completed → should NOT prune.
-      await seedJob(adapter, { id: 'fresh', status: 'completed', finishedAt: now - 1_000, filePath: '/tmp/fresh.md' });
-      // Failed → not in scope for the completed pass.
-      await seedJob(adapter, { id: 'failed', status: 'failed', finishedAt: now - 60_000, filePath: '/tmp/failed.md' });
-      // Running → never pruned.
+      // Old completed, should prune.
+      await seedJob(adapter, { id: 'old', status: 'completed', finishedAt: now - 60_000 });
+      // Recent completed, should NOT prune.
+      await seedJob(adapter, { id: 'fresh', status: 'completed', finishedAt: now - 1_000 });
+      // Failed, not in scope for the completed pass.
+      await seedJob(adapter, { id: 'failed', status: 'failed', finishedAt: now - 60_000 });
+      // Running, never pruned.
       await seedJob(adapter, { id: 'running', status: 'running' });
 
       const cutoff = now - 30_000;
       const result = await pruneTerminalJobs(adapter.db, 'completed', cutoff);
       strictEqual(result.deletedCount, 1);
-      deepStrictEqual(result.filePaths, ['/tmp/old.md']);
 
       const remaining = await adapter.db.selectFrom('state_jobs').select('id').orderBy('id').execute();
-      deepStrictEqual(
-        remaining.map((r) => r.id),
-        ['failed', 'fresh', 'running'],
-      );
+      strictEqual(remaining.map((r) => r.id).join(','), 'failed,fresh,running');
     } finally {
       await adapter.close();
     }
@@ -170,62 +175,49 @@ describe('pruneTerminalJobs', () => {
     }
   });
 
-  it('returns only non-null filePath values', async () => {
-    const scope = freshScope('prune-paths');
+  it('collects orphaned state_job_contents and keeps referenced content', async () => {
+    const scope = freshScope('prune-content-gc');
+    const adapter = await initDb(scope);
+    try {
+      // `h-keep` is referenced by a live (queued) job; `h-orphan` is
+      // referenced by nobody, so the prune sweep must collect it.
+      await seedContent(adapter, 'h-keep');
+      await seedContent(adapter, 'h-orphan');
+      await seedJob(adapter, { id: 'live', status: 'queued', contentHash: 'h-keep' });
+
+      const result = await pruneTerminalJobs(adapter.db, 'completed', Date.now());
+      strictEqual(result.deletedCount, 0, 'no terminal jobs to delete');
+      strictEqual(result.prunedContents, 1, 'the orphaned content row is collected');
+
+      strictEqual((await contentHashes(adapter)).join(','), 'h-keep');
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('collects the content a just-pruned terminal job orphaned', async () => {
+    const scope = freshScope('prune-content-cascade');
     const adapter = await initDb(scope);
     try {
       const now = Date.now();
-      await seedJob(adapter, { id: 'with-file', status: 'completed', finishedAt: now - 60_000, filePath: '/tmp/x.md' });
-      await seedJob(adapter, { id: 'no-file', status: 'completed', finishedAt: now - 60_000, filePath: null });
+      // The completed job's content is referenced ONLY by that job, so
+      // deleting the job orphans the content and the same transaction
+      // collects it.
+      await seedContent(adapter, 'h-expired');
+      await seedContent(adapter, 'h-shared');
+      await seedJob(adapter, {
+        id: 'expired',
+        status: 'completed',
+        finishedAt: now - 60_000,
+        contentHash: 'h-expired',
+      });
+      // A live job keeps `h-shared` around.
+      await seedJob(adapter, { id: 'live', status: 'queued', contentHash: 'h-shared' });
+
       const result = await pruneTerminalJobs(adapter.db, 'completed', now - 30_000);
-      strictEqual(result.deletedCount, 2);
-      deepStrictEqual(result.filePaths, ['/tmp/x.md']);
-    } finally {
-      await adapter.close();
-    }
-  });
-});
-
-// ---------------------------------------------------------------------------
-// orphan job files (selectReferencedJobFilePaths + findOrphanJobFiles)
-// ---------------------------------------------------------------------------
-
-describe('orphan job files', () => {
-  it('returns no orphans when the directory is missing', async () => {
-    const scope = freshScope('orphans-no-dir');
-    const adapter = await initDb(scope);
-    try {
-      const referenced = await selectReferencedJobFilePaths(adapter.db);
-      const result = findOrphanJobFiles(
-        join(scope, '.skill-map', 'jobs', 'missing-subdir'),
-        referenced,
-      );
-      strictEqual(result.orphanFilePaths.length, 0);
-      strictEqual(result.referencedCount, 0);
-    } finally {
-      await adapter.close();
-    }
-  });
-
-  it('flags MD files with no matching state_jobs row', async () => {
-    const scope = freshScope('orphans-detect');
-    const adapter = await initDb(scope);
-    const jobsDir = join(scope, '.skill-map', 'jobs');
-    try {
-      // Two files on disk; one referenced, one orphan.
-      const referencedPath = resolve(join(jobsDir, 'd-referenced.md'));
-      const orphanPath = resolve(join(jobsDir, 'd-orphan.md'));
-      writeFileSync(referencedPath, '# referenced');
-      writeFileSync(orphanPath, '# orphan');
-      // Non-MD entry, should be ignored.
-      writeFileSync(join(jobsDir, 'README.txt'), 'note');
-
-      await seedJob(adapter, { id: 'd-referenced', status: 'queued', filePath: referencedPath });
-
-      const referenced = await selectReferencedJobFilePaths(adapter.db);
-      const result = findOrphanJobFiles(jobsDir, referenced);
-      strictEqual(result.referencedCount, 1);
-      deepStrictEqual(result.orphanFilePaths, [orphanPath]);
+      strictEqual(result.deletedCount, 1);
+      strictEqual(result.prunedContents, 1);
+      strictEqual((await contentHashes(adapter)).join(','), 'h-shared');
     } finally {
       await adapter.close();
     }
@@ -238,19 +230,17 @@ describe('orphan job files', () => {
 
 interface IRunCmdOpts {
   cwd: string;
-  orphanFiles?: boolean;
   dryRun?: boolean;
   json?: boolean;
 }
 
 async function runPrune(opts: IRunCmdOpts): Promise<{ code: number; stdout: string; stderr: string }> {
   const cmd = new JobPruneCommand();
-  cmd.orphanFiles = opts.orphanFiles ?? false;
   cmd.dryRun = opts.dryRun ?? false;
   cmd.json = opts.json ?? false;
   // Seed inherited SmCommand flags so the verb does not see the
   // Clipanion Option descriptor objects when it resolves the DB path
-  // through `resolveDbPath({ global, db, ... })`.
+  // through `resolveDbPath({ db, ... })`.
   cmd.db = undefined;
   cmd.quiet = false;
   cmd.noColor = false;
@@ -269,7 +259,11 @@ async function runPrune(opts: IRunCmdOpts): Promise<{ code: number; stdout: stri
 describe('JobPruneCommand', () => {
   it('exits 5 (NotFound) with a clear message when the DB is missing', async () => {
     const scope = freshScope('cmd-no-db');
-    // Don't initDb, leave the DB absent.
+    // Don't initDb, leave the DB absent (but the scope dir must exist).
+    const adapter = await initDb(scope);
+    await adapter.close();
+    rmSync(join(scope, '.skill-map', 'skill-map.db'), { force: true });
+
     const result = await runPrune({ cwd: scope });
     strictEqual(result.code, 5);
     ok(result.stderr.includes('not found'));
@@ -286,31 +280,28 @@ describe('JobPruneCommand', () => {
     strictEqual(out.dryRun, false);
     strictEqual(out.retention.completed.deleted, 0);
     strictEqual(out.retention.failed.deleted, 0);
-    strictEqual(out.orphanFiles.scanned, false);
+    strictEqual(out.prunedContents, 0);
   });
 
-  it('prunes expired completed jobs and unlinks their files', async () => {
+  it('prunes expired completed jobs and collects their orphaned content', async () => {
     const scope = freshScope('cmd-prune-completed');
     const adapter = await initDb(scope);
-    const jobsDir = join(scope, '.skill-map', 'jobs');
-    const expiredFile = join(jobsDir, 'd-expired.md');
-    const recentFile = join(jobsDir, 'd-recent.md');
-    writeFileSync(expiredFile, 'expired');
-    writeFileSync(recentFile, 'recent');
 
     const now = Date.now();
+    await seedContent(adapter, 'h-expired');
+    await seedContent(adapter, 'h-recent');
     // 30d default = 2_592_000s. Push old completed past that boundary.
     await seedJob(adapter, {
       id: 'd-expired',
       status: 'completed',
       finishedAt: now - 31 * 86_400_000,
-      filePath: expiredFile,
+      contentHash: 'h-expired',
     });
     await seedJob(adapter, {
       id: 'd-recent',
       status: 'completed',
       finishedAt: now - 1 * 86_400_000,
-      filePath: recentFile,
+      contentHash: 'h-recent',
     });
     await adapter.close();
 
@@ -318,16 +309,15 @@ describe('JobPruneCommand', () => {
     strictEqual(result.code, 0);
     const out = JSON.parse(result.stdout);
     strictEqual(out.retention.completed.deleted, 1);
-    strictEqual(out.retention.completed.files, 1);
-    // Files: only the expired file should be gone.
-    strictEqual(existsSync(expiredFile), false);
-    strictEqual(existsSync(recentFile), true);
-    // DB: only the recent row remains.
+    strictEqual(out.prunedContents, 1, 'the expired job orphaned its content, collected');
+
+    // DB: only the recent row remains, and only its content survives.
     const adapter2 = await initDb(scope);
     try {
       const remaining = await adapter2.db.selectFrom('state_jobs').select('id').execute();
       strictEqual(remaining.length, 1);
       strictEqual(remaining[0]!.id, 'd-recent');
+      strictEqual((await contentHashes(adapter2)).join(','), 'h-recent');
     } finally {
       await adapter2.close();
     }
@@ -341,7 +331,6 @@ describe('JobPruneCommand', () => {
       id: 'd-old-failure',
       status: 'failed',
       finishedAt: now - 365 * 86_400_000,
-      filePath: null,
     });
     await adapter.close();
 
@@ -352,19 +341,17 @@ describe('JobPruneCommand', () => {
     strictEqual(out.retention.failed.deleted, 0);
   });
 
-  it('--dry-run leaves both DB and FS untouched', async () => {
+  it('--dry-run leaves the DB untouched', async () => {
     const scope = freshScope('cmd-dry-run');
     const adapter = await initDb(scope);
-    const jobsDir = join(scope, '.skill-map', 'jobs');
-    const file = join(jobsDir, 'd-old.md');
-    writeFileSync(file, 'old');
 
     const now = Date.now();
+    await seedContent(adapter, 'h-old');
     await seedJob(adapter, {
       id: 'd-old',
       status: 'completed',
       finishedAt: now - 31 * 86_400_000,
-      filePath: file,
+      contentHash: 'h-old',
     });
     await adapter.close();
 
@@ -373,99 +360,16 @@ describe('JobPruneCommand', () => {
     const out = JSON.parse(result.stdout);
     strictEqual(out.dryRun, true);
     strictEqual(out.retention.completed.deleted, 1, 'reports what WOULD be pruned');
-    strictEqual(existsSync(file), true, 'file survives dry-run');
+    strictEqual(out.prunedContents, 0, 'dry-run does not compute the content sweep');
 
     const adapter2 = await initDb(scope);
     try {
       const remaining = await adapter2.db.selectFrom('state_jobs').select('id').execute();
       strictEqual(remaining.length, 1, 'row survives dry-run');
+      strictEqual((await contentHashes(adapter2)).join(','), 'h-old', 'content survives dry-run');
     } finally {
       await adapter2.close();
     }
-  });
-
-  it('--orphan-files removes unreferenced MD files; preserves referenced', async () => {
-    const scope = freshScope('cmd-orphans');
-    const adapter = await initDb(scope);
-    const jobsDir = join(scope, '.skill-map', 'jobs');
-    const referenced = resolve(join(jobsDir, 'd-keep.md'));
-    const orphan = resolve(join(jobsDir, 'd-orphan.md'));
-    writeFileSync(referenced, 'keep');
-    writeFileSync(orphan, 'orphan');
-
-    await seedJob(adapter, { id: 'd-keep', status: 'queued', filePath: referenced });
-    await adapter.close();
-
-    const result = await runPrune({ cwd: scope, orphanFiles: true, json: true });
-    strictEqual(result.code, 0);
-    const out = JSON.parse(result.stdout);
-    strictEqual(out.orphanFiles.scanned, true);
-    strictEqual(out.orphanFiles.deleted, 1);
-    strictEqual(existsSync(orphan), false, 'orphan unlinked');
-    strictEqual(existsSync(referenced), true, 'referenced file preserved');
-  });
-
-  it('--orphan-files + --dry-run reports counts but unlinks nothing', async () => {
-    const scope = freshScope('cmd-orphans-dry');
-    const adapter = await initDb(scope);
-    const jobsDir = join(scope, '.skill-map', 'jobs');
-    const orphan = resolve(join(jobsDir, 'd-orphan.md'));
-    writeFileSync(orphan, 'orphan');
-    await adapter.close();
-
-    const result = await runPrune({ cwd: scope, orphanFiles: true, dryRun: true, json: true });
-    strictEqual(result.code, 0);
-    const out = JSON.parse(result.stdout);
-    strictEqual(out.dryRun, true);
-    strictEqual(out.orphanFiles.deleted, 1);
-    strictEqual(existsSync(orphan), true, 'dry-run leaves the orphan in place');
-  });
-
-  // Audit M2, `unlinkFiles` must refuse paths that do not stay inside
-  // `jobsDir`. A tampered `state_jobs.filePath` (e.g. `/etc/passwd`)
-  // would otherwise be unlinked. The verb skips-and-continues on a
-  // violation: the file stays, the row is still pruned by the DB
-  // pass, and the count reflects only the contained unlinks.
-  it('refuses to unlink filePaths that escape jobsDir (containment guard)', async () => {
-    const scope = freshScope('cmd-containment');
-    const adapter = await initDb(scope);
-    const jobsDir = join(scope, '.skill-map', 'jobs');
-    const insideFile = join(jobsDir, 'd-inside.md');
-    writeFileSync(insideFile, 'inside');
-    // Craft a "tampered" outside file. The verb must NOT unlink it.
-    const outsideFile = join(tempRoot, `cmd-containment-outside-sentinel-${Date.now()}.md`);
-    writeFileSync(outsideFile, 'i live outside jobsDir');
-
-    const now = Date.now();
-    await seedJob(adapter, {
-      id: 'd-inside',
-      status: 'completed',
-      finishedAt: now - 31 * 86_400_000,
-      filePath: insideFile,
-    });
-    await seedJob(adapter, {
-      id: 'd-tampered',
-      status: 'completed',
-      finishedAt: now - 31 * 86_400_000,
-      // Path escapes jobsDir, the row will be pruned (DB pass is
-      // unaffected) but `unlinkFiles` must skip the FS delete.
-      filePath: outsideFile,
-    });
-    await adapter.close();
-
-    const result = await runPrune({ cwd: scope, json: true });
-    strictEqual(result.code, 0);
-    const out = JSON.parse(result.stdout);
-    strictEqual(out.retention.completed.deleted, 2, 'both DB rows pruned');
-    strictEqual(out.retention.completed.files, 1, 'only the contained file unlinked');
-    strictEqual(existsSync(insideFile), false, 'contained file unlinked');
-    strictEqual(
-      existsSync(outsideFile),
-      true,
-      'outside file survives, the containment guard blocked the unlink',
-    );
-    // Cleanup the sentinel.
-    rmSync(outsideFile, { force: true });
   });
 
   it('pretty output names the policies and counts', async () => {
@@ -474,14 +378,11 @@ describe('JobPruneCommand', () => {
     await adapter.close();
     const result = await runPrune({ cwd: scope });
     strictEqual(result.code, 0);
-    // M1 wiring: human commentary routes through `printer.info` →
+    // M1 wiring: human commentary routes through `printer.info` ->
     // stderr; stdout is reserved for `--json` payloads.
     ok(result.stderr.includes('completed: policy 30d'));
     ok(result.stderr.includes('failed:'));
     ok(result.stderr.includes('policy never'));
+    ok(result.stderr.includes('content rows:'));
   });
 });
-
-// `readdirSync` is referenced by `findOrphanJobFiles`, keep the import
-// alive in case future tests need to inspect the raw entries.
-void readdirSync;

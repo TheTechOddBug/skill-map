@@ -151,12 +151,17 @@ CREATE TABLE state_jobs (
   failure_reason TEXT,
   runner TEXT,
   ttl_seconds INTEGER NOT NULL,
-  file_path TEXT,
   created_at INTEGER NOT NULL,
   claimed_at INTEGER,
   finished_at INTEGER,
   expires_at INTEGER,
   submitted_by TEXT,
+  -- The rendered job content is NOT stored on this row. It lives in
+  -- `state_job_contents` keyed by `content_hash` (see the table below);
+  -- there is no on-disk `.skill-map/jobs/*.md` artifact. `job-file-missing`
+  -- in the failure-reason CHECK is a legacy enum name preserved across the
+  -- disk-to-DB shift; it now means "the referenced `state_job_contents`
+  -- row is missing" (DB-corruption-only), not a missing file.
   CONSTRAINT ck_state_jobs_status CHECK (status IN ('queued','running','completed','failed')),
   CONSTRAINT ck_state_jobs_failure_reason CHECK (failure_reason IS NULL OR failure_reason IN ('runner-error','report-invalid','timeout','abandoned','job-file-missing','user-cancelled')),
   CONSTRAINT ck_state_jobs_runner CHECK (runner IS NULL OR runner IN ('cli','skill','in-process'))
@@ -167,6 +172,22 @@ CREATE INDEX ix_state_jobs_status ON state_jobs(status);
 CREATE UNIQUE INDEX ix_state_jobs_action_node_hash
   ON state_jobs(action_id, node_id, content_hash)
   WHERE status IN ('queued','running');
+
+-- Content-addressed store for the rendered MD content of every queued /
+-- completed job. Decouples content from the lifecycle row in `state_jobs`
+-- so retries / `--force` reruns / cross-node fan-out emissions of the same
+-- prompt all reference one blob (see spec/db-schema.md §state_job_contents).
+--
+-- Insertion is `INSERT OR IGNORE ... (content_hash, content, created_at)`,
+-- an existing row for the same hash is a no-op. The PK covers lookup by
+-- hash, no secondary index. GC contract: `sm job prune` deletes every row
+-- whose `content_hash` is referenced by zero `state_jobs` rows, in the
+-- same transaction that prunes terminal jobs.
+CREATE TABLE state_job_contents (
+  content_hash TEXT PRIMARY KEY,
+  content TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
 
 CREATE TABLE state_executions (
   id TEXT PRIMARY KEY,
@@ -184,7 +205,7 @@ CREATE TABLE state_executions (
   duration_ms INTEGER,
   tokens_in INTEGER,
   tokens_out INTEGER,
-  report_path TEXT,
+  report_json TEXT,
   job_id TEXT,
   CONSTRAINT ck_state_executions_kind CHECK (kind IN ('action')),
   CONSTRAINT ck_state_executions_status CHECK (status IN ('completed','failed','cancelled'))

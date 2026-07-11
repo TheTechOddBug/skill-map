@@ -275,8 +275,13 @@ export interface IIssueListResult {
 export interface IPruneResult {
   /** How many `state_jobs` rows were deleted (or would be, in dry-run). */
   deletedCount: number;
-  /** Job-file paths from the affected rows; the CLI unlinks these from disk. `null` `filePath` rows contribute nothing here. */
-  filePaths: string[];
+  /**
+   * How many orphaned `state_job_contents` rows were collected in the
+   * same transaction (content blobs referenced by zero surviving
+   * `state_jobs` rows). Always `0` for the `listTerminalCandidates`
+   * dry-run preview; the live `pruneTerminal` returns the real count.
+   */
+  prunedContents: number;
 }
 
 // --- history namespace -----------------------------------------------------

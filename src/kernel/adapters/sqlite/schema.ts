@@ -467,12 +467,33 @@ export interface IStateJobsTable {
   failureReason: TJobFailureReason | null;
   runner: TJobRunner | null;
   ttlSeconds: number;
-  filePath: string | null;
   createdAt: number;
   claimedAt: number | null;
   finishedAt: number | null;
   expiresAt: number | null;
   submittedBy: string | null;
+}
+
+/**
+ * Content-addressed store for the rendered MD content of every queued /
+ * completed job (`state_job_contents`). Keyed by `contentHash` (the same
+ * hash `state_jobs.contentHash` carries); the blob is stored once and
+ * refcounted by reference from `state_jobs`. There is no on-disk
+ * `.skill-map/jobs/*.md` artifact, the DB row is the canonical content.
+ *
+ *   - `content`, the fully-rendered job content (preamble + action
+ *     template + interpolated user content). NOT NULL.
+ *   - `createdAt`, wall-clock ms at first insert. `INSERT OR IGNORE`
+ *     keeps the earliest write; later submits of the same hash are no-ops.
+ *
+ * GC contract (see `spec/db-schema.md` §state_job_contents): `sm job
+ * prune` deletes every row whose `contentHash` is referenced by zero
+ * `state_jobs` rows, in the same transaction that prunes terminal jobs.
+ */
+export interface IStateJobContentsTable {
+  contentHash: string;
+  content: string;
+  createdAt: number;
 }
 
 export interface IStateExecutionsTable {
@@ -491,7 +512,15 @@ export interface IStateExecutionsTable {
   durationMs: number | null;
   tokensIn: number | null;
   tokensOut: number | null;
-  reportPath: string | null;
+  /**
+   * The report payload the runner returned, stored inline as JSON text
+   * (validated against the action's `reportSchemaRef` at ingest time).
+   * NULL when the execution produced no report. Maps to the
+   * `report_json` column; there is no on-disk report file. The domain
+   * `ExecutionRecord.reportPath` field (per `execution-record.schema.json`)
+   * bridges to this column in `history.ts`.
+   */
+  reportJson: string | null;
   jobId: string | null;
 }
 
@@ -579,6 +608,7 @@ export interface IDatabase {
   node_enrichments: INodeEnrichmentsTable;
 
   state_jobs: IStateJobsTable;
+  state_job_contents: IStateJobContentsTable;
   state_executions: IStateExecutionsTable;
   state_summaries: IStateSummariesTable;
   state_enrichments: IStateEnrichmentsTable;

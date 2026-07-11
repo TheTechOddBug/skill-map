@@ -53,6 +53,7 @@ import type {
   INodeCounts,
   INodeFilter,
   IPersistOptions,
+  IPruneResult,
 } from '../../types/storage.js';
 import type { Issue, Node, ScanResult } from '../../types.js';
 import { STORAGE_TEXTS } from '../../i18n/storage.texts.js';
@@ -68,7 +69,7 @@ import type {
   IListExecutionsFilter,
   THistoryStatsPeriod,
 } from './history.js';
-import { pruneTerminalJobs, selectReferencedJobFilePaths } from './jobs.js';
+import { pruneTerminalJobs } from './jobs.js';
 import {
   applyMigrations,
   discoverMigrations,
@@ -343,7 +344,6 @@ export class SqliteStorageAdapter implements StoragePort {
         pruneTerminalJobs(this.db, status, cutoffMs),
       listTerminalCandidates: (status, cutoffMs) =>
         listTerminalCandidates(this.db, status, cutoffMs),
-      listReferencedFilePaths: () => selectReferencedJobFilePaths(this.db),
     };
 
     this.favorites = {
@@ -834,28 +834,29 @@ async function upsertEnrichments(
 }
 
 /**
- * Read-only `state_jobs` filter mirroring the SELECT side of
+ * Read-only `state_jobs` count mirroring the DELETE side of
  * `pruneTerminalJobs`, `sm job prune --dry-run` consumes this so the
- * preview names exactly the rows the live mode would delete.
+ * preview reports exactly how many rows the live mode would delete.
+ *
+ * `prunedContents` is reported as `0` in the preview: the orphaned
+ * `state_job_contents` sweep only becomes computable AFTER the terminal
+ * jobs are actually gone, and predicting it across the two independent
+ * per-status passes is not worth the SQL complexity for a dry-run.
+ * The live path (`pruneTerminalJobs`) returns the real collected count.
  */
 async function listTerminalCandidates(
   db: Kysely<IDatabase>,
   status: 'completed' | 'failed',
   cutoffMs: number,
-): Promise<{ deletedCount: number; filePaths: string[] }> {
+): Promise<IPruneResult> {
   const rows = await db
     .selectFrom('state_jobs')
-    .select(['id', 'filePath'])
+    .select('id')
     .where('status', '=', status)
     .where('finishedAt', 'is not', null)
     .where('finishedAt', '<', cutoffMs)
     .execute();
-  return {
-    deletedCount: rows.length,
-    filePaths: rows
-      .map((r) => r.filePath)
-      .filter((p): p is string => p !== null),
-  };
+  return { deletedCount: rows.length, prunedContents: 0 };
 }
 
 async function setFavorite(db: Kysely<IDatabase>, path: string): Promise<void> {

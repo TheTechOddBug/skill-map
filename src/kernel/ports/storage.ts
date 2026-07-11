@@ -336,33 +336,29 @@ export interface StoragePort {
   // --- jobs namespace ----------------------------------------------------
   jobs: {
     /**
-     * Delete `state_jobs` rows in terminal `status` whose `finishedAt`
-     * is older than `cutoffMs` (Unix ms). Returns the deleted count
-     * plus every non-null `filePath` from the deleted rows so the
-     * caller can unlink the on-disk MD files. Caller computes
-     * `cutoffMs` from the configured retention.
+     * Retention GC, in one transaction: delete `state_jobs` rows in
+     * terminal `status` whose `finishedAt` is older than `cutoffMs`
+     * (Unix ms), then collect orphaned `state_job_contents` rows (every
+     * content blob referenced by zero surviving `state_jobs` rows).
+     * Returns the deleted job count plus the collected content-row count.
+     * Caller computes `cutoffMs` from the configured retention. Job
+     * content is DB-only (`state_job_contents`); there is no on-disk
+     * `.skill-map/jobs/*.md` artifact to unlink.
      */
     pruneTerminal(
       status: 'completed' | 'failed',
       cutoffMs: number,
     ): Promise<IPruneResult>;
     /**
-     * Same SELECT side as `pruneTerminal` but without the DELETE.
-     * Powers `sm job prune --dry-run` previews so the dry-run output
-     * names exactly the rows the live mode would delete.
+     * Read-only preview of `pruneTerminal` (no DELETE). Powers `sm job
+     * prune --dry-run` so the output reports how many rows the live mode
+     * would delete. `prunedContents` is `0` in the preview (see the
+     * adapter note).
      */
     listTerminalCandidates(
       status: 'completed' | 'failed',
       cutoffMs: number,
     ): Promise<IPruneResult>;
-    /**
-     * Read every `state_jobs.filePath` currently set, normalized through
-     * `path.resolve()`. The CLI's `sm job prune --orphan-files` flow
-     * pairs this set with `kernel/jobs/orphan-files.ts:findOrphanJobFiles`
-     * (which walks the directory) to compute the MD files on disk that
-     * no row references, keeps the storage layer FS-free.
-     */
-    listReferencedFilePaths(): Promise<Set<string>>;
   };
 
   // --- preferences namespace -------------------------------------------

@@ -105,9 +105,10 @@ export function defaultProjectDbPath(ctx: IRuntimeContext): string {
 }
 
 /**
- * Default project jobs directory (`<cwd>/.skill-map/jobs`). Used by the
- * `sm job prune` orphan-files pass and any other call site that needs
- * the project-scoped jobs spool.
+ * Default project jobs directory (`<cwd>/.skill-map/jobs`). Retained for
+ * call sites that still need the project-scoped jobs spool. Note: job
+ * CONTENT is DB-only (`state_job_contents`); `sm job prune` no longer
+ * walks this directory.
  */
 export function defaultProjectJobsDir(ctx: IRuntimeContext): string {
   return resolve(ctx.cwd, SKILL_MAP_DIR, JOBS_DIRNAME);
