@@ -1,5 +1,33 @@
 # Spec changelog
 
+## 0.80.0
+
+### Minor Changes
+
+- The antigravity activity adapter now maps a live MCP tool call to a PATH signal on the `mcp://<server>` node. Antigravity funnels every MCP call through a generic `call_mcp_tool` wrapper carrying the server in `toolCall.args.ServerName`, so the adapter reads that (not a `mcp__<server>__<tool>` name like Claude / Codex) and lights the same node `core/mcp-tools` draws from frontmatter. The `PreToolUse` matcher widens to `^(view_file|call_mcp_tool)$`; re-run the activity installer.
+
+  ## User-facing
+
+  Under the Antigravity lens, calling an MCP tool (like Notion) now lights its node on the map in real time, the same as Claude and Codex. Re-run the activity installer so the hook catches MCP calls.
+
+- OpenCode gains config-side MCP discovery: the opencode provider declares an `mcpConfig` source over `opencode.json`, and the JSON dialect now tolerates OpenCode's `mcp` top-level key plus its `type: remote/local` / `enabled` server shape (unlike Antigravity, OpenCode's MCP config is project-local and committable). So an `mcp://<server>` node materialises config-side from `opencode.json`, the same node `core/mcp-tools` draws from a skill's `tools:` frontmatter.
+
+  ## User-facing
+
+  Under the OpenCode lens, MCP servers declared in your project's `opencode.json` now appear on the map as `mcp://` nodes, even when no skill references them.
+
+- The opencode activity adapter now maps a live MCP tool call to a PATH signal on the `mcp://<server>` node, closing the last live-invocation gap. OpenCode names MCP tools `<server>_<tool>` in `input.tool` with no explicit marker (a Notion call arrives as `notion_notion-create-pages`), so the adapter reads the server as the prefix before the first `_` and lets the resolver drop non-`mcp://` misses. The plugin already forwards every `tool.execute.before`, so this needs no reinstall.
+
+  ## User-facing
+
+  Under the OpenCode lens, calling an MCP tool (like Notion) now lights its node on the map in real time, completing live MCP invocation for all four supported runtimes.
+
+- Virtual nodes (e.g. `mcp://<server>` derived from a skill's `tools:` frontmatter by `core/mcp-tools`) now survive a cached rescan. `scan_nodes` gains `virtual` + `derived_from_json` columns so a DB-loaded prior recognises synthetic nodes, and the walker carries them forward when their source is a cache hit (the source's extractor is skipped, so nothing re-emits the node). Previously such a node vanished on the first incremental / `sm serve` rescan even though its source still referenced it.
+
+  ## User-facing
+
+  An MCP node drawn from a skill's tool list (with no separate MCP config file, as under the Antigravity lens) no longer disappears from the map after the live watcher's first rescan.
+
 ## 0.79.0
 
 ### Minor Changes
