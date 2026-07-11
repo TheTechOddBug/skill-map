@@ -55,6 +55,7 @@ Contrato completo: [`spec/architecture.md`](./spec/architecture.md) §Execution 
 
 ## Filosofía
 
+- **Diseño hecho visible**: un arnés es algo que diseñas, no algo que solo se acumula. skill-map no lo diseña por ti; hace tu diseño visible y verificable, para que lo mantengas honesto a medida que crece.
 - **CLI-first**: todo lo que hace la UI se puede hacer en línea de comandos.
 - **Determinista por default**: el LLM es opcional, nunca requerido. El producto funciona offline.
 - **Estándar público**: el spec (JSON Schemas + conformance suite + contratos) vive en `spec/`. Cualquiera puede construir una UI alternativa, una implementación en otro lenguaje o tooling complementario consumiendo solo el spec.

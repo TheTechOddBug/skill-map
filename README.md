@@ -55,6 +55,7 @@ Full contract: [`spec/architecture.md`](./spec/architecture.md) §Execution mode
 
 ## Philosophy
 
+- **Design made visible**, a harness is something you design, not something that just accumulates. skill-map doesn't design it for you; it makes your design visible and verifiable, so you can keep it honest as it grows.
 - **CLI-first**, everything the UI does is reachable from the command line.
 - **Deterministic by default**, the LLM is optional, never required. The product works offline.
 - **Public standard**, the spec (JSON Schemas + conformance suite + contracts) lives in `spec/`. Anyone can build an alternative UI, an implementation in another language, or complementary tooling consuming only the spec.
