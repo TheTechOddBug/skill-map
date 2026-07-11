@@ -163,6 +163,18 @@ Uninstall (that means installed; if it offers Install, install it
 again), and (4) check the topbar Real Time toggle (the pulse icon) is
 on.
 
+Then close the glow demo with a forward-pointing note. This portfolio
+uses no MCP, so this is "what you'll see in your own projects", not
+something on the map right now:
+
+> One more thing worth knowing, even though this demo doesn't use one:
+> **MCP servers light up the same way.** If your <provider> has an MCP
+> configured (a Notion server, a docs server, anything), the moment
+> your agent calls one of its tools skill-map pulses that server's
+> `mcp://` node exactly like the nodes you just watched, same hook,
+> same glow, nothing extra to wire. You won't see it here, but in a
+> real project every MCP call is on the map the instant it fires.
+
 Mark `live`: done.
 
 ## Chapter `conversations` - Capture agent conversations (opt-in) (~3 min)
