@@ -159,42 +159,8 @@ export class ActionsShowCommand extends StubCommand {
 // implementations land in `cli/commands/jobs.ts`
 // (which already hosts `sm job prune`).
 
-export class JobSubmitCommand extends StubCommand {
-  static override paths = [['job', 'submit']];
-  static override usage = Command.Usage({
-    category: 'Jobs',
-    description: planned('Enqueue a single job or fan out to every matching node (--all).'),
-  });
-  action = Option.String({ required: true });
-  node = Option.String('-n', { required: false });
-  all = Option.Boolean('--all', false);
-  // CLI flag stays `--run`; field name is `runFlag` per the
-  // shadow-avoidance convention documented on `SmCommand`.
-  runFlag = Option.Boolean('--run', false);
-  force = Option.Boolean('--force', false);
-  ttl = Option.String('--ttl', { required: false });
-  priority = Option.String('--priority', { required: false });
-
-  protected override readonly verbName = 'job submit';
-}
-
-export class JobListCommand extends StubCommand {
-  static override paths = [['job', 'list']];
-  static override usage = Command.Usage({ category: 'Jobs', description: planned('List jobs.') });
-  status = Option.String('--status', { required: false });
-  action = Option.String('--action', { required: false });
-  node = Option.String('--node', { required: false });
-
-  protected override readonly verbName = 'job list';
-}
-
-export class JobShowCommand extends StubCommand {
-  static override paths = [['job', 'show']];
-  static override usage = Command.Usage({ category: 'Jobs', description: planned('Job detail: state, claim time, TTL, runner, content hash.') });
-  id = Option.String({ required: true });
-
-  protected override readonly verbName = 'job show';
-}
+// JobSubmitCommand / JobListCommand / JobShowCommand moved to
+// ./job-queue.ts (lands real in Step 10, queue infrastructure).
 
 export class JobPreviewCommand extends StubCommand {
   static override paths = [['job', 'preview']];
@@ -298,9 +264,6 @@ export const STUB_COMMANDS = [
   FindingsCommand,
   ActionsListCommand,
   ActionsShowCommand,
-  JobSubmitCommand,
-  JobListCommand,
-  JobShowCommand,
   JobPreviewCommand,
   JobClaimCommand,
   JobRunCommand,

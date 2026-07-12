@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.ai/spec/v0/test/skill-echo-report.schema.json",
+  "title": "SkillEchoReport",
+  "description": "Test-only report shape for the skill-echo probabilistic action. Extends report-base so it carries the mandatory safety + confidence fields.",
+  "allOf": [{ "$ref": "https://skill-map.ai/spec/v0/report-base.schema.json" }],
+  "type": "object",
+  "properties": {
+    "summary": {
+      "type": "string",
+      "description": "One-sentence summary of the node body."
+    }
+  },
+  "required": ["summary"]
+}

@@ -69,7 +69,13 @@ import type {
   IListExecutionsFilter,
   THistoryStatsPeriod,
 } from './history.js';
-import { pruneTerminalJobs } from './jobs.js';
+import {
+  findActiveDuplicate,
+  getJob,
+  listJobs,
+  pruneTerminalJobs,
+  submitJob,
+} from './jobs.js';
 import {
   applyMigrations,
   discoverMigrations,
@@ -340,6 +346,11 @@ export class SqliteStorageAdapter implements StoragePort {
     };
 
     this.jobs = {
+      submit: (row, content) => submitJob(this.db, row, content),
+      findActiveDuplicate: (actionId, actionVersion, nodeId, contentHash) =>
+        findActiveDuplicate(this.db, actionId, actionVersion, nodeId, contentHash),
+      list: (filter) => listJobs(this.db, filter),
+      get: (id) => getJob(this.db, id),
       pruneTerminal: (status, cutoffMs) =>
         pruneTerminalJobs(this.db, status, cutoffMs),
       listTerminalCandidates: (status, cutoffMs) =>

@@ -24,6 +24,7 @@ import type {
   ExecutionRecord,
   HistoryStats,
   Issue,
+  Job,
   Node,
   ScanResult,
 } from '../types.js';
@@ -44,6 +45,9 @@ import type {
   IIssueListFilter,
   IIssueListResult,
   IIssueRow,
+  IJobContentInput,
+  IJobListFilter,
+  IJobSubmitRow,
   IListExecutionsFilter,
   ILiteNode,
   IMigrateNodeFksReport,
@@ -336,6 +340,31 @@ export interface StoragePort {
   // --- jobs namespace ----------------------------------------------------
   jobs: {
     /**
+     * Submit a job: `INSERT OR IGNORE` the rendered content into
+     * `state_job_contents` then insert the `state_jobs` lifecycle row
+     * (`status = 'queued'`), both in ONE transaction (content row first).
+     * Returns the inserted job id. The `state_jobs` insert may throw a
+     * UNIQUE-constraint error from `ix_state_jobs_action_node_hash` when a
+     * matching queued/running job already exists (the hard duplicate
+     * backstop); the CLI maps that to exit 3.
+     */
+    submit(row: IJobSubmitRow, content: IJobContentInput): Promise<string>;
+    /**
+     * Duplicate pre-check: id of any `queued`/`running` job matching
+     * `(actionId, actionVersion, nodeId, contentHash)`, else `null`. The
+     * soft gate `sm job submit` runs before insert (skipped by `--force`).
+     */
+    findActiveDuplicate(
+      actionId: string,
+      actionVersion: string,
+      nodeId: string,
+      contentHash: string,
+    ): Promise<string | null>;
+    /** Filtered job list for `sm job list`, newest-first. */
+    list(filter: IJobListFilter): Promise<Job[]>;
+    /** Full job by id for `sm job show`, or `null` when absent. */
+    get(id: string): Promise<Job | null>;
+    /**
      * Retention GC, in one transaction: delete `state_jobs` rows in
      * terminal `status` whose `finishedAt` is older than `cutoffMs`
      * (Unix ms), then collect orphaned `state_job_contents` rows (every
@@ -504,6 +533,9 @@ export type {
   IHistoryStatsRange,
   IIssueIncidenceCount,
   IIssueRow,
+  IJobContentInput,
+  IJobListFilter,
+  IJobSubmitRow,
   IListExecutionsFilter,
   ILiteNode,
   IMigrateNodeFksReport,

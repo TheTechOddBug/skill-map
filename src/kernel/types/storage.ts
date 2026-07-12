@@ -12,6 +12,7 @@
 import type {
   ExecutionStatus,
   Issue,
+  JobStatus,
   Link,
   Node,
 } from '../types.js';
@@ -282,6 +283,51 @@ export interface IPruneResult {
    * dry-run preview; the live `pruneTerminal` returns the real count.
    */
   prunedContents: number;
+}
+
+/**
+ * Content row inserted into `state_job_contents` at submit time via
+ * `INSERT OR IGNORE`. Keyed by `contentHash`; a second submit of the same
+ * hash is a no-op (the blob is stored once, refcounted by reference).
+ */
+export interface IJobContentInput {
+  contentHash: string;
+  content: string;
+  createdAt: number;
+}
+
+/**
+ * The `state_jobs` row values a submit provides. Lifecycle-null columns
+ * (`failureReason` / `runner` / `claimedAt` / `finishedAt` / `expiresAt`)
+ * are filled by the adapter; the caller supplies only the frozen-at-submit
+ * fields. `status` is `queued` for every real submit but stays typed for
+ * reuse.
+ */
+export interface IJobSubmitRow {
+  id: string;
+  actionId: string;
+  actionVersion: string;
+  nodeId: string;
+  contentHash: string;
+  nonce: string;
+  priority: number;
+  status: JobStatus;
+  ttlSeconds: number;
+  createdAt: number;
+  submittedBy?: string | null;
+}
+
+/**
+ * Filter for `port.jobs.list(...)` (drives `sm job list`). All optional;
+ * an empty filter returns every job, newest first. `actionId` matches the
+ * stored (qualified) id exactly OR by bare-id suffix, mirroring the
+ * analyzer-filter semantics so `--action skill-summarizer` finds
+ * `core/skill-summarizer`.
+ */
+export interface IJobListFilter {
+  status?: JobStatus;
+  actionId?: string;
+  nodeId?: string;
 }
 
 // --- history namespace -----------------------------------------------------

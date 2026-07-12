@@ -28,12 +28,161 @@
  * is gone.
  */
 
-import type { Kysely } from 'kysely';
+import type { Kysely, Selectable } from 'kysely';
 
-import type { IDatabase } from './schema.js';
-import type { IPruneResult } from '../../types/storage.js';
+import type { IDatabase, IStateJobsTable } from './schema.js';
+import type { Job } from '../../types.js';
+import type {
+  IJobContentInput,
+  IJobListFilter,
+  IJobSubmitRow,
+  IPruneResult,
+} from '../../types/storage.js';
 
 export type { IPruneResult } from '../../types/storage.js';
+
+/** The queued/running statuses the duplicate pre-check and index cover. */
+const ACTIVE_STATUSES = ['queued', 'running'] as const;
+
+/** Map a `state_jobs` row to the domain `Job` shape. */
+function rowToJob(row: Selectable<IStateJobsTable>): Job {
+  return {
+    id: row.id,
+    actionId: row.actionId,
+    actionVersion: row.actionVersion,
+    nodeId: row.nodeId,
+    contentHash: row.contentHash,
+    nonce: row.nonce,
+    priority: row.priority,
+    status: row.status,
+    failureReason: row.failureReason,
+    runner: row.runner,
+    ttlSeconds: row.ttlSeconds,
+    createdAt: row.createdAt,
+    claimedAt: row.claimedAt,
+    finishedAt: row.finishedAt,
+    expiresAt: row.expiresAt,
+    submittedBy: row.submittedBy,
+  };
+}
+
+/**
+ * Submit a job: store its rendered content then insert the lifecycle row,
+ * both inside ONE transaction (per `spec/job-lifecycle.md` §Submit steps
+ * 8-9). The content row is written FIRST via `INSERT OR IGNORE` so the
+ * `state_jobs.content_hash -> state_job_contents.content_hash` reference is
+ * always satisfiable; a second submit of the same hash reuses the existing
+ * blob. Returns the inserted job id.
+ *
+ * The insert into `state_jobs` may throw a UNIQUE-constraint error from the
+ * partial index `ix_state_jobs_action_node_hash` when a matching
+ * queued/running job already exists (the hard backstop `--force` cannot
+ * defeat); callers surface that as the duplicate-conflict exit (3).
+ */
+export async function submitJob(
+  db: Kysely<IDatabase>,
+  row: IJobSubmitRow,
+  content: IJobContentInput,
+): Promise<string> {
+  await db.transaction().execute(async (trx) => {
+    await trx
+      .insertInto('state_job_contents')
+      .values({
+        contentHash: content.contentHash,
+        content: content.content,
+        createdAt: content.createdAt,
+      })
+      .onConflict((oc) => oc.column('contentHash').doNothing())
+      .execute();
+
+    await trx
+      .insertInto('state_jobs')
+      .values({
+        id: row.id,
+        actionId: row.actionId,
+        actionVersion: row.actionVersion,
+        nodeId: row.nodeId,
+        contentHash: row.contentHash,
+        nonce: row.nonce,
+        priority: row.priority,
+        status: row.status,
+        ttlSeconds: row.ttlSeconds,
+        createdAt: row.createdAt,
+        failureReason: null,
+        runner: null,
+        claimedAt: null,
+        finishedAt: null,
+        expiresAt: null,
+        submittedBy: row.submittedBy ?? null,
+      })
+      .execute();
+  });
+  return row.id;
+}
+
+/**
+ * Duplicate pre-check (`spec/job-lifecycle.md` §Submit step 4): return the
+ * id of any existing `queued`/`running` job matching
+ * `(actionId, actionVersion, nodeId, contentHash)`, else `null`. This is
+ * the soft gate `--force` skips; the unique partial index remains the hard
+ * invariant that keeps a second live duplicate off the table.
+ */
+export async function findActiveDuplicate(
+  db: Kysely<IDatabase>,
+  actionId: string,
+  actionVersion: string,
+  nodeId: string,
+  contentHash: string,
+): Promise<string | null> {
+  const row = await db
+    .selectFrom('state_jobs')
+    .select('id')
+    .where('actionId', '=', actionId)
+    .where('actionVersion', '=', actionVersion)
+    .where('nodeId', '=', nodeId)
+    .where('contentHash', '=', contentHash)
+    .where('status', 'in', ACTIVE_STATUSES as unknown as string[] as never)
+    .limit(1)
+    .executeTakeFirst();
+  return row?.id ?? null;
+}
+
+/**
+ * List jobs for `sm job list`, filtered and ordered newest-first
+ * (`created_at DESC`) for display. `actionId` matches the stored qualified
+ * id exactly OR by bare-id suffix (`%/<id>`), mirroring the analyzer-filter
+ * semantics so a short id finds its qualified row.
+ */
+export async function listJobs(
+  db: Kysely<IDatabase>,
+  filter: IJobListFilter,
+): Promise<Job[]> {
+  let query = db.selectFrom('state_jobs').selectAll();
+  if (filter.status !== undefined) {
+    query = query.where('status', '=', filter.status);
+  }
+  if (filter.actionId !== undefined) {
+    const token = filter.actionId;
+    query = query.where(({ eb, or }) =>
+      or([eb('actionId', '=', token), eb('actionId', 'like', `%/${token}`)]),
+    );
+  }
+  if (filter.nodeId !== undefined) {
+    query = query.where('nodeId', '=', filter.nodeId);
+  }
+  const rows = await query.orderBy('createdAt', 'desc').orderBy('id', 'desc').execute();
+  return rows.map(rowToJob);
+}
+
+/** Full job row by id, or `null` when absent (drives `sm job show`). */
+export async function getJob(db: Kysely<IDatabase>, id: string): Promise<Job | null> {
+  const row = await db
+    .selectFrom('state_jobs')
+    .selectAll()
+    .where('id', '=', id)
+    .executeTakeFirst();
+  return row ? rowToJob(row) : null;
+}
 
 /**
  * Delete terminal `state_jobs` rows past the cutoff and GC orphaned

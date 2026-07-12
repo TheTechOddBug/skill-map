@@ -613,6 +613,44 @@ export interface ExecutionRecord {
   jobId?: string | null;
 }
 
+export type JobStatus = 'queued' | 'running' | 'completed' | 'failed';
+export type JobFailureReason =
+  | 'runner-error'
+  | 'report-invalid'
+  | 'timeout'
+  | 'abandoned'
+  | 'job-file-missing'
+  | 'user-cancelled';
+export type JobRunner = 'cli' | 'skill' | 'in-process';
+
+/**
+ * One row of the job queue (`state_jobs`). Matches
+ * `spec/schemas/job.schema.json`; the runtime instance of an `Action`
+ * applied to one `Node`, moving through the `spec/job-lifecycle.md` state
+ * machine exactly once. The rendered content is NOT on this shape, it
+ * lives in `state_job_contents` keyed by `contentHash`.
+ */
+export interface Job {
+  /** `d-YYYYMMDD-HHMMSS-XXXX`, human-readable + sortable. */
+  id: string;
+  actionId: string;
+  actionVersion: string;
+  /** Target `node.path`. */
+  nodeId: string;
+  contentHash: string;
+  nonce: string;
+  priority: number;
+  status: JobStatus;
+  failureReason?: JobFailureReason | null;
+  runner?: JobRunner | null;
+  ttlSeconds: number;
+  createdAt: number;
+  claimedAt?: number | null;
+  finishedAt?: number | null;
+  expiresAt?: number | null;
+  submittedBy?: string | null;
+}
+
 export interface HistoryStatsTotals {
   executionsCount: number;
   completedCount: number;
