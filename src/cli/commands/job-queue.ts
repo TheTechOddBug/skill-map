@@ -53,6 +53,7 @@ import {
   renderJobContent,
   resolvePriority,
   resolveTtl,
+  unescapeUserContentClose,
 } from '../../kernel/jobs/index.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
@@ -686,5 +687,49 @@ export class JobShowCommand extends SmCommand {
   }
 }
 
+export class JobPreviewCommand extends SmCommand {
+  static override paths = [['job', 'preview']];
+  static override usage = Command.Usage({
+    category: 'Jobs',
+    description: 'Print the rendered content of a queued job without executing it (reads from state_job_contents; no on-disk artifact).',
+  });
+
+  id = Option.String({ required: true });
+
+  protected async run(): Promise<number> {
+    const ctx = defaultRuntimeContext();
+    const dbPath = resolveDbPath({ db: this.db, ...ctx });
+    const dbExit = requireDbOrExit(dbPath, this.context.stderr);
+    if (dbExit !== null) return dbExit;
+
+    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
+      const job = await adapter.jobs.get(this.id);
+      if (!job) {
+        this.printer!.error(
+          tx(T.previewErrNotFound, { glyph: this.ansiFor('stderr').red('✕'), id: this.id }),
+        );
+        return ExitCode.NotFound;
+      }
+      const content = await adapter.jobs.getContent(job.contentHash);
+      if (content === null) {
+        this.printer!.error(
+          tx(T.previewErrContentMissing, { glyph: this.ansiFor('stderr').red('✕'), id: this.id }),
+        );
+        return ExitCode.NotFound;
+      }
+      // Reverse the display-only close-tag neutralisation. This is done ONLY
+      // for showing the content to a human, NEVER before hashing (the stored
+      // blob keeps the escaped form so `contentHash` stays stable).
+      this.printer!.data(unescapeUserContentClose(content));
+      return ExitCode.Ok;
+    });
+  }
+}
+
 /** Aggregate export so `entry.ts` registers the queue verbs in one line. */
-export const JOB_QUEUE_COMMANDS = [JobSubmitCommand, JobListCommand, JobShowCommand];
+export const JOB_QUEUE_COMMANDS = [
+  JobSubmitCommand,
+  JobListCommand,
+  JobShowCommand,
+  JobPreviewCommand,
+];

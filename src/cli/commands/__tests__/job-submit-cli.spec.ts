@@ -23,8 +23,9 @@ import { after, before, describe, it } from 'node:test';
 
 import type { BaseContext } from 'clipanion';
 
-import { JobSubmitCommand, JobListCommand, JobShowCommand } from '../job-queue.js';
+import { JobSubmitCommand, JobListCommand, JobShowCommand, JobPreviewCommand } from '../job-queue.js';
 import { SqliteStorageAdapter } from '../../../kernel/adapters/sqlite/index.js';
+import { loadCanonicalPreamble } from '../../../kernel/jobs/index.js';
 
 const FIXTURE = fileURLToPath(new URL('./fixtures/prob-summarizer', import.meta.url));
 const PLUGIN_ID = 'prob-summarizer';
@@ -372,6 +373,43 @@ describe('sm job list / show', () => {
     const missingCode = await withCwd(proj.root, async () => {
       const cap = captureContext();
       const cmd = new JobShowCommand();
+      cmd.id = 'd-20990101-000000-ffff';
+      cmd.json = false;
+      cmd.db = undefined;
+      return run(cmd, cap);
+    });
+    strictEqual(missingCode, 5);
+  });
+});
+
+describe('sm job preview', () => {
+  it('prints the rendered content (preamble verbatim + user-content block); missing id exits 5', async () => {
+    const proj = await setupProject([SKILL]);
+    const id = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      await run(buildSubmit({ action: ACTION_ID, node: SKILL.path }), cap);
+      return cap.stdout().trim();
+    });
+
+    const previewCode = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const cmd = new JobPreviewCommand();
+      cmd.id = id;
+      cmd.json = false;
+      cmd.db = undefined;
+      const c = await run(cmd, cap);
+      const out = cap.stdout();
+      // The canonical preamble appears byte-for-byte: this is exactly what
+      // the deferred `preamble-bitwise-match` conformance case asserts.
+      ok(out.includes(loadCanonicalPreamble()), 'preamble present verbatim');
+      ok(out.includes(`<user-content id="${SKILL.path}">`), 'user-content block present');
+      return c;
+    });
+    strictEqual(previewCode, 0);
+
+    const missingCode = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const cmd = new JobPreviewCommand();
       cmd.id = 'd-20990101-000000-ffff';
       cmd.json = false;
       cmd.db = undefined;

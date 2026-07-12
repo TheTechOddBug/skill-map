@@ -365,6 +365,12 @@ export interface StoragePort {
     /** Full job by id for `sm job show`, or `null` when absent. */
     get(id: string): Promise<Job | null>;
     /**
+     * Rendered content blob for a job's `contentHash` (from
+     * `state_job_contents`), or `null` when the content row is absent (the
+     * DB-corruption-only `job-file-missing` state). Powers `sm job preview`.
+     */
+    getContent(contentHash: string): Promise<string | null>;
+    /**
      * Retention GC, in one transaction: delete `state_jobs` rows in
      * terminal `status` whose `finishedAt` is older than `cutoffMs`
      * (Unix ms), then collect orphaned `state_job_contents` rows (every

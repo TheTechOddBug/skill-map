@@ -50,4 +50,8 @@ export const JOBS_QUEUE_TEXTS = {
     '  finishedAt   {{finishedAt}}\n' +
     '  runner       {{runner}}\n',
   showValueNone: '(none)',
+
+  previewErrNotFound: '{{glyph}}  sm job preview: job {{id}} not found\n',
+  previewErrContentMissing:
+    '{{glyph}}  sm job preview: job {{id}} has no stored content (state_job_contents row missing)\n',
 } as const;

@@ -72,6 +72,7 @@ import type {
 import {
   findActiveDuplicate,
   getJob,
+  getJobContent,
   listJobs,
   pruneTerminalJobs,
   submitJob,
@@ -351,6 +352,7 @@ export class SqliteStorageAdapter implements StoragePort {
         findActiveDuplicate(this.db, actionId, actionVersion, nodeId, contentHash),
       list: (filter) => listJobs(this.db, filter),
       get: (id) => getJob(this.db, id),
+      getContent: (contentHash) => getJobContent(this.db, contentHash),
       pruneTerminal: (status, cutoffMs) =>
         pruneTerminalJobs(this.db, status, cutoffMs),
       listTerminalCandidates: (status, cutoffMs) =>

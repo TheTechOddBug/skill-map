@@ -162,14 +162,6 @@ export class ActionsShowCommand extends StubCommand {
 // JobSubmitCommand / JobListCommand / JobShowCommand moved to
 // ./job-queue.ts (lands real in Step 10, queue infrastructure).
 
-export class JobPreviewCommand extends StubCommand {
-  static override paths = [['job', 'preview']];
-  static override usage = Command.Usage({ category: 'Jobs', description: planned('Render the job MD file without executing.') });
-  id = Option.String({ required: true });
-
-  protected override readonly verbName = 'job preview';
-}
-
 export class JobClaimCommand extends StubCommand {
   static override paths = [['job', 'claim']];
   static override usage = Command.Usage({
@@ -264,7 +256,6 @@ export const STUB_COMMANDS = [
   FindingsCommand,
   ActionsListCommand,
   ActionsShowCommand,
-  JobPreviewCommand,
   JobClaimCommand,
   JobRunCommand,
   JobStatusCommand,

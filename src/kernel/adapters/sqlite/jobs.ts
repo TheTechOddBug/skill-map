@@ -228,3 +228,22 @@ export async function pruneTerminalJobs(
     return { deletedCount, prunedContents };
   });
 }
+
+/**
+ * Fetch the rendered content blob for `contentHash` from
+ * `state_job_contents`, or `null` when absent. `sm job preview` resolves a
+ * job's `content_hash` through this; a `null` result means the content row
+ * is missing (the DB-corruption-only `job-file-missing` state, since submit
+ * and prune keep `state_jobs` and `state_job_contents` consistent).
+ */
+export async function getJobContent(
+  db: Kysely<IDatabase>,
+  contentHash: string,
+): Promise<string | null> {
+  const row = await db
+    .selectFrom('state_job_contents')
+    .select('content')
+    .where('contentHash', '=', contentHash)
+    .executeTakeFirst();
+  return row?.content ?? null;
+}
