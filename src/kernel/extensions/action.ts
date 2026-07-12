@@ -19,6 +19,16 @@
  * The `reportSchemaRef` / `promptTemplateRef` manifest fields were retired
  * with the same refactor.
  *
+ * **Built-in inlined siblings**: an on-disk plugin has a source directory
+ * at runtime, so the kernel reads `prompt.md` / `report.schema.json` off
+ * disk. A BUILT-IN Action bundles into `src/plugins/built-ins.ts` as a plain
+ * manifest object with no source directory, so the built-ins codegen
+ * (`scripts/generate-built-ins.js`) reads those sibling files at build time
+ * and inlines their content onto the manifest as `promptTemplate` (the
+ * `prompt.md` text) and `reportSchema` (the parsed `report.schema.json`).
+ * These two fields are the built-in equivalent of the on-disk files; they
+ * are absent on on-disk plugins.
+ *
  * **`prob*` prefix convention**: manifest fields that only apply when
  * `mode=probabilistic` start with `prob`. Today only
  * `probExpectedDurationSeconds` follows this convention.
@@ -156,6 +166,23 @@ export interface IAction extends IExtensionBase {
    * Optional declarative filter; absent → applies to every node.
    */
   precondition?: IActionPrecondition;
+  /**
+   * Inlined prompt template for a BUILT-IN probabilistic Action. Populated
+   * by the built-ins codegen (`scripts/generate-built-ins.js`) from the
+   * Action's sibling `prompt.md` at build time; it is the built-in
+   * equivalent of the on-disk `prompt.md` a user plugin resolves from its
+   * source directory. Absent on on-disk plugins (which read `prompt.md`
+   * from disk) and on deterministic Actions (which ship no prompt).
+   */
+  promptTemplate?: string;
+  /**
+   * Inlined report schema for a BUILT-IN probabilistic Action. Populated by
+   * the built-ins codegen from the Action's sibling `report.schema.json`
+   * (parsed to an object at build time); the built-in equivalent of the
+   * on-disk `report.schema.json` a user plugin resolves from its source
+   * directory. Absent on on-disk plugins.
+   */
+  reportSchema?: Record<string, unknown>;
   /**
    * Deterministic invocation entry point. Optional on the runtime
    * contract until the job subsystem ships; Actions that ship for the

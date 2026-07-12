@@ -329,17 +329,23 @@ export class JobSubmitCommand extends SmCommand {
   ): ISubmitContext | TExitCode {
     const actionId = qualifiedExtensionId(action.pluginId, action.id);
     const dir = runtime.dirByAction.get(actionId);
-    if (dir === undefined) {
+    let promptTemplate: string;
+    if (dir !== undefined) {
+      // On-disk plugin: resolve prompt.md from the action's source dir.
+      try {
+        promptTemplate = readFileSync(join(dir, 'prompt.md'), 'utf8');
+      } catch (err) {
+        return this.fail(
+          tx(T.submitErrPromptUnresolved, { action: this.action, detail: formatErrorMessage(err) }),
+        );
+      }
+    } else if (typeof action.promptTemplate === 'string') {
+      // Built-in probabilistic action: no source dir at runtime, the
+      // built-ins codegen inlined prompt.md onto the manifest.
+      promptTemplate = action.promptTemplate;
+    } else {
       return this.fail(
         tx(T.submitErrPromptUnresolved, { action: this.action, detail: 'no source directory' }),
-      );
-    }
-    let promptTemplate: string;
-    try {
-      promptTemplate = readFileSync(join(dir, 'prompt.md'), 'utf8');
-    } catch (err) {
-      return this.fail(
-        tx(T.submitErrPromptUnresolved, { action: this.action, detail: formatErrorMessage(err) }),
       );
     }
     const preamble = loadCanonicalPreamble();

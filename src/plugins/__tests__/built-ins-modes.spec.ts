@@ -120,6 +120,7 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     assert.equal(qualifiedByKindAndShort.get('action:node-bump'), 'core/node-bump');
     assert.equal(qualifiedByKindAndShort.get('action:node-set-stability'), 'core/node-set-stability');
     assert.equal(qualifiedByKindAndShort.get('action:node-set-tags'), 'core/node-set-tags');
+    assert.equal(qualifiedByKindAndShort.get('action:markdown-summarizer'), 'core/markdown-summarizer');
   });
 
   // Tests for `analyzer.recommendedActions` were retired with the
@@ -168,7 +169,8 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // `core/backtick-slash` (its `/command` sibling, same code-region domain and resolution gate, lens-gated claude / antigravity / opencode like the prose slash) brings it to 38.
     // `codex/backtick-dollar` (the `$skill` sibling completing the per-provider code-region trigger family, codex-only like the prose dollar) brings it to 39.
     // `core/name-mismatch` (analyzer that flags a declared `frontmatter.name` diverging from the node's path-derived handle, severity from the per-kind `identifierMismatch` knob) brings it to 40.
-    assert.equal(rows.length, 40);
+    // `core/markdown-summarizer` (the first probabilistic built-in Action; summarizes a `markdown` node into a structured brief, carrying its `prompt.md` + `report.schema.json` inlined by the built-ins codegen) brings it to 41.
+    assert.equal(rows.length, 41);
   });
 
   // Convention guard: every built-in EXTRACTOR description ends with a
@@ -194,6 +196,50 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
   // `defaultRefreshAction` was retired with the structure-as-truth
   // refactor along with the UI's Refresh button. The replacement UX is
   // TBD; this test was removed accordingly.
+
+  it('the built-in `core/markdown-summarizer` is probabilistic and carries its inlined siblings', () => {
+    const set = builtIns();
+    const action = set.actions.find((a) => a.id === 'markdown-summarizer');
+    if (!action) throw new Error('expected the markdown-summarizer action to be bundled');
+    assert.equal(action.pluginId, 'core');
+    assert.equal(action.mode, 'probabilistic');
+    assert.equal(action.probExpectedDurationSeconds, 120);
+    // Codegen inlined prompt.md verbatim (the on-disk equivalent), including
+    // the single sanctioned `{{userContent}}` placeholder the render engine
+    // wraps in `<user-content>`.
+    assert.equal(typeof action.promptTemplate, 'string');
+    assert.ok(
+      (action.promptTemplate ?? '').includes('{{userContent}}'),
+      'inlined promptTemplate must carry the {{userContent}} placeholder',
+    );
+    // Codegen inlined report.schema.json parsed to an object that extends
+    // report-base and requires the summary field.
+    assert.ok(
+      action.reportSchema !== null && typeof action.reportSchema === 'object',
+      'inlined reportSchema must be a parsed object',
+    );
+    const schema = action.reportSchema as {
+      allOf?: Array<{ $ref?: string }>;
+      required?: string[];
+    };
+    assert.ok(
+      (schema.allOf ?? []).some((s) => s.$ref === 'https://skill-map.ai/spec/v0/report-base.schema.json'),
+      'reportSchema must extend report-base by its absolute $id',
+    );
+    assert.ok((schema.required ?? []).includes('whatItCovers'), 'reportSchema must require whatItCovers');
+  });
+
+  it('deterministic built-in actions carry no inlined prompt template', () => {
+    const set = builtIns();
+    for (const action of set.actions) {
+      if ((action.mode ?? 'deterministic') === 'probabilistic') continue;
+      assert.equal(
+        action.promptTemplate,
+        undefined,
+        `deterministic action ${action.id} must not carry an inlined promptTemplate`,
+      );
+    }
+  });
 
   it('claude provider declares schema + schemaJson per kind (Phase 3 catalog)', () => {
     const set = builtIns();

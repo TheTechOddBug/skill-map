@@ -87,6 +87,71 @@ function singleQuoted(str) {
   return `'${String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
 }
 
+/**
+ * Emit a TypeScript template-literal (backtick) for a multi-line string,
+ * escaping the three sequences that would otherwise break out of the
+ * literal: backslash, backtick, and `${` interpolation. Used to inline a
+ * probabilistic Action's `prompt.md` verbatim (newlines preserved) while
+ * staying lint-clean under `@stylistic/quotes` (`allowTemplateLiterals`).
+ */
+function templateLiteral(str) {
+  const body = String(str)
+    .replace(/\\/g, '\\\\')
+    .replace(/`/g, '\\`')
+    .replace(/\$\{/g, '\\${');
+  return `\`${body}\``;
+}
+
+/**
+ * Emit a `JSON.parse('...')` expression that rebuilds `value` at import
+ * time. The JSON is wrapped in a single-quoted string (via `singleQuoted`)
+ * so the generated line stays under the repo's single-quote lint rule even
+ * though JSON itself is double-quote heavy. Used to inline a probabilistic
+ * Action's parsed `report.schema.json`.
+ */
+function jsonParseLiteral(value) {
+  return `JSON.parse(${singleQuoted(JSON.stringify(value))})`;
+}
+
+/** True when an Action manifest source declares `mode: 'probabilistic'`. */
+function isProbabilisticActionSource(indexTsSource) {
+  return /\bmode\s*:\s*['"]probabilistic['"]/.test(indexTsSource);
+}
+
+/**
+ * For a probabilistic built-in Action, read the two structure-as-truth
+ * sibling files (`prompt.md` + `report.schema.json`) that the codegen
+ * inlines onto the emitted manifest. Fails loudly when either is missing,
+ * a probabilistic Action without them cannot be rendered/validated at
+ * runtime (built-ins have no source directory to fall back to).
+ */
+function readProbabilisticActionAssets(entryDir, name) {
+  const promptPath = join(entryDir, 'prompt.md');
+  const reportPath = join(entryDir, 'report.schema.json');
+  if (!existsSync(promptPath)) {
+    throw new Error(
+      `Probabilistic built-in action '${name}' is missing prompt.md at ${promptPath}. ` +
+        'Every probabilistic Action carries a prompt template by convention.',
+    );
+  }
+  if (!existsSync(reportPath)) {
+    throw new Error(
+      `Probabilistic built-in action '${name}' is missing report.schema.json at ${reportPath}. ` +
+        'Every Action carries a report schema by convention.',
+    );
+  }
+  const promptTemplate = readFileSync(promptPath, 'utf8');
+  let reportSchema;
+  try {
+    reportSchema = JSON.parse(readFileSync(reportPath, 'utf8'));
+  } catch (err) {
+    throw new Error(
+      `Probabilistic built-in action '${name}' has invalid report.schema.json at ${reportPath}: ${err.message}`,
+    );
+  }
+  return { promptTemplate, reportSchema };
+}
+
 function discoverPlugin(pluginId) {
   const pluginDir = join(PLUGINS_ROOT, pluginId);
   const manifestPath = join(pluginDir, 'plugin.json');
@@ -111,12 +176,22 @@ function discoverPlugin(pluginId) {
       if (!isDir) continue;
       const indexTs = join(entryDir, 'index.ts');
       if (!existsSync(indexTs)) continue;
-      extensions.push({
+      const extension = {
         kind,
         name: entry,
         exportName: exportNameFor(entry, kind),
         importFrom: `./${pluginId}/${KIND_TO_DIR[kind]}/${entry}/index.js`,
-      });
+      };
+      // Structure-as-truth: a probabilistic built-in Action has no source
+      // directory at runtime, so inline its sibling prompt.md +
+      // report.schema.json onto the emitted manifest (the built-in
+      // equivalent of the on-disk files a user plugin resolves at load).
+      if (kind === 'action' && isProbabilisticActionSource(readFileSync(indexTs, 'utf8'))) {
+        const { promptTemplate, reportSchema } = readProbabilisticActionAssets(entryDir, entry);
+        extension.promptTemplate = promptTemplate;
+        extension.reportSchema = reportSchema;
+      }
+      extensions.push(extension);
     }
   }
   return { manifest, extensions };
@@ -161,8 +236,19 @@ function render(plugins) {
   // baked-in literal, so a version bump never rewrites this generated file.
   for (const { pluginId, extensions } of plugins) {
     for (const ext of extensions) {
+      // Probabilistic built-in Actions carry their prompt.md /
+      // report.schema.json inlined (read at codegen time); everything else
+      // gets the plain pluginId + version stamp.
+      const extras = [];
+      if (ext.promptTemplate !== undefined) {
+        extras.push(`promptTemplate: ${templateLiteral(ext.promptTemplate)}`);
+      }
+      if (ext.reportSchema !== undefined) {
+        extras.push(`reportSchema: ${jsonParseLiteral(ext.reportSchema)}`);
+      }
+      const extraStr = extras.length > 0 ? `, ${extras.join(', ')}` : '';
       lines.push(
-        `const ${ext.exportName} = { ..._${ext.exportName}, pluginId: '${pluginId}', version: VERSION };`,
+        `const ${ext.exportName} = { ..._${ext.exportName}, pluginId: '${pluginId}', version: VERSION${extraStr} };`,
       );
     }
   }
