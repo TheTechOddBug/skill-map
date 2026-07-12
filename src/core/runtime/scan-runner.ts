@@ -762,7 +762,10 @@ async function runPersistPath(
 
   let outcome: IPersistOutcome;
   try {
-    outcome = await withSqlite({ databasePath: dbPath }, async (adapter) => {
+    // `skipDriftCheck`: scan OWNS drift. `rebuildOnDrift` above already
+    // resolved any schema/version drift (rebuild or abort) before this
+    // open, so the default write-side drift refusal must not fire here.
+    outcome = await withSqlite({ databasePath: dbPath, skipDriftCheck: true }, async (adapter) => {
       const prior = await loadPrior(adapter);
       const priorExtractorRuns =
         opts.changed && prior ? await adapter.scans.loadExtractorRuns() : undefined;
@@ -828,7 +831,15 @@ async function runEphemeralPath(
   try {
     prior = opts.noBuiltIns
       ? null
-      : await tryWithSqlite({ databasePath: dbPath, autoBackup: false }, loadPrior);
+      : await tryWithSqlite(
+          // `skipDriftCheck`: the dry-run / ephemeral prior read belongs to
+          // the scan flow, which owns drift. On a drifted DB the persist
+          // path rebuilds; a `--dry-run` reads the prior best-effort and
+          // must not refuse (it does not mutate). Keep it aligned with the
+          // persist open above so scan never double-signals drift.
+          { databasePath: dbPath, autoBackup: false, skipDriftCheck: true },
+          loadPrior,
+        );
   } catch (err) {
     return { kind: 'scan-error', message: formatErrorMessage(err) };
   }

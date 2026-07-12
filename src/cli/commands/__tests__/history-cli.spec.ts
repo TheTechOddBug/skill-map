@@ -145,7 +145,7 @@ async function primeFiveExecs(dbPath: string): Promise<void> {
     await insertExecution(adapter.db, makeExec({ id: 'e1', startedAt: t0,         extensionId: 'a1', nodeIds: ['skills/foo.md'] }));
     await insertExecution(adapter.db, makeExec({ id: 'e2', startedAt: t0 + day,   extensionId: 'a1', nodeIds: ['skills/bar.md'], status: 'failed', failureReason: 'timeout' }));
     await insertExecution(adapter.db, makeExec({ id: 'e3', startedAt: t0 + 2*day, extensionId: 'a2', nodeIds: ['skills/foo.md'] }));
-    await insertExecution(adapter.db, makeExec({ id: 'e4', startedAt: t0 + 3*day, extensionId: 'a2', nodeIds: ['skills/foo.md', 'skills/bar.md'], status: 'cancelled', failureReason: 'user-cancelled' }));
+    await insertExecution(adapter.db, makeExec({ id: 'e4', startedAt: t0 + 3*day, extensionId: 'a2', nodeIds: ['skills/foo.md', 'skills/bar.md'], status: 'cancelled' }));
     await insertExecution(adapter.db, makeExec({ id: 'e5', startedAt: t0 + 4*day, extensionId: 'a2', nodeIds: ['skills/foo.md'], tokensIn: 100, tokensOut: 50 }));
   } finally {
     await adapter.close();
@@ -312,9 +312,11 @@ describe('sm history (human renderer, Step 5.10)', () => {
     strictEqual(code, 0);
 
     const out = cap.stdout();
-    // primeFiveExecs seeds e2 as failed/timeout and e3 as cancelled/user-cancelled.
+    // primeFiveExecs seeds e2 as failed/timeout and e4 as cancelled (no reason).
     match(out, /failed \(timeout\)/);
-    match(out, /cancelled \(user-cancelled\)/);
+    // cancelled is now a self-explanatory terminal state: it carries no
+    // failureReason, so it renders bare (no "(reason)" suffix).
+    ok(/cancelled(?! \()/.test(out), 'cancelled rows must not gain a (reason) suffix');
     // completed rows MUST stay just "completed" (no parens noise).
     ok(/completed(?! \()/.test(out), 'completed rows must not gain a (reason) suffix');
   });

@@ -202,6 +202,11 @@
               "type": ["integer", "null"],
               "minimum": 1,
               "description": "Seconds after `finishedAt` before a `failed` job is eligible for pruning. `null` = never auto-prune. Default `null`, failed jobs are kept for post-mortem."
+            },
+            "cancelled": {
+              "type": ["integer", "null"],
+              "minimum": 1,
+              "description": "Seconds after `finishedAt` before a `cancelled` job is eligible for pruning. `null` = never auto-prune. Default 2592000 (30 days), mirroring `completed`: a cancellation is a routine terminal state with no failure to post-mortem, so it is prunable on the same schedule."
             }
           }
         }

@@ -7,27 +7,23 @@ Normative state machine for jobs. A `Job` (see [`schemas/job.schema.json`](./sch
 ## State machine
 
 ```
-             submit
-                │
-                ▼
-        ┌──────────┐   atomic claim   ┌──────────┐
-        │  queued  │ ───────────────▶ │ running  │
-        └────┬─────┘                  └─────┬────┘
-             │                              │
-             │ cancel                       │
-             │                              │
-             │              record success  │
-             │              ┌───────────────┤
-             │              │               │ record failure
-             │              │               │ TTL expires (reap)
-             │              │               │ runner error
-             ▼              ▼               ▼
-        ┌────────┐   ┌──────────┐     ┌──────────┐
-        │ failed │   │ completed│     │  failed  │
-        └────────┘   └──────────┘     └──────────┘
+              submit
+                 │
+                 ▼
+         ┌──────────┐   atomic claim   ┌──────────┐
+         │  queued  │ ───────────────▶ │ running  │
+         └────┬─────┘                  └────┬─────┘
+              │                             │
+    cancel →  │  ← fail          cancel →   │   ← fail
+              │                  record success / failure
+              │                  TTL expires (reap) / runner error
+              ▼                             ▼
+   ┌─────────────────────┐      ┌─────────────────────────────────┐
+   │ cancelled  ·  failed │      │ completed · failed · cancelled  │
+   └─────────────────────┘      └─────────────────────────────────┘
 ```
 
-Terminal states: `completed`, `failed`. Once terminal, a job MUST NOT transition again.
+Terminal states: `completed`, `failed`, `cancelled`. Once terminal, a job MUST NOT transition again. `cancelled` (via `sm job cancel`) and `failed` with reason `user-failed` (via `sm job fail`) are the two operator-driven terminal transitions outside the normal claim → record flow; `cancelled` is a distinct state, NOT a `failed` sub-reason.
 
 ---
 
@@ -37,9 +33,11 @@ Terminal states: `completed`, `failed`. Once terminal, a job MUST NOT transition
 |---|---|---|
 | (none) | `queued` | `sm job submit` succeeds. |
 | `queued` | `running` | Atomic claim by a runner. |
-| `queued` | `failed` | `sm job cancel <id>` (reason `user-cancelled`). |
+| `queued` | `cancelled` | `sm job cancel <id>` (no `failureReason`; `cancelled` is self-explanatory). |
+| `queued` | `failed` | `sm job fail <id>` (reason `user-failed`). |
 | `running` | `completed` | `sm record --status completed` with valid nonce. |
-| `running` | `failed` | `sm record --status failed`, OR TTL expired (reason `abandoned`), OR runner subprocess returned non-zero (reason `runner-error`), OR report failed schema validation (reason `report-invalid`), OR rendered content row missing at runtime (reason `job-file-missing`, historically named for the on-disk artifact; now a missing `state_job_contents` row, a DB-corruption-only state since the runtime invariant is that `state_jobs.content_hash` always resolves). |
+| `running` | `cancelled` | `sm job cancel <id>` (no `failureReason`). |
+| `running` | `failed` | `sm record --status failed`, OR `sm job fail <id>` (reason `user-failed`), OR TTL expired (reason `abandoned`), OR runner subprocess returned non-zero (reason `runner-error`), OR report failed schema validation (reason `report-invalid`), OR rendered content row missing at runtime (reason `job-file-missing`, historically named for the on-disk artifact; now a missing `state_job_contents` row, a DB-corruption-only state since the runtime invariant is that `state_jobs.content_hash` always resolves). |
 
 Any other transition attempt MUST be rejected and MUST NOT mutate state. Implementations SHOULD log it.
 
@@ -213,24 +211,41 @@ Implementations MUST handle each of the following:
 
 ## Cancellation
 
-`sm job cancel <id>` is the only user-facing transition outside the normal flow. Effects:
+`sm job cancel <job.id> | --all` transitions a `queued` or `running` job to the terminal `cancelled` state. `cancelled` is a distinct state, NOT a `failed` sub-reason, and carries NO `failureReason` (the state is self-explanatory). Effects:
 
 | From | Effect |
 |---|---|
-| `queued` | Transition to `failed` with `failureReason = user-cancelled`. |
-| `running` | Transition to `failed` with `failureReason = user-cancelled`. DOES NOT interrupt a subprocess runner; the runner discovers the failed state on its next callback and exits cleanly. Implementations MAY additionally signal the subprocess, not normative. |
+| `queued` | Transition to `cancelled` (`finishedAt = now`, no `failureReason`). |
+| `running` | Transition to `cancelled` (`finishedAt = now`, no `failureReason`). DOES NOT interrupt a subprocess runner; the runner discovers the terminal state on its next callback and exits cleanly. Implementations MAY additionally signal the subprocess, not normative. |
 | Terminal | Reject with exit 2 ("already terminal"). |
+
+`--all` cancels every `queued` and `running` job in one pass and reports the count. A missing `<job.id>` is exit 5. Passing neither `<job.id>` nor `--all` (or both) is a usage error (exit 2).
+
+---
+
+## Fail
+
+`sm job fail <job.id> | --all` is the symmetric counterpart to cancel: it transitions a `queued` or `running` job to the terminal `failed` state with `failureReason = user-failed`. Use it to mark a job as failed by operator decision (distinct from a cancellation, which records no failure). Effects:
+
+| From | Effect |
+|---|---|
+| `queued` | Transition to `failed` with `failureReason = user-failed` (`finishedAt = now`). |
+| `running` | Transition to `failed` with `failureReason = user-failed` (`finishedAt = now`). DOES NOT interrupt a subprocess runner; the runner discovers the terminal state on its next callback and exits cleanly. |
+| Terminal | Reject with exit 2 ("already terminal"). |
+
+`--all` fails every `queued` and `running` job in one pass and reports the count. A missing `<job.id>` is exit 5. Passing neither `<job.id>` nor `--all` (or both) is a usage error (exit 2). Unlike cancel, a `user-failed` job is preserved by the default retention policy (`jobs.retention.failed = null`), so operator-marked failures stay in history for analysis.
 
 ---
 
 ## Retention and GC
 
-Config controls (`jobs.retention.completed`, `jobs.retention.failed`):
+Config controls (`jobs.retention.completed`, `jobs.retention.failed`, `jobs.retention.cancelled`):
 
 - `completed` default 30 days (2592000 seconds).
 - `failed` default `null` = never auto-purge (preserves failure history for analysis).
+- `cancelled` default 30 days (2592000 seconds), mirroring `completed`: a cancellation is a routine terminal state with no failure to post-mortem, so it is prunable on the same schedule.
 
-`sm job prune` applies retention. Implementations MAY run this on a schedule (e.g., on `sm doctor`, or in a cron adapter) but MUST NOT prune implicitly during normal verb execution.
+`sm job prune` applies retention across all three terminal states. Implementations MAY run this on a schedule (e.g., on `sm doctor`, or in a cron adapter) but MUST NOT prune implicitly during normal verb execution.
 
 `sm job prune` MUST also collect orphaned `state_job_contents` rows (no live `state_jobs` references) in the same transaction that prunes terminal jobs. Ordering: delete terminal `state_jobs` rows in the retention window, then delete `state_job_contents` rows whose `content_hash` no longer appears in any `state_jobs` row.
 
@@ -249,6 +264,8 @@ Config controls (`jobs.retention.completed`, `jobs.retention.failed`):
 ## Stability
 
 The state machine diagram above is **stable** as of spec v1.0.0. Adding a new state is a major bump; adding a new terminal reason (`failureReason` enum value) a minor bump.
+
+The `cancelled` terminal state and the `user-failed` failure reason (and the paired `sm job cancel` → `cancelled` / `sm job fail` → `failed` semantics) landed **pre-1.0 as a MINOR bump**. Adding a state is normally a major change, but per [`versioning.md`](./versioning.md) §Pre-1.0 every breaking change ships inside a minor while the spec is `0.Y.Z`; the first `1.0.0` is the deliberate stabilization moment, not a side effect of this change. From that point on, the state-set is locked under the major-bump rule above.
 
 The `contentHash` formula is **stable**. Changing what goes into the hash breaks duplicate detection across versions and is a major bump.
 

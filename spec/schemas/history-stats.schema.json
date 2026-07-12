@@ -149,7 +149,7 @@
             "timeout",
             "abandoned",
             "job-file-missing",
-            "user-cancelled"
+            "user-failed"
           ],
           "additionalProperties": false,
           "properties": {
@@ -158,7 +158,7 @@
             "timeout":          { "type": "integer", "minimum": 0 },
             "abandoned":        { "type": "integer", "minimum": 0 },
             "job-file-missing": { "type": "integer", "minimum": 0 },
-            "user-cancelled":   { "type": "integer", "minimum": 0 }
+            "user-failed":      { "type": "integer", "minimum": 0 }
           }
         }
       }

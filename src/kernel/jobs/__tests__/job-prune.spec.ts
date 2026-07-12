@@ -64,7 +64,7 @@ function freshScope(label: string): string {
 
 interface ISeedJobOpts {
   id: string;
-  status: 'queued' | 'running' | 'completed' | 'failed';
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
   finishedAt?: number | null;
   nodeId?: string;
   contentHash?: string;
@@ -156,6 +156,29 @@ describe('pruneTerminalJobs', () => {
 
       const remaining = await adapter.db.selectFrom('state_jobs').select('id').orderBy('id').execute();
       strictEqual(remaining.map((r) => r.id).join(','), 'failed,fresh,running');
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('deletes only cancelled jobs older than cutoff', async () => {
+    const scope = freshScope('prune-cancelled');
+    const adapter = await initDb(scope);
+    try {
+      const now = Date.now();
+      // Old cancelled, should prune.
+      await seedJob(adapter, { id: 'old', status: 'cancelled', finishedAt: now - 60_000 });
+      // Recent cancelled, should NOT prune.
+      await seedJob(adapter, { id: 'fresh', status: 'cancelled', finishedAt: now - 1_000 });
+      // Completed, not in scope for the cancelled pass.
+      await seedJob(adapter, { id: 'completed', status: 'completed', finishedAt: now - 60_000 });
+
+      const cutoff = now - 30_000;
+      const result = await pruneTerminalJobs(adapter.db, 'cancelled', cutoff);
+      strictEqual(result.deletedCount, 1);
+
+      const remaining = await adapter.db.selectFrom('state_jobs').select('id').orderBy('id').execute();
+      strictEqual(remaining.map((r) => r.id).join(','), 'completed,fresh');
     } finally {
       await adapter.close();
     }
@@ -280,7 +303,40 @@ describe('JobPruneCommand', () => {
     strictEqual(out.dryRun, false);
     strictEqual(out.retention.completed.deleted, 0);
     strictEqual(out.retention.failed.deleted, 0);
+    strictEqual(out.retention.cancelled.deleted, 0);
+    strictEqual(out.retention.cancelled.policySeconds, 2592000, 'cancelled default mirrors completed (30d)');
     strictEqual(out.prunedContents, 0);
+  });
+
+  it('prunes expired cancelled jobs (default cancelled=30d) and collects their orphaned content', async () => {
+    const scope = freshScope('cmd-prune-cancelled');
+    const adapter = await initDb(scope);
+
+    const now = Date.now();
+    await seedContent(adapter, 'h-cancelled');
+    // 30d default = 2_592_000s. Push the cancelled job past that boundary.
+    await seedJob(adapter, {
+      id: 'd-cancelled',
+      status: 'cancelled',
+      finishedAt: now - 31 * 86_400_000,
+      contentHash: 'h-cancelled',
+    });
+    await adapter.close();
+
+    const result = await runPrune({ cwd: scope, json: true });
+    strictEqual(result.code, 0);
+    const out = JSON.parse(result.stdout);
+    strictEqual(out.retention.cancelled.deleted, 1);
+    strictEqual(out.prunedContents, 1, 'the expired cancelled job orphaned its content, collected');
+
+    const adapter2 = await initDb(scope);
+    try {
+      const remaining = await adapter2.db.selectFrom('state_jobs').select('id').execute();
+      strictEqual(remaining.length, 0, 'the cancelled job was pruned');
+      strictEqual((await contentHashes(adapter2)).length, 0, 'its content was collected');
+    } finally {
+      await adapter2.close();
+    }
   });
 
   it('prunes expired completed jobs and collects their orphaned content', async () => {
@@ -382,6 +438,7 @@ describe('JobPruneCommand', () => {
     // stderr; stdout is reserved for `--json` payloads.
     ok(result.stderr.includes('completed: policy 30d'));
     ok(result.stderr.includes('failed:'));
+    ok(result.stderr.includes('cancelled: policy 30d'));
     ok(result.stderr.includes('policy never'));
     ok(result.stderr.includes('content rows:'));
   });

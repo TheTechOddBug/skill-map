@@ -19,6 +19,7 @@
  */
 
 import {
+  DbSchemaDriftError,
   DbVersionMismatchError,
   detectDbVersionSkew,
   type TDbVersionCheckOutcome,
@@ -243,4 +244,46 @@ function renderWarnSchema(
  */
 export function resetDbVersionWarnCacheForTests(): void {
   WARN_SEEN.clear();
+}
+
+/**
+ * WRITE-side drift guard. Runs at `withSqlite` open when NO `versionCheck`
+ * bag was passed (the read-side path) AND the caller did not opt out via
+ * `skipDriftCheck` (scan / watch, which own drift by rebuilding). Reuses
+ * the SAME schema-fingerprint classification the read-side advisory layers
+ * on (`classifyFingerprint`, memoized `schemaFingerprint()` + the defensive
+ * `readStoredFingerprint`), so no new hashing and no new DB scan is added:
+ *
+ *   - `no-meta` (never scanned) → no-op, no signal (mirrors the version
+ *     check's `no-meta` posture).
+ *   - `ok` (stored fingerprint matches the bundled migrations) → no-op.
+ *   - `drift` (stored fingerprint differs, is NULL, or the column is
+ *     absent) → throw `DbSchemaDriftError`. A mutation against the older
+ *     on-disk schema would otherwise crash with `CHECK constraint failed`
+ *     / `no such column`; the guard refuses with an actionable advisory
+ *     instead.
+ *
+ * Fingerprint axis only: a pure version bump with no schema change keeps
+ * the fingerprint stable, so it never trips this (writing the same columns
+ * is safe). Any inline migration DDL edit changes the fingerprint and does
+ * trip it. Version-newer / different-major skew is a READ-side concern
+ * (`runDbVersionCheck`); write verbs only care whether the columns they
+ * are about to write still exist.
+ *
+ * Path-based, not handle-based: `classifyFingerprint(dbPath)` opens its own
+ * short-lived read-only handle, exactly like the read-side
+ * `layerFingerprintOutcome` does, so the guard never reaches for the live
+ * Kysely handle. Bare `✕` glyph (no colour / dim): the default write open
+ * carries no CLI style bag, matching how the version renderers fall back
+ * when `style` is absent.
+ */
+export function runWriteSideDriftCheck(dbPath: string, currentVersion: string): void {
+  if (classifyFingerprint(dbPath).kind !== 'drift') return;
+  const humanMessage = tx(DB_VERSION_TEXTS.dbSchemaDriftWrite, {
+    glyph: '✕',
+    currentVersion,
+    hint: DB_VERSION_TEXTS.dbSchemaDriftWriteHint,
+  });
+  const message = tx(DB_VERSION_TEXTS.dbSchemaDriftWritePlain, { currentVersion });
+  throw new DbSchemaDriftError({ message, humanMessage });
 }

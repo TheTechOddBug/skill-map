@@ -161,17 +161,8 @@ export class ActionsShowCommand extends StubCommand {
 
 // JobSubmitCommand / JobListCommand / JobShowCommand moved to
 // ./job-queue.ts (lands real in Step 10, queue infrastructure).
-
-export class JobClaimCommand extends StubCommand {
-  static override paths = [['job', 'claim']];
-  static override usage = Command.Usage({
-    category: 'Jobs',
-    description: planned('Atomic primitive: return next queued job id, mark it running.'),
-  });
-  filter = Option.String('--filter', { required: false });
-
-  protected override readonly verbName = 'job claim';
-}
+// JobClaimCommand / JobStatusCommand / JobCancelCommand moved to
+// ./job-queue.ts (lands real in Step 10 Phase C).
 
 export class JobRunCommand extends StubCommand {
   static override paths = [['job', 'run']];
@@ -183,29 +174,6 @@ export class JobRunCommand extends StubCommand {
   max = Option.String('--max', { required: false });
 
   protected override readonly verbName = 'job run';
-}
-
-export class JobStatusCommand extends StubCommand {
-  static override paths = [['job', 'status']];
-  static override usage = Command.Usage({
-    category: 'Jobs',
-    description: planned('Counts (per status) or single-job status.'),
-  });
-  id = Option.String({ required: false });
-
-  protected override readonly verbName = 'job status';
-}
-
-export class JobCancelCommand extends StubCommand {
-  static override paths = [['job', 'cancel']];
-  static override usage = Command.Usage({
-    category: 'Jobs',
-    description: planned('Force a running job to failed with reason user-cancelled.'),
-  });
-  id = Option.String({ required: false });
-  all = Option.Boolean('--all', false);
-
-  protected override readonly verbName = 'job cancel';
 }
 
 // JobPruneCommand moved to ./jobs.ts (lands real in Step 7.3).
@@ -256,9 +224,6 @@ export const STUB_COMMANDS = [
   FindingsCommand,
   ActionsListCommand,
   ActionsShowCommand,
-  JobClaimCommand,
   JobRunCommand,
-  JobStatusCommand,
-  JobCancelCommand,
   RecordCommand,
 ];

@@ -732,10 +732,277 @@ export class JobPreviewCommand extends SmCommand {
   }
 }
 
+// ---------------------------------------------------------------------------
+// sm job claim
+// ---------------------------------------------------------------------------
+
+export class JobClaimCommand extends SmCommand {
+  static override paths = [['job', 'claim']];
+  static override usage = Command.Usage({
+    category: 'Jobs',
+    description: 'Atomic claim: transition the next queued job to running and return its id (the Skill-agent handover primitive).',
+    details: `
+      Runs the single-statement atomic claim (spec/job-lifecycle.md §Atomic
+      claim): the highest-priority, oldest queued job flips to running with
+      claimedAt / runner=skill / expiresAt stamped, and its id is printed on
+      stdout. --filter <action> restricts the claim to one action id.
+
+      Plain mode prints the claimed id. --json prints
+      { id, nonce, content } (the rendered content plus the nonce a later
+      sm record needs); drivers that will call sm record MUST use --json to
+      receive the nonce.
+
+      Exit codes: 0 with the claim, 1 when the queue is empty (or nothing
+      matches --filter; no output), 5 when the DB is missing.
+    `,
+  });
+
+  filter = Option.String('--filter', { required: false });
+
+  protected async run(): Promise<number> {
+    const ctx = defaultRuntimeContext();
+    const dbPath = resolveDbPath({ db: this.db, ...ctx });
+    const dbExit = requireDbOrExit(dbPath, this.context.stderr);
+    if (dbExit !== null) return dbExit;
+
+    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
+      // The standalone claim verb is the Skill-agent handover, so the
+      // runner is stamped `skill` (the CLI-runner loop, a later phase,
+      // claims as `cli`).
+      const claim = await adapter.jobs.claim('skill', Date.now(), this.filter);
+      if (!claim) return ExitCode.Issues; // exit 1: queue empty / no match, no output
+      if (this.json) {
+        const content = await adapter.jobs.getContent(claim.contentHash);
+        this.printer!.data(
+          JSON.stringify({ id: claim.id, nonce: claim.nonce, content: content ?? null }) + '\n',
+        );
+        return ExitCode.Ok;
+      }
+      this.printer!.data(claim.id + '\n');
+      return ExitCode.Ok;
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// sm job status
+// ---------------------------------------------------------------------------
+
+export class JobStatusCommand extends SmCommand {
+  static override paths = [['job', 'status']];
+  static override usage = Command.Usage({
+    category: 'Jobs',
+    description: 'Counts per status (no id) or a single job\'s status.',
+  });
+
+  id = Option.String({ required: false });
+
+  protected async run(): Promise<number> {
+    const ctx = defaultRuntimeContext();
+    const dbPath = resolveDbPath({ db: this.db, ...ctx });
+    const dbExit = requireDbOrExit(dbPath, this.context.stderr);
+    if (dbExit !== null) return dbExit;
+
+    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) =>
+      this.id !== undefined ? this.reportSingle(adapter) : this.reportCounts(adapter),
+    );
+  }
+
+  private async reportSingle(adapter: StoragePort): Promise<TExitCode> {
+    const job = await adapter.jobs.get(this.id!);
+    if (!job) {
+      this.printer!.error(
+        tx(T.statusErrNotFound, { glyph: this.ansiFor('stderr').red('✕'), id: this.id! }),
+      );
+      return ExitCode.NotFound;
+    }
+    if (this.json) {
+      this.printer!.data(
+        JSON.stringify({ id: job.id, status: job.status, failureReason: job.failureReason ?? null }) + '\n',
+      );
+      return ExitCode.Ok;
+    }
+    this.printer!.data(tx(T.statusSingleLine, { id: job.id, status: job.status }));
+    return ExitCode.Ok;
+  }
+
+  private async reportCounts(adapter: StoragePort): Promise<TExitCode> {
+    const counts = await adapter.jobs.countByStatus();
+    if (this.json) {
+      this.printer!.data(JSON.stringify(counts) + '\n');
+      return ExitCode.Ok;
+    }
+    this.printer!.data(
+      tx(T.statusCounts, {
+        queued: counts.queued,
+        running: counts.running,
+        completed: counts.completed,
+        failed: counts.failed,
+        cancelled: counts.cancelled,
+      }),
+    );
+    return ExitCode.Ok;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// sm job cancel
+// ---------------------------------------------------------------------------
+
+export class JobCancelCommand extends SmCommand {
+  static override paths = [['job', 'cancel']];
+  static override usage = Command.Usage({
+    category: 'Jobs',
+    description: 'Move a queued / running job to the terminal cancelled state (or --all).',
+    details: `
+      With <job.id>: cancel one job. A queued or running job transitions to
+      the terminal cancelled state (no failure reason; cancelled is a
+      distinct state, not a failed sub-reason); a terminal job is refused
+      (exit 2, "already terminal"); an unknown id exits 5. Cancelling does
+      NOT interrupt a running subprocess; the runner discovers the terminal
+      state on its next callback.
+
+      With --all: cancel every queued and running job and report the count.
+      Pass exactly one of <job.id> or --all (neither, or both, is a usage
+      error -> exit 2).
+
+      To instead mark a job as failed by operator decision, use sm job fail.
+    `,
+  });
+
+  id = Option.String({ required: false });
+  all = Option.Boolean('--all', false);
+
+  protected async run(): Promise<number> {
+    const ctx = defaultRuntimeContext();
+    const dbPath = resolveDbPath({ db: this.db, ...ctx });
+    const dbExit = requireDbOrExit(dbPath, this.context.stderr);
+    if (dbExit !== null) return dbExit;
+
+    if (this.all && this.id !== undefined) return this.fail(T.cancelErrTargetConflict, ExitCode.Error);
+    if (!this.all && this.id === undefined) return this.fail(T.cancelErrNeedTarget, ExitCode.Error);
+
+    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
+      const now = Date.now();
+      return this.all ? this.cancelAll(adapter, now) : this.cancelOne(adapter, now);
+    });
+  }
+
+  private async cancelAll(adapter: StoragePort, now: number): Promise<TExitCode> {
+    const count = await adapter.jobs.cancelAllActive(now);
+    if (this.json) {
+      this.printer!.data(JSON.stringify({ cancelled: count }) + '\n');
+      return ExitCode.Ok;
+    }
+    this.printer!.info(tx(T.cancelAllSummary, { glyph: this.ansiFor('stderr').green('✓'), count }));
+    return ExitCode.Ok;
+  }
+
+  private async cancelOne(adapter: StoragePort, now: number): Promise<TExitCode> {
+    const outcome = await adapter.jobs.cancel(this.id!, now);
+    if (outcome === 'not-found') {
+      return this.fail(tx(T.cancelErrNotFound, { id: this.id! }), ExitCode.NotFound);
+    }
+    if (outcome === 'already-terminal') {
+      return this.fail(tx(T.cancelErrAlreadyTerminal, { id: this.id! }), ExitCode.Error);
+    }
+    if (this.json) {
+      this.printer!.data(JSON.stringify({ id: this.id, cancelled: true }) + '\n');
+      return ExitCode.Ok;
+    }
+    this.printer!.info(tx(T.cancelOneLine, { glyph: this.ansiFor('stderr').green('✓'), id: this.id! }));
+    return ExitCode.Ok;
+  }
+
+  private fail(message: string, code: TExitCode): TExitCode {
+    this.printer!.error(tx(T.cancelErrPrefix, { glyph: this.ansiFor('stderr').red('✕'), message }));
+    return code;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// sm job fail
+// ---------------------------------------------------------------------------
+
+export class JobFailCommand extends SmCommand {
+  static override paths = [['job', 'fail']];
+  static override usage = Command.Usage({
+    category: 'Jobs',
+    description: 'Force a queued / running job to failed with reason user-failed (or --all).',
+    details: `
+      Symmetric counterpart to sm job cancel. With <job.id>: fail one job. A
+      queued or running job transitions to failed / user-failed; a terminal
+      job is refused (exit 2, "already terminal"); an unknown id exits 5.
+      Failing does NOT interrupt a running subprocess; the runner discovers
+      the terminal state on its next callback.
+
+      With --all: fail every queued and running job and report the count.
+      Pass exactly one of <job.id> or --all (neither, or both, is a usage
+      error -> exit 2).
+
+      Unlike a cancellation (which records no failure), a user-failed job is
+      preserved by the default retention policy (jobs.retention.failed).
+    `,
+  });
+
+  id = Option.String({ required: false });
+  all = Option.Boolean('--all', false);
+
+  protected async run(): Promise<number> {
+    const ctx = defaultRuntimeContext();
+    const dbPath = resolveDbPath({ db: this.db, ...ctx });
+    const dbExit = requireDbOrExit(dbPath, this.context.stderr);
+    if (dbExit !== null) return dbExit;
+
+    if (this.all && this.id !== undefined) return this.fail(T.failErrTargetConflict, ExitCode.Error);
+    if (!this.all && this.id === undefined) return this.fail(T.failErrNeedTarget, ExitCode.Error);
+
+    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
+      const now = Date.now();
+      return this.all ? this.failAll(adapter, now) : this.failOne(adapter, now);
+    });
+  }
+
+  private async failAll(adapter: StoragePort, now: number): Promise<TExitCode> {
+    const count = await adapter.jobs.failAllActive(now);
+    if (this.json) {
+      this.printer!.data(JSON.stringify({ failed: count }) + '\n');
+      return ExitCode.Ok;
+    }
+    this.printer!.info(tx(T.failAllSummary, { glyph: this.ansiFor('stderr').green('✓'), count }));
+    return ExitCode.Ok;
+  }
+
+  private async failOne(adapter: StoragePort, now: number): Promise<TExitCode> {
+    const outcome = await adapter.jobs.fail(this.id!, now);
+    if (outcome === 'not-found') {
+      return this.fail(tx(T.failErrNotFound, { id: this.id! }), ExitCode.NotFound);
+    }
+    if (outcome === 'already-terminal') {
+      return this.fail(tx(T.failErrAlreadyTerminal, { id: this.id! }), ExitCode.Error);
+    }
+    if (this.json) {
+      this.printer!.data(JSON.stringify({ id: this.id, failed: true }) + '\n');
+      return ExitCode.Ok;
+    }
+    this.printer!.info(tx(T.failOneLine, { glyph: this.ansiFor('stderr').green('✓'), id: this.id! }));
+    return ExitCode.Ok;
+  }
+
+  private fail(message: string, code: TExitCode): TExitCode {
+    this.printer!.error(tx(T.failErrPrefix, { glyph: this.ansiFor('stderr').red('✕'), message }));
+    return code;
+  }
+}
+
 /** Aggregate export so `entry.ts` registers the queue verbs in one line. */
 export const JOB_QUEUE_COMMANDS = [
   JobSubmitCommand,
   JobListCommand,
   JobShowCommand,
   JobPreviewCommand,
+  JobClaimCommand,
+  JobStatusCommand,
+  JobCancelCommand,
+  JobFailCommand,
 ];

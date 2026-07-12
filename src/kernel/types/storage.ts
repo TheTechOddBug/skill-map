@@ -272,6 +272,37 @@ export interface IIssueListResult {
 
 // --- jobs namespace --------------------------------------------------------
 
+/**
+ * Output of `port.jobs.claim(...)`, the identity a runner needs after an
+ * atomic claim (spec/job-lifecycle.md §Atomic claim). `contentHash` lets
+ * the caller fetch the rendered content; `nonce` is the sole credential a
+ * later `sm record` presents. `null` from `claim` means the queue was
+ * empty (or nothing matched the filter).
+ */
+export interface IJobClaim {
+  id: string;
+  nonce: string;
+  contentHash: string;
+}
+
+/**
+ * Discriminated outcome of the two operator-driven terminal transitions,
+ * `port.jobs.cancel(id, nowMs)` and `port.jobs.fail(id, nowMs)`. Shared
+ * because both share the same guard shape:
+ *   - `cancelled`, a `queued` / `running` job was moved to the terminal
+ *     `cancelled` state (returned only by `cancel`).
+ *   - `failed`, a `queued` / `running` job was moved to `failed` /
+ *     `user-failed` (returned only by `fail`).
+ *   - `already-terminal`, the job is already `completed` / `failed` /
+ *     `cancelled` (spec rejects the re-transition with exit 2).
+ *   - `not-found`, no `state_jobs` row carries that id (exit 5).
+ */
+export type TJobTransitionOutcome =
+  | 'cancelled'
+  | 'failed'
+  | 'already-terminal'
+  | 'not-found';
+
 /** Output of `port.jobs.pruneTerminal` / `listTerminalCandidates`. */
 export interface IPruneResult {
   /** How many `state_jobs` rows were deleted (or would be, in dry-run). */

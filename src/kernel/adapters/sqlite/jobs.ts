@@ -28,21 +28,24 @@
  * is gone.
  */
 
+import { sql } from 'kysely';
 import type { Kysely, Selectable } from 'kysely';
 
 import type { IDatabase, IStateJobsTable } from './schema.js';
-import type { Job } from '../../types.js';
+import type { Job, JobRunner, JobStatus } from '../../types.js';
 import type {
+  IJobClaim,
   IJobContentInput,
   IJobListFilter,
   IJobSubmitRow,
   IPruneResult,
+  TJobTransitionOutcome,
 } from '../../types/storage.js';
 
 export type { IPruneResult } from '../../types/storage.js';
 
 /** The queued/running statuses the duplicate pre-check and index cover. */
-const ACTIVE_STATUSES = ['queued', 'running'] as const;
+const ACTIVE_STATUSES: readonly JobStatus[] = ['queued', 'running'];
 
 /** Map a `state_jobs` row to the domain `Job` shape. */
 function rowToJob(row: Selectable<IStateJobsTable>): Job {
@@ -141,7 +144,7 @@ export async function findActiveDuplicate(
     .where('actionVersion', '=', actionVersion)
     .where('nodeId', '=', nodeId)
     .where('contentHash', '=', contentHash)
-    .where('status', 'in', ACTIVE_STATUSES as unknown as string[] as never)
+    .where('status', 'in', ACTIVE_STATUSES)
     .limit(1)
     .executeTakeFirst();
   return row?.id ?? null;
@@ -199,7 +202,7 @@ export async function getJob(db: Kysely<IDatabase>, id: string): Promise<Job | n
  */
 export async function pruneTerminalJobs(
   db: Kysely<IDatabase>,
-  status: 'completed' | 'failed',
+  status: 'completed' | 'failed' | 'cancelled',
   cutoffMs: number,
 ): Promise<IPruneResult> {
   return db.transaction().execute(async (trx) => {
@@ -246,4 +249,210 @@ export async function getJobContent(
     .where('contentHash', '=', contentHash)
     .executeTakeFirst();
   return row?.content ?? null;
+}
+
+/** Row shape RETURNING projects; result keys are camelCased by the plugin. */
+interface IClaimRow {
+  id: string;
+  nonce: string;
+  contentHash: string;
+}
+
+/**
+ * Atomic claim (`spec/job-lifecycle.md` §Atomic claim): transition the
+ * highest-priority, oldest queued job to `running` in ONE statement and
+ * return its `{ id, nonce, contentHash }`, or `null` when the queue is
+ * empty (or nothing matches `filter`).
+ *
+ * Written as a raw `sql` UPDATE (verbatim spec transcription, snake_case
+ * columns because the `CamelCasePlugin` does NOT rewrite raw fragments) so
+ * it stays a single statement, a two-step `SELECT` then `UPDATE` would be a
+ * double-claim conformance bug. The inner subquery picks the next job by
+ * `priority DESC, created_at ASC`; the OUTER `AND status = 'queued'` is the
+ * mandatory race guard, when two runners select the same id at the same
+ * instant only one UPDATE lands (the other sees `status` already flipped
+ * and matches zero rows). `expires_at` is computed in-statement from the
+ * frozen `ttl_seconds` column. `filter`, when supplied, restricts the pick
+ * to a single `action_id`.
+ *
+ * The dialect routes `RETURNING` DML through `.all()` so the projected
+ * columns come back; result keys arrive camelCased (`content_hash` ->
+ * `contentHash`).
+ */
+export async function claimNext(
+  db: Kysely<IDatabase>,
+  runner: JobRunner,
+  nowMs: number,
+  filter?: string,
+): Promise<IJobClaim | null> {
+  const filterCond =
+    filter !== undefined ? sql`AND action_id = ${filter}` : sql``;
+  const result = await sql<IClaimRow>`
+    UPDATE state_jobs
+       SET status = 'running',
+           claimed_at = ${nowMs},
+           runner = ${runner},
+           expires_at = ${nowMs} + ttl_seconds * 1000
+     WHERE id = (
+             SELECT id FROM state_jobs
+              WHERE status = 'queued'
+                ${filterCond}
+              ORDER BY priority DESC, created_at ASC
+              LIMIT 1
+           )
+       AND status = 'queued'
+     RETURNING id, nonce, content_hash
+  `.execute(db);
+  const row = result.rows[0];
+  return row
+    ? { id: row.id, nonce: row.nonce, contentHash: row.contentHash }
+    : null;
+}
+
+/**
+ * Cancel a single job (`spec/job-lifecycle.md` §Cancellation). A `queued`
+ * or `running` job transitions to the terminal `cancelled` state with
+ * `finishedAt = nowMs` and NO `failureReason` (cancellation is
+ * self-explanatory, NOT a `failed` sub-reason); a terminal job is refused
+ * (`already-terminal`) and an unknown id is `not-found`. DOES NOT interrupt
+ * any subprocess (there is none yet): a running runner discovers the
+ * terminal state on its next callback. The status read + conditional UPDATE
+ * do not need the atomic-claim single-statement guarantee, cancellation is
+ * idempotent (a lost race just no-ops the second UPDATE via the status
+ * predicate).
+ */
+export async function cancelJob(
+  db: Kysely<IDatabase>,
+  id: string,
+  nowMs: number,
+): Promise<TJobTransitionOutcome> {
+  const existing = await db
+    .selectFrom('state_jobs')
+    .select('status')
+    .where('id', '=', id)
+    .executeTakeFirst();
+  if (!existing) return 'not-found';
+  if (existing.status !== 'queued' && existing.status !== 'running') {
+    return 'already-terminal';
+  }
+  await db
+    .updateTable('state_jobs')
+    .set({ status: 'cancelled', failureReason: null, finishedAt: nowMs })
+    .where('id', '=', id)
+    .where('status', 'in', ACTIVE_STATUSES)
+    .execute();
+  return 'cancelled';
+}
+
+/**
+ * Cancel every active job in one statement: transition all `queued` /
+ * `running` rows to the terminal `cancelled` state (`finishedAt = nowMs`,
+ * no `failureReason`). Returns the number of rows transitioned. Powers
+ * `sm job cancel --all`.
+ */
+export async function cancelAllActive(
+  db: Kysely<IDatabase>,
+  nowMs: number,
+): Promise<number> {
+  const res = await db
+    .updateTable('state_jobs')
+    .set({ status: 'cancelled', failureReason: null, finishedAt: nowMs })
+    .where('status', 'in', ACTIVE_STATUSES)
+    .executeTakeFirst();
+  return Number(res.numUpdatedRows ?? 0n);
+}
+
+/**
+ * Fail a single job (`spec/job-lifecycle.md` §Fail), the symmetric
+ * counterpart of `cancelJob`. A `queued` or `running` job transitions to
+ * the terminal `failed` state with `failureReason = user-failed` and
+ * `finishedAt = nowMs`; a terminal job is refused (`already-terminal`) and
+ * an unknown id is `not-found`. Same idempotent guard as cancel.
+ */
+export async function failJob(
+  db: Kysely<IDatabase>,
+  id: string,
+  nowMs: number,
+): Promise<TJobTransitionOutcome> {
+  const existing = await db
+    .selectFrom('state_jobs')
+    .select('status')
+    .where('id', '=', id)
+    .executeTakeFirst();
+  if (!existing) return 'not-found';
+  if (existing.status !== 'queued' && existing.status !== 'running') {
+    return 'already-terminal';
+  }
+  await db
+    .updateTable('state_jobs')
+    .set({ status: 'failed', failureReason: 'user-failed', finishedAt: nowMs })
+    .where('id', '=', id)
+    .where('status', 'in', ACTIVE_STATUSES)
+    .execute();
+  return 'failed';
+}
+
+/**
+ * Fail every active job in one statement: transition all `queued` /
+ * `running` rows to `failed` / `user-failed` (`finishedAt = nowMs`).
+ * Returns the number of rows transitioned. Powers `sm job fail --all`.
+ */
+export async function failAllActive(
+  db: Kysely<IDatabase>,
+  nowMs: number,
+): Promise<number> {
+  const res = await db
+    .updateTable('state_jobs')
+    .set({ status: 'failed', failureReason: 'user-failed', finishedAt: nowMs })
+    .where('status', 'in', ACTIVE_STATUSES)
+    .executeTakeFirst();
+  return Number(res.numUpdatedRows ?? 0n);
+}
+
+/**
+ * Counts per lifecycle status,
+ * `{ queued, running, completed, failed, cancelled }`, every key present
+ * (missing statuses report `0`). Backs `sm job status` with no id argument.
+ * One grouped `COUNT(*)` pass.
+ */
+export async function countJobsByStatus(
+  db: Kysely<IDatabase>,
+): Promise<Record<JobStatus, number>> {
+  const rows = await db
+    .selectFrom('state_jobs')
+    .select('status')
+    .select((eb) => eb.fn.countAll<number>().as('count'))
+    .groupBy('status')
+    .execute();
+  const counts: Record<JobStatus, number> = {
+    queued: 0,
+    running: 0,
+    completed: 0,
+    failed: 0,
+    cancelled: 0,
+  };
+  for (const row of rows) counts[row.status] = Number(row.count);
+  return counts;
+}
+
+/**
+ * Auto-reap (`spec/job-lifecycle.md` §Reap procedure): transition every
+ * `running` job whose `expiresAt` has passed to `failed` / `abandoned`
+ * with `finishedAt = nowMs`, in one statement. Returns the reaped count.
+ * `expiresAt < nowMs` excludes NULL `expiresAt` rows automatically (SQLite
+ * `NULL < n` is NULL, not true), so only claimed-and-expired jobs are
+ * swept. Invoked at the start of `sm job run` (a later phase); there is no
+ * standalone `sm job reap` verb.
+ */
+export async function reapExpired(
+  db: Kysely<IDatabase>,
+  nowMs: number,
+): Promise<number> {
+  const res = await db
+    .updateTable('state_jobs')
+    .set({ status: 'failed', failureReason: 'abandoned', finishedAt: nowMs })
+    .where('status', '=', 'running')
+    .where('expiresAt', '<', nowMs)
+    .executeTakeFirst();
+  return Number(res.numUpdatedRows ?? 0n);
 }

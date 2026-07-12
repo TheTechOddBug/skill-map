@@ -82,7 +82,7 @@ const EXECUTION_FAILURE_REASON_VALUES: readonly ExecutionFailureReason[] = Objec
   'timeout',
   'abandoned',
   'job-file-missing',
-  'user-cancelled',
+  'user-failed',
 ]);
 
 export function isStability(s: unknown): s is Stability {

@@ -25,6 +25,8 @@ import type {
   HistoryStats,
   Issue,
   Job,
+  JobRunner,
+  JobStatus,
   Node,
   ScanResult,
 } from '../types.js';
@@ -45,6 +47,7 @@ import type {
   IIssueListFilter,
   IIssueListResult,
   IIssueRow,
+  IJobClaim,
   IJobContentInput,
   IJobListFilter,
   IJobSubmitRow,
@@ -65,6 +68,7 @@ import type {
   IPluginTrustRow,
   IPruneResult,
   THistoryStatsPeriod,
+  TJobTransitionOutcome,
 } from '../types/storage.js';
 
 /**
@@ -371,6 +375,60 @@ export interface StoragePort {
      */
     getContent(contentHash: string): Promise<string | null>;
     /**
+     * Atomic claim (`spec/job-lifecycle.md` §Atomic claim): a single
+     * `UPDATE ... RETURNING` that transitions the highest-priority, oldest
+     * queued job to `running`, stamping `claimedAt` / `runner` /
+     * `expiresAt = claimedAt + ttlSeconds × 1000`. Returns the claimed
+     * `{ id, nonce, contentHash }`, or `null` when the queue is empty (or
+     * nothing matches `filter`, an `actionId` restriction). The statement's
+     * second `AND status='queued'` is the mandatory race guard, two racers
+     * selecting the same id yield exactly one winning UPDATE. `sm job claim`
+     * exposes this to Skill agents (`runner='skill'`).
+     */
+    claim(runner: JobRunner, nowMs: number, filter?: string): Promise<IJobClaim | null>;
+    /**
+     * Cancel a single job (`spec/job-lifecycle.md` §Cancellation): a
+     * `queued` / `running` job moves to the terminal `cancelled` state
+     * (`finishedAt = nowMs`, no `failureReason`; `cancelled` is a distinct
+     * state, NOT a `failed` sub-reason). Returns `cancelled`,
+     * `already-terminal` (job in a terminal state, the verb exits 2), or
+     * `not-found` (exit 5). Does NOT interrupt any subprocess.
+     */
+    cancel(id: string, nowMs: number): Promise<TJobTransitionOutcome>;
+    /**
+     * Cancel every `queued` / `running` job in one statement; returns the
+     * count transitioned to the terminal `cancelled` state. Powers
+     * `sm job cancel --all`.
+     */
+    cancelAllActive(nowMs: number): Promise<number>;
+    /**
+     * Fail a single job (`spec/job-lifecycle.md` §Fail), the symmetric
+     * counterpart to `cancel`: a `queued` / `running` job moves to `failed`
+     * with `failureReason = user-failed` (`finishedAt = nowMs`). Returns
+     * `failed`, `already-terminal` (exit 2), or `not-found` (exit 5). Does
+     * NOT interrupt any subprocess.
+     */
+    fail(id: string, nowMs: number): Promise<TJobTransitionOutcome>;
+    /**
+     * Fail every `queued` / `running` job in one statement; returns the
+     * count transitioned to `failed` / `user-failed`. Powers
+     * `sm job fail --all`.
+     */
+    failAllActive(nowMs: number): Promise<number>;
+    /**
+     * Counts per lifecycle status (`queued` / `running` / `completed` /
+     * `failed` / `cancelled`), every key present. Backs `sm job status`
+     * with no id.
+     */
+    countByStatus(): Promise<Record<JobStatus, number>>;
+    /**
+     * Auto-reap (`spec/job-lifecycle.md` §Reap procedure): transition every
+     * `running` job whose `expiresAt < nowMs` to `failed` / `abandoned`
+     * with `finishedAt = nowMs`; returns the reaped count. Invoked at the
+     * start of `sm job run` (a later phase), no standalone verb.
+     */
+    reapExpired(nowMs: number): Promise<number>;
+    /**
      * Retention GC, in one transaction: delete `state_jobs` rows in
      * terminal `status` whose `finishedAt` is older than `cutoffMs`
      * (Unix ms), then collect orphaned `state_job_contents` rows (every
@@ -381,7 +439,7 @@ export interface StoragePort {
      * `.skill-map/jobs/*.md` artifact to unlink.
      */
     pruneTerminal(
-      status: 'completed' | 'failed',
+      status: 'completed' | 'failed' | 'cancelled',
       cutoffMs: number,
     ): Promise<IPruneResult>;
     /**
@@ -391,7 +449,7 @@ export interface StoragePort {
      * adapter note).
      */
     listTerminalCandidates(
-      status: 'completed' | 'failed',
+      status: 'completed' | 'failed' | 'cancelled',
       cutoffMs: number,
     ): Promise<IPruneResult>;
   };
@@ -539,6 +597,7 @@ export type {
   IHistoryStatsRange,
   IIssueIncidenceCount,
   IIssueRow,
+  IJobClaim,
   IJobContentInput,
   IJobListFilter,
   IJobSubmitRow,
@@ -561,4 +620,5 @@ export type {
   IPluginTrustRow,
   IPruneResult,
   THistoryStatsPeriod,
+  TJobTransitionOutcome,
 } from '../types/storage.js';

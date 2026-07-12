@@ -65,14 +65,14 @@ export type TConfidence = number;
 // severity stored in `scan_issues.severity`").
 export type TIssueSeverity = Severity;
 
-export type TJobStatus = 'queued' | 'running' | 'completed' | 'failed';
+export type TJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 export type TJobFailureReason =
   | 'runner-error'
   | 'report-invalid'
   | 'timeout'
   | 'abandoned'
   | 'job-file-missing'
-  | 'user-cancelled';
+  | 'user-failed';
 export type TJobRunner = 'cli' | 'skill' | 'in-process';
 
 export type TExecutionKind = 'action';

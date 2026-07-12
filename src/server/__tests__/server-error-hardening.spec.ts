@@ -25,6 +25,7 @@ import {
   formatError,
   type IErrorEnvelope,
 } from '../app.js';
+import { DbSchemaDriftError } from '../../core/sqlite/db-version-check.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
 import {
   configureLogger,
@@ -151,6 +152,32 @@ describe('audit L3, internal-error envelope redacts err.message and logs detail'
     } finally {
       resetLogger();
     }
+  });
+
+  it('DbSchemaDriftError maps to a clean db-drift 500 (not the redacted internal fall-through)', async () => {
+    // A mutating `/api/*` request against a drifted DB throws
+    // `DbSchemaDriftError` from the write-side `withSqlite` guard. It must
+    // surface as a clean `db-drift` envelope carrying the plain advisory,
+    // NOT the redacted `internal` 500 that the generic fall-through emits.
+    const app = new Hono();
+    app.get('/boom', () => {
+      throw new DbSchemaDriftError({
+        message: 'This DB predates a schema change. Run `sm db reset --hard` then `sm scan`.',
+        humanMessage: '✕  schema change\n   hint\n',
+      });
+    });
+    app.onError((err, c) => formatError(err, c));
+
+    const res = await app.fetch(new Request('http://127.0.0.1/boom'));
+    strictEqual(res.status, 500);
+    const body = (await res.json()) as IErrorEnvelope;
+    strictEqual(body.ok, false);
+    strictEqual(body.error.code, 'db-drift');
+    strictEqual(body.error.details, null);
+    // The plain advisory (not the §3.1b glyph block) rides the envelope.
+    ok(body.error.message.includes('sm db reset --hard'));
+    ok(body.error.message.includes('sm scan'));
+    match(body.error.message, /schema change/);
   });
 
   it('does NOT redact HTTPException-derived envelopes', async () => {

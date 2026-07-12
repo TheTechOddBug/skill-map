@@ -54,4 +54,37 @@ export const JOBS_QUEUE_TEXTS = {
   previewErrNotFound: '{{glyph}}  sm job preview: job {{id}} not found\n',
   previewErrContentMissing:
     '{{glyph}}  sm job preview: job {{id}} has no stored content (state_job_contents row missing)\n',
+
+  // --- claim -------------------------------------------------------------
+  // claim writes only the raw id (plain) or the {id,nonce,content} JSON to
+  // stdout; an empty queue exits 1 with no output, so it needs no catalog
+  // strings of its own.
+
+  // --- status ------------------------------------------------------------
+  statusErrNotFound: '{{glyph}}  sm job status: job {{id}} not found\n',
+  statusSingleLine: 'job {{id}}  {{status}}\n',
+  statusCounts:
+    'queued     {{queued}}\n' +
+    'running    {{running}}\n' +
+    'completed  {{completed}}\n' +
+    'failed     {{failed}}\n' +
+    'cancelled  {{cancelled}}\n',
+
+  // --- cancel ------------------------------------------------------------
+  cancelErrPrefix: '{{glyph}}  sm job cancel: {{message}}\n',
+  cancelErrNeedTarget: 'pass <job.id> or --all',
+  cancelErrTargetConflict: 'pass either <job.id> or --all, not both',
+  cancelErrNotFound: 'job {{id}} not found',
+  cancelErrAlreadyTerminal: 'job {{id}} is already terminal',
+  cancelOneLine: '{{glyph}}  cancelled {{id}}\n',
+  cancelAllSummary: '{{glyph}}  cancelled {{count}} active job(s)\n',
+
+  // --- fail --------------------------------------------------------------
+  failErrPrefix: '{{glyph}}  sm job fail: {{message}}\n',
+  failErrNeedTarget: 'pass <job.id> or --all',
+  failErrTargetConflict: 'pass either <job.id> or --all, not both',
+  failErrNotFound: 'job {{id}} not found',
+  failErrAlreadyTerminal: 'job {{id}} is already terminal',
+  failOneLine: '{{glyph}}  failed {{id}}\n',
+  failAllSummary: '{{glyph}}  failed {{count}} active job(s)\n',
 } as const;

@@ -59,6 +59,25 @@ export const DB_VERSION_TEXTS = {
   dbSchemaDriftHint:
     'Run `sm scan` to rebuild the local cache (your .sm sidecars are untouched), or `sm db reset`; some columns may be missing until then.',
 
+  // Write-side refusal, the DEFAULT for a DB-mutating open that does NOT
+  // own drift (job verbs, `plugins enable`, `config set`, `record`, ...).
+  // Unlike the read-side WARN above, a write CANNOT continue against an
+  // older on-disk schema without the cryptic `CHECK constraint failed` /
+  // `no such column` crash, so the seam REFUSES with a `DbSchemaDriftError`
+  // instead. ERROR, `✕` red, §3.1b block for the CLI stderr. Same-version
+  // (fingerprint) drift only, a pure version bump with no schema change
+  // keeps the fingerprint stable and never trips this.
+  dbSchemaDriftWrite:
+    '{{glyph}}  This DB predates a schema change in skill-map {{currentVersion}} and cannot be written safely (same version, older columns).\n' +
+    '   {{hint}}\n',
+  dbSchemaDriftWriteHint:
+    'Run `sm db reset --hard` then `sm scan` to rebuild the local cache; your .sm sidecars are untouched.',
+  // Plain, glyph-free variant carried on `DbSchemaDriftError.message` so
+  // the BFF error envelope (and any non-TTY consumer) surfaces a single
+  // clean sentence instead of the §3.1b block above.
+  dbSchemaDriftWritePlain:
+    'This DB predates a schema change in skill-map {{currentVersion}} and cannot be written safely. Run `sm db reset --hard` then `sm scan` to rebuild the local cache; your .sm sidecars are untouched.',
+
   // The defensive wrapper for `parseConfidence` / `parseLinkKind` /
   // `parseSeverity` failures during `loadScanResult` (when the meta
   // row was wiped and the version check returned `no-meta`) lives in

@@ -55,7 +55,7 @@ const FAILURE_REASONS: readonly ExecutionFailureReason[] = [
   'timeout',
   'abandoned',
   'job-file-missing',
-  'user-cancelled',
+  'user-failed',
 ];
 
 // --- Inserts ---------------------------------------------------------------
@@ -264,7 +264,7 @@ export async function aggregateHistoryStats(
     'timeout': 0,
     'abandoned': 0,
     'job-file-missing': 0,
-    'user-cancelled': 0,
+    'user-failed': 0,
   };
 
   const totals = { executionsCount, completedCount, failedCount, tokensInTotal, tokensOutTotal, durationMsTotal };

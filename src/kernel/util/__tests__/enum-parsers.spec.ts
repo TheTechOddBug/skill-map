@@ -104,7 +104,7 @@ describe('enum-parsers, type guards', () => {
       'timeout',
       'abandoned',
       'job-file-missing',
-      'user-cancelled',
+      'user-failed',
     ]) {
       assert.equal(isExecutionFailureReason(v), true, v);
     }
@@ -177,7 +177,7 @@ describe('enum-parsers, narrowing parsers', () => {
     assert.equal(parseExecutionFailureReason('timeout', 'ctx'), 'timeout');
     assert.throws(() => parseExecutionFailureReason('content-missing', 'state_executions/e-2'), (err: Error) => {
       assert.match(err.message, /Invalid ExecutionFailureReason value "content-missing"/);
-      assert.match(err.message, /runner-error \| report-invalid \| timeout \| abandoned \| job-file-missing \| user-cancelled/);
+      assert.match(err.message, /runner-error \| report-invalid \| timeout \| abandoned \| job-file-missing \| user-failed/);
       return true;
     });
   });

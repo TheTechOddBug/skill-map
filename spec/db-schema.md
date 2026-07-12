@@ -305,8 +305,8 @@ Matching [`schemas/job.schema.json`](./schemas/job.schema.json). See [`job-lifec
 | `content_hash` | TEXT | NOT NULL |
 | `nonce` | TEXT | NOT NULL |
 | `priority` | INTEGER | NOT NULL DEFAULT 0 |
-| `status` | TEXT | NOT NULL, CHECK in (`queued`, `running`, `completed`, `failed`) |
-| `failure_reason` | TEXT | NULL, CHECK in (`runner-error`, `report-invalid`, `timeout`, `abandoned`, `job-file-missing`, `user-cancelled`) |
+| `status` | TEXT | NOT NULL, CHECK in (`queued`, `running`, `completed`, `failed`, `cancelled`) |
+| `failure_reason` | TEXT | NULL, CHECK in (`runner-error`, `report-invalid`, `timeout`, `abandoned`, `job-file-missing`, `user-failed`). NULL for a `cancelled` job (self-explanatory, no reason). |
 | `runner` | TEXT | NULL, CHECK in (`cli`, `skill`, `in-process`) |
 | `ttl_seconds` | INTEGER | NOT NULL |
 | `created_at` | INTEGER | NOT NULL |
@@ -504,13 +504,15 @@ The project DB is a derived cache: every `scan_*` row is regenerable, and the op
 - **Stored fingerprint differs from the recomputed one**: drifted. Any inline edit to a migration file changes the fingerprint and trips this axis independently of the version axis.
 - **Stored fingerprint is NULL** (a DB written by a pre-fingerprint CLI, or whose `schema_fingerprint` column does not exist): drifted. Forces a one-time rebuild on upgrade so the very column that detects drift gets provisioned.
 
-When **either axis** reports drift, the entire DB file (plus its `-wal` / `-shm` sidecars) is deleted and recreated from the current migrations; the scan then repopulates it. No backup is written (the cache is derived). `state_*` and `config_*` are wiped along with `scan_*`; pre-1.0 they are transient. `.sm` sidecars are never touched. The drift message names the reason (version skew vs schema fingerprint).
+An open reacts to drift in one of three ways, by open kind:
 
-A DB that was never scanned (no `scan_meta` row) is **not** drift: no recorded version, no recorded fingerprint, no signal. The open proceeds untouched (the next scan writes both fields). Reading the stored fingerprint is defensive: a missing `scan_meta` table and a missing `schema_fingerprint` column are both tolerated (column-absent maps to NULL, i.e. drift; row-absent maps to no-signal).
+**Drift-owning write opens rebuild.** `sm scan`, `sm watch`, and `sm serve` (boot) own drift resolution. When **either axis** reports drift, the entire DB file (plus its `-wal` / `-shm` sidecars) is deleted and recreated from the current migrations; the scan then repopulates it. No backup is written (the cache is derived). `state_*` and `config_*` are wiped along with `scan_*`; pre-1.0 they are transient. `.sm` sidecars are never touched. The drift message names the reason (version skew vs schema fingerprint). The rebuild is confirmed interactively on a TTY (`sm scan`, and `sm serve` before it starts listening) unless `--yes` is passed; non-interactive callers (piped stdin, CI, the BFF scan route, the watcher) rebuild without prompting. Declining the prompt aborts (exit `2`) without deleting anything.
 
-The rebuild is confirmed interactively on a TTY (`sm scan`, and `sm serve` before it starts listening) unless `--yes` is passed; non-interactive callers (piped stdin, CI, the BFF scan route, the watcher) rebuild without prompting. Declining the prompt aborts (exit `2`) without deleting anything.
+**Other mutating opens refuse.** Every other DB-mutating open, the ones that do NOT own drift (`sm jobs …` and the other job verbs, `sm plugins enable/disable`, `sm config set`, `sm record`, and any future write verb), runs a write-side guard on the **schema-fingerprint axis** at open time. When the stored fingerprint has drifted (differs, is NULL, or the column is absent) the open refuses with a typed `DbSchemaDriftError` advisory instead of proceeding into the mutation, which would otherwise crash with a cryptic `CHECK constraint failed` / `no such column` runtime error against the older columns. On the CLI the advisory renders to stderr and the verb exits `2`; on a mutating `/api/*` request the BFF returns a clean `db-drift` error envelope (not a `500` stack). The advisory names schema drift as the reason and points at `sm db reset --hard` followed by `sm scan` to rebuild. The guard is fingerprint-only: a pure version bump with no schema change keeps the fingerprint stable and never trips it (the same columns are safe to write). Maintenance opens that must run against a drifted DB regardless (`sm db backup`, a raw file copy taken BEFORE a reset) opt out of the guard.
 
-Read-side verbs (`sm check`, `sm list`, `sm show`, `GET /api/*`) do NOT rebuild. They surface a prominent advisory (warn on an older DB or a fingerprint mismatch, refuse on a newer or different-major DB) so a read never silently discards the cache nor crashes cryptically on a missing column. The advisory points at `sm scan` (rebuild on the next write) or `sm db reset`.
+A DB that was never scanned (no `scan_meta` row) is **not** drift on any of these paths: no recorded version, no recorded fingerprint, no signal. The open proceeds untouched (the next scan writes both fields). Reading the stored fingerprint is defensive: a missing `scan_meta` table and a missing `schema_fingerprint` column are both tolerated (column-absent maps to NULL, i.e. drift; row-absent maps to no-signal).
+
+**Read-side opens advise.** Read verbs (`sm check`, `sm list`, `sm show`, `GET /api/*`) do NOT rebuild and do NOT refuse on a fingerprint mismatch. They surface a prominent advisory (warn on an older DB or a fingerprint mismatch, refuse on a newer or different-major DB) so a read never silently discards the cache nor crashes cryptically on a missing column. The advisory points at `sm scan` (rebuild on the next write) or `sm db reset`.
 
 This is a pre-1.0 affordance. The first `1.0.0` replaces it with real up-only migrations (see §Migrations): drift detection by version / fingerprint becomes drift repair by migration, and `state_*` / `config_*` stop being disposable.
 

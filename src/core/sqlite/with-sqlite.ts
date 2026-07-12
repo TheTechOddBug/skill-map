@@ -58,8 +58,10 @@ import type { IDatabase } from '../../kernel/adapters/sqlite/schema.js';
 
 import {
   runDbVersionCheck,
+  runWriteSideDriftCheck,
   type IRunDbVersionCheckOpts,
 } from './db-version-runner.js';
+import { VERSION } from '../../version.js';
 
 /**
  * Subset of `IRunDbVersionCheckOpts` the seam accepts. `dbPath` is
@@ -79,6 +81,20 @@ export interface IWithSqliteOptions extends ISqliteStorageAdapterOptions {
    * + every test that pre-dates the check).
    */
   versionCheck?: TWithSqliteVersionCheck;
+  /**
+   * Opt OUT of the default write-side schema-drift refusal. Set by the
+   * flows that OWN drift and resolve it themselves before this open:
+   * `sm scan` / `sm watch` (via `maybeResetOnDrift`, which rebuilds the
+   * cache), and maintenance opens that must run against a drifted DB
+   * regardless (`sm db backup`, a raw file copy). Every other DB-mutating
+   * open leaves this unset so a drifted on-disk schema refuses with a
+   * `DbSchemaDriftError` advisory instead of crashing on a missing column.
+   *
+   * Ignored when `versionCheck` is present: a `versionCheck` open is a
+   * READ, it already runs the warn/refuse version + fingerprint advisory
+   * and never falls through to the write-side refuse.
+   */
+  skipDriftCheck?: boolean;
 }
 
 export async function withSqlite<T>(
@@ -101,6 +117,13 @@ export async function withSqlite<T>(
         ...options.versionCheck,
         dbPath: options.databasePath,
       });
+    } else if (!options.skipDriftCheck) {
+      // Default write-side guard: a mutating open against a DB whose
+      // on-disk schema drifted from the bundled migrations refuses with a
+      // clear advisory instead of crashing on a missing column downstream.
+      // Path-based fingerprint read (no live-handle access, no new hash),
+      // so `tryWithSqlite` inherits it unchanged. `no-meta` / `ok` no-op.
+      runWriteSideDriftCheck(options.databasePath, VERSION);
     }
     return await fn(adapter);
   } finally {

@@ -62,6 +62,7 @@ interface IPruneOutput {
   retention: {
     completed: IRetentionStatusOutput;
     failed: IRetentionStatusOutput;
+    cancelled: IRetentionStatusOutput;
   };
   /**
    * Orphaned `state_job_contents` rows collected across the retention
@@ -75,11 +76,12 @@ export class JobPruneCommand extends SmCommand {
   static override paths = [['job', 'prune']];
   static override usage = Command.Usage({
     category: 'Jobs',
-    description: 'Retention GC for completed / failed jobs (per config policy), plus orphaned job-content collection.',
+    description: 'Retention GC for completed / failed / cancelled jobs (per config policy), plus orphaned job-content collection.',
     details: `
-      Reads jobs.retention.completed and jobs.retention.failed from the
-      layered config. For each non-null policy, deletes terminal jobs
-      whose finishedAt is older than the cutoff, then collects orphaned
+      Reads jobs.retention.completed, jobs.retention.failed, and
+      jobs.retention.cancelled from the layered config. For each non-null
+      policy, deletes terminal jobs whose finishedAt is older than the
+      cutoff, then collects orphaned
       state_job_contents rows (content referenced by no surviving job)
       in the same transaction. Job content is DB-only, there is no
       .skill-map/jobs/ directory to clean.
@@ -122,6 +124,7 @@ export class JobPruneCommand extends SmCommand {
 
     const completedPolicy = cfg.jobs.retention.completed;
     const failedPolicy = cfg.jobs.retention.failed;
+    const cancelledPolicy = cfg.jobs.retention.cancelled;
     const now = Date.now();
 
     const out: IPruneOutput = {
@@ -129,17 +132,19 @@ export class JobPruneCommand extends SmCommand {
       retention: {
         completed: { policySeconds: completedPolicy, deleted: 0 },
         failed: { policySeconds: failedPolicy, deleted: 0 },
+        cancelled: { policySeconds: cancelledPolicy, deleted: 0 },
       },
       prunedContents: 0,
     };
 
     try {
       await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-        // Two independent retention passes (one per terminal status).
-        // Each live pass prunes its rows AND sweeps content orphaned by
-        // that deletion in the same transaction; the failed pass catches
-        // any content the completed pass could not yet see. For dry-run
-        // we mirror the same query but stop before DELETE.
+        // One independent retention pass per terminal status
+        // (completed / failed / cancelled). Each live pass prunes its rows
+        // AND sweeps content orphaned by that deletion in the same
+        // transaction; a later pass catches any content an earlier one
+        // could not yet see. For dry-run we mirror the same query but stop
+        // before DELETE.
         if (completedPolicy !== null) {
           const cutoff = now - completedPolicy * 1000;
           const result = await this.pruneOrPreview('completed', cutoff, adapter, this.dryRun);
@@ -150,6 +155,12 @@ export class JobPruneCommand extends SmCommand {
           const cutoff = now - failedPolicy * 1000;
           const result = await this.pruneOrPreview('failed', cutoff, adapter, this.dryRun);
           out.retention.failed.deleted = result.deletedCount;
+          out.prunedContents += result.prunedContents;
+        }
+        if (cancelledPolicy !== null) {
+          const cutoff = now - cancelledPolicy * 1000;
+          const result = await this.pruneOrPreview('cancelled', cutoff, adapter, this.dryRun);
+          out.retention.cancelled.deleted = result.deletedCount;
           out.prunedContents += result.prunedContents;
         }
       });
@@ -168,7 +179,7 @@ export class JobPruneCommand extends SmCommand {
   }
 
   private async pruneOrPreview(
-    status: 'completed' | 'failed',
+    status: 'completed' | 'failed' | 'cancelled',
     cutoffMs: number,
     adapter: StoragePort,
     dryRun: boolean,
@@ -182,6 +193,7 @@ export class JobPruneCommand extends SmCommand {
     const tag = out.dryRun ? JOBS_TEXTS.pruneTagDryRun : JOBS_TEXTS.pruneTagApply;
     const c = out.retention.completed;
     const f = out.retention.failed;
+    const x = out.retention.cancelled;
     const rowsVerb = out.dryRun ? JOBS_TEXTS.pruneRowsVerbDryRun : JOBS_TEXTS.pruneRowsVerbApply;
     const contentsVerb = out.dryRun
       ? JOBS_TEXTS.pruneContentsVerbDryRun
@@ -203,6 +215,12 @@ export class JobPruneCommand extends SmCommand {
           label: JOBS_TEXTS.pruneLabelFailed,
           policy: formatPolicy(f.policySeconds),
           rows: f.deleted,
+          rowsVerb,
+        }) +
+        tx(JOBS_TEXTS.pruneRetentionRow, {
+          label: JOBS_TEXTS.pruneLabelCancelled,
+          policy: formatPolicy(x.policySeconds),
+          rows: x.deleted,
           rowsVerb,
         }) +
         tx(JOBS_TEXTS.pruneContentsRow, {

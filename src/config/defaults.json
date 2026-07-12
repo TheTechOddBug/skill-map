@@ -33,7 +33,8 @@
     "perActionPriority": {},
     "retention": {
       "completed": 2592000,
-      "failed": null
+      "failed": null,
+      "cancelled": 2592000
     }
   }
 }

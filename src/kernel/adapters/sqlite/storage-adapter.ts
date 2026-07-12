@@ -70,11 +70,18 @@ import type {
   THistoryStatsPeriod,
 } from './history.js';
 import {
+  cancelAllActive,
+  cancelJob,
+  claimNext,
+  countJobsByStatus,
+  failAllActive,
+  failJob,
   findActiveDuplicate,
   getJob,
   getJobContent,
   listJobs,
   pruneTerminalJobs,
+  reapExpired,
   submitJob,
 } from './jobs.js';
 import {
@@ -353,6 +360,13 @@ export class SqliteStorageAdapter implements StoragePort {
       list: (filter) => listJobs(this.db, filter),
       get: (id) => getJob(this.db, id),
       getContent: (contentHash) => getJobContent(this.db, contentHash),
+      claim: (runner, nowMs, filter) => claimNext(this.db, runner, nowMs, filter),
+      cancel: (id, nowMs) => cancelJob(this.db, id, nowMs),
+      cancelAllActive: (nowMs) => cancelAllActive(this.db, nowMs),
+      fail: (id, nowMs) => failJob(this.db, id, nowMs),
+      failAllActive: (nowMs) => failAllActive(this.db, nowMs),
+      countByStatus: () => countJobsByStatus(this.db),
+      reapExpired: (nowMs) => reapExpired(this.db, nowMs),
       pruneTerminal: (status, cutoffMs) =>
         pruneTerminalJobs(this.db, status, cutoffMs),
       listTerminalCandidates: (status, cutoffMs) =>
@@ -859,7 +873,7 @@ async function upsertEnrichments(
  */
 async function listTerminalCandidates(
   db: Kysely<IDatabase>,
-  status: 'completed' | 'failed',
+  status: 'completed' | 'failed' | 'cancelled',
   cutoffMs: number,
 ): Promise<IPruneResult> {
   const rows = await db

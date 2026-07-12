@@ -41,8 +41,8 @@
     },
     "failureReason": {
       "type": ["string", "null"],
-      "enum": ["runner-error", "report-invalid", "timeout", "abandoned", "job-file-missing", "user-cancelled", null],
-      "description": "Normalized reason when `status = failed` or `cancelled`. Null for `completed`. `job-file-missing` mirrors the same enum value on `Job.failureReason` (legacy name preserved across the disk-to-DB shift)."
+      "enum": ["runner-error", "report-invalid", "timeout", "abandoned", "job-file-missing", "user-failed", null],
+      "description": "Normalized reason when `status = failed`. Null for `completed` and `cancelled` (both self-explanatory), mirroring `Job.failureReason`. `user-failed` records an operator-forced failure (`sm job fail`); a `cancelled` status is the operator's `sm job cancel` and carries no reason. `job-file-missing` mirrors the same enum value on `Job.failureReason` (legacy name preserved across the disk-to-DB shift)."
     },
     "exitCode": {
       "type": ["integer", "null"],

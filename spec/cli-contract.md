@@ -142,6 +142,7 @@ CLI surfaces:
 - `sm job submit <action> --all`
 - `sm job run --all`
 - `sm job cancel --all`
+- `sm job fail --all`
 - `sm plugins enable --all`
 - `sm plugins disable --all`
 
@@ -534,8 +535,9 @@ See `job-lifecycle.md` for the state machine; this table is the CLI surface.
 | `sm job run --all` | Drain the queue (sequential through `v1.0`; in-runner parallelism deferred). |
 | `sm job run --max N` | Drain at most N jobs. |
 | `sm job status [<job.id>]` | Counts (per status) or single-job status. |
-| `sm job cancel <job.id> \| --all` | Force a running job to `failed` state with reason `user-cancelled`. `--all` cancels every `queued` and `running` job. |
-| `sm job prune` | Retention GC: deletes terminal jobs past the configured retention window AND collects orphaned `state_job_contents` rows in the same transaction. |
+| `sm job cancel <job.id> \| --all` | Move a `queued` / `running` job to the terminal `cancelled` state (no `failureReason`; `cancelled` is a distinct state, not a `failed` sub-reason). `--all` cancels every `queued` and `running` job. Already-terminal job → exit 2; missing id → exit 5. |
+| `sm job fail <job.id> \| --all` | Symmetric to cancel: move a `queued` / `running` job to the terminal `failed` state with reason `user-failed`. `--all` fails every `queued` and `running` job. Already-terminal job → exit 2; missing id → exit 5. |
+| `sm job prune` | Retention GC: deletes terminal jobs (`completed` / `failed` / `cancelled`) past their configured retention window (`jobs.retention.*`) AND collects orphaned `state_job_contents` rows in the same transaction. |
 
 Submit returns the job id on stdout in pretty mode, or a `Job` object conforming to `job.schema.json` in `--json` mode.
 

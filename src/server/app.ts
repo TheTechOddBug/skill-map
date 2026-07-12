@@ -65,6 +65,7 @@ import type { ContentfulStatusCode, StatusCode } from 'hono/utils/http-status';
 import { formatErrorMessage } from '../kernel/util/format-error.js';
 import { ConfigService } from '../core/config/service.js';
 import { EConsentRequiredError, ESidecarWritersForbiddenError } from '../core/config/sidecar-consent.js';
+import { DbSchemaDriftError } from '../core/sqlite/db-version-check.js';
 import type { IPluginRuntime } from '../core/runtime/plugin-runtime.js';
 import type { IRuntimeContext } from '../core/runtime/runtime-context.js';
 import { ExportQueryError } from '../kernel/index.js';
@@ -128,6 +129,7 @@ export type TErrorCode =
   | 'not-found'
   | 'bad-query'
   | 'db-missing'
+  | 'db-drift'
   | 'sidecar-fresh'
   | 'scan-busy'
   | 'action-refused'
@@ -712,17 +714,8 @@ function codeForStatus(status: number): TErrorCode {
  * server.
  */
 export function formatError(err: unknown, c: Context): Response {
-  if (err instanceof DbMissingError) {
-    const envelope: IErrorEnvelope = {
-      ok: false,
-      error: {
-        code: 'db-missing',
-        message: err.message,
-        details: null,
-      },
-    };
-    return c.json(envelope, 500);
-  }
+  const dbError = formatDbError(err, c);
+  if (dbError) return dbError;
 
   if (err instanceof BulkValidationError) {
     const envelope: IErrorEnvelope = {
@@ -785,6 +778,39 @@ export function formatError(err: unknown, c: Context): Response {
   if (sidecar) return sidecar;
 
   return formatInternalErrorFallThrough(err, c);
+}
+
+/**
+ * Format the two DB-open failures into the canonical envelope, both 500s.
+ * Returns `null` when `err` is neither so `formatError` can fall through.
+ * Extracted alongside `formatConflict` / `formatSidecarConsentError` so the
+ * dispatcher's cyclomatic complexity stays inside the lint budget.
+ *
+ *   - `DbMissingError`     -> `db-missing`. A mutation (`POST /api/scan`,
+ *     the plugin-toggle family) cannot persist without a project DB file.
+ *   - `DbSchemaDriftError` -> `db-drift`. A mutating request opened a DB
+ *     whose on-disk schema drifted from the bundled migrations; the
+ *     write-side `withSqlite` guard refuses rather than crash on a missing
+ *     column. The plain `err.message` advisory (rebuild via
+ *     `sm db reset --hard` + `sm scan`) is surfaced so the SPA can guide
+ *     the operator instead of showing the redacted `internal` fall-through.
+ */
+function formatDbError(err: unknown, c: Context): Response | null {
+  if (err instanceof DbMissingError) {
+    const envelope: IErrorEnvelope = {
+      ok: false,
+      error: { code: 'db-missing', message: err.message, details: null },
+    };
+    return c.json(envelope, 500);
+  }
+  if (err instanceof DbSchemaDriftError) {
+    const envelope: IErrorEnvelope = {
+      ok: false,
+      error: { code: 'db-drift', message: err.message, details: null },
+    };
+    return c.json(envelope, 500);
+  }
+  return null;
 }
 
 /**

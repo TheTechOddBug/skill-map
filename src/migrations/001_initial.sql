@@ -162,8 +162,13 @@ CREATE TABLE state_jobs (
   -- in the failure-reason CHECK is a legacy enum name preserved across the
   -- disk-to-DB shift; it now means "the referenced `state_job_contents`
   -- row is missing" (DB-corruption-only), not a missing file.
-  CONSTRAINT ck_state_jobs_status CHECK (status IN ('queued','running','completed','failed')),
-  CONSTRAINT ck_state_jobs_failure_reason CHECK (failure_reason IS NULL OR failure_reason IN ('runner-error','report-invalid','timeout','abandoned','job-file-missing','user-cancelled')),
+  --
+  -- Three terminal states: `completed`, `failed`, `cancelled`. `cancelled`
+  -- (via `sm job cancel`) is a distinct state, NOT a `failed` sub-reason,
+  -- and carries NO failure_reason. `user-failed` marks a job the operator
+  -- forced to `failed` via `sm job fail` (symmetric to cancel).
+  CONSTRAINT ck_state_jobs_status CHECK (status IN ('queued','running','completed','failed','cancelled')),
+  CONSTRAINT ck_state_jobs_failure_reason CHECK (failure_reason IS NULL OR failure_reason IN ('runner-error','report-invalid','timeout','abandoned','job-file-missing','user-failed')),
   CONSTRAINT ck_state_jobs_runner CHECK (runner IS NULL OR runner IN ('cli','skill','in-process'))
 );
 CREATE INDEX ix_state_jobs_status ON state_jobs(status);

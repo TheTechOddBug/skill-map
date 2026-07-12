@@ -103,7 +103,7 @@ describe('insertExecution + listExecutions', () => {
       // 5 executions: span 2 actions, 2 statuses, 2 distinct node paths.
       await insertExecution(adapter.db, makeExec({ id: 'e1', startedAt: 1000, extensionId: 'a1', nodeIds: ['skills/foo.md'], status: 'completed' }));
       await insertExecution(adapter.db, makeExec({ id: 'e2', startedAt: 2000, extensionId: 'a1', nodeIds: ['skills/bar.md'], status: 'failed', failureReason: 'timeout' }));
-      await insertExecution(adapter.db, makeExec({ id: 'e3', startedAt: 3000, extensionId: 'a2', nodeIds: ['skills/foo.md'], status: 'cancelled', failureReason: 'user-cancelled' }));
+      await insertExecution(adapter.db, makeExec({ id: 'e3', startedAt: 3000, extensionId: 'a2', nodeIds: ['skills/foo.md'], status: 'cancelled' }));
       await insertExecution(adapter.db, makeExec({ id: 'e4', startedAt: 4000, extensionId: 'a2', nodeIds: ['skills/foo.md', 'skills/bar.md'], status: 'completed' }));
       await insertExecution(adapter.db, makeExec({ id: 'e5', startedAt: 5000, extensionId: 'a2', nodeIds: [], status: 'completed' }));
 
@@ -222,7 +222,7 @@ describe('aggregateHistoryStats', () => {
       strictEqual(stats.errorRates.perFailureReason['report-invalid'], 0);
       strictEqual(stats.errorRates.perFailureReason['abandoned'], 0);
       strictEqual(stats.errorRates.perFailureReason['job-file-missing'], 0);
-      strictEqual(stats.errorRates.perFailureReason['user-cancelled'], 0);
+      strictEqual(stats.errorRates.perFailureReason['user-failed'], 0);
 
       // Per-action failure rates: a1 → 1/3, a2 → 1/2, sorted desc by rate.
       strictEqual(stats.errorRates.perAction[0]!.actionId, 'a2');

@@ -46,6 +46,7 @@ import DEFAULTS_RAW from '../../config/defaults.json' with { type: 'json' };
 export interface IRetentionConfig {
   completed: number | null;
   failed: number | null;
+  cancelled: number | null;
 }
 
 export interface IJobsConfig {

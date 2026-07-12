@@ -18,7 +18,7 @@ function jobs(overrides: Partial<IJobsConfig> = {}): IJobsConfig {
     minimumTtlSeconds: 60,
     perActionTtl: {},
     perActionPriority: {},
-    retention: { completed: 2592000, failed: null },
+    retention: { completed: 2592000, failed: null, cancelled: 2592000 },
     ...overrides,
   };
 }

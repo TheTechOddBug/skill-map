@@ -129,6 +129,7 @@ describe('config loader, deep merge semantics', () => {
     const { effective } = loadConfig({ cwd });
     strictEqual(effective.jobs.retention.completed, 1000);
     strictEqual(effective.jobs.retention.failed, null);
+    strictEqual(effective.jobs.retention.cancelled, 2592000, 'cancelled default mirrors completed (30d)');
   });
 });
 

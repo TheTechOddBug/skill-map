@@ -254,7 +254,7 @@ Emitted when a job transitions to `failed` by any path.
   "runId": "...",
   "jobId": "...",
   "data": {
-    "reason": "runner-error | report-invalid | timeout | abandoned | job-file-missing | user-cancelled",
+    "reason": "runner-error | report-invalid | timeout | abandoned | job-file-missing | user-failed",
     "message": "Subprocess exited with code 127",
     "exitCode": 127,
     "durationMs": 180000

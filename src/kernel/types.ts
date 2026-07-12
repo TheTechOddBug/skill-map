@@ -585,7 +585,7 @@ export type ExecutionFailureReason =
   | 'timeout'
   | 'abandoned'
   | 'job-file-missing'
-  | 'user-cancelled';
+  | 'user-failed';
 export type ExecutionRunner = 'cli' | 'skill' | 'in-process';
 
 /**
@@ -613,14 +613,14 @@ export interface ExecutionRecord {
   jobId?: string | null;
 }
 
-export type JobStatus = 'queued' | 'running' | 'completed' | 'failed';
+export type JobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 export type JobFailureReason =
   | 'runner-error'
   | 'report-invalid'
   | 'timeout'
   | 'abandoned'
   | 'job-file-missing'
-  | 'user-cancelled';
+  | 'user-failed';
 export type JobRunner = 'cli' | 'skill' | 'in-process';
 
 /**

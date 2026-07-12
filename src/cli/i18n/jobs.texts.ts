@@ -22,6 +22,7 @@ export const JOBS_TEXTS = {
 
   pruneLabelCompleted: 'completed:',
   pruneLabelFailed: 'failed:   ',
+  pruneLabelCancelled: 'cancelled:',
 
   pruneRetentionPolicyNever: 'never',
 } as const;

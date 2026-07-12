@@ -45,11 +45,18 @@ export class DbBackupCommand extends SmCommand {
     // the WAL checkpoint, parent-directory creation, and atomic file
     // copy in one call. `autoMigrate: false` keeps the open from
     // touching schema; `autoBackup: false` is implied because no
-    // migrations run. The verb composes `outPath` (timestamp default
-    // or `--out` override) and hands it to the port.
-    await withSqlite({ databasePath: path, autoMigrate: false }, async (storage) => {
-      storage.migrations.writeBackup(outPath);
-    });
+    // migrations run. `skipDriftCheck: true` because a backup is a raw
+    // file copy that must succeed even on a drifted DB (you may want a
+    // copy BEFORE `sm db reset --hard`); it never queries the drifted
+    // columns, so the write-side refusal would only get in the way. The
+    // verb composes `outPath` (timestamp default or `--out` override)
+    // and hands it to the port.
+    await withSqlite(
+      { databasePath: path, autoMigrate: false, skipDriftCheck: true },
+      async (storage) => {
+        storage.migrations.writeBackup(outPath);
+      },
+    );
 
     const ansi = this.ansiFor('stdout');
     this.printer!.data(
