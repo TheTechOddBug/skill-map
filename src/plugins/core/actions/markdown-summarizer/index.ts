@@ -41,6 +41,10 @@ export const markdownSummarizerAction: IBuiltInManifest<IAction> = {
   // Best-effort wall-clock estimate; drives the job TTL. Two minutes is a
   // safe upper bound for a single-file summary on a mid-tier model.
   probExpectedDurationSeconds: 120,
+  // The report is a per-node semantic summary: recording a completed job
+  // upserts it into `state_summaries` and `sm show` renders it (with a
+  // `(stale)` marker once the node's body changes). See `IAction`.
+  writesSummary: true,
   // Gates the `--all` fan-out to `markdown` nodes only (the format-named
   // generic fallback kind owned by the `core/markdown` Provider).
   precondition: { kind: ['markdown'] },

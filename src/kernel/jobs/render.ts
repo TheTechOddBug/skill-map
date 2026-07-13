@@ -17,11 +17,16 @@
  *
  *   - The `id` attribute carries `node.path`, HTML-attribute-escaped
  *     (`&amp; &quot; &lt; &gt;`).
- *   - A literal `</user-content>` inside the body is neutralised to
- *     `</user-content&#x200B;>` (a zero-width space before `>`, written as
- *     the `&#x200B;` entity so the source carries no invisible byte). This
- *     is reversed ONLY for display (`unescapeUserContentClose`), never for
- *     hashing.
+ *   - A literal `</user-content>` close tag inside the body, matched
+ *     CASE-INSENSITIVELY and tolerating internal whitespace
+ *     (`</USER-CONTENT>`, `</user-content >`, ...), is neutralised by
+ *     inserting `&#x200B;` (a zero-width-space entity, so the source
+ *     carries no invisible byte) before the final `>`, preserving every
+ *     other original byte. Tag semantics are case-insensitive to HTML
+ *     consumers and LLMs, so an attacker-cased or padded close tag would
+ *     otherwise still close the kernel's delimiter (prompt-injection
+ *     escape). This is reversed ONLY for display
+ *     (`unescapeUserContentClose`), never for hashing.
  *   - `<user-content>` blocks are never nested: the template MUST NOT
  *     author its own delimiter (rejected below).
  *   - Nothing user-authored ever lands outside a block: the only user text
@@ -43,9 +48,18 @@ import { loadCanonicalPreamble } from './preamble.js';
 /** The one sanctioned placeholder marking where the node body is injected. */
 export const USER_CONTENT_PLACEHOLDER = '{{userContent}}';
 
-const CLOSE_TAG = '</user-content>';
-/** Neutralised close tag: `&#x200B;` (zero-width space entity) before `>`. */
-const ESCAPED_CLOSE_TAG = '</user-content&#x200B;>';
+/**
+ * Any `</user-content>` close-tag variant: case-insensitive, internal
+ * whitespace tolerated (`</USER-CONTENT>`, `</user-content >`,
+ * `</ user-content>`). The capture keeps the original bytes so the escape
+ * only INSERTS the entity, never normalises the attacker's casing.
+ */
+const CLOSE_TAG_RE = /(<\/\s*user-content\s*)>/gi;
+/**
+ * Exact inverse of `CLOSE_TAG_RE`'s replacement: the same tag prefix
+ * followed by the inserted `&#x200B;` entity and the closing `>`.
+ */
+const ESCAPED_CLOSE_TAG_RE = /(<\/\s*user-content\s*)&#x200B;>/gi;
 
 /**
  * HTML-attribute-escape a value for the `id="..."` attribute. `&` is
@@ -61,21 +75,24 @@ function escapeHtmlAttribute(value: string): string {
 }
 
 /**
- * Neutralise every literal `</user-content>` inside `body` so it cannot
- * prematurely close the kernel's delimiter. Reversed only for display via
- * `unescapeUserContentClose`.
+ * Neutralise every literal `</user-content>` close tag inside `body`,
+ * case- and internal-whitespace-insensitively, so no variant can
+ * prematurely close the kernel's delimiter. The original bytes are
+ * preserved except for the inserted `&#x200B;` entity. Reversed only for
+ * display via `unescapeUserContentClose`.
  */
 function escapeUserContentClose(body: string): string {
-  return body.split(CLOSE_TAG).join(ESCAPED_CLOSE_TAG);
+  return body.replace(CLOSE_TAG_RE, '$1&#x200B;>');
 }
 
 /**
- * Reverse of `escapeUserContentClose`. For DISPLAY surfaces only
- * (`sm job preview` in a later sub-step); MUST NOT be applied before
- * hashing or the content hash stops matching the stored blob.
+ * Exact inverse of `escapeUserContentClose` (removes the inserted
+ * `&#x200B;` entity, restoring the original bytes). For DISPLAY surfaces
+ * only (`sm job preview`); MUST NOT be applied before hashing or the
+ * content hash stops matching the stored blob.
  */
 export function unescapeUserContentClose(content: string): string {
-  return content.split(ESCAPED_CLOSE_TAG).join(CLOSE_TAG);
+  return content.replace(ESCAPED_CLOSE_TAG_RE, '$1>');
 }
 
 /**

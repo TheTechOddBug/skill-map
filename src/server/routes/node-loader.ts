@@ -19,6 +19,7 @@
 import { HTTPException } from 'hono/http-exception';
 
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
+import { bffReadVersionCheck } from '../util/db-read-check.js';
 import type { Node } from '../../kernel/types.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -32,7 +33,7 @@ import type { IRouteDeps } from './deps.js';
  */
 export async function loadNode(deps: IRouteDeps, nodePath: string): Promise<Node> {
   const persisted = await tryWithSqlite(
-    { databasePath: deps.options.dbPath, autoBackup: false },
+    { databasePath: deps.options.dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
     async (adapter) => adapter.scans.load(),
   );
   const node = persisted?.nodes.find((n) => n.path === nodePath);

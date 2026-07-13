@@ -26,6 +26,12 @@
  *      callback-reported failure reason; `user-failed` belongs to the
  *      operator verb `sm job fail`). Exit 0.
  *
+ * The record core (parse + validate + execution row + job transition +
+ * `writesSummary` summary write-through) lives in the SHARED
+ * `record-outcome.ts` module, consumed identically by this verb and the
+ * `sm job run` drain loop (Step 10 Phase E); this file owns only the
+ * CLI-flag surface, the nonce/state gates, and the exit-code mapping.
+ *
  * Exit codes (`spec/cli-contract.md` §Record): 0 success, 4 nonce
  * mismatch, 5 missing job / DB, 2 otherwise (bad flags, not-running,
  * unreadable report, report-invalid).
@@ -40,15 +46,13 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 
 import { Command, Option } from 'clipanion';
 
-import type { ExecutionFailureReason, ExecutionRecord, Job } from '../../kernel/types.js';
+import type { ExecutionRecord, Job } from '../../kernel/types.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
-import { generateExecutionId } from '../../kernel/jobs/index.js';
-import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
-import { qualifiedExtensionId } from '../../kernel/registry.js';
+import { JobNotRunningError } from '../../kernel/jobs/index.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
@@ -57,7 +61,13 @@ import { RECORD_TEXTS as T } from '../i18n/record.texts.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
 import { withSqlite } from '../util/with-sqlite.js';
-import { loadActionRuntime, resolveAction } from './job-queue.js';
+import { loadActionRuntime } from './action-runtime.js';
+import {
+  recordCompletedOutcome,
+  recordFailedOutcome,
+  resolveActionRecord,
+  type IRecordMetrics,
+} from './record-outcome.js';
 
 /** Numeric metric flags, already parsed / validated (absent -> undefined). */
 interface IMetrics {
@@ -178,9 +188,29 @@ export class RecordCommand extends SmCommand {
       return this.fail(tx(T.errNotRunning, { id: this.id, status: job.status }), ExitCode.Error);
     }
     const now = Date.now();
-    return status === 'completed'
-      ? this.recordCompleted(adapter, job, metrics, now, cwd)
-      : this.recordFailed(adapter, job, metrics, now);
+    try {
+      return status === 'completed'
+        ? await this.recordCompleted(adapter, job, metrics, now, cwd)
+        : await this.recordFailed(adapter, job, metrics, now);
+    } catch (err) {
+      return this.failLostRecordRace(adapter, err);
+    }
+  }
+
+  /**
+   * Lost record race: the job left `running` between the pre-check in
+   * `dispatch` and the record transaction (reaped / cancelled / recorded
+   * elsewhere). The storage guard rolled everything back (no execution
+   * row); map it to the same "job not in running state" exit 2 as the
+   * pre-check. Anything else rethrows untouched.
+   */
+  private async failLostRecordRace(adapter: StoragePort, err: unknown): Promise<TExitCode> {
+    if (!(err instanceof JobNotRunningError)) throw err;
+    const fresh = await adapter.jobs.get(this.id);
+    return this.fail(
+      tx(T.errNotRunning, { id: this.id, status: fresh?.status ?? 'unknown' }),
+      ExitCode.Error,
+    );
   }
 
   // --- completed ----------------------------------------------------------
@@ -195,34 +225,38 @@ export class RecordCommand extends SmCommand {
     const reportText = this.readReport(cwd);
     if (typeof reportText === 'number') return reportText; // IO error -> exit 2, no mutation
 
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(reportText);
-    } catch (err) {
-      // An unparseable report is an invalid report: transition to failed /
-      // report-invalid rather than leaving the job running.
-      return this.recordReportInvalid(adapter, job, metrics, now, formatErrorMessage(err));
-    }
-
-    const schema = await this.resolveReportSchema(job);
-    if (typeof schema === 'number') return schema; // unresolvable -> exit 2, no mutation
-
-    const validation = loadSchemaValidators().validateActionReport(schema, parsed);
-    if (!validation.ok) {
-      return this.recordReportInvalid(adapter, job, metrics, now, validation.errors);
-    }
-
-    const execution = this.buildExecution(job, {
-      status: 'completed',
-      failureReason: null,
+    const outcome = await recordCompletedOutcome({
+      adapter,
+      job,
+      reportText,
+      // Lazy: the runtime loads only when the report parsed (preserving the
+      // report-invalid-before-resolution ordering, see record-outcome.ts).
+      resolve: async () =>
+        resolveActionRecord(await loadActionRuntime(this.printer!), job.actionId),
+      metrics: this.toRecordMetrics(metrics),
       now,
-      metrics,
-      // Report stored inline as canonical JSON (the input path/stdin source
-      // is NOT retained, spec §Record step 5).
-      reportJson: JSON.stringify(parsed),
     });
-    await adapter.jobs.recordTerminal(execution);
-    return this.reportSuccess(execution);
+
+    if (outcome.kind === 'schema-unresolved') {
+      // Unresolvable action / schema -> exit 2, no mutation.
+      return this.fail(
+        tx(T.errReportSchemaUnresolved, { action: job.actionId, detail: outcome.detail }),
+        ExitCode.Error,
+      );
+    }
+    if (outcome.kind === 'report-invalid') {
+      // The failed / report-invalid transition already landed (spec §Record
+      // step 4); surface the reason and exit 2 (the "otherwise" bucket).
+      this.printer!.error(
+        tx(T.errPrefix, {
+          glyph: this.errGlyph(),
+          message: tx(T.reportInvalid, { errors: outcome.detail }),
+        }),
+      );
+      if (this.json) this.emitJsonEnvelope(outcome.execution);
+      return ExitCode.Error;
+    }
+    return this.reportSuccess(outcome.execution);
   }
 
   /**
@@ -243,71 +277,6 @@ export class RecordCommand extends SmCommand {
     }
   }
 
-  /**
-   * Resolve the action's report schema: the built-in's inlined
-   * `reportSchema`, or the plugin's on-disk `report.schema.json` (from the
-   * action's source dir). Mirrors `sm job submit`'s prompt-template
-   * resolution. Unresolvable (action gone, schema missing) -> exit 2.
-   */
-  private async resolveReportSchema(job: Job): Promise<Record<string, unknown> | TExitCode> {
-    const runtime = await loadActionRuntime(this.printer!);
-    const action = resolveAction(runtime.actions, job.actionId);
-    if (!action) {
-      return this.fail(
-        tx(T.errReportSchemaUnresolved, { action: job.actionId, detail: 'action not found' }),
-        ExitCode.Error,
-      );
-    }
-    const dir = runtime.dirByAction.get(qualifiedExtensionId(action.pluginId, action.id));
-    if (dir !== undefined) {
-      try {
-        return JSON.parse(readFileSync(join(dir, 'report.schema.json'), 'utf8')) as Record<string, unknown>;
-      } catch (err) {
-        return this.fail(
-          tx(T.errReportSchemaUnresolved, { action: job.actionId, detail: formatErrorMessage(err) }),
-          ExitCode.Error,
-        );
-      }
-    }
-    if (action.reportSchema && typeof action.reportSchema === 'object') {
-      return action.reportSchema;
-    }
-    return this.fail(
-      tx(T.errReportSchemaUnresolved, { action: job.actionId, detail: 'no report schema' }),
-      ExitCode.Error,
-    );
-  }
-
-  /**
-   * Report a `completed` callback that carried an invalid report: write the
-   * failed execution row + transition the job to `failed` / `report-invalid`
-   * (spec §Record step 4), surface the reason, and exit 2 (the "otherwise"
-   * bucket, `spec/cli-contract.md` §Record).
-   */
-  private async recordReportInvalid(
-    adapter: StoragePort,
-    job: Job,
-    metrics: IMetrics,
-    now: number,
-    detail: string,
-  ): Promise<TExitCode> {
-    const execution = this.buildExecution(job, {
-      status: 'failed',
-      failureReason: 'report-invalid',
-      now,
-      metrics,
-      // An invalid report is not stored (no valid payload to keep); the
-      // failureReason enum carries the outcome.
-      reportJson: null,
-    });
-    await adapter.jobs.recordTerminal(execution);
-    this.printer!.error(
-      tx(T.errPrefix, { glyph: this.errGlyph(), message: tx(T.reportInvalid, { errors: detail }) }),
-    );
-    if (this.json) this.emitJsonEnvelope(execution);
-    return ExitCode.Error;
-  }
-
   // --- failed -------------------------------------------------------------
 
   private async recordFailed(
@@ -316,57 +285,30 @@ export class RecordCommand extends SmCommand {
     metrics: IMetrics,
     now: number,
   ): Promise<TExitCode> {
-    const execution = this.buildExecution(job, {
-      status: 'failed',
-      // A callback-reported failure is `runner-error` (the runner hit an
-      // error and reported it). `user-failed` is the operator verb
-      // `sm job fail`, not this path.
+    // A callback-reported failure is `runner-error` (the runner hit an
+    // error and reported it). `user-failed` is the operator verb
+    // `sm job fail`, not this path. `--error` is stored verbatim in
+    // report_json (spec/cli-contract.md §Record).
+    const execution = await recordFailedOutcome({
+      adapter,
+      job,
       failureReason: 'runner-error',
+      errorText: this.error ?? null,
+      metrics: this.toRecordMetrics(metrics),
       now,
-      metrics,
-      // `--error` stored verbatim in report_json (spec/cli-contract.md
-      // §Record: "stored verbatim in the execution record"; report_json is
-      // the only free-text slot, empty of a report on a failed execution).
-      reportJson: this.error ?? null,
     });
-    await adapter.jobs.recordTerminal(execution);
     return this.reportSuccess(execution);
   }
 
-  // --- execution row + output --------------------------------------------
+  // --- output --------------------------------------------------------------
 
-  private buildExecution(
-    job: Job,
-    opts: {
-      status: 'completed' | 'failed';
-      failureReason: ExecutionFailureReason | null;
-      now: number;
-      metrics: IMetrics;
-      reportJson: string | null;
-    },
-  ): ExecutionRecord {
+  /** Bridge the flag-parsed metrics into the shared record-metrics shape. */
+  private toRecordMetrics(metrics: IMetrics): IRecordMetrics {
     return {
-      id: generateExecutionId(),
-      kind: 'action',
-      extensionId: job.actionId,
-      extensionVersion: job.actionVersion,
-      nodeIds: [job.nodeId],
-      contentHash: job.contentHash,
-      status: opts.status,
-      failureReason: opts.failureReason,
-      // No --exit-code flag on this surface; the CLI-runner loop that
-      // spawns a subprocess (a later phase) fills exitCode.
-      exitCode: null,
-      runner: job.runner ?? null,
-      // Job start = its claim time; a running job always carries claimedAt.
-      startedAt: job.claimedAt ?? opts.now,
-      finishedAt: opts.now,
-      durationMs: opts.metrics.durationMs ?? null,
-      tokensIn: opts.metrics.tokensIn ?? null,
-      tokensOut: opts.metrics.tokensOut ?? null,
-      // Domain field name; storage bridges it to the report_json column.
-      reportPath: opts.reportJson,
-      jobId: job.id,
+      tokensIn: metrics.tokensIn,
+      tokensOut: metrics.tokensOut,
+      durationMs: metrics.durationMs,
+      // No --exit-code flag on this surface; the sm job run loop fills it.
     };
   }
 

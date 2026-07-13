@@ -56,6 +56,7 @@ import {
   composeResolver as composeResolverFromConfig,
 } from '../../core/runtime/fresh-resolver.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
+import { bffReadVersionCheck } from '../util/db-read-check.js';
 import type { IContributionErrorRecord } from '../../kernel/adapters/sqlite/contributions.js';
 import { isPluginLocked } from '../../kernel/config/locked-plugins.js';
 import {
@@ -513,7 +514,7 @@ function listItems(
 async function loadTrustState(deps: IRouteDeps): Promise<ITrustState> {
   const trustMap =
     (await tryWithSqlite(
-      { databasePath: deps.options.dbPath, autoBackup: false },
+      { databasePath: deps.options.dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
       (adapter) => adapter.trust.loadTrustMap(),
     )) ?? new Map<string, boolean>();
   return { trustMap };
@@ -765,7 +766,7 @@ async function loadRuntimeContributionErrors(
 ): Promise<Map<string, IPluginRuntimeContributionError[]>> {
   try {
     const rows = await tryWithSqlite(
-      { databasePath: deps.options.dbPath, autoBackup: false },
+      { databasePath: deps.options.dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
       (adapter) => adapter.contributions.listAllErrors(),
     );
     if (rows === null) return new Map();

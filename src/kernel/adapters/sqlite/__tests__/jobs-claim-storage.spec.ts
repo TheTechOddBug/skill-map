@@ -165,6 +165,28 @@ describe('claimNext', () => {
       await adapter.close();
     }
   });
+
+  it('accepts a BARE action id in --filter (same semantics as listJobs)', async () => {
+    const adapter = await openAdapter(freshDbPath('claim-filter-bare'));
+    try {
+      await submitQueued(adapter, {
+        id: 'd-20260101-000000-0001', actionId: 'core/other-action', nodeId: 'a.md', contentHash: '1'.repeat(64),
+      });
+      await submitQueued(adapter, {
+        id: 'd-20260101-000000-0002', actionId: 'prob-summarizer/skill-echo', nodeId: 'b.md', contentHash: '2'.repeat(64),
+      });
+
+      // Bare id claims the qualified-id job (`action_id LIKE '%/' || filter`).
+      const bare = await adapter.jobs.claim('skill', Date.now(), 'skill-echo');
+      ok(bare);
+      strictEqual(bare.id, 'd-20260101-000000-0002');
+
+      // A bare id must not match a mere substring of another action.
+      strictEqual(await adapter.jobs.claim('skill', Date.now(), 'ther-action'), null);
+    } finally {
+      await adapter.close();
+    }
+  });
 });
 
 describe('cancelJob + cancelAllActive', () => {
@@ -210,6 +232,28 @@ describe('cancelJob + cancelAllActive', () => {
         .execute();
       strictEqual(await adapter.jobs.cancel('d-20260101-000000-0001', Date.now()), 'already-terminal');
       strictEqual(await adapter.jobs.cancel('d-20990101-000000-ffff', Date.now()), 'not-found');
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('reports the LOST race as already-terminal (0-row guarded UPDATE, never a false success)', async () => {
+    const adapter = await openAdapter(freshDbPath('cancel-race'));
+    try {
+      await submitQueued(adapter, { id: 'd-20260101-000000-0001' });
+      // First transition wins the race (the semantic equivalent of another
+      // writer terminalising the job between a read and the write)...
+      strictEqual(await adapter.jobs.cancel('d-20260101-000000-0001', 1000), 'cancelled');
+      // ...the loser's guarded UPDATE matches 0 rows and MUST report
+      // already-terminal, not a second 'cancelled' (and never re-stamp).
+      strictEqual(await adapter.jobs.cancel('d-20260101-000000-0001', 2000), 'already-terminal');
+      // Cross-verb race: a fail losing to a cancel reports the same.
+      strictEqual(await adapter.jobs.fail('d-20260101-000000-0001', 2000), 'already-terminal');
+      const job = await adapter.jobs.get('d-20260101-000000-0001');
+      ok(job);
+      strictEqual(job.finishedAt, 1000, 'the winning transition timestamp is preserved');
+      strictEqual(job.status, 'cancelled');
+      strictEqual(job.failureReason ?? null, null, 'the losing fail never stamped user-failed');
     } finally {
       await adapter.close();
     }

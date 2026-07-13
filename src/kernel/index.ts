@@ -141,6 +141,16 @@ export type {
 // --- adapters (./adapters/...) -----------------------------------------
 export { InMemoryProgressEmitter } from './adapters/in-memory-progress.js';
 export {
+  ClaudeCliNotFoundError,
+  ClaudeCliRunner,
+  MockRunner,
+} from './adapters/runner/index.js';
+export type {
+  IClaudeCliRunnerOptions,
+  IMockRunCall,
+  IMockRunStep,
+} from './adapters/runner/index.js';
+export {
   KV_SCHEMA_KEY,
   makeDedicatedStoreWrapper,
   makeKvStoreWrapper,

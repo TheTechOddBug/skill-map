@@ -27,5 +27,6 @@ export { generateExecutionId, generateJobId, generateNonce } from './ids.js';
 export {
   InvalidTtlError,
   InvalidPriorityError,
+  JobNotRunningError,
   JobRenderError,
 } from './errors.js';

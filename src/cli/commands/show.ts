@@ -2,10 +2,13 @@
  * `sm show <node.path> [--json]`
  *
  * Detail view for a single node: weight (tokens triple-split),
- * frontmatter, links in/out, current issues. `--json` emits a detail
- * object with `node`, `linksOut`, `linksIn`, `issues`. Step 10
- * (findings) and Step 11 (summary) will add fields when their backing
- * tables ship, additive, so today's consumers stay green.
+ * frontmatter, links in/out, current issues, and any stored per-node
+ * summary (a `writesSummary` Action's report, landed by `sm record`;
+ * marked `(stale)` when the body changed since generation). `--json`
+ * emits a detail object with `node`, `linksOut`, `linksIn`, `issues`,
+ * and `summaries` (each carrying a `stale` boolean). Step 10 (findings)
+ * will add its field when the backing table ships, additive, so today's
+ * consumers stay green.
  *
  * Exit codes (per `spec/cli-contract.md` §Exit codes):
  *   0  ok
@@ -38,7 +41,31 @@ import { SHOW_TEXTS } from '../i18n/show.texts.js';
  * shape, but both branches now project from the same source of
  * truth).
  */
-type TShowDocument = Pick<INodeBundle, 'node' | 'linksOut' | 'linksIn' | 'issues'>;
+type TShowDocument = Pick<INodeBundle, 'node' | 'linksOut' | 'linksIn' | 'issues'> & {
+  /** Stored per-node summaries, each carrying a computed `stale` flag. */
+  summaries: IShowSummary[];
+};
+
+/**
+ * A stored summary decorated for `sm show`: the storage `ISummaryRecord`
+ * fields plus a `stale` boolean (`bodyHashAtGeneration` differs from the
+ * node's current `body_hash`). The `--json` document emits these verbatim.
+ */
+interface IShowSummary {
+  summarizerActionId: string;
+  summarizerVersion: string;
+  bodyHashAtGeneration: string;
+  generatedAt: number;
+  report: Record<string, unknown>;
+  stale: boolean;
+}
+
+/**
+ * Report fields treated as a summary's one-line "headline", in priority
+ * order. `markdown-summarizer` uses `whatItCovers`; action summarizers use
+ * `whatItDoes`; other summarizers may carry a plain `summary` / `headline`.
+ */
+const SUMMARY_HEADLINE_KEYS = ['whatItCovers', 'whatItDoes', 'summary', 'headline'] as const;
 
 export class ShowCommand extends SmCommand {
   static override paths = [['show']];
@@ -47,9 +74,10 @@ export class ShowCommand extends SmCommand {
     description: 'Node detail: weight, frontmatter, links, issues.',
     details: `
       Loads a single node from the persisted snapshot, plus every link
-      (in and out) and every current issue touching it. Step 10
-      (findings) and Step 11 (summary) will add fields when their
-      backing tables ship.
+      (in and out), every current issue touching it, and any stored
+      summary (a writesSummary action's report, marked (stale) when the
+      body changed since it was generated). Step 10 (findings) will add
+      its field when the backing table ships.
 
       Run \`sm scan\` first to populate the DB.
     `,
@@ -80,11 +108,25 @@ export class ShowCommand extends SmCommand {
           return ExitCode.NotFound;
         }
 
+        // Stored per-node summaries (a `writesSummary` Action's report,
+        // landed by `sm record`). Stale when the body changed since
+        // generation, `body_hash_at_generation` vs the node's live hash.
+        const summaryRecords = await adapter.summaries.forNode(this.nodePath);
+        const summaries: IShowSummary[] = summaryRecords.map((s) => ({
+          summarizerActionId: s.summarizerActionId,
+          summarizerVersion: s.summarizerVersion,
+          bodyHashAtGeneration: s.bodyHashAtGeneration,
+          generatedAt: s.generatedAt,
+          report: s.report,
+          stale: s.bodyHashAtGeneration !== bundle.node.bodyHash,
+        }));
+
         const doc: TShowDocument = {
           node: bundle.node,
           linksOut: bundle.linksOut,
           linksIn: bundle.linksIn,
           issues: bundle.issues,
+          summaries,
         };
 
         if (this.json) {
@@ -131,7 +173,7 @@ export class ShowCommand extends SmCommand {
  * even when empty).
  */
 function renderHuman(doc: TShowDocument, ansi: IAnsi): string {
-  const { node, linksOut, linksIn, issues } = doc;
+  const { node, linksOut, linksIn, issues, summaries } = doc;
   const out: string[] = [];
 
   out.push(renderHeader(node, ansi));
@@ -140,7 +182,45 @@ function renderHuman(doc: TShowDocument, ansi: IAnsi): string {
   if (linksOut.length > 0) out.push(renderLinksSection('out', linksOut, ansi));
   if (linksIn.length > 0) out.push(renderLinksSection('in', linksIn, ansi));
   if (issues.length > 0) out.push(renderIssuesSection(issues, node.path, ansi));
+  if (summaries.length > 0) out.push(renderSummarySection(summaries, ansi));
   return out.join('');
+}
+
+/**
+ * Summary section: one row per stored per-node summary, the dim
+ * summarizer action id + the report headline, with a yellow `(stale)`
+ * marker when the node body changed since the summary was generated.
+ * Mirrors the column-aligned rhythm of the links / issues sections.
+ * Dropped entirely when the node carries no summary.
+ */
+function renderSummarySection(summaries: IShowSummary[], ansi: IAnsi): string {
+  const lines: string[] = [tx(SHOW_TEXTS.summarySection, { count: summaries.length })];
+  const idWidth = Math.max(
+    ...summaries.map((s) => sanitizeForTerminal(s.summarizerActionId).length),
+  );
+  for (const s of summaries) {
+    lines.push(
+      tx(SHOW_TEXTS.summaryRow, {
+        actionId: ansi.dim(sanitizeForTerminal(s.summarizerActionId).padEnd(idWidth)),
+        headline: sanitizeForTerminal(pickSummaryHeadline(s.report)),
+        staleSuffix: s.stale ? ansi.yellow(SHOW_TEXTS.summaryStale) : '',
+      }),
+    );
+  }
+  return lines.join('');
+}
+
+/**
+ * Pick a summary's one-line headline from its report: the first
+ * recognised headline field (see `SUMMARY_HEADLINE_KEYS`) that holds a
+ * non-empty string, else a neutral placeholder.
+ */
+function pickSummaryHeadline(report: Record<string, unknown>): string {
+  for (const key of SUMMARY_HEADLINE_KEYS) {
+    const value = report[key];
+    if (typeof value === 'string' && value.length > 0) return value;
+  }
+  return SHOW_TEXTS.summaryNoHeadline;
 }
 
 function renderHeader(node: Node, ansi: IAnsi): string {

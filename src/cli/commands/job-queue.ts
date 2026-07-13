@@ -15,27 +15,33 @@
  *   4. Resolve target node(s): `-n` (one node, missing -> exit 5) or
  *      `--all` (every non-virtual node matching the action precondition).
  *   5. Per node: compute `contentHash`, run the duplicate pre-check (unless
- *      `--force`), render the content, and submit content + job row in one
- *      transaction. A single-target duplicate refuses with exit 3; in a
- *      `--all` fan-out duplicates are refused individually, not fatally.
- *      `--force` skips the pre-check but never defeats the unique partial
- *      index, so it only succeeds once the prior job is terminal.
+ *      `--force`), re-read the node body from disk and VERIFY it still
+ *      hashes to the scanned `bodyHash` (`spec/job-lifecycle.md` §Submit
+ *      step 8, the drift refusal: the DB stores hashes, not body text, so
+ *      the render can only source disk bytes), render the content, and
+ *      submit content + job row in one transaction. A single-target
+ *      duplicate refuses with exit 3; drift / an unreadable file refuse
+ *      with exit 2. In a `--all` fan-out every refusal is per-node, not
+ *      fatal. `--force` skips the duplicate pre-check but never defeats
+ *      the unique partial index, so it only succeeds once the prior job
+ *      is terminal (and never skips the drift verification).
  *
  * `sm job list [--status] [--action] [--node] [--json]` and
- * `sm job show <id> [--json]` are straight reads over `state_jobs`.
+ * `sm job show <id> [--json]` are straight reads over `state_jobs`; their
+ * `--json` projections OMIT the `nonce` (the record credential travels
+ * only on `submit --json` / `claim --json`, spec §Atomic claim).
  *
  * Every path goes through the `StoragePort`; no CLI file reaches the SQLite
  * adapter internals. DB paths resolve through `cli/util/db-path.ts`.
  */
 
 import { readFileSync } from 'node:fs';
-import { readFile as readFileAsync } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import { Command, Option } from 'clipanion';
 
-import type { IAction, IActionPrecondition } from '../../kernel/extensions/index.js';
-import type { IDiscoveredPlugin } from '../../kernel/types/plugin.js';
+import type { IAction, IActionPrecondition, IProvider, IProviderWalkOptions, IRawNode } from '../../kernel/extensions/index.js';
+import { resolveProviderWalk } from '../../kernel/extensions/index.js';
 import type { Job, Node } from '../../kernel/types.js';
 import type { IJobListFilter } from '../../kernel/types/storage.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
@@ -55,73 +61,24 @@ import {
   resolveTtl,
   unescapeUserContentClose,
 } from '../../kernel/jobs/index.js';
+import { sha256 } from '../../kernel/orchestrator/node-build.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
+import { walkContent } from '../../kernel/scan/walk-content.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
-import { readConformanceKillSwitches } from '../util/conformance-env.js';
+import { buildReadVersionCheck } from '../util/db-version-check.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { ExitCode, type TExitCode } from '../util/exit-codes.js';
 import { JOBS_QUEUE_TEXTS as T } from '../i18n/jobs-queue.texts.js';
-import { composeScanExtensions, loadPluginRuntime } from '../util/plugin-runtime.js';
-import type { IPrinter } from '../util/printer.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
 import { withSqlite } from '../util/with-sqlite.js';
+import { loadActionRuntime, resolveAction, type IActionRuntime } from './action-runtime.js';
+import { recordFailedOutcome } from './record-outcome.js';
 
 // ---------------------------------------------------------------------------
 // Shared helpers
 // ---------------------------------------------------------------------------
-
-export interface IActionRuntime {
-  actions: IAction[];
-  /** qualified action id -> directory holding `prompt.md` / `report.schema.json`. */
-  dirByAction: Map<string, string>;
-}
-
-/**
- * Load the composed action catalog (built-ins + enabled plugins) plus a map
- * from each plugin-action's qualified id to its on-disk directory (derived
- * from the loaded extension's `entryPath`, so no path convention is
- * reconstructed). Built-in actions carry no directory; they are all
- * deterministic today and never reach the prompt-template resolution.
- *
- * Shared by `sm job submit` (resolves `prompt.md`) and `sm record`
- * (resolves `report.schema.json`), both of which resolve an action against
- * the same composed runtime.
- */
-export async function loadActionRuntime(printer: IPrinter): Promise<IActionRuntime> {
-  const runtime = await loadPluginRuntime();
-  runtime.emitWarnings(printer);
-  const composed = composeScanExtensions({
-    noBuiltIns: false,
-    pluginRuntime: runtime,
-    killSwitches: readConformanceKillSwitches(),
-  });
-  const dirByAction = buildActionDirMap(runtime.discovered);
-  return { actions: composed?.actions ?? [], dirByAction };
-}
-
-function buildActionDirMap(discovered: IDiscoveredPlugin[]): Map<string, string> {
-  const map = new Map<string, string>();
-  for (const plugin of discovered) {
-    for (const ext of plugin.extensions ?? []) {
-      if (ext.kind !== 'action') continue;
-      map.set(qualifiedExtensionId(ext.pluginId, ext.id), dirname(ext.entryPath));
-    }
-  }
-  return map;
-}
-
-/** Resolve an action by qualified id (`<plugin>/<id>`) or bare id. */
-export function resolveAction(actions: readonly IAction[], id: string): IAction | null {
-  for (const action of actions) {
-    if (qualifiedExtensionId(action.pluginId, action.id) === id) return action;
-  }
-  for (const action of actions) {
-    if (action.id === id) return action;
-  }
-  return null;
-}
 
 /**
  * Match a node against an action precondition for `--all` fan-out. Mirrors
@@ -148,15 +105,71 @@ function nodeMatchesPrecondition(node: Node, precondition?: IActionPrecondition)
   return true;
 }
 
-/** Strip a leading YAML frontmatter fence (mirrors the Provider regex). */
-function stripFrontmatterFence(text: string): string {
-  const match = text.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/);
-  return match ? text.slice(match[0].length) : text;
+/** Outcome of the submit-time on-disk read + drift verification. */
+type TNodeBodyRead =
+  | { kind: 'ok'; body: string }
+  /** File missing / unreadable / not yielded by the provider walk. */
+  | { kind: 'unreadable'; detail: string }
+  /** The on-disk body no longer hashes to the scanned `bodyHash`. */
+  | { kind: 'drift' };
+
+/**
+ * Default walk for a node whose Provider is not in the composed set (an
+ * individually disabled provider extension whose nodes survive in a stale
+ * scan): the kernel walker's default read config (`.md` +
+ * `frontmatter-yaml`), the same fallback `resolveProviderWalk` applies
+ * when a Provider declares no `read`. If the real provider parsed the
+ * file differently, the drift verification below refuses (safe failure:
+ * never renders bytes that don't match the scanned hash).
+ */
+function defaultProviderWalk(
+  roots: string[],
+  options?: IProviderWalkOptions,
+): AsyncIterable<IRawNode> {
+  return walkContent(roots, {
+    extensions: ['.md'],
+    parser: 'frontmatter-yaml',
+    ...(options?.scopedPaths !== undefined ? { scopedPaths: options.scopedPaths } : {}),
+  });
 }
 
-async function readNodeBody(cwd: string, nodePath: string): Promise<string> {
-  const raw = await readFileAsync(resolve(cwd, nodePath), 'utf8');
-  return stripFrontmatterFence(raw);
+/**
+ * Read the node's CURRENT on-disk body through the same Provider walk
+ * pipeline the scan uses (scoped to this one file, so the declared parser
+ * + `bodyField` rules apply, e.g. a codex TOML sub-agent's
+ * `developer_instructions`), and verify it still hashes to the scanned
+ * `bodyHash` (`spec/job-lifecycle.md` §Submit step 8). The DB stores only
+ * hashes, never body text, so the render can only source disk bytes;
+ * without this check an edit-after-scan would silently render content the
+ * stored `contentHash` does not describe.
+ */
+async function readNodeBodyVerified(
+  cwd: string,
+  node: Node,
+  providers: readonly IProvider[],
+): Promise<TNodeBodyRead> {
+  const provider = providers.find((p) => p.id === node.provider);
+  const walk = provider !== undefined ? resolveProviderWalk(provider) : defaultProviderWalk;
+  const abs = resolve(cwd, node.path);
+  let raw: IRawNode | null = null;
+  try {
+    for await (const rec of walk([cwd], { scopedPaths: [abs] })) {
+      // The scoped walk yields at most one record for the kernel walker;
+      // a custom Provider `walk()` may ignore the hint and traverse, so
+      // match on the node path.
+      if (rec.path === node.path) {
+        raw = rec;
+        break;
+      }
+    }
+  } catch (err) {
+    return { kind: 'unreadable', detail: formatErrorMessage(err) };
+  }
+  if (raw === null) {
+    return { kind: 'unreadable', detail: T.submitReadNotOnDisk };
+  }
+  if (sha256(raw.body) !== node.bodyHash) return { kind: 'drift' };
+  return { kind: 'ok', body: raw.body };
 }
 
 /** Detect a SQLite UNIQUE-constraint failure (the partial-index backstop). */
@@ -174,13 +187,29 @@ function parseIntFlag(raw: string | undefined): number | undefined {
   return Number.parseInt(raw.trim(), 10);
 }
 
+/**
+ * Public projection of a `Job` for the read surfaces (`sm job list --json`
+ * / `sm job show --json`): every field EXCEPT `nonce`. The nonce is the
+ * sole record credential and travels only on the contracted carriers,
+ * `sm job submit --json` (creator envelope) and `sm job claim --json`
+ * (handover). See `spec/job-lifecycle.md` §Atomic claim · Nonce exposure.
+ */
+function toPublicJob(job: Job): Omit<Job, 'nonce'> {
+  const { nonce: _nonce, ...pub } = job;
+  return pub;
+}
+
 // ---------------------------------------------------------------------------
 // sm job submit
 // ---------------------------------------------------------------------------
 
 type TSubmitOutcome =
   | { kind: 'created'; nodeId: string; id: string }
-  | { kind: 'duplicate'; nodeId: string; existingId: string };
+  | { kind: 'duplicate'; nodeId: string; existingId: string }
+  /** On-disk body no longer matches the scanned hash (exit 2 single-target). */
+  | { kind: 'drift'; nodeId: string }
+  /** Node file missing / unreadable at submit (exit 2 single-target). */
+  | { kind: 'unreadable'; nodeId: string; detail: string };
 
 interface ISubmitContext {
   actionId: string;
@@ -192,6 +221,8 @@ interface ISubmitContext {
   priority: number;
   cwd: string;
   force: boolean;
+  /** Composed Providers; the drift verification re-reads bodies through them. */
+  providers: readonly IProvider[];
 }
 
 export class JobSubmitCommand extends SmCommand {
@@ -374,6 +405,7 @@ export class JobSubmitCommand extends SmCommand {
       priority,
       cwd,
       force: this.force,
+      providers: runtime.providers,
     };
   }
 
@@ -442,6 +474,16 @@ export class JobSubmitCommand extends SmCommand {
       }
       return ExitCode.Duplicate;
     }
+    // Drift / unreadable refusals: exit 2 with a clean advisory (never a
+    // stack trace), per spec §Submit step 8.
+    if (outcome.kind === 'drift') {
+      return this.fail(tx(T.submitErrNodeDrifted, { node: outcome.nodeId }));
+    }
+    if (outcome.kind === 'unreadable') {
+      return this.fail(
+        tx(T.submitErrNodeUnreadable, { node: outcome.nodeId, detail: outcome.detail }),
+      );
+    }
     if (this.json) {
       const job = await adapter.jobs.get(outcome.id);
       this.printer!.data(JSON.stringify(job) + '\n');
@@ -453,16 +495,14 @@ export class JobSubmitCommand extends SmCommand {
 
   private reportAll(outcomes: readonly TSubmitOutcome[], total: number): TExitCode {
     const submitted = outcomes.filter((o) => o.kind === 'created');
-    const refused = outcomes.filter((o) => o.kind === 'duplicate');
+    const refused = outcomes.filter(
+      (o): o is Exclude<TSubmitOutcome, { kind: 'created' }> => o.kind !== 'created',
+    );
     if (this.json) {
       this.printer!.data(
         JSON.stringify({
           submitted: submitted.map((o) => ({ id: (o as { id: string }).id, nodeId: o.nodeId })),
-          refused: refused.map((o) => ({
-            nodeId: o.nodeId,
-            existingId: (o as { existingId: string }).existingId,
-            reason: 'duplicate',
-          })),
+          refused: refused.map((o) => this.toRefusedJson(o)),
           counts: { submitted: submitted.length, refused: refused.length, total },
         }) + '\n',
       );
@@ -478,9 +518,7 @@ export class JobSubmitCommand extends SmCommand {
       );
     }
     for (const o of refused) {
-      this.printer!.info(
-        tx(T.submitDuplicateLine, { glyph: this.warnGlyph(), id: (o as { existingId: string }).existingId, node: o.nodeId }),
-      );
+      this.printer!.info(this.toRefusedLine(o));
     }
     this.printer!.info(
       tx(T.submitAllSummary, {
@@ -491,6 +529,32 @@ export class JobSubmitCommand extends SmCommand {
       }),
     );
     return ExitCode.Ok;
+  }
+
+  /** Per-node refusal row for the `--all` JSON envelope. */
+  private toRefusedJson(o: Exclude<TSubmitOutcome, { kind: 'created' }>): Record<string, unknown> {
+    if (o.kind === 'duplicate') {
+      return { nodeId: o.nodeId, existingId: o.existingId, reason: 'duplicate' };
+    }
+    if (o.kind === 'unreadable') {
+      return { nodeId: o.nodeId, reason: 'unreadable', detail: o.detail };
+    }
+    return { nodeId: o.nodeId, reason: 'drift' };
+  }
+
+  /** Per-node refusal line for the `--all` human summary. */
+  private toRefusedLine(o: Exclude<TSubmitOutcome, { kind: 'created' }>): string {
+    if (o.kind === 'duplicate') {
+      return tx(T.submitDuplicateLine, { glyph: this.warnGlyph(), id: o.existingId, node: o.nodeId });
+    }
+    if (o.kind === 'unreadable') {
+      return tx(T.submitUnreadableLine, {
+        glyph: this.warnGlyph(),
+        node: o.nodeId,
+        detail: o.detail,
+      });
+    }
+    return tx(T.submitDriftLine, { glyph: this.warnGlyph(), node: o.nodeId });
   }
 
   // --- small glyph / error helpers ----------------------------------------
@@ -515,9 +579,10 @@ export class JobSubmitCommand extends SmCommand {
 
 /**
  * Submit exactly one job for `node`. Duplicate pre-check first (skipped by
- * `--force`); render + submit in one transaction otherwise. A UNIQUE index
- * violation (the hard backstop `--force` cannot defeat) is surfaced as a
- * duplicate too.
+ * `--force`), then the on-disk read + drift verification
+ * (`spec/job-lifecycle.md` §Submit step 8, NEVER skipped), then render +
+ * submit in one transaction. A UNIQUE index violation (the hard backstop
+ * `--force` cannot defeat) is surfaced as a duplicate too.
  */
 async function submitOneJob(
   adapter: StoragePort,
@@ -543,10 +608,14 @@ async function submitOneJob(
     if (existing) return { kind: 'duplicate', nodeId: node.path, existingId: existing };
   }
 
-  const body = await readNodeBody(prepared.cwd, node.path);
+  const read = await readNodeBodyVerified(prepared.cwd, node, prepared.providers);
+  if (read.kind === 'drift') return { kind: 'drift', nodeId: node.path };
+  if (read.kind === 'unreadable') {
+    return { kind: 'unreadable', nodeId: node.path, detail: read.detail };
+  }
   const content = renderJobContent({
     node,
-    nodeBody: body,
+    nodeBody: read.body,
     promptTemplate: prepared.promptTemplate,
     preamble: prepared.preamble,
   });
@@ -605,15 +674,25 @@ export class JobListCommand extends SmCommand {
     if (this.action !== undefined) filter.actionId = this.action;
     if (this.node !== undefined) filter.nodeId = this.node;
 
-    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-      const jobs = await adapter.jobs.list(filter);
-      if (this.json) {
-        this.printer!.data(JSON.stringify(jobs) + '\n');
+    return withSqlite(
+      {
+        databasePath: dbPath,
+        autoBackup: false,
+        // Read verb: advise on drift, never refuse (spec/db-schema.md
+        // §Schema drift, read-side opens advise).
+        versionCheck: buildReadVersionCheck(this.printer!, this.ansiFor('stderr')),
+      },
+      async (adapter) => {
+        const jobs = await adapter.jobs.list(filter);
+        if (this.json) {
+          // Nonce stripped: list is a read surface (spec §Nonce exposure).
+          this.printer!.data(JSON.stringify(jobs.map(toPublicJob)) + '\n');
+          return ExitCode.Ok;
+        }
+        this.printPretty(jobs, Object.keys(filter).length > 0);
         return ExitCode.Ok;
-      }
-      this.printPretty(jobs, Object.keys(filter).length > 0);
-      return ExitCode.Ok;
-    });
+      },
+    );
   }
 
   private printPretty(jobs: readonly Job[], filtered: boolean): void {
@@ -659,21 +738,30 @@ export class JobShowCommand extends SmCommand {
     const dbExit = requireDbOrExit(dbPath, this.context.stderr);
     if (dbExit !== null) return dbExit;
 
-    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-      const job = await adapter.jobs.get(this.id);
-      if (!job) {
-        this.printer!.error(
-          tx(T.showErrNotFound, { glyph: this.ansiFor('stderr').red('✕'), id: this.id }),
-        );
-        return ExitCode.NotFound;
-      }
-      if (this.json) {
-        this.printer!.data(JSON.stringify(job) + '\n');
+    return withSqlite(
+      {
+        databasePath: dbPath,
+        autoBackup: false,
+        // Read verb: advise on drift, never refuse.
+        versionCheck: buildReadVersionCheck(this.printer!, this.ansiFor('stderr')),
+      },
+      async (adapter) => {
+        const job = await adapter.jobs.get(this.id);
+        if (!job) {
+          this.printer!.error(
+            tx(T.showErrNotFound, { glyph: this.ansiFor('stderr').red('✕'), id: this.id }),
+          );
+          return ExitCode.NotFound;
+        }
+        if (this.json) {
+          // Nonce stripped: show is a read surface (spec §Nonce exposure).
+          this.printer!.data(JSON.stringify(toPublicJob(job)) + '\n');
+          return ExitCode.Ok;
+        }
+        this.printPretty(job);
         return ExitCode.Ok;
-      }
-      this.printPretty(job);
-      return ExitCode.Ok;
-    });
+      },
+    );
   }
 
   private printPretty(job: Job): void {
@@ -712,27 +800,35 @@ export class JobPreviewCommand extends SmCommand {
     const dbExit = requireDbOrExit(dbPath, this.context.stderr);
     if (dbExit !== null) return dbExit;
 
-    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-      const job = await adapter.jobs.get(this.id);
-      if (!job) {
-        this.printer!.error(
-          tx(T.previewErrNotFound, { glyph: this.ansiFor('stderr').red('✕'), id: this.id }),
-        );
-        return ExitCode.NotFound;
-      }
-      const content = await adapter.jobs.getContent(job.contentHash);
-      if (content === null) {
-        this.printer!.error(
-          tx(T.previewErrContentMissing, { glyph: this.ansiFor('stderr').red('✕'), id: this.id }),
-        );
-        return ExitCode.NotFound;
-      }
-      // Reverse the display-only close-tag neutralisation. This is done ONLY
-      // for showing the content to a human, NEVER before hashing (the stored
-      // blob keeps the escaped form so `contentHash` stays stable).
-      this.printer!.data(unescapeUserContentClose(content));
-      return ExitCode.Ok;
-    });
+    return withSqlite(
+      {
+        databasePath: dbPath,
+        autoBackup: false,
+        // Read verb: advise on drift, never refuse.
+        versionCheck: buildReadVersionCheck(this.printer!, this.ansiFor('stderr')),
+      },
+      async (adapter) => {
+        const job = await adapter.jobs.get(this.id);
+        if (!job) {
+          this.printer!.error(
+            tx(T.previewErrNotFound, { glyph: this.ansiFor('stderr').red('✕'), id: this.id }),
+          );
+          return ExitCode.NotFound;
+        }
+        const content = await adapter.jobs.getContent(job.contentHash);
+        if (content === null) {
+          this.printer!.error(
+            tx(T.previewErrContentMissing, { glyph: this.ansiFor('stderr').red('✕'), id: this.id }),
+          );
+          return ExitCode.NotFound;
+        }
+        // Reverse the display-only close-tag neutralisation. This is done
+        // ONLY for showing the content to a human, NEVER before hashing (the
+        // stored blob keeps the escaped form so `contentHash` stays stable).
+        this.printer!.data(unescapeUserContentClose(content));
+        return ExitCode.Ok;
+      },
+    );
   }
 }
 
@@ -754,10 +850,16 @@ export class JobClaimCommand extends SmCommand {
       Plain mode prints the claimed id. --json prints
       { id, nonce, content } (the rendered content plus the nonce a later
       sm record needs); drivers that will call sm record MUST use --json to
-      receive the nonce.
+      receive the nonce. --filter accepts a qualified <plugin>/<action> id
+      or a bare action id (same matching as sm job list --action).
+
+      A claimed job whose content row is missing (DB corruption) is marked
+      failed / job-file-missing and reported on stderr with exit 2; the
+      claim is never handed out with a null content.
 
       Exit codes: 0 with the claim, 1 when the queue is empty (or nothing
-      matches --filter; no output), 5 when the DB is missing.
+      matches --filter; no output), 2 on a missing content row, 5 when the
+      DB is missing.
     `,
   });
 
@@ -771,20 +873,52 @@ export class JobClaimCommand extends SmCommand {
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       // The standalone claim verb is the Skill-agent handover, so the
-      // runner is stamped `skill` (the CLI-runner loop, a later phase,
-      // claims as `cli`).
+      // runner is stamped `skill` (the CLI-runner loop claims as `cli`).
       const claim = await adapter.jobs.claim('skill', Date.now(), this.filter);
       if (!claim) return ExitCode.Issues; // exit 1: queue empty / no match, no output
+      // Fetch the content in BOTH modes: a missing row is the
+      // DB-corruption-only job-file-missing state and MUST NOT hand the
+      // claim out (spec §Atomic claim · Missing content row at claim).
+      const content = await adapter.jobs.getContent(claim.contentHash);
+      if (content === null) return this.failClaimContentMissing(adapter, claim.id);
       if (this.json) {
-        const content = await adapter.jobs.getContent(claim.contentHash);
         this.printer!.data(
-          JSON.stringify({ id: claim.id, nonce: claim.nonce, content: content ?? null }) + '\n',
+          JSON.stringify({ id: claim.id, nonce: claim.nonce, content }) + '\n',
         );
         return ExitCode.Ok;
       }
       this.printer!.data(claim.id + '\n');
       return ExitCode.Ok;
     });
+  }
+
+  /**
+   * Missing `state_job_contents` row under a just-claimed job: mark the
+   * job failed / job-file-missing through the SAME record primitive the
+   * `sm job run` loop uses for this state (an execution row documents the
+   * corruption), report on stderr, exit 2. The verb does NOT loop to the
+   * next queued job (corruption wants operator attention; the next
+   * invocation claims the next job anyway).
+   */
+  private async failClaimContentMissing(
+    adapter: StoragePort,
+    jobId: string,
+  ): Promise<TExitCode> {
+    const job = await adapter.jobs.get(jobId);
+    if (job) {
+      await recordFailedOutcome({
+        adapter,
+        job,
+        failureReason: 'job-file-missing',
+        errorText: T.claimContentMissingDetail,
+        metrics: {},
+        now: Date.now(),
+      });
+    }
+    this.printer!.error(
+      tx(T.claimErrContentMissing, { glyph: this.ansiFor('stderr').red('✕'), id: jobId }),
+    );
+    return ExitCode.Error;
   }
 }
 
@@ -807,8 +941,15 @@ export class JobStatusCommand extends SmCommand {
     const dbExit = requireDbOrExit(dbPath, this.context.stderr);
     if (dbExit !== null) return dbExit;
 
-    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) =>
-      this.id !== undefined ? this.reportSingle(adapter) : this.reportCounts(adapter),
+    return withSqlite(
+      {
+        databasePath: dbPath,
+        autoBackup: false,
+        // Read verb: advise on drift, never refuse.
+        versionCheck: buildReadVersionCheck(this.printer!, this.ansiFor('stderr')),
+      },
+      async (adapter) =>
+        this.id !== undefined ? this.reportSingle(adapter) : this.reportCounts(adapter),
     );
   }
 

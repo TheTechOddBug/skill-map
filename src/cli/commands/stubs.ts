@@ -163,18 +163,8 @@ export class ActionsShowCommand extends StubCommand {
 // ./job-queue.ts (lands real in Step 10, queue infrastructure).
 // JobClaimCommand / JobStatusCommand / JobCancelCommand moved to
 // ./job-queue.ts (lands real in Step 10 Phase C).
-
-export class JobRunCommand extends StubCommand {
-  static override paths = [['job', 'run']];
-  static override usage = Command.Usage({
-    category: 'Jobs',
-    description: planned('Full CLI-runner loop: claim + spawn + record.'),
-  });
-  all = Option.Boolean('--all', false);
-  max = Option.String('--max', { required: false });
-
-  protected override readonly verbName = 'job run';
-}
+// JobRunCommand moved to ./job-run.ts (lands real in Step 10 Phase E, the
+// CLI-runner drain loop).
 
 // JobPruneCommand moved to ./jobs.ts (lands real in Step 7.3).
 
@@ -204,5 +194,4 @@ export const STUB_COMMANDS = [
   FindingsCommand,
   ActionsListCommand,
   ActionsShowCommand,
-  JobRunCommand,
 ];

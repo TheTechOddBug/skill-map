@@ -54,11 +54,12 @@ Any other transition attempt MUST be rejected and MUST NOT mutate state. Impleme
 5. Compute `ttlSeconds` per §TTL resolution below. Frozen on `state_jobs.ttlSeconds` for the life of this job.
 6. Resolve `priority` (integer, default `0`). Precedence (lowest → highest): action manifest `defaultPriority` → user config `jobs.perActionPriority.<actionId>` → flag `--priority <n>`. Higher runs first; ties broken by `createdAt ASC`. Negative values are permitted and run after the default bucket. Frozen on `state_jobs.priority` at submit time, immutable for the life of the job.
 7. Generate `nonce` (implementation-chosen; MUST be cryptographically random, ≥ 128 bits of entropy).
-8. Render the job content (canonical preamble + action template + interpolated user content per [`prompt-preamble.md`](./prompt-preamble.md)) and write it to `state_job_contents` via `INSERT OR IGNORE` keyed by `content_hash`. Multiple `state_jobs` rows MAY share one `content_hash` row: stored once, refcounted by reference. Implementations MUST NOT persist the rendered content to a filesystem path, the DB row is the canonical artifact.
-9. Insert a row in `state_jobs` with `status = 'queued'`, `createdAt = now`. Its `content_hash` references the just-stored `state_job_contents.content_hash`. Steps 8 and 9 MUST run inside one transaction.
-10. Return the job id.
+8. **Drift verification**: read the node's source file and recompute the body hash over the exact body bytes that will be rendered, applying the SAME body-extraction and hashing rules the scan applies (the Provider's declared parser / `bodyField` pipeline, then the scanner's body hash). The DB stores only hashes, never body text, so the render can only source the current disk bytes; implementations MUST verify the on-disk body still matches the scanned `bodyHash` before rendering. A recomputed hash that differs refuses with exit 2 and an advisory to re-scan ("node changed on disk since the last scan; run `sm scan`"): rendering drifted bytes would break the invariant that `contentHash` describes the stored content. A missing or unreadable file refuses with exit 2 the same way (clean error, no stack trace).
+9. Render the job content (canonical preamble + action template + interpolated user content per [`prompt-preamble.md`](./prompt-preamble.md)) and write it to `state_job_contents` via `INSERT OR IGNORE` keyed by `content_hash`. Multiple `state_jobs` rows MAY share one `content_hash` row: stored once, refcounted by reference. Implementations MUST NOT persist the rendered content to a filesystem path, the DB row is the canonical artifact.
+10. Insert a row in `state_jobs` with `status = 'queued'`, `createdAt = now`. Its `content_hash` references the just-stored `state_job_contents.content_hash`. Steps 9 and 10 MUST run inside one transaction.
+11. Return the job id.
 
-`--all` fans out one job per node matching the action's `preconditions`. Each fan-out job is independent: some may be refused as duplicates, others succeed. The CLI reports a summary.
+`--all` fans out one job per node matching the action's `preconditions`. Each fan-out job is independent: some may be refused as duplicates, others refused for drift or an unreadable file (step 8, per-node and non-fatal, never an abort of the fan-out), others succeed. The CLI reports a summary.
 
 ---
 
@@ -90,6 +91,10 @@ The second `AND status = 'queued'` guards against a race where two runners selec
 `sm job claim` exposes this primitive to Skill agents (and any driving adapter draining from outside a CLI-runner loop): returns the id on stdout (exit 0) or exits 1 if the queue is empty.
 
 In `--json` mode, `sm job claim` instead returns `{ "id": "<id>", "nonce": "<nonce>", "content": "<rendered MD content>" }`. Drivers MUST use the `--json` form when they intend to call `sm record` afterwards: the nonce is the sole credential the callback verb checks, and embedding it in the response is the contracted handover. The plain stdout form (id only) is kept for legacy scripts that just want the claimed id.
+
+**Nonce exposure.** The only surfaces that emit a job's nonce are `sm job submit --json` (the creator's envelope) and `sm job claim --json` (the handover above). Every other read surface (`sm job list --json`, `sm job show --json`, and any future job read) MUST omit the nonce: it is the sole record credential, and a passive reader of the queue must not be able to forge callbacks for jobs it never claimed.
+
+**Missing content row at claim.** When the claim lands but the job's `content_hash` resolves to no `state_job_contents` row (the DB-corruption-only `job-file-missing` state, see §Atomicity edge cases), `sm job claim` MUST NOT hand out the claim: the job is marked `failed` with `failureReason = job-file-missing` (an execution record documenting the corruption is written, exactly as the `sm job run` loop does for the same state), the corruption is reported on stderr, and the verb exits 2, in plain and `--json` modes alike (never exit 0 with a null `content`). The verb does NOT loop to claim the next queued job; corruption is an operator-attention state, not something to silently skip past, and the next invocation claims the next job anyway.
 
 ---
 
@@ -169,6 +174,8 @@ Negative or zero values MUST be rejected with exit 2 at submit time.
 5. Write the execution record (see [`schemas/execution-record.schema.json`](./schemas/execution-record.schema.json)) with full metrics. The report payload (if any) is stored inline in `state_executions.report_json` as the parsed JSON; the input path is NOT retained.
 6. Transition the job to the terminal state.
 7. Emit `job.callback.received` followed by `job.completed` or `job.failed` (see [`job-events.md`](./job-events.md)).
+
+**Summary write-through.** When `--status completed` and the recorded job's Action declares `writesSummary: true` (see [`schemas/extensions/action.schema.json`](./schemas/extensions/action.schema.json)), the validated report is ALSO upserted into `state_summaries` (keyed by `(node_id, actionId)`) in the SAME transaction as the `state_executions` insert and the job transition (steps 5-6). The upsert stamps the target node's current `scan_nodes.body_hash` into `body_hash_at_generation` so `sm show` can later flag staleness, and mirrors the job's `action_id` / `action_version` onto `summarizer_action_id` / `summarizer_version`. If the target node is no longer present in `scan_nodes` (deleted or renamed since submit), the summary upsert is skipped: the execution record still lands and the job still transitions. An Action without `writesSummary` writes no `state_summaries` row (its report lives only on `state_executions.report_json`). See [`db-schema.md` § state_summaries](./db-schema.md).
 
 The nonce is the sole authentication factor; a compromised nonce allows forged callbacks for that single job. Nonces MUST be generated per-job, never reused, never logged at info level or above.
 

@@ -10,15 +10,21 @@
  *   - submit --ttl 0 -> exit 2.
  *   - action not found -> exit 5; node not found -> exit 5.
  *   - duplicate resubmit -> exit 3 (existing id reported).
+ *   - drift refusal: an edit-after-scan refuses with exit 2 + a re-scan
+ *     advisory; a "re-scan" (body hash refreshed in the DB) proceeds.
+ *   - unreadable refusal: a file deleted after the scan refuses with exit
+ *     2 (clean advisory, no stack); in --all the refusal is per-node and
+ *     the fan-out continues.
  *   - submit --all -> exit 0, one job per matching non-virtual node only.
- *   - list filters; show detail + exit 5 on a missing id.
+ *   - list filters; show detail + exit 5 on a missing id; list/show
+ *     --json OMIT the nonce (spec §Atomic claim · Nonce exposure).
  */
 
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
-import { strictEqual, ok, match } from 'node:assert';
+import { strictEqual, ok, match, doesNotMatch } from 'node:assert';
 import { after, before, describe, it } from 'node:test';
 
 import type { BaseContext } from 'clipanion';
@@ -26,6 +32,7 @@ import type { BaseContext } from 'clipanion';
 import { JobSubmitCommand, JobListCommand, JobShowCommand, JobPreviewCommand } from '../job-queue.js';
 import { SqliteStorageAdapter } from '../../../kernel/adapters/sqlite/index.js';
 import { loadCanonicalPreamble } from '../../../kernel/jobs/index.js';
+import { sha256 } from '../../../kernel/orchestrator/node-build.js';
 
 const FIXTURE = fileURLToPath(new URL('./fixtures/prob-summarizer', import.meta.url));
 const PLUGIN_ID = 'prob-summarizer';
@@ -50,6 +57,11 @@ function captureContext(): ICaptured {
   return { context, stdout: () => out.join(''), stderr: () => err.join('') };
 }
 
+/** The on-disk body the fixture writes for `path` (after the fence). */
+function bodyFor(path: string): string {
+  return `Body of ${path}\n`;
+}
+
 async function insertNode(
   adapter: SqliteStorageAdapter,
   opts: { path: string; kind: string; provider: string; virtual?: boolean },
@@ -68,7 +80,11 @@ async function insertNode(
       annotationsJson: null,
       sidecarRootJson: null,
       frontmatterJson: '{}',
-      bodyHash: 'b'.repeat(64),
+      // The REAL hash of the written body: the submit-time drift
+      // verification recomputes it from disk and refuses on a mismatch.
+      // Virtual nodes have no backing file; any value works (they are
+      // excluded from submit either way).
+      bodyHash: opts.virtual ? 'b'.repeat(64) : sha256(bodyFor(opts.path)),
       frontmatterHash: 'f'.repeat(64),
       bytesFrontmatter: 0,
       bytesBody: 8,
@@ -113,7 +129,7 @@ async function setupProject(
       if (!node.virtual) {
         const abs = join(root, node.path);
         mkdirSync(join(abs, '..'), { recursive: true });
-        writeFileSync(abs, `---\ntitle: t\n---\nBody of ${node.path}\n`);
+        writeFileSync(abs, `---\ntitle: t\n---\n${bodyFor(node.path)}`);
       }
     }
     await adapter.trust.set(PLUGIN_ID, true);
@@ -284,9 +300,86 @@ describe('sm job submit -n', () => {
     strictEqual(second, 3);
     strictEqual(await countJobs(proj.dbPath), 1, 'no second job created');
   });
+
+  it('refuses with exit 2 when the node changed on disk since the scan (drift)', async () => {
+    const proj = await setupProject([SKILL]);
+    // Edit AFTER the (simulated) scan: the recomputed body hash diverges.
+    appendFileSync(join(proj.root, SKILL.path), 'edited after scan\n');
+
+    const code = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const c = await run(buildSubmit({ action: ACTION_ID, node: SKILL.path }), cap);
+      match(cap.stderr(), /changed on disk since the last scan/);
+      match(cap.stderr(), /run sm scan/);
+      return c;
+    });
+    strictEqual(code, 2);
+    strictEqual(await countJobs(proj.dbPath), 0, 'no job enqueued for drifted content');
+  });
+
+  it('proceeds after a re-scan refreshes the stored body hash', async () => {
+    const proj = await setupProject([SKILL]);
+    const abs = join(proj.root, SKILL.path);
+    appendFileSync(abs, 'edited after scan\n');
+    // Simulate the re-scan: stamp the CURRENT on-disk body hash on the row.
+    const adapter = new SqliteStorageAdapter({ databasePath: proj.dbPath, autoBackup: false });
+    await adapter.init();
+    try {
+      await adapter.db
+        .updateTable('scan_nodes')
+        .set({ bodyHash: sha256(`${bodyFor(SKILL.path)}edited after scan\n`) })
+        .where('path', '=', SKILL.path)
+        .execute();
+    } finally {
+      await adapter.close();
+    }
+
+    const code = await withCwd(proj.root, async () =>
+      run(buildSubmit({ action: ACTION_ID, node: SKILL.path }), captureContext()),
+    );
+    strictEqual(code, 0, 'submit proceeds once the scan matches the disk again');
+    strictEqual(await countJobs(proj.dbPath), 1);
+  });
+
+  it('refuses with a clean exit 2 (no stack trace) when the node file was deleted', async () => {
+    const proj = await setupProject([SKILL]);
+    rmSync(join(proj.root, SKILL.path));
+
+    const code = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const c = await run(buildSubmit({ action: ACTION_ID, node: SKILL.path }), cap);
+      match(cap.stderr(), /cannot be read from disk/);
+      doesNotMatch(cap.stderr(), /at .*\.ts:\d+/, 'no raw stack trace leaks');
+      doesNotMatch(cap.stderr(), /ENOENT/, 'no raw errno leaks');
+      return c;
+    });
+    strictEqual(code, 2);
+    strictEqual(await countJobs(proj.dbPath), 0);
+  });
 });
 
 describe('sm job submit --all', () => {
+  it('continues past a drifted / deleted node (per-node refusal, non-fatal)', async () => {
+    const SECOND = { path: '.claude/skills/bar/SKILL.md', kind: 'skill', provider: 'claude' };
+    const proj = await setupProject([SKILL, SECOND]);
+    // One target vanishes after the scan; the other stays intact.
+    rmSync(join(proj.root, SECOND.path));
+
+    const outcome = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const cmd = buildSubmit({ action: ACTION_ID, all: true, json: true });
+      const c = await run(cmd, cap);
+      return { code: c, parsed: JSON.parse(cap.stdout()) };
+    });
+    strictEqual(outcome.code, 0, 'the fan-out is not aborted by one bad node');
+    strictEqual(outcome.parsed.counts.submitted, 1);
+    strictEqual(outcome.parsed.counts.refused, 1);
+    strictEqual(outcome.parsed.submitted[0].nodeId, SKILL.path);
+    strictEqual(outcome.parsed.refused[0].nodeId, SECOND.path);
+    strictEqual(outcome.parsed.refused[0].reason, 'unreadable');
+    strictEqual(await countJobs(proj.dbPath), 1, 'the intact node still enqueued');
+  });
+
   it('fans out to matching non-virtual nodes only', async () => {
     const proj = await setupProject([
       SKILL,
@@ -337,6 +430,9 @@ describe('sm job list / show', () => {
       const parsed = JSON.parse(cap.stdout());
       strictEqual(parsed.length, 1);
       strictEqual(parsed[0].id, submitted);
+      // Security (spec §Atomic claim · Nonce exposure): the record
+      // credential never rides the read surfaces.
+      ok(!('nonce' in parsed[0]), 'list --json omits the nonce');
       return c;
     });
     strictEqual(listCode, 0);
@@ -365,6 +461,8 @@ describe('sm job list / show', () => {
       const job = JSON.parse(cap.stdout());
       strictEqual(job.id, submitted);
       strictEqual(job.status, 'queued');
+      // Security (spec §Atomic claim · Nonce exposure).
+      ok(!('nonce' in job), 'show --json omits the nonce');
       return c;
     });
     strictEqual(showCode, 0);

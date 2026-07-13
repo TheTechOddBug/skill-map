@@ -34,6 +34,7 @@ import { tx } from '../../kernel/util/tx.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { EXPORT_TEXTS } from '../i18n/export.texts.js';
 import { SmCommand } from '../util/sm-command.js';
+import { buildReadVersionCheck } from '../util/db-version-check.js';
 import { withSqlite } from '../util/with-sqlite.js';
 
 // Built-in Claude Provider catalog rendered first, in this canonical
@@ -143,7 +144,10 @@ export class ExportCommand extends SmCommand {
     const exit = requireDbOrExit(dbPath, this.context.stderr);
     if (exit !== null) return exit;
 
-    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
+    // Read verb: advise on drift, never refuse (spec/db-schema.md §Schema
+    // drift, read-side opens advise).
+    const versionCheck = buildReadVersionCheck(this.printer!, this.ansiFor('stderr'));
+    return withSqlite({ databasePath: dbPath, autoBackup: false, versionCheck }, async (adapter) => {
       const scan = await adapter.scans.load();
       const subset = applyExportQuery(
         { nodes: scan.nodes, links: scan.links, issues: scan.issues },

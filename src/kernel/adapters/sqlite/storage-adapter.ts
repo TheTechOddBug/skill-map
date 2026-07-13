@@ -119,6 +119,7 @@ import {
   rowToNode,
 } from './scan-load.js';
 import { persistScanResult } from './scan-persistence.js';
+import { listSummariesForNode } from './summaries.js';
 import {
   listAllContributionErrors,
   loadContributionsForNode,
@@ -226,6 +227,7 @@ export class SqliteStorageAdapter implements StoragePort {
   issues!: StoragePort['issues'];
   history!: StoragePort['history'];
   jobs!: StoragePort['jobs'];
+  summaries!: StoragePort['summaries'];
   favorites!: StoragePort['favorites'];
   preferences!: StoragePort['preferences'];
   trust!: StoragePort['trust'];
@@ -374,7 +376,11 @@ export class SqliteStorageAdapter implements StoragePort {
         pruneTerminalJobs(this.db, status, cutoffMs),
       listTerminalCandidates: (status, cutoffMs) =>
         listTerminalCandidates(this.db, status, cutoffMs),
-      recordTerminal: (execution) => recordJobTerminal(this.db, execution),
+      recordTerminal: (execution, summary) => recordJobTerminal(this.db, execution, summary),
+    };
+
+    this.summaries = {
+      forNode: (nodeId) => listSummariesForNode(this.db, nodeId),
     };
 
     this.favorites = {

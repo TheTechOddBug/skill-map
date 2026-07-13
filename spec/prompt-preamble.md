@@ -22,7 +22,7 @@ All interpolated node content (body, frontmatter values, referenced snippets) th
 Rules the kernel MUST apply when rendering:
 
 1. **Attribute**: `id` carries the `node.path`. Other attributes are forbidden. The `id` value is HTML-attribute-escaped (`&quot;`, `&amp;`, `&lt;`, `&gt;`).
-2. **Escaping**: any literal occurrence of `</user-content>` inside the content is replaced with `</user-content&#x200B;>` (zero-width space before `>`). This MUST be reversed only for display, never when computing hashes.
+2. **Escaping**: any literal occurrence of a `</user-content>` close tag inside the content, matched **case-insensitively and tolerating internal whitespace** (`</USER-CONTENT>`, `</user-content >`, `</ User-Content >`, ...), is neutralised by inserting the `&#x200B;` entity (zero-width space) immediately before the closing `>`, preserving every other original byte (e.g. `</USER-CONTENT >` becomes `</USER-CONTENT &#x200B;>`). Matching MUST be case- and whitespace-insensitive because tag semantics are case-insensitive to HTML consumers and to LLMs: an attacker-cased or whitespace-padded close tag would otherwise pass through verbatim and still close the kernel's delimiter. This MUST be reversed only for display, never when computing hashes.
 3. **Nesting**: `<user-content>` elements MUST NOT be nested. If an action template needs to include multiple nodes, each gets its own top-level `<user-content>` block.
 4. **Outside the delimiter**: nothing authored by a user. Action templates supply the surrounding prose; the template itself is part of the kernel-controlled prompt surface.
 

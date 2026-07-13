@@ -35,6 +35,7 @@
  */
 
 import { tryWithSqlite } from '../core/sqlite/with-sqlite.js';
+import { bffReadVersionCheck } from './util/db-read-check.js';
 import type {
   IActivitySignal,
   IActivitySpawnExecution,
@@ -179,7 +180,7 @@ function mapEventSafely(provider: IProvider, raw: unknown): IActivitySignal[] {
 
 async function loadPersistedNodes(dbPath: string): Promise<readonly Node[]> {
   const persisted = await tryWithSqlite(
-    { databasePath: dbPath, autoBackup: false },
+    { databasePath: dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
     async (adapter) => adapter.scans.load(),
   );
   return persisted?.nodes ?? [];

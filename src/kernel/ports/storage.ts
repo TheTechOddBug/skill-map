@@ -67,6 +67,8 @@ import type {
   IPluginMigrationPlan,
   IPluginTrustRow,
   IPruneResult,
+  ISummaryRecord,
+  ISummaryWriteIntent,
   THistoryStatsPeriod,
   TJobTransitionOutcome,
 } from '../types/storage.js';
@@ -461,8 +463,35 @@ export interface StoragePort {
      * `runner-error` / null), and `finishedAt`; the report payload rides
      * inline on `reportPath` (mapped to the `report_json` column). Backs
      * `sm record`.
+     *
+     * When `summary` is supplied (the recorded Action declared
+     * `writesSummary`, only ever on the `completed` path), the validated
+     * report is ALSO upserted into `state_summaries` inside the same
+     * transaction, keyed by `(node_id, summarizer_action_id)`. The upsert
+     * reads the node's live `kind` + `body_hash` from `scan_nodes` and is
+     * skipped when the node no longer exists (deleted / renamed since
+     * submit); the execution row + job transition still land
+     * (`spec/job-lifecycle.md` §Record).
      */
-    recordTerminal(execution: ExecutionRecord): Promise<void>;
+    recordTerminal(execution: ExecutionRecord, summary?: ISummaryWriteIntent): Promise<void>;
+  };
+
+  // --- summaries namespace ----------------------------------------------
+  /**
+   * Read access to `state_summaries`, the per-node semantic summaries a
+   * `writesSummary` Action lands via `sm record`. Writes happen inside the
+   * `jobs.recordTerminal(execution, summary)` transaction (folded into the
+   * record callback, never a standalone write); this namespace is
+   * read-only.
+   */
+  summaries: {
+    /**
+     * Every stored summary for a node, ordered by `summarizerActionId`
+     * ASC. Backs `sm show <node>`'s Summary section: the caller flags each
+     * `(stale)` by comparing `bodyHashAtGeneration` against the node's
+     * current `scan_nodes.body_hash`.
+     */
+    forNode(nodeId: string): Promise<ISummaryRecord[]>;
   };
 
   // --- preferences namespace -------------------------------------------
@@ -638,6 +667,8 @@ export type {
   IPluginMigrationRecord,
   IPluginTrustRow,
   IPruneResult,
+  ISummaryRecord,
+  ISummaryWriteIntent,
   THistoryStatsPeriod,
   TJobTransitionOutcome,
 } from '../types/storage.js';

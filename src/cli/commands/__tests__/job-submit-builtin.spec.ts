@@ -22,6 +22,7 @@ import type { BaseContext } from 'clipanion';
 
 import { JobSubmitCommand } from '../job-queue.js';
 import { SqliteStorageAdapter } from '../../../kernel/adapters/sqlite/index.js';
+import { sha256 } from '../../../kernel/orchestrator/node-build.js';
 import { loadCanonicalPreamble } from '../../../kernel/jobs/index.js';
 
 const ACTION_ID = 'core/markdown-summarizer';
@@ -63,7 +64,8 @@ async function insertNode(
       annotationsJson: null,
       sidecarRootJson: null,
       frontmatterJson: '{}',
-      bodyHash: 'b'.repeat(64),
+      // Real hash of the written body: submit now verifies disk vs scan.
+      bodyHash: sha256(`Body of ${opts.path}\n`),
       frontmatterHash: 'f'.repeat(64),
       bytesFrontmatter: 0,
       bytesBody: 8,

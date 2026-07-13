@@ -39,6 +39,7 @@ export type {
   IProviderKindUi,
   IProviderReadConfig,
   IProviderUi,
+  IProviderWalkOptions,
   IRawNode,
   TActivityInstall,
   TActivityPhase,

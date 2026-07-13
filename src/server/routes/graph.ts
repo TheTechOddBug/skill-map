@@ -27,6 +27,7 @@ import { HTTPException } from 'hono/http-exception';
 
 import { composeFormatters } from '../../core/runtime/plugin-runtime.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
+import { bffReadVersionCheck } from '../util/db-read-check.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
@@ -81,7 +82,7 @@ export function registerGraphRoute(app: Hono, deps: IRouteDeps): void {
     }
 
     const loaded = await tryWithSqlite(
-      { databasePath: deps.options.dbPath, autoBackup: false },
+      { databasePath: deps.options.dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
       (adapter) => adapter.scans.load(),
     );
     const text = renderGraphPayload(formatter, loaded);

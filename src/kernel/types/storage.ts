@@ -57,6 +57,38 @@ export interface INodeBundle {
 }
 
 /**
+ * A stored per-node summary row (`state_summaries`), as returned by
+ * `port.summaries.forNode(nodeId)`. `report` is the parsed `summary_json`
+ * (the validated summarizer report); `bodyHashAtGeneration` lets a reader
+ * (`sm show`) flag the summary `(stale)` by comparing against the node's
+ * current `scan_nodes.body_hash`.
+ */
+export interface ISummaryRecord {
+  nodeId: string;
+  kind: string;
+  summarizerActionId: string;
+  summarizerVersion: string;
+  bodyHashAtGeneration: string;
+  generatedAt: number;
+  report: Record<string, unknown>;
+}
+
+/**
+ * Write intent handed to `port.jobs.recordTerminal(execution, summary?)`
+ * when the recorded Action declares `writesSummary`. Carries only the
+ * caller-known fields; the adapter reads the target node's live `kind`
+ * and `body_hash` from `scan_nodes` inside the record transaction (and
+ * skips the upsert when the node is absent). `summaryJson` is the
+ * serialized validated report.
+ */
+export interface ISummaryWriteIntent {
+  summarizerActionId: string;
+  summarizerVersion: string;
+  generatedAt: number;
+  summaryJson: string;
+}
+
+/**
  * Output of `port.scans.countRows()`. Used by `sm scan` to decide
  * whether the persist would wipe a populated DB (the "refusing to
  * wipe" guard) and by `sm db status` for the human summary.

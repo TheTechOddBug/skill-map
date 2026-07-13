@@ -29,6 +29,7 @@ import { tx } from '../../kernel/util/tx.js';
 import { truncateHead } from '../util/text.js';
 import type { IAnsi } from '../util/ansi.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
+import { buildReadVersionCheck } from '../util/db-version-check.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { formatElapsed } from '../util/elapsed.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -171,7 +172,10 @@ export class HistoryCommand extends SmCommand {
     const exit = requireDbOrExit(dbPath, this.context.stderr);
     if (exit !== null) return exit;
 
-    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
+    // Read verb: advise on drift, never refuse (spec/db-schema.md §Schema
+    // drift, read-side opens advise).
+    const versionCheck = buildReadVersionCheck(this.printer!, this.ansiFor('stderr'));
+    return withSqlite({ databasePath: dbPath, autoBackup: false, versionCheck }, async (adapter) => {
       const rows = await adapter.history.list(filter);
 
       if (this.json) {
@@ -268,7 +272,10 @@ export class HistoryStatsCommand extends SmCommand {
     const exit = requireDbOrExit(dbPath, this.context.stderr);
     if (exit !== null) return exit;
 
-    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
+    // Read verb: advise on drift, never refuse (spec/db-schema.md §Schema
+    // drift, read-side opens advise).
+    const versionCheck = buildReadVersionCheck(this.printer!, this.ansiFor('stderr'));
+    return withSqlite({ databasePath: dbPath, autoBackup: false, versionCheck }, async (adapter) => {
       const aggregated = await adapter.history.aggregateStats(
         { sinceMs, untilMs },
         period,

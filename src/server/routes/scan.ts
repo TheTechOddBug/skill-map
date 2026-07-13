@@ -47,7 +47,7 @@ import { buildFreshResolver } from '../../core/runtime/fresh-resolver.js';
 import { runScanForCommand } from '../../core/runtime/scan-runner.js';
 import type { IPrinter } from '../../core/runtime/printer.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
-import { VERSION } from '../../version.js';
+import { bffReadVersionCheck } from '../util/db-read-check.js';
 import { log } from '../../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -173,7 +173,7 @@ async function loadPersistedScanMeta(deps: IRouteDeps): Promise<ScanResult> {
     {
       databasePath: deps.options.dbPath,
       autoBackup: false,
-      versionCheck: { currentVersion: VERSION, printer: bffVersionCheckPrinter },
+      versionCheck: bffReadVersionCheck(),
     },
     async (adapter) => adapter.scans.loadMeta(),
   );
@@ -193,7 +193,7 @@ async function loadPersistedScan(deps: IRouteDeps): Promise<ScanResult> {
       // different-major DB throws `DbVersionMismatchError`, which the
       // global `app.onError` maps to a 500 so the SPA surfaces it
       // rather than crashing on a cryptic missing-column read.
-      versionCheck: { currentVersion: VERSION, printer: bffVersionCheckPrinter },
+      versionCheck: bffReadVersionCheck(),
     },
     async (adapter) => {
       const [loaded, favSet] = await Promise.all([
@@ -346,20 +346,8 @@ const bffScanRunnerPrinter: IPrinter = {
   error: (text) => log.warn(sanitizeForTerminal(text.trimEnd())),
 };
 
-/**
- * Printer for the read-side drift advisory on `GET /api/scan`. Only the
- * one-shot `warn-older` / `warn-schema` advisories route through here
- * (the version-skew runner calls `printer.warn`); the error
- * classifications throw `DbVersionMismatchError` instead of printing, so
- * `data` / `info` / `error` never fire on this path and discard
- * defensively. The advisory lands in the server log, the BFF has no TTY.
- */
-const bffVersionCheckPrinter: IPrinter = {
-  data: () => { /* unused on the version-check path */ },
-  info: (text) => log.warn(sanitizeForTerminal(text.trimEnd())),
-  warn: (text) => log.warn(sanitizeForTerminal(text.trimEnd())),
-  error: (text) => log.warn(sanitizeForTerminal(text.trimEnd())),
-};
+// The read-side drift-advisory printer moved to `../util/db-read-check.ts`
+// (`bffReadVersionCheck`), shared by every BFF read open.
 
 // `emptyScanResult()` (DB-absent shape) lives in `../empty-scan.js` so
 // the REST scan route and the MCP `skillmap://graph` resource share one

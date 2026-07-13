@@ -11,17 +11,21 @@
  *     running job to completed, in ONE transaction (report inline in
  *     report_json, finishedAt stamped).
  *   - the failed / report-invalid transition path.
- *   - the running-only UPDATE guard leaves a non-running job untouched.
+ *   - the lost-race guard: a record against a job that left `running`
+ *     (cancelled / reaped out from under the callback) throws the typed
+ *     `JobNotRunningError` and rolls the WHOLE transaction back, no
+ *     execution row lands and the job keeps its terminal state.
  *   - history.insertExecution appends a row visible through history.list.
  */
 
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { strictEqual, ok } from 'node:assert';
+import { strictEqual, ok, rejects } from 'node:assert';
 import { after, before, describe, it } from 'node:test';
 
 import { SqliteStorageAdapter } from '../index.js';
+import { JobNotRunningError } from '../../../jobs/errors.js';
 import type { ExecutionRecord } from '../../../types.js';
 import type { IJobSubmitRow } from '../../../types/storage.js';
 
@@ -138,18 +142,31 @@ describe('recordJobTerminal', () => {
     }
   });
 
-  it('leaves a non-running job untouched (running-only UPDATE guard)', async () => {
+  it('throws JobNotRunningError and rolls back on a lost race (no execution row, job untouched)', async () => {
     const adapter = await openAdapter(freshDbPath('record-guard'));
     try {
       await seedRunning(adapter);
-      // Drive it terminal out-of-band, then attempt a late record.
+      // Simulate the concurrent-terminal race: the job is cancelled
+      // between the caller's running pre-check and the record transaction.
       await adapter.jobs.cancel(JOB_ID, 1800);
-      await adapter.jobs.recordTerminal(buildExecution({}));
+
+      await rejects(
+        adapter.jobs.recordTerminal(buildExecution({})),
+        (err: unknown) => {
+          ok(err instanceof JobNotRunningError, 'typed lost-race error');
+          strictEqual(err.jobId, JOB_ID);
+          return true;
+        },
+      );
 
       const job = await adapter.jobs.get(JOB_ID);
       ok(job);
       strictEqual(job.status, 'cancelled', 'the cancelled job is not re-transitioned');
       strictEqual(job.finishedAt, 1800, 'finishedAt keeps the cancel timestamp');
+
+      // The transaction rolled back: NO orphan execution row landed.
+      const rows = await adapter.history.list({});
+      strictEqual(rows.length, 0, 'the execution insert was rolled back with the throw');
     } finally {
       await adapter.close();
     }

@@ -23,4 +23,8 @@ export const JOB_TEXTS = {
     'action prompt template must reference the {{placeholder}} placeholder that marks where the node body is inserted',
   renderAuthoredDelimiter:
     'action prompt template must not author its own <user-content> delimiter; the kernel owns that block (use the {{placeholder}} placeholder instead)',
+
+  // --- record race guard ---------------------------------------------------
+  jobNotRunning:
+    'job {{id}} is not in running state (reaped, cancelled, or already recorded); nothing was written',
 } as const;

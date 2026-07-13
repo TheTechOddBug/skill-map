@@ -33,6 +33,7 @@
 import type { Hono } from 'hono';
 
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
+import { bffReadVersionCheck } from '../util/db-read-check.js';
 import { buildListEnvelope } from '../envelope.js';
 import type { IRouteDeps } from './deps.js';
 
@@ -51,7 +52,7 @@ interface IFolderItem {
 export function registerFoldersRoute(app: Hono, deps: IRouteDeps): void {
   app.get('/api/folders', async (c) => {
     const loaded = await tryWithSqlite(
-      { databasePath: deps.options.dbPath, autoBackup: false },
+      { databasePath: deps.options.dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
       async (adapter) => {
         const [liteNodes, issueCounts] = await Promise.all([
           adapter.scans.listLiteNodes(),

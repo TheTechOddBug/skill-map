@@ -33,6 +33,7 @@ import { confirm } from '../util/confirm.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { ORPHANS_TEXTS } from '../i18n/orphans.texts.js';
 import { SmCommand } from '../util/sm-command.js';
+import { buildReadVersionCheck } from '../util/db-version-check.js';
 import { withSqlite } from '../util/with-sqlite.js';
 
 const ORPHAN_RULE_IDS = ['orphan', 'auto-rename-medium', 'auto-rename-ambiguous'] as const;
@@ -111,7 +112,11 @@ export class OrphansCommand extends SmCommand {
     const exit = requireDbOrExit(dbPath, this.context.stderr);
     if (exit !== null) return exit;
 
-    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
+    // Read verb (the listing; reconcile / undo-rename below stay on the
+    // write-side drift refusal): advise on drift, never refuse
+    // (spec/db-schema.md §Schema drift, read-side opens advise).
+    const versionCheck = buildReadVersionCheck(this.printer!, this.ansiFor('stderr'));
+    return withSqlite({ databasePath: dbPath, autoBackup: false, versionCheck }, async (adapter) => {
       const found = await findActiveOrphanIssues(adapter, (issue) => {
         if (analyzerFilter !== null) return issue.analyzerId === analyzerFilter;
         return true;

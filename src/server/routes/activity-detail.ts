@@ -25,6 +25,7 @@ import type { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
+import { bffReadVersionCheck } from '../util/db-read-check.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import type {
@@ -53,7 +54,7 @@ export function registerActivityDetailRoutes(
   app.get('/api/activity/node/:pathB64', async (c) => {
     const nodePath = decodePathParamOr404(c.req.param('pathB64'));
     const exists = await tryWithSqlite(
-      { databasePath: deps.options.dbPath, autoBackup: false },
+      { databasePath: deps.options.dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
       async (adapter) => (await adapter.scans.findNode(nodePath)) !== null,
     );
     if (exists !== true) {

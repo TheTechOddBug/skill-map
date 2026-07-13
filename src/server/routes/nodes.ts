@@ -53,6 +53,7 @@ import { HTTPException } from 'hono/http-exception';
 import { applyExportQuery } from '../../kernel/index.js';
 import type { IPersistedContribution } from '../../kernel/ports/storage.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
+import { bffReadVersionCheck } from '../util/db-read-check.js';
 import { tx } from '../../kernel/util/tx.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { buildListEnvelope, REST_ENVELOPE_SCHEMA_VERSION } from '../envelope.js';
@@ -95,7 +96,7 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
       throw err;
     }
     const result = await tryWithSqlite(
-      { databasePath: deps.options.dbPath, autoBackup: false },
+      { databasePath: deps.options.dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
       async (adapter) => {
         const b = await adapter.scans.findNode(nodePath);
         if (!b) {
@@ -166,7 +167,7 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
     });
 
     const opened = await tryWithSqlite(
-      { databasePath: deps.options.dbPath, autoBackup: false },
+      { databasePath: deps.options.dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
       async (adapter) => {
         const [l, fs] = await Promise.all([
           adapter.scans.load(),
@@ -203,7 +204,7 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
     const pagePaths = pageNodes.map((n) => n.path);
     const { contributionsByPath, tagsByPath } =
       (await tryWithSqlite(
-        { databasePath: deps.options.dbPath, autoBackup: false },
+        { databasePath: deps.options.dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
         async (adapter) => {
           const contribByPath = contributionsOmitted
             ? new Map<string, IPersistedContribution[]>()

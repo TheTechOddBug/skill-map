@@ -39,9 +39,12 @@ import type {
   IJobListFilter,
   IJobSubmitRow,
   IPruneResult,
+  ISummaryWriteIntent,
   TJobTransitionOutcome,
 } from '../../types/storage.js';
+import { JobNotRunningError } from '../../jobs/errors.js';
 import { insertExecution } from './history.js';
+import { upsertSummaryForNode } from './summaries.js';
 
 export type { IPruneResult } from '../../types/storage.js';
 
@@ -73,7 +76,7 @@ function rowToJob(row: Selectable<IStateJobsTable>): Job {
 /**
  * Submit a job: store its rendered content then insert the lifecycle row,
  * both inside ONE transaction (per `spec/job-lifecycle.md` §Submit steps
- * 8-9). The content row is written FIRST via `INSERT OR IGNORE` so the
+ * 9-10). The content row is written FIRST via `INSERT OR IGNORE` so the
  * `state_jobs.content_hash -> state_job_contents.content_hash` reference is
  * always satisfiable; a second submit of the same hash reuses the existing
  * blob. Returns the inserted job id.
@@ -286,8 +289,15 @@ export async function claimNext(
   nowMs: number,
   filter?: string,
 ): Promise<IJobClaim | null> {
+  // Same matching semantics as `listJobs`: the stored qualified id
+  // exactly, OR by bare-id suffix (`%/<id>`), so `--filter skill-echo`
+  // claims a `prob-summarizer/skill-echo` job. Kept inside the single
+  // atomic statement (a pre-resolution SELECT would reopen the
+  // double-claim window the outer status guard closes).
   const filterCond =
-    filter !== undefined ? sql`AND action_id = ${filter}` : sql``;
+    filter !== undefined
+      ? sql`AND (action_id = ${filter} OR action_id LIKE '%/' || ${filter})`
+      : sql``;
   const result = await sql<IClaimRow>`
     UPDATE state_jobs
        SET status = 'running',
@@ -317,32 +327,33 @@ export async function claimNext(
  * self-explanatory, NOT a `failed` sub-reason); a terminal job is refused
  * (`already-terminal`) and an unknown id is `not-found`. DOES NOT interrupt
  * any subprocess (there is none yet): a running runner discovers the
- * terminal state on its next callback. The status read + conditional UPDATE
- * do not need the atomic-claim single-statement guarantee, cancellation is
- * idempotent (a lost race just no-ops the second UPDATE via the status
- * predicate).
+ * terminal state on its next callback.
+ *
+ * The outcome derives from the guarded UPDATE's affected-row count, not a
+ * pre-SELECT: a lost race (another writer terminalising the job between a
+ * read and the write) would otherwise misreport `cancelled` for a job
+ * that stayed untouched. 0 rows updated -> re-read once to discriminate
+ * `already-terminal` from `not-found` (the row may also have been pruned
+ * away entirely).
  */
 export async function cancelJob(
   db: Kysely<IDatabase>,
   id: string,
   nowMs: number,
 ): Promise<TJobTransitionOutcome> {
+  const res = await db
+    .updateTable('state_jobs')
+    .set({ status: 'cancelled', failureReason: null, finishedAt: nowMs })
+    .where('id', '=', id)
+    .where('status', 'in', ACTIVE_STATUSES)
+    .executeTakeFirst();
+  if (Number(res.numUpdatedRows ?? 0n) > 0) return 'cancelled';
   const existing = await db
     .selectFrom('state_jobs')
     .select('status')
     .where('id', '=', id)
     .executeTakeFirst();
-  if (!existing) return 'not-found';
-  if (existing.status !== 'queued' && existing.status !== 'running') {
-    return 'already-terminal';
-  }
-  await db
-    .updateTable('state_jobs')
-    .set({ status: 'cancelled', failureReason: null, finishedAt: nowMs })
-    .where('id', '=', id)
-    .where('status', 'in', ACTIVE_STATUSES)
-    .execute();
-  return 'cancelled';
+  return existing ? 'already-terminal' : 'not-found';
 }
 
 /**
@@ -368,29 +379,28 @@ export async function cancelAllActive(
  * counterpart of `cancelJob`. A `queued` or `running` job transitions to
  * the terminal `failed` state with `failureReason = user-failed` and
  * `finishedAt = nowMs`; a terminal job is refused (`already-terminal`) and
- * an unknown id is `not-found`. Same idempotent guard as cancel.
+ * an unknown id is `not-found`. Same UPDATE-first race guard as cancel:
+ * the outcome comes from the affected-row count, and a 0-row update
+ * re-reads once to discriminate `already-terminal` from `not-found`.
  */
 export async function failJob(
   db: Kysely<IDatabase>,
   id: string,
   nowMs: number,
 ): Promise<TJobTransitionOutcome> {
+  const res = await db
+    .updateTable('state_jobs')
+    .set({ status: 'failed', failureReason: 'user-failed', finishedAt: nowMs })
+    .where('id', '=', id)
+    .where('status', 'in', ACTIVE_STATUSES)
+    .executeTakeFirst();
+  if (Number(res.numUpdatedRows ?? 0n) > 0) return 'failed';
   const existing = await db
     .selectFrom('state_jobs')
     .select('status')
     .where('id', '=', id)
     .executeTakeFirst();
-  if (!existing) return 'not-found';
-  if (existing.status !== 'queued' && existing.status !== 'running') {
-    return 'already-terminal';
-  }
-  await db
-    .updateTable('state_jobs')
-    .set({ status: 'failed', failureReason: 'user-failed', finishedAt: nowMs })
-    .where('id', '=', id)
-    .where('status', 'in', ACTIVE_STATUSES)
-    .execute();
-  return 'failed';
+  return existing ? 'already-terminal' : 'not-found';
 }
 
 /**
@@ -470,21 +480,38 @@ export async function reapExpired(
  * (which `state_jobs` row), `status` (`completed` / `failed`, an
  * `ExecutionStatus` subset of `JobStatus`), `failureReason`
  * (`report-invalid` / `runner-error` / null), and `finishedAt`. The UPDATE
- * guards on `status = 'running'` so a job already reaped or cancelled out
- * from under a late callback is left untouched (the CLI's pre-check exits 2
- * before reaching here, this is the defensive backstop).
+ * runs FIRST and guards on `status = 'running'`: when it matches zero
+ * rows, the job was reaped / cancelled / recorded out from under this
+ * callback between the caller's pre-check and the transaction, so the
+ * whole record is a lost race. A typed `JobNotRunningError` is thrown
+ * INSIDE the transaction, rolling back everything (no execution row, no
+ * summary) so a lost race never mutates state (spec §Record step 3: a
+ * rejected transition "MUST NOT mutate state"). Callers surface it as the
+ * "job not in running state" path (exit 2 for `sm record`).
+ *
+ * **Summary write-through** (`spec/job-lifecycle.md` §Record). When the
+ * caller passes a `summary` intent (the recorded Action declared
+ * `writesSummary`, only on the `completed` path), the validated report is
+ * ALSO upserted into `state_summaries` inside the SAME transaction, keyed
+ * by `(node_id, summarizer_action_id)`. The upsert reads the target node's
+ * live `kind` + `body_hash` from `scan_nodes`; if the node has disappeared
+ * (deleted / renamed since submit) the summary is skipped while the
+ * execution row + job transition still land.
  */
 export async function recordJobTerminal(
   db: Kysely<IDatabase>,
   execution: ExecutionRecord,
+  summary?: ISummaryWriteIntent,
 ): Promise<void> {
   const jobId = execution.jobId;
   if (jobId === null || jobId === undefined) {
     throw new Error('recordJobTerminal: execution.jobId is required to transition the job');
   }
   await db.transaction().execute(async (trx) => {
-    await insertExecution(trx, execution);
-    await trx
+    // UPDATE first: its affected-row count is the race arbiter. Zero rows
+    // means the job left `running` since the caller checked; throwing here
+    // rolls the transaction back before any execution / summary write.
+    const res = await trx
       .updateTable('state_jobs')
       .set({
         status: execution.status,
@@ -493,6 +520,14 @@ export async function recordJobTerminal(
       })
       .where('id', '=', jobId)
       .where('status', '=', 'running')
-      .execute();
+      .executeTakeFirst();
+    if (Number(res.numUpdatedRows ?? 0n) === 0) {
+      throw new JobNotRunningError(jobId);
+    }
+    await insertExecution(trx, execution);
+    if (summary !== undefined) {
+      const nodeId = execution.nodeIds?.[0];
+      if (nodeId !== undefined) await upsertSummaryForNode(trx, nodeId, summary);
+    }
   });
 }

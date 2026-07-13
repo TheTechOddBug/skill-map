@@ -53,4 +53,17 @@ export const SHOW_TEXTS = {
   issuesSection: '\n  Issues ({{count}})\n',
   /** Issue row, mirrors the `sm check` format. */
   issueRow: '    {{glyph}}  {{analyzerId}}   {{message}}\n',
+
+  // --- summary section -------------------------------------------------
+  summarySection: '\n  Summary ({{count}})\n',
+  /**
+   * One stored per-node summary: dim summarizer action id, the report
+   * headline, and an optional `(stale)` marker when the node body changed
+   * since the summary was generated.
+   */
+  summaryRow: '    {{actionId}}   {{headline}}{{staleSuffix}}\n',
+  /** Marker appended (yellow) when the summary is stale. */
+  summaryStale: '  (stale)',
+  /** Fallback when the report carries no recognised headline field. */
+  summaryNoHeadline: '(no summary text)',
 } as const;

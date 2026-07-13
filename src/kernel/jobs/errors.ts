@@ -47,3 +47,23 @@ export class JobRenderError extends Error {
     this.name = 'JobRenderError';
   }
 }
+
+/**
+ * A terminal record (`recordJobTerminal`) lost the race: the guarded
+ * `state_jobs` UPDATE matched zero rows because the job is no longer
+ * `running` (reaped, cancelled, or failed out from under the callback
+ * between the caller's pre-check and the transaction). Thrown INSIDE the
+ * record transaction so the execution insert rolls back with it and no
+ * orphan `state_executions` row documents a run that never closed a job.
+ * `sm record` maps it to the "job not in running state" exit 2 path; the
+ * `sm job run` loop reports the discarded result and continues.
+ */
+export class JobNotRunningError extends Error {
+  readonly jobId: string;
+
+  constructor(jobId: string) {
+    super(tx(JOB_TEXTS.jobNotRunning, { id: jobId }));
+    this.name = 'JobNotRunningError';
+    this.jobId = jobId;
+  }
+}

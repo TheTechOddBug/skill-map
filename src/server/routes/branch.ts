@@ -60,6 +60,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { Issue, Link, Node } from '../../kernel/index.js';
 import type { IPersistedContribution } from '../../kernel/ports/storage.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
+import { bffReadVersionCheck } from '../util/db-read-check.js';
 import { tx } from '../../kernel/util/tx.js';
 import { REST_ENVELOPE_SCHEMA_VERSION } from '../envelope.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
@@ -99,7 +100,7 @@ export function registerBranchRoute(app: Hono, deps: IRouteDeps): void {
     const limitOverride = parseLimit(c.req.query('limit'));
 
     const loaded = await tryWithSqlite(
-      { databasePath: deps.options.dbPath, autoBackup: false },
+      { databasePath: deps.options.dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
       async (adapter) => {
         const maxRenderNodes = await adapter.scans.effectiveMaxRenderNodes();
         // A `limit` query param can only LOWER the cap: clamp to

@@ -220,6 +220,79 @@ describe('sm job claim', () => {
     });
     strictEqual(claimed, B.id, 'only the matching action id was claimed');
   });
+
+  it('accepts a bare action id in --filter (matches the qualified id by suffix)', async () => {
+    const proj = await setupProject([
+      { ...A, actionId: 'core/skill-summarizer' },
+      { ...B, actionId: 'core/other-action' },
+    ]);
+    const claimed = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      await run(buildClaim({ filter: 'other-action' }), cap);
+      return cap.stdout().trim();
+    });
+    strictEqual(claimed, B.id, 'bare id claimed the qualified-id job');
+  });
+
+  it('marks a claimed job with a missing content row failed / job-file-missing and exits 2', async () => {
+    // Seed a queued job, then delete its content row out-of-band (the
+    // DB-corruption-only state, spec §Atomicity edge cases).
+    const proj = await setupProject([A]);
+    const seed = await openDb(proj.dbPath);
+    try {
+      await seed.db
+        .deleteFrom('state_job_contents')
+        .where('contentHash', '=', A.contentHash)
+        .execute();
+    } finally {
+      await seed.close();
+    }
+
+    const code = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const c = await run(buildClaim(), cap);
+      strictEqual(cap.stdout(), '', 'the claim is never handed out');
+      match(cap.stderr(), /no stored content/);
+      return c;
+    });
+    strictEqual(code, 2, 'never exit 0 with a null content');
+
+    const adapter = await openDb(proj.dbPath);
+    try {
+      const job = await adapter.jobs.get(A.id);
+      ok(job);
+      strictEqual(job.status, 'failed');
+      strictEqual(job.failureReason, 'job-file-missing');
+      const execs = await adapter.history.list({});
+      strictEqual(execs.length, 1, 'the corruption is documented in an execution row');
+      strictEqual(execs[0]!.jobId, A.id);
+      strictEqual(execs[0]!.failureReason, 'job-file-missing');
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('missing content row in --json mode also exits 2 with no stdout envelope', async () => {
+    const proj = await setupProject([A]);
+    const seed = await openDb(proj.dbPath);
+    try {
+      await seed.db
+        .deleteFrom('state_job_contents')
+        .where('contentHash', '=', A.contentHash)
+        .execute();
+    } finally {
+      await seed.close();
+    }
+
+    const code = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const c = await run(buildClaim({ json: true }), cap);
+      strictEqual(cap.stdout(), '', 'no {id, nonce, content: null} envelope');
+      match(cap.stderr(), /job-file-missing/);
+      return c;
+    });
+    strictEqual(code, 2);
+  });
 });
 
 describe('sm job status', () => {

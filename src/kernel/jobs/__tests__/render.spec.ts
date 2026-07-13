@@ -113,4 +113,55 @@ describe('user-content escaping round-trip', () => {
       '<user-content id="n.md">\nx </user-content> y\n</user-content>',
     );
   });
+
+  it('neutralises case / whitespace variants of the close tag (injection escape)', () => {
+    // Tag semantics are case-insensitive to HTML consumers and LLMs, so an
+    // attacker-cased or padded close tag must not survive verbatim
+    // (spec/prompt-preamble.md §Delimiter contract rule 2).
+    const variants = [
+      '</USER-CONTENT>',
+      '</User-Content>',
+      '</user-content >',
+      '</ user-content>',
+      '</\tuser-content\t>',
+      '</USER-CONTENT >',
+    ];
+    for (const variant of variants) {
+      const block = wrapUserContent('n.md', `x ${variant} y`);
+      // No un-neutralised variant survives inside the wrapped body: the
+      // ONLY genuine close tag is the kernel's own final wrapper line.
+      const inner = block.slice(0, block.lastIndexOf('</user-content>'));
+      ok(
+        !/(<\/\s*user-content\s*)>/i.test(inner),
+        `variant ${JSON.stringify(variant)} must be neutralised`,
+      );
+      ok(inner.includes('&#x200B;>'), 'entity inserted before the closing >');
+    }
+  });
+
+  it('escape preserves the original bytes and unescape restores them exactly', () => {
+    const body = 'a </USER-CONTENT> b </user-content > c </user-content> d';
+    const block = wrapUserContent('n.md', body);
+    // Original casing / spacing preserved (only the entity was inserted).
+    ok(block.includes('</USER-CONTENT&#x200B;>'));
+    ok(block.includes('</user-content &#x200B;>'));
+    strictEqual(
+      unescapeUserContentClose(block),
+      `<user-content id="n.md">\n${body}\n</user-content>`,
+    );
+  });
+
+  it('hashing input is unaffected by the display unescape (stored form keeps the entity)', () => {
+    const rendered = renderJobContent({
+      node: { path: 'n.md' },
+      nodeBody: 'x </USER-CONTENT> y',
+      promptTemplate: '{{userContent}}',
+      preamble: PREAMBLE,
+    });
+    // The stored (hashed) form carries the neutralised tag; unescaping for
+    // display yields a DIFFERENT string, proving the two forms are distinct
+    // and the unescape must never run before hashing.
+    ok(rendered.includes('</USER-CONTENT&#x200B;>'));
+    ok(unescapeUserContentClose(rendered) !== rendered);
+  });
 });

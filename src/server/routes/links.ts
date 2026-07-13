@@ -19,6 +19,7 @@ import type { Hono } from 'hono';
 
 import type { Link } from '../../kernel/index.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
+import { bffReadVersionCheck } from '../util/db-read-check.js';
 import { buildListEnvelope } from '../envelope.js';
 import { parseCsv } from '../util/parse-query.js';
 import type { IRouteDeps } from './deps.js';
@@ -30,7 +31,7 @@ export function registerLinksRoute(app: Hono, deps: IRouteDeps): void {
     const to = c.req.query('to') ?? null;
 
     const loaded = await tryWithSqlite(
-      { databasePath: deps.options.dbPath, autoBackup: false },
+      { databasePath: deps.options.dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
       (adapter) => adapter.scans.load(),
     );
     const allLinks: Link[] = loaded?.links ?? [];

@@ -18,6 +18,11 @@ export const JOBS_QUEUE_TEXTS = {
     'cannot resolve the prompt template for {{action}} ({{detail}})',
   submitErrNodeNotFound: 'node {{node}} is not in the latest scan',
   submitErrNodeVirtual: 'node {{node}} is virtual (no backing file to render)',
+  submitErrNodeDrifted:
+    'node {{node}} changed on disk since the last scan; run sm scan and resubmit',
+  submitErrNodeUnreadable:
+    'node {{node}} cannot be read from disk ({{detail}}); run sm scan to refresh the graph',
+  submitReadNotOnDisk: 'file missing or not readable as a node',
   submitErrBadTtl: '--ttl must be an integer number of seconds, got {{value}}',
   submitErrBadPriority: '--priority must be an integer, got {{value}}',
 
@@ -25,6 +30,10 @@ export const JOBS_QUEUE_TEXTS = {
   submitQueuedLine: '{{glyph}}  queued {{id}}  {{node}}\n',
   submitDuplicateLine:
     '{{glyph}}  duplicate: active job {{id}} already covers {{node}}\n',
+  submitDriftLine:
+    '{{glyph}}  drift: {{node}} changed on disk since the last scan (run sm scan)\n',
+  submitUnreadableLine:
+    '{{glyph}}  unreadable: {{node}} cannot be read from disk ({{detail}})\n',
   submitAllSummary:
     '{{glyph}}  submitted {{submitted}}, refused {{refused}} (of {{total}} matching node(s))\n',
   submitAllNoMatch: '{{glyph}}  no nodes match the precondition for {{action}}\n',
@@ -56,9 +65,13 @@ export const JOBS_QUEUE_TEXTS = {
     '{{glyph}}  sm job preview: job {{id}} has no stored content (state_job_contents row missing)\n',
 
   // --- claim -------------------------------------------------------------
-  // claim writes only the raw id (plain) or the {id,nonce,content} JSON to
-  // stdout; an empty queue exits 1 with no output, so it needs no catalog
-  // strings of its own.
+  // claim writes the raw id (plain) or the {id,nonce,content} JSON to
+  // stdout; an empty queue exits 1 with no output. The only claim-owned
+  // strings are the missing-content corruption surface (spec
+  // job-lifecycle.md §Atomic claim · Missing content row at claim).
+  claimErrContentMissing:
+    '{{glyph}}  sm job claim: job {{id}} has no stored content (state_job_contents row missing); marked failed / job-file-missing\n',
+  claimContentMissingDetail: 'state_job_contents row missing for the claimed job',
 
   // --- status ------------------------------------------------------------
   statusErrNotFound: '{{glyph}}  sm job status: job {{id}} not found\n',
