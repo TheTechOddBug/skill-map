@@ -560,6 +560,18 @@ Exit: 0 on success; 4 on nonce mismatch; 2 when the job is not in `running` stat
 
 Authentication: the nonce is the sole credential. An implementation MUST reject a mismatched or absent nonce.
 
+### Agent drain skill
+
+The distributable half of the agent drain protocol (`job-lifecycle.md` §Runners): a runtime-agnostic skill file teaching ANY agent the claim → execute → record loop. skill-map materialises it into the active lens's own skill territory; it never invokes the agent.
+
+| Verb | Behavior |
+|---|---|
+| `sm agent install [--for <provider>]` | Materialise the canonical `sm-run-queue` skill folder into the lens's `scaffold.skillDir` (`<skillDir>/sm-run-queue/SKILL.md`; same destination selection as `sm tutorial`, `--for` overrides the active lens). Idempotent with a three-state outcome: fresh install writes the folder; when a copy exists with DIFFERENT bytes (an older CLI's install) it is rewritten and reported as an update; identical bytes are a no-op reported as already up to date. The outcome wording mirrors the UI affordance (Install / Update / Up to date), both driven by the same byte comparison the `status` verb's `stale` field uses. A Provider without `scaffold.skillDir` is refused with exit 2 and a directed advisory. |
+| `sm agent uninstall [--for <provider>]` | Remove the materialised skill folder. Not installed → exit 0 with an advisory (idempotent). |
+| `sm agent status [--for <provider>]` | Report install state for the lens: `installed` / `not installed`, plus a `stale` marker when the materialised content differs from this CLI's canonical copy (an older install; rerun `sm agent install`). Exit 0 in all three states; the report is the result. `--json` emits `{ provider, skillDir, installed, stale }`. |
+
+The skill content is canonical and CLI-versioned (it ships inside the binary); implementations MUST NOT require a network fetch or a separate package to install it. The protocol it teaches is exactly the public verb surface: `sm job claim --json` (exit 1 = queue empty), execute the self-contained rendered content, `sm record --id --nonce --status completed --report -` (a schema-rejected report closes the job as `failed / report-invalid`, there is no retry), `--status failed --error` for jobs the agent cannot execute.
+
 ---
 
 ### History

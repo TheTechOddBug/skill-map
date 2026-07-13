@@ -49,6 +49,7 @@ import {
 import { captureCliInvocation, flushUsageCli, initUsageCli } from './telemetry/posthog-init.js';
 import { extractFlagNames } from './telemetry/usage-collector.js';
 import { ActionsListCommand, ActionsShowCommand } from './commands/actions.js';
+import { AGENT_COMMANDS } from './commands/agent.js';
 import { DoctorCommand } from './commands/doctor.js';
 import { BUMP_COMMANDS } from './commands/bump.js';
 import { CheckCommand } from './commands/check.js';
@@ -117,6 +118,7 @@ cli.register(ActionsListCommand);
 cli.register(ActionsShowCommand);
 cli.register(DoctorCommand);
 for (const cmd of JOB_QUEUE_COMMANDS) cli.register(cmd);
+for (const cmd of AGENT_COMMANDS) cli.register(cmd);
 for (const cmd of CONFIG_COMMANDS) cli.register(cmd);
 for (const cmd of CONFORMANCE_COMMANDS) cli.register(cmd);
 for (const cmd of DB_COMMANDS) cli.register(cmd);

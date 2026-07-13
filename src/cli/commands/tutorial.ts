@@ -374,9 +374,11 @@ function materializeSkillFolder(
  * Provider that declares a `scaffold.skillDir`. `id` is what `--for`
  * matches; `label` is the human name; `skillDir` is the territory the
  * skill folder lands under; `aka` lists the other agents that consume this
- * territory (display-only). Every row is a valid pick.
+ * territory (display-only). Every row is a valid pick. Exported (with
+ * `listScaffoldTargets`) as the shared destination catalog `sm agent`
+ * reuses, so the two verbs can never fork their selection semantics.
  */
-interface IScaffoldTarget {
+export interface IScaffoldTarget {
   id: string;
   label: string;
   skillDir: string;
