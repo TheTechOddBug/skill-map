@@ -2,8 +2,9 @@
  * Storage helpers for `state_summaries`, the per-node semantic-summary
  * write-through (`spec/db-schema.md` § state_summaries).
  *
- * A summary lands when `sm record` closes a `completed` job whose Action
- * declares `writesSummary: true`: the validated report is upserted here,
+ * A summary lands when `sm record` closes a `completed` job whose Action's
+ * report schema extends a `summaries/<kind>` schema: the validated report
+ * is upserted here,
  * keyed by `(node_id, summarizer_action_id)`, in the SAME transaction as
  * the `state_executions` insert + job transition (see `recordJobTerminal`
  * in `jobs.ts`). `sm show <node>` reads the rows back via

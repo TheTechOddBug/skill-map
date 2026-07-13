@@ -17,6 +17,7 @@ import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
 import { builtIns, listBuiltIns } from '../built-ins.js';
+import { summaryKindOfReportSchema } from '../../kernel/jobs/index.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
 
 describe('built-in extensions, execution modes', () => {
@@ -212,21 +213,28 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
       (action.promptTemplate ?? '').includes('{{userContent}}'),
       'inlined promptTemplate must carry the {{userContent}} placeholder',
     );
-    // Codegen inlined report.schema.json parsed to an object that extends
-    // report-base and requires the summary field.
+    // Codegen inlined report.schema.json parsed to an object. It is a thin
+    // extender of the canonical summaries/markdown schema; that $ref is
+    // ALSO the summarizer signal the record path detects
+    // (`summaryKindOfReportSchema`, spec/job-lifecycle.md §Record).
     assert.ok(
       action.reportSchema !== null && typeof action.reportSchema === 'object',
       'inlined reportSchema must be a parsed object',
     );
     const schema = action.reportSchema as {
       allOf?: Array<{ $ref?: string }>;
-      required?: string[];
     };
     assert.ok(
-      (schema.allOf ?? []).some((s) => s.$ref === 'https://skill-map.ai/spec/v0/report-base.schema.json'),
-      'reportSchema must extend report-base by its absolute $id',
+      (schema.allOf ?? []).some(
+        (s) => s.$ref === 'https://skill-map.ai/spec/v0/summaries/markdown.schema.json',
+      ),
+      'reportSchema must extend summaries/markdown by its absolute $id',
     );
-    assert.ok((schema.required ?? []).includes('whatItCovers'), 'reportSchema must require whatItCovers');
+    assert.equal(
+      summaryKindOfReportSchema(action.reportSchema as Record<string, unknown>),
+      'markdown',
+      'the summaries $ref must register the action as a markdown summarizer',
+    );
   });
 
   it('deterministic built-in actions carry no inlined prompt template', () => {

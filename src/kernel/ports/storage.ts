@@ -464,8 +464,8 @@ export interface StoragePort {
      * inline on `reportPath` (mapped to the `report_json` column). Backs
      * `sm record`.
      *
-     * When `summary` is supplied (the recorded Action declared
-     * `writesSummary`, only ever on the `completed` path), the validated
+     * When `summary` is supplied (the recorded Action's report schema is
+     * a per-node summary schema, only ever on the `completed` path), the validated
      * report is ALSO upserted into `state_summaries` inside the same
      * transaction, keyed by `(node_id, summarizer_action_id)`. The upsert
      * reads the node's live `kind` + `body_hash` from `scan_nodes` and is
@@ -479,7 +479,8 @@ export interface StoragePort {
   // --- summaries namespace ----------------------------------------------
   /**
    * Read access to `state_summaries`, the per-node semantic summaries a
-   * `writesSummary` Action lands via `sm record`. Writes happen inside the
+   * summarizer Action (one whose report schema extends a
+   * `summaries/<kind>` schema) lands via `sm record`. Writes happen inside the
    * `jobs.recordTerminal(execution, summary)` transaction (folded into the
    * record callback, never a standalone write); this namespace is
    * read-only.

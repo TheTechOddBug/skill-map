@@ -13,15 +13,15 @@
  *      the action + report schema -> `runner.run(content, { timeoutMs })`
  *      -> record the outcome through the SHARED record machinery
  *      (`record-outcome.ts`), so validation, `report-invalid`, the
- *      execution row, the job transition, and the `writesSummary` ->
+ *      execution row, the job transition, and the summary-schema ->
  *      `state_summaries` write-through behave exactly like `sm record`.
  *   3. Default drains ONE job; `--all` drains until the queue is empty;
  *      `--max <n>` drains at most n. `--all` and `--max` are mutually
  *      exclusive (exit 2).
  *
  * Per-job outcome mapping (§Record semantics):
- *   - valid report -> `completed` (+ summary write-through when the Action
- *     declares `writesSummary`).
+ *   - valid report -> `completed` (+ summary write-through when the
+ *     Action's report schema extends a `summaries/<kind>` schema).
  *   - schema-invalid / unparseable report -> `failed` / `report-invalid`.
  *   - non-zero subprocess exit OR timeout kill -> `failed` /
  *     `runner-error`, with the runner's output attempt stored as the
@@ -135,7 +135,7 @@ export class JobRunCommand extends SmCommand {
       next queued job (highest priority, oldest first), executes its
       rendered content through the claude -p runner, and records the
       outcome exactly like sm record would: a schema-valid report completes
-      the job (writing the summary for writesSummary actions), an invalid
+      the job (writing the summary for summarizer actions), an invalid
       report fails it as report-invalid, a non-zero or timed-out subprocess
       fails it as runner-error.
 

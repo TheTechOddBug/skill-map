@@ -14,7 +14,7 @@
  *     summary intent is supplied AND the node exists; the row carries the
  *     right keys + serialized report + body_hash_at_generation.
  *   - recordJobTerminal writes NO summary row when no intent is supplied
- *     (a non-`writesSummary` action).
+ *     (a non-summarizer action).
  *   - recordJobTerminal against a node deleted from the scan skips the
  *     summary but still writes the execution + transitions the job.
  */
@@ -239,7 +239,7 @@ describe('recordJobTerminal summary write-through', () => {
     }
   });
 
-  it('writes NO summary row when no summary intent is supplied (non-writesSummary action)', async () => {
+  it('writes NO summary row when no summary intent is supplied (non-summarizer action)', async () => {
     const adapter = await openAdapter(freshDbPath('record-no-summary'));
     try {
       await insertNode(adapter, { path: NODE_PATH, kind: 'markdown', bodyHash: BODY_HASH });

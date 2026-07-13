@@ -163,21 +163,6 @@ export interface IAction extends IExtensionBase {
    */
   writes?: TActionWriteKind[];
   /**
-   * When `true`, this Action's report is a per-node semantic summary.
-   * Recording a `completed` job for this Action upserts the validated
-   * report into `state_summaries`, keyed by `(node_id, actionId)`, in the
-   * same transaction as the `state_executions` insert + job transition
-   * (`spec/job-lifecycle.md` §Record, `spec/db-schema.md` § state_summaries).
-   * `sm show <node>` then renders the stored summary and marks it `(stale)`
-   * when the node's `body_hash` differs from the `body_hash_at_generation`
-   * captured at record time. Absent / false = the report is history-only
-   * (kept on `state_executions.report_json`, never projected into
-   * `state_summaries`). Meaningful across execution modes; today only
-   * `probabilistic` summarizers (e.g. `core/markdown-summarizer`) set it. No
-   * `prob` prefix, the field is NOT probabilistic-only.
-   */
-  writesSummary?: boolean;
-  /**
    * Optional declarative filter; absent → applies to every node.
    */
   precondition?: IActionPrecondition;

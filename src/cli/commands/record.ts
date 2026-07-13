@@ -27,7 +27,7 @@
  *      operator verb `sm job fail`). Exit 0.
  *
  * The record core (parse + validate + execution row + job transition +
- * `writesSummary` summary write-through) lives in the SHARED
+ * summary write-through for summary-schema Actions) lives in the SHARED
  * `record-outcome.ts` module, consumed identically by this verb and the
  * `sm job run` drain loop (Step 10 Phase E); this file owns only the
  * CLI-flag surface, the nonce/state gates, and the exit-code mapping.

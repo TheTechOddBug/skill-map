@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.ai/spec/v0/extensions/action.schema.json",
   "title": "ExtensionAction",
-  "description": "Manifest shape for an `Action` extension. An action operates on one or more nodes in one of two modes: `deterministic` (code runs in-process, returns a report JSON directly) or `probabilistic` (kernel renders a prompt, a runner executes it against an LLM, the callback closes the job). **Structure-as-truth files**: every Action carries `<action-dir>/report.schema.json` (the JSON Schema for the report, MUST extend `report-base.schema.json`); probabilistic Actions additionally carry `<action-dir>/prompt.md` (the prompt template). The kernel resolves both by convention; missing or mis-placed files surface as `load-error`. A deterministic Action with a `prompt.md` in its folder is also `load-error` (config inconsistent). **`prob*` prefix convention**: manifest fields that only apply when `mode=probabilistic` start with `prob`; if a deterministic-only field ever appears, it starts with `det`.",
+  "description": "Manifest shape for an `Action` extension. An action operates on one or more nodes in one of two modes: `deterministic` (code runs in-process, returns a report JSON directly) or `probabilistic` (kernel renders a prompt, a runner executes it against an LLM, the callback closes the job). **Structure-as-truth files**: every Action carries `<action-dir>/report.schema.json` (the JSON Schema for the report, MUST extend `report-base.schema.json`); probabilistic Actions additionally carry `<action-dir>/prompt.md` (the prompt template). An Action whose report schema extends a canonical per-node summary schema (`summaries/<kind>.schema.json`, via `$ref`) is a summarizer: recording a `completed` job for it also upserts the validated report into `state_summaries` (see `job-lifecycle.md` §Record). The summarizer signal is the report schema itself; there is no manifest flag. The kernel resolves both by convention; missing or mis-placed files surface as `load-error`. A deterministic Action with a `prompt.md` in its folder is also `load-error` (config inconsistent). **`prob*` prefix convention**: manifest fields that only apply when `mode=probabilistic` start with `prob`; if a deterministic-only field ever appears, it starts with `det`.",
   "type": "object",
   "required": ["version", "description"],
   "unevaluatedProperties": false,
@@ -23,11 +23,6 @@
       "uniqueItems": true,
       "items": { "type": "string", "enum": ["sidecar"] },
       "description": "Declares the kinds of persistent writes this Action's `invoke()` may emit (mirrors `IActionResult.writes[].kind`). Today the only kind is `sidecar`: the Action creates or modifies a `.sm` annotation sidecar next to a source file. An Action whose `invoke()` returns a write of a given kind MUST declare that kind here; the declaration is the source of truth consumers gate on. When the `allowSidecarWriters: false` project policy is set, every Action that declares `sidecar` is dropped from the scan composer (its `inspector.action.button` never renders) and the sidecar store refuses the write. Absent = the Action performs no persistent writes (read-only / report-only)."
-    },
-    "writesSummary": {
-      "type": "boolean",
-      "default": false,
-      "description": "When true, this Action's report is a per-node semantic summary: recording a `completed` job for this Action upserts the validated report into `state_summaries`, keyed by `(node_id, actionId)` (see `db-schema.md` § state_summaries and `job-lifecycle.md` §Record), and `sm show <node>` renders it, marking it `(stale)` when the node's body changed since generation. Absent / false = the report is history-only (kept on `state_executions.report_json`, never projected into `state_summaries`). Meaningful across execution modes, but today only `probabilistic` summarizers (e.g. `core/markdown-summarizer`) set it. No `prob` prefix: the field is NOT probabilistic-only, so the `prob*` mode-specific convention does not apply."
     },
     "precondition": {
       "type": "object",

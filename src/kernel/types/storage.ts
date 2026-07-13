@@ -75,7 +75,8 @@ export interface ISummaryRecord {
 
 /**
  * Write intent handed to `port.jobs.recordTerminal(execution, summary?)`
- * when the recorded Action declares `writesSummary`. Carries only the
+ * when the recorded Action's report schema is a per-node summary schema
+ * (`summaryKindOfReportSchema`, see `kernel/jobs/summary-schema.ts`). Carries only the
  * caller-known fields; the adapter reads the target node's live `kind`
  * and `body_hash` from `scan_nodes` inside the record transaction (and
  * skips the upsert when the node is absent). `summaryJson` is the

@@ -25,6 +25,10 @@ export {
 } from './resolve.js';
 export { generateExecutionId, generateJobId, generateNonce } from './ids.js';
 export {
+  summaryKindOfReportSchema,
+  SUMMARY_SCHEMA_ID_PREFIX,
+} from './summary-schema.js';
+export {
   InvalidTtlError,
   InvalidPriorityError,
   JobNotRunningError,

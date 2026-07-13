@@ -490,8 +490,8 @@ export async function reapExpired(
  * "job not in running state" path (exit 2 for `sm record`).
  *
  * **Summary write-through** (`spec/job-lifecycle.md` §Record). When the
- * caller passes a `summary` intent (the recorded Action declared
- * `writesSummary`, only on the `completed` path), the validated report is
+ * caller passes a `summary` intent (the recorded Action's report schema
+ * is a per-node summary schema, only on the `completed` path), the validated report is
  * ALSO upserted into `state_summaries` inside the SAME transaction, keyed
  * by `(node_id, summarizer_action_id)`. The upsert reads the target node's
  * live `kind` + `body_hash` from `scan_nodes`; if the node has disappeared

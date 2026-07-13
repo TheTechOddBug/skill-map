@@ -10,7 +10,7 @@
  *
  * Both paths MUST behave identically on report validation, the
  * `report-invalid` transition, the `state_executions` row, the job
- * transition, and the `writesSummary` -> `state_summaries` write-through;
+ * transition, and the summary-schema -> `state_summaries` write-through;
  * extracting the core here is what guarantees that (no duplicated logic to
  * drift).
  *
@@ -20,8 +20,8 @@
  *     or the built-in's inlined `reportSchema`).
  *   - `recordCompletedOutcome`, the `--status completed` path: parse the
  *     report text, validate against the schema, and either land the
- *     `completed` execution (+ summary write-through when the Action
- *     declares `writesSummary`) or transition to `failed`/`report-invalid`
+ *     `completed` execution (+ summary write-through when the Action's
+ *     report schema is a summary schema) or transition to `failed`/`report-invalid`
  *     (never left `running`). Action resolution is LAZY (a callback) so an
  *     unparseable report short-circuits to `report-invalid` without ever
  *     loading the runtime, preserving `sm record`'s historical ordering.
@@ -37,7 +37,7 @@ import { join } from 'node:path';
 import type { ExecutionFailureReason, ExecutionRecord, Job } from '../../kernel/types.js';
 import type { IAction } from '../../kernel/extensions/index.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
-import { generateExecutionId } from '../../kernel/jobs/index.js';
+import { generateExecutionId, summaryKindOfReportSchema } from '../../kernel/jobs/index.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
@@ -68,8 +68,9 @@ export type TActionRecordResolution =
  * Resolve the recorded job's Action against a preloaded runtime PLUS its
  * report schema: the plugin's on-disk `report.schema.json` (from the
  * action's source dir) or the built-in's inlined `reportSchema`. Returns
- * both so the completed path can validate the report AND read the Action's
- * `writesSummary` flag. Failure details (`action not found`, a read error,
+ * both so the completed path can validate the report AND detect the
+ * summarizer opt-in from the schema itself
+ * (`summaryKindOfReportSchema`). Failure details (`action not found`, a read error,
  * `no report schema`) are caller-rendered; no mutation happens here.
  */
 export function resolveActionRecord(
@@ -106,7 +107,8 @@ export type TRecordCompletedOutcome =
  * Parse `reportText` as JSON and validate it against the action's report
  * schema; on success write the `completed` execution row (report stored
  * inline as canonical JSON) plus the `state_summaries` write-through when
- * the Action declares `writesSummary`, all in one transaction. An
+ * the Action's report schema extends a `summaries/<kind>` schema, all in
+ * one transaction. An
  * unparseable or schema-invalid report transitions the job to `failed` /
  * `report-invalid` instead (never left `running`); the invalid payload is
  * NOT stored. `resolve` is invoked lazily, AFTER the parse gate, and a
@@ -167,14 +169,15 @@ export async function recordCompletedOutcome(opts: {
     metrics,
     reportJson,
   });
-  // Summary write-through (spec §Record): a `writesSummary` Action's
-  // validated report is upserted into `state_summaries` in the SAME
-  // transaction as the execution insert + job transition. The adapter
-  // reads the node's live kind + body_hash and skips the upsert when the
-  // node is gone. Non-summary actions pass `undefined` (report stays
-  // history-only).
+  // Summary write-through (spec §Record): the summarizer signal is the
+  // report schema, not a manifest flag. When it extends a canonical
+  // `summaries/<kind>` schema, the validated report is upserted into
+  // `state_summaries` in the SAME transaction as the execution insert +
+  // job transition. The adapter reads the node's live kind + body_hash
+  // and skips the upsert when the node is gone. Non-summary actions pass
+  // `undefined` (report stays history-only).
   const summary =
-    resolution.record.action.writesSummary === true
+    summaryKindOfReportSchema(resolution.record.schema) !== null
       ? {
           summarizerActionId: job.actionId,
           summarizerVersion: job.actionVersion,

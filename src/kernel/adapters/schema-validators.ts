@@ -93,11 +93,22 @@ const SCHEMA_FILES: Record<TSchemaName, string> = {
   'frontmatter-base': 'schemas/frontmatter/base.schema.json',
 };
 
-/** Schemas that other schemas reference via $ref but aren't validated directly. */
+/**
+ * Schemas that other schemas reference via $ref but aren't validated
+ * directly. The `summaries/*` set makes every canonical per-node summary
+ * schema resolvable by `$id`, so an Action's `report.schema.json` can
+ * `$ref` one (that reference is the summarizer signal, see
+ * `kernel/jobs/summary-schema.ts`) and still compile through
+ * `validateActionReport`.
+ */
 const SUPPORTING_SCHEMAS: string[] = [
   'schemas/extensions/base.schema.json',
   'schemas/frontmatter/base.schema.json',
-  'schemas/summaries/security-scanner.schema.json',
+  'schemas/summaries/agent.schema.json',
+  'schemas/summaries/command.schema.json',
+  'schemas/summaries/hook.schema.json',
+  'schemas/summaries/markdown.schema.json',
+  'schemas/summaries/skill.schema.json',
   'schemas/view-slots.schema.json',
   'schemas/input-types.schema.json',
 ];

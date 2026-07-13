@@ -3,7 +3,7 @@
  *
  * Detail view for a single node: weight (tokens triple-split),
  * frontmatter, links in/out, current issues, and any stored per-node
- * summary (a `writesSummary` Action's report, landed by `sm record`;
+ * summary (a summarizer Action's report, landed by `sm record`;
  * marked `(stale)` when the body changed since generation). `--json`
  * emits a detail object with `node`, `linksOut`, `linksIn`, `issues`,
  * and `summaries` (each carrying a `stale` boolean). Step 10 (findings)
@@ -75,7 +75,7 @@ export class ShowCommand extends SmCommand {
     details: `
       Loads a single node from the persisted snapshot, plus every link
       (in and out), every current issue touching it, and any stored
-      summary (a writesSummary action's report, marked (stale) when the
+      summary (a summarizer action's report, marked (stale) when the
       body changed since it was generated). Step 10 (findings) will add
       its field when the backing table ships.
 
@@ -108,7 +108,7 @@ export class ShowCommand extends SmCommand {
           return ExitCode.NotFound;
         }
 
-        // Stored per-node summaries (a `writesSummary` Action's report,
+        // Stored per-node summaries (a summarizer Action's report,
         // landed by `sm record`). Stale when the body changed since
         // generation, `body_hash_at_generation` vs the node's live hash.
         const summaryRecords = await adapter.summaries.forNode(this.nodePath);

@@ -8,7 +8,7 @@
  * Coverage:
  *   - `--all` with a valid `core/markdown-summarizer` report: both jobs
  *     completed (priority order respected), executions written with runner
- *     metrics, summaries upserted (writesSummary), queue drained.
+ *     metrics, summaries upserted (summary-schema Action), queue drained.
  *   - invalid report -> failed / report-invalid (exit 1, no summary).
  *   - non-zero runner exit -> failed / runner-error, output attempt stored
  *     as the failure detail (exit 1).
@@ -278,7 +278,8 @@ describe('sm job run, drain loop with MockRunner', () => {
         ok(exec.reportJson!.includes('A short guide'), 'report stored inline');
       }
 
-      // writesSummary write-through: one summary per node.
+      // Summary write-through (report schema extends summaries/markdown):
+      // one summary per node.
       for (const node of [NOTE_A, NOTE_B]) {
         const summaries = await adapter.summaries.forNode(node.path);
         strictEqual(summaries.length, 1, `summary for ${node.path}`);
