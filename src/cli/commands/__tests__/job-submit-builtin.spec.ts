@@ -130,7 +130,6 @@ function buildSubmit(overrides: ISubmitOverrides): JobSubmitCommand {
   cmd.action = overrides.action;
   cmd.node = overrides.node;
   cmd.all = overrides.all ?? false;
-  cmd.runFlag = false;
   cmd.force = false;
   cmd.ttl = undefined;
   cmd.priority = undefined;

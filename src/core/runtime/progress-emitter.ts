@@ -70,3 +70,27 @@ export function createStderrProgressEmitter(
     subscribe: (listener) => inner.subscribe(listener),
   };
 }
+
+/**
+ * `ProgressEmitterPort` that serialises every event as one ndjson line
+ * on the supplied stream, the normative `json` transport of
+ * `spec/job-events.md` (`sm record --json`, the canonical synthetic-run
+ * envelope emission). Serialisation is plain `JSON.stringify` of the
+ * envelope; consumers parse line by line. Subscribers still receive the
+ * event objects (the port contract), so a caller can compose ndjson
+ * output with in-process listeners.
+ */
+export function createNdjsonProgressEmitter(
+  stream: { write(chunk: string): unknown },
+): ProgressEmitterPort {
+  const inner = new InMemoryProgressEmitter();
+  return {
+    emit(event: ProgressEvent): void {
+      stream.write(JSON.stringify(event) + '\n');
+      inner.emit(event);
+    },
+    subscribe(listener) {
+      return inner.subscribe(listener);
+    },
+  };
+}

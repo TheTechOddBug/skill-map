@@ -65,8 +65,7 @@ const EXECUTION_MODE_VALUES: readonly TExecutionMode[] = Object.freeze([
 ]);
 
 const EXECUTION_RUNNER_VALUES: readonly ExecutionRunner[] = Object.freeze([
-  'cli',
-  'skill',
+  'agent',
   'in-process',
 ]);
 

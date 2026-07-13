@@ -5,11 +5,7 @@
  *   - fresh healthy project -> every check ok, exit 0, --json envelope.
  *   - orphaned `state_job_contents` row (GC straggler) -> warn, exit 1.
  *   - `state_jobs` row missing its content row (corruption) -> error, exit 2.
- *   - runner probe unavailable -> warn row naming the claude binary.
  *   - provider marker on disk with zero matched nodes -> warn row.
- *
- * The runner probe is injected via the command's `probeRunner` seam so
- * the suite never spawns a real `claude` binary.
  */
 
 import { strictEqual, ok } from 'node:assert';
@@ -78,16 +74,12 @@ async function setupProject(): Promise<IProject> {
   return { root, dbPath };
 }
 
-function buildDoctor(probe: { available: boolean; version: string | null }): DoctorCommand {
+function buildDoctor(): DoctorCommand {
   const cmd = new DoctorCommand();
   cmd.json = false;
   cmd.db = undefined;
-  cmd.probeRunner = () => probe;
   return cmd;
 }
-
-const PROBE_OK = { available: true, version: 'claude 2.1.0' };
-const PROBE_MISSING = { available: false, version: null };
 
 before(() => {
   tmpRoot = mkdtempSync(join(tmpdir(), 'sm-doctor-cli-'));
@@ -102,7 +94,7 @@ describe('sm doctor', () => {
     const proj = await setupProject();
     const code = await withCwd(proj.root, async () => {
       const cap = captureContext();
-      const cmd = buildDoctor(PROBE_OK);
+      const cmd = buildDoctor();
       cmd.json = true;
       const c = await run(cmd, cap);
       const doc = JSON.parse(cap.stdout()) as {
@@ -112,10 +104,8 @@ describe('sm doctor', () => {
       };
       strictEqual(doc.ok, true);
       strictEqual(doc.kind, 'doctor');
-      strictEqual(doc.checks.length, 8);
+      strictEqual(doc.checks.length, 7);
       ok(doc.checks.every((c2) => c2.status === 'ok'), 'all checks ok');
-      const runner = doc.checks.find((c2) => c2.id === 'runner');
-      ok(runner && runner.message.includes('claude 2.1.0'), 'runner version surfaced');
       return c;
     });
     strictEqual(code, 0);
@@ -125,11 +115,11 @@ describe('sm doctor', () => {
     const proj = await setupProject();
     await withCwd(proj.root, async () => {
       const cap = captureContext();
-      const code = await run(buildDoctor(PROBE_OK), cap);
+      const code = await run(buildDoctor(), cap);
       strictEqual(code, 0);
       const out = cap.stdout();
       ok(out.includes('db integrity'), 'db label');
-      ok(out.includes('llm runner'), 'runner label');
+      ok(out.includes('plugins'), 'plugins label');
       ok(out.includes('All checks green.'), 'summary line');
     });
   });
@@ -149,7 +139,7 @@ describe('sm doctor', () => {
 
     const code = await withCwd(proj.root, async () => {
       const cap = captureContext();
-      const cmd = buildDoctor(PROBE_OK);
+      const cmd = buildDoctor();
       cmd.json = true;
       const c = await run(cmd, cap);
       const doc = JSON.parse(cap.stdout()) as {
@@ -190,7 +180,7 @@ describe('sm doctor', () => {
 
     const code = await withCwd(proj.root, async () => {
       const cap = captureContext();
-      const cmd = buildDoctor(PROBE_OK);
+      const cmd = buildDoctor();
       cmd.json = true;
       const c = await run(cmd, cap);
       const doc = JSON.parse(cap.stdout()) as {
@@ -200,18 +190,6 @@ describe('sm doctor', () => {
       return c;
     });
     strictEqual(code, 2);
-  });
-
-  it('runner unavailable -> warn row, exit 1', async () => {
-    const proj = await setupProject();
-    const code = await withCwd(proj.root, async () => {
-      const cap = captureContext();
-      const cmd = buildDoctor(PROBE_MISSING);
-      const c = await run(cmd, cap);
-      ok(cap.stdout().includes('claude binary not on PATH'), 'runner warning surfaced');
-      return c;
-    });
-    strictEqual(code, 1);
   });
 
   it('provider marker on disk with zero matched nodes -> warn row, exit 1', async () => {
@@ -258,7 +236,7 @@ describe('sm doctor', () => {
 
     const code = await withCwd(proj.root, async () => {
       const cap = captureContext();
-      const cmd = buildDoctor(PROBE_OK);
+      const cmd = buildDoctor();
       cmd.json = true;
       const c = await run(cmd, cap);
       const doc = JSON.parse(cap.stdout()) as {

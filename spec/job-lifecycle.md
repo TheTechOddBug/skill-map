@@ -94,7 +94,7 @@ In `--json` mode, `sm job claim` instead returns `{ "id": "<id>", "nonce": "<non
 
 **Nonce exposure.** The only surfaces that emit a job's nonce are `sm job submit --json` (the creator's envelope) and `sm job claim --json` (the handover above). Every other read surface (`sm job list --json`, `sm job show --json`, and any future job read) MUST omit the nonce: it is the sole record credential, and a passive reader of the queue must not be able to forge callbacks for jobs it never claimed.
 
-**Missing content row at claim.** When the claim lands but the job's `content_hash` resolves to no `state_job_contents` row (the DB-corruption-only `job-file-missing` state, see §Atomicity edge cases), `sm job claim` MUST NOT hand out the claim: the job is marked `failed` with `failureReason = job-file-missing` (an execution record documenting the corruption is written, exactly as the `sm job run` loop does for the same state), the corruption is reported on stderr, and the verb exits 2, in plain and `--json` modes alike (never exit 0 with a null `content`). The verb does NOT loop to claim the next queued job; corruption is an operator-attention state, not something to silently skip past, and the next invocation claims the next job anyway.
+**Missing content row at claim.** When the claim lands but the job's `content_hash` resolves to no `state_job_contents` row (the DB-corruption-only `job-file-missing` state, see §Atomicity edge cases), `sm job claim` MUST NOT hand out the claim: the job is marked `failed` with `failureReason = job-file-missing` (an execution record documenting the corruption is written), the corruption is reported on stderr, and the verb exits 2, in plain and `--json` modes alike (never exit 0 with a null `content`). The verb does NOT loop to claim the next queued job; corruption is an operator-attention state, not something to silently skip past, and the next invocation claims the next job anyway.
 
 ---
 
@@ -104,7 +104,7 @@ Every `running` job has `expiresAt = claimedAt + ttlSeconds × 1000`. Once real 
 
 ### Reap procedure
 
-Run at the **start of every `sm job run`**, before the first claim:
+Run at the **start of every `sm job claim`**, before the claim statement (the claim verb is where every drain begins, so the safety net rides it):
 
 ```sql
 UPDATE state_jobs
@@ -115,9 +115,9 @@ UPDATE state_jobs
    AND expiresAt < <now>;
 ```
 
-Rows affected is reported as `run.reap.completed.reapedCount` in the event stream.
+The claim-side reap is silent on the CLI (the claim verb's stdout is the handover contract); reaped jobs surface via `sm job list --status failed` and, when a live event transport exists, the minimal abandoned envelope of `job-events.md` §Ordering.
 
-Implementations MAY expose `sm job reap` as an explicit diagnostics verb, but MUST perform reaping automatically inside `sm job run`.
+Implementations MAY expose `sm job reap` as an explicit diagnostics verb, but MUST perform reaping automatically inside `sm job claim`.
 
 ### TTL resolution
 
@@ -195,7 +195,7 @@ Post-completion, the check is NOT performed: resubmitting a completed job is alw
 
 ## Concurrency
 
-Through `v1.0` (spec `v0.x`): **one job at a time**. `sm job run --all` drains sequentially, enforced by the claim semantics above; no pool or scheduler.
+Multiple agents MAY drain in parallel; the atomic claim guarantees no two ever hold the same job. Each agent processes one claim at a time (claim -> execute -> record); skill-map ships no pool or scheduler, concurrency is however many agents the operator points at the queue.
 
 The event schema carries a `jobId` on every event so parallel execution becomes a non-breaking extension. A future implementation MAY spawn multiple claim/run loops concurrently and interleave events; consumers identify an event's job by `jobId`.
 
@@ -260,7 +260,7 @@ Config controls (`jobs.retention.completed`, `jobs.retention.failed`, `jobs.rete
 
 ## See also
 
-- [`architecture.md`](./architecture.md), `RunnerPort` definition; driving-adapter peer analyzer for Skill agents.
+- [`architecture.md`](./architecture.md), §Execution handover (agents drain via claim/record; there is no runner port).
 - [`job-events.md`](./job-events.md), canonical event stream emitted during job execution.
 - [`prompt-preamble.md`](./prompt-preamble.md), verbatim preamble prepended to every rendered job content row.
 - [`db-schema.md`](./db-schema.md), `state_jobs` and `state_executions` table catalogs.

@@ -4,9 +4,8 @@
  * and `sm orphans`.
  *
  * Three responsibilities:
- *   1. `insertExecution`, write a single `state_executions` row. Used by
- *      tests today; consumed by `sm record` / `sm job run` once those
- *      verbs ship.
+ *   1. `insertExecution`, write a single `state_executions` row (the
+ *      `sm record` path writes through `jobs.recordTerminal` instead).
  *   2. `listExecutions`, read with filters (node, action, status, time
  *      window). Backs `sm history`.
  *   3. `aggregateHistoryStats`, totals, per-action, per-period, top
@@ -183,7 +182,7 @@ function rowToExecution(row: {
     status: row.status,
     failureReason: row.failureReason as ExecutionFailureReason | null,
     exitCode: row.exitCode,
-    runner: row.runner as 'cli' | 'skill' | 'in-process' | null,
+    runner: row.runner as 'agent' | 'in-process' | null,
     startedAt: row.startedAt,
     finishedAt: row.finishedAt,
     durationMs: row.durationMs,

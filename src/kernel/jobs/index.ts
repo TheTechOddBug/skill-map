@@ -23,7 +23,7 @@ export {
   resolvePriority,
   type TResolvableAction,
 } from './resolve.js';
-export { generateExecutionId, generateJobId, generateNonce } from './ids.js';
+export { generateExecutionId, generateJobId, generateNonce, generateRunId } from './ids.js';
 export {
   summaryKindOfReportSchema,
   SUMMARY_SCHEMA_ID_PREFIX,

@@ -49,7 +49,7 @@
     },
     "runner": {
       "type": ["string", "null"],
-      "enum": ["cli", "skill", "in-process", null]
+      "enum": ["agent", "in-process", null]
     },
     "ttlSeconds": {
       "type": "integer",

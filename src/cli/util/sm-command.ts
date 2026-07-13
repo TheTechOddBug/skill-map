@@ -31,8 +31,8 @@
  * `--run`; only the TypeScript field name changes. This avoids
  * shadowing the inherited abstract `run()` method, which would silently
  * break the command at runtime (the field's getter wins over the
- * prototype method). Today this convention applies to `JobSubmitCommand`
- * (`stubs.ts`); future job verbs follow the same rule.
+ * prototype method). No verb exposes `--run` today; any future one
+ * follows this rule.
  */
 
 import { Command, Option } from 'clipanion';

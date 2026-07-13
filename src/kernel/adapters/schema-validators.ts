@@ -244,10 +244,10 @@ function buildSchemaValidators(): ISchemaValidators {
   /**
    * Compile an action's report schema against the shared AJV (which has
    * `report-base` registered). Reuse a previously-compiled schema by its
-   * `$id` so a second `sm record` in the same process (tests, a future
-   * `sm job run` drain loop) does not re-register the same `$id` and
-   * throw. A schema with no `$id` compiles fresh each call, harmless since
-   * AJV never registers an anonymous schema.
+   * `$id` so a second `sm record` in the same process (tests, the BFF)
+   * does not re-register the same `$id` and throw. A schema with no
+   * `$id` compiles fresh each call, harmless since AJV never registers
+   * an anonymous schema.
    */
   function getActionReportValidator(reportSchema: Record<string, unknown>): ValidateFunction {
     const rawId = reportSchema['$id'];

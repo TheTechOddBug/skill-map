@@ -13,9 +13,9 @@
  * `node-set-tags`), this Action carries NO in-process `invoke` and NO
  * scan-time `project`: probabilistic actions run OUTSIDE the process, the
  * kernel renders `prompt.md` + the canonical preamble into a queued job
- * (`sm job submit`), a runner executes it via `RunnerPort`, and `sm record`
- * closes the job by validating the model's JSON report against
- * `report.schema.json`.
+ * (`sm job submit`), an external agent drains it (`sm job claim`), and
+ * `sm record` closes the job by validating the agent's JSON report
+ * against `report.schema.json`.
  *
  * **Structure-as-truth siblings.** The Action ships two files next to this
  * manifest:

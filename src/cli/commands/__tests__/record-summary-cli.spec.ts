@@ -182,7 +182,6 @@ function buildSubmit(action = ACTION_ID, node = NOTE.path): JobSubmitCommand {
   cmd.action = action;
   cmd.node = node;
   cmd.all = false;
-  cmd.runFlag = false;
   cmd.force = false;
   cmd.ttl = undefined;
   cmd.priority = undefined;

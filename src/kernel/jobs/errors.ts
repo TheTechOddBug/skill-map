@@ -55,8 +55,7 @@ export class JobRenderError extends Error {
  * between the caller's pre-check and the transaction). Thrown INSIDE the
  * record transaction so the execution insert rolls back with it and no
  * orphan `state_executions` row documents a run that never closed a job.
- * `sm record` maps it to the "job not in running state" exit 2 path; the
- * `sm job run` loop reports the discarded result and continues.
+ * `sm record` maps it to the "job not in running state" exit 2 path.
  */
 export class JobNotRunningError extends Error {
   readonly jobId: string;

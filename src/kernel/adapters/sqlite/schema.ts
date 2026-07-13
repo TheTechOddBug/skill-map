@@ -73,7 +73,7 @@ export type TJobFailureReason =
   | 'abandoned'
   | 'job-file-missing'
   | 'user-failed';
-export type TJobRunner = 'cli' | 'skill' | 'in-process';
+export type TJobRunner = 'agent' | 'in-process';
 
 export type TExecutionKind = 'action';
 export type TExecutionStatus = 'completed' | 'failed' | 'cancelled';

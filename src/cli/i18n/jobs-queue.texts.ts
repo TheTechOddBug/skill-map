@@ -9,8 +9,6 @@ export const JOBS_QUEUE_TEXTS = {
   submitErrPrefix: '{{glyph}}  sm job submit: {{message}}\n',
   submitErrNeedTarget: 'pass -n <node.path> or --all',
   submitErrTargetConflict: '-n and --all are mutually exclusive',
-  submitErrRunUnsupported:
-    '--run is not available in this build (the job runner ships in a later Step 10 sub-step); enqueue without --run',
   submitErrActionNotFound: 'action {{action}} not found',
   submitErrActionNotProbabilistic:
     'action {{action}} is {{mode}}; only probabilistic actions are queued (deterministic actions run in-process)',

@@ -15,6 +15,9 @@
  *     layout as the job id with an `e-` prefix; `sm record` stamps one on
  *     every `state_executions` row it writes.
  *
+ *   - `generateRunId(mode?)` produces the `r-[<mode>-]YYYYMMDD-HHMMSS-XXXX`
+ *     run id carried by every job-event envelope (`spec/job-events.md`).
+ *
  *   - `generateNonce()` is the per-job callback credential
  *     (`spec/job-lifecycle.md` §Submit step 7 / §Record): cryptographically
  *     random, >= 128 bits of entropy, hex. `randomBytes(16)` = 128 bits =
@@ -66,6 +69,22 @@ export function generateExecutionId(
   suffix: () => string = defaultJobSuffix,
 ): string {
   return `e-${formatIdTimestamp(now)}-${suffix()}`;
+}
+
+/**
+ * Build the `r-[<mode>-]YYYYMMDD-HHMMSS-XXXX` run id
+ * (`spec/job-events.md` §Common envelope). The `mode` segment names the
+ * invocation flavor (canonical modes: `ext` agent-driven claim/record
+ * runs, the only job-run flavor; `scan`; `check`). Same UTC-sortable
+ * layout + 4-hex tie-breaker as the job id.
+ */
+export function generateRunId(
+  mode?: 'ext' | 'scan' | 'check',
+  now: Date = new Date(),
+  suffix: () => string = defaultJobSuffix,
+): string {
+  const prefix = mode === undefined ? 'r' : `r-${mode}`;
+  return `${prefix}-${formatIdTimestamp(now)}-${suffix()}`;
 }
 
 /**

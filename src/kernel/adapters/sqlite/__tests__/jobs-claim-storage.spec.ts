@@ -19,7 +19,8 @@
  *   - fail is the symmetric transition: writes `failed` / `user-failed`,
  *     same guard; failAllActive counts active rows.
  *   - countByStatus tallies every lifecycle bucket (including cancelled).
- *   - reapExpired fails only expired running rows (abandoned), leaving
+ *   - reapExpired fails only expired running rows (abandoned), returning
+ *     their ids (the `run.reap.completed` event payload) and leaving
  *     live running and queued rows untouched.
  */
 
@@ -101,7 +102,7 @@ describe('claimNext', () => {
       });
 
       const now = base + 1000;
-      const claim = await adapter.jobs.claim('skill', now);
+      const claim = await adapter.jobs.claim('agent', now);
       ok(claim);
       strictEqual(claim.id, 'd-20260101-000000-0002', 'highest priority, oldest within the bucket');
       strictEqual(claim.nonce, 'n'.repeat(32));
@@ -110,7 +111,7 @@ describe('claimNext', () => {
       const job = await adapter.jobs.get(claim.id);
       ok(job);
       strictEqual(job.status, 'running');
-      strictEqual(job.runner, 'skill');
+      strictEqual(job.runner, 'agent');
       strictEqual(job.claimedAt, now);
       strictEqual(job.expiresAt, now + 3600 * 1000, 'expiresAt = claimedAt + ttlSeconds * 1000');
     } finally {
@@ -121,7 +122,7 @@ describe('claimNext', () => {
   it('returns null on an empty queue', async () => {
     const adapter = await openAdapter(freshDbPath('claim-empty'));
     try {
-      strictEqual(await adapter.jobs.claim('skill', Date.now()), null);
+      strictEqual(await adapter.jobs.claim('agent', Date.now()), null);
     } finally {
       await adapter.close();
     }
@@ -133,8 +134,8 @@ describe('claimNext', () => {
       await submitQueued(adapter, { id: 'd-20260101-000000-0001' });
       const now = Date.now();
       const [a, b] = await Promise.all([
-        adapter.jobs.claim('skill', now),
-        adapter.jobs.claim('skill', now),
+        adapter.jobs.claim('agent', now),
+        adapter.jobs.claim('agent', now),
       ]);
       const winners = [a, b].filter((r) => r !== null);
       strictEqual(winners.length, 1, 'the second AND status=queued guard rejects the loser');
@@ -154,13 +155,13 @@ describe('claimNext', () => {
         id: 'd-20260101-000000-0002', actionId: 'core/other-action', nodeId: 'b.md', contentHash: '2'.repeat(64),
       });
 
-      const scoped = await adapter.jobs.claim('skill', Date.now(), 'core/skill-summarizer');
+      const scoped = await adapter.jobs.claim('agent', Date.now(), 'core/skill-summarizer');
       ok(scoped);
       strictEqual(scoped.id, 'd-20260101-000000-0001');
 
       // The remaining queued job carries a different action; a filter that
       // matches no queued row returns null even though the queue is non-empty.
-      strictEqual(await adapter.jobs.claim('skill', Date.now(), 'core/no-such-action'), null);
+      strictEqual(await adapter.jobs.claim('agent', Date.now(), 'core/no-such-action'), null);
     } finally {
       await adapter.close();
     }
@@ -177,12 +178,12 @@ describe('claimNext', () => {
       });
 
       // Bare id claims the qualified-id job (`action_id LIKE '%/' || filter`).
-      const bare = await adapter.jobs.claim('skill', Date.now(), 'skill-echo');
+      const bare = await adapter.jobs.claim('agent', Date.now(), 'skill-echo');
       ok(bare);
       strictEqual(bare.id, 'd-20260101-000000-0002');
 
       // A bare id must not match a mere substring of another action.
-      strictEqual(await adapter.jobs.claim('skill', Date.now(), 'ther-action'), null);
+      strictEqual(await adapter.jobs.claim('agent', Date.now(), 'ther-action'), null);
     } finally {
       await adapter.close();
     }
@@ -210,7 +211,7 @@ describe('cancelJob + cancelAllActive', () => {
     const adapter = await openAdapter(freshDbPath('cancel-running'));
     try {
       await submitQueued(adapter, { id: 'd-20260101-000000-0001' });
-      await adapter.jobs.claim('skill', Date.now());
+      await adapter.jobs.claim('agent', Date.now());
       strictEqual(await adapter.jobs.cancel('d-20260101-000000-0001', Date.now()), 'cancelled');
       const job = await adapter.jobs.get('d-20260101-000000-0001');
       ok(job);
@@ -266,7 +267,7 @@ describe('cancelJob + cancelAllActive', () => {
       await submitQueued(adapter, { id: 'd-20260101-000000-0002', nodeId: 'b.md', contentHash: '2'.repeat(64) });
       await submitQueued(adapter, { id: 'd-20260101-000000-0003', nodeId: 'c.md', contentHash: '3'.repeat(64) });
       // One of them is running (claimed); one is already terminal.
-      await adapter.jobs.claim('skill', Date.now());
+      await adapter.jobs.claim('agent', Date.now());
       await adapter.db
         .updateTable('state_jobs')
         .set({ status: 'completed', finishedAt: Date.now() })
@@ -308,7 +309,7 @@ describe('failJob + failAllActive', () => {
     const adapter = await openAdapter(freshDbPath('fail-running'));
     try {
       await submitQueued(adapter, { id: 'd-20260101-000000-0001' });
-      await adapter.jobs.claim('skill', Date.now());
+      await adapter.jobs.claim('agent', Date.now());
       strictEqual(await adapter.jobs.fail('d-20260101-000000-0001', Date.now()), 'failed');
       const job = await adapter.jobs.get('d-20260101-000000-0001');
       ok(job);
@@ -337,7 +338,7 @@ describe('failJob + failAllActive', () => {
     try {
       await submitQueued(adapter, { id: 'd-20260101-000000-0001', nodeId: 'a.md', contentHash: '1'.repeat(64) });
       await submitQueued(adapter, { id: 'd-20260101-000000-0002', nodeId: 'b.md', contentHash: '2'.repeat(64) });
-      await adapter.jobs.claim('skill', Date.now());
+      await adapter.jobs.claim('agent', Date.now());
 
       const count = await adapter.jobs.failAllActive(Date.now());
       strictEqual(count, 2);
@@ -359,7 +360,7 @@ describe('countJobsByStatus', () => {
       // Two queued, one of which gets claimed (running).
       await submitQueued(adapter, { id: 'd-20260101-000000-0001', nodeId: 'a.md', contentHash: '1'.repeat(64) });
       await submitQueued(adapter, { id: 'd-20260101-000000-0002', nodeId: 'b.md', contentHash: '2'.repeat(64) });
-      await adapter.jobs.claim('skill', Date.now());
+      await adapter.jobs.claim('agent', Date.now());
 
       const counts = await adapter.jobs.countByStatus();
       strictEqual(counts.queued, 1);
@@ -379,7 +380,7 @@ describe('reapExpired', () => {
     try {
       // Expired running: claim, then push expiresAt into the past.
       await submitQueued(adapter, { id: 'd-20260101-000000-0001', nodeId: 'a.md', contentHash: '1'.repeat(64) });
-      await adapter.jobs.claim('skill', Date.now());
+      await adapter.jobs.claim('agent', Date.now());
       await adapter.db
         .updateTable('state_jobs')
         .set({ expiresAt: 1000 })
@@ -388,14 +389,15 @@ describe('reapExpired', () => {
 
       // Live running: claim with a fresh (far-future) expiresAt.
       await submitQueued(adapter, { id: 'd-20260101-000000-0002', nodeId: 'b.md', contentHash: '2'.repeat(64) });
-      await adapter.jobs.claim('skill', Date.now());
+      await adapter.jobs.claim('agent', Date.now());
 
       // Queued (never claimed).
       await submitQueued(adapter, { id: 'd-20260101-000000-0003', nodeId: 'c.md', contentHash: '3'.repeat(64) });
 
       const now = Date.now();
       const reaped = await adapter.jobs.reapExpired(now);
-      strictEqual(reaped, 1, 'only the expired running row is reaped');
+      strictEqual(reaped.length, 1, 'only the expired running row is reaped');
+      strictEqual(reaped[0], 'd-20260101-000000-0001', 'the reaped id is returned');
 
       const expired = await adapter.jobs.get('d-20260101-000000-0001');
       ok(expired);

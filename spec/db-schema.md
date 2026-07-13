@@ -307,7 +307,7 @@ Matching [`schemas/job.schema.json`](./schemas/job.schema.json). See [`job-lifec
 | `priority` | INTEGER | NOT NULL DEFAULT 0 |
 | `status` | TEXT | NOT NULL, CHECK in (`queued`, `running`, `completed`, `failed`, `cancelled`) |
 | `failure_reason` | TEXT | NULL, CHECK in (`runner-error`, `report-invalid`, `timeout`, `abandoned`, `job-file-missing`, `user-failed`). NULL for a `cancelled` job (self-explanatory, no reason). |
-| `runner` | TEXT | NULL, CHECK in (`cli`, `skill`, `in-process`) |
+| `runner` | TEXT | NULL, CHECK in (`agent`, `in-process`) |
 | `ttl_seconds` | INTEGER | NOT NULL |
 | `created_at` | INTEGER | NOT NULL |
 | `claimed_at` | INTEGER | NULL |

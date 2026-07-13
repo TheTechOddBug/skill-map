@@ -5,11 +5,11 @@
  * Actions operate on one or more nodes in one of two execution modes:
  *
  *   - `deterministic` (default), code runs in-process; the action computes
- *     the report synchronously and returns it. No job file, no runner.
+ *     the report synchronously and returns it. No job, no handover.
  *   - `probabilistic`, the kernel renders `<action-dir>/prompt.md` + preamble
- *     into a job file; a runner executes it via `RunnerPort` against an
- *     LLM; `sm record` closes the job and validates the report against
- *     `<action-dir>/report.schema.json`.
+ *     into a queued job; an external agent claims it (`sm job claim`),
+ *     runs it against an LLM, and `sm record` closes the job by
+ *     validating the report against `<action-dir>/report.schema.json`.
  *
  * **Structure-as-truth file conventions**: every Action carries
  * `<action-dir>/report.schema.json` (the JSON Schema for the report, MUST
@@ -34,7 +34,7 @@
  * `probExpectedDurationSeconds` follows this convention.
  *
  * **Deferred runtime invocation**: the dispatcher (`Action.invoke(input, ctx)`
- * for deterministic; the `RunnerPort` + `sm record` round-trip for
+ * for deterministic; the `sm job claim` + `sm record` handover for
  * probabilistic) lands fully with the job subsystem (Decision #114 in
  * `ROADMAP.md`). The kernel today still validates manifests and surfaces
  * the precondition gating to the UI; the runtime entry point stays

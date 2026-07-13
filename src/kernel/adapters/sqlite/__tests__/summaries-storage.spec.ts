@@ -109,7 +109,7 @@ async function seedRunning(adapter: SqliteStorageAdapter): Promise<void> {
     createdAt: 1000,
   };
   await adapter.jobs.submit(row, { contentHash: row.contentHash, content: 'RENDERED', createdAt: row.createdAt });
-  await adapter.jobs.claim('skill', 1500);
+  await adapter.jobs.claim('agent', 1500);
 }
 
 function buildExecution(overrides: Partial<ExecutionRecord>): ExecutionRecord {
@@ -123,7 +123,7 @@ function buildExecution(overrides: Partial<ExecutionRecord>): ExecutionRecord {
     status: 'completed',
     failureReason: null,
     exitCode: null,
-    runner: 'skill',
+    runner: 'agent',
     startedAt: 1500,
     finishedAt: 2000,
     durationMs: 500,

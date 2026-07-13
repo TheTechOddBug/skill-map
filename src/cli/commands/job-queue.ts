@@ -1,8 +1,10 @@
 /**
- * `sm job submit / list / show`, the DB-only queue front end (Step 10
- * Phase A, queue infrastructure). Enqueue side only: this module renders +
- * stores queued jobs and reads them back. The runner (`sm job run` /
- * `claim` / `record`) ships in later sub-steps.
+ * `sm job submit / list / show / preview / claim / status / cancel /
+ * fail`, the DB-only queue front end. This module renders + stores
+ * queued jobs, reads them back, and hands them over. skill-map never
+ * executes a job itself: an external agent drains the queue via
+ * `sm job claim` + `sm record` (`spec/architecture.md` §Execution
+ * handover).
  *
  * `sm job submit <action> [-n <node.path> | --all] [--force] [--ttl <s>]
  * [--priority <n>] [--json]`:
@@ -254,10 +256,6 @@ export class JobSubmitCommand extends SmCommand {
   action = Option.String({ required: true });
   node = Option.String('-n', { required: false });
   all = Option.Boolean('--all', false);
-  // CLI flag stays `--run`; field is `runFlag` per the shadow-avoidance
-  // convention on `SmCommand`. Declared for surface stability; the runner
-  // is deferred, so `--run` is rejected in this build.
-  runFlag = Option.Boolean('--run', false);
   force = Option.Boolean('--force', false);
   ttl = Option.String('--ttl', { required: false });
   priority = Option.String('--priority', { required: false });
@@ -289,9 +287,8 @@ export class JobSubmitCommand extends SmCommand {
     );
   }
 
-  /** Flag-shape validation (mutual exclusion, --run, target presence). */
+  /** Flag-shape validation (mutual exclusion, target presence). */
   private validateFlags(): TExitCode | null {
-    if (this.runFlag) return this.fail(T.submitErrRunUnsupported);
     if (this.all && this.node !== undefined) return this.fail(T.submitErrTargetConflict);
     if (!this.all && this.node === undefined) return this.fail(T.submitErrNeedTarget);
     return null;
@@ -863,16 +860,21 @@ export class JobClaimCommand extends SmCommand {
   static override paths = [['job', 'claim']];
   static override usage = Command.Usage({
     category: 'Jobs',
-    description: 'Atomic claim: transition the next queued job to running and return its id (the Skill-agent handover primitive).',
+    description: 'Atomic claim: transition the next queued job to running and return its id (the external-agent handover primitive).',
     details: `
       Runs the single-statement atomic claim (spec/job-lifecycle.md §Atomic
       claim): the highest-priority, oldest queued job flips to running with
-      claimedAt / runner=skill / expiresAt stamped, and its id is printed on
+      claimedAt / runner=agent / expiresAt stamped, and its id is printed on
       stdout. --filter <action> restricts the claim to one action id.
+
+      Before claiming, every running job whose TTL expired is silently
+      reaped to failed / abandoned (spec/job-lifecycle.md §Reap procedure);
+      reaped jobs surface via sm job list --status failed, never on this
+      verb's stdout.
 
       Plain mode prints the claimed id. --json prints
       { id, nonce, content } (the rendered content plus the nonce a later
-      sm record needs); drivers that will call sm record MUST use --json to
+      sm record needs); agents that will call sm record MUST use --json to
       receive the nonce. --filter accepts a qualified <plugin>/<action> id
       or a bare action id (same matching as sm job list --action).
 
@@ -895,9 +897,14 @@ export class JobClaimCommand extends SmCommand {
     if (dbExit !== null) return dbExit;
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-      // The standalone claim verb is the Skill-agent handover, so the
-      // runner is stamped `skill` (the CLI-runner loop claims as `cli`).
-      const claim = await adapter.jobs.claim('skill', Date.now(), this.filter);
+      // Reap-then-claim (spec/job-lifecycle.md §Reap procedure): expired
+      // running jobs flip to failed / abandoned before the claim. Silent
+      // by contract, this verb's stdout is the handover envelope, so the
+      // returned ids are ignored here.
+      await adapter.jobs.reapExpired(Date.now());
+      // The claim verb is the external-agent handover; the runner is
+      // stamped `agent` (`job.schema.json` runner enum).
+      const claim = await adapter.jobs.claim('agent', Date.now(), this.filter);
       if (!claim) return ExitCode.Issues; // exit 1: queue empty / no match, no output
       // Fetch the content in BOTH modes: a missing row is the
       // DB-corruption-only job-file-missing state and MUST NOT hand the
@@ -917,11 +924,10 @@ export class JobClaimCommand extends SmCommand {
 
   /**
    * Missing `state_job_contents` row under a just-claimed job: mark the
-   * job failed / job-file-missing through the SAME record primitive the
-   * `sm job run` loop uses for this state (an execution row documents the
-   * corruption), report on stderr, exit 2. The verb does NOT loop to the
-   * next queued job (corruption wants operator attention; the next
-   * invocation claims the next job anyway).
+   * job failed / job-file-missing through the shared record primitive
+   * (an execution row documents the corruption), report on stderr, exit
+   * 2. The verb does NOT loop to the next queued job (corruption wants
+   * operator attention; the next invocation claims the next job anyway).
    */
   private async failClaimContentMissing(
     adapter: StoragePort,
@@ -1027,8 +1033,8 @@ export class JobCancelCommand extends SmCommand {
       the terminal cancelled state (no failure reason; cancelled is a
       distinct state, not a failed sub-reason); a terminal job is refused
       (exit 2, "already terminal"); an unknown id exits 5. Cancelling does
-      NOT interrupt a running subprocess; the runner discovers the terminal
-      state on its next callback.
+      NOT interrupt the external agent working the job; it discovers the
+      terminal state when its sm record callback is refused.
 
       With --all: cancel every queued and running job and report the count.
       Pass exactly one of <job.id> or --all (neither, or both, is a usage
@@ -1101,8 +1107,8 @@ export class JobFailCommand extends SmCommand {
       Symmetric counterpart to sm job cancel. With <job.id>: fail one job. A
       queued or running job transitions to failed / user-failed; a terminal
       job is refused (exit 2, "already terminal"); an unknown id exits 5.
-      Failing does NOT interrupt a running subprocess; the runner discovers
-      the terminal state on its next callback.
+      Failing does NOT interrupt the external agent working the job; it
+      discovers the terminal state when its sm record callback is refused.
 
       With --all: fail every queued and running job and report the count.
       Pass exactly one of <job.id> or --all (neither, or both, is a usage

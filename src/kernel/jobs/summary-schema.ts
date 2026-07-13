@@ -25,8 +25,8 @@ const SCHEMA_FILE_SUFFIX = '.schema.json';
 /**
  * Return the summary-schema stem (`'markdown'`, the only canonical shape
  * today) when the report schema references a `summaries/*.schema.json`,
- * else `null`. Non-null means the Action is a summarizer: `sm record` (and
- * the `sm job run` drain loop) upserts its validated `completed` report
+ * else `null`. Non-null means the Action is a summarizer: `sm record`
+ * upserts its validated `completed` report
  * into `state_summaries`. Works on both report-schema sources: a plugin's
  * on-disk `report.schema.json` and a built-in's codegen-inlined
  * `reportSchema` object.

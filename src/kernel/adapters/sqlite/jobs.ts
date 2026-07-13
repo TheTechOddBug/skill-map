@@ -309,7 +309,7 @@ interface IClaimRow {
  * it stays a single statement, a two-step `SELECT` then `UPDATE` would be a
  * double-claim conformance bug. The inner subquery picks the next job by
  * `priority DESC, created_at ASC`; the OUTER `AND status = 'queued'` is the
- * mandatory race guard, when two runners select the same id at the same
+ * mandatory race guard, when two claimants select the same id at the same
  * instant only one UPDATE lands (the other sees `status` already flipped
  * and matches zero rows). `expires_at` is computed in-statement from the
  * frozen `ttl_seconds` column. `filter`, when supplied, restricts the pick
@@ -361,9 +361,9 @@ export async function claimNext(
  * or `running` job transitions to the terminal `cancelled` state with
  * `finishedAt = nowMs` and NO `failureReason` (cancellation is
  * self-explanatory, NOT a `failed` sub-reason); a terminal job is refused
- * (`already-terminal`) and an unknown id is `not-found`. DOES NOT interrupt
- * any subprocess (there is none yet): a running runner discovers the
- * terminal state on its next callback.
+ * (`already-terminal`) and an unknown id is `not-found`. DOES NOT
+ * interrupt the external agent working the job: it discovers the
+ * terminal state when its `sm record` callback is refused.
  *
  * The outcome derives from the guarded UPDATE's affected-row count, not a
  * pre-SELECT: a lost race (another writer terminalising the job between a
@@ -485,23 +485,24 @@ export async function countJobsByStatus(
 /**
  * Auto-reap (`spec/job-lifecycle.md` §Reap procedure): transition every
  * `running` job whose `expiresAt` has passed to `failed` / `abandoned`
- * with `finishedAt = nowMs`, in one statement. Returns the reaped count.
+ * with `finishedAt = nowMs`, in one statement. Returns the reaped ids.
  * `expiresAt < nowMs` excludes NULL `expiresAt` rows automatically (SQLite
  * `NULL < n` is NULL, not true), so only claimed-and-expired jobs are
- * swept. Invoked at the start of `sm job run` (a later phase); there is no
- * standalone `sm job reap` verb.
+ * swept. Invoked at the start of every `sm job claim`, before the claim
+ * statement; there is no standalone `sm job reap` verb.
  */
 export async function reapExpired(
   db: Kysely<IDatabase>,
   nowMs: number,
-): Promise<number> {
-  const res = await db
+): Promise<string[]> {
+  const rows = await db
     .updateTable('state_jobs')
     .set({ status: 'failed', failureReason: 'abandoned', finishedAt: nowMs })
     .where('status', '=', 'running')
     .where('expiresAt', '<', nowMs)
-    .executeTakeFirst();
-  return Number(res.numUpdatedRows ?? 0n);
+    .returning('id')
+    .execute();
+  return rows.map((r) => r.id);
 }
 
 /**

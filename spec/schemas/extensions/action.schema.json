@@ -11,7 +11,7 @@
       "type": "string",
       "enum": ["deterministic", "probabilistic"],
       "default": "deterministic",
-      "description": "`deterministic` (default): the plugin's code computes the report synchronously, no job file, no runner. `probabilistic`: the kernel renders `prompt.md` + preamble into a job file; a runner executes it via `RunnerPort`; `sm record` closes the job."
+      "description": "`deterministic` (default): the plugin's code computes the report synchronously, no job, no agent. `probabilistic`: the kernel renders `prompt.md` + preamble into a queued job; an external agent drains it via `sm job claim` and `sm record` closes it."
     },
     "probExpectedDurationSeconds": {
       "type": "integer",

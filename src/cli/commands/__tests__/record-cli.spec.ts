@@ -8,7 +8,9 @@
  *
  * Coverage:
  *   - full loop: submit -> claim -> record completed with a VALID report
- *     -> job completed + a state_executions row with the report inline.
+ *     -> job completed + a state_executions row with the report inline;
+ *     --json streams the synthetic ndjson run envelope
+ *     (`spec/job-events.md`), the only JSON output.
  *   - bad nonce -> exit 4, no mutation (job stays running).
  *   - non-running job (queued / already terminal) -> exit 2.
  *   - record completed with an INVALID report -> job failed / report-invalid
@@ -21,7 +23,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { strictEqual, ok, match } from 'node:assert';
+import { deepStrictEqual, strictEqual, ok, match } from 'node:assert';
 import { after, before, describe, it } from 'node:test';
 
 import type { BaseContext } from 'clipanion';
@@ -155,7 +157,7 @@ async function seedRunning(dbPath: string, id: string): Promise<{ id: string; no
   await seedQueued(dbPath, id);
   const adapter = await openDb(dbPath);
   try {
-    const claim = await adapter.jobs.claim('skill', Date.now());
+    const claim = await adapter.jobs.claim('agent', Date.now());
     ok(claim);
     return { id: claim.id, nonce: claim.nonce };
   } finally {
@@ -183,7 +185,6 @@ function buildSubmit(node: string): JobSubmitCommand {
   cmd.action = ACTION_ID;
   cmd.node = node;
   cmd.all = false;
-  cmd.runFlag = false;
   cmd.force = false;
   cmd.ttl = undefined;
   cmd.priority = undefined;
@@ -260,11 +261,39 @@ describe('sm record --status completed', () => {
         buildRecord({ id, nonce, status: 'completed', report: 'report.json', tokensIn: '12', tokensOut: '34', json: true }),
         cap,
       );
-      const env = JSON.parse(cap.stdout()) as { executionId: string; jobId: string; status: string; failureReason: null };
-      strictEqual(env.jobId, id);
-      strictEqual(env.status, 'completed');
-      strictEqual(env.failureReason, null);
-      match(env.executionId, /^e-\d{8}-\d{6}-[0-9a-f]{4}$/);
+      // --json is the synthetic ndjson run envelope (spec/job-events.md):
+      // one event per line, run-level events with jobId null, and the new
+      // execution id on job.callback.received.data.executionId.
+      const events = cap.stdout().trim().split('\n').map(
+        (line) =>
+          JSON.parse(line) as {
+            type: string;
+            timestamp: number;
+            runId: string;
+            jobId: string | null;
+            data: Record<string, unknown>;
+          },
+      );
+      deepStrictEqual(
+        events.map((e) => e.type),
+        ['run.started', 'job.claimed', 'job.callback.received', 'job.completed', 'run.summary'],
+      );
+      match(events[0]!.runId, /^r-ext-\d{8}-\d{6}-[0-9a-f]{4}$/);
+      ok(events.every((e) => e.runId === events[0]!.runId), 'one runId per envelope');
+      strictEqual(events[0]!.jobId, null);
+      strictEqual(events[0]!.data['mode'], 'external');
+      // job.claimed is replayed from the job row.
+      strictEqual(events[1]!.jobId, id);
+      strictEqual(events[1]!.data['actionId'], ACTION_ID);
+      strictEqual(events[1]!.data['nodeId'], NOTE.path);
+      strictEqual(events[2]!.data['status'], 'completed');
+      match(String(events[2]!.data['executionId']), /^e-\d{8}-\d{6}-[0-9a-f]{4}$/);
+      strictEqual(events[3]!.data['tokensIn'], 12);
+      strictEqual(events[3]!.data['tokensOut'], 34);
+      strictEqual(events[4]!.jobId, null);
+      strictEqual(events[4]!.data['jobsAttempted'], 1);
+      strictEqual(events[4]!.data['jobsCompleted'], 1);
+      strictEqual(events[4]!.data['jobsFailed'], 0);
       return c;
     });
     strictEqual(code, 0);
@@ -358,6 +387,34 @@ describe('sm record --status failed', () => {
     } finally {
       await adapter.close();
     }
+  });
+
+  it('--json streams the failed synthetic envelope (job.failed + run.summary)', async () => {
+    const proj = await setupProject();
+    const { id, nonce } = await seedRunning(proj.dbPath, 'd-20260101-000000-0022');
+    const code = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const c = await run(
+        buildRecord({ id, nonce, status: 'failed', error: 'model timed out', json: true }),
+        cap,
+      );
+      const events = cap.stdout().trim().split('\n').map(
+        (line) => JSON.parse(line) as { type: string; jobId: string | null; data: Record<string, unknown> },
+      );
+      deepStrictEqual(
+        events.map((e) => e.type),
+        ['run.started', 'job.claimed', 'job.callback.received', 'job.failed', 'run.summary'],
+      );
+      strictEqual(events[2]!.data['status'], 'failed');
+      strictEqual(events[3]!.jobId, id);
+      strictEqual(events[3]!.data['reason'], 'runner-error');
+      strictEqual(events[3]!.data['message'], 'model timed out');
+      strictEqual(events[4]!.data['jobsAttempted'], 1);
+      strictEqual(events[4]!.data['jobsCompleted'], 0);
+      strictEqual(events[4]!.data['jobsFailed'], 1);
+      return c;
+    });
+    strictEqual(code, 0);
   });
 });
 

@@ -1,9 +1,11 @@
 /**
- * `sm record`, the nonce-authenticated job callback (Step 10 Phase D). A
- * runner that claimed a job (`sm job claim`) closes it here: `sm record`
- * verifies the nonce, validates the model's JSON report against the
+ * `sm record`, the nonce-authenticated job callback. An external agent
+ * that claimed a job (`sm job claim`) closes it here: `sm record`
+ * verifies the nonce, validates the agent's JSON report against the
  * action's report schema, writes the terminal `state_executions` row, and
- * transitions the job to `completed` / `failed`, atomically.
+ * transitions the job to `completed` / `failed`, atomically. This is the
+ * ONLY execution path: skill-map never invokes an agent or LLM itself
+ * (`spec/architecture.md` §Execution handover).
  *
  * `sm record --id <id> --nonce <n> --status completed|failed [--report
  * <path|->] [--tokens-in N] [--tokens-out N] [--duration-ms N] [--model
@@ -28,9 +30,13 @@
  *
  * The record core (parse + validate + execution row + job transition +
  * summary write-through for summary-schema Actions) lives in the SHARED
- * `record-outcome.ts` module, consumed identically by this verb and the
- * `sm job run` drain loop (Step 10 Phase E); this file owns only the
- * CLI-flag surface, the nonce/state gates, and the exit-code mapping.
+ * `record-outcome.ts` module (also consumed by the claim-side corruption
+ * path in `job-queue.ts`); this file owns the CLI-flag surface, the
+ * nonce/state gates, the exit-code mapping, and the `--json` synthetic
+ * run envelope, the canonical job-event emission (`spec/job-events.md`):
+ * `run.started(mode=external)` -> `job.claimed` replay ->
+ * `job.callback.received` -> `job.completed` | `job.failed` ->
+ * `run.summary`, one ndjson line each, no other JSON output.
  *
  * Exit codes (`spec/cli-contract.md` §Record): 0 success, 4 nonce
  * mismatch, 5 missing job / DB, 2 otherwise (bad flags, not-running,
@@ -41,8 +47,8 @@
  * free-text `error` or `model` column. `--error` is stored verbatim in
  * `report_json` on the failed path (the only nullable text slot, empty of a
  * report for a failed execution) per `spec/cli-contract.md` §Record;
- * `--model` is accepted for CLI-surface stability but not persisted (no
- * field to hold it, and adding one is a spec change outside this phase).
+ * `--model` is not persisted (no field to hold it) but travels on the
+ * synthetic envelope (`job.callback.received.data.model`).
  */
 
 import { readFileSync } from 'node:fs';
@@ -52,7 +58,8 @@ import { Command, Option } from 'clipanion';
 
 import type { ExecutionRecord, Job } from '../../kernel/types.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
-import { JobNotRunningError } from '../../kernel/jobs/index.js';
+import { createNdjsonProgressEmitter } from '../../core/runtime/progress-emitter.js';
+import { generateRunId, JobNotRunningError } from '../../kernel/jobs/index.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
@@ -97,17 +104,24 @@ export class RecordCommand extends SmCommand {
     category: 'Jobs',
     description: 'Close a running job with success or failure. Nonce is the sole credential.',
     details: `
-      The job callback. A runner that claimed a job (sm job claim) closes it
-      here. sm record verifies --nonce against the job, validates the
-      --status completed report against the action's report schema, writes
-      the state_executions row (report inline in report_json), and
+      The job callback. An external agent that claimed a job (sm job claim)
+      closes it here. sm record verifies --nonce against the job, validates
+      the --status completed report against the action's report schema,
+      writes the state_executions row (report inline in report_json), and
       transitions the job to completed / failed, atomically.
 
       --report accepts a file path or - (stdin) and is required for --status
       completed. On a report that fails schema validation the job is moved
       to failed / report-invalid (never left running). --status failed
-      records a runner-reported failure (reason runner-error); --error is
+      records an agent-reported failure (reason runner-error); --error is
       stored verbatim.
+
+      --json streams the synthetic run envelope as ndjson on stdout, the
+      canonical job-event emission (spec/job-events.md): run.started ->
+      job.claimed replay -> job.callback.received -> job.completed |
+      job.failed -> run.summary. There is no other JSON output; the
+      envelope IS the machine-readable result (the new execution id rides
+      on job.callback.received.data.executionId).
 
       Exit codes: 0 on success, 4 on nonce mismatch, 5 when the job (or DB)
       is missing, 2 otherwise (bad flags, job not running, unreadable
@@ -132,8 +146,9 @@ export class RecordCommand extends SmCommand {
   tokensIn = Option.String('--tokens-in', { required: false });
   tokensOut = Option.String('--tokens-out', { required: false });
   durationMs = Option.String('--duration-ms', { required: false });
-  // Accepted for CLI-surface stability; NOT persisted (no model column in
-  // state_executions / execution-record.schema.json). See the file header.
+  // NOT persisted (no model column in state_executions /
+  // execution-record.schema.json); surfaced on the synthetic envelope
+  // (`job.callback.received.data.model`). See the file header.
   model = Option.String('--model', { required: false });
   error = Option.String('--error', { required: false });
 
@@ -247,22 +262,22 @@ export class RecordCommand extends SmCommand {
     if (outcome.kind === 'report-invalid') {
       // The failed / report-invalid transition already landed (spec §Record
       // step 4); surface the reason and exit 2 (the "otherwise" bucket).
+      // The synthetic envelope is emitted on the exit-0 paths only.
       this.printer!.error(
         tx(T.errPrefix, {
           glyph: this.errGlyph(),
           message: tx(T.reportInvalid, { errors: outcome.detail }),
         }),
       );
-      if (this.json) this.emitJsonEnvelope(outcome.execution);
       return ExitCode.Error;
     }
-    return this.reportSuccess(outcome.execution);
+    return this.reportSuccess(outcome.execution, job);
   }
 
   /**
    * Read the report payload from `--report` (a file path, or `-` for
    * stdin). Returns the raw text, or exit 2 when the source is unreadable
-   * (the runner can retry; the reap safety net closes a stranded job).
+   * (the agent can retry; the reap safety net closes a stranded job).
    */
   private readReport(cwd: string): string | TExitCode {
     const source = this.report!;
@@ -285,7 +300,7 @@ export class RecordCommand extends SmCommand {
     metrics: IMetrics,
     now: number,
   ): Promise<TExitCode> {
-    // A callback-reported failure is `runner-error` (the runner hit an
+    // A callback-reported failure is `runner-error` (the agent hit an
     // error and reported it). `user-failed` is the operator verb
     // `sm job fail`, not this path. `--error` is stored verbatim in
     // report_json (spec/cli-contract.md §Record).
@@ -297,7 +312,7 @@ export class RecordCommand extends SmCommand {
       metrics: this.toRecordMetrics(metrics),
       now,
     });
-    return this.reportSuccess(execution);
+    return this.reportSuccess(execution, job);
   }
 
   // --- output --------------------------------------------------------------
@@ -308,14 +323,13 @@ export class RecordCommand extends SmCommand {
       tokensIn: metrics.tokensIn,
       tokensOut: metrics.tokensOut,
       durationMs: metrics.durationMs,
-      // No --exit-code flag on this surface; the sm job run loop fills it.
     };
   }
 
-  /** Emit the success outcome (exit 0): JSON envelope or a human line. */
-  private reportSuccess(execution: ExecutionRecord): TExitCode {
+  /** Emit the success outcome (exit 0): synthetic envelope or a human line. */
+  private reportSuccess(execution: ExecutionRecord, job: Job): TExitCode {
     if (this.json) {
-      this.emitJsonEnvelope(execution);
+      this.emitSyntheticEnvelope(execution, job);
       return ExitCode.Ok;
     }
     if (execution.status === 'completed') {
@@ -336,18 +350,60 @@ export class RecordCommand extends SmCommand {
   }
 
   /**
-   * Documented `--json` envelope: the new execution id, the closed job id,
-   * its final terminal status, and the failure reason (null on completed).
+   * `--json`: stream the synthetic run envelope as ndjson on stdout, the
+   * canonical job-event emission (`spec/job-events.md`). One envelope
+   * wraps exactly one job: `run.started` -> `job.claimed` (replayed from
+   * the job row, the claim verb's own stdout is the handover contract) ->
+   * `job.callback.received` -> `job.completed` | `job.failed` ->
+   * `run.summary`. Run-level events carry `jobId: null`; the new
+   * execution id rides on `job.callback.received.data.executionId`.
    */
-  private emitJsonEnvelope(execution: ExecutionRecord): void {
-    this.printer!.data(
-      JSON.stringify({
-        executionId: execution.id,
-        jobId: execution.jobId,
-        status: execution.status,
-        failureReason: execution.failureReason ?? null,
-      }) + '\n',
-    );
+  private emitSyntheticEnvelope(execution: ExecutionRecord, job: Job): void {
+    const emitter = createNdjsonProgressEmitter(this.context.stdout as NodeJS.WritableStream);
+    const runId = generateRunId('ext');
+    const completed = execution.status === 'completed';
+    const stamp = (type: string, jobId: string | null, data: unknown): void =>
+      emitter.emit({ type, timestamp: Date.now(), runId, jobId, data });
+    stamp('run.started', null, { mode: 'external' });
+    stamp('job.claimed', job.id, {
+      actionId: job.actionId,
+      actionVersion: job.actionVersion,
+      nodeId: job.nodeId,
+      ttlSeconds: job.ttlSeconds,
+      priority: job.priority,
+    });
+    stamp('job.callback.received', job.id, {
+      status: execution.status,
+      model: this.model ?? null,
+      executionId: execution.id,
+    });
+    if (completed) {
+      stamp('job.completed', job.id, this.completedEventData(execution));
+    } else {
+      stamp('job.failed', job.id, this.failedEventData(execution));
+    }
+    stamp('run.summary', null, summaryEventData(execution, completed));
+  }
+
+  /** `job.completed` event data (`spec/job-events.md`). */
+  private completedEventData(execution: ExecutionRecord): Record<string, unknown> {
+    return {
+      durationMs: execution.durationMs ?? null,
+      tokensIn: execution.tokensIn ?? null,
+      tokensOut: execution.tokensOut ?? null,
+      model: this.model ?? null,
+      executionId: execution.id,
+    };
+  }
+
+  /** `job.failed` event data (`spec/job-events.md`). */
+  private failedEventData(execution: ExecutionRecord): Record<string, unknown> {
+    return {
+      reason: execution.failureReason ?? null,
+      message: this.error ?? null,
+      exitCode: execution.exitCode ?? null,
+      durationMs: execution.durationMs ?? null,
+    };
   }
 
   // --- small glyph / error helpers ---------------------------------------
@@ -368,4 +424,19 @@ export class RecordCommand extends SmCommand {
   private okGlyph(): string {
     return this.ansiFor('stderr').green('✓');
   }
+}
+
+/**
+ * `run.summary` event data: 0/1-valued counts (a synthetic run wraps
+ * exactly one job) with the aggregate-ready shape of `spec/job-events.md`.
+ */
+function summaryEventData(execution: ExecutionRecord, completed: boolean): Record<string, unknown> {
+  return {
+    jobsAttempted: 1,
+    jobsCompleted: completed ? 1 : 0,
+    jobsFailed: completed ? 0 : 1,
+    totalDurationMs: execution.durationMs ?? 0,
+    totalTokensIn: execution.tokensIn ?? 0,
+    totalTokensOut: execution.tokensOut ?? 0,
+  };
 }

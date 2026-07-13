@@ -161,21 +161,11 @@ The loader also **qualifies every extension** with its owning plugin id before r
 
 Every extension (built-in or drop-in) is independently toggle-able by its qualified id `<plugin>/<ext-id>`. The plugin row is a presentational grouping; the granular toggle target is the extension, while toggling a bare plugin id is the **bundle** (aggregate) macro fanning across every extension. The loader's pre-import `resolveEnabled(pluginId)` short-circuit only fires when EVERY extension of the plugin is disabled (the plugin "starts as disabled"); partial enables let imports proceed and the runtime composer (`composeScanExtensions` / `composeFormatters` in `src/core/runtime/plugin-runtime/composer.ts`) drops the per-extension disabled rows before they reach the orchestrator. The `core` plugin exercises the per-extension axis explicitly (every kernel built-in is removable, satisfying §Boot invariant); most operators leave every extension of the vendor Provider plugins (`claude`, `antigravity`, `codex`, `agent-skills`) enabled, but the same per-extension toggle surface applies. See [`plugin-author-guide.md` §Toggle model](./plugin-author-guide.md#toggle-model).
 
-### `RunnerPort`
+### Execution handover (there is NO runner port)
 
-Executes an action against rendered job content. Returns the produced report (or an error) plus runner-side metrics (duration, tokens, exit code).
+The kernel NEVER invokes an LLM or an agent binary itself. Probabilistic work leaves the kernel as DATA: `sm job submit` renders the prompt (canonical preamble + action template + `<user-content>`) into `state_job_contents` and parks a queued `state_jobs` row. An EXTERNAL agent, ANY agent runtime (a Claude Code session, Codex, opencode, a cron-driven CLI agent, an MCP client), drains the queue through two verbs: `sm job claim` (atomic claim, `--json` returns `{ id, nonce, content }`) and `sm record` (nonce-validated callback that closes the job). The agent executes the rendered content with its own model inside its own session; skill-map's whole execution surface is that claim/record protocol plus the TTL + reap safety net.
 
-Operations: `run(jobContent, options)` → `{ report, tokensIn, tokensOut, durationMs, exitCode } | Error`.
-
-`jobContent` is a string: the kernel reads `state_job_contents` for the job and passes the content directly. No on-disk job file is part of the contract; runners needing one (e.g. `claude -p`) materialize a temp file inside `run()` and delete it after spawn. The temp file is operational, not normative.
-
-`report` is the parsed JSON the runner produced; the kernel ingests it into `state_executions.report_json`. Path-based reporting is not part of the port contract.
-
-Two reference implementations:
-- `ClaudeCliRunner`, subprocess `claude -p` with the content piped into a temp file or stdin.
-- `MockRunner`, deterministic fake for tests.
-
-The **Skill agent** does NOT implement this port: it is a peer driving adapter (alongside CLI and Server) running inside an LLM session, consuming `sm job claim` + `sm record` as a kernel client. The name "Skill runner" is descriptive, not structural; only `ClaudeCliRunner` (and its test fake) implement `RunnerPort`. See [`job-lifecycle.md`](./job-lifecycle.md).
+Decision (2026-07-13): the short-lived `sm job run` CLI-runner loop (which spawned `claude -p` from inside skill-map through a `RunnerPort`) was removed. Invoking the agent inverts the ownership: skill-map is the map and the queue; agents are the executors, whoever they are. Deterministic Actions are unaffected, they are code, not prompts, and keep running in-process.
 
 ### `ProgressEmitterPort`
 
@@ -218,7 +208,7 @@ No extension is privileged. The Claude Provider ships bundled with the reference
 Every analytical extension in skill-map is one of two **modes**:
 
 - **`deterministic`**, pure code. Same input → same output, every run.
-- **`probabilistic`**, calls an LLM through the kernel's `RunnerPort`. Output may vary across runs; cost and latency are non-trivial.
+- **`probabilistic`**, executed by an LLM outside the kernel (rendered prompt drained by an external agent via claim/record, see §Execution handover). Output may vary across runs; cost and latency are non-trivial.
 
 Mode is a property of the extension as a whole, not an individual call. **An extension is one mode or the other; it cannot switch at runtime.** If a plugin author needs both flavors of the same idea (regex-based AND LLM-based "find suspicious imports"), they ship two extensions with distinct ids.
 
@@ -235,7 +225,7 @@ Mode is a property of the extension as a whole, not an individual call. **An ext
 
 Provider, Extractor, and Formatter are locked to deterministic because they sit on the **deterministic scan path**. A Provider resolves `path → kind` during boot; probabilistic classification would make boot slow, costly, and non-reproducible. An Extractor consumes a parsed node body inside `sm scan`'s synchronous loop; LLM-driven enrichment is an Action concern (queued as a job, observed via the enrichment layer or sidecar writes), not an Extractor concern, because `sm scan` MUST be fast, free, and reproducible. A Formatter must produce diffable output (`sm scan` snapshots round-trip in CI). Probabilistic graph narrators are a valid product but live in jobs and emit Findings or write to the enrichment layer through Actions, not through Extractors or Formatters.
 
-> **Naming note, `Provider` vs hexagonal `adapter`.** A `Provider` is an **extension** authored by plugins (recognises a platform, declares its kind catalog). The hexagonal term `adapter` refers to **port implementations** internal to the kernel package (`RunnerPort.adapter`, `StoragePort.adapter`, `FilesystemPort.adapter`, `PluginLoaderPort.adapter`, under `kernel/adapters/`). Both bridge two worlds but live in deliberately disjoint namespaces so plugin authors and impl maintainers never confuse them.
+> **Naming note, `Provider` vs hexagonal `adapter`.** A `Provider` is an **extension** authored by plugins (recognises a platform, declares its kind catalog). The hexagonal term `adapter` refers to **port implementations** internal to the kernel package (`StoragePort.adapter`, `FilesystemPort.adapter`, `PluginLoaderPort.adapter`, under `kernel/adapters/`). Both bridge two worlds but live in deliberately disjoint namespaces so plugin authors and impl maintainers never confuse them.
 
 ### When each mode runs
 
@@ -244,11 +234,9 @@ Provider, Extractor, and Formatter are locked to deterministic because they sit 
 
 This separation is normative: a probabilistic extension cannot register a hook that fires from `sm scan`. The kernel rejects it at load time.
 
-### How probabilistic extensions invoke the LLM
+### How probabilistic extensions reach the LLM
 
-The kernel exposes the LLM through the `RunnerPort` (see §Ports above). Reference impl: `ClaudeCliRunner`. Tests: `MockRunner`. Other adapters (OpenAI, local Ollama, etc.) implement the same port without spec changes.
-
-A probabilistic Action, Analyzer, or Hook receives the runner in its invocation context alongside `ctx.store` (Extractors are deterministic-only and never see the runner). The extension never imports a specific LLM SDK; the spec normalizes the runner contract, while wire format and model selection are adapter concerns.
+They do not call one: a probabilistic extension's contribution is its PROMPT (`prompt.md`) plus its report contract (`report.schema.json`). The kernel renders the prompt into a queued job and validates whatever report the draining agent records; no invocation context ever carries an LLM handle (there is no `ctx.runner`), and the extension never imports an LLM SDK. Which model executes the prompt is entirely the agent's business (see §Execution handover).
 
 ---
 
@@ -263,7 +251,7 @@ Six kinds, all first-class, all loaded through the same registry. Each has a JSO
 | **Analyzer** | Evaluates the graph. Dual-mode: `deterministic` runs in `sm check`, `probabilistic` runs in jobs. The analyzer↔action relationship is declared from the Action side via `precondition.analyzerIds` (Modelo B). | Full graph (nodes + links). | `Issue[]`. |
 | **Action** | Operates on one or more nodes. Two independent surfaces: **`invoke(input, ctx)`** is the on-demand executor (deterministic in-process code, or a probabilistic rendered prompt the runner executes); **`project(ctx)`** is an OPTIONAL, deterministic, side-effect-free scan-time method running in the contribution phase with read-only graph access (`ctx.nodes` / `ctx.links`), emitting the Action's OWN view contributions via `ctx.emitContribution(...)` (e.g. its `inspector.action.button`). `project()` is always deterministic even when `invoke` is probabilistic. Files-by-convention: every Action carries `<action-dir>/report.schema.json`; probabilistic Actions also carry `<action-dir>/prompt.md`. The retired `reportSchemaRef` / `promptTemplateRef` / `expectedTools` / `fanOutPolicy` fields were replaced by these conventions and the simplified `precondition` block. | `project`: full graph. `invoke`: node(s) + optional args. | `project`: `void` (contributions via callback). `invoke`: deterministic report JSON or probabilistic rendered prompt. |
 | **Formatter** | Serializes the graph. Deterministic-only. The `formatId` consumed by `sm graph --format <name>` comes from the formatter's folder name. | Graph + optional filter. | String (ASCII / Mermaid / DOT / JSON / user-defined). |
-| **Hook** | Reacts declaratively to one of ten curated lifecycle events, eight pipeline-driven (`scan.started`, `scan.completed`, `extractor.completed`, `analyzer.completed`, `action.completed`, `job.spawning`, `job.completed`, `job.failed`) plus two CLI-process-driven (`boot` before verb routing, `shutdown` after the verb's exit code resolves). **Deterministic-only** since the structure-as-truth refactor: LLM-dependent reactions are a deterministic Hook enqueuing a probabilistic Action via `ctx.queue('<plugin>/<action>', payload)`. Hooks REACT to events; they cannot block, mutate, or steer the pipeline. | A curated event payload (run-, scan-, job-, or process-scoped) plus an optional declarative `filter` map. | `void` (reactions are side effects). |
+| **Hook** | Reacts declaratively to one of nine curated lifecycle events, seven pipeline-driven (`scan.started`, `scan.completed`, `extractor.completed`, `analyzer.completed`, `action.completed`, `job.completed`, `job.failed`) plus two CLI-process-driven (`boot` before verb routing, `shutdown` after the verb's exit code resolves). **Deterministic-only** since the structure-as-truth refactor: LLM-dependent reactions are a deterministic Hook enqueuing a probabilistic Action via `ctx.queue('<plugin>/<action>', payload)`. Hooks REACT to events; they cannot block, mutate, or steer the pipeline. | A curated event payload (run-, scan-, job-, or process-scoped) plus an optional declarative `filter` map. | `void` (reactions are side effects). |
 
 ### IO discipline, extensions never write to the filesystem
 
@@ -442,7 +430,7 @@ The `Extractor` runtime contract is `extract(ctx) → void`. The extractor emits
 - `ctx.enrichNode(partial)`, merge canonical kernel-curated properties onto the current node's enrichment layer (persisted into [`node_enrichments`](./db-schema.md#node_enrichments)). **Strictly separate from the author-supplied frontmatter** (which stays immutable across scans). The enrichment layer holds kernel-derived facts (computed titles, summaries, signals an Extractor inferred from the body) without polluting what the user wrote on disk. See §Enrichment layer for the full lifecycle (per-extractor attribution, refresh verbs).
 - `ctx.store`, plugin-scoped persistence. Optional, present only when the plugin declares `storage.mode` in `plugin.json`. Shape depends on the mode (`KvStore` for mode A, scoped `Database` for mode B). See [`plugin-kv-api.md`](./plugin-kv-api.md). The plugin author MAY opt into shape validation by declaring `storage.schema` (Mode A) or `storage.schemas` (Mode B) in the manifest, JSON Schemas the kernel AJV-compiles at load time and runs against every `ctx.store.set(key, value)` / `ctx.store.write(table, row)` call. Absent = permissive (status quo). `emitLink` and `enrichNode` keep their universal validation against `link.schema.json` / `node.schema.json` regardless. See [`plugin-author-guide.md` §`outputSchema`](./plugin-author-guide.md#outputschema--opt-in-correctness-for-custom-storage-writes).
 
-Extractors are deterministic-only; `ctx.runner` is NOT exposed on the Extractor context. LLM-driven enrichment is an Action concern (queued as a job), not an Extractor concern.
+Extractors are deterministic-only; no invocation context carries an LLM handle. LLM-driven enrichment is an Action concern (queued as a job an external agent drains), not an Extractor concern.
 
 ### Extractor · Signal IR (opt-in)
 
@@ -606,7 +594,7 @@ The two surfaces stay distinct: `kind` / `provider` sub-filters answer "which no
 
 ### Hook · curated trigger set
 
-Hooks subscribe declaratively to a curated set of kernel lifecycle events and react. Reaction-only by design: a hook cannot mutate the pipeline, block emission, or alter outputs. The hookable trigger set is intentionally small, ten events out of the full [`job-events.md`](./job-events.md) catalog. Eight are pipeline-driven (emitted from inside `runScan`); two (`boot`, `shutdown`) are CLI-process-driven (emitted by the driving binary before / after the verb runs, fire-and-forget so `process.exit` is never blocked). Other events (per-node `scan.progress`, `model.delta`, `run.*`, `job.claimed`, `job.callback.received`) are deliberately NOT hookable: too verbose for a reactive surface, internal to the runner, or covered elsewhere. A trigger outside the curated set yields `invalid-manifest` at load time.
+Hooks subscribe declaratively to a curated set of kernel lifecycle events and react. Reaction-only by design: a hook cannot mutate the pipeline, block emission, or alter outputs. The hookable trigger set is intentionally small, nine events out of the full [`job-events.md`](./job-events.md) catalog. Eight are pipeline-driven (emitted from inside `runScan`); two (`boot`, `shutdown`) are CLI-process-driven (emitted by the driving binary before / after the verb runs, fire-and-forget so `process.exit` is never blocked). Other events (per-node `scan.progress`, `run.*`, `job.claimed`, `job.callback.received`) are deliberately NOT hookable: too verbose for a reactive surface, or covered elsewhere. A trigger outside the curated set yields `invalid-manifest` at load time.
 
 | Trigger | When it fires | Payload (key fields) | Hook scope |
 |---|---|---|---|
@@ -616,7 +604,6 @@ Hooks subscribe declaratively to a curated set of kernel lifecycle events and re
 | `extractor.completed` | Once per registered Extractor, after the full walk. Aggregated, NOT per-node. | `extractorId: string` (qualified). | Per-Extractor metrics, audit. |
 | `analyzer.completed` | Once per Analyzer, after every issue is validated. | `analyzerId: string` (qualified). | Per-Analyzer alerting, downstream tooling. |
 | `action.completed` | Once per Action invocation, after the report is recorded. | `actionId: string` (qualified), `node`, `jobResult`. | Per-Action notification, integration glue. |
-| `job.spawning` | Pre-spawn of a runner subprocess (job subsystem; Step 10). | `jobId`, `actionId`, spawn metadata. | Pre-flight checks, audit logging. |
 | `job.completed` | Once per job that finishes successfully (job subsystem; Step 10). Same payload shape as the [`job-events.md`](./job-events.md) entry of the same name. | See [`job-events.md` §Event catalog](./job-events.md#event-catalog). | Most common Hook surface (notifications, retries, billing). |
 | `job.failed` | Once per job that fails (job subsystem; Step 10). Same payload shape as the [`job-events.md`](./job-events.md) entry of the same name. | See [`job-events.md` §Event catalog](./job-events.md#event-catalog). | Alerting, retry triggers. |
 | `shutdown` | Once per CLI process invocation, AFTER the verb returns its exit code and BEFORE `process.exit`. The dispatcher awaits subscribed hooks so they finish before the process terminates, but every hook MUST be fast (the user already saw the verb's output and waits for the prompt back). Errors are caught so a buggy hook never alters the verb's exit code, only delays the exit. | `exitCode: number` (the verb's resolved exit code, `0..5`). | Cleanup, post-run telemetry. |
@@ -678,7 +665,7 @@ The following imports are permitted:
 
 Because the kernel depends only on ports:
 
-- Unit tests inject `InMemoryStorageAdapter`, `FixtureFilesystemAdapter`, `MockRunner`.
+- Unit tests inject `InMemoryStorageAdapter`, `FixtureFilesystemAdapter`, and in-memory progress fakes.
 - Integration tests wire real adapters.
 - Conformance tests exercise the kernel directly, bypassing the CLI entirely.
 - A driving adapter (CLI/Server/Skill) can be tested by asserting the kernel calls it makes, with all ports mocked.
@@ -700,7 +687,6 @@ src/
     ├── sqlite/          node:sqlite + Kysely + CamelCasePlugin (StoragePort)
     ├── filesystem/      real fs (FilesystemPort)
     ├── plugin-loader/   drop-in discovery (PluginLoaderPort)
-    └── runner/          claude -p subprocess (RunnerPort)
 ```
 
 Alternative implementations MAY use workspaces, separate packages, or a compiled monolith. The spec has no opinion.
@@ -1060,7 +1046,7 @@ The **port list** is stable as of spec v1.0.0. Adding a sixth port is a major bu
 
 The **extension kind list** (6 kinds: Provider, Extractor, Analyzer, Action, Formatter, Hook) is stable as of spec v1.0.0. Adding a seventh kind is a major bump. Removing or renaming a kind is a major bump.
 
-The **Hook curated trigger set** (ten events: `boot`, `scan.started`, `scan.completed`, `extractor.completed`, `analyzer.completed`, `action.completed`, `job.spawning`, `job.completed`, `job.failed`, `shutdown`) is stable as of spec v1.0.0. Adding an eleventh trigger is a minor bump; removing or renaming any of the ten is a major bump.
+The **Hook curated trigger set** (nine events: `boot`, `scan.started`, `scan.completed`, `extractor.completed`, `analyzer.completed`, `action.completed`, `job.completed`, `job.failed`, `shutdown`) is stable as of spec v1.0.0. Adding a tenth trigger is a minor bump; removing or renaming any of the nine is a major bump.
 
 The **execution modes** (`deterministic` / `probabilistic`) and the per-kind mode capability matrix above are stable as of spec v1.0.0. Adding a third mode is a major bump. Renaming or repurposing the mode enum values is a major bump. Pre-1.0, narrowing a kind from dual-mode to single-mode is permitted as a minor bump (Extractor went from `deterministic / probabilistic` to `deterministic-only` in 0.X.0); post-1.0 the same change would be major.
 

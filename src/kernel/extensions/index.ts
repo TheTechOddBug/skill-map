@@ -19,8 +19,8 @@
  *
  * **Naming note.** `IProvider` is the extension-surface kind that plugin
  * authors implement. The `adapter` term is reserved for the hexagonal
- * architecture's driven adapters (`RunnerPort.adapter`, `StoragePort.adapter`
- * see `kernel/adapters/`); the two concepts are deliberately namespaced
+ * architecture's driven adapters (`StoragePort.adapter`, see
+ * `kernel/adapters/`); the two concepts are deliberately namespaced
  * apart even though they used to share the word historically.
  */
 

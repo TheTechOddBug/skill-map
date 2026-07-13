@@ -1,7 +1,7 @@
 /**
  * `sm doctor`, the project diagnostic report (`spec/cli-contract.md`
- * §sm doctor). Eight read-only checks over the project DB, the plugin
- * runtime, and the LLM runner:
+ * §sm doctor). Seven read-only checks over the project DB and the
+ * plugin runtime:
  *
  *   1. DB file integrity (`PRAGMA quick_check` via
  *      `port.migrations.quickCheck`).
@@ -11,8 +11,7 @@
  *   4. `state_jobs` rows whose content row is missing (corruption).
  *   5. `state_job_contents` GC stragglers (`sm job prune` collects).
  *   6. Plugins in error state (any status besides enabled / disabled).
- *   7. LLM runner availability (`claude` binary on PATH, version).
- *   8. Detected Providers that matched nothing (marker on disk, zero
+ *   7. Detected Providers that matched nothing (marker on disk, zero
  *      scanned nodes; non-blocking warning).
  *
  * Exit: 0 all green, 1 warnings, 2 any error-level problem. Checks 1
@@ -27,7 +26,6 @@ import { Command } from 'clipanion';
 
 import type { IProvider } from '../../kernel/extensions/index.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
-import { probeClaudeCli, type IClaudeCliProbe } from '../../kernel/index.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { DOCTOR_TEXTS as T } from '../i18n/doctor.texts.js';
@@ -54,18 +52,15 @@ export class DoctorCommand extends SmCommand {
   static override usage = Command.Usage({
     category: 'Setup',
     description:
-      'Diagnostic report: DB integrity, pending migrations, orphan rows, job-content consistency, plugin status, runner availability, provider detection.',
+      'Diagnostic report: DB integrity, pending migrations, orphan rows, job-content consistency, plugin status, provider detection.',
     details: `
-      Runs eight read-only checks and reports one glyph row per check.
+      Runs seven read-only checks and reports one glyph row per check.
       Exit 0 when all green, 1 when any check warns, 2 when an
       error-level problem exists (DB corruption, jobs whose rendered
       content row is missing). --json emits
       { ok, kind: 'doctor', checks[] } with one entry per check.
     `,
   });
-
-  /** Runner probe seam; tests override to avoid spawning a real binary. */
-  probeRunner: () => IClaudeCliProbe = () => probeClaudeCli();
 
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
@@ -87,7 +82,7 @@ export class DoctorCommand extends SmCommand {
     );
   }
 
-  /** Execute the eight checks in contract order. */
+  /** Execute the seven checks in contract order. */
   private async runChecks(adapter: StoragePort, cwd: string): Promise<ICheckRow[]> {
     const runtime = await loadPluginRuntime();
     runtime.emitWarnings(this.printer!);
@@ -102,7 +97,6 @@ export class DoctorCommand extends SmCommand {
       await checkOrphanHistory(adapter),
       ...(await checkJobs(adapter)),
       checkPlugins(runtime.discovered.map((p) => ({ id: p.id, status: p.status }))),
-      checkRunner(this.probeRunner()),
       ...(await checkProviders(adapter, composed?.providers ?? [], cwd)),
     ];
   }
@@ -175,7 +169,6 @@ function labelFor(id: string): string {
     'job-contents': T.labelJobContents,
     'job-gc': T.labelJobGc,
     plugins: T.labelPlugins,
-    runner: T.labelRunner,
     providers: T.labelProviders,
   };
   return labels[id] ?? id;
@@ -265,19 +258,6 @@ function checkPlugins(discovered: ReadonlyArray<{ id: string; status: string }>)
         .join(', '),
     }),
   };
-}
-
-function checkRunner(probe: IClaudeCliProbe): ICheckRow {
-  if (probe.available) {
-    return {
-      id: 'runner',
-      status: 'ok',
-      message: probe.version
-        ? tx(T.runnerOk, { version: sanitizeForTerminal(probe.version) })
-        : T.runnerOkNoVersion,
-    };
-  }
-  return { id: 'runner', status: 'warn', message: T.runnerMissing };
 }
 
 /**

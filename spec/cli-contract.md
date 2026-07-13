@@ -140,7 +140,6 @@ CLI surfaces:
 `--all` is not global. It is only valid on verbs whose contract explicitly lists it:
 
 - `sm job submit <action> --all`
-- `sm job run --all`
 - `sm job cancel --all`
 - `sm job fail --all`
 - `sm plugins enable --all`
@@ -260,10 +259,9 @@ Diagnostic report:
 - `state_jobs` rows whose `content_hash` is missing from `state_job_contents` (corrupt-state count).
 - `state_job_contents` GC stragglers (count of rows referenced by zero `state_jobs` rows; `sm job prune` collects these).
 - Plugins in error state (list).
-- LLM runner availability (`claude` binary on PATH, version).
 - Detected Providers that matched nothing (non-blocking warning).
 
-Exit: 0 if all green, 1 if warnings, 2 if any `error`-level problem. Error-level: DB corruption (`quick_check`) and jobs whose rendered-content row is missing; every other finding is a warning carrying its actionable verb in the message. `--json` emits `{ ok, kind: 'doctor', checks[] }`, one `{ id, status: 'ok'|'warn'|'error', message }` entry per check (`db-integrity`, `migrations`, `orphan-history`, `job-contents`, `job-gc`, `plugins`, `runner`, `providers`; the `providers` check MAY repeat, one row per empty detected Provider).
+Exit: 0 if all green, 1 if warnings, 2 if any `error`-level problem. Error-level: DB corruption (`quick_check`) and jobs whose rendered-content row is missing; every other finding is a warning carrying its actionable verb in the message. `--json` emits `{ ok, kind: 'doctor', checks[] }`, one `{ id, status: 'ok'|'warn'|'error', message }` entry per check (`db-integrity`, `migrations`, `orphan-history`, `job-contents`, `job-gc`, `plugins`, `providers`; the `providers` check MAY repeat, one row per empty detected Provider). There is deliberately NO runner-availability check: skill-map never invokes an agent, so there is no binary of ours to probe.
 
 #### `sm help [<verb>] [--format human|md|json]`
 
@@ -522,7 +520,6 @@ See `job-lifecycle.md` for the state machine; this table is the CLI surface.
 | Command | Purpose |
 |---|---|
 | `sm job submit <action> -n <node.path>` | Enqueue a single job. |
-| `sm job submit <action> -n <node.path> --run` | Enqueue + spawn subprocess runner immediately. |
 | `sm job submit <action> --all` | Fan out to every node matching the action's preconditions. |
 | `sm job submit ... --force` | Bypass duplicate detection. |
 | `sm job submit ... --ttl <seconds>` | Override computed TTL. |
@@ -530,10 +527,7 @@ See `job-lifecycle.md` for the state machine; this table is the CLI surface.
 | `sm job list [--status ...] [--action ...] [--node ...]` | List jobs. `--json` emits the job rows WITHOUT the `nonce` (the record credential travels only on `submit --json` / `claim --json`, see `job-lifecycle.md` §Atomic claim · Nonce exposure). |
 | `sm job show <job.id>` | Detail: current state, claim timestamp, TTL remaining, runner, content hash. `--json` omits the `nonce`, same rule as `sm job list`. |
 | `sm job preview <job.id> \| --last` | Print the rendered MD content of the job without executing. Reads from `state_job_contents`; there is no on-disk artifact. `--last` previews the most recently submitted job (newest `createdAt`, any status; no jobs at all → exit 5). Pass exactly one of `<job.id>` or `--last` (neither, or both, is a usage error → exit 2). |
-| `sm job claim [--filter <action>]` | Atomic primitive: return next queued job id, mark it running. Exit 0 with id on stdout; exit 1 if queue empty. `--filter` accepts a qualified `<plugin>/<action>` id or a bare action id (same matching as `sm job list --action`). `--json` returns `{id, nonce, content}`, drivers that intend to call `sm record` afterwards MUST use the `--json` form to receive the nonce. A claimed job whose content row is missing (DB corruption) is marked `failed` / `job-file-missing` and the verb exits 2 with a corruption advisory, in plain and `--json` modes alike (see `job-lifecycle.md` §Atomic claim). |
-| `sm job run` | Full CLI-runner loop: claim + spawn + record. Runs one job. |
-| `sm job run --all` | Drain the queue (sequential through `v1.0`; in-runner parallelism deferred). |
-| `sm job run --max N` | Drain at most N jobs. |
+| `sm job claim [--filter <action>]` | The drain primitive for external agents. Reaps expired running jobs FIRST (`job-lifecycle.md` §Reap procedure), then runs the atomic claim: return next queued job id, mark it running (`runner = agent`). Exit 0 with id on stdout; exit 1 if queue empty. `--filter` accepts a qualified `<plugin>/<action>` id or a bare action id (same matching as `sm job list --action`). `--json` returns `{id, nonce, content}`, drivers that intend to call `sm record` afterwards MUST use the `--json` form to receive the nonce. A claimed job whose content row is missing (DB corruption) is marked `failed` / `job-file-missing` and the verb exits 2 with a corruption advisory, in plain and `--json` modes alike (see `job-lifecycle.md` §Atomic claim). |
 | `sm job status [<job.id>]` | Counts (per status) or single-job status. |
 | `sm job cancel <job.id> \| --all` | Move a `queued` / `running` job to the terminal `cancelled` state (no `failureReason`; `cancelled` is a distinct state, not a `failed` sub-reason). `--all` cancels every `queued` and `running` job. Already-terminal job → exit 2; missing id → exit 5. |
 | `sm job fail <job.id> \| --all` | Symmetric to cancel: move a `queued` / `running` job to the terminal `failed` state with reason `user-failed`. `--all` fails every `queued` and `running` job. Already-terminal job → exit 2; missing id → exit 5. |
@@ -561,6 +555,8 @@ sm record --id <job.id> --nonce <n> --status failed --error "..."
 Closes a running job with failure. The `--error` value is stored verbatim in the execution record.
 
 Exit: 0 on success; 4 on nonce mismatch; 2 when the job is not in `running` state (a late callback after a reap / cancel, see [`job-lifecycle.md`](./job-lifecycle.md) §Record step 3); 5 only when the job id (or the project DB) does not exist; 2 otherwise (bad flags, unreadable report, report-invalid).
+
+`--json` streams the synthetic run envelope as ndjson on stdout, the canonical job-event emission (`spec/job-events.md`: `run.started(mode=external)` → `job.claimed` replay → `job.callback.received` → `job.completed` \| `job.failed` → `run.summary`); there is no other JSON output, the envelope IS the machine-readable result (`job.callback.received.data.executionId` carries the new execution id).
 
 Authentication: the nonce is the sole credential. An implementation MUST reject a mismatched or absent nonce.
 
@@ -800,7 +796,7 @@ Per-Provider conformance suites live next to the Provider's manifest under `<plu
 
 When `--json` is set:
 
-1. Stdout contains ONLY the JSON document (or ndjson lines, for streaming verbs like `sm job run`).
+1. Stdout contains ONLY the JSON document (or ndjson lines, for streaming verbs like `sm watch --json` and `sm record --json`).
 2. Stderr carries logs, progress, and errors.
 3. Non-zero exit codes still apply; consumers MUST NOT infer success from the presence of stdout.
 4. Error payloads on stdout (when the verb emits structured errors) conform to:
@@ -826,7 +822,7 @@ Every verb that does non-trivial work MUST report its own wall-clock duration. C
 
 ### Scope
 
-**In scope**: any verb that walks the filesystem, hits the DB, spawns a subprocess, or renders a report. Examples: `sm scan`, `sm check`, `sm list`, `sm show`, `sm findings`, `sm history`, `sm history stats`, `sm graph`, `sm export`, `sm job submit`, `sm job run`, `sm job claim`, `sm job preview`, `sm record`, `sm doctor`, `sm db backup`, `sm db restore`, `sm db dump`, `sm db migrate`, `sm plugins list`, `sm plugins doctor`, `sm init`, `sm conformance run`.
+**In scope**: any verb that walks the filesystem, hits the DB, spawns a subprocess, or renders a report. Examples: `sm scan`, `sm check`, `sm list`, `sm show`, `sm findings`, `sm history`, `sm history stats`, `sm graph`, `sm export`, `sm job submit`, `sm job claim`, `sm job preview`, `sm record`, `sm doctor`, `sm db backup`, `sm db restore`, `sm db dump`, `sm db migrate`, `sm plugins list`, `sm plugins doctor`, `sm init`, `sm conformance run`.
 
 **Exempt**: informational verbs that return well under a millisecond and would clutter output, `sm --version`, `sm --help`, `sm version`, `sm help`, `sm config get`, `sm config list`, `sm config show`.
 
@@ -864,7 +860,7 @@ The `done in …` stderr line, its format grammar, and the `elapsedMs` field con
 
 - [`architecture.md`](./architecture.md), CLI as a driving adapter; kernel-first design; dependency analyzers.
 - [`job-lifecycle.md`](./job-lifecycle.md), state machine behind `sm job` verbs.
-- [`job-events.md`](./job-events.md), event stream emitted via `--json` and `--stream-output`.
+- [`job-events.md`](./job-events.md), event stream emitted via `--json` (the `sm record` synthetic envelope).
 - [`db-schema.md`](./db-schema.md), tables behind `sm db` verbs.
 - [`conformance/`](./conformance/README.md), test suite exercising CLI behavior.
 

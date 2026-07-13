@@ -37,7 +37,7 @@
  * for a full walk.
  *
  * TODO: when the job subsystem ships (ROADMAP.md § Execution plan,
- * Step 10, "Queue infrastructure" / "LLM runner"), render an output
+ * Step 10, "Queue infrastructure" / "Execution handover"), render an output
  * marker (`(prob)` / `🧠`) on issues whose `analyzerId` belongs to a
  * probabilistic analyzer. Today the stub never produces such issues, so
  * the marker has nothing to attach to and is intentionally absent.

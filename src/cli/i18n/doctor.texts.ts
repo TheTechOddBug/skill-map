@@ -15,7 +15,6 @@ export const DOCTOR_TEXTS = {
   labelJobContents: 'job contents',
   labelJobGc: 'job gc',
   labelPlugins: 'plugins',
-  labelRunner: 'llm runner',
   labelProviders: 'providers',
 
   dbOk: 'PRAGMA quick_check ok',
@@ -42,11 +41,6 @@ export const DOCTOR_TEXTS = {
 
   pluginsOk: 'no plugins in error state',
   pluginsErrored: '{{list}}, run `sm plugins doctor`',
-
-  runnerOk: '{{version}} on PATH',
-  runnerOkNoVersion: 'claude binary on PATH',
-  runnerMissing:
-    'claude binary not on PATH, `sm job run` is unavailable (queue and Skill-agent flows still work)',
 
   providersOk: 'every detected provider matched at least one node',
   providersNoScan: 'no scan persisted yet, detection check skipped',

@@ -1,6 +1,6 @@
 # Job events
 
-Canonical event stream emitted during job execution. Every implementation MUST emit these events in the order described, with the shapes below. Consumers: the CLI pretty printer, the `--json` ndjson output, the Server's WebSocket broadcaster, any third-party integration.
+Canonical event stream emitted around job execution. skill-map never executes a job itself (an external agent drains the queue via `sm job claim` + `sm record`, see `architecture.md` §Execution handover), so the canonical emitter is the RECORD path: closing a job emits the synthetic run envelope below. Every implementation MUST emit these events in the order described, with the shapes below. Consumers: the CLI pretty printer, the `--json` ndjson output, the Server's WebSocket broadcaster, any third-party integration.
 
 This document is **normative**. The event types, payload shapes, and ordering analyzers are stable contracts.
 
@@ -8,12 +8,11 @@ This document is **normative**. The event types, payload shapes, and ordering an
 
 ## Transport
 
-Events are records the kernel produces through `ProgressEmitterPort` (see [`architecture.md`](./architecture.md)). An implementation MUST provide three output adapters:
+Events are records the kernel produces through `ProgressEmitterPort` (see [`architecture.md`](./architecture.md)). An implementation MUST provide two output adapters:
 
 | Adapter | Purpose | Format |
 |---|---|---|
 | `pretty` | Default TTY output. Human-readable, colored, line-based progress. | Free-form; not normative. |
-| `stream-output` | Pretty + model tokens inline. Debugging mode. | Free-form; not normative. |
 | `json` | Machine-readable ndjson. One event per line, each a complete JSON object. | **Normative.** Matches the shapes below. |
 
 The Server exposes the same events over WebSocket (`/ws`) using the same JSON shapes; each event is a single WS text frame.
@@ -38,7 +37,7 @@ Every event is a JSON object with this envelope:
 |---|---|---|
 | `type` | always | One of the canonical event types below. |
 | `timestamp` | always | Unix milliseconds when the event was emitted. |
-| `runId` | always | Identifier of the invocation that emitted the event. CLI runner loops use `r-YYYYMMDD-HHMMSS-XXXX`; synthetic or non-job runs add one mode segment: `r-<mode>-YYYYMMDD-HHMMSS-XXXX`. Canonical modes: `ext` (external Skill claims), `scan` (scan runs), `check` (standalone issue recomputations). |
+| `runId` | always | Identifier of the invocation that emitted the event: `r-<mode>-YYYYMMDD-HHMMSS-XXXX`. Canonical modes: `ext` (agent-driven claim/record runs, the ONLY job-run flavor), `scan` (scan runs), `check` (standalone issue recomputations). |
 | `jobId` | when job-scoped | The job the event refers to. Null for run-level events (`run.*`). |
 | `data` | per-event | Event-specific payload, shape below. |
 
@@ -50,66 +49,27 @@ Unknown fields in `data` MUST be ignored by consumers (forward compatibility).
 
 ## Event catalog
 
-Emitted in roughly this order during `sm job run --all`. The sequence may interleave for parallel runs (deferred to post-`v1.0`).
+Emitted in this order by `sm record --json` when it closes a job (the synthetic envelope wraps exactly one job). Parallel agents each produce their own envelopes; sequences never interleave within one envelope.
 
 ### `run.started`
 
-Emitted once at the start of every `sm job run`.
+Opens the synthetic envelope. `mode` is always `external`: the run was driven by an external agent's claim.
 
 ```json
 {
   "type": "run.started",
   "timestamp": 1745159455123,
-  "runId": "r-20260420-143055-a3f2",
+  "runId": "r-ext-20260420-143055-a3f2",
   "jobId": null,
   "data": {
-    "mode": "single | all | max",
-    "maxJobs": 10,
-    "filter": { "action": "skill-summarizer" }
+    "mode": "external"
   }
 }
 ```
-
-- `mode`: what the runner was asked to do.
-- `maxJobs`: cap on concurrent drain (`--max N` or null).
-- `filter`: resolved filter predicate (free-form object).
-
-### `run.reap.started`
-
-Emitted before auto-reap scans for expired jobs.
-
-```json
-{
-  "type": "run.reap.started",
-  "timestamp": 1745159455200,
-  "runId": "...",
-  "jobId": null,
-  "data": {}
-}
-```
-
-### `run.reap.completed`
-
-Emitted after auto-reap finishes.
-
-```json
-{
-  "type": "run.reap.completed",
-  "timestamp": 1745159455201,
-  "runId": "...",
-  "jobId": null,
-  "data": {
-    "reapedCount": 0,
-    "reapedIds": []
-  }
-}
-```
-
-- `reapedIds` lists jobs transitioned from `running` to `failed`. May be empty.
 
 ### `job.claimed`
 
-Emitted when the runner successfully claims a job.
+The claim leg of the envelope. `sm job claim`'s own stdout is the `{ id, nonce, content }` handover contract (never ndjson), so the claim is REPLAYED into the synthetic envelope when `sm record` closes the job, with the claim data read from the job row. The claim itself is the spawn signal: there is no separate spawning event.
 
 ```json
 {
@@ -126,63 +86,6 @@ Emitted when the runner successfully claims a job.
   }
 }
 ```
-
-### `job.skipped`
-
-Emitted when a drain attempts to claim but finds no eligible job.
-
-```json
-{
-  "type": "job.skipped",
-  "timestamp": 1745159455400,
-  "runId": "...",
-  "jobId": null,
-  "data": {
-    "reason": "queue-empty | filter-excluded-all"
-  }
-}
-```
-
-### `job.spawning`
-
-Emitted when the runner is about to execute the job content.
-
-```json
-{
-  "type": "job.spawning",
-  "timestamp": 1745159455500,
-  "runId": "...",
-  "jobId": "...",
-  "data": {
-    "runner": "cli | skill | in-process",
-    "command": "claude -p",
-    "contentHash": "0a3f…"
-  }
-}
-```
-
-`command` is implementation-defined free-form; descriptive, not invokable. `contentHash` references the `state_job_contents` row the runner is about to execute, letting observers correlate the spawn with the rendered content (in DB, not on disk).
-
-> **Hookable**, see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Plugins MAY subscribe a `hook` extension for pre-flight checks or audit logging. Reactions only, hooks cannot block the spawn.
-
-### `model.delta`
-
-Emitted in `stream-output` mode only; carries incremental model output.
-
-```json
-{
-  "type": "model.delta",
-  "timestamp": 1745159456000,
-  "runId": "...",
-  "jobId": "...",
-  "data": {
-    "text": "Analyzing the skill...",
-    "channel": "assistant | thinking | tool-use"
-  }
-}
-```
-
-Consumers of the canonical `json` output MAY receive these events if the runner emitted them. `pretty` and `json` adapters MAY drop `model.delta` events for brevity.
 
 ### `job.callback.received`
 
@@ -204,20 +107,19 @@ Emitted inside `sm record` when the callback arrives and passes nonce validation
 
 `executionId` references the just-written `state_executions` row whose `report_json` carries the report payload. Consumers needing the content fetch it via `sm history --json` or the DB; the event stays small.
 
-`runId` is the run that originally claimed the job. If `record` is called from outside a CLI run (canonical case: a Skill agent that called `sm job claim` + `sm record` without entering `sm job run`), the kernel MUST synthesize a `runId` of the form `r-ext-YYYYMMDD-HHMMSS-XXXX` (same timestamp + 4-hex shape as real run ids, `r-ext-` prefix reserved for externally-driven claims).
+The kernel synthesizes the `runId` at record time: `r-ext-YYYYMMDD-HHMMSS-XXXX` (`ext` = externally-driven claim, the only job-run flavor).
 
-Synthetic-run envelope: when a Skill agent claims a job, the kernel MUST emit a full envelope covering that claim, on the server's WebSocket and in the `--json` ndjson stream if active:
+Synthetic-run envelope, the canonical emission (`sm record --json` stdout, and the server's WebSocket when active):
 
 ```
 run.started (mode="external")
-  → job.claimed
-  → (no job.spawning, the claim itself is the spawn signal for external runs)
+  → job.claimed          (replayed from the job row)
   → job.callback.received
   → (job.completed | job.failed)
   → run.summary
 ```
 
-`run.started.data.mode` carries the literal `external` so UI consumers can render skill-driven work differently from CLI-driven work. `run.summary` closes the synthetic run as soon as the callback is processed; one synthetic run always wraps exactly one job. This keeps the WebSocket broadcaster's contract ("every job event lives inside a run envelope") intact across both runner paths.
+`run.summary` closes the synthetic run as soon as the callback is processed; one synthetic run always wraps exactly one job, so every job event lives inside a run envelope.
 
 ### `job.completed`
 
@@ -268,7 +170,7 @@ Emitted when a job transitions to `failed` by any path.
 
 ### `run.summary`
 
-Emitted once at the end of `sm job run`, after the last job event.
+Closes the envelope, after the terminal job event. A synthetic run wraps exactly one job, so the counts are 0/1-valued; the shape stays aggregate-ready for transports that batch envelopes.
 
 ```json
 {
@@ -277,12 +179,12 @@ Emitted once at the end of `sm job run`, after the last job event.
   "runId": "...",
   "jobId": null,
   "data": {
-    "jobsAttempted": 5,
-    "jobsCompleted": 4,
-    "jobsFailed": 1,
-    "totalDurationMs": 20000,
-    "totalTokensIn": 12500,
-    "totalTokensOut": 5300
+    "jobsAttempted": 1,
+    "jobsCompleted": 1,
+    "jobsFailed": 0,
+    "totalDurationMs": 9700,
+    "totalTokensIn": 2431,
+    "totalTokensOut": 1072
   }
 }
 ```
@@ -293,24 +195,15 @@ Emitted once at the end of `sm job run`, after the last job event.
 
 ## Ordering analyzers
 
-For each job, the normative order is:
+For each envelope (one job), the normative order is:
 
 ```
-job.claimed → job.spawning → (model.delta)* → job.callback.received → (job.completed | job.failed)
+run.started → job.claimed → job.callback.received → (job.completed | job.failed) → run.summary
 ```
 
-For a run:
+Envelopes never interleave: each is emitted atomically when `sm record` closes its job. Distinct jobs recorded by parallel agents produce distinct envelopes with distinct `runId`s.
 
-```
-run.started
-  → run.reap.started → run.reap.completed
-  → (per-job sequence above)*
-  → run.summary
-```
-
-A parallel implementation MAY interleave per-job sequences across different `jobId` values, but MUST preserve ordering within a single `jobId`.
-
-`job.failed` with reason `abandoned` MAY appear without a matching `job.claimed` in the current run: it refers to a job claimed in a previous run that expired before the next reap.
+The claim-side reap (`sm job claim` reaps expired running jobs before claiming, `job-lifecycle.md` §Reap procedure) emits NO events from the CLI: the claim verb's stdout is the `{ id, nonce, content }` handover contract, never ndjson. An implementation with a live event transport (the server's WebSocket) SHOULD emit a minimal `run.started → job.failed(reason=abandoned) → run.summary` envelope per reaped job, with no `job.claimed` replay (the original claimant never reported back); reaped jobs are always visible via `sm job list --status failed`.
 
 ---
 
@@ -509,13 +402,13 @@ Consumers MAY treat `emitter.error` as a soft failure (log and continue). Implem
 
 - [`architecture.md`](./architecture.md), `ProgressEmitterPort` definition.
 - [`job-lifecycle.md`](./job-lifecycle.md), state machine that drives these events.
-- [`cli-contract.md`](./cli-contract.md), `--json` and `--stream-output` flag semantics.
+- [`cli-contract.md`](./cli-contract.md), `--json` flag semantics.
 
 ---
 
 ## Stability
 
-The **job event type list** (`run.*`, `job.*`, `model.delta`, `emitter.error`) is stable as of spec v1.0.0. Adding a new event type is a minor bump; removing or renaming one is a major bump.
+The **job event type list** (`run.started`, `run.summary`, `job.claimed`, `job.callback.received`, `job.completed`, `job.failed`, `emitter.error`) is stable as of spec v1.0.0. Adding a new event type is a minor bump; removing or renaming one is a major bump.
 
 **Adding** fields to `data` is a minor bump; changing a field's type or removing a field is a major bump.
 

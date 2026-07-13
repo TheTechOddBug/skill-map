@@ -18,7 +18,7 @@
  *      Renaming any of these is a spec change.
  *
  *   2. **Hexagonal ports**, the abstract boundaries the kernel calls
- *      out to (`StoragePort`, `RunnerPort`, `ProgressEmitterPort`,
+ *      out to (`StoragePort`, `ProgressEmitterPort`,
  *      `FilesystemPort`, `PluginLoaderPort`). **`Port` suffix.** The
  *      suffix calls out the architectural role and avoids name clashes
  *      with the concrete adapter classes (`SqliteStorageAdapter`
@@ -164,9 +164,9 @@ export type Stability = 'experimental' | 'stable' | 'deprecated';
  *
  *   - `deterministic`, pure code, runs synchronously inside `sm scan` /
  *     `sm check`. Same input → same output, every run.
- *   - `probabilistic`, calls an LLM through `RunnerPort`, dispatches only
- *     as a queued job (`sm job submit <kind>:<id>`); never participates in
- *     scan-time pipelines.
+ *   - `probabilistic`, needs an LLM, dispatches only as a queued job
+ *     (`sm job submit`) an external agent drains via `sm job claim` +
+ *     `sm record`; never participates in scan-time pipelines.
  *
  * Extractor / Rule / Action declare it directly (default `deterministic` when
  * omitted in the manifest). Provider / Formatter are deterministic-only and
@@ -586,7 +586,7 @@ export type ExecutionFailureReason =
   | 'abandoned'
   | 'job-file-missing'
   | 'user-failed';
-export type ExecutionRunner = 'cli' | 'skill' | 'in-process';
+export type ExecutionRunner = 'agent' | 'in-process';
 
 /**
  * One row of execution history (`state_executions`). Matches
@@ -621,7 +621,7 @@ export type JobFailureReason =
   | 'abandoned'
   | 'job-file-missing'
   | 'user-failed';
-export type JobRunner = 'cli' | 'skill' | 'in-process';
+export type JobRunner = 'agent' | 'in-process';
 
 /**
  * One row of the job queue (`state_jobs`). Matches

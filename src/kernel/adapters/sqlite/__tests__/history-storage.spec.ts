@@ -57,7 +57,7 @@ function makeExec(partial: Partial<ExecutionRecord> & Pick<ExecutionRecord, 'id'
     status: 'completed',
     failureReason: null,
     exitCode: 0,
-    runner: 'cli',
+    runner: 'agent',
     finishedAt: partial.startedAt + 1000,
     durationMs: 1000,
     tokensIn: 100,
@@ -85,7 +85,7 @@ describe('insertExecution + listExecutions', () => {
       strictEqual(r.extensionVersion, '1.0.0');
       deepStrictEqual(r.nodeIds, ['skills/foo.md']);
       strictEqual(r.status, 'completed');
-      strictEqual(r.runner, 'cli');
+      strictEqual(r.runner, 'agent');
       strictEqual(r.startedAt, 1_000_000);
       strictEqual(r.finishedAt, 1_001_000);
       strictEqual(r.durationMs, 1000);

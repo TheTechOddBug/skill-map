@@ -8,7 +8,7 @@ export const RECORD_TEXTS = {
   // --- operational errors (exit 2 / 4 / 5) -------------------------------
   errPrefix: '{{glyph}}  sm record: {{message}}\n',
   errBadStatus: '--status must be completed or failed, got {{status}}',
-  errNeedReport: '--status completed requires --report <path|-> (the runner report)',
+  errNeedReport: "--status completed requires --report <path|-> (the agent's report)",
   errBadNumber: '{{flag}} must be a non-negative integer, got {{value}}',
   errJobNotFound: 'job {{id}} not found',
   errNonceMismatch: 'nonce does not match job {{id}}',

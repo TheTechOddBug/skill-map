@@ -130,9 +130,15 @@ function buildHookContext(
     settings: _hook.resolvedSettings ?? {},
     event: {
       type: trigger,
-      timestamp: event.timestamp,
+      // Hook events carry ISO-8601 strings (`IHookEvent.timestamp`);
+      // job-event envelopes carry Unix ms. Convert at this seam so the
+      // hook contract stays stable regardless of the emitting family.
+      timestamp:
+        typeof event.timestamp === 'number'
+          ? new Date(event.timestamp).toISOString()
+          : event.timestamp,
       ...(event.runId !== undefined ? { runId: event.runId } : {}),
-      ...(event.jobId !== undefined ? { jobId: event.jobId } : {}),
+      ...(typeof event.jobId === 'string' ? { jobId: event.jobId } : {}),
       data: event.data,
     },
   };

@@ -341,7 +341,7 @@ export default {
 
 Declarative subscribers to a curated set of kernel lifecycle events. **Deterministic-only**: a hook reacts to events and cannot mutate the pipeline, block emission, or alter outputs. Errors are caught by the dispatcher (logged as `extension.error` with `kind: 'hook-error'`) and NEVER block the main flow. LLM-dependent reactions are modeled as a deterministic Hook that enqueues a probabilistic Action via `ctx.queue('<plugin>/<action>', payload)`. Spec at [`schemas/extensions/hook.schema.json`](./schemas/extensions/hook.schema.json); triggers at [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set).
 
-The ten hookable triggers (any other yields `invalid-manifest`): eight pipeline-driven, `scan.started`, `scan.completed`, `extractor.completed`, `analyzer.completed`, `action.completed`, `job.spawning`, `job.completed`, `job.failed`, plus two CLI-process-driven, `boot` (before verb routing) and `shutdown` (after the verb's exit code resolves).
+The nine hookable triggers (any other yields `invalid-manifest`): seven pipeline-driven, `scan.started`, `scan.completed`, `extractor.completed`, `analyzer.completed`, `action.completed`, `job.completed`, `job.failed`, plus two CLI-process-driven, `boot` (before verb routing) and `shutdown` (after the verb's exit code resolves).
 
 ```javascript
 export default {
@@ -391,7 +391,7 @@ An Action whose `invoke()` returns a sidecar write (`writes: [{ kind: 'sidecar',
 
 An Action has two independent surfaces:
 
-- **`invoke(input, ctx)`**, the on-demand executor the user triggers (deterministic in-process code, or a probabilistic rendered prompt the runner executes). Unit-test deterministic ones by calling `invoke(input, ctx)` with a fake context; probabilistic ones still need a live kernel until Step 10 lands the job subsystem.
+- **`invoke(input, ctx)`**, the on-demand executor the user triggers (deterministic in-process code; a probabilistic Action has NO `invoke`, its rendered prompt is drained by an external agent via `sm job claim` + `sm record`). Unit-test deterministic ones by calling `invoke(input, ctx)` with a fake context; probabilistic ones are tested through the queue (submit, then record a report against the schema).
 - **`project(ctx)`** (optional), a deterministic, side-effect-free, scan-time method with read-only graph access (`ctx.nodes`, `ctx.links`) plus `ctx.emitContribution(nodePath, ref, payload)`. Use it to self-project the Action's own UI affordance, typically an `inspector.action.button` declared in the manifest `ui` map (see [View contributions](#view-contributions)), computing the per-node `enabled` / prompt `options` from the live graph. It stays deterministic even when `invoke` is probabilistic, and runs every scan (same cost as an analyzer's emit). This is how built-in buttons like Set stability / Bump are produced: the dispatching Action owns its button, no separate "projector" analyzer. Unit-test it by calling `project(ctx)` with a fake `{ nodes, links, emitContribution }` and asserting the captured payload.
 
 ---
@@ -455,7 +455,7 @@ A schema file missing / unparseable / AJV-rejected at load flips the plugin to `
 
 Analyzer and Action declare `mode` (optional, default `'deterministic'`); Provider / Extractor / Formatter / Hook are deterministic-only by spec and MUST NOT declare it.
 
-A `probabilistic` Analyzer / Action receives `ctx.runner` (a `RunnerPort`) and dispatches its work to the configured LLM runner; it runs ONLY as a queued job (`sm job submit <kind>:<id>`), never in `sm scan`. The full per-kind capability matrix lives in [`architecture.md` §Execution modes](./architecture.md#execution-modes).
+A `probabilistic` Analyzer / Action never receives an LLM handle: its contribution is the prompt (`prompt.md`) plus the report contract (`report.schema.json`), rendered into a queued job (`sm job submit`) that an external agent drains via `sm job claim` + `sm record`; it never runs in `sm scan`. The full per-kind capability matrix lives in [`architecture.md` §Execution modes](./architecture.md#execution-modes).
 
 ---
 
@@ -756,7 +756,7 @@ test('emits one reference per [[ref:<name>]] token', async () => {
 });
 ```
 
-Analyzers take a `ctx` with `nodes`, `links`, and (if you assert on view contributions) an `emitContribution` spy, returning the issue array. Formatters take `{ nodes, links, issues }` and return a string. For probabilistic Actions, shape a fake `ctx.runner` that records the calls your test cares about. The public TypeScript types (`IExtractor`, `IAnalyzer`, `IFormatter`, the matching `*Context` types, `Node`, `Link`, `Issue`, ...) re-export from `@skill-map/cli`.
+Analyzers take a `ctx` with `nodes`, `links`, and (if you assert on view contributions) an `emitContribution` spy, returning the issue array. Formatters take `{ nodes, links, issues }` and return a string. For probabilistic Actions, test the queue round-trip: submit against a fixture node, then `sm record` a handcrafted report and assert it validates against your `report.schema.json`. The public TypeScript types (`IExtractor`, `IAnalyzer`, `IFormatter`, the matching `*Context` types, `Node`, `Link`, `Issue`, ...) re-export from `@skill-map/cli`.
 
 ---
 

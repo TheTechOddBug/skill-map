@@ -392,7 +392,7 @@ export interface StoragePort {
      * nothing matches `filter`, an `actionId` restriction). The statement's
      * second `AND status='queued'` is the mandatory race guard, two racers
      * selecting the same id yield exactly one winning UPDATE. `sm job claim`
-     * exposes this to Skill agents (`runner='skill'`).
+     * exposes this to external agents (`runner='agent'`).
      */
     claim(runner: JobRunner, nowMs: number, filter?: string): Promise<IJobClaim | null>;
     /**
@@ -439,10 +439,12 @@ export interface StoragePort {
     /**
      * Auto-reap (`spec/job-lifecycle.md` §Reap procedure): transition every
      * `running` job whose `expiresAt < nowMs` to `failed` / `abandoned`
-     * with `finishedAt = nowMs`; returns the reaped count. Invoked at the
-     * start of `sm job run` (a later phase), no standalone verb.
+     * with `finishedAt = nowMs`; returns the reaped job ids (a live event
+     * transport MAY surface them, `spec/job-events.md` §Ordering; the CLI
+     * claim verb ignores them silently). Invoked at the start of every
+     * `sm job claim`, before the claim statement; no standalone verb.
      */
-    reapExpired(nowMs: number): Promise<number>;
+    reapExpired(nowMs: number): Promise<string[]>;
     /**
      * Retention GC, in one transaction: delete `state_jobs` rows in
      * terminal `status` whose `finishedAt` is older than `cutoffMs`
@@ -567,8 +569,8 @@ export interface StoragePort {
      * Append a single `state_executions` row (the table is append-only
      * through v1.0). The primitive history write the port previously
      * lacked; `sm record` transitions atomically through
-     * `jobs.recordTerminal`, while a standalone in-process action or a
-     * future `sm job run` leg that has no job row uses this directly.
+     * `jobs.recordTerminal`, while a standalone in-process action with
+     * no job row uses this directly.
      */
     insertExecution(record: ExecutionRecord): Promise<void>;
     /**

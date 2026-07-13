@@ -7,8 +7,9 @@
  *
  * Coverage:
  *   - claim: prints the highest-priority id (plain), returns
- *     { id, nonce, content } (--json), exits 1 on an empty queue, and
- *     scopes by --filter.
+ *     { id, nonce, content } (--json), exits 1 on an empty queue,
+ *     scopes by --filter, and silently reaps expired running jobs to
+ *     failed / abandoned before claiming (job-lifecycle §Reap).
  *   - status: counts (plain + --json), single-job line, missing id -> 5.
  *   - cancel: queued -> exit 0 (terminal `cancelled` state, no reason),
  *     terminal -> 2, missing -> 5, --all count, and the neither / both
@@ -177,7 +178,7 @@ describe('sm job claim', () => {
       const job = await adapter.jobs.get(B.id);
       ok(job);
       strictEqual(job.status, 'running');
-      strictEqual(job.runner, 'skill');
+      strictEqual(job.runner, 'agent');
     } finally {
       await adapter.close();
     }
@@ -219,6 +220,47 @@ describe('sm job claim', () => {
       return cap.stdout().trim();
     });
     strictEqual(claimed, B.id, 'only the matching action id was claimed');
+  });
+
+  it('silently reaps expired running jobs to failed / abandoned before claiming', async () => {
+    const proj = await setupProject([
+      { ...A, createdAt: 1_700_000_000_000 },
+      { ...B, createdAt: 1_700_000_000_010 },
+    ]);
+    // Claim A (oldest) and force its TTL into the past: an abandoned agent.
+    const seed = await openDb(proj.dbPath);
+    try {
+      const claim = await seed.jobs.claim('agent', Date.now());
+      ok(claim);
+      strictEqual(claim.id, A.id);
+      await seed.db
+        .updateTable('state_jobs')
+        .set({ expiresAt: Date.now() - 1_000 })
+        .where('id', '=', A.id)
+        .execute();
+    } finally {
+      await seed.close();
+    }
+
+    const code = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const c = await run(buildClaim(), cap);
+      // The reap is silent: stdout carries ONLY the new claim.
+      strictEqual(cap.stdout(), `${B.id}\n`);
+      strictEqual(cap.stderr(), '');
+      return c;
+    });
+    strictEqual(code, 0);
+
+    const adapter = await openDb(proj.dbPath);
+    try {
+      const reaped = await adapter.jobs.get(A.id);
+      ok(reaped);
+      strictEqual(reaped.status, 'failed');
+      strictEqual(reaped.failureReason, 'abandoned');
+    } finally {
+      await adapter.close();
+    }
   });
 
   it('accepts a bare action id in --filter (matches the qualified id by suffix)', async () => {

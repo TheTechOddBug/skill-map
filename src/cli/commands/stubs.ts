@@ -126,17 +126,15 @@ export class FindingsCommand extends StubCommand {
 // ---------------------------------------------------------------------------
 //
 // Every job verb below ships in ROADMAP.md § Execution plan, Step 10
-// ("Queue infrastructure" + "LLM runner"). They are wired as stubs
-// today so `sm help` advertises the full command surface. The real
-// implementations land in `cli/commands/jobs.ts`
+// ("Queue infrastructure" + "Execution handover"). They are wired as
+// stubs today so `sm help` advertises the full command surface. The
+// real implementations land in `cli/commands/jobs.ts`
 // (which already hosts `sm job prune`).
 
 // JobSubmitCommand / JobListCommand / JobShowCommand moved to
 // ./job-queue.ts (lands real in Step 10, queue infrastructure).
 // JobClaimCommand / JobStatusCommand / JobCancelCommand moved to
 // ./job-queue.ts (lands real in Step 10 Phase C).
-// JobRunCommand moved to ./job-run.ts (lands real in Step 10 Phase E, the
-// CLI-runner drain loop).
 
 // JobPruneCommand moved to ./jobs.ts (lands real in Step 7.3).
 

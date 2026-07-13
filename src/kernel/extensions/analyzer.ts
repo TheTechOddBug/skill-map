@@ -3,10 +3,10 @@
  * Provider and extractor has completed; emits issues and MAY project
  * findings into the UI via view contributions. Deterministic analyzers
  * are pure (same graph in → same issues out) and run synchronously
- * inside `sm scan` / `sm check`. Probabilistic analyzers invoke an LLM
- * through the kernel's `RunnerPort` and dispatch only as queued jobs,
- * they never participate in scan-time pipelines. Mode is declared in
- * the manifest (default `deterministic`).
+ * inside `sm scan` / `sm check`. Probabilistic analyzers dispatch only
+ * as queued jobs an external agent drains (`sm job claim` +
+ * `sm record`), they never participate in scan-time pipelines. Mode is
+ * declared in the manifest (default `deterministic`).
  */
 
 import type { IExtensionBase } from './base.js';

@@ -14,7 +14,7 @@
  * Roots are validated up front: each entry of `RunScanOptions.roots`
  * must exist on disk as a directory. The first failure throws a clear
  * `Error` naming the offending path. This guards every caller (CLI,
- * server, skill-agent) against silently producing a zero-filled
+ * server) against silently producing a zero-filled
  * `ScanResult` when a Provider walks a non-existent path, the bug
  * that wiped a populated DB via `sm scan -- --dry-run` (clipanion's
  * `--` made `--dry-run` a positional root that did not exist).

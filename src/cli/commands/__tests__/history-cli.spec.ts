@@ -125,7 +125,7 @@ function makeExec(partial: Partial<ExecutionRecord> & Pick<ExecutionRecord, 'id'
     status: 'completed',
     failureReason: null,
     exitCode: 0,
-    runner: 'cli',
+    runner: 'agent',
     finishedAt: partial.startedAt + 1000,
     durationMs: 1000,
     tokensIn: 10,

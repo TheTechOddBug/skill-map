@@ -77,7 +77,7 @@ The dual-mode capability is the meta-property that lets the same extension model
 | Concept | Description |
 |---|---|
 | **Deterministic mode** | Pure code. Same input → same output, every run. Runs synchronously inside `sm scan` / `sm check`. Fast, free, CI-safe. |
-| **Probabilistic mode** | Calls an LLM through the kernel's `RunnerPort` (`ClaudeCliRunner`, `MockRunner`, third-party runners). Output may vary across runs. NEVER participates in `sm scan`; dispatches as a queued job (`sm job submit <kind>:<id>`). The kernel rejects probabilistic extensions that try to register scan-time hooks at load time. |
+| **Probabilistic mode** | Executed by an LLM OUTSIDE the kernel: the extension contributes a prompt + report schema, the kernel renders and queues a job, an external agent drains it (claim/record). Output may vary across runs. NEVER participates in `sm scan`. The kernel rejects probabilistic extensions that try to register scan-time hooks at load time. |
 | **Per-kind capability** | Three kinds are dual-mode (declared in manifest's `mode` field): **Analyzer**, **Action**, **Hook** (Action requires the field; the others default to `deterministic`). Three kinds are deterministic-only because they sit on the deterministic scan path: **Provider** (filesystem-to-graph), **Extractor** (parsed-node-to-callbacks), **Formatter** (graph-to-string). The `mode` field MUST NOT appear on Provider, Extractor, or Formatter manifests. |
 
 The full normative contract lives in [`spec/architecture.md`](./spec/architecture.md) §Execution modes.
@@ -99,15 +99,13 @@ The full normative contract lives in [`spec/architecture.md`](./spec/architectur
 | **Action (type)** | Defined by a plugin. What the user can invoke. |
 | **Job** | Runtime instance of an Action over one or more nodes (replaces the term "dispatch"). Lives in `state_jobs`. |
 | **Job content** | Rendered prompt (preamble + action template + interpolated node content) for a job, stored DB-only in `state_job_contents` keyed by `content_hash`. No on-disk artifact; `sm job preview` and `sm job claim --json` read it from the DB. Ephemeral. |
-| **CLI runner loop** | Driving adapter, the `sm job run` command itself. Claims queued jobs, spawns a `RunnerPort` impl, and records callbacks. Does NOT implement `RunnerPort`. |
-| **`ClaudeCliRunner`** | Default `RunnerPort` impl (driven adapter). Spawns a `claude -p` subprocess per item; `MockRunner` is the test fake. Lands in Step 10 with the job subsystem. |
-| **Skill agent** | Driving adapter that runs inside an LLM session and consumes `sm job claim` + `sm record` like any other client. Does NOT implement `RunnerPort`; peer of CLI / Server. |
+| **Agent drain protocol** | THE execution path for probabilistic jobs: an external agent (any LLM runtime) loops `sm job claim` (reap-first, atomic, returns the rendered prompt + nonce) → executes with its own model → `sm record` (nonce-validated callback). skill-map never invokes an agent; the removed `sm job run` / `RunnerPort` spawn path (decision 2026-07-13) is documented in `spec/architecture.md` §Execution handover. |
 | **Report** | JSON produced by a job, validated against the schema declared by the action. |
 | **Callback** | Call to `sm record` that closes a job: status, tokens, duration. |
 | **Nonce** | Unique per-job token (`state_jobs.nonce`), handed back by `sm job claim --json`. Required by `sm record` to prevent callback forgery. |
 | **Content hash** | Hash identifying a job for deduplication: `sha256(actionId + actionVersion + bodyHash + frontmatterHash + promptTemplateHash)`. |
 | **Atomic claim** | `UPDATE ... RETURNING id` operation letting a runner take a queued job without a race. |
-| **Reap** | Automatic process at the start of every `sm job run` that detects `running` jobs with expired TTL and marks them `failed` (reason `abandoned`). |
+| **Reap** | Automatic process at the start of every `sm job claim` that detects `running` jobs with expired TTL and marks them `failed` (reason `abandoned`). |
 
 ### States
 
@@ -256,17 +254,17 @@ Mirrors the interactive timeline on `skill-map.ai` (driven by `web/modules/roadm
 ●       Live conversations           consent-gated threaded agent dialogs (opt-in, ephemeral)
 ○       Execution snapshot           persistent immutable audit of every run (deferred, rides the same pipe later)
   ────────────────────────────────────────────────────────────────────────
-   ▶ YOU ARE HERE · Step 10 (job subsystem) Phases 0-F shipped on the rc channel · DB-only queue + runners + drain loop + markdown-summarizer + summary write-through + preamble conformance · skill-map@0.88 · next: Step 10 Phase G (Skill agent, extension-mode-routing, github-enrichment), then Step 11 (LLM verbs)
+   ▶ YOU ARE HERE · Step 10 pull-only queue (decision 2026-07-13: skill-map never invokes the agent; sm job run/RunnerPort removed) · claim/record agent drain + synthetic event envelope · universal markdown-summarizer · skill-map@0.88 · next: Phase G (drain deliverable skill-vs-MCP evaluation, github-enrichment), then Step 11 (LLM verbs)
 
 ═══════════════════════════════════════════════════════════════════════════
   PHASE D · LLM AS AN OPTIONAL LAYER (summaries, semantic verbs)
 ═══════════════════════════════════════════════════════════════════════════
 ●  9.6  Foundation refactors         Open node kinds · storage port promotion (5 namespaces) · universal enrichment · incremental scan cache
 ●  10a  Queue infrastructure         state_jobs + content-addressed state_job_contents · atomic claim · sm job submit/list/show/preview(--last)/claim/cancel/fail/status · sm record + nonce
-●  10b  LLM runner                   ClaudeCliRunner + MockRunner · ctx.runner injection · sm job run drain loop
+●  10b  Agent drain protocol         claim (reap-first) + record (synthetic ndjson envelope) · runner=agent · sm job run/RunnerPort built then REMOVED (pull-only decision 2026-07-13)
 ●  10c  First probabilistic ext      markdown-summarizer (Action) · state_summaries write-through · preamble-bitwise-match conformance
-●  10d  Doctor + actions verbs       sm doctor (8 checks incl. runner probe) · sm actions list/show
-○  10e  Phase G polish + Skill agent /skill-map:run-queue Skill agent · extension-mode-routing · github-enrichment plugin
+●  10d  Doctor + actions verbs       sm doctor (7 checks; the runner probe died with the pull-only cut) · sm actions list/show
+○  10e  Phase G polish               agent-drain deliverable (skill vs MCP, evaluation pending) · github-enrichment plugin · (extension-mode-routing ✅ 2026-07-13)
 ○  11b  Semantic LLM verbs           sm what · sm dedupe · sm cluster-triggers · sm impact-of · sm recommend-optimization · sm findings
 ○  11c  /skill-map:explore meta      cross-extension orchestration over the queue + summaries
 ○  16   UI: LLM surfaces v1          Inspector summary/enrichment/findings cards (read-only) · /findings page · per-card refresh · cost surfacing · BFF endpoints
@@ -402,11 +400,11 @@ skill-map/
                 Driven adapters (secondary)
 ```
 
-(ProgressEmitterPort exists alongside the four shown; its adapters are terminal sinks, `pretty` / `stream-output` / `--json`, and do not participate in the kernel-owning diagram.)
+(ProgressEmitterPort exists alongside the three shown; its adapters are terminal sinks, `pretty` / `--json` ndjson, and do not participate in the kernel-owning diagram.)
 
-The kernel accepts ports (`StoragePort`, `FilesystemPort`, `PluginLoaderPort`, `RunnerPort`, `ProgressEmitterPort`) and never imports SQLite, fs, or subprocess directly. The normative port contract and IO discipline live in [`spec/architecture.md`](./spec/architecture.md) (§Ports, §Layering). Design consequences worth restating here:
+The kernel accepts ports (`StoragePort`, `FilesystemPort`, `PluginLoaderPort`, `ProgressEmitterPort`) and never imports SQLite, fs, or subprocess directly (there is deliberately NO runner port: execution is handed to external agents, `spec/architecture.md` §Execution handover). The normative port contract and IO discipline live in [`spec/architecture.md`](./spec/architecture.md) (§Ports, §Layering). Design consequences worth restating here:
 
-- Each adapter is swappable: `InMemoryStorageAdapter` / `MockRunner` in tests, `SqliteStorageAdapter` / `ClaudeCliRunner` in production. The test pyramid collapses cleanly, unit tests inject mocks into the kernel, integration tests wire real adapters.
+- Each adapter is swappable: in-memory fakes in tests, `SqliteStorageAdapter` in production. The test pyramid collapses cleanly, unit tests inject mocks into the kernel, integration tests wire real adapters.
 - CLI and UI are **peers** consuming the same kernel API; neither depends on the other.
 
 ### Package layout
@@ -445,7 +443,6 @@ skill-map/                        ← private root workspace (not published)
 │       ├── sqlite/               node:sqlite + Kysely + CamelCasePlugin
 │       ├── filesystem/           real fs
 │       ├── plugin-loader/        drop-in discovery
-│       └── runner/               claude -p subprocess (ClaudeCliRunner) + MockRunner
 │
 └── ui/                 [Step 0c] workspace #3, Angular SPA (standalone) + Foblex Flow + PrimeNG
     └── (scaffolded when Step 0c starts; isolation analyzer: no import from ../src/)
@@ -506,9 +503,10 @@ Terminal states `completed` / `failed` / `cancelled`. `cancelled` is a distinct 
 
 Three execution paths, matching the `runner` field in `job.schema.json` (`cli` / `skill` / `in-process`):
 
-- **CLI runner loop** (`sm job run`, `runner: cli`): claims, invokes a `RunnerPort` impl (`ClaudeCliRunner` in prod, `MockRunner` in tests) as a `claude -p` subprocess per item (the rendered content is materialized from the `state_job_contents` row into an ephemeral temp file the runner removes after spawn), then records. Context-free; for CI / cron / batch.
-- **Skill agent** (`/skill-map:run-queue`, `runner: skill`): a peer driving adapter (to CLI / Server) that consumes `sm job claim` + `sm record` from inside an LLM session, the agent IS the execution and never crosses `RunnerPort` (the "runner" label here is descriptive, not structural). Context bleeds between items; for interactive use.
-- **In-process** (`mode: local`, `runner: in-process`): the action's own code produces the report synchronously, no rendered content row, no subprocess; the kernel validates it against the action's report schema and transitions straight to terminal. `--run` / `sm job run` are no-ops (it already ran). For deterministic enrichment and cheap aggregations.
+- **External agent** (`runner: agent`), THE probabilistic path: any LLM runtime (a Claude Code session, Codex, opencode, a cron-driven agent, an MCP client) loops `sm job claim` → executes the rendered content with its own model → `sm record`. The agent IS the execution; skill-map only hands over data and validates the callback. Whether the drain protocol ships as a skill, an MCP surface, or both is an open evaluation (2026-07-13).
+- **In-process** (`mode: local`, `runner: in-process`): the action's own code produces the report synchronously, no rendered content row, no subprocess; the kernel validates it against the action's report schema and transitions straight to terminal. For deterministic enrichment and cheap aggregations.
+
+> **Removed (decision 2026-07-13)**: the third path, a CLI-runner loop (`sm job run` spawning `claude -p` through a `RunnerPort`), shipped in Step 10 Phase E and was removed the same week: skill-map must never invoke the agent, whoever the agent is; the queue is pull-only. `spec/architecture.md` §Execution handover carries the normative wording.
 
 Skill agent flow:
 ```
@@ -536,13 +534,13 @@ Missing-content / mid-run-crash handling (a `state_jobs` row whose `content_hash
 
 The job subsystem runs jobs **sequentially within a single runner**, one claim / spawn / record cycle at a time. There is no pool or scheduler through `v1.0`.
 
-Multiple runners MAY coexist (e.g. a cron `sm job run --all` in parallel with an interactive Skill agent draining via `sm job claim`). The atomic-claim semantics exist precisely for this case: the `UPDATE ... WHERE status='queued' RETURNING id` guarantees that no two runners ever claim the same row, even when they race.
+Multiple agents MAY drain in parallel (e.g. a cron-driven agent alongside an interactive session). The atomic-claim semantics exist precisely for this case: the `UPDATE ... WHERE status='queued' RETURNING id` guarantees that no two agents ever claim the same row, even when they race.
 
-The event schema carries `runId` + `jobId` so parallel per-runner sequences can be interleaved without losing order per `jobId`. True in-runner parallelism (a pool inside `sm job run`) is a non-breaking post-`v1.0` extension.
+The event schema carries `runId` + `jobId`; each `sm record` emits one self-contained synthetic envelope, so parallel agents never interleave within an envelope.
 
 ### Progress events
 
-Emitted via `ProgressEmitterPort` (adapters: `pretty` default TTY, `--stream-output` adds model tokens for debug, `--json` ndjson) and re-emitted over **WebSocket** by the server. The canonical event catalog, the `{ type, timestamp, runId, jobId, data }` envelope, and the synthetic-run pattern (`r-scan-…` / `r-check-…`) are in [`spec/job-events.md`](./spec/job-events.md): the **job family** is stable, the **`scan.*` / `issue.*`** families are experimental until promoted. Task-UI integration (Claude Code's `TaskCreate`, future host primitives) lives as a host-specific skill (`sm-cli-run-queue`), not a CLI output mode; Cursor is out of scope (see §Discarded).
+Emitted via `ProgressEmitterPort` (adapters: `pretty` default TTY, `--json` ndjson) with `sm record --json` as the canonical emitter (the synthetic `r-ext-` envelope wrapping exactly one job), re-emitted over **WebSocket** by the server when live. The canonical event catalog, the `{ type, timestamp, runId, jobId, data }` envelope, and the synthetic-run pattern (`r-ext-…` / `r-scan-…` / `r-check-…`) are in [`spec/job-events.md`](./spec/job-events.md): the **job family** is stable, the **`scan.*` / `issue.*`** families are experimental until promoted. Task-UI integration (Claude Code's `TaskCreate`, future host primitives) lives as a host-specific skill (`sm-cli-run-queue`), not a CLI output mode; Cursor is out of scope (see §Discarded).
 
 ### `sm job` CLI surface
 
@@ -823,7 +821,7 @@ Single source of truth for every skill-shaped artifact shipped alongside `skill-
 | Id | Type | Host | Ships at | Purpose |
 |---|---|---|---|---|
 | `/skill-map:explore` | Meta-skill (conversational) | Claude Code | Step 11 | Wraps every `sm … --json` verb into a single slash-command. Maintains follow-ups with the user, feeds CLI introspection to the agent, orchestrates multi-step exploration. Replaces the earlier per-verb `explore-*` idea. |
-| `/skill-map:run-queue` (slash command) · `sm-cli-run-queue` (npm package) | Skill agent (driving adapter) | Claude Code | Step 10 | Drains the job queue in-session: loops `sm job claim` → Read → [agent reasons] → Write report → `sm record`. Does NOT implement `RunnerPort`; peer of CLI runner. The npm package is the distributable that a user drops into their Claude Code plugin folder; it wraps the skill manifest plus host-specific glue (e.g. `TaskCreate` integration for progress) and registers the slash command. |
+| `/skill-map:run-queue` (slash command) · `sm-cli-run-queue` (npm package) | Agent drain deliverable | Any agent runtime | Step 10 Phase G | Teaches an agent the drain protocol: loop `sm job claim` → [agent reasons over the rendered content] → `sm record`. Whether this ships as a skill, an MCP surface (the queue-aware `/mcp` extension), or both is an OPEN EVALUATION (2026-07-13); the protocol itself is just CLI verbs, so any runtime can follow it without glue. |
 | `sm-cli` | Agent integration package | Claude Code (installable) | Step 15 | Feeds `sm help --format json` to the agent so it can compose CLI invocations without hand-maintained knowledge. Mentioned in Decision #65; ships at distribution polish. |
 | `skill-optimizer` | Dual-surface action + skill | Claude Code (skill) + any runner (action) | Skill exists before `v0.5.0`; action wrapper Step 10 | Canonical dual-mode example: exists as a Claude Code skill AND is wrapped as a `skill-map` Action in `invocation-template` mode. Serves as the reference pattern for "same capability, two surfaces". |
 
@@ -835,7 +833,7 @@ Naming analyzers:
 
 Non-skills shipped for context (listed here to prevent confusion, do NOT register as skills):
 
-- **CLI runner loop**, the `sm job run` command itself. Driving adapter (uses `RunnerPort` via `ClaudeCliRunner`). Not a skill.
+- **The queue itself**, submit/claim/record are plain CLI verbs; no runner component exists (the `sm job run` CLI-runner loop was removed by the pull-only decision, 2026-07-13). Not a skill.
 - **Default plugin pack**, `github-enrichment`, plus TBD Extractors/Analyzers. Not skills, but installable via drop-in.
 
 ---
@@ -1005,7 +1003,7 @@ Phase C, real-time exploration (shipped):
 
 Phase D (LLM optional layer, `v0.8.0`):
 
-- ▶ **10**, Job subsystem + first probabilistic extension (Extractors are deterministic-only). Phases 0–F ✅ shipped on the rc channel: DB-only queue (`state_jobs` + content-addressed `state_job_contents`), the full `sm job` verb family (submit / list / show / preview `--last` / claim / cancel / fail / status / prune), `sm record` + nonce auth, `ClaudeCliRunner` + `MockRunner` + the `sm job run` drain loop, `markdown-summarizer` (the first probabilistic Action, now the universal summarizer; the per-kind roster was dropped 2026-07-13) with the `state_summaries` write-through, and the `preamble-bitwise-match` conformance case. The E/F leftovers (`sm doctor` with all eight checks, `sm actions list / show`) closed 2026-07-13. Pending: Phase G.
+- ▶ **10**, Job subsystem + first probabilistic extension (Extractors are deterministic-only). Phases 0–F ✅ shipped on the rc channel: DB-only queue (`state_jobs` + content-addressed `state_job_contents`), the full `sm job` verb family (submit / list / show / preview `--last` / claim / cancel / fail / status / prune), `sm record` + nonce auth (its `--json` emits the synthetic `r-ext-` event envelope), the pull-only agent drain (claim reaps first, stamps `runner=agent`; the short-lived `sm job run`/`RunnerPort` spawn path was built and then REMOVED by the 2026-07-13 pull-only decision), `markdown-summarizer` (the first probabilistic Action, now the universal summarizer; the per-kind roster was dropped 2026-07-13) with the `state_summaries` write-through, and the `preamble-bitwise-match` conformance case. The E/F leftovers (`sm doctor`, seven checks after the runner probe died with the pull-only cut, and `sm actions list / show`) closed 2026-07-13. Pending: Phase G (agent-drain deliverable evaluation + github-enrichment).
 - 🔮 **11**, Remaining probabilistic extensions + LLM verbs + findings. Next after Step 10 closes.
 - 🔮 **16**, Web UI: LLM surfaces v1 (initial). Render the probabilistic outputs Steps 10–11 emit, replaces the "Available in v0.8.0" empty-state placeholders shipped in 14.3 inspector with read-only surfaces for `state_summaries` / `state_enrichments` / `findings`. UI does not orchestrate jobs at this stage.
 
@@ -1020,7 +1018,7 @@ Phase E (`v1.0.0` target):
 
 ### Step 10, Job subsystem + first probabilistic extension (wave 2 begins)
 
-> ▶ **In flight** (resumed 2026-07, after the real-time exploration arc; the pause below held from v0.6.0 per Decision #118): Phases 0–F ✅ shipped, plus the Phase B conformance closure (`preamble-bitwise-match` via `sm job preview --last`, `setup.priorInvokes`, `stdout-contains-verbatim`). The first probabilistic built-in shipped as **`markdown-summarizer`** (kind `markdown`, the universal fallback, provider-agnostic), not the originally-sketched `skill-summarizer`; the per-kind summarizer roster was then dropped outright (2026-07-13): the summarizer is universal (no `precondition`, `--all` reaches every non-virtual node) and the per-kind `summaries/<kind>` schemas collapsed into the single canonical `summaries/markdown.schema.json`. Summarizer detection is by report-schema convention (report `$ref`s a schema under `summaries/` → `state_summaries` write-through at record time; no manifest flag). The E/F leftovers closed on 2026-07-13: `sm doctor` landed for real (all eight contract checks, including the runner probe with `claude --version`, plus the `--json` envelope now pinned in the contract) and `sm actions list / show` replaced their stubs (composed manifest view with summarizer detection). Remaining: Phase G.
+> ▶ **In flight** (resumed 2026-07, after the real-time exploration arc; the pause below held from v0.6.0 per Decision #118): Phases 0–F ✅ shipped, plus the Phase B conformance closure (`preamble-bitwise-match` via `sm job preview --last`, `setup.priorInvokes`, `stdout-contains-verbatim`). The first probabilistic built-in shipped as **`markdown-summarizer`** (kind `markdown`, the universal fallback, provider-agnostic), not the originally-sketched `skill-summarizer`; the per-kind summarizer roster was then dropped outright (2026-07-13): the summarizer is universal (no `precondition`, `--all` reaches every non-virtual node) and the per-kind `summaries/<kind>` schemas collapsed into the single canonical `summaries/markdown.schema.json`. Summarizer detection is by report-schema convention (report `$ref`s a schema under `summaries/` → `state_summaries` write-through at record time; no manifest flag). The E/F leftovers closed on 2026-07-13: `sm doctor` landed for real (seven contract checks; the runner-availability probe shipped and then died the same day with the pull-only decision, skill-map has no binary of its own to probe) and `sm actions list / show` replaced their stubs (composed manifest view with summarizer detection). **Pull-only decision (2026-07-13)**: `sm job run` + `RunnerPort` + `ClaudeCliRunner` were REMOVED right after shipping; the queue is drained exclusively by external agents via claim (reap-first, `runner=agent`) + record (whose `--json` emits the synthetic event envelope). Remaining: Phase G (the agent-drain deliverable, skill vs MCP, evaluation pending; `github-enrichment`).
 
 This is where **wave 2, probabilistic extensions** begins. Steps 0–7 shipped the deterministic half of the dual-mode model (the Claude Provider, three Extractors, three Analyzers + the `validate-all` Analyzer, the ASCII Formatter, all running synchronously inside `sm scan` / `sm check`). Step 10 turns on the second half: queued jobs, LLM runner, and the first probabilistic extension (`markdown-summarizer`, an Action of `mode: 'probabilistic'`; the original sketch named `skill-summarizer`, but the universal `markdown` kind made a provider-agnostic first target). The kernel surface (`ctx.runner`, the queue, the preamble, the safety/confidence contract on outputs) is what unlocks every subsequent probabilistic extension across the three dual-mode kinds, Analyzer, Action, Hook. (Extractor was reduced to deterministic-only ahead of wave 2: an LLM that wants to write data attached to a node lives in an Action, not in an Extractor.)
 
@@ -1031,11 +1029,11 @@ The work splits into seven phases that ship as separate changesets:
 - ✅ **Phase 0, `IAction` runtime contract**. New `src/kernel/extensions/action.ts` mirroring `extensions/action.schema.json`. Plugin loader accepts `kind: 'action'`. Manifest validation tests. No runtime invocation yet (the dispatcher lands with the queue in Phase A).
 - ✅ **Phase A, Queue infrastructure + render**. Migration cleanup first: the current `001_initial.sql` still carries the pre-DB-only on-disk columns (`state_jobs.file_path`, `state_executions.report_path`) and lacks `state_job_contents`, and a stale orphan-job-files subsystem (`kernel/jobs/orphan-files.ts` plus the `filePath` plumbing in `adapters/sqlite/jobs.ts` / `types/storage.ts` / `ports/runner.ts`) predates the B2 decision. Drop the columns, add `state_job_contents`, retire that subsystem (full reference sweep). Then: storage helpers for `state_jobs` + `state_job_contents` (insert in one transaction, content-addressed dedup via `INSERT OR IGNORE`); TTL resolution + priority resolution + `contentHash` computation (formula folds in `node.path`, NUL-delimited, per the Phase-A PoC finding, so identical-body/frontmatter nodes at different paths hash apart and the "same hash, same content" invariant holds); the preamble + `<user-content>` render helper is folded in here (moved up from the old Phase B) so every submitted job persists its content row in the same transaction and the integrity invariant `state_jobs.content_hash` always resolves at every release. Real bodies for `sm job submit / list / show` (fan-out + duplicate detection + `--force` + `--ttl` + `--priority`; `--force` bypasses the dup pre-check but never the unique partial index, so it only re-runs jobs already terminal).
 - ✅ **Phase B, `sm job preview` + preamble conformance**. Real body for `sm job preview` (reads the already-persisted content row from `state_job_contents`; the render helper itself landed in Phase A). Closes conformance case `preamble-bitwise-match` (deferred from Step 0a).
-- ✅ **Phase C, Atomic claim + cancel + status + reap**. `UPDATE ... RETURNING id` claim primitive. Real bodies for `sm job claim` (with `--json` returning `{id, nonce, content}` per the Skill-agent handover contract), `sm job cancel`, `sm job status`. Reap runs at the start of every `sm job run`.
+- ✅ **Phase C, Atomic claim + cancel + status + reap**. `UPDATE ... RETURNING id` claim primitive. Real bodies for `sm job claim` (with `--json` returning `{id, nonce, content}` per the Skill-agent handover contract), `sm job cancel`, `sm job status`. Reap ran at the start of every `sm job run`; it moved to the start of every `sm job claim` with the pull-only cut.
 - ✅ **Phase D, `sm record` + nonce auth**. Validate id + nonce, parse `--report` (path or `-` stdin), validate report payload against `reportSchemaRef`, transition the job, write `state_executions` with `report_json` inline. Exit-code matrix (3, 4, 5).
-- ✅ **Phase E, `RunnerPort` impls + `sm job run` + `ctx.runner`** (the `sm doctor` runner probe landed 2026-07-13 with the full doctor verb). `ClaudeCliRunner` (subprocess + temp-file dance for the `claude -p` interface; missing binary → exit 2). `MockRunner` for tests. Full `sm job run` loop (reap → claim → spawn → record). `sm doctor` learns to probe runner availability. `ctx.runner` plumbed through invocation contexts (per `spec/architecture.md` §Execution modes).
+- ✅→✂ **Phase E, `RunnerPort` impls + `sm job run`**: shipped as planned (ClaudeCliRunner subprocess, MockRunner, full drain loop, doctor runner probe), then REMOVED by the pull-only decision (2026-07-13): skill-map must never invoke the agent, whoever the agent is. What survives from this phase: the reap procedure (now claim-side), the TTL timeout discipline, and the record path the loop exercised. `ctx.runner` never reached invocation contexts and is gone from the spec.
 - ✅ **Phase F, first summarizer built-in + `state_summaries` write-through** (shipped as `markdown-summarizer`, later made the universal summarizer; `sm actions list / show` landed 2026-07-13). First probabilistic Action. Its existence proves the full pipeline (manifest with `mode: 'probabilistic'`, kernel routing through `RunnerPort`, prompt rendering, `sm record` callback, `state_summaries` upsert). Real bodies for `sm actions list / show`.
-- ⬜ **Phase G, Conformance, Skill agent, events, polish**. New conformance case `extension-mode-routing` (a probabilistic Action dispatched as a queued job; a deterministic Action invoked in-process, verifies dispatch routing matches manifest `mode`). `/skill-map:run-queue` + `sm-cli-run-queue` Skill agent package. Job event emission per `spec/job-events.md` (`run.*`, `job.*`, `model.*`, `run.reap.*`). `github-enrichment` bundled plugin (hash verification). ROADMAP + `coverage.md` updated.
+- ⬜ **Phase G, Conformance, Skill agent, events, polish**. ✅ Conformance cases `extension-mode-routing` + `extension-mode-routing-deterministic` landed 2026-07-13 (the probabilistic half asserts the queued row via `sm job list --json` after a `setup.priorInvokes` submit; the deterministic half asserts the exit-2 in-process refusal; the single planned case split in two because one case has one main invoke). ✅ Job event emission landed 2026-07-13 under the pull-only model: `sm record --json` streams the synthetic `r-ext-` envelope (`run.started` → `job.claimed` replay → `job.callback.received` → terminal → `run.summary`), the pruned catalog in `spec/job-events.md` is the contract (`job.spawning` / `model.delta` / `run.reap.*` / `job.skipped` died with the spawn path). Remaining: the agent-drain deliverable (`/skill-map:run-queue` skill vs the queue-aware `/mcp` surface vs both, evaluation pending with the user) and the `github-enrichment` bundled plugin (hash verification). ROADMAP + `coverage.md` updated.
 
 Phases 0 through F have landed in order (including the E/F leftovers, closed 2026-07-13), each with its own changeset, build verification, and tests; Phase G closes the Step.
 

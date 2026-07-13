@@ -169,7 +169,7 @@ CREATE TABLE state_jobs (
   -- forced to `failed` via `sm job fail` (symmetric to cancel).
   CONSTRAINT ck_state_jobs_status CHECK (status IN ('queued','running','completed','failed','cancelled')),
   CONSTRAINT ck_state_jobs_failure_reason CHECK (failure_reason IS NULL OR failure_reason IN ('runner-error','report-invalid','timeout','abandoned','job-file-missing','user-failed')),
-  CONSTRAINT ck_state_jobs_runner CHECK (runner IS NULL OR runner IN ('cli','skill','in-process'))
+  CONSTRAINT ck_state_jobs_runner CHECK (runner IS NULL OR runner IN ('agent','in-process'))
 );
 CREATE INDEX ix_state_jobs_status ON state_jobs(status);
 -- Unique partial index for duplicate-job detection: at most one

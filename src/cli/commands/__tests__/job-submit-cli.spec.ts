@@ -143,7 +143,6 @@ interface ISubmitOverrides {
   action: string;
   node?: string;
   all?: boolean;
-  runFlag?: boolean;
   force?: boolean;
   ttl?: string;
   priority?: string;
@@ -155,7 +154,6 @@ function buildSubmit(overrides: ISubmitOverrides): JobSubmitCommand {
   cmd.action = overrides.action;
   cmd.node = overrides.node;
   cmd.all = overrides.all ?? false;
-  cmd.runFlag = overrides.runFlag ?? false;
   cmd.force = overrides.force ?? false;
   cmd.ttl = overrides.ttl;
   cmd.priority = overrides.priority;

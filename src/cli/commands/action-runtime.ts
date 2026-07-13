@@ -10,11 +10,10 @@
  *     submit-time drift verification).
  *   - `resolveAction`, qualified-or-bare-id action lookup.
  *
- * Lives in its own module (extracted from `job-queue.ts`) because THREE
- * consumers share it, `sm job submit` (job-queue.ts), `sm record`
- * (record.ts via record-outcome.ts), and the `sm job run` drain loop
- * (job-run.ts), and record-outcome.ts + job-queue.ts would otherwise
- * import each other in a cycle.
+ * Lives in its own module (extracted from `job-queue.ts`) because TWO
+ * consumers share it, `sm job submit` (job-queue.ts) and `sm record`
+ * (record.ts via record-outcome.ts), and record-outcome.ts +
+ * job-queue.ts would otherwise import each other in a cycle.
  */
 
 import { dirname } from 'node:path';
@@ -41,9 +40,9 @@ export interface IActionRuntime {
  * reconstructed). Built-in actions carry no directory; they are all
  * deterministic today and never reach the prompt-template resolution.
  *
- * Shared by `sm job submit` (resolves `prompt.md` + node bodies), `sm
- * record` (resolves `report.schema.json`), and the `sm job run` loop, all
- * of which resolve an action against the same composed runtime.
+ * Shared by `sm job submit` (resolves `prompt.md` + node bodies) and
+ * `sm record` (resolves `report.schema.json`), both of which resolve an
+ * action against the same composed runtime.
  */
 export async function loadActionRuntime(printer: IPrinter): Promise<IActionRuntime> {
   const runtime = await loadPluginRuntime();

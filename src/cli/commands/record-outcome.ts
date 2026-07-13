@@ -1,18 +1,19 @@
 /**
- * Shared record machinery (Step 10 Phase E): the single implementation of
- * `spec/job-lifecycle.md` §Record steps 4-6 consumed by BOTH driving
+ * Shared record machinery: the single implementation of
+ * `spec/job-lifecycle.md` §Record steps 4-6 consumed by both driving
  * surfaces that close a running job:
  *
  *   - `sm record` (`record.ts`), the nonce-authenticated callback fed by
- *     CLI flags (`--report <path|->`, `--tokens-in`, ...).
- *   - the `sm job run` drain loop (`job-run.ts`), fed by a `RunnerPort`
- *     result (`IRunResult`).
+ *     CLI flags (`--report <path|->`, `--tokens-in`, ...). The canonical
+ *     path: an external agent drains the queue via `sm job claim` +
+ *     `sm record` (skill-map never executes a job itself).
+ *   - the claim-side corruption path (`job-queue.ts`), which marks a
+ *     just-claimed job with a missing content row `job-file-missing`.
  *
- * Both paths MUST behave identically on report validation, the
- * `report-invalid` transition, the `state_executions` row, the job
- * transition, and the summary-schema -> `state_summaries` write-through;
- * extracting the core here is what guarantees that (no duplicated logic to
- * drift).
+ * Both paths MUST behave identically on the `state_executions` row, the
+ * job transition, and the summary-schema -> `state_summaries`
+ * write-through; extracting the core here is what guarantees that (no
+ * duplicated logic to drift).
  *
  * Exposed pieces:
  *   - `resolveActionRecord`, resolve a job's Action + report schema against
@@ -27,8 +28,8 @@
  *     loading the runtime, preserving `sm record`'s historical ordering.
  *   - `recordFailedOutcome`, the failure path shared by `sm record
  *     --status failed` (reason `runner-error`, `--error` verbatim) and the
- *     drain loop (`runner-error` on a non-zero / timed-out subprocess,
- *     `job-file-missing` on a missing content row).
+ *     claim-side corruption path (`job-file-missing` on a missing content
+ *     row).
  */
 
 import { readFileSync } from 'node:fs';
@@ -44,15 +45,14 @@ import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { resolveAction, type IActionRuntime } from './action-runtime.js';
 
 /**
- * Runner-side metrics stamped onto the execution row. Every field is
- * optional: `sm record` fills them from flags (never `exitCode`, that
- * surface has no flag), the drain loop from the `IRunResult`.
+ * Agent-side metrics stamped onto the execution row. Every field is
+ * optional: `sm record` fills them from flags, the claim-side corruption
+ * path passes none.
  */
 export interface IRecordMetrics {
   tokensIn?: number | undefined;
   tokensOut?: number | undefined;
   durationMs?: number | undefined;
-  exitCode?: number | undefined;
 }
 
 export interface IResolvedActionRecord {
@@ -192,10 +192,10 @@ export async function recordCompletedOutcome(opts: {
 /**
  * The failure record path: write the `failed` execution row with the given
  * `failureReason` and transition the job, atomically. `errorText` (the
- * runner's `--error`, a subprocess's output excerpt, or a loop-level
- * detail) is stored verbatim in `report_json`, the only free-text slot on
- * a failed execution (`spec/cli-contract.md` §Record); `null` stores no
- * payload (e.g. an invalid report, which is never retained).
+ * agent's `--error`, or the claim-side corruption detail) is stored
+ * verbatim in `report_json`, the only free-text slot on a failed
+ * execution (`spec/cli-contract.md` §Record); `null` stores no payload
+ * (e.g. an invalid report, which is never retained).
  */
 export async function recordFailedOutcome(opts: {
   adapter: StoragePort;
@@ -236,9 +236,9 @@ function buildExecution(
     contentHash: job.contentHash,
     status: opts.status,
     failureReason: opts.failureReason,
-    // `sm record` has no --exit-code flag (stays null there); the drain
-    // loop fills it from the subprocess result.
-    exitCode: opts.metrics.exitCode ?? null,
+    // `sm record` has no --exit-code flag; the column stays null (the
+    // external agent owns its subprocesses, skill-map never sees them).
+    exitCode: null,
     runner: job.runner ?? null,
     // Job start = its claim time; a running job always carries claimedAt.
     startedAt: job.claimedAt ?? opts.now,
