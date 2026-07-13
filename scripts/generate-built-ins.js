@@ -37,10 +37,12 @@ const OUTPUT = join(PLUGINS_ROOT, 'built-ins.ts');
 
 /**
  * Canonical plugin order. Vendor providers FIRST so the kindRegistry
- * composer encounters them before the markdown fallback in `core`. The
- * matching directories under `src/plugins/<id>/` must all exist.
+ * composer encounters them before the markdown fallback in `core`
+ * (`github` ships no provider, so its slot before `core` is
+ * presentational only). The matching directories under
+ * `src/plugins/<id>/` must all exist.
  */
-const PLUGIN_ORDER = ['claude', 'antigravity', 'codex', 'opencode', 'agent-skills', 'core'];
+const PLUGIN_ORDER = ['claude', 'antigravity', 'codex', 'opencode', 'agent-skills', 'github', 'core'];
 
 /**
  * Within a plugin, kinds register in this order so the resulting list
@@ -119,37 +121,49 @@ function isProbabilisticActionSource(indexTsSource) {
 }
 
 /**
- * For a probabilistic built-in Action, read the two structure-as-truth
- * sibling files (`prompt.md` + `report.schema.json`) that the codegen
- * inlines onto the emitted manifest. Fails loudly when either is missing,
- * a probabilistic Action without them cannot be rendered/validated at
- * runtime (built-ins have no source directory to fall back to).
+ * Read a built-in Action's structure-as-truth sibling files. EVERY
+ * Action carries `report.schema.json` by convention (it is the report
+ * contract AND the summarizer / enricher detection signal), so the
+ * codegen inlines it onto every emitted action manifest, deterministic
+ * and probabilistic alike (built-ins have no source directory at
+ * runtime to read it from). `prompt.md` is probabilistic-only: required
+ * there, and FORBIDDEN on a deterministic Action (the spec calls that
+ * combination a `load-error`, config inconsistent, see
+ * `spec/schemas/extensions/action.schema.json`). Fails loudly on every
+ * violation.
  */
-function readProbabilisticActionAssets(entryDir, name) {
+function readActionAssets(entryDir, name, isProbabilistic) {
   const promptPath = join(entryDir, 'prompt.md');
   const reportPath = join(entryDir, 'report.schema.json');
-  if (!existsSync(promptPath)) {
+  if (isProbabilistic && !existsSync(promptPath)) {
     throw new Error(
       `Probabilistic built-in action '${name}' is missing prompt.md at ${promptPath}. ` +
         'Every probabilistic Action carries a prompt template by convention.',
     );
   }
+  if (!isProbabilistic && existsSync(promptPath)) {
+    throw new Error(
+      `Deterministic built-in action '${name}' carries a prompt.md at ${promptPath}. ` +
+        'A deterministic Action with a prompt template is config-inconsistent (spec: load-error).',
+    );
+  }
   if (!existsSync(reportPath)) {
     throw new Error(
-      `Probabilistic built-in action '${name}' is missing report.schema.json at ${reportPath}. ` +
+      `Built-in action '${name}' is missing report.schema.json at ${reportPath}. ` +
         'Every Action carries a report schema by convention.',
     );
   }
-  const promptTemplate = readFileSync(promptPath, 'utf8');
   let reportSchema;
   try {
     reportSchema = JSON.parse(readFileSync(reportPath, 'utf8'));
   } catch (err) {
     throw new Error(
-      `Probabilistic built-in action '${name}' has invalid report.schema.json at ${reportPath}: ${err.message}`,
+      `Built-in action '${name}' has invalid report.schema.json at ${reportPath}: ${err.message}`,
     );
   }
-  return { promptTemplate, reportSchema };
+  const assets = { reportSchema };
+  if (isProbabilistic) assets.promptTemplate = readFileSync(promptPath, 'utf8');
+  return assets;
 }
 
 function discoverPlugin(pluginId) {
@@ -182,13 +196,15 @@ function discoverPlugin(pluginId) {
         exportName: exportNameFor(entry, kind),
         importFrom: `./${pluginId}/${KIND_TO_DIR[kind]}/${entry}/index.js`,
       };
-      // Structure-as-truth: a probabilistic built-in Action has no source
-      // directory at runtime, so inline its sibling prompt.md +
-      // report.schema.json onto the emitted manifest (the built-in
-      // equivalent of the on-disk files a user plugin resolves at load).
-      if (kind === 'action' && isProbabilisticActionSource(readFileSync(indexTs, 'utf8'))) {
-        const { promptTemplate, reportSchema } = readProbabilisticActionAssets(entryDir, entry);
-        extension.promptTemplate = promptTemplate;
+      // Structure-as-truth: a built-in Action has no source directory
+      // at runtime, so inline its sibling report.schema.json (every
+      // Action) plus prompt.md (probabilistic only) onto the emitted
+      // manifest (the built-in equivalent of the on-disk files a user
+      // plugin resolves at load).
+      if (kind === 'action') {
+        const isProbabilistic = isProbabilisticActionSource(readFileSync(indexTs, 'utf8'));
+        const { promptTemplate, reportSchema } = readActionAssets(entryDir, entry, isProbabilistic);
+        if (promptTemplate !== undefined) extension.promptTemplate = promptTemplate;
         extension.reportSchema = reportSchema;
       }
       extensions.push(extension);

@@ -93,7 +93,11 @@ function callSetTags(
   ctx: IActionContext,
 ): IActionResult<INodeSetTagsReport> {
   if (!nodeSetTagsAction.invoke) throw new Error('nodeSetTagsAction.invoke missing');
-  return nodeSetTagsAction.invoke<INodeSetTagsInput, INodeSetTagsReport>(input, ctx);
+  const result = nodeSetTagsAction.invoke<INodeSetTagsInput, INodeSetTagsReport>(input, ctx);
+  // The widened contract allows Promise returns (io:['network'] actions);
+  // node-set-tags is contractually synchronous, assert that stays true.
+  if (result instanceof Promise) throw new Error('node-set-tags invoke must stay synchronous');
+  return result;
 }
 
 describe('built-in node-set-tags action, normal write produces a patch', () => {

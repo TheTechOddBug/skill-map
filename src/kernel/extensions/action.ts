@@ -53,6 +53,20 @@ export type TActionWrite =
     };
 
 /**
+ * The IO capabilities an Action manifest may declare via `IAction.io`
+ * (mirrors `spec/schemas/extensions/action.schema.json#/properties/io`).
+ * Today the union has a single member (`'network'`): `invoke()` is pure
+ * by contract, and an Action that MUST reach the network (the
+ * provenance verifier `github/enrichment`) declares it here, which
+ * (a) relaxes the purity rule for exactly that capability, (b) injects
+ * `ctx.fetch` into its invocation context, and (c) subjects execution
+ * to the committed project policy `allowNetworkActions` (default
+ * `false`). Declared-network Actions execute only via `sm refresh`,
+ * never inside `sm scan` and never as queued jobs.
+ */
+export type TActionIoKind = 'network';
+
+/**
  * The discriminant kinds an Action may emit through `IActionResult.writes`.
  * Today the union has a single member (`'sidecar'`); the alias keeps the
  * manifest `writes` capability (`IAction.writes`) in lock-step with the
@@ -75,6 +89,17 @@ export interface IActionContext {
    * settings are declared on the manifest.
    */
   settings: Record<string, unknown>;
+  /**
+   * Injected network entry point, present ONLY when the Action's
+   * manifest declares `io: ['network']` (the single sanctioned
+   * carve-out from the extension-purity rule, see
+   * `spec/architecture.md` §Extension purity). Implementations MUST
+   * route every remote call through it and never touch a global
+   * `fetch`: the injection is what lets the dispatcher (`sm refresh`)
+   * enforce the `allowNetworkActions` policy and lets tests substitute
+   * a fake transport. Absent on every other Action's context.
+   */
+  fetch?: typeof globalThis.fetch;
 }
 
 /**
@@ -184,16 +209,31 @@ export interface IAction extends IExtensionBase {
    */
   reportSchema?: Record<string, unknown>;
   /**
+   * Declared IO capability (mirrors `TActionIoKind`). Absent = fully
+   * pure `invoke()`. `['network']` = the Action's `invoke()` reaches
+   * the network through the injected `ctx.fetch` (never a global) and
+   * is refused at execution while the committed project policy
+   * `allowNetworkActions` (default `false`) is off. The manifest
+   * declaration is what dispatchers gate on WITHOUT invoking the
+   * action, the same posture as `writes`.
+   */
+  io?: TActionIoKind[];
+  /**
    * Deterministic invocation entry point. Optional on the runtime
    * contract until the job subsystem ships; Actions that ship for the
    * future probabilistic runner / record path leave it absent.
-   * Implementations MUST stay pure (no IO inside `invoke()`); the
-   * kernel materialises any returned `writes` after the call.
+   * Implementations MUST stay pure (no IO inside `invoke()`) unless the
+   * manifest declares the matching `io` capability (today only
+   * `'network'`, routed through the injected `ctx.fetch`); the kernel
+   * materialises any returned `writes` after the call. The return MAY
+   * be a Promise: a declared-network Action is inherently async, so
+   * every dispatcher `await`s the result (a plain value awaits to
+   * itself, sync Actions stay unchanged).
    */
   invoke?: <TInput, TReport>(
     input: TInput,
     ctx: IActionContext,
-  ) => IActionResult<TReport>;
+  ) => IActionResult<TReport> | Promise<IActionResult<TReport>>;
   /**
    * Optional scan-time self-projection. When present, the orchestrator
    * calls it during the contribution phase (right after the analyzer

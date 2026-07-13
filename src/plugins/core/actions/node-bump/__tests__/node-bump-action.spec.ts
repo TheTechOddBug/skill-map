@@ -96,7 +96,11 @@ function callBump(
   ctx: IActionContext,
 ): IActionResult<INodeBumpReport> {
   if (!nodeBumpAction.invoke) throw new Error('nodeBumpAction.invoke missing');
-  return nodeBumpAction.invoke<INodeBumpInput, INodeBumpReport>(input, ctx);
+  const result = nodeBumpAction.invoke<INodeBumpInput, INodeBumpReport>(input, ctx);
+  // The widened contract allows Promise returns (io:['network'] actions);
+  // node-bump is contractually synchronous, assert that stays true.
+  if (result instanceof Promise) throw new Error('node-bump invoke must stay synchronous');
+  return result;
 }
 
 describe('built-in bump action, refusal / no-op paths', () => {

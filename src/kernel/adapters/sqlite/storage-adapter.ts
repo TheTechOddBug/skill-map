@@ -8,10 +8,13 @@
  * **Storage-port-promotion (Phase A).** The adapter exposes the
  * non-transactional namespaces (`scans`, `issues`, `history`, `jobs`,
  * `trust`, `migrations`, `pluginMigrations`) as direct
- * properties. `enrichments` is transactional-only by design, it lives
- * exclusively on the `ITransactionalStorage` subset returned by
- * `port.transaction(...)`, never as a top-level namespace, so writers
- * are forced to share a transaction with `scans.persist`. Adapters
+ * properties. The `enrichments` MUTATION surfaces are
+ * transactional-only by design, they live exclusively on the
+ * `ITransactionalStorage` subset returned by `port.transaction(...)`
+ * (`upsertMany` shares the refresh persist transaction; `upsertState`
+ * commits atomically with its `state_executions` sibling), so writers
+ * are forced to share a transaction. The top-level `enrichments`
+ * namespace is the read-only `state_enrichments` projection. Adapters
  * fail to compile when their share is incomplete on their end.
  *
  * **camelCase ↔ snake_case bridging.** This adapter installs Kysely's
@@ -122,6 +125,11 @@ import {
   rowToNode,
 } from './scan-load.js';
 import { persistScanResult } from './scan-persistence.js';
+import {
+  listStaleStateEnrichments,
+  listStateEnrichmentsForNode,
+  upsertStateEnrichment,
+} from './enrichments.js';
 import { listSummariesForNode } from './summaries.js';
 import {
   listAllContributionErrors,
@@ -228,6 +236,7 @@ export class SqliteStorageAdapter implements StoragePort {
   contributions!: StoragePort['contributions'];
   tags!: StoragePort['tags'];
   issues!: StoragePort['issues'];
+  enrichments!: StoragePort['enrichments'];
   history!: StoragePort['history'];
   jobs!: StoragePort['jobs'];
   summaries!: StoragePort['summaries'];
@@ -350,6 +359,11 @@ export class SqliteStorageAdapter implements StoragePort {
       listAll: () => listAllIssues(this.db),
       list: (filter) => listIssues(this.db, filter),
       findActive: (predicate) => findActiveIssues(this.db, predicate),
+    };
+
+    this.enrichments = {
+      listStateForNode: (nodeId) => listStateEnrichmentsForNode(this.db, nodeId),
+      listStaleStateCandidates: (nowMs) => listStaleStateEnrichments(this.db, nowMs),
     };
 
     this.history = {
@@ -830,10 +844,12 @@ function buildTxSubset(trx: Transaction<IDatabase>): ITransactionalStorage {
       upsertMany: async (records: IEnrichmentRecord[]) => {
         await upsertEnrichments(trx, records);
       },
+      upsertState: (row) => upsertStateEnrichment(trx, row),
     },
     history: {
       migrateNodeFks: (from: string, to: string) =>
         migrateNodeFks(trx, from, to),
+      insertExecution: (record) => insertExecution(trx, record),
     },
   };
 }

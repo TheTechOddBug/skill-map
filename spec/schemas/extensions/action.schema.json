@@ -18,6 +18,12 @@
       "minimum": 1,
       "description": "Best-effort estimate of wall-clock duration when `mode=probabilistic`. Drives TTL (`ttl = max(probExpectedDurationSeconds × graceMultiplier, minimumTtlSeconds)`). Required for `probabilistic`; ignored otherwise. Renamed from `expectedDurationSeconds` with the structure-as-truth refactor, the `prob` prefix makes it clear at a glance which mode the field belongs to."
     },
+    "io": {
+      "type": "array",
+      "items": { "enum": ["network"] },
+      "uniqueItems": true,
+      "description": "Declared IO capability. `invoke()` is pure by contract (no IO); an Action that MUST reach the network (e.g. the provenance verifier `github/enrichment`) declares `['network']` here, which (a) relaxes the purity rule for exactly that capability, (b) injects `ctx.fetch` into its invocation context (implementations MUST route remote calls through it, never a global), and (c) subjects execution to the project policy `allowNetworkActions` (default false: declared-network Actions load and list but are refused at execution with a directed advisory). Network Actions execute via `sm refresh`, never inside `sm scan` and never as queued jobs (the queue carries prompts for agents)."
+    },
     "writes": {
       "type": "array",
       "uniqueItems": true,

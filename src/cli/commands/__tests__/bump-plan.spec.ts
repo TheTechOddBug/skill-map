@@ -42,16 +42,16 @@ function makeNode(overrides: Partial<Node> = {}): Node {
 }
 
 describe('computeBumpPlan(), empty input', () => {
-  it('returns a plan with an empty items array', () => {
-    const plan = computeBumpPlan([], { cwd: CWD, force: false });
+  it('returns a plan with an empty items array', async () => {
+    const plan = await computeBumpPlan([], { cwd: CWD, force: false });
     assert.deepEqual(plan.items, []);
   });
 });
 
 describe('computeBumpPlan(), path guard', () => {
-  it('emits a status:"error" item when `node.path` is absolute (tampered DB shape)', () => {
+  it('emits a status:"error" item when `node.path` is absolute (tampered DB shape)', async () => {
     const node = makeNode({ path: '/etc/passwd' });
-    const plan = computeBumpPlan([node], { cwd: CWD, force: false });
+    const plan = await computeBumpPlan([node], { cwd: CWD, force: false });
     assert.equal(plan.items.length, 1);
     const item = plan.items[0]!;
     assert.equal(item.status, 'error');
@@ -61,9 +61,9 @@ describe('computeBumpPlan(), path guard', () => {
     }
   });
 
-  it('emits a status:"error" item when `node.path` escapes the cwd via `..`', () => {
+  it('emits a status:"error" item when `node.path` escapes the cwd via `..`', async () => {
     const node = makeNode({ path: '../../../etc/passwd' });
-    const plan = computeBumpPlan([node], { cwd: CWD, force: false });
+    const plan = await computeBumpPlan([node], { cwd: CWD, force: false });
     const item = plan.items[0]!;
     assert.equal(item.status, 'error');
     if (item.status === 'error') {
@@ -73,7 +73,7 @@ describe('computeBumpPlan(), path guard', () => {
 });
 
 describe('computeBumpPlan(), Action outcomes', () => {
-  it('emits status:"refused" for a fresh node when force is false', () => {
+  it('emits status:"refused" for a fresh node when force is false', async () => {
     const node = makeNode({
       sidecar: {
         present: true,
@@ -81,7 +81,7 @@ describe('computeBumpPlan(), Action outcomes', () => {
         annotations: { version: 3 },
       },
     });
-    const plan = computeBumpPlan([node], { cwd: CWD, force: false });
+    const plan = await computeBumpPlan([node], { cwd: CWD, force: false });
     const item = plan.items[0]!;
     assert.equal(item.status, 'refused');
     assert.equal(item.nodePath, 'docs/example.md');
@@ -90,7 +90,7 @@ describe('computeBumpPlan(), Action outcomes', () => {
     }
   });
 
-  it('emits status:"skipped" (reason: noop) for a fresh node when force is true', () => {
+  it('emits status:"skipped" (reason: noop) for a fresh node when force is true', async () => {
     const node = makeNode({
       sidecar: {
         present: true,
@@ -98,7 +98,7 @@ describe('computeBumpPlan(), Action outcomes', () => {
         annotations: { version: 3 },
       },
     });
-    const plan = computeBumpPlan([node], { cwd: CWD, force: true });
+    const plan = await computeBumpPlan([node], { cwd: CWD, force: true });
     const item = plan.items[0]!;
     assert.equal(item.status, 'skipped');
     if (item.status === 'skipped') {
@@ -106,7 +106,7 @@ describe('computeBumpPlan(), Action outcomes', () => {
     }
   });
 
-  it('emits status:"bumped" with writes for a stale node', () => {
+  it('emits status:"bumped" with writes for a stale node', async () => {
     const node = makeNode({
       sidecar: {
         present: true,
@@ -114,7 +114,7 @@ describe('computeBumpPlan(), Action outcomes', () => {
         annotations: { version: 5 },
       },
     });
-    const plan = computeBumpPlan([node], { cwd: CWD, force: false });
+    const plan = await computeBumpPlan([node], { cwd: CWD, force: false });
     const item = plan.items[0]!;
     assert.equal(item.status, 'bumped');
     if (item.status === 'bumped') {
@@ -125,9 +125,9 @@ describe('computeBumpPlan(), Action outcomes', () => {
     }
   });
 
-  it('emits status:"bumped" with createdSidecar:true for a node without a sidecar overlay', () => {
+  it('emits status:"bumped" with createdSidecar:true for a node without a sidecar overlay', async () => {
     const node = makeNode();
-    const plan = computeBumpPlan([node], { cwd: CWD, force: false });
+    const plan = await computeBumpPlan([node], { cwd: CWD, force: false });
     const item = plan.items[0]!;
     assert.equal(item.status, 'bumped');
     if (item.status === 'bumped') {
@@ -138,18 +138,18 @@ describe('computeBumpPlan(), Action outcomes', () => {
 });
 
 describe('computeBumpPlan(), batch behaviour', () => {
-  it('preserves input order (no sort, the caller pre-sorts)', () => {
+  it('preserves input order (no sort, the caller pre-sorts)', async () => {
     const a = makeNode({ path: 'docs/aaa.md' });
     const b = makeNode({ path: 'docs/bbb.md' });
     const c = makeNode({ path: 'docs/ccc.md' });
-    const plan = computeBumpPlan([c, a, b], { cwd: CWD, force: false });
+    const plan = await computeBumpPlan([c, a, b], { cwd: CWD, force: false });
     assert.deepEqual(
       plan.items.map((i) => i.nodePath),
       ['docs/ccc.md', 'docs/aaa.md', 'docs/bbb.md'],
     );
   });
 
-  it('produces a heterogeneous plan over a mixed batch (bumped + refused + skipped + error)', () => {
+  it('produces a heterogeneous plan over a mixed batch (bumped + refused + skipped + error)', async () => {
     const bumped = makeNode({
       path: 'docs/stale.md',
       sidecar: {
@@ -168,7 +168,7 @@ describe('computeBumpPlan(), batch behaviour', () => {
     });
     const escaping = makeNode({ path: '../sneaky.md' });
 
-    const plan = computeBumpPlan([bumped, refused, escaping], { cwd: CWD, force: false });
+    const plan = await computeBumpPlan([bumped, refused, escaping], { cwd: CWD, force: false });
     assert.equal(plan.items.length, 3);
     assert.equal(plan.items[0]!.status, 'bumped');
     assert.equal(plan.items[1]!.status, 'refused');

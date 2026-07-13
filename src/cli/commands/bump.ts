@@ -325,7 +325,7 @@ export class BumpCommand extends SmCommand {
       return ExitCode.NotFound;
     }
 
-    const item = computeBumpPlan([node], { cwd, force: this.force }).items[0]!;
+    const item = (await computeBumpPlan([node], { cwd, force: this.force })).items[0]!;
     if (item.status !== 'bumped') {
       // `#renderTerminalSingle` covers the three non-bumped outcomes
       // (error / refused / skipped). The check above narrows `item`
@@ -449,7 +449,7 @@ export class BumpCommand extends SmCommand {
       this.printer!.info(tx(BUMP_TEXTS.pendingBanner, { count: stale.length }));
     }
 
-    const plan = computeBumpPlan(stale, { cwd, force: this.force });
+    const plan = await computeBumpPlan(stale, { cwd, force: this.force });
     const outcomes = await this.#executePending(plan, cwd, ansi);
     return this.#renderPendingOutcome(outcomes);
   }

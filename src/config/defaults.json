@@ -1,6 +1,7 @@
 {
   "schemaVersion": 1,
   "allowEditSmFiles": false,
+  "allowNetworkActions": false,
   "allowSidecarWriters": true,
   "tutorialReminderDismissed": false,
   "tokenizer": "cl100k_base",

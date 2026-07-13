@@ -99,12 +99,17 @@ const SCHEMA_FILES: Record<TSchemaName, string> = {
  * node-summary shape; universal, not per-kind) is resolvable by `$id`,
  * so an Action's `report.schema.json` can `$ref` it (that reference is
  * the summarizer signal, see `kernel/jobs/summary-schema.ts`) and still
- * compile through `validateActionReport`.
+ * compile through `validateActionReport`. `enrichments/github.schema.json`
+ * plays the same role for the mirror convention: an Action's report
+ * schema `$ref`ing it is the enricher signal
+ * (`kernel/enrichments/enrichment-schema.ts`) and `sm refresh` validates
+ * the report through `validateActionReport` against it.
  */
 const SUPPORTING_SCHEMAS: string[] = [
   'schemas/extensions/base.schema.json',
   'schemas/frontmatter/base.schema.json',
   'schemas/summaries/markdown.schema.json',
+  'schemas/enrichments/github.schema.json',
   'schemas/view-slots.schema.json',
   'schemas/input-types.schema.json',
 ];

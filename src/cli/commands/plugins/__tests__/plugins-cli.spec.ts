@@ -653,13 +653,15 @@ describe('sm plugins doctor, disabled is not a failure', () => {
     const r = sm(['plugins', 'doctor'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     // Disabled is intentional, never an error: exit stays 0. The count
-    // is 3, the disabled `mock-h` drop-in plus the two experimental
+    // is 4, the disabled `mock-h` drop-in plus the three experimental
     // built-in extensions that ship disabled by default: the gated bump
-    // pair `core/node-bump` + `core/annotation-stale`. (`core/mcp-tools`
-    // is now beta and ships enabled, so it no longer counts here;
-    // `antigravity/antigravity` and `codex/codex` are beta and
-    // `agent-skills/agent-skills` is stable + locked, so all ship enabled.)
-    assert.match(r.stdout, /disabled\s+3/);
+    // pair `core/node-bump` + `core/annotation-stale`, and the
+    // declared-network provenance verifier `github/enrichment`.
+    // (`core/mcp-tools` is now beta and ships enabled, so it no longer
+    // counts here; `antigravity/antigravity` and `codex/codex` are beta
+    // and `agent-skills/agent-skills` is stable + locked, so all ship
+    // enabled.)
+    assert.match(r.stdout, /disabled\s+4/);
   });
 });
 

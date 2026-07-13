@@ -60,7 +60,14 @@ export async function loadActionRuntime(printer: IPrinter): Promise<IActionRunti
   };
 }
 
-function buildActionDirMap(discovered: IDiscoveredPlugin[]): Map<string, string> {
+/**
+ * Map each plugin-action's qualified id to its on-disk directory
+ * (derived from the loaded extension's `entryPath`). Exported so
+ * `sm refresh` can resolve on-disk `report.schema.json` files for the
+ * enricher detection against the plugin runtime it already loaded,
+ * without a second discovery pass through `loadActionRuntime`.
+ */
+export function buildActionDirMap(discovered: IDiscoveredPlugin[]): Map<string, string> {
   const map = new Map<string, string>();
   for (const plugin of discovered) {
     for (const ext of plugin.extensions ?? []) {

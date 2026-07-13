@@ -295,10 +295,11 @@ export const SERVER_TEXTS = {
     'Could not persist activity.captureConversations: {{message}}',
 
   // 404 envelope when `:qualifiedId` does not resolve to a registered
-  // action with an `invoke()`. Covers both "no such action" and "action
-  // exists but ships no deterministic entry point" (a probabilistic
-  // action that cannot be dispatched over this synchronous route). The
-  // id is sanitised before interpolation.
+  // action with an `invoke()`. Covers "no such action", "action exists
+  // but ships no deterministic entry point" (a probabilistic action that
+  // cannot be dispatched over this synchronous route), and "action
+  // declares io:['network']" (executes exclusively via `sm refresh`).
+  // The id is sanitised before interpolation.
   actionUnknown:
     'No invokable action with id "{{actionId}}".',
 

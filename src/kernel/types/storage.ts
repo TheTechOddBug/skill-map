@@ -90,6 +90,43 @@ export interface ISummaryWriteIntent {
 }
 
 /**
+ * A stored per-node enrichment state row (`state_enrichments`), as
+ * returned by `port.enrichments.listStateForNode(nodeId)` /
+ * `listStaleStateCandidates()`. `providerId` carries the enriching
+ * Action's qualified id (e.g. `github/enrichment`); `data` is the
+ * parsed `data_json` (the validated enrichment report). Model A of the
+ * enrichment split: Model B (Extractor outputs) lives in
+ * `node_enrichments` behind the transactional-only `upsertMany`, do not
+ * conflate the two.
+ */
+export interface IStateEnrichmentRecord {
+  nodeId: string;
+  providerId: string;
+  data: Record<string, unknown>;
+  verified: boolean | null;
+  fetchedAt: number;
+  staleAfter: number | null;
+}
+
+/**
+ * Upsert payload for one `state_enrichments` row
+ * (`port.enrichments.upsertState` / the transactional
+ * `tx.enrichments.upsertState`). `dataJson` is the already-serialized
+ * validated report; `verified` is lifted from the report by the caller
+ * (`null` when the report carries no boolean verdict); `staleAfter` is
+ * `null` in v1 (no declared refresh policy, body-hash drift is the only
+ * staleness signal, `spec/db-schema.md` §state_enrichments).
+ */
+export interface IStateEnrichmentUpsert {
+  nodeId: string;
+  providerId: string;
+  dataJson: string;
+  verified: boolean | null;
+  fetchedAt: number;
+  staleAfter: number | null;
+}
+
+/**
  * Output of `port.scans.countRows()`. Used by `sm scan` to decide
  * whether the persist would wipe a populated DB (the "refusing to
  * wipe" guard) and by `sm db status` for the human summary.

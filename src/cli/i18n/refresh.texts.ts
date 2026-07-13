@@ -2,14 +2,15 @@
  * CLI strings emitted by `sm refresh` and `sm refresh --stale`
  * (`cli/commands/refresh.ts`).
  *
- * `sm refresh` is the granular companion to the universal enrichment
- * layer (spec § A.8). It re-runs Extractors against a single node (or
- * the set of nodes carrying at least one stale enrichment row) so the
- * kernel-curated overlay refreshes against the current body. Extractors
- * are deterministic-only, so they always run for real and persist;
- * `--stale` is a no-op in this revision (no row is stale-flagged) and
- * is reserved for the future Action-issued probabilistic enrichment
- * revision.
+ * `sm refresh` is the granular companion to the enrichment layer
+ * (spec § A.8). It re-runs Extractors against a single node (or the
+ * set of nodes carrying at least one stale enrichment row) so the
+ * kernel-curated overlay refreshes against the current body, THEN
+ * executes every enabled enrichment Action (Model A, e.g. the
+ * provenance verifier `github/enrichment`) against the node, upserting
+ * validated reports into `state_enrichments`. Network-declaring
+ * Actions are gated by the committed `allowNetworkActions` project
+ * policy (default off → skipped with a directed advisory).
  *
  * Convention: flat string templates with `{{name}}` placeholders. The
  * `tx` helper at `kernel/util/tx.ts` does the interpolation.
@@ -62,6 +63,35 @@ export const REFRESH_TEXTS = {
   refreshNounPlural: 'rows',
   refreshNodeNounSingular: 'node',
   refreshNodeNounPlural: 'nodes',
+
+  // --- enrichment Actions (Model A) -----------------------------------------
+  /**
+   * §3.1b two-line advisory (exit stays 0): an enabled Action declares
+   * `io: ['network']` but the committed `allowNetworkActions` project
+   * policy is off, so the execution is refused. Emitted once per
+   * skipped action, naming the config key in the hint.
+   */
+  networkActionsPolicySkip:
+    '{{glyph}}  Skipped {{actionId}}: network actions are disabled in this project.\n' +
+    '   {{hint}}\n',
+  networkActionsPolicySkipHint:
+    'Set `allowNetworkActions` to true in .skill-map/settings.json (committed project policy) to let it run.',
+
+  /**
+   * Warn advisory: an enrichment Action's `invoke()` threw. Remote
+   * failures are reports by contract, so a throw is an action defect;
+   * the refresh keeps going (no row, no execution) and exits 0.
+   */
+  enricherInvokeFailed:
+    '{{glyph}}  {{actionId}} failed for {{nodePath}}: {{message}}\n',
+
+  /**
+   * Warn advisory: the Action's returned report failed validation
+   * against its own report schema. A failed execution row is recorded
+   * (`report-invalid`, mirroring the record path); no state row lands.
+   */
+  enricherReportInvalid:
+    '{{glyph}}  {{actionId}} report rejected for {{nodePath}}: {{errors}}\n',
 
   // --- failures -------------------------------------------------------------
   refreshFailed: '{{glyph}}  sm refresh: {{message}}\n',

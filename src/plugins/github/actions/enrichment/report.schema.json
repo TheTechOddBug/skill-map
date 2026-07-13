@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.ai/spec/v0/github/enrichment-report.schema.json",
+  "title": "GithubEnrichmentReport",
+  "description": "Report shape for the built-in `github/enrichment` deterministic Action (Model A provenance verification). Extends the canonical `enrichments/github.schema.json`; that reference is ALSO the enricher signal `sm refresh` detects (see `db-schema.md` §state_enrichments): the validated report is upserted into `state_enrichments` keyed `(node_id, github/enrichment)`. Deterministic, so it does NOT extend `report-base.schema.json` (no LLM metacognition). Stability: experimental.",
+  "allOf": [{ "$ref": "https://skill-map.ai/spec/v0/enrichments/github.schema.json" }]
+}

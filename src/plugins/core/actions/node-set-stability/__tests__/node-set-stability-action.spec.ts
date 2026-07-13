@@ -92,7 +92,11 @@ function callSetStability(
   ctx: IActionContext,
 ): IActionResult<INodeSetStabilityReport> {
   if (!nodeSetStabilityAction.invoke) throw new Error('nodeSetStabilityAction.invoke missing');
-  return nodeSetStabilityAction.invoke<INodeSetStabilityInput, INodeSetStabilityReport>(input, ctx);
+  const result = nodeSetStabilityAction.invoke<INodeSetStabilityInput, INodeSetStabilityReport>(input, ctx);
+  // The widened contract allows Promise returns (io:['network'] actions);
+  // node-set-stability is contractually synchronous, assert that stays true.
+  if (result instanceof Promise) throw new Error('node-set-stability invoke must stay synchronous');
+  return result;
 }
 
 describe('built-in node-set-stability action, out-of-enum refusal', () => {

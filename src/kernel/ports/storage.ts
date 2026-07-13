@@ -69,6 +69,8 @@ import type {
   IPluginTrustRow,
   IPruneResult,
   IQuickCheckResult,
+  IStateEnrichmentRecord,
+  IStateEnrichmentUpsert,
   ISummaryRecord,
   ISummaryWriteIntent,
   THistoryStatsPeriod,
@@ -96,12 +98,22 @@ export interface ITransactionalStorage {
   enrichments: {
     /**
      * Upsert a batch of fresh enrichment records produced by an
-     * extractor pass. Composite PK is `(nodePath, extractorId)`;
-     * conflict → replace. Every row lands with `stale = 0` (the
-     * caller just refreshed it; ROADMAP §B.10, staleness is
-     * computed downstream when the body hash changes again).
+     * extractor pass (Model B, `node_enrichments`). Composite PK is
+     * `(nodePath, extractorId)`; conflict → replace. Every row lands
+     * with `stale = 0` (the caller just refreshed it; ROADMAP §B.10,
+     * staleness is computed downstream when the body hash changes
+     * again).
      */
     upsertMany(records: IEnrichmentRecord[]): Promise<void>;
+    /**
+     * Upsert one `state_enrichments` row (Model A, the enrichment
+     * write-through `sm refresh` lands for an enricher Action).
+     * Composite PK is `(nodeId, providerId)`; conflict → replace.
+     * Transactional variant so the state row and its `state_executions`
+     * sibling land atomically (mirror of the summaries fold inside
+     * `jobs.recordTerminal`).
+     */
+    upsertState(row: IStateEnrichmentUpsert): Promise<void>;
   };
   history: {
     /**
@@ -112,6 +124,12 @@ export interface ITransactionalStorage {
      * rename heuristic are the canonical consumers.
      */
     migrateNodeFks(from: string, to: string): Promise<IMigrateNodeFksReport>;
+    /**
+     * Append a single `state_executions` row inside the transaction.
+     * `sm refresh` pairs it with `enrichments.upsertState` so an
+     * in-process enricher execution and its state row commit together.
+     */
+    insertExecution(record: ExecutionRecord): Promise<void>;
   };
   // jobs / trust namespaces land in Phases C-D.
 }
@@ -316,12 +334,33 @@ export interface StoragePort {
     findActive(predicate: (issue: Issue) => boolean): Promise<IIssueRow[]>;
   };
 
-  // The `enrichments` namespace is intentionally transactional-only
-  // at Phase A. The mutation surface (`upsertMany`) is exposed inside
-  // `transaction(fn)` only, `sm refresh`'s upsert path is the
-  // canonical caller and it always wraps in a tx. A non-transactional
-  // read shape lands when a non-refresh consumer surfaces; the
-  // contract starts minimal on purpose.
+  // --- enrichments namespace ---------------------------------------------
+  /**
+   * Read access to `state_enrichments` (Model A, the per-node
+   * enrichment write-through an enricher Action lands via `sm refresh`,
+   * `spec/db-schema.md` §state_enrichments). The mutation surfaces stay
+   * transactional-only on `ITransactionalStorage`: the Model B batch
+   * (`upsertMany`, `node_enrichments`) rides inside the refresh
+   * extractor persist, and the Model A upsert (`upsertState`) commits
+   * atomically with its `state_executions` sibling. This top-level
+   * namespace is read-only by design.
+   */
+  enrichments: {
+    /**
+     * Every `state_enrichments` row for a node, ordered by
+     * `providerId` ASC. `providerId` carries the enriching Action's
+     * qualified id (e.g. `github/enrichment`).
+     */
+    listStateForNode(nodeId: string): Promise<IStateEnrichmentRecord[]>;
+    /**
+     * The stale candidate set for `sm refresh --stale` (v1 staleness:
+     * `data_json.localBodyHash` differs from the node's current
+     * `scan_nodes.body_hash`, or a non-null `stale_after` has passed;
+     * rows whose node vanished from the scan are excluded). Computed
+     * SQL-side, see `adapters/sqlite/enrichments.ts`.
+     */
+    listStaleStateCandidates(nowMs: number): Promise<IStateEnrichmentRecord[]>;
+  };
 
   // --- trust namespace --------------------------------------------------
   /**
@@ -691,6 +730,8 @@ export type {
   IPluginTrustRow,
   IPruneResult,
   IQuickCheckResult,
+  IStateEnrichmentRecord,
+  IStateEnrichmentUpsert,
   ISummaryRecord,
   ISummaryWriteIntent,
   THistoryStatsPeriod,

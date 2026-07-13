@@ -204,6 +204,19 @@ export interface IEffectiveConfig {
   allowEditSmFiles: boolean;
   /**
    * **Project policy, team-shared** (committed in the `project` layer,
+   * NOT project-local). Default `false`. When `false`, every Action
+   * whose manifest declares `io: ['network']` (the built-in
+   * `github/enrichment`, plus any external action) is refused at
+   * execution time: `sm refresh` reports it skipped with a directed
+   * advisory naming this key, while the manifest still loads (visible
+   * in listings, never executed). Opt-in by design: a cloned repo must
+   * not be able to make skill-map fetch remote content without the
+   * operator's explicit consent. Mirrors the `allowSidecarWriters`
+   * posture (hard gate, travels with the repo).
+   */
+  allowNetworkActions: boolean;
+  /**
+   * **Project policy, team-shared** (committed in the `project` layer,
    * NOT project-local). Default `true`. When `false`, every extension
    * whose manifest declares `writes: ['sidecar']` is dropped from the
    * scan composer (so its `inspector.action.button` never projects) and

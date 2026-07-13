@@ -17,8 +17,10 @@ import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
 import { builtIns, listBuiltIns } from '../built-ins.js';
+import { enrichmentKindOfReportSchema } from '../../kernel/enrichments/enrichment-schema.js';
 import { summaryKindOfReportSchema } from '../../kernel/jobs/index.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
+import { composeScanExtensions, emptyPluginRuntime } from '../../core/runtime/plugin-runtime.js';
 
 describe('built-in extensions, execution modes', () => {
   it('extractor manifest does NOT declare mode (deterministic-only kind)', () => {
@@ -69,7 +71,7 @@ describe('built-in extensions, execution modes', () => {
 });
 
 describe('built-in extensions, qualified ids (spec § A.6)', () => {
-  it('every built-in declares a recognised pluginId (`core`, `claude`, `antigravity`, `codex`, `opencode`, `agent-skills`)', () => {
+  it('every built-in declares a recognised pluginId (`core`, `claude`, `antigravity`, `codex`, `opencode`, `agent-skills`, `github`)', () => {
     const set = builtIns();
     const all = [
       ...set.providers,
@@ -78,7 +80,7 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
       ...set.formatters,
       ...set.actions,
     ];
-    const valid = new Set(['core', 'claude', 'antigravity', 'codex', 'opencode', 'agent-skills']);
+    const valid = new Set(['core', 'claude', 'antigravity', 'codex', 'opencode', 'agent-skills', 'github']);
     for (const ext of all) {
       assert.ok(
         valid.has(ext.pluginId),
@@ -122,6 +124,7 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     assert.equal(qualifiedByKindAndShort.get('action:node-set-stability'), 'core/node-set-stability');
     assert.equal(qualifiedByKindAndShort.get('action:node-set-tags'), 'core/node-set-tags');
     assert.equal(qualifiedByKindAndShort.get('action:markdown-summarizer'), 'core/markdown-summarizer');
+    assert.equal(qualifiedByKindAndShort.get('action:enrichment'), 'github/enrichment');
   });
 
   // Tests for `analyzer.recommendedActions` were retired with the
@@ -133,7 +136,7 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
 
   it('listBuiltIns() rows carry pluginId verbatim', () => {
     const rows = listBuiltIns();
-    const valid = new Set(['core', 'claude', 'antigravity', 'codex', 'opencode', 'agent-skills']);
+    const valid = new Set(['core', 'claude', 'antigravity', 'codex', 'opencode', 'agent-skills', 'github']);
     for (const row of rows) {
       assert.ok(
         valid.has(row.pluginId),
@@ -171,7 +174,8 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // `codex/backtick-dollar` (the `$skill` sibling completing the per-provider code-region trigger family, codex-only like the prose dollar) brings it to 39.
     // `core/name-mismatch` (analyzer that flags a declared `frontmatter.name` diverging from the node's path-derived handle, severity from the per-kind `identifierMismatch` knob) brings it to 40.
     // `core/markdown-summarizer` (the first probabilistic built-in Action; the universal node summarizer, carrying its `prompt.md` + `report.schema.json` inlined by the built-ins codegen) brings it to 41.
-    assert.equal(rows.length, 41);
+    // `github/enrichment` (the first declared-network deterministic Action; Model A provenance verification against a node's `source` / `sourceVersion` annotations, executed via `sm refresh` behind the `allowNetworkActions` policy) brings it to 42.
+    assert.equal(rows.length, 42);
   });
 
   // Convention guard: every built-in EXTRACTOR description ends with a
@@ -247,6 +251,77 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
         `deterministic action ${action.id} must not carry an inlined promptTemplate`,
       );
     }
+  });
+
+  it('every built-in action carries its inlined report schema (structure-as-truth sibling)', () => {
+    const set = builtIns();
+    assert.ok(set.actions.length > 0, 'expected at least one built-in action');
+    for (const action of set.actions) {
+      assert.ok(
+        action.reportSchema !== null && typeof action.reportSchema === 'object',
+        `action ${action.id} must carry its codegen-inlined reportSchema`,
+      );
+    }
+  });
+
+  it('the built-in `github/enrichment` is a declared-network deterministic enricher that ships disabled', () => {
+    const set = builtIns();
+    const action = set.actions.find((a) => a.id === 'enrichment');
+    if (!action) throw new Error('expected the github/enrichment action to be bundled');
+    assert.equal(action.pluginId, 'github');
+    assert.equal(action.mode, 'deterministic');
+    // The single sanctioned purity carve-out: manifest-declared network IO,
+    // gated at execution by the `allowNetworkActions` project policy.
+    assert.deepEqual(action.io, ['network']);
+    // Experimental flips the installed default to DISABLED (same
+    // ships-disabled mechanism as core/node-bump), so the composed scan
+    // catalog excludes it until the operator opts in.
+    assert.equal(action.stability, 'experimental');
+    assert.equal(typeof action.invoke, 'function');
+    assert.equal(action.promptTemplate, undefined, 'deterministic: no prompt');
+    // The inlined report schema extends the canonical enrichments/github
+    // shape by its absolute $id; that $ref is ALSO the enricher signal
+    // `sm refresh` detects (the mirror of the summarizer convention).
+    const schema = action.reportSchema as { allOf?: Array<{ $ref?: string }> };
+    assert.ok(
+      (schema.allOf ?? []).some(
+        (s) => s.$ref === 'https://skill-map.ai/spec/v0/enrichments/github.schema.json',
+      ),
+      'reportSchema must extend enrichments/github by its absolute $id',
+    );
+    assert.equal(
+      enrichmentKindOfReportSchema(action.reportSchema as Record<string, unknown>),
+      'github',
+      'the enrichments $ref must register the action as a github enricher',
+    );
+    // The optional token secret rides on the extension-settings machinery.
+    assert.equal(action.settings?.['token']?.type, 'secret');
+  });
+
+  it('the composed scan catalog excludes github/enrichment until enabled (ships disabled)', () => {
+    const defaultComposed = composeScanExtensions({
+      noBuiltIns: false,
+      pluginRuntime: emptyPluginRuntime(),
+    });
+    assert.ok(defaultComposed, 'built-ins alone compose a non-empty pipeline');
+    assert.ok(
+      !defaultComposed.actions.some((a) => a.pluginId === 'github' && a.id === 'enrichment'),
+      'experimental github/enrichment must not compose under installed defaults',
+    );
+
+    const enabledComposed = composeScanExtensions({
+      noBuiltIns: false,
+      pluginRuntime: emptyPluginRuntime(),
+      // Operator opt-in: the qualified-id toggle wins over the
+      // experimental installed default.
+      resolveEnabled: (id, installedDefault = true) =>
+        id === 'github/enrichment' ? true : installedDefault,
+    });
+    assert.ok(enabledComposed);
+    assert.ok(
+      enabledComposed.actions.some((a) => a.pluginId === 'github' && a.id === 'enrichment'),
+      'an explicit enable folds github/enrichment into the composed catalog',
+    );
   });
 
   it('claude provider declares schema + schemaJson per kind (Phase 3 catalog)', () => {

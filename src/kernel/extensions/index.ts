@@ -61,6 +61,7 @@ export type {
   IActionContext,
   IActionProjectionContext,
   IActionResult,
+  TActionIoKind,
   TActionWrite,
   TActionWriteKind,
 } from './action.js';

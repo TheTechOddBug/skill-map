@@ -389,7 +389,9 @@ Primary key: `(node_id, summarizer_action_id)`. Indexes: `ix_state_summaries_gen
 
 ### `state_enrichments`
 
-One row per `(node_id, provider_id)`.
+One row per `(node_id, provider_id)`; `provider_id` carries the enriching Action's qualified id (e.g. `github/enrichment`).
+
+**Writer.** `sm refresh` populates this table through the enrichments write-through convention (the mirror of the summaries one): an enabled deterministic Action whose report schema extends a schema under [`schemas/enrichments/`](./schemas/enrichments/) has its validated report upserted here (`data_json`), with `verified` lifted from the report when present, `fetched_at` stamped, and `stale_after` computed from the action's declared refresh policy (null = only body-hash drift marks it stale). Execution is gated by the `allowNetworkActions` project policy when the Action declares `io: ['network']`.
 
 | Column | Type | Constraint |
 |---|---|---|

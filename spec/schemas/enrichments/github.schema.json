@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.ai/spec/v0/enrichments/github.schema.json",
+  "title": "EnrichmentGithub",
+  "description": "Report produced by `github/enrichment` (Model A provenance verification) for a single node carrying `source` + `sourceVersion` annotations. Deterministic: it does NOT extend `report-base.schema.json` (no LLM, no confidence / safety metacognition). A report schema that extends a schema under the canonical `enrichments/` namespace marks its Action as an enricher: `sm refresh` upserts the validated report into `state_enrichments` keyed by `(node_id, <qualified action id>)`, the mirror of the summaries write-through convention. Stability: experimental.",
+  "type": "object",
+  "required": ["verified", "sourceUrl", "method", "localBodyHash"],
+  "additionalProperties": false,
+  "properties": {
+    "verified": {
+      "type": "boolean",
+      "description": "True when the node's local body hash matches the canonical remote content."
+    },
+    "sourceUrl": {
+      "type": "string",
+      "description": "The resolved remote location the verification fetched (raw URL for SHA pins, API-resolved for refs)."
+    },
+    "method": {
+      "enum": ["raw-sha", "api-ref"],
+      "description": "`raw-sha`: `sourceVersion` was a full commit SHA, fetched via the immutable raw URL (no API). `api-ref`: `sourceVersion` was a tag / branch, resolved to `resolvedSha` via the API."
+    },
+    "resolvedSha": {
+      "type": ["string", "null"],
+      "description": "The commit SHA the ref resolved to at fetch time. Null for `raw-sha` (the pin IS the SHA)."
+    },
+    "localBodyHash": {
+      "type": "string",
+      "description": "The node's `body_hash` at verification time; a later body change makes the row stale."
+    },
+    "remoteBodyHash": {
+      "type": ["string", "null"],
+      "description": "Hash of the fetched remote body, null when the fetch failed."
+    },
+    "detail": {
+      "type": "string",
+      "description": "Optional human-readable note (mismatch summary, fetch error, rate-limit advisory)."
+    }
+  }
+}
