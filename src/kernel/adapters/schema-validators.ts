@@ -123,6 +123,23 @@ export interface ISchemaValidators {
     slot: string,
     payload: unknown,
   ): { ok: true } | { ok: false; errors: string };
+  /**
+   * Validate a runner's JSON report against an action's OWN report schema
+   * (the parsed `report.schema.json`, or the `reportSchema` object the
+   * built-ins codegen inlined on a built-in Action manifest). The schema
+   * `$ref`s `report-base.schema.json` by its absolute `$id`; this loader's
+   * AJV instance already registers `report-base`, so the cross-file ref
+   * resolves. Consumed by `sm record` to gate a `--status completed`
+   * callback before the job is closed. Validators are reused by the
+   * schema's `$id` (via AJV's own registry) so repeated `sm record` calls
+   * in one process don't trip AJV's "schema already exists" guard; a
+   * malformed report schema surfaces as `{ ok: false }` rather than a
+   * crash.
+   */
+  validateActionReport(
+    reportSchema: Record<string, unknown>,
+    data: unknown,
+  ): { ok: true } | { ok: false; errors: string };
 }
 
 // Module-level cache. Cold load compiles ~17 validators
@@ -217,6 +234,24 @@ function buildSchemaValidators(): ISchemaValidators {
     return compiled;
   }
 
+  /**
+   * Compile an action's report schema against the shared AJV (which has
+   * `report-base` registered). Reuse a previously-compiled schema by its
+   * `$id` so a second `sm record` in the same process (tests, a future
+   * `sm job run` drain loop) does not re-register the same `$id` and
+   * throw. A schema with no `$id` compiles fresh each call, harmless since
+   * AJV never registers an anonymous schema.
+   */
+  function getActionReportValidator(reportSchema: Record<string, unknown>): ValidateFunction {
+    const rawId = reportSchema['$id'];
+    const id = typeof rawId === 'string' ? rawId : undefined;
+    if (id !== undefined) {
+      const existing = ajv.getSchema(id);
+      if (existing) return existing;
+    }
+    return ajv.compile(reportSchema);
+  }
+
   return {
     getValidator(name) {
       const v = validators.get(name);
@@ -244,6 +279,20 @@ function buildSchemaValidators(): ISchemaValidators {
         return { ok: false as const, errors: 'unknown-slot' };
       }
       if (validator(payload)) return { ok: true as const };
+      const errors = formatAjvErrors(validator.errors);
+      return { ok: false as const, errors };
+    },
+    validateActionReport(reportSchema: Record<string, unknown>, data: unknown) {
+      let validator: ValidateFunction;
+      try {
+        validator = getActionReportValidator(reportSchema);
+      } catch (err) {
+        // A malformed report schema (bad `$ref`, invalid JSON Schema) fails
+        // to compile; surface it as a report-validation failure the caller
+        // reports, never an uncaught crash inside the callback path.
+        return { ok: false as const, errors: err instanceof Error ? err.message : String(err) };
+      }
+      if (validator(data)) return { ok: true as const };
       const errors = formatAjvErrors(validator.errors);
       return { ok: false as const, errors };
     },

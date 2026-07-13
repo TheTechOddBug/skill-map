@@ -178,28 +178,8 @@ export class JobRunCommand extends StubCommand {
 
 // JobPruneCommand moved to ./jobs.ts (lands real in Step 7.3).
 
-// ---------------------------------------------------------------------------
-// Record (callback)
-// ---------------------------------------------------------------------------
-
-export class RecordCommand extends StubCommand {
-  static override paths = [['record']];
-  static override usage = Command.Usage({
-    category: 'Jobs',
-    description: planned('Close a running job with success or failure. Nonce is the sole credential.'),
-  });
-  id = Option.String('--id', { required: true });
-  nonce = Option.String('--nonce', { required: true });
-  status = Option.String('--status', { required: true });
-  report = Option.String('--report', { required: false });
-  tokensIn = Option.String('--tokens-in', { required: false });
-  tokensOut = Option.String('--tokens-out', { required: false });
-  durationMs = Option.String('--duration-ms', { required: false });
-  model = Option.String('--model', { required: false });
-  error = Option.String('--error', { required: false });
-
-  protected override readonly verbName = 'record';
-}
+// RecordCommand moved to ./record.ts (lands real in Step 10 Phase D, the
+// job callback).
 
 // ---------------------------------------------------------------------------
 // History, moved to ./history.ts at Step 5.3 / 5.4
@@ -225,5 +205,4 @@ export const STUB_COMMANDS = [
   ActionsListCommand,
   ActionsShowCommand,
   JobRunCommand,
-  RecordCommand,
 ];

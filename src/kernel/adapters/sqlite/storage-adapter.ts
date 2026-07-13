@@ -61,6 +61,7 @@ import { tx } from '../../util/tx.js';
 import { NodeSqliteDialect } from './dialect.js';
 import {
   aggregateHistoryStats,
+  insertExecution,
   listExecutions,
   migrateNodeFks,
 } from './history.js';
@@ -82,6 +83,7 @@ import {
   listJobs,
   pruneTerminalJobs,
   reapExpired,
+  recordJobTerminal,
   submitJob,
 } from './jobs.js';
 import {
@@ -346,6 +348,7 @@ export class SqliteStorageAdapter implements StoragePort {
 
     this.history = {
       list: (filter: IListExecutionsFilter) => listExecutions(this.db, filter),
+      insertExecution: (record) => insertExecution(this.db, record),
       aggregateStats: (
         range: IHistoryStatsRange,
         period: THistoryStatsPeriod,
@@ -371,6 +374,7 @@ export class SqliteStorageAdapter implements StoragePort {
         pruneTerminalJobs(this.db, status, cutoffMs),
       listTerminalCandidates: (status, cutoffMs) =>
         listTerminalCandidates(this.db, status, cutoffMs),
+      recordTerminal: (execution) => recordJobTerminal(this.db, execution),
     };
 
     this.favorites = {

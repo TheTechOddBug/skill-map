@@ -13,10 +13,10 @@
  *                      contains an `error`).
  *   Error         = 2  unhandled error / config load failure / bad usage
  *                      / IO failure / DB invariant violation.
- *   Duplicate     = 3  emitted by `sm record` (stub today) when a
- *                      submitted record collides with an existing one.
- *   NonceMismatch = 4  emitted by `sm record` (stub today) when the
- *                      submitted nonce does not match the expected one.
+ *   Duplicate     = 3  emitted by `sm job submit` when an active duplicate
+ *                      job already covers the same action + node + hash.
+ *   NonceMismatch = 4  emitted by `sm record` when the supplied nonce does
+ *                      not match the target job's.
  *   NotFound      = 5  target not on disk / not in DB. DB file missing
  *                      (most common, see `assertDbExists`), prior
  *                      scan-result row missing, requested node path
@@ -31,9 +31,7 @@ export const ExitCode = {
   Ok: 0,
   Issues: 1,
   Error: 2,
-  // TODO Step 10: emitted by RecordCommand once the job callback ships.
   Duplicate: 3,
-  // TODO Step 10: emitted by RecordCommand once the job callback ships.
   NonceMismatch: 4,
   NotFound: 5,
 } as const;

@@ -23,7 +23,7 @@ export {
   resolvePriority,
   type TResolvableAction,
 } from './resolve.js';
-export { generateJobId, generateNonce } from './ids.js';
+export { generateExecutionId, generateJobId, generateNonce } from './ids.js';
 export {
   InvalidTtlError,
   InvalidPriorityError,

@@ -32,7 +32,7 @@ import { sql } from 'kysely';
 import type { Kysely, Selectable } from 'kysely';
 
 import type { IDatabase, IStateJobsTable } from './schema.js';
-import type { Job, JobRunner, JobStatus } from '../../types.js';
+import type { ExecutionRecord, Job, JobRunner, JobStatus } from '../../types.js';
 import type {
   IJobClaim,
   IJobContentInput,
@@ -41,6 +41,7 @@ import type {
   IPruneResult,
   TJobTransitionOutcome,
 } from '../../types/storage.js';
+import { insertExecution } from './history.js';
 
 export type { IPruneResult } from '../../types/storage.js';
 
@@ -455,4 +456,43 @@ export async function reapExpired(
     .where('expiresAt', '<', nowMs)
     .executeTakeFirst();
   return Number(res.numUpdatedRows ?? 0n);
+}
+
+/**
+ * Record callback (`spec/job-lifecycle.md` §Record steps 5-6): write the
+ * terminal `state_executions` row AND transition its `running` job to the
+ * terminal state, both inside ONE transaction so the execution row and the
+ * job's final status can never disagree (a crash between them would leave a
+ * completed job with no history row, or an orphan execution for a still-
+ * running job).
+ *
+ * The execution carries everything the job transition needs: `jobId`
+ * (which `state_jobs` row), `status` (`completed` / `failed`, an
+ * `ExecutionStatus` subset of `JobStatus`), `failureReason`
+ * (`report-invalid` / `runner-error` / null), and `finishedAt`. The UPDATE
+ * guards on `status = 'running'` so a job already reaped or cancelled out
+ * from under a late callback is left untouched (the CLI's pre-check exits 2
+ * before reaching here, this is the defensive backstop).
+ */
+export async function recordJobTerminal(
+  db: Kysely<IDatabase>,
+  execution: ExecutionRecord,
+): Promise<void> {
+  const jobId = execution.jobId;
+  if (jobId === null || jobId === undefined) {
+    throw new Error('recordJobTerminal: execution.jobId is required to transition the job');
+  }
+  await db.transaction().execute(async (trx) => {
+    await insertExecution(trx, execution);
+    await trx
+      .updateTable('state_jobs')
+      .set({
+        status: execution.status,
+        failureReason: execution.failureReason ?? null,
+        finishedAt: execution.finishedAt,
+      })
+      .where('id', '=', jobId)
+      .where('status', '=', 'running')
+      .execute();
+  });
 }

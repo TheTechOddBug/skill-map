@@ -1,5 +1,5 @@
 /**
- * Job-id and nonce generation.
+ * Job-id, execution-id, and nonce generation.
  *
  *   - `generateJobId(now?, suffix?)` produces the spec id shape
  *     `d-YYYYMMDD-HHMMSS-XXXX` (`job.schema.json#/properties/id`,
@@ -9,12 +9,18 @@
  *     same second (e.g. an `--all` fan-out) get distinct ids; the
  *     `state_jobs.id` PRIMARY KEY is the hard backstop on the rare clash.
  *
+ *   - `generateExecutionId(now?, suffix?)` produces the sibling
+ *     `e-YYYYMMDD-HHMMSS-XXXX` shape
+ *     (`execution-record.schema.json#/properties/id`). Same UTC-sortable
+ *     layout as the job id with an `e-` prefix; `sm record` stamps one on
+ *     every `state_executions` row it writes.
+ *
  *   - `generateNonce()` is the per-job callback credential
  *     (`spec/job-lifecycle.md` §Submit step 7 / §Record): cryptographically
  *     random, >= 128 bits of entropy, hex. `randomBytes(16)` = 128 bits =
  *     32 hex chars. Never reused, never logged at info+.
  *
- * Both accept injectable sources so unit tests can pin deterministic
+ * All accept injectable sources so unit tests can pin deterministic
  * output; production callers use the crypto defaults.
  */
 
@@ -29,6 +35,17 @@ function defaultJobSuffix(): string {
   return randomBytes(2).toString('hex');
 }
 
+/** `YYYYMMDD-HHMMSS` UTC stamp shared by the job / execution id shapes. */
+function formatIdTimestamp(now: Date): string {
+  const yyyy = pad(now.getUTCFullYear(), 4);
+  const mm = pad(now.getUTCMonth() + 1, 2);
+  const dd = pad(now.getUTCDate(), 2);
+  const hh = pad(now.getUTCHours(), 2);
+  const mi = pad(now.getUTCMinutes(), 2);
+  const ss = pad(now.getUTCSeconds(), 2);
+  return `${yyyy}${mm}${dd}-${hh}${mi}${ss}`;
+}
+
 /**
  * Build the `d-YYYYMMDD-HHMMSS-XXXX` id from a timestamp (UTC) plus a
  * 4-hex-char random suffix. `now` and `suffix` are injectable for tests.
@@ -37,13 +54,18 @@ export function generateJobId(
   now: Date = new Date(),
   suffix: () => string = defaultJobSuffix,
 ): string {
-  const yyyy = pad(now.getUTCFullYear(), 4);
-  const mm = pad(now.getUTCMonth() + 1, 2);
-  const dd = pad(now.getUTCDate(), 2);
-  const hh = pad(now.getUTCHours(), 2);
-  const mi = pad(now.getUTCMinutes(), 2);
-  const ss = pad(now.getUTCSeconds(), 2);
-  return `d-${yyyy}${mm}${dd}-${hh}${mi}${ss}-${suffix()}`;
+  return `d-${formatIdTimestamp(now)}-${suffix()}`;
+}
+
+/**
+ * Build the `e-YYYYMMDD-HHMMSS-XXXX` execution-record id (UTC) plus a
+ * 4-hex-char random suffix. Same injectable sources as `generateJobId`.
+ */
+export function generateExecutionId(
+  now: Date = new Date(),
+  suffix: () => string = defaultJobSuffix,
+): string {
+  return `e-${formatIdTimestamp(now)}-${suffix()}`;
 }
 
 /**

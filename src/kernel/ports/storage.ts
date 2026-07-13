@@ -452,6 +452,17 @@ export interface StoragePort {
       status: 'completed' | 'failed' | 'cancelled',
       cutoffMs: number,
     ): Promise<IPruneResult>;
+    /**
+     * Record callback (`spec/job-lifecycle.md` §Record): append the terminal
+     * `state_executions` row AND transition the `running` job to its
+     * terminal state (`completed` / `failed`), atomically in one
+     * transaction. The `ExecutionRecord` carries the target `jobId`, the
+     * final `status`, the `failureReason` (`report-invalid` /
+     * `runner-error` / null), and `finishedAt`; the report payload rides
+     * inline on `reportPath` (mapped to the `report_json` column). Backs
+     * `sm record`.
+     */
+    recordTerminal(execution: ExecutionRecord): Promise<void>;
   };
 
   // --- preferences namespace -------------------------------------------
@@ -509,6 +520,14 @@ export interface StoragePort {
   history: {
     /** List `state_executions` rows (paginated by filter). */
     list(filter: IListExecutionsFilter): Promise<ExecutionRecord[]>;
+    /**
+     * Append a single `state_executions` row (the table is append-only
+     * through v1.0). The primitive history write the port previously
+     * lacked; `sm record` transitions atomically through
+     * `jobs.recordTerminal`, while a standalone in-process action or a
+     * future `sm job run` leg that has no job row uses this directly.
+     */
+    insertExecution(record: ExecutionRecord): Promise<void>;
     /**
      * Aggregate counters / period buckets / top-nodes / error rates
      * over `state_executions`. Body matches the spec

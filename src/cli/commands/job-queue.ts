@@ -72,7 +72,7 @@ import { withSqlite } from '../util/with-sqlite.js';
 // Shared helpers
 // ---------------------------------------------------------------------------
 
-interface IActionRuntime {
+export interface IActionRuntime {
   actions: IAction[];
   /** qualified action id -> directory holding `prompt.md` / `report.schema.json`. */
   dirByAction: Map<string, string>;
@@ -84,8 +84,12 @@ interface IActionRuntime {
  * from the loaded extension's `entryPath`, so no path convention is
  * reconstructed). Built-in actions carry no directory; they are all
  * deterministic today and never reach the prompt-template resolution.
+ *
+ * Shared by `sm job submit` (resolves `prompt.md`) and `sm record`
+ * (resolves `report.schema.json`), both of which resolve an action against
+ * the same composed runtime.
  */
-async function loadActionRuntime(printer: IPrinter): Promise<IActionRuntime> {
+export async function loadActionRuntime(printer: IPrinter): Promise<IActionRuntime> {
   const runtime = await loadPluginRuntime();
   runtime.emitWarnings(printer);
   const composed = composeScanExtensions({
@@ -109,7 +113,7 @@ function buildActionDirMap(discovered: IDiscoveredPlugin[]): Map<string, string>
 }
 
 /** Resolve an action by qualified id (`<plugin>/<id>`) or bare id. */
-function resolveAction(actions: readonly IAction[], id: string): IAction | null {
+export function resolveAction(actions: readonly IAction[], id: string): IAction | null {
   for (const action of actions) {
     if (qualifiedExtensionId(action.pluginId, action.id) === id) return action;
   }
