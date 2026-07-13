@@ -1,0 +1,12 @@
+{
+  "mode": "pre",
+  "tag": "rc",
+  "initialVersions": {
+    "skill-map-e2e": "0.0.0",
+    "@skill-map/spec": "0.80.0",
+    "@skill-map/cli": "0.88.0",
+    "ui": "0.1.1",
+    "@skill-map/web": "0.3.17"
+  },
+  "changesets": []
+}
