@@ -18,4 +18,7 @@ export const MIGRATIONS_TEXTS = {
 
   applyFailed:
     'Migration {{name}} failed: {{reason}}',
+
+  quickCheckNoRows:
+    'PRAGMA quick_check returned no rows',
 } as const;

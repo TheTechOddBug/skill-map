@@ -62,6 +62,7 @@ export type {
   IActionProjectionContext,
   IActionResult,
   TActionWrite,
+  TActionWriteKind,
 } from './action.js';
 export type { IFormatter, IFormatterContext } from './formatter.js';
 export type { IHook, IHookContext, THookTrigger, THookFilter } from './hook.js';

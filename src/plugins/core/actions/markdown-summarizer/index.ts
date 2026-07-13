@@ -1,9 +1,14 @@
 /**
  * Built-in probabilistic `markdown-summarizer` Action, the FIRST
- * probabilistic built-in Action.
+ * probabilistic built-in Action and the UNIVERSAL node summarizer.
  *
- * Summarizes one `markdown` node (the format-named generic fallback owned
- * by the built-in `core/markdown` Provider) into a structured brief. Unlike
+ * Summarizes any node into a structured brief: `markdown` names the body
+ * format it reads (every node body is markdown prose, including
+ * frontmatter-field bodies like codex TOML `developer_instructions`), not
+ * a node-kind gate. There is deliberately NO `precondition`, so a
+ * `sm job submit markdown-summarizer --all` fan-out reaches every
+ * non-virtual node; per-kind summarizers were dropped by decision (see
+ * `ROADMAP.md` §Summarizer pattern). Unlike
  * the deterministic built-in actions (`node-bump`, `node-set-stability`,
  * `node-set-tags`), this Action carries NO in-process `invoke` and NO
  * scan-time `project`: probabilistic actions run OUTSIDE the process, the
@@ -39,12 +44,11 @@ export const markdownSummarizerAction: IBuiltInManifest<IAction> = {
   pluginId: PLUGIN_ID,
   kind: 'action',
   description:
-    'Summarizes a markdown node into a structured brief (probabilistic; runs via a runner + `sm record`).',
+    "Summarizes a node's markdown content into a structured brief (probabilistic; runs via a runner + `sm record`).",
   mode: 'probabilistic',
   // Best-effort wall-clock estimate; drives the job TTL. Two minutes is a
   // safe upper bound for a single-file summary on a mid-tier model.
   probExpectedDurationSeconds: 120,
-  // Gates the `--all` fan-out to `markdown` nodes only (the format-named
-  // generic fallback kind owned by the `core/markdown` Provider).
-  precondition: { kind: ['markdown'] },
+  // No precondition: the summarizer is universal, `--all` fans out to
+  // every non-virtual node regardless of kind.
 };

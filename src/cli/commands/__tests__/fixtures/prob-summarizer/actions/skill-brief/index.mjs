@@ -1,6 +1,6 @@
 /**
  * Test-only probabilistic SUMMARIZER action. Its sibling
- * `report.schema.json` `$ref`s the canonical `summaries/skill.schema.json`,
+ * `report.schema.json` `$ref`s the canonical `summaries/markdown.schema.json`,
  * and that reference is the summarizer signal the record path detects (no
  * manifest flag, see `spec/job-lifecycle.md` §Record): recording a
  * `completed` job for this action upserts the validated report into
@@ -11,7 +11,7 @@
 export default {
   version: '1.0.0',
   description:
-    'Test-only probabilistic summarizer whose report schema extends summaries/skill (drives the plugin-path summary write-through tests).',
+    'Test-only probabilistic summarizer whose report schema extends the canonical summaries/markdown node-summary schema (drives the plugin-path summary write-through tests).',
   mode: 'probabilistic',
   probExpectedDurationSeconds: 120,
   precondition: { kind: ['claude/skill'] },

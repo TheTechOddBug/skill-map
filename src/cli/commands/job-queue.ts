@@ -789,16 +789,33 @@ export class JobPreviewCommand extends SmCommand {
   static override paths = [['job', 'preview']];
   static override usage = Command.Usage({
     category: 'Jobs',
-    description: 'Print the rendered content of a queued job without executing it (reads from state_job_contents; no on-disk artifact).',
+    description: 'Print the rendered content of a job without executing it (reads from state_job_contents; no on-disk artifact).',
+    details: `
+      With <job.id>: preview that job. With --last: preview the most
+      recently submitted job (newest createdAt, any status), the natural
+      follow-up to sm job submit without copying the id. Pass exactly one
+      of <job.id> or --last (neither, or both, is a usage error -> exit 2);
+      --last with no jobs at all exits 5.
+    `,
   });
 
-  id = Option.String({ required: true });
+  id = Option.String({ required: false });
+  last = Option.Boolean('--last', false);
 
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
     const dbPath = resolveDbPath({ db: this.db, ...ctx });
     const dbExit = requireDbOrExit(dbPath, this.context.stderr);
     if (dbExit !== null) return dbExit;
+
+    if (this.last && this.id !== undefined) {
+      this.printer!.error(tx(T.previewErrTargetConflict, { glyph: this.ansiFor('stderr').red('✕') }));
+      return ExitCode.Error;
+    }
+    if (!this.last && this.id === undefined) {
+      this.printer!.error(tx(T.previewErrNeedTarget, { glyph: this.ansiFor('stderr').red('✕') }));
+      return ExitCode.Error;
+    }
 
     return withSqlite(
       {
@@ -808,17 +825,23 @@ export class JobPreviewCommand extends SmCommand {
         versionCheck: buildReadVersionCheck(this.printer!, this.ansiFor('stderr')),
       },
       async (adapter) => {
-        const job = await adapter.jobs.get(this.id);
+        // `jobs.list` is newest-first (createdAt DESC, id DESC), so the
+        // head row IS the most recently submitted job.
+        const job = this.last
+          ? ((await adapter.jobs.list({}))[0] ?? null)
+          : await adapter.jobs.get(this.id!);
         if (!job) {
           this.printer!.error(
-            tx(T.previewErrNotFound, { glyph: this.ansiFor('stderr').red('✕'), id: this.id }),
+            this.last
+              ? tx(T.previewErrNoJobs, { glyph: this.ansiFor('stderr').red('✕') })
+              : tx(T.previewErrNotFound, { glyph: this.ansiFor('stderr').red('✕'), id: this.id! }),
           );
           return ExitCode.NotFound;
         }
         const content = await adapter.jobs.getContent(job.contentHash);
         if (content === null) {
           this.printer!.error(
-            tx(T.previewErrContentMissing, { glyph: this.ansiFor('stderr').red('✕'), id: this.id }),
+            tx(T.previewErrContentMissing, { glyph: this.ansiFor('stderr').red('✕'), id: job.id }),
           );
           return ExitCode.NotFound;
         }

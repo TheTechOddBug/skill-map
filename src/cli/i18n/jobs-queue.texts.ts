@@ -63,6 +63,9 @@ export const JOBS_QUEUE_TEXTS = {
   previewErrNotFound: '{{glyph}}  sm job preview: job {{id}} not found\n',
   previewErrContentMissing:
     '{{glyph}}  sm job preview: job {{id}} has no stored content (state_job_contents row missing)\n',
+  previewErrNeedTarget: '{{glyph}}  sm job preview: pass <job.id> or --last\n',
+  previewErrTargetConflict: '{{glyph}}  sm job preview: pass either <job.id> or --last, not both\n',
+  previewErrNoJobs: '{{glyph}}  sm job preview: no jobs submitted yet, nothing to preview\n',
 
   // --- claim -------------------------------------------------------------
   // claim writes the raw id (plain) or the {id,nonce,content} JSON to

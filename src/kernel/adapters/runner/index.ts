@@ -8,7 +8,9 @@ export {
   ClaudeCliRunner,
   extractReportJson,
   extractRunReport,
+  probeClaudeCli,
   TIMEOUT_EXIT_CODE,
+  type IClaudeCliProbe,
   type IClaudeCliRunnerOptions,
   type IExtractedReport,
 } from './claude-cli.js';

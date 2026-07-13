@@ -152,7 +152,7 @@ Defense-in-depth: the deterministic analyzer `injection-pattern` (a built-in in 
 - [`job-lifecycle.md`](./job-lifecycle.md), submit flow that renders job files with the preamble.
 - [`architecture.md`](./architecture.md), kernel's role in applying the preamble.
 - [`interfaces/security-scanner.md`](./interfaces/security-scanner.md), `SecurityReport` convention that extends `report-base`.
-- [`conformance/`](./conformance/README.md), `preamble-bitwise-match` case (deferred to Step 10).
+- [`conformance/`](./conformance/README.md), `preamble-bitwise-match` case (landed at Step 10).
 
 ---
 

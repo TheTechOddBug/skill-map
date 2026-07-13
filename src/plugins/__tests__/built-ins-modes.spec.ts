@@ -170,7 +170,7 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // `core/backtick-slash` (its `/command` sibling, same code-region domain and resolution gate, lens-gated claude / antigravity / opencode like the prose slash) brings it to 38.
     // `codex/backtick-dollar` (the `$skill` sibling completing the per-provider code-region trigger family, codex-only like the prose dollar) brings it to 39.
     // `core/name-mismatch` (analyzer that flags a declared `frontmatter.name` diverging from the node's path-derived handle, severity from the per-kind `identifierMismatch` knob) brings it to 40.
-    // `core/markdown-summarizer` (the first probabilistic built-in Action; summarizes a `markdown` node into a structured brief, carrying its `prompt.md` + `report.schema.json` inlined by the built-ins codegen) brings it to 41.
+    // `core/markdown-summarizer` (the first probabilistic built-in Action; the universal node summarizer, carrying its `prompt.md` + `report.schema.json` inlined by the built-ins codegen) brings it to 41.
     assert.equal(rows.length, 41);
   });
 

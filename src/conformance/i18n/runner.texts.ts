@@ -12,6 +12,9 @@ export const CONFORMANCE_RUNNER_TEXTS = {
   priorScanFailed:
     'setup.priorScans step `{{fixture}}` failed with exit {{exit}}: {{stderr}}',
 
+  priorInvokeFailed:
+    'setup.priorInvokes step `{{argv}}` failed with exit {{exit}}: {{stderr}}',
+
   pathMustBeRelative:
     'conformance: {{label}} path "{{path}}" must be relative to its anchor ({{anchor}})',
 
@@ -29,6 +32,9 @@ export const CONFORMANCE_RUNNER_TEXTS = {
 
   targetMissingFixture:
     'target does not contain fixture {{fixture}} verbatim',
+
+  stdoutMissingFixture:
+    'stdout does not contain fixture {{fixture}} verbatim',
 
   fileMatchesSchemaUnimplemented:
     'file-matches-schema not yet implemented (requires ajv; lands with Step 2)',

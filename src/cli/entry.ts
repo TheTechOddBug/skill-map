@@ -48,6 +48,8 @@ import {
 } from './telemetry/sentry-init.js';
 import { captureCliInvocation, flushUsageCli, initUsageCli } from './telemetry/posthog-init.js';
 import { extractFlagNames } from './telemetry/usage-collector.js';
+import { ActionsListCommand, ActionsShowCommand } from './commands/actions.js';
+import { DoctorCommand } from './commands/doctor.js';
 import { BUMP_COMMANDS } from './commands/bump.js';
 import { CheckCommand } from './commands/check.js';
 import { CONFIG_COMMANDS } from './commands/config.js';
@@ -113,6 +115,9 @@ cli.register(HistoryStatsCommand);
 cli.register(JobPruneCommand);
 cli.register(RecordCommand);
 cli.register(JobRunCommand);
+cli.register(ActionsListCommand);
+cli.register(ActionsShowCommand);
+cli.register(DoctorCommand);
 for (const cmd of JOB_QUEUE_COMMANDS) cli.register(cmd);
 for (const cmd of CONFIG_COMMANDS) cli.register(cmd);
 for (const cmd of CONFORMANCE_COMMANDS) cli.register(cmd);

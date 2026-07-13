@@ -3,7 +3,7 @@
  * `@skill-map/spec` against an installed binary and emits a pass/fail result
  * per case.
  *
- * Implements the six assertion types from `spec/schemas/conformance-case.schema.json`.
+ * Implements the seven assertion types from `spec/schemas/conformance-case.schema.json`.
  * Provisions a clean tmp scope per case, optionally pre-populated with the
  * referenced fixture corpus.
  *
@@ -60,6 +60,14 @@ export interface IRunCaseOptions {
   env?: NodeJS.ProcessEnv;
 }
 
+/** `invoke` / `setup.priorInvokes[N]` shape (`conformance-case.schema.json#/$defs/Invocation`). */
+interface IInvocation {
+  verb: string;
+  sub?: string;
+  args?: string[];
+  flags?: string[];
+}
+
 interface IConformanceCase {
   id: string;
   description: string;
@@ -69,14 +77,19 @@ interface IConformanceCase {
     disableAllExtractors?: boolean;
     disableAllAnalyzers?: boolean;
     priorScans?: Array<{ fixture: string; flags?: string[] }>;
+    priorInvokes?: IInvocation[];
   };
-  invoke: {
-    verb: string;
-    sub?: string;
-    args?: string[];
-    flags?: string[];
-  };
+  invoke: IInvocation;
   assertions: TAssertion[];
+}
+
+/** Flatten an invocation into the argv tail passed to the binary. */
+function invocationArgv(invoke: IInvocation): string[] {
+  const argv = [invoke.verb];
+  if (invoke.sub) argv.push(invoke.sub);
+  if (invoke.args) argv.push(...invoke.args);
+  if (invoke.flags) argv.push(...invoke.flags);
+  return argv;
 }
 
 /**
@@ -172,14 +185,14 @@ export type TAssertion =
     }
   | { type: 'file-exists'; path: string }
   | { type: 'file-contains-verbatim'; path: string; fixture: string }
+  | { type: 'stdout-contains-verbatim'; fixture: string }
   | { type: 'file-matches-schema'; path: string; schema: string }
   | { type: 'stderr-matches'; pattern: string };
 
 // Conformance runner orchestrates: case parse, setup steps, scope
 // provision, sm invocation, assert dispatch over the closed assertion
 // type union. Each step is one cyclomatic point; splitting hides the
-// pipeline. Per `context/lint.md` category 1 (CLI orchestrators).
-// eslint-disable-next-line complexity
+// pipeline.
 export function runConformanceCase(options: IRunCaseOptions): IRunCaseResult {
   const raw = readFileSync(options.casePath, 'utf8');
   const c: IConformanceCase = JSON.parse(raw);
@@ -220,10 +233,13 @@ export function runConformanceCase(options: IRunCaseOptions): IRunCaseResult {
       ...setupEnv,
     });
 
-    const argv = [c.invoke.verb];
-    if (c.invoke.sub) argv.push(c.invoke.sub);
-    if (c.invoke.args) argv.push(...c.invoke.args);
-    if (c.invoke.flags) argv.push(...c.invoke.flags);
+    // 2c. Replay every `setup.priorInvokes` step against the provisioned
+    //     scope (after the top-level fixture copy, so the steps see the
+    //     same corpus the main invoke will). Each step MUST exit 0.
+    const invokeFailure = runPriorInvokesSetup(c, options, scope, setupEnv);
+    if (invokeFailure) return invokeFailure;
+
+    const argv = invocationArgv(c.invoke);
 
     const child = spawnSync(process.execPath, [options.binary, ...argv], {
       cwd: scope,
@@ -296,6 +312,58 @@ function runPriorScansSetup(
             type: 'priorScan',
             reason: tx(CONFORMANCE_RUNNER_TEXTS.priorScanFailed, {
               fixture: step.fixture,
+              exit: stepChild.status ?? 0,
+              stderr: stepChild.stderr ?? '',
+            }),
+          },
+        ],
+      };
+    }
+  }
+  return null;
+}
+
+/**
+ * Phase 2c of `runConformanceCase`, replay every `setup.priorInvokes`
+ * step in order against the fully-provisioned scope (top-level fixture
+ * already copied, plugin trust granted). Unlike `priorScans` there is
+ * no fixture swap: the steps mutate scope state through the CLI itself
+ * (e.g. `sm job submit` before a `sm job preview --last` main invoke).
+ *
+ * Returns `null` on success (caller continues) or a `IRunCaseResult`
+ * with a single `priorInvoke` failure assertion (caller returns it
+ * unchanged).
+ */
+// Per-step replay: spawn the invocation, check exit. The failure-result
+// construction is verbose because it carries every stream the caller
+// reports back (same shape as `runPriorScansSetup`).
+// eslint-disable-next-line complexity
+function runPriorInvokesSetup(
+  c: IConformanceCase,
+  options: IRunCaseOptions,
+  scope: string,
+  setupEnv: NodeJS.ProcessEnv,
+): IRunCaseResult | null {
+  for (const step of c.setup?.priorInvokes ?? []) {
+    const stepArgv = invocationArgv(step);
+    const stepChild = spawnSync(process.execPath, [options.binary, ...stepArgv], {
+      cwd: scope,
+      env: { ...pickSafeEnv(process.env), ...options.env, ...setupEnv },
+      encoding: 'utf8',
+    });
+    if ((stepChild.status ?? 0) !== 0) {
+      return {
+        caseId: c.id,
+        passed: false,
+        exitCode: stepChild.status ?? 0,
+        stdout: stepChild.stdout ?? '',
+        stderr: stepChild.stderr ?? '',
+        assertions: [
+          {
+            ok: false,
+            type: 'priorInvoke',
+            reason: tx(CONFORMANCE_RUNNER_TEXTS.priorInvokeFailed, {
+              argv: stepArgv.join(' '),
               exit: stepChild.status ?? 0,
               stderr: stepChild.stderr ?? '',
             }),
@@ -422,10 +490,10 @@ interface TAssertionContext {
   fixturesRoot: string;
 }
 
-// Switch over assertion types (`exit-code` / `stdout-matches` /
-// `file-exists` / `file-contains-verbatim` / `file-matches-schema` /
-// `stderr-matches` / `json-path`) with one branch per type. Splitting
-// per type would scatter the discriminated-union dispatch.
+// Switch over assertion types (`exit-code` / `json-path` /
+// `file-exists` / `file-contains-verbatim` / `stdout-contains-verbatim` /
+// `file-matches-schema` / `stderr-matches`) with one branch per type.
+// Splitting per type would scatter the discriminated-union dispatch.
 // eslint-disable-next-line complexity
 function evaluateAssertion(a: TAssertion, ctx: TAssertionContext): TAssertionResult {
   switch (a.type) {
@@ -481,6 +549,22 @@ function evaluateAssertion(a: TAssertion, ctx: TAssertionContext): TAssertionRes
             ok: false,
             type: a.type,
             reason: tx(CONFORMANCE_RUNNER_TEXTS.targetMissingFixture, { fixture: a.fixture }),
+          };
+    }
+    case 'stdout-contains-verbatim': {
+      try {
+        assertContained(ctx.fixturesRoot, a.fixture, 'stdout-contains-verbatim/fixture');
+      } catch (err) {
+        return { ok: false, type: a.type, reason: formatErrorMessage(err) };
+      }
+      const needle = readFileSync(join(ctx.fixturesRoot, a.fixture));
+      const haystack = Buffer.from(ctx.stdout, 'utf8');
+      return haystack.includes(needle)
+        ? { ok: true, type: a.type }
+        : {
+            ok: false,
+            type: a.type,
+            reason: tx(CONFORMANCE_RUNNER_TEXTS.stdoutMissingFixture, { fixture: a.fixture }),
           };
     }
     case 'file-matches-schema':

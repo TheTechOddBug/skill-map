@@ -80,6 +80,7 @@ import {
   findActiveDuplicate,
   getJob,
   getJobContent,
+  jobsIntegrityCounts,
   listJobs,
   pruneTerminalJobs,
   reapExpired,
@@ -90,6 +91,7 @@ import {
   applyMigrations,
   discoverMigrations,
   planMigrations,
+  runQuickCheck,
   writeBackup,
 } from './migrations.js';
 import {
@@ -110,6 +112,7 @@ import {
   loadEffectiveMaxRenderNodes,
   loadExtractorRuns,
   loadIssueCountsByPath,
+  loadDistinctNodeProviders,
   loadLiteNodes,
   loadNodeEnrichments,
   loadScanMeta,
@@ -321,6 +324,7 @@ export class SqliteStorageAdapter implements StoragePort {
       findNodes: (filter) => findNodes(this.db, filter),
       findNode: (path) => findNode(this.db, path),
       listLiteNodes: () => loadLiteNodes(this.db),
+      distinctNodeProviders: () => loadDistinctNodeProviders(this.db),
       issueCountsByPath: () => loadIssueCountsByPath(this.db),
       effectiveMaxRenderNodes: () => loadEffectiveMaxRenderNodes(this.db),
       loadBranch: (prefixes, limit) => loadBranch(this.db, prefixes, limit),
@@ -371,6 +375,7 @@ export class SqliteStorageAdapter implements StoragePort {
       fail: (id, nowMs) => failJob(this.db, id, nowMs),
       failAllActive: (nowMs) => failAllActive(this.db, nowMs),
       countByStatus: () => countJobsByStatus(this.db),
+      integrityCounts: () => jobsIntegrityCounts(this.db),
       reapExpired: (nowMs) => reapExpired(this.db, nowMs),
       pruneTerminal: (status, cutoffMs) =>
         pruneTerminalJobs(this.db, status, cutoffMs),
@@ -421,6 +426,7 @@ export class SqliteStorageAdapter implements StoragePort {
           const v = row?.user_version;
           return typeof v === 'number' && Number.isFinite(v) ? v : null;
         }),
+      quickCheck: () => withRawDb(path, (raw) => runQuickCheck(raw)),
     };
 
     this.pluginMigrations = {

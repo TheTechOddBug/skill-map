@@ -144,8 +144,10 @@ export {
   ClaudeCliNotFoundError,
   ClaudeCliRunner,
   MockRunner,
+  probeClaudeCli,
 } from './adapters/runner/index.js';
 export type {
+  IClaudeCliProbe,
   IClaudeCliRunnerOptions,
   IMockRunCall,
   IMockRunStep,

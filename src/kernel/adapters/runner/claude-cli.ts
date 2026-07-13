@@ -36,7 +36,7 @@
  *     recorded failure detail names the actual error.
  */
 
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 
 import type { IRunOptions, IRunResult, RunnerPort } from '../../ports/runner.js';
 
@@ -61,6 +61,40 @@ export class ClaudeCliNotFoundError extends Error {
 export interface IClaudeCliRunnerOptions {
   /** Binary to spawn. Default `claude`. Overridable for tests / forks. */
   binary?: string;
+}
+
+/** Result of `probeClaudeCli` (`sm doctor`'s runner-availability check). */
+export interface IClaudeCliProbe {
+  /** True when the binary spawned and exited 0. */
+  available: boolean;
+  /** First line of `<binary> --version` stdout when available, else `null`. */
+  version: string | null;
+}
+
+/**
+ * Probe LLM-runner availability for `sm doctor`: spawn
+ * `<binary> --version` synchronously (bounded by `timeoutMs`, default
+ * 5s) and report the version line. ENOENT (binary not on PATH),
+ * non-zero exit, and timeout all report `available: false`; the probe
+ * never throws.
+ */
+export function probeClaudeCli(binary = 'claude', timeoutMs = 5000): IClaudeCliProbe {
+  try {
+    const child = spawnSync(binary, ['--version'], {
+      encoding: 'utf8',
+      timeout: timeoutMs,
+    });
+    if (child.error || child.status !== 0) return { available: false, version: null };
+    return { available: true, version: firstNonEmptyLine(child.stdout) };
+  } catch {
+    return { available: false, version: null };
+  }
+}
+
+/** First line of the probe stdout, trimmed; `null` when blank / absent. */
+function firstNonEmptyLine(stdout: string | null | undefined): string | null {
+  const line = (stdout ?? '').split('\n')[0]?.trim();
+  return line ? line : null;
 }
 
 /** Envelope-parse + report-extraction result (see `extractRunReport`). */

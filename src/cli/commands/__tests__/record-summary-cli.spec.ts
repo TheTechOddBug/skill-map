@@ -19,7 +19,7 @@
  *   - `sm show NOTES.md` renders the summarizer id + report headline.
  *   - after the node body_hash changes (rescan), `sm show` marks it
  *     `(stale)`; `sm show --json` carries a `stale: true` per summary.
- *   - plugin action whose report schema $refs summaries/skill -> summary
+ *   - plugin action whose report schema $refs the summaries namespace -> summary
  *     row lands (on-disk schema path).
  *   - plugin action whose report schema extends report-base only -> NO
  *     summary row (history-only).
@@ -49,8 +49,9 @@ const VALID_REPORT = {
   safety: { injectionDetected: false, contentQuality: 'clean' },
 };
 
-// Plugin-path fixtures: skill-brief's report schema $refs summaries/skill
-// (summarizer), skill-echo's extends report-base only (history-only).
+// Plugin-path fixtures: skill-brief's report schema $refs the canonical
+// summaries/markdown node-summary schema (summarizer, universal across
+// kinds), skill-echo's extends report-base only (history-only).
 const FIXTURE = fileURLToPath(new URL('./fixtures/prob-summarizer', import.meta.url));
 const PLUGIN_ID = 'prob-summarizer';
 const PLUGIN_SUMMARIZER_ID = 'prob-summarizer/skill-brief';
@@ -58,7 +59,7 @@ const PLUGIN_HISTORY_ONLY_ID = 'prob-summarizer/skill-echo';
 const SKILL = { path: '.claude/skills/foo/SKILL.md', kind: 'skill', provider: 'claude' };
 
 const SKILL_SUMMARY_REPORT = {
-  whatItDoes: 'Echoes the skill body back as a brief.',
+  whatItCovers: 'Echoes the skill body back as a brief.',
   confidence: 0.8,
   safety: { injectionDetected: false, contentQuality: 'clean' },
 };
@@ -331,7 +332,7 @@ describe('summary write-through via sm record + sm show', () => {
 });
 
 describe('summarizer detection from the report schema (plugin on-disk path)', () => {
-  it('a plugin action whose report schema $refs summaries/skill lands the write-through', async () => {
+  it('a plugin action whose report schema $refs the summaries namespace lands the write-through', async () => {
     const proj = await setupProject({ node: SKILL, withPlugin: true });
     await runFullLoop(proj, {
       action: PLUGIN_SUMMARIZER_ID,
@@ -348,7 +349,7 @@ describe('summarizer detection from the report schema (plugin on-disk path)', ()
       // state_summaries.kind mirrors the NODE's kind; the summary-schema
       // kind is only the detection signal.
       strictEqual(s.kind, SKILL.kind);
-      strictEqual(s.report['whatItDoes'], SKILL_SUMMARY_REPORT.whatItDoes);
+      strictEqual(s.report['whatItCovers'], SKILL_SUMMARY_REPORT.whatItCovers);
     } finally {
       await adapter.close();
     }

@@ -29,6 +29,7 @@ import type {
   IMigrationFile,
   IMigrationPlan,
   IMigrationRecord,
+  IQuickCheckResult,
 } from '../../types/storage.js';
 
 export type {
@@ -259,4 +260,23 @@ export function writeBackup(dbPath: string, destPath: string): string | null {
   }
   copyFileSync(absoluteSource, absoluteDest);
   return absoluteDest;
+}
+
+/**
+ * `PRAGMA quick_check` integrity probe (`sm doctor`). SQLite returns a
+ * single row `{ quick_check: 'ok' }` on a healthy file; any other shape
+ * (or a thrown engine error on a hopelessly corrupt file) is reported
+ * as `ok: false` with the first corruption line in `detail`.
+ */
+export function runQuickCheck(db: DatabaseSync): IQuickCheckResult {
+  try {
+    const rows = db.prepare('PRAGMA quick_check').all() as Array<{
+      quick_check?: string;
+    }>;
+    const first = rows[0]?.quick_check;
+    if (rows.length === 1 && first === 'ok') return { ok: true, detail: null };
+    return { ok: false, detail: first ?? MIGRATIONS_TEXTS.quickCheckNoRows };
+  } catch (err) {
+    return { ok: false, detail: formatErrorMessage(err) };
+  }
 }

@@ -37,6 +37,7 @@ import type {
   IJobClaim,
   IJobContentInput,
   IJobListFilter,
+  IJobsIntegrityCounts,
   IJobSubmitRow,
   IPruneResult,
   ISummaryWriteIntent,
@@ -234,6 +235,41 @@ export async function pruneTerminalJobs(
 
     return { deletedCount, prunedContents };
   });
+}
+
+/**
+ * Read-only integrity counts for `sm doctor`: `state_jobs` rows whose
+ * `content_hash` has no `state_job_contents` row (corruption; the claim
+ * path would mark these `job-file-missing`), and `state_job_contents`
+ * rows referenced by zero `state_jobs` rows (retention leftovers that
+ * `sm job prune` collects). Both `content_hash` columns are NOT NULL,
+ * so the `NOT IN` subqueries never trip the SQL NULL semantics.
+ */
+export async function jobsIntegrityCounts(
+  db: Kysely<IDatabase>,
+): Promise<IJobsIntegrityCounts> {
+  const missing = await db
+    .selectFrom('state_jobs')
+    .where(
+      'contentHash',
+      'not in',
+      db.selectFrom('state_job_contents').select('contentHash'),
+    )
+    .select((eb) => eb.fn.countAll<number>().as('n'))
+    .executeTakeFirst();
+  const stragglers = await db
+    .selectFrom('state_job_contents')
+    .where(
+      'contentHash',
+      'not in',
+      db.selectFrom('state_jobs').select('contentHash'),
+    )
+    .select((eb) => eb.fn.countAll<number>().as('n'))
+    .executeTakeFirst();
+  return {
+    missingContent: Number(missing?.n ?? 0),
+    contentStragglers: Number(stragglers?.n ?? 0),
+  };
 }
 
 /**

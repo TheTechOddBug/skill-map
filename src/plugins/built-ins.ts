@@ -93,11 +93,11 @@ const referenceRedundantAnalyzer = { ..._referenceRedundantAnalyzer, pluginId: '
 const schemaViolationAnalyzer = { ..._schemaViolationAnalyzer, pluginId: 'core', version: VERSION };
 const asciiFormatter = { ..._asciiFormatter, pluginId: 'core', version: VERSION };
 const jsonFormatter = { ..._jsonFormatter, pluginId: 'core', version: VERSION };
-const markdownSummarizerAction = { ..._markdownSummarizerAction, pluginId: 'core', version: VERSION, promptTemplate: `Summarize the markdown node below into a structured brief.
+const markdownSummarizerAction = { ..._markdownSummarizerAction, pluginId: 'core', version: VERSION, promptTemplate: `Summarize the node below (its markdown content) into a structured brief.
 
 {{userContent}}
 
-Return a single JSON object that matches the markdown summary report shape:
+Return a single JSON object that matches the node summary report shape:
 
 - \`whatItCovers\` (required): one sentence describing the subject matter of
   the file.

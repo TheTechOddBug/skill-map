@@ -28,7 +28,7 @@
     },
     "setup": {
       "type": "object",
-      "description": "Pre-invocation toggles and ordered staging steps. All toggles default to `false`. `priorScans`, when present, run BEFORE the main `invoke` so a case can establish a prior snapshot the heuristic-driven verbs (e.g. `sm scan` rename detection) can react to.",
+      "description": "Pre-invocation toggles and ordered staging steps. All toggles default to `false`. `priorScans`, when present, run BEFORE the main `invoke` so a case can establish a prior snapshot the heuristic-driven verbs (e.g. `sm scan` rename detection) can react to. `priorInvokes`, when present, run AFTER the top-level `fixture` copy and BEFORE the main `invoke` for state a scan alone cannot establish (e.g. `sm job submit` before `sm job preview --last`).",
       "additionalProperties": false,
       "properties": {
         "disableAllProviders": {
@@ -62,10 +62,24 @@
               }
             }
           }
+        },
+        "priorInvokes": {
+          "type": "array",
+          "description": "Ordered staging invocations, each run against the fully-provisioned scope (after the top-level `fixture` copy) and before the main `invoke`. Every step MUST exit 0; a non-zero exit fails the case without evaluating its assertions. Use when the main `invoke` needs prior state that `priorScans` cannot establish (e.g. a submitted job).",
+          "items": { "$ref": "#/$defs/Invocation" }
         }
       }
     },
-    "invoke": {
+    "invoke": { "$ref": "#/$defs/Invocation" },
+    "assertions": {
+      "type": "array",
+      "description": "Ordered list of assertions. A case passes iff every assertion passes.",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/Assertion" }
+    }
+  },
+  "$defs": {
+    "Invocation": {
       "type": "object",
       "required": ["verb"],
       "additionalProperties": false,
@@ -90,14 +104,6 @@
         }
       }
     },
-    "assertions": {
-      "type": "array",
-      "description": "Ordered list of assertions. A case passes iff every assertion passes.",
-      "minItems": 1,
-      "items": { "$ref": "#/$defs/Assertion" }
-    }
-  },
-  "$defs": {
     "Assertion": {
       "description": "Discriminated union. The `type` field selects the assertion shape.",
       "oneOf": [
@@ -105,6 +111,7 @@
         { "$ref": "#/$defs/JsonPath" },
         { "$ref": "#/$defs/FileExists" },
         { "$ref": "#/$defs/FileContainsVerbatim" },
+        { "$ref": "#/$defs/StdoutContainsVerbatim" },
         { "$ref": "#/$defs/FileMatchesSchema" },
         { "$ref": "#/$defs/StderrMatches" }
       ]
@@ -179,6 +186,18 @@
         "fixture": {
           "type": "string",
           "description": "Path under `conformance/fixtures/` whose bytes MUST appear verbatim in the target file."
+        }
+      }
+    },
+    "StdoutContainsVerbatim": {
+      "type": "object",
+      "required": ["type", "fixture"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "stdout-contains-verbatim" },
+        "fixture": {
+          "type": "string",
+          "description": "Path under `conformance/fixtures/` whose bytes MUST appear verbatim in the invocation's stdout. Used for preamble bitwise checks."
         }
       }
     },

@@ -19,11 +19,7 @@ Hand-maintained. A CI check before spec release compares the schema inventory ag
 | 9 | `report-base.schema.json` |, | 🔴 missing | Indirect coverage once any summarizer case lands. Direct contract case: validate a handcrafted minimal report ({confidence, safety}) against the base schema. |
 | 10 | `conformance-case.schema.json` |, | 🔴 missing | Self-referential: every `*.json` under `cases/` MUST validate against this schema. Add a meta-case that enumerates + validates all cases. |
 | 11 | `frontmatter/base.schema.json` | `orphan-markdown-fallback` | 🟢 covered | Universal frontmatter shape, `name` + `description` only, `additionalProperties: true`. Per-kind schemas live with the Provider that emits them: vendor kinds (`skill` / `agent` / `command`) under `src/built-in-plugins/providers/{claude,codex,agent-skills}/schemas/`; the format-named generic `markdown` kind under `src/built-in-plugins/providers/core-markdown/schemas/` (spec 0.18.0, markdown is provider-agnostic). All extend this base via `$ref`-by-`$id`. `orphan-markdown-fallback` exercises base-only frontmatter end-to-end via the `ARCHITECTURE.md` fixture file (no kind-specific extras). |
-| 12 | `summaries/skill.schema.json` |, | 🔴 missing | Blocked by Step 10 (`skill-summarizer`). Case: submit summarizer, validate report. |
-| 13 | `summaries/agent.schema.json` |, | 🔴 missing | Blocked by Step 11. |
-| 14 | `summaries/command.schema.json` |, | 🔴 missing | Blocked by Step 11. |
-| 15 | `summaries/hook.schema.json` |, | 🔴 missing | Blocked by Step 11. |
-| 16 | `summaries/markdown.schema.json` |, | 🔴 missing | Blocked by Step 11. |
+| 12 | `summaries/markdown.schema.json` |, | 🟡 partial | The single canonical node-summary shape (the per-kind `skill`/`agent`/`command`/`hook` schemas were dropped 2026-07-13, the summarizer is universal). Exercised indirectly by `preamble-bitwise-match` (a `markdown-summarizer` job renders and submits); a direct report-validation case (record a summarizer report, assert the `state_summaries` row) is still missing. |
 | 17 | `extensions/base.schema.json` |, | 🔴 missing | Meta-case: every manifest under `src/extensions/` validates against the appropriate kind schema (which extends base via `allOf`). |
 | 18 | `extensions/provider.schema.json` | `plugin-missing-ui-rejected` | 🟡 partial | A Provider plugin whose `kinds/<kindName>/kind.json` omits the required `ui` block fails AJV validation with `invalid-manifest` while the rest of the pipeline keeps running (built-in Claude Provider, exit 0). Since the structure-as-truth refactor, Providers no longer carry a `kinds` map in the manifest; per-kind metadata lives under `kinds/<kindName>/kind.json` and frontmatter schemas under `kinds/<kindName>/schema.json`. The complementary positive case (canonical Claude Provider validates) lives in `provider:claude` conformance. Direct case for missing `kinds/` directory rejection still pending. |
 | 19 | `extensions/extractor.schema.json` |, | 🔴 missing | Case: `frontmatter` + `slash` + `at-directive` extractor manifests validate; an extractor declaring a `precondition.kind` against an unknown qualified kind emits `precondition-kind-unknown` in `sm plugins doctor`. |
@@ -57,7 +53,7 @@ These have their own conformance cases even though they are not JSON Schemas.
 
 | # | Artifact | Case | Status | Notes |
 |---|---|---|---|---|
-| A | Preamble verbatim text | `preamble-bitwise-match` | 🟠 deferred | Deferred to Step 10 (needs `sm job preview` to print the rendered content from `state_job_contents`). Fixture: `fixtures/preamble-v1.txt` (already present, byte-identical to `prompt-preamble.md` source). |
+| A | Preamble verbatim text | `preamble-bitwise-match` | 🟢 covered | Submits a `markdown-summarizer` job over a scanned markdown node (`setup.priorInvokes`), then `sm job preview --last` MUST print content containing `fixtures/preamble-v1.txt` byte-for-byte (`stdout-contains-verbatim`). |
 | B | Kernel empty-boot invariant | `kernel-empty-boot` | 🟢 covered | All extensions disabled → empty ScanResult. |
 | C | Atomic-claim race safety |, | 🔴 missing | Blocked by Step 10. Two concurrent `sm job claim` invocations against a single queued row, exactly one MUST succeed. |
 | D | Duplicate detection |, | 🔴 missing | Blocked by Step 10. Two `sm job submit` with same `(action, version, node, contentHash)`, second exits 3. |

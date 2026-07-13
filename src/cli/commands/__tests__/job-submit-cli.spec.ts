@@ -493,12 +493,13 @@ describe('sm job preview', () => {
       const cap = captureContext();
       const cmd = new JobPreviewCommand();
       cmd.id = id;
+      cmd.last = false;
       cmd.json = false;
       cmd.db = undefined;
       const c = await run(cmd, cap);
       const out = cap.stdout();
       // The canonical preamble appears byte-for-byte: this is exactly what
-      // the deferred `preamble-bitwise-match` conformance case asserts.
+      // the `preamble-bitwise-match` conformance case asserts.
       ok(out.includes(loadCanonicalPreamble()), 'preamble present verbatim');
       ok(out.includes(`<user-content id="${SKILL.path}">`), 'user-content block present');
       return c;
@@ -509,10 +510,75 @@ describe('sm job preview', () => {
       const cap = captureContext();
       const cmd = new JobPreviewCommand();
       cmd.id = 'd-20990101-000000-ffff';
+      cmd.last = false;
       cmd.json = false;
       cmd.db = undefined;
       return run(cmd, cap);
     });
     strictEqual(missingCode, 5);
+  });
+
+  it('--last previews the most recently submitted job', async () => {
+    const NEWER = { path: '.claude/skills/newer/SKILL.md', kind: 'skill', provider: 'claude' };
+    const proj = await setupProject([SKILL, NEWER]);
+    await withCwd(proj.root, async () => {
+      await run(buildSubmit({ action: ACTION_ID, node: SKILL.path }), captureContext());
+      // `--last` resolves by newest createdAt (ms); force distinct stamps.
+      await new Promise((r) => setTimeout(r, 5));
+      await run(buildSubmit({ action: ACTION_ID, node: NEWER.path }), captureContext());
+    });
+
+    const code = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const cmd = new JobPreviewCommand();
+      cmd.id = undefined;
+      cmd.last = true;
+      cmd.json = false;
+      cmd.db = undefined;
+      const c = await run(cmd, cap);
+      const out = cap.stdout();
+      ok(out.includes(loadCanonicalPreamble()), 'preamble present verbatim');
+      ok(out.includes(`<user-content id="${NEWER.path}">`), 'previews the newest job');
+      ok(!out.includes(`<user-content id="${SKILL.path}">`), 'does not preview the older job');
+      return c;
+    });
+    strictEqual(code, 0);
+  });
+
+  it('--last guards: conflict with <job.id> and missing target exit 2; empty queue exits 5', async () => {
+    const proj = await setupProject([SKILL]);
+
+    // <job.id> and --last together -> usage error.
+    const conflictCode = await withCwd(proj.root, async () => {
+      const cmd = new JobPreviewCommand();
+      cmd.id = 'd-20990101-000000-ffff';
+      cmd.last = true;
+      cmd.json = false;
+      cmd.db = undefined;
+      return run(cmd, captureContext());
+    });
+    strictEqual(conflictCode, 2);
+
+    // Neither <job.id> nor --last -> usage error.
+    const neitherCode = await withCwd(proj.root, async () => {
+      const cmd = new JobPreviewCommand();
+      cmd.id = undefined;
+      cmd.last = false;
+      cmd.json = false;
+      cmd.db = undefined;
+      return run(cmd, captureContext());
+    });
+    strictEqual(neitherCode, 2);
+
+    // --last with zero jobs -> not found.
+    const emptyCode = await withCwd(proj.root, async () => {
+      const cmd = new JobPreviewCommand();
+      cmd.id = undefined;
+      cmd.last = true;
+      cmd.json = false;
+      cmd.db = undefined;
+      return run(cmd, captureContext());
+    });
+    strictEqual(emptyCode, 5);
   });
 });

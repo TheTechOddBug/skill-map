@@ -2,8 +2,9 @@
  * Summarizer detection from an Action's report schema
  * (`spec/job-lifecycle.md` §Record). An Action opts into the
  * `state_summaries` write-through through the output contract it already
- * owns: its `report.schema.json` extends a canonical per-node summary
- * schema (`spec/schemas/summaries/<kind>.schema.json`) via `$ref`,
+ * owns: its `report.schema.json` extends a schema under the canonical
+ * summaries namespace (`spec/schemas/summaries/`, today the single
+ * universal `markdown.schema.json` node-summary shape) via `$ref`,
  * typically inside `allOf`. There is NO manifest flag; a summarizer-specific
  * field has no place on the universal `IAction` contract, so the record
  * path infers the opt-in from the schema the kernel already loads.
@@ -22,11 +23,11 @@ export const SUMMARY_SCHEMA_ID_PREFIX = 'https://skill-map.ai/spec/v0/summaries/
 const SCHEMA_FILE_SUFFIX = '.schema.json';
 
 /**
- * Return the summary kind (`'markdown'`, `'skill'`, ...) when the report
- * schema references a canonical `summaries/<kind>.schema.json`, else
- * `null`. Non-null means the Action is a summarizer: `sm record` (and the
- * `sm job run` drain loop) upserts its validated `completed` report into
- * `state_summaries`. Works on both report-schema sources: a plugin's
+ * Return the summary-schema stem (`'markdown'`, the only canonical shape
+ * today) when the report schema references a `summaries/*.schema.json`,
+ * else `null`. Non-null means the Action is a summarizer: `sm record` (and
+ * the `sm job run` drain loop) upserts its validated `completed` report
+ * into `state_summaries`. Works on both report-schema sources: a plugin's
  * on-disk `report.schema.json` and a built-in's codegen-inlined
  * `reportSchema` object.
  *

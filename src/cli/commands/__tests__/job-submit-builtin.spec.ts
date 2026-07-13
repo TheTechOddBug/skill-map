@@ -9,7 +9,8 @@
  * Coverage:
  *   - submit -n against a `markdown` node -> exit 0, queued job + content
  *     row persisted with the canonical preamble + `<user-content>` block.
- *   - submit --all -> fans out to `markdown` nodes only (precondition gate).
+ *   - submit --all -> fans out to every non-virtual node (the summarizer
+ *     is universal, no precondition; virtual nodes stay excluded).
  */
 
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -200,10 +201,11 @@ describe('sm job submit (built-in probabilistic action)', () => {
     }
   });
 
-  it('--all fans out to markdown nodes only (precondition gate)', async () => {
+  it('--all fans out to every non-virtual node regardless of kind (universal summarizer)', async () => {
+    const AGENT = { path: '.claude/agents/bar.md', kind: 'agent', provider: 'claude' };
     const proj = await setupProject([
       NOTE,
-      { path: '.claude/agents/bar.md', kind: 'agent', provider: 'claude' },
+      AGENT,
       { path: 'notes/virtual.md', kind: 'markdown', provider: 'markdown', virtual: true },
     ]);
     const code = await withCwd(proj.root, async () => {
@@ -217,10 +219,10 @@ describe('sm job submit (built-in probabilistic action)', () => {
     await adapter.init();
     try {
       const jobs = await adapter.jobs.list({});
-      strictEqual(jobs.length, 1, 'only the non-virtual markdown node matched');
-      const job = jobs[0];
-      ok(job);
-      strictEqual(job.nodeId, NOTE.path);
+      strictEqual(jobs.length, 2, 'both non-virtual nodes matched; the virtual node stays excluded');
+      const nodeIds = jobs.map((j) => j.nodeId).sort();
+      strictEqual(nodeIds[0], AGENT.path);
+      strictEqual(nodeIds[1], NOTE.path);
     } finally {
       await adapter.close();
     }

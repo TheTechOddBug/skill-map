@@ -138,7 +138,7 @@ The full normative contract lives in [`spec/architecture.md`](./spec/architectur
 |---|---|
 | **Deterministic refresh** | Re-scan of a node: recomputes bytes, tokens, hashes, links. Synchronous, no LLM. `sm scan -n <id>`. |
 | **Probabilistic refresh** | Enqueues an LLM-backed action (summarizer, what, cluster). Async. `sm job submit <action> -n <id>`. |
-| **Summarizer** | Per-kind Action that produces a structured semantic summary. One summarizer per Provider-declared kind (e.g. `claude/summarize-skill`, `claude/summarize-agent`, `claude/summarize-markdown`, `codex/summarize-agent`, `agent-skills/summarize-skill`, ...). |
+| **Summarizer** | Action that produces a structured semantic summary of a node. ONE universal built-in (`core/markdown-summarizer`, no precondition: every node body is markdown prose); the per-kind / per-Provider summarizer roster was dropped (2026-07-13). Any Action becomes a summarizer by extending the canonical node-summary schema (`summaries/markdown.schema.json`) from its own report schema. |
 | **Meta-skill** | Conversational skill (`/skill-map:explore`) that consumes `sm … --json` verbs and maintains follow-ups with the user. |
 
 ### Safety and content
@@ -256,16 +256,17 @@ Mirrors the interactive timeline on `skill-map.ai` (driven by `web/modules/roadm
 ●       Live conversations           consent-gated threaded agent dialogs (opt-in, ephemeral)
 ○       Execution snapshot           persistent immutable audit of every run (deferred, rides the same pipe later)
   ────────────────────────────────────────────────────────────────────────
-   ▶ YOU ARE HERE · real-time exploration shipped · MCP client complete (config-side discovery + live invocation, all four runtimes) · one consolidated fixture per runtime · skill-map@0.87 · next: the LLM optional layer (Phase D), opening with Step 10 (job subsystem)
+   ▶ YOU ARE HERE · Step 10 (job subsystem) Phases 0-F shipped on the rc channel · DB-only queue + runners + drain loop + markdown-summarizer + summary write-through + preamble conformance · skill-map@0.88 · next: Step 10 Phase G (Skill agent, extension-mode-routing, github-enrichment), then Step 11 (LLM verbs)
 
 ═══════════════════════════════════════════════════════════════════════════
   PHASE D · LLM AS AN OPTIONAL LAYER (summaries, semantic verbs)
 ═══════════════════════════════════════════════════════════════════════════
 ●  9.6  Foundation refactors         Open node kinds · storage port promotion (5 namespaces) · universal enrichment · incremental scan cache
-○  10a  Queue infrastructure         state_jobs + content-addressed state_job_contents · atomic claim · sm job submit/list/show/preview/claim/cancel/status · sm record + nonce
-○  10b  LLM runner                   ClaudeCliRunner + MockRunner · ctx.runner injection · sm job run full loop · sm doctor runner probe · /skill-map:run-queue Skill agent
-○  10c  First probabilistic ext      skill-summarizer (Action) · extension-mode-derivation + preamble-bitwise-match · github-enrichment plugin
-○  11a  Per-kind summarizers         agent · command · skill · markdown · (per-Provider qualified ids)
+●  10a  Queue infrastructure         state_jobs + content-addressed state_job_contents · atomic claim · sm job submit/list/show/preview(--last)/claim/cancel/fail/status · sm record + nonce
+●  10b  LLM runner                   ClaudeCliRunner + MockRunner · ctx.runner injection · sm job run drain loop
+●  10c  First probabilistic ext      markdown-summarizer (Action) · state_summaries write-through · preamble-bitwise-match conformance
+●  10d  Doctor + actions verbs       sm doctor (8 checks incl. runner probe) · sm actions list/show
+○  10e  Phase G polish + Skill agent /skill-map:run-queue Skill agent · extension-mode-routing · github-enrichment plugin
 ○  11b  Semantic LLM verbs           sm what · sm dedupe · sm cluster-triggers · sm impact-of · sm recommend-optimization · sm findings
 ○  11c  /skill-map:explore meta      cross-extension orchestration over the queue + summaries
 ○  16   UI: LLM surfaces v1          Inspector summary/enrichment/findings cards (read-only) · /findings page · per-card refresh · cost surfacing · BFF endpoints
@@ -487,17 +488,17 @@ The full table catalog, column conventions, and migration rules are normative in
         │  queued  │ ───────────────▶ │ running  │
         └────┬─────┘                  └─────┬────┘
              │                              │
-             │ cancel                       │ callback success
-             │                              │ callback failure
+   cancel →  │  ← fail          cancel →   │   ← fail
+             │                              │ callback success / failure
              │                              │ TTL expires (auto-reap)
              │                              │ runner-error / report-invalid
              ▼                              ▼
-        ┌────────┐                    ┌──────────────────┐
-        │ failed │                    │ completed/failed │
-        └────────┘                    └──────────────────┘
+  ┌────────────────────┐      ┌─────────────────────────────────┐
+  │ cancelled · failed │      │ completed · failed · cancelled  │
+  └────────────────────┘      └─────────────────────────────────┘
 ```
 
-Terminal states `completed` / `failed`; `queued → failed` is reachable only via `sm job cancel`. Two mechanisms make multiple runners safe to race, both normative in [`spec/job-lifecycle.md`](./spec/job-lifecycle.md): the **atomic claim** (`UPDATE ... WHERE status='queued' ... RETURNING id`, single-row, priority then FIFO) and the start-of-run **auto-reap** (TTL-expired `running` rows flipped to `failed`, reason `abandoned`).
+Terminal states `completed` / `failed` / `cancelled`. `cancelled` is a distinct operator-driven state (`sm job cancel`), NOT a `failed` sub-reason and with no `failureReason`; `sm job fail` is its symmetric counterpart (terminal `failed`, reason `user-failed`). Two mechanisms make multiple runners safe to race, both normative in [`spec/job-lifecycle.md`](./spec/job-lifecycle.md): the **atomic claim** (`UPDATE ... WHERE status='queued' ... RETURNING id`, single-row, priority then FIFO) and the start-of-run **auto-reap** (TTL-expired `running` rows flipped to `failed`, reason `abandoned`).
 
 **TTL** is resolved at submit time and frozen on `state_jobs.ttlSeconds`: `action.expectedDurationSeconds` (else `config.jobs.ttlSeconds`, default 3600) times `graceMultiplier` (3), floored at `minimumTtlSeconds` (60), with `config.jobs.perActionTtl.<id>` or `--ttl` overriding. **Duplicate prevention**: a submit matching an active `(actionId, actionVersion, nodeId, contentHash)` in `queued|running` is refused with exit 3 unless `--force`.
 
@@ -712,7 +713,7 @@ The hack is wired today to the **five** slots in the catalog, including `graph.n
 
 ## Summarizer pattern
 
-Each node-kind has a default summarizer Action that generates a semantic summary (`skill-summarizer` at Step 10, the other four, `agent` / `command` / `hook` / `markdown`, at Step 11; `v0.5.0` ships none). Each kind's canonical summary shape lives at `spec/schemas/summaries/<kind>.schema.json`, extending `report-base.schema.json`, the universal probabilistic-report envelope: a `confidence` (0.0-1.0, the model's metacognition) plus a `safety` block (`injectionDetected`, `injectionType` enum, `contentQuality` enum). A summarizer opts in through its own `report.schema.json`, which extends the canonical `summaries/<kind>` schema via `$ref`; that reference is the summarizer signal `sm record` detects (there is no manifest flag). Summaries persist in the kernel-owned `state_summaries` table keyed by `(node_id, summarizer_action_id)` with the body hash at generation, so `sm show <node>` renders the summary and marks it `(stale)` when the body changed. A node is refreshed either deterministically (`sm scan -n <id>`, recomputes bytes / hashes / links) or probabilistically (queue the kind's summarizer as a job). Schemas: `spec/schemas/summaries/` (one per kind) and [`spec/schemas/report-base.schema.json`](./spec/schemas/report-base.schema.json).
+ONE universal summarizer Action (`core/markdown-summarizer`, shipped at Step 10) covers every node kind: `markdown` names the body format it reads (all node bodies are markdown prose, including frontmatter-field bodies like codex TOML `developer_instructions`), not a kind gate, so it carries no `precondition` and `--all` fans out to every non-virtual node. The per-kind summarizer roster (`skill` / `agent` / `command` / `hook`) and their `summaries/<kind>.schema.json` shapes were dropped on 2026-07-13: the per-kind shapes were speculative, and the summary the map needs (subject matter, topics, key facts) is kind-agnostic. [`spec/schemas/summaries/markdown.schema.json`](./spec/schemas/summaries/markdown.schema.json) is the single canonical node-summary shape; it extends `report-base.schema.json`, the universal probabilistic-report envelope: a `confidence` (0.0-1.0, the model's metacognition) plus a `safety` block (`injectionDetected`, `injectionType` enum, `contentQuality` enum). A summarizer opts in through its own `report.schema.json`, which extends the canonical schema via `$ref` (the `summaries/` namespace is the signal `sm record` detects; there is no manifest flag), so a plugin MAY ship its own summarizer, specializing on the PROMPT side rather than the schema side. Summaries persist in the kernel-owned `state_summaries` table keyed by `(node_id, summarizer_action_id)` (the `kind` column mirrors the node's own kind) with the body hash at generation, so `sm show <node>` renders the summary and marks it `(stale)` when the body changed. A node is refreshed either deterministically (`sm scan -n <id>`, recomputes bytes / hashes / links) or probabilistically (queue the summarizer as a job).
 
 ---
 
@@ -871,7 +872,7 @@ Inspector panel renders:
 External (github-enrichment, if applicable):
   stars, last commit, verified ✓/✗
 
-Summary (per-kind summarizer, if run):
+Summary (markdown-summarizer, if run):
   kind-specific summary fields
   (stale) flag if bodyHash diverged
 
@@ -906,7 +907,7 @@ Every extension in `src/extensions/` ships a sibling `*.test.ts`. Missing test �
 
 **Performance budget**: `sm scan` on 500 MDs completes in ≤ 2s on a modern laptop, enforced by a CI benchmark (lands with Step 4 when the scanner goes end-to-end).
 
-**Conformance cases deferred**: `preamble-bitwise-match` lands in Step 10 alongside `sm job preview` (needs rendered job content for byte-exact comparison against `spec/conformance/fixtures/preamble-v1.txt`). The case is mandatory before the `v0.8.0` release.
+**Conformance cases deferred**: `preamble-bitwise-match` ✅ landed at Step 10 (Phase B closure): a `markdown-summarizer` job submitted via the new `setup.priorInvokes` staging phase, read back with `sm job preview --last`, asserted byte-exact against `spec/conformance/fixtures/preamble-v1.txt` via the new `stdout-contains-verbatim` assertion.
 
 ---
 
@@ -1004,8 +1005,8 @@ Phase C, real-time exploration (shipped):
 
 Phase D (LLM optional layer, `v0.8.0`):
 
-- ⏸ **10**, Job subsystem + first probabilistic extension (`skill-summarizer` as a probabilistic Action; Extractors are deterministic-only). Phase 0 (`IAction` runtime contract) landed and dormant; Phases A–G paused.
-- ⏸ **11**, Remaining probabilistic extensions + LLM verbs + findings.
+- ▶ **10**, Job subsystem + first probabilistic extension (Extractors are deterministic-only). Phases 0–F ✅ shipped on the rc channel: DB-only queue (`state_jobs` + content-addressed `state_job_contents`), the full `sm job` verb family (submit / list / show / preview `--last` / claim / cancel / fail / status / prune), `sm record` + nonce auth, `ClaudeCliRunner` + `MockRunner` + the `sm job run` drain loop, `markdown-summarizer` (the first probabilistic Action, now the universal summarizer; the per-kind roster was dropped 2026-07-13) with the `state_summaries` write-through, and the `preamble-bitwise-match` conformance case. The E/F leftovers (`sm doctor` with all eight checks, `sm actions list / show`) closed 2026-07-13. Pending: Phase G.
+- 🔮 **11**, Remaining probabilistic extensions + LLM verbs + findings. Next after Step 10 closes.
 - 🔮 **16**, Web UI: LLM surfaces v1 (initial). Render the probabilistic outputs Steps 10–11 emit, replaces the "Available in v0.8.0" empty-state placeholders shipped in 14.3 inspector with read-only surfaces for `state_summaries` / `state_enrichments` / `findings`. UI does not orchestrate jobs at this stage.
 
 Phase E (`v1.0.0` target):
@@ -1019,34 +1020,33 @@ Phase E (`v1.0.0` target):
 
 ### Step 10, Job subsystem + first probabilistic extension (wave 2 begins)
 
-> ⏸ **Paused**: Phase 0 (`IAction` runtime contract) shipped; Phases A–G resume after Step 14 closes. Step 14 (Web UI) lands first so the deterministic kernel can be seen end-to-end before LLM costs land. Phase 0 stays dormant in the kernel; no new wave-2 work until v0.6.0 (deterministic + Web UI) ships. See Decision #118.
+> ▶ **In flight** (resumed 2026-07, after the real-time exploration arc; the pause below held from v0.6.0 per Decision #118): Phases 0–F ✅ shipped, plus the Phase B conformance closure (`preamble-bitwise-match` via `sm job preview --last`, `setup.priorInvokes`, `stdout-contains-verbatim`). The first probabilistic built-in shipped as **`markdown-summarizer`** (kind `markdown`, the universal fallback, provider-agnostic), not the originally-sketched `skill-summarizer`; the per-kind summarizer roster was then dropped outright (2026-07-13): the summarizer is universal (no `precondition`, `--all` reaches every non-virtual node) and the per-kind `summaries/<kind>` schemas collapsed into the single canonical `summaries/markdown.schema.json`. Summarizer detection is by report-schema convention (report `$ref`s a schema under `summaries/` → `state_summaries` write-through at record time; no manifest flag). The E/F leftovers closed on 2026-07-13: `sm doctor` landed for real (all eight contract checks, including the runner probe with `claude --version`, plus the `--json` envelope now pinned in the contract) and `sm actions list / show` replaced their stubs (composed manifest view with summarizer detection). Remaining: Phase G.
 
-This is where **wave 2, probabilistic extensions** begins. Steps 0–7 shipped the deterministic half of the dual-mode model (the Claude Provider, three Extractors, three Analyzers + the `validate-all` Analyzer, the ASCII Formatter, all running synchronously inside `sm scan` / `sm check`). Step 10 turns on the second half: queued jobs, LLM runner, and the first probabilistic extension (`skill-summarizer`, an Action of `mode: 'probabilistic'`). The kernel surface (`ctx.runner`, the queue, the preamble, the safety/confidence contract on outputs) is what unlocks every subsequent probabilistic extension across the three dual-mode kinds, Analyzer, Action, Hook. (Extractor was reduced to deterministic-only ahead of wave 2: an LLM that wants to write data attached to a node lives in an Action, not in an Extractor.)
+This is where **wave 2, probabilistic extensions** begins. Steps 0–7 shipped the deterministic half of the dual-mode model (the Claude Provider, three Extractors, three Analyzers + the `validate-all` Analyzer, the ASCII Formatter, all running synchronously inside `sm scan` / `sm check`). Step 10 turns on the second half: queued jobs, LLM runner, and the first probabilistic extension (`markdown-summarizer`, an Action of `mode: 'probabilistic'`; the original sketch named `skill-summarizer`, but the universal `markdown` kind made a provider-agnostic first target). The kernel surface (`ctx.runner`, the queue, the preamble, the safety/confidence contract on outputs) is what unlocks every subsequent probabilistic extension across the three dual-mode kinds, Analyzer, Action, Hook. (Extractor was reduced to deterministic-only ahead of wave 2: an LLM that wants to write data attached to a node lives in an Action, not in an Extractor.)
 
 **Storage decision (B2, DB-only, content-addressed)**: rendered job content lives in a new `state_job_contents` table keyed by `content_hash`; report payloads live inline in `state_executions.report_json`. There are no `.skill-map/jobs/<id>.md` or `.skill-map/reports/<id>.json` filesystem artifacts. Multiple jobs that resolve to the same `content_hash` (retries, `--force` reruns, fan-outs that happen to render identically) share one content row, so DB-only does not blow up storage on heavy users. The decision landed as a spec change ahead of the implementation phases below (rationale in `spec/db-schema.md` §`state_job_contents` and §`state_executions`).
 
 The work splits into seven phases that ship as separate changesets:
 
-- **Phase 0, `IAction` runtime contract**. New `src/kernel/extensions/action.ts` mirroring `extensions/action.schema.json`. Plugin loader accepts `kind: 'action'`. Manifest validation tests. No runtime invocation yet (the dispatcher lands with the queue in Phase A).
-- **Phase A, Queue infrastructure + render**. Migration cleanup first: the current `001_initial.sql` still carries the pre-DB-only on-disk columns (`state_jobs.file_path`, `state_executions.report_path`) and lacks `state_job_contents`, and a stale orphan-job-files subsystem (`kernel/jobs/orphan-files.ts` plus the `filePath` plumbing in `adapters/sqlite/jobs.ts` / `types/storage.ts` / `ports/runner.ts`) predates the B2 decision. Drop the columns, add `state_job_contents`, retire that subsystem (full reference sweep). Then: storage helpers for `state_jobs` + `state_job_contents` (insert in one transaction, content-addressed dedup via `INSERT OR IGNORE`); TTL resolution + priority resolution + `contentHash` computation (formula folds in `node.path`, NUL-delimited, per the Phase-A PoC finding, so identical-body/frontmatter nodes at different paths hash apart and the "same hash, same content" invariant holds); the preamble + `<user-content>` render helper is folded in here (moved up from the old Phase B) so every submitted job persists its content row in the same transaction and the integrity invariant `state_jobs.content_hash` always resolves at every release. Real bodies for `sm job submit / list / show` (fan-out + duplicate detection + `--force` + `--ttl` + `--priority`; `--force` bypasses the dup pre-check but never the unique partial index, so it only re-runs jobs already terminal).
-- **Phase B, `sm job preview` + preamble conformance**. Real body for `sm job preview` (reads the already-persisted content row from `state_job_contents`; the render helper itself landed in Phase A). Closes conformance case `preamble-bitwise-match` (deferred from Step 0a).
-- **Phase C, Atomic claim + cancel + status + reap**. `UPDATE ... RETURNING id` claim primitive. Real bodies for `sm job claim` (with `--json` returning `{id, nonce, content}` per the Skill-agent handover contract), `sm job cancel`, `sm job status`. Reap runs at the start of every `sm job run`.
-- **Phase D, `sm record` + nonce auth**. Validate id + nonce, parse `--report` (path or `-` stdin), validate report payload against `reportSchemaRef`, transition the job, write `state_executions` with `report_json` inline. Exit-code matrix (3, 4, 5).
-- **Phase E, `RunnerPort` impls + `sm job run` + `ctx.runner`**. `ClaudeCliRunner` (subprocess + temp-file dance for the `claude -p` interface; missing binary → exit 2). `MockRunner` for tests. Full `sm job run` loop (reap → claim → spawn → record). `sm doctor` learns to probe runner availability. `ctx.runner` plumbed through invocation contexts (per `spec/architecture.md` §Execution modes).
-- **Phase F, `skill-summarizer` built-in + `state_summaries` write-through**. First probabilistic Action. Its existence proves the full pipeline (manifest with `mode: 'probabilistic'`, kernel routing through `RunnerPort`, prompt rendering, `sm record` callback, `state_summaries` upsert). Real bodies for `sm actions list / show`.
-- **Phase G, Conformance, Skill agent, events, polish**. New conformance case `extension-mode-routing` (a probabilistic Action dispatched as a queued job; a deterministic Action invoked in-process, verifies dispatch routing matches manifest `mode`). `/skill-map:run-queue` + `sm-cli-run-queue` Skill agent package. Job event emission per `spec/job-events.md` (`run.*`, `job.*`, `model.*`, `run.reap.*`). `github-enrichment` bundled plugin (hash verification). ROADMAP + `coverage.md` updated.
+- ✅ **Phase 0, `IAction` runtime contract**. New `src/kernel/extensions/action.ts` mirroring `extensions/action.schema.json`. Plugin loader accepts `kind: 'action'`. Manifest validation tests. No runtime invocation yet (the dispatcher lands with the queue in Phase A).
+- ✅ **Phase A, Queue infrastructure + render**. Migration cleanup first: the current `001_initial.sql` still carries the pre-DB-only on-disk columns (`state_jobs.file_path`, `state_executions.report_path`) and lacks `state_job_contents`, and a stale orphan-job-files subsystem (`kernel/jobs/orphan-files.ts` plus the `filePath` plumbing in `adapters/sqlite/jobs.ts` / `types/storage.ts` / `ports/runner.ts`) predates the B2 decision. Drop the columns, add `state_job_contents`, retire that subsystem (full reference sweep). Then: storage helpers for `state_jobs` + `state_job_contents` (insert in one transaction, content-addressed dedup via `INSERT OR IGNORE`); TTL resolution + priority resolution + `contentHash` computation (formula folds in `node.path`, NUL-delimited, per the Phase-A PoC finding, so identical-body/frontmatter nodes at different paths hash apart and the "same hash, same content" invariant holds); the preamble + `<user-content>` render helper is folded in here (moved up from the old Phase B) so every submitted job persists its content row in the same transaction and the integrity invariant `state_jobs.content_hash` always resolves at every release. Real bodies for `sm job submit / list / show` (fan-out + duplicate detection + `--force` + `--ttl` + `--priority`; `--force` bypasses the dup pre-check but never the unique partial index, so it only re-runs jobs already terminal).
+- ✅ **Phase B, `sm job preview` + preamble conformance**. Real body for `sm job preview` (reads the already-persisted content row from `state_job_contents`; the render helper itself landed in Phase A). Closes conformance case `preamble-bitwise-match` (deferred from Step 0a).
+- ✅ **Phase C, Atomic claim + cancel + status + reap**. `UPDATE ... RETURNING id` claim primitive. Real bodies for `sm job claim` (with `--json` returning `{id, nonce, content}` per the Skill-agent handover contract), `sm job cancel`, `sm job status`. Reap runs at the start of every `sm job run`.
+- ✅ **Phase D, `sm record` + nonce auth**. Validate id + nonce, parse `--report` (path or `-` stdin), validate report payload against `reportSchemaRef`, transition the job, write `state_executions` with `report_json` inline. Exit-code matrix (3, 4, 5).
+- ✅ **Phase E, `RunnerPort` impls + `sm job run` + `ctx.runner`** (the `sm doctor` runner probe landed 2026-07-13 with the full doctor verb). `ClaudeCliRunner` (subprocess + temp-file dance for the `claude -p` interface; missing binary → exit 2). `MockRunner` for tests. Full `sm job run` loop (reap → claim → spawn → record). `sm doctor` learns to probe runner availability. `ctx.runner` plumbed through invocation contexts (per `spec/architecture.md` §Execution modes).
+- ✅ **Phase F, first summarizer built-in + `state_summaries` write-through** (shipped as `markdown-summarizer`, later made the universal summarizer; `sm actions list / show` landed 2026-07-13). First probabilistic Action. Its existence proves the full pipeline (manifest with `mode: 'probabilistic'`, kernel routing through `RunnerPort`, prompt rendering, `sm record` callback, `state_summaries` upsert). Real bodies for `sm actions list / show`.
+- ⬜ **Phase G, Conformance, Skill agent, events, polish**. New conformance case `extension-mode-routing` (a probabilistic Action dispatched as a queued job; a deterministic Action invoked in-process, verifies dispatch routing matches manifest `mode`). `/skill-map:run-queue` + `sm-cli-run-queue` Skill agent package. Job event emission per `spec/job-events.md` (`run.*`, `job.*`, `model.*`, `run.reap.*`). `github-enrichment` bundled plugin (hash verification). ROADMAP + `coverage.md` updated.
 
-Phase 0 has already landed in code (staged/committed under separate concerns); the rest land in order, each with its own changeset, build verification, and tests.
+Phases 0 through F have landed in order (including the E/F leftovers, closed 2026-07-13), each with its own changeset, build verification, and tests; Phase G closes the Step.
 
 ### Step 11, Remaining probabilistic extensions + LLM verbs + findings
 
-Continuation of wave 2: the rest of the per-kind summarizers, the high-leverage LLM verbs that consume them, and the `findings` surface that probabilistic Analyzers / Audits emit into.
+Continuation of wave 2: the high-leverage LLM verbs that consume the summaries, and the `findings` surface that probabilistic Analyzers / Audits emit into. (The per-kind summarizer roster originally slated here was dropped on 2026-07-13, `core/markdown-summarizer` is universal.)
 
-- Per-kind probabilistic summarizers (Actions): `agent-summarizer`, `command-summarizer`, `hook-summarizer`, `note-summarizer`.
 - `sm what`, `sm dedupe`, `sm cluster-triggers`, `sm impact-of`, `sm recommend-optimization`, verbs that wrap probabilistic extensions and the queue.
 - `sm findings` CLI verb.
 - `/skill-map:explore` meta-skill.
-- `state_summaries` is exercised by all five per-kind summarizers (the table lands in Step 10 with `skill-summarizer`; Step 11 fills out the remaining four kinds). `state_enrichments` accepts additional providers beyond `github-enrichment` when they ship, against the stable contract.
+- `state_summaries` is exercised by the universal `markdown-summarizer` (landed at Step 10; plugin-shipped summarizers join via the report-schema convention). `state_enrichments` accepts additional providers beyond `github-enrichment` when they ship, against the stable contract.
 
 ### Step 16, Web UI: LLM surfaces v1 (initial)
 

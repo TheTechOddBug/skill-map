@@ -17,7 +17,7 @@
  * Stubs extend `StubCommand` (which extends `SmCommand`), audit M6.
  * That gives every stub the shared flag set (`--json`, `--quiet`,
  * `--no-color`, `-v`, `--db`) for free, so a script that does
- * `sm doctor --json` against today's stub keeps working when the real
+ * `sm findings --json` against today's stub keeps working when the real
  * verb lands. `emitElapsed = false` is set on the base because a
  * not-implemented verb doesn't produce a meaningful timing line.
  *
@@ -81,17 +81,8 @@ abstract class StubCommand extends SmCommand {
 // ---------------------------------------------------------------------------
 //
 // `sm init` left this file at Step 6.5; it lives in src/cli/commands/init.ts
-// now. `sm doctor` remains a stub until Step 3 (or whenever doctor lands).
-
-export class DoctorCommand extends StubCommand {
-  static override paths = [['doctor']];
-  static override usage = Command.Usage({
-    category: 'Setup',
-    description: planned('Diagnostic report: DB integrity, pending migrations, orphan rows, plugin status, runner availability.'),
-  });
-
-  protected override readonly verbName = 'doctor';
-}
+// DoctorCommand implemented in ./doctor.ts, Step 10 (the eight-check
+// diagnostic report, spec cli-contract.md §sm doctor).
 
 // ---------------------------------------------------------------------------
 // Config, moved to ./config.ts at Step 6.3
@@ -128,26 +119,7 @@ export class FindingsCommand extends StubCommand {
 // Actions
 // ---------------------------------------------------------------------------
 
-export class ActionsListCommand extends StubCommand {
-  static override paths = [['actions', 'list']];
-  static override usage = Command.Usage({
-    category: 'Jobs',
-    description: planned('Registered action types (manifest view).'),
-  });
-
-  protected override readonly verbName = 'actions list';
-}
-
-export class ActionsShowCommand extends StubCommand {
-  static override paths = [['actions', 'show']];
-  static override usage = Command.Usage({
-    category: 'Jobs',
-    description: planned('Full action manifest, including preconditions and expected duration.'),
-  });
-  id = Option.String({ required: true });
-
-  protected override readonly verbName = 'actions show';
-}
+// ActionsListCommand / ActionsShowCommand implemented in ./actions.ts, Step 10.
 
 // ---------------------------------------------------------------------------
 // Jobs
@@ -190,8 +162,5 @@ export class ActionsShowCommand extends StubCommand {
 // ---------------------------------------------------------------------------
 
 export const STUB_COMMANDS = [
-  DoctorCommand,
   FindingsCommand,
-  ActionsListCommand,
-  ActionsShowCommand,
 ];

@@ -349,6 +349,29 @@ export interface IPruneResult {
   prunedContents: number;
 }
 
+/** Output of `port.jobs.integrityCounts` (the `sm doctor` job checks). */
+export interface IJobsIntegrityCounts {
+  /**
+   * `state_jobs` rows whose `content_hash` has no `state_job_contents`
+   * row. DB-corruption signal (`job-file-missing` at claim time);
+   * healthy DBs report `0`.
+   */
+  missingContent: number;
+  /**
+   * `state_job_contents` rows referenced by zero `state_jobs` rows.
+   * Retention leftovers; `sm job prune` collects them.
+   */
+  contentStragglers: number;
+}
+
+/** Output of `port.migrations.quickCheck` (the `sm doctor` DB check). */
+export interface IQuickCheckResult {
+  /** True when `PRAGMA quick_check` returned the single row `ok`. */
+  ok: boolean;
+  /** First reported corruption line when not ok, else `null`. */
+  detail: string | null;
+}
+
 /**
  * Content row inserted into `state_job_contents` at submit time via
  * `INSERT OR IGNORE`. Keyed by `contentHash`; a second submit of the same

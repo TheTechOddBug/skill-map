@@ -50,6 +50,7 @@ import type {
   IJobClaim,
   IJobContentInput,
   IJobListFilter,
+  IJobsIntegrityCounts,
   IJobSubmitRow,
   IListExecutionsFilter,
   ILiteNode,
@@ -67,6 +68,7 @@ import type {
   IPluginMigrationPlan,
   IPluginTrustRow,
   IPruneResult,
+  IQuickCheckResult,
   ISummaryRecord,
   ISummaryWriteIntent,
   THistoryStatsPeriod,
@@ -172,6 +174,11 @@ export interface StoragePort {
      * SQL (`SELECT path, kind`), never loads the rest of the row.
      */
     listLiteNodes(): Promise<ILiteNode[]>;
+    /**
+     * Distinct `scan_nodes.provider` values in the persisted scan.
+     * Backs `sm doctor`'s providers-matched-nothing check.
+     */
+    distinctNodeProviders(): Promise<string[]>;
     /**
      * Per-node issue incidence counts by severity, keyed by node path.
      * Expands every `scan_issues.node_ids_json` array with SQLite
@@ -424,6 +431,12 @@ export interface StoragePort {
      */
     countByStatus(): Promise<Record<JobStatus, number>>;
     /**
+     * Read-only integrity counts for `sm doctor`: jobs whose content
+     * row is missing (corruption) and content rows referenced by zero
+     * jobs (retention leftovers `sm job prune` collects).
+     */
+    integrityCounts(): Promise<IJobsIntegrityCounts>;
+    /**
      * Auto-reap (`spec/job-lifecycle.md` §Reap procedure): transition every
      * `running` job whose `expiresAt < nowMs` to `failed` / `abandoned`
      * with `finishedAt = nowMs`; returns the reaped count. Invoked at the
@@ -605,6 +618,12 @@ export interface StoragePort {
      * on engine quirks (non-numeric / null pragma).
      */
     currentSchemaVersion(): number | null;
+    /**
+     * Run `PRAGMA quick_check` against the DB file (`sm doctor`'s
+     * integrity probe). `ok: true` when SQLite reports the single `ok`
+     * row; otherwise the first corruption line lands in `detail`.
+     */
+    quickCheck(): IQuickCheckResult;
   };
 
   // --- pluginMigrations namespace (sm db verb, per-plugin) --------------
@@ -649,6 +668,7 @@ export type {
   IJobClaim,
   IJobContentInput,
   IJobListFilter,
+  IJobsIntegrityCounts,
   IJobSubmitRow,
   IListExecutionsFilter,
   ILiteNode,
@@ -668,6 +688,7 @@ export type {
   IPluginMigrationRecord,
   IPluginTrustRow,
   IPruneResult,
+  IQuickCheckResult,
   ISummaryRecord,
   ISummaryWriteIntent,
   THistoryStatsPeriod,
