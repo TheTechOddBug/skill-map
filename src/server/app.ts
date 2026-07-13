@@ -107,6 +107,7 @@ import { registerActivityCaptureRoutes } from './routes/activity-capture.js';
 import { registerActivityDetailRoutes } from './routes/activity-detail.js';
 import { registerActivityInstallRoutes } from './routes/activity-install.js';
 import { registerActivitySummaryRoute } from './routes/activity-summary.js';
+import { registerAgentInstallRoutes } from './routes/agent-install.js';
 import { registerScanRoute } from './routes/scan.js';
 import { registerUpdateStatusRoute } from './routes/update-status.js';
 import { createSpaFallback, createStaticHandler } from './static.js';
@@ -568,6 +569,12 @@ export function createApp(deps: IAppDeps): Hono {
   // install/uninstall button; mutations are consent-gated (412
   // `confirm-required` without `confirm: true`, nothing written).
   registerActivityInstallRoutes(app, routeDeps);
+  // Agent-drain-skill install management, `GET/POST /api/agent/install`
+  // + `POST /api/agent/uninstall` (see `spec/cli-contract.md` §Agent
+  // drain skill). The SPA's Settings → Project Install / Update / Up to
+  // date button; mutations are consent-gated (412 `confirm-required`
+  // without `confirm: true`, nothing written).
+  registerAgentInstallRoutes(app, routeDeps);
   // Execution-stats snapshot, `GET /api/activity/summary` (client
   // hydration on connect / reconnect / re-enable). Stats-only; no
   // token, loopback-gated like every /api/* route.

@@ -1173,6 +1173,40 @@ export interface IActivityUninstallEnvelopeApi extends IActivityInstallStatusApi
 }
 
 /**
+ * `GET /api/agent/install?provider=<id>` envelope (and the base of
+ * both mutation responses); see `spec/cli-contract.md` §HTTP API
+ * (`/api/agent/*`). Probes the sm-run-queue drain skill of the ACTIVE
+ * lens: `supported` is `false` (with `skillDir: null`) when the
+ * Provider declares no `scaffold.skillDir` (no skill territory);
+ * `stale` means the skill is installed but the CLI ships a newer
+ * canonical copy, which drives the button's Update state.
+ */
+export interface IAgentSkillInstallStatusApi {
+  provider: string;
+  supported: boolean;
+  skillDir: string | null;
+  installed: boolean;
+  stale: boolean;
+}
+
+/**
+ * `POST /api/agent/install` response: the refreshed status plus the
+ * three-state outcome the feedback wording branches on (`'up-to-date'`
+ * = the bytes already matched, nothing was written).
+ */
+export interface IAgentSkillInstallEnvelopeApi extends IAgentSkillInstallStatusApi {
+  outcome: 'installed' | 'updated' | 'up-to-date';
+}
+
+/**
+ * `POST /api/agent/uninstall` response: the refreshed status plus
+ * whether anything was actually removed (`false` = idempotent no-op).
+ */
+export interface IAgentSkillUninstallEnvelopeApi extends IAgentSkillInstallStatusApi {
+  removed: boolean;
+}
+
+/**
  * Per-node execution stats accumulated by the BFF while `sm serve`
  * runs (`spec/provider-activity.md` §Execution stats). Ephemeral,
  * process-lifetime, reset on every server boot. The server is the

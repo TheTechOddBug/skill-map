@@ -1,17 +1,20 @@
 /**
  * `<sm-settings-project>`, Project section of the Settings modal.
  *
- * Thin chassis: heading + intro plus five self-contained children, each
- * owning its own state machine, fetch lifecycle (keyed on `visible`),
- * error surfaces, and confirm dialogs:
+ * Thin chassis: heading + intro plus seven self-contained children,
+ * each owning its own state machine, fetch lifecycle (keyed on
+ * `visible`), error surfaces, and confirm dialogs:
  *
  *   - `<sm-settings-project-lens>`: active-provider lens select.
  *   - `<sm-settings-project-live>`: live-updates toggle
  *     (`ui.liveUpdates` in `settings.local.json`).
  *   - `<sm-settings-project-hook>`: live-activity hook install button.
  *     The hook status is keyed to the ACTIVE lens, so the chassis
- *     threads the lens child's `activeLensId` into it (the one
- *     cross-child dependency in the section).
+ *     threads the lens child's `activeLensId` into it (a cross-child
+ *     dependency shared with the skill child below).
+ *   - `<sm-settings-project-skill>`: agent drain-skill install button
+ *     (Install / Update / up-to-date), the hook row's sibling install
+ *     affordance, keyed to the ACTIVE lens the same way.
  *   - `<sm-settings-project-realtime>`: real-time-activity toggle
  *     (`ui.realtimeActivity`), gated by live updates AND the hook the
  *     row above installs; a separate child from the live-updates row
@@ -44,6 +47,7 @@ import { SettingsProjectLens } from './settings-project-lens';
 import { SettingsProjectLive } from './settings-project-live';
 import { SettingsProjectPreferences } from './settings-project-preferences';
 import { SettingsProjectRealtime } from './settings-project-realtime';
+import { SettingsProjectSkill } from './settings-project-skill';
 
 @Component({
   selector: 'sm-settings-project',
@@ -54,6 +58,7 @@ import { SettingsProjectRealtime } from './settings-project-realtime';
     SettingsProjectLive,
     SettingsProjectPreferences,
     SettingsProjectRealtime,
+    SettingsProjectSkill,
   ],
   templateUrl: './settings-project.html',
   styleUrl: './settings-project.css',

@@ -10,6 +10,7 @@ import { SettingsProjectLens } from '../settings-project-lens';
 import { SettingsProjectLive } from '../settings-project-live';
 import { SettingsProjectPreferences } from '../settings-project-preferences';
 import { SettingsProjectRealtime } from '../settings-project-realtime';
+import { SettingsProjectSkill } from '../settings-project-skill';
 import { ActivityReadinessService } from '../../../services/activity-readiness';
 import {
   DATA_SOURCE,
@@ -21,6 +22,7 @@ import { ProviderRegistryService } from '../../../../services/provider-registry'
 import type {
   IActiveProviderApi,
   IActivityInstallStatusApi,
+  IAgentSkillInstallStatusApi,
   IProjectPreferencesApi,
   IProviderRegistryApi,
 } from '../../../../models/api';
@@ -34,7 +36,7 @@ import type {
  * so the empty DATA_SOURCE stub is never called.
  */
 describe('SettingsProject chassis', () => {
-  it('mounts the five domain children (every project row renders)', () => {
+  it('mounts the seven domain children (every project row renders)', () => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [
@@ -53,6 +55,9 @@ describe('SettingsProject chassis', () => {
     for (const testid of [
       'settings-project-active-provider-row',
       'settings-project-activity-hook-row',
+      // The drain-skill row renders while its probe is dormant (status
+      // unknown ≠ unsupported) and hides only on `supported: false`.
+      'settings-project-agent-skill-row',
       'settings-project-live-updates-row',
       'settings-project-live-activity-row',
       'settings-project-activity-capture-row',
@@ -694,6 +699,299 @@ describe('SettingsProjectHook activity hook button', () => {
     expect(uninstallActivityHook).toHaveBeenNthCalledWith(2, 'claude', { confirm: true });
     expect(proto.activityStatus()?.installed).toBe(false);
     expect(proto.activityButtonLabel()).toBe('Install Claude hook');
+  });
+});
+
+/**
+ * SettingsProjectSkill · agent drain-skill install row, the hook row's
+ * sibling install affordance (`spec/cli-contract.md` §HTTP API,
+ * `/api/agent/*`).
+ *
+ * Three probe-driven states: not installed (primary "Install skill"),
+ * stale (primary "Update skill", the CLI ships a newer canonical
+ * copy), and installed + current (non-actionable check indicator plus
+ * the Uninstall reversal); `supported: false` hides the row entirely.
+ * Both mutations first POST WITHOUT `confirm`; the server-enforced 412
+ * `confirm-required` surfaces the consent dialog naming the exact
+ * skill file, and accepting retries with `confirm: true` (the same
+ * flow the hook row uses). The install envelope's `outcome` picks the
+ * announcement wording.
+ */
+interface ISkillProto {
+  skillStatus: WritableSignal<IAgentSkillInstallStatusApi | null>;
+  skillAnnouncement(): string | null;
+  skillActionLabel(): string;
+  skillActionDisabled(): boolean;
+  rowVisible(): boolean;
+  skillInstalled(): boolean;
+  skillUpToDate(): boolean;
+  onSkillInstallClick(): void;
+  onSkillUninstallClick(): void;
+}
+
+function skillStatusOf(
+  overrides: Partial<IAgentSkillInstallStatusApi>,
+): IAgentSkillInstallStatusApi {
+  return {
+    provider: 'claude',
+    supported: true,
+    skillDir: '.claude/skills',
+    installed: false,
+    stale: false,
+    ...overrides,
+  };
+}
+
+function bootstrapSkill(stub: Partial<IDataSourcePort>): {
+  fixture: ReturnType<typeof TestBed.createComponent<SettingsProjectSkill>>;
+  proto: ISkillProto;
+} {
+  TestBed.resetTestingModule();
+  TestBed.configureTestingModule({
+    providers: [
+      provideZonelessChangeDetection(),
+      { provide: DATA_SOURCE, useValue: stub },
+    ],
+  });
+  const fixture = TestBed.createComponent(SettingsProjectSkill);
+  fixture.componentRef.setInput('visible', false);
+  fixture.componentRef.setInput('lensId', 'claude');
+  fixture.detectChanges();
+  const proto = fixture.componentInstance as unknown as ISkillProto;
+  return { fixture, proto };
+}
+
+describe('SettingsProjectSkill agent drain-skill row', () => {
+  it('probes the install status for the active lens on section open', async () => {
+    const getAgentSkillInstallStatus = vi
+      .fn()
+      .mockResolvedValue(skillStatusOf({ installed: true, stale: false }));
+    const { fixture, proto } = bootstrapSkill({
+      getAgentSkillInstallStatus,
+    } as Partial<IDataSourcePort>);
+    expect(getAgentSkillInstallStatus).not.toHaveBeenCalled();
+
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flush();
+
+    expect(getAgentSkillInstallStatus).toHaveBeenCalledWith('claude');
+    expect(proto.skillStatus()?.installed).toBe(true);
+  });
+
+  it('renders the primary Install button when the skill is absent', () => {
+    const { fixture, proto } = bootstrapSkill({});
+    proto.skillStatus.set(skillStatusOf({ installed: false }));
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    const button = el.querySelector('[data-testid="settings-project-agent-skill-button"]');
+    expect(button).not.toBeNull();
+    expect(button?.textContent).toContain('Install skill');
+    expect(proto.skillActionDisabled()).toBe(false);
+    expect(
+      el.querySelector('[data-testid="settings-project-agent-skill-uninstall"]'),
+    ).toBeNull();
+    expect(
+      el.querySelector('[data-testid="settings-project-agent-skill-uptodate"]'),
+    ).toBeNull();
+  });
+
+  it('renders the primary Update button plus Uninstall when installed but stale', () => {
+    const { fixture, proto } = bootstrapSkill({});
+    proto.skillStatus.set(skillStatusOf({ installed: true, stale: true }));
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    const button = el.querySelector('[data-testid="settings-project-agent-skill-button"]');
+    expect(button).not.toBeNull();
+    expect(button?.textContent).toContain('Update skill');
+    expect(
+      el.querySelector('[data-testid="settings-project-agent-skill-uninstall"]'),
+    ).not.toBeNull();
+    expect(
+      el.querySelector('[data-testid="settings-project-agent-skill-uptodate"]'),
+    ).toBeNull();
+  });
+
+  it('renders the check indicator plus Uninstall when installed and current', () => {
+    const { fixture, proto } = bootstrapSkill({});
+    proto.skillStatus.set(skillStatusOf({ installed: true, stale: false }));
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(proto.skillUpToDate()).toBe(true);
+    expect(
+      el.querySelector('[data-testid="settings-project-agent-skill-uptodate"]'),
+    ).not.toBeNull();
+    expect(
+      el.querySelector('[data-testid="settings-project-agent-skill-uninstall"]'),
+    ).not.toBeNull();
+    // The constructive action gives way to the non-actionable indicator.
+    expect(
+      el.querySelector('[data-testid="settings-project-agent-skill-button"]'),
+    ).toBeNull();
+  });
+
+  it('hides the row entirely for a lens without skill territory', () => {
+    const { fixture, proto } = bootstrapSkill({});
+    proto.skillStatus.set(
+      skillStatusOf({ provider: 'markdown', supported: false, skillDir: null }),
+    );
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(proto.rowVisible()).toBe(false);
+    expect(el.querySelector('[data-testid="settings-project-agent-skill-row"]')).toBeNull();
+  });
+
+  it('renders the row disabled while the status is unknown', () => {
+    const { fixture, proto } = bootstrapSkill({});
+    proto.skillStatus.set(null);
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(
+      el.querySelector('[data-testid="settings-project-agent-skill-row"]'),
+    ).not.toBeNull();
+    expect(proto.skillActionDisabled()).toBe(true);
+  });
+
+  it('install: 412 surfaces the consent dialog naming the skill file, accept retries with confirm', async () => {
+    const installAgentSkill = vi
+      .fn()
+      .mockRejectedValueOnce(new DataSourceError('confirm-required', 'needs confirm'))
+      .mockResolvedValueOnce({
+        ...skillStatusOf({ installed: true, stale: false }),
+        outcome: 'installed',
+      });
+    const { fixture, proto } = bootstrapSkill({
+      installAgentSkill,
+    } as Partial<IDataSourcePort>);
+    const confirmation = fixture.debugElement.injector.get(ConfirmationService);
+    const confirmSpy = vi.spyOn(confirmation, 'confirm').mockReturnValue(confirmation);
+    proto.skillStatus.set(skillStatusOf({ installed: false }));
+
+    proto.onSkillInstallClick();
+    await flush();
+
+    expect(installAgentSkill).toHaveBeenNthCalledWith(1, 'claude', undefined);
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    // The consent dialog names the exact file the install writes.
+    expect(String(confirmSpy.mock.calls[0][0].message)).toContain(
+      '.claude/skills/sm-run-queue/SKILL.md',
+    );
+
+    confirmSpy.mock.calls[0][0].accept?.();
+    await flush();
+
+    expect(installAgentSkill).toHaveBeenNthCalledWith(2, 'claude', { confirm: true });
+    expect(proto.skillStatus()?.installed).toBe(true);
+    expect(proto.skillUpToDate()).toBe(true);
+    expect(proto.skillAnnouncement()).toBe('Agent drain skill installed.');
+  });
+
+  it('install: the updated outcome drives the update wording (stale copy refreshed)', async () => {
+    const installAgentSkill = vi
+      .fn()
+      .mockRejectedValueOnce(new DataSourceError('confirm-required', 'needs confirm'))
+      .mockResolvedValueOnce({
+        ...skillStatusOf({ installed: true, stale: false }),
+        outcome: 'updated',
+      });
+    const { fixture, proto } = bootstrapSkill({
+      installAgentSkill,
+    } as Partial<IDataSourcePort>);
+    const confirmation = fixture.debugElement.injector.get(ConfirmationService);
+    const confirmSpy = vi.spyOn(confirmation, 'confirm').mockReturnValue(confirmation);
+    proto.skillStatus.set(skillStatusOf({ installed: true, stale: true }));
+    expect(proto.skillActionLabel()).toBe('Update skill');
+
+    proto.onSkillInstallClick();
+    await flush();
+    // The stale branch words the dialog as an overwrite-with-current.
+    expect(String(confirmSpy.mock.calls[0][0].header)).toContain('Update');
+    confirmSpy.mock.calls[0][0].accept?.();
+    await flush();
+
+    expect(installAgentSkill).toHaveBeenNthCalledWith(2, 'claude', { confirm: true });
+    expect(proto.skillUpToDate()).toBe(true);
+    expect(proto.skillAnnouncement()).toBe('Agent drain skill updated to the current version.');
+  });
+
+  it('install: an up-to-date outcome announces that nothing changed', async () => {
+    // Defensive path: a first-shot success (no 412) still adopts the
+    // envelope and words the announcement off `outcome`.
+    const installAgentSkill = vi.fn().mockResolvedValue({
+      ...skillStatusOf({ installed: true, stale: false }),
+      outcome: 'up-to-date',
+    });
+    const { proto } = bootstrapSkill({
+      installAgentSkill,
+    } as Partial<IDataSourcePort>);
+    proto.skillStatus.set(skillStatusOf({ installed: true, stale: true }));
+
+    proto.onSkillInstallClick();
+    await flush();
+
+    expect(installAgentSkill).toHaveBeenCalledTimes(1);
+    expect(proto.skillAnnouncement()).toBe('The agent drain skill is already up to date.');
+  });
+
+  it('install: dismissing the consent dialog fires no retry', async () => {
+    const installAgentSkill = vi
+      .fn()
+      .mockRejectedValueOnce(new DataSourceError('confirm-required', 'needs confirm'));
+    const { fixture, proto } = bootstrapSkill({
+      installAgentSkill,
+    } as Partial<IDataSourcePort>);
+    const confirmation = fixture.debugElement.injector.get(ConfirmationService);
+    const confirmSpy = vi.spyOn(confirmation, 'confirm').mockReturnValue(confirmation);
+    proto.skillStatus.set(skillStatusOf({ installed: false }));
+
+    proto.onSkillInstallClick();
+    await flush();
+
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    confirmSpy.mock.calls[0][0].reject?.();
+    await flush();
+
+    expect(installAgentSkill).toHaveBeenCalledTimes(1);
+    expect(proto.skillStatus()?.installed).toBe(false);
+  });
+
+  it('uninstall: 412 surfaces its own consent dialog, confirmed retry adopts removed: true', async () => {
+    const uninstallAgentSkill = vi
+      .fn()
+      .mockRejectedValueOnce(new DataSourceError('confirm-required', 'needs confirm'))
+      .mockResolvedValueOnce({
+        ...skillStatusOf({ installed: false }),
+        removed: true,
+      });
+    const { fixture, proto } = bootstrapSkill({
+      uninstallAgentSkill,
+    } as Partial<IDataSourcePort>);
+    const confirmation = fixture.debugElement.injector.get(ConfirmationService);
+    const confirmSpy = vi.spyOn(confirmation, 'confirm').mockReturnValue(confirmation);
+    proto.skillStatus.set(skillStatusOf({ installed: true, stale: false }));
+
+    proto.onSkillUninstallClick();
+    await flush();
+
+    expect(uninstallAgentSkill).toHaveBeenNthCalledWith(1, 'claude', undefined);
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    // The uninstall dialog names the folder the removal deletes.
+    expect(String(confirmSpy.mock.calls[0][0].message)).toContain(
+      '.claude/skills/sm-run-queue/',
+    );
+
+    confirmSpy.mock.calls[0][0].accept?.();
+    await flush();
+
+    expect(uninstallAgentSkill).toHaveBeenNthCalledWith(2, 'claude', { confirm: true });
+    expect(proto.skillStatus()?.installed).toBe(false);
+    expect(proto.skillInstalled()).toBe(false);
+    expect(proto.skillAnnouncement()).toBe('Agent drain skill uninstalled.');
   });
 });
 

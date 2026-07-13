@@ -69,6 +69,15 @@ describe('buildIgnoreFilter, defaults', () => {
     assert.equal(filter.ignores('.skill-map/skill-map.db'), true);
   });
 
+  it('skips the materialised sm-run-queue drain skill by default, at any skillDir depth', () => {
+    const filter = buildIgnoreFilter();
+    assert.equal(filter.ignores('.claude/skills/sm-run-queue/SKILL.md'), true);
+    assert.equal(filter.ignores('.agents/skills/sm-run-queue/SKILL.md'), true);
+    // The escape hatch: a later layer re-includes it.
+    const reIncluded = buildIgnoreFilter({ ignoreFileText: '!sm-run-queue/' });
+    assert.equal(reIncluded.ignores('.claude/skills/sm-run-queue/SKILL.md'), false);
+  });
+
   it('does NOT skip ordinary files', () => {
     const filter = buildIgnoreFilter();
     assert.equal(filter.ignores('README.md'), false);

@@ -253,6 +253,27 @@ export const SERVER_TEXTS = {
   activityInstallConfirmNotBoolean:
     '`confirm` must be a boolean when present.',
 
+  // Agent drain skill install management (GET/POST /api/agent/install +
+  // POST /api/agent/uninstall, see spec/cli-contract.md §Agent drain
+  // skill). The 412 names the exact path the mutation would touch so
+  // the SPA's consent dialog can show it.
+  agentBodyNotJson:
+    'Request body must be valid JSON.',
+  agentBodyNotObject:
+    'Request body must be a JSON object.',
+  agentProviderRequired:
+    '`provider` is required and must be a non-empty string.',
+  agentConfirmNotBoolean:
+    '`confirm` must be a boolean when present.',
+  agentInstallUnknownProvider:
+    'Unknown provider "{{provider}}".',
+  agentInstallNoSkillDir:
+    'Provider "{{provider}}" declares no skill directory (scaffold.skillDir).',
+  agentInstallConfirmRequired:
+    'Installing writes {{path}}. Retry with `confirm: true` to proceed.',
+  agentUninstallConfirmRequired:
+    'Uninstalling removes {{path}}. Retry with `confirm: true` to proceed.',
+
   // Execution stats + conversation capture (GET /api/activity/summary,
   // GET /api/activity/node/<pathB64>, GET /api/activity/spawns/<spawnId>,
   // GET/POST /api/activity/capture; see spec/provider-activity.md

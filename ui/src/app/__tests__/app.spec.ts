@@ -204,6 +204,29 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     bridgePresent: false,
     events: 0,
   }, removed: false }),
+  getAgentSkillInstallStatus: () => Promise.resolve({
+    provider: 'markdown',
+    supported: false,
+    skillDir: null,
+    installed: false,
+    stale: false,
+  }),
+  installAgentSkill: () => Promise.resolve({
+    provider: 'markdown',
+    supported: false,
+    skillDir: null,
+    installed: false,
+    stale: false,
+    outcome: 'installed' as const,
+  }),
+  uninstallAgentSkill: () => Promise.resolve({
+    provider: 'markdown',
+    supported: false,
+    skillDir: null,
+    installed: false,
+    stale: false,
+    removed: false,
+  }),
   getActivitySummary: () => Promise.resolve({ since: 0, nodes: {}, pairs: {} }),
   getNodeActivity: () =>
     Promise.resolve({

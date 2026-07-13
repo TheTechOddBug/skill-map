@@ -72,9 +72,7 @@ import { Command, Option } from 'clipanion';
 import { tx } from '../../kernel/util/tx.js';
 import { TUTORIAL_TEXTS } from '../i18n/tutorial.texts.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
-import { builtIns } from '../../plugins/built-ins.js';
-import { installedDefaultEnabled } from '../../kernel/config/plugin-resolver.js';
-import type { IProvider } from '../../kernel/extensions/index.js';
+import { listScaffoldTargets, type IScaffoldTarget } from '../../core/agent-skill/targets.js';
 import { type IAnsi } from '../util/ansi.js';
 import { displayCwd, isDirEmpty, listCwdEntries } from '../util/empty-cwd.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -366,74 +364,9 @@ function materializeSkillFolder(
 }
 
 // -----------------------------------------------------------------------------
-// Destination Provider catalog
+// Destination Provider prompt (catalog: `core/agent-skill/targets.ts`,
+// shared with `sm agent` and the BFF's /api/agent/install surface)
 // -----------------------------------------------------------------------------
-
-/**
- * One row in the tutorial destination prompt, projected from a built-in
- * Provider that declares a `scaffold.skillDir`. `id` is what `--for`
- * matches; `label` is the human name; `skillDir` is the territory the
- * skill folder lands under; `aka` lists the other agents that consume this
- * territory (display-only). Every row is a valid pick. Exported (with
- * `listScaffoldTargets`) as the shared destination catalog `sm agent`
- * reuses, so the two verbs can never fork their selection semantics.
- */
-export interface IScaffoldTarget {
-  id: string;
-  label: string;
-  skillDir: string;
-  /** Marker dir to create alongside the skill so the chosen lens resolves. */
-  marker?: string;
-  aka: readonly string[];
-}
-
-/**
- * Project one built-in Provider into a prompt row, or `null` when it is
- * not a scaffold destination. A Provider qualifies when it declares a
- * `scaffold.skillDir` (e.g. `claude`, `agent-skills`); the universal
- * `markdown` fallback declares none, so it is skipped. Experimental
- * Providers (`stability: experimental`, ships disabled) are only included
- * when `includeExperimental` is set (the `--experimental` flag); by
- * default they are omitted so the tutorial offers only ready destinations.
- * Split out of `listScaffoldTargets` to stay within the lint complexity
- * budget.
- */
-function toScaffoldTarget(
-  provider: IProvider,
-  includeExperimental: boolean,
-): IScaffoldTarget | null {
-  const scaffold = provider.scaffold;
-  if (!scaffold || !scaffold.skillDir) return null;
-  if (!installedDefaultEnabled(provider.stability) && !includeExperimental) return null;
-  return {
-    id: provider.id,
-    label: provider.presentation.label,
-    skillDir: scaffold.skillDir,
-    ...(scaffold.marker !== undefined ? { marker: scaffold.marker } : {}),
-    aka: scaffold.aka ?? [],
-  };
-}
-
-/**
- * Prompt rows in catalog order (vendor providers first per the codegen
- * `PLUGIN_ORDER`, so `claude` leads). The tutorial is a pre-bootstrap
- * helper, so this reads the built-in catalog directly rather than project
- * config. The default-offered rows are the book-ready destinations that
- * declare a `scaffold.skillDir` and ship enabled: `claude` (rich track),
- * the beta `codex` (rich track), and the open-standard `agent-skills`
- * (basic track). `beta` ships enabled, so `codex` appears by default;
- * `--experimental` would add any `stability: experimental` scaffolder, of
- * which there is none today (they ship disabled), so the flag is a no-op
- * among current built-ins.
- */
-export function listScaffoldTargets(includeExperimental = false): IScaffoldTarget[] {
-  const out: IScaffoldTarget[] = [];
-  for (const provider of builtIns().providers) {
-    const target = toScaffoldTarget(provider, includeExperimental);
-    if (target !== null) out.push(target);
-  }
-  return out;
-}
 
 /**
  * Render a target's prompt label. The basic book teaches the OPEN STANDARD

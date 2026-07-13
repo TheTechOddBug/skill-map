@@ -33,13 +33,16 @@
  * skill no-ops with exit 0.
  */
 
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import {
+  agentSkillStatus,
+  installAgentSkill,
+  uninstallAgentSkill,
+  type TInstallOutcome,
+} from '../../core/agent-skill/engine.js';
 
 import { Command, Option } from 'clipanion';
 
 import {
-  RUN_QUEUE_SKILL_CONTENT,
   RUN_QUEUE_SKILL_DIR,
   RUN_QUEUE_SKILL_FILE,
 } from '../../core/agent-skill/skill-template.js';
@@ -52,12 +55,10 @@ import { AGENT_TEXTS as T } from '../i18n/agent.texts.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
-import { listScaffoldTargets, type IScaffoldTarget } from './tutorial.js';
-
-/** Absolute path of the materialised skill folder for `target` under `cwd`. */
-function skillFolderAbs(cwd: string, target: IScaffoldTarget): string {
-  return join(cwd, target.skillDir, RUN_QUEUE_SKILL_DIR);
-}
+import {
+  listScaffoldTargets,
+  type IScaffoldTarget,
+} from '../../core/agent-skill/targets.js';
 
 /** Relative display form of the skill folder (`<skillDir>/sm-run-queue/`). */
 function skillFolderDisplay(target: IScaffoldTarget): string {
@@ -178,23 +179,10 @@ export class AgentInstallCommand extends AgentBaseCommand {
    * "updated" always agree. `null` = IO failure (already reported).
    */
   private materialise(cwd: string, target: IScaffoldTarget): TInstallOutcome | null {
-    const folder = skillFolderAbs(cwd, target);
-    const file = join(folder, RUN_QUEUE_SKILL_FILE);
-    const existing = existsSync(file) ? readFileSync(file, 'utf8') : null;
-    const outcome: TInstallOutcome =
-      existing === null ? 'installed' : existing === RUN_QUEUE_SKILL_CONTENT ? 'up-to-date' : 'updated';
     try {
-      if (outcome !== 'up-to-date') {
-        mkdirSync(folder, { recursive: true });
-        writeFileSync(file, RUN_QUEUE_SKILL_CONTENT);
-      }
-      // Drop the lens marker (e.g. Codex's `.codex/`) when the Provider
-      // declares one, mirroring `sm tutorial`: several Providers share
-      // the open-standard `.agents/skills` territory, so the marker is
-      // what resolves the chosen lens on the next scan.
-      if (target.marker !== undefined) {
-        mkdirSync(join(cwd, target.marker), { recursive: true });
-      }
+      // Engine call shared with the BFF's /api/agent/install surface;
+      // the marker drop (e.g. Codex's `.codex/`) rides inside it.
+      return installAgentSkill(cwd, target.skillDir, target.marker);
     } catch (err) {
       this.printer!.error(
         tx(T.installFailed, {
@@ -204,7 +192,6 @@ export class AgentInstallCommand extends AgentBaseCommand {
       );
       return null;
     }
-    return outcome;
   }
 
   /** Success line per outcome; the next-step hint only when bytes moved. */
@@ -224,9 +211,6 @@ export class AgentInstallCommand extends AgentBaseCommand {
     }
   }
 }
-
-/** Install outcome of `sm agent install` (see `materialise`). */
-type TInstallOutcome = 'installed' | 'updated' | 'up-to-date';
 
 export class AgentUninstallCommand extends AgentBaseCommand {
   static override paths = [['agent', 'uninstall']];
@@ -251,18 +235,9 @@ export class AgentUninstallCommand extends AgentBaseCommand {
     const target = this.resolveTarget(ctx.cwd);
     if (target === null) return ExitCode.Error;
 
-    const folder = skillFolderAbs(ctx.cwd, target);
-    if (!existsSync(folder)) {
-      this.printer!.info(
-        tx(T.nothingToUninstall, {
-          glyph: this.ansiFor('stderr').cyan('ℹ'),
-          path: skillFolderDisplay(target),
-        }),
-      );
-      return ExitCode.Ok;
-    }
+    let removed: boolean;
     try {
-      rmSync(folder, { recursive: true, force: true });
+      removed = uninstallAgentSkill(ctx.cwd, target.skillDir);
     } catch (err) {
       this.printer!.error(
         tx(T.uninstallFailed, {
@@ -271,6 +246,15 @@ export class AgentUninstallCommand extends AgentBaseCommand {
         }),
       );
       return ExitCode.Error;
+    }
+    if (!removed) {
+      this.printer!.info(
+        tx(T.nothingToUninstall, {
+          glyph: this.ansiFor('stderr').cyan('ℹ'),
+          path: skillFolderDisplay(target),
+        }),
+      );
+      return ExitCode.Ok;
     }
     this.printer!.data(
       tx(T.uninstalled, {
@@ -307,12 +291,10 @@ export class AgentStatusCommand extends AgentBaseCommand {
     const target = this.resolveTarget(ctx.cwd);
     if (target === null) return ExitCode.Error;
 
-    const file = join(skillFolderAbs(ctx.cwd, target), RUN_QUEUE_SKILL_FILE);
-    const installed = existsSync(file);
-    // Stale = the materialised bytes differ from the canonical constant.
-    // Byte-exact comparison: install writes the constant verbatim, so
-    // any drift (older CLI, manual edit) flips this.
-    const stale = installed && readFileSync(file, 'utf8') !== RUN_QUEUE_SKILL_CONTENT;
+    // Engine probe shared with the BFF status endpoint: byte-exact
+    // comparison against the canonical constant, the same one install
+    // reports as "updated".
+    const { installed, stale } = agentSkillStatus(ctx.cwd, target.skillDir);
 
     if (this.json) {
       this.printer!.data(

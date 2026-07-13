@@ -57,6 +57,9 @@ import type {
   IActivitySpawnDetailApi,
   IActivitySummaryApi,
   IActivityUninstallEnvelopeApi,
+  IAgentSkillInstallEnvelopeApi,
+  IAgentSkillInstallStatusApi,
+  IAgentSkillUninstallEnvelopeApi,
   IActiveProviderPutEnvelopeApi,
   IProjectIgnoreApi,
   IProjectIgnorePatchApi,
@@ -135,6 +138,18 @@ const DEMO_ACTIVITY_DESCRIPTORS: Record<string, { configPath: string; events: nu
   codex: { configPath: '.codex/hooks.json', events: 3 },
   antigravity: { configPath: '.agents/hooks.json', events: 2 },
   opencode: { configPath: '.opencode/plugin/skill-map-activity.js', events: 0 },
+};
+
+/**
+ * Baked `scaffold.skillDir` per lens, mirroring the shipped Providers'
+ * declarations, for the demo agent-drain-skill probe (same posture as
+ * `DEMO_ACTIVITY_DESCRIPTORS`: report capability honestly, install
+ * nothing).
+ */
+const DEMO_AGENT_SKILL_DIRS: Record<string, string> = {
+  claude: '.claude/skills',
+  codex: '.agents/skills',
+  'agent-skills': '.agents/skills',
 };
 
 export class StaticDataSource implements IDataSourcePort {
@@ -647,6 +662,42 @@ export class StaticDataSource implements IDataSourcePort {
     throw new DataSourceError(
       'demo-readonly',
       'Activity hook uninstall is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  async getAgentSkillInstallStatus(provider: string): Promise<IAgentSkillInstallStatusApi> {
+    // Baked snapshot: no filesystem to probe, so report each lens's
+    // CAPABILITY honestly (the shipped Providers' `scaffold.skillDir`)
+    // with nothing installed. The Settings button renders in its
+    // Install state but the mutations below reject, matching every
+    // other demo write.
+    const skillDir = DEMO_AGENT_SKILL_DIRS[provider];
+    return {
+      provider,
+      supported: skillDir !== undefined,
+      skillDir: skillDir ?? null,
+      installed: false,
+      stale: false,
+    };
+  }
+
+  async installAgentSkill(
+    _provider: string,
+    _opts?: { confirm?: boolean },
+  ): Promise<IAgentSkillInstallEnvelopeApi> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Agent skill install is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  async uninstallAgentSkill(
+    _provider: string,
+    _opts?: { confirm?: boolean },
+  ): Promise<IAgentSkillUninstallEnvelopeApi> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Agent skill uninstall is not available in demo mode (static bundle is immutable).',
     );
   }
 

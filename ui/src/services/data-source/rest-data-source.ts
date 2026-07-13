@@ -44,6 +44,9 @@ import type {
   IActivitySpawnDetailApi,
   IActivitySummaryApi,
   IActivityUninstallEnvelopeApi,
+  IAgentSkillInstallEnvelopeApi,
+  IAgentSkillInstallStatusApi,
+  IAgentSkillUninstallEnvelopeApi,
   IActiveProviderPutEnvelopeApi,
   IProjectIgnoreApi,
   IProjectIgnorePatchApi,
@@ -384,6 +387,34 @@ export class RestDataSource implements IDataSourcePort {
   ): Promise<IActivityUninstallEnvelopeApi> {
     return await this.patchJson<IActivityUninstallEnvelopeApi>(
       `${BASE}/activity/uninstall`,
+      opts?.confirm === true ? { provider, confirm: true } : { provider },
+      'POST',
+    );
+  }
+
+  async getAgentSkillInstallStatus(provider: string): Promise<IAgentSkillInstallStatusApi> {
+    return await this.getJson<IAgentSkillInstallStatusApi>(
+      `${BASE}/agent/install?provider=${encodeURIComponent(provider)}`,
+    );
+  }
+
+  async installAgentSkill(
+    provider: string,
+    opts?: { confirm?: boolean },
+  ): Promise<IAgentSkillInstallEnvelopeApi> {
+    return await this.patchJson<IAgentSkillInstallEnvelopeApi>(
+      `${BASE}/agent/install`,
+      opts?.confirm === true ? { provider, confirm: true } : { provider },
+      'POST',
+    );
+  }
+
+  async uninstallAgentSkill(
+    provider: string,
+    opts?: { confirm?: boolean },
+  ): Promise<IAgentSkillUninstallEnvelopeApi> {
+    return await this.patchJson<IAgentSkillUninstallEnvelopeApi>(
+      `${BASE}/agent/uninstall`,
       opts?.confirm === true ? { provider, confirm: true } : { provider },
       'POST',
     );
