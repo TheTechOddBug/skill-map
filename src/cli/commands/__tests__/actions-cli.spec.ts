@@ -2,16 +2,16 @@
  * End-to-end tests for `sm actions list / show`, the manifest view over
  * the composed Action catalog. Each command runs inside a fresh EMPTY
  * temp dir (no `.skill-map/`), so only the built-ins compose; the
- * summarizer signal, the mode default, and the probabilistic detail
+ * report-schema ref, the mode default, and the probabilistic detail
  * section are asserted against the real bundled manifests
  * (`core/markdown-summarizer` probabilistic + summarizer,
  * `core/node-bump` deterministic).
  *
  * Coverage:
- *   - list --json: row shape (mode / summarizer / duration / source).
+ *   - list --json: row shape (mode / duration / source).
  *   - list human: table headers + footer noun + tip.
  *   - show --json with a BARE id: qualified resolution + reportSchemaRef.
- *   - show human: Probabilistic section present (summarizer) / absent
+ *   - show human: Probabilistic section present / absent
  *     (deterministic action).
  *   - show unknown id: exit 5 + actionable hint on stderr.
  *
@@ -119,14 +119,15 @@ describe('sm actions list', () => {
     );
     ok(summarizer, 'core/markdown-summarizer row present');
     strictEqual(summarizer['mode'], 'probabilistic');
-    strictEqual(summarizer['summarizer'], true);
+    // Derived traits carry no field of their own (decision 2026-07-13):
+    // the summarizer signal is readable only through show's reportSchemaRef.
+    ok(!('summarizer' in summarizer), 'no derived summarizer field');
     strictEqual(summarizer['probExpectedDurationSeconds'], 120);
     strictEqual(summarizer['source'], 'built-in');
 
     const setTags = outcome.rows.find((r) => r['qualifiedId'] === 'core/node-set-tags');
     ok(setTags, 'core/node-set-tags row present');
     strictEqual(setTags['mode'], 'deterministic');
-    strictEqual(setTags['summarizer'], false);
     strictEqual(setTags['source'], 'built-in');
   });
 
@@ -139,7 +140,7 @@ describe('sm actions list', () => {
     strictEqual(outcome.code, 0);
     ok(outcome.out.includes('ID'), 'ID header');
     ok(outcome.out.includes('MODE'), 'MODE header');
-    ok(outcome.out.includes('SUMMARIZER'), 'SUMMARIZER header');
+    ok(!outcome.out.includes('SUMMARIZER'), 'no derived-trait column');
     ok(outcome.out.includes('DESCRIPTION'), 'DESCRIPTION header');
     match(outcome.out, /\n\d+ actions\n/, 'plural footer noun');
     ok(
@@ -161,7 +162,7 @@ describe('sm actions show', () => {
     });
     strictEqual(outcome.code, 0);
     strictEqual(outcome.detail['qualifiedId'], 'core/markdown-summarizer');
-    strictEqual(outcome.detail['summarizer'], true);
+    ok(!('summarizer' in outcome.detail), 'no derived summarizer field');
     strictEqual(
       outcome.detail['reportSchemaRef'],
       'https://skill-map.ai/spec/v0/summaries/markdown.schema.json',
@@ -178,7 +179,8 @@ describe('sm actions show', () => {
     strictEqual(outcome.code, 0);
     ok(outcome.out.includes('Probabilistic'), 'Probabilistic section title');
     ok(outcome.out.includes('120s'), 'expected duration');
-    ok(outcome.out.includes('(summarizer)'), 'summarizer tag on the report schema');
+    ok(outcome.out.includes('summaries/markdown.schema.json'), 'schema ref is the signal');
+    ok(!outcome.out.includes('(summarizer)'), 'no derived-trait tag');
   });
 
   it('human detail drops the Probabilistic section for a deterministic action', async () => {

@@ -9,12 +9,11 @@
  * deterministic ones). No DB gate: the catalog exists with or without a
  * scan, so an empty project still lists the built-ins.
  *
- * The summarizer flag is inferred, not declared: an action whose report
- * schema extends a canonical `summaries/<kind>` schema
- * (`summaryKindOfReportSchema`) gets the `state_summaries` write-through
- * at record time, so the listing surfaces that opt-in per row. Any
- * schema-resolution failure degrades to `summarizer: false`, never an
- * error (deterministic built-ins carry no inlined schema by design).
+ * Derived traits get NO fields of their own (decision 2026-07-13): the
+ * summarizer write-through, for example, is read where it lives, the
+ * `report schema` ref on the `show` detail (a `summaries/` extension IS
+ * the signal, `job-lifecycle.md` §Record). The view renders manifest
+ * data only.
  */
 
 import { join } from 'node:path';
@@ -27,7 +26,6 @@ import type {
   TActionWriteKind,
 } from '../../kernel/extensions/index.js';
 import type { TExecutionMode } from '../../kernel/types.js';
-import { summaryKindOfReportSchema } from '../../kernel/jobs/index.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -57,8 +55,6 @@ interface IActionRow {
   writes?: TActionWriteKind[];
   precondition?: IActionPrecondition;
   probExpectedDurationSeconds?: number;
-  /** Report schema extends a canonical `summaries/<kind>` schema. */
-  summarizer: boolean;
   /** `built-in` (bundled) or the plugin dir, relative when under cwd. */
   source: string;
 }
@@ -76,10 +72,9 @@ export class ActionsListCommand extends SmCommand {
     description: 'Registered action types (manifest view).',
     details: `
       Composes the action catalog (built-ins + enabled project plugins)
-      and lists one row per action: qualified id, execution mode,
-      summarizer opt-in (the action's report schema extends a canonical
-      \`summaries/<kind>\` schema), and description. Actions are not
-      invoked here; probabilistic actions queue via \`sm job submit\`.
+      and lists one row per action: qualified id, execution mode, and
+      description. Actions are not invoked here; probabilistic actions
+      queue via \`sm job submit\`.
     `,
     examples: [
       ['List every registered action', '$0 actions list'],
@@ -166,9 +161,8 @@ function buildRows(runtime: IActionRuntime): IActionRow[] {
  * Project one Action manifest into the shared row shape, alongside its
  * resolved report schema (the plugin's on-disk `report.schema.json` or
  * the built-in's inlined `reportSchema`; `null` when unresolvable). The
- * schema drives the `summarizer` flag here and the report-schema
- * rendering on the `show` detail, resolved once so `show` never re-reads
- * the file.
+ * schema drives the report-schema rendering on the `show` detail,
+ * resolved once so `show` never re-reads the file.
  */
 function buildRow(
   runtime: IActionRuntime,
@@ -183,7 +177,6 @@ function buildRow(
     id: action.id,
     pluginId: action.pluginId,
     mode: action.mode ?? 'deterministic',
-    summarizer: schema !== null && summaryKindOfReportSchema(schema) !== null,
     source:
       dir === undefined
         ? T.sourceBuiltIn
@@ -259,9 +252,9 @@ const ROW_INDENT = '  ';
 /**
  * Render the human-mode table:
  *
- *   ID                        MODE           SUMMARIZER  DESCRIPTION
- *   core/markdown-summarizer  probabilistic  ✓           Summarizes a node's…
- *   core/node-bump            deterministic              Increments the sidecar…
+ *   ID                        MODE           DESCRIPTION
+ *   core/markdown-summarizer  probabilistic  Summarizes a node's…
+ *   core/node-bump            deterministic  Increments the sidecar…
  *
  *   4 actions
  *   Tip: `sm actions show <id>` for the full manifest; …
@@ -272,7 +265,6 @@ function renderTable(rows: IActionRow[], ansi: IAnsi): string {
   const human = rows.map((r) => ({
     id: sanitizeForTerminal(r.qualifiedId),
     mode: sanitizeForTerminal(r.mode),
-    summarizer: r.summarizer,
     description: truncateHead(
       sanitizeForTerminal(r.description ?? ''),
       DESCRIPTION_COL_MAX_WIDTH,
@@ -280,23 +272,17 @@ function renderTable(rows: IActionRow[], ansi: IAnsi): string {
   }));
   const idWidth = Math.max(T.tableHeaderId.length, ...human.map((r) => r.id.length));
   const modeWidth = Math.max(T.tableHeaderMode.length, ...human.map((r) => r.mode.length));
-  const sumWidth = T.tableHeaderSummarizer.length;
 
   const lines: string[] = [];
   lines.push(ROW_INDENT + [
     ansi.dim(T.tableHeaderId.padEnd(idWidth)),
     ansi.dim(T.tableHeaderMode.padEnd(modeWidth)),
-    ansi.dim(T.tableHeaderSummarizer.padEnd(sumWidth)),
     ansi.dim(T.tableHeaderDescription),
   ].join('  '));
   for (const r of human) {
-    const summarizerCol = r.summarizer
-      ? ansi.green(T.summarizerMark.padEnd(sumWidth))
-      : ' '.repeat(sumWidth);
     lines.push((ROW_INDENT + [
       r.id.padEnd(idWidth),
       ansi.dim(r.mode.padEnd(modeWidth)),
-      summarizerCol,
       r.description,
     ].join('  ')).trimEnd());
   }
@@ -378,7 +364,7 @@ function probabilisticFields(
   }
   const prompt = promptTemplateDisplay(runtime, action);
   if (prompt !== null) fields.push({ label: T.fieldPromptTemplate, value: prompt });
-  const schemaValue = reportSchemaDisplay(schema, row.summarizer);
+  const schemaValue = reportSchemaDisplay(schema);
   if (schemaValue !== null) fields.push({ label: T.fieldReportSchema, value: schemaValue });
   return fields;
 }
@@ -400,18 +386,16 @@ function promptTemplateDisplay(runtime: IActionRuntime, action: IAction): string
 
 /**
  * Report-schema row value: the top-level `allOf` `$ref` (the schema this
- * report extends), falling back to the schema's own `$id` / `title`,
- * with a ` (summarizer)` tag when the summaries write-through applies.
- * `null` (row drops) when the schema is unresolvable.
+ * report extends), falling back to the schema's own `$id` / `title`.
+ * `null` (row drops) when the schema is unresolvable. A `summaries/`
+ * ref IS the summarizer signal; no extra annotation is rendered
+ * (derived traits get no fields, see the module header).
  */
-function reportSchemaDisplay(
-  schema: Record<string, unknown> | null,
-  summarizer: boolean,
-): string | null {
+function reportSchemaDisplay(schema: Record<string, unknown> | null): string | null {
   const ref = reportSchemaRefOf(schema);
   const value = ref ?? schemaIdOrTitle(schema);
   if (value === null) return null;
-  return sanitizeForTerminal(value) + (summarizer ? T.summarizerSuffix : '');
+  return sanitizeForTerminal(value);
 }
 
 function schemaIdOrTitle(schema: Record<string, unknown> | null): string | null {

@@ -2,7 +2,7 @@
 "@skill-map/cli": minor
 ---
 
-Removes `sm job run`, `RunnerPort`, `ClaudeCliRunner` and the submit `--run` flag: skill-map never spawns an agent. External agents drain the queue instead: `sm job claim` now reaps expired jobs first and stamps `runner=agent`, and `sm record --json` streams the synthetic run envelope as ndjson (`run.started` through `run.summary`, per `spec/job-events.md`). `sm doctor` drops the runner-availability check (seven checks).
+Removes `sm job run`, `RunnerPort`, `ClaudeCliRunner` and the submit `--run` flag: skill-map never spawns an agent. External agents drain the queue instead: `sm job claim` now reaps expired jobs first and stamps `runner=agent`, and `sm record --json` streams the synthetic run envelope as ndjson (`run.started` through `run.summary`, per `spec/job-events.md`).
 
 ## User-facing
 

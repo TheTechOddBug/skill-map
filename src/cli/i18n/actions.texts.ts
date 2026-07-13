@@ -9,10 +9,7 @@ export const ACTIONS_TEXTS = {
   // --- list: table ---------------------------------------------------------
   tableHeaderId: 'ID',
   tableHeaderMode: 'MODE',
-  tableHeaderSummarizer: 'SUMMARIZER',
   tableHeaderDescription: 'DESCRIPTION',
-  /** Mark rendered (green) in the SUMMARIZER column when the action opts in. */
-  summarizerMark: '✓',
 
   /** Footer line: count of rendered actions (`4 actions` / `1 action`). */
   tableFooterCount: '{{count}} {{noun}}\n',
@@ -51,8 +48,6 @@ export const ACTIONS_TEXTS = {
 
   expectedDurationValue: '{{n}}s',
   promptTemplateInline: 'inline (built-in)',
-  /** Suffix appended to the report-schema value when the summarizer signal hits. */
-  summarizerSuffix: ' (summarizer)',
 
   /** Source label for actions bundled with the CLI (no on-disk plugin dir). */
   sourceBuiltIn: 'built-in',

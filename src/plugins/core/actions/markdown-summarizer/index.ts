@@ -44,7 +44,7 @@ export const markdownSummarizerAction: IBuiltInManifest<IAction> = {
   pluginId: PLUGIN_ID,
   kind: 'action',
   description:
-    "Summarizes a node's markdown content into a structured brief (probabilistic; runs via a runner + `sm record`).",
+    "Summarizes a node's markdown content into a structured brief (probabilistic; an agent drains it via `sm job claim` + `sm record`).",
   mode: 'probabilistic',
   // Best-effort wall-clock estimate; drives the job TTL. Two minutes is a
   // safe upper bound for a single-file summary on a mid-tier model.
