@@ -26,6 +26,7 @@ import { after, before, describe, it } from 'node:test';
 
 import type { BaseContext } from 'clipanion';
 
+import { VERSION } from '../../cli/version.js';
 import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import type { Node, ScanResult } from '../../kernel/types.js';
 import { HistoryCommand } from '../../cli/commands/history.js';
@@ -72,7 +73,11 @@ function makeScanResult(): ScanResult {
     scannedAt: 1_700_000_000_000,
     roots: ['.'],
     providers: ['claude'],
-    scannedBy: { name: 'skill-map', version: '0.88.0', specVersion: '1.0.0' },
+    // Stamp the CURRENT version so the classifier lands on 'ok' and the
+    // FINGERPRINT is the sole drift source, regardless of the checkout's
+    // version (a hardcoded literal broke the first prerelease CI run,
+    // 0.89.0-rc.0 vs '0.88.0' classified warn-older and won the one-shot).
+    scannedBy: { name: 'skill-map', version: VERSION, specVersion: '1.0.0' },
     nodes: [makeNode('a.md')],
     links: [],
     issues: [],
