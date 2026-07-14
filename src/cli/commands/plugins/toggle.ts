@@ -46,6 +46,7 @@ import { buildScanExtensionSet } from '../../telemetry/usage-collector.js';
 import type { IAnsi } from '../../util/ansi.js';
 import { confirm } from '../../util/confirm.js';
 import { resolveDbPath } from '../../util/db-path.js';
+import { assertNoDriftForWrite } from '../../../core/sqlite/db-version-runner.js';
 import { ExitCode } from '../../util/exit-codes.js';
 import { defaultRuntimeContext } from '../../util/runtime-context.js';
 import { SmCommand } from '../../util/sm-command.js';
@@ -85,6 +86,15 @@ abstract class TogglePluginsBase extends SmCommand {
   ids = Option.Rest({ name: 'ids' });
 
   protected async toggle(enabled: boolean): Promise<number> {
+    // Write verb: `disable` purges `scan_contributions` rows and the
+    // pair must behave atomically and symmetrically, so BOTH toggles
+    // refuse a drifted DB up front (spec/cli-contract.md §Schema-drift
+    // rebuild); a half-applied toggle (settings written, purge refused)
+    // would leave inconsistent state. No-ops when the DB does not exist
+    // yet (fresh project: both drift axes read `no-meta`).
+    const toggleCtx = defaultRuntimeContext();
+    assertNoDriftForWrite(resolveDbPath({ db: undefined, cwd: toggleCtx.cwd }));
+
     const verb = enabled ? 'enable' : 'disable';
     const stderrAnsi = this.ansiFor('stderr');
 

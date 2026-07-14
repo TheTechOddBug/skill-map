@@ -67,6 +67,7 @@ import { generateRunId, JobNotRunningError } from '../../kernel/jobs/index.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
+import { assertNoDriftForWrite } from '../../core/sqlite/db-version-runner.js';
 import { ExitCode, type TExitCode } from '../util/exit-codes.js';
 import { RECORD_TEXTS as T } from '../i18n/record.texts.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
@@ -162,6 +163,10 @@ export class RecordCommand extends SmCommand {
     const dbPath = resolveDbPath({ db: this.db, ...ctx });
     const dbExit = requireDbOrExit(dbPath, this.context.stderr);
     if (dbExit !== null) return dbExit;
+    // Write verb: refuse a drifted DB before the nonce lookup, the
+    // plugin-runtime load, and the record transaction
+    // (spec/cli-contract.md §Schema-drift rebuild).
+    assertNoDriftForWrite(dbPath);
 
     const status = this.status;
     if (status !== 'completed' && status !== 'failed') {

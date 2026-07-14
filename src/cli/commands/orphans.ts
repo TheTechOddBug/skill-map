@@ -28,6 +28,7 @@ import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import type { IAnsi } from '../util/ansi.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
+import { assertNoDriftForWrite } from '../../core/sqlite/db-version-runner.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { confirm } from '../util/confirm.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -169,6 +170,10 @@ export class OrphansReconcileCommand extends SmCommand {
     const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
     const exit = requireDbOrExit(dbPath, this.context.stderr);
     if (exit !== null) return exit;
+    // Write verb: reconcile / undo-rename repoint `state_*` rows;
+    // refuse a drifted DB before any mutation
+    // (spec/cli-contract.md §Schema-drift rebuild).
+    assertNoDriftForWrite(dbPath);
 
     const stderrAnsi = this.ansiFor('stderr');
     const errGlyph = stderrAnsi.red('✕');
@@ -321,6 +326,10 @@ export class OrphansUndoRenameCommand extends SmCommand {
     const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
     const exit = requireDbOrExit(dbPath, this.context.stderr);
     if (exit !== null) return exit;
+    // Write verb: reconcile / undo-rename repoint `state_*` rows;
+    // refuse a drifted DB before any mutation
+    // (spec/cli-contract.md §Schema-drift rebuild).
+    assertNoDriftForWrite(dbPath);
 
     const stderrAnsi = this.ansiFor('stderr');
     const errGlyph = stderrAnsi.red('✕');

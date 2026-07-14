@@ -169,7 +169,7 @@
       "CHANGELOG.md": "f637c724c6599986cdfd59237235764280897f463e54174b33c9a916348e36e2",
       "README.md": "a790cd010b46d47883d1f37e3893cea9d7aa69ec4750c0202e6a0c99991e7980",
       "architecture.md": "e2dbe0f793602e95b17d4f1dc36a6ade57879b7a68b494452c79050f5cdf51a3",
-      "cli-contract.md": "f8e50ba5e20104862dc09fb2a3e2693498d9a0e908a8bc05ceacb390f2e219c7",
+      "cli-contract.md": "f89056d827681f2cd870f81e3a741c714b5c709c5088d15eb5a977e3ebab9830",
       "conformance/README.md": "16f838300cce970475331123d872269afd9f76cdb0c7e991856439e54e493508",
       "conformance/cases/backtick-path-extraction.json": "4620e7f8bc161fc57cb44001e9d99879c7e22b4865a0c27a20dc28969cd936d9",
       "conformance/cases/extension-mode-routing-deterministic.json": "9764f14d008ce41be4f418c7be501eca6708b1705fb355e71bd0e1dfff62503f",

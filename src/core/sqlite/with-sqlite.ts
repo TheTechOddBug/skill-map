@@ -59,8 +59,13 @@ import type { IDatabase } from '../../kernel/adapters/sqlite/schema.js';
 import {
   runDbVersionCheck,
   runWriteSideDriftCheck,
+  wrapDriftedReadFailure,
   type IRunDbVersionCheckOpts,
 } from './db-version-runner.js';
+import {
+  DbSchemaDriftError,
+  DbVersionMismatchError,
+} from './db-version-check.js';
 import { VERSION } from '../../version.js';
 
 /**
@@ -104,30 +109,76 @@ export async function withSqlite<T>(
   const adapter = createSqliteStorage(options);
   await adapter.init();
   try {
-    if (options.versionCheck) {
-      // The adapter's `db` getter is the test-only escape hatch
-      // documented on `SqliteStorageAdapter`; the seam itself sits
-      // inside `core/sqlite/` (the boundary between CLI / BFF and
-      // the kernel adapter), so reaching for the typed Kysely
-      // handle is acceptable. The alternative (a `port.scans.*`
-      // method that runs the check) bloats the kernel port with a
-      // driving-side concern.
-      const db = (adapter as unknown as { db: Kysely<IDatabase> }).db;
-      await runDbVersionCheck(db, {
-        ...options.versionCheck,
-        dbPath: options.databasePath,
-      });
-    } else if (!options.skipDriftCheck) {
-      // Default write-side guard: a mutating open against a DB whose
-      // on-disk schema drifted from the bundled migrations refuses with a
-      // clear advisory instead of crashing on a missing column downstream.
-      // Path-based fingerprint read (no live-handle access, no new hash),
-      // so `tryWithSqlite` inherits it unchanged. `no-meta` / `ok` no-op.
-      runWriteSideDriftCheck(options.databasePath, VERSION);
-    }
-    return await fn(adapter);
+    const driftDetected = await runOpenChecks(adapter, options);
+    if (!driftDetected) return await fn(adapter);
+    return await runConvertingDriftFailures(adapter, options, fn);
   } finally {
     await adapter.close();
+  }
+}
+
+/**
+ * Pre-flight open checks. Returns `true` when a READ open (versionCheck
+ * present) detected drift and continued (warn-older / warn-schema), so
+ * the caller wraps callback failures; `false` otherwise. Write opens
+ * (no versionCheck) run the default fingerprint refusal unless the
+ * caller owns drift (`skipDriftCheck`).
+ */
+async function runOpenChecks<T extends StoragePort>(
+  adapter: T,
+  options: IWithSqliteOptions,
+): Promise<boolean> {
+  if (options.versionCheck) {
+    // The adapter's `db` getter is the test-only escape hatch
+    // documented on `SqliteStorageAdapter`; the seam itself sits
+    // inside `core/sqlite/` (the boundary between CLI / BFF and
+    // the kernel adapter), so reaching for the typed Kysely
+    // handle is acceptable. The alternative (a `port.scans.*`
+    // method that runs the check) bloats the kernel port with a
+    // driving-side concern.
+    const db = (adapter as unknown as { db: Kysely<IDatabase> }).db;
+    const outcome = await runDbVersionCheck(db, {
+      ...options.versionCheck,
+      dbPath: options.databasePath,
+    });
+    // The advisory ran and the open continues (warn-older /
+    // warn-schema): the read is attempted, but a later query failure is
+    // the drift materialising and converts to the clean advisory.
+    return outcome.kind === 'warn-older' || outcome.kind === 'warn-schema';
+  }
+  if (!options.skipDriftCheck) {
+    // Default write-side guard: a mutating open against a DB whose
+    // on-disk schema drifted from the bundled migrations refuses with a
+    // clear advisory instead of crashing on a missing column downstream.
+    // Path-based fingerprint read (no live-handle access, no new hash),
+    // so `tryWithSqlite` inherits it unchanged. `no-meta` / `ok` no-op.
+    runWriteSideDriftCheck(options.databasePath, VERSION);
+  }
+  return false;
+}
+
+/**
+ * Drift WAS detected on a read open (advise-and-attempt posture,
+ * spec/cli-contract.md §Schema-drift rebuild): a callback failure on
+ * this drifted DB surfaces as the clean drift advisory (exit 2), never
+ * as a raw SQL error. Scoped strictly to the detected-drift case so a
+ * genuine bug on a healthy DB rethrows untouched; the two typed drift
+ * errors pass through unchanged (already clean).
+ */
+async function runConvertingDriftFailures<T>(
+  adapter: StoragePort,
+  options: IWithSqliteOptions,
+  fn: (adapter: StoragePort) => Promise<T>,
+): Promise<T> {
+  try {
+    return await fn(adapter);
+  } catch (err) {
+    if (err instanceof DbSchemaDriftError || err instanceof DbVersionMismatchError) throw err;
+    const versionCheck = options.versionCheck!;
+    throw wrapDriftedReadFailure(err, {
+      currentVersion: versionCheck.currentVersion,
+      ...(versionCheck.style !== undefined ? { style: versionCheck.style } : {}),
+    });
   }
 }
 

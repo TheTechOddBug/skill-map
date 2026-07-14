@@ -74,6 +74,7 @@ import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
 import { buildReadVersionCheck } from '../util/db-version-check.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
+import { assertNoDriftForWrite } from '../../core/sqlite/db-version-runner.js';
 import { ExitCode, type TExitCode } from '../util/exit-codes.js';
 import { JOBS_QUEUE_TEXTS as T } from '../i18n/jobs-queue.texts.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
@@ -300,6 +301,11 @@ export class JobSubmitCommand extends SmCommand {
     const dbPath = resolveDbPath({ db: this.db, ...ctx });
     const dbExit = requireDbOrExit(dbPath, this.context.stderr);
     if (dbExit !== null) return dbExit;
+    // Write verb: refuse a drifted DB (either axis) BEFORE the plugin
+    // runtime loads, or secondary reads (trust store) misbehave and
+    // surface as a misleading "extension not found"
+    // (spec/cli-contract.md §Schema-drift rebuild).
+    assertNoDriftForWrite(dbPath);
 
     const flagExit = this.validateFlags();
     if (flagExit !== null) return flagExit;
@@ -1031,6 +1037,12 @@ export class JobClaimCommand extends SmCommand {
     const dbExit = requireDbOrExit(dbPath, this.context.stderr);
     if (dbExit !== null) return dbExit;
 
+    // Write verb: reap-first + the claim UPDATE both mutate rows;
+    // refuse a drifted DB up front (spec/cli-contract.md §Schema-drift
+    // rebuild) so the refusal (exit 2) is never confused with the
+    // empty-queue exit 1.
+    assertNoDriftForWrite(dbPath);
+
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       // Reap-then-claim (spec/job-lifecycle.md §Reap procedure): expired
       // running jobs flip to failed / abandoned before the claim. Silent
@@ -1188,6 +1200,9 @@ export class JobCancelCommand extends SmCommand {
     const dbExit = requireDbOrExit(dbPath, this.context.stderr);
     if (dbExit !== null) return dbExit;
 
+    // Write verb: refuse a drifted DB before any table mutation.
+    assertNoDriftForWrite(dbPath);
+
     if (this.all && this.id !== undefined) return this.fail(T.cancelErrTargetConflict, ExitCode.Error);
     if (!this.all && this.id === undefined) return this.fail(T.cancelErrNeedTarget, ExitCode.Error);
 
@@ -1262,6 +1277,9 @@ export class JobFailCommand extends SmCommand {
     const dbPath = resolveDbPath({ db: this.db, ...ctx });
     const dbExit = requireDbOrExit(dbPath, this.context.stderr);
     if (dbExit !== null) return dbExit;
+
+    // Write verb: refuse a drifted DB before any table mutation.
+    assertNoDriftForWrite(dbPath);
 
     if (this.all && this.id !== undefined) return this.fail(T.failErrTargetConflict, ExitCode.Error);
     if (!this.all && this.id === undefined) return this.fail(T.failErrNeedTarget, ExitCode.Error);

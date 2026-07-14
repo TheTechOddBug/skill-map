@@ -78,6 +78,36 @@ export const DB_VERSION_TEXTS = {
   dbSchemaDriftWritePlain:
     'This DB predates a schema change in skill-map {{currentVersion}} and cannot be written safely. Run `sm db reset --hard` then `sm scan` to rebuild the local cache; your .sm sidecars are untouched.',
 
+  // Read-side FAILURE conversion (spec/cli-contract.md §Schema-drift
+  // rebuild, read bullet): a read verb advises on drift and attempts the
+  // read; when the query then fails BECAUSE of the drift (a column the
+  // stored schema predates), the failure surfaces as this clean advisory
+  // (exit 2), never as the raw SQL error. ERROR, `✕` red, §3.1b block.
+  dbSchemaDriftReadFailed:
+    '{{glyph}}  The read failed on this drifted DB: its stored schema predates skill-map {{currentVersion}} and is missing columns this verb needs.\n' +
+    '   {{hint}}\n',
+  dbSchemaDriftReadFailedHint:
+    'Run `sm scan` to rebuild the local cache (your .sm sidecars are untouched), or `sm db reset --hard`.',
+  // Plain, glyph-free variant on `DbSchemaDriftError.message` for the BFF
+  // envelope / programmatic consumers; carries the sanitized underlying
+  // cause for diagnostics (the human block never does).
+  dbSchemaDriftReadFailedPlain:
+    'The read failed on this drifted DB: its stored schema predates skill-map {{currentVersion}}. Run `sm scan` to rebuild the local cache. ({{cause}})',
+
+  // Write-side refusal on the VERSION axis (spec/cli-contract.md
+  // §Schema-drift rebuild, write bullet: a minor or major difference is
+  // drift). The read side only WARNS on an older same-major DB; a write
+  // must refuse BEFORE loading the plugin runtime or touching any table,
+  // or secondary reads (e.g. the plugin trust store) misbehave three
+  // layers from the cause. ERROR, `✕` red, §3.1b block.
+  dbVersionDriftWrite:
+    '{{glyph}}  This DB was last written by a different skill-map ({{dbVersion}}, you have {{currentVersion}}) and cannot be written safely.\n' +
+    '   {{hint}}\n',
+  dbVersionDriftWriteHint:
+    'Run `sm scan` to rebuild the local cache first (your .sm sidecars are untouched).',
+  dbVersionDriftWritePlain:
+    'This DB was last written by skill-map {{dbVersion}} (you have {{currentVersion}}) and cannot be written safely. Run `sm scan` to rebuild the local cache first.',
+
   // The defensive wrapper for `parseConfidence` / `parseLinkKind` /
   // `parseSeverity` failures during `loadScanResult` (when the meta
   // row was wiped and the version check returned `no-meta`) lives in

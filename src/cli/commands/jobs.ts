@@ -44,6 +44,7 @@ import { Command, Option } from 'clipanion';
 import type { IPruneResult, StoragePort } from '../../kernel/ports/storage.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
+import { assertNoDriftForWrite } from '../../core/sqlite/db-version-runner.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -109,6 +110,9 @@ export class JobPruneCommand extends SmCommand {
 
     const exit = requireDbOrExit(dbPath, this.context.stderr);
     if (exit !== null) return exit;
+    // Write verb: refuse a drifted DB before any table mutation
+    // (spec/cli-contract.md §Schema-drift rebuild).
+    assertNoDriftForWrite(dbPath);
 
     const stderrAnsi = this.ansiFor('stderr');
     const errGlyph = stderrAnsi.red('✕');

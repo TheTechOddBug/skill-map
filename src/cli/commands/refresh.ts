@@ -74,6 +74,7 @@ import { tx } from '../../kernel/util/tx.js';
 import { REFRESH_TEXTS } from '../i18n/refresh.texts.js';
 import type { IAnsi } from '../util/ansi.js';
 import { resolveDbPath } from '../util/db-path.js';
+import { assertNoDriftForWrite } from '../../core/sqlite/db-version-runner.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { assertContained } from '../../core/paths/path-guard.js';
@@ -220,6 +221,10 @@ export class RefreshCommand extends SmCommand {
 
     const ctx = defaultRuntimeContext();
     const dbPath = resolveDbPath({ db: this.db, ...ctx });
+    // Write verb: refresh inserts `state_enrichments` +
+    // `state_executions` rows; refuse a drifted DB BEFORE the plugin
+    // runtime loads (spec/cli-contract.md §Schema-drift rebuild).
+    assertNoDriftForWrite(dbPath);
 
     // --- plugin runtime -----------------------------------------------------
     const pluginRuntime = this.noPlugins
