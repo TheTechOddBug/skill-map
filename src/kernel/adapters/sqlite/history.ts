@@ -99,10 +99,13 @@ function projectExecutionOptionalAudit(
 
 function projectExecutionTokens(
   exec: ExecutionRecord,
-): Pick<Insertable<IStateExecutionsTable>, 'tokensIn' | 'tokensOut'> {
+): Pick<Insertable<IStateExecutionsTable>, 'tokensIn' | 'tokensOut' | 'model'> {
   return {
     tokensIn: exec.tokensIn ?? null,
     tokensOut: exec.tokensOut ?? null,
+    // Agent-self-reported metrics family: the model id rides with the
+    // token counts (unverifiable by design, NULL when undeclared).
+    model: exec.model ?? null,
   };
 }
 
@@ -169,6 +172,7 @@ function rowToExecution(row: {
   durationMs: number | null;
   tokensIn: number | null;
   tokensOut: number | null;
+  model: string | null;
   reportJson: string | null;
   jobId: string | null;
 }): ExecutionRecord {
@@ -188,6 +192,7 @@ function rowToExecution(row: {
     durationMs: row.durationMs,
     tokensIn: row.tokensIn,
     tokensOut: row.tokensOut,
+    model: row.model,
     // The `report_json` column maps back onto the legacy domain field
     // `ExecutionRecord.reportPath` (schema rename to `report` is a later
     // Step 10 sub-step; the field name is preserved for now).

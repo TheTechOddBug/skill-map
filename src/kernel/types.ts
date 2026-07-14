@@ -609,6 +609,14 @@ export interface ExecutionRecord {
   durationMs?: number | null;
   tokensIn?: number | null;
   tokensOut?: number | null;
+  /**
+   * Executing model's name as SELF-REPORTED by the recording agent
+   * (`sm record --model <name>`). Unverifiable by design, like the
+   * token counts; null when undeclared (and for in-process
+   * deterministic executions). Denormalized onto `state_findings.model`
+   * / `state_summaries.model` at record time.
+   */
+  model?: string | null;
   reportPath?: string | null;
   jobId?: string | null;
 }

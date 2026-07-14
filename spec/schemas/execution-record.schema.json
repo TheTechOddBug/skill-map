@@ -76,6 +76,10 @@
       "minimum": 0,
       "description": "Output tokens reported by the runner."
     },
+    "model": {
+      "type": ["string", "null"],
+      "description": "Executing model's name as SELF-REPORTED by the recording agent (`sm record --model <name>`). Unverifiable by design, like the token counts. Null when the agent does not declare one, and for in-process deterministic executions. Denormalized onto `state_findings.model` / `state_summaries.model` at record time."
+    },
     "reportPath": {
       "type": ["string", "null"],
       "description": "Legacy field preserved across the disk-to-DB shift. Under B2 (DB-only job artifacts) this is always null because reports live inline in `state_executions.report_json`. Phase A of Step 10 will rename to `report` (object/null) carrying the parsed payload; until then the field remains as documented for backward compat."

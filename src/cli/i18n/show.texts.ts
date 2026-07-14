@@ -62,7 +62,12 @@ export const SHOW_TEXTS = {
    * an optional yellow `(stale)` marker when the node body changed since
    * the judgment was recorded.
    */
-  findingRow: '    {{glyph}}  {{extensionId}}  {{type}}  {{message}}{{staleSuffix}}\n',
+  findingRow: '    {{glyph}}  {{extensionId}}  {{type}}  {{message}}{{modelSuffix}}{{staleSuffix}}\n',
+  /**
+   * Suffix (dim) carrying the recording agent's self-reported model when
+   * one was declared (`sm record --model`).
+   */
+  findingModelSuffix: '  ({{model}})',
   /** Marker appended (yellow) when the finding is stale. */
   findingStale: '  (stale)',
 
@@ -73,7 +78,12 @@ export const SHOW_TEXTS = {
    * headline, and an optional `(stale)` marker when the node body changed
    * since the summary was generated.
    */
-  summaryRow: '    {{actionId}}   {{headline}}{{staleSuffix}}\n',
+  summaryRow: '    {{actionId}}   {{headline}}{{modelSuffix}}{{staleSuffix}}\n',
+  /**
+   * Suffix (dim) carrying the recording agent's self-reported model when
+   * one was declared (`sm record --model`).
+   */
+  summaryModelSuffix: '  ({{model}})',
   /** Marker appended (yellow) when the summary is stale. */
   summaryStale: '  (stale)',
   /** Fallback when the report carries no recognised headline field. */

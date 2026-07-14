@@ -45,11 +45,14 @@
  *
  * Schema constraints called out: `state_executions` (and
  * `execution-record.schema.json`, `additionalProperties: false`) carry no
- * free-text `error` or `model` column. `--error` is stored verbatim in
+ * free-text `error` column. `--error` is stored verbatim in
  * `report_json` on the failed path (the only nullable text slot, empty of a
- * report for a failed execution) per `spec/cli-contract.md` §Record;
- * `--model` is not persisted (no field to hold it) but travels on the
- * synthetic envelope (`job.callback.received.data.model`).
+ * report for a failed execution) per `spec/cli-contract.md` §Record.
+ * `--model` (the agent's self-declared model id, unverifiable like the
+ * token counts) persists on `state_executions.model` and is denormalized
+ * onto the `state_findings.model` / `state_summaries.model` rows the
+ * same record writes; it also travels on the synthetic envelope
+ * (`job.callback.received.data.model`).
  */
 
 import { readFileSync } from 'node:fs';
@@ -147,9 +150,10 @@ export class RecordCommand extends SmCommand {
   tokensIn = Option.String('--tokens-in', { required: false });
   tokensOut = Option.String('--tokens-out', { required: false });
   durationMs = Option.String('--duration-ms', { required: false });
-  // NOT persisted (no model column in state_executions /
-  // execution-record.schema.json); surfaced on the synthetic envelope
-  // (`job.callback.received.data.model`). See the file header.
+  // Persisted on `state_executions.model` + denormalized onto the
+  // findings / summary rows of the same record; also surfaced on the
+  // synthetic envelope (`job.callback.received.data.model`). See the
+  // file header.
   model = Option.String('--model', { required: false });
   error = Option.String('--error', { required: false });
 
@@ -331,6 +335,7 @@ export class RecordCommand extends SmCommand {
       tokensIn: metrics.tokensIn,
       tokensOut: metrics.tokensOut,
       durationMs: metrics.durationMs,
+      model: this.model ?? null,
     };
   }
 

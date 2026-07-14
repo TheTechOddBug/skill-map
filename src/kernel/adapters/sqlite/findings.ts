@@ -53,6 +53,8 @@ type TDbOrTx = Kysely<IDatabase> | Transaction<IDatabase>;
  */
 export interface IFindingInsertRow extends IFindingRowInput {
   extensionVersion: string;
+  /** Agent-self-reported `--model` of the recording callback; `null` when undeclared. */
+  model: string | null;
   bodyHashAtGeneration: string;
   generatedAt: number;
   jobId: string | null;
@@ -89,6 +91,7 @@ export async function replaceFindingsForNode(
         message: row.message,
         detail: row.detail,
         confidence: row.confidence,
+        model: row.model,
         bodyHashAtGeneration: row.bodyHashAtGeneration,
         generatedAt: row.generatedAt,
         jobId: row.jobId,
@@ -126,6 +129,7 @@ export async function writeFindingsForNode(
     intent.rows.map((row) => ({
       ...row,
       extensionVersion: intent.extensionVersion,
+      model: intent.model,
       bodyHashAtGeneration: node.bodyHash,
       generatedAt: intent.generatedAt,
       jobId: intent.jobId,
@@ -213,6 +217,7 @@ export async function listFindings(
       'state_findings.message as message',
       'state_findings.detail as detail',
       'state_findings.confidence as confidence',
+      'state_findings.model as model',
       'state_findings.bodyHashAtGeneration as bodyHashAtGeneration',
       'state_findings.generatedAt as generatedAt',
       'state_findings.jobId as jobId',
@@ -297,6 +302,7 @@ function projectRow(row: TJoinedFindingRow, stale: boolean): IFindingRecord {
     message: row.message,
     detail: row.detail,
     confidence: row.confidence,
+    model: row.model,
     bodyHashAtGeneration: row.bodyHashAtGeneration,
     generatedAt: row.generatedAt,
     jobId: row.jobId,

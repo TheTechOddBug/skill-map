@@ -384,6 +384,8 @@ interface IRenderRow {
   message: string;
   detail: string | null;
   confidence: number;
+  /** Agent-self-reported model, sanitized (agent-supplied); null when undeclared. */
+  model: string | null;
   stale: boolean;
 }
 
@@ -401,6 +403,7 @@ function toRenderRow(f: IFindingRecord): IRenderRow {
     message: flattenMessage(sanitizeForTerminal(f.message)),
     detail: f.detail === null ? null : flattenMessage(sanitizeForTerminal(f.detail)),
     confidence: f.confidence,
+    model: f.model === null ? null : flattenMessage(sanitizeForTerminal(f.model)),
     stale: f.stale,
   };
 }
@@ -420,9 +423,7 @@ function renderNodeSection(
         extensionId: ansi.dim(row.extensionId.padEnd(widths.extension)),
         type: row.type.padEnd(widths.type),
         message: row.message,
-        confidence: ansi.dim(
-          tx(T.confidenceValue, { percent: Math.round(row.confidence * 100) }),
-        ),
+        confidence: ansi.dim(renderConfidence(row)),
         staleTag: row.stale ? ansi.yellow(T.staleTag) : '',
       }),
     );
@@ -470,6 +471,17 @@ function severityGlyph(severity: Severity, ansi: IAnsi): string {
     case 'info':
       return ansi.cyan('ℹ');
   }
+}
+
+/**
+ * Confidence cell: bare percentage, or percentage + the agent's
+ * self-reported model id when one was declared at record time
+ * (`(95% · claude-opus-4-8)`).
+ */
+function renderConfidence(row: Pick<IRenderRow, 'confidence' | 'model'>): string {
+  const percent = Math.round(row.confidence * 100);
+  if (row.model === null) return tx(T.confidenceValue, { percent });
+  return tx(T.confidenceWithModelValue, { percent, model: row.model });
 }
 
 /** Flatten embedded newlines so a row stays one aligned line. */

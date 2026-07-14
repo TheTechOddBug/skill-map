@@ -283,6 +283,15 @@ export const PLUGINS_TEXTS = {
   detailFieldDescription: 'Description',
   detailFieldPreconditions: 'Preconditions',
   detailFieldEntry: 'Entry',
+  /**
+   * Probabilistic-extension contract sections (`sm plugins show`,
+   * spec/cli-contract.md): the verbatim prompt template and the
+   * pretty-printed report schema, rendered after the field block.
+   * Content lines are plugin-authored; sanitized at render.
+   */
+  detailSectionPrompt: '\n  Prompt\n',
+  detailSectionReportSchema: '\n  Report schema\n',
+  detailSectionLine: '    {{line}}\n',
 
   // --- create verb -----------------------------------------------------
   /**

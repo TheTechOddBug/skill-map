@@ -101,6 +101,7 @@ function insertRow(overrides: Partial<IFindingInsertRow> = {}): IFindingInsertRo
     detail: null,
     confidence: 0.8,
     extensionVersion: '1.0.0',
+    model: null,
     bodyHashAtGeneration: BODY_HASH,
     generatedAt: 1000,
     jobId: JOB_ID,
@@ -114,6 +115,7 @@ function intent(rows: IFindingsWriteIntent['rows']): IFindingsWriteIntent {
     extensionVersion: '1.0.0',
     generatedAt: 2000,
     jobId: JOB_ID,
+    model: null,
     rows,
   };
 }

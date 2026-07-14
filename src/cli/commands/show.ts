@@ -62,6 +62,8 @@ interface IShowSummary {
   summarizerVersion: string;
   bodyHashAtGeneration: string;
   generatedAt: number;
+  /** Recording agent's self-reported model; null when undeclared. */
+  model: string | null;
   report: Record<string, unknown>;
   stale: boolean;
 }
@@ -124,6 +126,7 @@ export class ShowCommand extends SmCommand {
           summarizerVersion: s.summarizerVersion,
           bodyHashAtGeneration: s.bodyHashAtGeneration,
           generatedAt: s.generatedAt,
+          model: s.model,
           report: s.report,
           stale: s.bodyHashAtGeneration !== bundle.node.bodyHash,
         }));
@@ -219,6 +222,7 @@ function renderFindingsSection(findings: IFindingRecord[], ansi: IAnsi): string 
     extensionId: sanitizeForTerminal(f.extensionId),
     type: sanitizeForTerminal(f.type),
     message: sanitizeForTerminal(f.message).replace(/\n+/g, ' '),
+    model: f.model === null ? null : sanitizeForTerminal(f.model),
     stale: f.stale,
   }));
   const extensionWidth = Math.max(...rows.map((r) => r.extensionId.length));
@@ -231,6 +235,10 @@ function renderFindingsSection(findings: IFindingRecord[], ansi: IAnsi): string 
         extensionId: ansi.dim(row.extensionId.padEnd(extensionWidth)),
         type: row.type.padEnd(typeWidth),
         message: row.message,
+        modelSuffix:
+          row.model === null
+            ? ''
+            : ansi.dim(tx(SHOW_TEXTS.findingModelSuffix, { model: row.model })),
         staleSuffix: row.stale ? ansi.yellow(SHOW_TEXTS.findingStale) : '',
       }),
     );
@@ -255,6 +263,12 @@ function renderSummarySection(summaries: IShowSummary[], ansi: IAnsi): string {
       tx(SHOW_TEXTS.summaryRow, {
         actionId: ansi.dim(sanitizeForTerminal(s.summarizerActionId).padEnd(idWidth)),
         headline: sanitizeForTerminal(pickSummaryHeadline(s.report)),
+        modelSuffix:
+          s.model === null
+            ? ''
+            : ansi.dim(
+                tx(SHOW_TEXTS.summaryModelSuffix, { model: sanitizeForTerminal(s.model) }),
+              ),
         staleSuffix: s.stale ? ansi.yellow(SHOW_TEXTS.summaryStale) : '',
       }),
     );

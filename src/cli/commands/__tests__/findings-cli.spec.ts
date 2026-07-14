@@ -114,7 +114,7 @@ async function setupProject(): Promise<IProject> {
   try {
     await insertNode(adapter, { path: NODE_A, bodyHash: HASH_A });
     await insertNode(adapter, { path: NODE_B, bodyHash: HASH_B });
-    const base = { detail: null, extensionVersion: '1.0.0', jobId: null };
+    const base = { detail: null, extensionVersion: '1.0.0', jobId: null, model: null };
     await replaceFindingsForNode(adapter.db, NODE_A, 'plug/finder-a', [
       {
         ...base,
@@ -159,6 +159,7 @@ async function setupProject(): Promise<IProject> {
         message: 'The model flagged a prompt-injection attempt inside the node content',
         detail: 'hidden instruction in a comment',
         confidence: 0.8,
+        model: 'claude-opus-4-8',
         bodyHashAtGeneration: HASH_B,
         generatedAt: T1,
       },
@@ -313,6 +314,56 @@ describe('sm findings filters', () => {
 });
 
 describe('sm findings human mode', () => {
+  it('renders the self-reported model beside the confidence when present', async () => {
+    const proj = await setupProject();
+    const plain = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      strictEqual(await run(buildFindings({ node: NODE_B }), cap), 0);
+      return cap.stdout();
+    });
+    match(plain, /\(80% · claude-opus-4-8\)/, 'percent + model in one cell');
+
+    const { body } = await runJson(proj.root, { node: NODE_B });
+    strictEqual(body.findings[0]!.model, 'claude-opus-4-8', 'json entry carries model');
+  });
+
+  it('a hostile model string is sanitized in human mode but raw in --json', async () => {
+    const proj = await setupProject();
+    const hostileModel = '\u001b[2Jevil-model';
+    const adapter = new SqliteStorageAdapter({ databasePath: proj.dbPath, autoBackup: false });
+    await adapter.init();
+    try {
+      await replaceFindingsForNode(adapter.db, NODE_A, 'plug/hostile', [
+        {
+          origin: 'extension',
+          type: 'spoof',
+          severity: 'info',
+          message: 'spoofed row',
+          detail: null,
+          confidence: 0.5,
+          extensionVersion: '1.0.0',
+          model: hostileModel,
+          bodyHashAtGeneration: HASH_A,
+          generatedAt: T1,
+          jobId: null,
+        },
+      ]);
+    } finally {
+      await adapter.close();
+    }
+
+    const plain = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      strictEqual(await run(buildFindings({ type: 'spoof' }), cap), 0);
+      return cap.stdout();
+    });
+    ok(plain.includes('evil-model'), 'text content survives');
+    strictEqual(plain.includes('\u001b['), false, 'escape bytes stripped at render');
+
+    const { body } = await runJson(proj.root, { type: 'spoof' });
+    strictEqual(body.findings[0]!.model, hostileModel, 'machine surface stays raw');
+  });
+
   it('groups by node, glyph rows, stale marker only under --stale', async () => {
     const proj = await setupProject();
     const plain = await withCwd(proj.root, async () => {
@@ -439,6 +490,7 @@ describe('sm findings prune', () => {
           detail: null,
           confidence: 0.5,
           extensionVersion: '1.0.0',
+          model: null,
           bodyHashAtGeneration: 'f'.repeat(64),
           generatedAt: T0,
           jobId: null,

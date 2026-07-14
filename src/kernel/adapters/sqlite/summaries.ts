@@ -38,6 +38,8 @@ export interface ISummaryUpsertRow {
   summarizerVersion: string;
   bodyHashAtGeneration: string;
   generatedAt: number;
+  /** Agent-self-reported `--model` of the recording callback; `null` when undeclared. */
+  model: string | null;
   summaryJson: string;
 }
 
@@ -59,6 +61,7 @@ export async function upsertSummary(db: TDbOrTx, row: ISummaryUpsertRow): Promis
       summarizerVersion: row.summarizerVersion,
       bodyHashAtGeneration: row.bodyHashAtGeneration,
       generatedAt: row.generatedAt,
+      model: row.model,
       summaryJson: row.summaryJson,
     })
     .onConflict((oc) =>
@@ -67,6 +70,7 @@ export async function upsertSummary(db: TDbOrTx, row: ISummaryUpsertRow): Promis
         summarizerVersion: row.summarizerVersion,
         bodyHashAtGeneration: row.bodyHashAtGeneration,
         generatedAt: row.generatedAt,
+        model: row.model,
         summaryJson: row.summaryJson,
       }),
     )
@@ -100,6 +104,7 @@ export async function upsertSummaryForNode(
     summarizerVersion: intent.summarizerVersion,
     bodyHashAtGeneration: node.bodyHash,
     generatedAt: intent.generatedAt,
+    model: intent.model,
     summaryJson: intent.summaryJson,
   });
   return true;
@@ -131,6 +136,7 @@ function rowToSummary(row: Selectable<IStateSummariesTable>): ISummaryRecord {
     summarizerVersion: row.summarizerVersion,
     bodyHashAtGeneration: row.bodyHashAtGeneration,
     generatedAt: row.generatedAt,
+    model: row.model,
     report: parseReport(row.summaryJson),
   };
 }

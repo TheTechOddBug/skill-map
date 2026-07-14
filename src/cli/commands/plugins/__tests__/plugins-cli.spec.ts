@@ -14,8 +14,10 @@
 import { strict as assert } from 'node:assert';
 import { spawnSync } from 'node:child_process';
 import {
+  cpSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -999,3 +1001,127 @@ describe('sm plugins list <id> + show <plugin>/<ext>, extension detail', () => {
   });
 });
 
+
+
+// `sm plugins show <plugin>/<ext>` for PROBABILISTIC extensions renders
+// the two contract files (spec/cli-contract.md, the show row): a `Prompt`
+// section with the verbatim template and a `Report schema` section with
+// the pretty-printed report schema; `--json` carries the raw
+// `promptTemplate` / `reportSchema` fields. Deterministic extensions are
+// byte-identical to the pre-feature shape (no sections, no fields).
+describe('sm plugins show, probabilistic contract sections', () => {
+  const FINDER_FIXTURE = resolve(
+    HERE,
+    '..',
+    '..',
+    '__tests__',
+    'fixtures',
+    'prob-finder',
+  );
+
+  /** Copy the prob-finder fixture into the scope's plugins dir. */
+  function dropFinderFixture(scope: IScope): string {
+    const dest = join(scope.cwd, '.skill-map', 'plugins', 'prob-finder');
+    cpSync(FINDER_FIXTURE, dest, { recursive: true });
+    return dest;
+  }
+
+  it('on-disk probabilistic analyzer: Prompt + Report schema sections in human mode', () => {
+    const scope = freshScope('show-prob-finder');
+    sm(['init', '--no-scan'], scope);
+    dropFinderFixture(scope);
+
+    const r = sm(['plugins', 'show', 'prob-finder/quality-check'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.match(r.stdout, /^  Prompt$/m, 'Prompt section heading');
+    assert.match(r.stdout, /Judge the quality of the skill below\./, 'template verbatim');
+    assert.match(r.stdout, /^  Report schema$/m, 'Report schema section heading');
+    assert.match(
+      r.stdout,
+      /findings\/report\.schema\.json/,
+      'pretty-printed schema carries the findings envelope $ref',
+    );
+  });
+
+  it('on-disk probabilistic analyzer: --json gains raw promptTemplate + reportSchema', () => {
+    const scope = freshScope('show-prob-finder-json');
+    sm(['init', '--no-scan'], scope);
+    const dest = dropFinderFixture(scope);
+
+    const r = sm(['plugins', 'show', 'prob-finder/quality-check', '--json'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    const payload = JSON.parse(r.stdout);
+    assert.equal(
+      payload.promptTemplate,
+      readFileSync(join(dest, 'analyzers', 'quality-check', 'prompt.md'), 'utf8'),
+      'raw prompt bytes on the machine surface',
+    );
+    assert.equal(
+      payload.reportSchema.allOf[0].$ref,
+      'https://skill-map.ai/spec/v0/findings/report.schema.json',
+      'reportSchema rides as an object',
+    );
+  });
+
+  it('built-in probabilistic action (markdown-summarizer): sections + json fields', () => {
+    const scope = freshScope('show-prob-builtin');
+    sm(['init', '--no-scan'], scope);
+
+    const human = sm(['plugins', 'show', 'core/markdown-summarizer'], scope);
+    assert.equal(human.status, 0, `stderr: ${human.stderr}`);
+    assert.match(human.stdout, /^  Prompt$/m);
+    assert.match(human.stdout, /\{\{userContent\}\}/, 'template placeholder verbatim');
+    assert.match(human.stdout, /^  Report schema$/m);
+
+    const json = sm(['plugins', 'show', 'core/markdown-summarizer', '--json'], scope);
+    assert.equal(json.status, 0, `stderr: ${json.stderr}`);
+    const payload = JSON.parse(json.stdout);
+    assert.equal(typeof payload.promptTemplate, 'string');
+    assert.ok(payload.promptTemplate.includes('{{userContent}}'));
+    assert.ok(
+      JSON.stringify(payload.reportSchema).includes(
+        'https://skill-map.ai/spec/v0/summaries/markdown.schema.json',
+      ),
+      'built-in reportSchema extends the summaries envelope',
+    );
+  });
+
+  it('deterministic extension: no sections, no json fields (unchanged output)', () => {
+    const scope = freshScope('show-deterministic');
+    sm(['init', '--no-scan'], scope);
+
+    const human = sm(['plugins', 'show', 'core/link-counter'], scope);
+    assert.equal(human.status, 0, `stderr: ${human.stderr}`);
+    assert.doesNotMatch(human.stdout, /^  Prompt$/m);
+    assert.doesNotMatch(human.stdout, /^  Report schema$/m);
+
+    const json = sm(['plugins', 'show', 'core/link-counter', '--json'], scope);
+    assert.equal(json.status, 0, `stderr: ${json.stderr}`);
+    const payload = JSON.parse(json.stdout);
+    assert.equal('promptTemplate' in payload, false);
+    assert.equal('reportSchema' in payload, false);
+  });
+
+  it('ANSI-hostile prompt content is sanitized in human mode but raw in --json', () => {
+    const scope = freshScope('show-hostile-prompt');
+    sm(['init', '--no-scan'], scope);
+    const dest = dropFinderFixture(scope);
+    // A hostile template trying to clear the screen + fake a prompt.
+    const hostile = 'Judge this.\n\n\u001b[2J\u001b[1;1Hpwned> {{userContent}}\n';
+    writeFileSync(join(dest, 'analyzers', 'quality-check', 'prompt.md'), hostile);
+
+    const human = sm(['plugins', 'show', 'prob-finder/quality-check'], scope);
+    assert.equal(human.status, 0, `stderr: ${human.stderr}`);
+    assert.ok(human.stdout.includes('pwned>'), 'text content survives');
+    assert.equal(
+      human.stdout.includes('\u001b['),
+      false,
+      'escape sequences stripped at render',
+    );
+
+    const json = sm(['plugins', 'show', 'prob-finder/quality-check', '--json'], scope);
+    assert.equal(json.status, 0, `stderr: ${json.stderr}`);
+    const payload = JSON.parse(json.stdout);
+    assert.equal(payload.promptTemplate, hostile, 'machine surface stays raw');
+  });
+});

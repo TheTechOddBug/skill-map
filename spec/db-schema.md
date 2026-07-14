@@ -363,12 +363,15 @@ Matching [`schemas/execution-record.schema.json`](./schemas/execution-record.sch
 | `duration_ms` | INTEGER | NULL |
 | `tokens_in` | INTEGER | NULL |
 | `tokens_out` | INTEGER | NULL |
+| `model` | TEXT | NULL |
 | `report_json` | TEXT | NULL |
 | `job_id` | TEXT | NULL |
 
 Indexes: `ix_state_executions_extension_id`, `ix_state_executions_started_at`, `ix_state_executions_job_id`.
 
 The full report payload (the JSON the model returned, validated against the action's `reportSchemaRef`) is stored inline in `report_json`. No on-disk report file. `sm job show <id>` and `sm history --json` read the column directly.
+
+`model` is the executing model's name as SELF-REPORTED by the recording agent via `sm record --model <name>` (unverifiable by design, exactly like the token counts; NULL when the agent does not declare one). It answers "which model produced this analysis, and when" together with the timestamps, and is denormalized onto `state_findings.model` / `state_summaries.model` at record time for join-free display.
 
 ### `state_summaries`
 
@@ -382,11 +385,12 @@ One row per `(node_id, summarizer_action_id)`. See [`schemas/summaries/`](./sche
 | `summarizer_version` | TEXT | NOT NULL |
 | `body_hash_at_generation` | TEXT | NOT NULL |
 | `generated_at` | INTEGER | NOT NULL |
+| `model` | TEXT | NULL |
 | `summary_json` | TEXT | NOT NULL |
 
 Primary key: `(node_id, summarizer_action_id)`. Indexes: `ix_state_summaries_generated_at`.
 
-**Writer.** `sm record` populates this table: when it closes a `completed` job for a summarizer Action (its `report.schema.json` extends the canonical node-summary schema under [`schemas/summaries/`](./schemas/summaries/) via `$ref`, see [`job-lifecycle.md` §Record](./job-lifecycle.md#record-callback)), it upserts the validated report here (`INSERT ... ON CONFLICT(node_id, summarizer_action_id) DO UPDATE`) inside the same transaction as the `state_executions` insert + job transition. `summary_json` holds the validated report; `summarizer_action_id` / `summarizer_version` mirror the job's `extension_id` / `extension_version` (a summarizer is always an Action, so the summary-side column keeps the specific name); `kind` mirrors the target `scan_nodes.kind`; and `body_hash_at_generation` captures the node's `body_hash` at record time. The write is skipped (no row) when the target node has disappeared from `scan_nodes` between submit and record.
+**Writer.** `sm record` populates this table: when it closes a `completed` job for a summarizer Action (its `report.schema.json` extends the canonical node-summary schema under [`schemas/summaries/`](./schemas/summaries/) via `$ref`, see [`job-lifecycle.md` §Record](./job-lifecycle.md#record-callback)), it upserts the validated report here (`INSERT ... ON CONFLICT(node_id, summarizer_action_id) DO UPDATE`) inside the same transaction as the `state_executions` insert + job transition. `summary_json` holds the validated report; `summarizer_action_id` / `summarizer_version` mirror the job's `extension_id` / `extension_version` (a summarizer is always an Action, so the summary-side column keeps the specific name); `kind` mirrors the target `scan_nodes.kind`; `model` mirrors the recording agent's self-reported `--model` (NULL when undeclared); and `body_hash_at_generation` captures the node's `body_hash` at record time. The write is skipped (no row) when the target node has disappeared from `scan_nodes` between submit and record.
 
 **Stale rule.** `sm show <node>` renders any stored summary for the node and marks it `(stale)` when `body_hash_at_generation` differs from the node's current `scan_nodes.body_hash` (the body was edited and rescanned since the summary was generated). The row is never auto-deleted on staleness; a fresh `sm record` for the same `(node_id, summarizer_action_id)` overwrites it in place.
 
@@ -406,6 +410,7 @@ Probabilistic findings: the judgments recorded by finder Analyzers (`mode: 'prob
 | `message` | TEXT | NOT NULL |
 | `detail` | TEXT | NULL |
 | `confidence` | REAL | NOT NULL |
+| `model` | TEXT | NULL |
 | `body_hash_at_generation` | TEXT | NOT NULL |
 | `generated_at` | INTEGER | NOT NULL |
 | `job_id` | TEXT | NULL |
@@ -414,7 +419,7 @@ Indexes: `ix_state_findings_node_id`, `ix_state_findings_extension_id`, `ix_stat
 
 **Writer.** `sm record` populates this table when it closes a `completed` job, in the SAME transaction as the `state_executions` insert and the job transition, through two lanes:
 
-- **Finder lane** (`origin = 'extension'`): when the job's extension is a probabilistic **Analyzer**, each entry of the validated report's `findings[]` array becomes one row. `extension_id` / `extension_version` mirror the job's columns; per-row `confidence` is the finding's own value when present, else the report-level `confidence`; `body_hash_at_generation` captures the node's `scan_nodes.body_hash` at record time; `job_id` records provenance.
+- **Finder lane** (`origin = 'extension'`): when the job's extension is a probabilistic **Analyzer**, each entry of the validated report's `findings[]` array becomes one row. `extension_id` / `extension_version` mirror the job's columns; per-row `confidence` is the finding's own value when present, else the report-level `confidence`; `model` mirrors the recording agent's self-reported `--model` (NULL when undeclared); `body_hash_at_generation` captures the node's `scan_nodes.body_hash` at record time; `job_id` records provenance.
 - **Safety lane** (`origin = 'kernel'`): for EVERY probabilistic report (Action or Analyzer) whose `safety` block flags trouble, the kernel synthesizes rows with the reserved type slugs: `injection-detected` (severity `warn`) when `safety.injectionDetected = true`, `content-suspicious` (severity `info`) / `content-malformed` (severity `warn`) when `safety.contentQuality` is not `clean`. `extension_id` is the REPORTING extension's id (the summarizer or finder whose run surfaced the flag); `confidence` is the report-level value; `message` carries the kernel-templated statement (wording implementation-defined, `safety.injectionDetails` folded into `detail` when present). Extensions MUST NOT emit the reserved slugs themselves (enforced by convention in the canonical envelope; implementations SHOULD reject them at record time as `report-invalid`).
 
 **Replace semantics.** Recording a completed job for `(node_id, extension_id)` first DELETEs every existing row for that pair (both origins), then inserts the fresh rows, in the same transaction. An empty `findings[]` with a clean safety block therefore ERASES the finder's previous judgment for the node: a clean verdict, not a no-op. The write is skipped entirely (previous rows kept) when the target node has disappeared from `scan_nodes` between submit and record, same rule as `state_summaries`.

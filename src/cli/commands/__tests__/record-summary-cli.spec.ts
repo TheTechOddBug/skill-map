@@ -198,7 +198,7 @@ function buildClaim(): JobClaimCommand {
   return cmd;
 }
 
-function buildRecord(o: { id: string; nonce: string; report: string }): RecordCommand {
+function buildRecord(o: { id: string; nonce: string; report: string; model?: string }): RecordCommand {
   const cmd = new RecordCommand();
   cmd.id = o.id;
   cmd.nonce = o.nonce;
@@ -208,7 +208,7 @@ function buildRecord(o: { id: string; nonce: string; report: string }): RecordCo
   cmd.tokensIn = undefined;
   cmd.tokensOut = undefined;
   cmd.durationMs = undefined;
-  cmd.model = undefined;
+  cmd.model = o.model;
   cmd.json = true;
   cmd.db = undefined;
   return cmd;
@@ -225,7 +225,7 @@ function buildShow(json: boolean): ShowCommand {
 /** Full loop: submit + claim + record a valid report. Returns the job id. */
 async function runFullLoop(
   proj: IProject,
-  o: { action?: string; node?: string; report?: object } = {},
+  o: { action?: string; node?: string; report?: object; model?: string } = {},
 ): Promise<string> {
   const submitCap = captureContext();
   const submitCode = await withCwd(proj.root, async () =>
@@ -239,7 +239,15 @@ async function runFullLoop(
   });
   writeFileSync(join(proj.root, 'report.json'), JSON.stringify(o.report ?? VALID_REPORT));
   const code = await withCwd(proj.root, async () =>
-    run(buildRecord({ id, nonce, report: 'report.json' }), captureContext()),
+    run(
+      buildRecord({
+        id,
+        nonce,
+        report: 'report.json',
+        ...(o.model !== undefined ? { model: o.model } : {}),
+      }),
+      captureContext(),
+    ),
   );
   strictEqual(code, 0, 'record completed');
   return id;
@@ -373,6 +381,47 @@ describe('summarizer detection from the report schema (plugin on-disk path)', ()
       strictEqual(executions.length, 1);
       strictEqual(executions[0]!.status, 'completed');
       ok(executions[0]!.reportJson!.includes('one-line echo'), 'report stored inline');
+    } finally {
+      await adapter.close();
+    }
+  });
+});
+
+describe('summary model attribution (sm record --model)', () => {
+  it('persists the model on state_summaries and renders it on sm show', async () => {
+    const proj = await setupProject();
+    await runFullLoop(proj, { model: 'claude-opus-4-8' });
+
+    const adapter = await openDb(proj.dbPath);
+    try {
+      const rows = await adapter.summaries.forNode(NOTE.path);
+      strictEqual(rows.length, 1);
+      strictEqual(rows[0]!.model, 'claude-opus-4-8', 'state_summaries.model denormalized');
+    } finally {
+      await adapter.close();
+    }
+
+    const human = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      strictEqual(await run(buildShow(false), cap), 0);
+      return cap.stdout();
+    });
+    match(human, /\(claude-opus-4-8\)/, 'summary row carries the model suffix');
+
+    const doc = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      await run(buildShow(true), cap);
+      return JSON.parse(cap.stdout()) as { summaries: Array<{ model: string | null }> };
+    });
+    strictEqual(doc.summaries[0]!.model, 'claude-opus-4-8', 'json carries the field');
+  });
+
+  it('model stays null on the summary when the flag is absent', async () => {
+    const proj = await setupProject();
+    await runFullLoop(proj);
+    const adapter = await openDb(proj.dbPath);
+    try {
+      strictEqual((await adapter.summaries.forNode(NOTE.path))[0]!.model, null);
     } finally {
       await adapter.close();
     }

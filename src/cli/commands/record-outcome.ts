@@ -45,7 +45,7 @@ import { join } from 'node:path';
 import type { ExecutionFailureReason, ExecutionRecord, Job, JobExtensionKind } from '../../kernel/types.js';
 import type { IAction, IAnalyzer } from '../../kernel/extensions/index.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
-import type { IFindingsWriteIntent } from '../../kernel/types/storage.js';
+import type { IFindingsWriteIntent, ISummaryWriteIntent } from '../../kernel/types/storage.js';
 import {
   extensionFindingRows,
   findReservedFindingTypes,
@@ -63,12 +63,16 @@ import { resolveAction, type IActionRuntime } from './action-runtime.js';
 /**
  * Agent-side metrics stamped onto the execution row. Every field is
  * optional: `sm record` fills them from flags, the claim-side corruption
- * path passes none.
+ * path passes none. `model` is the agent's self-reported `--model`
+ * (unverifiable by design, like the token counts); it persists on
+ * `state_executions.model` and is denormalized onto the findings /
+ * summary rows the same record writes.
  */
 export interface IRecordMetrics {
   tokensIn?: number | undefined;
   tokensOut?: number | undefined;
   durationMs?: number | undefined;
+  model?: string | null | undefined;
 }
 
 export interface IResolvedActionRecord {
@@ -285,8 +289,8 @@ export async function recordCompletedOutcome(opts: {
     metrics,
     reportJson,
   });
-  const summary = buildSummaryIntent(job, resolution.record, reportJson, now);
-  const findings = buildFindingsIntent(job, extensionKind, report, now);
+  const summary = buildSummaryIntent(job, resolution.record, reportJson, now, metrics);
+  const findings = buildFindingsIntent(job, extensionKind, report, now, metrics);
   await adapter.jobs.recordTerminal(execution, summary, findings);
   return { kind: 'completed', execution };
 }
@@ -306,7 +310,8 @@ function buildSummaryIntent(
   record: IResolvedExtensionRecord,
   reportJson: string,
   now: number,
-): { summarizerActionId: string; summarizerVersion: string; generatedAt: number; summaryJson: string } | undefined {
+  metrics: IRecordMetrics,
+): ISummaryWriteIntent | undefined {
   if (record.extensionKind !== 'action') return undefined;
   if (summaryKindOfReportSchema(record.schema) === null) return undefined;
   return {
@@ -316,6 +321,8 @@ function buildSummaryIntent(
     summarizerActionId: job.extensionId,
     summarizerVersion: job.extensionVersion,
     generatedAt: now,
+    // Denormalized agent-self-reported model (spec §state_summaries).
+    model: metrics.model ?? null,
     summaryJson: reportJson,
   };
 }
@@ -333,12 +340,15 @@ function buildFindingsIntent(
   extensionKind: JobExtensionKind,
   report: Record<string, unknown>,
   now: number,
+  metrics: IRecordMetrics,
 ): IFindingsWriteIntent {
   return {
     extensionId: job.extensionId,
     extensionVersion: job.extensionVersion,
     generatedAt: now,
     jobId: job.id,
+    // Stamped onto EVERY row, both lanes (spec §state_findings).
+    model: metrics.model ?? null,
     rows: [
       ...(extensionKind === 'analyzer' ? extensionFindingRows(report) : []),
       ...kernelSafetyRows(report),
@@ -410,6 +420,7 @@ function buildExecution(
     durationMs: opts.metrics.durationMs ?? null,
     tokensIn: opts.metrics.tokensIn ?? null,
     tokensOut: opts.metrics.tokensOut ?? null,
+    model: opts.metrics.model ?? null,
     // Domain field name; storage bridges it to the report_json column.
     reportPath: opts.reportJson,
     jobId: job.id,

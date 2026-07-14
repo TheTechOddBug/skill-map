@@ -519,6 +519,8 @@ export interface IStateExecutionsTable {
   durationMs: number | null;
   tokensIn: number | null;
   tokensOut: number | null;
+  /** Agent-self-reported model name (`sm record --model`); NULL when undeclared. */
+  model: string | null;
   /**
    * The report payload the runner returned, stored inline as JSON text
    * (validated against the action's `reportSchemaRef` at ingest time).
@@ -538,6 +540,8 @@ export interface IStateSummariesTable {
   summarizerVersion: string;
   bodyHashAtGeneration: string;
   generatedAt: number;
+  /** Denormalized agent-self-reported model name; NULL when undeclared. */
+  model: string | null;
   summaryJson: string;
 }
 
@@ -570,6 +574,8 @@ export interface IStateFindingsTable {
   message: string;
   detail: string | null;
   confidence: number;
+  /** Denormalized agent-self-reported model name; NULL when undeclared. */
+  model: string | null;
   bodyHashAtGeneration: string;
   generatedAt: number;
   jobId: string | null;

@@ -41,6 +41,7 @@ import type { BaseContext } from 'clipanion';
 import { JobSubmitCommand, JobClaimCommand } from '../job-queue.js';
 import { RecordCommand } from '../record.js';
 import { ShowCommand } from '../show.js';
+import { HistoryCommand } from '../history.js';
 import { SqliteStorageAdapter } from '../../../kernel/adapters/sqlite/index.js';
 import { sha256 } from '../../../kernel/orchestrator/node-build.js';
 import type { IFindingRecord } from '../../../kernel/types/storage.js';
@@ -180,7 +181,7 @@ function buildSubmit(extension: string): JobSubmitCommand {
   return cmd;
 }
 
-function buildRecord(o: { id: string; nonce: string }): RecordCommand {
+function buildRecord(o: { id: string; nonce: string; model?: string }): RecordCommand {
   const cmd = new RecordCommand();
   cmd.id = o.id;
   cmd.nonce = o.nonce;
@@ -190,7 +191,7 @@ function buildRecord(o: { id: string; nonce: string }): RecordCommand {
   cmd.tokensIn = undefined;
   cmd.tokensOut = undefined;
   cmd.durationMs = undefined;
-  cmd.model = undefined;
+  cmd.model = o.model;
   cmd.json = true;
   cmd.db = undefined;
   return cmd;
@@ -220,11 +221,14 @@ async function runFullLoop(
   proj: IProject,
   extension: string,
   report: object,
+  model?: string,
 ): Promise<{ code: number; stderr: string; jobId: string }> {
   const { id, nonce } = await submitAndClaim(proj, extension);
   writeFileSync(join(proj.root, 'report.json'), JSON.stringify(report));
   const cap = captureContext();
-  const code = await withCwd(proj.root, async () => run(buildRecord({ id, nonce }), cap));
+  const code = await withCwd(proj.root, async () =>
+    run(buildRecord({ id, nonce, ...(model !== undefined ? { model } : {}) }), cap),
+  );
   return { code, stderr: cap.stderr(), jobId: id };
 }
 
@@ -478,5 +482,88 @@ describe('sm show Findings section', () => {
       return JSON.parse(cap.stdout()) as { findings: IFindingRecord[] };
     });
     ok(doc.findings.every((f) => f.stale), 'json stale flags flip true');
+  });
+});
+
+describe('model attribution (sm record --model)', () => {
+  const MODEL = 'claude-opus-4-8';
+  const TROUBLED_FINDER_REPORT = {
+    confidence: 0.7,
+    safety: { injectionDetected: true, injectionDetails: 'sneaky', contentQuality: 'clean' },
+    findings: [{ type: 'contradiction', severity: 'warn', message: 'finder row' }],
+  };
+
+  it('persists the self-reported model on the execution AND both finding lanes', async () => {
+    const proj = await setupProject();
+    const { code, jobId } = await runFullLoop(proj, FINDER_ID, TROUBLED_FINDER_REPORT, MODEL);
+    strictEqual(code, 0);
+
+    const adapter = await openDb(proj.dbPath);
+    try {
+      const executions = await adapter.history.list({});
+      strictEqual(executions.length, 1);
+      strictEqual(executions[0]!.model, MODEL, 'state_executions.model persisted');
+      strictEqual(executions[0]!.jobId, jobId);
+
+      const rows = await adapter.findings.list({ nodeId: SKILL.path, includeStale: true });
+      strictEqual(rows.length, 2, 'finder lane + kernel safety lane');
+      ok(
+        rows.every((r) => r.model === MODEL),
+        'model denormalized onto EVERY row, both origins',
+      );
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('sm history --json flows the model field through the mapper', async () => {
+    const proj = await setupProject();
+    await runFullLoop(proj, FINDER_ID, FINDER_REPORT, MODEL);
+
+    const parsed = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const cmd = new HistoryCommand();
+      cmd.node = undefined;
+      cmd.extension = undefined;
+      cmd.status = undefined;
+      cmd.since = undefined;
+      cmd.until = undefined;
+      cmd.limit = undefined;
+      cmd.json = true;
+      cmd.db = undefined;
+      strictEqual(await run(cmd, cap), 0);
+      return JSON.parse(cap.stdout()) as Array<{ model: string | null }>;
+    });
+    strictEqual(parsed[0]!.model, MODEL);
+  });
+
+  it('NULL everywhere when the flag is absent', async () => {
+    const proj = await setupProject();
+    await runFullLoop(proj, FINDER_ID, FINDER_REPORT);
+
+    const adapter = await openDb(proj.dbPath);
+    try {
+      strictEqual((await adapter.history.list({}))[0]!.model, null);
+      const rows = await adapter.findings.list({ nodeId: SKILL.path, includeStale: true });
+      ok(rows.every((r) => r.model === null));
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('sm show renders the model next to the finding row', async () => {
+    const proj = await setupProject();
+    await runFullLoop(proj, FINDER_ID, FINDER_REPORT, MODEL);
+
+    const human = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const cmd = new ShowCommand();
+      cmd.nodePath = SKILL.path;
+      cmd.json = false;
+      cmd.db = undefined;
+      strictEqual(await run(cmd, cap), 0);
+      return cap.stdout();
+    });
+    match(human, /\(claude-opus-4-8\)/, 'findings section carries the model suffix');
   });
 });

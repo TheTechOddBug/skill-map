@@ -81,6 +81,8 @@ export interface ISummaryRecord {
   summarizerVersion: string;
   bodyHashAtGeneration: string;
   generatedAt: number;
+  /** Recording agent's self-reported model; `null` when undeclared. */
+  model: string | null;
   report: Record<string, unknown>;
 }
 
@@ -97,6 +99,8 @@ export interface ISummaryWriteIntent {
   summarizerActionId: string;
   summarizerVersion: string;
   generatedAt: number;
+  /** Agent-self-reported `--model`; `null` when undeclared. */
+  model: TReportedModel;
   summaryJson: string;
 }
 
@@ -116,6 +120,9 @@ export interface IFindingRowInput {
   confidence: number;
 }
 
+/** Recording agent's self-reported model id; `null` when undeclared. */
+export type TReportedModel = string | null;
+
 /**
  * Write intent handed to `port.jobs.recordTerminal(execution, summary?,
  * findings?)` when the recorded job is a probabilistic extension whose
@@ -134,6 +141,11 @@ export interface IFindingsWriteIntent {
   extensionVersion: string;
   generatedAt: number;
   jobId: string | null;
+  /**
+   * Agent-self-reported `--model` of the recording callback, stamped
+   * onto EVERY row of the intent (both lanes); `null` when undeclared.
+   */
+  model: TReportedModel;
   rows: IFindingRowInput[];
 }
 
@@ -154,6 +166,8 @@ export interface IFindingRecord {
   message: string;
   detail: string | null;
   confidence: number;
+  /** Recording agent's self-reported model; `null` when undeclared. */
+  model: string | null;
   bodyHashAtGeneration: string;
   generatedAt: number;
   jobId: string | null;

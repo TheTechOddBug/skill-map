@@ -36,6 +36,13 @@ export const FINDINGS_CLI_TEXTS = {
   findingRow: '    {{glyph}}  {{extensionId}}  {{type}}  {{message}}  {{confidence}}{{staleTag}}\n',
   /** Confidence column value, composed dim at the call site. */
   confidenceValue: '({{percent}}%)',
+  /**
+   * Confidence column value when the recording agent declared a model
+   * (`sm record --model`): the self-reported model id rides alongside
+   * the percentage. Middle dot separator, mirror of `sm check`'s
+   * summary joiner.
+   */
+  confidenceWithModelValue: '({{percent}}% · {{model}})',
   /** Marker appended (yellow) to a stale row when `--stale` includes it. */
   staleTag: '  (stale)',
   /**

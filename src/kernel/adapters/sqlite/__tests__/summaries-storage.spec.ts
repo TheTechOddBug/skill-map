@@ -141,6 +141,7 @@ function summaryIntent(): ISummaryWriteIntent {
     summarizerActionId: ACTION_ID,
     summarizerVersion: '1.0.0',
     generatedAt: 2000,
+    model: 'claude-opus-4-8',
     summaryJson: JSON.stringify(REPORT),
   };
 }
@@ -164,6 +165,7 @@ describe('upsertSummary + listSummariesForNode', () => {
         summarizerVersion: '1.0.0',
         bodyHashAtGeneration: BODY_HASH,
         generatedAt: 1000,
+        model: null,
         summaryJson: JSON.stringify({ whatItCovers: 'first' }),
       };
       await upsertSummary(adapter.db, base);

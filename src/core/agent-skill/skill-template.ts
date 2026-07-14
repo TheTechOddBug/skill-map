@@ -63,6 +63,10 @@ Repeat until the queue is empty:
 
    \`sm record --id <id> --nonce <nonce> --status completed --report -\`
 
+   Always add \`--model <model-id>\` declaring the model you actually
+   ran; skill-map stores it with the analysis so every judgment answers
+   "which model, when".
+
    - Exit 0: job closed; continue with the next claim.
    - Exit 4: id/nonce pair mismatch; re-check them against the claim
      output, never invent or reuse a nonce.

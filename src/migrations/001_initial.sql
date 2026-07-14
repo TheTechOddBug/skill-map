@@ -225,6 +225,12 @@ CREATE TABLE state_executions (
   duration_ms INTEGER,
   tokens_in INTEGER,
   tokens_out INTEGER,
+  -- Executing model's name as SELF-REPORTED by the recording agent via
+  -- `sm record --model <name>` (unverifiable by design, like the token
+  -- counts; NULL when undeclared). Denormalized onto
+  -- `state_findings.model` / `state_summaries.model` at record time for
+  -- join-free display (spec/db-schema.md §state_executions).
+  model TEXT,
   report_json TEXT,
   job_id TEXT,
   CONSTRAINT ck_state_executions_kind CHECK (kind IN ('action')),
@@ -243,6 +249,9 @@ CREATE TABLE state_summaries (
   summarizer_version TEXT NOT NULL,
   body_hash_at_generation TEXT NOT NULL,
   generated_at INTEGER NOT NULL,
+  -- Recording agent's self-reported `--model` (NULL when undeclared),
+  -- denormalized from the same record's execution row.
+  model TEXT,
   summary_json TEXT NOT NULL,
   PRIMARY KEY (node_id, summarizer_action_id)
 );
@@ -280,6 +289,9 @@ CREATE TABLE state_findings (
   message TEXT NOT NULL,
   detail TEXT,
   confidence REAL NOT NULL,
+  -- Recording agent's self-reported `--model` (NULL when undeclared),
+  -- denormalized from the same record's execution row.
+  model TEXT,
   body_hash_at_generation TEXT NOT NULL,
   generated_at INTEGER NOT NULL,
   job_id TEXT,
