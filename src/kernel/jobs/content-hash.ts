@@ -63,20 +63,37 @@ function sha256Hex(data: string): string {
 
 /**
  * `promptTemplateHash` = sha256 of the kernel-authored prelude: the
- * canonical preamble, the raw extension template (`prompt.md`), and the
- * report-contract section, concatenated in that fixed order. Direct
- * concatenation, no separator: the fixed order keeps it deterministic.
- * Folding the whole prelude in is the point (see file docstring): a
- * preamble bump OR a report-schema edit changes this hash and therefore
- * the downstream `contentHash`.
+ * canonical preamble, the raw extension template (`prompt.md`), the
+ * findings-to-resolve section (fixer jobs ONLY, `findings-injection.ts`),
+ * and the report-contract section, concatenated in that fixed order
+ * (`spec/prompt-preamble.md`: "the preamble + extension template + the
+ * findings-to-resolve section for fixer jobs + report-contract blocks").
+ * Direct concatenation, no separator: the fixed order keeps it
+ * deterministic. Folding the whole prelude in is the point (see file
+ * docstring): a preamble bump, a report-schema edit, OR a changed finding
+ * set changes this hash and therefore the downstream `contentHash`.
+ *
+ * NON-FIXER invariant: `findingsSection` is absent (undefined) for every
+ * non-fixer job, so it folds in as the empty string and the concatenation
+ * reduces to `preamble + template + reportContract`, byte-for-byte the
+ * pre-fixer formula. A non-fixer's `promptTemplateHash` (and hence its
+ * `contentHash`) is therefore UNCHANGED by the fixer feature.
  */
 export function computePromptTemplateHash(input: {
   preamble: string;
   template: string;
+  /**
+   * Rendered findings-to-resolve section (`findings-injection.ts`).
+   * Present ONLY for fixer jobs; absent (folds in as `''`) otherwise, so
+   * non-fixer hashes stay byte-identical to the pre-fixer formula.
+   */
+  findingsSection?: string;
   /** Rendered report-contract section (`report-contract.ts`). */
   reportContract: string;
 }): string {
-  return sha256Hex(input.preamble + input.template + input.reportContract);
+  return sha256Hex(
+    input.preamble + input.template + (input.findingsSection ?? '') + input.reportContract,
+  );
 }
 
 /**

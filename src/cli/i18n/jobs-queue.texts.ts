@@ -35,6 +35,12 @@ export const JOBS_QUEUE_TEXTS = {
   submitReadNotOnDisk: 'file missing or not readable as a node',
   submitErrBadTtl: '--ttl must be an integer number of seconds, got {{value}}',
   submitErrBadPriority: '--priority must be an integer, got {{value}}',
+  // Fixer refusal (`spec/job-lifecycle.md` §Findings injection for fixers):
+  // a probabilistic Action declaring `precondition.analyzerIds` submitted
+  // over a node with no current non-stale matching findings has nothing to
+  // fix, so submit refuses (exit 2) instead of rendering an empty section.
+  submitErrNoFindings:
+    'no findings to resolve for {{finders}} on {{node}}; run the finder first, or the node changed since it ran',
 
   // --- submit: human summary lines ---------------------------------------
   submitQueuedLine: '{{glyph}}  queued {{id}}  {{node}}\n',
@@ -44,6 +50,8 @@ export const JOBS_QUEUE_TEXTS = {
     '{{glyph}}  drift: {{node}} changed on disk since the last scan (run sm scan)\n',
   submitUnreadableLine:
     '{{glyph}}  unreadable: {{node}} cannot be read from disk ({{detail}})\n',
+  submitNoFindingsLine:
+    '{{glyph}}  no findings: {{node}} has no {{finders}} findings to resolve\n',
   submitAllSummary:
     '{{glyph}}  submitted {{submitted}}, refused {{refused}} (of {{total}} matching node(s))\n',
   submitAllNoMatch: '{{glyph}}  no nodes match the precondition for {{extension}}\n',

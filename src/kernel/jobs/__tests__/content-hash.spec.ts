@@ -132,3 +132,71 @@ describe('computePromptTemplateHash', () => {
     notStrictEqual(a, b);
   });
 });
+
+describe('computePromptTemplateHash, fixer findings section', () => {
+  const PREAMBLE = 'PREAMBLE\n';
+  const TEMPLATE = 'Summarize {{userContent}}.';
+  const CONTRACT = '## Report contract\n\n```json\n{}\n```';
+  const FINDINGS = '## Findings to resolve\n\n```json\n[]\n```';
+
+  // Frozen pre-fixer digest of `PREAMBLE + TEMPLATE + CONTRACT` (the exact
+  // formula before the findings section existed). A NON-FIXER job carries
+  // NO findings section, so its `promptTemplateHash` MUST stay byte-identical
+  // to this literal, proving the fixer feature did not silently re-key every
+  // existing job (which would strand every prior `state_job_contents` row).
+  const PRE_FIXER_HASH = 'ac1ac673f2590794e1a014f8e0fe732e9a42d673ed77ddc6f48771c0c6d5038d';
+
+  it('non-fixer hash (no findings section) is byte-identical to the pre-fixer formula', () => {
+    strictEqual(
+      computePromptTemplateHash({ preamble: PREAMBLE, template: TEMPLATE, reportContract: CONTRACT }),
+      PRE_FIXER_HASH,
+    );
+  });
+
+  it('an absent findings section equals an empty-string findings section', () => {
+    const absent = computePromptTemplateHash({
+      preamble: PREAMBLE,
+      template: TEMPLATE,
+      reportContract: CONTRACT,
+    });
+    const empty = computePromptTemplateHash({
+      preamble: PREAMBLE,
+      template: TEMPLATE,
+      findingsSection: '',
+      reportContract: CONTRACT,
+    });
+    strictEqual(absent, empty);
+    strictEqual(empty, PRE_FIXER_HASH);
+  });
+
+  it('a non-empty findings section re-keys the hash (a fixer is a distinct content row)', () => {
+    const withFindings = computePromptTemplateHash({
+      preamble: PREAMBLE,
+      template: TEMPLATE,
+      findingsSection: FINDINGS,
+      reportContract: CONTRACT,
+    });
+    notStrictEqual(withFindings, PRE_FIXER_HASH);
+    // Folds in the spec order: preamble + template + findings + contract.
+    const expected = createHash('sha256')
+      .update(PREAMBLE + TEMPLATE + FINDINGS + CONTRACT, 'utf8')
+      .digest('hex');
+    strictEqual(withFindings, expected);
+  });
+
+  it('a changed finding set changes the hash (re-run after re-judge is a new job)', () => {
+    const a = computePromptTemplateHash({
+      preamble: PREAMBLE,
+      template: TEMPLATE,
+      findingsSection: '## Findings to resolve\n\n```json\n[{"type":"redundancy"}]\n```',
+      reportContract: CONTRACT,
+    });
+    const b = computePromptTemplateHash({
+      preamble: PREAMBLE,
+      template: TEMPLATE,
+      findingsSection: '## Findings to resolve\n\n```json\n[{"type":"redundancy"},{"type":"redundancy"}]\n```',
+      reportContract: CONTRACT,
+    });
+    notStrictEqual(a, b);
+  });
+});

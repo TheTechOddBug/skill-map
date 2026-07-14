@@ -47,6 +47,11 @@ export {
   type IReportContractInput,
 } from './report-contract.js';
 export {
+  buildFindingsSection,
+  selectFixerFindings,
+  type IFixerFindingProjection,
+} from './findings-injection.js';
+export {
   InvalidTtlError,
   InvalidPriorityError,
   JobNotRunningError,

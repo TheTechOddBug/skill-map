@@ -52,6 +52,7 @@ import type { StoragePort } from '../../kernel/ports/storage.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import type { IJobsConfig } from '../../kernel/config/loader.js';
 import {
+  buildFindingsSection,
   computeContentHash,
   computePromptTemplateHash,
   generateJobId,
@@ -65,6 +66,7 @@ import {
   resolvePriority,
   resolveSubmitTarget,
   resolveTtl,
+  selectFixerFindings,
   unescapeUserContentClose,
 } from '../../kernel/jobs/index.js';
 import { sha256 } from '../../kernel/orchestrator/node-build.js';
@@ -189,6 +191,33 @@ async function readNodeBodyVerified(
   return { kind: 'ok', body: raw.body };
 }
 
+/**
+ * The fixer's `precondition.analyzerIds` when the submit target is a
+ * probabilistic Action declaring a NON-EMPTY list (a FIXER,
+ * `spec/job-lifecycle.md` §Findings injection for fixers); `undefined`
+ * otherwise (a finder Analyzer, or an Action without `analyzerIds`, renders
+ * as today). `analyzerIds` lives only on `IActionPrecondition`, so a finder
+ * never reaches the cast.
+ */
+function fixerAnalyzerIds(
+  extensionKind: JobExtensionKind,
+  extension: TQueueableExtension,
+): readonly string[] | undefined {
+  if (extensionKind !== 'action') return undefined;
+  const ids = (extension as IAction).precondition?.analyzerIds;
+  return ids !== undefined && ids.length > 0 ? ids : undefined;
+}
+
+/**
+ * Comma-joined finder ids of a fixer submit, for the no-findings advisory
+ * (`spec/job-lifecycle.md` §Findings injection for fixers). Empty string
+ * when the submit is not a fixer (never reached, the no-findings outcome
+ * only arises for fixers).
+ */
+function fixerFindersLabel(prepared: ISubmitContext): string {
+  return (prepared.analyzerIds ?? []).join(', ');
+}
+
 /** Detect a SQLite UNIQUE-constraint failure (the partial-index backstop). */
 function isUniqueConstraintError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
@@ -226,7 +255,13 @@ type TSubmitOutcome =
   /** On-disk body no longer matches the scanned hash (exit 2 single-target). */
   | { kind: 'drift'; nodeId: string }
   /** Node file missing / unreadable at submit (exit 2 single-target). */
-  | { kind: 'unreadable'; nodeId: string; detail: string };
+  | { kind: 'unreadable'; nodeId: string; detail: string }
+  /**
+   * Fixer submitted over a node with no current non-stale matching
+   * findings (exit 2 single-target, per-node non-fatal in `--all`);
+   * `spec/job-lifecycle.md` §Findings injection for fixers.
+   */
+  | { kind: 'no-findings'; nodeId: string };
 
 interface ISubmitContext {
   extensionId: string;
@@ -247,6 +282,16 @@ interface ISubmitContext {
    */
   reportContract: string;
   promptTemplateHash: string;
+  /**
+   * The fixer's declared `precondition.analyzerIds` when the submit target
+   * is a probabilistic Action that declares a non-empty list (a FIXER,
+   * `spec/job-lifecycle.md` §Findings injection for fixers); `undefined`
+   * for non-fixer submits (a finder Analyzer or an Action without
+   * `analyzerIds`). When set, `submitOneJob` selects the node's current
+   * non-stale findings for these ids and injects them, re-keying the
+   * content per node; `undefined` leaves the render exactly as before.
+   */
+  analyzerIds: readonly string[] | undefined;
   /** Optional operator-armed TTL; `null` = never expires (the default). */
   ttlSeconds: number | null;
   priority: number;
@@ -483,9 +528,18 @@ export class JobSubmitCommand extends SmCommand {
       promptTemplate,
       preamble,
       reportContract,
+      // Fixer detection (`spec/job-lifecycle.md` §Findings injection for
+      // fixers): non-undefined ONLY for a probabilistic Action whose
+      // `precondition.analyzerIds` is non-empty. A finder Analyzer, or an
+      // Action without `analyzerIds`, threads `undefined` and renders as
+      // today.
+      analyzerIds: fixerAnalyzerIds(resolved.extensionKind, extension),
       // The whole kernel-authored prelude hashes (spec/prompt-preamble.md):
       // preamble + template + report-contract blocks, so a schema edit
-      // re-keys the content exactly like a template edit does.
+      // re-keys the content exactly like a template edit does. For a FIXER
+      // the findings-to-resolve section folds in too, but it varies per
+      // node, so `submitOneJob` recomputes this hash per node; the base
+      // value here (no findings section) is the non-fixer hash.
       promptTemplateHash: computePromptTemplateHash({
         preamble,
         template: promptTemplate,
@@ -571,7 +625,7 @@ export class JobSubmitCommand extends SmCommand {
       return this.fail(tx(T.submitErrNodeVirtual, { node: path }));
     }
     const outcome = await submitOneJob(adapter, bundle.node, prepared);
-    return this.reportSingle(adapter, outcome);
+    return this.reportSingle(adapter, outcome, prepared);
   }
 
   /** `--all` path: fan out over precondition-matching non-virtual nodes. */
@@ -588,12 +642,16 @@ export class JobSubmitCommand extends SmCommand {
     for (const node of targets) {
       outcomes.push(await submitOneJob(adapter, node, prepared));
     }
-    return this.reportAll(outcomes, targets.length);
+    return this.reportAll(outcomes, targets.length, prepared);
   }
 
   // --- output --------------------------------------------------------------
 
-  private async reportSingle(adapter: StoragePort, outcome: TSubmitOutcome): Promise<TExitCode> {
+  private async reportSingle(
+    adapter: StoragePort,
+    outcome: TSubmitOutcome,
+    prepared: ISubmitContext,
+  ): Promise<TExitCode> {
     if (outcome.kind === 'duplicate') {
       if (this.json) {
         this.printer!.data(
@@ -616,6 +674,16 @@ export class JobSubmitCommand extends SmCommand {
         tx(T.submitErrNodeUnreadable, { node: outcome.nodeId, detail: outcome.detail }),
       );
     }
+    // Fixer with no matching findings: refuse (exit 2) with the finder-first
+    // advisory (spec §Findings injection for fixers).
+    if (outcome.kind === 'no-findings') {
+      return this.fail(
+        tx(T.submitErrNoFindings, {
+          finders: fixerFindersLabel(prepared),
+          node: outcome.nodeId,
+        }),
+      );
+    }
     if (this.json) {
       const job = await adapter.jobs.get(outcome.id);
       this.printer!.data(JSON.stringify(job) + '\n');
@@ -625,7 +693,11 @@ export class JobSubmitCommand extends SmCommand {
     return ExitCode.Ok;
   }
 
-  private reportAll(outcomes: readonly TSubmitOutcome[], total: number): TExitCode {
+  private reportAll(
+    outcomes: readonly TSubmitOutcome[],
+    total: number,
+    prepared: ISubmitContext,
+  ): TExitCode {
     const submitted = outcomes.filter((o) => o.kind === 'created');
     const refused = outcomes.filter(
       (o): o is Exclude<TSubmitOutcome, { kind: 'created' }> => o.kind !== 'created',
@@ -650,7 +722,7 @@ export class JobSubmitCommand extends SmCommand {
       );
     }
     for (const o of refused) {
-      this.printer!.info(this.toRefusedLine(o));
+      this.printer!.info(this.toRefusedLine(o, prepared));
     }
     this.printer!.info(
       tx(T.submitAllSummary, {
@@ -671,11 +743,17 @@ export class JobSubmitCommand extends SmCommand {
     if (o.kind === 'unreadable') {
       return { nodeId: o.nodeId, reason: 'unreadable', detail: o.detail };
     }
+    if (o.kind === 'no-findings') {
+      return { nodeId: o.nodeId, reason: 'no-findings' };
+    }
     return { nodeId: o.nodeId, reason: 'drift' };
   }
 
   /** Per-node refusal line for the `--all` human summary. */
-  private toRefusedLine(o: Exclude<TSubmitOutcome, { kind: 'created' }>): string {
+  private toRefusedLine(
+    o: Exclude<TSubmitOutcome, { kind: 'created' }>,
+    prepared: ISubmitContext,
+  ): string {
     if (o.kind === 'duplicate') {
       return tx(T.submitDuplicateLine, { glyph: this.warnGlyph(), id: o.existingId, node: o.nodeId });
     }
@@ -684,6 +762,13 @@ export class JobSubmitCommand extends SmCommand {
         glyph: this.warnGlyph(),
         node: o.nodeId,
         detail: o.detail,
+      });
+    }
+    if (o.kind === 'no-findings') {
+      return tx(T.submitNoFindingsLine, {
+        glyph: this.warnGlyph(),
+        node: o.nodeId,
+        finders: fixerFindersLabel(prepared),
       });
     }
     return tx(T.submitDriftLine, { glyph: this.warnGlyph(), node: o.nodeId });
@@ -710,48 +795,60 @@ export class JobSubmitCommand extends SmCommand {
 }
 
 /**
- * Submit exactly one job for `node`. Duplicate pre-check first (skipped by
- * `--force`), then the on-disk read + drift verification
- * (`spec/job-lifecycle.md` §Submit step 8, NEVER skipped), then render +
- * submit in one transaction. A UNIQUE index violation (the hard backstop
- * `--force` cannot defeat) is surfaced as a duplicate too.
+ * Per-node render inputs, resolved AFTER the fixer selection: the (optional)
+ * findings-to-resolve section and the `promptTemplateHash` that keys the
+ * content. `'no-findings'` is a refusal (a fixer over a node with no
+ * matching findings).
  */
-async function submitOneJob(
+type TJobRenderInputs =
+  | 'no-findings'
+  | { findingsSection: string | undefined; promptTemplateHash: string };
+
+/**
+ * Resolve the per-node render inputs. Non-fixer submits (`analyzerIds`
+ * undefined) reuse the precomputed base `promptTemplateHash` and inject no
+ * section, byte-identical to before the fixer feature. A FIXER
+ * (`spec/job-lifecycle.md` §Findings injection for fixers) selects THIS
+ * node's current non-stale extension-lane findings for its analyzers: an
+ * empty selection refuses (`'no-findings'`), a non-empty one renders the
+ * `## Findings to resolve` section and folds it into a per-node
+ * `promptTemplateHash` so a changed finding set is a distinct job.
+ */
+async function resolveJobRenderInputs(
   adapter: StoragePort,
   node: Node,
   prepared: ISubmitContext,
+): Promise<TJobRenderInputs> {
+  if (prepared.analyzerIds === undefined) {
+    return { findingsSection: undefined, promptTemplateHash: prepared.promptTemplateHash };
+  }
+  const nodeFindings = await adapter.findings.list({ nodeId: node.path });
+  const selected = selectFixerFindings(nodeFindings, prepared.analyzerIds);
+  if (selected.length === 0) return 'no-findings';
+  const findingsSection = buildFindingsSection(selected);
+  return {
+    findingsSection,
+    promptTemplateHash: computePromptTemplateHash({
+      preamble: prepared.preamble,
+      template: prepared.promptTemplate,
+      findingsSection,
+      reportContract: prepared.reportContract,
+    }),
+  };
+}
+
+/**
+ * Insert the queued row + its content in one transaction. A UNIQUE index
+ * violation (the hard backstop `--force` cannot defeat) is surfaced as a
+ * duplicate too.
+ */
+async function insertJobRow(
+  adapter: StoragePort,
+  node: Node,
+  prepared: ISubmitContext,
+  contentHash: string,
+  content: string,
 ): Promise<TSubmitOutcome> {
-  const contentHash = computeContentHash({
-    extensionId: prepared.extensionId,
-    extensionVersion: prepared.extensionVersion,
-    nodePath: node.path,
-    bodyHash: node.bodyHash,
-    frontmatterHash: node.frontmatterHash,
-    promptTemplateHash: prepared.promptTemplateHash,
-  });
-
-  if (!prepared.force) {
-    const existing = await adapter.jobs.findActiveDuplicate(
-      prepared.extensionId,
-      prepared.extensionVersion,
-      node.path,
-      contentHash,
-    );
-    if (existing) return { kind: 'duplicate', nodeId: node.path, existingId: existing };
-  }
-
-  const read = await readNodeBodyVerified(prepared.cwd, node, prepared.providers);
-  if (read.kind === 'drift') return { kind: 'drift', nodeId: node.path };
-  if (read.kind === 'unreadable') {
-    return { kind: 'unreadable', nodeId: node.path, detail: read.detail };
-  }
-  const content = renderJobContent({
-    node,
-    nodeBody: read.body,
-    promptTemplate: prepared.promptTemplate,
-    preamble: prepared.preamble,
-    reportContract: prepared.reportContract,
-  });
   const now = Date.now();
   const id = generateJobId();
   const row = {
@@ -780,6 +877,55 @@ async function submitOneJob(
     );
     return { kind: 'duplicate', nodeId: node.path, existingId: existing ?? id };
   }
+}
+
+/**
+ * Submit exactly one job for `node`. Fixer findings selection + refusal
+ * first (`spec/job-lifecycle.md` §Findings injection for fixers), then the
+ * duplicate pre-check (skipped by `--force`), then the on-disk read + drift
+ * verification (§Submit step 8, NEVER skipped), then render + insert.
+ */
+async function submitOneJob(
+  adapter: StoragePort,
+  node: Node,
+  prepared: ISubmitContext,
+): Promise<TSubmitOutcome> {
+  const inputs = await resolveJobRenderInputs(adapter, node, prepared);
+  if (inputs === 'no-findings') return { kind: 'no-findings', nodeId: node.path };
+
+  const contentHash = computeContentHash({
+    extensionId: prepared.extensionId,
+    extensionVersion: prepared.extensionVersion,
+    nodePath: node.path,
+    bodyHash: node.bodyHash,
+    frontmatterHash: node.frontmatterHash,
+    promptTemplateHash: inputs.promptTemplateHash,
+  });
+
+  if (!prepared.force) {
+    const existing = await adapter.jobs.findActiveDuplicate(
+      prepared.extensionId,
+      prepared.extensionVersion,
+      node.path,
+      contentHash,
+    );
+    if (existing) return { kind: 'duplicate', nodeId: node.path, existingId: existing };
+  }
+
+  const read = await readNodeBodyVerified(prepared.cwd, node, prepared.providers);
+  if (read.kind === 'drift') return { kind: 'drift', nodeId: node.path };
+  if (read.kind === 'unreadable') {
+    return { kind: 'unreadable', nodeId: node.path, detail: read.detail };
+  }
+  const content = renderJobContent({
+    node,
+    nodeBody: read.body,
+    promptTemplate: prepared.promptTemplate,
+    preamble: prepared.preamble,
+    ...(inputs.findingsSection !== undefined ? { findingsSection: inputs.findingsSection } : {}),
+    reportContract: prepared.reportContract,
+  });
+  return insertJobRow(adapter, node, prepared, contentHash, content);
 }
 
 // ---------------------------------------------------------------------------

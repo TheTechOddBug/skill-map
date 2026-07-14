@@ -147,6 +147,16 @@ export interface IRenderJobContentInput {
    */
   preamble?: string;
   /**
+   * Rendered findings-to-resolve section (`buildFindingsSection`). Present
+   * ONLY for fixer jobs (probabilistic Actions declaring
+   * `precondition.analyzerIds`). When present it is inserted at the
+   * placeholder seam BEFORE the report contract, so the render order is
+   * template-prose, findings, report-contract, `<user-content>` block. It
+   * is kernel-authored prelude, never user content, so it stays outside the
+   * delimiter. Absent on non-fixer / legacy callers.
+   */
+  findingsSection?: string;
+  /**
    * Rendered report-contract section (`buildReportContract`). When
    * present it is inserted at the placeholder seam, immediately before
    * the `<user-content>` block, so the schema chain sits outside the
@@ -167,11 +177,16 @@ export function renderJobContent(input: IRenderJobContentInput): string {
   validateTemplate(input.promptTemplate);
   const preamble = input.preamble ?? loadCanonicalPreamble();
   const block = wrapUserContent(input.node.path, input.nodeBody);
-  // The report contract expands WITH the placeholder so it lands right
-  // before the `<user-content>` block (and outside it), per
-  // `spec/job-lifecycle.md` §Submit step 9.
-  const expansion =
-    input.reportContract !== undefined ? `${input.reportContract}\n\n${block}` : block;
+  // The kernel-authored prelude expands WITH the placeholder so it lands
+  // right before the `<user-content>` block (and outside it), per
+  // `spec/job-lifecycle.md` §Submit step 9 + §Findings injection for
+  // fixers. Order: findings-to-resolve (fixer only), then report contract,
+  // then the user-content block.
+  const parts: string[] = [];
+  if (input.findingsSection !== undefined) parts.push(input.findingsSection);
+  if (input.reportContract !== undefined) parts.push(input.reportContract);
+  parts.push(block);
+  const expansion = parts.join('\n\n');
   const rendered = input.promptTemplate.split(USER_CONTENT_PLACEHOLDER).join(expansion);
   // The preamble fixture already ends with a trailing newline; the extra
   // `\n` yields one blank line between it and the action template.
